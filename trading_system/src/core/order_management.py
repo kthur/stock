@@ -1,10 +1,11 @@
 """Order Management System - 주문 처리 및 관리"""
 
+import logging
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Callable
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -76,18 +77,18 @@ class OrderManagementSystem:
         self.logger.info(f"Order created: {order.order_id} {order_type.value} {symbol} x{quantity}")
         return order
     
-    def submit_order(self, order: Order) -> bool:
+    async def submit_order(self, order: Order) -> bool:
         """주문 제출"""
         if order.order_id not in self.orders:
             self.logger.error(f"Order not found: {order.order_id}")
             return False
         
         order.status = OrderStatus.SUBMITTED
-        self._notify_subscribers(order)
+        await self._notify_subscribers_async(order)
         self.logger.info(f"Order submitted: {order.order_id}")
         return True
     
-    def execute_order(self, order_id: str, filled_quantity: int | None = None) -> bool:
+    async def execute_order(self, order_id: str, filled_quantity: int | None = None) -> bool:
         """주문 체결"""
         if order_id not in self.orders:
             self.logger.error(f"Order not found: {order_id}")
@@ -110,11 +111,11 @@ class OrderManagementSystem:
         else:
             order.status = OrderStatus.PARTIALLY_FILLED
         
-        self._notify_subscribers(order)
+        await self._notify_subscribers_async(order)
         self.logger.info(f"Order executed: {order_id} filled={filled_quantity}")
         return True
     
-    def cancel_order(self, order_id: str) -> bool:
+    async def cancel_order(self, order_id: str) -> bool:
         """주문 취소"""
         if order_id not in self.orders:
             self.logger.error(f"Order not found: {order_id}")
@@ -127,7 +128,7 @@ class OrderManagementSystem:
             return False
         
         order.status = OrderStatus.CANCELLED
-        self._notify_subscribers(order)
+        await self._notify_subscribers_async(order)
         self.logger.info(f"Order cancelled: {order_id}")
         return True
     
@@ -160,10 +161,14 @@ class OrderManagementSystem:
             history = [o for o in history if o.symbol == symbol]
         return history
     
-    def _notify_subscribers(self, order: Order):
-        """구독자에게 알림"""
+    async def _notify_subscribers_async(self, order: Order):
+        """구독자에게 비동기 알림"""
         for callback in self.subscribers:
             try:
-                callback(order)
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(order)
+                else:
+                    callback(order)
             except Exception as e:
                 self.logger.error(f"Subscriber callback error: {e}")
+

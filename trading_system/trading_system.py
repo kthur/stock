@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 import sys
+import asyncio
 from pathlib import Path
 
 # 프로젝트 경로 추가
@@ -28,6 +29,8 @@ from src.broker import KiwoomConnector, MultiBrokerManager, BrokerType
 from src.strategy import InvestorStrategyEngine
 from src.ai import LLMEngine
 from src.telegram_bot import TelegramBotEngine
+from src.config import TradingConfig
+from src.core.factory import SystemFactory
 
 # 로깅 설정
 logging.basicConfig(
@@ -40,54 +43,41 @@ logger = logging.getLogger(__name__)
 class StockTradingSystem:
     """메인 주식 트레이딩 시스템"""
     
-    def __init__(self, initial_cash: float = 1000000):
+    def __init__(self, initial_cash: float = 1000000, config: TradingConfig = None, components: Dict = None):
         """
         시스템 초기화
         
         Args:
-            initial_cash: 초기 자본금
+            initial_cash: 초기 자본금 (기존 호환성 유지)
+            config: 시스템 설정
+            components: 주입될 컴포넌트 딕셔너리
         """
-        # 데이터 레이어
-        self.market_data_handler = MarketDataHandler()
-        self.nlp_engine = NLPEngine()
+        if config is None:
+            config = TradingConfig(initial_cash=initial_cash)
+        self.config = config
         
-        # 자산 관리
-        self.portfolio = PortfolioManager(initial_cash=initial_cash)
-        self.account_sync = AccountSyncAgent(self.portfolio)
+        self.comp = components or SystemFactory.create_default_components(self.config.initial_cash)
+        # 컴포넌트 매핑
+        self.market_data_handler = self.comp['market_data']
+        self.nlp_engine = self.comp['nlp']
+        self.portfolio = self.comp['portfolio']
+        self.account_sync = AccountSyncAgent(self.portfolio) # Factory에서 생성할 수도 있음
+        self.strategy_engine = self.comp['strategy']
+        self.optimization_engine = self.comp['optimization']
+        self.order_management = self.comp['order_mgmt']
+        self.trade_logger = self.comp['logger']
+        self.asset_history = self.comp['db']
+        self.risk_manager = self.comp['risk']
+        self.backtest_engine = self.comp['backtest']
+        self.statistics = self.comp['stats']
+        self.error_handler = self.comp['error_handler']
+        self.broker = self.comp['broker']
+        self.multi_broker_manager = self.comp['multi_broker']
+        self.investor_strategy_engine = self.comp['investor_strategy']
+        self.llm_engine = self.comp['llm']
         
-        # 전략 및 주문
-        self.strategy_engine = HybridStrategyEngine()
-        self.optimization_engine = OptimizationEngine(self.strategy_engine)
-        self.order_management = OrderManagementSystem()
-        
-        # 지속성
-        self.trade_logger = TradeLogger()
-        self.asset_history = AssetHistoryDB()
-        
-        # 위험 관리
-        self.risk_manager = RiskManager(portfolio_value=initial_cash)
-        
-        # 분석 도구
-        self.backtest_engine = BacktestEngine(initial_capital=initial_cash)
-        self.statistics = AdvancedStatistics()
-        
-        # 에러 처리
-        self.error_handler = ErrorHandler(max_retries=3)
-        
-        # 증권사 연동
-        self.broker = KiwoomConnector()
-        self.multi_broker_manager = MultiBrokerManager()  # 다중 증권사 관리자
-        
-        # 유명인 전략 엔진
-        self.investor_strategy_engine = InvestorStrategyEngine()
-        
-        # AI/LLM 엔진
-        self.llm_engine = LLMEngine()
-        
-        # 웹 대시보드
+        # 시스템 인스턴스 의존성 설정
         self.dashboard = WebDashboard(self)
-        
-        # 텔레그램 봇
         self.telegram_bot = TelegramBotEngine(trading_system=self)
         
         # 시스템 상태
@@ -96,7 +86,7 @@ class StockTradingSystem:
         self.ai_opinions_cache: Dict = {}  # AI 의견 캐시
         self.investor_opinions_cache: Dict = {}  # 투자자 의견 캐시
         
-        logger.info(f"Trading system initialized with ${initial_cash:,}")
+        logger.info(f"Trading system initialized with ${self.config.initial_cash:,}")
         
         # 콜백 등록
         self._setup_callbacks()
@@ -158,11 +148,15 @@ class StockTradingSystem:
         quantity = 10
         
         order = self.order_management.create_order(symbol, order_type, quantity, price)
-        self.order_management.submit_order(order)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.order_management.submit_order(order))
+        except RuntimeError:
+            asyncio.run(self.order_management.submit_order(order))
         
         logger.info(f"Order created and submitted: {order.order_id}")
     
-    def simulate_trading_day(self, symbol: str = "AAPL"):
+    async def simulate_trading_day(self, symbol: str = "AAPL"):
         """하루 거래 시뮬레이션"""
         logger.info(f"=== Simulating trading day for {symbol} ===")
         
@@ -201,7 +195,7 @@ class StockTradingSystem:
                 
                 # 주문 실행 시뮬레이션
                 if result.signal in [TradeSignal.BUY, TradeSignal.SELL]:
-                    self._simulate_order_execution()
+                    await self._simulate_order_execution()
         
         # 4. 자산 스냅샷
         snapshot = self.portfolio.take_snapshot()
@@ -213,12 +207,12 @@ class StockTradingSystem:
         # 6. 성과 분석
         self._print_performance_report()
     
-    def _simulate_order_execution(self):
+    async def _simulate_order_execution(self):
         """주문 실행 시뮬레이션"""
         unfilled = self.order_management.get_unfilled_orders()
         if unfilled:
             for order in unfilled[:1]:  # 첫 번째 미체결 주문만 체결
-                self.order_management.execute_order(order.order_id)
+                await self.order_management.execute_order(order.order_id)
                 self.trade_logger.log_execution(
                     order.order_id,
                     order.symbol,
@@ -243,8 +237,9 @@ class StockTradingSystem:
     
     def get_risk_report(self) -> Dict:
         """위험 보고서 조회"""
+        positions_qty = {s: p.quantity for s, p in self.portfolio.positions.items()}
         metrics = self.risk_manager.generate_risk_report(
-            self.portfolio.positions,
+            positions_qty,
             self.market_data_cache
         )
         return {
@@ -506,3 +501,4 @@ class StockTradingSystem:
     def get_telegram_daily_report(self, user_id: int) -> str:
         """텔레그램 일일 보고서"""
         return self.telegram_bot.send_periodic_report(user_id)
+

@@ -82,10 +82,11 @@ class KiwoomConnector:
             self.logger.error(f"Connection failed: {str(e)}")
             return False
     
-    def disconnect(self):
+    def disconnect(self) -> bool:
         """API 연결 해제"""
         self.is_connected = False
         self.logger.info("Disconnected from Kiwoom API")
+        return True
     
     def get_account_balance(self) -> Dict:
         """계좌 잔고 조회"""
@@ -219,14 +220,15 @@ class KiwoomConnector:
         # ...
         return {}
     
-    def get_daily_chart(self, code: str, start_date: datetime, 
-                       end_date: datetime) -> List[Dict]:
+    def get_daily_chart(self, code: str, days: int = 20) -> List[Dict]:
         """일봉 차트 조회"""
         try:
             if self.simulation_mode:
                 # 시뮬레이션 데이터
                 charts = []
                 current_price = 100.0
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=days)
                 current_date = start_date
                 
                 while current_date <= end_date:
@@ -349,3 +351,12 @@ class KiwoomConnector:
         
         # 실제 API 호출
         return {}
+    
+    def get_broker_info(self) -> Dict:
+        """증권사 정보"""
+        return {
+            'name': '키움증권',
+            'code': 'KIWOOM',
+            'api_version': self.api_version,
+            'simulation_mode': self.simulation_mode
+        }

@@ -1,6 +1,13 @@
 """Web Dashboard - Flask 기반 웹 대시보드"""
 
-from flask import Flask, render_template_string, jsonify
+try:
+    from flask import Flask, render_template_string, jsonify
+    HAS_FLASK = True
+except ImportError:
+    HAS_FLASK = False
+    Flask = None
+    render_template_string = None
+    jsonify = None
 from datetime import datetime
 from typing import Dict, List
 import json
@@ -25,9 +32,15 @@ class WebDashboard:
         self.host = host
         self.port = port
         self.logger = logger
+        self._enabled = HAS_FLASK
         
-        self.app = Flask(__name__)
-        self._setup_routes()
+        if HAS_FLASK:
+            self.app = Flask(__name__)
+            self._setup_routes()
+        else:
+            self.app = None
+            self.logger.warning("Flask is not installed. Web dashboard will be disabled. "
+                                "To enable, run: pip install flask")
     
     def _setup_routes(self):
         """라우트 설정"""
@@ -99,8 +112,9 @@ class WebDashboard:
             """위험 정보"""
             if hasattr(self.trading_system, 'risk_manager'):
                 risk = self.trading_system.risk_manager
+                positions_qty = {s: p.quantity for s, p in self.trading_system.portfolio.positions.items()}
                 metrics = risk.generate_risk_report(
-                    self.trading_system.portfolio.positions,
+                    positions_qty,
                     self.trading_system.market_data_cache
                 )
                 return jsonify({
@@ -413,5 +427,8 @@ class WebDashboard:
     
     def run(self, debug: bool = False):
         """서버 실행"""
+        if not self._enabled:
+            self.logger.error("Web dashboard cannot start because Flask is not installed.")
+            return
         self.logger.info(f"Starting web dashboard on {self.host}:{self.port}")
         self.app.run(host=self.host, port=self.port, debug=debug, use_reloader=False)

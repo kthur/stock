@@ -4,11 +4,12 @@
 
 import sys
 import unittest
+import asyncio
 from pathlib import Path
 from datetime import datetime
 
 # 프로젝트 루트 추가
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.data_layer import MarketDataHandler, NLPEngine, Sentiment
 from src.core import (
@@ -142,23 +143,23 @@ class TestOrderManagementSystem(unittest.TestCase):
     def test_submit_order(self):
         """주문 제출"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        result = self.oms.submit_order(order)
+        result = asyncio.run(self.oms.submit_order(order))
         
         self.assertTrue(result)
     
     def test_execute_order(self):
         """주문 체결"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        self.oms.submit_order(order)
-        self.oms.execute_order(order.order_id, 10)
+        asyncio.run(self.oms.submit_order(order))
+        asyncio.run(self.oms.execute_order(order.order_id, 10))
         
         self.assertEqual(order.filled_quantity, 10)
     
     def test_cancel_order(self):
         """주문 취소"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        self.oms.submit_order(order)
-        result = self.oms.cancel_order(order.order_id)
+        asyncio.run(self.oms.submit_order(order))
+        result = asyncio.run(self.oms.cancel_order(order.order_id))
         
         self.assertTrue(result)
 

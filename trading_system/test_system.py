@@ -1,6 +1,7 @@
 """주식 트레이딩 시스템 테스트"""
 
 import sys
+import asyncio
 from pathlib import Path
 
 # 프로젝트 루트 추가
@@ -9,8 +10,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from trading_system import StockTradingSystem
 
 
-def main():
-    """메인 테스트 실행"""
+async def main():
+    """메인 테스트 실행 (비동기)"""
     
     # 시스템 초기화 (100만원 초기 자본금)
     system = StockTradingSystem(initial_cash=1000000)
@@ -21,7 +22,7 @@ def main():
     
     # 1. AAPL 거래 시뮬레이션
     print(">>> AAPL 거래 시뮬레이션 시작\n")
-    system.simulate_trading_day(symbol="AAPL")
+    await system.simulate_trading_day(symbol="AAPL")
     
     print("\n" + "-"*60)
     
@@ -53,4 +54,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
