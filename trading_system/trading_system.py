@@ -117,6 +117,10 @@ class StockTradingSystem:
             'volume': market_data.volume
         }
         logger.debug(f"Market data cached: {market_data.symbol}")
+        
+        # 실시간 대시보드 시세 전송
+        if hasattr(self, 'dashboard') and self.dashboard:
+            self.dashboard.broadcast_market_data(market_data)
     
     def _on_news_analyzed(self, news):
         """뉴스 분석 콜백"""
@@ -136,11 +140,19 @@ class StockTradingSystem:
     def _on_account_synced(self, sync_result):
         """자산 동기화 콜백"""
         logger.info(f"Account synced: cash_diff={sync_result['cash_diff']}")
+        
+        # 실시간 대시보드 자산 변동 전송
+        if hasattr(self, 'dashboard') and self.dashboard:
+            self.dashboard.broadcast_portfolio_update()
     
     def _on_order_status_changed(self, order):
         """주문 상태 변경 콜백"""
         logger.info(f"Order status changed: {order.order_id} - {order.status.value}")
         self.trade_logger.log_order(order)
+        
+        # 실시간 대시보드 주문 상태 변동 전송
+        if hasattr(self, 'dashboard') and self.dashboard:
+            self.dashboard.broadcast_order_update(order)
     
     def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float):
         """주문 생성 및 제출"""

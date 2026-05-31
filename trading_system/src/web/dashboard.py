@@ -8,6 +8,14 @@ except ImportError:
     Flask = None
     render_template_string = None
     jsonify = None
+
+try:
+    from flask_socketio import SocketIO, emit
+    HAS_SOCKETIO = True
+except ImportError:
+    HAS_SOCKETIO = False
+    SocketIO = None
+    emit = None
 from datetime import datetime
 from typing import Dict, List
 import json
@@ -33,12 +41,21 @@ class WebDashboard:
         self.port = port
         self.logger = logger
         self._enabled = HAS_FLASK
+        self._websocket_enabled = HAS_FLASK and HAS_SOCKETIO
         
         if HAS_FLASK:
             self.app = Flask(__name__)
             self._setup_routes()
+            if self._websocket_enabled:
+                self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+                self.logger.info("Flask-SocketIO is enabled. WebSocket real-time mode active.")
+            else:
+                self.socketio = None
+                self.logger.warning("Flask-SocketIO is not installed. Using HTTP Polling fallback. "
+                                    "To enable real-time WebSockets, run: pip install flask-socketio")
         else:
             self.app = None
+            self.socketio = None
             self.logger.warning("Flask is not installed. Web dashboard will be disabled. "
                                 "To enable, run: pip install flask")
     
@@ -48,7 +65,7 @@ class WebDashboard:
         @self.app.route('/')
         def index():
             """메인 대시보드"""
-            return render_template_string(self.get_dashboard_html())
+            return render_template_string(self.get_dashboard_html(), websocket_enabled=self._websocket_enabled)
         
         @self.app.route('/api/portfolio')
         def api_portfolio():
@@ -417,18 +434,103 @@ class WebDashboard:
                     document.getElementById('trades-table').innerHTML = html;
                 }
                 
-                // 초기 로드 및 주기적 업데이트
+                // 초기 로드 및 웹소켓/폴링 연결
+                const websocketEnabled = {{ websocket_enabled | tojson }};
+                console.log("WebSocket Enabled:", websocketEnabled);
+                
                 updateData();
-                setInterval(updateData, 5000);
+                
+                if (websocketEnabled) {
+                    // socket.io 클라이언트 스크립트 동적 로드
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
+                    script.onload = function() {
+                        const socket = io();
+                        socket.on('connect', () => {
+                            console.log('Connected to real-time WebSocket dashboard');
+                            document.querySelector('header .timestamp').innerHTML += ' (실시간)';
+                        });
+                        
+                        socket.on('order_update', (data) => {
+                            console.log('Order update received via WS:', data);
+                            updateData();
+                        });
+                        
+                        socket.on('portfolio_update', (data) => {
+                            console.log('Portfolio update received via WS:', data);
+                            updateData();
+                        });
+                        
+                        socket.on('market_data_update', (data) => {
+                            console.log('Market data received via WS:', data);
+                            // 시가 정보 캐싱 등 필요한 실시간 렌더링에 사용 가능
+                        });
+                    };
+                    document.head.appendChild(script);
+                } else {
+                    // 폴백 모드: 5초 주기 폴링 실행
+                    setInterval(updateData, 5000);
+                }
             </script>
         </body>
         </html>
         '''
     
+    def broadcast_order_update(self, order):
+        """실시간 주문 업데이트 브로드캐스트"""
+        if not self._websocket_enabled or not self.socketio:
+            return
+        
+        self.socketio.emit('order_update', {
+            'order_id': order.order_id,
+            'symbol': order.symbol,
+            'type': order.order_type.value,
+            'quantity': order.quantity,
+            'price': order.price,
+            'status': order.status.value,
+            'filled': order.filled_quantity,
+            'timestamp': datetime.now().isoformat()
+        })
+        self.logger.debug(f"Broadcasted order update: {order.order_id}")
+
+    def broadcast_portfolio_update(self):
+        """실시간 포트폴리오 업데이트 브로드캐스트"""
+        if not self._websocket_enabled or not self.socketio:
+            return
+        
+        status = self.trading_system.get_trading_status()
+        self.socketio.emit('portfolio_update', {
+            'cash': status['cash'],
+            'positions_count': len(status['positions']),
+            'open_orders_count': status['open_orders'],
+            'timestamp': status['timestamp']
+        })
+        self.logger.debug("Broadcasted portfolio update")
+
+    def broadcast_market_data(self, market_data):
+        """실시간 시세 업데이트 브로드캐스트"""
+        if not self._websocket_enabled or not self.socketio:
+            return
+        
+        self.socketio.emit('market_data_update', {
+            'symbol': market_data.symbol,
+            'price': market_data.price,
+            'bid': market_data.bid,
+            'ask': market_data.ask,
+            'volume': market_data.volume,
+            'timestamp': datetime.now().isoformat()
+        })
+        self.logger.debug(f"Broadcasted market data: {market_data.symbol}")
+
     def run(self, debug: bool = False):
         """서버 실행"""
         if not self._enabled:
             self.logger.error("Web dashboard cannot start because Flask is not installed.")
             return
-        self.logger.info(f"Starting web dashboard on {self.host}:{self.port}")
-        self.app.run(host=self.host, port=self.port, debug=debug, use_reloader=False)
+        
+        if self._websocket_enabled and self.socketio:
+            self.logger.info(f"Starting real-time WebSocket dashboard on {self.host}:{self.port}")
+            self.socketio.run(self.app, host=self.host, port=self.port, debug=debug, use_reloader=False)
+        else:
+            self.logger.info(f"Starting web dashboard on {self.host}:{self.port} (HTTP Polling mode)")
+            self.app.run(host=self.host, port=self.port, debug=debug, use_reloader=False)
