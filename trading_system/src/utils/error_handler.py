@@ -1,0 +1,264 @@
+"""Error Handling - 예외 처리 및 복구"""
+
+from enum import Enum
+from typing import Callable, Optional, Any, List
+from datetime import datetime, timedelta
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+
+
+class ErrorSeverity(Enum):
+    """에러 심각도"""
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+class ErrorHandler:
+    """에러 핸들링 시스템"""
+    
+    def __init__(self, max_retries: int = 3, retry_delay: float = 1.0):
+        """
+        초기화
+        
+        Args:
+            max_retries: 최대 재시도 횟수
+            retry_delay: 재시도 지연 시간 (초)
+        """
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.error_history: List[dict] = []
+        self.logger = logger
+        self.error_callbacks: List[Callable] = []
+        self.recovery_enabled = True
+    
+    def retry_with_exponential_backoff(self, func: Callable, *args, **kwargs) -> Any:
+        """
+        지수 백오프를 사용한 재시도
+        
+        Args:
+            func: 실행할 함수
+            *args: 함수의 위치 인수
+            **kwargs: 함수의 키워드 인수
+        
+        Returns:
+            함수의 반환값
+        """
+        for attempt in range(self.max_retries):
+            try:
+                self.logger.debug(f"Attempting {func.__name__} (attempt {attempt + 1}/{self.max_retries})")
+                result = func(*args, **kwargs)
+                return result
+            
+            except Exception as e:
+                wait_time = self.retry_delay * (2 ** attempt)
+                
+                if attempt < self.max_retries - 1:
+                    self.logger.warning(
+                        f"Error in {func.__name__}: {str(e)}. "
+                        f"Retrying in {wait_time:.1f} seconds..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    self.logger.error(f"Failed after {self.max_retries} retries: {str(e)}")
+                    self._record_error(func.__name__, e, ErrorSeverity.ERROR)
+                    raise
+    
+    def validate_data(self, data: Any, validator: Callable) -> bool:
+        """
+        데이터 검증
+        
+        Args:
+            data: 검증할 데이터
+            validator: 검증 함수
+        
+        Returns:
+            검증 결과
+        """
+        try:
+            result = validator(data)
+            if not result:
+                self.logger.warning(f"Data validation failed: {data}")
+                self._record_error("data_validation", Exception("Validation failed"), 
+                                 ErrorSeverity.WARNING)
+            return result
+        except Exception as e:
+            self.logger.error(f"Validation error: {str(e)}")
+            self._record_error("data_validation", e, ErrorSeverity.ERROR)
+            return False
+    
+    def handle_transaction(self, transaction_func: Callable, 
+                          rollback_func: Callable, *args, **kwargs) -> bool:
+        """
+        트랜잭션 처리 (commit/rollback)
+        
+        Args:
+            transaction_func: 트랜잭션 함수
+            rollback_func: 롤백 함수
+            *args: 트랜잭션 함수의 인수
+            **kwargs: 트랜잭션 함수의 키워드 인수
+        
+        Returns:
+            성공 여부
+        """
+        try:
+            self.logger.info(f"Starting transaction: {transaction_func.__name__}")
+            transaction_func(*args, **kwargs)
+            self.logger.info(f"Transaction committed: {transaction_func.__name__}")
+            return True
+        
+        except Exception as e:
+            self.logger.error(f"Transaction failed: {str(e)}. Rolling back...")
+            
+            try:
+                rollback_func()
+                self.logger.info("Rollback successful")
+            except Exception as rollback_error:
+                self.logger.critical(f"Rollback failed: {str(rollback_error)}")
+                self._record_error("rollback", rollback_error, ErrorSeverity.CRITICAL)
+                return False
+            
+            self._record_error(transaction_func.__name__, e, ErrorSeverity.ERROR)
+            return False
+    
+    def circuit_breaker(self, func: Callable, failure_threshold: int = 5,
+                       recovery_timeout: int = 60) -> Optional[Any]:
+        """
+        Circuit Breaker 패턴
+        
+        Args:
+            func: 실행할 함수
+            failure_threshold: 실패 임계값
+            recovery_timeout: 복구 타임아웃 (초)
+        
+        Returns:
+            함수의 반환값 또는 None
+        """
+        if not hasattr(func, '_circuit_state'):
+            func._circuit_state = 'closed'
+            func._failure_count = 0
+            func._last_failure_time = None
+        
+        # 복구 타임아웃 확인
+        if func._circuit_state == 'open':
+            if func._last_failure_time:
+                elapsed = (datetime.now() - func._last_failure_time).total_seconds()
+                if elapsed > recovery_timeout:
+                    self.logger.info(f"Circuit breaker for {func.__name__} entering half-open state")
+                    func._circuit_state = 'half-open'
+                    func._failure_count = 0
+                else:
+                    self.logger.warning(f"Circuit breaker open for {func.__name__}")
+                    return None
+        
+        # 함수 실행
+        try:
+            result = func()
+            
+            if func._circuit_state == 'half-open':
+                self.logger.info(f"Circuit breaker for {func.__name__} closing")
+                func._circuit_state = 'closed'
+                func._failure_count = 0
+            
+            return result
+        
+        except Exception as e:
+            func._failure_count += 1
+            func._last_failure_time = datetime.now()
+            
+            self.logger.error(f"Function {func.__name__} failed: {str(e)}")
+            
+            if func._failure_count >= failure_threshold:
+                func._circuit_state = 'open'
+                self.logger.critical(f"Circuit breaker opened for {func.__name__}")
+                self._record_error(func.__name__, e, ErrorSeverity.CRITICAL)
+            
+            return None
+    
+    def timeout(self, func: Callable, timeout_seconds: float) -> Optional[Any]:
+        """
+        타임아웃 처리
+        
+        Args:
+            func: 실행할 함수
+            timeout_seconds: 타임아웃 시간 (초)
+        
+        Returns:
+            함수의 반환값 또는 None
+        """
+        import signal
+        
+        def timeout_handler(signum, frame):
+            raise TimeoutError(f"Function {func.__name__} timed out after {timeout_seconds} seconds")
+        
+        # Unix/Linux에서만 작동
+        try:
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(int(timeout_seconds))
+            
+            result = func()
+            signal.alarm(0)
+            
+            return result
+        
+        except TimeoutError as e:
+            self.logger.error(str(e))
+            self._record_error(func.__name__, e, ErrorSeverity.ERROR)
+            return None
+        
+        except Exception as e:
+            signal.alarm(0)
+            self.logger.error(f"Error in {func.__name__}: {str(e)}")
+            self._record_error(func.__name__, e, ErrorSeverity.ERROR)
+            return None
+    
+    def register_error_callback(self, callback: Callable):
+        """에러 콜백 등록"""
+        self.error_callbacks.append(callback)
+        self.logger.info(f"Error callback registered: {callback.__name__}")
+    
+    def _record_error(self, source: str, error: Exception, severity: ErrorSeverity):
+        """에러 기록"""
+        record = {
+            'source': source,
+            'error': str(error),
+            'error_type': type(error).__name__,
+            'severity': severity.value,
+            'timestamp': datetime.now()
+        }
+        
+        self.error_history.append(record)
+        
+        # 콜백 실행
+        for callback in self.error_callbacks:
+            try:
+                callback(record)
+            except Exception as e:
+                self.logger.error(f"Error callback failed: {str(e)}")
+    
+    def get_error_history(self, limit: int = 100) -> List[dict]:
+        """에러 이력 조회"""
+        return self.error_history[-limit:]
+    
+    def get_errors_by_severity(self, severity: ErrorSeverity) -> List[dict]:
+        """심각도별 에러 조회"""
+        return [e for e in self.error_history if e['severity'] == severity.value]
+    
+    def clear_error_history(self):
+        """에러 이력 초기화"""
+        self.error_history.clear()
+        self.logger.info("Error history cleared")
+    
+    def get_error_summary(self) -> dict:
+        """에러 요약"""
+        return {
+            'total_errors': len(self.error_history),
+            'critical': len(self.get_errors_by_severity(ErrorSeverity.CRITICAL)),
+            'errors': len(self.get_errors_by_severity(ErrorSeverity.ERROR)),
+            'warnings': len(self.get_errors_by_severity(ErrorSeverity.WARNING)),
+            'recovery_enabled': self.recovery_enabled,
+            'timestamp': datetime.now().isoformat()
+        }
