@@ -124,15 +124,17 @@ class ErrorHandler:
             self._record_error(transaction_func.__name__, e, ErrorSeverity.ERROR)
             return False
     
-    def circuit_breaker(self, func: Callable, failure_threshold: int = 5,
-                       recovery_timeout: int = 60) -> Optional[Any]:
+    def circuit_breaker(self, func: Callable, *args, failure_threshold: int = 5,
+                       recovery_timeout: int = 60, **kwargs) -> Optional[Any]:
         """
         Circuit Breaker 패턴
         
         Args:
             func: 실행할 함수
+            *args: 함수의 위치 인수
             failure_threshold: 실패 임계값
             recovery_timeout: 복구 타임아웃 (초)
+            **kwargs: 함수의 키워드 인수
         
         Returns:
             함수의 반환값 또는 None
@@ -156,7 +158,7 @@ class ErrorHandler:
         
         # 함수 실행
         try:
-            result = func()
+            result = func(*args, **kwargs)
             
             if func._circuit_state == 'half-open':
                 self.logger.info(f"Circuit breaker for {func.__name__} closing")
@@ -178,39 +180,42 @@ class ErrorHandler:
             
             return None
     
-    def timeout(self, func: Callable, timeout_seconds: float) -> Optional[Any]:
+    def timeout(self, func: Callable, timeout_seconds: float, *args, **kwargs) -> Optional[Any]:
         """
-        타임아웃 처리
+        타임아웃 처리 (Windows/Unix 크로스 플랫폼 지원)
         
         Args:
             func: 실행할 함수
             timeout_seconds: 타임아웃 시간 (초)
+            *args: 함수의 위치 인수
+            **kwargs: 함수의 키워드 인수
         
         Returns:
             함수의 반환값 또는 None
         """
-        import signal
+        import threading
+        from concurrent.futures import Future
         
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f"Function {func.__name__} timed out after {timeout_seconds} seconds")
+        result_future = Future()
         
-        # Unix/Linux에서만 작동
+        def target():
+            try:
+                result = func(*args, **kwargs)
+                result_future.set_result(result)
+            except Exception as e:
+                result_future.set_exception(e)
+        
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        
         try:
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(int(timeout_seconds))
-            
-            result = func()
-            signal.alarm(0)
-            
-            return result
-        
-        except TimeoutError as e:
-            self.logger.error(str(e))
-            self._record_error(func.__name__, e, ErrorSeverity.ERROR)
+            return result_future.result(timeout=timeout_seconds)
+        except TimeoutError:
+            error_msg = f"Function {func.__name__} timed out after {timeout_seconds} seconds"
+            self.logger.error(error_msg)
+            self._record_error(func.__name__, TimeoutError(error_msg), ErrorSeverity.ERROR)
             return None
-        
         except Exception as e:
-            signal.alarm(0)
             self.logger.error(f"Error in {func.__name__}: {str(e)}")
             self._record_error(func.__name__, e, ErrorSeverity.ERROR)
             return None

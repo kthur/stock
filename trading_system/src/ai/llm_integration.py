@@ -238,7 +238,7 @@ JSON 형식으로 답변해주세요.
         try:
             # JSON 형식의 응답 파싱
             data = json.loads(response) if isinstance(response, str) else response
-        except:
+        except (json.JSONDecodeError, TypeError, ValueError):
             # 파싱 실패 시 기본값
             data = {
                 'recommendation': 'HOLD',

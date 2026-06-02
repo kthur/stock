@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Callable
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
-import zmq
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +71,7 @@ class KiwoomConnector:
                 self.logger.info(f"Connected to Kiwoom API (simulation mode)")
             else:
                 # 32비트 마이크로서비스로 ZeroMQ 통신
+                import zmq
                 self.context = zmq.Context()
                 self.socket = self.context.socket(zmq.REQ)
                 self.socket.connect("tcp://127.0.0.1:5555")

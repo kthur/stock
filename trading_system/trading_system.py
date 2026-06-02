@@ -373,12 +373,13 @@ class StockTradingSystem:
         }
     
     def get_consensus_with_ai(self, stock_data: Dict, 
-                             investor_opinions: Dict) -> Dict:
+                             investor_opinions: Dict = None) -> Dict:
         """AI와 투자자 의견의 합의"""
         symbol = stock_data.get('symbol', 'UNKNOWN')
         
-        # 투자자 의견
-        investor_opinions = self.investor_strategy_engine.analyze_all_strategies(stock_data)
+        # 투자자 의견이 전달되지 않은 경우에만 새로 생성
+        if investor_opinions is None:
+            investor_opinions = self.investor_strategy_engine.analyze_all_strategies(stock_data)
         
         # AI와 합의
         consensus = self.llm_engine.get_consensus_with_ai(stock_data, investor_opinions)

@@ -15,14 +15,17 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "Flask>=2.0.0",
-    "flask-socketio>=5.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "websockets>=11.0.3",
     "numpy>=1.21.0",
     "scipy>=1.7.0",
     "aiosqlite>=0.17.0",
     "python-dotenv>=0.19.0",
+    "tenacity>=8.0.0",
     "yfinance>=0.2.0",
-    "python-telegram-bot>=20.0"
+    "python-telegram-bot>=20.0",
+    "pyzmq>=25.0.0"
 ]

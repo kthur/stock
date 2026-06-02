@@ -43,11 +43,19 @@ class WebDashboard:
             self.app = FastAPI(title="Stock Trading Dashboard")
             self._setup_routes()
             
-            # 이벤트 버스 구독 등록 (비동기 처리)
+            # 이벤트 버스 구독 등록 (비동기 처리 - 이벤트 루프 안전)
             if self.event_bus:
-                self.event_bus.subscribe("market_data", lambda data: asyncio.create_task(self.broadcast_market_data(data)))
-                self.event_bus.subscribe("account_sync", lambda data: asyncio.create_task(self.broadcast_portfolio_update()))
-                self.event_bus.subscribe("order_status", lambda data: asyncio.create_task(self.broadcast_order_update(data)))
+                def _safe_schedule(coro_func, *args):
+                    """이벤트 루프가 존재할 때만 안전하게 태스크를 스케줄링"""
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(coro_func(*args))
+                    except RuntimeError:
+                        pass  # 이벤트 루프가 없으면 무시 (서버 시작 전)
+                
+                self.event_bus.subscribe("market_data", lambda data: _safe_schedule(self.broadcast_market_data, data))
+                self.event_bus.subscribe("account_sync", lambda data: _safe_schedule(self.broadcast_portfolio_update))
+                self.event_bus.subscribe("order_status", lambda data: _safe_schedule(self.broadcast_order_update, data))
             
             self.logger.info("FastAPI Web Dashboard initialized with Native WebSockets.")
         else:

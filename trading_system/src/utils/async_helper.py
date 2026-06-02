@@ -33,6 +33,6 @@ def run_async(coro: Coroutine) -> Any:
                 
         thread = threading.Thread(target=run_in_thread, daemon=True)
         thread.start()
-        return future.result()
+        return future.result(timeout=60)
     else:
         return loop.run_until_complete(coro)

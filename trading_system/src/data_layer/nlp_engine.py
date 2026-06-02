@@ -5,7 +5,6 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Callable
 import logging
-import re
 
 logger = logging.getLogger(__name__)
 
