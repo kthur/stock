@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Callable
 from enum import Enum
 import logging
 
@@ -58,6 +58,9 @@ class BacktestResult:
     end_date: datetime
     initial_capital: float
     final_capital: float
+    equity_curve: List[float] = None
+    price_curve: List[float] = None
+    dates: List[datetime] = None
 
 
 class BacktestEngine:
@@ -75,7 +78,7 @@ class BacktestEngine:
         self.fee_pct = 0.001  # 0.1% 수수료
         
     def run_backtest(self, symbol: str, price_bars: List[PriceBar],
-                    strategy_func) -> BacktestResult:
+                    strategy_func, target_period_bars: int = None) -> BacktestResult:
         """
         백테스트 실행
         
@@ -83,6 +86,7 @@ class BacktestEngine:
             symbol: 종목
             price_bars: 가격 바 데이터
             strategy_func: 전략 함수 (가격->신호)
+            target_period_bars: 성능 측정 대상 기간 바 수 (과거 데이터는 warm-up 용)
         
         Returns:
             BacktestResult: 백테스트 결과
@@ -155,36 +159,86 @@ class BacktestEngine:
             trades.append(trade)
         
         # 결과 계산
-        final_capital = capital
-        total_return = final_capital - self.initial_capital
-        total_return_pct = (total_return / self.initial_capital) * 100
-        
-        win_rate = self._calculate_win_rate(trades)
-        profit_factor = self._calculate_profit_factor(trades)
-        max_drawdown = self._calculate_max_drawdown(equity_curve)
-        sharpe_ratio = self._calculate_sharpe_ratio(equity_curve)
-        
-        total_fees = sum(
-            (trade.quantity * trade.entry_price * self.fee_pct +
-             trade.quantity * trade.exit_price * self.fee_pct)
-            for trade in trades
-        )
-        
-        result = BacktestResult(
-            symbol=symbol,
-            trades=trades,
-            total_return=total_return,
-            total_return_pct=total_return_pct,
-            win_rate=win_rate,
-            profit_factor=profit_factor,
-            max_drawdown=max_drawdown,
-            sharpe_ratio=sharpe_ratio,
-            total_fees=total_fees,
-            start_date=price_bars[0].timestamp,
-            end_date=price_bars[-1].timestamp,
-            initial_capital=self.initial_capital,
-            final_capital=final_capital
-        )
+        if target_period_bars and target_period_bars < len(price_bars):
+            target_start_idx = len(price_bars) - target_period_bars
+            
+            # target period 시작 시점 직전의 자산 가치
+            initial_capital_target = equity_curve[target_start_idx - 1] if target_start_idx > 0 else equity_curve[0]
+            final_capital_target = equity_curve[-1]
+            
+            total_return = final_capital_target - initial_capital_target
+            total_return_pct = (total_return / initial_capital_target) * 100
+            
+            # target period 내에 완료된 거래만 필터링
+            target_trades = []
+            for t in trades:
+                if t.exit_date >= price_bars[target_start_idx].timestamp:
+                    target_trades.append(t)
+            
+            win_rate = self._calculate_win_rate(target_trades)
+            profit_factor = self._calculate_profit_factor(target_trades)
+            
+            # target period 내의 mdd 및 sharpe ratio 계산
+            target_equity_curve = equity_curve[target_start_idx:]
+            max_drawdown = self._calculate_max_drawdown(target_equity_curve)
+            sharpe_ratio = self._calculate_sharpe_ratio(target_equity_curve)
+            
+            # target period 용 데이터 슬라이싱
+            dates = [b.timestamp for b in price_bars[target_start_idx:]]
+            price_curve = [b.close for b in price_bars[target_start_idx:]]
+            
+            result = BacktestResult(
+                symbol=symbol,
+                trades=target_trades,
+                total_return=total_return,
+                total_return_pct=total_return_pct,
+                win_rate=win_rate,
+                profit_factor=profit_factor,
+                max_drawdown=max_drawdown,
+                sharpe_ratio=sharpe_ratio,
+                total_fees=0.0,  # 간소화
+                start_date=price_bars[target_start_idx].timestamp,
+                end_date=price_bars[-1].timestamp,
+                initial_capital=initial_capital_target,
+                final_capital=final_capital_target,
+                equity_curve=target_equity_curve,
+                price_curve=price_curve,
+                dates=dates
+            )
+        else:
+            final_capital = capital
+            total_return = final_capital - self.initial_capital
+            total_return_pct = (total_return / self.initial_capital) * 100
+            
+            win_rate = self._calculate_win_rate(trades)
+            profit_factor = self._calculate_profit_factor(trades)
+            max_drawdown = self._calculate_max_drawdown(equity_curve)
+            sharpe_ratio = self._calculate_sharpe_ratio(equity_curve)
+            
+            total_fees = sum(
+                (trade.quantity * trade.entry_price * self.fee_pct +
+                 trade.quantity * trade.exit_price * self.fee_pct)
+                for trade in trades
+            )
+            
+            result = BacktestResult(
+                symbol=symbol,
+                trades=trades,
+                total_return=total_return,
+                total_return_pct=total_return_pct,
+                win_rate=win_rate,
+                profit_factor=profit_factor,
+                max_drawdown=max_drawdown,
+                sharpe_ratio=sharpe_ratio,
+                total_fees=total_fees,
+                start_date=price_bars[0].timestamp,
+                end_date=price_bars[-1].timestamp,
+                initial_capital=self.initial_capital,
+                final_capital=final_capital,
+                equity_curve=equity_curve,
+                price_curve=[b.close for b in price_bars],
+                dates=[b.timestamp for b in price_bars]
+            )
         
         self.logger.info(f"Backtest completed for {symbol}: "
                         f"return={total_return_pct:.2f}%, "
@@ -318,3 +372,152 @@ class BacktestEngine:
             return "SELL"
         else:
             return "HOLD"
+
+    def _rsi_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+        """RSI 과매도/과매수 전략"""
+        if params is None: params = {}
+        window = params.get('window', 14)
+        buy_threshold = params.get('buy_threshold', 30)
+        sell_threshold = params.get('sell_threshold', 70)
+        
+        if len(bars) <= window:
+            return "HOLD"
+            
+        closes = [b.close for b in bars]
+        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+        
+        recent_deltas = deltas[-window:]
+        gains = sum(d for d in recent_deltas if d > 0)
+        losses = sum(abs(d) for d in recent_deltas if d < 0)
+        
+        if losses == 0:
+            rsi = 100
+        else:
+            rs = gains / losses
+            rsi = 100 - (100 / (1 + rs))
+            
+        if rsi < buy_threshold:
+            return "BUY"
+        elif rsi > sell_threshold:
+            return "SELL"
+        else:
+            return "HOLD"
+            
+    def _macd_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+        """MACD 돌파 전략"""
+        if params is None: params = {}
+        fast = params.get('fast', 12)
+        slow = params.get('slow', 26)
+        
+        if len(bars) <= slow:
+            return "HOLD"
+            
+        closes = [b.close for b in bars]
+        
+        # 지수이동평균 대신 단순이동평균 기반 간이 MACD
+        fast_ma = sum(closes[-fast:]) / fast
+        slow_ma = sum(closes[-slow:]) / slow
+        macd = fast_ma - slow_ma
+        
+        prev_fast_ma = sum(closes[-(fast+1):-1]) / fast
+        prev_slow_ma = sum(closes[-(slow+1):-1]) / slow
+        prev_macd = prev_fast_ma - prev_slow_ma
+        
+        if prev_macd < 0 and macd > 0:
+            return "BUY"
+        elif prev_macd > 0 and macd < 0:
+            return "SELL"
+        else:
+            return "HOLD"
+            
+    def _buffett_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+        """워렌 버핏 Proxy (가치투자/역발상): 200일선 아래 크게 하락하고 단기 과매도 시 매수"""
+        if len(bars) < 200: return "HOLD"
+        closes = [b.close for b in bars]
+        ma200 = sum(closes[-200:]) / 200
+        current_price = closes[-1]
+        
+        # RSI 14 간이 계산
+        gains = sum(max(0, closes[i] - closes[i-1]) for i in range(-14, 0)) / 14
+        losses = sum(max(0, closes[i-1] - closes[i]) for i in range(-14, 0)) / 14
+        rsi = 100 - (100 / (1 + (gains / losses))) if losses > 0 else 50
+        
+        if current_price < ma200 * 0.9 and rsi < 30:
+            return "BUY"
+        elif current_price > ma200 or rsi > 70:
+            return "SELL"
+        return "HOLD"
+        
+    def _lynch_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+        """피터 린치 Proxy (성장/모멘텀): 50일 신고가 및 평균 거래량 돌파 시 매수"""
+        if len(bars) < 50: return "HOLD"
+        closes = [b.close for b in bars[-50:]]
+        vols = [b.volume for b in bars[-50:]]
+        
+        highest_50 = max(closes[:-1])
+        avg_vol = sum(vols[:-1]) / 49
+        
+        current_price = closes[-1]
+        current_vol = vols[-1]
+        
+        if current_price > highest_50 and current_vol > avg_vol * 1.5:
+            return "BUY"
+        elif current_price < sum(closes[-20:])/20:
+            return "SELL"
+        return "HOLD"
+        
+    def _dalio_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+        """레이 달리오 Proxy (안정적 추세): 200일선 위에서 변동성이 적을 때 매수"""
+        if len(bars) < 200: return "HOLD"
+        closes = [b.close for b in bars]
+        ma200 = sum(closes[-200:]) / 200
+        current_price = closes[-1]
+        
+        # 20일 변동성(표준편차 대용: 단순 등락폭 평균)
+        volatility = sum(abs(closes[i] - closes[i-1]) for i in range(-20, 0)) / 20
+        avg_price20 = sum(closes[-20:]) / 20
+        vol_ratio = volatility / avg_price20
+        
+        if current_price > ma200 and vol_ratio < 0.02:
+            return "BUY"
+        elif current_price < ma200:
+            return "SELL"
+        return "HOLD"
+
+    def _trend_following_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+        """추세 추종(Trend Following): 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수"""
+        if len(bars) < 200: return "HOLD"
+        closes = [b.close for b in bars]
+        
+        ma200 = sum(closes[-200:]) / 200
+        ma50 = sum(closes[-50:]) / 50
+        ma20 = sum(closes[-20:]) / 20
+        current_price = closes[-1]
+        
+        if current_price > ma200 and ma20 > ma50:
+            return "BUY"
+        elif current_price < ma200 or ma20 < ma50:
+            return "SELL"
+        return "HOLD"
+            
+    def get_strategy_func(self, strategy_name: str) -> Callable:
+        """이름으로 전략 함수 래퍼 반환"""
+        name = strategy_name.upper()
+        
+        if name == "MA" or name == "이동평균선":
+            return lambda bars: self._simple_ma_strategy(bars, {})
+        elif name == "RSI":
+            return lambda bars: self._rsi_strategy(bars, {})
+        elif name == "MACD":
+            return lambda bars: self._macd_strategy(bars, {})
+        elif name == "TREND" or "추세" in strategy_name:
+            return lambda bars: self._trend_following_strategy(bars, {})
+        elif name == "BUFFETT" or "버핏" in strategy_name:
+            return lambda bars: self._buffett_proxy_strategy(bars, {})
+        elif name == "LYNCH" or "린치" in strategy_name:
+            return lambda bars: self._lynch_proxy_strategy(bars, {})
+        elif name == "DALIO" or "달리오" in strategy_name:
+            return lambda bars: self._dalio_proxy_strategy(bars, {})
+        else:
+            self.logger.warning(f"Unknown strategy: {name}. Falling back to MA.")
+            return lambda bars: self._simple_ma_strategy(bars, {})
