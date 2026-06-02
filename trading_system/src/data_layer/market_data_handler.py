@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Callable
 import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -74,25 +75,31 @@ class MarketDataHandler:
         self.publish_market_data(data)
         return data
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+    def _fetch_yf_with_retry(self, symbol: str):
+        import yfinance as yf
+        ticker = yf.Ticker(symbol)
+        fast = ticker.fast_info
+        price = fast.last_price
+        
+        # fast_info 데이터 획득 실패 시 1일 1분 분봉을 통해 백업 데이터 획득
+        if price is None or price <= 0:
+            hist = ticker.history(period="1d", interval="1m")
+            if not hist.empty:
+                price = float(hist['Close'].iloc[-1])
+                volume = int(hist['Volume'].iloc[-1])
+            else:
+                raise ValueError("No price data returned from yfinance")
+        else:
+            volume = int(fast.last_volume) if fast.last_volume else 100000
+            
+        return price, volume
+
     def fetch_live_data(self, symbol: str) -> MarketData | None:
         """yfinance를 통해 실제 실시간 시세 데이터를 조회하고 이벤트로 전송"""
         try:
-            import yfinance as yf
-            ticker = yf.Ticker(symbol)
-            fast = ticker.fast_info
-            price = fast.last_price
+            price, volume = self._fetch_yf_with_retry(symbol)
             
-            # fast_info 데이터 획득 실패 시 1일 1분 분봉을 통해 백업 데이터 획득
-            if price is None or price <= 0:
-                hist = ticker.history(period="1d", interval="1m")
-                if not hist.empty:
-                    price = float(hist['Close'].iloc[-1])
-                    volume = int(hist['Volume'].iloc[-1])
-                else:
-                    raise ValueError("No price data returned from yfinance")
-            else:
-                volume = int(fast.last_volume) if fast.last_volume else 100000
-                
             bid = round(price - 0.05, 2)
             ask = round(price + 0.05, 2)
             

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict, List
 from datetime import datetime
 from enum import Enum
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -156,33 +157,37 @@ JSON 형식으로 답변해주세요.
 """
         return query
     
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+    def _call_openai_api_with_retry(self, query: str) -> str:
+        if self.is_v1:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
+                    {"role": "user", "content": query}
+                ],
+                temperature=0.7,
+                max_tokens=500
+            )
+            return response.choices[0].message.content
+        else:
+            response = self.client.ChatCompletion.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
+                    {"role": "user", "content": query}
+                ],
+                temperature=0.7,
+                max_tokens=500
+            )
+            return response['choices'][0]['message']['content']
+
     def _call_openai_api(self, query: str) -> str:
         """OpenAI API 호출"""
         try:
-            if self.is_v1:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
-                        {"role": "user", "content": query}
-                    ],
-                    temperature=0.7,
-                    max_tokens=500
-                )
-                return response.choices[0].message.content
-            else:
-                response = self.client.ChatCompletion.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
-                        {"role": "user", "content": query}
-                    ],
-                    temperature=0.7,
-                    max_tokens=500
-                )
-                return response['choices'][0]['message']['content']
+            return self._call_openai_api_with_retry(query)
         except Exception as e:
-            self.logger.error(f"OpenAI API error: {str(e)}")
+            self.logger.error(f"OpenAI API error after retries: {str(e)}")
             return ""
     
     def _simulate_response(self, stock_data: Dict) -> str:

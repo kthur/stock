@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Callable
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
+import zmq
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +71,22 @@ class KiwoomConnector:
                 self._init_simulated_account()
                 self.logger.info(f"Connected to Kiwoom API (simulation mode)")
             else:
-                # 실제 API 연결 (여기에 실제 키움 API 코드 삽입)
-                # import kiwoomtype
-                # from PyQt5.QAxContainer import QAxWidget
-                # ...
-                pass
+                # 32비트 마이크로서비스로 ZeroMQ 통신
+                self.context = zmq.Context()
+                self.socket = self.context.socket(zmq.REQ)
+                self.socket.connect("tcp://127.0.0.1:5555")
+                # 테스트 핑
+                self.socket.send_json({"command": "ping"})
+                self.socket.recv_json()
+                
+                self.socket.send_json({"command": "connect", "args": {"account_number": account_number}})
+                res = self.socket.recv_json()
+                if res.get("status") == "success":
+                    self.is_connected = res.get("data", False)
+                    self.account_number = account_number
+                    self.logger.info("Connected to Kiwoom 32-bit Microservice via ZeroMQ")
+                else:
+                    self.is_connected = False
             
             return self.is_connected
         
