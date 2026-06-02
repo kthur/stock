@@ -53,9 +53,10 @@ class Order:
 class OrderManagementSystem:
     """주문 관리 시스템"""
     
-    def __init__(self):
+    def __init__(self, event_bus=None):
         self.orders: Dict[str, Order] = {}
         self.order_history: List[Order] = []
+        self.event_bus = event_bus
         self.logger = logger
         self.subscribers: List[Callable] = []
         self.unfilled_monitor_enabled = True
@@ -163,6 +164,9 @@ class OrderManagementSystem:
     
     async def _notify_subscribers_async(self, order: Order):
         """구독자에게 비동기 알림"""
+        if self.event_bus:
+            self.event_bus.publish("order_status", order)
+            
         for callback in self.subscribers:
             try:
                 if asyncio.iscoroutinefunction(callback):

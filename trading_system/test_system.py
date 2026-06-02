@@ -44,7 +44,7 @@ async def main():
     
     # 4. 거래 이력 조회
     print("\n>>> AAPL 거래 이력\n")
-    trade_history = system.trade_logger.get_trade_history(symbol="AAPL", limit=5)
+    trade_history = await system.trade_logger.get_trade_history(symbol="AAPL", limit=5)
     for trade in trade_history:
         print(f"  {trade['order_id']}: {trade['order_type']} {trade['quantity']}주 @ {trade['price']}")
     

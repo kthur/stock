@@ -103,9 +103,10 @@ class PortfolioManager:
 class AccountSyncAgent:
     """자산 동기화 에이전트 - 증권사 잔고와 동기화"""
     
-    def __init__(self, portfolio: PortfolioManager):
+    def __init__(self, portfolio: PortfolioManager, event_bus=None):
         self.portfolio = portfolio
         self.sync_history: List[Dict] = []
+        self.event_bus = event_bus
         self.logger = logger
         self.subscribers: List[Callable] = []
     
@@ -147,9 +148,16 @@ class AccountSyncAgent:
         }
         self.sync_history.append(sync_result)
         
-        # 구독자에게 알림
+        # 이벤트 버스로 전송
+        if self.event_bus:
+            self.event_bus.publish("account_sync", sync_result)
+            
+        # 구독자에게 알림 (하위 호환성)
         for callback in self.subscribers:
-            callback(sync_result)
+            try:
+                callback(sync_result)
+            except Exception as e:
+                self.logger.error(f"Sync callback error: {e}")
         
         self.logger.info(f"Account synced: cash_diff={cash_diff}, holdings={holdings_diff}")
         return sync_result

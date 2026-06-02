@@ -11,16 +11,18 @@ logger = logging.getLogger(__name__)
 class TelegramBotEngine:
     """텔레그램 봇 엔진"""
     
-    def __init__(self, api_token: Optional[str] = None, trading_system=None):
+    def __init__(self, api_token: Optional[str] = None, trading_system=None, event_bus=None):
         """
         텔레그램 봇 초기화
         
         Args:
             api_token: 텔레그램 봇 토큰
             trading_system: 연동할 트레이딩 시스템
+            event_bus: 이벤트 버스
         """
         self.api_token = api_token or os.getenv("TELEGRAM_BOT_TOKEN")
         self.trading_system = trading_system
+        self.event_bus = event_bus
         self.logger = logger
         self.is_running = False
         self.subscribed_users: Dict[int, Dict] = {}  # user_id -> user_info

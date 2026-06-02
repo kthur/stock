@@ -30,10 +30,11 @@ class StrategyResult:
 class HybridStrategyEngine:
     """하이브리드 전략 엔진 - 기술적 분석 + 감정 분석"""
     
-    def __init__(self):
+    def __init__(self, event_bus=None):
         self.logger = logger
         self.results_history: List[StrategyResult] = []
         self.subscribers: List[Callable] = []
+        self.event_bus = event_bus
         
         # 전략 파라미터
         self.price_threshold = 0.02  # 2% 변동
@@ -116,9 +117,16 @@ class HybridStrategyEngine:
         
         self.results_history.append(result)
         
-        # 구독자에게 알림
+        # 이벤트 버스로 전송
+        if self.event_bus:
+            self.event_bus.publish("strategy_signal", result)
+            
+        # 구독자에게 알림 (하위 호환성)
         for callback in self.subscribers:
-            callback(result)
+            try:
+                callback(result)
+            except Exception as e:
+                self.logger.error(f"Strategy callback error: {e}")
         
         self.logger.info(f"Strategy result: {result}")
         return result

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-trading-system"
+version = "1.0.0"
+description = "주식 트레이딩 시스템 - 유명인 전략, AI 연동, 다중 증권사 및 실시간 대시보드"
+readme = "README.md"
+authors = [
+    { name = "DeepMind Agentic Coding Team" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "Flask>=2.0.0",
+    "flask-socketio>=5.0.0",
+    "numpy>=1.21.0",
+    "scipy>=1.7.0",
+    "aiosqlite>=0.17.0",
+    "python-dotenv>=0.19.0",
+    "yfinance>=0.2.0",
+    "python-telegram-bot>=20.0"
+]

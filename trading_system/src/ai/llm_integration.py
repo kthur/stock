@@ -58,15 +58,21 @@ class LLMEngine:
         self.logger = logger
         self.query_history = []
         
-        # API 클라이언트 초기화 (실제 구현에서는 openai 라이브러리 사용)
+        # API 클라이언트 초기화 (OpenAI v1.x+ 및 v0.x 호환성 지원)
         try:
             import openai
-            openai.api_key = self.api_key
-            self.client = openai
+            if hasattr(openai, 'OpenAI'):
+                self.client = openai.OpenAI(api_key=self.api_key)
+                self.is_v1 = True
+            else:
+                openai.api_key = self.api_key
+                self.client = openai
+                self.is_v1 = False
             self.logger.info(f"OpenAI client initialized with model: {model}")
         except ImportError:
             self.logger.warning("openai library not installed. Using simulation mode.")
             self.client = None
+            self.is_v1 = False
     
     def query_investment_opinion(self, stock_data: Dict) -> InvestmentOpinion:
         """
@@ -153,16 +159,28 @@ JSON 형식으로 답변해주세요.
     def _call_openai_api(self, query: str) -> str:
         """OpenAI API 호출"""
         try:
-            response = self.client.ChatCompletion.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
-                    {"role": "user", "content": query}
-                ],
-                temperature=0.7,
-                max_tokens=500
-            )
-            return response['choices'][0]['message']['content']
+            if self.is_v1:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
+                        {"role": "user", "content": query}
+                    ],
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                return response.choices[0].message.content
+            else:
+                response = self.client.ChatCompletion.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
+                        {"role": "user", "content": query}
+                    ],
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                return response['choices'][0]['message']['content']
         except Exception as e:
             self.logger.error(f"OpenAI API error: {str(e)}")
             return ""

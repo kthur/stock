@@ -1,4 +1,4 @@
-"""메인 트레이딩 시스템 통합"""
+"""메인 트레이딩 시스템 통합 (EventBus 및 DI 구조 개선)"""
 
 import logging
 from datetime import datetime
@@ -24,7 +24,7 @@ from src.persistence import TradeLogger, AssetHistoryDB
 from src.risk import RiskManager
 from src.analysis import BacktestEngine, AdvancedStatistics
 from src.web import WebDashboard
-from src.utils import ErrorHandler, ErrorSeverity
+from src.utils import ErrorHandler, ErrorSeverity, EventBus
 from src.broker import KiwoomConnector, MultiBrokerManager, BrokerType
 from src.strategy import InvestorStrategyEngine
 from src.ai import LLMEngine
@@ -56,12 +56,20 @@ class StockTradingSystem:
             config = TradingConfig(initial_cash=initial_cash)
         self.config = config
         
-        self.comp = components or SystemFactory.create_default_components(self.config.initial_cash)
+        # 이벤트 버스 생성 또는 주입
+        self.event_bus = (components.get('event_bus') if components else None) or EventBus()
+        
+        # 컴포넌트 설정
+        self.comp = components or SystemFactory.create_default_components(self.config.initial_cash, self.event_bus)
+        
         # 컴포넌트 매핑
         self.market_data_handler = self.comp['market_data']
         self.nlp_engine = self.comp['nlp']
         self.portfolio = self.comp['portfolio']
-        self.account_sync = AccountSyncAgent(self.portfolio) # Factory에서 생성할 수도 있음
+        
+        # 계좌 동기화 에이전트 생성 시 EventBus 주입
+        self.account_sync = self.comp.get('account_sync') or AccountSyncAgent(self.portfolio, event_bus=self.event_bus)
+        
         self.strategy_engine = self.comp['strategy']
         self.optimization_engine = self.comp['optimization']
         self.order_management = self.comp['order_mgmt']
@@ -76,15 +84,15 @@ class StockTradingSystem:
         self.investor_strategy_engine = self.comp['investor_strategy']
         self.llm_engine = self.comp['llm']
         
-        # 시스템 인스턴스 의존성 설정
-        self.dashboard = WebDashboard(self)
-        self.telegram_bot = TelegramBotEngine(trading_system=self)
+        # 시스템 인스턴스 의존성 설정 (DI 적용 및 EventBus 주입)
+        self.dashboard = self.comp.get('dashboard') or WebDashboard(self, event_bus=self.event_bus)
+        self.telegram_bot = self.comp.get('telegram') or TelegramBotEngine(trading_system=self, event_bus=self.event_bus)
         
-        # 시스템 상태
+        # 시스템 상태 캐시
         self.market_data_cache: Dict = {}
         self.news_sentiment_cache: Dict = {}
-        self.ai_opinions_cache: Dict = {}  # AI 의견 캐시
-        self.investor_opinions_cache: Dict = {}  # 투자자 의견 캐시
+        self.ai_opinions_cache: Dict = {}
+        self.investor_opinions_cache: Dict = {}
         
         logger.info(f"Trading system initialized with ${self.config.initial_cash:,}")
         
@@ -92,24 +100,24 @@ class StockTradingSystem:
         self._setup_callbacks()
     
     def _setup_callbacks(self):
-        """콜백 등록"""
+        """이벤트 버스 콜백 등록"""
         # 시장 데이터 업데이트 시
-        self.market_data_handler.subscribe(self._on_market_data)
+        self.event_bus.subscribe("market_data", self._on_market_data)
         
         # 뉴스 분석 결과
-        self.nlp_engine.subscribe(self._on_news_analyzed)
+        self.event_bus.subscribe("news_sentiment", self._on_news_analyzed)
         
         # 전략 신호
-        self.strategy_engine.subscribe(self._on_strategy_signal)
+        self.event_bus.subscribe("strategy_signal", self._on_strategy_signal)
         
         # 자산 동기화
-        self.account_sync.subscribe(self._on_account_synced)
+        self.event_bus.subscribe("account_sync", self._on_account_synced)
         
         # 주문 상태 변경
-        self.order_management.subscribe(self._on_order_status_changed)
+        self.event_bus.subscribe("order_status", self._on_order_status_changed)
     
     def _on_market_data(self, market_data):
-        """시장 데이터 콜백"""
+        """시장 데이터 콜백 (동기 처리 캐싱)"""
         self.market_data_cache[market_data.symbol] = {
             'price': market_data.price,
             'bid': market_data.bid,
@@ -117,55 +125,36 @@ class StockTradingSystem:
             'volume': market_data.volume
         }
         logger.debug(f"Market data cached: {market_data.symbol}")
-        
-        # 실시간 대시보드 시세 전송
-        if hasattr(self, 'dashboard') and self.dashboard:
-            self.dashboard.broadcast_market_data(market_data)
     
     def _on_news_analyzed(self, news):
         """뉴스 분석 콜백"""
         self.news_sentiment_cache[news.symbol] = news.score
         logger.info(f"News analyzed: {news.symbol} - sentiment={news.score:.2f}")
     
-    def _on_strategy_signal(self, result):
-        """전략 신호 콜백"""
+    async def _on_strategy_signal(self, result):
+        """전략 신호 콜백 (비동기 처리)"""
         logger.info(f"Strategy signal: {result.symbol} - {result.signal.name} (confidence={result.confidence:.2f})")
         
         # 자동 주문 생성
         if result.signal == TradeSignal.BUY:
-            self._create_and_submit_order(result.symbol, OrderType.BUY, result.price)
+            await self._create_and_submit_order(result.symbol, OrderType.BUY, result.price)
         elif result.signal == TradeSignal.SELL:
-            self._create_and_submit_order(result.symbol, OrderType.SELL, result.price)
+            await self._create_and_submit_order(result.symbol, OrderType.SELL, result.price)
     
     def _on_account_synced(self, sync_result):
         """자산 동기화 콜백"""
         logger.info(f"Account synced: cash_diff={sync_result['cash_diff']}")
-        
-        # 실시간 대시보드 자산 변동 전송
-        if hasattr(self, 'dashboard') and self.dashboard:
-            self.dashboard.broadcast_portfolio_update()
     
-    def _on_order_status_changed(self, order):
-        """주문 상태 변경 콜백"""
+    async def _on_order_status_changed(self, order):
+        """주문 상태 변경 콜백 (비동기 DB 저장 지원)"""
         logger.info(f"Order status changed: {order.order_id} - {order.status.value}")
-        self.trade_logger.log_order(order)
-        
-        # 실시간 대시보드 주문 상태 변동 전송
-        if hasattr(self, 'dashboard') and self.dashboard:
-            self.dashboard.broadcast_order_update(order)
+        await self.trade_logger.log_order(order)
     
-    def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float):
-        """주문 생성 및 제출"""
-        # 수량 결정 (간단한 예제)
+    async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float):
+        """주문 생성 및 비동기 제출"""
         quantity = 10
-        
         order = self.order_management.create_order(symbol, order_type, quantity, price)
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self.order_management.submit_order(order))
-        except RuntimeError:
-            asyncio.run(self.order_management.submit_order(order))
-        
+        await self.order_management.submit_order(order)
         logger.info(f"Order created and submitted: {order.order_id}")
     
     async def simulate_trading_day(self, symbol: str = "AAPL"):
@@ -211,7 +200,7 @@ class StockTradingSystem:
         
         # 4. 자산 스냅샷
         snapshot = self.portfolio.take_snapshot()
-        self.asset_history.save_snapshot(snapshot.cash, snapshot.total_value, snapshot.holdings)
+        await self.asset_history.save_snapshot(snapshot.cash, snapshot.total_value, snapshot.holdings)
         
         # 5. 미체결 주문 감시
         self.order_management.monitor_unfilled_orders()
@@ -225,7 +214,7 @@ class StockTradingSystem:
         if unfilled:
             for order in unfilled[:1]:  # 첫 번째 미체결 주문만 체결
                 await self.order_management.execute_order(order.order_id)
-                self.trade_logger.log_execution(
+                await self.trade_logger.log_execution(
                     order.order_id,
                     order.symbol,
                     order.quantity,
@@ -383,7 +372,8 @@ class StockTradingSystem:
             'timestamp': opinion.timestamp.isoformat()
         }
     
-    def get_consensus_with_ai(self, stock_data: Dict) -> Dict:
+    def get_consensus_with_ai(self, stock_data: Dict, 
+                             investor_opinions: Dict) -> Dict:
         """AI와 투자자 의견의 합의"""
         symbol = stock_data.get('symbol', 'UNKNOWN')
         
@@ -513,4 +503,3 @@ class StockTradingSystem:
     def get_telegram_daily_report(self, user_id: int) -> str:
         """텔레그램 일일 보고서"""
         return self.telegram_bot.send_periodic_report(user_id)
-

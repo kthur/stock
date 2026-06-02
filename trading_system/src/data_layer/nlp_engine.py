@@ -35,9 +35,10 @@ class NewsData:
 class NLPEngine:
     """뉴스 텍스트 분석 엔진"""
     
-    def __init__(self):
+    def __init__(self, event_bus=None):
         self.news_queue: List[NewsData] = []
         self.subscribers: List[Callable] = []
+        self.event_bus = event_bus
         self.logger = logger
         
         # 감정 분석용 키워드 딕셔너리 (간단한 규칙 기반)
@@ -47,7 +48,8 @@ class NLPEngine:
     def subscribe(self, callback: Callable):
         """뉴스 분석 결과 구독"""
         self.subscribers.append(callback)
-        self.logger.info(f"Subscribed NLP callback: {callback.__name__}")
+        callback_name = callback.__name__ if hasattr(callback, '__name__') else str(callback)
+        self.logger.info(f"Subscribed NLP callback: {callback_name}")
     
     def analyze_sentiment(self, text: str) -> tuple[Sentiment, float]:
         """간단한 감정 분석 (키워드 기반)"""
@@ -82,7 +84,11 @@ class NLPEngine:
         self.news_queue.append(news)
         self.logger.info(f"News processed: {news}")
         
-        # 구독자에게 알림
+        # 이벤트 버스로 전송
+        if self.event_bus:
+            self.event_bus.publish("news_sentiment", news)
+            
+        # 구독자에게 알림 (하위 호환성)
         for callback in self.subscribers:
             try:
                 callback(news)

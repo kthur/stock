@@ -27,16 +27,18 @@ logger = logging.getLogger(__name__)
 class WebDashboard:
     """웹 대시보드"""
     
-    def __init__(self, trading_system, host: str = '127.0.0.1', port: int = 5000):
+    def __init__(self, trading_system, event_bus=None, host: str = '127.0.0.1', port: int = 5000):
         """
         초기화
         
         Args:
             trading_system: 트레이딩 시스템 인스턴스
+            event_bus: 이벤트 버스
             host: 호스트
             port: 포트
         """
         self.trading_system = trading_system
+        self.event_bus = event_bus
         self.host = host
         self.port = port
         self.logger = logger
@@ -53,6 +55,12 @@ class WebDashboard:
                 self.socketio = None
                 self.logger.warning("Flask-SocketIO is not installed. Using HTTP Polling fallback. "
                                     "To enable real-time WebSockets, run: pip install flask-socketio")
+            
+            # 이벤트 버스 구독 등록
+            if self.event_bus:
+                self.event_bus.subscribe("market_data", self.broadcast_market_data)
+                self.event_bus.subscribe("account_sync", lambda data: self.broadcast_portfolio_update())
+                self.event_bus.subscribe("order_status", self.broadcast_order_update)
         else:
             self.app = None
             self.socketio = None
@@ -117,7 +125,8 @@ class WebDashboard:
         @self.app.route('/api/trades')
         def api_trades():
             """거래 이력"""
-            trades = self.trading_system.trade_logger.get_trade_history(limit=20)
+            from src.utils import run_async
+            trades = run_async(self.trading_system.trade_logger.get_trade_history(limit=20))
             return jsonify({
                 'status': 'success',
                 'data': trades,
