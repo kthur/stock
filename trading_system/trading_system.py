@@ -369,7 +369,8 @@ class StockTradingSystem:
             'reasoning': opinion.reasoning,
             'risks': opinion.risks,
             'opportunities': opinion.opportunities,
-            'timestamp': opinion.timestamp.isoformat()
+            'timestamp': opinion.timestamp.isoformat(),
+            'is_simulated': getattr(opinion, 'is_simulated', False)
         }
     
     def get_consensus_with_ai(self, stock_data: Dict, 

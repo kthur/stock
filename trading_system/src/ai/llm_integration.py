@@ -33,6 +33,7 @@ class InvestmentOpinion:
     risks: List[str] = None
     opportunities: List[str] = None
     timestamp: datetime = None
+    is_simulated: bool = False
     
     def __post_init__(self):
         if self.timestamp is None:
@@ -62,6 +63,8 @@ class LLMEngine:
         # API 클라이언트 초기화 (OpenAI v1.x+ 및 v0.x 호환성 지원)
         try:
             import openai
+            if not self.api_key:
+                raise ValueError("OpenAI API key is missing. Initializing in simulation mode.")
             if hasattr(openai, 'OpenAI'):
                 self.client = openai.OpenAI(api_key=self.api_key)
                 self.is_v1 = True
@@ -70,8 +73,8 @@ class LLMEngine:
                 self.client = openai
                 self.is_v1 = False
             self.logger.info(f"OpenAI client initialized with model: {model}")
-        except ImportError:
-            self.logger.warning("openai library not installed. Using simulation mode.")
+        except Exception as e:
+            self.logger.warning(f"OpenAI library initialization failed or key missing ({e}). Using simulation mode.")
             self.client = None
             self.is_v1 = False
     
@@ -91,13 +94,19 @@ class LLMEngine:
         query = self._build_investment_query(stock_data)
         
         # API 호출
+        is_sim = False
         if self.client:
             response = self._call_openai_api(query)
+            if not response:
+                response = self._simulate_response(stock_data)
+                is_sim = True
         else:
             response = self._simulate_response(stock_data)
+            is_sim = True
         
         # 응답 파싱
         opinion = self._parse_opinion_response(response, symbol)
+        opinion.is_simulated = is_sim
         
         # 히스토리 저장
         self.query_history.append({
@@ -126,13 +135,20 @@ class LLMEngine:
         industry = stock_data.get('industry', 'Unknown')
         market_cap = stock_data.get('market_cap', 0)
         
+        # 한국 종목 여부에 따라 통화 포맷 분기
+        is_kor = symbol.endswith('.KS') or symbol.endswith('.KQ')
+        currency_unit = "원(KRW)" if is_kor else "달러(USD)"
+        currency_sym = "₩" if is_kor else "$"
+        price_str = f"{currency_sym}{price:,.0f}" if is_kor else f"{currency_sym}{price:,.2f}"
+        market_cap_str = f"{currency_sym}{market_cap:,.0f}"
+        
         query = f"""
 주식 {symbol}에 대한 투자 의견을 분석해주세요.
 
-기본 정보:
-- 현재 가격: ${price:,.2f}
+기본 정보 (통화 단위: {currency_unit}):
+- 현재 가격: {price_str}
 - 산업: {industry}
-- 시가총액: ${market_cap:,.0f}
+- 시가총액: {market_cap_str}
 
 재무 지표:
 - PER (주가수익비): {pe_ratio:.2f}
@@ -148,7 +164,7 @@ class LLMEngine:
 1. 투자 추천 (BUY/HOLD/SELL)
 2. 감정도 (매우 긍정적/긍정적/중립적/부정적/매우 부정적)
 3. 확신도 (0-100%)
-4. 목표 주가 (예상)
+4. 목표 주가 (예상 수치만, 화폐 기호 없이 숫자값으로만 기입)
 5. 투자 이유
 6. 주요 리스크
 7. 기회 요인

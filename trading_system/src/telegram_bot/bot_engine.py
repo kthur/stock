@@ -4,6 +4,7 @@ import logging
 from typing import Optional, Dict, List, Callable
 from datetime import datetime
 import os
+from src.utils.async_helper import run_async
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,21 @@ class TelegramBotEngine:
         
         command = parts[0].lstrip('/')
         args = parts[1:] if len(parts) > 1 else []
+        
+        # 텔레그램 권한 검증 추가
+        auth_ids_str = os.getenv("TELEGRAM_AUTHORIZED_USER_IDS", "")
+        if auth_ids_str.strip():
+            try:
+                authorized_ids = [int(uid.strip()) for uid in auth_ids_str.split(",") if uid.strip()]
+                # 비인가 사용자 권한 검사 대상 명령어 목록
+                restricted_commands = {
+                    'buy', 'sell', 'cancel', 'portfolio', 'positions', 'orders', 'connect', 'risk'
+                }
+                if command in restricted_commands and user_id not in authorized_ids:
+                    self.logger.warning(f"Unauthorized command execution attempt by user {user_id}: {message}")
+                    return "⚠️ 권한 오류: 승인되지 않은 사용자 ID입니다. 관리자에게 문의하세요."
+            except ValueError as e:
+                self.logger.error(f"Error parsing TELEGRAM_AUTHORIZED_USER_IDS: {e}")
         
         # 명령어 실행
         if command in self.commands:
@@ -179,12 +195,22 @@ class TelegramBotEngine:
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
         
+        unfilled = self.trading_system.order_management.get_unfilled_orders()
         status = self.trading_system.get_trading_status()
         
         response = "📋 *주문 현황*\n\n"
-        response += f"⏳ 미체결 주문: {status['open_orders']}개\n"
-        response += f"✅ 완료된 주문: {status['total_trades']}건\n"
+        response += f"⏳ 미체결 주문: {len(unfilled)}개\n"
+        response += f"✅ 완료/기타 주문: {status['total_trades'] - len(unfilled)}건\n\n"
         
+        if unfilled:
+            response += "⏳ *미체결 주문 리스트:*\n"
+            for o in unfilled:
+                side_emoji = "🟢 매수" if o.order_type.value == "BUY" else "🔴 매도"
+                response += f"  • `{o.order_id}`\n"
+                response += f"    {side_emoji} | {o.symbol} | {o.quantity}주 | ${o.price:,.2f} | {o.status.value}\n"
+        else:
+            response += "미체결 주문이 존재하지 않습니다.\n"
+            
         return response
     
     def _cmd_news(self, user_id: int, args: List[str]) -> str:
@@ -227,51 +253,123 @@ class TelegramBotEngine:
     
     def _cmd_buy(self, user_id: int, args: List[str]) -> str:
         """매수 주문"""
-        if len(args) < 3:
-            return "⚠️ 사용법: /buy SYMBOL QUANTITY PRICE\n예: /buy AAPL 10 150"
+        if len(args) < 2:
+            return "⚠️ 사용법: /buy SYMBOL QUANTITY [PRICE]\n예: /buy 삼성전자 10 75000 (지정가)\n예: /buy AAPL 5 (시장가)"
         
-        symbol = args[0].upper()
+        raw_symbol = args[0]
+        # 한글 이름 치환 딕셔너리
+        KOR_TICKERS_MAPPING = {
+            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "현대차": "005380.KS",
+            "기아": "000270.KS", "POSCO홀딩스": "005490.KS", "NAVER": "035420.KS",
+            "네이버": "035420.KS", "카카오": "035720.KS", "셀트리온": "068270.KS",
+            "삼성바이오로직스": "207940.KS", "LG에너지솔루션": "373220.KS",
+            "LG화학": "051910.KS", "삼성SDI": "006400.KS", "KB금융": "105560.KS",
+            "신한지주": "055550.KS", "하나금융지주": "086790.KS", "현대모비스": "012330.KS",
+            "LG전자": "066570.KS", "에코프로비엠": "247540.KQ", "에코프로": "086520.KQ",
+            "HLB": "028300.KQ", "엔씨소프트": "036570.KS", "대한항공": "003490.KS",
+            "SK텔레콤": "017670.KS", "KT": "030200.KS", "한국전력": "015760.KS",
+            "크래프톤": "259960.KS", "SK이노베이션": "096770.KS", 
+            "한화에어로스페이스": "012450.KS", "삼성물산": "028260.KS", "고려아연": "010130.KS"
+        }
+        symbol = KOR_TICKERS_MAPPING.get(raw_symbol, raw_symbol.upper())
+        
         try:
             quantity = int(args[1])
-            price = float(args[2])
+            price = float(args[2]) if len(args) > 2 else 0.0
         except ValueError:
             return "⚠️ 수량과 가격은 숫자여야 합니다."
         
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
+            
+        from src.core.order_management import OrderType
         
-        # 주문 접수
-        response = f"✅ *매수 주문 접수*\n\n"
-        response += f"종목: {symbol}\n"
-        response += f"수량: {quantity}주\n"
-        response += f"가격: ${price:,.2f}\n"
-        response += f"주문번호: ORD_123456789\n"
-        response += f"상태: 접수됨\n"
+        # 시장가(MARKET) 처리
+        price_label = f"${price:,.2f}"
+        if price <= 0:
+            price_label = "시장가"
+            quote = self.trading_system.get_stock_quote_from_broker(symbol)
+            price = quote.get('price') or self.trading_system.market_data_cache.get(symbol, {}).get('price') or 150.0
         
+        async def execute_buy_action():
+            order = self.trading_system.order_management.create_order(symbol, OrderType.BUY, quantity, price)
+            await self.trading_system.order_management.submit_order(order)
+            await self.trading_system.order_management.execute_order(order.order_id)
+            await self.trading_system.trade_logger.log_execution(order.order_id, symbol, quantity, price)
+            self.trading_system.portfolio.add_position(symbol, quantity, price)
+            return order.order_id
+            
+        try:
+            order_id = run_async(execute_buy_action())
+            response = f"✅ *실시간 매수 체결 완료*\n\n"
+            response += f"종목: {raw_symbol} ({symbol})\n"
+            response += f"수량: {quantity}주\n"
+            response += f"가격: {price_label} (체결가: ${price:,.2f})\n"
+            response += f"주문번호: `{order_id}`\n"
+            response += f"상태: 체결완료(EXECUTED)\n"
+        except Exception as e:
+            response = f"❌ 주문 실행 실패: {str(e)}"
+            
         return response
     
     def _cmd_sell(self, user_id: int, args: List[str]) -> str:
         """매도 주문"""
-        if len(args) < 3:
-            return "⚠️ 사용법: /sell SYMBOL QUANTITY PRICE\n예: /sell AAPL 5 155"
+        if len(args) < 2:
+            return "⚠️ 사용법: /sell SYMBOL QUANTITY [PRICE]\n예: /sell 삼성전자 10 75000 (지정가)\n예: /sell AAPL 5 (시장가)"
         
-        symbol = args[0].upper()
+        raw_symbol = args[0]
+        KOR_TICKERS_MAPPING = {
+            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "현대차": "005380.KS",
+            "기아": "000270.KS", "POSCO홀딩스": "005490.KS", "NAVER": "035420.KS",
+            "네이버": "035420.KS", "카카오": "035720.KS", "셀트리온": "068270.KS",
+            "삼성바이오로직스": "207940.KS", "LG에너지솔루션": "373220.KS",
+            "LG화학": "051910.KS", "삼성SDI": "006400.KS", "KB금융": "105560.KS",
+            "신한지주": "055550.KS", "하나금융지주": "086790.KS", "현대모비스": "012330.KS",
+            "LG전자": "066570.KS", "에코프로비엠": "247540.KQ", "에코프로": "086520.KQ",
+            "HLB": "028300.KQ", "엔씨소프트": "036570.KS", "대한항공": "003490.KS",
+            "SK텔레콤": "017670.KS", "KT": "030200.KS", "한국전력": "015760.KS",
+            "크래프톤": "259960.KS", "SK이노베이션": "096770.KS", 
+            "한화에어로스페이스": "012450.KS", "삼성물산": "028260.KS", "고려아연": "010130.KS"
+        }
+        symbol = KOR_TICKERS_MAPPING.get(raw_symbol, raw_symbol.upper())
+        
         try:
             quantity = int(args[1])
-            price = float(args[2])
+            price = float(args[2]) if len(args) > 2 else 0.0
         except ValueError:
             return "⚠️ 수량과 가격은 숫자여야 합니다."
         
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
+            
+        from src.core.order_management import OrderType
         
-        response = f"✅ *매도 주문 접수*\n\n"
-        response += f"종목: {symbol}\n"
-        response += f"수량: {quantity}주\n"
-        response += f"가격: ${price:,.2f}\n"
-        response += f"주문번호: ORD_987654321\n"
-        response += f"상태: 접수됨\n"
-        
+        # 시장가(MARKET) 처리
+        price_label = f"${price:,.2f}"
+        if price <= 0:
+            price_label = "시장가"
+            quote = self.trading_system.get_stock_quote_from_broker(symbol)
+            price = quote.get('price') or self.trading_system.market_data_cache.get(symbol, {}).get('price') or 150.0
+            
+        async def execute_sell_action():
+            order = self.trading_system.order_management.create_order(symbol, OrderType.SELL, quantity, price)
+            await self.trading_system.order_management.submit_order(order)
+            await self.trading_system.order_management.execute_order(order.order_id)
+            await self.trading_system.trade_logger.log_execution(order.order_id, symbol, quantity, price)
+            self.trading_system.portfolio.reduce_position(symbol, quantity)
+            return order.order_id
+            
+        try:
+            order_id = run_async(execute_sell_action())
+            response = f"✅ *실시간 매도 체결 완료*\n\n"
+            response += f"종목: {raw_symbol} ({symbol})\n"
+            response += f"수량: {quantity}주\n"
+            response += f"가격: {price_label} (체결가: ${price:,.2f})\n"
+            response += f"주문번호: `{order_id}`\n"
+            response += f"상태: 체결완료(EXECUTED)\n"
+        except Exception as e:
+            response = f"❌ 주문 실행 실패: {str(e)}"
+            
         return response
     
     def _cmd_cancel(self, user_id: int, args: List[str]) -> str:
@@ -280,11 +378,20 @@ class TelegramBotEngine:
             return "⚠️ 주문 번호를 입력해주세요. 예: /cancel ORD_123456789"
         
         order_id = args[0]
-        
-        response = f"✅ *주문 취소*\n\n"
-        response += f"주문번호: {order_id}\n"
-        response += f"상태: 취소됨\n"
-        
+        if not self.trading_system:
+            return "❌ 시스템 연동 안됨"
+            
+        try:
+            success = run_async(self.trading_system.order_management.cancel_order(order_id))
+            if success:
+                response = f"✅ *주문 취소 완료*\n\n"
+                response += f"주문번호: `{order_id}`\n"
+                response += f"상태: 취소됨(CANCELLED)\n"
+            else:
+                response = f"❌ 주문 취소 거부: 해당 주문을 취소할 수 없습니다. (이미 체결되었거나 만료됨)"
+        except Exception as e:
+            response = f"❌ 취소 실패: {str(e)}"
+            
         return response
     
     def _cmd_brokers(self, user_id: int, args: List[str]) -> str:

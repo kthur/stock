@@ -56,8 +56,45 @@ class RiskManager:
         self.default_stop_loss_pct = 0.05  # 5%
         self.default_take_profit_pct = 0.10  # 10%
         
+        # 설정 로드
+        self._load_config()
+        
         self.metrics_history: List[RiskMetrics] = []
         self.alerts: List[Dict] = []
+
+    def _get_config_path(self):
+        import os
+        from pathlib import Path
+        return Path(__file__).parent.parent.parent / "risk_config.json"
+
+    def _load_config(self):
+        import json
+        config_path = self._get_config_path()
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.default_stop_loss_pct = data.get("default_stop_loss_pct", self.default_stop_loss_pct)
+                    self.max_portfolio_loss_pct = data.get("max_portfolio_loss_pct", self.max_portfolio_loss_pct)
+                    self.max_position_size_pct = data.get("max_position_size_pct", self.max_position_size_pct)
+                self.logger.info(f"Risk configuration loaded from {config_path}: StopLoss={self.default_stop_loss_pct:.2%}, MaxPortfolioLoss={self.max_portfolio_loss_pct:.2%}, MaxPositionSize={self.max_position_size_pct:.2%}")
+            except Exception as e:
+                self.logger.error(f"Failed to load risk configuration: {e}")
+
+    def save_config(self):
+        import json
+        config_path = self._get_config_path()
+        try:
+            data = {
+                "default_stop_loss_pct": self.default_stop_loss_pct,
+                "max_portfolio_loss_pct": self.max_portfolio_loss_pct,
+                "max_position_size_pct": self.max_position_size_pct
+            }
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+            self.logger.info(f"Risk configuration saved to {config_path}: StopLoss={self.default_stop_loss_pct:.2%}, MaxPortfolioLoss={self.max_portfolio_loss_pct:.2%}, MaxPositionSize={self.max_position_size_pct:.2%}")
+        except Exception as e:
+            self.logger.error(f"Failed to save risk configuration: {e}")
         
     def set_position_limit(self, symbol: str, max_quantity: int):
         """종목별 최대 수량 설정"""

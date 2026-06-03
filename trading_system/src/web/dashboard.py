@@ -173,7 +173,67 @@ class WebDashboard:
                     }
                 }
             return {'status': 'error', 'message': 'Risk manager not available'}
-            
+
+        @self.app.post("/api/ai/opinion")
+        async def api_ai_opinion(request: Request):
+            """AI 투자 의견 분석 API"""
+            try:
+                body = await request.json()
+                raw_symbol = body.get('symbol', 'AAPL').strip()
+                if not raw_symbol:
+                    return {'status': 'error', 'message': '종목명이 필요합니다.'}
+                
+                symbol = KOR_TICKERS.get(raw_symbol, raw_symbol)
+                
+                # 가짜/진짜 시세 데이터를 조회하여 llm_engine에 주입할 정보 생성
+                quote = self.trading_system.get_stock_quote_from_broker(symbol)
+                price = quote.get('price') or self.trading_system.market_data_cache.get(symbol, {}).get('price')
+                
+                if not price:
+                    # 폴백 조회
+                    bars = self.trading_system.market_data_handler.fetch_live_data(symbol)
+                    price = bars[-1].close if bars else 150.0
+                
+                stock_data = {
+                    'symbol': symbol,
+                    'price': price,
+                    'volume': quote.get('volume') or 1000000,
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+                # AI 의견 도출
+                opinion = self.trading_system.get_ai_investment_opinion(stock_data)
+                return {'status': 'success', 'data': opinion}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+
+        @self.app.post("/api/risk/settings")
+        async def api_risk_settings(request: Request):
+            """위험 정책 및 손절 설정 업데이트 API"""
+            try:
+                body = await request.json()
+                if not hasattr(self.trading_system, 'risk_manager'):
+                    return {'status': 'error', 'message': 'Risk manager not available'}
+                    
+                risk = self.trading_system.risk_manager
+                
+                # 각 설정 항목 파싱 및 반영
+                if 'stop_loss_pct' in body:
+                    risk.default_stop_loss_pct = float(body['stop_loss_pct']) / 100.0
+                if 'max_portfolio_loss_pct' in body:
+                    risk.max_portfolio_loss_pct = float(body['max_portfolio_loss_pct']) / 100.0
+                if 'max_position_size_pct' in body:
+                    risk.max_position_size_pct = float(body['max_position_size_pct']) / 100.0
+                
+                # 디스크에 지속화
+                if hasattr(risk, 'save_config'):
+                    risk.save_config()
+                    
+                self.logger.info(f"Risk settings dynamically updated & saved: StopLoss={risk.default_stop_loss_pct:.2%}, MaxPortfolioLoss={risk.max_portfolio_loss_pct:.2%}, MaxPositionSize={risk.max_position_size_pct:.2%}")
+                return {'status': 'success', 'message': '리스크 관리 설정이 성공적으로 갱신되었습니다.'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+
         @self.app.post("/api/backtest")
         async def api_backtest(request: Request):
             """백테스트 실행 API"""
@@ -1021,6 +1081,38 @@ class WebDashboard:
                         <div class="subtitle">레벨</div>
                     </div>
                 </div>
+
+                <!-- 🛡️ 실시간 리스크 관리 설정 -->
+                <div class="card" style="margin-bottom: 20px; border-left: 4px solid #f44336;">
+                    <h2>🛡️ 실시간 리스크 관리 설정</h2>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
+                        <div>
+                            <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 6px;">기본 손절선 (Stop Loss %)</label>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="range" id="risk-input-sl" min="1" max="30" value="5" oninput="document.getElementById('lbl-sl').textContent = this.value + '%'" style="flex-grow:1;">
+                                <span id="lbl-sl" style="font-size:14px; font-weight:bold; color:#f44336; width:35px;">5%</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 6px;">최대 포트폴리오 허용 낙폭 (%)</label>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="range" id="risk-input-mdd" min="3" max="50" value="10" oninput="document.getElementById('lbl-mdd').textContent = this.value + '%'" style="flex-grow:1;">
+                                <span id="lbl-mdd" style="font-size:14px; font-weight:bold; color:#f44336; width:35px;">10%</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 6px;">단일 종목 최대 투자 비중 (%)</label>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="range" id="risk-input-pos" min="5" max="100" value="20" oninput="document.getElementById('lbl-pos').textContent = this.value + '%'" style="flex-grow:1;">
+                                <span id="lbl-pos" style="font-size:14px; font-weight:bold; color:#ff9800; width:40px;">20%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; text-align: right;">
+                        <button class="btn" onclick="saveRiskSettings()" style="background:#f44336; font-weight:bold; padding: 8px 18px;">설정값 반영</button>
+                    </div>
+                    <div id="risk-settings-feedback" style="display:none; font-size:12px; margin-top:10px; padding:8px; border-radius:4px;"></div>
+                </div>
                 
                 <!-- 백테스트 시뮬레이터 -->
                 <div class="card" style="margin-bottom: 20px;">
@@ -1062,6 +1154,58 @@ class WebDashboard:
                     </div>
                     <div id="bt-chart-container" style="position: relative; height: 400px; width: 100%; margin-top: 20px; display: none;">
                         <canvas id="bt-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 🤖 AI 주식 진단 리포트 -->
+                <div class="card" style="margin-bottom: 20px; border-left: 4px solid #ce93d8;">
+                    <h2 style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>🤖 AI 주식 진단 리포트</span>
+                        <span id="ai-mode-badge" style="font-size:11px; font-weight:bold; padding:4px 8px; border-radius:12px; display:none;"></span>
+                    </h2>
+                    <p style="font-size: 13px; color:#888; margin-bottom: 15px;">원하는 종목을 입력하고 진단하기 버튼을 클릭하면, 실시간 수집된 시장 지표와 뉴스를 바탕으로 AI 리포트를 생성합니다.</p>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+                        <input type="text" id="ai-symbol" list="symbol-list" class="form-control" placeholder="예: 삼성전자" style="margin-bottom:0; width:180px;" oninput="searchSymbol(this.value)">
+                        <button class="btn" id="btn-ai-query" onclick="queryAiOpinion()" style="background:#9c27b0; font-weight:bold; padding: 10px 20px;">🤖 AI 진단 개시</button>
+                    </div>
+                    
+                    <div id="ai-loading" style="display:none; text-align:center; padding:20px;">
+                        <div class="loading">AI가 시장 지표와 감성 코퍼스를 연산하여 의견서를 작성 중입니다...</div>
+                    </div>
+                    
+                    <div id="ai-report-box" style="display:none; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); padding:18px; border-radius:10px; margin-top:12px;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:10px; margin-bottom:15px;">
+                            <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; text-align:center;">
+                                <div style="font-size:11px; color:#888;">추천 의견</div>
+                                <div id="ai-rec" style="font-size:16px; font-weight:bold; margin-top:4px;">-</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; text-align:center;">
+                                <div style="font-size:11px; color:#888;">감성 등급</div>
+                                <div id="ai-sent" style="font-size:16px; font-weight:bold; margin-top:4px;">-</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; text-align:center;">
+                                <div style="font-size:11px; color:#888;">추천 신뢰도</div>
+                                <div id="ai-conf" style="font-size:16px; font-weight:bold; margin-top:4px;">-</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:8px; text-align:center;">
+                                <div style="font-size:11px; color:#888;">목표 주가</div>
+                                <div id="ai-target" style="font-size:16px; font-weight:bold; margin-top:4px;">-</div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:12px;">
+                            <h4 style="margin-bottom:4px; color:#ce93d8; font-size:13px;">💡 판단 근거 (Reasoning)</h4>
+                            <p id="ai-reason" style="font-size:12px; color:#ccc; line-height:1.6; margin:0; white-space:pre-wrap;"></p>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                            <div>
+                                <h4 style="margin-bottom:4px; color:#90caf9; font-size:13px;">💡 기회 요인 (Opportunities)</h4>
+                                <p id="ai-opps" style="font-size:11px; color:#bbb; line-height:1.5; margin:0; white-space:pre-wrap;"></p>
+                            </div>
+                            <div>
+                                <h4 style="margin-bottom:4px; color:#ef9a9a; font-size:13px;">⚠️ 위험 요인 (Risks)</h4>
+                                <p id="ai-risks" style="font-size:11px; color:#bbb; line-height:1.5; margin:0; white-space:pre-wrap;"></p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -1106,7 +1250,30 @@ class WebDashboard:
                 <div id="tab-scanner" class="tab-content">
                     <div class="card" style="margin-bottom: 20px;">
                         <h2>📊 전체 종목 백테스트 스캐너</h2>
-                        <p style="font-size: 13px; color: #888; margin-bottom: 18px;">유니버스 내 40개 주요 종목(한국/미국)을 대상으로 백그라운드 스캔을 수행합니다. 종목을 클릭하면 수익률 차트를 확인할 수 있습니다.</p>
+                        <p style="font-size: 13px; color: #888; margin-bottom: 15px;">유니버스 내 40개 주요 종목(한국/미국)을 대상으로 백그라운드 스캔을 수행합니다. 종목을 클릭하면 수익률 차트를 확인할 수 있습니다.</p>
+                        
+                        <details style="margin-bottom: 18px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); padding: 12px; border-radius: 8px;">
+                            <summary style="font-size: 13px; font-weight: bold; color: #ccc; cursor: pointer; user-select: none;">🔍 스캔 대상 유니버스 종목 보기 (총 40개 종목)</summary>
+                            <div style="margin-top: 10px; font-size: 12px; line-height: 1.7; color: #aaa;">
+                                <div style="margin-bottom: 8px;">
+                                    <strong style="color: #90caf9;">🇺🇸 미국 주식 (10개):</strong><br>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">AAPL</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">MSFT</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">GOOGL</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">AMZN</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">NVDA</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">META</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">TSLA</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">BRK-B</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">JPM</span>
+                                    <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">JNJ</span>
+                                </div>
+                                <div>
+                                    <strong style="color: #ffcc80;">🇰🇷 한국 주식 (30개):</strong><br>
+                                    삼성전자, SK하이닉스, 현대차, 기아, NAVER, 카카오, LG화학, 삼성SDI, LG에너지솔루션, 삼성바이오로직스, 셀트리온, POSCO홀딩스, KB금융, 신한지주, 엔씨소프트, 현대모비스, LG전자, 한국전력, SK텔레콤, KT, 한화에어로스페이스, 삼성물산, 고려아연, SK이노베이션, 에코프로비엠, 에코프로, HLB, 크래프톤, 대한항공, 하나금융지주
+                                </div>
+                            </div>
+                        </details>
                         
                         <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 18px; flex-wrap: wrap;">
                             <div>
@@ -1372,6 +1539,137 @@ class WebDashboard:
                         }
                     } catch (e) {
                         alert('네트워크 오류가 발생했습니다: ' + e.message);
+                    }
+                }
+
+                // ── 실시간 리스크 관리 설정 반영 ──────────────────────────
+                async function saveRiskSettings() {
+                    const sl = parseFloat(document.getElementById('risk-input-sl').value);
+                    const mdd = parseFloat(document.getElementById('risk-input-mdd').value);
+                    const pos = parseFloat(document.getElementById('risk-input-pos').value);
+                    const feedback = document.getElementById('risk-settings-feedback');
+
+                    feedback.style.display = 'none';
+
+                    try {
+                        const resp = await fetch('/api/risk/settings', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                stop_loss_pct: sl,
+                                max_portfolio_loss_pct: mdd,
+                                max_position_size_pct: pos
+                            })
+                        });
+                        const res = await resp.json();
+                        feedback.style.display = 'block';
+
+                        if (res.status === 'success') {
+                            feedback.style.background = 'rgba(76,175,80,0.15)';
+                            feedback.style.border = '1px solid rgba(76,175,80,0.4)';
+                            feedback.style.color = '#81c784';
+                            feedback.textContent = res.message;
+                            setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+                        } else {
+                            feedback.style.background = 'rgba(244,67,54,0.15)';
+                            feedback.style.border = '1px solid rgba(244,67,54,0.4)';
+                            feedback.style.color = '#e57373';
+                            feedback.textContent = '설정 반영 실패: ' + res.message;
+                        }
+                    } catch (e) {
+                        feedback.style.display = 'block';
+                        feedback.style.background = 'rgba(244,67,54,0.15)';
+                        feedback.style.border = '1px solid rgba(244,67,54,0.4)';
+                        feedback.style.color = '#e57373';
+                        feedback.textContent = '네트워크 에러: ' + e.message;
+                    }
+                }
+
+                // ── AI 주식 진단 리포트 요청 ──────────────────────────────
+                async function queryAiOpinion() {
+                    const symbol = document.getElementById('ai-symbol').value.trim();
+                    const loading = document.getElementById('ai-loading');
+                    const repBox = document.getElementById('ai-report-box');
+                    const btn = document.getElementById('btn-ai-query');
+
+                    if (!symbol) {
+                        alert('진단할 종목명을 입력하세요.');
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    loading.style.display = 'block';
+                    repBox.style.display = 'none';
+
+                    try {
+                        const resp = await fetch('/api/ai/opinion', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ symbol: symbol })
+                        });
+                        const res = await resp.json();
+                        btn.disabled = false;
+                        loading.style.display = 'none';
+
+                        if (res.status === 'success') {
+                            const d = res.data;
+                            
+                            document.getElementById('ai-rec').textContent = d.recommendation || '보유 (HOLD)';
+                            document.getElementById('ai-sent').textContent = d.sentiment || 'NEUTRAL';
+                            document.getElementById('ai-conf').textContent = ((d.confidence || 0.5) * 100).toFixed(0) + '%';
+                            
+                            // 통화 단위 동적 분기
+                            const isKor = d.symbol && (d.symbol.endsWith('.KS') || d.symbol.endsWith('.KQ'));
+                            const currencySym = isKor ? '₩' : '$';
+                            const targetVal = parseFloat(d.target_price);
+                            if (!isNaN(targetVal) && targetVal > 0) {
+                                document.getElementById('ai-target').textContent = currencySym + targetVal.toLocaleString(undefined, {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: isKor ? 0 : 2
+                                });
+                            } else {
+                                document.getElementById('ai-target').textContent = '-';
+                            }
+                            
+                            document.getElementById('ai-reason').textContent = d.reasoning || '충분한 근거 지표 부재';
+                            document.getElementById('ai-opps').textContent = Array.isArray(d.opportunities) ? d.opportunities.join('\n') : (d.opportunities || 'N/A');
+                            document.getElementById('ai-risks').textContent = Array.isArray(d.risks) ? d.risks.join('\n') : (d.risks || 'N/A');
+
+                            // AI 진단 모드 배지 표시
+                            const badge = document.getElementById('ai-mode-badge');
+                            if (badge) {
+                                badge.style.display = 'inline-block';
+                                if (d.is_simulated) {
+                                    badge.textContent = '⚠️ AI 모의 모드';
+                                    badge.style.background = 'rgba(255, 152, 0, 0.15)';
+                                    badge.style.border = '1px solid rgba(255, 152, 0, 0.4)';
+                                    badge.style.color = '#ffb74d';
+                                } else {
+                                    badge.textContent = '🟢 OpenAI 실시간 분석';
+                                    badge.style.background = 'rgba(76, 175, 80, 0.15)';
+                                    badge.style.border = '1px solid rgba(76, 175, 80, 0.4)';
+                                    badge.style.color = '#81c784';
+                                }
+                            }
+
+                            // 추천 의견 색상 강조
+                            const recEl = document.getElementById('ai-rec');
+                            if (d.recommendation && (d.recommendation.includes('매수') || d.recommendation.includes('BUY'))) {
+                                recEl.style.color = '#4caf50';
+                            } else if (d.recommendation && (d.recommendation.includes('매도') || d.recommendation.includes('SELL'))) {
+                                recEl.style.color = '#f44336';
+                            } else {
+                                recEl.style.color = '#ffeb3b';
+                            }
+
+                            repBox.style.display = 'block';
+                        } else {
+                            alert('AI 진단 실패: ' + res.message);
+                        }
+                    } catch (e) {
+                        btn.disabled = false;
+                        loading.style.display = 'none';
+                        alert('AI 의견 수집 중 네트워크 오류: ' + e.message);
                     }
                 }
                 
