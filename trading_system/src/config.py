@@ -20,7 +20,7 @@ class TradingConfig:
     
     # API 및 토큰 설정 주입
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     telegram_authorized_user_ids: str = os.getenv("TELEGRAM_AUTHORIZED_USER_IDS", "")
 
@@ -34,10 +34,5 @@ class TradingConfig:
             return []
 
     def __post_init__(self):
-        # 로드된 이후 시점의 환경 변수 로드 지원
-        if not self.openai_api_key:
-            self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        if not self.telegram_bot_token:
-            self.telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        if not self.telegram_authorized_user_ids:
-            self.telegram_authorized_user_ids = os.getenv("TELEGRAM_AUTHORIZED_USER_IDS", "")
+        # 추가 환경 변수 로드 지원 (필요 시 주입)
+        pass

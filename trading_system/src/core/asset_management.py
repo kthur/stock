@@ -3,7 +3,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Callable
+
 import logging
+from src.utils import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +33,13 @@ class Position:
 class PortfolioManager:
     """포트폴리오 관리자 - 실시간 가용 자산 계산"""
     
-    def __init__(self, initial_cash: float = 0):
+    def __init__(self, initial_cash: float = 0) -> None:
         self.cash = initial_cash
         self.positions: Dict[str, Position] = {}
         self.asset_history: List[AssetSnapshot] = []
         self.logger = logger
         
-    def add_position(self, symbol: str, quantity: int, price: float):
+    def add_position(self, symbol: str, quantity: int, price: float) -> None:
         """포지션 추가 또는 업데이트"""
         if symbol in self.positions:
             pos = self.positions[symbol]
@@ -67,7 +69,7 @@ class PortfolioManager:
         """사용 가능한 현금 조회"""
         return self.cash
     
-    def deposit(self, amount: float):
+    def deposit(self, amount: float) -> None:
         """예금"""
         self.cash += amount
         self.logger.info(f"Deposited: {amount}, total cash: {self.cash}")
@@ -88,12 +90,16 @@ class PortfolioManager:
                 total += position.quantity * market_prices[symbol]
         return total
     
-    def take_snapshot(self) -> AssetSnapshot:
+    def take_snapshot(self, market_prices: Dict[str, float] = None) -> AssetSnapshot:
         """자산 스냅샷 기록"""
+        if market_prices:
+            total_value = self.get_portfolio_value(market_prices)
+        else:
+            total_value = self.cash
         snapshot = AssetSnapshot(
             cash=self.cash,
             holdings={s: p.quantity for s, p in self.positions.items()},
-            total_value=self.cash,  # 시장가 정보 없이는 현금만 계산
+            total_value=total_value,
             timestamp=datetime.now()
         )
         self.asset_history.append(snapshot)
@@ -103,14 +109,14 @@ class PortfolioManager:
 class AccountSyncAgent:
     """자산 동기화 에이전트 - 증권사 잔고와 동기화"""
     
-    def __init__(self, portfolio: PortfolioManager, event_bus=None):
+    def __init__(self, portfolio: PortfolioManager, event_bus: EventBus | None = None) -> None:
         self.portfolio = portfolio
         self.sync_history: List[Dict] = []
         self.event_bus = event_bus
         self.logger = logger
         self.subscribers: List[Callable] = []
     
-    def subscribe(self, callback: Callable):
+    def subscribe(self, callback: Callable) -> None:
         """동기화 결과 구독"""
         self.subscribers.append(callback)
     

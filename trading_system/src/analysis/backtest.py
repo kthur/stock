@@ -3,16 +3,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Callable
-from enum import Enum
 import logging
+import itertools
 
 logger = logging.getLogger(__name__)
-
-
-class OrderType(Enum):
-    """주문 타입"""
-    BUY = "BUY"
-    SELL = "SELL"
 
 
 @dataclass
@@ -408,8 +402,6 @@ class BacktestEngine:
     
     def _generate_param_combos(self, param_ranges: Dict) -> List[Dict]:
         """파라미터 조합 생성"""
-        import itertools
-        
         keys = param_ranges.keys()
         values = [param_ranges[k] for k in keys]
         

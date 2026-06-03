@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,6 @@ class KoreaInvestmentConnector:
     def get_live_quote(self, symbol: str) -> Dict:
         """현재가 조회 (FHKST01010100)"""
         if self.simulation_mode:
-            import random
             return {'price': 10000.0 * (1 + random.uniform(-0.01, 0.01))}
             
         headers = self._get_auth_headers("FHKST01010100")

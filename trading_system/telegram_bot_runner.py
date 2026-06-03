@@ -103,11 +103,12 @@ async def main():
     logger.info("=" * 60)
     
     # 데몬 유지
+    stop_event = asyncio.Event()
     try:
-        while True:
-            await asyncio.sleep(3600)
-    except (KeyboardInterrupt, SystemExit):
+        await stop_event.wait()
+    except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
         logger.info("Shutting down Telegram Bot daemon...")
+    finally:
         await application.updater.stop()
         await application.stop()
         await application.shutdown()

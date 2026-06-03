@@ -216,7 +216,8 @@ class AdvancedStatistics:
         initial_value = equity_curve[0]
         final_value = equity_curve[-1]
         total_return = (final_value - initial_value) / initial_value
-        annual_return = total_return / (len(equity_curve) / 252)
+        n = len(equity_curve)
+        annual_return = (1 + total_return) ** (252 / n) - 1 if n > 0 else 0
         
         max_dd, _, _ = self.calculate_max_drawdown(equity_curve)
         volatility = self.calculate_volatility(returns)

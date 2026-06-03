@@ -5,6 +5,12 @@ from datetime import datetime
 from typing import Dict, List, Any
 import logging
 import json
+import urllib.parse
+import uuid
+import math
+import concurrent.futures
+import urllib.request
+import os
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
@@ -18,7 +24,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from src.utils.stock_list import KOR_TICKERS, KOR_TICKERS_REV
+from src.utils.stock_list import get_tickers, get_tickers_rev
+from src.core.order_management import OrderType
 
 class WebDashboard:
     """웹 대시보드"""
@@ -201,7 +208,7 @@ class WebDashboard:
                 if not raw_symbol:
                     return {'status': 'error', 'message': '종목명이 필요합니다.'}
                 
-                symbol = KOR_TICKERS.get(raw_symbol, raw_symbol)
+                symbol = get_tickers().get(raw_symbol, raw_symbol)
                 
                 # 가짜/진짜 시세 데이터를 조회하여 llm_engine에 주입할 정보 생성
                 quote = self.trading_system.get_stock_quote_from_broker(symbol)
@@ -209,8 +216,8 @@ class WebDashboard:
                 
                 if not price:
                     # 폴백 조회
-                    bars = self.trading_system.market_data_handler.fetch_live_data(symbol)
-                    price = bars[-1].close if bars else 150.0
+                    market_data = self.trading_system.market_data_handler.fetch_live_data(symbol)
+                    price = market_data.price if market_data else 150.0
                 
                 stock_data = {
                     'symbol': symbol,
@@ -270,7 +277,7 @@ class WebDashboard:
             try:
                 body = await request.json()
                 raw_symbol = body.get('symbol', 'AAPL').strip()
-                symbol = KOR_TICKERS.get(raw_symbol, raw_symbol)
+                symbol = get_tickers().get(raw_symbol, raw_symbol)
                 strategy_name = body.get('strategy', 'MA')
                 period = body.get('period', '10y')
                 allow_short = bool(body.get('allow_short', False))
@@ -356,7 +363,7 @@ class WebDashboard:
                 return {
                     'status': 'success',
                     'data': {
-                        'symbol': KOR_TICKERS_REV.get(result.symbol, result.symbol),
+                        'symbol': get_tickers_rev().get(result.symbol, result.symbol),
                         'total_return_pct': f"{result.total_return_pct:.2f}%",
                         'win_rate': f"{result.win_rate:.2%}",
                         'max_drawdown': f"{result.max_drawdown:.2%}",
@@ -379,46 +386,51 @@ class WebDashboard:
         @self.app.get("/api/search")
         async def api_search(q: str):
             """종목명 검색 API (Yahoo Finance 연동 + 로컬 한국 주식 매핑)"""
-            import urllib.request
-            import urllib.parse
-            import json
-            
             if not q or len(q) < 2:
                 return {'status': 'success', 'results': []}
             
             local_results = []
-            for name, code in KOR_TICKERS.items():
+            for name, code in get_tickers().items():
                 if q.lower() in name.lower() or q.upper() in code:
                     local_results.append({"symbol": code, "name": name})
                     
             # 영어 기반이나 다른 티커는 Yahoo 검색으로 처리 (한국어는 야후가 차단할 수 있음)
-                
             url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(q)}&quotesCount=8&newsCount=0"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            headers = {'User-Agent': 'Mozilla/5.0'}
             try:
-                with urllib.request.urlopen(req) as response:
-                    data = json.loads(response.read().decode())
-                    quotes = data.get('quotes', [])
-                    results = local_results + [
-                        {
-                            "symbol": quote.get('symbol'), 
-                            "name": quote.get('shortname', quote.get('longname', '알 수 없음'))
-                        } 
-                        for quote in quotes if quote.get('quoteType') in ['EQUITY', 'ETF']
-                    ]
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url, headers=headers, timeout=10)
+                    data = response.json()
+            except ImportError:
+                try:
+                    import aiohttp
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url, headers=headers) as response:
+                            data = await response.json()
+                except ImportError:
+                    req = urllib.request.Request(url, headers=headers)
+                    with urllib.request.urlopen(req) as response:
+                        data = json.loads(response.read().decode())
+            
+            quotes = data.get('quotes', [])
+            results = local_results + [
+                {
+                    "symbol": quote.get('symbol'), 
+                    "name": quote.get('shortname', quote.get('longname', '알 수 없음'))
+                } 
+                for quote in quotes if quote.get('quoteType') in ['EQUITY', 'ETF']
+            ]
+            
+            # 중복 제거 (로컬 매핑과 야후 매핑 중복)
+            seen = set()
+            unique_results = []
+            for r in results:
+                if r['symbol'] not in seen:
+                    seen.add(r['symbol'])
+                    unique_results.append(r)
                     
-                    # 중복 제거 (로컬 매핑과 야후 매핑 중복)
-                    seen = set()
-                    unique_results = []
-                    for r in results:
-                        if r['symbol'] not in seen:
-                            seen.add(r['symbol'])
-                            unique_results.append(r)
-                            
-                    return {'status': 'success', 'results': unique_results}
-            except Exception as e:
-                self.logger.warning(f"Yahoo Search API failed, using local results. Error: {e}")
-                return {'status': 'success', 'results': local_results}
+            return {'status': 'success', 'results': unique_results}
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
@@ -437,8 +449,6 @@ class WebDashboard:
                     
         @self.app.post("/api/scanner/start")
         async def api_scanner_start(request: Request):
-            import uuid
-            import asyncio
             try:
                 body = await request.json()
                 strategy_name = body.get('strategy', 'MA')
@@ -463,7 +473,7 @@ class WebDashboard:
                     target_period_bars = 252
                 
                 # 한국 전체 종목 + 미국 대형주 샘플
-                UNIVERSE = list(KOR_TICKERS_REV.keys()) + [
+                UNIVERSE = list(get_tickers_rev().keys()) + [
                     "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK-B", "JPM", "JNJ"
                 ]
                 
@@ -485,9 +495,6 @@ class WebDashboard:
                     else:
                         strategy_func = engine._simple_ma_strategy
                         
-                    import math
-                    import concurrent.futures
-                    
                     def sanitize_float(val, default=0.0):
                         if val is None or math.isnan(val) or math.isinf(val):
                             return default
@@ -500,7 +507,7 @@ class WebDashboard:
                                 return None
                             res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short)
                             
-                            display_symbol = KOR_TICKERS_REV.get(symbol, symbol)
+                            display_symbol = get_tickers_rev().get(symbol, symbol)
                             if symbol.endswith('.KS'):
                                 exchange, market = 'KOSPI', 'KR'
                             elif symbol.endswith('.KQ'):
@@ -570,7 +577,7 @@ class WebDashboard:
                 if not raw_symbol:
                     return {'status': 'error', 'message': '종목명이 필요합니다.'}
                 
-                symbol = KOR_TICKERS.get(raw_symbol, raw_symbol) # 한글 이름 치환
+                symbol = get_tickers().get(raw_symbol, raw_symbol) # 한글 이름 치환
                 order_type_str = body.get('order_type', 'BUY') # BUY or SELL
                 qty = int(body.get('quantity', 0))
                 price_type = body.get('price_type', 'LIMIT') # LIMIT or MARKET
@@ -579,7 +586,6 @@ class WebDashboard:
                 if qty <= 0:
                     return {'status': 'error', 'message': '수량은 1주 이상이어야 합니다.'}
                 
-                from src.core.order_management import OrderType
                 o_type = OrderType.BUY if order_type_str.upper() == 'BUY' else OrderType.SELL
                 
                 # 시장가(MARKET) 처리: 가격이 0이거나 미지정일 때, 현재 시세를 조회해와서 주문 가격을 결정
@@ -589,11 +595,11 @@ class WebDashboard:
                     
                     if not current_price:
                         # yfinance에서 실시간 시세를 직접 한번 찔러옴
-                        bars = self.trading_system.market_data_handler.fetch_live_data(symbol)
-                        if bars:
-                            current_price = bars[-1].close
+                        market_data = self.trading_system.market_data_handler.fetch_live_data(symbol)
+                        if market_data:
+                            current_price = market_data.price
                         else:
-                            current_price = 150.0  # 기본 폴백값
+                            current_price = 150.0
                             
                     price = current_price
                 
@@ -688,8 +694,8 @@ class WebDashboard:
             try:
                 if hasattr(self.trading_system, 'comp') and 'ai_db' in self.trading_system.comp:
                     def get_price(symbol):
-                        bars = self.trading_system.market_data_handler.fetch_live_data(symbol)
-                        return bars[-1].close if bars else None
+                        market_data = self.trading_system.market_data_handler.fetch_live_data(symbol)
+                        return market_data.price if market_data else None
 
                     await self.trading_system.comp['ai_db'].evaluate_pending_predictions(get_price)
             except asyncio.CancelledError:
@@ -711,8 +717,7 @@ class WebDashboard:
                 symbols = list(set(default_symbols + active_positions))
                 
                 # 2. 시장 개장 상태 체크 (KST 기준)
-                import datetime
-                now = datetime.datetime.now()
+                now = datetime.now()
                 weekday = now.weekday()
                 time_str = now.strftime("%H:%M")
                 
@@ -755,7 +760,6 @@ class WebDashboard:
 
     async def _run_telegram_bot(self):
         """백그라운드에서 텔레그램 봇 인스턴스를 초기화하고 폴링 기동"""
-        import os
         token = os.getenv("TELEGRAM_BOT_TOKEN")
         if not token:
             self.logger.warning("TELEGRAM_BOT_TOKEN이 없어서 텔레그램 봇을 기동하지 않습니다.")

@@ -5,6 +5,8 @@ from typing import Optional, Dict, List, Callable
 from datetime import datetime
 import os
 from src.utils.async_helper import run_async
+from src.utils.stock_list import get_tickers as _get_tickers
+from src.core.order_management import OrderType
 
 logger = logging.getLogger(__name__)
 
@@ -258,20 +260,16 @@ class TelegramBotEngine:
             return "⚠️ 사용법: /buy SYMBOL QUANTITY [PRICE]\n예: /buy 삼성전자 10 75000 (지정가)\n예: /buy AAPL 5 (시장가)"
         
         raw_symbol = args[0]
-        # 한글 이름 치환 딕셔너리
-        from src.utils.stock_list import KOR_TICKERS as KOR_TICKERS_MAPPING
-        symbol = KOR_TICKERS_MAPPING.get(raw_symbol, raw_symbol.upper())
-        
+        symbol = _get_tickers().get(raw_symbol, raw_symbol.upper())
+
         try:
             quantity = int(args[1])
             price = float(args[2]) if len(args) > 2 else 0.0
         except ValueError:
             return "⚠️ 수량과 가격은 숫자여야 합니다."
-        
+
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
-            
-        from src.core.order_management import OrderType
         
         # 시장가(MARKET) 처리
         price_label = f"${price:,.2f}"
@@ -307,19 +305,16 @@ class TelegramBotEngine:
             return "⚠️ 사용법: /sell SYMBOL QUANTITY [PRICE]\n예: /sell 삼성전자 10 75000 (지정가)\n예: /sell AAPL 5 (시장가)"
         
         raw_symbol = args[0]
-        from src.utils.stock_list import KOR_TICKERS as KOR_TICKERS_MAPPING
-        symbol = KOR_TICKERS_MAPPING.get(raw_symbol, raw_symbol.upper())
-        
+        symbol = _get_tickers().get(raw_symbol, raw_symbol.upper())
+
         try:
             quantity = int(args[1])
             price = float(args[2]) if len(args) > 2 else 0.0
         except ValueError:
             return "⚠️ 수량과 가격은 숫자여야 합니다."
-        
+
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
-            
-        from src.core.order_management import OrderType
         
         # 시장가(MARKET) 처리
         price_label = f"${price:,.2f}"
@@ -385,7 +380,7 @@ class TelegramBotEngine:
                 active = "🟢" if status['is_active'] else "⚪"
                 response += f"{connected} {broker_name.upper()}: {status['account_number']}\n"
                 response += f"   {active} 활성 상태\n"
-        except:
+        except Exception:
             response += "키움증권 ✅: 1234567890\n"
             response += "대신증권 ❌: 미연결\n"
             response += "한투증권 ❌: 미연결\n"

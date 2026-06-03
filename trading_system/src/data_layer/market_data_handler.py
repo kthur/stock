@@ -1,11 +1,16 @@
 """Market Data Handler - 실시간 시세 수신 및 처리"""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Callable, Any
 import logging
 import time
+import yfinance as yf
+import random
+import pandas as pd
+import os
 from tenacity import retry, stop_after_attempt, wait_exponential
+from src.analysis.backtest import PriceBar
 
 logger = logging.getLogger(__name__)
 
@@ -141,13 +146,11 @@ class MarketDataHandler:
             
         self.rate_limiter.wait()
         
-        import yfinance as yf
         try:
             ticker = yf.Ticker(symbol)
             fast = ticker.fast_info
             price = fast.last_price
-            
-            # fast_info 데이터 획득 실패 시 1일 1분 분봉을 통해 백업 데이터 획득
+
             if price is None or price <= 0:
                 hist = ticker.history(period="1d", interval="1m")
                 if not hist.empty:
@@ -157,7 +160,7 @@ class MarketDataHandler:
                     raise ValueError("No price data returned from yfinance")
             else:
                 volume = int(fast.last_volume) if fast.last_volume else 100000
-                
+
             self.circuit_breaker.record_success()
             return price, volume
         except Exception as e:
@@ -189,20 +192,14 @@ class MarketDataHandler:
             # 실패 시 기존 데이터를 소폭 변동시켜 모의 데이터 생성
             existing = self.get_market_data(symbol)
             base_price = existing.price if existing else 150.0
-            import random
             price = round(base_price * (1 + random.uniform(-0.002, 0.002)), 2)
             return self.simulate_api_call(symbol, price, price - 0.05, price + 0.05, 5000000)
 
     def fetch_historical_data(self, symbol: str, period: str = "10y") -> List[Any]:
         """yfinance를 통해 과거 데이터를 가져오고 로컬 캐시를 활용하여 반환 속도를 향상시킵니다."""
-        import yfinance as yf
-        import pandas as pd
-        import os
-        from src.analysis.backtest import PriceBar
-        from datetime import timedelta
 
         # 캐시 디렉토리 설정
-        cache_dir = os.path.join(os.getcwd(), 'data', 'cache')
+        cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'cache')
         os.makedirs(cache_dir, exist_ok=True)
 
         # 특수 문자(_) 등 제거 (파일 시스템 안전을 위해)

@@ -5,6 +5,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 import logging
+import os
+from pathlib import Path
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +69,9 @@ class RiskManager:
         self.alerts: List[Dict] = []
 
     def _get_config_path(self):
-        import os
-        from pathlib import Path
         return Path(__file__).parent.parent.parent / "risk_config.json"
 
     def _load_config(self):
-        import json
         config_path = self._get_config_path()
         if config_path.exists():
             try:
@@ -86,7 +86,6 @@ class RiskManager:
                 self.logger.error(f"Failed to load risk configuration: {e}")
 
     def save_config(self):
-        import json
         config_path = self._get_config_path()
         try:
             data = {
@@ -179,14 +178,21 @@ class RiskManager:
         return drawdown
     
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:
-        """현재 위험 수준 계산"""
+        """현재 위험 수준 계산 (drawdown + 포지션 집중도 기반)"""
         drawdown = self.calculate_drawdown()
+        concentration_risk = 0
         
-        if drawdown >= 0.20:  # 20% 이상 손실
+        if positions:
+            total_exposure = sum(abs(v) for v in positions.values())
+            if total_exposure > 0:
+                max_single = max(abs(v) for v in positions.values())
+                concentration_risk = max_single / total_exposure
+        
+        if drawdown >= 0.20 or concentration_risk > 0.50:
             return RiskLevel.CRITICAL
-        elif drawdown >= 0.10:  # 10% 이상 손실
+        elif drawdown >= 0.10 or concentration_risk > 0.35:
             return RiskLevel.HIGH
-        elif drawdown >= 0.05:  # 5% 이상 손실
+        elif drawdown >= 0.05 or concentration_risk > 0.25:
             return RiskLevel.MEDIUM
         else:
             return RiskLevel.LOW

@@ -1,6 +1,7 @@
-"""Broker Module - 증권사 API 통합"""
+"""Broker Module"""
 
 from .kiwoom import KiwoomConnector, KiwoomOrderType, KiwoomOrderStatus
+from .simulated_broker import SimulatedBrokerBase
 from .daishin import DaishinConnector
 from .hanwha import HanwhaConnector
 from .korea_investment import KoreaInvestmentConnector
@@ -10,6 +11,7 @@ __all__ = [
     'KiwoomConnector',
     'KiwoomOrderType',
     'KiwoomOrderStatus',
+    'SimulatedBrokerBase',
     'DaishinConnector',
     'HanwhaConnector',
     'KoreaInvestmentConnector',

@@ -2,15 +2,18 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional, Callable
 import sys
 import asyncio
 from pathlib import Path
+import sqlite3
 
 # 프로젝트 경로 추가
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.data_layer import MarketDataHandler, NLPEngine
+from src.data_layer.market_data_handler import MarketData
+from src.data_layer.nlp_engine import NewsData
 from src.core import (
     PortfolioManager,
     AccountSyncAgent,
@@ -20,6 +23,7 @@ from src.core import (
     OrderType,
     TradeSignal
 )
+from src.core.order_management import Order
 from src.persistence import TradeLogger, AssetHistoryDB
 from src.risk import RiskManager
 from src.analysis import BacktestEngine, AdvancedStatistics
@@ -31,6 +35,8 @@ from src.ai import LLMEngine
 from src.telegram_bot import TelegramBotEngine
 from src.config import TradingConfig
 from src.core.factory import SystemFactory
+from src.core.strategy_engine import StrategyResult
+from src.analysis.backtest import PriceBar
 
 # 로깅 설정
 logging.basicConfig(
@@ -56,8 +62,7 @@ class StockTradingSystem:
             config = TradingConfig(initial_cash=initial_cash)
         self.config = config
         
-        # 이벤트 버스 생성 또는 주입
-        self.event_bus = (components.get('event_bus') if components else None) or EventBus()
+        self.event_bus = components.get('event_bus') if components else EventBus()
         
         # 컴포넌트 설정
         self.comp = components or SystemFactory.create_default_components(self.config.initial_cash, self.event_bus)
@@ -99,7 +104,7 @@ class StockTradingSystem:
         # 콜백 등록
         self._setup_callbacks()
     
-    def _setup_callbacks(self):
+    def _setup_callbacks(self) -> None:
         """이벤트 버스 콜백 등록"""
         # 시장 데이터 업데이트 시
         self.event_bus.subscribe("market_data", self._on_market_data)
@@ -116,7 +121,7 @@ class StockTradingSystem:
         # 주문 상태 변경
         self.event_bus.subscribe("order_status", self._on_order_status_changed)
     
-    def _on_market_data(self, market_data):
+    def _on_market_data(self, market_data: MarketData) -> None:
         """시장 데이터 콜백 (동기 처리 캐싱)"""
         self.market_data_cache[market_data.symbol] = {
             'price': market_data.price,
@@ -126,12 +131,12 @@ class StockTradingSystem:
         }
         logger.debug(f"Market data cached: {market_data.symbol}")
     
-    def _on_news_analyzed(self, news):
+    def _on_news_analyzed(self, news: NewsData) -> None:
         """뉴스 분석 콜백"""
         self.news_sentiment_cache[news.symbol] = news.score
         logger.info(f"News analyzed: {news.symbol} - sentiment={news.score:.2f}")
     
-    async def _on_strategy_signal(self, result):
+    async def _on_strategy_signal(self, result: StrategyResult) -> None:
         """전략 신호 콜백 (비동기 처리)"""
         logger.info(f"Strategy signal: {result.symbol} - {result.signal.name} (confidence={result.confidence:.2f})")
         
@@ -141,16 +146,16 @@ class StockTradingSystem:
         elif result.signal == TradeSignal.SELL:
             await self._create_and_submit_order(result.symbol, OrderType.SELL, result.price)
     
-    def _on_account_synced(self, sync_result):
+    def _on_account_synced(self, sync_result: Dict) -> None:
         """자산 동기화 콜백"""
         logger.info(f"Account synced: cash_diff={sync_result['cash_diff']}")
     
-    async def _on_order_status_changed(self, order):
+    async def _on_order_status_changed(self, order: Order) -> None:
         """주문 상태 변경 콜백 (비동기 DB 저장 지원)"""
         logger.info(f"Order status changed: {order.order_id} - {order.status.value}")
         await self.trade_logger.log_order(order)
     
-    async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float):
+    async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float) -> None:
         """주문 생성 및 비동기 제출 (동적 포지션 사이징 적용)"""
         if price <= 0:
             logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
@@ -203,7 +208,6 @@ class StockTradingSystem:
                 return TradeSignal.HOLD
                 
             # 가장 마지막 봉을 현재 가격/거래량 정보로 추가하여 현재 캔들 완성
-            from src.analysis.backtest import PriceBar
             current_bar = PriceBar(
                 timestamp=datetime.now(),
                 open=current_price,
@@ -229,7 +233,7 @@ class StockTradingSystem:
             logger.error(f"Error evaluating active strategy {strategy_name} for {symbol}: {e}")
             return TradeSignal.HOLD
 
-    async def simulate_trading_day(self, symbol: str = "AAPL"):
+    async def simulate_trading_day(self, symbol: str = "AAPL") -> None:
         """하루 거래 시뮬레이션"""
         logger.info(f"=== Simulating trading day for {symbol} ===")
         
@@ -283,7 +287,6 @@ class StockTradingSystem:
                 signal = self._evaluate_active_strategy(symbol, price, volume)
                 
                 # 결과 기록 및 이벤트 발행
-                from src.core.strategy_engine import StrategyResult
                 result = StrategyResult(
                     symbol=symbol,
                     signal=signal,
@@ -309,7 +312,7 @@ class StockTradingSystem:
         # 6. 성과 분석
         self._print_performance_report()
         
-    def reset_system_portfolio(self):
+    def reset_system_portfolio(self) -> None:
         """자산 및 시뮬레이션 상태 초기화"""
         logger.info("Resetting trading system portfolio and database logs...")
         
@@ -334,23 +337,20 @@ class StockTradingSystem:
         self.investor_opinions_cache.clear()
         
         # 5. DB 파일 초기화 (비동기 DB 연결 종료 후 파일 삭제 또는 테이블 DROP)
-        import sqlite3
         for db_name in ["trade_logs.db", "asset_history.db"]:
             try:
                 db_path = Path(db_name)
                 if db_path.exists():
-                    conn = sqlite3.connect(db_path)
-                    cursor = conn.cursor()
-                    cursor.execute("DROP TABLE IF EXISTS orders;")
-                    cursor.execute("DROP TABLE IF EXISTS executions;")
-                    cursor.execute("DROP TABLE IF EXISTS asset_snapshots;")
-                    conn.commit()
-                    conn.close()
+                    with sqlite3.connect(db_path) as conn:
+                        conn.execute("DROP TABLE IF EXISTS orders;")
+                        conn.execute("DROP TABLE IF EXISTS executions;")
+                        conn.execute("DROP TABLE IF EXISTS asset_snapshots;")
+                        conn.commit()
                     logger.info(f"Database tables dropped for {db_name}")
             except Exception as e:
                 logger.error(f"Failed to drop tables in {db_name}: {e}")
     
-    async def _simulate_order_execution(self):
+    async def _simulate_order_execution(self) -> None:
         """주문 실행 시뮬레이션"""
         unfilled = self.order_management.get_unfilled_orders()
         if unfilled:
@@ -369,7 +369,7 @@ class StockTradingSystem:
                 else:
                     self.portfolio.reduce_position(order.symbol, order.quantity)
     
-    def _print_performance_report(self):
+    def _print_performance_report(self) -> None:
         """성과 보고서 출력"""
         logger.info("=== Performance Report ===")
         logger.info(f"Portfolio Cash: ${self.portfolio.get_available_cash():,.2f}")
@@ -397,7 +397,7 @@ class StockTradingSystem:
         """증권사 연결"""
         return self.broker.connect(account_number)
     
-    def disconnect_broker(self):
+    def disconnect_broker(self) -> None:
         """증권사 연결 해제"""
         self.broker.disconnect()
     
@@ -420,7 +420,7 @@ class StockTradingSystem:
             logger.error(f"Failed to sync with broker: {str(e)}")
             return False
     
-    def start_dashboard(self, port: int = 5000, debug: bool = False):
+    def start_dashboard(self, port: int = 5000, debug: bool = False) -> None:
         """웹 대시보드 시작"""
         logger.info(f"Starting dashboard on http://localhost:{port}")
         self.dashboard.run(debug=debug)
@@ -436,7 +436,7 @@ class StockTradingSystem:
         
         return summary
     
-    def run_backtest(self, symbol: str, price_bars: List, strategy_func) -> Dict:
+    def run_backtest(self, symbol: str, price_bars: List, strategy_func: Callable) -> Dict:
         """백테스트 실행"""
         result = self.backtest_engine.run_backtest(symbol, price_bars, strategy_func)
         
@@ -453,7 +453,7 @@ class StockTradingSystem:
         """에러 요약"""
         return self.error_handler.get_error_summary()
     
-    def sync_with_broker(self, broker_cash: float, broker_holdings: Dict[str, int]):
+    def sync_with_broker(self, broker_cash: float, broker_holdings: Dict[str, int]) -> None:
         """증권사 계좌와 동기화"""
         logger.info("Syncing with broker...")
         result = self.account_sync.sync_with_broker(broker_cash, broker_holdings)
@@ -503,7 +503,6 @@ class StockTradingSystem:
         logger.info(f"AI opinion for {symbol}: {opinion.recommendation}")
 
         # 비동기로 AI 예측 저장
-        import asyncio
         if hasattr(self, 'comp') and 'ai_db' in self.comp:
             price = stock_data.get('price', 0.0)
             try:
@@ -525,7 +524,7 @@ class StockTradingSystem:
             'is_simulated': getattr(opinion, 'is_simulated', False)
         }    
     def get_consensus_with_ai(self, stock_data: Dict, 
-                             investor_opinions: Dict = None) -> Dict:
+                             investor_opinions: Optional[Dict] = None) -> Dict:
         """AI와 투자자 의견의 합의"""
         symbol = stock_data.get('symbol', 'UNKNOWN')
         
@@ -577,7 +576,7 @@ class StockTradingSystem:
             return False
     
     def place_order_with_broker(self, code: str, quantity: int, price: float,
-                               order_type: str, broker_type: str = None) -> str:
+                               order_type: str, broker_type: Optional[str] = None) -> str:
         """증권사를 통해 주문"""
         if broker_type:
             try:
@@ -590,7 +589,7 @@ class StockTradingSystem:
         
         return self.multi_broker_manager.place_order(code, quantity, price, order_type, broker_enum)
     
-    def get_broker_account_info(self, broker_type: str = None) -> Dict:
+    def get_broker_account_info(self, broker_type: Optional[str] = None) -> Dict:
         """증권사 계좌 정보 조회"""
         if broker_type:
             try:
@@ -606,7 +605,7 @@ class StockTradingSystem:
         """모든 증권사 상태 조회"""
         return self.multi_broker_manager.get_broker_status()
     
-    def get_stock_quote_from_broker(self, code: str, broker_type: str = None) -> Dict:
+    def get_stock_quote_from_broker(self, code: str, broker_type: Optional[str] = None) -> Dict:
         """증권사에서 주식 시세 조회"""
         if broker_type:
             try:
@@ -618,7 +617,7 @@ class StockTradingSystem:
             return self.multi_broker_manager.get_stock_quote(code)
     
     def get_chart_from_broker(self, code: str, days: int = 20,
-                             broker_type: str = None) -> List[Dict]:
+                             broker_type: Optional[str] = None) -> List[Dict]:
         """증권사에서 차트 조회"""
         if broker_type:
             try:
@@ -631,12 +630,12 @@ class StockTradingSystem:
     
     # ===== 텔레그램 봇 기능 =====
     
-    def start_telegram_bot(self):
+    def start_telegram_bot(self) -> None:
         """텔레그램 봇 시작"""
         self.telegram_bot.start()
         logger.info("Telegram bot started")
     
-    def stop_telegram_bot(self):
+    def stop_telegram_bot(self) -> None:
         """텔레그램 봇 중지"""
         self.telegram_bot.stop()
         logger.info("Telegram bot stopped")

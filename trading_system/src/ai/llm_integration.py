@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, List
@@ -66,7 +67,7 @@ class LLMEngine:
         
         if self.provider == "openai":
             self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-            self.model = model or "gpt-3.5-turbo"
+            self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
             self._init_openai()
         elif self.provider == "gemini":
             self.api_key = api_key or os.getenv("GEMINI_API_KEY")
@@ -127,7 +128,7 @@ class LLMEngine:
         
         # API 호출
         is_sim = False
-        if self.client:
+        if self.client and self.api_key:
             if self.provider == "openai":
                 response = self._call_openai_api(query)
             elif self.provider == "gemini":
@@ -136,9 +137,11 @@ class LLMEngine:
                 response = None
                 
             if not response:
+                self.logger.warning(f"API returned empty response for {symbol}. Falling back to simulation.")
                 response = self._simulate_response(stock_data)
                 is_sim = True
         else:
+            self.logger.info(f"LLM client not available (api_key={'set' if self.api_key else 'missing'}). Using simulated response for {symbol}.")
             response = self._simulate_response(stock_data)
             is_sim = True
         
@@ -221,7 +224,7 @@ JSON 형식으로 답변해주세요.
                     {"role": "user", "content": query}
                 ],
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=1024
             )
             return response.choices[0].message.content
         else:
@@ -232,7 +235,7 @@ JSON 형식으로 답변해주세요.
                     {"role": "user", "content": query}
                 ],
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=1024
             )
             return response['choices'][0]['message']['content']
 
@@ -313,21 +316,25 @@ JSON 형식으로 답변해주세요.
         return json.dumps(response, ensure_ascii=False)
     
     def _parse_opinion_response(self, response: str, symbol: str) -> InvestmentOpinion:
-        """AI 응답 파싱"""
         try:
-            # JSON 형식의 응답 파싱
-            data = json.loads(response) if isinstance(response, str) else response
+            data = json.loads(response)
         except (json.JSONDecodeError, TypeError, ValueError):
-            # 파싱 실패 시 시도: 마크다운 파싱을 위함이거나 텍스트 내에서 JSON 추출
-            try:
-                import re
-                json_match = re.search(r'\{.*\}', response, re.DOTALL)
-                if json_match:
-                    data = json.loads(json_match.group(0))
-                else:
-                    raise ValueError("No JSON found")
-            except Exception:
-                # 파싱 실패 시 기본값
+            bracket_count = 0
+            start = -1
+            for i, ch in enumerate(response):
+                if ch == '{':
+                    if start == -1:
+                        start = i
+                    bracket_count += 1
+                elif ch == '}':
+                    bracket_count -= 1
+                    if bracket_count == 0 and start >= 0:
+                        try:
+                            data = json.loads(response[start:i+1])
+                            break
+                        except json.JSONDecodeError:
+                            start = -1
+            else:
                 data = {
                     'recommendation': 'HOLD',
                     'sentiment': '중립적',
@@ -350,7 +357,11 @@ JSON 형식으로 답변해주세요.
         sentiment = sentiment_map.get(sentiment_str, SentimentType.NEUTRAL)
         
         confidence = data.get('confidence', 50)
-        confidence = min(100, max(0, confidence)) / 100  # 0-1 범위로 정규화
+        try:
+            confidence = float(confidence)
+        except (TypeError, ValueError):
+            confidence = 50
+        confidence = min(100, max(0, confidence)) / 100
         
         return InvestmentOpinion(
             symbol=symbol,

@@ -1,14 +1,8 @@
-"""
-주식 트레이딩 시스템 - 유닛 테스트
-"""
-
 import sys
 import unittest
 import asyncio
 from pathlib import Path
-from datetime import datetime
 
-# 프로젝트 루트 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.data_layer import MarketDataHandler, NLPEngine, Sentiment
@@ -20,7 +14,6 @@ from src.core import (
     OrderType,
     TradeSignal
 )
-from src.persistence import TradeLogger, AssetHistoryDB
 
 
 class TestMarketDataHandler(unittest.TestCase):
@@ -128,39 +121,42 @@ class TestAccountSyncAgent(unittest.TestCase):
 
 
 class TestOrderManagementSystem(unittest.TestCase):
-    """주문 관리 시스템 테스트"""
+    
+    @classmethod
+    def setUpClass(cls):
+        cls.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(cls.loop)
+    
+    @classmethod
+    def tearDownClass(cls):
+        cls.loop.close()
     
     def setUp(self):
         self.oms = OrderManagementSystem()
     
+    def _run_async(self, coro):
+        return self.loop.run_until_complete(coro)
+    
     def test_create_order(self):
-        """주문 생성"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        
         self.assertEqual(order.symbol, "AAPL")
         self.assertEqual(order.quantity, 10)
     
     def test_submit_order(self):
-        """주문 제출"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        result = asyncio.run(self.oms.submit_order(order))
-        
+        result = self._run_async(self.oms.submit_order(order))
         self.assertTrue(result)
     
     def test_execute_order(self):
-        """주문 체결"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        asyncio.run(self.oms.submit_order(order))
-        asyncio.run(self.oms.execute_order(order.order_id, 10))
-        
+        self._run_async(self.oms.submit_order(order))
+        self._run_async(self.oms.execute_order(order.order_id, 10))
         self.assertEqual(order.filled_quantity, 10)
     
     def test_cancel_order(self):
-        """주문 취소"""
         order = self.oms.create_order("AAPL", OrderType.BUY, 10, 150.0)
-        asyncio.run(self.oms.submit_order(order))
-        result = asyncio.run(self.oms.cancel_order(order.order_id))
-        
+        self._run_async(self.oms.submit_order(order))
+        result = self._run_async(self.oms.cancel_order(order.order_id))
         self.assertTrue(result)
 
 
@@ -187,10 +183,5 @@ class TestStrategyEngine(unittest.TestCase):
         self.assertIsNotNone(result.signal)
 
 
-def main():
-    """테스트 실행"""
-    unittest.main(verbosity=2)
-
-
 if __name__ == "__main__":
-    main()
+    unittest.main(verbosity=2)

@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Dict, List, Callable
 import logging
 
+from src.utils import EventBus
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +32,7 @@ class StrategyResult:
 class HybridStrategyEngine:
     """하이브리드 전략 엔진 - 기술적 분석 + 감정 분석"""
     
-    def __init__(self, event_bus=None):
+    def __init__(self, event_bus: EventBus | None = None) -> None:
         self.logger = logger
         self.results_history: List[StrategyResult] = []
         self.subscribers: List[Callable] = []
@@ -40,7 +42,7 @@ class HybridStrategyEngine:
         self.price_threshold = 0.02  # 2% 변동
         self.volume_threshold = 1000000  # 최소 거래량
     
-    def subscribe(self, callback: Callable):
+    def subscribe(self, callback: Callable) -> None:
         """전략 신호 구독"""
         self.subscribers.append(callback)
     
@@ -135,7 +137,7 @@ class HybridStrategyEngine:
 class OptimizationEngine:
     """최적화 엔진 - 슬리피지 및 손익 기반 파라미터 튜닝"""
     
-    def __init__(self, strategy_engine: HybridStrategyEngine):
+    def __init__(self, strategy_engine: HybridStrategyEngine) -> None:
         self.strategy_engine = strategy_engine
         self.logger = logger
         self.optimization_history = []
@@ -146,7 +148,7 @@ class OptimizationEngine:
         self.total_slippage = 0.0
     
     def record_trade_result(self, signal: TradeSignal, entry_price: float, 
-                           exit_price: float, quantity: int):
+                           exit_price: float, quantity: int) -> None:
         """트레이드 결과 기록"""
         if signal == TradeSignal.BUY:
             slippage = abs(entry_price - exit_price) / entry_price

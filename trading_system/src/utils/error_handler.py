@@ -1,10 +1,13 @@
 """Error Handling - 예외 처리 및 복구"""
 
+import asyncio
 from enum import Enum
 from typing import Callable, Optional, Any, List
 from datetime import datetime, timedelta
 import logging
 import time
+import threading
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -36,34 +39,32 @@ class ErrorHandler:
         self.recovery_enabled = True
     
     def retry_with_exponential_backoff(self, func: Callable, *args, **kwargs) -> Any:
-        """
-        지수 백오프를 사용한 재시도
-        
-        Args:
-            func: 실행할 함수
-            *args: 함수의 위치 인수
-            **kwargs: 함수의 키워드 인수
-        
-        Returns:
-            함수의 반환값
-        """
         for attempt in range(self.max_retries):
             try:
                 self.logger.debug(f"Attempting {func.__name__} (attempt {attempt + 1}/{self.max_retries})")
-                result = func(*args, **kwargs)
-                return result
-            
+                return func(*args, **kwargs)
             except Exception as e:
                 wait_time = self.retry_delay * (2 ** attempt)
-                
                 if attempt < self.max_retries - 1:
-                    self.logger.warning(
-                        f"Error in {func.__name__}: {str(e)}. "
-                        f"Retrying in {wait_time:.1f} seconds..."
-                    )
+                    self.logger.warning(f"Error in {func.__name__}: {e}. Retrying in {wait_time:.1f}s...")
                     time.sleep(wait_time)
                 else:
-                    self.logger.error(f"Failed after {self.max_retries} retries: {str(e)}")
+                    self.logger.error(f"Failed after {self.max_retries} retries: {e}")
+                    self._record_error(func.__name__, e, ErrorSeverity.ERROR)
+                    raise
+
+    async def async_retry_with_exponential_backoff(self, func: Callable, *args, **kwargs) -> Any:
+        for attempt in range(self.max_retries):
+            try:
+                self.logger.debug(f"Attempting {func.__name__} (attempt {attempt + 1}/{self.max_retries})")
+                return await func(*args, **kwargs)
+            except Exception as e:
+                wait_time = self.retry_delay * (2 ** attempt)
+                if attempt < self.max_retries - 1:
+                    self.logger.warning(f"Error in {func.__name__}: {e}. Retrying in {wait_time:.1f}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    self.logger.error(f"Failed after {self.max_retries} retries: {e}")
                     self._record_error(func.__name__, e, ErrorSeverity.ERROR)
                     raise
     
@@ -193,9 +194,6 @@ class ErrorHandler:
         Returns:
             함수의 반환값 또는 None
         """
-        import threading
-        from concurrent.futures import Future
-        
         result_future = Future()
         
         def target():
@@ -210,7 +208,7 @@ class ErrorHandler:
         
         try:
             return result_future.result(timeout=timeout_seconds)
-        except TimeoutError:
+        except FutureTimeoutError:
             error_msg = f"Function {func.__name__} timed out after {timeout_seconds} seconds"
             self.logger.error(error_msg)
             self._record_error(func.__name__, TimeoutError(error_msg), ErrorSeverity.ERROR)

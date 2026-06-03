@@ -4,6 +4,7 @@
 64비트 메인 프로세스(FastAPI/트레이딩 엔진)와는 ZeroMQ(TCP)를 통해 통신합니다.
 """
 
+import signal
 import zmq
 import json
 import logging
@@ -30,9 +31,11 @@ class Kiwoom32Server:
     def run(self):
         self.logger.info("Starting Kiwoom 32-bit Microservice on port 5555...")
         
-        while True:
+        self._running = True
+        signal.signal(signal.SIGINT, lambda s, f: setattr(self, '_running', False))
+        
+        while self._running:
             try:
-                # 메시지 수신 대기 (블로킹)
                 message = self.socket.recv_json()
                 command = message.get("command")
                 args = message.get("args", {})
@@ -46,8 +49,8 @@ class Kiwoom32Server:
                 self.logger.error(f"Error processing message: {e}")
                 try:
                     self.socket.send_json({"status": "error", "message": str(e)})
-                except:
-                    pass
+                except Exception:
+                    self.logger.exception("Failed to send error response")
 
     def _handle_command(self, command: str, args: dict) -> dict:
         """수신된 명령 처리"""

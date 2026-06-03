@@ -12,6 +12,7 @@ from src.utils import ErrorHandler, EventBus
 from src.broker import KiwoomConnector, MultiBrokerManager
 from src.strategy import InvestorStrategyEngine
 from src.ai import LLMEngine
+from src.core.asset_management import AccountSyncAgent
 
 class SystemFactory:
     """시스템 컴포넌트 생성 및 주입 담당"""
@@ -22,13 +23,13 @@ class SystemFactory:
             
         strategy_engine = HybridStrategyEngine(event_bus=event_bus)
         portfolio = PortfolioManager(initial_cash=initial_cash)
-        
+
         return {
             'event_bus': event_bus,
             'market_data': MarketDataHandler(event_bus=event_bus),
             'nlp': NLPEngine(event_bus=event_bus),
             'portfolio': portfolio,
-            'account_sync': None, # 계좌 동기화는 포트폴리오 의존적이라 나중에 연결
+            'account_sync': AccountSyncAgent(portfolio, event_bus=event_bus),
             'strategy': strategy_engine,
             'optimization': OptimizationEngine(strategy_engine),
             'order_mgmt': OrderManagementSystem(event_bus=event_bus),
@@ -43,6 +44,4 @@ class SystemFactory:
             'multi_broker': MultiBrokerManager(),
             'investor_strategy': InvestorStrategyEngine(),
             'llm': LLMEngine(),
-            'dashboard': None, # 대시보드는 시스템 인스턴스에 의존적이므로 나중에 연결
-            'telegram': None   # 텔레봇도 시스템 인스턴스 의존적
         }

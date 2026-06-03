@@ -7,6 +7,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Callable
 
+from src.utils import EventBus
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,7 @@ class Order:
 class OrderManagementSystem:
     """주문 관리 시스템"""
     
-    def __init__(self, event_bus=None):
+    def __init__(self, event_bus: EventBus | None = None) -> None:
         self.orders: Dict[str, Order] = {}
         self.order_history: List[Order] = []
         self.event_bus = event_bus
@@ -61,7 +63,7 @@ class OrderManagementSystem:
         self.subscribers: List[Callable] = []
         self.unfilled_monitor_enabled = True
     
-    def subscribe(self, callback: Callable):
+    def subscribe(self, callback: Callable) -> None:
         """주문 상태 변경 구독"""
         self.subscribers.append(callback)
     
