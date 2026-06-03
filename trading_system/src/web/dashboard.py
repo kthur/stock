@@ -453,7 +453,135 @@ class WebDashboard:
             if not task:
                 return {'status': 'error', 'message': 'Task not found'}
             return {'status': 'success', 'data': task}
+
+        @self.app.on_event("startup")
+        async def startup_event():
+            # 1. 백그라운드 매매 시뮬레이션 루프 실행
+            self._trading_loop_task = asyncio.create_task(self._run_periodic_simulation())
+            self.logger.info("Background periodic trading simulator task started.")
+            
+            # 2. 텔레그램 봇 기동
+            self._telegram_bot_task = asyncio.create_task(self._run_telegram_bot())
+            self.logger.info("Background Telegram bot task started.")
+
+        @self.app.on_event("shutdown")
+        async def shutdown_event():
+            # 백그라운드 태스크 취소
+            if hasattr(self, '_trading_loop_task'):
+                self._trading_loop_task.cancel()
+                self.logger.info("Background periodic trading simulator task stopped.")
+            
+            if hasattr(self, '_telegram_bot_task'):
+                self._telegram_bot_task.cancel()
+                self.logger.info("Background Telegram bot task stopped.")
+            
+            if hasattr(self, 'telegram_app') and self.telegram_app:
+                try:
+                    await self.telegram_app.updater.stop()
+                    await self.telegram_app.stop()
+                    await self.telegram_app.shutdown()
+                    self.logger.info("Telegram Bot API polling stopped.")
+                except Exception as e:
+                    self.logger.error(f"Error shutting down telegram application: {e}")
                     
+    async def _run_periodic_simulation(self):
+        """백그라운드에서 주기적으로 거래 시뮬레이션을 실행하여 데이터를 실시간으로 업데이트"""
+        symbols = ["AAPL", "MSFT", "GOOGL", "005930.KS", "000660.KS", "005380.KS"]
+        await asyncio.sleep(5)  # 서버 시작 후 잠시 안정화 대기
+        
+        while True:
+            try:
+                for symbol in symbols:
+                    self.logger.info(f"Auto simulation tick for {symbol}")
+                    await self.trading_system.simulate_trading_day(symbol)
+                    # 대시보드 데이터 갱신 알림
+                    await self.broadcast_portfolio_update()
+                    # 10초 휴식 후 다음 종목
+                    await asyncio.sleep(10)
+                # 한 바퀴 다 돌면 30초 대기
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error in periodic simulation: {e}")
+                await asyncio.sleep(10)
+
+    async def _run_telegram_bot(self):
+        """백그라운드에서 텔레그램 봇 인스턴스를 초기화하고 폴링 기동"""
+        import os
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not token:
+            self.logger.warning("TELEGRAM_BOT_TOKEN이 없어서 텔레그램 봇을 기동하지 않습니다.")
+            return
+            
+        try:
+            from telegram.ext import Application, MessageHandler, filters
+            from telegram import Update
+            
+            self.logger.info("Starting Telegram Bot application context within Dashboard event loop...")
+            
+            # python-telegram-bot 빌드
+            app = Application.builder().token(token).build()
+            
+            # 메시지 핸들러 등록
+            async def handle_message(update: Update, context):
+                if not update.message or not update.message.text:
+                    return
+                user_id = update.effective_user.id
+                text = update.message.text
+                
+                # 메인 트레이딩 시스템 메시지 프로세서 호출
+                response = self.trading_system.process_telegram_message(user_id, text)
+                await update.message.reply_text(response, parse_mode="Markdown")
+                
+            app.add_handler(MessageHandler(filters.TEXT, handle_message))
+            
+            # 봇 상태 연결
+            self.trading_system.start_telegram_bot()
+            
+            # 주문 상태 변경 이벤트를 구독하여 실시간 푸시 발송
+            async def on_order_status_event(order):
+                stats = self.trading_system.get_telegram_bot_stats()
+                users = stats.get('users', {})
+                
+                for user_id in users:
+                    try:
+                        event_type = "order_placed"
+                        if order.status.value == "EXECUTED":
+                            event_type = "order_filled"
+                        elif order.status.value == "CANCELLED":
+                            event_type = "order_cancelled"
+                            
+                        msg = self.trading_system.send_telegram_notification(user_id, event_type, {
+                            'symbol': order.symbol,
+                            'quantity': order.quantity,
+                            'price': order.price
+                        })
+                        await app.bot.send_message(chat_id=user_id, text=msg)
+                    except Exception as ex:
+                        self.logger.error(f"Failed to push telegram alert: {ex}")
+            
+            self.event_bus.subscribe("order_status", on_order_status_event)
+            
+            # 폴링 기동
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling()
+            
+            self.telegram_app = app
+            self.logger.info("Telegram Bot API polling started successfully.")
+            
+            # 태스크 유지
+            while True:
+                await asyncio.sleep(3600)
+                
+        except ImportError:
+            self.logger.warning("python-telegram-bot 라이브러리가 설치되지 않아 텔레그램 봇 기동을 생략합니다.")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to start telegram bot: {e}")
+
     async def broadcast_json(self, message: dict):
         """활성화된 모든 소켓에 메시지 전송"""
         for connection in list(self.active_connections):
