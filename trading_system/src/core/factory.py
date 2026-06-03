@@ -17,7 +17,7 @@ from src.core.asset_management import AccountSyncAgent
 class SystemFactory:
     """시스템 컴포넌트 생성 및 주입 담당"""
     @staticmethod
-    def create_default_components(initial_cash: float, event_bus: EventBus = None):
+    def create_default_components(initial_cash: float, event_bus: EventBus | None = None):
         if event_bus is None:
             event_bus = EventBus()
             

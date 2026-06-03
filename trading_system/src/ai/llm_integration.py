@@ -261,8 +261,8 @@ JSON 형식으로 답변해주세요.
             text = text[3:]
         if text.endswith("```"):
             text = text[:-3]
-            
-        return text.strip()
+        
+        return str(text.strip())
 
     def _call_gemini_api(self, query: str) -> str:
         """Gemini API 호출"""
@@ -375,11 +375,13 @@ JSON 형식으로 답변해주세요.
         )
     
     def batch_query_stocks(self, stocks_data: List[Dict]) -> Dict[str, InvestmentOpinion]:
-        """여러 주식 배치 쿼리"""
         opinions = {}
         
         for stock in stocks_data:
             symbol = stock.get('symbol')
+            if symbol is None:
+                self.logger.warning("Stock data missing symbol, skipping")
+                continue
             try:
                 opinion = self.query_investment_opinion(stock)
                 opinions[symbol] = opinion
