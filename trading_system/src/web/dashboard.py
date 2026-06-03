@@ -1791,7 +1791,7 @@ class WebDashboard:
 
                 // ── 자산 및 시뮬레이션 상태 초기화 ─────────────────────────
                 async function resetPortfolio() {
-                    if (!confirm('경고: 정말로 가상 자산을 초기화하시겠습니까?\n모든 보유 포지션이 청산되며 주문 기록과 자산 이력이 삭제됩니다.')) return;
+                    if (!confirm('경고: 정말로 가상 자산을 초기화하시겠습니까?\\n모든 보유 포지션이 청산되며 주문 기록과 자산 이력이 삭제됩니다.')) return;
                     
                     try {
                         const resp = await fetch('/api/portfolio/reset', {
@@ -1884,8 +1884,8 @@ class WebDashboard:
                             }
                             
                             document.getElementById('ai-reason').textContent = d.reasoning || '충분한 근거 지표 부재';
-                            document.getElementById('ai-opps').textContent = Array.isArray(d.opportunities) ? d.opportunities.join('\n') : (d.opportunities || 'N/A');
-                            document.getElementById('ai-risks').textContent = Array.isArray(d.risks) ? d.risks.join('\n') : (d.risks || 'N/A');
+                            document.getElementById('ai-opps').textContent = Array.isArray(d.opportunities) ? d.opportunities.join('\\n') : (d.opportunities || 'N/A');
+                            document.getElementById('ai-risks').textContent = Array.isArray(d.risks) ? d.risks.join('\\n') : (d.risks || 'N/A');
 
                             // AI 진단 모드 배지 표시
                             const badge = document.getElementById('ai-mode-badge');
