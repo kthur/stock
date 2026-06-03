@@ -281,6 +281,8 @@ class WebDashboard:
                 strategy_name = body.get('strategy', 'MA')
                 period = body.get('period', '10y')
                 allow_short = bool(body.get('allow_short', False))
+                trailing_stop_pct = float(body.get('trailing_stop_pct', 0))
+                scale_in = bool(body.get('scale_in', False))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -299,7 +301,7 @@ class WebDashboard:
                     download_period = '2y'
                     target_period_bars = 252
                 
-                self.logger.info(f"Running backtest for {symbol} with strategy {strategy_name} for period {period} (download: {download_period}, target_bars: {target_period_bars}, allow_short: {allow_short})")
+                self.logger.info(f"Running backtest for {symbol} with strategy {strategy_name} for period {period} (download: {download_period}, target_bars: {target_period_bars}, allow_short: {allow_short}, trailing_stop: {trailing_stop_pct}, scale_in: {scale_in})")
                 
                 # 1. 과거 데이터 수집
                 handler = self.trading_system.market_data_handler
@@ -319,7 +321,7 @@ class WebDashboard:
                     strategy_func = engine._simple_ma_strategy
                     
                 # 3. 백테스트 실행
-                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short)
+                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in)
                 
                 # 차트 데이터 가공 (100 기준 Rebase)
                 dates_str = [d.strftime("%Y-%m-%d") for d in getattr(result, 'dates', [])]
@@ -368,6 +370,9 @@ class WebDashboard:
                         'win_rate': f"{result.win_rate:.2%}",
                         'max_drawdown': f"{result.max_drawdown:.2%}",
                         'trades_count': len(result.trades),
+                        'trailing_stop_count': getattr(result, 'trailing_stop_count', 0),
+                        'profit_factor': f"{result.profit_factor:.2f}" if result.profit_factor != float('inf') else "\u221e",
+                        'sharpe_ratio': f"{result.sharpe_ratio:.2f}",
                         'start_date': result.start_date.strftime("%Y-%m-%d"),
                         'end_date': result.end_date.strftime("%Y-%m-%d"),
                         'chart_data': {
@@ -454,6 +459,8 @@ class WebDashboard:
                 strategy_name = body.get('strategy', 'MA')
                 period = body.get('period', '1y')
                 allow_short = bool(body.get('allow_short', False))
+                trailing_stop_pct = float(body.get('trailing_stop_pct', 0))
+                scale_in = bool(body.get('scale_in', False))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -486,7 +493,7 @@ class WebDashboard:
                     'error': None
                 }
                 
-                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int, allow_short: bool):
+                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int, allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False):
                     engine = self.trading_system.backtest_engine
                     handler = self.trading_system.market_data_handler
                     
@@ -505,7 +512,7 @@ class WebDashboard:
                             price_bars = handler.fetch_historical_data(symbol, period=dl_per)
                             if not price_bars:
                                 return None
-                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short)
+                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in)
                             
                             display_symbol = get_tickers_rev().get(symbol, symbol)
                             if symbol.endswith('.KS'):
@@ -555,7 +562,7 @@ class WebDashboard:
                     self.scan_tasks[tid]['status'] = 'completed'
 
                 # 비동기 백그라운드 태스크로 실행
-                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short))
+                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short, trailing_stop_pct, scale_in))
                 
                 return {'status': 'success', 'task_id': task_id}
             except Exception as e:
@@ -1248,12 +1255,14 @@ class WebDashboard:
                             <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">투자 전략 (마우스를 올려 설명 확인)</label>
                             <select id="bt-strategy" class="form-control" style="margin-bottom: 0;">
                                 <option value="MA" title="단순 이동평균선 돌파: 단기 이평선이 장기 이평선을 상향 돌파 시 매수">이동평균(MA)</option>
-                                <option value="MACD" title="MACD 오실레이터가 0선을 상향 돌파 시 매수 (추세 전환 포착)">MACD</option>
+                                <option value="MACD" title="EMA 기반 MACD 히스토그램 전환점 감지 (골든/데드크로스)">MACD(EMA)</option>
                                 <option value="RSI" title="RSI가 30 이하로 침체 시 매수 (과매도 반등 포착)">RSI</option>
-                                <option value="TREND" title="추세 추종(Trend Following): 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수">추세 추종(Trend Following)</option>
-                                <option value="BUFFETT" title="워렌 버핏(가치/역발상): 200일선 아래 크게 하락(할인)하고 단기 과매도 시 매수">워렌 버핏(Value Proxy)</option>
+                                <option value="BOLLINGER" title="볼린저밴드+RSI 복합: 하단밴드 터치+과매도 시 매수, 상단밴드+과매수 시 매도 (횡보장 수익)">볼린저밴드(Bollinger)</option>
+                                <option value="ENSEMBLE" title="MA+RSI+MACD 3개 지표 투표: 2개 이상 동의 시에만 매매 (거짓신호 필터링)">복합 전략(Ensemble)</option>
+                                <option value="TREND" title="추세 추종: 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수">추세 추종(Trend Following)</option>
+                                <option value="BUFFETT" title="워렌 버핏(가치/역발상): 200일선 아래 크게 하락하고 단기 과매도 시 매수">워렌 버핏(Value Proxy)</option>
                                 <option value="LYNCH" title="피터 린치(성장/모멘텀): 50일 신고가 및 평균 거래량 크게 상회 시 강한 모멘텀 매수">피터 린치(Growth Proxy)</option>
-                                <option value="DALIO" title="레이 달리오(안정/올웨더): 200일선 위 상승추세에서 주가 변동성(ATR 대용)이 2% 미만으로 극히 안정적일 때 매수">레이 달리오(Safe Proxy)</option>
+                                <option value="DALIO" title="레이 달리오(안정/올웨더): 200일선 위 안정적 상승추세에서 매수">레이 달리오(Safe Proxy)</option>
                             </select>
                         </div>
                         <div style="display: flex; align-items: center; height: 38px; padding-bottom: 2px;">
@@ -1261,6 +1270,19 @@ class WebDashboard:
                                 <input type="checkbox" id="bt-allow-short" style="margin-right: 6px; width: 15px; height: 15px; cursor: pointer;">
                                 공매도(Short) 허용
                             </label>
+                        </div>
+                        <div style="display: flex; align-items: center; height: 38px; padding-bottom: 2px;">
+                            <label style="font-size: 12px; color: #aaa; display: flex; align-items: center; cursor: pointer; user-select: none;">
+                                <input type="checkbox" id="bt-scale-in" style="margin-right: 6px; width: 15px; height: 15px; cursor: pointer;">
+                                분할 진입(Scale-In)
+                            </label>
+                        </div>
+                        <div style="flex-grow: 1;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">트레일링 스톱 (%)</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="range" id="bt-trailing-stop" min="0" max="15" step="1" value="0" style="flex-grow: 1; cursor: pointer;" oninput="document.getElementById('bt-ts-val').textContent = this.value + '%';">
+                                <span id="bt-ts-val" style="font-size: 12px; color: #888; min-width: 30px;">0%</span>
+                            </div>
                         </div>
                         <button class="btn" onclick="runBacktest()">백테스트 실행</button>
                     </div>
@@ -1394,13 +1416,15 @@ class WebDashboard:
                             <div>
                                 <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">전략 (마우스를 올려 설명 확인)</label>
                                 <select id="scan-strategy" class="form-control" style="margin-bottom: 0; width: 180px;">
-                                    <option value="MA" title="단순 이동평균선 돌파: 단기 이평선이 장기 이평선을 상향 돌파 시 매수">이동평균(MA)</option>
-                                    <option value="MACD" title="MACD 오실레이터가 0선을 상향 돌파 시 매수 (추세 전환 포착)">MACD</option>
-                                    <option value="RSI" title="RSI가 30 이하로 침체 시 매수 (과매도 반등 포착)">RSI</option>
-                                    <option value="TREND" title="추세 추종(Trend Following): 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수">추세 추종(Trend)</option>
-                                    <option value="BUFFETT" title="워렌 버핏(가치/역발상): 200일선 아래 크게 하락(할인)하고 단기 과매도 시 매수">워렌 버핏(Value)</option>
-                                    <option value="LYNCH" title="피터 린치(성장/모멘텀): 50일 신고가 및 평균 거래량 크게 상회 시 강한 모멘텀 매수">피터 린치(Growth)</option>
-                                    <option value="DALIO" title="레이 달리오(안정/올웨더): 200일선 위 상승추세에서 주가 변동성(ATR 대용)이 2% 미만으로 극히 안정적일 때 매수">레이 달리오(Safe)</option>
+                                    <option value="MA" title="단순 이동평균선 돌파">이동평균(MA)</option>
+                                    <option value="MACD" title="EMA 기반 MACD 골든/데드크로스">MACD(EMA)</option>
+                                    <option value="RSI" title="RSI 과매도 반등 포착">RSI</option>
+                                    <option value="BOLLINGER" title="볼린저밴드+RSI 복합 (횡보장 수익)">볼린저밴드(Bollinger)</option>
+                                    <option value="ENSEMBLE" title="MA+RSI+MACD 투표 (거짓신호 필터링)">복합 전략(Ensemble)</option>
+                                    <option value="TREND" title="추세 추종">추세 추종(Trend)</option>
+                                    <option value="BUFFETT" title="워렌 버핏 가치/역발상">워렌 버핏(Value)</option>
+                                    <option value="LYNCH" title="피터 린치 성장/모멘텀">피터 린치(Growth)</option>
+                                    <option value="DALIO" title="레이 달리오 안정 투자">레이 달리오(Safe)</option>
                                 </select>
                             </div>
                             <div>
@@ -1885,6 +1909,8 @@ class WebDashboard:
                     const strategy = document.getElementById('bt-strategy').value;
                     const period = document.getElementById('bt-period').value;
                     const allowShort = document.getElementById('bt-allow-short').checked;
+                    const trailingStop = parseInt(document.getElementById('bt-trailing-stop').value) / 100;
+                    const scaleIn = document.getElementById('bt-scale-in').checked;
                     const resultDiv = document.getElementById('bt-result');
                     const canvas = document.getElementById('bt-chart');
                     const chartContainer = document.getElementById('bt-chart-container');
@@ -1902,20 +1928,24 @@ class WebDashboard:
                         const response = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort })
+                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn })
                         });
                         
                         const res = await response.json();
                         
                         if (res.status === 'success') {
                             const d = res.data;
+                            const tsInfo = d.trailing_stop_count > 0 ? `<div><span style="color:#666; font-size:12px;">트레일링 스톱 발동</span><br/><strong style="color:#ff9800;">${d.trailing_stop_count}회</strong></div>` : '';
                             resultDiv.innerHTML = `
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px;">
                                     <div><span style="color:#666; font-size:12px;">테스트 기간</span><br/><strong>${d.start_date} ~ ${d.end_date}</strong></div>
                                     <div><span style="color:#666; font-size:12px;">예상 총 수익률</span><br/><strong class="value ${d.total_return_pct.startsWith('-') ? 'negative' : 'positive'}" style="font-size:20px;">${d.total_return_pct}</strong></div>
                                     <div><span style="color:#666; font-size:12px;">승률</span><br/><strong>${d.win_rate}</strong></div>
                                     <div><span style="color:#666; font-size:12px;">최대 낙폭 (MDD)</span><br/><strong class="value negative">${d.max_drawdown}</strong></div>
+                                    <div><span style="color:#666; font-size:12px;">Profit Factor</span><br/><strong>${d.profit_factor}</strong></div>
+                                    <div><span style="color:#666; font-size:12px;">Sharpe Ratio</span><br/><strong>${d.sharpe_ratio}</strong></div>
                                     <div><span style="color:#666; font-size:12px;">거래 횟수</span><br/><strong>${d.trades_count}회</strong></div>
+                                    ${tsInfo}
                                 </div>
                             `;
                             
@@ -2078,6 +2108,8 @@ class WebDashboard:
                     const strategy = document.getElementById('scan-strategy').value;
                     const period = document.getElementById('scan-period').value;
                     const allowShort = document.getElementById('scan-allow-short').checked;
+                    const trailingStop = parseInt(document.getElementById('bt-trailing-stop')?.value || '0') / 100;
+                    const scaleIn = document.getElementById('bt-scale-in')?.checked || false;
                     const btn = document.getElementById('btn-scan');
                     
                     btn.disabled = true;
@@ -2089,7 +2121,7 @@ class WebDashboard:
                         const res = await fetch('/api/scanner/start', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort })
+                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn })
                         });
                         const data = await res.json();
                         
@@ -2248,6 +2280,8 @@ class WebDashboard:
                     const period = document.getElementById('scan-period').value;
                     const strategy = document.getElementById('scan-strategy').value;
                     const allowShort = document.getElementById('scan-allow-short').checked;
+                    const trailingStop = parseInt(document.getElementById('bt-trailing-stop')?.value || '0') / 100;
+                    const scaleIn = document.getElementById('bt-scale-in')?.checked || false;
                     const exchLabel = exchange ? ` · ${exchange}` : '';
                     document.getElementById('modal-subtitle').textContent = ticker + exchLabel + '  |  전략: ' + strategy + '  |  기간: ' + period;
                     document.getElementById('modal-stats').innerHTML = '';
@@ -2258,7 +2292,7 @@ class WebDashboard:
                         const resp = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort })
+                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn })
                         });
                         const res = await resp.json();
                         document.getElementById('modal-loading').style.display = 'none';
