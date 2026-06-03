@@ -125,49 +125,81 @@ class MarketDataHandler:
             return self.simulate_api_call(symbol, price, price - 0.05, price + 0.05, 5000000)
 
     def fetch_historical_data(self, symbol: str, period: str = "10y") -> List[Any]:
-        """yfinance를 통해 과거 데이터를 가져와 PriceBar 리스트로 반환"""
+        """yfinance를 통해 과거 데이터를 가져오고 로컬 캐시를 활용하여 반환 속도를 향상시킵니다."""
         import yfinance as yf
+        import pandas as pd
+        import os
         from src.analysis.backtest import PriceBar
         from datetime import timedelta
-        
-        try:
-            ticker = yf.Ticker(symbol)
-            
-            # yfinance는 15y, 20y, 30y를 네이티브 period로 지원하지 않으므로 직접 날짜를 계산
-            if period in ["15y", "20y", "30y"]:
-                years = int(period.replace("y", ""))
-                start_date = datetime.now() - timedelta(days=365 * years)
-                hist = ticker.history(start=start_date.strftime("%Y-%m-%d"))
-            else:
-                hist = ticker.history(period=period)
-            
-            if hist.empty:
-                self.logger.warning(f"No historical data found for {symbol}")
-                return []
-                
-            # NaN 값 정제: Open, High, Low, Close 중 하나라도 NaN인 행 제거
-            hist = hist.dropna(subset=['Open', 'High', 'Low', 'Close'])
-            
-            if hist.empty:
-                self.logger.warning(f"No historical data found after filtering NaNs for {symbol}")
-                return []
-                
-            price_bars = []
-            for date, row in hist.iterrows():
-                bar = PriceBar(
-                    timestamp=date.to_pydatetime(),
-                    open=float(row['Open']),
-                    high=float(row['High']),
-                    low=float(row['Low']),
-                    close=float(row['Close']),
-                    volume=int(row['Volume'])
-                )
-                price_bars.append(bar)
-                
-            self.logger.info(f"Fetched {len(price_bars)} historical bars for {symbol}")
-            return price_bars
-            
-        except Exception as e:
-            self.logger.error(f"Failed to fetch historical data for {symbol}: {e}")
-            return []
 
+        # 캐시 디렉토리 설정
+        cache_dir = os.path.join(os.getcwd(), 'data', 'cache')
+        os.makedirs(cache_dir, exist_ok=True)
+
+        # 특수 문자(_) 등 제거 (파일 시스템 안전을 위해)
+        safe_symbol = symbol.replace('/', '_').replace('\\', '_')
+        cache_file = os.path.join(cache_dir, f"{safe_symbol}_{period}.parquet")
+
+        hist = None
+        use_cache = False
+
+        # 1. 캐시 파일이 존재하는지, 하루가 지나지 않았는지 확인
+        if os.path.exists(cache_file):
+            file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
+            if datetime.now() - file_mod_time < timedelta(hours=24):
+                try:
+                    hist = pd.read_parquet(cache_file)
+                    use_cache = True
+                    self.logger.debug(f"Loaded {symbol} ({period}) from local cache.")
+                except Exception as e:
+                    self.logger.warning(f"Failed to read cache for {symbol}: {e}")
+                    hist = None
+
+        if not use_cache or hist is None:
+            try:
+                ticker = yf.Ticker(symbol)
+
+                # yfinance는 15y, 20y, 30y를 네이티브 period로 지원하지 않으므로 직접 날짜를 계산
+                if period in ["15y", "20y", "30y"]:
+                    years = int(period.replace("y", ""))
+                    start_date = datetime.now() - timedelta(days=365 * years)
+                    hist = ticker.history(start=start_date.strftime("%Y-%m-%d"))
+                else:
+                    hist = ticker.history(period=period)
+
+                if hist.empty:
+                    self.logger.warning(f"No historical data found for {symbol}")
+                    return []
+
+                # NaN 값 정제: Open, High, Low, Close 중 하나라도 NaN인 행 제거
+                hist = hist.dropna(subset=['Open', 'High', 'Low', 'Close'])
+
+                if hist.empty:
+                    self.logger.warning(f"No historical data found after filtering NaNs for {symbol}")
+                    return []
+
+                # 2. 새로 받아온 데이터를 Parquet로 캐시 저장
+                try:
+                    hist.to_parquet(cache_file)
+                    self.logger.debug(f"Saved {symbol} ({period}) to local cache.")
+                except Exception as e:
+                    self.logger.warning(f"Failed to save cache for {symbol}: {e}")
+
+            except Exception as e:
+                self.logger.error(f"Failed to fetch historical data for {symbol}: {e}")
+                return []
+
+        price_bars = []
+        for date, row in hist.iterrows():
+            bar = PriceBar(
+                timestamp=date.to_pydatetime() if hasattr(date, 'to_pydatetime') else pd.to_datetime(date).to_pydatetime(),
+                open=float(row['Open']),
+                high=float(row['High']),
+                low=float(row['Low']),
+                close=float(row['Close']),
+                volume=int(row['Volume'])
+            )
+            price_bars.append(bar)
+
+        self.logger.info(f"Fetched {len(price_bars)} historical bars for {symbol}")
+        return price_bars

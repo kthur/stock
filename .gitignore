@@ -66,3 +66,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Cache and data
+data/
+*.parquet
+trading_system/data/
+risk_config.json

@@ -8,6 +8,7 @@ from enum import Enum
 from .kiwoom import KiwoomConnector
 from .daishin import DaishinConnector
 from .hanwha import HanwhaConnector
+from .korea_investment import KoreaInvestmentConnector
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class BrokerType(Enum):
     KIWOOM = "kiwoom"
     DAISHIN = "daishin"
     HANWHA = "hanwha"
+    KOREA_INVESTMENT = "korea_investment"
 
 
 class MultiBrokerManager:
@@ -36,8 +38,9 @@ class MultiBrokerManager:
         self.brokers[BrokerType.KIWOOM] = KiwoomConnector()
         self.brokers[BrokerType.DAISHIN] = DaishinConnector()
         self.brokers[BrokerType.HANWHA] = HanwhaConnector()
+        self.brokers[BrokerType.KOREA_INVESTMENT] = KoreaInvestmentConnector()
         
-        self.logger.info("MultiBrokerManager initialized with 3 brokers")
+        self.logger.info("MultiBrokerManager initialized with 4 brokers")
     
     def connect(self, broker_type: BrokerType, account_number: str) -> bool:
         """

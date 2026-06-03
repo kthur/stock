@@ -3,6 +3,7 @@
 from .kiwoom import KiwoomConnector, KiwoomOrderType, KiwoomOrderStatus
 from .daishin import DaishinConnector
 from .hanwha import HanwhaConnector
+from .korea_investment import KoreaInvestmentConnector
 from .multi_broker_manager import MultiBrokerManager, BrokerType
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     'KiwoomOrderStatus',
     'DaishinConnector',
     'HanwhaConnector',
+    'KoreaInvestmentConnector',
     'MultiBrokerManager',
     'BrokerType',
 ]

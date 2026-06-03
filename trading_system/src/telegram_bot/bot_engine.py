@@ -259,19 +259,7 @@ class TelegramBotEngine:
         
         raw_symbol = args[0]
         # 한글 이름 치환 딕셔너리
-        KOR_TICKERS_MAPPING = {
-            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "현대차": "005380.KS",
-            "기아": "000270.KS", "POSCO홀딩스": "005490.KS", "NAVER": "035420.KS",
-            "네이버": "035420.KS", "카카오": "035720.KS", "셀트리온": "068270.KS",
-            "삼성바이오로직스": "207940.KS", "LG에너지솔루션": "373220.KS",
-            "LG화학": "051910.KS", "삼성SDI": "006400.KS", "KB금융": "105560.KS",
-            "신한지주": "055550.KS", "하나금융지주": "086790.KS", "현대모비스": "012330.KS",
-            "LG전자": "066570.KS", "에코프로비엠": "247540.KQ", "에코프로": "086520.KQ",
-            "HLB": "028300.KQ", "엔씨소프트": "036570.KS", "대한항공": "003490.KS",
-            "SK텔레콤": "017670.KS", "KT": "030200.KS", "한국전력": "015760.KS",
-            "크래프톤": "259960.KS", "SK이노베이션": "096770.KS", 
-            "한화에어로스페이스": "012450.KS", "삼성물산": "028260.KS", "고려아연": "010130.KS"
-        }
+        from src.utils.stock_list import KOR_TICKERS as KOR_TICKERS_MAPPING
         symbol = KOR_TICKERS_MAPPING.get(raw_symbol, raw_symbol.upper())
         
         try:
@@ -319,19 +307,7 @@ class TelegramBotEngine:
             return "⚠️ 사용법: /sell SYMBOL QUANTITY [PRICE]\n예: /sell 삼성전자 10 75000 (지정가)\n예: /sell AAPL 5 (시장가)"
         
         raw_symbol = args[0]
-        KOR_TICKERS_MAPPING = {
-            "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "현대차": "005380.KS",
-            "기아": "000270.KS", "POSCO홀딩스": "005490.KS", "NAVER": "035420.KS",
-            "네이버": "035420.KS", "카카오": "035720.KS", "셀트리온": "068270.KS",
-            "삼성바이오로직스": "207940.KS", "LG에너지솔루션": "373220.KS",
-            "LG화학": "051910.KS", "삼성SDI": "006400.KS", "KB금융": "105560.KS",
-            "신한지주": "055550.KS", "하나금융지주": "086790.KS", "현대모비스": "012330.KS",
-            "LG전자": "066570.KS", "에코프로비엠": "247540.KQ", "에코프로": "086520.KQ",
-            "HLB": "028300.KQ", "엔씨소프트": "036570.KS", "대한항공": "003490.KS",
-            "SK텔레콤": "017670.KS", "KT": "030200.KS", "한국전력": "015760.KS",
-            "크래프톤": "259960.KS", "SK이노베이션": "096770.KS", 
-            "한화에어로스페이스": "012450.KS", "삼성물산": "028260.KS", "고려아연": "010130.KS"
-        }
+        from src.utils.stock_list import KOR_TICKERS as KOR_TICKERS_MAPPING
         symbol = KOR_TICKERS_MAPPING.get(raw_symbol, raw_symbol.upper())
         
         try:

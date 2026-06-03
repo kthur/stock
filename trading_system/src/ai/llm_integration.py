@@ -1,4 +1,4 @@
-"""AI/LLM 통합 엔진 - OpenAI API 연동"""
+"""AI/LLM 통합 엔진 - OpenAI 및 Google Gemini API 연동"""
 
 import os
 import json
@@ -45,22 +45,41 @@ class InvestmentOpinion:
 
 
 class LLMEngine:
-    """LLM 엔진 - OpenAI API 통합"""
+    """LLM 엔진 - OpenAI 및 Google Gemini API 통합"""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, provider: str = "openai"):
         """
         LLM 엔진 초기화
         
         Args:
-            api_key: OpenAI API 키
-            model: 사용할 모델 (gpt-3.5-turbo, gpt-4 등)
+            api_key: API 키 (OpenAI 또는 Gemini)
+            model: 사용할 모델
+            provider: LLM 제공자 ("openai", "gemini")
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.model = model
+        self.provider = provider.lower()
         self.logger = logger
         self.query_history = []
         
-        # API 클라이언트 초기화 (OpenAI v1.x+ 및 v0.x 호환성 지원)
+        # API 클라이언트 및 상태 변수 초기화
+        self.client = None
+        self.is_v1 = False
+        
+        if self.provider == "openai":
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            self.model = model or "gpt-3.5-turbo"
+            self._init_openai()
+        elif self.provider == "gemini":
+            self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+            self.model = model or "gemini-1.5-pro"
+            self._init_gemini()
+        else:
+            self.logger.warning(f"Unknown provider: {self.provider}. Using simulation mode.")
+            self.client = None
+            self.api_key = None
+            self.model = "unknown"
+            
+    def _init_openai(self):
+        """OpenAI 초기화"""
         try:
             import openai
             if not self.api_key:
@@ -72,11 +91,24 @@ class LLMEngine:
                 openai.api_key = self.api_key
                 self.client = openai
                 self.is_v1 = False
-            self.logger.info(f"OpenAI client initialized with model: {model}")
+            self.logger.info(f"OpenAI client initialized with model: {self.model}")
         except Exception as e:
             self.logger.warning(f"OpenAI library initialization failed or key missing ({e}). Using simulation mode.")
             self.client = None
             self.is_v1 = False
+
+    def _init_gemini(self):
+        """Gemini 초기화"""
+        try:
+            import google.generativeai as genai
+            if not self.api_key:
+                raise ValueError("Gemini API key is missing. Initializing in simulation mode.")
+            genai.configure(api_key=self.api_key)
+            self.client = genai.GenerativeModel(self.model)
+            self.logger.info(f"Gemini client initialized with model: {self.model}")
+        except Exception as e:
+            self.logger.warning(f"Google Generative AI library initialization failed or key missing ({e}). Using simulation mode.")
+            self.client = None
     
     def query_investment_opinion(self, stock_data: Dict) -> InvestmentOpinion:
         """
@@ -96,7 +128,13 @@ class LLMEngine:
         # API 호출
         is_sim = False
         if self.client:
-            response = self._call_openai_api(query)
+            if self.provider == "openai":
+                response = self._call_openai_api(query)
+            elif self.provider == "gemini":
+                response = self._call_gemini_api(query)
+            else:
+                response = None
+                
             if not response:
                 response = self._simulate_response(stock_data)
                 is_sim = True
@@ -179,7 +217,7 @@ JSON 형식으로 답변해주세요.
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
+                    {"role": "system", "content": "당신은 전문 투자 분석가입니다. 응답은 반드시 JSON 형식으로만 작성하세요."},
                     {"role": "user", "content": query}
                 ],
                 temperature=0.7,
@@ -190,7 +228,7 @@ JSON 형식으로 답변해주세요.
             response = self.client.ChatCompletion.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "당신은 전문 투자 분석가입니다."},
+                    {"role": "system", "content": "당신은 전문 투자 분석가입니다. 응답은 반드시 JSON 형식으로만 작성하세요."},
                     {"role": "user", "content": query}
                 ],
                 temperature=0.7,
@@ -204,6 +242,31 @@ JSON 형식으로 답변해주세요.
             return self._call_openai_api_with_retry(query)
         except Exception as e:
             self.logger.error(f"OpenAI API error after retries: {str(e)}")
+            return ""
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+    def _call_gemini_api_with_retry(self, query: str) -> str:
+        system_prompt = "당신은 전문 투자 분석가입니다. 응답은 반드시 JSON 형식으로만 작성하세요."
+        full_query = f"{system_prompt}\n\n{query}"
+        response = self.client.generate_content(full_query)
+        
+        # 마크다운 코드 블록 제거 처리
+        text = response.text
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+            
+        return text.strip()
+
+    def _call_gemini_api(self, query: str) -> str:
+        """Gemini API 호출"""
+        try:
+            return self._call_gemini_api_with_retry(query)
+        except Exception as e:
+            self.logger.error(f"Gemini API error after retries: {str(e)}")
             return ""
     
     def _simulate_response(self, stock_data: Dict) -> str:
@@ -255,15 +318,24 @@ JSON 형식으로 답변해주세요.
             # JSON 형식의 응답 파싱
             data = json.loads(response) if isinstance(response, str) else response
         except (json.JSONDecodeError, TypeError, ValueError):
-            # 파싱 실패 시 기본값
-            data = {
-                'recommendation': 'HOLD',
-                'sentiment': '중립적',
-                'confidence': 50,
-                'reasoning': '분석 불가',
-                'risks': [],
-                'opportunities': []
-            }
+            # 파싱 실패 시 시도: 마크다운 파싱을 위함이거나 텍스트 내에서 JSON 추출
+            try:
+                import re
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group(0))
+                else:
+                    raise ValueError("No JSON found")
+            except Exception:
+                # 파싱 실패 시 기본값
+                data = {
+                    'recommendation': 'HOLD',
+                    'sentiment': '중립적',
+                    'confidence': 50,
+                    'reasoning': '분석 불가',
+                    'risks': [],
+                    'opportunities': []
+                }
         
         # 감정도를 Enum으로 변환
         sentiment_map = {

@@ -18,23 +18,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-KOR_TICKERS = {
-    "삼성전자": "005930.KS", "SK하이닉스": "000660.KS", "현대차": "005380.KS",
-    "기아": "000270.KS", "POSCO홀딩스": "005490.KS", "NAVER": "035420.KS",
-    "네이버": "035420.KS", "카카오": "035720.KS", "셀트리온": "068270.KS",
-    "삼성바이오로직스": "207940.KS", "LG에너지솔루션": "373220.KS",
-    "LG화학": "051910.KS", "삼성SDI": "006400.KS", "KB금융": "105560.KS",
-    "신한지주": "055550.KS", "하나금융지주": "086790.KS", "현대모비스": "012330.KS",
-    "LG전자": "066570.KS", "에코프로비엠": "247540.KQ", "에코프로": "086520.KQ",
-    "HLB": "028300.KQ", "엔씨소프트": "036570.KS", "대한항공": "003490.KS",
-    "SK텔레콤": "017670.KS", "KT": "030200.KS", "한국전력": "015760.KS",
-    "크래프톤": "259960.KS", "SK이노베이션": "096770.KS", 
-    "한화에어로스페이스": "012450.KS", "삼성물산": "028260.KS",
-    "고려아연": "010130.KS"
-}
-
-KOR_TICKERS_REV = {v: k for k, v in KOR_TICKERS.items()}
-
+from src.utils.stock_list import KOR_TICKERS, KOR_TICKERS_REV
 
 class WebDashboard:
     """웹 대시보드"""
@@ -448,14 +432,9 @@ class WebDashboard:
                     download_period = '2y'
                     target_period_bars = 252
                 
-                # S&P500 + KOSPI 대형주 샘플 (API 한도 고려)
-                UNIVERSE = [
-                    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK-B", "JPM", "JNJ",
-                    "005930.KS", "000660.KS", "005380.KS", "000270.KS", "035420.KS", "035720.KS",
-                    "051910.KS", "006400.KS", "373220.KS", "207940.KS", "068270.KS", "005490.KS",
-                    "105560.KS", "055550.KS", "036570.KS", "012330.KS", "066570.KS", "015760.KS",
-                    "017670.KS", "030200.KS", "012450.KS", "028260.KS", "010130.KS", "096770.KS",
-                    "247540.KQ", "086520.KQ", "028300.KQ", "259960.KS", "003490.KS", "086790.KS"
+                # 한국 전체 종목 + 미국 대형주 샘플
+                UNIVERSE = list(KOR_TICKERS_REV.keys()) + [
+                    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK-B", "JPM", "JNJ"
                 ]
                 
                 task_id = str(uuid.uuid4())
@@ -1297,10 +1276,10 @@ class WebDashboard:
                 <div id="tab-scanner" class="tab-content">
                     <div class="card" style="margin-bottom: 20px;">
                         <h2>📊 전체 종목 백테스트 스캐너</h2>
-                        <p style="font-size: 13px; color: #888; margin-bottom: 15px;">유니버스 내 40개 주요 종목(한국/미국)을 대상으로 백그라운드 스캔을 수행합니다. 종목을 클릭하면 수익률 차트를 확인할 수 있습니다.</p>
+                        <p style="font-size: 13px; color: #888; margin-bottom: 15px;">한국 시장 전 종목(KOSPI/KOSDAQ) 및 주요 미국 주식을 대상으로 백그라운드 스캔을 수행합니다. 종목을 클릭하면 수익률 차트를 확인할 수 있습니다.</p>
                         
                         <details style="margin-bottom: 18px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); padding: 12px; border-radius: 8px;">
-                            <summary style="font-size: 13px; font-weight: bold; color: #ccc; cursor: pointer; user-select: none;">🔍 스캔 대상 유니버스 종목 보기 (총 40개 종목)</summary>
+                            <summary style="font-size: 13px; font-weight: bold; color: #ccc; cursor: pointer; user-select: none;">🔍 스캔 대상 유니버스 종목 보기 (한국 전 종목 + 미국 대형주 10개)</summary>
                             <div style="margin-top: 10px; font-size: 12px; line-height: 1.7; color: #aaa;">
                                 <div style="margin-bottom: 8px;">
                                     <strong style="color: #90caf9;">🇺🇸 미국 주식 (10개):</strong><br>
@@ -1316,8 +1295,8 @@ class WebDashboard:
                                     <span style="display: inline-block; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 4px; margin: 2px;">JNJ</span>
                                 </div>
                                 <div>
-                                    <strong style="color: #ffcc80;">🇰🇷 한국 주식 (30개):</strong><br>
-                                    삼성전자, SK하이닉스, 현대차, 기아, NAVER, 카카오, LG화학, 삼성SDI, LG에너지솔루션, 삼성바이오로직스, 셀트리온, POSCO홀딩스, KB금융, 신한지주, 엔씨소프트, 현대모비스, LG전자, 한국전력, SK텔레콤, KT, 한화에어로스페이스, 삼성물산, 고려아연, SK이노베이션, 에코프로비엠, 에코프로, HLB, 크래프톤, 대한항공, 하나금융지주
+                                    <strong style="color: #ffcc80;">🇰🇷 한국 주식:</strong><br>
+                                    KOSPI / KOSDAQ 전체 종목 (약 2000+개 종목 자동 동기화)
                                 </div>
                             </div>
                         </details>
