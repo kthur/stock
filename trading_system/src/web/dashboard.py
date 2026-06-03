@@ -485,25 +485,57 @@ class WebDashboard:
                     self.logger.error(f"Error shutting down telegram application: {e}")
                     
     async def _run_periodic_simulation(self):
-        """백그라운드에서 주기적으로 거래 시뮬레이션을 실행하여 데이터를 실시간으로 업데이트"""
-        symbols = ["AAPL", "MSFT", "GOOGL", "005930.KS", "000660.KS", "005380.KS"]
+        """백그라운드에서 주기적으로 거래 시뮬레이션을 실행하여 데이터를 실시간으로 업데이트 (개장 시간 스케줄 최적화)"""
+        default_symbols = ["AAPL", "MSFT", "GOOGL", "005930.KS", "000660.KS", "005380.KS"]
         await asyncio.sleep(5)  # 서버 시작 후 잠시 안정화 대기
         
         while True:
             try:
+                # 1. 보유 중인 포지션 종목도 감시 리스트에 동적으로 합류
+                active_positions = list(self.trading_system.portfolio.positions.keys())
+                symbols = list(set(default_symbols + active_positions))
+                
+                # 2. 시장 개장 상태 체크 (KST 기준)
+                import datetime
+                now = datetime.datetime.now()
+                weekday = now.weekday()
+                time_str = now.strftime("%H:%M")
+                
+                # 한국 개장: 월~금 09:00 ~ 15:30
+                is_kr_open = (weekday < 5) and ("09:00" <= time_str <= "15:30")
+                # 미국 개장: 월~금 23:30 ~ 06:00 KST (서머타임은 러프하게 퉁침)
+                is_us_open = (weekday < 5) and (("23:30" <= time_str <= "23:59") or ("00:00" <= time_str <= "06:00"))
+                
+                # 주말 및 모든 장 폐쇄 시 yfinance API 할당량과 백오프 보호를 위해 10분 대기
+                if not is_kr_open and not is_us_open:
+                    self.logger.info("모든 주식 시장이 닫혀 있습니다. 부하 방지를 위해 주기적 스케줄 감시 주기를 10분으로 전환합니다.")
+                    await asyncio.sleep(600)
+                    continue
+
+                self.logger.info(f"지능형 스케줄러 점검 - KR 개장: {is_kr_open}, US 개장: {is_us_open}")
+                
                 for symbol in symbols:
-                    self.logger.info(f"Auto simulation tick for {symbol}")
+                    is_kr_stock = symbol.endswith('.KS') or symbol.endswith('.KQ')
+                    
+                    # 닫힌 시장 주식은 시뮬레이션을 돌리지 않고 건너뜀
+                    if is_kr_stock and not is_kr_open:
+                        continue
+                    if not is_kr_stock and not is_us_open:
+                        continue
+                        
+                    self.logger.info(f"Intelligent schedule run for {symbol} (Live simulation)")
                     await self.trading_system.simulate_trading_day(symbol)
-                    # 대시보드 데이터 갱신 알림
+                    # WebSocket을 통해 브라우저 화면의 포트폴리오를 실시간 갱신
                     await self.broadcast_portfolio_update()
-                    # 10초 휴식 후 다음 종목
+                    # 종목 API 호출 시 부하 분산을 위해 10초 휴식
                     await asyncio.sleep(10)
-                # 한 바퀴 다 돌면 30초 대기
-                await asyncio.sleep(30)
+                    
+                # 일회성 전수 검사가 끝나면 1분 대기
+                await asyncio.sleep(60)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self.logger.error(f"Error in periodic simulation: {e}")
+                self.logger.error(f"Error in intelligent market simulation: {e}")
                 await asyncio.sleep(10)
 
     async def _run_telegram_bot(self):
