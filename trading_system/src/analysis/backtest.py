@@ -59,18 +59,13 @@ class BacktestResult:
 
 
 class BacktestEngine:
-    """백테스트 엔진"""
+    
+    POSITION_SIZE_FRACTION = 0.95
     
     def __init__(self, initial_capital: float = 1000000):
-        """
-        백테스트 엔진 초기화
-        
-        Args:
-            initial_capital: 초기 자본금
-        """
         self.initial_capital = initial_capital
         self.logger = logger
-        self.fee_pct = 0.001  # 0.1% 수수료
+        self.fee_pct = 0.001
         
     def run_backtest(self, symbol: str, price_bars: List[PriceBar],
                     strategy_func, target_period_bars: int = None,
@@ -101,7 +96,7 @@ class BacktestEngine:
             # --- 롱 진입 (Neutral 상태) ---
             if signal == "BUY" and position == 0:
                 if capital >= bar.close:
-                    position = int(capital * 0.95 / bar.close)  # 95% 투자
+                    position = int(capital * self.POSITION_SIZE_FRACTION / bar.close)
                     entry_price = bar.close
                     capital -= position * bar.close * (1 + self.fee_pct)
                     self.logger.debug(f"{bar.timestamp}: BUY (Long Entry) {position} @ {bar.close}")
@@ -129,7 +124,7 @@ class BacktestEngine:
                 
                 # 숏으로 스위칭 (Reverse)
                 if allow_short:
-                    qty = int(capital * 0.95 / bar.close)
+                    qty = int(capital * self.POSITION_SIZE_FRACTION / bar.close)
                     position = -qty
                     entry_price = bar.close
                     capital += qty * bar.close * (1 - self.fee_pct)
@@ -161,7 +156,7 @@ class BacktestEngine:
                 
                 # 롱으로 스위칭 (Reverse)
                 if capital >= bar.close:
-                    position = int(capital * 0.95 / bar.close)
+                    position = int(capital * self.POSITION_SIZE_FRACTION / bar.close)
                     entry_price = bar.close
                     capital -= position * bar.close * (1 + self.fee_pct)
                     self.logger.debug(f"{bar.timestamp}: BUY (Long Entry - Reverse) {position} @ {bar.close}")
@@ -170,7 +165,7 @@ class BacktestEngine:
             
             # --- 숏 진입 (Neutral 상태) ---
             elif signal == "SELL" and position == 0 and allow_short:
-                qty = int(capital * 0.95 / bar.close)
+                qty = int(capital * self.POSITION_SIZE_FRACTION / bar.close)
                 position = -qty
                 entry_price = bar.close
                 capital += qty * bar.close * (1 - self.fee_pct)

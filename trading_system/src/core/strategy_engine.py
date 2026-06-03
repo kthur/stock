@@ -30,17 +30,28 @@ class StrategyResult:
 
 
 class HybridStrategyEngine:
-    """하이브리드 전략 엔진 - 기술적 분석 + 감정 분석"""
     
-    def __init__(self, event_bus: EventBus | None = None) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus | None = None,
+        sentiment_weight: float = 0.6,
+        technical_weight: float = 0.4,
+        spread_threshold: float = 0.001,
+        buy_price_threshold: float = 1.01,
+        sell_threshold: float = 0.4,
+    ) -> None:
         self.logger = logger
         self.results_history: List[StrategyResult] = []
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         
-        # 전략 파라미터
-        self.price_threshold = 0.02  # 2% 변동
-        self.volume_threshold = 1000000  # 최소 거래량
+        self.price_threshold = 0.02
+        self.volume_threshold = 1000000
+        self.sentiment_weight = sentiment_weight
+        self.technical_weight = technical_weight
+        self.spread_threshold = spread_threshold
+        self.buy_price_threshold = buy_price_threshold
+        self.sell_threshold = sell_threshold
     
     def subscribe(self, callback: Callable) -> None:
         """전략 신호 구독"""
@@ -63,22 +74,15 @@ class HybridStrategyEngine:
             confidence = 0.3
             reason = "Low volume"
         else:
-            # 스프레드 분석
             spread_ratio = (ask - bid) / bid if bid > 0 else 0
             
-            # 감정 분석 가중치
-            sentiment_weight = 0.6
-            technical_weight = 0.4
-            
-            # 기술적 신호 (간단한 스프레드 기반)
-            if spread_ratio < 0.001:  # 좋은 스프레드
-                technical_signal = TradeSignal.BUY if price > bid * 1.01 else TradeSignal.HOLD
+            if spread_ratio < self.spread_threshold:
+                technical_signal = TradeSignal.BUY if price > bid * self.buy_price_threshold else TradeSignal.HOLD
                 technical_score = 0.7
             else:
                 technical_signal = TradeSignal.HOLD
                 technical_score = 0.5
             
-            # 감정 신호
             if news_sentiment > 0.5:
                 sentiment_signal = TradeSignal.BUY
                 sentiment_score = 0.8
@@ -89,9 +93,8 @@ class HybridStrategyEngine:
                 sentiment_signal = TradeSignal.HOLD
                 sentiment_score = 0.5
             
-            # 최종 신호 결정
-            combined_score = (sentiment_score * sentiment_weight + 
-                            technical_score * technical_weight)
+            combined_score = (sentiment_score * self.sentiment_weight +
+                            technical_score * self.technical_weight)
             confidence = combined_score
             
             if combined_score > 0.7:
@@ -101,7 +104,7 @@ class HybridStrategyEngine:
                 else:
                     signal = TradeSignal.HOLD
                     reason = "Conflicting signals"
-            elif combined_score < 0.4:
+            elif combined_score < self.sell_threshold:
                 signal = TradeSignal.SELL
                 reason = "Weak signals detected"
             else:
@@ -189,12 +192,11 @@ class OptimizationEngine:
             'timestamp': datetime.now()
         }
         
-        # 파라미터 조정 로직
         if win_rate < 0.4:
             self.strategy_engine.volume_threshold *= 1.1
             self.logger.warning(f"Adjusted volume threshold to {self.strategy_engine.volume_threshold}")
         
-        if avg_slippage > 0.01:  # 1% 이상 슬리피지
+        if avg_slippage > 0.01:
             self.logger.warning(f"High slippage detected: {avg_slippage:.4f}")
         
         self.optimization_history.append(optimization)

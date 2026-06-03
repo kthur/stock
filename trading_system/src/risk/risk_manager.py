@@ -36,33 +36,31 @@ class RiskMetrics:
 
 
 class RiskManager:
-    """위험 관리 시스템"""
     
-    def __init__(self, portfolio_value: float = 1000000):
-        """
-        위험 관리 초기화
-        
-        Args:
-            portfolio_value: 초기 포트폴리오 가치
-        """
+    def __init__(
+        self,
+        portfolio_value: float = 1000000,
+        max_loss_per_trade_pct: float = 0.02,
+        max_portfolio_loss_pct: float = 0.10,
+        max_position_size_pct: float = 0.20,
+        default_stop_loss_pct: float = 0.05,
+        default_take_profit_pct: float = 0.10,
+        max_drawdown_allowed: float = 0.20,
+    ):
         self.portfolio_value = portfolio_value
         self.peak_value = portfolio_value
         self.logger = logger
         
-        # 위험 정책
-        self.max_loss_per_trade_pct = 0.02  # 거래당 최대 손실 2%
-        self.max_portfolio_loss_pct = 0.10  # 포트폴리오 최대 손실 10%
-        self.max_position_size_pct = 0.20  # 최대 포지션 크기 20%
-        self.position_limits: Dict[str, float] = {}  # 종목별 한계
+        self.max_loss_per_trade_pct = max_loss_per_trade_pct
+        self.max_portfolio_loss_pct = max_portfolio_loss_pct
+        self.max_position_size_pct = max_position_size_pct
+        self.default_stop_loss_pct = default_stop_loss_pct
+        self.default_take_profit_pct = default_take_profit_pct
+        self.max_drawdown_allowed = max_drawdown_allowed
+        self.position_limits: Dict[str, float] = {}
         
-        # 기본 Stop Loss / Take Profit
-        self.default_stop_loss_pct = 0.05  # 5%
-        self.default_take_profit_pct = 0.10  # 10%
-        
-        # 활성 자동매매 전략
         self.active_strategy = "HYBRID"
         
-        # 설정 로드
         self._load_config()
         
         self.metrics_history: List[RiskMetrics] = []
@@ -188,11 +186,11 @@ class RiskManager:
                 max_single = max(abs(v) for v in positions.values())
                 concentration_risk = max_single / total_exposure
         
-        if drawdown >= 0.20 or concentration_risk > 0.50:
+        if drawdown >= self.max_drawdown_allowed or concentration_risk > 0.50:
             return RiskLevel.CRITICAL
-        elif drawdown >= 0.10 or concentration_risk > 0.35:
+        elif drawdown >= self.max_drawdown_allowed * 0.5 or concentration_risk > 0.35:
             return RiskLevel.HIGH
-        elif drawdown >= 0.05 or concentration_risk > 0.25:
+        elif drawdown >= self.max_drawdown_allowed * 0.25 or concentration_risk > 0.25:
             return RiskLevel.MEDIUM
         else:
             return RiskLevel.LOW
@@ -253,8 +251,9 @@ class RiskManager:
         current_drawdown = self.calculate_drawdown()
         risk_level = self.calculate_risk_level(positions)
         
-        # 포트폴리오 변동성 추정 (간단한 예시)
-        portfolio_volatility = 0.15 if risk_level == RiskLevel.HIGH else 0.10
+        high_vol = self.max_drawdown_allowed * 0.75
+        low_vol = self.max_drawdown_allowed * 0.5
+        portfolio_volatility = high_vol if risk_level == RiskLevel.HIGH else low_vol
         
         metrics = RiskMetrics(
             current_value=total_value,
@@ -263,7 +262,7 @@ class RiskManager:
             stop_loss_pct=self.default_stop_loss_pct,
             take_profit_pct=self.default_take_profit_pct,
             current_drawdown=current_drawdown,
-            max_drawdown_allowed=0.20,
+            max_drawdown_allowed=self.max_drawdown_allowed,
             portfolio_volatility=portfolio_volatility,
             risk_level=risk_level
         )

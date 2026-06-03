@@ -49,8 +49,8 @@ class BuffettStrategy:
         """
         symbol = stock_data.get('symbol', 'UNKNOWN')
         price = stock_data.get('price', 0)
-        pe_ratio = stock_data.get('pe_ratio', float('inf'))
-        pb_ratio = stock_data.get('pb_ratio', float('inf'))
+        pe_ratio = stock_data.get('pe_ratio')
+        pb_ratio = stock_data.get('pb_ratio')
         roe = stock_data.get('roe', 0)
         debt_ratio = stock_data.get('debt_ratio', 0)
         dividend_yield = stock_data.get('dividend_yield', 0)
@@ -59,19 +59,17 @@ class BuffettStrategy:
         score = 0
         max_score = 5
         
-        # PER 평가
-        if pe_ratio < 15:
+        if pe_ratio is not None and pe_ratio < 15:
             reasons.append(f"PER {pe_ratio:.1f} - 저평가")
             score += 1
-        elif pe_ratio < 20:
+        elif pe_ratio is not None and pe_ratio < 20:
             reasons.append(f"PER {pe_ratio:.1f} - 합리적 평가")
             score += 0.5
         
-        # PBR 평가
-        if pb_ratio < 1.0:
+        if pb_ratio is not None and pb_ratio < 1.0:
             reasons.append(f"PBR {pb_ratio:.2f} - 낮은 가격")
             score += 1
-        elif pb_ratio < 2.0:
+        elif pb_ratio is not None and pb_ratio < 2.0:
             reasons.append(f"PBR {pb_ratio:.2f} - 적절한 가격")
             score += 0.5
         
@@ -132,11 +130,11 @@ class LynchStrategy:
         - 시장 기회 큼
         """
         symbol = stock_data.get('symbol', 'UNKNOWN')
-        earnings_growth = stock_data.get('earnings_growth', 0)  # %
-        revenue_growth = stock_data.get('revenue_growth', 0)  # %
-        pe_ratio = stock_data.get('pe_ratio', float('inf'))
+        earnings_growth = stock_data.get('earnings_growth', 0)
+        revenue_growth = stock_data.get('revenue_growth', 0)
+        pe_ratio = stock_data.get('pe_ratio')
         market_cap = stock_data.get('market_cap', 0)
-        industry_growth = stock_data.get('industry_growth', 0)  # %
+        industry_growth = stock_data.get('industry_growth', 0)
         
         reasons = []
         score = 0
@@ -161,8 +159,7 @@ class LynchStrategy:
             reasons.append(f"매출 성장 {revenue_growth:.1f}% - 우수한 수요")
             score += 0.5
         
-        # PEG Ratio (성장-조정 PER)
-        if earnings_growth > 0:
+        if pe_ratio is not None and earnings_growth > 0:
             peg_ratio = pe_ratio / earnings_growth
             if peg_ratio < 1:
                 reasons.append(f"PEG {peg_ratio:.2f} - 저평가 성장주")

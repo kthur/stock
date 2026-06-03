@@ -1,8 +1,8 @@
-"""Event Bus - 중앙 집중형 이벤트 버스"""
-
 import asyncio
 from typing import Callable, Dict, List, Any
 import logging
+
+from .async_helper import run_async
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,7 @@ class EventBus:
                         loop = asyncio.get_running_loop()
                         loop.create_task(listener(data))
                     except RuntimeError:
-                        # 실행 중인 루프가 없는 경우 새 루프에서 실행
-                        asyncio.run(listener(data))
+                        run_async(listener(data))
                 else:
                     listener(data)
             except Exception as e:
