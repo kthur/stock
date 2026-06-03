@@ -16,10 +16,6 @@ class _DBConnection:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self._conn = None
-    
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-        self._conn = None
 
     async def get(self):
         if self._conn is None:

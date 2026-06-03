@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import logging
 import json
 import urllib.parse
@@ -19,8 +19,8 @@ try:
     HAS_FASTAPI = True
 except ImportError:
     HAS_FASTAPI = False
-    FastAPI = None
-    WebSocket = None
+    _FastAPI = None  # type: ignore
+    _WebSocket = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,9 @@ class WebDashboard:
         self.port = port
         self.logger = logger
         self._enabled = HAS_FASTAPI
-        self.active_connections = []
-        self.scan_tasks = {}
+        self.active_connections: list = []
+        self.scan_tasks: dict = {}
+        self.app: Any = None
         
         if HAS_FASTAPI:
             self.app = FastAPI(title="Stock Trading Dashboard")
@@ -501,7 +502,7 @@ class WebDashboard:
                     'error': None
                 }
                 
-                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int, allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False, stop_loss_pct: float = 0.0, take_profit_pct: float = 0.0, market_regime_filter: bool = False, volatility_sizing: bool = False):
+                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: Optional[int], allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False, stop_loss_pct: float = 0.0, take_profit_pct: float = 0.0, market_regime_filter: bool = False, volatility_sizing: bool = False):
                     engine = self.trading_system.backtest_engine
                     handler = self.trading_system.market_data_handler
                     
@@ -791,7 +792,7 @@ class WebDashboard:
             
             # 메시지 핸들러 등록
             async def handle_message(update: Update, context):
-                if not update.message or not update.message.text:
+                if not update.message or not update.message.text or not update.effective_user:
                     return
                 user_id = update.effective_user.id
                 text = update.message.text

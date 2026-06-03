@@ -29,7 +29,7 @@ class TelegramBotEngine:
         self.logger = logger
         self.is_running = False
         self.subscribed_users: Dict[int, Dict] = {}  # user_id -> user_info
-        self.command_history = []
+        self.command_history: list = []
         self.simulation_mode = True
         
         # 명령어 매핑
@@ -495,7 +495,7 @@ class TelegramBotEngine:
         
         return "📢 알림"
     
-    def send_periodic_report(self, user_id: int) -> str:
+    def send_periodic_report(self, user_id: int) -> Optional[str]:
         """정기 보고서"""
         if not self.trading_system:
             return None

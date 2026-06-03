@@ -21,7 +21,7 @@ def run_async(coro: Coroutine) -> Any:
         # 실행 중인 루프가 있는 경우 (예: asyncio 애플리케이션 내의 동기 호출)
         # 같은 스레드에서 run_until_complete를 수행하면 RuntimeError가 발생하므로,
         # 새로운 스레드에서 이벤트 루프를 열어 실행하고 대기합니다.
-        future = Future()
+        future: Future = Future()
         
         def run_in_thread():
             try:

@@ -86,7 +86,7 @@ class MarketDataHandler:
     """실시간 시세 수신 및 관리"""
     
     def __init__(self, event_bus=None):
-        self.market_data_dict = {}
+        self.market_data_dict: dict[str, MarketData] = {}
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         self.logger = logger
@@ -126,7 +126,7 @@ class MarketDataHandler:
         """모든 시장 데이터 조회"""
         return self.market_data_dict.copy()
     
-    def simulate_api_call(self, symbol: str, price: float, bid: float, ask: float, volume: int):
+    def simulate_api_call(self, symbol: str, price: float, bid: float, ask: float, volume: int) -> MarketData:
         """증권사 API 호출 시뮬레이션"""
         data = MarketData(
             symbol=symbol,

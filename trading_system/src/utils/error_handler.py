@@ -8,6 +8,7 @@ import logging
 import time
 import threading
 from concurrent.futures import Future, TimeoutError as FutureTimeoutError
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class ErrorHandler:
             검증 결과
         """
         try:
-            result = validator(data)
+            result = bool(validator(data))
             if not result:
                 self.logger.warning(f"Data validation failed: {data}")
                 self._record_error("data_validation", Exception("Validation failed"), 
@@ -141,18 +142,19 @@ class ErrorHandler:
             함수의 반환값 또는 None
         """
         if not hasattr(func, '_circuit_state'):
-            func._circuit_state = 'closed'
-            func._failure_count = 0
-            func._last_failure_time = None
+            setattr(func, '_circuit_state', 'closed')
+            setattr(func, '_failure_count', 0)
+            setattr(func, '_last_failure_time', None)
         
         # 복구 타임아웃 확인
-        if func._circuit_state == 'open':
-            if func._last_failure_time:
-                elapsed = (datetime.now() - func._last_failure_time).total_seconds()
+        if getattr(func, '_circuit_state') == 'open':
+            last_failure = getattr(func, '_last_failure_time')
+            if last_failure:
+                elapsed = (datetime.now() - last_failure).total_seconds()
                 if elapsed > recovery_timeout:
                     self.logger.info(f"Circuit breaker for {func.__name__} entering half-open state")
-                    func._circuit_state = 'half-open'
-                    func._failure_count = 0
+                    setattr(func, '_circuit_state', 'half-open')
+                    setattr(func, '_failure_count', 0)
                 else:
                     self.logger.warning(f"Circuit breaker open for {func.__name__}")
                     return None
@@ -161,21 +163,21 @@ class ErrorHandler:
         try:
             result = func(*args, **kwargs)
             
-            if func._circuit_state == 'half-open':
+            if getattr(func, '_circuit_state') == 'half-open':
                 self.logger.info(f"Circuit breaker for {func.__name__} closing")
-                func._circuit_state = 'closed'
-                func._failure_count = 0
+                setattr(func, '_circuit_state', 'closed')
+                setattr(func, '_failure_count', 0)
             
             return result
         
         except Exception as e:
-            func._failure_count += 1
-            func._last_failure_time = datetime.now()
+            setattr(func, '_failure_count', getattr(func, '_failure_count') + 1)
+            setattr(func, '_last_failure_time', datetime.now())
             
             self.logger.error(f"Function {func.__name__} failed: {str(e)}")
             
-            if func._failure_count >= failure_threshold:
-                func._circuit_state = 'open'
+            if getattr(func, '_failure_count') >= failure_threshold:
+                setattr(func, '_circuit_state', 'open')
                 self.logger.critical(f"Circuit breaker opened for {func.__name__}")
                 self._record_error(func.__name__, e, ErrorSeverity.CRITICAL)
             
@@ -194,7 +196,7 @@ class ErrorHandler:
         Returns:
             함수의 반환값 또는 None
         """
-        result_future = Future()
+        result_future: Future = Future()
         
         def target():
             try:

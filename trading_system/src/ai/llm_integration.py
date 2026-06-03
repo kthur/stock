@@ -31,9 +31,9 @@ class InvestmentOpinion:
     confidence: float  # 0.0 ~ 1.0
     target_price: Optional[float] = None
     reasoning: str = ""
-    risks: List[str] = None
-    opportunities: List[str] = None
-    timestamp: datetime = None
+    risks: Optional[List[str]] = None
+    opportunities: Optional[List[str]] = None
+    timestamp: Optional[datetime] = None
     is_simulated: bool = False
     
     def __post_init__(self):
@@ -59,7 +59,7 @@ class LLMEngine:
         """
         self.provider = provider.lower()
         self.logger = logger
-        self.query_history = []
+        self.query_history: list = []
         
         # API 클라이언트 및 상태 변수 초기화
         self.client = None
@@ -216,6 +216,8 @@ JSON 형식으로 답변해주세요.
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     def _call_openai_api_with_retry(self, query: str) -> str:
+        if self.client is None:
+            return ""
         if self.is_v1:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -226,7 +228,7 @@ JSON 형식으로 답변해주세요.
                 temperature=0.7,
                 max_tokens=1024
             )
-            return response.choices[0].message.content
+            return str(response.choices[0].message.content)
         else:
             response = self.client.ChatCompletion.create(
                 model=self.model,
@@ -237,7 +239,7 @@ JSON 형식으로 답변해주세요.
                 temperature=0.7,
                 max_tokens=1024
             )
-            return response['choices'][0]['message']['content']
+            return str(response['choices'][0]['message']['content'])
 
     def _call_openai_api(self, query: str) -> str:
         """OpenAI API 호출"""
@@ -249,6 +251,8 @@ JSON 형식으로 답변해주세요.
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     def _call_gemini_api_with_retry(self, query: str) -> str:
+        if self.client is None:
+            return ""
         system_prompt = "당신은 전문 투자 분석가입니다. 응답은 반드시 JSON 형식으로만 작성하세요."
         full_query = f"{system_prompt}\n\n{query}"
         response = self.client.generate_content(full_query)

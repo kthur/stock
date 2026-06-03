@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Callable
+from typing import List, Dict, Tuple, Callable, Optional, Any, cast
 import logging
 import itertools
 import math
@@ -55,9 +55,9 @@ class BacktestResult:
     end_date: datetime
     initial_capital: float
     final_capital: float
-    equity_curve: List[float] = None
-    price_curve: List[float] = None
-    dates: List[datetime] = None
+    equity_curve: Optional[List[float]] = None
+    price_curve: Optional[List[float]] = None
+    dates: Optional[List[datetime]] = None
     trailing_stop_count: int = 0
 
 
@@ -69,10 +69,10 @@ class BacktestEngine:
         self.initial_capital = initial_capital
         self.logger = logger
         self.fee_pct = 0.001  # 0.1% 수수료
-        self._indicator_cache = {}
-        self._current_price_bars = None
-        self._closes_cache = None
-        self._volumes_cache = None
+        self._indicator_cache: dict = {}
+        self._current_price_bars: Optional[List[PriceBar]] = None
+        self._closes_cache: Optional[List[float]] = None
+        self._volumes_cache: Optional[List[float]] = None
         
     # ──────────────────────────────────────────────────────
     # 기술적 지표 유틸리티
@@ -158,6 +158,7 @@ class BacktestEngine:
                 self._closes_cache = [b.close for b in self._current_price_bars]
             else:
                 return []
+        assert self._closes_cache is not None
         return self._closes_cache
 
     def _get_volumes(self) -> List[float]:
@@ -166,6 +167,7 @@ class BacktestEngine:
                 self._volumes_cache = [b.volume for b in self._current_price_bars]
             else:
                 return []
+        assert self._volumes_cache is not None
         return self._volumes_cache
 
     def _get_sma(self, window: int) -> List[float]:
@@ -186,20 +188,20 @@ class BacktestEngine:
                 for idx in range(len(closes)):
                     sma[idx] = sum(closes[:idx+1]) / (idx+1)
             self._indicator_cache[cache_key] = sma
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_ema(self, data: List[float], period: int) -> List[float]:
         cache_key = ("EMA", period, id(data))
         if cache_key not in self._indicator_cache:
             self._indicator_cache[cache_key] = self._calc_ema(data, period)
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rsi(self, window: int) -> List[float]:
         cache_key = ("RSI", window)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
             self._indicator_cache[cache_key] = self._calc_rsi(closes, window)
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_macd_hist(self, fast: int, slow: int, signal: int) -> List[float]:
         cache_key = ("MACD_HIST", fast, slow, signal)
@@ -211,7 +213,7 @@ class BacktestEngine:
             signal_line = self._get_ema(macd_line, signal)
             hist = [macd_line[k] - signal_line[k] for k in range(len(closes))]
             self._indicator_cache[cache_key] = hist
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rolling_max(self, window: int) -> List[float]:
         cache_key = ("ROLLING_MAX", window)
@@ -222,7 +224,7 @@ class BacktestEngine:
                 start = max(0, idx - window + 1)
                 r_max[idx] = max(closes[start:idx+1])
             self._indicator_cache[cache_key] = r_max
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rolling_mean_volume(self, window: int) -> List[float]:
         cache_key = ("ROLLING_MEAN_VOL", window)
@@ -241,7 +243,7 @@ class BacktestEngine:
                 for idx in range(len(vols)):
                     r_mean[idx] = sum(vols[:idx+1]) / (idx+1)
             self._indicator_cache[cache_key] = r_mean
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rolling_volatility(self, window: int) -> List[float]:
         cache_key = ("ROLLING_VOLATILITY", window)
@@ -254,7 +256,7 @@ class BacktestEngine:
                 diffs = [abs(sub[k] - sub[k-1]) for k in range(1, len(sub))]
                 vol[idx] = sum(diffs) / len(diffs) if diffs else 0.0
             self._indicator_cache[cache_key] = vol
-        return self._indicator_cache[cache_key]
+        return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_bollinger_bands(self, period: int, std_mult: float) -> Tuple[List[float], List[float]]:
         cache_key = ("BOLLINGER_BANDS", period, std_mult)
@@ -271,14 +273,14 @@ class BacktestEngine:
                 upper[idx] = sma + std_mult * std_dev
                 lower[idx] = sma - std_mult * std_dev
             self._indicator_cache[cache_key] = (upper, lower)
-        return self._indicator_cache[cache_key]
+        return cast(Tuple[List[float], List[float]], self._indicator_cache[cache_key])
 
     # ──────────────────────────────────────────────────────
     # 메인 백테스트 루프
     # ──────────────────────────────────────────────────────
     
     def run_backtest(self, symbol: str, price_bars: List[PriceBar],
-                    strategy_func, target_period_bars: int = None,
+                    strategy_func, target_period_bars: Optional[int] = None,
                     allow_short: bool = False,
                     trailing_stop_pct: float = 0.0,
                     scale_in: bool = False,
@@ -801,7 +803,7 @@ class BacktestEngine:
             return 0
         
         peak = equity_curve[0]
-        max_dd = 0
+        max_dd = 0.0
         
         for value in equity_curve:
             if value > peak:
@@ -829,10 +831,10 @@ class BacktestEngine:
         std_dev = variance ** 0.5
         
         if std_dev == 0:
-            return 0
+            return 0.0
         
         # 연율화 (252 거래일 기준)
-        sharpe = ((avg_return - risk_free_rate / 252) / std_dev) * (252 ** 0.5)
+        sharpe = float(((avg_return - risk_free_rate / 252) / std_dev) * (252 ** 0.5))
         
         return sharpe
     
@@ -901,7 +903,7 @@ class BacktestEngine:
         else:
             return "HOLD"
 
-    def _rsi_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _rsi_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """RSI 과매도/과매수 전략"""
         if params is None: params = {}
         window = params.get('window', 14)
@@ -922,7 +924,7 @@ class BacktestEngine:
         else:
             return "HOLD"
             
-    def _macd_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _macd_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """MACD 전략 (진짜 EMA 기반: EMA12/EMA26/Signal9)"""
         if params is None: params = {}
         fast = params.get('fast', 12)
@@ -947,7 +949,7 @@ class BacktestEngine:
         else:
             return "HOLD"
             
-    def _buffett_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _buffett_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """워렌 버핏 Proxy (가치투자/역발상): 200일선 아래 크게 하락하고 단기 과매도 시 매수"""
         if len(bars) < 200: return "HOLD"
         L = len(bars)
@@ -962,7 +964,7 @@ class BacktestEngine:
             return "SELL"
         return "HOLD"
         
-    def _lynch_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _lynch_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """피터 린치 Proxy (성장/모멘텀): 50일 신고가 및 평균 거래량 돌파 시 매수"""
         if len(bars) < 50: return "HOLD"
         L = len(bars)
@@ -980,7 +982,7 @@ class BacktestEngine:
             return "SELL"
         return "HOLD"
         
-    def _dalio_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _dalio_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """레이 달리오 Proxy (안정적 추세): 200일선 위에서 변동성이 적을 때 매수"""
         if len(bars) < 200: return "HOLD"
         L = len(bars)
@@ -996,7 +998,7 @@ class BacktestEngine:
             return "SELL"
         return "HOLD"
 
-    def _trend_following_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _trend_following_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """추세 추종(Trend Following): 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수"""
         if len(bars) < 200: return "HOLD"
         L = len(bars)
@@ -1016,7 +1018,7 @@ class BacktestEngine:
     # 신규 전략들
     # ──────────────────────────────────────────────────────
     
-    def _bollinger_band_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _bollinger_band_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """볼린저밴드 + RSI 복합 전략 (Mean Reversion)
         
         하단 밴드 터치 + RSI 과매도 → BUY
@@ -1045,7 +1047,7 @@ class BacktestEngine:
         else:
             return "HOLD"
     
-    def _ensemble_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
+    def _ensemble_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """복합(앙상블) 전략: MA + RSI + MACD 3개 지표 투표
         
         2개 이상 BUY → BUY

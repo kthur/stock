@@ -1,6 +1,6 @@
 """Kiwoom API Integration - 키움증권 API 통합"""
 
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any, cast
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
@@ -80,9 +80,9 @@ class KiwoomConnector:
                 self.socket.recv_json()
                 
                 self.socket.send_json({"command": "connect", "args": {"account_number": account_number}})
-                res = self.socket.recv_json()
+                res: dict = cast(dict, self.socket.recv_json())
                 if res.get("status") == "success":
-                    self.is_connected = res.get("data", False)
+                    self.is_connected = bool(res.get("data", False))
                     self.account_number = account_number
                     self.logger.info("Connected to Kiwoom 32-bit Microservice via ZeroMQ")
                 else:
@@ -107,7 +107,7 @@ class KiwoomConnector:
             return {}
         
         if self.simulation_mode:
-            return self.simulated_accounts.get(self.account_number, {})
+            return dict(self.simulated_accounts.get(self.account_number, {}))
         
         # 실제 API 호출
         # ...
@@ -120,8 +120,8 @@ class KiwoomConnector:
             return []
         
         if self.simulation_mode:
-            account = self.simulated_accounts.get(self.account_number, {})
-            return account.get('holdings', [])
+            account = dict(self.simulated_accounts.get(self.account_number, {}))
+            return list(account.get('holdings', []))
         
         # 실제 API 호출
         # ...
@@ -226,7 +226,7 @@ class KiwoomConnector:
     def get_order_status(self, order_id: str) -> Dict:
         """주문 상태 조회"""
         if self.simulation_mode:
-            return self.simulated_orders.get(order_id, {})
+            return dict(self.simulated_orders.get(order_id, {}))
         
         # 실제 API 호출
         # ...
@@ -254,7 +254,7 @@ class KiwoomConnector:
                             'volume': 1000000
                         }
                         charts.append(chart)
-                        current_price = chart['close']
+                        current_price = float(cast(float, chart['close']))
                     
                     current_date += timedelta(days=1)
                 

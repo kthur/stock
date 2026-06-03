@@ -100,7 +100,7 @@ class AdvancedStatistics:
             return 0, 0, 0
         
         peak = equity_curve[0]
-        max_dd = 0
+        max_dd = 0.0
         peak_idx = 0
         trough_idx = 0
         

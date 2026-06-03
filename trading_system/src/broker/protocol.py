@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Protocol, runtime_checkable
 @runtime_checkable
 class BrokerProtocol(Protocol):
     is_connected: bool
-    account_number: str
+    account_number: str | None
     simulation_mode: bool
 
     def connect(self, account_number: str) -> bool: ...

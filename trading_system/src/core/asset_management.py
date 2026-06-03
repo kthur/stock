@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Callable
+from typing import Dict, List, Callable, Optional
 
 import logging
 from src.utils import EventBus
@@ -90,7 +90,7 @@ class PortfolioManager:
                 total += position.quantity * market_prices[symbol]
         return total
     
-    def take_snapshot(self, market_prices: Dict[str, float] = None) -> AssetSnapshot:
+    def take_snapshot(self, market_prices: Optional[Dict[str, float]] = None) -> AssetSnapshot:
         """자산 스냅샷 기록"""
         if market_prices:
             total_value = self.get_portfolio_value(market_prices)

@@ -143,7 +143,7 @@ class OptimizationEngine:
     def __init__(self, strategy_engine: HybridStrategyEngine) -> None:
         self.strategy_engine = strategy_engine
         self.logger = logger
-        self.optimization_history = []
+        self.optimization_history: list = []
         
         # 성과 메트릭
         self.total_trades = 0
@@ -193,7 +193,7 @@ class OptimizationEngine:
         }
         
         if win_rate < 0.4:
-            self.strategy_engine.volume_threshold *= 1.1
+            self.strategy_engine.volume_threshold = int(self.strategy_engine.volume_threshold * 1.1)
             self.logger.warning(f"Adjusted volume threshold to {self.strategy_engine.volume_threshold}")
         
         if avg_slippage > 0.01:

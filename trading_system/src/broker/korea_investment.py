@@ -6,7 +6,7 @@ import json
 import requests
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 from dataclasses import dataclass
 import random
 
@@ -40,7 +40,7 @@ class KoreaInvestmentConnector:
             account_number: 8~10자리 계좌번호
             use_mock: True면 모의투자 API, False면 실전투자 API
         """
-        self.account_number = account_number
+        self.account_number: Optional[str] = account_number
         self.is_connected = False
         
         self.app_key = os.getenv("KIS_APP_KEY")
@@ -51,8 +51,8 @@ class KoreaInvestmentConnector:
         self.simulation_mode = not bool(self.app_key and self.app_secret)
         self.domain = self.MOCK_DOMAIN if self.use_mock or self.simulation_mode else self.PROD_DOMAIN
         
-        self.access_token = None
-        self.token_expired_at = 0
+        self.access_token: Optional[str] = None
+        self.token_expired_at = 0.0
         
         self.orders: Dict[str, KoreaInvestmentOrder] = {}
         self.positions: Dict[str, int] = {}
@@ -134,6 +134,7 @@ class KoreaInvestmentConnector:
         headers = self._get_auth_headers(tr_id)
         
         # 계좌번호 포맷 처리 (앞 8자리, 뒤 2자리)
+        assert self.account_number is not None
         cano = self.account_number[:8] if len(self.account_number) >= 8 else self.account_number
         acnt_prdt_cd = self.account_number[-2:] if len(self.account_number) >= 10 else "01"
         
@@ -173,6 +174,10 @@ class KoreaInvestmentConnector:
             self.logger.error(f"Failed to fetch account info: {e}")
             return {'error': str(e)}
     
+    def get_stock_quote(self, code: str) -> Dict:
+        """주식 시세 조회 (BrokerProtocol)"""
+        return self.get_live_quote(code)
+
     def get_live_quote(self, symbol: str) -> Dict:
         """현재가 조회 (FHKST01010100)"""
         if self.simulation_mode:
@@ -227,6 +232,7 @@ class KoreaInvestmentConnector:
             
         headers = self._get_auth_headers(tr_id)
         
+        assert self.account_number is not None
         cano = self.account_number[:8] if len(self.account_number) >= 8 else self.account_number
         acnt_prdt_cd = self.account_number[-2:] if len(self.account_number) >= 10 else "01"
         
@@ -252,7 +258,7 @@ class KoreaInvestmentConnector:
                 self.logger.error(f"Order failed: {data.get('msg1')}")
                 return ""
                 
-            order_id = data.get('output', {}).get('ODNO', '')
+            order_id = str(data.get('output', {}).get('ODNO', ''))
             self.logger.info(f"Order submitted to KIS: {order_id}")
             return order_id
         except Exception as e:
@@ -290,3 +296,36 @@ class KoreaInvestmentConnector:
         
         # 실제 API 상태 조회 (TR_ID: VTTC8036R / TTTC8036R 체결/미체결 내역 조회) 구현 필요
         return {}
+
+    def get_daily_chart(self, code: str, days: int = 20) -> List[Dict]:
+        """일봉 차트 조회"""
+        if self.simulation_mode:
+            return self._simulate_daily_chart(code, days)
+        return []
+
+    def _simulate_daily_chart(self, code: str, days: int) -> List[Dict]:
+        import random
+        charts = []
+        price = 100.0
+        for _ in range(days):
+            change = random.uniform(-0.02, 0.02)
+            chart = {
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'open': price,
+                'high': price * (1 + abs(change)),
+                'low': price * (1 - abs(change)),
+                'close': price * (1 + change),
+                'volume': random.randint(1000000, 10000000)
+            }
+            charts.append(chart)
+            price = float(cast(float, chart['close']))
+        return charts
+
+    def get_broker_info(self) -> Dict:
+        """증권사 정보"""
+        return {
+            'name': '한국투자증권',
+            'code': 'KOREA_INVESTMENT',
+            'api_version': '1.0',
+            'simulation_mode': self.simulation_mode
+        }

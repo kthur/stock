@@ -1,8 +1,9 @@
 import logging
 import random
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 from dataclasses import dataclass
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class SimulatedBrokerBase:
     ORDER_PREFIX = "BR"
 
     def __init__(self, account_number: Optional[str] = None):
-        self.account_number = account_number or "0000000000"
+        self.account_number: Optional[str] = account_number or "0000000000"
         self.is_connected = False
         self.simulation_mode = True
         self.orders: Dict[str, BrokerOrder] = {}
@@ -69,7 +70,7 @@ class SimulatedBrokerBase:
                 'volume': random.randint(1000000, 10000000)
             }
             chart.append(bar)
-            price = bar['close']
+            price = float(cast(float, bar.get('close', 100.0)))
         return chart
 
     def place_order(self, code: str, quantity: int, price: float, order_type: str) -> str:

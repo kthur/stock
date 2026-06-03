@@ -27,7 +27,7 @@ class InvestorSignal:
     target_price: Optional[float] = None
     timeline: str = "중기"  # 단기, 중기, 장기
     risk_level: str = "중간"  # 낮음, 중간, 높음
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
     
     def __post_init__(self):
         if self.timestamp is None:
@@ -56,7 +56,7 @@ class BuffettStrategy:
         dividend_yield = stock_data.get('dividend_yield', 0)
         
         reasons = []
-        score = 0
+        score = 0.0
         max_score = 5
         
         if pe_ratio is not None and pe_ratio < 15:
@@ -137,7 +137,7 @@ class LynchStrategy:
         industry_growth = stock_data.get('industry_growth', 0)
         
         reasons = []
-        score = 0
+        score = 0.0
         max_score = 5
         
         # 성장률 평가
@@ -216,7 +216,7 @@ class MinervaStrategy:
         volume_trend = stock_data.get('volume_trend', 0)  # %
         
         reasons = []
-        score = 0
+        score = 0.0
         max_score = 5
         
         # 52주 모멘텀
@@ -299,7 +299,7 @@ class DividendStrategy:
         fcf = stock_data.get('fcf', 0)  # 잉여현금흐름
         
         reasons = []
-        score = 0
+        score = 0.0
         max_score = 5
         
         # 배당율

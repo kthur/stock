@@ -130,7 +130,7 @@ class RiskManager:
         
         # 종목별 한계 적용
         if symbol in self.position_limits:
-            position_quantity = min(position_quantity, self.position_limits[symbol])
+            position_quantity = int(min(position_quantity, self.position_limits[symbol]))
         
         self.logger.info(f"Calculated position size for {symbol}: {position_quantity} shares")
         return position_quantity
@@ -178,7 +178,7 @@ class RiskManager:
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:
         """현재 위험 수준 계산 (drawdown + 포지션 집중도 기반)"""
         drawdown = self.calculate_drawdown()
-        concentration_risk = 0
+        concentration_risk = 0.0
         
         if positions:
             total_exposure = sum(abs(v) for v in positions.values())
