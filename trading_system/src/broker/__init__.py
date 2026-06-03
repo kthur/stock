@@ -6,6 +6,7 @@ from .daishin import DaishinConnector
 from .hanwha import HanwhaConnector
 from .korea_investment import KoreaInvestmentConnector
 from .multi_broker_manager import MultiBrokerManager, BrokerType
+from .protocol import BrokerProtocol
 
 __all__ = [
     'KiwoomConnector',
@@ -17,4 +18,5 @@ __all__ = [
     'KoreaInvestmentConnector',
     'MultiBrokerManager',
     'BrokerType',
+    'BrokerProtocol',
 ]

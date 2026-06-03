@@ -10,13 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class InvestorType(Enum):
-    """투자자 유형"""
-    VALUE_INVESTOR = "가치투자"  # 워렌 버펫
-    GROWTH_INVESTOR = "성장투자"  # 피터 린치
-    MOMENTUM_INVESTOR = "모멘텀"  # 미너바니
-    DIVIDEND_INVESTOR = "배당주"  # 제임스 오셜러
-    CONTRARIAN_INVESTOR = "반대투자"  # 존 템플턴
-    TECHNICAL_ANALYST = "기술분석"  # 조지 소로스
+    VALUE_INVESTOR = "가치투자"
+    GROWTH_INVESTOR = "성장투자"
+    MOMENTUM_INVESTOR = "모멘텀"
+    DIVIDEND_INVESTOR = "배당주"
 
 
 @dataclass

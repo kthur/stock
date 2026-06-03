@@ -32,17 +32,17 @@ class NewsData:
 
 
 class NLPEngine:
-    """뉴스 텍스트 분석 엔진"""
     
-    def __init__(self, event_bus=None):
+    DEFAULT_POSITIVE = ['상승', '긍정', '호재', '증가', '개선', '회복', '강세', '상승장', '수익']
+    DEFAULT_NEGATIVE = ['하락', '부정', '악재', '감소', '악화', '위기', '약세', '하락장', '손실']
+    
+    def __init__(self, event_bus=None, positive_keywords=None, negative_keywords=None):
         self.news_queue: List[NewsData] = []
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         self.logger = logger
-        
-        # 감정 분석용 키워드 딕셔너리 (간단한 규칙 기반)
-        self.positive_keywords = ['상승', '긍정', '호재', '증가', '개선', '회복', '강세', '상승장', '수익']
-        self.negative_keywords = ['하락', '부정', '악재', '감소', '악화', '위기', '약세', '하락장', '손실']
+        self.positive_keywords = positive_keywords or list(self.DEFAULT_POSITIVE)
+        self.negative_keywords = negative_keywords or list(self.DEFAULT_NEGATIVE)
     
     def subscribe(self, callback: Callable):
         """뉴스 분석 결과 구독"""
@@ -51,17 +51,17 @@ class NLPEngine:
         self.logger.info(f"Subscribed NLP callback: {callback_name}")
     
     def analyze_sentiment(self, text: str) -> tuple[Sentiment, float]:
-        """간단한 감정 분석 (키워드 기반)"""
         text_lower = text.lower()
         
         positive_count = sum(1 for keyword in self.positive_keywords if keyword in text_lower)
         negative_count = sum(1 for keyword in self.negative_keywords if keyword in text_lower)
         
+        max_keywords = max(len(self.positive_keywords), len(self.negative_keywords), 1)
         if positive_count > negative_count:
-            score = min(positive_count / 10.0, 1.0)
+            score = min(positive_count / max_keywords, 1.0)
             return Sentiment.POSITIVE, score
         elif negative_count > positive_count:
-            score = -min(negative_count / 10.0, 1.0)
+            score = -min(negative_count / max_keywords, 1.0)
             return Sentiment.NEGATIVE, score
         else:
             return Sentiment.NEUTRAL, 0.0

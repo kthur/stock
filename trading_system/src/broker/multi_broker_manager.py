@@ -1,7 +1,7 @@
 """다중 증권사 관리자"""
 
 import logging
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List
 from datetime import datetime
 from enum import Enum
 
@@ -9,6 +9,7 @@ from .kiwoom import KiwoomConnector
 from .daishin import DaishinConnector
 from .hanwha import HanwhaConnector
 from .korea_investment import KoreaInvestmentConnector
+from .protocol import BrokerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class MultiBrokerManager:
     
     def __init__(self):
         """다중 증권사 관리자 초기화"""
-        self.brokers: Dict[BrokerType, Any] = {}
+        self.brokers: Dict[BrokerType, BrokerProtocol] = {}
         self.active_broker: Optional[BrokerType] = None
         self.logger = logger
         
@@ -95,8 +96,7 @@ class MultiBrokerManager:
         
         return True
     
-    def get_active_broker(self) -> Optional[object]:
-        """활성 증권사 조회"""
+    def get_active_broker(self) -> Optional[BrokerProtocol]:
         if self.active_broker:
             return self.brokers[self.active_broker]
         return None
