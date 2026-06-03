@@ -69,6 +69,10 @@ class BacktestEngine:
         self.initial_capital = initial_capital
         self.logger = logger
         self.fee_pct = 0.001  # 0.1% 수수료
+        self._indicator_cache = {}
+        self._current_price_bars = None
+        self._closes_cache = None
+        self._volumes_cache = None
         
     # ──────────────────────────────────────────────────────
     # 기술적 지표 유틸리티
@@ -148,6 +152,127 @@ class BacktestEngine:
                 
         return rsi_values
 
+    def _get_closes(self) -> List[float]:
+        if self._closes_cache is None:
+            if self._current_price_bars is not None:
+                self._closes_cache = [b.close for b in self._current_price_bars]
+            else:
+                return []
+        return self._closes_cache
+
+    def _get_volumes(self) -> List[float]:
+        if self._volumes_cache is None:
+            if self._current_price_bars is not None:
+                self._volumes_cache = [b.volume for b in self._current_price_bars]
+            else:
+                return []
+        return self._volumes_cache
+
+    def _get_sma(self, window: int) -> List[float]:
+        cache_key = ("SMA", window)
+        if cache_key not in self._indicator_cache:
+            closes = self._get_closes()
+            sma = [0.0] * len(closes)
+            if len(closes) >= window:
+                running_sum = sum(closes[:window])
+                sma[window-1] = running_sum / window
+                for idx in range(window, len(closes)):
+                    running_sum = running_sum + closes[idx] - closes[idx-window]
+                    sma[idx] = running_sum / window
+                # Fill warm-up
+                for idx in range(window-1):
+                    sma[idx] = sum(closes[:idx+1]) / (idx+1)
+            else:
+                for idx in range(len(closes)):
+                    sma[idx] = sum(closes[:idx+1]) / (idx+1)
+            self._indicator_cache[cache_key] = sma
+        return self._indicator_cache[cache_key]
+
+    def _get_ema(self, data: List[float], period: int) -> List[float]:
+        cache_key = ("EMA", period, id(data))
+        if cache_key not in self._indicator_cache:
+            self._indicator_cache[cache_key] = self._calc_ema(data, period)
+        return self._indicator_cache[cache_key]
+
+    def _get_rsi(self, window: int) -> List[float]:
+        cache_key = ("RSI", window)
+        if cache_key not in self._indicator_cache:
+            closes = self._get_closes()
+            self._indicator_cache[cache_key] = self._calc_rsi(closes, window)
+        return self._indicator_cache[cache_key]
+
+    def _get_macd_hist(self, fast: int, slow: int, signal: int) -> List[float]:
+        cache_key = ("MACD_HIST", fast, slow, signal)
+        if cache_key not in self._indicator_cache:
+            closes = self._get_closes()
+            ema_fast = self._get_ema(closes, fast)
+            ema_slow = self._get_ema(closes, slow)
+            macd_line = [ema_fast[k] - ema_slow[k] for k in range(len(closes))]
+            signal_line = self._get_ema(macd_line, signal)
+            hist = [macd_line[k] - signal_line[k] for k in range(len(closes))]
+            self._indicator_cache[cache_key] = hist
+        return self._indicator_cache[cache_key]
+
+    def _get_rolling_max(self, window: int) -> List[float]:
+        cache_key = ("ROLLING_MAX", window)
+        if cache_key not in self._indicator_cache:
+            closes = self._get_closes()
+            r_max = [0.0] * len(closes)
+            for idx in range(len(closes)):
+                start = max(0, idx - window + 1)
+                r_max[idx] = max(closes[start:idx+1])
+            self._indicator_cache[cache_key] = r_max
+        return self._indicator_cache[cache_key]
+
+    def _get_rolling_mean_volume(self, window: int) -> List[float]:
+        cache_key = ("ROLLING_MEAN_VOL", window)
+        if cache_key not in self._indicator_cache:
+            vols = self._get_volumes()
+            r_mean = [0.0] * len(vols)
+            if len(vols) >= window:
+                running_sum = sum(vols[:window])
+                r_mean[window-1] = running_sum / window
+                for idx in range(window, len(vols)):
+                    running_sum = running_sum + vols[idx] - vols[idx-window]
+                    r_mean[idx] = running_sum / window
+                for idx in range(window-1):
+                    r_mean[idx] = sum(vols[:idx+1]) / (idx+1)
+            else:
+                for idx in range(len(vols)):
+                    r_mean[idx] = sum(vols[:idx+1]) / (idx+1)
+            self._indicator_cache[cache_key] = r_mean
+        return self._indicator_cache[cache_key]
+
+    def _get_rolling_volatility(self, window: int) -> List[float]:
+        cache_key = ("ROLLING_VOLATILITY", window)
+        if cache_key not in self._indicator_cache:
+            closes = self._get_closes()
+            vol = [0.0] * len(closes)
+            for idx in range(len(closes)):
+                start = max(0, idx - window + 1)
+                sub = closes[start:idx+1]
+                diffs = [abs(sub[k] - sub[k-1]) for k in range(1, len(sub))]
+                vol[idx] = sum(diffs) / len(diffs) if diffs else 0.0
+            self._indicator_cache[cache_key] = vol
+        return self._indicator_cache[cache_key]
+
+    def _get_bollinger_bands(self, period: int, std_mult: float) -> Tuple[List[float], List[float]]:
+        cache_key = ("BOLLINGER_BANDS", period, std_mult)
+        if cache_key not in self._indicator_cache:
+            closes = self._get_closes()
+            upper = [0.0] * len(closes)
+            lower = [0.0] * len(closes)
+            for idx in range(len(closes)):
+                start = max(0, idx - period + 1)
+                sub = closes[start:idx+1]
+                sma = sum(sub) / len(sub)
+                variance = sum((c - sma) ** 2 for c in sub) / len(sub)
+                std_dev = variance ** 0.5
+                upper[idx] = sma + std_mult * std_dev
+                lower[idx] = sma - std_mult * std_dev
+            self._indicator_cache[cache_key] = (upper, lower)
+        return self._indicator_cache[cache_key]
+
     # ──────────────────────────────────────────────────────
     # 메인 백테스트 루프
     # ──────────────────────────────────────────────────────
@@ -158,7 +283,9 @@ class BacktestEngine:
                     trailing_stop_pct: float = 0.0,
                     scale_in: bool = False,
                     stop_loss_pct: float = 0.0,
-                    take_profit_pct: float = 0.0) -> BacktestResult:
+                    take_profit_pct: float = 0.0,
+                    market_regime_filter: bool = False,
+                    volatility_sizing: bool = False) -> BacktestResult:
         """
         백테스트 실행
         
@@ -176,6 +303,11 @@ class BacktestEngine:
         Returns:
             BacktestResult: 백테스트 결과
         """
+        self._current_price_bars = price_bars
+        self._indicator_cache = {}
+        self._closes_cache = None
+        self._volumes_cache = None
+
         capital = self.initial_capital
         position = 0  # 양수: 롱 포지션 수량, 음수: 숏 포지션 수량
         entry_price = 0.0
@@ -204,7 +336,20 @@ class BacktestEngine:
             
             if pending_signal == "BUY" and position == 0:
                 if capital >= bar.open:
-                    position = int(capital * size_fraction / bar.open)
+                    if volatility_sizing:
+                        atr = self._calc_atr(price_bars[:i], 14)
+                        if atr > 0:
+                            risk_amount = capital * 0.02
+                            qty = int(risk_amount / (2 * atr))
+                            max_qty = int(capital * size_fraction / bar.open)
+                            position = min(qty, max_qty)
+                            if position <= 0:
+                                position = max_qty
+                        else:
+                            position = int(capital * size_fraction / bar.open)
+                    else:
+                        position = int(capital * size_fraction / bar.open)
+                    
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
                     capital -= position * bar.open * (1 + self.fee_pct)
@@ -236,7 +381,20 @@ class BacktestEngine:
                 self.logger.debug(f"{bar.timestamp}: SELL (Long Exit @ Open) {position} @ {exit_price}, PnL={pnl-fees:.2f}")
                 
                 if allow_short:
-                    qty = int(capital * size_fraction / bar.open)
+                    if volatility_sizing:
+                        atr = self._calc_atr(price_bars[:i], 14)
+                        if atr > 0:
+                            risk_amount = capital * 0.02
+                            qty = int(risk_amount / (2 * atr))
+                            max_qty = int(capital * size_fraction / bar.open)
+                            qty = min(qty, max_qty)
+                            if qty <= 0:
+                                qty = max_qty
+                        else:
+                            qty = int(capital * size_fraction / bar.open)
+                    else:
+                        qty = int(capital * size_fraction / bar.open)
+                        
                     position = -qty
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
@@ -273,7 +431,20 @@ class BacktestEngine:
                 self.logger.debug(f"{bar.timestamp}: BUY (Short Cover @ Open) {qty} @ {exit_price}, PnL={pnl-fees:.2f}")
                 
                 if capital >= bar.open:
-                    position = int(capital * size_fraction / bar.open)
+                    if volatility_sizing:
+                        atr = self._calc_atr(price_bars[:i], 14)
+                        if atr > 0:
+                            risk_amount = capital * 0.02
+                            qty = int(risk_amount / (2 * atr))
+                            max_qty = int(capital * size_fraction / bar.open)
+                            position = min(qty, max_qty)
+                            if position <= 0:
+                                position = max_qty
+                        else:
+                            position = int(capital * size_fraction / bar.open)
+                    else:
+                        position = int(capital * size_fraction / bar.open)
+                        
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
                     capital -= position * bar.open * (1 + self.fee_pct)
@@ -288,7 +459,20 @@ class BacktestEngine:
                 pending_signal = "HOLD"
                 
             elif pending_signal == "SELL" and position == 0 and allow_short:
-                qty = int(capital * size_fraction / bar.open)
+                if volatility_sizing:
+                    atr = self._calc_atr(price_bars[:i], 14)
+                    if atr > 0:
+                        risk_amount = capital * 0.02
+                        qty = int(risk_amount / (2 * atr))
+                        max_qty = int(capital * size_fraction / bar.open)
+                        qty = min(qty, max_qty)
+                        if qty <= 0:
+                            qty = max_qty
+                    else:
+                        qty = int(capital * size_fraction / bar.open)
+                else:
+                    qty = int(capital * size_fraction / bar.open)
+                    
                 position = -qty
                 entry_price = bar.open
                 entry_timestamp = bar.timestamp
@@ -452,6 +636,13 @@ class BacktestEngine:
             
             # ── 4단계: 전략 신호 계산 (봉 마감 시그널 -> 다음 봉 시가 매매 진입 예약) ──
             pending_signal = strategy_func(price_bars[:i+1])
+            if market_regime_filter and pending_signal == "BUY":
+                if i < 199:
+                    pending_signal = "HOLD"
+                else:
+                    ema200 = self._get_ema(self._get_closes(), 200)
+                    if price_bars[i].close < ema200[i]:
+                        pending_signal = "HOLD"
             
             # 포지션 가치 계산 및 누적
             position_value = position * bar.close
@@ -693,20 +884,19 @@ class BacktestEngine:
     
     def _simple_ma_strategy(self, bars: List[PriceBar], params: Dict) -> str:
         """간단한 이동평균 전략"""
-        if len(bars) < params.get('long_window', 50):
-            return "HOLD"
-        
         short_window = params.get('short_window', 20)
         long_window = params.get('long_window', 50)
         
-        closes = [b.close for b in bars]
+        if len(bars) < long_window:
+            return "HOLD"
+            
+        L = len(bars)
+        short_ma = self._get_sma(short_window)
+        long_ma = self._get_sma(long_window)
         
-        short_ma = sum(closes[-short_window:]) / short_window
-        long_ma = sum(closes[-long_window:]) / long_window
-        
-        if short_ma > long_ma:
+        if short_ma[L-1] > long_ma[L-1]:
             return "BUY"
-        elif short_ma < long_ma:
+        elif short_ma[L-1] < long_ma[L-1]:
             return "SELL"
         else:
             return "HOLD"
@@ -721,9 +911,9 @@ class BacktestEngine:
         if len(bars) <= window:
             return "HOLD"
             
-        closes = [b.close for b in bars]
-        rsi_list = self._calc_rsi(closes, window)
-        rsi = rsi_list[-1]
+        L = len(bars)
+        rsi_list = self._get_rsi(window)
+        rsi = rsi_list[L-1]
             
         if rsi < buy_threshold:
             return "BUY"
@@ -742,21 +932,11 @@ class BacktestEngine:
         if len(bars) <= slow + signal_period:
             return "HOLD"
             
-        closes = [b.close for b in bars]
+        L = len(bars)
+        hist = self._get_macd_hist(fast, slow, signal_period)
         
-        # EMA 기반 MACD 계산
-        ema_fast = self._calc_ema(closes, fast)
-        ema_slow = self._calc_ema(closes, slow)
-        
-        # MACD Line = EMA(fast) - EMA(slow)
-        macd_line = [ema_fast[i] - ema_slow[i] for i in range(len(closes))]
-        
-        # Signal Line = EMA(MACD, signal_period)
-        signal_line = self._calc_ema(macd_line, signal_period)
-        
-        # 현재 및 이전 MACD 히스토그램
-        curr_hist = macd_line[-1] - signal_line[-1]
-        prev_hist = macd_line[-2] - signal_line[-2]
+        curr_hist = hist[L-1]
+        prev_hist = hist[L-2]
         
         # 히스토그램이 음→양 전환: 매수 (골든크로스)
         if prev_hist < 0 and curr_hist > 0:
@@ -770,69 +950,65 @@ class BacktestEngine:
     def _buffett_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
         """워렌 버핏 Proxy (가치투자/역발상): 200일선 아래 크게 하락하고 단기 과매도 시 매수"""
         if len(bars) < 200: return "HOLD"
-        closes = [b.close for b in bars]
-        ma200 = sum(closes[-200:]) / 200
-        current_price = closes[-1]
+        L = len(bars)
+        closes = self._get_closes()
+        current_price = closes[L-1]
+        ma200 = self._get_sma(200)
+        rsi = self._get_rsi(14)
         
-        # EMA 기반 RSI 계산
-        rsi_list = self._calc_rsi(closes, 14)
-        rsi = rsi_list[-1]
-        
-        if current_price < ma200 * 0.9 and rsi < 30:
+        if current_price < ma200[L-1] * 0.9 and rsi[L-1] < 30:
             return "BUY"
-        elif current_price > ma200 or rsi > 70:
+        elif current_price > ma200[L-1] or rsi[L-1] > 70:
             return "SELL"
         return "HOLD"
         
     def _lynch_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
         """피터 린치 Proxy (성장/모멘텀): 50일 신고가 및 평균 거래량 돌파 시 매수"""
         if len(bars) < 50: return "HOLD"
-        closes = [b.close for b in bars[-50:]]
-        vols = [b.volume for b in bars[-50:]]
+        L = len(bars)
+        closes = self._get_closes()
+        current_price = closes[L-1]
         
-        highest_50 = max(closes[:-1])
-        avg_vol = sum(vols[:-1]) / 49
+        highest_50 = self._get_rolling_max(50)
+        avg_vol = self._get_rolling_mean_volume(49)
+        vols = self._get_volumes()
+        current_vol = vols[L-1]
         
-        current_price = closes[-1]
-        current_vol = vols[-1]
-        
-        if current_price > highest_50 and current_vol > avg_vol * 1.5:
+        if current_price > highest_50[L-2] and current_vol > avg_vol[L-2] * 1.5:
             return "BUY"
-        elif current_price < sum(closes[-20:])/20:
+        elif current_price < self._get_sma(20)[L-1]:
             return "SELL"
         return "HOLD"
         
     def _dalio_proxy_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
         """레이 달리오 Proxy (안정적 추세): 200일선 위에서 변동성이 적을 때 매수"""
         if len(bars) < 200: return "HOLD"
-        closes = [b.close for b in bars]
-        ma200 = sum(closes[-200:]) / 200
-        current_price = closes[-1]
+        L = len(bars)
+        closes = self._get_closes()
+        current_price = closes[L-1]
+        ma200 = self._get_sma(200)
         
-        # 20일 변동성(표준편차 대용: 단순 등락폭 평균)
-        volatility = sum(abs(closes[i] - closes[i-1]) for i in range(-20, 0)) / 20
-        avg_price20 = sum(closes[-20:]) / 20
-        vol_ratio = volatility / avg_price20
+        vol_ratio = self._get_rolling_volatility(20)[L-1] / self._get_sma(20)[L-1]
         
-        if current_price > ma200 and vol_ratio < 0.02:
+        if current_price > ma200[L-1] and vol_ratio < 0.02:
             return "BUY"
-        elif current_price < ma200:
+        elif current_price < ma200[L-1]:
             return "SELL"
         return "HOLD"
 
     def _trend_following_strategy(self, bars: List[PriceBar], params: Dict = None) -> str:
         """추세 추종(Trend Following): 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수"""
         if len(bars) < 200: return "HOLD"
-        closes = [b.close for b in bars]
+        L = len(bars)
+        closes = self._get_closes()
+        current_price = closes[L-1]
+        ma200 = self._get_sma(200)
+        ma50 = self._get_sma(50)
+        ma20 = self._get_sma(20)
         
-        ma200 = sum(closes[-200:]) / 200
-        ma50 = sum(closes[-50:]) / 50
-        ma20 = sum(closes[-20:]) / 20
-        current_price = closes[-1]
-        
-        if current_price > ma200 and ma20 > ma50:
+        if current_price > ma200[L-1] and ma20[L-1] > ma50[L-1]:
             return "BUY"
-        elif current_price < ma200 or ma20 < ma50:
+        elif current_price < ma200[L-1] or ma20[L-1] < ma50[L-1]:
             return "SELL"
         return "HOLD"
     
@@ -855,27 +1031,16 @@ class BacktestEngine:
         if len(bars) < max(bb_period, rsi_window) + 1:
             return "HOLD"
         
-        closes = [b.close for b in bars]
-        current_price = closes[-1]
+        L = len(bars)
+        closes = self._get_closes()
+        current_price = closes[L-1]
         
-        # 볼린저밴드 계산
-        bb_closes = closes[-bb_period:]
-        sma = sum(bb_closes) / bb_period
-        variance = sum((c - sma) ** 2 for c in bb_closes) / bb_period
-        std_dev = variance ** 0.5
+        upper_band, lower_band = self._get_bollinger_bands(bb_period, bb_std_mult)
+        rsi = self._get_rsi(rsi_window)
         
-        upper_band = sma + bb_std_mult * std_dev
-        lower_band = sma - bb_std_mult * std_dev
-        
-        # EMA 기반 RSI 계산
-        rsi_list = self._calc_rsi(closes, rsi_window)
-        rsi = rsi_list[-1]
-        
-        # 하단 밴드 이하 + RSI 과매도 → 매수
-        if current_price <= lower_band and rsi < 35:
+        if current_price <= lower_band[L-1] and rsi[L-1] < 35:
             return "BUY"
-        # 상단 밴드 이상 + RSI 과매수 → 매도
-        elif current_price >= upper_band and rsi > 65:
+        elif current_price >= upper_band[L-1] and rsi[L-1] > 65:
             return "SELL"
         else:
             return "HOLD"
