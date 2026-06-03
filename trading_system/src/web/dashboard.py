@@ -90,6 +90,36 @@ class WebDashboard:
                     'timestamp': status['timestamp']
                 }
             }
+
+        @self.app.get("/api/portfolio/history")
+        async def api_portfolio_history():
+            """포트폴리오 자산 이력 (Chart.js 용도)"""
+            if hasattr(self.trading_system, 'comp') and 'db' in self.trading_system.comp:
+                try:
+                    history = await self.trading_system.comp['db'].get_history(limit=100)
+                    # 역순 정렬 (과거 -> 현재)
+                    history.reverse()
+                    
+                    labels = []
+                    values = []
+                    
+                    for row in history:
+                        # 날짜 포맷 정리 (YYYY-MM-DD HH:MM)
+                        dt = datetime.fromisoformat(row['timestamp'])
+                        labels.append(dt.strftime("%Y-%m-%d %H:%M"))
+                        values.append(row['total_value'])
+                        
+                    return {
+                        'status': 'success',
+                        'data': {
+                            'labels': labels,
+                            'values': values
+                        }
+                    }
+                except Exception as e:
+                    self.logger.error(f"Failed to fetch portfolio history: {e}")
+                    return {'status': 'error', 'message': str(e)}
+            return {'status': 'error', 'message': 'Database component not available'}
         
         @self.app.get("/api/performance")
         async def api_performance():
@@ -456,48 +486,61 @@ class WebDashboard:
                         strategy_func = engine._simple_ma_strategy
                         
                     import math
+                    import concurrent.futures
+                    
                     def sanitize_float(val, default=0.0):
                         if val is None or math.isnan(val) or math.isinf(val):
                             return default
                         return val
-
-                    results = []
-                    for i, symbol in enumerate(univ):
+                        
+                    def process_symbol(symbol):
                         try:
                             price_bars = handler.fetch_historical_data(symbol, period=dl_per)
-                            if price_bars:
-                                res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short)
+                            if not price_bars:
+                                return None
+                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short)
+                            
+                            display_symbol = KOR_TICKERS_REV.get(symbol, symbol)
+                            if symbol.endswith('.KS'):
+                                exchange, market = 'KOSPI', 'KR'
+                            elif symbol.endswith('.KQ'):
+                                exchange, market = 'KOSDAQ', 'KR'
+                            else:
+                                exchange, market = 'NASDAQ/NYSE', 'US'
                                 
-                                # 한국 시장 종목은 코드가 아니라 종목명(예: 삼성전자)으로 표출되도록 변환
-                                display_symbol = KOR_TICKERS_REV.get(symbol, symbol)
-                                
-                                # KOSPI / KOSDAQ 구분
-                                if symbol.endswith('.KS'):
-                                    exchange = 'KOSPI'
-                                    market = 'KR'
-                                elif symbol.endswith('.KQ'):
-                                    exchange = 'KOSDAQ'
-                                    market = 'KR'
-                                else:
-                                    exchange = 'NASDAQ/NYSE'
-                                    market = 'US'
-                                
-                                results.append({
-                                    'symbol': display_symbol,
-                                    'ticker': symbol,          # 원본 야후 티커 (차트 조회용)
-                                    'return_pct': sanitize_float(res.total_return_pct / 100.0),
-                                    'win_rate': sanitize_float(res.win_rate),
-                                    'sharpe': sanitize_float(getattr(res, 'sharpe_ratio', 0.0)),
-                                    'trades': len(res.trades),
-                                    'mdd': sanitize_float(getattr(res, 'max_drawdown', 0.0)),
-                                    'market': market,
-                                    'exchange': exchange,
-                                })
+                            return {
+                                'symbol': display_symbol,
+                                'ticker': symbol,
+                                'return_pct': sanitize_float(res.total_return_pct / 100.0),
+                                'win_rate': sanitize_float(res.win_rate),
+                                'sharpe': sanitize_float(getattr(res, 'sharpe_ratio', 0.0)),
+                                'trades': len(res.trades),
+                                'mdd': sanitize_float(getattr(res, 'max_drawdown', 0.0)),
+                                'market': market,
+                                'exchange': exchange,
+                            }
                         except Exception as e:
                             self.logger.warning(f"Scan failed for {symbol}: {e}")
+                            return None
+
+                    results = []
+                    completed = 0
+                    
+                    # Use ThreadPoolExecutor to run tasks in parallel
+                    loop = asyncio.get_running_loop()
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+                        # Submit all tasks
+                        futures = [loop.run_in_executor(executor, process_symbol, s) for s in univ]
                         
-                        self.scan_tasks[tid]['progress'] = i + 1
-                        await asyncio.sleep(0.1)
+                        # Process results as they complete (batch processing to avoid event loop blocking)
+                        for chunk_idx in range(0, len(futures), 50):
+                            chunk = futures[chunk_idx:chunk_idx+50]
+                            chunk_results = await asyncio.gather(*chunk)
+                            for res in chunk_results:
+                                if res:
+                                    results.append(res)
+                            completed += len(chunk)
+                            self.scan_tasks[tid]['progress'] = completed
                         
                     # 최종 정리 (수익률 내림차순 정렬)
                     results.sort(key=lambda x: x['return_pct'], reverse=True)
@@ -605,10 +648,14 @@ class WebDashboard:
             # 1. 백그라운드 매매 시뮬레이션 루프 실행
             self._trading_loop_task = asyncio.create_task(self._run_periodic_simulation())
             self.logger.info("Background periodic trading simulator task started.")
-            
+
             # 2. 텔레그램 봇 기동
             self._telegram_bot_task = asyncio.create_task(self._run_telegram_bot())
             self.logger.info("Background Telegram bot task started.")
+
+            # 3. AI 평가 루프 실행
+            self._ai_eval_task = asyncio.create_task(self._run_ai_evaluation_loop())
+            self.logger.info("Background AI evaluation task started.")
 
         @self.app.on_event("shutdown")
         async def shutdown_event():
@@ -616,11 +663,14 @@ class WebDashboard:
             if hasattr(self, '_trading_loop_task'):
                 self._trading_loop_task.cancel()
                 self.logger.info("Background periodic trading simulator task stopped.")
-            
+
             if hasattr(self, '_telegram_bot_task'):
                 self._telegram_bot_task.cancel()
                 self.logger.info("Background Telegram bot task stopped.")
-            
+
+            if hasattr(self, '_ai_eval_task'):
+                self._ai_eval_task.cancel()
+
             if hasattr(self, 'telegram_app') and self.telegram_app:
                 try:
                     await self.telegram_app.updater.stop()
@@ -629,7 +679,26 @@ class WebDashboard:
                     self.logger.info("Telegram Bot API polling stopped.")
                 except Exception as e:
                     self.logger.error(f"Error shutting down telegram application: {e}")
-                    
+
+    async def _run_ai_evaluation_loop(self):
+        """저장된 AI 예측들의 성과를 주기적으로 자체 평가"""
+        await asyncio.sleep(60)  # 초기 딜레이
+
+        while True:
+            try:
+                if hasattr(self.trading_system, 'comp') and 'ai_db' in self.trading_system.comp:
+                    def get_price(symbol):
+                        bars = self.trading_system.market_data_handler.fetch_live_data(symbol)
+                        return bars[-1].close if bars else None
+
+                    await self.trading_system.comp['ai_db'].evaluate_pending_predictions(get_price)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error in AI evaluation loop: {e}")
+
+            # 1시간마다 평가 실행
+            await asyncio.sleep(3600)                    
     async def _run_periodic_simulation(self):
         """백그라운드에서 주기적으로 거래 시뮬레이션을 실행하여 데이터를 실시간으로 업데이트 (개장 시간 스케줄 최적화)"""
         default_symbols = ["AAPL", "MSFT", "GOOGL", "005930.KS", "000660.KS", "005380.KS"]
@@ -1002,22 +1071,38 @@ class WebDashboard:
                 <div id="tab-dashboard" class="tab-content active">
                     <!-- 포트폴리오 개요 -->
                     <div class="grid" id="portfolio-grid">
-                    <div class="card">
-                        <h2>현금</h2>
-                        <div class="value" id="cash">-</div>
-                        <div class="subtitle">USD</div>
+                        <div class="card">
+                            <h2>현금</h2>
+                            <div class="value" id="cash">-</div>
+                            <div class="subtitle">USD</div>
+                        </div>
+                        <div class="card">
+                            <h2>포지션</h2>
+                            <div class="value" id="positions">-</div>
+                            <div class="subtitle">개수</div>
+                        </div>
+                        <div class="card">
+                            <h2>미체결 주문</h2>
+                            <div class="value" id="open-orders">-</div>
+                            <div class="subtitle">개</div>
+                        </div>
                     </div>
-                    <div class="card">
-                        <h2>포지션</h2>
-                        <div class="value" id="positions">-</div>
-                        <div class="subtitle">개수</div>
+
+                    <!-- 📈 포트폴리오 차트 -->
+                    <div class="grid" id="portfolio-charts-grid" style="display: none; grid-template-columns: 2fr 1fr;">
+                        <div class="card">
+                            <h2>자산 성장 곡선 (Equity Curve)</h2>
+                            <div style="position: relative; height: 250px; width: 100%;">
+                                <canvas id="equity-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <h2>포지션 비중</h2>
+                            <div style="position: relative; height: 250px; width: 100%;">
+                                <canvas id="allocation-pie-chart"></canvas>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card">
-                        <h2>미체결 주문</h2>
-                        <div class="value" id="open-orders">-</div>
-                        <div class="subtitle">개</div>
-                    </div>
-                </div>
                 
                 <!-- 💸 실시간 수동 주문 실행 패널 -->
                 <div class="card" style="margin-bottom: 20px; border-left: 4px solid #2196f3;">
@@ -1400,6 +1485,9 @@ class WebDashboard:
             </div>
             
             <script>
+                let equityChart = null;
+                let pieChart = null;
+
                 // 데이터 갱신
                 async function updateData() {
                     try {
@@ -1409,6 +1497,14 @@ class WebDashboard:
                                 '$' + portfolio.data.cash.toLocaleString('en-US', {maximumFractionDigits: 0});
                             document.getElementById('positions').textContent = 
                                 Object.keys(portfolio.data.positions).length;
+                                
+                            updateAllocationChart(portfolio.data.cash, portfolio.data.positions);
+                        }
+                        
+                        const history = await fetch('/api/portfolio/history').then(r => r.json());
+                        if (history.status === 'success' && history.data.labels.length > 0) {
+                            document.getElementById('portfolio-charts-grid').style.display = 'grid';
+                            updateEquityChart(history.data.labels, history.data.values);
                         }
                         
                         const perf = await fetch('/api/performance').then(r => r.json());
@@ -2229,6 +2325,91 @@ class WebDashboard:
 
                 // ESC 키로 모달 닫기
                 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeScanModal(); });
+
+                function updateEquityChart(labels, values) {
+                    const canvas = document.getElementById('equity-chart');
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    if (equityChart) {
+                        equityChart.data.labels = labels;
+                        equityChart.data.datasets[0].data = values;
+                        equityChart.update();
+                    } else {
+                        equityChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: '포트폴리오 가치 (USD)',
+                                    data: values,
+                                    borderColor: '#667eea',
+                                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                                    borderWidth: 2,
+                                    pointRadius: 0,
+                                    fill: true,
+                                    tension: 0.1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: { mode: 'index', intersect: false },
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { ticks: { maxTicksLimit: 6, color: '#aaa' }, grid: { display: false } },
+                                    y: { ticks: { color: '#aaa' }, grid: { color: '#eee' } }
+                                }
+                            }
+                        });
+                    }
+                }
+
+                function updateAllocationChart(cash, positions) {
+                    const canvas = document.getElementById('allocation-pie-chart');
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    
+                    const labels = ['Cash'];
+                    const data = [cash];
+                    const bgColors = ['#e0e0e0'];
+                    
+                    const palette = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40'];
+                    let colorIdx = 0;
+                    
+                    for (const [symbol, p] of Object.entries(positions)) {
+                        labels.push(symbol);
+                        data.push(p.quantity * p.average_price);
+                        bgColors.push(palette[colorIdx % palette.length]);
+                        colorIdx++;
+                    }
+                    
+                    if (pieChart) {
+                        pieChart.data.labels = labels;
+                        pieChart.data.datasets[0].data = data;
+                        pieChart.data.datasets[0].backgroundColor = bgColors;
+                        pieChart.update();
+                    } else {
+                        pieChart = new Chart(ctx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    data: data,
+                                    backgroundColor: bgColors,
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } }
+                                },
+                                cutout: '60%'
+                            }
+                        });
+                    }
+                }
             </script>
         </body>
         </html>

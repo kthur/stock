@@ -496,12 +496,22 @@ class StockTradingSystem:
     def get_ai_investment_opinion(self, stock_data: Dict) -> Dict:
         """AI 투자 의견 조회"""
         symbol = stock_data.get('symbol', 'UNKNOWN')
-        
+
         opinion = self.llm_engine.query_investment_opinion(stock_data)
         self.ai_opinions_cache[symbol] = opinion
-        
+
         logger.info(f"AI opinion for {symbol}: {opinion.recommendation}")
-        
+
+        # 비동기로 AI 예측 저장
+        import asyncio
+        if hasattr(self, 'comp') and 'ai_db' in self.comp:
+            price = stock_data.get('price', 0.0)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.comp['ai_db'].log_prediction(opinion, price))
+            except RuntimeError:
+                pass # 이벤트 루프가 없으면(예: 동기 환경) 스킵
+
         return {
             'symbol': opinion.symbol,
             'recommendation': opinion.recommendation,
@@ -513,8 +523,7 @@ class StockTradingSystem:
             'opportunities': opinion.opportunities,
             'timestamp': opinion.timestamp.isoformat(),
             'is_simulated': getattr(opinion, 'is_simulated', False)
-        }
-    
+        }    
     def get_consensus_with_ai(self, stock_data: Dict, 
                              investor_opinions: Dict = None) -> Dict:
         """AI와 투자자 의견의 합의"""

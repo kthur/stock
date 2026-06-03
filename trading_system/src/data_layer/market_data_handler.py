@@ -4,9 +4,63 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Callable, Any
 import logging
+import time
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
+
+class RateLimiter:
+    """토큰 버킷 알고리즘 기반 API 호출 제한기"""
+    def __init__(self, rate_limit: int, time_window: float = 1.0):
+        self.rate_limit = rate_limit
+        self.time_window = time_window
+        self.tokens = rate_limit
+        self.last_updated = time.time()
+        
+    def acquire(self):
+        now = time.time()
+        elapsed = now - self.last_updated
+        self.tokens += elapsed * (self.rate_limit / self.time_window)
+        if self.tokens > self.rate_limit:
+            self.tokens = self.rate_limit
+        self.last_updated = now
+        
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return True
+        return False
+        
+    def wait(self):
+        while not self.acquire():
+            time.sleep(0.1)
+
+class CircuitBreaker:
+    """연속 실패 시 외부 호출을 차단하는 서킷 브레이커"""
+    def __init__(self, max_failures: int = 5, reset_timeout: float = 60.0):
+        self.max_failures = max_failures
+        self.reset_timeout = reset_timeout
+        self.failures = 0
+        self.last_failure_time = 0
+        self.is_open = False
+        
+    def record_failure(self):
+        self.failures += 1
+        self.last_failure_time = time.time()
+        if self.failures >= self.max_failures:
+            self.is_open = True
+            
+    def record_success(self):
+        self.failures = 0
+        self.is_open = False
+        
+    def check_state(self):
+        if self.is_open:
+            if time.time() - self.last_failure_time > self.reset_timeout:
+                self.is_open = False
+                self.failures = 0
+                return True
+            return False
+        return True
 
 
 @dataclass
@@ -31,6 +85,11 @@ class MarketDataHandler:
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         self.logger = logger
+        
+        # 1초에 최대 5번 요청 허용
+        self.rate_limiter = RateLimiter(rate_limit=5, time_window=1.0)
+        # 5번 연속 실패 시 60초간 차단
+        self.circuit_breaker = CircuitBreaker(max_failures=5, reset_timeout=60.0)
         
     def subscribe(self, callback: Callable):
         """데이터 변경 구독"""
@@ -77,23 +136,33 @@ class MarketDataHandler:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
     def _fetch_yf_with_retry(self, symbol: str):
-        import yfinance as yf
-        ticker = yf.Ticker(symbol)
-        fast = ticker.fast_info
-        price = fast.last_price
-        
-        # fast_info 데이터 획득 실패 시 1일 1분 분봉을 통해 백업 데이터 획득
-        if price is None or price <= 0:
-            hist = ticker.history(period="1d", interval="1m")
-            if not hist.empty:
-                price = float(hist['Close'].iloc[-1])
-                volume = int(hist['Volume'].iloc[-1])
-            else:
-                raise ValueError("No price data returned from yfinance")
-        else:
-            volume = int(fast.last_volume) if fast.last_volume else 100000
+        if not self.circuit_breaker.check_state():
+            raise Exception("Circuit breaker is OPEN. API calls are temporarily blocked.")
             
-        return price, volume
+        self.rate_limiter.wait()
+        
+        import yfinance as yf
+        try:
+            ticker = yf.Ticker(symbol)
+            fast = ticker.fast_info
+            price = fast.last_price
+            
+            # fast_info 데이터 획득 실패 시 1일 1분 분봉을 통해 백업 데이터 획득
+            if price is None or price <= 0:
+                hist = ticker.history(period="1d", interval="1m")
+                if not hist.empty:
+                    price = float(hist['Close'].iloc[-1])
+                    volume = int(hist['Volume'].iloc[-1])
+                else:
+                    raise ValueError("No price data returned from yfinance")
+            else:
+                volume = int(fast.last_volume) if fast.last_volume else 100000
+                
+            self.circuit_breaker.record_success()
+            return price, volume
+        except Exception as e:
+            self.circuit_breaker.record_failure()
+            raise e
 
     def fetch_live_data(self, symbol: str) -> MarketData | None:
         """yfinance를 통해 실제 실시간 시세 데이터를 조회하고 이벤트로 전송"""
@@ -156,6 +225,11 @@ class MarketDataHandler:
                     hist = None
 
         if not use_cache or hist is None:
+            if not self.circuit_breaker.check_state():
+                self.logger.error(f"Circuit breaker is OPEN. Blocked fetch for {symbol}")
+                return []
+
+            self.rate_limiter.wait()
             try:
                 ticker = yf.Ticker(symbol)
 
@@ -169,6 +243,7 @@ class MarketDataHandler:
 
                 if hist.empty:
                     self.logger.warning(f"No historical data found for {symbol}")
+                    self.circuit_breaker.record_success()
                     return []
 
                 # NaN 값 정제: Open, High, Low, Close 중 하나라도 NaN인 행 제거
@@ -176,8 +251,10 @@ class MarketDataHandler:
 
                 if hist.empty:
                     self.logger.warning(f"No historical data found after filtering NaNs for {symbol}")
+                    self.circuit_breaker.record_success()
                     return []
 
+                self.circuit_breaker.record_success()
                 # 2. 새로 받아온 데이터를 Parquet로 캐시 저장
                 try:
                     hist.to_parquet(cache_file)
@@ -186,9 +263,9 @@ class MarketDataHandler:
                     self.logger.warning(f"Failed to save cache for {symbol}: {e}")
 
             except Exception as e:
+                self.circuit_breaker.record_failure()
                 self.logger.error(f"Failed to fetch historical data for {symbol}: {e}")
                 return []
-
         price_bars = []
         for date, row in hist.iterrows():
             bar = PriceBar(

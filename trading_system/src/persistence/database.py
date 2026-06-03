@@ -164,3 +164,106 @@ class AssetHistoryDB:
                     record['holdings'] = json.loads(record['holdings'])
                     result.append(record)
                 return result
+
+class AIPredictionDB:
+    """AI 투자 예측 기록 및 자체 평가 (aiosqlite 기반 비동기 구현)"""
+    
+    def __init__(self, db_path: str = "ai_predictions.db"):
+        self.db_path = Path(db_path)
+        self.logger = logger
+        self._db_initialized = False
+    
+    async def _init_database(self):
+        if self._db_initialized:
+            return
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.cursor()
+            
+            await cursor.execute('''
+                CREATE TABLE IF NOT EXISTS predictions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT,
+                    recommendation TEXT,
+                    sentiment TEXT,
+                    confidence REAL,
+                    target_price REAL,
+                    current_price REAL,
+                    reasoning TEXT,
+                    timestamp TIMESTAMP,
+                    evaluated INTEGER DEFAULT 0,
+                    accuracy_score REAL DEFAULT NULL
+                )
+            ''')
+            await conn.commit()
+        self._db_initialized = True
+        self.logger.info(f"AI Prediction DB initialized at {self.db_path}")
+
+    async def log_prediction(self, opinion, current_price: float):
+        await self._init_database()
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute('''
+                INSERT INTO predictions 
+                (symbol, recommendation, sentiment, confidence, target_price, current_price, reasoning, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                opinion.symbol,
+                opinion.recommendation,
+                opinion.sentiment.value if hasattr(opinion.sentiment, 'value') else str(opinion.sentiment),
+                opinion.confidence,
+                opinion.target_price,
+                current_price,
+                opinion.reasoning,
+                opinion.timestamp.isoformat() if opinion.timestamp else datetime.now().isoformat()
+            ))
+            await conn.commit()
+        self.logger.debug(f"AI prediction logged for {opinion.symbol}")
+
+    async def evaluate_pending_predictions(self, get_current_price_func):
+        """저장된 예측 중 오래된(예: 7일 이상) 항목을 실제 가격과 비교하여 정확도 평가"""
+        await self._init_database()
+        try:
+            from datetime import timedelta
+            threshold_date = (datetime.now() - timedelta(days=7)).isoformat()
+            
+            async with aiosqlite.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                async with conn.execute('SELECT * FROM predictions WHERE evaluated = 0 AND timestamp < ?', (threshold_date,)) as cursor:
+                    rows = await cursor.fetchall()
+                    
+                for row in rows:
+                    symbol = row['symbol']
+                    rec = row['recommendation']
+                    orig_price = row['current_price']
+                    
+                    try:
+                        latest_price = get_current_price_func(symbol)
+                        if not latest_price:
+                            continue
+                            
+                        # 간단한 정확도 계산 로직
+                        price_diff_pct = (latest_price - orig_price) / orig_price
+                        
+                        score = 0.5  # 기본
+                        if rec == 'BUY':
+                            if price_diff_pct > 0.05: score = 1.0
+                            elif price_diff_pct > 0: score = 0.8
+                            elif price_diff_pct < -0.05: score = 0.0
+                            else: score = 0.3
+                        elif rec == 'SELL':
+                            if price_diff_pct < -0.05: score = 1.0
+                            elif price_diff_pct < 0: score = 0.8
+                            elif price_diff_pct > 0.05: score = 0.0
+                            else: score = 0.3
+                        else:  # HOLD
+                            if abs(price_diff_pct) < 0.05: score = 1.0
+                            else: score = 0.0
+                            
+                        await conn.execute('UPDATE predictions SET evaluated = 1, accuracy_score = ? WHERE id = ?', (score, row['id']))
+                        self.logger.info(f"Evaluated AI prediction for {symbol} (Rec: {rec}, Score: {score})")
+                        
+                    except Exception as e:
+                        self.logger.warning(f"Failed to evaluate prediction for {symbol}: {e}")
+                
+                await conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error evaluating AI predictions: {e}")

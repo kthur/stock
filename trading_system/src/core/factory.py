@@ -5,7 +5,7 @@ from src.core import (
     OptimizationEngine,
     OrderManagementSystem,
 )
-from src.persistence import TradeLogger, AssetHistoryDB
+from src.persistence import TradeLogger, AssetHistoryDB, AIPredictionDB
 from src.risk import RiskManager
 from src.analysis import BacktestEngine, AdvancedStatistics
 from src.utils import ErrorHandler, EventBus
@@ -34,6 +34,7 @@ class SystemFactory:
             'order_mgmt': OrderManagementSystem(event_bus=event_bus),
             'logger': TradeLogger(),
             'db': AssetHistoryDB(),
+            'ai_db': AIPredictionDB(),
             'risk': RiskManager(portfolio_value=initial_cash),
             'backtest': BacktestEngine(initial_capital=initial_cash),
             'stats': AdvancedStatistics(),
