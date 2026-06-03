@@ -151,12 +151,84 @@ class StockTradingSystem:
         await self.trade_logger.log_order(order)
     
     async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float):
-        """주문 생성 및 비동기 제출"""
-        quantity = 10
+        """주문 생성 및 비동기 제출 (동적 포지션 사이징 적용)"""
+        if price <= 0:
+            logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
+            return
+            
+        # 포트폴리오 가치의 5% 수준을 투자 규모로 설정
+        portfolio_total = self.portfolio.get_portfolio_value(self.market_data_cache.get(symbol, {}))
+        if portfolio_total <= 0:
+            portfolio_total = self.portfolio.cash
+            
+        target_value = portfolio_total * 0.05
+        quantity = int(target_value / price)
+        
+        # Max position limit 적용
+        max_size = self.risk_manager.calculate_max_position_size(price)
+        quantity = min(quantity, max_size)
+        
+        # 가용 자금 체크 (매수일 때만 조절)
+        if order_type == OrderType.BUY:
+            available_cash = self.portfolio.cash
+            if price * quantity > available_cash:
+                quantity = int(available_cash * 0.95 / price)  # 95% 현금 소진
+                
+        if quantity <= 0:
+            logger.warning(f"Calculated quantity is 0 for {symbol} @ price {price}. Order aborted.")
+            return
+            
         order = self.order_management.create_order(symbol, order_type, quantity, price)
         await self.order_management.submit_order(order)
-        logger.info(f"Order created and submitted: {order.order_id}")
-    
+        logger.info(f"Order dynamically sized and submitted: {order.order_id} ({symbol} x{quantity} @ {price})")
+
+    def _evaluate_active_strategy(self, symbol: str, current_price: float, volume: int) -> TradeSignal:
+        """현재 설정된 활성 매매 전략에 따라 매매 신호 평가"""
+        strategy_name = getattr(self.risk_manager, 'active_strategy', 'HYBRID').upper()
+        
+        # 1. 기본 하이브리드 전략
+        if strategy_name == 'HYBRID':
+            market_data = self.market_data_cache.get(symbol, {})
+            sentiment = self.news_sentiment_cache.get(symbol, 0)
+            result = self.strategy_engine.analyze(symbol, market_data, sentiment)
+            return result.signal
+            
+        # 2. 기술적 백테스트 기반 전략 실행
+        try:
+            # 버핏/달리오/추세 등 장기 전략은 1y, 그 외는 1mo 데이터 사용
+            period = "1y" if strategy_name in ["BUFFETT", "DALIO", "TREND"] else "1mo"
+            bars = self.market_data_handler.fetch_historical_data(symbol, period=period)
+            if not bars:
+                logger.warning(f"No historical data for {symbol}. Falling back to HOLD.")
+                return TradeSignal.HOLD
+                
+            # 가장 마지막 봉을 현재 가격/거래량 정보로 추가하여 현재 캔들 완성
+            from src.analysis.backtest import PriceBar
+            current_bar = PriceBar(
+                timestamp=datetime.now(),
+                open=current_price,
+                high=current_price,
+                low=current_price,
+                close=current_price,
+                volume=volume
+            )
+            bars.append(current_bar)
+            
+            # 전략 함수 획득 및 분석 실행
+            strat_func = self.backtest_engine.get_strategy_func(strategy_name)
+            signal_str = strat_func(bars)
+            
+            # 문자열 신호를 Enum으로 맵핑
+            if signal_str == "BUY":
+                return TradeSignal.BUY
+            elif signal_str == "SELL":
+                return TradeSignal.SELL
+            else:
+                return TradeSignal.HOLD
+        except Exception as e:
+            logger.error(f"Error evaluating active strategy {strategy_name} for {symbol}: {e}")
+            return TradeSignal.HOLD
+
     async def simulate_trading_day(self, symbol: str = "AAPL"):
         """하루 거래 시뮬레이션"""
         logger.info(f"=== Simulating trading day for {symbol} ===")
@@ -164,9 +236,9 @@ class StockTradingSystem:
         # 1. 뉴스 처리
         news_results = []
         news_texts = [
-            ("AAPL 신제품 발표 성공적", "애플의 새로운 제품이 시장 호응 얻음", "긍정적"),
+            (f"{symbol} 신제품 발표 성공적", f"{symbol}의 새로운 제품이 시장 호응 얻음", "긍정적"),
             ("시장 약세 우려", "글로벌 경제 둔화 신호", "부정적"),
-            ("AAPL 실적 호조", "3분기 수익 상승", "긍정적")
+            (f"{symbol} 실적 호조", f"{symbol} 3분기 수익 상승", "긍정적")
         ]
         
         for title, content, _ in news_texts:
@@ -177,25 +249,54 @@ class StockTradingSystem:
         avg_sentiment = sum(r.score for r in news_results) / len(news_results)
         self.news_sentiment_cache[symbol] = avg_sentiment
         
-        # 2. 시장 데이터 시뮬레이션
-        market_prices = [
-            (150.00, 149.95, 150.05, 5000000),
-            (150.50, 150.45, 150.55, 6000000),
-            (151.00, 150.95, 151.05, 7000000),
-        ]
-        
+        # 2. 시장 데이터 수집 (실시간 데이터 활용)
+        try:
+            live_data = self.market_data_handler.fetch_live_data(symbol)
+        except Exception as e:
+            logger.error(f"Failed to fetch live data for {symbol}: {e}")
+            live_data = None
+            
+        if live_data and live_data.price > 0:
+            price = live_data.price
+            volume = live_data.volume
+            # 0.2% 범위의 변동폭을 주어 3번의 틱 생성
+            market_prices = [
+                (round(price * 0.999, 2), round(price * 0.998, 2), round(price * 0.999, 2), volume),
+                (price, round(price - 0.05, 2), round(price + 0.05, 2), volume),
+                (round(price * 1.001, 2), round(price * 1.000, 2), round(price * 1.001, 2), volume),
+            ]
+        else:
+            market_prices = [
+                (150.00, 149.95, 150.05, 5000000),
+                (150.50, 150.45, 150.55, 6000000),
+                (151.00, 150.95, 151.05, 7000000),
+            ]
+            
         for price, bid, ask, volume in market_prices:
             self.market_data_handler.simulate_api_call(symbol, price, bid, ask, volume)
             
             # 3. 전략 분석
             market_data = self.market_data_cache.get(symbol, {})
-            sentiment = self.news_sentiment_cache.get(symbol, 0)
             
             if market_data:
-                result = self.strategy_engine.analyze(symbol, market_data, sentiment)
+                # 활성 매매 전략에 따른 분석 신호 생성
+                signal = self._evaluate_active_strategy(symbol, price, volume)
+                
+                # 결과 기록 및 이벤트 발행
+                from src.core.strategy_engine import StrategyResult
+                result = StrategyResult(
+                    symbol=symbol,
+                    signal=signal,
+                    price=price,
+                    confidence=0.8,
+                    reason=f"Active strategy: {getattr(self.risk_manager, 'active_strategy', 'HYBRID')}",
+                    timestamp=datetime.now()
+                )
+                self.strategy_engine.results_history.append(result)
+                self.event_bus.publish("strategy_signal", result)
                 
                 # 주문 실행 시뮬레이션
-                if result.signal in [TradeSignal.BUY, TradeSignal.SELL]:
+                if signal in [TradeSignal.BUY, TradeSignal.SELL]:
                     await self._simulate_order_execution()
         
         # 4. 자산 스냅샷
@@ -207,6 +308,47 @@ class StockTradingSystem:
         
         # 6. 성과 분석
         self._print_performance_report()
+        
+    def reset_system_portfolio(self):
+        """자산 및 시뮬레이션 상태 초기화"""
+        logger.info("Resetting trading system portfolio and database logs...")
+        
+        # 1. 포지션 청산 및 현금 원복
+        self.portfolio.positions.clear()
+        self.portfolio.cash = self.config.initial_cash
+        self.portfolio.asset_history.clear()
+        
+        # 2. 리스크 매니저 피크 밸류 리셋
+        self.risk_manager.portfolio_value = self.config.initial_cash
+        self.risk_manager.peak_value = self.config.initial_cash
+        self.risk_manager.metrics_history.clear()
+        self.risk_manager.alerts.clear()
+        
+        # 3. 주문 관리자 미체결 주문 및 히스토리 초기화
+        self.order_management.orders.clear()
+        
+        # 4. 캐시 초기화
+        self.market_data_cache.clear()
+        self.news_sentiment_cache.clear()
+        self.ai_opinions_cache.clear()
+        self.investor_opinions_cache.clear()
+        
+        # 5. DB 파일 초기화 (비동기 DB 연결 종료 후 파일 삭제 또는 테이블 DROP)
+        import sqlite3
+        for db_name in ["trade_logs.db", "asset_history.db"]:
+            try:
+                db_path = Path(db_name)
+                if db_path.exists():
+                    conn = sqlite3.connect(db_path)
+                    cursor = conn.cursor()
+                    cursor.execute("DROP TABLE IF EXISTS orders;")
+                    cursor.execute("DROP TABLE IF EXISTS executions;")
+                    cursor.execute("DROP TABLE IF EXISTS asset_snapshots;")
+                    conn.commit()
+                    conn.close()
+                    logger.info(f"Database tables dropped for {db_name}")
+            except Exception as e:
+                logger.error(f"Failed to drop tables in {db_name}: {e}")
     
     async def _simulate_order_execution(self):
         """주문 실행 시뮬레이션"""

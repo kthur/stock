@@ -56,6 +56,9 @@ class RiskManager:
         self.default_stop_loss_pct = 0.05  # 5%
         self.default_take_profit_pct = 0.10  # 10%
         
+        # 활성 자동매매 전략
+        self.active_strategy = "HYBRID"
+        
         # 설정 로드
         self._load_config()
         
@@ -77,7 +80,8 @@ class RiskManager:
                     self.default_stop_loss_pct = data.get("default_stop_loss_pct", self.default_stop_loss_pct)
                     self.max_portfolio_loss_pct = data.get("max_portfolio_loss_pct", self.max_portfolio_loss_pct)
                     self.max_position_size_pct = data.get("max_position_size_pct", self.max_position_size_pct)
-                self.logger.info(f"Risk configuration loaded from {config_path}: StopLoss={self.default_stop_loss_pct:.2%}, MaxPortfolioLoss={self.max_portfolio_loss_pct:.2%}, MaxPositionSize={self.max_position_size_pct:.2%}")
+                    self.active_strategy = data.get("active_strategy", self.active_strategy).upper()
+                self.logger.info(f"Risk configuration loaded from {config_path}: StopLoss={self.default_stop_loss_pct:.2%}, MaxPortfolioLoss={self.max_portfolio_loss_pct:.2%}, MaxPositionSize={self.max_position_size_pct:.2%}, ActiveStrategy={self.active_strategy}")
             except Exception as e:
                 self.logger.error(f"Failed to load risk configuration: {e}")
 
@@ -88,11 +92,12 @@ class RiskManager:
             data = {
                 "default_stop_loss_pct": self.default_stop_loss_pct,
                 "max_portfolio_loss_pct": self.max_portfolio_loss_pct,
-                "max_position_size_pct": self.max_position_size_pct
+                "max_position_size_pct": self.max_position_size_pct,
+                "active_strategy": self.active_strategy
             }
             with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
-            self.logger.info(f"Risk configuration saved to {config_path}: StopLoss={self.default_stop_loss_pct:.2%}, MaxPortfolioLoss={self.max_portfolio_loss_pct:.2%}, MaxPositionSize={self.max_position_size_pct:.2%}")
+            self.logger.info(f"Risk configuration saved to {config_path}: StopLoss={self.default_stop_loss_pct:.2%}, MaxPortfolioLoss={self.max_portfolio_loss_pct:.2%}, MaxPositionSize={self.max_position_size_pct:.2%}, ActiveStrategy={self.active_strategy}")
         except Exception as e:
             self.logger.error(f"Failed to save risk configuration: {e}")
         

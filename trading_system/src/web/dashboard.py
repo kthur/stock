@@ -169,7 +169,11 @@ class WebDashboard:
                         'drawdown': f"{metrics.current_drawdown:.2%}",
                         'max_loss_limit': metrics.max_loss_limit,
                         'risk_level': metrics.risk_level.value,
-                        'volatility': f"{metrics.portfolio_volatility:.2%}"
+                        'volatility': f"{metrics.portfolio_volatility:.2%}",
+                        'stop_loss_pct': risk.default_stop_loss_pct * 100.0,
+                        'max_portfolio_loss_pct': risk.max_portfolio_loss_pct * 100.0,
+                        'max_position_size_pct': risk.max_position_size_pct * 100.0,
+                        'active_strategy': getattr(risk, 'active_strategy', 'HYBRID')
                     }
                 }
             return {'status': 'error', 'message': 'Risk manager not available'}
@@ -224,13 +228,24 @@ class WebDashboard:
                     risk.max_portfolio_loss_pct = float(body['max_portfolio_loss_pct']) / 100.0
                 if 'max_position_size_pct' in body:
                     risk.max_position_size_pct = float(body['max_position_size_pct']) / 100.0
+                if 'active_strategy' in body:
+                    risk.active_strategy = str(body['active_strategy']).upper()
                 
                 # 디스크에 지속화
                 if hasattr(risk, 'save_config'):
                     risk.save_config()
                     
-                self.logger.info(f"Risk settings dynamically updated & saved: StopLoss={risk.default_stop_loss_pct:.2%}, MaxPortfolioLoss={risk.max_portfolio_loss_pct:.2%}, MaxPositionSize={risk.max_position_size_pct:.2%}")
+                self.logger.info(f"Risk settings dynamically updated & saved: StopLoss={risk.default_stop_loss_pct:.2%}, MaxPortfolioLoss={risk.max_portfolio_loss_pct:.2%}, MaxPositionSize={risk.max_position_size_pct:.2%}, ActiveStrategy={risk.active_strategy}")
                 return {'status': 'success', 'message': '리스크 관리 설정이 성공적으로 갱신되었습니다.'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+
+        @self.app.post("/api/portfolio/reset")
+        async def api_portfolio_reset():
+            """포트폴리오 자산 및 시뮬레이션 상태 초기화 API"""
+            try:
+                self.trading_system.reset_system_portfolio()
+                return {'status': 'success', 'message': '포트폴리오와 모든 기록이 초기화되었습니다.'}
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
 
@@ -982,9 +997,12 @@ class WebDashboard:
         </head>
         <body>
             <div class="container">
-                <header>
-                    <h1>📊 주식 트레이딩 시스템</h1>
-                    <div class="timestamp">최근 업데이트: <span id="update-time">-</span></div>
+                <header style="display:flex; justify-content:space-between; align-items:center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <div>
+                        <h1 style="font-size: 28px; margin-bottom: 5px; margin-top: 0;">📊 주식 트레이딩 시스템</h1>
+                        <div class="timestamp" style="font-size: 12px; opacity: 0.9;">최근 업데이트: <span id="update-time">-</span></div>
+                    </div>
+                    <button class="btn" onclick="resetPortfolio()" style="background:#e53935; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🔄 가상 자산 초기화</button>
                 </header>
                 
                 <div class="tabs">
@@ -1084,7 +1102,7 @@ class WebDashboard:
 
                 <!-- 🛡️ 실시간 리스크 관리 설정 -->
                 <div class="card" style="margin-bottom: 20px; border-left: 4px solid #f44336;">
-                    <h2>🛡️ 실시간 리스크 관리 설정</h2>
+                    <h2>🛡️ 시스템 제어 및 리스크 관리 설정</h2>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px;">
                         <div>
                             <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 6px;">기본 손절선 (Stop Loss %)</label>
@@ -1106,6 +1124,19 @@ class WebDashboard:
                                 <input type="range" id="risk-input-pos" min="5" max="100" value="20" oninput="document.getElementById('lbl-pos').textContent = this.value + '%'" style="flex-grow:1;">
                                 <span id="lbl-pos" style="font-size:14px; font-weight:bold; color:#ff9800; width:40px;">20%</span>
                             </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 6px;">활성 자동 매매 전략</label>
+                            <select id="system-active-strategy" style="width: 100%; height: 28px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 0 4px; font-size:12px;">
+                                <option value="HYBRID" style="background:#222; color:#fff;">하이브리드 (감성+스프레드)</option>
+                                <option value="MA" style="background:#222; color:#fff;">이동평균 크로스 (MA)</option>
+                                <option value="RSI" style="background:#222; color:#fff;">RSI 과매도 반등</option>
+                                <option value="MACD" style="background:#222; color:#fff;">MACD 돌파</option>
+                                <option value="TREND" style="background:#222; color:#fff;">추세 추종 (Trend)</option>
+                                <option value="BUFFETT" style="background:#222; color:#fff;">워렌 버핏 가치 Proxy</option>
+                                <option value="LYNCH" style="background:#222; color:#fff;">피터 린치 성장 Proxy</option>
+                                <option value="DALIO" style="background:#222; color:#fff;">레이 달리오 안정 Proxy</option>
+                            </select>
                         </div>
                     </div>
                     <div style="margin-top: 15px; text-align: right;">
@@ -1547,6 +1578,7 @@ class WebDashboard:
                     const sl = parseFloat(document.getElementById('risk-input-sl').value);
                     const mdd = parseFloat(document.getElementById('risk-input-mdd').value);
                     const pos = parseFloat(document.getElementById('risk-input-pos').value);
+                    const activeStrat = document.getElementById('system-active-strategy').value;
                     const feedback = document.getElementById('risk-settings-feedback');
 
                     feedback.style.display = 'none';
@@ -1558,7 +1590,8 @@ class WebDashboard:
                             body: JSON.stringify({
                                 stop_loss_pct: sl,
                                 max_portfolio_loss_pct: mdd,
-                                max_position_size_pct: pos
+                                max_position_size_pct: pos,
+                                active_strategy: activeStrat
                             })
                         });
                         const res = await resp.json();
@@ -1582,6 +1615,54 @@ class WebDashboard:
                         feedback.style.border = '1px solid rgba(244,67,54,0.4)';
                         feedback.style.color = '#e57373';
                         feedback.textContent = '네트워크 에러: ' + e.message;
+                    }
+                }
+
+                // ── 자산 및 시뮬레이션 상태 초기화 ─────────────────────────
+                async function resetPortfolio() {
+                    if (!confirm('경고: 정말로 가상 자산을 초기화하시겠습니까?\n모든 보유 포지션이 청산되며 주문 기록과 자산 이력이 삭제됩니다.')) return;
+                    
+                    try {
+                        const resp = await fetch('/api/portfolio/reset', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'}
+                        });
+                        const res = await resp.json();
+                        if (res.status === 'success') {
+                            alert(res.message);
+                            updateData();
+                            window.location.reload();
+                        } else {
+                            alert('초기화 실패: ' + res.message);
+                        }
+                    } catch (e) {
+                        alert('네트워크 오류가 발생했습니다: ' + e.message);
+                    }
+                }
+
+                // ── 리스크 및 전략 설정 초기 세팅 로드 ─────────────────────
+                async function initSettings() {
+                    try {
+                        const risk = await fetch('/api/risk').then(r => r.json());
+                        if (risk.status === 'success' && risk.data.stop_loss_pct !== undefined) {
+                            const sl = risk.data.stop_loss_pct;
+                            const mdd = risk.data.max_portfolio_loss_pct;
+                            const pos = risk.data.max_position_size_pct;
+                            const strat = risk.data.active_strategy || 'HYBRID';
+                            
+                            document.getElementById('risk-input-sl').value = sl;
+                            document.getElementById('lbl-sl').textContent = sl + '%';
+                            
+                            document.getElementById('risk-input-mdd').value = mdd;
+                            document.getElementById('lbl-mdd').textContent = mdd + '%';
+                            
+                            document.getElementById('risk-input-pos').value = pos;
+                            document.getElementById('lbl-pos').textContent = pos + '%';
+                            
+                            document.getElementById('system-active-strategy').value = strat;
+                        }
+                    } catch (e) {
+                        console.error('Failed to initialize risk settings:', e);
                     }
                 }
 
@@ -1841,7 +1922,8 @@ class WebDashboard:
                     }, 300); // 300ms 디바운스 처리
                 }
                 
-                // 초기 데이터 로드
+                // 초기 설정 및 데이터 로드
+                initSettings();
                 updateData();
                 
                 // WebSocket 연결 설정

@@ -45,6 +45,7 @@ class TelegramBotEngine:
             'brokers': self._cmd_brokers,
             'connect': self._cmd_connect,
             'risk': self._cmd_risk,
+            'strategy': self._cmd_strategy,
             'help': self._cmd_help,
         }
         
@@ -94,7 +95,7 @@ class TelegramBotEngine:
                 authorized_ids = [int(uid.strip()) for uid in auth_ids_str.split(",") if uid.strip()]
                 # 비인가 사용자 권한 검사 대상 명령어 목록
                 restricted_commands = {
-                    'buy', 'sell', 'cancel', 'portfolio', 'positions', 'orders', 'connect', 'risk'
+                    'buy', 'sell', 'cancel', 'portfolio', 'positions', 'orders', 'connect', 'risk', 'strategy'
                 }
                 if command in restricted_commands and user_id not in authorized_ids:
                     self.logger.warning(f"Unauthorized command execution attempt by user {user_id}: {message}")
@@ -448,6 +449,37 @@ class TelegramBotEngine:
         
         return response
     
+    def _cmd_strategy(self, user_id: int, args: List[str]) -> str:
+        """자동매매 전략 조회 및 변경"""
+        if not self.trading_system or not hasattr(self.trading_system, 'risk_manager'):
+            return "❌ 시스템 연동 안됨 또는 RiskManager를 찾을 수 없습니다."
+        
+        risk_mgr = self.trading_system.risk_manager
+        current_strategy = getattr(risk_mgr, 'active_strategy', 'HYBRID').upper()
+        
+        # 사용 가능한 전략 목록
+        available_strategies = ["HYBRID", "MA", "RSI", "MACD", "TREND", "BUFFETT", "LYNCH", "DALIO"]
+        
+        if not args:
+            response = "🎯 *활성 자동매매 전략 조회*\n\n"
+            response += f"현재 설정된 전략: `{current_strategy}`\n\n"
+            response += "💡 전략을 변경하려면 명령어 뒤에 아래의 전략명을 지정하세요.\n"
+            response += f"사용법: `/strategy [전략명]`\n"
+            response += f"지원하는 전략 목록:\n"
+            for s in available_strategies:
+                response += f"  • `{s}`\n"
+            return response
+            
+        new_strategy = args[0].upper()
+        if new_strategy not in available_strategies:
+            return f"❌ 지원하지 않는 전략명입니다.\n(지원 전략: {', '.join(available_strategies)})"
+            
+        risk_mgr.active_strategy = new_strategy
+        if hasattr(risk_mgr, 'save_config'):
+            risk_mgr.save_config()
+        
+        return f"✅ *자동매매 전략 변경 완료*\n\n전략이 다음과 같이 변경되었습니다:\n`{current_strategy}` ➡️ `{new_strategy}`"
+    
     def _cmd_help(self, user_id: int, args: List[str]) -> str:
         """도움말"""
         response = """📖 *명령어 목록*
@@ -459,6 +491,7 @@ class TelegramBotEngine:
 /orders - 주문 현황
 /brokers - 증권사 현황
 /risk - 위험 관리
+/strategy [STRAT] - 전략 조회 및 변경
 
 *분석 및 정보*
 /analyze [SYMBOL] - 주식 분석
