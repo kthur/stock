@@ -454,6 +454,88 @@ class WebDashboard:
                 return {'status': 'error', 'message': 'Task not found'}
             return {'status': 'success', 'data': task}
 
+        @self.app.post("/api/orders/place")
+        async def api_orders_place(request: Request):
+            """수동 주문 생성 및 즉시 집행(지정가/시장가) API"""
+            try:
+                body = await request.json()
+                raw_symbol = body.get('symbol', '').strip()
+                if not raw_symbol:
+                    return {'status': 'error', 'message': '종목명이 필요합니다.'}
+                
+                symbol = KOR_TICKERS.get(raw_symbol, raw_symbol) # 한글 이름 치환
+                order_type_str = body.get('order_type', 'BUY') # BUY or SELL
+                qty = int(body.get('quantity', 0))
+                price_type = body.get('price_type', 'LIMIT') # LIMIT or MARKET
+                price = float(body.get('price', 0))
+                
+                if qty <= 0:
+                    return {'status': 'error', 'message': '수량은 1주 이상이어야 합니다.'}
+                
+                from src.core.order_management import OrderType
+                o_type = OrderType.BUY if order_type_str.upper() == 'BUY' else OrderType.SELL
+                
+                # 시장가(MARKET) 처리: 가격이 0이거나 미지정일 때, 현재 시세를 조회해와서 주문 가격을 결정
+                if price_type == 'MARKET':
+                    quote = self.trading_system.get_stock_quote_from_broker(symbol)
+                    current_price = quote.get('price') or self.trading_system.market_data_cache.get(symbol, {}).get('price')
+                    
+                    if not current_price:
+                        # yfinance에서 실시간 시세를 직접 한번 찔러옴
+                        bars = self.trading_system.market_data_handler.fetch_live_data(symbol)
+                        if bars:
+                            current_price = bars[-1].close
+                        else:
+                            current_price = 150.0  # 기본 폴백값
+                            
+                    price = current_price
+                
+                # 주문 생성
+                order = self.trading_system.order_management.create_order(symbol, o_type, qty, price)
+                # 주문 제출
+                await self.trading_system.order_management.submit_order(order)
+                
+                # 시장가(MARKET)이거나 지정가가 현재 시세와 맞아 즉시 체결이 가능한 시나리오 시뮬레이션
+                # (수동 매매의 즉시 반응성을 위해, 제출된 주문을 즉시 가상 매칭 체결 처리)
+                await self.trading_system.order_management.execute_order(order.order_id)
+                await self.trading_system.trade_logger.log_execution(order.order_id, symbol, qty, price)
+                
+                # 포트폴리오 실제 갱신 처리
+                if o_type == OrderType.BUY:
+                    self.trading_system.portfolio.add_position(symbol, qty, price)
+                else:
+                    self.trading_system.portfolio.reduce_position(symbol, qty)
+                
+                # 대시보드 화면 및 포트폴리오 데이터 갱신 브로드캐스트
+                await self.broadcast_portfolio_update()
+                
+                price_label = "시장가" if price_type == 'MARKET' else f"{price:,.2f}원"
+                return {
+                    'status': 'success',
+                    'message': f"{raw_symbol}({symbol}) {order_type_str} {qty}주가 {price_label}(체결가: {price:,.2f}원)로 즉시 체결되었습니다."
+                }
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+
+        @self.app.post("/api/orders/cancel")
+        async def api_orders_cancel(request: Request):
+            """수동 주문 취소 API"""
+            try:
+                body = await request.json()
+                order_id = body.get('order_id')
+                if not order_id:
+                    return {'status': 'error', 'message': 'order_id is required'}
+                
+                success = await self.trading_system.order_management.cancel_order(order_id)
+                if success:
+                    # 취소 시 포트폴리오 갱신 브로드캐스트
+                    await self.broadcast_portfolio_update()
+                    return {'status': 'success', 'message': f'주문 {order_id}가 취소되었습니다.'}
+                else:
+                    return {'status': 'error', 'message': '주문을 취소할 수 없습니다. (이미 체결되었거나 존재하지 않음)'}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+
         @self.app.on_event("startup")
         async def startup_event():
             # 1. 백그라운드 매매 시뮬레이션 루프 실행
@@ -870,6 +952,43 @@ class WebDashboard:
                     </div>
                 </div>
                 
+                <!-- 💸 실시간 수동 주문 실행 패널 -->
+                <div class="card" style="margin-bottom: 20px; border-left: 4px solid #2196f3;">
+                    <h2>💸 실시간 수동 주문 실행</h2>
+                    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 5px; margin-top: 15px; flex-wrap: wrap;">
+                        <div>
+                            <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">종목명 또는 티커</label>
+                            <input type="text" id="trade-symbol" list="symbol-list" class="form-control" autocomplete="off" placeholder="예: 삼성전자" style="margin-bottom: 0; width: 160px;" oninput="searchSymbol(this.value)">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">구분</label>
+                            <select id="trade-side" class="form-control" style="margin-bottom: 0; width: 90px; font-weight:bold;">
+                                <option value="BUY" style="color:#4caf50;">매수 (BUY)</option>
+                                <option value="SELL" style="color:#f44336;">매도 (SELL)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">유형</label>
+                            <select id="trade-price-type" class="form-control" onchange="togglePriceInput(this.value)" style="margin-bottom: 0; width: 100px;">
+                                <option value="LIMIT">지정가</option>
+                                <option value="MARKET">시장가</option>
+                            </select>
+                        </div>
+                        <div id="trade-price-container">
+                            <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">가격</label>
+                            <input type="number" id="trade-price" class="form-control" placeholder="가격" style="margin-bottom: 0; width: 120px;" step="any">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">수량</label>
+                            <input type="number" id="trade-qty" class="form-control" placeholder="수량" style="margin-bottom: 0; width: 90px;" min="1" value="10">
+                        </div>
+                        <div>
+                            <button class="btn" id="btn-place-order" onclick="placeOrder()" style="background:#2196f3; font-weight:bold; padding: 10px 20px;">주문 제출</button>
+                        </div>
+                    </div>
+                    <div id="trade-feedback" style="display:none; font-size:12px; margin-top:12px; padding:10px; border-radius:6px;"></div>
+                </div>
+                
                 <!-- 성과 지표 -->
                 <div class="grid" id="performance-grid">
                     <div class="card positive">
@@ -1130,10 +1249,10 @@ class WebDashboard:
                 
                 function updateOrdersTable(orders) {
                     let html = '<table>';
-                    html += '<tr><th>주문 ID</th><th>종목</th><th>구분</th><th>수량</th><th>가격</th><th>상태</th></tr>';
+                    html += '<tr><th>주문 ID</th><th>종목</th><th>구분</th><th>수량</th><th>가격</th><th>상태</th><th>액션</th></tr>';
                     
                     if (orders.length === 0) {
-                        html += '<tr><td colspan="6" style="text-align: center; color: #999;">미체결 주문 없음</td></tr>';
+                        html += '<tr><td colspan="7" style="text-align: center; color: #999;">미체결 주문 없음</td></tr>';
                     } else {
                         orders.forEach(o => {
                             html += '<tr>';
@@ -1143,12 +1262,117 @@ class WebDashboard:
                             html += '<td>' + o.quantity + '</td>';
                             html += '<td>$' + o.price.toFixed(2) + '</td>';
                             html += '<td><span class="status-badge status-' + o.status.toLowerCase() + '">' + o.status + '</span></td>';
+                            html += `<td><button class="btn btn-sm" onclick="cancelOrder('${o.order_id}')" style="background:#f44336; padding:4px 10px; font-size:11px; margin:0; border-radius:4px; font-weight:bold;">취소</button></td>`;
                             html += '</tr>';
                         });
                     }
                     
                     html += '</table>';
                     document.getElementById('orders-table').innerHTML = html;
+                }
+
+                // ── 수동 주문 관련 자바스크립트 핸들러 ──────────────────────
+                function togglePriceInput(val) {
+                    const priceContainer = document.getElementById('trade-price-container');
+                    if (val === 'MARKET') {
+                        priceContainer.style.display = 'none';
+                    } else {
+                        priceContainer.style.display = 'block';
+                    }
+                }
+
+                async function placeOrder() {
+                    const symbol = document.getElementById('trade-symbol').value.trim();
+                    const side = document.getElementById('trade-side').value;
+                    const priceType = document.getElementById('trade-price-type').value;
+                    const price = parseFloat(document.getElementById('trade-price').value) || 0;
+                    const qty = parseInt(document.getElementById('trade-qty').value) || 0;
+                    const feedback = document.getElementById('trade-feedback');
+                    const btn = document.getElementById('btn-place-order');
+
+                    if (!symbol) {
+                        alert('종목명을 입력하세요.');
+                        return;
+                    }
+                    if (qty <= 0) {
+                        alert('수량은 1주 이상이어야 합니다.');
+                        return;
+                    }
+                    if (priceType === 'LIMIT' && price <= 0) {
+                        alert('지정가 주문 시 가격을 입력하셔야 합니다.');
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    btn.textContent = '제출 중...';
+                    feedback.style.display = 'none';
+
+                    try {
+                        const resp = await fetch('/api/orders/place', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                symbol: symbol,
+                                order_type: side,
+                                quantity: qty,
+                                price_type: priceType,
+                                price: price
+                            })
+                        });
+                        const res = await resp.json();
+                        btn.disabled = false;
+                        btn.textContent = '주문 제출';
+
+                        feedback.style.display = 'block';
+                        if (res.status === 'success') {
+                            feedback.style.background = 'rgba(76,175,80,0.15)';
+                            feedback.style.border = '1px solid rgba(76,175,80,0.4)';
+                            feedback.style.color = '#81c784';
+                            feedback.textContent = res.message;
+                            
+                            // 주문 성공 후 인풋 값 부분 클리어
+                            document.getElementById('trade-symbol').value = '';
+                            document.getElementById('trade-price').value = '';
+                            
+                            // 전역 데이터 새로고침
+                            updateData();
+                        } else {
+                            feedback.style.background = 'rgba(244,67,54,0.15)';
+                            feedback.style.border = '1px solid rgba(244,67,54,0.4)';
+                            feedback.style.color = '#e57373';
+                            feedback.textContent = '오류: ' + res.message;
+                        }
+                    } catch (e) {
+                        btn.disabled = false;
+                        btn.textContent = '주문 제출';
+                        feedback.style.display = 'block';
+                        feedback.style.background = 'rgba(244,67,54,0.15)';
+                        feedback.style.border = '1px solid rgba(244,67,54,0.4)';
+                        feedback.style.color = '#e57373';
+                        feedback.textContent = '네트워크 오류가 발생했습니다: ' + e.message;
+                    }
+                }
+
+                async function cancelOrder(orderId) {
+                    if (!confirm('정말로 이 주문을 취소하시겠습니까?')) return;
+
+                    try {
+                        const resp = await fetch('/api/orders/cancel', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ order_id: orderId })
+                        });
+                        const res = await resp.json();
+
+                        if (res.status === 'success') {
+                            alert(res.message);
+                            updateData();
+                        } else {
+                            alert('취소 실패: ' + res.message);
+                        }
+                    } catch (e) {
+                        alert('네트워크 오류가 발생했습니다: ' + e.message);
+                    }
                 }
                 
                 function updateTradesTable(trades) {
