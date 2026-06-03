@@ -287,7 +287,8 @@ class BacktestEngine:
                     stop_loss_pct: float = 0.0,
                     take_profit_pct: float = 0.0,
                     market_regime_filter: bool = False,
-                    volatility_sizing: bool = False) -> BacktestResult:
+                    volatility_sizing: bool = False,
+                    atr_trailing_stop_mult: float = 0.0) -> BacktestResult:
         """
         백테스트 실행
         
@@ -548,6 +549,11 @@ class BacktestEngine:
                     sl_trigger = entry_price * (1 - stop_loss_pct) if stop_loss_pct > 0.0 else 0.0
                     ts_trigger = trailing_peak * (1 - trailing_stop_pct) if trailing_stop_pct > 0.0 else 0.0
                     
+                    if atr_trailing_stop_mult > 0.0:
+                        atr = self._calc_atr(price_bars[:i+1], 14)
+                        if atr > 0:
+                            ts_trigger = max(ts_trigger, trailing_peak - (atr * atr_trailing_stop_mult))
+                            
                     trigger_price = max(sl_trigger, ts_trigger)
                     if trigger_price > 0.0 and bar.low <= trigger_price:
                         exit_price = min(bar.open, trigger_price)
@@ -582,6 +588,12 @@ class BacktestEngine:
                     sl_trigger = entry_price * (1 + stop_loss_pct) if stop_loss_pct > 0.0 else float('inf')
                     ts_trigger = trailing_trough * (1 + trailing_stop_pct) if trailing_stop_pct > 0.0 else float('inf')
                     
+                    if atr_trailing_stop_mult > 0.0:
+                        atr = self._calc_atr(price_bars[:i+1], 14)
+                        if atr > 0:
+                            atr_ts = trailing_trough + (atr * atr_trailing_stop_mult)
+                            ts_trigger = min(ts_trigger, atr_ts) if ts_trigger < float('inf') else atr_ts
+                            
                     trigger_price = min(sl_trigger, ts_trigger)
                     if trigger_price < float('inf') and bar.high >= trigger_price:
                         exit_price = max(bar.open, trigger_price)
@@ -1018,6 +1030,30 @@ class BacktestEngine:
     # 신규 전략들
     # ──────────────────────────────────────────────────────
     
+    def _momentum_breakout_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
+        """모멘텀 돌파 복합 전략 (EMA 정배열 + 거래량 급증 + RSI 적정)"""
+        if len(bars) < 50:
+            return "HOLD"
+            
+        ema20 = self._get_ema(self._get_closes(), 20)
+        ema50 = self._get_ema(self._get_closes(), 50)
+        rsi = self._get_rsi(14)
+        vol_mean = self._get_rolling_mean_volume(20)
+        
+        idx = len(bars) - 1
+        
+        # 기본 롱(Buy) 조건: 단기 > 장기 (정배열), RSI 40~70 (과열 전 상승장), 거래량 1.5배 돌파
+        if (ema20[idx] > ema50[idx] and 
+            40 <= rsi[idx] <= 70 and 
+            bars[idx].volume > vol_mean[idx] * 1.5):
+            return "BUY"
+            
+        # 매도(Sell) 조건: 데드크로스 혹은 RSI 과열(75 이상)
+        if ema20[idx] < ema50[idx] or rsi[idx] >= 75:
+            return "SELL"
+            
+        return "HOLD"
+
     def _bollinger_band_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """볼린저밴드 + RSI 복합 전략 (Mean Reversion)
         
@@ -1097,6 +1133,8 @@ class BacktestEngine:
             return lambda bars: self._dalio_proxy_strategy(bars, {})
         elif name == "BOLLINGER" or "볼린저" in strategy_name:
             return lambda bars: self._bollinger_band_strategy(bars, {})
+        elif name == "MOMENTUM_BREAKOUT" or "모멘텀" in strategy_name:
+            return lambda bars: self._momentum_breakout_strategy(bars, {})
         elif name == "ENSEMBLE" or "앙상블" in strategy_name or "복합" in strategy_name:
             return lambda bars: self._ensemble_strategy(bars, {})
         else:

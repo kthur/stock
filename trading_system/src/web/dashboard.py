@@ -288,6 +288,7 @@ class WebDashboard:
                 take_profit_pct = float(body.get('take_profit_pct', 0))
                 market_regime_filter = bool(body.get('market_regime_filter', False))
                 volatility_sizing = bool(body.get('volatility_sizing', False))
+                atr_trailing_stop_mult = float(body.get('atr_trailing_stop_mult', 0.0))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -326,7 +327,7 @@ class WebDashboard:
                     strategy_func = engine._simple_ma_strategy
                     
                 # 3. 백테스트 실행
-                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, market_regime_filter=market_regime_filter, volatility_sizing=volatility_sizing)
+                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, market_regime_filter=market_regime_filter, volatility_sizing=volatility_sizing, atr_trailing_stop_mult=atr_trailing_stop_mult)
                 
                 # 차트 데이터 가공 (100 기준 Rebase)
                 dates_str = [d.strftime("%Y-%m-%d") for d in getattr(result, 'dates', [])]
@@ -470,6 +471,7 @@ class WebDashboard:
                 take_profit_pct = float(body.get('take_profit_pct', 0))
                 market_regime_filter = bool(body.get('market_regime_filter', False))
                 volatility_sizing = bool(body.get('volatility_sizing', False))
+                atr_trailing_stop_mult = float(body.get('atr_trailing_stop_mult', 0.0))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -502,7 +504,7 @@ class WebDashboard:
                     'error': None
                 }
                 
-                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: Optional[int], allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False, stop_loss_pct: float = 0.0, take_profit_pct: float = 0.0, market_regime_filter: bool = False, volatility_sizing: bool = False):
+                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: Optional[int], allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False, stop_loss_pct: float = 0.0, take_profit_pct: float = 0.0, market_regime_filter: bool = False, volatility_sizing: bool = False, atr_trailing_stop_mult: float = 0.0):
                     engine = self.trading_system.backtest_engine
                     handler = self.trading_system.market_data_handler
                     
@@ -521,7 +523,7 @@ class WebDashboard:
                             price_bars = handler.fetch_historical_data(symbol, period=dl_per)
                             if not price_bars:
                                 return None
-                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, market_regime_filter=market_regime_filter, volatility_sizing=volatility_sizing)
+                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, market_regime_filter=market_regime_filter, volatility_sizing=volatility_sizing, atr_trailing_stop_mult=atr_trailing_stop_mult)
                             
                             display_symbol = get_tickers_rev().get(symbol, symbol)
                             if symbol.endswith('.KS'):
@@ -571,7 +573,7 @@ class WebDashboard:
                     self.scan_tasks[tid]['status'] = 'completed'
 
                 # 비동기 백그라운드 태스크로 실행
-                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short, trailing_stop_pct, scale_in, stop_loss_pct, take_profit_pct, market_regime_filter, volatility_sizing))
+                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short, trailing_stop_pct, scale_in, stop_loss_pct, take_profit_pct, market_regime_filter, volatility_sizing, atr_trailing_stop_mult))
                 
                 return {'status': 'success', 'task_id': task_id}
             except Exception as e:
@@ -1267,6 +1269,7 @@ class WebDashboard:
                                 <option value="MACD" title="EMA 기반 MACD 히스토그램 전환점 감지 (골든/데드크로스)">MACD(EMA)</option>
                                 <option value="RSI" title="RSI가 30 이하로 침체 시 매수 (과매도 반등 포착)">RSI</option>
                                 <option value="BOLLINGER" title="볼린저밴드+RSI 복합: 하단밴드 터치+과매도 시 매수, 상단밴드+과매수 시 매도 (횡보장 수익)">볼린저밴드(Bollinger)</option>
+                                <option value="MOMENTUM_BREAKOUT" title="단기>장기 정배열, 평균 거래량 1.5배 상승 및 RSI 적정 수준에서 돌파 매수">모멘텀 돌파(Breakout)</option>
                                 <option value="ENSEMBLE" title="MA+RSI+MACD 3개 지표 투표: 2개 이상 동의 시에만 매매 (거짓신호 필터링)">복합 전략(Ensemble)</option>
                                 <option value="TREND" title="추세 추종: 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수">추세 추종(Trend Following)</option>
                                 <option value="BUFFETT" title="워렌 버핏(가치/역발상): 200일선 아래 크게 하락하고 단기 과매도 시 매수">워렌 버핏(Value Proxy)</option>
@@ -1297,6 +1300,13 @@ class WebDashboard:
                                 <input type="checkbox" id="bt-volatility-sizing" style="margin-right: 6px; width: 15px; height: 15px; cursor: pointer;">
                                 변동성 기반 사이징(ATR)
                             </label>
+                        </div>
+                        <div style="flex-grow: 1;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">ATR 트레일링 스톱 (배수)</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="range" id="bt-atr-ts-mult" min="0" max="5" step="0.5" value="0" style="flex-grow: 1; cursor: pointer;" oninput="document.getElementById('bt-atr-ts-val').textContent = this.value === '0' ? '비활성' : this.value + 'x';">
+                                <span id="bt-atr-ts-val" style="font-size: 12px; color: #888; min-width: 45px;">비활성</span>
+                            </div>
                         </div>
                         <div style="flex-grow: 1;">
                             <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">트레일링 스톱 (%)</label>
@@ -1455,6 +1465,7 @@ class WebDashboard:
                                     <option value="MACD" title="EMA 기반 MACD 골든/데드크로스">MACD(EMA)</option>
                                     <option value="RSI" title="RSI 과매도 반등 포착">RSI</option>
                                     <option value="BOLLINGER" title="볼린저밴드+RSI 복합 (횡보장 수익)">볼린저밴드(Bollinger)</option>
+                                    <option value="MOMENTUM_BREAKOUT" title="정배열, 거래량 급증, 모멘텀 돌파">모멘텀 돌파(Breakout)</option>
                                     <option value="ENSEMBLE" title="MA+RSI+MACD 투표 (거짓신호 필터링)">복합 전략(Ensemble)</option>
                                     <option value="TREND" title="추세 추종">추세 추종(Trend)</option>
                                     <option value="BUFFETT" title="워렌 버핏 가치/역발상">워렌 버핏(Value)</option>
@@ -1962,6 +1973,7 @@ class WebDashboard:
                     const takeProfit = parseInt(document.getElementById('bt-take-profit')?.value || '0') / 100;
                     const marketRegime = document.getElementById('bt-market-regime')?.checked || false;
                     const volatilitySizing = document.getElementById('bt-volatility-sizing')?.checked || false;
+                    const atrTrailingStopMult = parseFloat(document.getElementById('bt-atr-ts-mult')?.value || '0');
                     const resultDiv = document.getElementById('bt-result');
                     const canvas = document.getElementById('bt-chart');
                     const chartContainer = document.getElementById('bt-chart-container');
@@ -1979,7 +1991,7 @@ class WebDashboard:
                         const response = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit, market_regime_filter: marketRegime, volatility_sizing: volatilitySizing })
+                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit, market_regime_filter: marketRegime, volatility_sizing: volatilitySizing, atr_trailing_stop_mult: atrTrailingStopMult })
                         });
                         
                         const res = await response.json();
@@ -2165,6 +2177,7 @@ class WebDashboard:
                     const takeProfit = parseInt(document.getElementById('bt-take-profit')?.value || '0') / 100;
                     const marketRegime = document.getElementById('scan-market-regime')?.checked || false;
                     const volatilitySizing = document.getElementById('scan-volatility-sizing')?.checked || false;
+                    const atrTrailingStopMult = parseFloat(document.getElementById('bt-atr-ts-mult')?.value || '0');
                     const btn = document.getElementById('btn-scan');
                     
                     btn.disabled = true;
@@ -2176,7 +2189,7 @@ class WebDashboard:
                         const res = await fetch('/api/scanner/start', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit, market_regime_filter: marketRegime, volatility_sizing: volatilitySizing })
+                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit, market_regime_filter: marketRegime, volatility_sizing: volatilitySizing, atr_trailing_stop_mult: atrTrailingStopMult })
                         });
                         const data = await res.json();
                         
@@ -2341,6 +2354,7 @@ class WebDashboard:
                     const takeProfit = parseInt(document.getElementById('bt-take-profit')?.value || '0') / 100;
                     const marketRegime = document.getElementById('scan-market-regime')?.checked || false;
                     const volatilitySizing = document.getElementById('scan-volatility-sizing')?.checked || false;
+                    const atrTrailingStopMult = parseFloat(document.getElementById('bt-atr-ts-mult')?.value || '0');
                     const exchLabel = exchange ? ` · ${exchange}` : '';
                     document.getElementById('modal-subtitle').textContent = ticker + exchLabel + '  |  전략: ' + strategy + '  |  기간: ' + period;
                     document.getElementById('modal-stats').innerHTML = '';
@@ -2351,7 +2365,7 @@ class WebDashboard:
                         const resp = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit, market_regime_filter: marketRegime, volatility_sizing: volatilitySizing })
+                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit, market_regime_filter: marketRegime, volatility_sizing: volatilitySizing, atr_trailing_stop_mult: atrTrailingStopMult })
                         });
                         const res = await resp.json();
                         document.getElementById('modal-loading').style.display = 'none';
