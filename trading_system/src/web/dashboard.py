@@ -283,6 +283,8 @@ class WebDashboard:
                 allow_short = bool(body.get('allow_short', False))
                 trailing_stop_pct = float(body.get('trailing_stop_pct', 0))
                 scale_in = bool(body.get('scale_in', False))
+                stop_loss_pct = float(body.get('stop_loss_pct', 0))
+                take_profit_pct = float(body.get('take_profit_pct', 0))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -301,7 +303,7 @@ class WebDashboard:
                     download_period = '2y'
                     target_period_bars = 252
                 
-                self.logger.info(f"Running backtest for {symbol} with strategy {strategy_name} for period {period} (download: {download_period}, target_bars: {target_period_bars}, allow_short: {allow_short}, trailing_stop: {trailing_stop_pct}, scale_in: {scale_in})")
+                self.logger.info(f"Running backtest for {symbol} with strategy {strategy_name} for period {period} (download: {download_period}, target_bars: {target_period_bars}, allow_short: {allow_short}, trailing_stop: {trailing_stop_pct}, scale_in: {scale_in}, stop_loss: {stop_loss_pct}, take_profit: {take_profit_pct})")
                 
                 # 1. 과거 데이터 수집
                 handler = self.trading_system.market_data_handler
@@ -321,7 +323,7 @@ class WebDashboard:
                     strategy_func = engine._simple_ma_strategy
                     
                 # 3. 백테스트 실행
-                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in)
+                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
                 
                 # 차트 데이터 가공 (100 기준 Rebase)
                 dates_str = [d.strftime("%Y-%m-%d") for d in getattr(result, 'dates', [])]
@@ -461,6 +463,10 @@ class WebDashboard:
                 allow_short = bool(body.get('allow_short', False))
                 trailing_stop_pct = float(body.get('trailing_stop_pct', 0))
                 scale_in = bool(body.get('scale_in', False))
+                stop_loss_pct = float(body.get('stop_loss_pct', 0))
+                take_profit_pct = float(body.get('take_profit_pct', 0))
+                stop_loss_pct = float(body.get('stop_loss_pct', 0))
+                take_profit_pct = float(body.get('take_profit_pct', 0))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -493,7 +499,7 @@ class WebDashboard:
                     'error': None
                 }
                 
-                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int, allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False):
+                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int, allow_short: bool, trailing_stop_pct: float = 0.0, scale_in: bool = False, stop_loss_pct: float = 0.0, take_profit_pct: float = 0.0):
                     engine = self.trading_system.backtest_engine
                     handler = self.trading_system.market_data_handler
                     
@@ -512,7 +518,7 @@ class WebDashboard:
                             price_bars = handler.fetch_historical_data(symbol, period=dl_per)
                             if not price_bars:
                                 return None
-                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in)
+                            res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
                             
                             display_symbol = get_tickers_rev().get(symbol, symbol)
                             if symbol.endswith('.KS'):
@@ -562,7 +568,7 @@ class WebDashboard:
                     self.scan_tasks[tid]['status'] = 'completed'
 
                 # 비동기 백그라운드 태스크로 실행
-                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short, trailing_stop_pct, scale_in))
+                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short, trailing_stop_pct, scale_in, stop_loss_pct, take_profit_pct))
                 
                 return {'status': 'success', 'task_id': task_id}
             except Exception as e:
@@ -1284,6 +1290,20 @@ class WebDashboard:
                                 <span id="bt-ts-val" style="font-size: 12px; color: #888; min-width: 30px;">0%</span>
                             </div>
                         </div>
+                        <div style="flex-grow: 1;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">고정 손절 (%)</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="range" id="bt-stop-loss" min="0" max="20" step="1" value="0" style="flex-grow: 1; cursor: pointer;" oninput="document.getElementById('bt-sl-val').textContent = this.value === '0' ? '비활성' : this.value + '%';">
+                                <span id="bt-sl-val" style="font-size: 12px; color: #888; min-width: 45px;">비활성</span>
+                            </div>
+                        </div>
+                        <div style="flex-grow: 1;">
+                            <label style="font-size: 12px; color: #666; display: block; margin-bottom: 4px;">부분 익절 (%)</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="range" id="bt-take-profit" min="0" max="50" step="2" value="0" style="flex-grow: 1; cursor: pointer;" oninput="document.getElementById('bt-tp-val').textContent = this.value === '0' ? '비활성' : this.value + '%';">
+                                <span id="bt-tp-val" style="font-size: 12px; color: #888; min-width: 45px;">비활성</span>
+                            </div>
+                        </div>
                         <button class="btn" onclick="runBacktest()">백테스트 실행</button>
                     </div>
                     <div id="bt-result" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
@@ -1911,6 +1931,8 @@ class WebDashboard:
                     const allowShort = document.getElementById('bt-allow-short').checked;
                     const trailingStop = parseInt(document.getElementById('bt-trailing-stop').value) / 100;
                     const scaleIn = document.getElementById('bt-scale-in').checked;
+                    const stopLoss = parseInt(document.getElementById('bt-stop-loss')?.value || '0') / 100;
+                    const takeProfit = parseInt(document.getElementById('bt-take-profit')?.value || '0') / 100;
                     const resultDiv = document.getElementById('bt-result');
                     const canvas = document.getElementById('bt-chart');
                     const chartContainer = document.getElementById('bt-chart-container');
@@ -1928,7 +1950,7 @@ class WebDashboard:
                         const response = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn })
+                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit })
                         });
                         
                         const res = await response.json();
@@ -2110,6 +2132,8 @@ class WebDashboard:
                     const allowShort = document.getElementById('scan-allow-short').checked;
                     const trailingStop = parseInt(document.getElementById('bt-trailing-stop')?.value || '0') / 100;
                     const scaleIn = document.getElementById('bt-scale-in')?.checked || false;
+                    const stopLoss = parseInt(document.getElementById('bt-stop-loss')?.value || '0') / 100;
+                    const takeProfit = parseInt(document.getElementById('bt-take-profit')?.value || '0') / 100;
                     const btn = document.getElementById('btn-scan');
                     
                     btn.disabled = true;
@@ -2121,7 +2145,7 @@ class WebDashboard:
                         const res = await fetch('/api/scanner/start', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn })
+                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit })
                         });
                         const data = await res.json();
                         
@@ -2282,6 +2306,8 @@ class WebDashboard:
                     const allowShort = document.getElementById('scan-allow-short').checked;
                     const trailingStop = parseInt(document.getElementById('bt-trailing-stop')?.value || '0') / 100;
                     const scaleIn = document.getElementById('bt-scale-in')?.checked || false;
+                    const stopLoss = parseInt(document.getElementById('bt-stop-loss')?.value || '0') / 100;
+                    const takeProfit = parseInt(document.getElementById('bt-take-profit')?.value || '0') / 100;
                     const exchLabel = exchange ? ` · ${exchange}` : '';
                     document.getElementById('modal-subtitle').textContent = ticker + exchLabel + '  |  전략: ' + strategy + '  |  기간: ' + period;
                     document.getElementById('modal-stats').innerHTML = '';
@@ -2292,7 +2318,7 @@ class WebDashboard:
                         const resp = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn })
+                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort, trailing_stop_pct: trailingStop, scale_in: scaleIn, stop_loss_pct: stopLoss, take_profit_pct: takeProfit })
                         });
                         const res = await resp.json();
                         document.getElementById('modal-loading').style.display = 'none';

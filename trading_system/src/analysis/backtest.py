@@ -109,6 +109,45 @@ class BacktestEngine:
         
         return sum(true_ranges) / len(true_ranges) if true_ranges else 0.0
         
+    @staticmethod
+    def _calc_rsi(closes: List[float], window: int = 14) -> List[float]:
+        """Wilder's RSI (EMA 기반) 계산. closes 길이만큼의 리스트 반환."""
+        if len(closes) <= window:
+            return [50.0] * len(closes)
+        
+        rsi_values = [50.0] * len(closes)
+        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+        
+        gains = [d if d > 0 else 0.0 for d in deltas]
+        losses = [abs(d) if d < 0 else 0.0 for d in deltas]
+        
+        # 첫 번째 값은 단순 이동평균(SMA)
+        avg_gain = sum(gains[:window]) / window
+        avg_loss = sum(losses[:window]) / window
+        
+        if avg_loss == 0:
+            rsi_values[window] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi_values[window] = 100.0 - (100.0 / (1.0 + rs))
+            
+        # 이후 값은 Wilder의 smoothing (EMA 방식)
+        for i in range(window + 1, len(closes)):
+            delta_idx = i - 1
+            current_gain = gains[delta_idx]
+            current_loss = losses[delta_idx]
+            
+            avg_gain = (avg_gain * (window - 1) + current_gain) / window
+            avg_loss = (avg_loss * (window - 1) + current_loss) / window
+            
+            if avg_loss == 0:
+                rsi_values[i] = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                rsi_values[i] = 100.0 - (100.0 / (1.0 + rs))
+                
+        return rsi_values
+
     # ──────────────────────────────────────────────────────
     # 메인 백테스트 루프
     # ──────────────────────────────────────────────────────
@@ -117,7 +156,9 @@ class BacktestEngine:
                     strategy_func, target_period_bars: int = None,
                     allow_short: bool = False,
                     trailing_stop_pct: float = 0.0,
-                    scale_in: bool = False) -> BacktestResult:
+                    scale_in: bool = False,
+                    stop_loss_pct: float = 0.0,
+                    take_profit_pct: float = 0.0) -> BacktestResult:
         """
         백테스트 실행
         
@@ -129,6 +170,8 @@ class BacktestEngine:
             allow_short: 공매도(Short Selling) 허용 여부
             trailing_stop_pct: 트레일링 스톱 비율 (0이면 비활성, 예: 0.05 = 5%)
             scale_in: 분할 진입 (True: 50%→50% 2단계 진입)
+            stop_loss_pct: 고정 손절 비율 (0이면 비활성, 예: 0.05 = 5%)
+            take_profit_pct: 부분 익절 비율 (0이면 비활성, 예: 0.10 = 10% 도달 시 50% 익절)
         
         Returns:
             BacktestResult: 백테스트 결과
@@ -136,7 +179,7 @@ class BacktestEngine:
         capital = self.initial_capital
         position = 0  # 양수: 롱 포지션 수량, 음수: 숏 포지션 수량
         entry_price = 0.0
-        entry_timestamp = None  # 진입 시점 별도 추적 (entry_date 버그 수정)
+        entry_timestamp = None  # 진입 시점 별도 추적
         trades: List[BacktestTrade] = []
         equity_curve = [capital]
         trailing_stop_count = 0
@@ -149,22 +192,186 @@ class BacktestEngine:
         scale_in_done = False  # 2차 진입 완료 여부
         first_entry_qty = 0   # 1차 진입 수량
         
+        # 부분 익절 추적 변수
+        has_partial_tp = False  # 50% 분할 익절 여부
+        
+        # 다음 봉 시가 진입을 위한 신호 대기 변수
+        pending_signal = "HOLD"
+        
         for i, bar in enumerate(price_bars):
-            # ── 트레일링 스톱 체크 (전략 신호보다 선행) ──
-            if trailing_stop_pct > 0 and position != 0:
+            # ── 1단계: 이전 봉에서 넘어온 pending_signal 매매 실행 (현재 봉 시가 bar.open 기준) ──
+            size_fraction = (self.POSITION_SIZE_FRACTION / 2) if scale_in else self.POSITION_SIZE_FRACTION
+            
+            if pending_signal == "BUY" and position == 0:
+                if capital >= bar.open:
+                    position = int(capital * size_fraction / bar.open)
+                    entry_price = bar.open
+                    entry_timestamp = bar.timestamp
+                    capital -= position * bar.open * (1 + self.fee_pct)
+                    trailing_peak = bar.open
+                    scale_in_done = False
+                    first_entry_qty = position
+                    has_partial_tp = False
+                    self.logger.debug(f"{bar.timestamp}: BUY (Long Entry @ Open) {position} @ {bar.open}")
+                pending_signal = "HOLD"
+                
+            elif pending_signal == "SELL" and position > 0:
+                exit_price = bar.open
+                pnl = (exit_price - entry_price) * position
+                fees = position * exit_price * self.fee_pct
+                capital += position * exit_price * (1 - self.fee_pct)
+                
+                trade = BacktestTrade(
+                    entry_date=entry_timestamp or bar.timestamp,
+                    entry_price=entry_price,
+                    exit_date=bar.timestamp,
+                    exit_price=exit_price,
+                    quantity=position,
+                    pnl=pnl - fees,
+                    pnl_pct=((exit_price - entry_price) / entry_price) * 100,
+                    direction="LONG",
+                    exit_reason="SIGNAL"
+                )
+                trades.append(trade)
+                self.logger.debug(f"{bar.timestamp}: SELL (Long Exit @ Open) {position} @ {exit_price}, PnL={pnl-fees:.2f}")
+                
+                if allow_short:
+                    qty = int(capital * size_fraction / bar.open)
+                    position = -qty
+                    entry_price = bar.open
+                    entry_timestamp = bar.timestamp
+                    capital += qty * bar.open * (1 - self.fee_pct)
+                    trailing_trough = bar.open
+                    scale_in_done = False
+                    first_entry_qty = qty
+                    has_partial_tp = False
+                    self.logger.debug(f"{bar.timestamp}: SELL (Short Entry @ Open - Reverse) {qty} @ {bar.open}")
+                else:
+                    position = 0
+                    scale_in_done = False
+                pending_signal = "HOLD"
+                
+            elif pending_signal == "BUY" and position < 0 and allow_short:
+                exit_price = bar.open
+                qty = abs(position)
+                pnl = (entry_price - exit_price) * qty
+                fees = qty * exit_price * self.fee_pct
+                capital -= qty * exit_price * (1 + self.fee_pct)
+                
+                trade = BacktestTrade(
+                    entry_date=entry_timestamp or bar.timestamp,
+                    entry_price=entry_price,
+                    exit_date=bar.timestamp,
+                    exit_price=exit_price,
+                    quantity=-qty,
+                    pnl=pnl - fees,
+                    pnl_pct=((entry_price - exit_price) / entry_price) * 100,
+                    direction="SHORT",
+                    exit_reason="SIGNAL"
+                )
+                trades.append(trade)
+                self.logger.debug(f"{bar.timestamp}: BUY (Short Cover @ Open) {qty} @ {exit_price}, PnL={pnl-fees:.2f}")
+                
+                if capital >= bar.open:
+                    position = int(capital * size_fraction / bar.open)
+                    entry_price = bar.open
+                    entry_timestamp = bar.timestamp
+                    capital -= position * bar.open * (1 + self.fee_pct)
+                    trailing_peak = bar.open
+                    scale_in_done = False
+                    first_entry_qty = position
+                    has_partial_tp = False
+                    self.logger.debug(f"{bar.timestamp}: BUY (Long Entry @ Open - Reverse) {position} @ {bar.open}")
+                else:
+                    position = 0
+                    scale_in_done = False
+                pending_signal = "HOLD"
+                
+            elif pending_signal == "SELL" and position == 0 and allow_short:
+                qty = int(capital * size_fraction / bar.open)
+                position = -qty
+                entry_price = bar.open
+                entry_timestamp = bar.timestamp
+                capital += qty * bar.open * (1 - self.fee_pct)
+                trailing_trough = bar.open
+                scale_in_done = False
+                first_entry_qty = qty
+                has_partial_tp = False
+                self.logger.debug(f"{bar.timestamp}: SELL (Short Entry @ Open) {qty} @ {bar.open}")
+                pending_signal = "HOLD"
+                
+            # ── 2단계: 장중 실시간 익절/손절/트레일링 스톱 검사 ──
+            if position != 0:
+                # (A) 부분 익절 검사
+                if take_profit_pct > 0.0 and not has_partial_tp:
+                    if position > 0:
+                        tp_trigger = entry_price * (1 + take_profit_pct)
+                        if bar.high >= tp_trigger:
+                            tp_qty = position // 2
+                            if tp_qty > 0:
+                                exit_price = max(bar.open, tp_trigger)
+                                pnl = (exit_price - entry_price) * tp_qty
+                                fees = tp_qty * exit_price * self.fee_pct
+                                capital += tp_qty * exit_price * (1 - self.fee_pct)
+                                
+                                trade = BacktestTrade(
+                                    entry_date=entry_timestamp or bar.timestamp,
+                                    entry_price=entry_price,
+                                    exit_date=bar.timestamp,
+                                    exit_price=exit_price,
+                                    quantity=tp_qty,
+                                    pnl=pnl - fees,
+                                    pnl_pct=((exit_price - entry_price) / entry_price) * 100,
+                                    direction="LONG",
+                                    exit_reason="PARTIAL_TAKE_PROFIT"
+                                )
+                                trades.append(trade)
+                                position -= tp_qty
+                                has_partial_tp = True
+                                self.logger.debug(f"{bar.timestamp}: PARTIAL TP (Long) {tp_qty} @ {exit_price}")
+                    elif position < 0:
+                        tp_trigger = entry_price * (1 - take_profit_pct)
+                        if bar.low <= tp_trigger:
+                            qty = abs(position)
+                            tp_qty = qty // 2
+                            if tp_qty > 0:
+                                exit_price = min(bar.open, tp_trigger)
+                                pnl = (entry_price - exit_price) * tp_qty
+                                fees = tp_qty * exit_price * self.fee_pct
+                                capital -= tp_qty * exit_price * (1 + self.fee_pct)
+                                
+                                trade = BacktestTrade(
+                                    entry_date=entry_timestamp or bar.timestamp,
+                                    entry_price=entry_price,
+                                    exit_date=bar.timestamp,
+                                    exit_price=exit_price,
+                                    quantity=-tp_qty,
+                                    pnl=pnl - fees,
+                                    pnl_pct=((entry_price - exit_price) / entry_price) * 100,
+                                    direction="SHORT",
+                                    exit_reason="PARTIAL_TAKE_PROFIT"
+                                )
+                                trades.append(trade)
+                                position += tp_qty
+                                has_partial_tp = True
+                                self.logger.debug(f"{bar.timestamp}: PARTIAL TP (Short) {tp_qty} @ {exit_price}")
+
+                # (B) 고정 손절 및 트레일링 스톱 검사
                 if position > 0:
-                    # 롱 포지션: 최고가 갱신 및 하락 체크
                     trailing_peak = max(trailing_peak, bar.high)
-                    drop_pct = (trailing_peak - bar.close) / trailing_peak
-                    if drop_pct >= trailing_stop_pct:
-                        # 트레일링 스톱 발동 - 롱 청산
-                        exit_price = bar.close
+                    sl_trigger = entry_price * (1 - stop_loss_pct) if stop_loss_pct > 0.0 else 0.0
+                    ts_trigger = trailing_peak * (1 - trailing_stop_pct) if trailing_stop_pct > 0.0 else 0.0
+                    
+                    trigger_price = max(sl_trigger, ts_trigger)
+                    if trigger_price > 0.0 and bar.low <= trigger_price:
+                        exit_price = min(bar.open, trigger_price)
                         pnl = (exit_price - entry_price) * position
                         fees = position * exit_price * self.fee_pct
                         capital += position * exit_price * (1 - self.fee_pct)
                         
+                        reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
-                            entry_date=entry_timestamp,
+                            entry_date=entry_timestamp or bar.timestamp,
                             entry_price=entry_price,
                             exit_date=bar.timestamp,
                             exit_price=exit_price,
@@ -172,30 +379,34 @@ class BacktestEngine:
                             pnl=pnl - fees,
                             pnl_pct=((exit_price - entry_price) / entry_price) * 100,
                             direction="LONG",
-                            exit_reason="TRAILING_STOP"
+                            exit_reason=reason
                         )
                         trades.append(trade)
-                        self.logger.debug(f"{bar.timestamp}: TRAILING STOP (Long) {position} @ {exit_price}, peak={trailing_peak:.2f}")
+                        self.logger.debug(f"{bar.timestamp}: {reason} (Long) {position} @ {exit_price}, peak={trailing_peak:.2f}")
                         position = 0
-                        trailing_stop_count += 1
                         scale_in_done = False
+                        has_partial_tp = False
+                        if reason == "TRAILING_STOP":
+                            trailing_stop_count += 1
                         equity_curve.append(capital)
                         continue
                         
                 elif position < 0:
-                    # 숏 포지션: 최저가 갱신 및 상승 체크
                     trailing_trough = min(trailing_trough, bar.low)
-                    rise_pct = (bar.close - trailing_trough) / trailing_trough if trailing_trough > 0 else 0
-                    if rise_pct >= trailing_stop_pct:
-                        # 트레일링 스톱 발동 - 숏 청산
-                        exit_price = bar.close
+                    sl_trigger = entry_price * (1 + stop_loss_pct) if stop_loss_pct > 0.0 else float('inf')
+                    ts_trigger = trailing_trough * (1 + trailing_stop_pct) if trailing_stop_pct > 0.0 else float('inf')
+                    
+                    trigger_price = min(sl_trigger, ts_trigger)
+                    if trigger_price < float('inf') and bar.high >= trigger_price:
+                        exit_price = max(bar.open, trigger_price)
                         qty = abs(position)
                         pnl = (entry_price - exit_price) * qty
                         fees = qty * exit_price * self.fee_pct
                         capital -= qty * exit_price * (1 + self.fee_pct)
                         
+                        reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
-                            entry_date=entry_timestamp,
+                            entry_date=entry_timestamp or bar.timestamp,
                             entry_price=entry_price,
                             exit_date=bar.timestamp,
                             exit_price=exit_price,
@@ -203,23 +414,23 @@ class BacktestEngine:
                             pnl=pnl - fees,
                             pnl_pct=((entry_price - exit_price) / entry_price) * 100,
                             direction="SHORT",
-                            exit_reason="TRAILING_STOP"
+                            exit_reason=reason
                         )
                         trades.append(trade)
-                        self.logger.debug(f"{bar.timestamp}: TRAILING STOP (Short) {qty} @ {exit_price}, trough={trailing_trough:.2f}")
+                        self.logger.debug(f"{bar.timestamp}: {reason} (Short) {qty} @ {exit_price}, trough={trailing_trough:.2f}")
                         position = 0
-                        trailing_stop_count += 1
                         scale_in_done = False
+                        has_partial_tp = False
+                        if reason == "TRAILING_STOP":
+                            trailing_stop_count += 1
                         equity_curve.append(capital)
                         continue
             
-            # ── 분할 진입 (Scale-In) 체크 ──
+            # ── 3단계: 분할 진입 (Scale-In) ──
             if scale_in and position > 0 and not scale_in_done:
-                # 롱 포지션의 2차 진입: 진입가 대비 2% 이상 상승 시 추가 매수
                 if bar.close > entry_price * 1.02 and capital >= bar.close:
-                    add_qty = int(capital * self.POSITION_SIZE_FRACTION / bar.close)
+                    add_qty = int(capital * size_fraction / bar.close)
                     if add_qty > 0:
-                        # 평균 단가 재계산
                         total_cost = entry_price * first_entry_qty + bar.close * add_qty
                         position += add_qty
                         entry_price = total_cost / position
@@ -228,9 +439,8 @@ class BacktestEngine:
                         self.logger.debug(f"{bar.timestamp}: SCALE-IN (Long) +{add_qty} @ {bar.close}, avg={entry_price:.2f}")
             
             elif scale_in and position < 0 and not scale_in_done:
-                # 숏 포지션의 2차 진입: 진입가 대비 2% 이상 하락 시 추가 매도
                 if bar.close < entry_price * 0.98 and capital > 0:
-                    add_qty = int(capital * self.POSITION_SIZE_FRACTION / bar.close)
+                    add_qty = int(capital * size_fraction / bar.close)
                     if add_qty > 0:
                         old_qty = abs(position)
                         total_cost = entry_price * old_qty + bar.close * add_qty
@@ -240,114 +450,15 @@ class BacktestEngine:
                         scale_in_done = True
                         self.logger.debug(f"{bar.timestamp}: SCALE-IN (Short) +{add_qty} @ {bar.close}, avg={entry_price:.2f}")
             
-            # ── 전략 신호 생성 ──
-            signal = strategy_func(price_bars[:i+1])
-            
-            # 포지션 크기 결정: 분할 진입 시 50%, 아니면 95%
-            size_fraction = (self.POSITION_SIZE_FRACTION / 2) if scale_in else self.POSITION_SIZE_FRACTION
-            
-            # --- 롱 진입 (Neutral 상태) ---
-            if signal == "BUY" and position == 0:
-                if capital >= bar.close:
-                    position = int(capital * size_fraction / bar.close)
-                    entry_price = bar.close
-                    entry_timestamp = bar.timestamp
-                    capital -= position * bar.close * (1 + self.fee_pct)
-                    trailing_peak = bar.close
-                    scale_in_done = False
-                    first_entry_qty = position
-                    self.logger.debug(f"{bar.timestamp}: BUY (Long Entry) {position} @ {bar.close}")
-            
-            # --- 롱 청산 (및 allow_short=True 시 숏 스위칭) ---
-            elif signal == "SELL" and position > 0:
-                exit_price = bar.close
-                pnl = (exit_price - entry_price) * position
-                fees = position * exit_price * self.fee_pct
-                
-                capital += position * exit_price * (1 - self.fee_pct)
-                
-                trade = BacktestTrade(
-                    entry_date=entry_timestamp,
-                    entry_price=entry_price,
-                    exit_date=bar.timestamp,
-                    exit_price=exit_price,
-                    quantity=position,
-                    pnl=pnl - fees,
-                    pnl_pct=((exit_price - entry_price) / entry_price) * 100,
-                    direction="LONG"
-                )
-                trades.append(trade)
-                self.logger.debug(f"{bar.timestamp}: SELL (Long Exit) {position} @ {exit_price}, PnL={pnl-fees:.2f}")
-                
-                # 숏으로 스위칭 (Reverse)
-                if allow_short:
-                    qty = int(capital * size_fraction / bar.close)
-                    position = -qty
-                    entry_price = bar.close
-                    entry_timestamp = bar.timestamp
-                    capital += qty * bar.close * (1 - self.fee_pct)
-                    trailing_trough = bar.close
-                    scale_in_done = False
-                    first_entry_qty = qty
-                    self.logger.debug(f"{bar.timestamp}: SELL (Short Entry - Reverse) {qty} @ {bar.close}")
-                else:
-                    position = 0
-                    scale_in_done = False
-            
-            # --- 숏 청산 (및 롱 스위칭) ---
-            elif signal == "BUY" and position < 0 and allow_short:
-                exit_price = bar.close
-                qty = abs(position)
-                pnl = (entry_price - exit_price) * qty
-                fees = qty * exit_price * self.fee_pct
-                
-                capital -= qty * exit_price * (1 + self.fee_pct)
-                
-                trade = BacktestTrade(
-                    entry_date=entry_timestamp,
-                    entry_price=entry_price,
-                    exit_date=bar.timestamp,
-                    exit_price=exit_price,
-                    quantity=-qty,
-                    pnl=pnl - fees,
-                    pnl_pct=((entry_price - exit_price) / entry_price) * 100,
-                    direction="SHORT"
-                )
-                trades.append(trade)
-                self.logger.debug(f"{bar.timestamp}: BUY (Short Exit/Cover) {qty} @ {exit_price}, PnL={pnl-fees:.2f}")
-                
-                # 롱으로 스위칭 (Reverse)
-                if capital >= bar.close:
-                    position = int(capital * size_fraction / bar.close)
-                    entry_price = bar.close
-                    entry_timestamp = bar.timestamp
-                    capital -= position * bar.close * (1 + self.fee_pct)
-                    trailing_peak = bar.close
-                    scale_in_done = False
-                    first_entry_qty = position
-                    self.logger.debug(f"{bar.timestamp}: BUY (Long Entry - Reverse) {position} @ {bar.close}")
-                else:
-                    position = 0
-                    scale_in_done = False
-            
-            # --- 숏 진입 (Neutral 상태) ---
-            elif signal == "SELL" and position == 0 and allow_short:
-                qty = int(capital * size_fraction / bar.close)
-                position = -qty
-                entry_price = bar.close
-                entry_timestamp = bar.timestamp
-                capital += qty * bar.close * (1 - self.fee_pct)
-                trailing_trough = bar.close
-                scale_in_done = False
-                first_entry_qty = qty
-                self.logger.debug(f"{bar.timestamp}: SELL (Short Entry) {qty} @ {bar.close}")
+            # ── 4단계: 전략 신호 계산 (봉 마감 시그널 -> 다음 봉 시가 매매 진입 예약) ──
+            pending_signal = strategy_func(price_bars[:i+1])
             
             # 포지션 가치 계산 및 누적
             position_value = position * bar.close
             total_value = capital + position_value
             equity_curve.append(total_value)
-        
-        # 최종 청산
+            
+        # 최종 청산 (남은 포지션 강제 종가 정리)
         if position > 0:
             final_price = price_bars[-1].close
             pnl = (final_price - entry_price) * position
@@ -385,33 +496,27 @@ class BacktestEngine:
                 exit_reason="FINAL"
             )
             trades.append(trade)
-        
+            
         # 결과 계산
         if target_period_bars and target_period_bars < len(price_bars):
             target_start_idx = len(price_bars) - target_period_bars
-            
-            # target period 시작 시점 직전의 자산 가치
             initial_capital_target = equity_curve[target_start_idx - 1] if target_start_idx > 0 else equity_curve[0]
             final_capital_target = equity_curve[-1]
-            
             total_return = final_capital_target - initial_capital_target
             total_return_pct = (total_return / initial_capital_target) * 100
             
-            # target period 내에 완료된 거래만 필터링
             target_trades = []
             for t in trades:
                 if t.exit_date >= price_bars[target_start_idx].timestamp:
                     target_trades.append(t)
-            
+                    
             win_rate = self._calculate_win_rate(target_trades)
             profit_factor = self._calculate_profit_factor(target_trades)
             
-            # target period 내의 mdd 및 sharpe ratio 계산
             target_equity_curve = equity_curve[target_start_idx:]
             max_drawdown = self._calculate_max_drawdown(target_equity_curve)
             sharpe_ratio = self._calculate_sharpe_ratio(target_equity_curve)
             
-            # target period 용 데이터 슬라이싱
             dates = [b.timestamp for b in price_bars[target_start_idx:]]
             price_curve = [b.close for b in price_bars[target_start_idx:]]
             
@@ -424,7 +529,7 @@ class BacktestEngine:
                 profit_factor=profit_factor,
                 max_drawdown=max_drawdown,
                 sharpe_ratio=sharpe_ratio,
-                total_fees=0.0,  # 간소화
+                total_fees=0.0,
                 start_date=price_bars[target_start_idx].timestamp,
                 end_date=price_bars[-1].timestamp,
                 initial_capital=initial_capital_target,
@@ -617,17 +722,8 @@ class BacktestEngine:
             return "HOLD"
             
         closes = [b.close for b in bars]
-        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
-        
-        recent_deltas = deltas[-window:]
-        gains = sum(d for d in recent_deltas if d > 0)
-        losses = sum(abs(d) for d in recent_deltas if d < 0)
-        
-        if losses == 0:
-            rsi = 100
-        else:
-            rs = gains / losses
-            rsi = 100 - (100 / (1 + rs))
+        rsi_list = self._calc_rsi(closes, window)
+        rsi = rsi_list[-1]
             
         if rsi < buy_threshold:
             return "BUY"
@@ -678,10 +774,9 @@ class BacktestEngine:
         ma200 = sum(closes[-200:]) / 200
         current_price = closes[-1]
         
-        # RSI 14 간이 계산
-        gains = sum(max(0, closes[i] - closes[i-1]) for i in range(-14, 0)) / 14
-        losses = sum(max(0, closes[i-1] - closes[i]) for i in range(-14, 0)) / 14
-        rsi = 100 - (100 / (1 + (gains / losses))) if losses > 0 else 50
+        # EMA 기반 RSI 계산
+        rsi_list = self._calc_rsi(closes, 14)
+        rsi = rsi_list[-1]
         
         if current_price < ma200 * 0.9 and rsi < 30:
             return "BUY"
@@ -772,27 +867,15 @@ class BacktestEngine:
         upper_band = sma + bb_std_mult * std_dev
         lower_band = sma - bb_std_mult * std_dev
         
-        # RSI 계산
-        deltas = [closes[i] - closes[i-1] for i in range(-rsi_window, 0)]
-        gains = sum(d for d in deltas if d > 0)
-        losses_abs = sum(abs(d) for d in deltas if d < 0)
-        
-        if losses_abs == 0:
-            rsi = 100
-        else:
-            rs = gains / losses_abs
-            rsi = 100 - (100 / (1 + rs))
+        # EMA 기반 RSI 계산
+        rsi_list = self._calc_rsi(closes, rsi_window)
+        rsi = rsi_list[-1]
         
         # 하단 밴드 이하 + RSI 과매도 → 매수
         if current_price <= lower_band and rsi < 35:
             return "BUY"
         # 상단 밴드 이상 + RSI 과매수 → 매도
         elif current_price >= upper_band and rsi > 65:
-            return "SELL"
-        # 중심선(SMA) 대비 위치로 보조 판단
-        elif current_price <= lower_band:
-            return "BUY"
-        elif current_price >= upper_band:
             return "SELL"
         else:
             return "HOLD"
