@@ -259,6 +259,7 @@ class WebDashboard:
                 symbol = KOR_TICKERS.get(raw_symbol, raw_symbol)
                 strategy_name = body.get('strategy', 'MA')
                 period = body.get('period', '10y')
+                allow_short = bool(body.get('allow_short', False))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -277,7 +278,7 @@ class WebDashboard:
                     download_period = '2y'
                     target_period_bars = 252
                 
-                self.logger.info(f"Running backtest for {symbol} with strategy {strategy_name} for period {period} (download: {download_period}, target_bars: {target_period_bars})")
+                self.logger.info(f"Running backtest for {symbol} with strategy {strategy_name} for period {period} (download: {download_period}, target_bars: {target_period_bars}, allow_short: {allow_short})")
                 
                 # 1. 과거 데이터 수집
                 handler = self.trading_system.market_data_handler
@@ -297,7 +298,7 @@ class WebDashboard:
                     strategy_func = engine._simple_ma_strategy
                     
                 # 3. 백테스트 실행
-                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars)
+                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short)
                 
                 # 차트 데이터 가공 (100 기준 Rebase)
                 dates_str = [d.strftime("%Y-%m-%d") for d in getattr(result, 'dates', [])]
@@ -323,12 +324,20 @@ class WebDashboard:
                 for t in result.trades:
                     entry_d = t.entry_date.strftime("%Y-%m-%d")
                     exit_d = t.exit_date.strftime("%Y-%m-%d")
+                    is_short = getattr(t, 'direction', 'LONG') == 'SHORT'
+                    
                     if entry_d in date_to_idx and price_rebased:
                         idx = date_to_idx[entry_d]
-                        buy_points[idx] = price_rebased[idx]
+                        if is_short:
+                            sell_points[idx] = price_rebased[idx]
+                        else:
+                            buy_points[idx] = price_rebased[idx]
                     if exit_d in date_to_idx and price_rebased:
                         idx = date_to_idx[exit_d]
-                        sell_points[idx] = price_rebased[idx]
+                        if is_short:
+                            buy_points[idx] = price_rebased[idx]
+                        else:
+                            sell_points[idx] = price_rebased[idx]
                 
                 return {
                     'status': 'success',
@@ -420,6 +429,7 @@ class WebDashboard:
                 body = await request.json()
                 strategy_name = body.get('strategy', 'MA')
                 period = body.get('period', '1y')
+                allow_short = bool(body.get('allow_short', False))
                 
                 # target period 및 warm-up 기간 계산
                 download_period = period
@@ -457,7 +467,7 @@ class WebDashboard:
                     'error': None
                 }
                 
-                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int):
+                async def run_scan_task(tid: str, univ: list, strat: str, dl_per: str, target_bars: int, allow_short: bool):
                     engine = self.trading_system.backtest_engine
                     handler = self.trading_system.market_data_handler
                     
@@ -477,7 +487,7 @@ class WebDashboard:
                         try:
                             price_bars = handler.fetch_historical_data(symbol, period=dl_per)
                             if price_bars:
-                                res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars)
+                                res = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_bars, allow_short=allow_short)
                                 
                                 # 한국 시장 종목은 코드가 아니라 종목명(예: 삼성전자)으로 표출되도록 변환
                                 display_symbol = KOR_TICKERS_REV.get(symbol, symbol)
@@ -516,7 +526,7 @@ class WebDashboard:
                     self.scan_tasks[tid]['status'] = 'completed'
 
                 # 비동기 백그라운드 태스크로 실행
-                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars))
+                asyncio.create_task(run_scan_task(task_id, UNIVERSE, strategy_name, download_period, target_period_bars, allow_short))
                 
                 return {'status': 'success', 'task_id': task_id}
             except Exception as e:
@@ -1178,6 +1188,12 @@ class WebDashboard:
                                 <option value="DALIO" title="레이 달리오(안정/올웨더): 200일선 위 상승추세에서 주가 변동성(ATR 대용)이 2% 미만으로 극히 안정적일 때 매수">레이 달리오(Safe Proxy)</option>
                             </select>
                         </div>
+                        <div style="display: flex; align-items: center; height: 38px; padding-bottom: 2px;">
+                            <label style="font-size: 12px; color: #aaa; display: flex; align-items: center; cursor: pointer; user-select: none;">
+                                <input type="checkbox" id="bt-allow-short" style="margin-right: 6px; width: 15px; height: 15px; cursor: pointer;">
+                                공매도(Short) 허용
+                            </label>
+                        </div>
                         <button class="btn" onclick="runBacktest()">백테스트 실행</button>
                     </div>
                     <div id="bt-result" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
@@ -1340,6 +1356,12 @@ class WebDashboard:
                                     <option value="5">5회 이상</option>
                                     <option value="10">10회 이상</option>
                                 </select>
+                            </div>
+                            <div style="display: flex; align-items: center; height: 38px; padding-bottom: 2px;">
+                                <label style="font-size: 12px; color: #aaa; display: flex; align-items: center; cursor: pointer; user-select: none;">
+                                    <input type="checkbox" id="scan-allow-short" style="margin-right: 6px; width: 15px; height: 15px; cursor: pointer;">
+                                    공매도(Short) 허용
+                                </label>
                             </div>
                             <div>
                                 <button class="btn" onclick="startScanner()" id="btn-scan" style="padding: 10px 24px;">▶ 스캔 시작</button>
@@ -1783,6 +1805,7 @@ class WebDashboard:
                     const symbol = document.getElementById('bt-symbol').value;
                     const strategy = document.getElementById('bt-strategy').value;
                     const period = document.getElementById('bt-period').value;
+                    const allowShort = document.getElementById('bt-allow-short').checked;
                     const resultDiv = document.getElementById('bt-result');
                     const canvas = document.getElementById('bt-chart');
                     const chartContainer = document.getElementById('bt-chart-container');
@@ -1800,7 +1823,7 @@ class WebDashboard:
                         const response = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period })
+                            body: JSON.stringify({ symbol: symbol, strategy: strategy, period: period, allow_short: allowShort })
                         });
                         
                         const res = await response.json();
@@ -1975,6 +1998,7 @@ class WebDashboard:
                 async function startScanner() {
                     const strategy = document.getElementById('scan-strategy').value;
                     const period = document.getElementById('scan-period').value;
+                    const allowShort = document.getElementById('scan-allow-short').checked;
                     const btn = document.getElementById('btn-scan');
                     
                     btn.disabled = true;
@@ -1986,7 +2010,7 @@ class WebDashboard:
                         const res = await fetch('/api/scanner/start', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ strategy: strategy, period: period })
+                            body: JSON.stringify({ strategy: strategy, period: period, allow_short: allowShort })
                         });
                         const data = await res.json();
                         
@@ -2144,6 +2168,7 @@ class WebDashboard:
                     document.getElementById('modal-title').textContent = name;
                     const period = document.getElementById('scan-period').value;
                     const strategy = document.getElementById('scan-strategy').value;
+                    const allowShort = document.getElementById('scan-allow-short').checked;
                     const exchLabel = exchange ? ` · ${exchange}` : '';
                     document.getElementById('modal-subtitle').textContent = ticker + exchLabel + '  |  전략: ' + strategy + '  |  기간: ' + period;
                     document.getElementById('modal-stats').innerHTML = '';
@@ -2154,7 +2179,7 @@ class WebDashboard:
                         const resp = await fetch('/api/backtest', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period })
+                            body: JSON.stringify({ symbol: ticker, strategy: strategy, period: period, allow_short: allowShort })
                         });
                         const res = await resp.json();
                         document.getElementById('modal-loading').style.display = 'none';

@@ -36,6 +36,7 @@ class BacktestTrade:
     quantity: int
     pnl: float
     pnl_pct: float
+    direction: str = "LONG"
     duration: timedelta = field(default_factory=lambda: timedelta())
     
     def __post_init__(self):
@@ -78,7 +79,8 @@ class BacktestEngine:
         self.fee_pct = 0.001  # 0.1% 수수료
         
     def run_backtest(self, symbol: str, price_bars: List[PriceBar],
-                    strategy_func, target_period_bars: int = None) -> BacktestResult:
+                    strategy_func, target_period_bars: int = None,
+                    allow_short: bool = False) -> BacktestResult:
         """
         백테스트 실행
         
@@ -87,12 +89,13 @@ class BacktestEngine:
             price_bars: 가격 바 데이터
             strategy_func: 전략 함수 (가격->신호)
             target_period_bars: 성능 측정 대상 기간 바 수 (과거 데이터는 warm-up 용)
+            allow_short: 공매도(Short Selling) 허용 여부
         
         Returns:
             BacktestResult: 백테스트 결과
         """
         capital = self.initial_capital
-        position = 0
+        position = 0  # 양수: 롱 포지션 수량, 음수: 숏 포지션 수량
         entry_price = 0
         trades: List[BacktestTrade] = []
         equity_curve = [capital]
@@ -101,15 +104,15 @@ class BacktestEngine:
             # 전략 신호 생성
             signal = strategy_func(price_bars[:i+1])
             
-            # 진입
+            # --- 롱 진입 (Neutral 상태) ---
             if signal == "BUY" and position == 0:
                 if capital >= bar.close:
                     position = int(capital * 0.95 / bar.close)  # 95% 투자
                     entry_price = bar.close
                     capital -= position * bar.close * (1 + self.fee_pct)
-                    self.logger.debug(f"{bar.timestamp}: BUY {position} @ {bar.close}")
+                    self.logger.debug(f"{bar.timestamp}: BUY (Long Entry) {position} @ {bar.close}")
             
-            # 청산
+            # --- 롱 청산 (및 allow_short=True 시 숏 스위칭) ---
             elif signal == "SELL" and position > 0:
                 exit_price = bar.close
                 pnl = (exit_price - entry_price) * position
@@ -124,20 +127,64 @@ class BacktestEngine:
                     exit_price=exit_price,
                     quantity=position,
                     pnl=pnl - fees,
-                    pnl_pct=((exit_price - entry_price) / entry_price) * 100
+                    pnl_pct=((exit_price - entry_price) / entry_price) * 100,
+                    direction="LONG"
                 )
                 trades.append(trade)
+                self.logger.debug(f"{bar.timestamp}: SELL (Long Exit) {position} @ {exit_price}, PnL={pnl-fees:.2f}")
                 
-                position = 0
-                self.logger.debug(f"{bar.timestamp}: SELL {position} @ {exit_price}, PnL={pnl:.2f}")
+                # 숏으로 스위칭 (Reverse)
+                if allow_short:
+                    qty = int(capital * 0.95 / bar.close)
+                    position = -qty
+                    entry_price = bar.close
+                    capital += qty * bar.close * (1 - self.fee_pct)
+                    self.logger.debug(f"{bar.timestamp}: SELL (Short Entry - Reverse) {qty} @ {bar.close}")
+                else:
+                    position = 0
             
-            # 포지션 가치 계산
-            if position > 0:
-                position_value = position * bar.close
-                total_value = capital + position_value
-            else:
-                total_value = capital
+            # --- 숏 청산 (및 롱 스위칭) ---
+            elif signal == "BUY" and position < 0 and allow_short:
+                exit_price = bar.close
+                qty = abs(position)
+                pnl = (entry_price - exit_price) * qty
+                fees = qty * exit_price * self.fee_pct
+                
+                capital -= qty * exit_price * (1 + self.fee_pct)
+                
+                trade = BacktestTrade(
+                    entry_date=price_bars[i-1].timestamp if i > 0 else bar.timestamp,
+                    entry_price=entry_price,
+                    exit_date=bar.timestamp,
+                    exit_price=exit_price,
+                    quantity=-qty,
+                    pnl=pnl - fees,
+                    pnl_pct=((entry_price - exit_price) / entry_price) * 100,
+                    direction="SHORT"
+                )
+                trades.append(trade)
+                self.logger.debug(f"{bar.timestamp}: BUY (Short Exit/Cover) {qty} @ {exit_price}, PnL={pnl-fees:.2f}")
+                
+                # 롱으로 스위칭 (Reverse)
+                if capital >= bar.close:
+                    position = int(capital * 0.95 / bar.close)
+                    entry_price = bar.close
+                    capital -= position * bar.close * (1 + self.fee_pct)
+                    self.logger.debug(f"{bar.timestamp}: BUY (Long Entry - Reverse) {position} @ {bar.close}")
+                else:
+                    position = 0
             
+            # --- 숏 진입 (Neutral 상태) ---
+            elif signal == "SELL" and position == 0 and allow_short:
+                qty = int(capital * 0.95 / bar.close)
+                position = -qty
+                entry_price = bar.close
+                capital += qty * bar.close * (1 - self.fee_pct)
+                self.logger.debug(f"{bar.timestamp}: SELL (Short Entry) {qty} @ {bar.close}")
+            
+            # 포지션 가치 계산 및 누적
+            position_value = position * bar.close
+            total_value = capital + position_value
             equity_curve.append(total_value)
         
         # 최종 청산
@@ -154,7 +201,26 @@ class BacktestEngine:
                 exit_price=final_price,
                 quantity=position,
                 pnl=pnl - fees,
-                pnl_pct=((final_price - entry_price) / entry_price) * 100
+                pnl_pct=((final_price - entry_price) / entry_price) * 100,
+                direction="LONG"
+            )
+            trades.append(trade)
+        elif position < 0 and allow_short:
+            final_price = price_bars[-1].close
+            qty = abs(position)
+            pnl = (entry_price - final_price) * qty
+            fees = qty * final_price * self.fee_pct
+            capital -= qty * final_price * (1 + self.fee_pct)
+            
+            trade = BacktestTrade(
+                entry_date=price_bars[-2].timestamp if len(price_bars) > 1 else price_bars[0].timestamp,
+                entry_price=entry_price,
+                exit_date=price_bars[-1].timestamp,
+                exit_price=final_price,
+                quantity=-qty,
+                pnl=pnl - fees,
+                pnl_pct=((entry_price - final_price) / entry_price) * 100,
+                direction="SHORT"
             )
             trades.append(trade)
         
@@ -216,8 +282,8 @@ class BacktestEngine:
             sharpe_ratio = self._calculate_sharpe_ratio(equity_curve)
             
             total_fees = sum(
-                (trade.quantity * trade.entry_price * self.fee_pct +
-                 trade.quantity * trade.exit_price * self.fee_pct)
+                (abs(trade.quantity) * trade.entry_price * self.fee_pct +
+                 abs(trade.quantity) * trade.exit_price * self.fee_pct)
                 for trade in trades
             )
             
