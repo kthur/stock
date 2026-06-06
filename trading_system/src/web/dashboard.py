@@ -1307,6 +1307,7 @@ class WebDashboard:
                     <button class="tab-btn active" id="tabbtn-dashboard" onclick="switchTab('dashboard')">대시보드</button>
                     <button class="tab-btn" id="tabbtn-scanner" onclick="switchTab('scanner')">백테스트 스캐너</button>
                     <button class="tab-btn" id="tabbtn-builder" onclick="switchTab('builder')">노코드 전략 빌더</button>
+                    <button class="tab-btn" id="tabbtn-settings" onclick="switchTab('settings')">⚙️ 환경설정</button>
                 </div>
                 
                 <div id="tab-dashboard" class="tab-content active">
@@ -1936,6 +1937,54 @@ class WebDashboard:
                     </div>
                 </div>
                 
+                <div id="tab-settings" class="tab-content">
+                    <div class="card" style="margin-bottom: 20px; border-top: 4px solid #2196f3;">
+                        <h2>⚙️ 환경 설정 및 API 키 관리</h2>
+                        <p style="color: #888;">LLM 엔진 및 알림 설정을 여기서 변경할 수 있습니다.</p>
+                        
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 300px; background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px;">
+                                <h3>🤖 LLM 엔진 설정</h3>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px;">LLM 제공자</label>
+                                    <select class="input-control" id="settings-llm-provider">
+                                        <option value="openai">OpenAI (GPT-4o)</option>
+                                        <option value="gemini">Google Gemini (Gemini 2.0 Flash)</option>
+                                    </select>
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px;">API Key</label>
+                                    <input type="password" class="input-control" id="settings-api-key" placeholder="sk-..." value="*************">
+                                </div>
+                            </div>
+                            
+                            <div style="flex: 1; min-width: 300px; background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px;">
+                                <h3>📱 실시간 알림 연동 (Telegram / Slack)</h3>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px;">Webhook URL 또는 Bot Token</label>
+                                    <input type="text" class="input-control" id="settings-webhook" placeholder="https://api.telegram.org/bot...">
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-trade" checked style="margin-right: 10px;">
+                                        실제 매매 발생 시 알림 수신
+                                    </label>
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="checkbox" id="settings-notify-scan" checked style="margin-right: 10px;">
+                                        스캐너에서 좋은 종목 발견 시 알림 수신
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px; text-align: right;">
+                            <button class="btn" style="background: #2196f3; padding: 10px 30px; font-size: 15px; font-weight: bold;" onclick="alert('설정이 저장되었습니다. (데모 UI)')">💾 저장하기</button>
+                        </div>
+                    </div>
+                </div>
+                
                 <footer>
                     <p>주식 트레이딩 시스템 v1.0.0 | 실시간 모니터링</p>
                 </footer>
@@ -2497,14 +2546,38 @@ class WebDashboard:
                                 // Lightweight Charts
                                 const chartDiv = document.getElementById('bt-chart');
                                 chartDiv.innerHTML = ''; // clear
-                                const lwChart = LightweightCharts.createChart(chartDiv, { width: chartContainer.clientWidth, height: 400 });
-                                const candlestickSeries = lwChart.addCandlestickSeries();
+                                const lwChart = LightweightCharts.createChart(chartDiv, { 
+                                    width: chartContainer.clientWidth, 
+                                    height: 400,
+                                    rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } },
+                                    leftPriceScale: { visible: true, scaleMargins: { top: 0.1, bottom: 0.1 } }
+                                });
+                                
+                                // Price (Benchmark) Series
+                                const candlestickSeries = lwChart.addCandlestickSeries({
+                                    priceScaleId: 'right',
+                                });
+                                
+                                // Equity Series
+                                const equitySeries = lwChart.addLineSeries({
+                                    color: '#4caf50',
+                                    lineWidth: 2,
+                                    priceScaleId: 'left',
+                                    title: 'Portfolio Equity'
+                                });
                                 
                                 // Map data
                                 const cData = d.chart_data.labels.map((time, i) => {
                                     return { time: time, open: d.chart_data.price[i], high: d.chart_data.price[i], low: d.chart_data.price[i], close: d.chart_data.price[i] };
                                 });
                                 candlestickSeries.setData(cData);
+                                
+                                if (d.chart_data.equity && d.chart_data.equity.length > 0) {
+                                    const eqData = d.chart_data.labels.map((time, i) => {
+                                        return { time: time, value: d.chart_data.equity[i] };
+                                    });
+                                    equitySeries.setData(eqData);
+                                }
                                 
                                 const markers = [];
                                 for(let i=0; i<d.chart_data.buy_points.length; i++) {
