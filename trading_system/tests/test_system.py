@@ -11,8 +11,7 @@ from src.core import (
     AccountSyncAgent,
     HybridStrategyEngine,
     OrderManagementSystem,
-    OrderType,
-    TradeSignal
+    OrderType
 )
 
 

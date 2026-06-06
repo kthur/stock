@@ -122,7 +122,7 @@ class StockTradingSystem:
         self.event_bus.subscribe("order_status", self._on_order_status_changed)
     
     def _on_market_data(self, market_data: MarketData) -> None:
-        """시장 데이터 콜백 (동기 처리 캐싱)"""
+        """시장 데이터 콜백 (동기 처리 캐싱 + 손절/익절 주문 자동 체결)"""
         self.market_data_cache[market_data.symbol] = {
             'price': market_data.price,
             'bid': market_data.bid,
@@ -130,6 +130,52 @@ class StockTradingSystem:
             'volume': market_data.volume
         }
         logger.debug(f"Market data cached: {market_data.symbol}")
+        
+        # 손절/익절 주문 자동 체결 확인
+        triggered_orders = self.order_management.check_and_trigger_stop_orders(
+            market_data.symbol, market_data.price
+        )
+        for order in triggered_orders:
+            # 시장가로 즉시 체결 처리
+            asyncio.create_task(self._execute_stop_order(order, market_data.price))
+
+    async def _execute_stop_order(self, order: Order, current_price: float) -> None:
+        """손절/익절 주문 체결 처리"""
+        try:
+            await self.order_management.execute_order(order.order_id, order.quantity)
+            await self.trade_logger.log_execution(
+                order.order_id,
+                order.symbol,
+                order.quantity,
+                order.trigger_price or order.price
+            )
+            
+            # 포트폴리오 업데이트
+            if order.order_type == OrderType.STOP_LOSS:
+                # 손절: 매도
+                self.portfolio.reduce_position(order.symbol, order.quantity)
+                logger.warning(f"STOP LOSS EXECUTED: {order.symbol} x{order.quantity} @ {order.trigger_price:,.0f}")
+                # 텔레그램 알림
+                if self.telegram_bot:
+                    notification = self.telegram_bot.get_notification("stop_loss", {
+                        'symbol': order.symbol,
+                        'price': order.trigger_price,
+                        'quantity': order.quantity
+                    })
+                    # 비동기 알림 전송은 구현 시 추가
+            elif order.order_type == OrderType.TAKE_PROFIT:
+                # 익절: 매도
+                self.portfolio.reduce_position(order.symbol, order.quantity)
+                logger.info(f"TAKE PROFIT EXECUTED: {order.symbol} x{order.quantity} @ {order.trigger_price:,.0f}")
+                # 텔레그램 알림
+                if self.telegram_bot:
+                    notification = self.telegram_bot.get_notification("take_profit", {
+                        'symbol': order.symbol,
+                        'price': order.trigger_price,
+                        'quantity': order.quantity
+                    })
+        except Exception as e:
+            logger.error(f"Failed to execute stop order {order.order_id}: {e}")
     
     def _on_news_analyzed(self, news: NewsData) -> None:
         """뉴스 분석 콜백"""
@@ -156,7 +202,7 @@ class StockTradingSystem:
         await self.trade_logger.log_order(order)
     
     async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float) -> None:
-        """주문 생성 및 비동기 제출 (동적 포지션 사이징 적용)"""
+        """주문 생성 및 비동기 제출 (동적 포지션 사이징 + 자동 손절/익절 주문 적용)"""
         if price <= 0:
             logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
             return
@@ -176,8 +222,11 @@ class StockTradingSystem:
         except Exception:
             pass
 
-        # Stop loss 가격 계산
-        stop_loss_price = price * (1 - self.risk_manager.default_stop_loss_pct)
+        # Stop loss / Take profit 가격 계산
+        stop_loss_pct = self.risk_manager.default_stop_loss_pct
+        take_profit_pct = self.risk_manager.default_take_profit_pct
+        stop_loss_price = price * (1 - stop_loss_pct)
+        take_profit_price = price * (1 + take_profit_pct)
         
         # Kelly Criterion 및 리스크 매니저를 통한 수량 계산
         quantity = self.risk_manager.calculate_position_sizing(
@@ -198,9 +247,36 @@ class StockTradingSystem:
             logger.warning(f"Calculated quantity is 0 for {symbol} @ price {price}. Order aborted.")
             return
             
-        order = self.order_management.create_order(symbol, order_type, quantity, price)
-        await self.order_management.submit_order(order)
-        logger.info(f"Order dynamically sized and submitted: {order.order_id} ({symbol} x{quantity} @ {price})")
+        # 진입 주문 생성
+        entry_order = self.order_management.create_order(symbol, order_type, quantity, price)
+        await self.order_management.submit_order(entry_order)
+        
+        # 자동 손절/익절 주문 생성
+        if order_type == OrderType.BUY:
+            # 매수 시: 손절(아래), 익절(위)
+            sl_order = self.order_management.create_stop_loss_order(
+                symbol, quantity, stop_loss_price, entry_order.order_id
+            )
+            tp_order = self.order_management.create_take_profit_order(
+                symbol, quantity, take_profit_price, entry_order.order_id
+            )
+        else:
+            # 매도(숏) 시: 손절(위), 익절(아래) - 반전
+            sl_price = price * (1 + stop_loss_pct)
+            tp_price = price * (1 - take_profit_pct)
+            sl_order = self.order_management.create_stop_loss_order(
+                symbol, quantity, sl_price, entry_order.order_id
+            )
+            tp_order = self.order_management.create_take_profit_order(
+                symbol, quantity, tp_price, entry_order.order_id
+            )
+        
+        await self.order_management.submit_order(sl_order)
+        await self.order_management.submit_order(tp_order)
+        
+        logger.info(f"Order submitted with stop loss/take profit: {entry_order.order_id} "
+                   f"({symbol} x{quantity} @ {price}) "
+                   f"SL={stop_loss_price:,.0f} TP={take_profit_price:,.0f}")
 
     def _evaluate_active_strategy(self, symbol: str, current_price: float, volume: int) -> TradeSignal:
         """현재 설정된 활성 매매 전략에 따라 매매 신호 평가"""

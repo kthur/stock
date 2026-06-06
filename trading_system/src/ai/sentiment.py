@@ -288,7 +288,8 @@ class SentimentAnalyzer:
                     neg_raw += intensity * 0.5
                 else:
                     pos_raw += intensity
-                matched.add(pos); matched.add(pos + 1)
+                matched.add(pos)
+                matched.add(pos + 1)
             elif bigram in self._neg_lexicon:
                 intensity = self._neg_lexicon[bigram]
                 for j in range(max(0, pos - 2), pos):
@@ -299,7 +300,8 @@ class SentimentAnalyzer:
                     pos_raw += intensity * 0.5
                 else:
                     neg_raw += intensity
-                matched.add(pos); matched.add(pos + 1)
+                matched.add(pos)
+                matched.add(pos + 1)
 
         # Unigrams
         for i, token in enumerate(tokens):

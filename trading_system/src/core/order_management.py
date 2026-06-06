@@ -16,6 +16,8 @@ class OrderType(Enum):
     """주문 유형"""
     BUY = "BUY"
     SELL = "SELL"
+    STOP_LOSS = "STOP_LOSS"      # 손절매 주문
+    TAKE_PROFIT = "TAKE_PROFIT"  # 익절매 주문
 
 
 class OrderStatus(Enum):
@@ -40,10 +42,17 @@ class Order:
     filled_quantity: int = 0
     created_at: datetime = field(default_factory=datetime.now)
     executed_at: datetime | None = None
+    # Stop loss / Take profit related fields
+    trigger_price: float | None = None        # 발동 가격 (stop loss/take profit용)
+    parent_order_id: str | None = None        # 연결된 진입 주문 ID
     
     def __post_init__(self):
         if not self.order_id:
             self.order_id = f"ORD_{self.created_at.timestamp()}"
+    
+    def is_stop_order(self) -> bool:
+        """손절/익절 주문인지 확인"""
+        return self.order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT)
     
     def is_filled(self) -> bool:
         return self.filled_quantity >= self.quantity
@@ -163,7 +172,88 @@ class OrderManagementSystem:
         if symbol:
             history = [o for o in history if o.symbol == symbol]
         return history
-    
+
+    def create_stop_loss_order(self, symbol: str, quantity: int, trigger_price: float, 
+                               parent_order_id: str | None = None) -> Order:
+        """손절매 주문 생성"""
+        order = Order(
+            symbol=symbol,
+            order_type=OrderType.STOP_LOSS,
+            quantity=quantity,
+            price=trigger_price,  # Stop loss 주문의 price는 trigger_price
+            trigger_price=trigger_price,
+            parent_order_id=parent_order_id
+        )
+        self.orders[order.order_id] = order
+        self.logger.info(f"Stop loss order created: {order.order_id} {symbol} x{quantity} @ trigger={trigger_price:,.0f}")
+        return order
+
+    def create_take_profit_order(self, symbol: str, quantity: int, trigger_price: float,
+                                  parent_order_id: str | None = None) -> Order:
+        """익절매 주문 생성"""
+        order = Order(
+            symbol=symbol,
+            order_type=OrderType.TAKE_PROFIT,
+            quantity=quantity,
+            price=trigger_price,
+            trigger_price=trigger_price,
+            parent_order_id=parent_order_id
+        )
+        self.orders[order.order_id] = order
+        self.logger.info(f"Take profit order created: {order.order_id} {symbol} x{quantity} @ trigger={trigger_price:,.0f}")
+        return order
+
+    def check_and_trigger_stop_orders(self, symbol: str, current_price: float) -> List[Order]:
+        """현재 가격 기준으로 발동되어야 할 stop loss/take profit 주문 확인 및 발동"""
+        triggered = []
+        for order in self.orders.values():
+            if order.symbol != symbol:
+                continue
+            if order.status not in (OrderStatus.PENDING, OrderStatus.SUBMITTED):
+                continue
+            if not order.is_stop_order() or order.trigger_price is None:
+                continue
+            
+            should_trigger = False
+            if order.order_type == OrderType.STOP_LOSS:
+                # Stop loss: 현재 가격이 트리거 가격 이하로 내려가면 발동
+                if current_price <= order.trigger_price:
+                    should_trigger = True
+            elif order.order_type == OrderType.TAKE_PROFIT:
+                # Take profit: 현재 가격이 트리거 가격 이상으로 올라가면 발동
+                if current_price >= order.trigger_price:
+                    should_trigger = True
+            
+            if should_trigger:
+                # 시장가로 체결 처리
+                order.status = OrderStatus.SUBMITTED
+                triggered.append(order)
+                self.logger.warning(f"Stop order triggered: {order.order_id} {order.order_type.value} "
+                                   f"{symbol} @ {current_price:,.0f} (trigger={order.trigger_price:,.0f})")
+        
+        return triggered
+
+    def get_stop_orders(self, symbol: str | None = None) -> List[Order]:
+        """손절/익절 주문 조회"""
+        orders = [o for o in self.orders.values() if o.is_stop_order()]
+        if symbol:
+            orders = [o for o in orders if o.symbol == symbol]
+        return orders
+
+    def cancel_stop_orders(self, symbol: str) -> int:
+        """특정 종목의 모든 손절/익절 주문 취소"""
+        cancelled = 0
+        for order in self.orders.values():
+            if order.symbol != symbol:
+                continue
+            if not order.is_stop_order():
+                continue
+            if order.status in (OrderStatus.PENDING, OrderStatus.SUBMITTED):
+                order.status = OrderStatus.CANCELLED
+                cancelled += 1
+                self.logger.info(f"Stop order cancelled: {order.order_id}")
+        return cancelled
+
     async def _notify_subscribers_async(self, order: Order):
         """구독자에게 비동기 알림"""
         if self.event_bus:

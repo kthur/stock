@@ -88,7 +88,6 @@ class AssetAllocator:
             raise ValueError("price_data must not be empty")
 
         tickers = list(price_data.keys())
-        n = len(tickers)
 
         # Validate each price series
         for ticker, prices in price_data.items():
@@ -114,7 +113,6 @@ class AssetAllocator:
     # ------------------------------------------------------------------
     def _equal_weight(self, tickers: List[str]) -> Dict[str, float]:
         """Assign equal weight to every asset."""
-        n = len(tickers)
         raw = {ticker: 1.0 for ticker in tickers}
         return _normalize(raw)
 

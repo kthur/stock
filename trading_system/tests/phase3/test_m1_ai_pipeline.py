@@ -1,24 +1,25 @@
 import pytest
 import numpy as np
-import os
 from src.ai.sentiment import analyze_sentiment
 from src.ai.rl_trading import train_rl_model, DummyTradingEnv
-from stable_baselines3 import PPO
 
 def test_analyze_sentiment():
     # Test positive sentiment
     score = analyze_sentiment("The company announced record profits and the stock is soaring! We expect good things and it will go up.")
     assert score > 0.0, f"Expected positive score, got {score}"
-    
+
     # Test negative sentiment
     score = analyze_sentiment("Earnings were terrible and the CEO resigned, causing the stock to plummet. It's bad news and going down.")
     assert score < 0.0, f"Expected negative score, got {score}"
 
 def test_train_rl_model():
+    pytest.importorskip("stable_baselines3", reason="stable_baselines3 not installed")
+    from stable_baselines3 import PPO
+
     # Generate some dummy data
     # 100 timesteps, 5 features
     data = np.random.rand(100, 5) * 100
-    
+
     model = train_rl_model(data)
     assert isinstance(model, PPO), "Model should be a PPO instance"
     assert model.env is not None, "Model should have an environment"

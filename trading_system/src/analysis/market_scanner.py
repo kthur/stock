@@ -1,12 +1,9 @@
 import logging
 import time
-import asyncio
 from typing import List, Dict, Any
 import yfinance as yf
-import pandas as pd
 import numpy as np
 import FinanceDataReader as fdr
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 

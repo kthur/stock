@@ -232,6 +232,11 @@ class KoreaInvestmentBroker(BrokerBase):
         """
         if not self.connected:
             self.connect()
+            
+        if qty <= 0:
+            raise ValueError("qty must be > 0")
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be 'BUY' or 'SELL'")
 
         # tr_id selects simulation vs. live and buy vs. sell
         if self.simulation:
@@ -349,6 +354,11 @@ class KiwoomBroker(BrokerBase):
         """
         if not self.connected:
             self.connect()
+
+        if qty <= 0:
+            raise ValueError("qty must be > 0")
+        if side not in ("BUY", "SELL"):
+            raise ValueError("side must be 'BUY' or 'SELL'")
 
         order_type = 1 if side.upper() == "BUY" else 2
         order_id = str(uuid.uuid4())
