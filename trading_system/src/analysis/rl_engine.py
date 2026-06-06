@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ class RLEngine:
     여기서는 학습된 모델을 로드하여 추론하는 구조를 시뮬레이션합니다.)
     """
     
-    def __init__(self, model_path: str = None):
+    def __init__(self, model_path: Optional[str] = None):
         self.model_path = model_path
         self._is_loaded = False
         self._load_model()
@@ -46,7 +46,7 @@ class RLEngine:
         action_probs = self._simulate_policy_network(features)
         
         # 0: HOLD, 1: BUY, 2: SELL
-        best_action_idx = np.argmax(action_probs)
+        best_action_idx = int(np.argmax(action_probs))
         confidence = float(action_probs[best_action_idx])
         
         action_map = {0: "HOLD", 1: "BUY", 2: "SELL"}

@@ -14,7 +14,7 @@ import os
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, JSONResponse
     import uvicorn
     HAS_FASTAPI = True
 except ImportError:
@@ -539,14 +539,14 @@ class WebDashboard:
             try:
                 import httpx
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(url, headers=headers, timeout=10)
-                    data = response.json()
+                    httpx_resp = await client.get(url, headers=headers, timeout=10)
+                    data = httpx_resp.json()
             except ImportError:
                 try:
                     import aiohttp
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(url, headers=headers) as response:
-                            data = await response.json()
+                        async with session.get(url, headers=headers) as aio_resp:
+                            data = await aio_resp.json()
                 except ImportError:
                     req = urllib.request.Request(url, headers=headers)
                     with urllib.request.urlopen(req) as response:

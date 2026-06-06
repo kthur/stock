@@ -1169,7 +1169,7 @@ class BacktestEngine:
         capital = self.initial_capital
         position = 0
         trades: List[BacktestTrade] = []
-        entry_date = None
+        entry_date: Optional[datetime] = None
         entry_price_a = 0.0
         entry_price_b = 0.0
         
@@ -1203,8 +1203,12 @@ class BacktestEngine:
                 total_pnl_pct = (pnl_a + pnl_b) / 2
                 trade_pnl = capital * total_pnl_pct
                 
+                if entry_date is None:
+                    entry_date = df.index[0]
+                    if hasattr(entry_date, 'to_pydatetime'):
+                        entry_date = entry_date.to_pydatetime()
                 trades.append(BacktestTrade(
-                    entry_date=entry_date, entry_price=entry_price_a, # representative
+                    entry_date=entry_date, entry_price=entry_price_a,
                     exit_date=date, exit_price=price_a,
                     quantity=int(capital/entry_price_a), pnl=trade_pnl, pnl_pct=total_pnl_pct,
                     direction="SHORT_A_LONG_B", exit_reason="MEAN_REVERSION"
@@ -1218,6 +1222,10 @@ class BacktestEngine:
                 total_pnl_pct = (pnl_a + pnl_b) / 2
                 trade_pnl = capital * total_pnl_pct
                 
+                if entry_date is None:
+                    entry_date = df.index[0]
+                    if hasattr(entry_date, 'to_pydatetime'):
+                        entry_date = entry_date.to_pydatetime()
                 trades.append(BacktestTrade(
                     entry_date=entry_date, entry_price=entry_price_a,
                     exit_date=date, exit_price=price_a,

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Callable, Any
+from typing import Dict, List, Callable, Any, Optional
 import logging
 
 from src.utils import EventBus
@@ -79,7 +79,7 @@ class HybridStrategyEngine:
         """전략 신호 구독"""
         self.subscribers.append(callback)
     
-    def analyze(self, symbol: str, market_data: Dict, news_sentiment: float, price_bars: List[Any] = None) -> StrategyResult:
+    def analyze(self, symbol: str, market_data: Dict, news_sentiment: float, price_bars: Optional[List[Any]] = None) -> StrategyResult:
         """
         종합 분석 수행
         market_data: {price, volume, bid, ask}

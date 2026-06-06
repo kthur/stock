@@ -56,7 +56,7 @@ class SystemFactory:
             hft_engine=hft_engine
         )
         portfolio = PortfolioManager(initial_cash=initial_cash)
-        portfolio.quantum_opt = quantum_opt # Inject quantum optimizer into portfolio
+        setattr(portfolio, 'quantum_opt', quantum_opt)
         notifier = NotificationSystem()
 
         return {
