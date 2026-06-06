@@ -166,10 +166,35 @@ class WebDashboard:
         @self.app.get("/api/performance")
         async def api_performance():
             """성과 정보"""
+            oe = self.trading_system.optimization_engine
+            pm = self.trading_system.portfolio
+            rm = getattr(self.trading_system, 'risk_manager', None)
+
+            total_trades = oe.total_trades if oe else 0
+            win_rate = oe.get_win_rate() if oe else 0.0
+            win_count = oe.winning_trades if oe else 0
+            loss_count = max(0, total_trades - win_count)
+
+            total_value = pm.get_available_cash() if pm else 0
+            for pos in (pm.positions or {}).values():
+                price = self.trading_system.market_data_cache.get(pos.symbol, 0)
+                if isinstance(price, (int, float)) and price > 0:
+                    total_value += pos.quantity * price
+            initial = getattr(pm, 'initial_cash', total_value) or total_value
+            total_pnl_pct = ((total_value - initial) / initial * 100) if initial else 0.0
+
             perf = {
-                'win_rate': self.trading_system.optimization_engine.get_win_rate(),
-                'avg_slippage': self.trading_system.optimization_engine.get_avg_slippage(),
-                'total_trades': self.trading_system.optimization_engine.total_trades,
+                'win_rate': f"{win_rate:.1%}",
+                'win_count': win_count,
+                'loss_count': loss_count,
+                'total_trades': total_trades,
+                'avg_slippage': f"{oe.get_avg_slippage():.4f}" if oe else "0.0000",
+                'total_value': round(total_value, 2),
+                'total_pnl_pct': round(total_pnl_pct, 2),
+                'cash': round(pm.get_available_cash(), 2) if pm else 0,
+                'position_count': len(pm.positions) if pm and pm.positions else 0,
+                'drawdown': f"{rm.calculate_drawdown():.2%}" if rm else "0.00%",
+                'risk_level': rm.calculate_risk_level({}).value if rm else "UNKNOWN",
                 'timestamp': datetime.now().isoformat()
             }
             return {
@@ -576,11 +601,37 @@ class WebDashboard:
             self.active_connections.append(websocket)
             try:
                 while True:
-                    await websocket.receive_text()
+                    msg = await asyncio.wait_for(websocket.receive_text(), timeout=15)
+                    if msg == "ping":
+                        oe = self.trading_system.optimization_engine
+                        pm = self.trading_system.portfolio
+                        rm = getattr(self.trading_system, 'risk_manager', None)
+                        total_value = pm.get_available_cash() if pm else 0
+                        for pos in (pm.positions or {}).values():
+                            price = self.trading_system.market_data_cache.get(pos.symbol, 0)
+                            if isinstance(price, (int, float)) and price > 0:
+                                total_value += pos.quantity * price
+                        initial = getattr(pm, 'initial_cash', total_value) or total_value
+                        total_pnl_pct = ((total_value - initial) / initial * 100) if initial else 0.0
+                        payload = json.dumps({
+                            "type": "performance",
+                            "win_rate": f"{oe.get_win_rate():.1%}" if oe else "0%",
+                            "total_trades": oe.total_trades if oe else 0,
+                            "total_pnl_pct": round(total_pnl_pct, 2),
+                            "total_value": round(total_value, 2),
+                            "position_count": len(pm.positions) if pm and pm.positions else 0,
+                            "drawdown": f"{rm.calculate_drawdown():.2%}" if rm else "0.00%",
+                            "risk_level": rm.calculate_risk_level({}).value if rm else "UNKNOWN",
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        await websocket.send_text(payload)
+            except asyncio.TimeoutError:
+                pass
             except WebSocketDisconnect:
-                self.active_connections.remove(websocket)
+                pass
             except Exception as e:
                 self.logger.error(f"WebSocket error: {e}")
+            finally:
                 if websocket in self.active_connections:
                     self.active_connections.remove(websocket)
                     

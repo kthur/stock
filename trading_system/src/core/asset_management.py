@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Callable, Optional
+from typing import Dict, List, Callable, Optional, Any
 
 import logging
 from src.utils import EventBus
@@ -104,6 +104,54 @@ class PortfolioManager:
         )
         self.asset_history.append(snapshot)
         return snapshot
+
+    def compute_rebalance_plan(
+        self, target_weights: Dict[str, float], market_prices: Dict[str, float]
+    ) -> List[Dict[str, Any]]:
+        """목표 비중 대비 리밸런싱 필요한 종목/수량 계산"""
+        total_value = self.get_portfolio_value(market_prices)
+        if total_value <= 0 or not target_weights:
+            return []
+
+        orders = []
+        current_values = {}
+        for sym, pos in self.positions.items():
+            price = market_prices.get(sym, 0)
+            if price > 0:
+                current_values[sym] = pos.quantity * price
+
+        all_symbols = set(list(target_weights.keys()) + list(current_values.keys()))
+
+        for sym in all_symbols:
+            target_pct = target_weights.get(sym, 0.0)
+            target_value = total_value * target_pct
+            current_value = current_values.get(sym, 0.0)
+            diff_value = target_value - current_value
+            price = market_prices.get(sym, 0)
+            if price <= 0 or abs(diff_value) < total_value * 0.01:
+                continue
+            diff_qty = int(diff_value / price)
+            if diff_qty == 0:
+                continue
+            orders.append({
+                "symbol": sym,
+                "quantity": abs(diff_qty),
+                "is_buy": diff_qty > 0,
+                "reason": f"rebalance: target={target_pct:.1%} current={current_value/total_value:.1%}",
+            })
+
+        self.logger.info(f"Rebalance plan: {len(orders)} orders for {total_value:,.0f}")
+        return orders
+
+    def estimate_rebalance_cash_needed(
+        self, orders: List[Dict[str, Any]], market_prices: Dict[str, float]
+    ) -> float:
+        needed = 0.0
+        for o in orders:
+            price = market_prices.get(o["symbol"], 0)
+            if o.get("is_buy") and price > 0:
+                needed += o["quantity"] * price
+        return needed
 
 
 class AccountSyncAgent:
