@@ -548,7 +548,7 @@ class WebDashboard:
                             data = await aio_resp.json()
                 except ImportError:
                     req = urllib.request.Request(url, headers=headers)
-                    with urllib.request.urlopen(req) as response:
+                    with urllib.request.urlopen(req, timeout=10) as response:  # nosec
                         data = json.loads(response.read().decode())
             
             quotes = data.get('quotes', [])

@@ -75,7 +75,7 @@ class KoreaInvestmentConnector:
         }
         
         try:
-            res = requests.post(url, headers=headers, data=json.dumps(body))
+            res = requests.post(url, headers=headers, data=json.dumps(body), timeout=10)
             res.raise_for_status()
             data = res.json()
             self.access_token = data.get("access_token")
@@ -154,7 +154,7 @@ class KoreaInvestmentConnector:
         
         url = f"{self.domain}/uapi/domestic-stock/v1/trading/inquire-balance"
         try:
-            res = requests.get(url, headers=headers, params=params)
+            res = requests.get(url, headers=headers, params=params, timeout=10)
             res.raise_for_status()
             data = res.json()
             
@@ -195,7 +195,7 @@ class KoreaInvestmentConnector:
         
         url = f"{self.domain}/uapi/domestic-stock/v1/quotations/inquire-price"
         try:
-            res = requests.get(url, headers=headers, params=params)
+            res = requests.get(url, headers=headers, params=params, timeout=10)
             res.raise_for_status()
             data = res.json()
             
@@ -250,7 +250,7 @@ class KoreaInvestmentConnector:
         
         url = f"{self.domain}/uapi/domestic-stock/v1/trading/order-cash"
         try:
-            res = requests.post(url, headers=headers, data=json.dumps(body))
+            res = requests.post(url, headers=headers, data=json.dumps(body), timeout=10)
             res.raise_for_status()
             data = res.json()
             
