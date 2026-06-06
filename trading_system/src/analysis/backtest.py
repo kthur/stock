@@ -6,6 +6,9 @@ from typing import List, Dict, Tuple, Callable, Optional, Any, cast
 import logging
 import itertools
 import math
+import pandas as pd
+import numpy as np
+from .ml_engine import MLEngine
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,8 @@ class BacktestEngine:
         self._current_price_bars: Optional[List[PriceBar]] = None
         self._closes_cache: Optional[List[float]] = None
         self._volumes_cache: Optional[List[float]] = None
+        self.ml_engine = MLEngine()
+        self.ml_trained_symbol: Optional[str] = None
         
     # ──────────────────────────────────────────────────────
     # 기술적 지표 유틸리티
@@ -189,6 +194,11 @@ class BacktestEngine:
                     sma[idx] = sum(closes[:idx+1]) / (idx+1)
             self._indicator_cache[cache_key] = sma
         return cast(List[float], self._indicator_cache[cache_key])
+
+    def _get_mtf_sma(self, weekly_window: int) -> List[float]:
+        """주봉(Weekly) 기준 SMA (일봉 5일 = 주봉 1주)"""
+        daily_window = weekly_window * 5
+        return self._get_sma(daily_window)
 
     def _get_ema(self, data: List[float], period: int) -> List[float]:
         cache_key = ("EMA", period, id(data))
@@ -1108,7 +1118,142 @@ class BacktestEngine:
             return "SELL"
         else:
             return "HOLD"
-    
+            
+    def _ml_ensemble_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
+        """머신러닝 예측 앙상블 전략"""
+        # 현재 심볼이 변경되었거나 아직 학습이 안된 경우 학습 수행
+        if not self.ml_trained_symbol and self._current_price_bars:
+            self.ml_engine.train(self._current_price_bars)
+            self.ml_trained_symbol = "TRAINED"
+            
+        prob = self.ml_engine.predict_prob(bars)
+        
+        # 기존 전략(RSI) 보조
+        idx = len(bars) - 1
+        rsi = self._get_rsi(14)
+        if len(rsi) <= idx:
+            return "HOLD"
+        rsi_val = rsi[idx]
+        
+        if prob > 0.60 and rsi_val < 70:
+            return "BUY"
+        elif prob < 0.45 or rsi_val > 70:
+            return "SELL"
+        return "HOLD"
+
+    # ──────────────────────────────────────────────────────
+    # 페어 트레이딩 (Pairs Trading) 엔진
+    # ──────────────────────────────────────────────────────
+    def run_pairs_backtest(self, symbol_a: str, bars_a: List[PriceBar], symbol_b: str, bars_b: List[PriceBar], z_score_threshold: float = 2.0) -> BacktestResult:
+        """페어 트레이딩(통계적 차익거래) 백테스트 로직"""
+        # 공통 타임스탬프로 병합
+        df_a = pd.DataFrame([{'date': b.timestamp, 'close_a': b.close} for b in bars_a]).set_index('date')
+        df_b = pd.DataFrame([{'date': b.timestamp, 'close_b': b.close} for b in bars_b]).set_index('date')
+        df = df_a.join(df_b, how='inner').dropna()
+        
+        if len(df) < 50:
+            return BacktestResult(
+                symbol=f"{symbol_a}/{symbol_b}",
+                trades=[], total_return=0, total_return_pct=0,
+                win_rate=0, profit_factor=0, max_drawdown=0,
+                sharpe_ratio=0, total_fees=0,
+                start_date=datetime.now(), end_date=datetime.now(),
+                initial_capital=self.initial_capital, final_capital=self.initial_capital
+            )
+            
+        df['ratio'] = df['close_a'] / df['close_b']
+        df['ratio_sma'] = df['ratio'].rolling(20).mean()
+        df['ratio_std'] = df['ratio'].rolling(20).std()
+        df['z_score'] = (df['ratio'] - df['ratio_sma']) / df['ratio_std']
+        
+        capital = self.initial_capital
+        position = 0
+        trades: List[BacktestTrade] = []
+        entry_date = None
+        entry_price_a = 0.0
+        entry_price_b = 0.0
+        
+        for i in range(len(df)):
+            if np.isnan(df['z_score'].iloc[i]):
+                continue
+                
+            date = df.index[i]
+            # Convert timestamp to python datetime object if it's pandas timestamp
+            if hasattr(date, 'to_pydatetime'):
+                date = date.to_pydatetime()
+            price_a = float(df['close_a'].iloc[i])
+            price_b = float(df['close_b'].iloc[i])
+            z = float(df['z_score'].iloc[i])
+            
+            if position == 0:
+                if z > z_score_threshold:
+                    position = -1 # A고평가: Short A, Long B
+                    entry_date = date
+                    entry_price_a = price_a
+                    entry_price_b = price_b
+                elif z < -z_score_threshold:
+                    position = 1 # A저평가: Long A, Short B
+                    entry_date = date
+                    entry_price_a = price_a
+                    entry_price_b = price_b
+                    
+            elif position == -1 and z <= 0:
+                pnl_a = (entry_price_a - price_a) / entry_price_a
+                pnl_b = (price_b - entry_price_b) / entry_price_b
+                total_pnl_pct = (pnl_a + pnl_b) / 2
+                trade_pnl = capital * total_pnl_pct
+                
+                trades.append(BacktestTrade(
+                    entry_date=entry_date, entry_price=entry_price_a, # representative
+                    exit_date=date, exit_price=price_a,
+                    quantity=int(capital/entry_price_a), pnl=trade_pnl, pnl_pct=total_pnl_pct,
+                    direction="SHORT_A_LONG_B", exit_reason="MEAN_REVERSION"
+                ))
+                capital += trade_pnl
+                position = 0
+                
+            elif position == 1 and z >= 0:
+                pnl_a = (price_a - entry_price_a) / entry_price_a
+                pnl_b = (entry_price_b - price_b) / entry_price_b
+                total_pnl_pct = (pnl_a + pnl_b) / 2
+                trade_pnl = capital * total_pnl_pct
+                
+                trades.append(BacktestTrade(
+                    entry_date=entry_date, entry_price=entry_price_a,
+                    exit_date=date, exit_price=price_a,
+                    quantity=int(capital/entry_price_a), pnl=trade_pnl, pnl_pct=total_pnl_pct,
+                    direction="LONG_A_SHORT_B", exit_reason="MEAN_REVERSION"
+                ))
+                capital += trade_pnl
+                position = 0
+                
+        # Calculate final metrics
+        total_return = capital - self.initial_capital
+        total_return_pct = total_return / self.initial_capital
+        winning_trades = [t for t in trades if t.pnl > 0]
+        win_rate = len(winning_trades) / len(trades) if trades else 0.0
+        
+        # Simple profit factor and max DD for pair
+        gross_profit = sum(t.pnl for t in winning_trades)
+        gross_loss = sum(abs(t.pnl) for t in trades if t.pnl < 0)
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
+        
+        return BacktestResult(
+            symbol=f"{symbol_a}/{symbol_b}",
+            trades=trades,
+            total_return=total_return,
+            total_return_pct=total_return_pct,
+            win_rate=win_rate,
+            profit_factor=profit_factor,
+            max_drawdown=0.0, # simplified
+            sharpe_ratio=0.0,
+            total_fees=0.0,
+            start_date=df.index[0].to_pydatetime() if hasattr(df.index[0], 'to_pydatetime') else df.index[0],
+            end_date=df.index[-1].to_pydatetime() if hasattr(df.index[-1], 'to_pydatetime') else df.index[-1],
+            initial_capital=self.initial_capital,
+            final_capital=capital
+        )
+
     # ──────────────────────────────────────────────────────
     # 전략 레지스트리
     # ──────────────────────────────────────────────────────
@@ -1135,6 +1280,8 @@ class BacktestEngine:
             return lambda bars: self._bollinger_band_strategy(bars, {})
         elif name == "MOMENTUM_BREAKOUT" or "모멘텀" in strategy_name:
             return lambda bars: self._momentum_breakout_strategy(bars, {})
+        elif name == "ML_ENSEMBLE" or "머신러닝" in strategy_name:
+            return lambda bars: self._ml_ensemble_strategy(bars, {})
         elif name == "ENSEMBLE" or "앙상블" in strategy_name or "복합" in strategy_name:
             return lambda bars: self._ensemble_strategy(bars, {})
         else:

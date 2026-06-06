@@ -14,3 +14,4 @@ pyzmq>=25.0.0
 openai>=1.0.0
 google-generativeai>=0.3.0
 finance-datareader>=0.9.200
+scikit-learn>=1.0.0

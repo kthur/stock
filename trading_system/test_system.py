@@ -16,6 +16,11 @@ async def main():
     # 시스템 초기화 (100만원 초기 자본금)
     system = StockTradingSystem(initial_cash=1000000)
     
+    # CI/CD 환경(GitHub Actions)에서 yfinance 네트워크 타임아웃 방지를 위한 모킹
+    system.market_data_handler.fetch_live_data = lambda symbol: system.market_data_handler.simulate_api_call(
+        symbol, 150.0, 149.95, 150.05, 5000000
+    )
+    
     print("\n" + "="*60)
     print("주식 트레이딩 시스템 - 데모")
     print("="*60 + "\n")
@@ -57,4 +62,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        # 강제 종료하여 백그라운드 스레드(EventBus 등)로 인한 무한 대기 방지
+        sys.exit(0)

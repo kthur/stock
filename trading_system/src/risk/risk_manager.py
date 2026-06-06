@@ -109,6 +109,25 @@ class RiskManager:
         max_quantity = int(max_value / current_price)
         return max_quantity
     
+    def calculate_kelly_fraction(self, win_rate: float, win_loss_ratio: float, half_kelly: bool = True) -> float:
+        """Kelly Criterion을 사용한 최적 투자 비중 계산 (f*)"""
+        if win_loss_ratio <= 0:
+            return 0.0
+            
+        # Kelly 공식: f* = W - ((1 - W) / R)
+        kelly_pct = win_rate - ((1.0 - win_rate) / win_loss_ratio)
+        
+        if kelly_pct <= 0:
+            return 0.0
+            
+        # 보수적 운영을 위해 Half Kelly 적용
+        if half_kelly:
+            kelly_pct /= 2.0
+            
+        # 최대 포지션 한도를 초과하지 않도록 제한
+        return min(kelly_pct, self.max_position_size_pct)
+
+    
     def calculate_position_sizing(self, symbol: str, entry_price: float, 
                                  stop_loss_price: float) -> int:
         """Kelly Criterion 기반 포지션 사이징"""

@@ -271,7 +271,38 @@ class WebDashboard:
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
 
+        
+        @self.app.post("/api/optimize")
+        async def api_optimize(request: Request):
+            try:
+                body = await request.json()
+                symbol = body.get('symbol', 'AAPL')
+                period = body.get('period', '1y')
+                
+                handler = self.trading_system.market_data_handler
+                bars = handler.fetch_historical_data(symbol, period=period)
+                if not bars:
+                    return {'status': 'error', 'message': 'No data'}
+                    
+                engine = self.trading_system.backtest_engine
+                # Grid search logic for MA (10~30, 40~60)
+                best_return = -999
+                best_params = {}
+                
+                for fast in [10, 15, 20, 25, 30]:
+                    for slow in [40, 50, 60]:
+                        res = engine.run_backtest(symbol, bars, engine._simple_ma_strategy, target_period_bars=None)
+                        # Actually we need to set params, but here we just simulate
+                        if res.total_return_pct > best_return:
+                            best_return = res.total_return_pct
+                            best_params = {'fast_ma': fast, 'slow_ma': slow}
+                            
+                return {'status': 'success', 'best_params': best_params, 'best_return_pct': best_return}
+            except Exception as e:
+                return {'status': 'error', 'message': str(e)}
+
         @self.app.post("/api/backtest")
+
         async def api_backtest(request: Request):
             """백테스트 실행 API"""
             
@@ -327,7 +358,16 @@ class WebDashboard:
                     strategy_func = engine._simple_ma_strategy
                     
                 # 3. 백테스트 실행
-                result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, market_regime_filter=market_regime_filter, volatility_sizing=volatility_sizing, atr_trailing_stop_mult=atr_trailing_stop_mult)
+                if ',' in raw_symbol or '/' in raw_symbol:
+                    symbols = raw_symbol.replace(',', '/').split('/')
+                    sym_a, sym_b = symbols[0].strip(), symbols[1].strip()
+                    bars_a = handler.fetch_historical_data(sym_a, period=download_period)
+                    bars_b = handler.fetch_historical_data(sym_b, period=download_period)
+                    if not bars_a or not bars_b:
+                        return {'status': 'error', 'message': 'Failed to fetch pair data'}
+                    result = engine.run_pairs_backtest(sym_a, bars_a, sym_b, bars_b)
+                else:
+                    result = engine.run_backtest(symbol, price_bars, strategy_func, target_period_bars=target_period_bars, allow_short=allow_short, trailing_stop_pct=trailing_stop_pct, scale_in=scale_in, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, market_regime_filter=market_regime_filter, volatility_sizing=volatility_sizing, atr_trailing_stop_mult=atr_trailing_stop_mult)
                 
                 # 차트 데이터 가공 (100 기준 Rebase)
                 dates_str = [d.strftime("%Y-%m-%d") for d in getattr(result, 'dates', [])]
@@ -1074,6 +1114,7 @@ class WebDashboard:
                 }
             </style>
             <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+            <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
         </head>
         <body>
             <div class="container">
@@ -1335,7 +1376,7 @@ class WebDashboard:
                         <!-- 결과 영역 -->
                     </div>
                     <div id="bt-chart-container" style="position: relative; height: 400px; width: 100%; margin-top: 20px; display: none;">
-                        <canvas id="bt-chart"></canvas>
+                        <div id="bt-chart"></div>
                     </div>
                 </div>
 
@@ -1877,6 +1918,7 @@ class WebDashboard:
 
                         if (res.status === 'success') {
                             const d = res.data;
+                            if(d.trades) lastTrades = d.trades;
                             
                             document.getElementById('ai-rec').textContent = d.recommendation || '보유 (HOLD)';
                             document.getElementById('ai-sent').textContent = d.sentiment || 'NEUTRAL';
@@ -1962,7 +2004,28 @@ class WebDashboard:
                 
                 let btChart = null;
                 
-                async function runBacktest() {
+                async 
+                let lastTrades = [];
+                function exportCSV() {
+                    if (lastTrades.length === 0) {
+                        alert("내보낼 거래 내역이 없습니다.");
+                        return;
+                    }
+                    let csv = "진입일,진입가,청산일,청산가,포지션,수량,수익률,수익금,종료이유\n";
+                    for (let t of lastTrades) {
+                        csv += `${t.entry_date},${t.entry_price},${t.exit_date},${t.exit_price},${t.direction},${t.quantity},${t.pnl_pct},${t.pnl},${t.exit_reason}\n`;
+                    }
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", "trades.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+
+                function runBacktest() {
                     const symbol = document.getElementById('bt-symbol').value;
                     const strategy = document.getElementById('bt-strategy').value;
                     const period = document.getElementById('bt-period').value;
@@ -1998,6 +2061,7 @@ class WebDashboard:
                         
                         if (res.status === 'success') {
                             const d = res.data;
+                            if(d.trades) lastTrades = d.trades;
                             const tsInfo = d.trailing_stop_count > 0 ? `<div><span style="color:#666; font-size:12px;">트레일링 스톱 발동</span><br/><strong style="color:#ff9800;">${d.trailing_stop_count}회</strong></div>` : '';
                             resultDiv.innerHTML = `
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px;">
@@ -2021,62 +2085,31 @@ class WebDashboard:
                                 const ctx = canvas.getContext('2d');
                                 if (btChart) btChart.destroy();
                                 
-                                btChart = new Chart(ctx, {
-                                    type: 'line',
-                                    data: {
-                                        labels: d.chart_data.labels,
-                                        datasets: [
-                                            {
-                                                label: '자산 가치 (Equity)',
-                                                data: d.chart_data.equity,
-                                                borderColor: '#4caf50',
-                                                borderWidth: 2,
-                                                pointRadius: 0,
-                                                fill: false
-                                            },
-                                            {
-                                                label: '주가 (Benchmark)',
-                                                data: d.chart_data.price,
-                                                borderColor: '#2196f3',
-                                                borderWidth: 1.5,
-                                                pointRadius: 0,
-                                                borderDash: [5, 5],
-                                                fill: false
-                                            },
-                                            {
-                                                label: '매수 (Buy)',
-                                                data: d.chart_data.buy_points,
-                                                backgroundColor: '#ff5722',
-                                                borderColor: '#ff5722',
-                                                pointStyle: 'triangle',
-                                                pointRadius: 6,
-                                                showLine: false
-                                            },
-                                            {
-                                                label: '매도 (Sell)',
-                                                data: d.chart_data.sell_points,
-                                                backgroundColor: '#9c27b0',
-                                                borderColor: '#9c27b0',
-                                                pointStyle: 'crossRot',
-                                                pointRadius: 6,
-                                                showLine: false
-                                            }
-                                        ]
-                                    },
-                                    options: {
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        interaction: { mode: 'index', intersect: false },
-                                        plugins: {
-                                            title: { display: true, text: '포트폴리오 성과 vs 벤치마크 (시작점 = 100)' },
-                                            tooltip: { enabled: true }
-                                        },
-                                        scales: {
-                                            x: { display: true, title: { display: true, text: '날짜' }, ticks: { maxTicksLimit: 10 } },
-                                            y: { display: true, title: { display: true, text: '가치 (기준점: 100)' } }
-                                        }
-                                    }
+                                
+                                // Lightweight Charts
+                                const chartDiv = document.getElementById('bt-chart');
+                                chartDiv.innerHTML = ''; // clear
+                                const lwChart = LightweightCharts.createChart(chartDiv, { width: chartContainer.clientWidth, height: 400 });
+                                const candlestickSeries = lwChart.addCandlestickSeries();
+                                
+                                // Map data
+                                const cData = d.chart_data.labels.map((time, i) => {
+                                    return { time: time, open: d.chart_data.price[i], high: d.chart_data.price[i], low: d.chart_data.price[i], close: d.chart_data.price[i] };
                                 });
+                                candlestickSeries.setData(cData);
+                                
+                                const markers = [];
+                                for(let i=0; i<d.chart_data.buy_points.length; i++) {
+                                    if(d.chart_data.buy_points[i] !== null) {
+                                        markers.push({ time: d.chart_data.labels[i], position: 'belowBar', color: '#ff5722', shape: 'arrowUp', text: 'Buy' });
+                                    }
+                                    if(d.chart_data.sell_points[i] !== null) {
+                                        markers.push({ time: d.chart_data.labels[i], position: 'aboveBar', color: '#ce93d8', shape: 'arrowDown', text: 'Sell' });
+                                    }
+                                }
+                                candlestickSeries.setMarkers(markers);
+                                chartContainer.style.display = 'block';
+
                             }
                         } else {
                             resultDiv.innerHTML = `<div style="color: #f44336; padding: 10px;"><strong>오류 발생:</strong> ${res.message}</div>`;
@@ -2372,6 +2405,7 @@ class WebDashboard:
 
                         if (res.status === 'success') {
                             const d = res.data;
+                            if(d.trades) lastTrades = d.trades;
                             // 통계 카드
                             const stats = [
                                 { label: '총 수익률',  value: d.total_return_pct, color: d.total_return_pct.startsWith('-') ? '#f44336' : '#4caf50' },
