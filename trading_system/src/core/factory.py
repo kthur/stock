@@ -13,51 +13,16 @@ from src.broker import KiwoomConnector, MultiBrokerManager
 from src.strategy import InvestorStrategyEngine
 from src.ai import LLMEngine
 from src.core.asset_management import AccountSyncAgent
-from src.analysis.ml_engine import MLEngine
-from src.analysis.rl_engine import RLEngine
-from src.data_layer.alt_data import AlternativeDataClient
-from src.data_layer.darkpool_tracker import DarkPoolTracker
-from src.ai.llm_earnings_agent import LLMEarningsAgent
-from src.ai.llm_integration import LLMEngine
-from src.core.stat_arb import StatisticalArbitrageEngine
-from src.core.hft_engine import HFTEngine
-from src.analysis.quantum_optimizer import QuantumPortfolioOptimizer
-from src.utils.notifier import NotificationSystem
-from dotenv import load_dotenv
-import os
+
 
 class SystemFactory:
-    """시스템 컴포넌트 생성 및 주입 담당"""
     @staticmethod
     def create_default_components(initial_cash: float, event_bus: EventBus | None = None):
-        # 환경 변수 로드
-        load_dotenv(override=True)
-        
         if event_bus is None:
             event_bus = EventBus()
-            
-        ml_engine = MLEngine()
-        rl_engine = RLEngine()
-        alt_client = AlternativeDataClient()
-        darkpool = DarkPoolTracker()
-        llm_earnings = LLMEarningsAgent(llm_engine=LLMEngine())
-        stat_arb = StatisticalArbitrageEngine()
-        hft_engine = HFTEngine()
-        quantum_opt = QuantumPortfolioOptimizer()
-        
-        strategy_engine = HybridStrategyEngine(
-            event_bus=event_bus, 
-            ml_engine=ml_engine,
-            rl_engine=rl_engine,
-            alt_client=alt_client,
-            darkpool=darkpool,
-            llm_earnings=llm_earnings,
-            stat_arb=stat_arb,
-            hft_engine=hft_engine
-        )
+
+        strategy_engine = HybridStrategyEngine(event_bus=event_bus)
         portfolio = PortfolioManager(initial_cash=initial_cash)
-        setattr(portfolio, 'quantum_opt', quantum_opt)
-        notifier = NotificationSystem()
 
         return {
             'event_bus': event_bus,
@@ -79,6 +44,4 @@ class SystemFactory:
             'multi_broker': MultiBrokerManager(),
             'investor_strategy': InvestorStrategyEngine(),
             'llm': LLMEngine(),
-            'ml_engine': MLEngine(),
-            'notifier': notifier,
         }
