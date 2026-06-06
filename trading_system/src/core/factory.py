@@ -14,6 +14,8 @@ from src.strategy import InvestorStrategyEngine
 from src.ai import LLMEngine
 from src.core.asset_management import AccountSyncAgent
 from src.analysis.ml_engine import MLEngine
+from src.analysis.rl_engine import RLEngine
+from src.data_layer.alt_data import AlternativeDataClient
 from src.utils.notifier import NotificationSystem
 from dotenv import load_dotenv
 import os
@@ -29,7 +31,14 @@ class SystemFactory:
             event_bus = EventBus()
             
         ml_engine = MLEngine()
-        strategy_engine = HybridStrategyEngine(event_bus=event_bus, ml_engine=ml_engine)
+        rl_engine = RLEngine()
+        alt_client = AlternativeDataClient()
+        strategy_engine = HybridStrategyEngine(
+            event_bus=event_bus, 
+            ml_engine=ml_engine,
+            rl_engine=rl_engine,
+            alt_client=alt_client
+        )
         portfolio = PortfolioManager(initial_cash=initial_cash)
         notifier = NotificationSystem()
 

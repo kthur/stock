@@ -85,7 +85,36 @@ class WebDashboard:
                 "Expires": "0"
             }
             return HTMLResponse(content=self.get_dashboard_html(), headers=headers)
-        
+        @self.app.get("/manifest.json")
+        async def get_manifest():
+            return {
+                "name": "Advanced Trading System",
+                "short_name": "TradingBot",
+                "start_url": "/",
+                "display": "standalone",
+                "background_color": "#121212",
+                "theme_color": "#2196f3",
+                "icons": [{
+                    "src": "https://cdn-icons-png.flaticon.com/512/2921/2921222.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }]
+            }
+
+        @self.app.get("/sw.js")
+        async def get_sw():
+            sw_code = """
+            self.addEventListener('install', (e) => {
+                console.log('[Service Worker] Install');
+            });
+            self.addEventListener('fetch', (e) => {
+                // simple pass-through
+                e.respondWith(fetch(e.request));
+            });
+            """
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse(sw_code, media_type="application/javascript")
+
         @self.app.get("/api/portfolio")
         async def api_portfolio():
             """포트폴리오 정보"""
@@ -300,6 +329,21 @@ class WebDashboard:
                 return {'status': 'success', 'best_params': best_params, 'best_return_pct': best_return}
             except Exception as e:
                 return {'status': 'error', 'message': str(e)}
+
+        @self.app.post("/api/report/pdf")
+        async def generate_pdf(request: Request):
+            try:
+                from src.utils.report_generator import ReportGenerator
+                body = await request.json()
+                
+                output_path = ReportGenerator.generate_backtest_report(body)
+                if not output_path or not os.path.exists(output_path):
+                    return JSONResponse({"status": "error", "message": "PDF 생성 실패"})
+                
+                from fastapi.responses import FileResponse
+                return FileResponse(output_path, media_type='application/pdf', filename=f"backtest_report_{body.get('symbol', 'TEST')}.pdf")
+            except Exception as e:
+                return JSONResponse({"status": "error", "message": str(e)})
 
         @self.app.post("/api/backtest")
 
@@ -958,11 +1002,15 @@ class WebDashboard:
         
     def get_dashboard_html(self) -> str:
         """대시보드 HTML"""
-        return '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>주식 트레이딩 시스템 대시보드</title>
+        return f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Trading System Dashboard</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2196f3">
+    <!-- Chart.js for original charts -->
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { 
@@ -1129,6 +1177,7 @@ class WebDashboard:
                 <div class="tabs">
                     <button class="tab-btn active" id="tabbtn-dashboard" onclick="switchTab('dashboard')">대시보드</button>
                     <button class="tab-btn" id="tabbtn-scanner" onclick="switchTab('scanner')">백테스트 스캐너</button>
+                    <button class="tab-btn" id="tabbtn-builder" onclick="switchTab('builder')">노코드 전략 빌더</button>
                 </div>
                 
                 <div id="tab-dashboard" class="tab-content active">
@@ -1430,6 +1479,7 @@ class WebDashboard:
                             <button class="btn" onclick="runBacktest()" style="background:#2196f3; font-weight:bold; padding: 10px 20px;">백테스트 실행</button>
                             <button class="btn" onclick="runOptimization()" style="background:#673ab7; font-weight:bold; padding: 10px 20px;" title="지정된 기간 동안 최적의 파라미터를 찾아줍니다.">파라미터 최적화</button>
                             <button class="btn" id="btn-export-csv" onclick="exportCSV()" style="background:#2e7d32; font-weight:bold; padding: 10px 20px; display: none;" title="거래 내역을 CSV 엑셀 파일로 다운로드합니다.">엑셀 다운로드</button>
+                            <button class="btn" id="btn-export-pdf" onclick="exportPDF()" style="background:#d32f2f; font-weight:bold; padding: 10px 20px; display: none;" title="백테스트 리포트를 PDF로 다운로드합니다.">PDF 리포트</button>
                         </div>
                     </div>
                     <div id="bt-result" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
@@ -1662,6 +1712,55 @@ class WebDashboard:
                                     <div id="scan-results-us"></div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="tab-builder" class="tab-content">
+                    <div class="card" style="margin-top: 20px;">
+                        <h2 style="margin-bottom: 15px; color: #673ab7;">🧩 노코드(No-Code) 커스텀 전략 빌더</h2>
+                        <p style="color: #666; margin-bottom: 20px; font-size: 14px;">블록을 조합하여 나만의 매매 규칙을 시각적으로 작성하세요.</p>
+                        
+                        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 300px; background: #2a2a2a; padding: 20px; border-radius: 8px;">
+                                <h3 style="color: white; margin-bottom: 15px;">조건 1 (매수 진입)</h3>
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                    <select class="input-control" id="cond1-ind" style="flex: 1; background: #333; color: white;">
+                                        <option value="RSI">RSI (상대강도지수)</option>
+                                        <option value="MACD">MACD</option>
+                                        <option value="SMA">SMA (단순이동평균)</option>
+                                    </select>
+                                    <select class="input-control" id="cond1-op" style="width: 80px; background: #333; color: white;">
+                                        <option value="<"><</option>
+                                        <option value=">">></option>
+                                        <option value="==">==</option>
+                                    </select>
+                                    <input type="number" class="input-control" id="cond1-val" value="30" style="width: 80px; background: #333; color: white;">
+                                </div>
+                                <button class="btn" style="background: #2196f3; width: 100%;">+ AND 조건 추가</button>
+                            </div>
+                            
+                            <div style="flex: 1; min-width: 300px; background: #2a2a2a; padding: 20px; border-radius: 8px;">
+                                <h3 style="color: white; margin-bottom: 15px;">조건 2 (매도 청산)</h3>
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                    <select class="input-control" id="cond2-ind" style="flex: 1; background: #333; color: white;">
+                                        <option value="RSI">RSI (상대강도지수)</option>
+                                        <option value="MACD">MACD</option>
+                                        <option value="SMA">SMA (단순이동평균)</option>
+                                    </select>
+                                    <select class="input-control" id="cond2-op" style="width: 80px; background: #333; color: white;">
+                                        <option value=">">></option>
+                                        <option value="<"><</option>
+                                        <option value="==">==</option>
+                                    </select>
+                                    <input type="number" class="input-control" id="cond2-val" value="70" style="width: 80px; background: #333; color: white;">
+                                </div>
+                                <button class="btn" style="background: #2196f3; width: 100%;">+ AND 조건 추가</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="btn" style="background: #4caf50; padding: 15px 40px; font-size: 16px; font-weight: bold; width: 100%; max-width: 400px;" onclick="alert('전략이 저장되었습니다! (데모)')">🚀 전략 생성 및 백테스트 엔진 등록</button>
                         </div>
                     </div>
                 </div>
@@ -2063,9 +2162,9 @@ class WebDashboard:
                 }
                 
                 let btChart = null;
-                
-                async 
                 let lastTrades = [];
+                let lastBacktestData = null;
+
                 function exportCSV() {
                     if (lastTrades.length === 0) {
                         alert("내보낼 거래 내역이 없습니다.");
@@ -2083,6 +2182,33 @@ class WebDashboard:
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
+                }
+
+                async function exportPDF() {
+                    if (!lastBacktestData) {
+                        alert("내보낼 백테스트 결과가 없습니다.");
+                        return;
+                    }
+                    try {
+                        const response = await fetch('/api/report/pdf', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(lastBacktestData)
+                        });
+                        
+                        if (!response.ok) throw new Error('PDF 생성 실패');
+                        
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", url);
+                        link.setAttribute("download", `backtest_report_${lastBacktestData.symbol}.pdf`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } catch (e) {
+                        alert("PDF 다운로드 중 오류 발생: " + e.message);
+                    }
                 }
 
                 async function runOptimization() {
@@ -2133,7 +2259,7 @@ class WebDashboard:
                     }
                 }
 
-                function runBacktest() {
+                async function runBacktest() {
                     const symbol = document.getElementById('bt-symbol').value;
                     const strategy = document.getElementById('bt-strategy').value;
                     const period = document.getElementById('bt-period').value;
@@ -2170,7 +2296,9 @@ class WebDashboard:
                         if (res.status === 'success') {
                             const d = res.data;
                             if(d.trades) lastTrades = d.trades;
+                            lastBacktestData = d;
                             document.getElementById('btn-export-csv').style.display = 'inline-block';
+                            document.getElementById('btn-export-pdf').style.display = 'inline-block';
                             const tsInfo = d.trailing_stop_count > 0 ? `<div><span style="color:#666; font-size:12px;">트레일링 스톱 발동</span><br/><strong style="color:#ff9800;">${d.trailing_stop_count}회</strong></div>` : '';
                             resultDiv.innerHTML = `
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px;">
@@ -2664,10 +2792,17 @@ class WebDashboard:
                         });
                     }
                 }
+                // Register Service Worker for PWA
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+                        console.log('Service Worker Registered!', reg);
+                    }).catch(function(err) {
+                        console.log('Service Worker registration failed: ', err);
+                    });
+                }
             </script>
         </body>
-        </html>
-        '''
+        </html>"""
 
     def run(self, debug: bool = False):
         """서버 실행"""

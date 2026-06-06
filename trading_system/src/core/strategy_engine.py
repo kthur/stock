@@ -35,9 +35,12 @@ class HybridStrategyEngine:
         self,
         event_bus: EventBus | None = None,
         ml_engine: Any = None,
-        sentiment_weight: float = 0.5,
+        rl_engine: Any = None,
+        alt_client: Any = None,
+        sentiment_weight: float = 0.4,
         technical_weight: float = 0.3,
         ml_weight: float = 0.2,
+        rl_weight: float = 0.1,
         spread_threshold: float = 0.001,
         buy_price_threshold: float = 1.01,
         sell_threshold: float = 0.4,
@@ -47,12 +50,15 @@ class HybridStrategyEngine:
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         self.ml_engine = ml_engine
+        self.rl_engine = rl_engine
+        self.alt_client = alt_client
         
         self.price_threshold = 0.02
         self.volume_threshold = 1000000
         self.sentiment_weight = sentiment_weight
         self.technical_weight = technical_weight
         self.ml_weight = ml_weight
+        self.rl_weight = rl_weight
         self.spread_threshold = spread_threshold
         self.buy_price_threshold = buy_price_threshold
         self.sell_threshold = sell_threshold
@@ -101,21 +107,43 @@ class HybridStrategyEngine:
             ml_score = 0.5
             if self.ml_engine and price_bars:
                 try:
-                    # ML Engine 훈련 (만약 훈련 안되어 있다면 내부적으로 처리, 여기서는 단순 예측 호출)
                     prob = self.ml_engine.predict_prob(price_bars)
                     ml_score = prob
                 except Exception as e:
                     self.logger.warning(f"ML Prediction failed: {e}")
             
+            rl_score = 0.5
+            rl_action = "HOLD"
+            alt_regime = {}
+            if self.alt_client:
+                alt_regime = self.alt_client.get_market_regime()
+                
+            if self.rl_engine:
+                try:
+                    state = {
+                        "vix": alt_regime.get("vix", 20.0),
+                        "rsi": 50.0, # Placeholder
+                        "macd": 0.0,
+                        "trend_strength": technical_score
+                    }
+                    rl_res = self.rl_engine.get_action(state)
+                    rl_action = rl_res["action"]
+                    # Map action to score: BUY -> 1.0, SELL -> 0.0, HOLD -> 0.5
+                    if rl_action == "BUY": rl_score = 1.0
+                    elif rl_action == "SELL": rl_score = 0.0
+                except Exception as e:
+                    self.logger.warning(f"RL Action failed: {e}")
+
             combined_score = (sentiment_score * self.sentiment_weight +
                             technical_score * self.technical_weight +
-                            ml_score * self.ml_weight)
+                            ml_score * self.ml_weight +
+                            rl_score * self.rl_weight)
             confidence = combined_score
             
             if combined_score > 0.7:
                 if sentiment_signal == TradeSignal.BUY or technical_signal == TradeSignal.BUY:
                     signal = TradeSignal.BUY
-                    reason = "Strong buy signal (sentiment + technical)"
+                    reason = "Strong buy signal (sentiment + technical + AI)"
                 else:
                     signal = TradeSignal.HOLD
                     reason = "Conflicting signals"
@@ -125,6 +153,11 @@ class HybridStrategyEngine:
             else:
                 signal = TradeSignal.HOLD
                 reason = "Neutral market"
+
+            # Options Hedging Logic: 
+            # If we hold the stock (assumed by neutral/buy but high VIX), recommend Protective Put
+            if alt_regime and alt_regime.get("is_high_volatility") and signal != TradeSignal.SELL:
+                reason += " | Recommend Protective Put (High VIX)"
         
         result = StrategyResult(
             symbol=symbol,
