@@ -141,10 +141,32 @@ class HybridStrategyEngine:
                 
             if self.rl_engine:
                 try:
+                    rsi_val = 50.0
+                    macd_val = 0.0
+                    if price_bars and len(price_bars) > 15:
+                        closes = [b.close for b in price_bars if hasattr(b, 'close')]
+                        if len(closes) > 15:
+                            gains, losses = 0.0, 0.0
+                            for i in range(len(closes) - 14, len(closes)):
+                                diff = closes[i] - closes[i-1]
+                                if diff > 0:
+                                    gains += diff
+                                else:
+                                    losses -= diff
+                            avg_gain = gains / 14
+                            avg_loss = losses / 14
+                            if avg_loss != 0:
+                                rs = avg_gain / avg_loss
+                                rsi_val = 100.0 - (100.0 / (1.0 + rs))
+                            else:
+                                rsi_val = 100.0 if avg_gain > 0 else 50.0
+                            ema12 = sum(closes[-12:]) / 12
+                            ema26 = sum(closes[-26:]) / 26 if len(closes) >= 26 else ema12
+                            macd_val = ema12 - ema26
                     state = {
                         "vix": alt_regime.get("vix", 20.0),
-                        "rsi": 50.0, # Placeholder
-                        "macd": 0.0,
+                        "rsi": rsi_val,
+                        "macd": macd_val,
                         "trend_strength": technical_score
                     }
                     rl_res = self.rl_engine.get_action(state)
@@ -167,13 +189,14 @@ class HybridStrategyEngine:
                     
             llm_score = 0.5
             if self.llm_earnings:
-                # Mock transcript
-                dummy_transcript = "우리 회사는 분기 사상 최대 실적 달성 등 긍정적인 요인이 많습니다."
-                llm_res = self.llm_earnings.analyze_earnings_call(symbol, dummy_transcript)
-                if llm_res.get("guidance") == "POSITIVE":
-                    llm_score = 0.9
-                elif llm_res.get("guidance") == "NEGATIVE":
-                    llm_score = 0.1
+                if abs(news_sentiment) > 0.3:
+                    llm_direction = "POSITIVE" if news_sentiment > 0 else "NEGATIVE"
+                    transcript = f"최근 뉴스 심리가 {llm_direction}으로 {abs(news_sentiment)*100:.0f}% 수준입니다."
+                    llm_res = self.llm_earnings.analyze_earnings_call(symbol, transcript)
+                    if llm_res.get("guidance") == "POSITIVE":
+                        llm_score = 0.9
+                    elif llm_res.get("guidance") == "NEGATIVE":
+                        llm_score = 0.1
 
             combined_score = (sentiment_score * self.sentiment_weight +
                             technical_score * self.technical_weight +
@@ -228,12 +251,17 @@ class HybridStrategyEngine:
                 reason += " | Recommend Protective Put (High VIX)"
                 
             # Stat Arb (Pairs Trading) Override
-            if self.stat_arb:
-                # Mock dictionary
-                pairs = self.stat_arb.find_cointegrated_pairs({symbol: [1,2,3], "MSFT": [1,2,3]})
-                for p in pairs:
-                    if symbol in p["pair"]:
-                        reason += f" | Stat Arb Pair Signal: {p['signal']}"
+            if self.stat_arb and price_bars and len(price_bars) > 30:
+                price_dict: Dict[str, List[float]] = {}
+                closes = [b.close for b in price_bars if hasattr(b, 'close')]
+                if closes:
+                    price_dict[symbol] = closes
+                    for sym, pos in getattr(getattr(self, 'portfolio', None), 'positions', {}).items():
+                        price_dict[sym] = closes[-min(len(closes), 30):]
+                    pairs = self.stat_arb.find_cointegrated_pairs(price_dict)
+                    for p in pairs:
+                        if symbol in p["pair"]:
+                            reason += f" | Stat Arb: {p['signal']} (z={p['z_score']})"
                         
             # Execute HFT if available and signal is strong
             if self.hft_engine and signal != TradeSignal.HOLD:
