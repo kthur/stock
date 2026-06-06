@@ -129,19 +129,28 @@ class RiskManager:
 
     
     def calculate_position_sizing(self, symbol: str, entry_price: float, 
-                                 stop_loss_price: float) -> int:
-        """Kelly Criterion 기반 포지션 사이징"""
+                                 stop_loss_price: float, 
+                                 win_rate: float = 0.0, 
+                                 win_loss_ratio: float = 0.0) -> int:
+        """Kelly Criterion 기반 포지션 사이징 (선택적) 및 리스크 기반 사이징"""
         # 위험금 계산
         risk_per_share = entry_price - stop_loss_price
         if risk_per_share <= 0:
             self.logger.warning("Invalid stop loss price")
             return 0
         
-        # 거래당 최대 손실액
-        max_loss = self.portfolio_value * self.max_loss_per_trade_pct
-        
+        # Kelly 공식 적용 (정보가 있는 경우)
+        if win_rate > 0 and win_loss_ratio > 0:
+            kelly_pct = self.calculate_kelly_fraction(win_rate, win_loss_ratio)
+            # Kelly 공식이 권장하는 최대 자산 투입 한도
+            max_value = self.portfolio_value * kelly_pct
+        else:
+            # 거래당 최대 손실액 기반
+            max_loss = self.portfolio_value * self.max_loss_per_trade_pct
+            max_value = max_loss * (entry_price / risk_per_share)
+            
         # 포지션 수량
-        position_quantity = int(max_loss / risk_per_share)
+        position_quantity = int(max_value / entry_price)
         
         # 최대 포지션 제한 적용
         max_position = self.calculate_max_position_size(entry_price)

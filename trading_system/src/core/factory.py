@@ -13,16 +13,25 @@ from src.broker import KiwoomConnector, MultiBrokerManager
 from src.strategy import InvestorStrategyEngine
 from src.ai import LLMEngine
 from src.core.asset_management import AccountSyncAgent
+from src.analysis.ml_engine import MLEngine
+from src.utils.notifier import NotificationSystem
+from dotenv import load_dotenv
+import os
 
 class SystemFactory:
     """시스템 컴포넌트 생성 및 주입 담당"""
     @staticmethod
     def create_default_components(initial_cash: float, event_bus: EventBus | None = None):
+        # 환경 변수 로드
+        load_dotenv(override=True)
+        
         if event_bus is None:
             event_bus = EventBus()
             
-        strategy_engine = HybridStrategyEngine(event_bus=event_bus)
+        ml_engine = MLEngine()
+        strategy_engine = HybridStrategyEngine(event_bus=event_bus, ml_engine=ml_engine)
         portfolio = PortfolioManager(initial_cash=initial_cash)
+        notifier = NotificationSystem()
 
         return {
             'event_bus': event_bus,
@@ -44,4 +53,6 @@ class SystemFactory:
             'multi_broker': MultiBrokerManager(),
             'investor_strategy': InvestorStrategyEngine(),
             'llm': LLMEngine(),
+            'ml_engine': MLEngine(),
+            'notifier': notifier,
         }

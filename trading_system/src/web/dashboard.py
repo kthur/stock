@@ -1167,13 +1167,69 @@ class WebDashboard:
                         </div>
                     </div>
                 
+                <!-- TradingView 차트 연동 -->
+                <div class="card" style="margin-bottom: 20px; border-left: 4px solid #f39c12; height: 500px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2>📈 시장 실시간 차트 (TradingView)</h2>
+                    </div>
+                    <div class="tradingview-widget-container" style="height: 440px; width: 100%;">
+                        <div id="tradingview_chart" style="height: 100%; width: 100%;"></div>
+                        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                        <script type="text/javascript">
+                            let tvWidget = new TradingView.widget({
+                                "autosize": true,
+                                "symbol": "NASDAQ:AAPL",
+                                "interval": "D",
+                                "timezone": "Asia/Seoul",
+                                "theme": "light",
+                                "style": "1",
+                                "locale": "kr",
+                                "enable_publishing": false,
+                                "backgroundColor": "rgba(255, 255, 255, 1)",
+                                "gridColor": "rgba(240, 243, 250, 0)",
+                                "hide_top_toolbar": false,
+                                "hide_legend": false,
+                                "save_image": false,
+                                "container_id": "tradingview_chart"
+                            });
+                            
+                            // 심볼 변경 함수
+                            function updateTVChart(symbol) {
+                                if(tvWidget) {
+                                    // 심볼 맵핑 (간단히 변환)
+                                    let tvSymbol = symbol;
+                                    if(symbol.match(/^[0-9]+$/)) {
+                                        tvSymbol = "KRX:" + symbol; // 한국 주식
+                                    } else if (!symbol.includes(":")) {
+                                        tvSymbol = "NASDAQ:" + symbol; // 기본 미국
+                                    }
+                                    
+                                    // 기존 위젯 삭제 후 재생성 (간단한 구현)
+                                    document.getElementById('tradingview_chart').innerHTML = '';
+                                    tvWidget = new TradingView.widget({
+                                        "autosize": true,
+                                        "symbol": tvSymbol,
+                                        "interval": "D",
+                                        "timezone": "Asia/Seoul",
+                                        "theme": "light",
+                                        "style": "1",
+                                        "locale": "kr",
+                                        "enable_publishing": false,
+                                        "container_id": "tradingview_chart"
+                                    });
+                                }
+                            }
+                        </script>
+                    </div>
+                </div>
+
                 <!-- 💸 실시간 수동 주문 실행 패널 -->
                 <div class="card" style="margin-bottom: 20px; border-left: 4px solid #2196f3;">
                     <h2>💸 실시간 수동 주문 실행</h2>
                     <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 5px; margin-top: 15px; flex-wrap: wrap;">
                         <div>
                             <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">종목명 또는 티커</label>
-                            <input type="text" id="trade-symbol" list="symbol-list" class="form-control" autocomplete="off" placeholder="예: 삼성전자" style="margin-bottom: 0; width: 160px;" oninput="searchSymbol(this.value)">
+                            <input type="text" id="trade-symbol" list="symbol-list" class="form-control" autocomplete="off" placeholder="예: 삼성전자" style="margin-bottom: 0; width: 160px;" oninput="searchSymbol(this.value)" onchange="updateTVChart(this.value)">
                         </div>
                         <div>
                             <label style="font-size: 11px; color: #aaa; display: block; margin-bottom: 4px;">구분</label>
@@ -1370,7 +1426,11 @@ class WebDashboard:
                                 <span id="bt-tp-val" style="font-size: 12px; color: #888; min-width: 45px;">비활성</span>
                             </div>
                         </div>
-                        <button class="btn" onclick="runBacktest()">백테스트 실행</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn" onclick="runBacktest()" style="background:#2196f3; font-weight:bold; padding: 10px 20px;">백테스트 실행</button>
+                            <button class="btn" onclick="runOptimization()" style="background:#673ab7; font-weight:bold; padding: 10px 20px;" title="지정된 기간 동안 최적의 파라미터를 찾아줍니다.">파라미터 최적화</button>
+                            <button class="btn" id="btn-export-csv" onclick="exportCSV()" style="background:#2e7d32; font-weight:bold; padding: 10px 20px; display: none;" title="거래 내역을 CSV 엑셀 파일로 다운로드합니다.">엑셀 다운로드</button>
+                        </div>
                     </div>
                     <div id="bt-result" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
                         <!-- 결과 영역 -->
@@ -2025,6 +2085,54 @@ class WebDashboard:
                     document.body.removeChild(link);
                 }
 
+                async function runOptimization() {
+                    const symbol = document.getElementById('bt-symbol').value;
+                    const period = document.getElementById('bt-period').value;
+                    const resultDiv = document.getElementById('bt-result');
+                    const btn = document.querySelector('button[onclick="runOptimization()"]');
+                    
+                    if (!symbol) return;
+                    
+                    btn.disabled = true;
+                    btn.textContent = '최적화 중...';
+                    resultDiv.style.display = 'block';
+                    document.getElementById('bt-chart-container').style.display = 'none';
+                    resultDiv.innerHTML = '<div class="loading">백테스트 파라미터 최적화를 위해 시뮬레이션 중입니다 (Grid Search)...</div>';
+                    
+                    try {
+                        const response = await fetch('/api/optimize', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ symbol: symbol, period: period })
+                        });
+                        
+                        const res = await response.json();
+                        if (res.status === 'success') {
+                            let paramsHtml = '';
+                            for(let k in res.best_params) {
+                                paramsHtml += `<li><strong>${k}:</strong> ${res.best_params[k]}</li>`;
+                            }
+                            resultDiv.innerHTML = `
+                                <div style="background:#e8f5e9; padding:20px; border-radius:8px; border-left:4px solid #4caf50;">
+                                    <h3 style="color:#2e7d32; margin-bottom:10px;">✅ 최적화 완료</h3>
+                                    <p>지정된 기간 동안 최고의 수익률을 내는 파라미터 조합을 찾았습니다.</p>
+                                    <ul style="margin:15px 0 15px 20px;">
+                                        ${paramsHtml}
+                                    </ul>
+                                    <p style="font-size:18px;">예상 최고 수익률: <strong class="positive">${res.best_return_pct.toFixed(2)}%</strong></p>
+                                </div>
+                            `;
+                        } else {
+                            resultDiv.innerHTML = `<div style="color: #f44336; padding: 10px;"><strong>오류:</strong> ${res.message}</div>`;
+                        }
+                    } catch (e) {
+                        resultDiv.innerHTML = `<div style="color: #f44336; padding: 10px;">오류가 발생했습니다: ${e.message}</div>`;
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = '파라미터 최적화';
+                    }
+                }
+
                 function runBacktest() {
                     const symbol = document.getElementById('bt-symbol').value;
                     const strategy = document.getElementById('bt-strategy').value;
@@ -2062,6 +2170,7 @@ class WebDashboard:
                         if (res.status === 'success') {
                             const d = res.data;
                             if(d.trades) lastTrades = d.trades;
+                            document.getElementById('btn-export-csv').style.display = 'inline-block';
                             const tsInfo = d.trailing_stop_count > 0 ? `<div><span style="color:#666; font-size:12px;">트레일링 스톱 발동</span><br/><strong style="color:#ff9800;">${d.trailing_stop_count}회</strong></div>` : '';
                             resultDiv.innerHTML = `
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px;">

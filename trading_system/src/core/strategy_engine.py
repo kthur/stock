@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Callable
+from typing import Dict, List, Callable, Any
 import logging
 
 from src.utils import EventBus
@@ -34,8 +34,10 @@ class HybridStrategyEngine:
     def __init__(
         self,
         event_bus: EventBus | None = None,
-        sentiment_weight: float = 0.6,
-        technical_weight: float = 0.4,
+        ml_engine: Any = None,
+        sentiment_weight: float = 0.5,
+        technical_weight: float = 0.3,
+        ml_weight: float = 0.2,
         spread_threshold: float = 0.001,
         buy_price_threshold: float = 1.01,
         sell_threshold: float = 0.4,
@@ -44,11 +46,13 @@ class HybridStrategyEngine:
         self.results_history: List[StrategyResult] = []
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
+        self.ml_engine = ml_engine
         
         self.price_threshold = 0.02
         self.volume_threshold = 1000000
         self.sentiment_weight = sentiment_weight
         self.technical_weight = technical_weight
+        self.ml_weight = ml_weight
         self.spread_threshold = spread_threshold
         self.buy_price_threshold = buy_price_threshold
         self.sell_threshold = sell_threshold
@@ -57,11 +61,12 @@ class HybridStrategyEngine:
         """전략 신호 구독"""
         self.subscribers.append(callback)
     
-    def analyze(self, symbol: str, market_data: Dict, news_sentiment: float) -> StrategyResult:
+    def analyze(self, symbol: str, market_data: Dict, news_sentiment: float, price_bars: List[Any] = None) -> StrategyResult:
         """
         종합 분석 수행
         market_data: {price, volume, bid, ask}
         news_sentiment: -1.0 ~ 1.0
+        price_bars: ML 예측을 위한 과거 주가 데이터
         """
         price = market_data.get('price', 0)
         volume = market_data.get('volume', 0)
@@ -92,9 +97,19 @@ class HybridStrategyEngine:
             else:
                 sentiment_signal = TradeSignal.HOLD
                 sentiment_score = 0.5
+                
+            ml_score = 0.5
+            if self.ml_engine and price_bars:
+                try:
+                    # ML Engine 훈련 (만약 훈련 안되어 있다면 내부적으로 처리, 여기서는 단순 예측 호출)
+                    prob = self.ml_engine.predict_prob(price_bars)
+                    ml_score = prob
+                except Exception as e:
+                    self.logger.warning(f"ML Prediction failed: {e}")
             
             combined_score = (sentiment_score * self.sentiment_weight +
-                            technical_score * self.technical_weight)
+                            technical_score * self.technical_weight +
+                            ml_score * self.ml_weight)
             confidence = combined_score
             
             if combined_score > 0.7:

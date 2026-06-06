@@ -166,12 +166,27 @@ class StockTradingSystem:
         if portfolio_total <= 0:
             portfolio_total = self.portfolio.cash
             
-        target_value = portfolio_total * 0.05
-        quantity = int(target_value / price)
+        # 통계 엔진에서 과거 성과(승률 등)를 가져와 Kelly Fraction에 활용
+        win_rate = 0.55  # 기본값
+        win_loss_ratio = 1.2 # 기본값
+        try:
+            # 실전/모의투자의 경우 단순화된 지표를 가져온다고 가정
+            win_rate = getattr(self.statistics, 'last_win_rate', 0.55)
+            win_loss_ratio = getattr(self.statistics, 'last_profit_factor', 1.2)
+        except Exception:
+            pass
+
+        # Stop loss 가격 계산
+        stop_loss_price = price * (1 - self.risk_manager.default_stop_loss_pct)
         
-        # Max position limit 적용
-        max_size = self.risk_manager.calculate_max_position_size(price)
-        quantity = min(quantity, max_size)
+        # Kelly Criterion 및 리스크 매니저를 통한 수량 계산
+        quantity = self.risk_manager.calculate_position_sizing(
+            symbol=symbol,
+            entry_price=price,
+            stop_loss_price=stop_loss_price,
+            win_rate=win_rate,
+            win_loss_ratio=win_loss_ratio
+        )
         
         # 가용 자금 체크 (매수일 때만 조절)
         if order_type == OrderType.BUY:
@@ -195,7 +210,19 @@ class StockTradingSystem:
         if strategy_name == 'HYBRID':
             market_data = self.market_data_cache.get(symbol, {})
             sentiment = self.news_sentiment_cache.get(symbol, 0)
-            result = self.strategy_engine.analyze(symbol, market_data, sentiment)
+            
+            # ML 예측을 위해 과거 데이터 가져오기
+            try:
+                bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
+                # 현재 캔들 추가
+                current_bar = type('PriceBar', (), {'close': current_price, 'volume': volume})()
+                if bars:
+                    bars.append(current_bar)
+            except Exception as e:
+                logger.warning(f"Could not fetch history for ML: {e}")
+                bars = None
+                
+            result = self.strategy_engine.analyze(symbol, market_data, sentiment, price_bars=bars)
             return result.signal
             
         # 2. 기술적 백테스트 기반 전략 실행
