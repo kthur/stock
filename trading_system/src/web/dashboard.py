@@ -1002,7 +1002,7 @@ class WebDashboard:
         
     def get_dashboard_html(self) -> str:
         """대시보드 HTML"""
-        return f"""<!DOCTYPE html>
+        return """<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
