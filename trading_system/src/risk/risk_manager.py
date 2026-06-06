@@ -45,6 +45,9 @@ class RiskManager:
         default_stop_loss_pct: float = 0.05,
         default_take_profit_pct: float = 0.10,
         max_drawdown_allowed: float = 0.20,
+        atr_multiplier_stop: float = 2.0,
+        atr_multiplier_target: float = 4.0,
+        volatility_scaling: bool = True,
     ):
         self.portfolio_value = portfolio_value
         self.peak_value = portfolio_value
@@ -56,6 +59,9 @@ class RiskManager:
         self.default_stop_loss_pct = default_stop_loss_pct
         self.default_take_profit_pct = default_take_profit_pct
         self.max_drawdown_allowed = max_drawdown_allowed
+        self.atr_multiplier_stop = atr_multiplier_stop
+        self.atr_multiplier_target = atr_multiplier_target
+        self.volatility_scaling = volatility_scaling
         self.position_limits: Dict[str, float] = {}
         
         self.active_strategy = "HYBRID"
@@ -64,6 +70,27 @@ class RiskManager:
         
         self.metrics_history: List[RiskMetrics] = []
         self.alerts: List[Dict] = []
+
+    def calculate_atr_based_stop(self, entry_price: float, atr: float) -> float:
+        stop_distance = atr * self.atr_multiplier_stop
+        return max(entry_price - stop_distance, entry_price * (1 - self.default_stop_loss_pct * 2))
+
+    def calculate_atr_based_target(self, entry_price: float, atr: float) -> float:
+        target_distance = atr * self.atr_multiplier_target
+        return min(entry_price + target_distance, entry_price * (1 + self.default_take_profit_pct * 2))
+
+    def _volatility_scalar(self, vix: float = 20.0) -> float:
+        if not self.volatility_scaling or vix <= 0:
+            return 1.0
+        if vix >= 40:
+            return 0.25
+        elif vix >= 30:
+            return 0.50
+        elif vix >= 25:
+            return 0.75
+        elif vix <= 12:
+            return 1.25
+        return 1.0
 
     def _get_config_path(self):
         return Path(__file__).parent.parent.parent / "risk_config.json"
@@ -130,7 +157,8 @@ class RiskManager:
     def calculate_position_sizing(self, symbol: str, entry_price: float, 
                                  stop_loss_price: float, 
                                  win_rate: float = 0.0, 
-                                 win_loss_ratio: float = 0.0) -> int:
+                                 win_loss_ratio: float = 0.0,
+                                 vix: float = 20.0) -> int:
         """Kelly Criterion 기반 포지션 사이징 (선택적) 및 리스크 기반 사이징"""
         # 위험금 계산
         risk_per_share = entry_price - stop_loss_price
@@ -141,23 +169,24 @@ class RiskManager:
         # Kelly 공식 적용 (정보가 있는 경우)
         if win_rate > 0 and win_loss_ratio > 0:
             kelly_pct = self.calculate_kelly_fraction(win_rate, win_loss_ratio)
-            # Kelly 공식이 권장하는 최대 자산 투입 한도
             max_value = self.portfolio_value * kelly_pct
         else:
-            # 거래당 최대 손실액 기반
             max_loss = self.portfolio_value * self.max_loss_per_trade_pct
             max_value = max_loss * (entry_price / risk_per_share)
-            
-        # 포지션 수량
+        
+        vol_scalar = self._volatility_scalar(vix)
+        max_value *= vol_scalar
+        
         position_quantity = int(max_value / entry_price)
         
-        # 최대 포지션 제한 적용
         max_position = self.calculate_max_position_size(entry_price)
         position_quantity = min(position_quantity, max_position)
         
-        # 종목별 한계 적용
         if symbol in self.position_limits:
             position_quantity = int(min(position_quantity, self.position_limits[symbol]))
+        
+        if vol_scalar < 1.0:
+            self.logger.info(f"Volatility scaling applied: {vol_scalar:.2f}x (VIX={vix})")
         
         self.logger.info(f"Calculated position size for {symbol}: {position_quantity} shares")
         return position_quantity
@@ -285,7 +314,7 @@ class RiskManager:
         metrics = RiskMetrics(
             current_value=total_value,
             max_loss_limit=self.portfolio_value * self.max_portfolio_loss_pct,
-            max_position_size=self.portfolio_value * self.max_position_size_pct,
+            max_position_size=self.portfolio_value * self.max_position_size_pct * self._volatility_scalar(),
             stop_loss_pct=self.default_stop_loss_pct,
             take_profit_pct=self.default_take_profit_pct,
             current_drawdown=current_drawdown,

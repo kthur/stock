@@ -48,6 +48,7 @@ class TelegramBotEngine:
             'connect': self._cmd_connect,
             'risk': self._cmd_risk,
             'strategy': self._cmd_strategy,
+            'performance': self._cmd_performance,
             'help': self._cmd_help,
         }
         
@@ -451,14 +452,66 @@ class TelegramBotEngine:
         
         return f"✅ *자동매매 전략 변경 완료*\n\n전략이 다음과 같이 변경되었습니다:\n`{current_strategy}` ➡️ `{new_strategy}`"
     
+    def _cmd_performance(self, user_id: int, args: List[str]) -> str:
+        """성과 통계 조회"""
+        if not self.trading_system:
+            return "❌ 시스템 연동 안됨"
+
+        try:
+            status = self.trading_system.get_trading_status()
+            ts = self.trading_system
+
+            win_count = 0
+            loss_count = 0
+            if hasattr(ts, 'optimization_engine') and ts.optimization_engine:
+                oe = ts.optimization_engine
+                win_count = oe.winning_trades
+                total_trades = oe.total_trades
+                loss_count = total_trades - win_count
+                win_rate = oe.get_win_rate()
+            else:
+                win_rate = status.get('win_rate', 0)
+                total_trades = status.get('total_trades', 0)
+
+            if hasattr(ts, 'portfolio') and ts.portfolio:
+                current_val = getattr(ts.portfolio, 'total_value', 0) or status.get('cash', 0)
+                initial = getattr(ts.portfolio, 'initial_cash', 0) or current_val
+                if initial:
+                    total_pnl_pct = (current_val - initial) / initial * 100
+                else:
+                    total_pnl_pct = 0.0
+            else:
+                total_pnl_pct = 0.0
+
+            response = "📊 *성과 통계*\n\n"
+            response += f"💰 총 수익률: {total_pnl_pct:+.2f}%\n"
+            response += f"📈 승률: {win_rate:.1%}\n"
+            response += f"✅ 승리: {win_count}회 / ❌ 패배: {loss_count}회\n"
+            response += f"📝 총 거래: {total_trades}건\n"
+            response += f"💵 현금: ${status.get('cash', 0):,.0f}\n"
+            response += f"📊 포지션: {len(status.get('positions', {}))}개\n"
+            response += f"⏳ 미체결: {status.get('open_orders', 0)}개\n"
+
+            if hasattr(ts, 'risk_manager') and ts.risk_manager:
+                rm = ts.risk_manager
+                dd = rm.calculate_drawdown()
+                response += f"📉 최대손실: {dd:.2%}\n"
+                response += f"⚠️ 리스크 수준: {rm.calculate_risk_level(status.get('positions', {})).value}\n"
+
+            return response
+        except Exception as e:
+            self.logger.error(f"Performance command failed: {e}")
+            return "❌ 성과 조회 중 오류가 발생했습니다."
+
     def _cmd_help(self, user_id: int, args: List[str]) -> str:
         """도움말"""
         response = """📖 *명령어 목록*
 
-*상태 조회*
+ *상태 조회*
 /status - 거래 현황
 /portfolio - 포트폴리오
 /positions - 포지션 상세
+/performance - 성과 통계
 /orders - 주문 현황
 /brokers - 증권사 현황
 /risk - 위험 관리
