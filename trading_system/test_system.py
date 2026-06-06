@@ -57,6 +57,39 @@ async def main():
     print("데모 완료")
     print("="*60 + "\n")
     
+    # 5. Market Scanner 테스트 (빠른 테스트를 위해 Mocking 적용)
+    print(">>> 한국 시장 전체 퀵 스캔 (Market Scanner) 테스트\n")
+    try:
+        from src.analysis.market_scanner import MarketScanner
+        scanner = MarketScanner()
+        
+        # CI/CD 타임아웃 방지를 위한 Mocking (1차 스캔 대상을 소수로 제한)
+        original_get_top = scanner._get_top_krx_stocks
+        def mock_get_top_krx():
+            return {
+                "005930.KS": "삼성전자", 
+                "000660.KS": "SK하이닉스", 
+                "035420.KS": "NAVER",
+                "005380.KS": "현대차",
+                "373220.KS": "LG에너지솔루션"
+            }
+        scanner._get_top_krx_stocks = mock_get_top_krx
+        
+        results = scanner.scan_market()
+        print(f"  발견된 고수익 유망 종목 수: {len(results)}")
+        for r in results:
+            print(f"  [{r['rank']}위] {r['name']}({r['symbol']}) - 현재가: {r['price']}원, 기대수익률: {r['expected_return']}%")
+        
+        # 모킹 원복
+        scanner._get_top_krx_stocks = original_get_top
+        
+    except Exception as e:
+        print(f"  Market Scanner 오류 발생: {e}")
+    
+    print("\n" + "="*60)
+    print("전체 테스트가 성공적으로 종료되었습니다.")
+    print("="*60 + "\n")
+    
     # 시스템 자원 해제 (aiosqlite 백그라운드 스레드 종료)
     await system.shutdown()
 

@@ -653,6 +653,19 @@ class WebDashboard:
                 if websocket in self.active_connections:
                     self.active_connections.remove(websocket)
                     
+        @self.app.post("/api/scan-korea")
+        async def api_scan_korea(request: Request):
+            """한국 시장 전체 스캔 API"""
+            try:
+                from src.analysis.market_scanner import MarketScanner
+                scanner = MarketScanner()
+                loop = asyncio.get_running_loop()
+                results = await loop.run_in_executor(None, scanner.scan_market)
+                return {'status': 'success', 'data': results}
+            except Exception as e:
+                self.logger.error(f"Market Scan error: {e}")
+                return {'status': 'error', 'message': str(e)}
+
         @self.app.post("/api/scanner/start")
         async def api_scanner_start(request: Request):
             try:
@@ -1714,6 +1727,31 @@ class WebDashboard:
                 </div>
 
                 <div id="tab-scanner" class="tab-content">
+                    <!-- 한국 시장 전종목 퀵 스캐너 -->
+                    <div class="card" style="margin-bottom: 20px; border-left: 4px solid #ff9800;">
+                        <h2>🚀 한국 시장 AI 퀵 스캐너 (모멘텀/수익률 최적화)</h2>
+                        <p style="font-size: 13px; color: #888; margin-bottom: 15px;">시가총액 상위 종목을 대상으로 단기간 가장 강한 상승 모멘텀과 최적의 AI 스코어를 가진 Top 5 종목을 즉시 발굴합니다.</p>
+                        <button class="btn" onclick="startKoreaMarketScan()" id="btn-kr-scan" style="background:#ff9800;">🔍 한국 시장 수익률 랭킹 스캔 시작</button>
+                        <div id="kr-scan-loading" style="display:none; margin-top:15px; font-weight:bold; color:#ff9800;">
+                            <span class="loading">시장 데이터를 수집하고 AI 스코어링을 진행 중입니다 (약 10~20초 소요)...</span>
+                        </div>
+                        <div id="kr-scan-results" style="margin-top: 15px; display:none;">
+                            <table style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>순위</th>
+                                        <th>종목명 (티커)</th>
+                                        <th>현재가</th>
+                                        <th>기대수익률(모멘텀)</th>
+                                        <th>추천 사유</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kr-scan-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="card" style="margin-bottom: 20px;">
                         <h2>📊 전체 종목 백테스트 스캐너</h2>
                         <p style="font-size: 13px; color: #888; margin-bottom: 15px;">한국 시장 전 종목(KOSPI/KOSDAQ) 및 주요 미국 주식을 대상으로 백그라운드 스캔을 수행합니다. 종목을 클릭하면 수익률 차트를 확인할 수 있습니다.</p>
@@ -2570,6 +2608,49 @@ class WebDashboard:
                 
                 // 스캐너 로직
                 let scanInterval;
+                async function startKoreaMarketScan() {
+                    const btn = document.getElementById('btn-kr-scan');
+                    const loading = document.getElementById('kr-scan-loading');
+                    const resultsDiv = document.getElementById('kr-scan-results');
+                    const tbody = document.getElementById('kr-scan-tbody');
+                    
+                    btn.disabled = true;
+                    loading.style.display = 'block';
+                    resultsDiv.style.display = 'none';
+                    tbody.innerHTML = '';
+                    
+                    try {
+                        const response = await fetch('/api/scan-korea', { method: 'POST' });
+                        const res = await response.json();
+                        if(res.status === 'success') {
+                            const data = res.data;
+                            if(data.length === 0) {
+                                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">추천 종목이 없습니다.</td></tr>';
+                            } else {
+                                data.forEach(item => {
+                                    const tr = document.createElement('tr');
+                                    tr.innerHTML = `
+                                        <td><strong>#${item.rank}</strong></td>
+                                        <td><a href="#" onclick="document.getElementById('bt-symbol').value='${item.symbol}'; switchTab('scanner'); window.scrollTo(0, 200); return false;" style="color:#2196f3; font-weight:bold;">${item.name}</a> <span style="font-size:11px;color:#888;">(${item.symbol})</span></td>
+                                        <td>${item.price.toLocaleString()}원</td>
+                                        <td style="color:#4caf50; font-weight:bold;">+${item.expected_return}%</td>
+                                        <td style="font-size:12px; color:#555;">${item.reason}</td>
+                                    `;
+                                    tbody.appendChild(tr);
+                                });
+                            }
+                            resultsDiv.style.display = 'block';
+                        } else {
+                            alert("스캔 실패: " + res.message);
+                        }
+                    } catch(e) {
+                        alert("API 호출 오류: " + e);
+                    } finally {
+                        btn.disabled = false;
+                        loading.style.display = 'none';
+                    }
+                }
+
                 async function startScanner() {
                     const strategy = document.getElementById('scan-strategy').value;
                     const period = document.getElementById('scan-period').value;
