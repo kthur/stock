@@ -133,6 +133,10 @@ class TradeLogger:
         ) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+            
+    async def close(self) -> None:
+        """데이터베이스 연결 종료"""
+        await self._conn_mgr.close()
 
 
 class AssetHistoryDB:
@@ -196,6 +200,10 @@ class AssetHistoryDB:
                 record['holdings'] = json.loads(record['holdings'])
                 result.append(record)
             return result
+
+    async def close(self) -> None:
+        """데이터베이스 연결 종료"""
+        await self._conn_mgr.close()
 
 class AIPredictionDB:
     """AI 투자 예측 기록 및 자체 평가 (aiosqlite 기반 비동기 구현)"""
@@ -302,3 +310,7 @@ class AIPredictionDB:
             await conn.commit()
         except Exception as e:
             self.logger.error(f"Error evaluating AI predictions: {e}")
+
+    async def close(self) -> None:
+        """데이터베이스 연결 종료"""
+        await self._conn_mgr.close()

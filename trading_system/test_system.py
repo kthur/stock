@@ -51,6 +51,9 @@ async def main():
     print("\n" + "="*60)
     print("데모 완료")
     print("="*60 + "\n")
+    
+    # 시스템 자원 해제 (aiosqlite 백그라운드 스레드 종료)
+    await system.shutdown()
 
 
 if __name__ == "__main__":

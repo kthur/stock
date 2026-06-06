@@ -468,6 +468,17 @@ class StockTradingSystem:
             'total_trades': len(self.order_management.orders),
             'timestamp': datetime.now().isoformat()
         }
+        
+    async def shutdown(self) -> None:
+        """시스템 리소스 정리 및 데이터베이스 연결 종료"""
+        logger.info("Shutting down trading system and cleaning up resources...")
+        if hasattr(self, 'trade_logger') and hasattr(self.trade_logger, 'close'):
+            await self.trade_logger.close()
+        if hasattr(self, 'asset_history') and hasattr(self.asset_history, 'close'):
+            await self.asset_history.close()
+        if hasattr(self, 'comp') and 'ai_db' in self.comp and hasattr(self.comp['ai_db'], 'close'):
+            await self.comp['ai_db'].close()
+        logger.info("Trading system shutdown complete.")
     
     # ===== 유명인 전략 기능 =====
     
