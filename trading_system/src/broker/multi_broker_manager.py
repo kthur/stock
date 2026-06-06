@@ -8,6 +8,9 @@ from .kiwoom import KiwoomConnector
 from .daishin import DaishinConnector
 from .hanwha import HanwhaConnector
 from .korea_investment import KoreaInvestmentConnector
+from .miraeasset import MiraeAssetConnector
+from .nh import NHConnector
+from .ls import LSConnector
 from .protocol import BrokerProtocol
 
 logger = logging.getLogger(__name__)
@@ -19,6 +22,9 @@ class BrokerType(Enum):
     DAISHIN = "daishin"
     HANWHA = "hanwha"
     KOREA_INVESTMENT = "korea_investment"
+    MIRAE_ASSET = "mirae_asset"
+    NH = "nh"
+    LS = "ls"
 
 
 class MultiBrokerManager:
@@ -39,8 +45,11 @@ class MultiBrokerManager:
         self.brokers[BrokerType.DAISHIN] = DaishinConnector()
         self.brokers[BrokerType.HANWHA] = HanwhaConnector()
         self.brokers[BrokerType.KOREA_INVESTMENT] = KoreaInvestmentConnector()
-        
-        self.logger.info("MultiBrokerManager initialized with 4 brokers")
+        self.brokers[BrokerType.MIRAE_ASSET] = MiraeAssetConnector()
+        self.brokers[BrokerType.NH] = NHConnector()
+        self.brokers[BrokerType.LS] = LSConnector()
+
+        self.logger.info("MultiBrokerManager initialized with 7 brokers")
     
     def connect(self, broker_type: BrokerType, account_number: str) -> bool:
         """
