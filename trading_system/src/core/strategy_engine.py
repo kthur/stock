@@ -40,6 +40,7 @@ class HybridStrategyEngine:
         darkpool: Any = None,
         llm_earnings: Any = None,
         stat_arb: Any = None,
+        hft_engine: Any = None,
         sentiment_weight: float = 0.3,
         technical_weight: float = 0.2,
         ml_weight: float = 0.2,
@@ -60,6 +61,7 @@ class HybridStrategyEngine:
         self.darkpool = darkpool
         self.llm_earnings = llm_earnings
         self.stat_arb = stat_arb
+        self.hft_engine = hft_engine
         
         self.price_threshold = 0.02
         self.volume_threshold = 1000000
@@ -196,6 +198,11 @@ class HybridStrategyEngine:
                 for p in pairs:
                     if symbol in p["pair"]:
                         reason += f" | Stat Arb Pair Signal: {p['signal']}"
+                        
+            # Execute HFT if available and signal is strong
+            if self.hft_engine and signal != TradeSignal.HOLD:
+                self.hft_engine.execute_micro_order(symbol, signal.name, 100)
+                reason += " | (Executed via HFT Engine)"
         
         result = StrategyResult(
             symbol=symbol,

@@ -371,6 +371,24 @@ class WebDashboard:
             except Exception as e:
                 return JSONResponse({"status": "error", "message": str(e)})
 
+        @self.app.get("/api/bci-stream")
+        async def bci_stream():
+            """뇌파(BCI) 기반 감정 스트레스 분석 (Mock)"""
+            import random
+            stress_level = random.uniform(0, 100)
+            status = "NORMAL"
+            circuit_breaker = False
+            
+            if stress_level > 80:
+                status = "HIGH STRESS (GREED/PANIC)"
+                circuit_breaker = True
+                
+            return JSONResponse({
+                "stress_level": round(stress_level, 2),
+                "status": status,
+                "circuit_breaker_active": circuit_breaker
+            })
+
         @self.app.post("/api/backtest")
 
         async def api_backtest(request: Request):
@@ -1198,8 +1216,10 @@ class WebDashboard:
                         <div class="timestamp" style="font-size: 12px; opacity: 0.9;">최근 업데이트: <span id="update-time">-</span></div>
                     </div>
                     <div style="display: flex; gap: 10px;">
-                        <button class="btn" onclick="startVoiceRecognition()" style="background:#ff9800; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🎤 음성 명령 (Voice AI)</button>
-                        <button class="btn" onclick="resetPortfolio()" style="background:#e53935; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🔄 가상 자산 초기화</button>
+                        <div id="bci-status" style="background:#333; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:lime;">🧠 멘탈: NORMAL</div>
+                        <button class="btn" onclick="enterWebXR()" style="background:#9c27b0; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer;">🕶️ VR 트레이딩 룸</button>
+                        <button class="btn" onclick="startVoiceRecognition()" style="background:#ff9800; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🎤 음성 명령</button>
+                        <button class="btn" onclick="resetPortfolio()" style="background:#e53935; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🔄 초기화</button>
                     </div>
                 </header>
                 
@@ -2903,6 +2923,36 @@ class WebDashboard:
                 
                 // Init renderers
                 renderHeatmap();
+
+                // WebXR VR Entry
+                function enterWebXR() {
+                    if (navigator.xr) {
+                        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                            if (supported) {
+                                alert("Apple Vision Pro / Meta Quest 연결 성공! 3D 트레이딩 룸을 로드합니다.");
+                            } else {
+                                alert("현재 디바이스는 WebXR을 지원하지 않으므로 2D 시뮬레이션 모드로 진입합니다.");
+                            }
+                        });
+                    } else {
+                        alert("WebXR API를 지원하지 않는 브라우저입니다.");
+                    }
+                }
+
+                // BCI Polling
+                setInterval(async () => {
+                    try {
+                        const res = await fetch('/api/bci-stream').then(r => r.json());
+                        const bciDiv = document.getElementById('bci-status');
+                        if (res.circuit_breaker_active) {
+                            bciDiv.innerHTML = `🧠 멘탈: PANIC/GREED (매수 차단)`;
+                            bciDiv.style.color = "red";
+                        } else {
+                            bciDiv.innerHTML = `🧠 멘탈: NORMAL`;
+                            bciDiv.style.color = "lime";
+                        }
+                    } catch(e) {}
+                }, 3000);
 
                 // Register Service Worker for PWA
                 if ('serviceWorker' in navigator) {

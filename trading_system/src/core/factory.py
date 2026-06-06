@@ -20,6 +20,8 @@ from src.data_layer.darkpool_tracker import DarkPoolTracker
 from src.ai.llm_earnings_agent import LLMEarningsAgent
 from src.ai.llm_integration import LLMEngine
 from src.core.stat_arb import StatisticalArbitrageEngine
+from src.core.hft_engine import HFTEngine
+from src.analysis.quantum_optimizer import QuantumPortfolioOptimizer
 from src.utils.notifier import NotificationSystem
 from dotenv import load_dotenv
 import os
@@ -40,6 +42,8 @@ class SystemFactory:
         darkpool = DarkPoolTracker()
         llm_earnings = LLMEarningsAgent(llm_engine=LLMEngine())
         stat_arb = StatisticalArbitrageEngine()
+        hft_engine = HFTEngine()
+        quantum_opt = QuantumPortfolioOptimizer()
         
         strategy_engine = HybridStrategyEngine(
             event_bus=event_bus, 
@@ -48,9 +52,11 @@ class SystemFactory:
             alt_client=alt_client,
             darkpool=darkpool,
             llm_earnings=llm_earnings,
-            stat_arb=stat_arb
+            stat_arb=stat_arb,
+            hft_engine=hft_engine
         )
         portfolio = PortfolioManager(initial_cash=initial_cash)
+        portfolio.quantum_opt = quantum_opt # Inject quantum optimizer into portfolio
         notifier = NotificationSystem()
 
         return {
