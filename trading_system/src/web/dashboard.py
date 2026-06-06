@@ -1962,7 +1962,11 @@ class WebDashboard:
                                 <h3>📱 실시간 알림 연동 (Telegram / Slack)</h3>
                                 <div style="margin-bottom: 15px;">
                                     <label style="display: block; margin-bottom: 5px;">Webhook URL 또는 Bot Token</label>
-                                    <input type="text" class="input-control" id="settings-webhook" placeholder="https://api.telegram.org/bot...">
+                                    <input type="text" class="input-control" id="settings-webhook" placeholder="https://api.telegram.org/bot<token>">
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px;">Telegram Chat ID (텔레그램 사용 시 필수)</label>
+                                    <input type="text" class="input-control" id="settings-chat-id" placeholder="123456789">
                                 </div>
                                 <div style="margin-bottom: 15px;">
                                     <label style="display: flex; align-items: center; cursor: pointer;">
@@ -1980,7 +1984,7 @@ class WebDashboard:
                         </div>
                         
                         <div style="margin-top: 20px; text-align: right;">
-                            <button class="btn" style="background: #2196f3; padding: 10px 30px; font-size: 15px; font-weight: bold;" onclick="alert('설정이 저장되었습니다. (데모 UI)')">💾 저장하기</button>
+                            <button class="btn" style="background: #2196f3; padding: 10px 30px; font-size: 15px; font-weight: bold;" onclick="saveSettings()">💾 저장하기</button>
                         </div>
                     </div>
                 </div>
@@ -1993,6 +1997,63 @@ class WebDashboard:
             <script>
                 let equityChart = null;
                 let pieChart = null;
+                
+                // 설정 저장 로직
+                function loadSettings() {
+                    document.getElementById('settings-llm-provider').value = localStorage.getItem('settings_llm_provider') || 'openai';
+                    document.getElementById('settings-api-key').value = localStorage.getItem('settings_api_key') || '';
+                    document.getElementById('settings-webhook').value = localStorage.getItem('settings_webhook') || '';
+                    document.getElementById('settings-chat-id').value = localStorage.getItem('settings_chat_id') || '';
+                    document.getElementById('settings-notify-trade').checked = (localStorage.getItem('settings_notify_trade') !== 'false');
+                    document.getElementById('settings-notify-scan').checked = (localStorage.getItem('settings_notify_scan') !== 'false');
+                }
+                
+                function saveSettings() {
+                    localStorage.setItem('settings_llm_provider', document.getElementById('settings-llm-provider').value);
+                    localStorage.setItem('settings_api_key', document.getElementById('settings-api-key').value);
+                    localStorage.setItem('settings_webhook', document.getElementById('settings-webhook').value);
+                    localStorage.setItem('settings_chat_id', document.getElementById('settings-chat-id').value);
+                    localStorage.setItem('settings_notify_trade', document.getElementById('settings-notify-trade').checked);
+                    localStorage.setItem('settings_notify_scan', document.getElementById('settings-notify-scan').checked);
+                    
+                    alert('환경설정이 성공적으로 저장되었습니다.');
+                }
+                
+                async function sendNotification(message) {
+                    const webhook = localStorage.getItem('settings_webhook');
+                    if (!webhook || webhook.trim() === '') return;
+                    
+                    try {
+                        let url = webhook;
+                        let body = null;
+                        
+                        if (url.includes('api.telegram.org')) {
+                            if (!url.endsWith('/sendMessage')) {
+                                url = url.replace(/\\/$/, '') + '/sendMessage';
+                            }
+                            const chatId = localStorage.getItem('settings_chat_id');
+                            if (!chatId) {
+                                console.error('Telegram Chat ID가 설정되지 않았습니다.');
+                                return;
+                            }
+                            body = { chat_id: chatId, text: message, parse_mode: 'HTML' };
+                        } else {
+                            body = { text: message };
+                        }
+                        
+                        console.log('Sending notification:', message);
+                        await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                    } catch (e) {
+                        console.error('Notification failed:', e);
+                    }
+                }
+                
+                document.addEventListener('DOMContentLoaded', loadSettings);
+
 
                 // 데이터 갱신
                 async function updateData() {
