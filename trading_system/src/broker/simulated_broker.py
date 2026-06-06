@@ -3,7 +3,6 @@ import random
 from datetime import datetime
 from typing import Dict, List, Optional, cast
 from dataclasses import dataclass
-from typing import cast
 
 logger = logging.getLogger(__name__)
 

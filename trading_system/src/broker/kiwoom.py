@@ -1,6 +1,6 @@
 """Kiwoom API Integration - 키움증권 API 통합"""
 
-from typing import Dict, List, Optional, Callable, Any, cast
+from typing import Dict, List, Optional, Callable, cast
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
@@ -68,7 +68,7 @@ class KiwoomConnector:
                 self.is_connected = True
                 self.account_number = account_number
                 self._init_simulated_account()
-                self.logger.info(f"Connected to Kiwoom API (simulation mode)")
+                self.logger.info("Connected to Kiwoom API (simulation mode)")
             else:
                 # 32비트 마이크로서비스로 ZeroMQ 통신
                 import zmq

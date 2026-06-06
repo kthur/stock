@@ -1,7 +1,6 @@
 import os
 import aiohttp
 import logging
-from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 

@@ -103,7 +103,7 @@ class OrderManagementSystem:
             filled_quantity = order.quantity
         
         if filled_quantity > order.quantity:
-            self.logger.warning(f"Filled quantity exceeds order quantity")
+            self.logger.warning("Filled quantity exceeds order quantity")
             filled_quantity = order.quantity
         
         order.filled_quantity = filled_quantity

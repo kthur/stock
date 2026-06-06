@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 try:
     from reportlab.lib.pagesizes import letter

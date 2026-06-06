@@ -48,7 +48,6 @@ class BuffettStrategy:
         - 안정적 현금흐름
         """
         symbol = stock_data.get('symbol', 'UNKNOWN')
-        price = stock_data.get('price', 0)
         pe_ratio = stock_data.get('pe_ratio')
         pb_ratio = stock_data.get('pb_ratio')
         roe = stock_data.get('roe', 0)
@@ -133,7 +132,6 @@ class LynchStrategy:
         earnings_growth = stock_data.get('earnings_growth', 0)
         revenue_growth = stock_data.get('revenue_growth', 0)
         pe_ratio = stock_data.get('pe_ratio')
-        market_cap = stock_data.get('market_cap', 0)
         industry_growth = stock_data.get('industry_growth', 0)
         
         reasons = []
@@ -342,7 +340,7 @@ class DividendStrategy:
         
         # 잉여현금흐름
         if fcf > 0:
-            reasons.append(f"잉여현금흐름 양수 - 배당 뒷받침")
+            reasons.append("잉여현금흐름 양수 - 배당 뒷받침")
             score += 0.5
         
         confidence = min(score / max_score, 1.0)

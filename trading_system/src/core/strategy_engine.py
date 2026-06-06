@@ -141,8 +141,10 @@ class HybridStrategyEngine:
                     rl_res = self.rl_engine.get_action(state)
                     rl_action = rl_res["action"]
                     # Map action to score: BUY -> 1.0, SELL -> 0.0, HOLD -> 0.5
-                    if rl_action == "BUY": rl_score = 1.0
-                    elif rl_action == "SELL": rl_score = 0.0
+                    if rl_action == "BUY":
+                        rl_score = 1.0
+                    elif rl_action == "SELL":
+                        rl_score = 0.0
                 except Exception as e:
                     self.logger.warning(f"RL Action failed: {e}")
                     

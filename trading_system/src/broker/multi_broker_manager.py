@@ -2,7 +2,6 @@
 
 import logging
 from typing import Dict, Optional, List
-from datetime import datetime
 from enum import Enum
 
 from .kiwoom import KiwoomConnector

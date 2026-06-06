@@ -1,7 +1,7 @@
 """텔레그램 봇 엔진 - 트레이딩 시스템 모니터링 및 제어"""
 
 import logging
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List
 from datetime import datetime
 import os
 from src.utils.async_helper import run_async
@@ -240,9 +240,9 @@ class TelegramBotEngine:
             return "❌ 시스템 연동 안됨"
         
         response = f"🔍 *{symbol} 분석*\n\n"
-        response += f"현재가: $150.00\n"
-        response += f"변동률: ↑ 1.5%\n"
-        response += f"거래량: 1.2M\n\n"
+        response += "현재가: $150.00\n"
+        response += "변동률: ↑ 1.5%\n"
+        response += "거래량: 1.2M\n\n"
         response += "💡 AI 분석:\n"
         response += "  추천: 🟢 매수\n"
         response += "  신뢰도: 85%\n"
@@ -288,12 +288,12 @@ class TelegramBotEngine:
             
         try:
             order_id = run_async(execute_buy_action())
-            response = f"✅ *실시간 매수 체결 완료*\n\n"
+            response = "✅ *실시간 매수 체결 완료*\n\n"
             response += f"종목: {raw_symbol} ({symbol})\n"
             response += f"수량: {quantity}주\n"
             response += f"가격: {price_label} (체결가: ${price:,.2f})\n"
             response += f"주문번호: `{order_id}`\n"
-            response += f"상태: 체결완료(EXECUTED)\n"
+            response += "상태: 체결완료(EXECUTED)\n"
         except Exception as e:
             response = f"❌ 주문 실행 실패: {str(e)}"
             
@@ -333,12 +333,12 @@ class TelegramBotEngine:
             
         try:
             order_id = run_async(execute_sell_action())
-            response = f"✅ *실시간 매도 체결 완료*\n\n"
+            response = "✅ *실시간 매도 체결 완료*\n\n"
             response += f"종목: {raw_symbol} ({symbol})\n"
             response += f"수량: {quantity}주\n"
             response += f"가격: {price_label} (체결가: ${price:,.2f})\n"
             response += f"주문번호: `{order_id}`\n"
-            response += f"상태: 체결완료(EXECUTED)\n"
+            response += "상태: 체결완료(EXECUTED)\n"
         except Exception as e:
             response = f"❌ 주문 실행 실패: {str(e)}"
             
@@ -356,11 +356,11 @@ class TelegramBotEngine:
         try:
             success = run_async(self.trading_system.order_management.cancel_order(order_id))
             if success:
-                response = f"✅ *주문 취소 완료*\n\n"
+                response = "✅ *주문 취소 완료*\n\n"
                 response += f"주문번호: `{order_id}`\n"
-                response += f"상태: 취소됨(CANCELLED)\n"
+                response += "상태: 취소됨(CANCELLED)\n"
             else:
-                response = f"❌ 주문 취소 거부: 해당 주문을 취소할 수 없습니다. (이미 체결되었거나 만료됨)"
+                response = "❌ 주문 취소 거부: 해당 주문을 취소할 수 없습니다. (이미 체결되었거나 만료됨)"
         except Exception as e:
             response = f"❌ 취소 실패: {str(e)}"
             
@@ -400,7 +400,7 @@ class TelegramBotEngine:
         
         response = f"🔄 *{broker} 연결 중...*\n\n"
         response += f"계좌: {account}\n"
-        response += f"상태: ✅ 연결됨\n"
+        response += "상태: ✅ 연결됨\n"
         
         return response
     
@@ -435,8 +435,8 @@ class TelegramBotEngine:
             response = "🎯 *활성 자동매매 전략 조회*\n\n"
             response += f"현재 설정된 전략: `{current_strategy}`\n\n"
             response += "💡 전략을 변경하려면 명령어 뒤에 아래의 전략명을 지정하세요.\n"
-            response += f"사용법: `/strategy [전략명]`\n"
-            response += f"지원하는 전략 목록:\n"
+            response += "사용법: `/strategy [전략명]`\n"
+            response += "지원하는 전략 목록:\n"
             for s in available_strategies:
                 response += f"  • `{s}`\n"
             return response

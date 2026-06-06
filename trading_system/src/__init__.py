@@ -22,6 +22,8 @@ __all__ = [
     'HybridStrategyEngine',
     'OptimizationEngine',
     'OrderManagementSystem',
+    'OrderType',
+    'TradeSignal',
     'TradeLogger',
     'AssetHistoryDB'
 ]

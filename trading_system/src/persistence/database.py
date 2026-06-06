@@ -288,18 +288,28 @@ class AIPredictionDB:
                     
                     score = 0.5
                     if rec == 'BUY':
-                        if price_diff_pct > 0.05: score = 1.0
-                        elif price_diff_pct > 0: score = 0.8
-                        elif price_diff_pct < -0.05: score = 0.0
-                        else: score = 0.3
+                        if price_diff_pct > 0.05:
+                            score = 1.0
+                        elif price_diff_pct > 0:
+                            score = 0.8
+                        elif price_diff_pct < -0.05:
+                            score = 0.0
+                        else:
+                            score = 0.3
                     elif rec == 'SELL':
-                        if price_diff_pct < -0.05: score = 1.0
-                        elif price_diff_pct < 0: score = 0.8
-                        elif price_diff_pct > 0.05: score = 0.0
-                        else: score = 0.3
+                        if price_diff_pct < -0.05:
+                            score = 1.0
+                        elif price_diff_pct < 0:
+                            score = 0.8
+                        elif price_diff_pct > 0.05:
+                            score = 0.0
+                        else:
+                            score = 0.3
                     else:
-                        if abs(price_diff_pct) < 0.05: score = 1.0
-                        else: score = 0.0
+                        if abs(price_diff_pct) < 0.05:
+                            score = 1.0
+                        else:
+                            score = 0.0
                         
                     await conn.execute('UPDATE predictions SET evaluated = 1, accuracy_score = ? WHERE id = ?', (score, row['id']))
                     self.logger.info(f"Evaluated AI prediction for {symbol} (Rec: {rec}, Score: {score})")

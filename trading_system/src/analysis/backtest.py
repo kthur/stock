@@ -2,10 +2,9 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Callable, Optional, Any, cast
+from typing import List, Dict, Tuple, Callable, Optional, cast
 import logging
 import itertools
-import math
 import pandas as pd
 import numpy as np
 from .ml_engine import MLEngine
@@ -927,7 +926,8 @@ class BacktestEngine:
 
     def _rsi_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """RSI 과매도/과매수 전략"""
-        if params is None: params = {}
+        if params is None:
+            params = {}
         window = params.get('window', 14)
         buy_threshold = params.get('buy_threshold', 30)
         sell_threshold = params.get('sell_threshold', 70)
@@ -948,7 +948,8 @@ class BacktestEngine:
             
     def _macd_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """MACD 전략 (진짜 EMA 기반: EMA12/EMA26/Signal9)"""
-        if params is None: params = {}
+        if params is None:
+            params = {}
         fast = params.get('fast', 12)
         slow = params.get('slow', 26)
         signal_period = params.get('signal', 9)
@@ -962,18 +963,16 @@ class BacktestEngine:
         curr_hist = hist[L-1]
         prev_hist = hist[L-2]
         
-        # 히스토그램이 음→양 전환: 매수 (골든크로스)
         if prev_hist < 0 and curr_hist > 0:
             return "BUY"
-        # 히스토그램이 양→음 전환: 매도 (데드크로스)
         elif prev_hist > 0 and curr_hist < 0:
             return "SELL"
         else:
             return "HOLD"
             
     def _buffett_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
-        """워렌 버핏 Proxy (가치투자/역발상): 200일선 아래 크게 하락하고 단기 과매도 시 매수"""
-        if len(bars) < 200: return "HOLD"
+        if len(bars) < 200:
+            return "HOLD"
         L = len(bars)
         closes = self._get_closes()
         current_price = closes[L-1]
@@ -987,8 +986,8 @@ class BacktestEngine:
         return "HOLD"
         
     def _lynch_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
-        """피터 린치 Proxy (성장/모멘텀): 50일 신고가 및 평균 거래량 돌파 시 매수"""
-        if len(bars) < 50: return "HOLD"
+        if len(bars) < 50:
+            return "HOLD"
         L = len(bars)
         closes = self._get_closes()
         current_price = closes[L-1]
@@ -1005,8 +1004,8 @@ class BacktestEngine:
         return "HOLD"
         
     def _dalio_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
-        """레이 달리오 Proxy (안정적 추세): 200일선 위에서 변동성이 적을 때 매수"""
-        if len(bars) < 200: return "HOLD"
+        if len(bars) < 200:
+            return "HOLD"
         L = len(bars)
         closes = self._get_closes()
         current_price = closes[L-1]
@@ -1021,8 +1020,8 @@ class BacktestEngine:
         return "HOLD"
 
     def _trend_following_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
-        """추세 추종(Trend Following): 가격이 200일선 위에 있고 단기 이평(20일)이 중기 이평(50일) 위에 있을 때 매수"""
-        if len(bars) < 200: return "HOLD"
+        if len(bars) < 200:
+            return "HOLD"
         L = len(bars)
         closes = self._get_closes()
         current_price = closes[L-1]
@@ -1071,7 +1070,8 @@ class BacktestEngine:
         상단 밴드 터치 + RSI 과매수 → SELL
         횡보장/박스권에서 높은 수익률을 기대할 수 있음
         """
-        if params is None: params = {}
+        if params is None:
+            params = {}
         bb_period = params.get('bb_period', 20)
         bb_std_mult = params.get('bb_std_mult', 2.0)
         rsi_window = params.get('rsi_window', 14)

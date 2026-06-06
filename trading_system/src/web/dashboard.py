@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 import logging
 import json
 import urllib.parse
@@ -11,6 +11,10 @@ import math
 import concurrent.futures
 import urllib.request
 import os
+
+from src.telegram_bot.mini_app import init_mini_app
+from src.utils.stock_list import get_tickers, get_tickers_rev
+from src.core.order_management import OrderType
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
@@ -23,11 +27,6 @@ except ImportError:
     _WebSocket = None  # type: ignore
 
 logger = logging.getLogger(__name__)
-
-from src.utils.event_bus import EventBus
-from src.telegram_bot.mini_app import init_mini_app
-from src.utils.stock_list import get_tickers, get_tickers_rev
-from src.core.order_management import OrderType
 
 class WebDashboard:
     """웹 대시보드"""
@@ -577,8 +576,7 @@ class WebDashboard:
             self.active_connections.append(websocket)
             try:
                 while True:
-                    # Keep connection alive
-                    data = await websocket.receive_text()
+                    await websocket.receive_text()
             except WebSocketDisconnect:
                 self.active_connections.remove(websocket)
             except Exception as e:

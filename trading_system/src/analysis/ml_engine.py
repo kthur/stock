@@ -1,8 +1,7 @@
 """Machine Learning Engine - 가격 상승 예측 모델"""
 
 import pandas as pd
-import numpy as np
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Any
 import logging
 
 try:

@@ -1,6 +1,6 @@
 """Asset Management - 포트폴리오 및 자산 관리"""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Callable, Optional
 
