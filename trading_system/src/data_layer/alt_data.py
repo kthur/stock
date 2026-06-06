@@ -1,31 +1,32 @@
 import yfinance as yf
 import logging
+import numpy as np
 from typing import Dict, Any
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 class AlternativeDataClient:
-    """대체 데이터(Alternative Data) 수집 모듈
-    VIX 지수, 풋/콜 비율, 거시경제 지표 등을 수집하여 시장 레짐(Market Regime) 파악에 활용합니다.
-    """
-    
+    """대체 데이터(Alternative Data) 수집 - 시장 레짐 및 추세 탐지"""
+
     def __init__(self):
         self._cache = {}
+        self._last_spx_fetch: datetime | None = None
+        self._spx_history: list = []
 
     def fetch_vix(self) -> float:
-        """현재 VIX(변동성 지수) 조회"""
         try:
             vix = yf.Ticker("^VIX")
             hist = vix.history(period="1d")
             if not hist.empty:
                 return float(hist['Close'].iloc[-1])
-            return 20.0 # fallback
+            return 20.0
         except Exception as e:
-            logger.error(f"VIX 조회 실패: {e}")
+            logger.error(f"VIX fetch failed: {e}")
             return 20.0
 
     def fetch_fear_and_greed_proxy(self) -> str:
-        """VIX 기반 공포 탐욕 지수 프록시 계산"""
         vix = self.fetch_vix()
         if vix >= 30:
             return "EXTREME_FEAR"
@@ -37,14 +38,70 @@ class AlternativeDataClient:
             return "EXTREME_GREED"
         return "NEUTRAL"
 
+    def _fetch_spx_trend(self) -> Dict[str, Any]:
+        try:
+            spx = yf.Ticker("^GSPC")
+            hist = spx.history(period="6mo")
+            if hist.empty or len(hist) < 50:
+                return {"trend": "NEUTRAL", "strength": 0.0}
+            closes = hist['Close'].values
+            sma50 = np.mean(closes[-50:])
+            sma200 = np.mean(closes[-200:]) if len(closes) >= 200 else sma50
+            current = closes[-1]
+            returns_1m = (closes[-1] / closes[-21] - 1) if len(closes) >= 21 else 0.0
+            returns_3m = (closes[-1] / closes[-63] - 1) if len(closes) >= 63 else 0.0
+
+            if current > sma50 and returns_1m > 0.02:
+                trend = "BULL"
+                strength = min(abs(returns_3m) * 5.0, 1.0)
+            elif current < sma50 and returns_1m < -0.02:
+                trend = "BEAR"
+                strength = min(abs(returns_3m) * 5.0, 1.0)
+            elif sma50 > sma200:
+                trend = "BULLISH"
+                strength = 0.3
+            elif sma50 < sma200:
+                trend = "BEARISH"
+                strength = 0.3
+            else:
+                trend = "NEUTRAL"
+                strength = 0.0
+
+            self._spx_history = closes.tolist()
+            return {"trend": trend, "strength": round(strength, 3)}
+        except Exception as e:
+            logger.error(f"SPX fetch failed: {e}")
+            return {"trend": "NEUTRAL", "strength": 0.0}
+
+    def _detect_volatility_regime(self, vix: float) -> str:
+        if vix >= 30:
+            return "CRISIS"
+        elif vix >= 25:
+            return "HIGH_VOL"
+        elif vix >= 18:
+            return "NORMAL"
+        elif vix >= 12:
+            return "LOW_VOL"
+        else:
+            return "COMPRESSION"
+
     def get_market_regime(self) -> Dict[str, Any]:
-        """시장의 전반적인 레짐(체제) 정보 반환"""
         vix = self.fetch_vix()
         sentiment = self.fetch_fear_and_greed_proxy()
-        
+        trend_info = self._fetch_spx_trend()
+        vol_regime = self._detect_volatility_regime(vix)
+
+        trend = trend_info["trend"]
+        trend_strength = trend_info["strength"] * (1.0 if trend in ("BULL", "BULLISH") else -1.0)
+
         return {
             "vix": vix,
             "sentiment": sentiment,
+            "volatility_regime": vol_regime,
+            "trend": trend,
+            "trend_strength": trend_strength,
             "is_high_volatility": vix > 25,
-            "is_bull_market": sentiment in ["GREED", "EXTREME_GREED"]
+            "is_bull_market": trend in ("BULL", "BULLISH"),
+            "is_bear_market": trend in ("BEAR", "BEARISH"),
+            "regime_score": round(trend_strength * 0.6 + (1.0 - vix / 50.0) * 0.4, 3),
         }

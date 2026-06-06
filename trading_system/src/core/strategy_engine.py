@@ -31,6 +31,8 @@ class StrategyResult:
 
 class HybridStrategyEngine:
     
+    SIGNAL_NAMES = ["sentiment", "technical", "ml", "rl", "darkpool", "llm"]
+    
     def __init__(
         self,
         event_bus: EventBus | None = None,
@@ -50,6 +52,8 @@ class HybridStrategyEngine:
         spread_threshold: float = 0.001,
         buy_price_threshold: float = 1.01,
         sell_threshold: float = 0.4,
+        weight_adaptation_rate: float = 0.05,
+        weight_adaptation_window: int = 50,
     ) -> None:
         self.logger = logger
         self.results_history: List[StrategyResult] = []
@@ -74,6 +78,11 @@ class HybridStrategyEngine:
         self.spread_threshold = spread_threshold
         self.buy_price_threshold = buy_price_threshold
         self.sell_threshold = sell_threshold
+        self.weight_adaptation_rate = weight_adaptation_rate
+        self.weight_adaptation_window = weight_adaptation_window
+        
+        self._signal_performance: Dict[str, List[bool]] = {s: [] for s in self.SIGNAL_NAMES}
+        self._signal_scores: Dict[str, float] = {}
     
     def subscribe(self, callback: Callable) -> None:
         """전략 신호 구독"""
@@ -172,6 +181,31 @@ class HybridStrategyEngine:
                             rl_score * self.rl_weight +
                             darkpool_score * self.darkpool_weight +
                             llm_score * self.llm_weight)
+            
+            raw_scores = {
+                "sentiment": sentiment_score,
+                "technical": technical_score,
+                "ml": ml_score,
+                "rl": rl_score,
+                "darkpool": darkpool_score,
+                "llm": llm_score,
+            }
+            
+            regime = alt_regime or {}
+            if regime.get("is_high_volatility"):
+                adjusted = {
+                    "sentiment": self.sentiment_weight * 0.8,
+                    "technical": self.technical_weight * 1.5,
+                    "ml": self.ml_weight * 0.7,
+                    "rl": self.rl_weight * 1.3,
+                    "darkpool": self.darkpool_weight * 1.2,
+                    "llm": self.llm_weight * 0.8,
+                }
+                total_adj = sum(adjusted.values())
+                if total_adj > 0:
+                    weights = {k: v / total_adj for k, v in adjusted.items()}
+                    combined_score = sum(raw_scores[k] * weights[k] for k in self.SIGNAL_NAMES)
+            
             confidence = combined_score
             
             if combined_score > 0.7:
@@ -231,6 +265,62 @@ class HybridStrategyEngine:
         self.logger.info(f"Strategy result: {result}")
         return result
 
+    def record_signal_outcome(self, signal_name: str, was_correct: bool) -> None:
+        if signal_name not in self._signal_performance:
+            return
+        self._signal_performance[signal_name].append(was_correct)
+        if len(self._signal_performance[signal_name]) > self.weight_adaptation_window * 2:
+            self._signal_performance[signal_name] = self._signal_performance[signal_name][-self.weight_adaptation_window:]
+        if len(self.results_history) % self.weight_adaptation_window == 0:
+            self._adapt_weights()
+
+    def _adapt_weights(self) -> None:
+        accuracies = {}
+        for name in self.SIGNAL_NAMES:
+            perf = self._signal_performance.get(name, [])
+            if len(perf) >= 10:
+                accuracies[name] = sum(perf) / len(perf)
+        if len(accuracies) < 3:
+            return
+        avg_acc = sum(accuracies.values()) / len(accuracies)
+        weight_map = {
+            "sentiment": "sentiment_weight",
+            "technical": "technical_weight",
+            "ml": "ml_weight",
+            "rl": "rl_weight",
+            "darkpool": "darkpool_weight",
+            "llm": "llm_weight",
+        }
+        for name, acc in accuracies.items():
+            attr = weight_map.get(name)
+            if attr is None:
+                continue
+            current = getattr(self, attr)
+            if acc > avg_acc:
+                setattr(self, attr, current * (1.0 + self.weight_adaptation_rate))
+            else:
+                setattr(self, attr, current * (1.0 - self.weight_adaptation_rate))
+        self._normalize_weights()
+
+    def _normalize_weights(self) -> None:
+        total = (self.sentiment_weight + self.technical_weight +
+                 self.ml_weight + self.rl_weight +
+                 self.darkpool_weight + self.llm_weight)
+        if total == 0:
+            return
+        self.sentiment_weight /= total
+        self.technical_weight /= total
+        self.ml_weight /= total
+        self.rl_weight /= total
+        self.darkpool_weight /= total
+        self.llm_weight /= total
+        self.logger.info(
+            f"Weights adapted: sentiment={self.sentiment_weight:.3f} "
+            f"technical={self.technical_weight:.3f} ml={self.ml_weight:.3f} "
+            f"rl={self.rl_weight:.3f} darkpool={self.darkpool_weight:.3f} "
+            f"llm={self.llm_weight:.3f}"
+        )
+
 
 class OptimizationEngine:
     """최적화 엔진 - 슬리피지 및 손익 기반 파라미터 튜닝"""
@@ -246,7 +336,8 @@ class OptimizationEngine:
         self.total_slippage = 0.0
     
     def record_trade_result(self, signal: TradeSignal, entry_price: float, 
-                           exit_price: float, quantity: int) -> None:
+                           exit_price: float, quantity: int,
+                           signal_name: str | None = None) -> None:
         """트레이드 결과 기록"""
         if signal == TradeSignal.BUY:
             slippage = abs(entry_price - exit_price) / entry_price
@@ -260,6 +351,11 @@ class OptimizationEngine:
         if is_win:
             self.winning_trades += 1
         self.total_slippage += slippage
+        
+        if signal_name and is_win:
+            self.strategy_engine.record_signal_outcome(signal_name, True)
+        elif signal_name:
+            self.strategy_engine.record_signal_outcome(signal_name, False)
         
         self.logger.info(f"Trade recorded: PnL={pnl}, slippage={slippage:.4f}")
     
@@ -293,6 +389,8 @@ class OptimizationEngine:
         
         if avg_slippage > 0.01:
             self.logger.warning(f"High slippage detected: {avg_slippage:.4f}")
+        
+        self.strategy_engine._adapt_weights()
         
         self.optimization_history.append(optimization)
         return optimization
