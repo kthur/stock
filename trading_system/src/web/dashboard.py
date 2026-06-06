@@ -90,6 +90,24 @@ class WebDashboard:
                 "Expires": "0"
             }
             return HTMLResponse(content=self.get_dashboard_html(), headers=headers)
+
+        @self.app.get("/api/health")
+        async def api_health():
+            """헬스체크"""
+            has_oms = hasattr(self.trading_system, 'order_management') and self.trading_system.order_management is not None
+            has_portfolio = hasattr(self.trading_system, 'portfolio') and self.trading_system.portfolio is not None
+            status = "healthy"
+            if not has_oms or not has_portfolio:
+                status = "degraded"
+            return {
+                "status": status,
+                "components": {
+                    "order_management": has_oms,
+                    "portfolio": has_portfolio,
+                },
+                "timestamp": datetime.now().isoformat(),
+            }
+
         @self.app.get("/manifest.json")
         async def get_manifest():
             return {

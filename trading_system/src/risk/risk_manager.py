@@ -63,6 +63,7 @@ class RiskManager:
         self.atr_multiplier_target = atr_multiplier_target
         self.volatility_scaling = volatility_scaling
         self.position_limits: Dict[str, float] = {}
+        self._correlation_matrix: Dict[str, Dict[str, float]] = {}
         
         self.active_strategy = "HYBRID"
         
@@ -232,7 +233,7 @@ class RiskManager:
         return drawdown
     
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:
-        """현재 위험 수준 계산 (drawdown + 포지션 집중도 기반)"""
+        """현재 위험 수준 계산 (drawdown + 포지션 집중도 + 상관관계 기반)"""
         drawdown = self.calculate_drawdown()
         concentration_risk = 0.0
         
@@ -242,14 +243,41 @@ class RiskManager:
                 max_single = max(abs(v) for v in positions.values())
                 concentration_risk = max_single / total_exposure
         
-        if drawdown >= self.max_drawdown_allowed or concentration_risk > 0.50:
+        correlation_risk = self._calculate_correlation_risk(list(positions.keys()))
+        
+        combined_risk = max(concentration_risk, correlation_risk)
+        
+        if drawdown >= self.max_drawdown_allowed or combined_risk > 0.50:
             return RiskLevel.CRITICAL
-        elif drawdown >= self.max_drawdown_allowed * 0.5 or concentration_risk > 0.35:
+        elif drawdown >= self.max_drawdown_allowed * 0.5 or combined_risk > 0.35:
             return RiskLevel.HIGH
-        elif drawdown >= self.max_drawdown_allowed * 0.25 or concentration_risk > 0.25:
+        elif drawdown >= self.max_drawdown_allowed * 0.25 or combined_risk > 0.25:
             return RiskLevel.MEDIUM
         else:
             return RiskLevel.LOW
+
+    def update_correlation(self, symbol_a: str, symbol_b: str, correlation: float) -> None:
+        if symbol_a not in self._correlation_matrix:
+            self._correlation_matrix[symbol_a] = {}
+        if symbol_b not in self._correlation_matrix:
+            self._correlation_matrix[symbol_b] = {}
+        self._correlation_matrix[symbol_a][symbol_b] = correlation
+        self._correlation_matrix[symbol_b][symbol_a] = correlation
+
+    def _calculate_correlation_risk(self, symbols: list) -> float:
+        if len(symbols) < 2:
+            return 0.0
+        high_corr_pairs = 0
+        total_pairs = 0
+        for i in range(len(symbols)):
+            for j in range(i + 1, len(symbols)):
+                total_pairs += 1
+                corr = self._correlation_matrix.get(symbols[i], {}).get(symbols[j], 0.0)
+                if abs(corr) > 0.7:
+                    high_corr_pairs += 1
+        if total_pairs == 0:
+            return 0.0
+        return high_corr_pairs / total_pairs
     
     def get_risk_adjusted_position_size(self, base_quantity: int, risk_level: RiskLevel) -> int:
         """위험 수준 기반 포지션 크기 조정"""
