@@ -2341,9 +2341,9 @@ class WebDashboard:
                         alert("내보낼 거래 내역이 없습니다.");
                         return;
                     }
-                    let csv = "진입일,진입가,청산일,청산가,포지션,수량,수익률,수익금,종료이유\n";
+                    let csv = "진입일,진입가,청산일,청산가,포지션,수량,수익률,수익금,종료이유\\n";
                     for (let t of lastTrades) {
-                        csv += `${t.entry_date},${t.entry_price},${t.exit_date},${t.exit_price},${t.direction},${t.quantity},${t.pnl_pct},${t.pnl},${t.exit_reason}\n`;
+                        csv += `${t.entry_date},${t.entry_price},${t.exit_date},${t.exit_price},${t.direction},${t.quantity},${t.pnl_pct},${t.pnl},${t.exit_reason}\\n`;
                     }
                     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                     const url = URL.createObjectURL(blob);

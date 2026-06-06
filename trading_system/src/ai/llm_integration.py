@@ -47,7 +47,7 @@ class InvestmentOpinion:
 class LLMEngine:
     """LLM 엔진 - OpenAI 및 Google Gemini API 통합"""
     
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, provider: str = "openai"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, provider: Optional[str] = None):
         """
         LLM 엔진 초기화
         
@@ -56,7 +56,7 @@ class LLMEngine:
             model: 사용할 모델
             provider: LLM 제공자 ("openai", "gemini")
         """
-        self.provider = provider.lower()
+        self.provider = (provider or os.getenv("LLM_PROVIDER", "openai")).lower()
         self.logger = logger
         self.query_history: list = []
         
