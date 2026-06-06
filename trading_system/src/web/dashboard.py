@@ -24,6 +24,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+from src.utils.event_bus import EventBus
+from src.telegram_bot.mini_app import init_mini_app
 from src.utils.stock_list import get_tickers, get_tickers_rev
 from src.core.order_management import OrderType
 
@@ -52,6 +54,10 @@ class WebDashboard:
         
         if HAS_FASTAPI:
             self.app = FastAPI(title="Stock Trading Dashboard")
+            
+            # Initialize telegram mini app
+            init_mini_app(self.app)
+            
             self._setup_routes()
             
             # 이벤트 버스 구독 등록 (비동기 처리 - 이벤트 루프 안전)
@@ -342,6 +348,26 @@ class WebDashboard:
                 
                 from fastapi.responses import FileResponse
                 return FileResponse(output_path, media_type='application/pdf', filename=f"backtest_report_{body.get('symbol', 'TEST')}.pdf")
+            except Exception as e:
+                return JSONResponse({"status": "error", "message": str(e)})
+
+        @self.app.post("/api/voice-command")
+        async def voice_command(request: Request):
+            """음성 인식 텍스트 처리 API"""
+            try:
+                body = await request.json()
+                text = body.get("text", "").lower()
+                
+                # 매우 간단한 NLP 파싱 (Mock)
+                response_msg = "명령을 이해하지 못했습니다."
+                if "매수" in text or "buy" in text:
+                    response_msg = "음성 매수 주문이 접수되었습니다. (데모)"
+                elif "매도" in text or "sell" in text:
+                    response_msg = "음성 매도 주문이 접수되었습니다. (데모)"
+                elif "수익률" in text or "포트폴리오" in text:
+                    response_msg = "현재 포트폴리오 정보를 업데이트합니다."
+                    
+                return JSONResponse({"status": "success", "message": response_msg, "action": "execute"})
             except Exception as e:
                 return JSONResponse({"status": "error", "message": str(e)})
 
@@ -1168,10 +1194,13 @@ class WebDashboard:
             <div class="container">
                 <header style="display:flex; justify-content:space-between; align-items:center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                     <div>
-                        <h1 style="font-size: 28px; margin-bottom: 5px; margin-top: 0;">📊 주식 트레이딩 시스템</h1>
+                        <h1 style="font-size: 28px; margin-bottom: 5px; margin-top: 0;">📊 주식 트레이딩 시스템 <span style="font-size: 14px; background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 10px; margin-left: 10px;">Phase 6 Ultimate</span></h1>
                         <div class="timestamp" style="font-size: 12px; opacity: 0.9;">최근 업데이트: <span id="update-time">-</span></div>
                     </div>
-                    <button class="btn" onclick="resetPortfolio()" style="background:#e53935; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🔄 가상 자산 초기화</button>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn" onclick="startVoiceRecognition()" style="background:#ff9800; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🎤 음성 명령 (Voice AI)</button>
+                        <button class="btn" onclick="resetPortfolio()" style="background:#e53935; border:none; padding:10px 16px; border-radius:6px; font-weight:bold; font-size:12.5px; color:white; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.2);">🔄 가상 자산 초기화</button>
+                    </div>
                 </header>
                 
                 <div class="tabs">
@@ -1181,7 +1210,24 @@ class WebDashboard:
                 </div>
                 
                 <div id="tab-dashboard" class="tab-content active">
-                    <!-- 포트폴리오 개요 -->
+                    <div class="card" style="grid-column: 1 / -1; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h2>📈 실시간 차트 & 3D 히트맵</h2>
+                            <select class="input-control" id="tv-symbol" onchange="updateTVChart(this.value)">
+                                <option value="AAPL">Apple (AAPL)</option>
+                                <option value="MSFT">Microsoft (MSFT)</option>
+                                <option value="TSLA">Tesla (TSLA)</option>
+                                <option value="BTCUSD">Bitcoin (BTCUSD)</option>
+                            </select>
+                        </div>
+                        <div id="tradingview_chart" style="height: 500px; width: 100%;"></div>
+                        <div style="margin-top: 15px;">
+                            <h3 style="font-size: 14px; margin-bottom: 5px;">🔥 호가창 3D 매물대 히트맵 (Orderbook Heatmap)</h3>
+                            <canvas id="heatmap-canvas" width="1000" height="100" style="width:100%; height:100px; background: #1a1a1a; border-radius: 4px;"></canvas>
+                        </div>
+                    </div>
+                
+                <!-- 포트폴리오 개요 -->
                     <div class="grid" id="portfolio-grid">
                         <div class="card">
                             <h2>현금</h2>
@@ -2792,6 +2838,72 @@ class WebDashboard:
                         });
                     }
                 }
+                // 음성 인식 (Web Speech API)
+                function startVoiceRecognition() {
+                    if (!('webkitSpeechRecognition' in window)) {
+                        alert("현재 브라우저는 음성 인식을 지원하지 않습니다. (Chrome 권장)");
+                        return;
+                    }
+                    
+                    const recognition = new webkitSpeechRecognition();
+                    recognition.lang = 'ko-KR';
+                    recognition.interimResults = false;
+                    recognition.maxAlternatives = 1;
+                    
+                    recognition.start();
+                    
+                    recognition.onresult = async function(event) {
+                        const text = event.results[0][0].transcript;
+                        console.log('음성 인식 결과: ' + text);
+                        
+                        try {
+                            const res = await fetch('/api/voice-command', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({text: text})
+                            }).then(r => r.json());
+                            
+                            alert(`🗣️ 인식된 명령: "${text}"\n\n🤖 AI 봇: ${res.message}`);
+                            if(res.message.includes("포트폴리오")) {
+                                updateData();
+                            }
+                        } catch(e) {
+                            console.error(e);
+                        }
+                    };
+                    
+                    recognition.onerror = function(event) {
+                        console.error('Speech recognition error', event.error);
+                    };
+                }
+
+                // 3D Heatmap Renderer (Mock Animation)
+                function renderHeatmap() {
+                    const canvas = document.getElementById('heatmap-canvas');
+                    if(!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    
+                    setInterval(() => {
+                        ctx.fillStyle = '#1a1a1a';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        for(let i=0; i<50; i++) {
+                            const x = Math.random() * canvas.width;
+                            const y = Math.random() * canvas.height;
+                            const w = Math.random() * 20 + 10;
+                            const h = Math.random() * 100;
+                            const isBuy = Math.random() > 0.5;
+                            const intensity = Math.random();
+                            
+                            ctx.fillStyle = isBuy ? `rgba(76, 175, 80, ${intensity})` : `rgba(244, 67, 54, ${intensity})`;
+                            ctx.fillRect(x, y, w, h);
+                        }
+                    }, 500);
+                }
+                
+                // Init renderers
+                renderHeatmap();
+
                 // Register Service Worker for PWA
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.register('/sw.js').then(function(reg) {
