@@ -11,7 +11,9 @@ from src.core import (
     AccountSyncAgent,
     HybridStrategyEngine,
     OrderManagementSystem,
-    OrderType
+    OrderType,
+    DistributedOrderManager,
+    DistributedOrderConfig,
 )
 
 
@@ -267,6 +269,68 @@ class TestRelativeStrengthAnalyzer(unittest.TestCase):
         """MarketDataHandler 없으면 에러 딕셔너리 반환"""
         result = self.analyzer.score_symbol("AAPL")
         self.assertIn("error", result)
+
+
+class TestDistributedOrderManager(unittest.TestCase):
+    """DistributedOrderManager 단위 테스트"""
+
+    def setUp(self):
+        self.oms = OrderManagementSystem()
+        self.dom = DistributedOrderManager(self.oms)
+
+    def test_distributed_buy_creates_tranches(self):
+        """분산 매수 -> N개의 진입 + N개의 SL + N개의 TP 주문 생성"""
+        orders = self.dom.create_distributed_buy("AAPL", 300, 150.0, 142.0, 165.0)
+        # 3 tranches x 3 orders each (entry + SL + TP) = 9
+        self.assertEqual(len(orders), 9, f"Expected 9 orders, got {len(orders)}")
+        entry_qty = sum(o.quantity for o in orders if o.order_type == OrderType.BUY)
+        self.assertEqual(entry_qty, 300)
+
+    def test_distributed_buy_price_descending(self):
+        """분산 매수 가격이 내림차순인지 확인"""
+        orders = self.dom.create_distributed_buy("MSFT", 200, 400.0, 380.0, 440.0)
+        buy_prices = [o.price for o in orders if o.order_type == OrderType.BUY]
+        self.assertEqual(len(buy_prices), 3)
+        for i in range(len(buy_prices) - 1):
+            self.assertGreaterEqual(buy_prices[i], buy_prices[i + 1])
+
+    def test_distributed_sell_creates_tranches(self):
+        """분산 매도 -> N개의 진입 + SL + TP 주문 생성"""
+        orders = self.dom.create_distributed_sell("AAPL", 150, 150.0, 142.0, 165.0)
+        self.assertEqual(len(orders), 9)
+        sell_qty = sum(o.quantity for o in orders if o.order_type == OrderType.SELL)
+        self.assertEqual(sell_qty, 150)
+
+    def test_distributed_sell_price_ascending(self):
+        """분산 매도 가격이 오름차순인지 확인"""
+        orders = self.dom.create_distributed_sell("GOOGL", 100, 2000.0, 1900.0, 2200.0)
+        sell_prices = [o.price for o in orders if o.order_type == OrderType.SELL]
+        self.assertEqual(len(sell_prices), 3)
+        for i in range(len(sell_prices) - 1):
+            self.assertLessEqual(sell_prices[i], sell_prices[i + 1])
+
+    def test_zero_quantity_returns_empty(self):
+        """수량 0 -> 빈 리스트 반환"""
+        orders = self.dom.create_distributed_buy("AAPL", 0, 150.0, 142.0, 165.0)
+        self.assertEqual(len(orders), 0)
+
+    def test_tiny_quantity_single_tranche(self):
+        """소량(1주) -> 적어도 하나의 트렌치 생성"""
+        orders = self.dom.create_distributed_buy("AAPL", 1, 150.0, 142.0, 165.0)
+        buy_orders = [o for o in orders if o.order_type == OrderType.BUY]
+        self.assertGreaterEqual(len(buy_orders), 1)
+        total = sum(o.quantity for o in buy_orders)
+        self.assertEqual(total, 1)
+
+    def test_cancel_all_for_symbol(self):
+        """cancel_all_for_symbol -> 해당 심볼의 진행중 주문 취소"""
+        self.dom.create_distributed_buy("AAPL", 300, 150.0, 142.0, 165.0)
+        self.dom.create_distributed_buy("MSFT", 100, 400.0, 380.0, 440.0)
+        cancelled = self.dom.cancel_all_for_symbol("AAPL")
+        self.assertGreater(cancelled, 0)
+        remaining_aapl = [o for o in self.oms.orders.values()
+                          if o.symbol == "AAPL" and o.status.value in ("PENDING", "SUBMITTED")]
+        self.assertEqual(len(remaining_aapl), 0)
 
 
 if __name__ == "__main__":

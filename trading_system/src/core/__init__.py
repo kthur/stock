@@ -3,6 +3,7 @@
 from .asset_management import PortfolioManager, AccountSyncAgent
 from .strategy_engine import HybridStrategyEngine, OptimizationEngine, TradeSignal
 from .order_management import OrderManagementSystem, Order, OrderType, OrderStatus
+from .distributed_order import DistributedOrderManager, DistributedOrderConfig
 
 __all__ = [
     'PortfolioManager',
@@ -13,5 +14,7 @@ __all__ = [
     'OrderManagementSystem',
     'Order',
     'OrderType',
-    'OrderStatus'
+    'OrderStatus',
+    'DistributedOrderManager',
+    'DistributedOrderConfig',
 ]
