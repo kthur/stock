@@ -2,5 +2,6 @@
 
 from .market_data_handler import MarketDataHandler
 from .nlp_engine import NLPEngine, Sentiment
+from .global_market import GlobalMarketClient
 
-__all__ = ['MarketDataHandler', 'NLPEngine', 'Sentiment']
+__all__ = ['MarketDataHandler', 'NLPEngine', 'Sentiment', 'GlobalMarketClient']

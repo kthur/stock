@@ -1,4 +1,4 @@
-from src.data_layer import MarketDataHandler, NLPEngine
+from src.data_layer import MarketDataHandler, NLPEngine, GlobalMarketClient
 from src.core import (
     PortfolioManager,
     HybridStrategyEngine,
@@ -7,7 +7,7 @@ from src.core import (
 )
 from src.persistence import TradeLogger, AssetHistoryDB, AIPredictionDB
 from src.risk import RiskManager
-from src.analysis import BacktestEngine, AdvancedStatistics
+from src.analysis import BacktestEngine, AdvancedStatistics, RelativeStrengthAnalyzer
 from src.utils import ErrorHandler, EventBus
 from src.broker import KiwoomConnector, MultiBrokerManager
 from src.strategy import InvestorStrategyEngine
@@ -21,12 +21,24 @@ class SystemFactory:
         if event_bus is None:
             event_bus = EventBus()
 
-        strategy_engine = HybridStrategyEngine(event_bus=event_bus)
-        portfolio = PortfolioManager(initial_cash=initial_cash)
+        market_data = MarketDataHandler(event_bus=event_bus)
 
+        global_market = GlobalMarketClient()
+        rsa = RelativeStrengthAnalyzer(
+            market_data_handler=market_data,
+            global_market=global_market,
+        )
+
+        strategy_engine = HybridStrategyEngine(
+            event_bus=event_bus,
+            global_market=global_market,
+            relative_strength=rsa,
+            global_market_weight=0.10,
+        )
+        portfolio = PortfolioManager(initial_cash=initial_cash)
         return {
             'event_bus': event_bus,
-            'market_data': MarketDataHandler(event_bus=event_bus),
+            'market_data': market_data,
             'nlp': NLPEngine(event_bus=event_bus),
             'portfolio': portfolio,
             'account_sync': AccountSyncAgent(portfolio, event_bus=event_bus),
@@ -44,4 +56,6 @@ class SystemFactory:
             'multi_broker': MultiBrokerManager(),
             'investor_strategy': InvestorStrategyEngine(),
             'llm': LLMEngine(),
+            'global_market': global_market,
+            'relative_strength': rsa,
         }

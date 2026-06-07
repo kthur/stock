@@ -17,6 +17,11 @@ class TradeSignal(Enum):
     SELL = -1
     HOLD = 0
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, str):
+            return self.name == other
+        return super().__eq__(other)
+
 
 @dataclass
 class StrategyResult:
@@ -31,7 +36,7 @@ class StrategyResult:
 
 class HybridStrategyEngine:
     
-    SIGNAL_NAMES = ["sentiment", "technical", "ml", "rl", "darkpool", "llm"]
+    SIGNAL_NAMES = ["sentiment", "technical", "ml", "rl", "darkpool", "llm", "global_market"]
     
     def __init__(
         self,
@@ -43,12 +48,15 @@ class HybridStrategyEngine:
         llm_earnings: Any = None,
         stat_arb: Any = None,
         hft_engine: Any = None,
+        global_market: Any = None,
+        relative_strength: Any = None,
         sentiment_weight: float = 0.3,
         technical_weight: float = 0.2,
         ml_weight: float = 0.2,
         rl_weight: float = 0.1,
         darkpool_weight: float = 0.1,
         llm_weight: float = 0.1,
+        global_market_weight: float = 0.0,
         spread_threshold: float = 0.001,
         buy_price_threshold: float = 1.01,
         sell_threshold: float = 0.4,
@@ -66,6 +74,8 @@ class HybridStrategyEngine:
         self.llm_earnings = llm_earnings
         self.stat_arb = stat_arb
         self.hft_engine = hft_engine
+        self.global_market = global_market
+        self.relative_strength = relative_strength
         
         self.price_threshold = 0.02
         self.volume_threshold = 1000000
@@ -75,6 +85,7 @@ class HybridStrategyEngine:
         self.rl_weight = rl_weight
         self.darkpool_weight = darkpool_weight
         self.llm_weight = llm_weight
+        self.global_market_weight = global_market_weight
         self.spread_threshold = spread_threshold
         self.buy_price_threshold = buy_price_threshold
         self.sell_threshold = sell_threshold
@@ -83,10 +94,180 @@ class HybridStrategyEngine:
         
         self._signal_performance: Dict[str, List[bool]] = {s: [] for s in self.SIGNAL_NAMES}
         self._signal_scores: Dict[str, float] = {}
+        
+        self.strategy_parameters = {}
+        self._normalize_weights()
+        self._baseline_weights = {
+            "sentiment_weight": self.sentiment_weight,
+            "technical_weight": self.technical_weight,
+            "ml_weight": self.ml_weight,
+            "rl_weight": self.rl_weight,
+            "darkpool_weight": self.darkpool_weight,
+            "llm_weight": self.llm_weight,
+            "global_market_weight": self.global_market_weight,
+        }
+        self._baseline_sell_threshold = self.sell_threshold
     
     def subscribe(self, callback: Callable) -> None:
         """전략 신호 구독"""
         self.subscribers.append(callback)
+    
+    def _calc_sma(self, closes: list, period: int) -> list:
+        """단순이동평균(SMA) 계산"""
+        sma = [0.0] * len(closes)
+        for i in range(len(closes)):
+            start = max(0, i - period + 1)
+            sub = closes[start:i+1]
+            sma[i] = sum(sub) / len(sub)
+        return sma
+
+    def _calc_ema(self, data: list, period: int) -> list:
+        """지수이동평균(EMA) 계산"""
+        if len(data) < period:
+            return [sum(data) / len(data)] * len(data)
+        k = 2.0 / (period + 1)
+        ema = [0.0] * len(data)
+        ema[period - 1] = sum(data[:period]) / period
+        for i in range(period, len(data)):
+            ema[i] = data[i] * k + ema[i - 1] * (1 - k)
+        for i in range(period - 1):
+            ema[i] = ema[period - 1]
+        return ema
+
+    def _calc_rsi(self, closes: list, window: int = 14) -> float:
+        """현재 RSI 값 계산 (Wilder 방식)"""
+        if len(closes) <= window:
+            return 50.0
+        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+        gains = [d if d > 0 else 0.0 for d in deltas]
+        losses = [abs(d) if d < 0 else 0.0 for d in deltas]
+        avg_gain = sum(gains[:window]) / window
+        avg_loss = sum(losses[:window]) / window
+        for i in range(window, len(deltas)):
+            avg_gain = (avg_gain * (window - 1) + gains[i]) / window
+            avg_loss = (avg_loss * (window - 1) + losses[i]) / window
+        if avg_loss == 0:
+            return 100.0 if avg_gain > 0 else 50.0
+        rs = avg_gain / avg_loss
+        return 100.0 - (100.0 / (1.0 + rs))
+
+    def _calc_macd_histogram(self, closes: list) -> float:
+        """현재 MACD 히스토그램 값 계산 (EMA12-EMA26-Signal9)"""
+        if len(closes) < 35:
+            return 0.0
+        ema12 = self._calc_ema(closes, 12)
+        ema26 = self._calc_ema(closes, 26)
+        macd_line = [ema12[i] - ema26[i] for i in range(len(closes))]
+        signal_line = self._calc_ema(macd_line, 9)
+        return macd_line[-1] - signal_line[-1]
+
+    def _calc_bollinger_position(self, closes: list, period: int = 20, std_mult: float = 2.0) -> float:
+        """볼린저밴드 내 현재 위치 (0.0=하단, 0.5=중심, 1.0=상단)"""
+        if len(closes) < period:
+            return 0.5
+        sub = closes[-period:]
+        sma = sum(sub) / len(sub)
+        variance = sum((c - sma) ** 2 for c in sub) / len(sub)
+        std_dev = variance ** 0.5
+        if std_dev == 0:
+            return 0.5
+        upper = sma + std_mult * std_dev
+        lower = sma - std_mult * std_dev
+        band_width = upper - lower
+        if band_width == 0:
+            return 0.5
+        return max(0.0, min(1.0, (closes[-1] - lower) / band_width))
+
+    def _compute_technical_indicators(self, price_bars: list) -> Dict:
+        """과거 가격 데이터로부터 기술적 지표 종합 점수 산출"""
+        closes = []
+        for b in price_bars:
+            if hasattr(b, 'close'):
+                closes.append(b.close)
+            elif isinstance(b, (int, float)):
+                closes.append(float(b))
+        
+        if len(closes) < 20:
+            return {"score": 0.5, "signal": TradeSignal.HOLD, "details": {}}
+        
+        # RSI (14)
+        rsi = self._calc_rsi(closes)
+        if rsi < 30:
+            rsi_score = 0.9  # 과매도 → 매수 기회
+        elif rsi < 40:
+            rsi_score = 0.7
+        elif rsi > 70:
+            rsi_score = 0.1  # 과매수 → 매도 신호
+        elif rsi > 60:
+            rsi_score = 0.3
+        else:
+            rsi_score = 0.5
+        
+        # MACD histogram
+        macd_hist = self._calc_macd_histogram(closes)
+        prev_closes = closes[:-1] if len(closes) > 35 else closes
+        prev_macd_hist = self._calc_macd_histogram(prev_closes) if len(prev_closes) >= 35 else 0.0
+        
+        if prev_macd_hist < 0 and macd_hist > 0:
+            macd_score = 0.9  # 골든크로스
+        elif prev_macd_hist > 0 and macd_hist < 0:
+            macd_score = 0.1  # 데드크로스
+        elif macd_hist > 0:
+            macd_score = 0.65
+        elif macd_hist < 0:
+            macd_score = 0.35
+        else:
+            macd_score = 0.5
+        
+        # EMA 정배열 (EMA20 > EMA50)
+        ema20 = self._calc_ema(closes, 20)
+        ema50 = self._calc_ema(closes, 50) if len(closes) >= 50 else ema20
+        if ema20[-1] > ema50[-1]:
+            ema_score = 0.7
+        elif ema20[-1] < ema50[-1]:
+            ema_score = 0.3
+        else:
+            ema_score = 0.5
+        
+        # 볼린저밴드 위치
+        bb_pos = self._calc_bollinger_position(closes)
+        if bb_pos < 0.15:
+            bb_score = 0.85  # 하단 이탈 → 반등 기대
+        elif bb_pos > 0.85:
+            bb_score = 0.15  # 상단 이탈 → 조정 기대
+        else:
+            bb_score = 0.5
+        
+        # 앙상블 종합 (동일 가중)
+        combined = (rsi_score * 0.30 + macd_score * 0.25 + ema_score * 0.25 + bb_score * 0.20)
+        
+        # 투표 기반 신호 결정
+        buy_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s > 0.6)
+        sell_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s < 0.4)
+        
+        if buy_votes >= 3:
+            signal = TradeSignal.BUY
+        elif sell_votes >= 3:
+            signal = TradeSignal.SELL
+        else:
+            signal = TradeSignal.HOLD
+        
+        return {
+            "score": combined,
+            "signal": signal,
+            "details": {
+                "rsi": round(rsi, 1),
+                "rsi_score": rsi_score,
+                "macd_hist": round(macd_hist, 4),
+                "macd_score": macd_score,
+                "ema_score": ema_score,
+                "bb_position": round(bb_pos, 3),
+                "bb_score": bb_score,
+                "buy_votes": buy_votes,
+                "sell_votes": sell_votes,
+            }
+        }
+
     
     def analyze(self, symbol: str, market_data: Dict, news_sentiment: float, price_bars: Optional[List[Any]] = None) -> StrategyResult:
         """
@@ -106,24 +287,29 @@ class HybridStrategyEngine:
             confidence = 0.3
             reason = "Low volume"
         else:
-            spread_ratio = (ask - bid) / bid if bid > 0 else 0
-            
-            if spread_ratio < self.spread_threshold:
-                technical_signal = TradeSignal.BUY if price > bid * self.buy_price_threshold else TradeSignal.HOLD
-                technical_score = 0.7
+            # 기술적 지표 분석: price_bars가 충분하면 종합 기술 지표 사용, 아니면 스프레드 기반 폴백
+            tech_indicators = None
+            if price_bars and len(price_bars) >= 20:
+                tech_indicators = self._compute_technical_indicators(price_bars)
+                technical_signal = tech_indicators["signal"]
+                technical_score = tech_indicators["score"]
             else:
-                technical_signal = TradeSignal.HOLD
-                technical_score = 0.5
+                spread_ratio = (ask - bid) / bid if bid > 0 else 0
+                if spread_ratio < self.spread_threshold:
+                    technical_signal = TradeSignal.BUY if price > bid * self.buy_price_threshold else TradeSignal.HOLD
+                    technical_score = 0.7
+                else:
+                    technical_signal = TradeSignal.HOLD
+                    technical_score = 0.5
             
-            if news_sentiment > 0.5:
+            # 감성 분석: gradient 방식 (news_sentiment를 점수에 직접 매핑)
+            sentiment_score = max(0.0, min(1.0, 0.5 + news_sentiment * 0.4))
+            if sentiment_score > 0.6:
                 sentiment_signal = TradeSignal.BUY
-                sentiment_score = 0.8
-            elif news_sentiment < -0.5:
+            elif sentiment_score < 0.4:
                 sentiment_signal = TradeSignal.SELL
-                sentiment_score = 0.8
             else:
                 sentiment_signal = TradeSignal.HOLD
-                sentiment_score = 0.5
                 
             ml_score = 0.5
             if self.ml_engine and price_bars:
@@ -198,12 +384,25 @@ class HybridStrategyEngine:
                     elif llm_res.get("guidance") == "NEGATIVE":
                         llm_score = 0.1
 
+            # ── Global market signal ───────────────────────────────────────
+            global_market_score = 0.5
+            try:
+                if self.global_market:
+                    gm = self.global_market.get_summary()
+                    indices = gm.get("indices", {})
+                    up = sum(1 for v in indices.values() if (v.get("change_pct") or 0) > 0)
+                    total = len(indices) or 1
+                    global_market_score = 0.5 + (up / total - 0.5) * 0.4
+            except Exception:
+                pass
+            
             combined_score = (sentiment_score * self.sentiment_weight +
                             technical_score * self.technical_weight +
                             ml_score * self.ml_weight +
                             rl_score * self.rl_weight +
                             darkpool_score * self.darkpool_weight +
-                            llm_score * self.llm_weight)
+                            llm_score * self.llm_weight +
+                            global_market_score * self.global_market_weight)
             
             raw_scores = {
                 "sentiment": sentiment_score,
@@ -212,6 +411,7 @@ class HybridStrategyEngine:
                 "rl": rl_score,
                 "darkpool": darkpool_score,
                 "llm": llm_score,
+                "global_market": global_market_score,
             }
             
             regime = alt_regime or {}
@@ -223,6 +423,7 @@ class HybridStrategyEngine:
                     "rl": self.rl_weight * 1.3,
                     "darkpool": self.darkpool_weight * 1.2,
                     "llm": self.llm_weight * 0.8,
+                    "global_market": self.global_market_weight * 1.1,
                 }
                 total_adj = sum(adjusted.values())
                 if total_adj > 0:
@@ -231,14 +432,20 @@ class HybridStrategyEngine:
             
             confidence = combined_score
             
-            if combined_score > 0.7:
-                if sentiment_signal == TradeSignal.BUY or technical_signal == TradeSignal.BUY:
+            # 매수/매도 판단: 기술지표 신호도 함께 고려
+            buy_signal_count = sum(1 for s in [sentiment_signal, technical_signal] if s == TradeSignal.BUY)
+            
+            if combined_score > 0.60:
+                if buy_signal_count >= 2:
                     signal = TradeSignal.BUY
                     reason = "Strong buy signal (sentiment + technical + AI + DarkPool + LLM)"
+                elif buy_signal_count >= 1 and combined_score > 0.70:
+                    signal = TradeSignal.BUY
+                    reason = "Buy signal (high combined score with supporting indicator)"
                 else:
                     signal = TradeSignal.HOLD
                     reason = "Conflicting signals"
-            elif combined_score < self.sell_threshold:
+            elif combined_score < 0.45:
                 signal = TradeSignal.SELL
                 reason = "Weak signals detected"
             else:
@@ -318,6 +525,7 @@ class HybridStrategyEngine:
             "rl": "rl_weight",
             "darkpool": "darkpool_weight",
             "llm": "llm_weight",
+            "global_market": "global_market_weight",
         }
         for name, acc in accuracies.items():
             attr = weight_map.get(name)
@@ -331,23 +539,146 @@ class HybridStrategyEngine:
         self._normalize_weights()
 
     def _normalize_weights(self) -> None:
+        self.sentiment_weight = max(0.0, min(1.0, self.sentiment_weight))
+        self.technical_weight = max(0.0, min(1.0, self.technical_weight))
+        self.ml_weight = max(0.0, min(1.0, self.ml_weight))
+        self.rl_weight = max(0.0, min(1.0, self.rl_weight))
+        self.darkpool_weight = max(0.0, min(1.0, self.darkpool_weight))
+        self.llm_weight = max(0.0, min(1.0, self.llm_weight))
+        self.global_market_weight = max(0.0, min(1.0, self.global_market_weight))
+        
         total = (self.sentiment_weight + self.technical_weight +
                  self.ml_weight + self.rl_weight +
-                 self.darkpool_weight + self.llm_weight)
+                 self.darkpool_weight + self.llm_weight +
+                 self.global_market_weight)
         if total == 0:
-            return
-        self.sentiment_weight /= total
-        self.technical_weight /= total
-        self.ml_weight /= total
-        self.rl_weight /= total
-        self.darkpool_weight /= total
-        self.llm_weight /= total
+            n = len(self.SIGNAL_NAMES)
+            self.sentiment_weight = 1.0 / n
+            self.technical_weight = 1.0 / n
+            self.ml_weight = 1.0 / n
+            self.rl_weight = 1.0 / n
+            self.darkpool_weight = 1.0 / n
+            self.llm_weight = 1.0 / n
+            self.global_market_weight = 1.0 / n
+        else:
+            self.sentiment_weight /= total
+            self.technical_weight /= total
+            self.ml_weight /= total
+            self.rl_weight /= total
+            self.darkpool_weight /= total
+            self.llm_weight /= total
+            self.global_market_weight /= total
         self.logger.info(
             f"Weights adapted: sentiment={self.sentiment_weight:.3f} "
             f"technical={self.technical_weight:.3f} ml={self.ml_weight:.3f} "
             f"rl={self.rl_weight:.3f} darkpool={self.darkpool_weight:.3f} "
-            f"llm={self.llm_weight:.3f}"
+            f"llm={self.llm_weight:.3f} global_market={self.global_market_weight:.3f}"
         )
+
+    def set_strategy_parameters(self, strategy_name: str, parameters: Dict) -> None:
+        """Store strategy parameters"""
+        self.strategy_parameters[strategy_name] = parameters
+
+    def detect_regime(self, price_bars: List[Any]) -> str:
+        """시장 레짐(추세) 감지 및 가중치/임계값 동적 조절"""
+        for bar in price_bars:
+            if isinstance(bar, dict):
+                if not all(k in bar for k in ['open', 'high', 'low', 'close', 'volume']):
+                    raise ValueError("Missing fields in price bar dict")
+                if any(bar[k] is None for k in ['open', 'high', 'low', 'close', 'volume']):
+                    raise ValueError("None fields in price bar dict")
+            else:
+                for attr in ['open', 'high', 'low', 'close', 'volume']:
+                    if not hasattr(bar, attr):
+                        raise ValueError(f"Missing field {attr} in price bar object")
+                    if getattr(bar, attr) is None:
+                        raise ValueError(f"None field {attr} in price bar object")
+
+        # Restore baseline weights and baseline sell_threshold
+        self.sentiment_weight = self._baseline_weights["sentiment_weight"]
+        self.technical_weight = self._baseline_weights["technical_weight"]
+        self.ml_weight = self._baseline_weights["ml_weight"]
+        self.rl_weight = self._baseline_weights["rl_weight"]
+        self.darkpool_weight = self._baseline_weights["darkpool_weight"]
+        self.llm_weight = self._baseline_weights["llm_weight"]
+        self.global_market_weight = self._baseline_weights.get("global_market_weight", 0.0)
+        self.sell_threshold = self._baseline_sell_threshold
+
+        if len(price_bars) < 200:
+            return "sideways"
+
+        closes = [bar.close if not isinstance(bar, dict) else bar['close'] for bar in price_bars]
+
+        ema50 = self._calc_ema(closes, 50)
+        ema200 = self._calc_ema(closes, 200)
+
+        ratio = ema50[-1] / ema200[-1] if ema200[-1] != 0.0 else 1.0
+
+        # Calculate additional metrics requested:
+        # - EMA200 position: check if current close > EMA200
+        current_close = closes[-1]
+        current_ema200 = ema200[-1]
+        ema200_position = current_close > current_ema200
+
+        # - ROC momentum (20 period): calculation `(close[-1] - close[-20]) / close[-20] * 100`
+        close_20 = closes[-20]
+        roc_momentum = ((current_close - close_20) / close_20 * 100) if close_20 != 0.0 else 0.0
+
+        # - ATR ratio: ATR (14 period) / current close
+        tr_values = []
+        for i in range(len(price_bars)):
+            bar = price_bars[i]
+            high = bar['high'] if isinstance(bar, dict) else bar.high
+            low = bar['low'] if isinstance(bar, dict) else bar.low
+            if i == 0:
+                tr = high - low
+            else:
+                prev_bar = price_bars[i-1]
+                prev_close = prev_bar['close'] if isinstance(prev_bar, dict) else prev_bar.close
+                tr = max(
+                    high - low,
+                    abs(high - prev_close),
+                    abs(low - prev_close)
+                )
+            tr_values.append(tr)
+        atr_14 = sum(tr_values[-14:]) / 14.0
+        atr_ratio = atr_14 / current_close if current_close != 0.0 else 0.0
+
+        # Log computed metrics
+        self.logger.info(
+            f"Regime metrics calculated - EMA200 Position: {ema200_position}, "
+            f"ROC Momentum (20): {roc_momentum:.4f}%, ATR Ratio: {atr_ratio:.4f}"
+        )
+
+        if ratio > 1.02:
+            regime = "bull"
+        elif ratio < 0.98:
+            regime = "bear"
+        else:
+            regime = "sideways"
+
+        if regime == "bull":
+            # Base logic: self.technical_weight += 0.15
+            adjustment = 0.15
+            # Adjust further based on computed metrics
+            if ema200_position and roc_momentum > 0:
+                adjustment += 0.05
+            if atr_ratio < 0.05:
+                adjustment += 0.01
+            self.technical_weight += adjustment
+            self._normalize_weights()
+        elif regime == "bear":
+            # Base logic: self.technical_weight = max(0.0, self.technical_weight - 0.05), self.sell_threshold = 0.35
+            self.technical_weight = max(0.0, self.technical_weight - 0.05)
+            self.sell_threshold = 0.35
+            # Adjust further based on computed metrics
+            if not ema200_position and roc_momentum < 0:
+                self.sell_threshold = max(0.1, self.sell_threshold - 0.05)
+            if atr_ratio > 0.02:
+                self.sell_threshold = max(0.1, self.sell_threshold - 0.02)
+            self._normalize_weights()
+
+        return regime
 
 
 class OptimizationEngine:

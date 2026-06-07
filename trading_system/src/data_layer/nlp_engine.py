@@ -33,8 +33,8 @@ class NewsData:
 
 class NLPEngine:
     
-    DEFAULT_POSITIVE = ['상승', '긍정', '호재', '증가', '개선', '회복', '강세', '상승장', '수익']
-    DEFAULT_NEGATIVE = ['하락', '부정', '악재', '감소', '악화', '위기', '약세', '하락장', '손실']
+    DEFAULT_POSITIVE = ['상승', '긍정', '호재', '증가', '개선', '회복', '강세', '상승장', '수익', 'success', 'amazing', 'profit', 'win', 'bullish']
+    DEFAULT_NEGATIVE = ['하락', '부정', '악재', '감소', '악화', '위기', '약세', '하락장', '손실', 'fail', 'loss', 'drop', 'bearish']
     
     def __init__(self, event_bus=None, positive_keywords=None, negative_keywords=None):
         self.news_queue: List[NewsData] = []

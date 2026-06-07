@@ -25,6 +25,11 @@ class Position:
     symbol: str
     quantity: int
     avg_price: float
+    highest_price: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.highest_price == 0.0 or self.highest_price is None:
+            self.highest_price = self.avg_price
     
     def get_value(self, current_price: float) -> float:
         return self.quantity * current_price
@@ -48,7 +53,7 @@ class PortfolioManager:
             self.positions[symbol].avg_price = total_cost / total_qty
             self.positions[symbol].quantity = total_qty
         else:
-            self.positions[symbol] = Position(symbol=symbol, quantity=quantity, avg_price=price)
+            self.positions[symbol] = Position(symbol=symbol, quantity=quantity, avg_price=price, highest_price=price)
         
         self.logger.info(f"Position added: {symbol} x{quantity} @ {price}")
     

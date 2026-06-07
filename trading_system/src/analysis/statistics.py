@@ -35,6 +35,11 @@ class AdvancedStatistics:
         """
         self.risk_free_rate = risk_free_rate
         self.logger = logger
+        
+        # Kelly Criterion 연동을 위한 실시간 성과 추적 속성
+        self.last_win_rate: float = 0.55       # 최근 승률 (기본값)
+        self.last_profit_factor: float = 1.2   # 최근 이익계수 (기본값)
+        self._trade_history: List[Dict] = []   # 누적 거래 기록
     
     def calculate_returns(self, equity_curve: List[float]) -> List[float]:
         """수익률 계산"""
@@ -255,7 +260,38 @@ class AdvancedStatistics:
             'trade_count': len(trades)
         }
         
+        # Kelly Criterion 연동을 위한 실시간 성과 갱신
+        if trades:
+            self.last_win_rate = win_rate
+            self.last_profit_factor = profit_factor
+        
         self.logger.info(f"Performance Summary: Total Return={total_return:.2%}, "
                         f"Sharpe={sharpe:.2f}, Max DD={max_dd:.2%}")
         
         return summary
+    
+    def record_trade(self, pnl: float, entry_price: float = 0.0, exit_price: float = 0.0) -> None:
+        """개별 거래 완료 시 성과 지표를 실시간 갱신
+        
+        Args:
+            pnl: 거래 손익
+            entry_price: 진입 가격
+            exit_price: 청산 가격
+        """
+        self._trade_history.append({
+            'pnl': pnl,
+            'entry_price': entry_price,
+            'exit_price': exit_price
+        })
+        
+        # 최근 50건 기준 승률 및 이익계수 갱신
+        recent = self._trade_history[-50:]
+        wins = sum(1 for t in recent if t['pnl'] > 0)
+        self.last_win_rate = wins / len(recent)
+        
+        gross_profit = sum(t['pnl'] for t in recent if t['pnl'] > 0)
+        gross_loss = abs(sum(t['pnl'] for t in recent if t['pnl'] <= 0))
+        self.last_profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else 2.0
+        
+        self.logger.debug(f"Trade recorded: PnL={pnl:.2f}, "
+                         f"WinRate={self.last_win_rate:.2%}, PF={self.last_profit_factor:.2f}")

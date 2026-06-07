@@ -2,6 +2,7 @@
 
 from .backtest import BacktestEngine, BacktestResult, BacktestTrade, PriceBar
 from .statistics import AdvancedStatistics, PerformanceMetrics
+from .relative_strength import RelativeStrengthAnalyzer
 
 __all__ = [
     'BacktestEngine',
@@ -9,5 +10,6 @@ __all__ = [
     'BacktestTrade',
     'PriceBar',
     'AdvancedStatistics',
-    'PerformanceMetrics'
+    'PerformanceMetrics',
+    'RelativeStrengthAnalyzer',
 ]

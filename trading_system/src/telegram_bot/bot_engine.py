@@ -49,6 +49,8 @@ class TelegramBotEngine:
             'risk': self._cmd_risk,
             'strategy': self._cmd_strategy,
             'performance': self._cmd_performance,
+            'global': self._cmd_global,
+            'screen': self._cmd_screen,
             'help': self._cmd_help,
         }
         
@@ -503,6 +505,85 @@ class TelegramBotEngine:
             self.logger.error(f"Performance command failed: {e}")
             return "❌ 성과 조회 중 오류가 발생했습니다."
 
+    def _cmd_global(self, user_id: int, args: List[str]) -> str:
+        """글로벌 시장 현황"""
+        if not self.trading_system or not self.trading_system.global_market:
+            return "❌ 글로벌 마켓 모듈을 사용할 수 없습니다."
+        try:
+            summary = self.trading_system.global_market.get_summary()
+            lines = ["🌍 *글로벌 시장 현황*\n"]
+            for sym, info in summary.get("indices", {}).items():
+                name = info.get("name", sym)
+                price = info.get("price")
+                chg = info.get("change_pct")
+                if price is None:
+                    continue
+                arrow = "📈" if (chg or 0) >= 0 else "📉"
+                lines.append(f"{arrow} *{name}*: {price:,.2f} ({chg:+.2f}%)")
+            lines.append("\n*환율*")
+            for pair, info in summary.get("fx_rates", {}).items():
+                rate = info.get("rate")
+                chg = info.get("change_pct")
+                if rate is None:
+                    continue
+                lines.append(f"💱 *{info['name']}*: {rate:.4f} ({chg:+.2f}%)")
+            lines.append(f"\n⏱ {summary.get('updated_at', '')}")
+            return "\n".join(lines)
+        except Exception as e:
+            self.logger.error(f"Global command failed: {e}")
+            return "❌ 글로벌 시장 조회 중 오류가 발생했습니다."
+
+    def _cmd_screen(self, user_id: int, args: List[str]) -> str:
+        """상대 강도 스크리닝 → 시장 대비 수익률 우수 종목 선별
+
+        Usage:
+          /screen                               (current positions)
+          /screen AAPL,MSFT,GOOGL               (specific tickers)
+          /screen AAPL,MSFT,GOOGL 0.3           (with min_correlation filter)
+        """
+        if not self.trading_system or not self.trading_system.relative_strength:
+            return "❌ 상대 강도 분석 모듈을 사용할 수 없습니다."
+        try:
+            min_corr = 0.0
+            symbols = list(self.trading_system.portfolio.positions.keys())
+            if args:
+                raw = [a.upper() for a in args if not a.replace(".", "").replace("-", "").isdigit()]
+                if raw:
+                    symbols = [s.strip() for s in raw[0].split(",")]
+                for a in args:
+                    try:
+                        min_corr = float(a)
+                    except ValueError:
+                        pass
+            if not symbols:
+                return "❌ 스크리닝할 종목이 없습니다. 종목을 콤마로 구분해 입력하거나 포지션을 먼저 추가하세요.\n예: /screen AAPL,MSFT,GOOGL | /screen AAPL,MSFT 0.3"
+
+            results = self.trading_system.relative_strength.rank_symbols(
+                symbols, top_n=15, min_correlation=min_corr,
+            )
+            if not results:
+                return "❌ 데이터를 가져올 수 없습니다. 종목 심볼을 확인해주세요."
+
+            lines = ["🏆 *시장 대비 상대 강도 랭킹*\n"]
+            if min_corr > 0:
+                lines.append(f"필터: |상관계수| ≥ {min_corr}\n")
+            for r in results:
+                rank = r.get("rank", "?")
+                sym = r.get("symbol", "?")
+                score = r.get("composite_score", 0)
+                alpha = r.get("alpha", 0)
+                rs = r.get("relative_strength_pct", 0)
+                corr = r.get("correlation", 0)
+                lines.append(
+                    f"*{rank}.* {sym}  (점수: {score:+.3f})\n"
+                    f"  알파: {alpha:+.6f}  |  상대수익률: {rs:+.2f}%\n"
+                    f"  상관계수: {corr:.3f}  |  베타: {r.get('beta', 1):.2f}"
+                )
+            return "\n".join(lines)
+        except Exception as e:
+            self.logger.error(f"Screen command failed: {e}")
+            return "❌ 스크리닝 중 오류가 발생했습니다."
+
     def _cmd_help(self, user_id: int, args: List[str]) -> str:
         """도움말"""
         response = """📖 *명령어 목록*
@@ -517,9 +598,11 @@ class TelegramBotEngine:
 /risk - 위험 관리
 /strategy [STRAT] - 전략 조회 및 변경
 
-*분석 및 정보*
+ *분석 및 정보*
 /analyze [SYMBOL] - 주식 분석
 /news - 시장 뉴스
+/global - 글로벌 지수 및 환율
+/screen [SYMBOLS] [MIN_CORR] - 시장 대비 상대 강도 (예: /screen AAPL,MSFT 0.3)
 
 *거래*
 /buy SYMBOL QTY PRICE - 매수 주문

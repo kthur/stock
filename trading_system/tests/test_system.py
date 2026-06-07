@@ -182,5 +182,92 @@ class TestStrategyEngine(unittest.TestCase):
         self.assertIsNotNone(result.signal)
 
 
+class TestGlobalMarketClient(unittest.TestCase):
+    """GlobalMarketClient 단위 테스트"""
+
+    def setUp(self):
+        from src.data_layer.global_market import GlobalMarketClient, GLOBAL_INDICES, FX_PAIRS
+        self.GlobalMarketClient = GlobalMarketClient
+        self.GLOBAL_INDICES = GLOBAL_INDICES
+        self.FX_PAIRS = FX_PAIRS
+
+    def test_indices_defined(self):
+        """글로벌 지수 13개가 정의되어 있는지 확인"""
+        self.assertGreaterEqual(len(self.GLOBAL_INDICES), 13)
+
+    def test_fx_pairs_defined(self):
+        """환율 6개가 정의되어 있는지 확인"""
+        self.assertGreaterEqual(len(self.FX_PAIRS), 6)
+
+    def test_guess_region_us(self):
+        from src.analysis.relative_strength import _guess_region
+        self.assertEqual(_guess_region("AAPL"), "US")
+        self.assertEqual(_guess_region("MSFT"), "US")
+
+    def test_guess_region_kr(self):
+        from src.analysis.relative_strength import _guess_region
+        self.assertEqual(_guess_region("005930.KS"), "KR")
+        self.assertEqual(_guess_region("000660.KQ"), "KR")
+
+    def test_guess_region_jp(self):
+        from src.analysis.relative_strength import _guess_region
+        self.assertEqual(_guess_region("7203.T"), "JP")
+
+
+class TestRelativeStrengthAnalyzer(unittest.TestCase):
+    """RelativeStrengthAnalyzer 단위 테스트 (순수 계산)"""
+
+    def setUp(self):
+        from src.analysis import RelativeStrengthAnalyzer
+        self.analyzer = RelativeStrengthAnalyzer()
+
+    def test_compute_metrics_high_correlation(self):
+        """완전히 동일한 수익률 -> 상관계수=1, 베타=1, 알파=0"""
+        import numpy as np
+        returns = np.array([0.01, 0.02, -0.01, 0.005, -0.005, 0.015])
+        result = self.analyzer.compute_metrics("TEST", returns, returns)
+        self.assertAlmostEqual(result["correlation"], 1.0, places=5)
+        self.assertAlmostEqual(result["beta"], 1.0, places=5)
+        self.assertAlmostEqual(result["alpha"], 0.0, places=5)
+
+    def test_compute_metrics_low_correlation(self):
+        """서로 다른 랜덤 수익률 -> 상관·베타는 0에 가까움"""
+        import numpy as np
+        np.random.seed(42)
+        stock_r = np.random.randn(50) * 0.01
+        bench_r = np.random.randn(50) * 0.01
+        result = self.analyzer.compute_metrics("RND", stock_r, bench_r)
+        self.assertLess(abs(result["correlation"]), 0.3)
+        self.assertLess(abs(result["beta"]), 0.3)
+
+    def test_compute_metrics_outperformance(self):
+        """stock이 benchmark를 일관되게 초과 -> 양의 alpha"""
+        import numpy as np
+        br = np.array([0.001, 0.002, -0.001, 0.003, 0.001, -0.002, 0.002, 0.001])
+        sr = br + 0.001  # +10bp daily outperformance
+        result = self.analyzer.compute_metrics("ALPHA", sr, br, risk_free_rate=0.03)
+        self.assertGreater(result["alpha"], 0.0)
+        self.assertGreater(result["correlation"], 0.5)
+
+    def test_compute_metrics_insufficient_data(self):
+        """데이터가 5개 미만 -> 0 반환"""
+        import numpy as np
+        result = self.analyzer.compute_metrics("SHORT", np.array([0.01, 0.02]), np.array([0.01, 0.02]))
+        self.assertEqual(result["n"], 0)
+
+    def test_compute_metrics_from_histories(self):
+        """가격 히스토리로부터 올바른 메트릭 계산"""
+        stock_prices = [100, 102, 101, 105, 107, 106, 110]
+        bench_prices = [100, 101, 100.5, 102, 103, 102.5, 104]
+        result = self.analyzer.compute_metrics_from_histories("TEST", stock_prices, bench_prices)
+        self.assertIn("correlation", result)
+        self.assertGreater(result["n"], 0)
+
+    def test_score_symbol_without_handler(self):
+        """MarketDataHandler 없으면 에러 딕셔너리 반환"""
+        result = self.analyzer.score_symbol("AAPL")
+        self.assertIn("error", result)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

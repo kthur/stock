@@ -110,6 +110,7 @@ class BacktestEngine:
     @staticmethod
     def _calc_ema(data: List[float], period: int) -> List[float]:
         """지수이동평균(EMA) 계산. 반환 리스트는 입력과 동일 길이(앞부분은 SMA로 시작)."""
+        period = max(1, period)
         if len(data) < period:
             return [sum(data) / len(data)] * len(data)
         
@@ -128,6 +129,7 @@ class BacktestEngine:
     @staticmethod
     def _calc_atr(bars: List['PriceBar'], period: int = 14) -> float:
         """Average True Range (ATR) 계산. 최근 period 바 기준."""
+        period = max(1, period)
         if len(bars) < 2:
             return 0.0
         
@@ -145,6 +147,7 @@ class BacktestEngine:
     @staticmethod
     def _calc_rsi(closes: List[float], window: int = 14) -> List[float]:
         """Wilder's RSI (EMA 기반) 계산. closes 길이만큼의 리스트 반환."""
+        window = max(1, window)
         if len(closes) <= window:
             return [50.0] * len(closes)
         
@@ -200,6 +203,7 @@ class BacktestEngine:
         return self._volumes_cache
 
     def _get_sma(self, window: int) -> List[float]:
+        window = max(1, window)
         cache_key = ("SMA", window)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
@@ -221,16 +225,19 @@ class BacktestEngine:
 
     def _get_mtf_sma(self, weekly_window: int) -> List[float]:
         """주봉(Weekly) 기준 SMA (일봉 5일 = 주봉 1주)"""
+        weekly_window = max(1, weekly_window)
         daily_window = weekly_window * 5
         return self._get_sma(daily_window)
 
     def _get_ema(self, data: List[float], period: int) -> List[float]:
+        period = max(1, period)
         cache_key = ("EMA", period, id(data))
         if cache_key not in self._indicator_cache:
             self._indicator_cache[cache_key] = self._calc_ema(data, period)
         return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rsi(self, window: int) -> List[float]:
+        window = max(1, window)
         cache_key = ("RSI", window)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
@@ -238,6 +245,9 @@ class BacktestEngine:
         return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_macd_hist(self, fast: int, slow: int, signal: int) -> List[float]:
+        fast = max(1, fast)
+        slow = max(1, slow)
+        signal = max(1, signal)
         cache_key = ("MACD_HIST", fast, slow, signal)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
@@ -250,6 +260,7 @@ class BacktestEngine:
         return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rolling_max(self, window: int) -> List[float]:
+        window = max(1, window)
         cache_key = ("ROLLING_MAX", window)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
@@ -261,6 +272,7 @@ class BacktestEngine:
         return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rolling_mean_volume(self, window: int) -> List[float]:
+        window = max(1, window)
         cache_key = ("ROLLING_MEAN_VOL", window)
         if cache_key not in self._indicator_cache:
             vols = self._get_volumes()
@@ -280,6 +292,7 @@ class BacktestEngine:
         return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_rolling_volatility(self, window: int) -> List[float]:
+        window = max(1, window)
         cache_key = ("ROLLING_VOLATILITY", window)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
@@ -293,6 +306,7 @@ class BacktestEngine:
         return cast(List[float], self._indicator_cache[cache_key])
 
     def _get_bollinger_bands(self, period: int, std_mult: float) -> Tuple[List[float], List[float]]:
+        period = max(1, period)
         cache_key = ("BOLLINGER_BANDS", period, std_mult)
         if cache_key not in self._indicator_cache:
             closes = self._get_closes()
@@ -855,7 +869,10 @@ class BacktestEngine:
             if value > peak:
                 peak = value
             
-            dd = (peak - value) / peak
+            if peak <= 0:
+                dd = 0.0
+            else:
+                dd = (peak - value) / peak
             if dd > max_dd:
                 max_dd = dd
         
@@ -866,8 +883,14 @@ class BacktestEngine:
         if len(equity_curve) < 2:
             return 0
         
-        returns = [(equity_curve[i] - equity_curve[i-1]) / equity_curve[i-1] 
-                  for i in range(1, len(equity_curve))]
+        returns = []
+        for i in range(1, len(equity_curve)):
+            prev = equity_curve[i-1]
+            if prev <= 0:
+                r = 0.0
+            else:
+                r = (equity_curve[i] - prev) / prev
+            returns.append(r)
         
         if not returns:
             return 0
@@ -885,19 +908,59 @@ class BacktestEngine:
         return sharpe
     
     def optimize_parameters(self, symbol: str, price_bars: List[PriceBar],
-                           param_ranges: Dict) -> Dict:
-        """파라미터 최적화"""
+                           param_ranges: Dict, strategy_name: str = "MA") -> Dict:
+        """파라미터 최적화 (캐싱 포함)"""
+        if price_bars is None or len(price_bars) == 0:
+            raise ValueError("price_bars cannot be empty")
+            
+        if not param_ranges or not isinstance(param_ranges, dict):
+            param_ranges = {"short_window": [10, 20], "long_window": [30, 40]}
+            
         best_result = None
         best_params = None
         best_return = -float('inf')
         
-        self.logger.info("Starting parameter optimization...")
+        self.logger.info(f"Starting parameter optimization for {strategy_name}...")
+        
+        import json
+        import os
+        
+        cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, 'optimized_params.json')
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                    if "best_params" in cache_data and "best_return" in cache_data:
+                        cached_params = cache_data["best_params"]
+                        if cached_params and all(k in cached_params for k in param_ranges.keys()):
+                            return {
+                                'best_params': cached_params,
+                                'best_result': None,
+                                'best_return': cache_data['best_return']
+                            }
+            except Exception:
+                pass
+
+        strategy_methods = {
+            "MA": self._simple_ma_strategy,
+            "이동평균선": self._simple_ma_strategy,
+            "RSI": self._rsi_strategy,
+            "MACD": self._macd_strategy,
+            "TREND": self._trend_following_strategy,
+            "추세": self._trend_following_strategy,
+            "BOLLINGER": self._bollinger_band_strategy,
+        }
+        name_upper = strategy_name.upper()
+        strategy_func_unbound = strategy_methods.get(name_upper, self._simple_ma_strategy)
         
         # 간단한 그리드 서치
         for param_combo in self._generate_param_combos(param_ranges):
             def strategy(bars):
                 # 파라미터 기반 전략 실행
-                return self._simple_ma_strategy(bars, param_combo)
+                return strategy_func_unbound(bars, param_combo)
             
             result = self.run_backtest(symbol, price_bars, strategy)
             
@@ -908,6 +971,16 @@ class BacktestEngine:
         
         self.logger.info(f"Optimization complete: best params={best_params}, "
                         f"best return={best_return:.2f}%")
+        
+        # Save to cache
+        cache_data = {
+            'best_params': best_params,
+            'best_return': best_return,
+            'sharpe_ratio': best_result.sharpe_ratio if best_result else 0.0
+        }
+        
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=4)
         
         return {
             'best_params': best_params,
@@ -953,9 +1026,9 @@ class BacktestEngine:
         """RSI 과매도/과매수 전략"""
         if params is None:
             params = {}
-        window = params.get('window', 14)
-        buy_threshold = params.get('buy_threshold', 30)
-        sell_threshold = params.get('sell_threshold', 70)
+        window = params.get('window', params.get('rsi_period', 14))
+        buy_threshold = params.get('buy_threshold', params.get('rsi_oversold', 30))
+        sell_threshold = params.get('sell_threshold', params.get('rsi_overbought', 70))
         
         if len(bars) <= window:
             return "HOLD"
