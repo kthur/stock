@@ -44,6 +44,10 @@ Sub-orchestrator for Milestone 1: AI Pipeline (Sentiment Analysis & RL Trading M
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
+| Explorer 1 (Iter 2) | teamwork_preview_explorer | Plan genuine AI pipeline | in-progress | d753db2e-aa9a-475c-a376-f32c60ab472d |
+| Explorer 2 (Iter 2) | teamwork_preview_explorer | Plan genuine AI pipeline | in-progress | 7147fd93-9a62-4299-a772-4fdabd75b7ff |
+| Explorer 3 (Iter 2) | teamwork_preview_explorer | Plan genuine AI pipeline | completed | 97524080-27c3-42b0-990c-e9609de7d7c8 |
+| Worker (Iter 2) | teamwork_preview_worker | Implement genuine AI pipeline | in-progress | 2356e965-5693-44a6-b467-6bbbe3d145c7 |
 
 ## Succession Status
 - Succession required: no

@@ -1,32 +1,41 @@
-# BRIEFING — 2026-06-06T10:43:00Z
+# BRIEFING — 2026-06-07T16:37:02+09:00
 
 ## Mission
-Analyze requirements for Milestone 3 and produce an implementation strategy for Broker & Reporting.
+Investigate Requirement R3 (Trailing Stop) in trading_system.py and propose a detailed code modification plan.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: Read-only investigation, Strategy formulation
-- Working directory: d:/Finance/code/stock/trading_system/.agents/sub_orch_m3_explorer_1
-- Original parent: 4f06ee63-fac2-4511-84b9-0caecc4a9fe3
-- Milestone: Milestone 3 (Broker & Reporting)
+- Archetype: Explorer
+- Roles: Teamwork explorer, Milestone 3 Explorer 1
+- Working directory: d:\Finance\code\stock\trading_system\.agents\sub_orch_m3_explorer_1
+- Original parent: 0088040c-eedf-4fe3-a108-1c716a399ed1
+- Milestone: Milestone 3
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Network mode: CODE_ONLY
+- Read-only investigation — do NOT implement.
+- Network mode: CODE_ONLY (No external web access).
+- Write to own folder `.agents/sub_orch_m3_explorer_1/`.
+- Communicate via files and messages as per protocol.
 
 ## Current Parent
-- Conversation ID: 4f06ee63-fac2-4511-84b9-0caecc4a9fe3
-- Updated: 2026-06-06T10:43:00Z
+- Conversation ID: 0088040c-eedf-4fe3-a108-1c716a399ed1
+- Updated: 2026-06-07T16:37:02+09:00
 
 ## Investigation State
-- **Explored paths**: `PROJECT.md`, `SCOPE.md`, `src/utils/report_generator.py`, `src/core/order_management.py`, `tests/test_system.py`
-- **Key findings**: `reportlab` is installed, `unittest` is the testing framework, `src/broker` doesn't exist yet.
-- **Unexplored areas**: N/A for this scoped analysis.
+- **Explored paths**:
+  - `d:\Finance\code\stock\trading_system\trading_system.py`
+  - `d:\Finance\code\stock\trading_system\tests\phase4\e2e\test_e2e.py`
+  - `d:\Finance\code\stock\trading_system\src\core\asset_management.py`
+- **Key findings**:
+  - `StockTradingSystem` is missing `_check_trailing_stop`.
+  - The E2E tests expect `_check_trailing_stop` to track a dynamic high watermark `highest_price` per active position.
+  - If `highest_price` falls below the entry price (`avg_price`), it must be reset/clamped to `avg_price`.
+  - Drawing down >= `2 * atr` triggers `TradeSignal.SELL`.
+  - Defensive checks for `price <= 0.0` (panic SELL), `atr <= 0.0` (do nothing, return `None`), and missing positions (return `None`) must be implemented.
+- **Unexplored areas**: None.
 
 ## Key Decisions Made
-- Use `unittest` for the new test suite.
-- Provide a simple mock `reportlab` canvas approach for PDF.
-- `RealBroker` will simply manage connection state.
+- Dynamically inject `highest_price` into `Position` instances within `_check_trailing_stop` rather than modifying `src/core/asset_management.py` to keep changes minimally invasive.
 
 ## Artifact Index
-- `handoff.md` — Detailed strategy report.
+- d:\Finance\code\stock\trading_system\.agents\sub_orch_m3_explorer_1\analysis.md — Detailed analysis report and code change block
+- d:\Finance\code\stock\trading_system\.agents\sub_orch_m3_explorer_1\handoff.md — Handoff report containing 5-component report

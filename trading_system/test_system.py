@@ -86,6 +86,45 @@ async def main():
     except Exception as e:
         print(f"  Market Scanner 오류 발생: {e}")
     
+    # 6. 글로벌 시장 현황 조회
+    print("\n>>> 글로벌 시장 현황 (Global Market) 테스트\n")
+    try:
+        summary = system.get_global_market_summary()
+        if summary and "indices" in summary:
+            for sym, info in summary["indices"].items():
+                name = info.get("name", sym)
+                price = info.get("price")
+                chg = info.get("change_pct")
+                if price is not None:
+                    print(f"  {name}: {price:,.2f} ({chg:+.2f}%)")
+            print("\n  --- 환율 ---")
+            for pair, info in summary.get("fx_rates", {}).items():
+                rate = info.get("rate")
+                chg = info.get("change_pct")
+                if rate is not None:
+                    print(f"  {info['name']}: {rate:.4f} ({chg:+.2f}%)")
+        else:
+            print("  (데이터 없음 - 네트워크 필요)")
+    except Exception as e:
+        print(f"  글로벌 시장 조회 오류: {e}")
+
+    # 7. 상대 강도 분석 (시장 대비 수익률 스크리닝)
+    print("\n>>> 시장 대비 상대 강도 분석 (Relative Strength) 테스트\n")
+    try:
+        mock_symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
+        rankings = system.get_relative_strength_ranking(mock_symbols, period="3mo", top_n=5)
+        if rankings:
+            print(f"  {'랭킹':>4s} {'종목':8s} {'점수':>8s} {'알파':>10s} {'상대수익률':>12s} {'상관계수':>8s}")
+            print(f"  {'-'*4} {'-'*8} {'-'*8} {'-'*10} {'-'*12} {'-'*8}")
+            for r in rankings:
+                print(f"  {r['rank']:>4d} {r['symbol']:8s} {r['composite_score']:>+8.3f} "
+                      f"{r.get('alpha', 0):>+10.6f} {r.get('relative_strength_pct', 0):>+10.2f}% "
+                      f"{r.get('correlation', 0):>+8.3f}")
+        else:
+            print("  (데이터 없음)")
+    except Exception as e:
+        print(f"  상대 강도 분석 오류: {e}")
+
     print("\n" + "="*60)
     print("전체 테스트가 성공적으로 종료되었습니다.")
     print("="*60 + "\n")

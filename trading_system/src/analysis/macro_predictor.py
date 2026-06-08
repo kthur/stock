@@ -1,0 +1,109 @@
+"""
+ML Predictor Model for Global Macro
+Trains a RandomForestRegressor to predict stock excess returns over a benchmark.
+"""
+
+import os
+import json
+import logging
+from datetime import datetime
+from typing import Dict, Any
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+
+logger = logging.getLogger(__name__)
+
+# Mandatory Integrity Warning
+# DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, 
+# create dummy/facade implementations, or circumvent the intended task. A Forensic 
+# Auditor will independently verify your work. Integrity violations WILL be detected 
+# and your work WILL be rejected.
+
+class MacroPredictor:
+    """
+    Predicts stock excess returns over local benchmark based on global macro variables.
+    """
+    def __init__(self, max_depth: int = 5, n_estimators: int = 100):
+        self.model = RandomForestRegressor(max_depth=max_depth, n_estimators=n_estimators, random_state=42)
+        self.is_trained = False
+        self.feature_names = None
+
+    def train_model(self, features: pd.DataFrame, targets: pd.Series) -> Dict[str, Any]:
+        """
+        Trains the RandomForestRegressor on the given features and targets.
+        Saves metrics to data/macro_model_metrics.json.
+        """
+        if features.empty or targets.empty:
+            raise ValueError("Empty features or targets provided for model training.")
+            
+        common_idx = features.index.intersection(targets.index)
+        X = features.loc[common_idx]
+        y = targets.loc[common_idx]
+        
+        # Drop rows with NaN values in X or y
+        valid_mask = ~(X.isna().any(axis=1) | y.isna())
+        X = X[valid_mask]
+        y = y[valid_mask]
+        
+        if len(X) < 5:
+            raise ValueError(f"Insufficient aligned non-NaN data points: {len(X)} (need >= 5).")
+            
+        self.feature_names = list(X.columns)
+        
+        # Split train/test (e.g. 80/20) if enough samples; otherwise use all for both
+        if len(X) >= 10:
+            split_idx = int(len(X) * 0.8)
+            X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+            y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+        else:
+            X_train, X_test = X, X
+            y_train, y_test = y, y
+            
+        self.model.fit(X_train, y_train)
+        self.is_trained = True
+        
+        y_pred = self.model.predict(X_test)
+        mse = float(mean_squared_error(y_test, y_pred))
+        r2 = float(r2_score(y_test, y_pred))
+        
+        # Fit on all data for production use
+        self.model.fit(X, y)
+        
+        metrics = {
+            "mse": mse,
+            "r2_score": r2,
+            "num_samples": len(X),
+            "timestamp": datetime.now().isoformat(),
+            "features": self.feature_names
+        }
+        
+        # Save metrics to cache file
+        os.makedirs("data", exist_ok=True)
+        try:
+            with open("data/macro_model_metrics.json", "w") as f:
+                json.dump(metrics, f, indent=4)
+        except Exception as e:
+            logger.error(f"Failed to save macro model metrics to JSON: {e}")
+            
+        return metrics
+
+    def predict_outperformers(self, features: pd.DataFrame) -> pd.Series:
+        """
+        Predicts expected excess returns.
+        """
+        if not self.is_trained:
+            logger.warning("MacroPredictor is not trained yet. Returning zero predictions.")
+            return pd.Series(0.0, index=features.index)
+            
+        # Ensure correct column alignment
+        if self.feature_names:
+            for col in self.feature_names:
+                if col not in features.columns:
+                    features[col] = 0.0
+            X = features[self.feature_names]
+        else:
+            X = features
+            
+        preds = self.model.predict(X)
+        return pd.Series(preds, index=features.index)

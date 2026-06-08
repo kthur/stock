@@ -39,19 +39,24 @@ Implement Milestone 3: Broker API (`RealBroker` with `connect()` and `submit_ord
 
 ## Key Decisions Made
 - Iteration 1 failed. Running Iteration 2 to fix requirements.txt, flaky tests, and robustness.
+- Worker 3 successfully applied Iteration 2 fixes.
 
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
-| Explorer 4 | Explorer | Fix analysis | completed | 0c577880-6ce1-4d09-87b4-e64e6812a27f |
-| Explorer 5 | Explorer | Fix analysis | completed | 2f59dfc6-5f1b-44bd-aea5-19681e5162a9 |
-| Explorer 6 | Explorer | Fix analysis | completed | 232589b7-3883-4596-aa91-2b5208d1ecc6 |
-| Worker 2 | Worker | Apply fixes | in-progress | 5e67aa2b-1f21-4d75-a14c-d884a57912a2 |
+| Worker 3 | Worker | Apply fixes (retry) | completed | b4577ec6-f4e4-4508-b60b-1d8cd671a744 |
+| Reviewer 3 | Reviewer | Review M3 IT2 | in-progress | abae2197-26f0-43b0-b83f-ce911eeb7112 |
+| Reviewer 4 | Reviewer | Review M3 IT2 | in-progress | 1f71e48c-a769-4ea1-8a07-4b6748485679 |
+| Challenger 3 | Challenger | Challenge IT2 | in-progress | 3227deff-2330-469d-8e0f-bd2e54b44a87 |
+| Challenger 4 | Challenger | Challenge IT2 | in-progress | 35bba1d7-ce14-40b7-925e-17443ed9eb2e |
+| Worker 4 | Worker | Apply fixes (retry 2) | completed | 79a21cb9-ba1d-4844-a0c2-d37a4c0017bc |
+| Reviewer 3 | Reviewer | Evaluate M3 | in-progress | 4d45ad1c-fb6a-4630-817d-900fad3a5f59 |
+| Reviewer 4 | Reviewer | Evaluate M3 | in-progress | 44e8a6e6-74aa-4921-b1ea-c71568a6f4ab |
 
 ## Succession Status
-- Succession required: no
-- Spawn count: 13 / 16
-- Pending subagents: 5e67aa2b-1f21-4d75-a14c-d884a57912a2
+- Succession required: yes
+- Spawn count: 17 / 16
+- Pending subagents: 4d45ad1c-fb6a-4630-817d-900fad3a5f59, 44e8a6e6-74aa-4921-b1ea-c71568a6f4ab83f-ce911eeb7112, 1f71e48c-a769-4ea1-8a07-4b6748485679, 3227deff-2330-469d-8e0f-bd2e54b44a87, 35bba1d7-ce14-40b7-925e-17443ed9eb2e, bd017f3a-2244-4ee6-b470-0fe05a069ebf
 - Predecessor: none
 - Successor: not yet spawned
 

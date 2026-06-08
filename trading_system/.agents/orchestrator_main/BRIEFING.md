@@ -43,15 +43,15 @@ Develop Phase 3 Trading System features: Sentiment Analysis, RL Trading Model, A
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
-| Sub-orch M1 | self | Milestone 1 (AI) | IN_PROGRESS | b6119118-20e8-4985-a139-ec02d3062b2f |
-| Sub-orch M2 | self | Milestone 2 (Asset Alloc) | IN_PROGRESS | 4f3be3a5-b1cf-4a8e-a5d9-93a71e1c0722 |
-| Sub-orch M3 | self | Milestone 3 (Broker & PDF) | IN_PROGRESS | 4f06ee63-fac2-4511-84b9-0caecc4a9fe3 |
-| Sub-orch E2E | self | E2E Testing Track | IN_PROGRESS | 7ff98ef8-c8ee-4e2b-935d-0840e140e7e0 |
+| Sub-orch M1 | self | Milestone 1 (AI) | IN_PROGRESS | 3c07d1aa-adaa-41b8-8696-5b512baac3eb |
+| Sub-orch M2 | self | Milestone 2 (Asset Alloc) | IN_PROGRESS | c7980cfb-da6a-462d-aaa8-044b6d6af839 |
+| Sub-orch M3 | self | Milestone 3 (Broker & PDF) | IN_PROGRESS | de6f8a06-4ebf-43a9-88ac-655ebf00ec01 |
+| Sub-orch E2E | self | E2E Testing Track | IN_PROGRESS | 58324980-8700-46d1-b6ff-63adcce5011a |
 
 ## Succession Status
 - Succession required: no
-- Spawn count: 4 / 16
-- Pending subagents: b6119118-20e8-4985-a139-ec02d3062b2f, 4f3be3a5-b1cf-4a8e-a5d9-93a71e1c0722, 4f06ee63-fac2-4511-84b9-0caecc4a9fe3, 7ff98ef8-c8ee-4e2b-935d-0840e140e7e0
+- Spawn count: 8 / 16
+- Pending subagents: 3c07d1aa-adaa-41b8-8696-5b512baac3eb, c7980cfb-da6a-462d-aaa8-044b6d6af839, de6f8a06-4ebf-43a9-88ac-655ebf00ec01, 58324980-8700-46d1-b6ff-63adcce5011a
 - Predecessor: none
 - Successor: not yet spawned
 

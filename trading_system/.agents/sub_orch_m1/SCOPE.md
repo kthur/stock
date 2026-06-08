@@ -7,7 +7,7 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | AI Pipeline | Implement Sentiment Analysis pipeline returning pos/neg score from text, and an RL model training cycle. | none | IN_PROGRESS |
+| 1 | AI Pipeline | Implement Sentiment Analysis pipeline returning pos/neg score from text, and an RL model training cycle. | none | BLOCKED: Quota exhausted (429) |
 
 ## Interface Contracts
 ### AI Pipeline

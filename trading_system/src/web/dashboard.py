@@ -5,6 +5,7 @@ import threading
 from typing import Any, List, Dict, Optional
 import dash
 from dash import dcc, html, dash_table
+from dash.dependencies import Input, Output
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,66 @@ app.layout = html.Div([
                 ),
                 dcc.Graph(id='backtest-curve-chart'),
                 html.Div(id='optimized-cache-viewer')
+            ])
+        ]),
+        dcc.Tab(label='Global Macro', id='global-macro-tab', children=[
+            html.Div([
+                html.H3("Global Macro Analysis"),
+                html.Label("Select Macro Symbols:"),
+                dcc.Dropdown(
+                    id='macro-symbol-dropdown',
+                    options=[{'label': sym, 'value': sym} for sym in ["^GSPC", "^IXIC", "^KS11", "^KQ11", "USDKRW=X", "^TNX", "^VIX"]],
+                    value=["^GSPC", "^IXIC", "^KS11", "^KQ11", "USDKRW=X", "^TNX", "^VIX"],
+                    multi=True
+                ),
+                html.Label("Select Timeframe:"),
+                dcc.Dropdown(
+                    id='macro-timeframe-dropdown',
+                    options=[
+                        {'label': '1 Month', 'value': '1mo'},
+                        {'label': '3 Months', 'value': '3mo'},
+                        {'label': '6 Months', 'value': '6mo'},
+                        {'label': '1 Year', 'value': '1y'},
+                        {'label': '2 Years', 'value': '2y'}
+                    ],
+                    value='1y'
+                ),
+                html.Label("Limit Output:"),
+                dcc.Slider(
+                    id='macro-limit-slider',
+                    min=1, max=10, step=1, value=10,
+                    marks={i: str(i) for i in range(1, 11)}
+                ),
+                
+                html.Div([
+                    dcc.Graph(id='macro-correlation-heatmap')
+                ]),
+                
+                html.Div([
+                    html.H4("US Expected Outperformers"),
+                    dash_table.DataTable(
+                        id='us-outperformers-table',
+                        columns=[
+                            {"name": "Ticker", "id": "ticker"},
+                            {"name": "Expected Excess Return", "id": "expected_excess_return"},
+                            {"name": "Exchange Rate Correlation", "id": "correlation_to_exchange_rate"}
+                        ],
+                        data=[]
+                    )
+                ], style={'width': '48%', 'display': 'inline-block'}),
+                
+                html.Div([
+                    html.H4("KR Expected Outperformers"),
+                    dash_table.DataTable(
+                        id='kr-outperformers-table',
+                        columns=[
+                            {"name": "Ticker", "id": "ticker"},
+                            {"name": "Expected Excess Return", "id": "expected_excess_return"},
+                            {"name": "Exchange Rate Correlation", "id": "correlation_to_exchange_rate"}
+                        ],
+                        data=[]
+                    )
+                ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
             ])
         ])
     ])
@@ -146,6 +207,118 @@ def update_performance_comparison(performance_data: Dict[str, Any]) -> Dict[str,
             'title': 'Strategy Performance Comparison'
         }
     }
+
+def update_macro_correlation_heatmap(selected_symbols: List[str], timeframe: str) -> Dict[str, Any]:
+    """
+    Stateless callback helper function to generate heatmap figure.
+    """
+    if not selected_symbols:
+        return {
+            'data': [],
+            'layout': {
+                'title': 'No symbols selected'
+            }
+        }
+    
+    from src.analysis.macro_analyzer import fetch_macro_indices_data
+    import pandas as pd
+    try:
+        # Fetch the macro data
+        macro_df = fetch_macro_indices_data(period=timeframe)
+        if macro_df.empty:
+            return {
+                'data': [],
+                'layout': {'title': 'Failed to fetch data'}
+            }
+        
+        # Align, fillna, pct_change
+        if not isinstance(macro_df.index, pd.DatetimeIndex):
+            macro_df.index = pd.to_datetime(macro_df.index)
+        if macro_df.index.tz is not None:
+            macro_df.index = macro_df.index.tz_convert(None)
+        macro_df.index = macro_df.index.normalize()
+        macro_df = macro_df.groupby(macro_df.index).mean()
+        macro_df = macro_df.ffill().bfill()
+        
+        returns = macro_df.pct_change().dropna(how='all')
+        
+        # Filter for selected symbols
+        valid_symbols = [s for s in selected_symbols if s in returns.columns]
+        if not valid_symbols:
+            return {
+                'data': [],
+                'layout': {'title': 'No valid symbols found in returns'}
+            }
+            
+        corr_matrix = returns[valid_symbols].corr().fillna(0.0)
+        
+        # Create heatmap data
+        heatmap_data = {
+            'x': list(corr_matrix.columns),
+            'y': list(corr_matrix.index),
+            'z': corr_matrix.values.tolist(),
+            'type': 'heatmap',
+            'colorscale': 'RdBu',
+            'zmin': -1.0,
+            'zmax': 1.0
+        }
+        
+        return {
+            'data': [heatmap_data],
+            'layout': {
+                'title': f'Global Macro Correlation Heatmap ({timeframe})',
+                'xaxis': {'title': 'Symbols'},
+                'yaxis': {'title': 'Symbols'}
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error updating heatmap: {e}")
+        return {
+            'data': [],
+            'layout': {
+                'title': f'Error: {str(e)}'
+            }
+        }
+
+def update_outperformers_table(country: str, timeframe: str, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Stateless callback helper function to return outperformer recommendations.
+    """
+    from src.analysis.screener import StockScreener
+    try:
+        limit = max(0, limit)
+        screener = StockScreener()
+        results = screener.screen_global_outperformers()
+        region_results = results.get(country, [])
+        return region_results[:limit]
+    except Exception as e:
+        logger.error(f"Error in update_outperformers_table: {e}")
+        return []
+
+# Register Dash callbacks
+@app.callback(
+    Output('macro-correlation-heatmap', 'figure'),
+    [Input('macro-symbol-dropdown', 'value'),
+     Input('macro-timeframe-dropdown', 'value')]
+)
+def callback_update_macro_correlation_heatmap(selected_symbols, timeframe):
+    return update_macro_correlation_heatmap(selected_symbols, timeframe)
+
+@app.callback(
+    Output('us-outperformers-table', 'data'),
+    [Input('macro-timeframe-dropdown', 'value'),
+     Input('macro-limit-slider', 'value')]
+)
+def callback_update_us_outperformers_table(timeframe, limit):
+    return update_outperformers_table('US', timeframe, limit)
+
+@app.callback(
+    Output('kr-outperformers-table', 'data'),
+    [Input('macro-timeframe-dropdown', 'value'),
+     Input('macro-limit-slider', 'value')]
+)
+def callback_update_kr_outperformers_table(timeframe, limit):
+    return update_outperformers_table('KR', timeframe, limit)
 
 class DashboardServer:
     """Dashboard configuration server class."""

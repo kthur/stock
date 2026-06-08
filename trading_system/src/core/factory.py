@@ -34,6 +34,7 @@ class SystemFactory:
             global_market=global_market,
             relative_strength=rsa,
             global_market_weight=0.10,
+            cash_ratio_weight=0.08,
         )
         portfolio = PortfolioManager(initial_cash=initial_cash)
         return {

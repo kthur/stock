@@ -1,12 +1,10 @@
 import os
 import pytest
-from trading_system.phase3 import (
-    analyze_sentiment,
-    train_rl_model,
-    allocate_assets,
-    generate_pdf_report,
-    RealBroker
-)
+from src.ai.sentiment import analyze_sentiment
+from src.ai.rl_trading import train_rl_model
+from src.strategy.allocation import allocate_assets
+from src.utils.report import generate_pdf_report
+from src.broker.real_broker import RealBroker
 
 # F1: Sentiment Analysis
 def test_sentiment_positive_text():

@@ -1,30 +1,33 @@
-# BRIEFING — 2026-06-06T19:43:43+09:00
+# BRIEFING — 2026-06-07T16:39:14+09:00
 
 ## Mission
-Implement Milestone 3: RealBroker abstraction and PDF reporting using reportlab.
+Implement the requirements for Milestone 3 (Trailing Stop R3 and StockScreener R4) and verify all R1, R2, R3, R4 tests pass cleanly.
 
 ## 🔒 My Identity
-- Archetype: Implementer
+- Archetype: implementer/qa/specialist
 - Roles: implementer, qa, specialist
-- Working directory: d:/Finance/code/stock/trading_system/.agents/sub_orch_m3_worker
-- Original parent: 4f06ee63-fac2-4511-84b9-0caecc4a9fe3
+- Working directory: d:\Finance\code\stock\trading_system\.agents\sub_orch_m3_worker
+- Original parent: 0088040c-eedf-4fe3-a108-1c716a399ed1
 - Milestone: Milestone 3
 
 ## 🔒 Key Constraints
-- DO NOT CHEAT. All implementations must be genuine.
-- Use `reportlab` for PDF generation, do not just write a text file.
-- RealBroker is a mocked abstraction as requested in the requirements.
+- CODE_ONLY network mode: No external websites, curl/wget, or web search.
+- DO NOT CHEAT: All implementations must be genuine.
+- Follow minimal change principle.
+- Write only to your folder; read any folder.
 
 ## Current Parent
-- Conversation ID: 4f06ee63-fac2-4511-84b9-0caecc4a9fe3
-- Updated: 2026-06-06T19:43:43+09:00
+- Conversation ID: 0088040c-eedf-4fe3-a108-1c716a399ed1
+- Updated: not yet
 
 ## Task Summary
-- **What to build**: `RealBroker` class in `src/broker/real_broker.py`, `generate_pdf_report` in `src/utils/report.py`, tests in `tests/phase3/test_broker_reporting.py`.
-- **Success criteria**: Tests pass, PDF is genuinely generated.
+- **What to build**: Trailing Stop (R3) features and StockScreener (R4).
+- **Success criteria**: All R1-R4 tests and their combinations pass cleanly.
+- **Interface contracts**: PROJECT.md
+- **Code layout**: src/core/asset_management.py, src/core/strategy_engine.py, trading_system.py, src/analysis/screener.py.
 
 ## Key Decisions Made
-- Pending
+- [TBD]
 
 ## Artifact Index
 - [TBD]

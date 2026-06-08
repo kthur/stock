@@ -185,6 +185,21 @@ TradeLogger → OptimizationEngine → HybridStrategyEngine (파라미터 조정
 - **다양한 전략**: MA, RSI, MACD, 볼린저밴드, 유명인 전략, ML 앙상블
 - **파라미터 최적화**: 그리드 서치 + 교차검증
 
+### 감성 분석 (Sentiment Analysis)
+- **기본 구현**: `src/ai/sentiment.py`의 `SentimentAnalyzer` 클래스를 통해 자체 구축된 금융 사전(lexicon) 기반 분석을 수행합니다.
+- **LLM 보완**: `src/ai/llm_integration.py` 및 `src/ai/llm_earnings_agent.py`를 통해 LLM 응답을 해석하거나 구조화된 감성 점수를 도출합니다.
+- **신호 통합**: 감성 점수(-1.0 ~ 1.0)는 `src/core/strategy_engine.py`의 `HybridStrategyEngine`에서 결합됩니다. 
+- **제약 사항**: `src/broker/real_broker.py`를 포함한 모든 브로커 모듈은 오직 최종 `TradeSignal`만 소비하며 감성 분석 과정에는 전혀 관여하지 않습니다.
+
+### 강화 학습 (Reinforcement Learning)
+- **주요 모델 (PPO)**: `src/ai/rl_trading.py`에서 `stable-baselines3` 기반의 PPO 모델을 사용하여 훈련을 수행합니다.
+- **대체 모델 (DQN)**: 외부 라이브러리가 없을 경우를 대비하여 `src/ai/rl_trader.py`에 자체 PyTorch 기반 DQN 에이전트가 구현되어 있습니다.
+- **휴리스틱 RL**: `src/analysis/rl_engine.py`는 신경망 대신 과거의 성공/실패 기록을 바탕으로 임계값을 동적 조정하는 룰 기반 엔진입니다.
+
+### 자산 배분 (Asset Allocation)
+- **전략 엔진**: `src/strategy/asset_allocation.py`의 `AssetAllocator` 클래스에서 `equal_weight`, `risk_parity`, `momentum`의 3가지 주요 전략을 지원합니다.
+- **세부 최적화**: 결측치(`NaN`/`Inf`) 필터링, 최소 2개 이상의 가격 데이터 강제, 부동소수점 오차 누적을 방지하는 엄격한 정규화(Normalization) 과정을 거쳐 가중치 합 1.0을 정확히 보장합니다. (단순 비중 배분 함수는 `src/strategy/allocation.py`에 유지)
+
 ## 로깅
 
 모든 주요 이벤트는 로깅됩니다:

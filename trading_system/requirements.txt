@@ -20,3 +20,4 @@ gymnasium>=0.28.0
 reportlab
 transformers
 torch
+dash

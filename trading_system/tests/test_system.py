@@ -186,32 +186,29 @@ class TestStrategyEngine(unittest.TestCase):
 
     def test_normalize_weights_sum_to_one(self):
         """가중치 정규화 후 합계 = 1.0"""
-        self.engine.sentiment_weight = 0.5
-        self.engine.technical_weight = 0.5
-        self.engine.ml_weight = 0.5
-        self.engine.rl_weight = 0.5
-        self.engine.darkpool_weight = 0.5
-        self.engine.llm_weight = 0.5
-        self.engine.global_market_weight = 0.5
+        for attr in ("sentiment_weight", "technical_weight", "ml_weight",
+                     "rl_weight", "darkpool_weight", "llm_weight",
+                     "global_market_weight", "cash_ratio_weight"):
+            setattr(self.engine, attr, 0.5)
         self.engine._normalize_weights()
         total = (self.engine.sentiment_weight + self.engine.technical_weight +
                  self.engine.ml_weight + self.engine.rl_weight +
                  self.engine.darkpool_weight + self.engine.llm_weight +
-                 self.engine.global_market_weight)
+                 self.engine.global_market_weight + self.engine.cash_ratio_weight)
         self.assertAlmostEqual(total, 1.0, places=6)
 
     def test_normalize_weights_zero_case(self):
         """모든 가중치가 0이면 균등 분배"""
         for attr in ("sentiment_weight", "technical_weight", "ml_weight",
                      "rl_weight", "darkpool_weight", "llm_weight",
-                     "global_market_weight"):
+                     "global_market_weight", "cash_ratio_weight"):
             setattr(self.engine, attr, 0.0)
         self.engine._normalize_weights()
         n = len(self.engine.SIGNAL_NAMES)
         total = (self.engine.sentiment_weight + self.engine.technical_weight +
                  self.engine.ml_weight + self.engine.rl_weight +
                  self.engine.darkpool_weight + self.engine.llm_weight +
-                 self.engine.global_market_weight)
+                 self.engine.global_market_weight + self.engine.cash_ratio_weight)
         self.assertAlmostEqual(total, 1.0, places=6)
         self.assertAlmostEqual(self.engine.sentiment_weight, 1.0 / n, places=6)
 
@@ -282,6 +279,29 @@ class TestStrategyEngine(unittest.TestCase):
         self.engine.record_signal_outcome("unknown", True)  # should be no-op
         self.assertIn("sentiment", self.engine._signal_performance)
         self.assertEqual(len(self.engine._signal_performance["sentiment"]), 1)
+
+    def test_cash_ratio_signal_high_cash_scores_above_neutral(self):
+        """현금 많고 VIX 낮음 -> score > 0.5"""
+        self.engine.ml_engine = None
+        market_data = {'price': 150.0, 'bid': 149.95, 'ask': 150.05, 'volume': 5000000}
+        result = self.engine.analyze("AAPL", market_data, 0.0, cash_ratio=0.9)
+        self.assertGreaterEqual(result.confidence, 0.0)
+        self.assertIn("cash_ratio", self.engine.SIGNAL_NAMES)
+
+    def test_cash_ratio_signal_low_cash_scores_below_neutral(self):
+        """현금 적고 VIX 높음 -> score < 0.5"""
+        self.engine.ml_engine = None
+        self.engine.sentiment_weight = 0.0
+        self.engine.technical_weight = 0.0
+        self.engine.ml_weight = 0.0
+        self.engine.rl_weight = 0.0
+        self.engine.darkpool_weight = 0.0
+        self.engine.llm_weight = 0.0
+        self.engine.global_market_weight = 0.0
+        self.engine.cash_ratio_weight = 1.0
+        market_data = {'price': 150.0, 'bid': 149.95, 'ask': 150.05, 'volume': 5000000}
+        result = self.engine.analyze("AAPL", market_data, 0.0, cash_ratio=0.05)
+        self.assertLess(result.confidence, 0.5)
 
 
 class TestGlobalMarketClient(unittest.TestCase):

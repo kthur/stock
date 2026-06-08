@@ -1,37 +1,44 @@
-# Project: Phase 3 Trading System
+# Project: Phase 4 Trading System Upgrade
 
 ## Architecture
-- **src/ai**: Contains Reinforcement Learning (RL) components (`stable-baselines3` or PyTorch) and LLM-based Sentiment Analysis.
-- **src/strategy**: Contains Asset Allocation logics (dynamically redistributing weights).
-- **src/broker**: Contains Broker interfaces and implementations (e.g., `RealBroker` for Korea Investment / Kiwoom).
-- **src/utils**: Contains utilities, including the PDF Report generation.
+- **src/analysis/backtest.py**: `BacktestEngine` with parameter optimization grid search.
+- **src/core/strategy_engine.py**: `HybridStrategyEngine` with dynamic weight adaptation and market regime detection.
+- **trading_system.py**: Core `StockTradingSystem` handling real-time loop and trailing stop logic.
+- **src/analysis/screener.py**: `StockScreener` filtering assets based on configuration parameters.
+- **src/web/dashboard.py**: Dash-based interactive web dashboard with tabs for performance comparison, real-time position/P&L status, and backtest viewer.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | AI Pipeline | Implement Sentiment Analysis pipeline returning pos/neg score from text, and an RL model training cycle. | none | IN_PROGRESS |
-| 2 | Asset Allocation | Implement Asset Allocation logic ensuring 100% total weight distribution across given assets. | none | IN_PROGRESS |
-| 3 | Broker & Reporting | Implement `RealBroker` with `connect()` and `submit_order()`, and a PDF generation function from mock trade data. | none | IN_PROGRESS |
+| 1 | E2E Test Suite | Create comprehensive E2E test cases (Tiers 1-4) in `tests/phase4/e2e/` and publish `TEST_READY.md`. | None | DONE |
+| 2 | Param Optimization & Regime Detection | Implement R1 grid search optimization and JSON caching, and R2 market regime detection with dynamic weight switching in `HybridStrategyEngine`. | None | DONE |
+| 3 | Trailing Stop & Screener | Implement R3 trailing stop logic in `StockTradingSystem` and R4 `StockScreener` with criteria-based filtering. | None | IN_PROGRESS |
+| 4 | Dash Web UI | Re-implement `src/web/dashboard.py` in Dash with 3 required tabs, server exposure, and interactive backtest charting. | None | PLANNED |
+| 5 | E2E Verification & Hardening | Run E2E test suite (Tiers 1-4), add Tier 5 white-box adversarial test cases, and pass Forensic Audit. | M1, M2, M3, M4 | PLANNED |
 
 ## Interface Contracts
-### AI Pipeline
-- `analyze_sentiment(text: str) -> float`: Returns sentiment score.
-- `train_rl_model(data)`: Runs a training cycle for DQN/PPO.
+### R1. Parameter Optimization
+- `BacktestEngine.optimize_parameters(symbol: str, price_bars: List[PriceBar], param_ranges: Dict, strategy_name: str = "MA") -> Dict`: Runs parameter search, updates `data/optimized_params.json` and returns results.
 
-### Asset Allocation
-- `allocate_assets(prices_dict: dict) -> dict`: Returns normalized weights summing to 1.0.
+### R2. Market Regime & Strategy Switching
+- `HybridStrategyEngine.detect_regime(price_bars: List[Any]) -> Literal["bull", "bear", "sideways"]`: Identifies market regime.
+- `HybridStrategyEngine` adapts weights and `sell_threshold` based on regime.
 
-### Broker
-- `RealBroker.connect()`: Establishes connection mock.
-- `RealBroker.submit_order(...)`: Submits a dummy order.
+### R3. Trailing Stop
+- `StockTradingSystem._check_trailing_stop(symbol: str, current_price: float, atr: float = 2.0) -> Optional[TradeSignal]`: Evaluates trailing stop triggers.
 
-### Reporting
-- `generate_pdf_report(trade_data: list, file_path: str)`: Creates a `.pdf` file.
+### R4. Stock Screener
+- `StockScreener.screen(universe: List[str]) -> List[str]`: Filters symbols based on configuration.
+
+### R5. Dash Dashboard
+- `app = dash.Dash(__name__, ...)`: Dash app instance.
+- `server = app.server`: Exposing the underlying Flask server.
 
 ## Code Layout
-- `src/ai/sentiment.py`: Sentiment Analysis logic.
-- `src/ai/rl_trading.py`: RL Training script.
-- `src/strategy/allocation.py`: Asset allocation algorithm.
-- `src/broker/real_broker.py`: RealBroker API connection skeleton.
-- `src/utils/report.py`: PDF report generator.
-- `tests/phase3/`: Automated test cases for verifying Acceptance Criteria.
+- `src/analysis/backtest.py`: Param optimization.
+- `src/core/strategy_engine.py`: Regime-based strategy switcher.
+- `trading_system.py`: Trailing stop implementation.
+- `src/analysis/screener.py`: `StockScreener` class.
+- `src/web/dashboard.py`: Dash UI application.
+- `run_dashboard.py`: Dashboard launcher.
+- `tests/phase4/`: Target verification and E2E tests.

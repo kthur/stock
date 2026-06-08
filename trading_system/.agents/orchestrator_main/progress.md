@@ -11,3 +11,6 @@ Last visited: 2026-06-06T10:50:00Z
 
 ## Iteration Status
 Current iteration: 1 / 32
+
+## Notes
+- 2026-06-06T15:00:00Z: System hit quota limit (RESOURCE_EXHAUSTED). All sub-orchestrators crashed. Respawned 4 replacements to resume from their respective progress.md files.
