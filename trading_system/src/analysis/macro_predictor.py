@@ -7,7 +7,7 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
@@ -27,7 +27,7 @@ class MacroPredictor:
     def __init__(self, max_depth: int = 5, n_estimators: int = 100):
         self.model = RandomForestRegressor(max_depth=max_depth, n_estimators=n_estimators, random_state=42)
         self.is_trained = False
-        self.feature_names = None
+        self.feature_names: Optional[list] = None
 
     def train_model(self, features: pd.DataFrame, targets: pd.Series) -> Dict[str, Any]:
         """

@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -291,7 +291,7 @@ class StockScreener:
 
             fx_returns = macro_returns["USDKRW=X"]
             
-            results = []
+            results: List[Dict[str, Any]] = []
             for ticker in tickers:
                 if ticker not in stock_returns.columns:
                     continue

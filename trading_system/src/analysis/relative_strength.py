@@ -57,7 +57,8 @@ def _benchmark_for_symbol(symbol: str) -> str:
 def _returns(series: np.ndarray) -> np.ndarray:
     if len(series) < 2:
         return np.array([])
-    return (series[1:] - series[:-1]) / series[:-1]
+    result: np.ndarray = (series[1:] - series[:-1]) / series[:-1]
+    return result
 
 
 class RelativeStrengthAnalyzer:

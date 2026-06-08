@@ -16,14 +16,8 @@ class DistributedOrderConfig:
     n_tranches_sell: int = 3
     buy_spread_pct: float = 0.015
     sell_spread_pct: float = 0.025
-    buy_allocation: Optional[Tuple[float, ...]] = None
-    sell_allocation: Optional[Tuple[float, ...]] = None
-
-    def __post_init__(self):
-        if self.buy_allocation is None:
-            self.buy_allocation = (0.40, 0.35, 0.25)
-        if self.sell_allocation is None:
-            self.sell_allocation = (0.40, 0.35, 0.25)
+    buy_allocation: Tuple[float, ...] = (0.40, 0.35, 0.25)
+    sell_allocation: Tuple[float, ...] = (0.40, 0.35, 0.25)
 
 
 def _normalize(allocation: Tuple[float, ...], n: int) -> List[float]:

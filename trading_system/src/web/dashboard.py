@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Any, List, Dict, Optional
 import dash
-from dash import dcc, html, dash_table
+from dash import dcc, html, dash_table  # type: ignore[attr-defined]
 from dash.dependencies import Input, Output
 
 logger = logging.getLogger(__name__)

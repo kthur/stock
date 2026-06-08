@@ -6,7 +6,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 import logging
 from pathlib import Path
 import json
@@ -115,9 +115,9 @@ class RiskManager:
             return 1.0
         annualized_vol = daily_vol * (252 ** 0.5)
         scaler = self.target_annual_volatility / annualized_vol
-        return max(0.25, min(2.0, scaler))
+        return float(max(0.25, min(2.0, scaler)))
 
-    def check_risk_off_signal(self, vix_value: float = None) -> bool:
+    def check_risk_off_signal(self, vix_value: Optional[float] = None) -> bool:
         """
         Returns True if VIX index >= 25.0.
         If vix_value is not provided, fetch it using AlternativeDataClient().fetch_vix()

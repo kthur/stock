@@ -158,7 +158,8 @@ class QNetwork(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        result: torch.Tensor = self.net(x)
+        return result
 
 
 # ─── DQN Agent ────────────────────────────────────────────────────────────────
@@ -312,7 +313,7 @@ class DQNAgent:
 
 # ─── Top-level training function ─────────────────────────────────────────────
 
-def train_rl_model(data: list = None) -> dict:
+def train_rl_model(data: Optional[list] = None) -> dict:
     """
     Train a DQN trading agent.
 

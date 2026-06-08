@@ -126,7 +126,7 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(symbol, period=period)
         if hist is None or hist.empty:
             return []
-        records: List[Dict[str, float]] = []
+        records: List[Dict[str, Any]] = []
         for idx, row in hist.iterrows():
             records.append({
                 "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),

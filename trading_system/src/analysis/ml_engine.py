@@ -291,4 +291,5 @@ class MLEngine:
         logger.info(f"Optimized hyperparameters: {best_params}")
         self.model_params.update(best_params)
         self._init_model()
+        assert best_params is not None
         return best_params

@@ -97,7 +97,7 @@ class HybridStrategyEngine:
         self._signal_performance: Dict[str, List[bool]] = {s: [] for s in self.SIGNAL_NAMES}
         self._signal_scores: Dict[str, float] = {}
         
-        self.strategy_parameters = {}
+        self.strategy_parameters: Dict[str, Any] = {}
         self._normalize_weights()
         self._baseline_weights = {
             "sentiment_weight": self.sentiment_weight,
@@ -162,7 +162,7 @@ class HybridStrategyEngine:
         ema26 = self._calc_ema(closes, 26)
         macd_line = [ema12[i] - ema26[i] for i in range(len(closes))]
         signal_line = self._calc_ema(macd_line, 9)
-        return macd_line[-1] - signal_line[-1]
+        return float(macd_line[-1] - signal_line[-1])
 
     def _calc_bollinger_position(self, closes: list, period: int = 20, std_mult: float = 2.0) -> float:
         """볼린저밴드 내 현재 위치 (0.0=하단, 0.5=중심, 1.0=상단)"""
@@ -179,7 +179,7 @@ class HybridStrategyEngine:
         band_width = upper - lower
         if band_width == 0:
             return 0.5
-        return max(0.0, min(1.0, (closes[-1] - lower) / band_width))
+        return float(max(0.0, min(1.0, (closes[-1] - lower) / band_width)))
 
     def _compute_technical_indicators(self, price_bars: list) -> Dict:
         """과거 가격 데이터로부터 기술적 지표 종합 점수 산출"""
@@ -678,7 +678,7 @@ class HybridStrategyEngine:
         std_dev = variance ** 0.5
         if sma == 0:
             return 0.0
-        return 2.0 * std_dev / sma
+        return float(2.0 * std_dev / sma)
 
     def detect_regime(self, price_bars: List[Any]) -> str:
         """시장 레짐(추세) 감지 및 가중치/임계값 동적 조절"""

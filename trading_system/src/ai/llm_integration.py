@@ -56,7 +56,7 @@ class LLMEngine:
             model: 사용할 모델
             provider: LLM 제공자 ("openai", "gemini")
         """
-        self.provider = (provider or os.getenv("LLM_PROVIDER", "openai")).lower()
+        self.provider = (provider or os.getenv("LLM_PROVIDER") or "openai").lower()
         self.logger = logger
         self.query_history: list = []
         
