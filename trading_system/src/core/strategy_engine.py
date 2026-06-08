@@ -51,10 +51,10 @@ class HybridStrategyEngine:
         global_market: Any = None,
         relative_strength: Any = None,
         sentiment_weight: float = 0.3,
-        technical_weight: float = 0.2,
-        ml_weight: float = 0.2,
+        technical_weight: float = 0.25,
+        ml_weight: float = 0.25,
         rl_weight: float = 0.1,
-        darkpool_weight: float = 0.1,
+        darkpool_weight: float = 0.0,
         llm_weight: float = 0.1,
         global_market_weight: float = 0.0,
         cash_ratio_weight: float = 0.08,
@@ -62,7 +62,7 @@ class HybridStrategyEngine:
         buy_price_threshold: float = 1.01,
         sell_threshold: float = 0.4,
         weight_adaptation_rate: float = 0.05,
-        weight_adaptation_window: int = 50,
+        weight_adaptation_window: int = 15,
     ) -> None:
         self.logger = logger
         self.results_history: List[StrategyResult] = []
@@ -241,6 +241,24 @@ class HybridStrategyEngine:
         else:
             bb_score = 0.5
         
+        # trend strength: EMA slope + cross position
+        ema20_slope = (ema20[-1] - ema20[-5]) / max(ema20[-5], 1e-10) if len(ema20) >= 5 else 0.0
+        trend_bias = 0.5
+        if len(closes) >= 50 and len(ema20) >= 5:
+            if ema20[-1] > ema50[-1] and ema20_slope > 0.001:
+                trend_bias = 0.8  # solid uptrend
+            elif ema20[-1] < ema50[-1] and ema20_slope < -0.001:
+                trend_bias = 0.2  # solid downtrend
+        # override mean-reversion signals when trend is strong
+        if trend_bias > 0.7:
+            rsi_score = max(rsi_score, 0.5)
+            bb_score = max(bb_score, 0.5)
+            ema_score = max(ema_score, 0.5)
+        elif trend_bias < 0.3:
+            rsi_score = min(rsi_score, 0.5)
+            bb_score = min(bb_score, 0.5)
+            ema_score = min(ema_score, 0.5)
+        
         # 앙상블 종합 (동일 가중)
         combined = (rsi_score * 0.30 + macd_score * 0.25 + ema_score * 0.25 + bb_score * 0.20)
         
@@ -386,14 +404,13 @@ class HybridStrategyEngine:
                     
             llm_score = 0.5
             if self.llm_earnings:
-                if abs(news_sentiment) > 0.3:
-                    llm_direction = "POSITIVE" if news_sentiment > 0 else "NEGATIVE"
-                    transcript = f"최근 뉴스 심리가 {llm_direction}으로 {abs(news_sentiment)*100:.0f}% 수준입니다."
-                    llm_res = self.llm_earnings.analyze_earnings_call(symbol, transcript)
-                    if llm_res.get("guidance") == "POSITIVE":
-                        llm_score = 0.9
-                    elif llm_res.get("guidance") == "NEGATIVE":
-                        llm_score = 0.1
+                llm_direction = "POSITIVE" if news_sentiment > 0 else "NEGATIVE"
+                transcript = f"최근 뉴스 심리가 {llm_direction}으로 {abs(news_sentiment)*100:.0f}% 수준입니다."
+                llm_res = self.llm_earnings.analyze_earnings_call(symbol, transcript)
+                if llm_res.get("guidance") == "POSITIVE":
+                    llm_score = 0.9
+                elif llm_res.get("guidance") == "NEGATIVE":
+                    llm_score = 0.1
 
             # ── Global market signal ───────────────────────────────────────
             global_market_score = 0.5

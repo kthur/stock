@@ -468,26 +468,6 @@ class StockTradingSystem:
             except Exception:
                 pass
         
-        # VIX-Linked Dynamic Asset Allocation (Risk-Off Switch)
-        if order_type == OrderType.BUY:
-            vix_value = self.market_data_cache.get("VIX", {}).get("price") or self.market_data_cache.get("^VIX", {}).get("price")
-            is_risk_off = self.risk_manager.check_risk_off_signal(vix_value)
-            if is_risk_off:
-                c = self.portfolio.cash
-                v_e = 0.0
-                for sym, pos in self.portfolio.positions.items():
-                    p = self.market_data_cache.get(sym, {}).get("price", pos.avg_price)
-                    v_e += pos.quantity * p
-                pv = c + v_e
-                max_spend = c - 0.70 * pv
-                max_qty = max(0, int(max_spend // price))
-                if quantity > max_qty:
-                    logger.warning(
-                        f"VIX-linked risk-off clamping applied for {symbol}: quantity clamped from {quantity} to {max_qty} "
-                        f"to keep post-trade cash >= 70% of PV (${pv:,.2f})"
-                    )
-                    quantity = max_qty
-
         # 포지션 집중도 사전 체크 (매수 시, 특정 종목 쏠림 + 상관관계 기반 위험 배분)
         if order_type == OrderType.BUY:
             position = self.portfolio.positions.get(symbol)
@@ -614,7 +594,7 @@ class StockTradingSystem:
                     atr_for_tp = atr
                 if atr_for_tp <= 0:
                     atr_for_tp = price * 0.02
-                tp_tiers_atr = [1.5, 3.0, 5.0]
+                tp_tiers_atr = [3.0, 5.0, 8.0]
                 tp_fractions = [0.33, 0.33, 0.34]
                 for atr_mult, fraction in zip(tp_tiers_atr, tp_fractions):
                     tier_qty = max(1, int(quantity * fraction))
