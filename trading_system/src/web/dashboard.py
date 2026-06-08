@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Any, List, Dict, Optional
 import dash
-from dash import dcc, html, dash_table  # type: ignore[attr-defined]
+from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ app.layout = html.Div([
         ]),
         dcc.Tab(label='Real-time P&L', id='pnl-tab', children=[
             html.Div([
-                dash_table.DataTable(id='pnl-status-table')
+                dash_table.DataTable(id='pnl-status-table')  # type: ignore[attr-defined]
             ])
         ]),
         dcc.Tab(label='Backtest Viewer', id='backtest-tab', children=[
@@ -77,7 +77,7 @@ app.layout = html.Div([
                 
                 html.Div([
                     html.H4("US Expected Outperformers"),
-                    dash_table.DataTable(
+                    dash_table.DataTable(  # type: ignore[attr-defined]
                         id='us-outperformers-table',
                         columns=[
                             {"name": "Ticker", "id": "ticker"},
@@ -90,7 +90,7 @@ app.layout = html.Div([
                 
                 html.Div([
                     html.H4("KR Expected Outperformers"),
-                    dash_table.DataTable(
+                    dash_table.DataTable(  # type: ignore[attr-defined]
                         id='kr-outperformers-table',
                         columns=[
                             {"name": "Ticker", "id": "ticker"},

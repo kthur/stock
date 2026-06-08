@@ -287,9 +287,8 @@ class MLEngine:
         study = optuna.create_study(direction='minimize')
         study.optimize(objective, n_trials=n_trials)
         
-        best_params = study.best_params
+        best_params: dict = study.best_params
         logger.info(f"Optimized hyperparameters: {best_params}")
         self.model_params.update(best_params)
         self._init_model()
-        assert best_params is not None
         return best_params
