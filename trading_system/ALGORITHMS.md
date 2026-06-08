@@ -47,6 +47,10 @@
     - 10.2 영문 금융 어휘 감정 분석
 11. [백테스트 비용 모델 (Backtest Cost Model)](#11-백테스트-비용-모델)
 12. [이벤트 버스 패턴 (Event Bus)](#12-이벤트-버스-패턴)
+13. [분산 매수/매도 (Distributed Orders)](#13-분산-매수매도)
+14. [포트폴리오 기준 거래 단위 (Portfolio-based Trade Unit)](#14-포트폴리오-기준-거래-단위)
+15. [글로벌 마켓 팩터 (Global Market Factor)](#15-글로벌-마켓-팩터)
+16. [상대 강도 분석 (Relative Strength Analysis)](#16-상대-강도-분석)
 
 ---
 
@@ -970,5 +974,82 @@ class EventBus:
 
 ---
 
-**마지막 업데이트**: 2026-06-06
+## 13. 분산 매수/매도 (Distributed Orders)
+
+**설명**: Kelly로 계산된 총 수량을 N개 트렌치로 분할
+
+**수식**:
+```
+q_i = round(total_qty * alloc_i), 각 트렌치 가격 = center_price * (1 ± spread * i)
+  - 매수: p_i = center_price * (1 - buy_spread * i) (내림차순)
+  - 매도: p_i = center_price * (1 + sell_spread * (i+1)) (오름차순)
+```
+
+- 각 트렌치별 SL/TP: scaled by entry_price / center_price ratio
+- 활성화 조건: quantity >= portfolio_value * distributed_threshold_pct / price
+- 구현: src/core/distributed_order.py
+- 참고: trading_system.py:328-355 (_create_and_submit_order에서 분산 주문 분기)
+
+---
+
+## 14. 포트폴리오 기준 거래 단위 (Portfolio-based Trade Unit)
+
+**설명**: 거래 단위를 절대 수량이 아닌 포트폴리오 가치 대비 비율로 결정
+
+**수식**:
+```
+min_qty = max(1, floor(PV * min_trade_pct / price))
+distributed_threshold = floor(PV * distributed_pct / price)
+  - PV = 포트폴리오 총 가치
+  - min_trade_pct = 0.001 (0.1%)
+  - distributed_pct = 0.005 (0.5%)
+```
+
+- 구현: trading_system.py (_create_and_submit_order, lines 230-235, 317-331)
+- 효과: $100k 포트폴리오 → 최소 1주 @ $100, 100만 → 10주
+
+---
+
+## 15. 글로벌 마켓 팩터 (Global Market Factor)
+
+**설명**: HybridStrategyEngine의 7번째 신호, 글로벌 지수 상승 비율 기반
+
+**수식**:
+```
+score = 0.5 + (up_indices / total_indices - 0.5) * 0.4
+  - up_indices = change_pct > 0 인 지수 개수
+```
+
+- 가중치: global_market_weight = 0.10 (기본), 동적 적응 대상
+- 구현: src/core/strategy_engine.py:380-387
+- 데이터: GlobalMarketClient.get_summary() → 13개 글로벌 지수
+
+---
+
+## 16. 상대 강도 분석 (Relative Strength Analysis)
+
+**설명**: 개별 종목의 시장 대비 초과 성과 측정
+
+**수식 (CAPM)**:
+```
+beta = Cov(r_s, r_b) / Var(r_b)
+alpha = E[r_s] - r_f - beta * (E[r_b] - r_f)
+  - r_s: 종목 수익률, r_b: 벤치마크 수익률, r_f: 무위험 이자율
+```
+
+**수식 (Composite Score)**:
+```
+score = alpha_scaled * 0.5 + relative_strength * 0.3 + vol_ratio_scaled * 0.2
+  - alpha_scaled: max(-0.05, min(0.05, alpha)) * 100
+  - relative_strength: max(-0.5, min(0.5, stock_return - bench_return)) * 2
+  - vol_ratio_scaled: max(-1.0, min(1.0, 1.0 - stock_vol / bench_vol))
+```
+
+- 캐싱: 결과 5분간 TTL 캐싱 (force_refresh=True로 무시 가능)
+- 구현: src/analysis/relative_strength.py
+- 데이터: MarketDataHandler.fetch_historical_data() 로 주가·벤치마크 조회
+
+---
+
+**마지막 업데이트**: 2026-06-08
 **검증 상태**: 모든 알고리즘이 코드로 검증되었으며, 향후 변경 시 본 문서 갱신 필요

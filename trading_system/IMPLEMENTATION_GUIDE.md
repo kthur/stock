@@ -1,6 +1,6 @@
 # 주식 트레이딩 시스템 - 구현 가이드
 
-> **상태**: Phase 1-5 + Phase 3 통합 완료 · **테스트**: 19/19 통과 · **린트**: ruff 0 / mypy 0 오류
+> **상태**: Phase 1-5 + Phase 3 통합 완료 · **테스트**: 43/43 통과 · **린트**: ruff 0 / mypy 0 오류
 
 본 문서는 `D:\Finance\code\stock\trading_system\` 디렉터리에 실제로 구현된 시스템의
 동작 방식을 설명합니다. 문서의 모든 항목은 코드를 기준으로 검증되었으며, 향후 동작이
@@ -57,12 +57,12 @@
        └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 패키지 구성 (47 모듈)
+### 1.2 패키지 구성 (48 모듈)
 
 | 패키지 | 파일 수 | 책임 |
 |--------|--------|------|
 | `src/data_layer/` | 4 | 시세, 뉴스, 시장 레짐, 다크풀(중립) |
-| `src/core/` | 6 | 자산관리, 전략, 주문, 통계적 차익거래, HFT(Mock), 팩토리 |
+| `src/core/` | 7 | 자산관리, 전략, 주문, 통계적 차익거래, HFT(Mock), 팩토리, DistributedOrderManager |
 | `src/risk/` | 1 | Kelly/VaR/CVaR/드로다운/상관관계 |
 | `src/analysis/` | 6 | 백테스트, 통계, ML, RL, 양자(클래식)최적화, 마켓 스캐너 |
 | `src/broker/` | 11 | 7개 증권사 커넥터 + MultiBrokerManager + 프로토콜 |
@@ -333,7 +333,7 @@ AccountSyncAgent.sync_with_broker(broker_cash, broker_holdings)
 
 ## 7. 테스트 결과
 
-### 7.1 유닛 테스트 (19/19 PASS)
+### 7.1 유닛 테스트 (43/43 PASS)
 
 | 영역 | 테스트 | 상태 |
 |------|--------|------|
@@ -342,8 +342,9 @@ AccountSyncAgent.sync_with_broker(broker_cash, broker_holdings)
 | PortfolioManager | 4 | ✅ |
 | AccountSyncAgent | 1 | ✅ |
 | OrderManagementSystem | 4 | ✅ |
+| DistributedOrderManager | 7 | ✅ |
 | HybridStrategyEngine | 1 | ✅ |
-| Phase3 Integration | 4 | ✅ |
+| Phase3 Integration | 10 | ✅ |
 | SB3 RL (선택) | 1 | ⏭ SB3 미설치 시 스킵 |
 
 ### 7.2 정적 분석
@@ -366,7 +367,7 @@ trading_system/
 │   ├── __init__.py
 │   ├── config.py
 │   ├── data_layer/        (4)
-│   ├── core/              (6) — 전략, 주문, 자산, 팩토리, HFT, 통계차익
+│   ├── core/              (7) — 전략, 주문, 자산, 팩토리, HFT, 통계차익, distributed_order
 │   ├── risk/              (1)
 │   ├── analysis/          (6) — 백테스트, 통계, ML, RL, 양자(클래식), 스캐너
 │   ├── broker/            (11) — 7 증권사 + 매니저 + 프로토콜
@@ -396,7 +397,24 @@ trading_system/
 └── pyproject.toml
 ```
 
-## 9. 알려진 제약
+## 9. 핵심 알고리즘 구현 상세 (Core Algorithms)
+
+### 9.1 감성 분석 (Sentiment Analysis)
+- **자체 사전 모델 (`src/ai/sentiment.py`)**: `POSITIVE_WORDS`, `NEGATIVE_WORDS`, `INTENSIFIERS`, `NEGATIONS` 등의 글로벌 금융 사전을 이용해 감성을 점수화하는 `SentimentAnalyzer` 클래스가 핵심입니다. 부정어 윈도우 보정과 `tanh` 기반 정규화를 거칩니다.
+- **LLM 보완 연동 (`src/ai/llm_integration.py`, `src/ai/llm_earnings_agent.py`)**: LLM이 반환하는 JSON 형태의 텍스트("매우 긍정적")나 어닝 콜의 "성장/하향" 키워드를 매핑하여 보완적인 감성 점수를 도출합니다.
+- **전략 통합 (`src/core/strategy_engine.py`)**: 생성된 `news_sentiment` 점수는 `HybridStrategyEngine`에 전달되어 기술 지표 등과 함께 결합됩니다. 
+- **브로커 분리 정책**: 감성 분석은 전적으로 `src/ai/` 및 데이터 레이어에서 수행됩니다. `src/broker/real_broker.py`를 비롯한 증권사 연결 모듈들은 감성 텍스트를 절대 수신하지 않으며 오직 `TradeSignal` 만을 기반으로 동작합니다.
+
+### 9.2 강화 학습 시스템 (Reinforcement Learning)
+- **Primary PPO (`src/ai/rl_trading.py`)**: `stable-baselines3` 생태계를 활용한 PPO 기반 트레이딩 모델을 정의합니다.
+- **Fallback DQN (`src/ai/rl_trader.py`)**: 의존성 문제를 피하기 위해 순수 PyTorch로 구축된 `DQNAgent`와 `ReplayBuffer`를 활용하는 인하우스 DQN 모델을 대체제로 제공합니다.
+- **Adaptive Heuristics (`src/analysis/rl_engine.py`)**: 신경망이 아닌 승률/손익 피드백 루프를 기반으로 하여 VIX나 RSI 임계값을 동적으로 보정하는 `RLEngine`입니다.
+
+### 9.3 자산 배분 (Asset Allocation)
+- **심화 할당기 (`src/strategy/asset_allocation.py`)**: `AssetAllocator` 클래스를 통해 과거 가격 시계열 리스트를 분석합니다. 전략으로는 `equal_weight`, `risk_parity` (변동성 역수 편입), `momentum` (총수익률 비례 배분)를 지원합니다.
+- **견고성 설계**: 부동소수점 오차에 대비하여 마지막 키의 값에 나머지를 전부 할당해 비중 총합을 정확히 1.0으로 맞추는 `_normalize` 기능과 `NaN/Inf` 값 필터링이 포함되어 있습니다. (기존 단순 배분 로직은 `src/strategy/allocation.py`로 분리 유지)
+
+## 10. 알려진 제약
 
 - `broker/*.py` 7종 모두 **시뮬레이션 모드만** 구현. 실전 API 연동은 `connect()` 내부의
   `simulation_mode = True`를 끄고 PyQt5/pywin32로 OCX 호출 필요.
@@ -409,16 +427,20 @@ trading_system/
   래퍼가 필요.
 - `rl_trading.py`는 Phase 3 테스트 호환용 얇은 래퍼. 실전 RL 학습은 `rl_trader.py`
   (`DQNAgent`, `TradingEnvironment`)을 직접 사용.
+- `RiskManager.calculate_atr_based_stop()`은 이미 `_create_and_submit_order()`에
+  통합되었습니다 (STTH). 더 이상 향후 작업 항목이 아님.
 
-## 10. 향후 작업 후보
+## 11. 향후 작업 후보
 
-1. `RiskManager.calculate_atr_based_stop()` 을 `_create_and_submit_order()`에 통합
-2. `dashboard.py` 단일 파일 (3258줄) → `routes/`, `services/`, `tasks/` 분리
-3. 증권사 OCX 어댑터 추상화 + 시뮬레이션 fallback 명확화
-4. SB3 PPO 학습 파이프라인 (현재 in-house DQN만 동작)
-5. 실시간 시세 WebSocket 어댑터 (현재는 yfinance polling)
+1. `dashboard.py` 단일 파일 (3258줄) → `routes/`, `services/`, `tasks/` 분리
+2. 증권사 OCX 어댑터 추상화 + 시뮬레이션 fallback 명확화
+3. SB3 PPO 학습 파이프라인 (현재 in-house DQN만 동작)
+4. 실시간 시세 WebSocket 어댑터 (현재는 yfinance polling)
+5. Telegram bot unit tests
+6. RiskManager unit tests
+7. portfolio-based pre-trade concentration check
 
 ---
 
-**마지막 업데이트**: 2026-06-06
-**검증 상태**: ruff ✓ mypy ✓ 19/19 tests pass
+**마지막 업데이트**: 2026-06-08
+**검증 상태**: ruff ✓ mypy ✓ 43/43 tests pass

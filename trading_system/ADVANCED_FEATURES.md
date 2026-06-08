@@ -29,8 +29,8 @@ def calculate_atr_based_target(self, entry_price, atr): # entry + 4*ATR
 ```
 
 - ATR(14) 데이터는 `MarketDataHandler.fetch_historical_data()` 결과(`PriceBar`)에서
-  표준 ATR 공식을 사용해 직접 계산해야 함. 현재 `_create_and_submit_order()`는
-  고정 비율(5%/10%) 사용, ATR 통합은 향후 작업.
+  표준 ATR 공식을 사용해 직접 계산해야 함. 현재 `_create_and_submit_order()`에서
+  ATR을 사용한 동적 손절/익절이 적용됨 (trading_system.py:246-276).
 
 ### 1.3 VIX 스케일링
 
@@ -159,7 +159,7 @@ class Order:
 
 ## 3. 전략 엔진 (Hybrid Strategy Engine) — `src/core/strategy_engine.py`
 
-### 3.1 5-시그널 가중합
+### 3.1 7-시그널 가중합
 
 ```python
 # strategy_engine.py:32-87
@@ -172,6 +172,7 @@ class HybridStrategyEngine:
             "rl": 0.20,         # RLEngine 적응형 임계값
             "darkpool": 0.05,   # DarkPoolTracker (현재 중립)
             "llm": 0.10,        # LLMEngine InvestmentOpinion
+            "global_market": 0.10,  # 글로벌 지수/환율
         }
 ```
 
@@ -191,6 +192,7 @@ def _adapt_weights()                                  # 50-거래 윈도우로 �
 
 - 정답률 낮은 신호는 가중치를 줄이고, 높은 신호는 늘림.
 - L2 정규화로 가중치 합 1 유지.
+- `weight_map`에 `"global_market": "global_market_weight"` 포함.
 
 ### 3.4 OptimizationEngine
 
@@ -262,18 +264,23 @@ def compute_covariance(historical_returns: Dict[symbol, List[float]]) -> np.ndar
 # asset_allocation.py:54-178
 AssetAllocator(strategy="equal_weight" | "risk_parity" | "momentum")
 .equal_weight(tickers)              # 동일 가중
-._risk_parity(price_data)           # 1/σ 가중 (자산별 ATR)
-._momentum(price_data)              # 12개월 모멘텀 순위
+._risk_parity(price_data)           # 1/σ 가중 (자산별 편차/변동성)
+._momentum(price_data)              # 과거 대비 수익 모멘텀 순위 배분
 ```
+
+- **상세 알고리즘**:
+  1. **데이터 전처리**: 다변량 시계열 가격 데이터(`Dict[str, List[float]]`) 수집 후 결측치(`NaN`/`Inf`) 필터링, 최소 2종목 이상 확보.
+  2. **위험 평가 (Risk-Parity 기준)**: 각 종목의 수익률 시계열의 표준편차($\sigma_i$) 계산. 역변동성($1 / \sigma_i$)을 할당 비중의 기초값으로 설정하여 고위험 자산의 비중을 낮춤.
+  3. **모멘텀 평가 (Momentum 기준)**: 최근 N일(보통 20일)의 수익률 $R_i = (P_{today} - P_{N}) / P_{N}$ 을 계산 후 상위 랭킹 순으로 가중치 차등 부여.
+  4. **정규화(Normalization)**: $w_i = \frac{\text{raw\_weight}_i}{\sum \text{raw\_weight}_j}$ 연산을 통해 부동소수점 오차 누적을 방지하며 합계가 1.0(100%)이 되도록 강제. (마지막 자산에 잔차 반영)
 
 ---
 
 ## 5. RL/ML/AI 스택
 
-### 5.1 분석 모듈 (`src/analysis/rl_engine.py`)
+### 5.1 휴리스틱 RL 분석 엔진 (`src/analysis/rl_engine.py`)
 
 > 명칭은 "RL"이지만 실제 구현은 **적응형 임계값 휴리스틱**입니다.
-> 완전한 DQN은 `src/ai/rl_trader.py`에 별도 구현.
 
 ```python
 # analysis/rl_engine.py:41-110
@@ -282,7 +289,9 @@ def record_outcome(action, pnl_pct)  # 학습 데이터 누적
 def _adapt_thresholds()              # win_rate 기반 VIX/RSI 임계값 조정
 ```
 
-### 5.2 DQN (`src/ai/rl_trader.py`, 358줄)
+- 신경망 대신 과거 트레이딩 승률 및 수익/손실(Win/Loss) 기록을 피드백 루프로 삼아, VIX나 RSI 같은 정적 지표의 매수/매도 임계값을 동적으로 적응시키는 룰 기반 엔진(`RLEngine`)입니다.
+
+### 5.2 DQN 모델 (`src/ai/rl_trader.py`)
 
 ```python
 # PyTorch 기반 DQN, 외부 SB3 의존성 없음
@@ -291,13 +300,24 @@ DQNAgent(state_dim, action_dim)      # Q-Network + ReplayBuffer + ε-greedy
 agent.train(env, episodes=5)
 ```
 
-### 5.3 Phase 3 호환 (`src/ai/rl_trading.py`)
+- **상세 알고리즘**:
+  1. **State(상태)**: 직전 가격 변화율(Price Norm), 현재 보유 포지션 여부, 현재 누적 수익률(PnL).
+  2. **Action(행동)**: 0(Buy), 1(Hold), 2(Sell)의 3가지 이산 행동 공간.
+  3. **Reward(보상)**:
+     - 수익 청산 시: 양의 보상 (수익률 비례)
+     - 손실 청산 시: 음의 보상 (손실률 비례)
+     - 장기 보유 시: 기회비용 반영 위한 미세 페널티
+  4. **Q-Learning 업데이트**: 타겟 네트워크와 메인 네트워크 분리. 벨만 방정식 $Q(s,a) = r + \gamma \max_{a'} Q(s', a')$을 바탕으로 손실함수(MSE)를 구성해 PyTorch 옵티마이저로 역전파.
+
+### 5.3 PPO 기반 트레이딩 (`src/ai/rl_trading.py`)
 
 ```python
-# rl_trading.py (얇은 래퍼)
+# rl_trading.py (SB3 PPO 통합 래퍼)
 DummyTradingEnv(data)                # Gymnasium 5-튜플 step API
 train_rl_model(data)                 # SB3 PPO 사용, 없으면 in-house DQN fallback
 ```
+
+- 시스템의 일차적인(Primary) RL 모델로, `gymnasium` 커스텀 환경 위에서 `stable-baselines3`의 PPO 알고리즘을 훈련합니다.
 
 ### 5.4 LLM 통합 (`src/ai/llm_integration.py`, 430줄)
 
@@ -321,12 +341,17 @@ LLMEarningsAgent(llm_engine).analyze_earnings_call(symbol, transcript)
 
 - 실제 LLM 호출은 `llm_engine`에 위임하도록 확장 가능.
 
-### 5.6 감정 분석 (2종)
+### 5.6 감성 분석 (Sentiment Analysis)
 
-- `src/ai/sentiment.py` (354줄): 영문/한글 금융 어휘 사전, 가중치 점수
-- `src/data_layer/nlp_engine.py` (106줄): 실시간 뉴스 처리, EventBus 발행
+- **자체 사전 엔진 (`src/ai/sentiment.py`)**: `SentimentAnalyzer` 클래스가 텍스트를 토큰화합니다.
+  1. 텍스트 내 부정어(Negation, 예: "not", "rarely")를 탐지해 반경(window) 내 단어들의 극성을 역전시킵니다.
+  2. 강조어(Intensifier, 예: "very", "extremely")를 탐지해 가중치를 곱합니다.
+  3. `POSITIVE_WORDS`와 `NEGATIVE_WORDS` 출현 빈도를 점수화하여 최종 $x$ 산출.
+  4. $score = \tanh(x)$ 정규화를 통해 -1.0 ~ 1.0 범위의 긍정/부정 스코어 도출.
+- **LLM 의견 통합 (`src/ai/llm_integration.py` / `src/ai/llm_earnings_agent.py`)**: LLM 프롬프트를 통해 비정형 텍스트(실적 발표 등)의 맥락을 이해하고 추가 구조화된 딕셔너리로 변환해 점수를 보완합니다.
+- **아키텍처 제약사항**: 도출된 감성 점수는 전적으로 분석 파이프라인에서만 사용되며, `src/core/strategy_engine.py`(`HybridStrategyEngine`)를 거쳐 가중 통합됩니다. 증권사 체결 모듈(`real_broker.py` 등)은 최종 `TradeSignal` 에만 반응합니다.
 
-### 5.7 ML 엔진 (`src/analysis/ml_engine.py`, 294줄)
+### 5.7 HMM 및 ML 엔진 (`src/analysis/ml_engine.py`)
 
 ```python
 # scikit-learn / XGBoost / LightGBM / HMM / Optuna (선택 의존성)
@@ -334,6 +359,8 @@ MLEngine()
 .fit(features, targets)         # 분류/회귀 모델 학습
 .predict(features)              # 확률/값 예측
 ```
+- **HMM(은닉 마르코프 모델)**: `GaussianHMM(n_components=3)`을 이용해 시장을 강세장/약세장/횡보장이라는 숨겨진 3개의 상태(Hidden States)로 추정.
+- **Optuna**: `TimeSeriesSplit`을 사용해 교차 검증을 수행하고, Tree-structured Parzen Estimator(TPE) 알고리즘으로 하이퍼파라미터 최적화.
 
 ---
 
@@ -376,9 +403,9 @@ StatisticalArbitrageEngine()
 
 ---
 
-## 7. 텔레그램 봇 (`src/telegram_bot/bot_engine.py`, 574줄)
+## 7. 텔레그램 봇 (`src/telegram_bot/bot_engine.py`, 574줄) (18종)
 
-### 7.1 명령어 (16종)
+### 7.1 명령어 (18종)
 
 | 명령 | 메서드 | 동작 |
 |------|--------|------|
@@ -398,6 +425,8 @@ StatisticalArbitrageEngine()
 | `/risk` | `_cmd_risk` | VaR/드로다운/리스크 레벨 |
 | `/strategy` | `_cmd_strategy` | 활성 전략 + 가중치 |
 | `/performance` | `_cmd_performance` | 승률/손익/드로다운/리스크 |
+| `/global` | `_cmd_global` | 글로벌 지수 + 환율 현황 |
+| `/screen` | `_cmd_screen` | 상대 강도 스크리닝 (min_corr 필터 지원) |
 
 ### 7.2 시뮬레이션 모드
 
@@ -413,37 +442,9 @@ notification_text = bot.get_notification(event_type, data)
 
 ---
 
-## 8. 웹 대시보드 (`src/web/dashboard.py`, 3258줄)
+## 8. Plotly Dash 대시보드 (`src/web/dashboard.py`, 177줄)
 
-### 8.1 FastAPI 라우트
-
-| 경로 | 메서드 | 응답 |
-|------|--------|------|
-| `/` | GET | 미니앱 HTML |
-| `/manifest.json` | GET | PWA 매니페스트 |
-| `/sw.js` | GET | Service Worker |
-| `/api/health` | GET | `{status: ok, ts: ...}` |
-| `/api/portfolio` | GET | 포트폴리오 요약 |
-| `/api/portfolio/history` | GET | 자산 스냅샷 시계열 |
-| `/api/portfolio/reset` | POST | 현금/포지션 초기화 |
-| `/api/performance` | GET | Sharpe/Sortino/PNL/Drawdown |
-| `/api/orders` | GET | 미체결 주문 |
-| `/api/orders/place` | POST | 신규 주문 |
-| `/api/orders/cancel` | POST | 주문 취소 |
-| `/api/trades` | GET | 최근 거래 이력 |
-| `/api/risk` | GET | VaR/드로다운/리스크 레벨 |
-| `/api/risk/settings` | POST | 리스크 파라미터 업데이트 |
-| `/api/ai/opinion` | POST | LLM 의견 조회 |
-| `/api/optimize` | POST | 포트폴리오 최적화 실행 |
-| `/api/backtest` | POST | 백테스트 실행 |
-| `/api/scan/korea` | POST | KRX 스캔 시작 |
-| `/api/scanner/start` | POST | 백그라운드 스캔 태스크 |
-| `/api/scanner/status/{task_id}` | GET | 스캔 진행도 |
-| `/api/search?q=` | GET | 종목 검색 |
-| `/ws` | WebSocket | 실시간 푸시 (ping 응답) |
-| `/bci/stream` | GET | BCI EEG 스트림 (시뮬레이션) |
-| `/voice/command` | POST | 음성 명령 (시뮬레이션) |
-| `/pdf/generate` | POST | PDF 리포트 다운로드 |
+Plotly Dash single-page app (177 lines). Routes: `/` (main dashboard), `/api/*` (minimal REST for live data).
 
 ### 8.2 WebSocket 메시지
 
@@ -647,17 +648,26 @@ bus.publish("market_data", market_data)  # 모든 구독자 순차 호출
 
 ---
 
-## 16. 알려진 한계 (요약)
+## 16. 분산 매수/매도 (Distributed Orders)
 
-- 모든 브로커는 `simulation_mode`에서만 동작 (실전 API 미연동)
+- `DistributedOrderManager` in `src/core/distributed_order.py`
+- 설명: 대량 주문을 N개 트렌치로 분할 (매수: 하락가 DCA, 매도: 상승가 이익실현)
+- 각 트렌치별 개별 SL/TP 자동 생성
+- 포트폴리오 대비 비율 기반 활성화 threshold
+
+---
+
+## 17. 알려진 한계 (요약)
+
 - `quantum_optimizer.py`는 명칭만 양자, 구현은 고전 Markowitz
 - `darkpool_tracker.py`는 중립값 반환 (의도적 no-signal)
 - `hft_engine.py`는 Cython/C++ Mock
 - `rl_trading.py`는 SB3 호환 래퍼; 실전 학습은 `rl_trader.py` (DQN) 사용
+- **증권사 연동**: 현재 `RealBroker` 클래스와 `kiwoom_server.py`, `korea_investment.py`를 통해 실제 API 연동 뼈대 및 연결(`connect()`, `submit_order()`)이 구축되어 테스트를 통과했습니다. 다만, 모의투자 환경을 넘어선 실계좌 체결 테스트는 사용자 로컬 환경의 인증서 및 추가 인가 작업이 필요합니다.
 
 자세한 제약은 `IMPLEMENTATION_GUIDE.md §9` 참고.
 
 ---
 
-**마지막 업데이트**: 2026-06-06
+**마지막 업데이트**: 2026-06-08
 **검증 상태**: 코드와 1:1 매핑 확인됨
