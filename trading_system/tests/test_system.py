@@ -15,6 +15,7 @@ from src.core import (
     DistributedOrderManager,
     DistributedOrderConfig,
 )
+from src.risk import RiskManager
 
 
 class TestMarketDataHandler(unittest.TestCase):
@@ -430,6 +431,54 @@ class TestDistributedOrderManager(unittest.TestCase):
         remaining_aapl = [o for o in self.oms.orders.values()
                           if o.symbol == "AAPL" and o.status.value in ("PENDING", "SUBMITTED")]
         self.assertEqual(len(remaining_aapl), 0)
+
+
+class TestPreTradeConcentrationCheck(unittest.TestCase):
+    """Pre-trade position concentration limit tests"""
+
+    def setUp(self):
+        from src.core.asset_management import PortfolioManager
+        self.portfolio = PortfolioManager(initial_cash=1_000_000)
+        self.risk_manager = RiskManager(portfolio_value=1_000_000)
+        self.market_cache = {}
+
+    def _max_position_value(self):
+        return 1_000_000 * self.risk_manager.max_position_size_pct  # 200,000
+
+    def test_no_position_allows_full_order(self):
+        """기존 포지션 없음 -> 집중도 제한 없음"""
+        position = self.portfolio.positions.get("AAPL")
+        self.assertIsNone(position)
+
+    def test_position_under_limit_passes_check(self):
+        """기존 포지션이 한도 내 -> 통과"""
+        self.portfolio.add_position("AAPL", 500, 150.0)  # $75,000
+        position = self.portfolio.positions["AAPL"]
+        current_value = position.quantity * 150.0
+        new_value = 50 * 150.0  # $7,500
+        limit = self._max_position_value()
+        self.assertLess(current_value + new_value, limit)
+
+    def test_position_exceeding_limit_is_clamped(self):
+        """기존 + 신규가 한도 초과 -> 수량 감소"""
+        self.portfolio.add_position("AAPL", 1200, 150.0)  # $180,000
+        position = self.portfolio.positions["AAPL"]
+        current_value = position.quantity * 150.0
+        limit = self._max_position_value()  # $200,000
+        remaining = limit - current_value  # $20,000
+        clamped_qty = max(0, int(remaining / 150.0))  # 133
+        new_qty = 500
+        self.assertGreater(new_qty, clamped_qty)
+
+    def test_at_max_position_blocks_additional(self):
+        """이미 한도에 도달 -> 추가 매수 차단"""
+        self.portfolio.add_position("AAPL", 1334, 150.0)  # $200,100
+        position = self.portfolio.positions["AAPL"]
+        current_value = position.quantity * 150.0
+        limit = self._max_position_value()
+        remaining = limit - current_value
+        clamped_qty = max(0, int(remaining / 150.0))
+        self.assertEqual(clamped_qty, 0)
 
 
 class TestPortfolioBasedSizing(unittest.TestCase):

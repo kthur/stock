@@ -319,6 +319,27 @@ class StockTradingSystem:
                     )
                     quantity = max_qty
 
+        # 포지션 집중도 사전 체크 (매수 시, 특정 종목 쏠림 방지)
+        if order_type == OrderType.BUY:
+            position = self.portfolio.positions.get(symbol)
+            current_value = 0.0
+            if position:
+                pos_price = self.market_data_cache.get(symbol, {}).get("price", position.avg_price)
+                current_value = position.quantity * pos_price
+            new_value = quantity * price
+            max_position_value = portfolio_value * self.risk_manager.max_position_size_pct
+            if current_value + new_value > max_position_value:
+                remaining = max_position_value - current_value
+                clamped_qty = max(0, int(remaining / price))
+                if clamped_qty < quantity:
+                    logger.warning(
+                        f"Concentration check: {symbol} position would exceed "
+                        f"{self.risk_manager.max_position_size_pct:.0%} of portfolio. "
+                        f"Quantity clamped from {quantity} to {clamped_qty} "
+                        f"(current=${current_value:,.0f}, max=${max_position_value:,.0f})"
+                    )
+                    quantity = clamped_qty
+
         # 가용 자금 체크 (매수일 때만 조절) + 최소 거래 단위 보장
         if order_type == OrderType.BUY:
             available_cash = self.portfolio.cash
