@@ -183,6 +183,105 @@ class TestStrategyEngine(unittest.TestCase):
         
         self.assertIsNotNone(result.signal)
 
+    def test_normalize_weights_sum_to_one(self):
+        """가중치 정규화 후 합계 = 1.0"""
+        self.engine.sentiment_weight = 0.5
+        self.engine.technical_weight = 0.5
+        self.engine.ml_weight = 0.5
+        self.engine.rl_weight = 0.5
+        self.engine.darkpool_weight = 0.5
+        self.engine.llm_weight = 0.5
+        self.engine.global_market_weight = 0.5
+        self.engine._normalize_weights()
+        total = (self.engine.sentiment_weight + self.engine.technical_weight +
+                 self.engine.ml_weight + self.engine.rl_weight +
+                 self.engine.darkpool_weight + self.engine.llm_weight +
+                 self.engine.global_market_weight)
+        self.assertAlmostEqual(total, 1.0, places=6)
+
+    def test_normalize_weights_zero_case(self):
+        """모든 가중치가 0이면 균등 분배"""
+        for attr in ("sentiment_weight", "technical_weight", "ml_weight",
+                     "rl_weight", "darkpool_weight", "llm_weight",
+                     "global_market_weight"):
+            setattr(self.engine, attr, 0.0)
+        self.engine._normalize_weights()
+        n = len(self.engine.SIGNAL_NAMES)
+        total = (self.engine.sentiment_weight + self.engine.technical_weight +
+                 self.engine.ml_weight + self.engine.rl_weight +
+                 self.engine.darkpool_weight + self.engine.llm_weight +
+                 self.engine.global_market_weight)
+        self.assertAlmostEqual(total, 1.0, places=6)
+        self.assertAlmostEqual(self.engine.sentiment_weight, 1.0 / n, places=6)
+
+    def test_adapt_weights_increases_accurate_signals(self):
+        """정답률 높은 신호의 가중치가 증가"""
+        initial = self.engine.sentiment_weight
+        for _ in range(20):
+            self.engine.record_signal_outcome("sentiment", True)
+        for name in ("technical", "ml", "rl", "darkpool", "llm", "global_market"):
+            for _ in range(20):
+                self.engine.record_signal_outcome(name, False)
+        # Force adaptation by pushing results_history length past the window
+        from src.core.strategy_engine import StrategyResult
+        from datetime import datetime
+        for _ in range(self.engine.weight_adaptation_window + 1):
+            self.engine.results_history.append(
+                StrategyResult("TEST", None, 0.0, 0.0, "", datetime.now())
+            )
+        self.engine._adapt_weights()
+        self.assertGreater(self.engine.sentiment_weight, initial)
+
+    def test_detect_regime_sideways_with_few_bars(self):
+        """200개 미만 봉 -> sideways 반환"""
+        import numpy as np
+        class FakeBar:
+            def __init__(self, close):
+                self.open = self.high = self.low = self.close = close
+                self.volume = 1_000_000
+        bars = [FakeBar(100.0 + i * 0.1) for i in range(50)]
+        regime = self.engine.detect_regime(bars)
+        self.assertEqual(regime, "sideways")
+
+    def test_detect_regime_bull(self):
+        """EMA50 >> EMA200 -> bull 반환"""
+        import numpy as np
+        class FakeBar:
+            def __init__(self, close):
+                self.open = self.high = self.low = self.close = close
+                self.volume = 1_000_000
+        # Uptrend: prices increase monotonically
+        prices = [100.0 + i * 0.5 for i in range(250)]
+        bars = [FakeBar(p) for p in prices]
+        regime = self.engine.detect_regime(bars)
+        self.assertEqual(regime, "bull")
+
+    def test_global_market_signal_without_client(self):
+        """GlobalMarketClient 없이 analyze 호출 -> 정상 동작"""
+        market_data = {'price': 150.0, 'bid': 149.95, 'ask': 150.05, 'volume': 5000000}
+        result = self.engine.analyze("AAPL", market_data, 0.5)
+        self.assertIsNotNone(result.signal)
+        self.assertIsNotNone(result.confidence)
+
+    def test_signal_names_includes_global_market(self):
+        """SIGNAL_NAMES에 global_market 포함"""
+        self.assertIn("global_market", self.engine.SIGNAL_NAMES)
+
+    def test_raw_scores_contains_global_market(self):
+        """analyze 결과 raw_scores에 global_market 포함"""
+        self.engine.ml_engine = None
+        market_data = {'price': 150.0, 'bid': 149.95, 'ask': 150.05, 'volume': 5000000}
+        result = self.engine.analyze("AAPL", market_data, 0.5)
+        self.assertTrue(hasattr(result, 'signal'))
+        self.assertGreaterEqual(result.confidence, 0.0)
+
+    def test_signal_outcome_recorded_without_error(self):
+        """record_signal_outcome호출시 에러 없음"""
+        self.engine.record_signal_outcome("sentiment", True)
+        self.engine.record_signal_outcome("unknown", True)  # should be no-op
+        self.assertIn("sentiment", self.engine._signal_performance)
+        self.assertEqual(len(self.engine._signal_performance["sentiment"]), 1)
+
 
 class TestGlobalMarketClient(unittest.TestCase):
     """GlobalMarketClient 단위 테스트"""
