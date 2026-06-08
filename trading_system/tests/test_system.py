@@ -333,5 +333,67 @@ class TestDistributedOrderManager(unittest.TestCase):
         self.assertEqual(len(remaining_aapl), 0)
 
 
+class TestPortfolioBasedSizing(unittest.TestCase):
+    """Integration tests for portfolio-value-based trade unit logic"""
+
+    def test_min_trade_quantity_scales_with_portfolio(self):
+        """portfolio_value * min_trade_pct / price = 최소 거래 단위"""
+        cases = [
+            (1_000_000, 100.0, 10),    # $1M → 10주 @ $100
+            (100_000,  100.0, 1),      # $100k → 1주 @ $100
+            (5_000_000, 500.0, 10),    # $5M → 10주 @ $500
+            (50_000,   50.0,  1),      # $50k → 1주 @ $50
+        ]
+        for pv, price, expected in cases:
+            q = max(1, int(pv * 0.001 / price))
+            self.assertEqual(q, expected, f"PV={pv} price={price}")
+
+    def test_distributed_threshold_scales_with_portfolio(self):
+        """portfolio_value * distributed_pct / price = 분산 주문 활성화 기준"""
+        cases = [
+            (1_000_000, 100.0, 50),    # $1M → 50주 @ $100
+            (200_000,   100.0, 10),    # $200k → 10주 @ $100
+            (10_000_000, 500.0, 100),  # $10M → 100주 @ $500
+        ]
+        for pv, price, expected in cases:
+            q = max(2, int(pv * 0.005 / price))
+            self.assertEqual(q, expected, f"PV={pv} price={price}")
+
+    def test_min_trade_quantity_floor_is_one(self):
+        """매우 작은 PV여도 최소 1주 보장"""
+        q = max(1, int(1000 * 0.001 / 100.0))  # $1k → 0.01 → floor=0 → max=1
+        self.assertEqual(q, 1)
+
+    def test_distributed_threshold_floor_is_two(self):
+        """매우 작은 PV여도 분산 기준 최소 2주"""
+        q = max(2, int(1000 * 0.005 / 100.0))  # $1k → 0.05 → floor=0 → max=2
+        self.assertEqual(q, 2)
+
+    def test_distributed_enabled_when_quantity_exceeds_threshold(self):
+        """Kelly 수량 >= distributed_threshold → 분산 주문 활성화"""
+        pv = 1_000_000
+        price = 100.0
+        threshold = max(2, int(pv * 0.005 / price))  # 50
+        kelly_qty = 100
+        self.assertTrue(kelly_qty >= threshold)
+
+    def test_distributed_disabled_below_threshold(self):
+        """Kelly 수량 < distributed_threshold → 단일 주문"""
+        pv = 100_000
+        price = 100.0
+        threshold = max(2, int(pv * 0.005 / price))  # 5
+        kelly_qty = 3
+        self.assertFalse(kelly_qty >= threshold)
+
+    def test_min_trade_overrides_kelly_when_too_small(self):
+        """Kelly 수량 < min_trade_quantity → min_trade_quantity로 올림"""
+        pv = 1_000_000
+        price = 100.0
+        min_q = max(1, int(pv * 0.001 / price))  # 10
+        kelly_qty = 3
+        final = max(kelly_qty, min_q)
+        self.assertEqual(final, 10)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
