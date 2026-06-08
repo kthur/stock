@@ -99,6 +99,10 @@ class StockTradingSystem:
         self.distributed_order = DistributedOrderManager(self.order_management)
         self.distributed_buy_enabled = True
         self.distributed_sell_enabled = True
+
+        # Portfolio-value-based trade sizing (units scale with total assets)
+        self.min_trade_value_pct = 0.001       # 0.1% of portfolio = minimum trade
+        self.distributed_threshold_pct = 0.005  # 0.5% of portfolio = activate distributed orders
         
         # 시스템 인스턴스 의존성 설정 (DI 적용 및 EventBus 주입)
         self.dashboard = self.comp.get('dashboard') or WebDashboard(self, event_bus=self.event_bus)
@@ -227,6 +231,16 @@ class StockTradingSystem:
             logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
             return
         
+        # ── 포트폴리오 총 가치 (trade unit 기준) ──
+        portfolio_value = self.portfolio.get_portfolio_value(self.market_data_cache.get(symbol, {}))
+        if portfolio_value <= 0:
+            portfolio_value = self.portfolio.cash
+
+        # 전체 보유 금액 기준 최소 거래 단위 (0.1% of portfolio)
+        min_trade_quantity = max(1, int(portfolio_value * self.min_trade_value_pct / price))
+        # 분산 주문 활성화 기준 (0.5% of portfolio)
+        distributed_min_quantity = max(2, int(portfolio_value * self.distributed_threshold_pct / price))
+
         # ── 마켓 레짐 필터: EMA200 아래에서는 매수 차단 ──
         if order_type == OrderType.BUY:
             try:
@@ -239,11 +253,6 @@ class StockTradingSystem:
                         return
             except Exception as e:
                 logger.debug(f"Market regime filter skipped for {symbol}: {e}")
-            
-        # 포트폴리오 가치 확인
-        portfolio_total = self.portfolio.get_portfolio_value(self.market_data_cache.get(symbol, {}))
-        if portfolio_total <= 0:
-            portfolio_total = self.portfolio.cash
             
         # Kelly Criterion에 실제 성과 데이터 연동
         win_rate = self.statistics.last_win_rate
@@ -292,7 +301,6 @@ class StockTradingSystem:
         
         # VIX-Linked Dynamic Asset Allocation (Risk-Off Switch)
         if order_type == OrderType.BUY:
-            # Determine VIX
             vix_value = self.market_data_cache.get("VIX", {}).get("price") or self.market_data_cache.get("^VIX", {}).get("price")
             is_risk_off = self.risk_manager.check_risk_off_signal(vix_value)
             if is_risk_off:
@@ -302,8 +310,6 @@ class StockTradingSystem:
                     p = self.market_data_cache.get(sym, {}).get("price", pos.avg_price)
                     v_e += pos.quantity * p
                 pv = c + v_e
-                
-                # Clamp quantity to ensure post-trade cash C' >= 0.70 * PV
                 max_spend = c - 0.70 * pv
                 max_qty = max(0, int(max_spend // price))
                 if quantity > max_qty:
@@ -312,22 +318,23 @@ class StockTradingSystem:
                         f"to keep post-trade cash >= 70% of PV (${pv:,.2f})"
                     )
                     quantity = max_qty
-        
-        # 가용 자금 체크 (매수일 때만 조절)
+
+        # 가용 자금 체크 (매수일 때만 조절) + 최소 거래 단위 보장
         if order_type == OrderType.BUY:
             available_cash = self.portfolio.cash
             if price * quantity > available_cash:
-                quantity = int(available_cash * 0.90 / price)  # 90% 현금 소진 (여유분 확보)
-                
+                quantity = int(available_cash * 0.90 / price)
+        quantity = max(quantity, min_trade_quantity)
+
         if quantity <= 0:
             logger.warning(f"Calculated quantity is 0 for {symbol} @ price {price}. Order aborted.")
             return
-            
-        # 분산 매수/매도 또는 단일 주문 생성
+
+        # 분산 매수/매도 활성화 (포트폴리오 대비 비율 기준)
         use_distributed = False
-        if order_type == OrderType.BUY and self.distributed_buy_enabled and quantity >= 100:
+        if order_type == OrderType.BUY and self.distributed_buy_enabled and quantity >= distributed_min_quantity:
             use_distributed = True
-        elif order_type == OrderType.SELL and self.distributed_sell_enabled and quantity >= 100:
+        elif order_type == OrderType.SELL and self.distributed_sell_enabled and quantity >= distributed_min_quantity:
             use_distributed = True
 
         if use_distributed:
