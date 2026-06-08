@@ -37,8 +37,8 @@ class AdvancedStatistics:
         self.logger = logger
         
         # Kelly Criterion 연동을 위한 실시간 성과 추적 속성
-        self.last_win_rate: float = 0.55       # 최근 승률 (기본값)
-        self.last_profit_factor: float = 1.2   # 최근 이익계수 (기본값)
+        self.last_win_rate: float = 0.60       # 최근 승률 (기본값)
+        self.last_profit_factor: float = 1.5   # 최근 이익계수 (기본값)
         self._trade_history: List[Dict] = []   # 누적 거래 기록
     
     def calculate_returns(self, equity_curve: List[float]) -> List[float]:

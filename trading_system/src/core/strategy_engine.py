@@ -50,9 +50,9 @@ class HybridStrategyEngine:
         hft_engine: Any = None,
         global_market: Any = None,
         relative_strength: Any = None,
-        sentiment_weight: float = 0.3,
-        technical_weight: float = 0.25,
-        ml_weight: float = 0.25,
+        sentiment_weight: float = 0.20,
+        technical_weight: float = 0.30,
+        ml_weight: float = 0.30,
         rl_weight: float = 0.1,
         darkpool_weight: float = 0.0,
         llm_weight: float = 0.1,
@@ -488,7 +488,7 @@ class HybridStrategyEngine:
             # 매수/매도 판단: 기술지표 신호도 함께 고려
             buy_signal_count = sum(1 for s in [sentiment_signal, technical_signal] if s == TradeSignal.BUY)
             
-            if combined_score > 0.60:
+            if combined_score > 0.55:
                 if buy_signal_count >= 2:
                     signal = TradeSignal.BUY
                     reason = "Strong buy signal (sentiment + technical + AI + DarkPool + LLM)"

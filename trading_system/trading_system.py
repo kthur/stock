@@ -105,7 +105,7 @@ class StockTradingSystem:
         self.distributed_threshold_pct = 0.005  # 0.5% of portfolio = activate distributed orders
 
         # Trailing stop-loss config
-        self.trail_pct = 0.05  # 5% trail distance
+        self.trail_pct = 0.04  # 4% trail distance
 
         # Risk parity config
         self.correlation_limit_pct = 0.40  # max 40% combined allocation for correlated pairs
@@ -125,7 +125,7 @@ class StockTradingSystem:
         self.rebalance_interval_hours: float = 168.0  # weekly (7 * 24)
 
         # Max concurrent positions
-        self.max_concurrent_positions: int = 10
+        self.max_concurrent_positions: int = 12
 
         # Price staleness guard
         self.max_data_age_seconds: float = 300.0  # 5 minutes
@@ -594,8 +594,8 @@ class StockTradingSystem:
                     atr_for_tp = atr
                 if atr_for_tp <= 0:
                     atr_for_tp = price * 0.02
-                tp_tiers_atr = [3.0, 5.0, 8.0]
-                tp_fractions = [0.33, 0.33, 0.34]
+                tp_tiers_atr = [2.5, 4.0, 6.0]
+                tp_fractions = [0.40, 0.35, 0.25]
                 for atr_mult, fraction in zip(tp_tiers_atr, tp_fractions):
                     tier_qty = max(1, int(quantity * fraction))
                     if tier_qty <= 0:

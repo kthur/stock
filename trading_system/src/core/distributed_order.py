@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DistributedOrderConfig:
     """Configuration for distributed order splitting."""
-    n_tranches_buy: int = 3
+    n_tranches_buy: int = 4
     n_tranches_sell: int = 3
-    buy_spread_pct: float = 0.015
+    buy_spread_pct: float = 0.02
     sell_spread_pct: float = 0.025
-    buy_allocation: Tuple[float, ...] = (0.40, 0.35, 0.25)
+    buy_allocation: Tuple[float, ...] = (0.30, 0.27, 0.23, 0.20)
     sell_allocation: Tuple[float, ...] = (0.40, 0.35, 0.25)
 
 
