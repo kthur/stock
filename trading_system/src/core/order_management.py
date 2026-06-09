@@ -40,6 +40,7 @@ class Order:
     order_type: OrderType
     quantity: int
     price: float
+    signal_name: str = ""
     order_id: str = field(default_factory=lambda: "")
     status: OrderStatus = OrderStatus.PENDING
     filled_quantity: int = 0
@@ -81,13 +82,14 @@ class OrderManagementSystem:
         self.subscribers.append(callback)
     
     def create_order(self, symbol: str, order_type: OrderType, 
-                    quantity: int, price: float) -> Order:
+                    quantity: int, price: float, signal_name: str = "") -> Order:
         """주문 생성"""
         order = Order(
             symbol=symbol,
             order_type=order_type,
             quantity=quantity,
-            price=price
+            price=price,
+            signal_name=signal_name
         )
         self.orders[order.order_id] = order
         self.logger.info(f"Order created: {order.order_id} {order_type.value} {symbol} x{quantity}")

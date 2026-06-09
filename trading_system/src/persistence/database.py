@@ -1,5 +1,6 @@
 """Persistence Layer - 데이터 저장소 (aiosqlite 비동기 마이그레이션)"""
 
+import asyncio
 import json
 import sqlite3
 import aiosqlite
@@ -40,18 +41,22 @@ class TradeLogger:
         self.db_path = Path(db_path)
         self.logger = logger
         self._db_initialized = False
+        self._init_lock = asyncio.Lock()
         self._conn_mgr = _DBConnection(self.db_path)
-    
+
     async def _get_conn(self):
         conn = await self._conn_mgr.get()
         conn.row_factory = sqlite3.Row
         return conn
-    
+
     async def _init_database(self):
         """데이터베이스 초기화 (비동기 지연 초기화)"""
         if self._db_initialized:
             return
-        conn = await self._get_conn()
+        async with self._init_lock:
+            if self._db_initialized:
+                return
+            conn = await self._get_conn()
         cursor = await conn.cursor()
         
         # 주문 테이블
@@ -146,18 +151,22 @@ class AssetHistoryDB:
         self.db_path = Path(db_path)
         self.logger = logger
         self._db_initialized = False
+        self._init_lock = asyncio.Lock()
         self._conn_mgr = _DBConnection(self.db_path)
-    
+
     async def _get_conn(self):
         conn = await self._conn_mgr.get()
         conn.row_factory = sqlite3.Row
         return conn
-    
+
     async def _init_database(self):
         """데이터베이스 초기화 (비동기 지연 초기화)"""
         if self._db_initialized:
             return
-        conn = await self._get_conn()
+        async with self._init_lock:
+            if self._db_initialized:
+                return
+            conn = await self._get_conn()
         cursor = await conn.cursor()
         
         # 자산 스냅샷 테이블
@@ -212,17 +221,21 @@ class AIPredictionDB:
         self.db_path = Path(db_path)
         self.logger = logger
         self._db_initialized = False
+        self._init_lock = asyncio.Lock()
         self._conn_mgr = _DBConnection(self.db_path)
-    
+
     async def _get_conn(self):
         conn = await self._conn_mgr.get()
         conn.row_factory = sqlite3.Row
         return conn
-    
+
     async def _init_database(self):
         if self._db_initialized:
             return
-        conn = await self._get_conn()
+        async with self._init_lock:
+            if self._db_initialized:
+                return
+            conn = await self._get_conn()
         cursor = await conn.cursor()
         
         await cursor.execute('''

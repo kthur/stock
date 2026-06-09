@@ -14,12 +14,234 @@ import json
 logger = logging.getLogger(__name__)
 
 
+class CrisisLevel(Enum):
+    """위기 단계"""
+    NONE = "NONE"
+    WATCH = "WATCH"
+    ACTIVE = "ACTIVE"
+    SEVERE = "SEVERE"
+
+
 class RiskLevel(Enum):
     """위험 수준"""
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
+
+
+class CrisisDetector:
+    """위기 감지 및 방어 시스템 - 금융위기/코로나/전쟁 등 이상 징후 조기 탐지"""
+
+    def __init__(self, risk_manager: 'RiskManager'):
+        self.rm = risk_manager
+        self.logger = logger
+        self.crisis_level = CrisisLevel.NONE
+        self._vix_history: list[float] = []
+        self._dd_history: list[float] = []
+        self._usdkrw_history: list[float] = []
+        self._oil_history: list[float] = []
+        self._tnx_history: list[float] = []
+        self._dxy_history: list[float] = []
+        self._volume_spike_threshold = 3.0
+        self._recovery_mode = False
+        self._recovery_start_day: int | None = None
+        self._days_in_crisis = 0
+
+    def evaluate(
+        self,
+        vix: float = 20.0,
+        positions: dict | None = None,
+        daily_volume_ratio: float = 1.0,
+        market_data_cache: dict | None = None,
+        usdkrw: float | None = None,
+        oil: float | None = None,
+        tnx: float | None = None,
+        dxy: float | None = None,
+    ) -> CrisisLevel:
+        """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러) 융합"""
+        self._vix_history.append(vix)
+        if len(self._vix_history) > 252:
+            self._vix_history.pop(0)
+
+        dd = self.rm.calculate_drawdown()
+        self._dd_history.append(dd)
+        if len(self._dd_history) > 63:
+            self._dd_history.pop(0)
+
+        for val, hist in [(usdkrw, self._usdkrw_history), (oil, self._oil_history),
+                          (tnx, self._tnx_history), (dxy, self._dxy_history)]:
+            if val is not None:
+                hist.append(val)
+                if len(hist) > 252:
+                    hist.pop(0)
+
+        vix_score = self._score_vix(vix)
+        dd_score = self._score_drawdown(dd)
+        volume_score = self._score_volume(daily_volume_ratio)
+        trend_score = self._score_trend_breakdown(market_data_cache)
+        macro_score = self._score_macro(usdkrw, oil, tnx, dxy)
+
+        composite = (vix_score * 0.25 + dd_score * 0.25 +
+                      volume_score * 0.15 + trend_score * 0.10 +
+                      macro_score * 0.25)
+
+        previous = self.crisis_level
+        if composite >= 0.75:
+            self.crisis_level = CrisisLevel.SEVERE
+        elif composite >= 0.50:
+            self.crisis_level = CrisisLevel.ACTIVE
+        elif composite >= 0.25:
+            self.crisis_level = CrisisLevel.WATCH
+        else:
+            self.crisis_level = CrisisLevel.NONE
+
+        if self.crisis_level in (CrisisLevel.ACTIVE, CrisisLevel.SEVERE):
+            self._days_in_crisis += 1
+            self._recovery_mode = False
+            self._recovery_start_day = None
+        elif self._days_in_crisis > 0:
+            self._check_recovery(vix, dd)
+
+        if self.crisis_level != previous:
+            self.logger.warning(
+                f"Crisis level changed: {previous.value} -> {self.crisis_level.value} "
+                f"(VIX={vix:.1f}, DD={dd:.2%}, vol={daily_volume_ratio:.1f}x, macro={macro_score:.2f}, "
+                f"composite={composite:.2f})"
+            )
+        return self.crisis_level
+
+    def _score_vix(self, vix: float) -> float:
+        if vix <= 15:
+            return 0.0
+        vix_roc = 0.0
+        if len(self._vix_history) >= 5:
+            vix_roc = (vix - self._vix_history[-5]) / max(self._vix_history[-5], 0.1)
+        raw = (vix - 15) / 40.0
+        roc_bonus = max(0, min(0.3, vix_roc * 0.1))
+        return min(1.0, raw + roc_bonus)
+
+    def _score_drawdown(self, dd: float) -> float:
+        dd_speed = 0.0
+        if len(self._dd_history) >= 5:
+            dd_speed = (dd - self._dd_history[-5]) / max(0.01, 5)
+        raw = min(1.0, dd / 0.20)
+        speed_bonus = max(0, min(0.3, dd_speed * 5.0))
+        return min(1.0, raw + speed_bonus)
+
+    def _score_volume(self, volume_ratio: float) -> float:
+        if volume_ratio <= 1.0:
+            return 0.0
+        return min(1.0, (volume_ratio - 1.0) / (self._volume_spike_threshold - 1.0))
+
+    def _score_trend_breakdown(self, cache: dict | None) -> float:
+        if not cache:
+            return 0.0
+        bearish_count = 0
+        total = 0
+        for sym, data in cache.items():
+            if isinstance(data, dict) and 'ema20' in data and 'ema50' in data:
+                total += 1
+                if data['ema20'] < data['ema50']:
+                    bearish_count += 1
+        if total == 0:
+            return 0.0
+        return bearish_count / total
+
+    def _score_macro(self, usdkrw: float | None, oil: float | None,
+                     tnx: float | None, dxy: float | None) -> float:
+        """거시경제 지표 기반 위험 점수 (0.0 ~ 1.0)"""
+        scores = []
+
+        # USD/KRW: 원화 약세(환율 상승) → 자본유출 위험
+        if usdkrw is not None and len(self._usdkrw_history) >= 5:
+            baseline = sum(self._usdkrw_history[-5:]) / 5
+            spike = (usdkrw - baseline) / max(baseline, 1.0)
+            scores.append(min(1.0, max(0, spike * 5.0)))
+
+        # WTI: 유가 급등($100+) → 인플레이션 → 긴축 위험
+        if oil is not None and len(self._oil_history) >= 5:
+            oil_z = max(0, (oil - 75.0) / 75.0)
+            oil_mom = (oil - self._oil_history[-5]) / max(self._oil_history[-5], 1.0)
+            scores.append(min(1.0, oil_z + max(0, oil_mom * 2.0)))
+
+        # ^TNX: 금리 급등(5%+) or 급격한 상승 속도 → 시장 긴축
+        if tnx is not None and len(self._tnx_history) >= 5:
+            tnx_level = max(0, (tnx - 3.5) / 3.5)
+            tnx_mom = (tnx - self._tnx_history[-5]) / max(self._tnx_history[-5], 0.01)
+            scores.append(min(1.0, tnx_level + max(0, tnx_mom * 3.0)))
+
+        # DXY: 달러 강세(105+) → 신흥국 부담
+        if dxy is not None and len(self._dxy_history) >= 5:
+            dxy_level = max(0, (dxy - 100.0) / 15.0)
+            dxy_mom = (dxy - self._dxy_history[-5]) / max(self._dxy_history[-5], 0.01)
+            scores.append(min(1.0, dxy_level + max(0, dxy_mom * 3.0)))
+
+        return sum(scores) / max(len(scores), 1)
+
+    def _check_recovery(self, vix: float, dd: float):
+        """위기 종료(회복) 감지"""
+        if self._recovery_start_day is not None:
+            days_since = self._days_in_crisis - self._recovery_start_day
+            if days_since >= 5 and dd < 0.05 and vix < 25:
+                self._recovery_mode = True
+                self._days_in_crisis = 0
+                self._recovery_start_day = None
+                self.logger.info("Recovery mode activated: crisis passed, gradually increasing exposure")
+            return
+
+        if vix < 25 and dd < 0.05 and self._days_in_crisis >= 10:
+            self._recovery_start_day = self._days_in_crisis
+
+    @property
+    def is_crisis(self) -> bool:
+        return self.crisis_level in (CrisisLevel.ACTIVE, CrisisLevel.SEVERE)
+
+    @property
+    def is_recovery(self) -> bool:
+        return self._recovery_mode
+
+    def get_crisis_cash_target(self) -> float:
+        targets = {
+            CrisisLevel.NONE: 0.10,
+            CrisisLevel.WATCH: 0.30,
+            CrisisLevel.ACTIVE: 0.60,
+            CrisisLevel.SEVERE: 0.85,
+        }
+        base = targets.get(self.crisis_level, 0.10)
+        if self._recovery_mode:
+            progress = min(1.0, (self._days_in_crisis or 1) / 20.0)
+            return 0.10 + (base - 0.10) * (1.0 - progress)
+        return base
+
+    def get_crisis_position_multiplier(self) -> float:
+        multipliers = {
+            CrisisLevel.NONE: 1.0,
+            CrisisLevel.WATCH: 0.70,
+            CrisisLevel.ACTIVE: 0.40,
+            CrisisLevel.SEVERE: 0.15,
+        }
+        base = multipliers.get(self.crisis_level, 1.0)
+        if self._recovery_mode:
+            progress = min(1.0, (self._days_in_crisis or 1) / 20.0)
+            return 0.15 + (1.0 - 0.15) * progress
+        return base
+
+    def get_crisis_stop_multiplier(self) -> float:
+        """위기 시 손절가를 더 타이트하게 설정"""
+        multipliers = {
+            CrisisLevel.NONE: 1.0,
+            CrisisLevel.WATCH: 0.80,
+            CrisisLevel.ACTIVE: 0.60,
+            CrisisLevel.SEVERE: 0.40,
+        }
+        return multipliers.get(self.crisis_level, 1.0)
+
+    def should_block_new_buys(self) -> bool:
+        return self.crisis_level == CrisisLevel.SEVERE
+
+    def should_liquidate(self) -> bool:
+        return self.crisis_level == CrisisLevel.SEVERE and self._days_in_crisis >= 3
 
 
 @dataclass
@@ -71,6 +293,7 @@ class RiskManager:
         self._correlation_matrix: Dict[str, Dict[str, float]] = {}
         self._daily_returns: List[float] = []
         
+        self.crisis_detector = CrisisDetector(self)
         self.active_strategy = "HYBRID"
         
         self._load_config()
@@ -78,26 +301,48 @@ class RiskManager:
         self.metrics_history: List[RiskMetrics] = []
         self.alerts: List[Dict] = []
 
+    def evaluate_crisis(
+        self,
+        vix: float = 20.0,
+        positions: dict | None = None,
+        daily_volume_ratio: float = 1.0,
+        market_data_cache: dict | None = None,
+        usdkrw: float | None = None,
+        oil: float | None = None,
+        tnx: float | None = None,
+        dxy: float | None = None,
+    ) -> CrisisLevel:
+        """Evaluate crisis level using VIX + macro indicators + drawdown."""
+        return self.crisis_detector.evaluate(
+            vix=vix, positions=positions, daily_volume_ratio=daily_volume_ratio,
+            market_data_cache=market_data_cache,
+            usdkrw=usdkrw, oil=oil, tnx=tnx, dxy=dxy,
+        )
+
     def calculate_atr_based_stop(self, entry_price: float, atr: float) -> float:
         stop_distance = atr * self.atr_multiplier_stop
-        return max(entry_price - stop_distance, entry_price * (1 - self.default_stop_loss_pct * 2))
+        base = max(entry_price - stop_distance, entry_price * (1 - self.default_stop_loss_pct * 2))
+        crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
+        if crisis_mult < 1.0:
+            tighter = entry_price - (entry_price - base) * crisis_mult
+            self.logger.info(f"Crisis stop tightening: {base:.2f} -> {tighter:.2f} (mult={crisis_mult:.2f})")
+            return tighter
+        return base
 
     def calculate_atr_based_target(self, entry_price: float, atr: float) -> float:
         target_distance = atr * self.atr_multiplier_target
-        return min(entry_price + target_distance, entry_price * (1 + self.default_take_profit_pct * 2))
+        base = min(entry_price + target_distance, entry_price * (1 + self.default_take_profit_pct * 2))
+        crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
+        if crisis_mult < 1.0:
+            tighter = entry_price + (base - entry_price) * crisis_mult
+            self.logger.info(f"Crisis target tightening: {base:.2f} -> {tighter:.2f} (mult={crisis_mult:.2f})")
+            return tighter
+        return base
 
     def _volatility_scalar(self, vix: float = 20.0) -> float:
         if not self.volatility_scaling or vix <= 0:
             return 1.0
-        if vix >= 40:
-            return 0.25
-        elif vix >= 30:
-            return 0.50
-        elif vix >= 25:
-            return 0.75
-        elif vix <= 12:
-            return 1.25
-        return 1.0
+        return float(max(0.25, min(1.5, 20.0 / vix)))
 
     def record_daily_return(self, daily_return: float) -> None:
         """Record daily portfolio return for volatility estimation."""
@@ -219,10 +464,19 @@ class RiskManager:
         vol_scalar = self._volatility_scalar(vix)
         max_value *= vol_scalar
         
-        position_quantity = int(max_value / entry_price)
-        
+        position_quantity = max(1, int(max_value / entry_price))
         max_position = self.calculate_max_position_size(entry_price)
         position_quantity = min(position_quantity, max_position)
+        
+        # 위기 시 포지션 크기 감축
+        crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
+        if crisis_mult < 1.0:
+            old_qty = position_quantity
+            position_quantity = max(1, int(position_quantity * crisis_mult))
+            self.logger.info(
+                f"Crisis position sizing: {symbol} qty {old_qty} -> {position_quantity} "
+                f"(crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
+            )
         
         if symbol in self.position_limits:
             position_quantity = int(min(position_quantity, self.position_limits[symbol]))
@@ -265,6 +519,29 @@ class RiskManager:
         
         self.logger.debug(f"Portfolio value updated: {new_value}")
     
+    def check_crisis_liquidation(self) -> list[str]:
+        """위기 상황에서 청산해야 할 심볼 목록 반환"""
+        if self.crisis_detector.should_liquidate():
+            self.logger.warning(
+                f"CRISIS LIQUIDATION TRIGGERED: level={self.crisis_detector.crisis_level.value}, "
+                f"day={self.crisis_detector._days_in_crisis}"
+            )
+            return ["*ALL*"]
+        return []
+    
+    def get_crisis_new_buy_blocked(self) -> bool:
+        """위기 시 신규 매수 차단 여부"""
+        blocked = self.crisis_detector.should_block_new_buys()
+        if blocked:
+            self.logger.warning(
+                f"New buys blocked: crisis level={self.crisis_detector.crisis_level.value}"
+            )
+        return blocked
+    
+    def get_crisis_cash_target_pct(self) -> float:
+        """위기 상황에 따른 목표 현금 비중"""
+        return self.crisis_detector.get_crisis_cash_target()
+    
     def calculate_drawdown(self) -> float:
         """현재 Drawdown 계산 (%)"""
         if self.peak_value == 0:
@@ -274,7 +551,13 @@ class RiskManager:
         return drawdown
     
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:
-        """현재 위험 수준 계산 (drawdown + 포지션 집중도 + 상관관계 기반)"""
+        """현재 위험 수준 계산 (drawdown + 포지션 집중도 + 상관관계 + 위기 모드)"""
+        # 위기 모드가 ACTIVE 이상이면 강제로 HIGH 이상
+        if self.crisis_detector.crisis_level == CrisisLevel.SEVERE:
+            return RiskLevel.CRITICAL
+        if self.crisis_detector.crisis_level == CrisisLevel.ACTIVE:
+            return RiskLevel.HIGH
+
         drawdown = self.calculate_drawdown()
         concentration_risk = 0.0
         

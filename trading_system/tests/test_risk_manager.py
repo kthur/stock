@@ -117,7 +117,7 @@ class TestRiskManagerVolatility(unittest.TestCase):
 
     def test_vol_scalar_extreme_vix(self):
         s = self.rm._volatility_scalar(45.0)
-        self.assertEqual(s, 0.25)
+        self.assertAlmostEqual(s, 0.444, places=3)
 
 
 class TestRiskManagerRiskOff(unittest.TestCase):

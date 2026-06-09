@@ -37,6 +37,7 @@ class SystemFactory:
             cash_ratio_weight=0.08,
         )
         portfolio = PortfolioManager(initial_cash=initial_cash)
+        strategy_engine.portfolio = portfolio
         return {
             'event_bus': event_bus,
             'market_data': market_data,

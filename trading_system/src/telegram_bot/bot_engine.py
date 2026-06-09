@@ -259,54 +259,21 @@ class TelegramBotEngine:
     
     def _cmd_buy(self, user_id: int, args: List[str]) -> str:
         """매수 주문"""
-        if len(args) < 2:
-            return "⚠️ 사용법: /buy SYMBOL QUANTITY [PRICE]\n예: /buy 삼성전자 10 75000 (지정가)\n예: /buy AAPL 5 (시장가)"
-        
-        raw_symbol = args[0]
-        symbol = _get_tickers().get(raw_symbol, raw_symbol.upper())
+        return self._execute_trade_order(args, OrderType.BUY, "매수", "buy",
+                                        self.trading_system.portfolio.add_position, True)
 
-        try:
-            quantity = int(args[1])
-            price = float(args[2]) if len(args) > 2 else 0.0
-        except ValueError:
-            return "⚠️ 수량과 가격은 숫자여야 합니다."
-
-        if not self.trading_system:
-            return "❌ 시스템 연동 안됨"
-        
-        # 시장가(MARKET) 처리
-        price_label = f"${price:,.2f}"
-        if price <= 0:
-            price_label = "시장가"
-            quote = self.trading_system.get_stock_quote_from_broker(symbol)
-            price = quote.get('price') or self.trading_system.market_data_cache.get(symbol, {}).get('price') or 150.0
-        
-        async def execute_buy_action():
-            order = self.trading_system.order_management.create_order(symbol, OrderType.BUY, quantity, price)
-            await self.trading_system.order_management.submit_order(order)
-            await self.trading_system.order_management.execute_order(order.order_id)
-            await self.trading_system.trade_logger.log_execution(order.order_id, symbol, quantity, price)
-            self.trading_system.portfolio.add_position(symbol, quantity, price)
-            return order.order_id
-            
-        try:
-            order_id = run_async(execute_buy_action())
-            response = "✅ *실시간 매수 체결 완료*\n\n"
-            response += f"종목: {raw_symbol} ({symbol})\n"
-            response += f"수량: {quantity}주\n"
-            response += f"가격: {price_label} (체결가: ${price:,.2f})\n"
-            response += f"주문번호: `{order_id}`\n"
-            response += "상태: 체결완료(EXECUTED)\n"
-        except Exception as e:
-            response = f"❌ 주문 실행 실패: {str(e)}"
-            
-        return response
-    
     def _cmd_sell(self, user_id: int, args: List[str]) -> str:
         """매도 주문"""
+        return self._execute_trade_order(args, OrderType.SELL, "매도", "sell",
+                                        self.trading_system.portfolio.reduce_position, False)
+
+    def _execute_trade_order(self, args: List[str], order_type: OrderType,
+                             side_kr: str, side_en: str,
+                             portfolio_action, include_price: bool) -> str:
+        """매수/매도 공통 로직"""
         if len(args) < 2:
-            return "⚠️ 사용법: /sell SYMBOL QUANTITY [PRICE]\n예: /sell 삼성전자 10 75000 (지정가)\n예: /sell AAPL 5 (시장가)"
-        
+            return f"⚠️ 사용법: /{side_en} SYMBOL QUANTITY [PRICE]\n예: /{side_en} 삼성전자 10 75000 (지정가)\n예: /{side_en} AAPL 5 (시장가)"
+
         raw_symbol = args[0]
         symbol = _get_tickers().get(raw_symbol, raw_symbol.upper())
 
@@ -318,25 +285,27 @@ class TelegramBotEngine:
 
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
-        
-        # 시장가(MARKET) 처리
+
         price_label = f"${price:,.2f}"
         if price <= 0:
             price_label = "시장가"
             quote = self.trading_system.get_stock_quote_from_broker(symbol)
             price = quote.get('price') or self.trading_system.market_data_cache.get(symbol, {}).get('price') or 150.0
-            
-        async def execute_sell_action():
-            order = self.trading_system.order_management.create_order(symbol, OrderType.SELL, quantity, price)
+
+        async def execute_action():
+            order = self.trading_system.order_management.create_order(symbol, order_type, quantity, price)
             await self.trading_system.order_management.submit_order(order)
             await self.trading_system.order_management.execute_order(order.order_id)
             await self.trading_system.trade_logger.log_execution(order.order_id, symbol, quantity, price)
-            self.trading_system.portfolio.reduce_position(symbol, quantity)
+            if include_price:
+                portfolio_action(symbol, quantity, price)
+            else:
+                portfolio_action(symbol, quantity)
             return order.order_id
-            
+
         try:
-            order_id = run_async(execute_sell_action())
-            response = "✅ *실시간 매도 체결 완료*\n\n"
+            order_id = run_async(execute_action())
+            response = f"✅ *실시간 {side_kr} 체결 완료*\n\n"
             response += f"종목: {raw_symbol} ({symbol})\n"
             response += f"수량: {quantity}주\n"
             response += f"가격: {price_label} (체결가: ${price:,.2f})\n"
@@ -344,7 +313,7 @@ class TelegramBotEngine:
             response += "상태: 체결완료(EXECUTED)\n"
         except Exception as e:
             response = f"❌ 주문 실행 실패: {str(e)}"
-            
+
         return response
     
     def _cmd_cancel(self, user_id: int, args: List[str]) -> str:

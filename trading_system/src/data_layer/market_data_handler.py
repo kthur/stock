@@ -165,7 +165,7 @@ class MarketDataHandler:
             return price, volume
         except Exception as e:
             self.circuit_breaker.record_failure()
-            raise e
+            raise
 
     def fetch_live_data(self, symbol: str) -> MarketData | None:
         """yfinance를 통해 실제 실시간 시세 데이터를 조회하고 이벤트로 전송"""

@@ -188,27 +188,31 @@ class TestStrategyEngine(unittest.TestCase):
         """가중치 정규화 후 합계 = 1.0"""
         for attr in ("sentiment_weight", "technical_weight", "ml_weight",
                      "rl_weight", "darkpool_weight", "llm_weight",
-                     "global_market_weight", "cash_ratio_weight"):
+                     "global_market_weight", "cash_ratio_weight",
+                     "macro_weight"):
             setattr(self.engine, attr, 0.5)
         self.engine._normalize_weights()
         total = (self.engine.sentiment_weight + self.engine.technical_weight +
                  self.engine.ml_weight + self.engine.rl_weight +
                  self.engine.darkpool_weight + self.engine.llm_weight +
-                 self.engine.global_market_weight + self.engine.cash_ratio_weight)
+                 self.engine.global_market_weight + self.engine.cash_ratio_weight +
+                 self.engine.macro_weight)
         self.assertAlmostEqual(total, 1.0, places=6)
 
     def test_normalize_weights_zero_case(self):
         """모든 가중치가 0이면 균등 분배"""
         for attr in ("sentiment_weight", "technical_weight", "ml_weight",
                      "rl_weight", "darkpool_weight", "llm_weight",
-                     "global_market_weight", "cash_ratio_weight"):
+                     "global_market_weight", "cash_ratio_weight",
+                     "macro_weight"):
             setattr(self.engine, attr, 0.0)
         self.engine._normalize_weights()
         n = len(self.engine.SIGNAL_NAMES)
         total = (self.engine.sentiment_weight + self.engine.technical_weight +
                  self.engine.ml_weight + self.engine.rl_weight +
                  self.engine.darkpool_weight + self.engine.llm_weight +
-                 self.engine.global_market_weight + self.engine.cash_ratio_weight)
+                 self.engine.global_market_weight + self.engine.cash_ratio_weight +
+                 self.engine.macro_weight)
         self.assertAlmostEqual(total, 1.0, places=6)
         self.assertAlmostEqual(self.engine.sentiment_weight, 1.0 / n, places=6)
 

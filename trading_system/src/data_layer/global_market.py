@@ -36,6 +36,13 @@ FX_PAIRS: Dict[str, str] = {
     "USDCNY=X": "USD/CNY",
 }
 
+# 추가 거시경제 지표: 금리, 원자재, 달러인덱스
+MACRO_COMMODITIES: Dict[str, str] = {
+    "^TNX": "US 10Y Treasury Yield",
+    "CL=F": "WTI Crude Oil",
+    "DX-Y.NYB": "US Dollar Index (DXY)",
+}
+
 _CACHE_TTL = 300  # 5-minute cache
 
 
@@ -105,6 +112,30 @@ class GlobalMarketClient:
             result[pair] = self.get_fx_rate(pair)
         return result
 
+    def get_macro_commodity(self, symbol: str) -> Dict[str, Any]:
+        """Return latest snapshot for a macro commodity (yield, oil, DXY)."""
+        hist = self._get_cached_or_fetch(symbol, period="5d")
+        if hist is None or hist.empty:
+            return {"symbol": symbol, "price": None, "change_pct": None}
+        prices = hist["Close"]
+        price = float(prices.iloc[-1])
+        prev = float(prices.iloc[-2]) if len(prices) > 1 else price
+        change_pct = ((price - prev) / prev) * 100 if prev else 0.0
+        return {
+            "symbol": symbol,
+            "name": MACRO_COMMODITIES.get(symbol, symbol),
+            "price": round(price, 4),
+            "change_pct": round(change_pct, 2),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    def get_all_macro_commodities(self) -> Dict[str, Dict[str, Any]]:
+        """Return latest snapshot for every configured macro commodity."""
+        result: Dict[str, Dict[str, Any]] = {}
+        for sym in MACRO_COMMODITIES:
+            result[sym] = self.get_macro_commodity(sym)
+        return result
+
     def get_summary(self) -> Dict[str, Any]:
         """Combined market overview — indices + FX in one call."""
         now = time.time()
@@ -113,6 +144,7 @@ class GlobalMarketClient:
         summary = {
             "indices": self.get_all_indices(),
             "fx_rates": self.get_all_fx_rates(),
+            "macro_commodities": self.get_all_macro_commodities(),
             "updated_at": datetime.now().isoformat(),
         }
         self._cache = summary
@@ -139,4 +171,4 @@ class GlobalMarketClient:
         return records
 
 
-__all__ = ["GlobalMarketClient", "GLOBAL_INDICES", "FX_PAIRS"]
+__all__ = ["GlobalMarketClient", "GLOBAL_INDICES", "FX_PAIRS", "MACRO_COMMODITIES"]

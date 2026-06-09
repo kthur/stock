@@ -1,5 +1,6 @@
 """Strategy Engine - 매매 전략 및 최적화"""
 
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -32,11 +33,12 @@ class StrategyResult:
     confidence: float  # 0.0 ~ 1.0
     reason: str
     timestamp: datetime
+    signal_name: str = "strategy"
 
 
 class HybridStrategyEngine:
     
-    SIGNAL_NAMES = ["sentiment", "technical", "ml", "rl", "darkpool", "llm", "global_market", "cash_ratio"]
+    SIGNAL_NAMES = ["sentiment", "technical", "ml", "rl", "darkpool", "llm", "global_market", "cash_ratio", "macro"]
     
     def __init__(
         self,
@@ -50,6 +52,7 @@ class HybridStrategyEngine:
         hft_engine: Any = None,
         global_market: Any = None,
         relative_strength: Any = None,
+        portfolio: Any = None,
         sentiment_weight: float = 0.20,
         technical_weight: float = 0.30,
         ml_weight: float = 0.30,
@@ -58,6 +61,7 @@ class HybridStrategyEngine:
         llm_weight: float = 0.1,
         global_market_weight: float = 0.0,
         cash_ratio_weight: float = 0.08,
+        macro_weight: float = 0.08,
         spread_threshold: float = 0.001,
         buy_price_threshold: float = 1.01,
         sell_threshold: float = 0.4,
@@ -65,7 +69,7 @@ class HybridStrategyEngine:
         weight_adaptation_window: int = 15,
     ) -> None:
         self.logger = logger
-        self.results_history: List[StrategyResult] = []
+        self.results_history: deque = deque(maxlen=1000)
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         self.ml_engine = ml_engine
@@ -77,8 +81,8 @@ class HybridStrategyEngine:
         self.hft_engine = hft_engine
         self.global_market = global_market
         self.relative_strength = relative_strength
+        self.portfolio = portfolio
         
-        self.price_threshold = 0.02
         self.volume_threshold = 1000000
         self.sentiment_weight = sentiment_weight
         self.technical_weight = technical_weight
@@ -88,6 +92,7 @@ class HybridStrategyEngine:
         self.llm_weight = llm_weight
         self.global_market_weight = global_market_weight
         self.cash_ratio_weight = cash_ratio_weight
+        self.macro_weight = macro_weight
         self.spread_threshold = spread_threshold
         self.buy_price_threshold = buy_price_threshold
         self.sell_threshold = sell_threshold
@@ -193,15 +198,15 @@ class HybridStrategyEngine:
         if len(closes) < 20:
             return {"score": 0.5, "signal": TradeSignal.HOLD, "details": {}}
         
-        # RSI (14)
+        # RSI (14) - 보다 보수적인 임계값 적용
         rsi = self._calc_rsi(closes)
-        if rsi < 30:
-            rsi_score = 0.9  # 과매도 → 매수 기회
-        elif rsi < 40:
-            rsi_score = 0.7
-        elif rsi > 70:
-            rsi_score = 0.1  # 과매수 → 매도 신호
-        elif rsi > 60:
+        if rsi < 25:
+            rsi_score = 0.9
+        elif rsi < 35:
+            rsi_score = 0.6
+        elif rsi > 75:
+            rsi_score = 0.1
+        elif rsi > 65:
             rsi_score = 0.3
         else:
             rsi_score = 0.5
@@ -246,21 +251,16 @@ class HybridStrategyEngine:
         trend_bias = 0.5
         if len(closes) >= 50 and len(ema20) >= 5:
             if ema20[-1] > ema50[-1] and ema20_slope > 0.001:
-                trend_bias = 0.8  # solid uptrend
+                trend_bias = 0.8
             elif ema20[-1] < ema50[-1] and ema20_slope < -0.001:
-                trend_bias = 0.2  # solid downtrend
-        # override mean-reversion signals when trend is strong
-        if trend_bias > 0.7:
-            rsi_score = max(rsi_score, 0.5)
-            bb_score = max(bb_score, 0.5)
-            ema_score = max(ema_score, 0.5)
-        elif trend_bias < 0.3:
-            rsi_score = min(rsi_score, 0.5)
-            bb_score = min(bb_score, 0.5)
-            ema_score = min(ema_score, 0.5)
-        
-        # 앙상블 종합 (동일 가중)
+                trend_bias = 0.2
+
         combined = (rsi_score * 0.30 + macd_score * 0.25 + ema_score * 0.25 + bb_score * 0.20)
+        # 추세 바이어스를 종합 점수에 적용 (신호 차별성 유지)
+        if trend_bias > 0.7:
+            combined = combined * (0.5 + trend_bias * 0.5)
+        elif trend_bias < 0.3:
+            combined = combined * trend_bias * 2.0
         
         # 투표 기반 신호 결정
         buy_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s > 0.6)
@@ -433,7 +433,33 @@ class HybridStrategyEngine:
             else:
                 target_cash = 0.10
             cash_ratio_score = max(0.0, min(1.0, 0.5 + (cash_ratio - target_cash) * 1.0))
-            
+
+            # ── Macro composite signal (VIX + FX + Oil + Rates + DXY) ───────
+            macro_score = 0.5
+            try:
+                if self.global_market:
+                    gm = self.global_market.get_summary()
+                    fx = gm.get("fx_rates", {})
+                    mc = gm.get("macro_commodities", {})
+                    usdkrw = float(fx.get("USDKRW=X", {}).get("rate", 1300))
+                    oil = float(mc.get("CL=F", {}).get("price", 75))
+                    tnx = float(mc.get("^TNX", {}).get("price", 4.0))
+                    dxy = float(mc.get("DX-Y.NYB", {}).get("price", 103))
+                    vix_val = float(gm.get("indices", {}).get("^VIX", {}).get("price", 20))
+                    vix_s = max(0.0, min(1.0, 1.0 - (vix_val - 12) / 35))
+                    fx_s = max(0.0, min(1.0, 1.0 - (usdkrw - 1200) / 400))
+                    oil_s = max(0.0, min(1.0, 1.0 - (oil - 50) / 150))
+                    tnx_s = max(0.0, min(1.0, 1.0 - (tnx - 2.5) / 5.0))
+                    dxy_s = max(0.0, min(1.0, 1.0 - (dxy - 95) / 25))
+                    macro_score = (vix_s * 0.30 + fx_s * 0.20 + oil_s * 0.20 + tnx_s * 0.15 + dxy_s * 0.15)
+                    self.logger.debug(
+                        f"Macro composite: {macro_score:.3f} "
+                        f"(VIX={vix_val:.1f}/{vix_s:.2f}, USDKRW={usdkrw:.0f}/{fx_s:.2f}, "
+                        f"Oil={oil:.1f}/{oil_s:.2f}, TNX={tnx:.2f}/{tnx_s:.2f}, DXY={dxy:.1f}/{dxy_s:.2f})"
+                    )
+            except Exception as e:
+                self.logger.debug(f"Macro composite failed: {e}")
+
             combined_score = (sentiment_score * self.sentiment_weight +
                             technical_score * self.technical_weight +
                             ml_score * self.ml_weight +
@@ -441,7 +467,8 @@ class HybridStrategyEngine:
                             darkpool_score * self.darkpool_weight +
                             llm_score * self.llm_weight +
                             global_market_score * self.global_market_weight +
-                            cash_ratio_score * self.cash_ratio_weight)
+                            cash_ratio_score * self.cash_ratio_weight +
+                            macro_score * self.macro_weight)
             
             raw_scores = {
                 "sentiment": sentiment_score,
@@ -452,6 +479,7 @@ class HybridStrategyEngine:
                 "llm": llm_score,
                 "global_market": global_market_score,
                 "cash_ratio": cash_ratio_score,
+                "macro": macro_score,
             }
             
             # ── Signal consensus scoring ───────────────────────────────
@@ -461,10 +489,10 @@ class HybridStrategyEngine:
             max_agree = max(bullish_signals, bearish_signals)
             consensus_ratio = max_agree / total_active if total_active > 0 else 0
             if consensus_ratio >= 0.6:
-                consensus_multiplier = 1.0 + (consensus_ratio - 0.5)
+                consensus_multiplier = 1.0 + (consensus_ratio - 0.5) * 0.5
                 combined_score *= consensus_multiplier
             elif consensus_ratio <= 0.3:
-                combined_score *= 0.85
+                combined_score *= 0.5 + consensus_ratio
 
             regime = alt_regime or {}
             if regime.get("is_high_volatility"):
@@ -477,6 +505,7 @@ class HybridStrategyEngine:
                     "llm": self.llm_weight * 0.8,
                     "global_market": self.global_market_weight * 1.1,
                     "cash_ratio": self.cash_ratio_weight * 1.3,
+                    "macro": self.macro_weight * 1.4,
                 }
                 total_adj = sum(adjusted.values())
                 if total_adj > 0:
@@ -528,13 +557,19 @@ class HybridStrategyEngine:
                 self.hft_engine.execute_micro_order(symbol, signal.name, 100)
                 reason += " | (Executed via HFT Engine)"
         
+        # Determine dominant signal for performance attribution
+        dominant_signal = max(raw_scores, key=lambda k: raw_scores[k])
+        if raw_scores.get(dominant_signal, 0.5) < 0.55:
+            dominant_signal = "strategy"
+            
         result = StrategyResult(
             symbol=symbol,
             signal=signal,
             price=price,
             confidence=confidence,
             reason=reason,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
+            signal_name=dominant_signal
         )
         
         self.results_history.append(result)
@@ -580,6 +615,7 @@ class HybridStrategyEngine:
             "llm": "llm_weight",
             "global_market": "global_market_weight",
             "cash_ratio": "cash_ratio_weight",
+            "macro": "macro_weight",
         }
         for name, acc in accuracies.items():
             attr = weight_map.get(name)
@@ -601,11 +637,13 @@ class HybridStrategyEngine:
         self.llm_weight = max(0.0, min(1.0, self.llm_weight))
         self.global_market_weight = max(0.0, min(1.0, self.global_market_weight))
         self.cash_ratio_weight = max(0.0, min(1.0, self.cash_ratio_weight))
+        self.macro_weight = max(0.0, min(1.0, self.macro_weight))
         
         total = (self.sentiment_weight + self.technical_weight +
                  self.ml_weight + self.rl_weight +
                  self.darkpool_weight + self.llm_weight +
-                 self.global_market_weight + self.cash_ratio_weight)
+                 self.global_market_weight + self.cash_ratio_weight +
+                 self.macro_weight)
         if total == 0:
             n = len(self.SIGNAL_NAMES)
             self.sentiment_weight = 1.0 / n
@@ -616,6 +654,7 @@ class HybridStrategyEngine:
             self.llm_weight = 1.0 / n
             self.global_market_weight = 1.0 / n
             self.cash_ratio_weight = 1.0 / n
+            self.macro_weight = 1.0 / n
         else:
             self.sentiment_weight /= total
             self.technical_weight /= total
@@ -625,12 +664,13 @@ class HybridStrategyEngine:
             self.llm_weight /= total
             self.global_market_weight /= total
             self.cash_ratio_weight /= total
+            self.macro_weight /= total
         self.logger.info(
             f"Weights adapted: sentiment={self.sentiment_weight:.3f} "
             f"technical={self.technical_weight:.3f} ml={self.ml_weight:.3f} "
             f"rl={self.rl_weight:.3f} darkpool={self.darkpool_weight:.3f} "
             f"llm={self.llm_weight:.3f} global_market={self.global_market_weight:.3f} "
-            f"cash_ratio={self.cash_ratio_weight:.3f}"
+            f"cash_ratio={self.cash_ratio_weight:.3f} macro={self.macro_weight:.3f}"
         )
 
     def set_strategy_parameters(self, strategy_name: str, parameters: Dict) -> None:

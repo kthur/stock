@@ -10,6 +10,7 @@ import sys
 import asyncio
 from pathlib import Path
 import sqlite3
+import numpy as np
 
 # 프로젝트 경로 추가
 sys.path.insert(0, str(Path(__file__).parent))
@@ -171,46 +172,40 @@ class StockTradingSystem:
     
     def _on_market_data(self, market_data: MarketData) -> None:
         """시장 데이터 콜백 (동기 처리 캐싱 + 손절/익절 주문 자동 체결 + 트레일링 스탑)"""
-        self.market_data_cache[market_data.symbol] = {
-            'price': market_data.price,
-            'bid': market_data.bid,
-            'ask': market_data.ask,
-            'volume': market_data.volume,
-            'timestamp': datetime.now(),
-        }
-        logger.debug(f"Market data cached: {market_data.symbol}")
-        
-        # 손절/익절 주문 자동 체결 확인
-        triggered_orders = self.order_management.check_and_trigger_stop_orders(
-            market_data.symbol, market_data.price
-        )
-        for order in triggered_orders:
-            # 시장가로 즉시 체결 처리
-            asyncio.create_task(self._execute_stop_order(order, market_data.price))
+        try:
+            self.market_data_cache[market_data.symbol] = {
+                'price': market_data.price,
+                'bid': market_data.bid,
+                'ask': market_data.ask,
+                'volume': market_data.volume,
+                'timestamp': datetime.now(),
+            }
+            logger.debug(f"Market data cached: {market_data.symbol}")
 
-        # 포트폴리오 레벨 손절: 최대손실 초과 시 전량 청산
-        self._check_portfolio_stop_loss()
+            # 손절/익절 주문 자동 체결 확인
+            triggered_orders = self.order_management.check_and_trigger_stop_orders(
+                market_data.symbol, market_data.price
+            )
+            for order in triggered_orders:
+                asyncio.create_task(self._execute_stop_order(order, market_data.price))
 
-        # 기록 일일 수익률 갱신 (risk_manager volatility targeting 용)
-        if market_data.symbol in self.portfolio.positions:
-            pv = self.portfolio.get_portfolio_value(self.market_data_cache)
-            if pv > 0:
-                # Rough daily return estimate from portfolio value change
-                if not hasattr(self, '_prev_pv'):
+            self._check_portfolio_stop_loss()
+
+            if market_data.symbol in self.portfolio.positions:
+                pv = self.portfolio.get_portfolio_value(self.market_data_cache)
+                if pv > 0:
+                    if not hasattr(self, '_prev_pv'):
+                        self._prev_pv = pv
+                    elif abs(self._prev_pv) > 0:
+                        daily_ret = (pv - self._prev_pv) / self._prev_pv
+                        self.risk_manager.record_daily_return(daily_ret)
                     self._prev_pv = pv
-                elif abs(self._prev_pv) > 0:
-                    daily_ret = (pv - self._prev_pv) / self._prev_pv
-                    self.risk_manager.record_daily_return(daily_ret)
-                self._prev_pv = pv
 
-        # 트레일링 스탑: 가격 상승 시 SL 트리거 상향 조정
-        self._update_trailing_stops(market_data.symbol, market_data.price)
-
-        # 주기적 리밸런싱 체크
-        self._check_rebalance_schedule()
-
-        # 상태 자동 저장
-        self._auto_save_state()
+            self._update_trailing_stops(market_data.symbol, market_data.price)
+            self._check_rebalance_schedule()
+            self._auto_save_state()
+        except Exception as e:
+            logger.error(f"Error processing market data for {market_data.symbol}: {e}", exc_info=True)
 
     async def _execute_stop_order(self, order: Order, current_price: float) -> None:
         """손절/익절 주문 체결 처리 (성과 추적 연동)"""
@@ -285,20 +280,40 @@ class StockTradingSystem:
         
         # 자동 주문 생성
         if result.signal == TradeSignal.BUY:
-            await self._create_and_submit_order(result.symbol, OrderType.BUY, result.price, result.confidence)
+            await self._create_and_submit_order(result.symbol, OrderType.BUY, result.price, result.confidence, result.signal_name)
         elif result.signal == TradeSignal.SELL:
-            await self._create_and_submit_order(result.symbol, OrderType.SELL, result.price, result.confidence)
+            await self._create_and_submit_order(result.symbol, OrderType.SELL, result.price, result.confidence, result.signal_name)
     
     def _on_account_synced(self, sync_result: Dict) -> None:
         """자산 동기화 콜백"""
         logger.info(f"Account synced: cash_diff={sync_result['cash_diff']}")
     
+    async def _liquidate_all_positions(self) -> None:
+        """위기 상황 전체 포지션 청산"""
+        logger.warning("LIQUIDATING ALL POSITIONS due to crisis")
+        for symbol, position in list(self.portfolio.positions.items()):
+            try:
+                price = self.market_data_cache.get(symbol, {}).get("price", 0)
+                if price > 0 and position.quantity > 0:
+                    await self._create_and_submit_order(symbol, OrderType.SELL, price)
+                elif position.quantity < 0:
+                    price = self.market_data_cache.get(symbol, {}).get("price", 0)
+                    if price > 0:
+                        await self._create_and_submit_order(symbol, OrderType.BUY, price)
+            except Exception as e:
+                logger.error(f"Failed to liquidate {symbol}: {e}")
+        self._portfolio_liquidated = True
+        await self.event_bus.publish("crisis_liquidation", {
+            "level": self.risk_manager.crisis_detector.crisis_level.value,
+            "timestamp": datetime.now().isoformat()
+        })
+
     async def _on_order_status_changed(self, order: Order) -> None:
         """주문 상태 변경 콜백 (비동기 DB 저장 지원)"""
         logger.info(f"Order status changed: {order.order_id} - {order.status.value}")
         await self.trade_logger.log_order(order)
     
-    async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float, confidence: float = 0.5) -> None:
+    async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float, confidence: float = 0.5, signal_name: str = "strategy") -> None:
         """주문 생성 및 비동기 제출 (ATR 동적 손절/익절 + 마켓 레짐 필터 + Kelly 실적 연동)"""
         if price <= 0:
             logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
@@ -331,6 +346,48 @@ class StockTradingSystem:
         portfolio_value = self.portfolio.get_portfolio_value(self.market_data_cache.get(symbol, {}))
         if portfolio_value <= 0:
             portfolio_value = self.portfolio.cash
+        
+        # ── 위기 평가 (VIX, Drawdown, 거래량, 추세, 거시지표 융합) ──
+        vix_value = self.market_data_cache.get("VIX", {}).get("price") or self.market_data_cache.get("^VIX", {}).get("price") or 20.0
+        usdkrw = self.market_data_cache.get("USDKRW=X", {}).get("price")
+        oil = self.market_data_cache.get("CL=F", {}).get("price")
+        tnx = self.market_data_cache.get("^TNX", {}).get("price")
+        dxy = self.market_data_cache.get("DX-Y.NYB", {}).get("price")
+        if usdkrw is None:
+            usdkrw = self._fetch_macro_value("USDKRW=X")
+        if oil is None:
+            oil = self._fetch_macro_value("CL=F")
+        if tnx is None:
+            tnx = self._fetch_macro_value("^TNX")
+        if dxy is None:
+            dxy = self._fetch_macro_value("DX-Y.NYB")
+        self.risk_manager.evaluate_crisis(
+            vix=vix_value,
+            positions=self.portfolio.positions,
+            daily_volume_ratio=self.market_data_cache.get("volume_ratio", 1.0),
+            market_data_cache=self.market_data_cache,
+            usdkrw=usdkrw,
+            oil=oil,
+            tnx=tnx,
+            dxy=dxy,
+        )
+        
+        # ── 위기 시 신규 매수 차단 ──
+        if order_type == OrderType.BUY and self.risk_manager.get_crisis_new_buy_blocked():
+            logger.warning(
+                f"Crisis mode: new BUY blocked for {symbol} "
+                f"(level={self.risk_manager.crisis_detector.crisis_level.value})"
+            )
+            return
+        
+        # ── 위기 청산 체크 ──
+        if self.risk_manager.check_crisis_liquidation():
+            logger.warning(
+                f"CRISIS LIQUIDATION: liquidating all positions "
+                f"(level={self.risk_manager.crisis_detector.crisis_level.value})"
+            )
+            await self._liquidate_all_positions()
+            return
 
         # 전체 보유 금액 기준 최소 거래 단위 (0.1% of portfolio)
         min_trade_quantity = max(1, int(portfolio_value * self.min_trade_value_pct / price))
@@ -343,7 +400,10 @@ class StockTradingSystem:
                 bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
                 if bars and len(bars) >= 200:
                     closes = [b.close for b in bars[-200:]]
-                    ema200 = sum(closes) / len(closes)
+                    ema200 = closes[0]
+                    ema_multiplier = 2 / (200 + 1)
+                    for c in closes[1:]:
+                        ema200 = c * ema_multiplier + ema200 * (1 - ema_multiplier)
                     if price < ema200:
                         logger.info(f"Market regime filter: {symbol} price {price:.2f} < EMA200 {ema200:.2f}. BUY blocked.")
                         return
@@ -353,6 +413,9 @@ class StockTradingSystem:
         # Kelly Criterion에 실제 성과 데이터 연동
         win_rate = self.statistics.last_win_rate
         win_loss_ratio = self.statistics.last_profit_factor
+        # profit_factor(총PnL비율) → avg win/loss ratio로 변환 (Kelly 정확도 향상)
+        if 0 < win_rate < 1 and win_loss_ratio > 0:
+            win_loss_ratio = win_loss_ratio * (1 - win_rate) / max(win_rate, 0.01)
 
         # ── ATR 기반 동적 손절/익절 가격 계산 ──
         try:
@@ -395,6 +458,20 @@ class StockTradingSystem:
             win_loss_ratio=win_loss_ratio
         )
 
+        # ── Conservative ramp: 초기 거래는 보수적으로 운영 ────────────────────
+        if quantity > 0 and order_type == OrderType.BUY:
+            stats = self.statistics
+            if stats._trade_count < stats._conservative_until:
+                progress = stats._trade_count / max(stats._conservative_until, 1)
+                ramp_factor = 0.3 + progress * 0.7
+                adjusted = max(1, int(quantity * ramp_factor))
+                if adjusted != quantity:
+                    logger.info(
+                        f"Conservative ramp: {symbol} qty {quantity} -> {adjusted} "
+                        f"(trade#{stats._trade_count}/{stats._conservative_until}, factor={ramp_factor:.2f})"
+                    )
+                    quantity = adjusted
+
         # ── Volatility targeting ────────────────────────────────────────────
         if quantity > 0:
             vol_scaler = self.risk_manager.get_volatility_scaler()
@@ -418,24 +495,33 @@ class StockTradingSystem:
                 )
                 quantity = adjusted
         
-        # ── 현금 비중 기반 포지션 사이징 조정 ──
+        # ── 위기 대응 현금 비중 기반 포지션 사이징 조정 ──
         if order_type == OrderType.BUY and quantity > 0:
-            vix_value_sizing = self.market_data_cache.get("VIX", {}).get("price") or self.market_data_cache.get("^VIX", {}).get("price") or 20.0
-            if vix_value_sizing >= 25:
-                target_cash_sizing = 0.40
-            elif vix_value_sizing >= 15:
-                target_cash_sizing = 0.20
-            else:
-                target_cash_sizing = 0.10
+            crisis_cash_target = self.risk_manager.get_crisis_cash_target_pct()
             cash_ratio_sizing = self.portfolio.cash / max(1.0, portfolio_value)
-            cash_factor = max(0.5, min(1.5, 1.0 + (cash_ratio_sizing - target_cash_sizing) * 1.0))
-            adjusted_qty = int(quantity * cash_factor)
+            cash_factor = max(0.25 if self.risk_manager.crisis_detector.is_crisis else 0.5,
+                              min(1.5, 1.0 + (cash_ratio_sizing - crisis_cash_target) * 1.0))
+            adjusted_qty = max(0, int(quantity * cash_factor))
             if adjusted_qty != quantity:
                 logger.info(
-                    f"Cash ratio position sizing: {symbol} qty {quantity} -> {adjusted_qty} "
-                    f"(cash_ratio={cash_ratio_sizing:.2%}, target={target_cash_sizing:.0%}, factor={cash_factor:.2f})"
+                    f"Crisis cash ratio sizing: {symbol} qty {quantity} -> {adjusted_qty} "
+                    f"(cash_ratio={cash_ratio_sizing:.2%}, target={crisis_cash_target:.0%}, "
+                    f"factor={cash_factor:.2f}, crisis={self.risk_manager.crisis_detector.crisis_level.value})"
                 )
                 quantity = adjusted_qty
+        
+        # ── 거시경제 점수 기반 포지션 조정 ──
+        if order_type == OrderType.BUY and quantity > 0:
+            macro_score = self._get_macro_composite_score()
+            if macro_score < 0.30:
+                macro_factor = max(0.3, macro_score)
+                adjusted_qty = max(1, int(quantity * macro_factor))
+                if adjusted_qty != quantity:
+                    logger.info(
+                        f"Macro regime sizing: {symbol} qty {quantity} -> {adjusted_qty} "
+                        f"(macro_score={macro_score:.2f}, factor={macro_factor:.2f})"
+                    )
+                    quantity = adjusted_qty
 
         # ── Earnings date awareness ──────────────────────────────────────────
         if order_type == OrderType.BUY and quantity > 0:
@@ -454,8 +540,14 @@ class StockTradingSystem:
                 weekly_bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
                 if weekly_bars and len(weekly_bars) >= 50:
                     weekly_closes = [b.close for b in weekly_bars[-50:]]
-                    w_ema20 = sum(weekly_closes[-20:]) / 20
-                    w_ema50 = sum(weekly_closes[-50:]) / 50
+                    def _calc_ema(prices, period):
+                        ema = prices[0]
+                        m = 2 / (period + 1)
+                        for p in prices[1:]:
+                            ema = p * m + ema * (1 - m)
+                        return ema
+                    w_ema20 = _calc_ema(weekly_closes[-20:], 20)
+                    w_ema50 = _calc_ema(weekly_closes[-50:], 50)
                     weekly_bullish = w_ema20 > w_ema50
                     if not weekly_bullish:
                         reduced = int(quantity * 0.5)
@@ -579,7 +671,7 @@ class StockTradingSystem:
 
         if not use_distributed:
             # 단일 진입 주문
-            entry_order = self.order_management.create_order(symbol, order_type, quantity, price)
+            entry_order = self.order_management.create_order(symbol, order_type, quantity, price, signal_name)
             await self.order_management.submit_order(entry_order)
 
             if order_type == OrderType.BUY:
@@ -851,7 +943,7 @@ class StockTradingSystem:
                             entry_price=position.avg_price,
                             exit_price=order.price,
                             quantity=order.quantity,
-                            signal_name="technical"
+                            signal_name=order.signal_name or "execution"
                         )
                     self.portfolio.reduce_position(order.symbol, order.quantity)
     
@@ -962,7 +1054,6 @@ class StockTradingSystem:
         returns = self.statistics._returns if hasattr(self.statistics, '_returns') else []
         if len(returns) < 5:
             return {"note": "insufficient data"}
-        import numpy as np
         avg_ret = float(np.mean(returns))
         std_ret = float(np.std(returns, ddof=1))
         neg_returns = [r for r in returns if r < 0]
@@ -1213,6 +1304,53 @@ class StockTradingSystem:
         """텔레그램 일일 보고서"""
         return self.telegram_bot.send_periodic_report(user_id)
 
+    # ── Macro helpers ─────────────────────────────────────────────────────
+
+    def _fetch_macro_value(self, symbol: str) -> float | None:
+        """Fetch a macro indicator value via GlobalMarketClient or market_data_handler."""
+        try:
+            if self.global_market:
+                if symbol in ("^TNX", "CL=F", "DX-Y.NYB"):
+                    res = self.global_market.get_macro_commodity(symbol)
+                else:
+                    res = self.global_market.get_fx_rate(symbol)
+                price = res.get("price") or res.get("rate")
+                if price is not None:
+                    self.market_data_cache[symbol] = {
+                        "price": float(price),
+                        "timestamp": datetime.now(),
+                    }
+                    return float(price)
+            bars = self.market_data_handler.fetch_historical_data(symbol, period="5d")
+            if bars and len(bars) >= 2:
+                price = bars[-1].close
+                self.market_data_cache[symbol] = {
+                    "price": float(price),
+                    "timestamp": datetime.now(),
+                }
+                return float(price)
+        except Exception as e:
+            logger.debug(f"Failed to fetch macro {symbol}: {e}")
+        return None
+
+    def _get_macro_composite_score(self) -> float:
+        """거시경제 종합 점수 (0.0=매우 위험 ~ 1.0=매우 양호)"""
+        vix = self.market_data_cache.get("^VIX", {}).get("price") or \
+              self.market_data_cache.get("VIX", {}).get("price") or 20.0
+        usdkrw = self.market_data_cache.get("USDKRW=X", {}).get("price") or 1300.0
+        oil = self.market_data_cache.get("CL=F", {}).get("price") or 75.0
+        tnx = self.market_data_cache.get("^TNX", {}).get("price") or 4.0
+        dxy = self.market_data_cache.get("DX-Y.NYB", {}).get("price") or 103.0
+
+        vix_s = max(0.0, min(1.0, 1.0 - (vix - 12) / 35))
+        fx_s = max(0.0, min(1.0, 1.0 - (usdkrw - 1200) / 400))
+        oil_s = max(0.0, min(1.0, 1.0 - (oil - 50) / 150))
+        tnx_s = max(0.0, min(1.0, 1.0 - (tnx - 2.5) / 5.0))
+        dxy_s = max(0.0, min(1.0, 1.0 - (dxy - 95) / 25))
+
+        score = (vix_s * 0.30 + fx_s * 0.20 + oil_s * 0.20 + tnx_s * 0.15 + dxy_s * 0.15)
+        return min(1.0, max(0.0, score))
+
     # ── Global Market & Relative Strength ──────────────────────────────────
 
     def get_global_market_summary(self) -> Dict:
@@ -1284,13 +1422,13 @@ class StockTradingSystem:
             n = min(len(closes_a), len(closes_b))
             if n < 10:
                 return 0.0
-            import numpy as np
             returns_a = [(closes_a[i] - closes_a[i-1]) / closes_a[i-1] for i in range(1, n)]
             returns_b = [(closes_b[i] - closes_b[i-1]) / closes_b[i-1] for i in range(1, n)]
-            if np.std(returns_a) == 0 or np.std(returns_b) == 0:
+            if np.std(returns_a) < 1e-10 or np.std(returns_b) < 1e-10:
                 return 0.0
             return float(np.corrcoef(returns_a, returns_b)[0, 1])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Correlation estimation failed for {sym_a}/{sym_b}: {e}")
             return 0.0
 
     # ── Earnings Date Awareness ────────────────────────────────────────────

@@ -1,8 +1,9 @@
 """Error Handling - 예외 처리 및 복구"""
 
 import asyncio
+from collections import deque
 from enum import Enum
-from typing import Callable, Optional, Any, List
+from typing import Callable, Optional, Any, List, Dict
 from datetime import datetime
 import logging
 import time
@@ -26,17 +27,19 @@ class ErrorHandler:
     def __init__(self, max_retries: int = 3, retry_delay: float = 1.0):
         """
         초기화
-        
+
         Args:
             max_retries: 최대 재시도 횟수
             retry_delay: 재시도 지연 시간 (초)
         """
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        self.error_history: List[dict] = []
+        self.error_history: deque = deque(maxlen=500)
         self.logger = logger
         self.error_callbacks: List[Callable] = []
         self.recovery_enabled = True
+        self._circuit_states: dict = {}
+        self._circuit_lock = threading.Lock()
     
     def retry_with_exponential_backoff(self, func: Callable, *args, **kwargs) -> Any:
         for attempt in range(self.max_retries):
@@ -129,57 +132,62 @@ class ErrorHandler:
                        recovery_timeout: int = 60, **kwargs) -> Optional[Any]:
         """
         Circuit Breaker 패턴
-        
+
         Args:
             func: 실행할 함수
             *args: 함수의 위치 인수
             failure_threshold: 실패 임계값
             recovery_timeout: 복구 타임아웃 (초)
             **kwargs: 함수의 키워드 인수
-        
+
         Returns:
             함수의 반환값 또는 None
         """
-        if not hasattr(func, '_circuit_state'):
-            setattr(func, '_circuit_state', 'closed')
-            setattr(func, '_failure_count', 0)
-            setattr(func, '_last_failure_time', None)
-        
-        # 복구 타임아웃 확인
-        if getattr(func, '_circuit_state') == 'open':
-            last_failure = getattr(func, '_last_failure_time')
-            if last_failure:
-                elapsed = (datetime.now() - last_failure).total_seconds()
-                if elapsed > recovery_timeout:
-                    self.logger.info(f"Circuit breaker for {func.__name__} entering half-open state")
-                    setattr(func, '_circuit_state', 'half-open')
-                    setattr(func, '_failure_count', 0)
-                else:
-                    self.logger.warning(f"Circuit breaker open for {func.__name__}")
-                    return None
-        
-        # 함수 실행
+        func_key = id(func)
+        with self._circuit_lock:
+            if func_key not in self._circuit_states:
+                self._circuit_states[func_key] = {
+                    'state': 'closed',
+                    'failure_count': 0,
+                    'last_failure_time': None
+                }
+            state = self._circuit_states[func_key]
+
+            if state['state'] == 'open':
+                if state['last_failure_time']:
+                    elapsed = (datetime.now() - state['last_failure_time']).total_seconds()
+                    if elapsed > recovery_timeout:
+                        self.logger.info(f"Circuit breaker for {func.__name__} entering half-open state")
+                        state['state'] = 'half-open'
+                        state['failure_count'] = 0
+                    else:
+                        self.logger.warning(f"Circuit breaker open for {func.__name__}")
+                        return None
+
         try:
             result = func(*args, **kwargs)
-            
-            if getattr(func, '_circuit_state') == 'half-open':
-                self.logger.info(f"Circuit breaker for {func.__name__} closing")
-                setattr(func, '_circuit_state', 'closed')
-                setattr(func, '_failure_count', 0)
-            
+
+            with self._circuit_lock:
+                if state['state'] == 'half-open':
+                    self.logger.info(f"Circuit breaker for {func.__name__} closing")
+                    state['state'] = 'closed'
+                    state['failure_count'] = 0
+
             return result
-        
+
         except Exception as e:
-            setattr(func, '_failure_count', getattr(func, '_failure_count') + 1)
-            setattr(func, '_last_failure_time', datetime.now())
-            
+            with self._circuit_lock:
+                state['failure_count'] += 1
+                state['last_failure_time'] = datetime.now()
+
             self.logger.error(f"Function {func.__name__} failed: {str(e)}")
-            
-            if getattr(func, '_failure_count') >= failure_threshold:
-                setattr(func, '_circuit_state', 'open')
-                self.logger.critical(f"Circuit breaker opened for {func.__name__}")
-                self._record_error(func.__name__, e, ErrorSeverity.CRITICAL)
-            
+
+            with self._circuit_lock:
+                if state['failure_count'] >= failure_threshold:
+                    state['state'] = 'open'
+                    self.logger.critical(f"Circuit breaker opened for {func.__name__}")
+                    self._record_error(func.__name__, e, ErrorSeverity.CRITICAL)
+
             return None
     
     def timeout(self, func: Callable, timeout_seconds: float, *args, **kwargs) -> Optional[Any]:

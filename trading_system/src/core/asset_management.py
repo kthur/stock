@@ -46,6 +46,9 @@ class PortfolioManager:
         
     def add_position(self, symbol: str, quantity: int, price: float) -> None:
         """포지션 추가 또는 업데이트"""
+        if quantity <= 0:
+            self.logger.warning(f"Cannot add position with non-positive quantity: {quantity}")
+            return
         if symbol in self.positions:
             pos = self.positions[symbol]
             total_qty = pos.quantity + quantity
@@ -59,6 +62,9 @@ class PortfolioManager:
     
     def reduce_position(self, symbol: str, quantity: int) -> bool:
         """포지션 감소"""
+        if quantity <= 0:
+            self.logger.warning(f"Cannot reduce position with non-positive quantity: {quantity}")
+            return False
         if symbol not in self.positions or self.positions[symbol].quantity < quantity:
             self.logger.warning(f"Cannot reduce position: {symbol}")
             return False

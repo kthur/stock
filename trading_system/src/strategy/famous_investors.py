@@ -167,8 +167,8 @@ class LynchStrategy:
                 score += 0.5
         
         # 산업 성장성
-        if industry_growth > earnings_growth:
-            reasons.append(f"산업 성장률 {industry_growth:.1f}% 추월 성장")
+        if earnings_growth > industry_growth:
+            reasons.append(f"산업 성장률 {industry_growth:.1f}% 초과 성장")
             score += 1
         
         confidence = min(score / max_score, 1.0)

@@ -35,12 +35,18 @@ Python으로 구현된 완전한 알고리즘 트레이딩 시스템입니다.
 
 ### 5. 위험 관리 (Risk Management)
 - **RiskManager**: 동적 포지션 사이징 (Kelly Criterion), VaR/CVaR, Drawdown 모니터링
+- **CrisisDetector**: VIX + 거시경제 지표(환율/유가/금리/달러) 융합 4단계 위기 탐지 (NONE→SEVERE)
+- **위기 대응**: 단계별 현금 비중 목표 (10%→85%), 포지션 크기 제한, 신규 매수 차단, 자동 청산
+- **회복 모드**: 위기 종료 후 20일에 걸친 점진적 포지션 재확대
 - **상관관계 리스크**: 포트폴리오 내 고상관 종목 집중도 감지
-- **변동성 스케일링**: VIX 기반 포지션 크기 자동 조정
+- **변동성 스케일링**: VIX 기반 연속 함수 포지션 크기 자동 조정 (VIX=60→0.25x)
 
 ### 6. 백테스팅 & 분석 (Backtesting & Analysis)
 - **BacktestEngine**: 과거 데이터 기반 전략 검증, 수수료/슬리피지/시장충격 모델링
-- **AdvancedStatistics**: Sharpe/Sortino/Calmar Ratio, VaR, Hurst Exponent
+- **AdvancedStatistics**: Sharpe/Sortino/Calmar Ratio, VaR/CVaR, Hurst Exponent
+- **실시간 성과 추적**: 슬라이딩 윈도우 승률/손익비, 신호별 성과 귀속 분석
+- **보수적 초기 운영**: 첫 10건 거래는 30%~100% 점진적 램프업
+- **Signal 기여도 추적**: 매 거래마다 dominant signal 기록 → 가중치 자동 적응
 - **파라미터 최적화**: 그리드 서치 기반 최적 파라미터 탐색
 
 ### 7. 웹 대시보드 & 알림
@@ -60,7 +66,7 @@ trading_system/
 │   ├── data_layer/          # 시장 데이터 & NLP
 │   ├── core/                # 자산관리, 전략, 주문, 위험관리
 │   ├── persistence/         # SQLite 데이터 저장소
-│   ├── risk/                # 위험 관리
+│   ├── risk/                # 위험 관리 (CrisisDetector + 거시지표 연동)
 │   ├── analysis/            # 백테스트, 통계, ML
 │   ├── web/                 # 웹 대시보드
 │   ├── utils/               # 유틸리티 (에러핸들링, 이벤트버스)
@@ -179,6 +185,13 @@ TradeLogger → OptimizationEngine → HybridStrategyEngine (파라미터 조정
 - **VIX 스케일링**: 고변동성 시 포지션 자동 축소 (VIX 40+ = 0.25x)
 - **상관관계 리스크**: 고상관 종목 집중도 감지 → 리스크 레벨 상향
 - **Drawdown 제한**: 최대 허용 드로다운 초과 시 포지션 축소
+
+### 거시경제 지표 연동 (Macro Integration)
+- **5대 거시지표 융합**: VIX(30%), USD/KRW(20%), WTI(20%), 10Y 금리(15%), DXY(15%) → Macro Composite Score
+- **위기 탐지 통합**: 거시지표 급변(원화 약세/유가 급등/금리 급등/달러 강세) → CrisisDetector 25% 가중치
+- **전략 엔진 신호**: macro_weight(0.08)로 시그널퓨전 편입, 고변동성 시 1.4x 가중치
+- **포지션 사이징**: macro_score < 0.3일 때 포지션 자동 축소
+- **글로벌 마켓**: 13개 글로벌 지수 + 6개 FX + 3개 원자재(금리/유가/DXY) 실시간 모니터링
 
 ### 백테스팅
 - **현실적 비용 모델**: 수수료(0.1%) + 슬리피지(0.1%) + 시장충격(0.05%)
