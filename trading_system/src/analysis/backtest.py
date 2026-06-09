@@ -998,7 +998,82 @@ class BacktestEngine:
             combos.append(dict(zip(keys, combo)))
         
         return combos
-    
+
+    def walk_forward_optimize(
+        self, symbol: str, price_bars: List[PriceBar],
+        param_ranges: Dict, strategy_name: str = "MA",
+        train_pct: float = 0.70, n_windows: int = 4,
+    ) -> Dict:
+        """Walk-forward 최적화: train/test 분할로 과적합 방지"""
+        if len(price_bars) < 200:
+            return {"error": "Insufficient data", "best_params": {}}
+
+        n = len(price_bars)
+        window_size = n // n_windows
+        strategy_func_unbound = {
+            "MA": self._simple_ma_strategy,
+            "RSI": self._rsi_strategy,
+            "MACD": self._macd_strategy,
+            "TREND": self._trend_following_strategy,
+            "BOLLINGER": self._bollinger_band_strategy,
+        }.get(strategy_name.upper(), self._simple_ma_strategy)
+
+        all_params = []
+        out_of_sample_returns = []
+
+        for w in range(n_windows):
+            train_end = (w + 1) * window_size - 1
+            test_start = train_end + 1
+            test_end = min(test_start + int(window_size * (1 - train_pct)), n - 1)
+            if test_start >= n - 10:
+                break
+
+            train_bars = price_bars[:train_end]
+            test_bars = price_bars[test_start:test_end + 1]
+
+            if len(train_bars) < 100 or len(test_bars) < 20:
+                continue
+
+            best_return = -float('inf')
+            best_params = None
+            for param_combo in self._generate_param_combos(param_ranges):
+                def strategy(bars, pc=param_combo):
+                    return strategy_func_unbound(bars, pc)
+                result = self.run_backtest(symbol, train_bars, strategy)
+                if result.total_return_pct > best_return:
+                    best_return = result.total_return_pct
+                    best_params = param_combo
+
+            if best_params is None:
+                continue
+
+            def test_strategy(bars, pc=best_params):
+                return strategy_func_unbound(bars, pc)
+            oos_result = self.run_backtest(symbol, test_bars, test_strategy)
+            out_of_sample_returns.append(oos_result.total_return_pct)
+            all_params.append(best_params)
+            self.logger.info(
+                f"WF window {w}: train_size={len(train_bars)}, test_size={len(test_bars)}, "
+                f"params={best_params}, oos_return={oos_result.total_return_pct:.2f}%"
+            )
+
+        if not all_params:
+            return {"error": "Walk-forward failed", "best_params": {}}
+
+        best_idx = int(np.argmax(out_of_sample_returns)) if out_of_sample_returns else 0
+        self.logger.info(
+            f"Walk-forward complete: {len(all_params)} windows, "
+            f"avg_oos_return={sum(out_of_sample_returns)/len(out_of_sample_returns):.2f}%, "
+            f"best_oos_return={max(out_of_sample_returns):.2f}%"
+        )
+        return {
+            'best_params': all_params[best_idx],
+            'all_params': all_params,
+            'out_of_sample_returns': out_of_sample_returns,
+            'avg_oos_return': sum(out_of_sample_returns) / len(out_of_sample_returns) if out_of_sample_returns else 0,
+            'best_oos_return': max(out_of_sample_returns) if out_of_sample_returns else 0,
+        }
+
     # ──────────────────────────────────────────────────────
     # 전략 함수들
     # ──────────────────────────────────────────────────────

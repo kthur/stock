@@ -292,6 +292,7 @@ class RiskManager:
         self.position_limits: Dict[str, float] = {}
         self._correlation_matrix: Dict[str, Dict[str, float]] = {}
         self._daily_returns: List[float] = []
+        self._consecutive_losses: int = 0
         
         self.crisis_detector = CrisisDetector(self)
         self.active_strategy = "HYBRID"

@@ -33,6 +33,7 @@ from src.core.order_management import Order, OrderStatus
 from src.persistence import TradeLogger, AssetHistoryDB
 from src.risk import RiskManager
 from src.analysis import BacktestEngine, AdvancedStatistics
+from src.analysis.quantum_optimizer import QuantumPortfolioOptimizer
 from src.web import WebDashboard
 from src.utils import ErrorHandler, ErrorSeverity, EventBus
 from src.broker import KiwoomConnector, MultiBrokerManager, BrokerType
@@ -90,6 +91,7 @@ class StockTradingSystem:
         self.backtest_engine = self.comp['backtest']
         self.statistics = self.comp['stats']
         self.error_handler = self.comp['error_handler']
+        self.portfolio_optimizer = QuantumPortfolioOptimizer()
         self.broker = self.comp['broker']
         self.multi_broker_manager = self.comp['multi_broker']
         self.investor_strategy_engine = self.comp['investor_strategy']
@@ -128,8 +130,21 @@ class StockTradingSystem:
         # Max concurrent positions
         self.max_concurrent_positions: int = 12
 
+        # Time-based stop
+        self.max_holding_days: int = 30
+
+        # Scale-in tracking
+        self._scale_in_used: Dict[str, bool] = {}
+
+        # Consecutive loss tracking
+        self._consecutive_losses: int = 0
+
         # Price staleness guard
         self.max_data_age_seconds: float = 300.0  # 5 minutes
+
+        # ML retraining
+        self._ml_retrain_interval: int = 20
+        self._ml_trades_since_retrain: int = 0
 
         # Trade journal
         self._trade_journal: List[Dict] = []
@@ -202,6 +217,9 @@ class StockTradingSystem:
                     self._prev_pv = pv
 
             self._update_trailing_stops(market_data.symbol, market_data.price)
+            self._check_time_stops(market_data.symbol, market_data.price)
+            self._check_scale_in(market_data.symbol, market_data.price)
+            self._check_holding_periods()
             self._check_rebalance_schedule()
             self._auto_save_state()
         except Exception as e:
@@ -318,6 +336,15 @@ class StockTradingSystem:
         if price <= 0:
             logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
             return
+
+        # ── 시장 레짐 감지 및 가중치 조정 ───────────────────────────
+        try:
+            regime_bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
+            if regime_bars and len(regime_bars) >= 200:
+                detected = self.strategy_engine.detect_regime(regime_bars)
+                logger.info(f"Market regime: {detected} for {symbol}")
+        except Exception as e:
+            logger.debug(f"Regime detection skipped: {e}")
 
         # ── Price staleness guard ─────────────────────────────────────────
         cache_entry = self.market_data_cache.get(symbol, {})
@@ -911,8 +938,10 @@ class StockTradingSystem:
             except Exception as e:
                 logger.error(f"Failed to drop tables in {db_name}: {e}")
     
+    FEE_PCT = 0.001  # 0.1% commission
+
     async def _simulate_order_execution(self) -> None:
-        """주문 실행 시뮬레이션 (성과 추적 연동)"""
+        """주문 실행 시뮬레이션 (성과 추적 연동 + 수수료 차감)"""
         unfilled = self.order_management.get_unfilled_orders()
         if unfilled:
             for order in unfilled[:1]:  # 첫 번째 미체결 주문만 체결
@@ -924,14 +953,17 @@ class StockTradingSystem:
                     order.price
                 )
                 
-                # 포트폴리오 업데이트
+                # 포트폴리오 업데이트 (수수료 차감)
+                fee = order.quantity * order.price * self.FEE_PCT
                 if order.order_type == OrderType.BUY:
                     self.portfolio.add_position(order.symbol, order.quantity, order.price)
+                    self.portfolio.cash -= fee
                 else:
                     # 매도 시 PnL 계산 및 성과 지표 갱신
                     position = self.portfolio.positions.get(order.symbol)
                     if position:
-                        pnl = (order.price - position.avg_price) * order.quantity
+                        gross_pnl = (order.price - position.avg_price) * order.quantity
+                        pnl = gross_pnl - fee
                         self.statistics.record_trade(
                             pnl=pnl,
                             entry_price=position.avg_price,
@@ -946,6 +978,13 @@ class StockTradingSystem:
                             signal_name=order.signal_name or "execution"
                         )
                     self.portfolio.reduce_position(order.symbol, order.quantity)
+                
+                # ML 주기적 재학습
+                if order.order_type == OrderType.SELL:
+                    self._ml_trades_since_retrain += 1
+                    if self._ml_trades_since_retrain >= self._ml_retrain_interval:
+                        self._ml_trades_since_retrain = 0
+                        asyncio.create_task(self._retrain_ml_engine())
     
     def _print_performance_report(self) -> None:
         """성과 보고서 출력"""
@@ -1003,6 +1042,17 @@ class StockTradingSystem:
         logger.info(f"Starting dashboard on http://localhost:{port}")
         self.dashboard.run(debug=debug)
     
+    async def _retrain_ml_engine(self) -> None:
+        """ML 엔진 주기적 재학습"""
+        try:
+            symbols = list(self.portfolio.positions.keys()) or ["AAPL"]
+            bars = self.market_data_handler.fetch_historical_data(symbols[0], period="6mo")
+            if bars and len(bars) >= 100:
+                self.strategy_engine.ml_engine.train(bars)
+                logger.info(f"ML engine retrained ({len(bars)} bars from {symbols[0]})")
+        except Exception as e:
+            logger.debug(f"ML retrain skipped: {e}")
+
     def get_performance_metrics(self, equity_curve: List[float]) -> Dict:
         """성과 지표 계산"""
         returns = self.statistics.calculate_returns(equity_curve)
@@ -1463,36 +1513,130 @@ class StockTradingSystem:
             pass
         return None
 
+    # ── Time-based Stop ────────────────────────────────────────────────
+
+    def _check_time_stops(self, symbol: str, price: float) -> None:
+        """30영업일 이상 보유 포지션 강제 청산"""
+        if symbol not in self.portfolio.positions:
+            return
+        position = self.portfolio.positions[symbol]
+        if not hasattr(position, 'created_at'):
+            return
+        days_held = (datetime.now() - position.created_at).days
+        if days_held >= self.max_holding_days:
+            self.order_management.cancel_stop_orders(symbol)
+            sell_order = self.order_management.create_order(symbol, OrderType.SELL, position.quantity, price)
+            asyncio.create_task(self.order_management.submit_order(sell_order))
+            self.portfolio.reduce_position(symbol, position.quantity)
+            self.portfolio.cash += position.quantity * price
+            logger.info(f"Time-stop: {symbol} held {days_held}d, force closed @ {price:,.0f}")
+
+    # ── Scale-in ───────────────────────────────────────────────────────
+
+    def _check_scale_in(self, symbol: str, price: float) -> None:
+        """진입 후 price > entry + ATR*0.5 → 잔여 40% 추가 진입"""
+        if self._scale_in_used.get(symbol):
+            return
+        if symbol not in self.portfolio.positions:
+            return
+        position = self.portfolio.positions[symbol]
+        entry = position.avg_price
+        if price <= entry:
+            return
+        try:
+            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
+            if bars and len(bars) >= 15:
+                trs = []
+                for j in range(max(1, len(bars)-14), len(bars)):
+                    tr = max(bars[j].high-bars[j].low, abs(bars[j].high-bars[j-1].close), abs(bars[j].low-bars[j-1].close))
+                    trs.append(tr)
+                atr = sum(trs)/len(trs)
+                if price >= entry + atr * 0.5:
+                    available = self.portfolio.cash
+                    add_qty = max(1, int(position.quantity * 0.4))
+                    cost = add_qty * price
+                    if cost <= available * 0.5:
+                        buy_order = self.order_management.create_order(symbol, OrderType.BUY, add_qty, price)
+                        asyncio.create_task(self.order_management.submit_order(buy_order))
+                        self._scale_in_used[symbol] = True
+                        logger.info(f"Scale-in: {symbol} +{add_qty} @ {price:,.0f} (entry={entry:,.0f}, ATR={atr:.2f})")
+        except Exception as e:
+            logger.debug(f"Scale-in skipped for {symbol}: {e}")
+
+    # ── Holding Period Monitor ─────────────────────────────────────────
+
+    def _check_holding_periods(self) -> None:
+        """평균 보유일 모니터링 및 로그"""
+        if not self.portfolio.positions:
+            return
+        total_days = 0
+        count = 0
+        for sym, pos in self.portfolio.positions.items():
+            if hasattr(pos, 'created_at'):
+                days = (datetime.now() - pos.created_at).days
+                total_days += days
+                count += 1
+        if count > 0:
+            avg = total_days / count
+            if avg > 20:
+                logger.info(f"Holding period monitor: avg={avg:.0f}d ({count} positions) — consider tightening time-stops")
+            elif avg < 3 and count >= 3:
+                logger.info(f"Holding period monitor: avg={avg:.0f}d ({count} positions) — high turnover, watch fees")
+
     # ── Trailing Stop ──────────────────────────────────────────────────────
 
+    def _get_trailing_pct(self, symbol: str) -> float:
+        """ATR 기반 동적 trailing percentage 계산"""
+        try:
+            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
+            if bars and len(bars) >= 15:
+                true_ranges = []
+                for j in range(max(1, len(bars) - 14), len(bars)):
+                    high = bars[j].high
+                    low = bars[j].low
+                    prev_close = bars[j - 1].close
+                    tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                    true_ranges.append(tr)
+                atr = sum(true_ranges) / len(true_ranges)
+                price = bars[-1].close
+                if price > 0:
+                    atr_pct = atr / price
+                    return max(0.02, min(0.10, atr_pct * 2.0))
+        except Exception:
+            pass
+        return self.trail_pct
+
     def _update_trailing_stops(self, symbol: str, price: float) -> None:
-        """Trail stop-loss orders upward as price rises; updates trigger_price in place."""
+        """Trail stop-loss upward and take-profit upward as price rises."""
         if symbol not in self.portfolio.positions:
             return
         position = self.portfolio.positions[symbol]
         if price > position.highest_price:
             position.highest_price = price
 
-        trail_price = price * (1.0 - self.trail_pct)
+        trail_pct = self._get_trailing_pct(symbol)
+        trail_sl = price * (1.0 - trail_pct)
+        trail_tp = price * (1.0 + trail_pct * 2.0)
         updated = 0
         for order in self.order_management.orders.values():
             if order.symbol != symbol:
                 continue
-            if order.order_type != OrderType.STOP_LOSS:
-                continue
             if order.status not in (OrderStatus.SUBMITTED, OrderStatus.PENDING):
                 continue
-            if order.trigger_price is None:
-                continue
-            if trail_price > order.trigger_price:
-                old_trigger = order.trigger_price
-                order.trigger_price = trail_price
-                order.price = trail_price
-                logger.info(
-                    f"Trailing stop updated: {symbol} {old_trigger:,.0f} -> {trail_price:,.0f} "
-                    f"(trail={self.trail_pct:.1%}, price={price:,.0f})"
-                )
-                updated += 1
+            if order.order_type == OrderType.STOP_LOSS and order.trigger_price is not None:
+                if trail_sl > order.trigger_price:
+                    old = order.trigger_price
+                    order.trigger_price = trail_sl
+                    order.price = trail_sl
+                    logger.debug(f"Trailing SL: {symbol} {old:,.0f} -> {trail_sl:,.0f} (trail={trail_pct:.1%})")
+                    updated += 1
+            elif order.order_type == OrderType.TAKE_PROFIT and order.trigger_price is not None:
+                if trail_tp > order.trigger_price:
+                    old = order.trigger_price
+                    order.trigger_price = trail_tp
+                    order.price = trail_tp
+                    logger.debug(f"Trailing TP: {symbol} {old:,.0f} -> {trail_tp:,.0f} (trail={trail_pct*2:.1%})")
+                    updated += 1
         return updated
 
     # ── Portfolio-level Stop Loss ──────────────────────────────────────────
@@ -1541,7 +1685,7 @@ class StockTradingSystem:
     # ── Auto-Rebalancing ───────────────────────────────────────────────────
 
     async def rebalance_portfolio(self) -> None:
-        """Rebalance portfolio toward target weights based on current prices."""
+        """Rebalance portfolio using inverse-volatility (risk parity) weights."""
         if not self.portfolio.positions:
             return
         market_prices = {}
@@ -1554,13 +1698,29 @@ class StockTradingSystem:
         pv = self.portfolio.get_portfolio_value(market_prices)
         if pv <= 0:
             return
-        target_weights = {}
         n_positions = len(self.portfolio.positions)
         if n_positions == 0:
             return
-        equal_weight = 1.0 / n_positions
-        for sym in self.portfolio.positions:
-            target_weights[sym] = equal_weight
+
+        # Risk-parity weights via inverse volatility
+        symbols = list(self.portfolio.positions.keys())
+        try:
+            historical_returns = {}
+            for sym in symbols:
+                bars = self.market_data_handler.fetch_historical_data(sym, period="3mo")
+                if bars and len(bars) >= 20:
+                    rets = [(bars[i].close - bars[i - 1].close) / bars[i - 1].close
+                            for i in range(1, len(bars))]
+                    historical_returns[sym] = rets
+            if historical_returns and len(historical_returns) >= 2:
+                cov_data = self.portfolio_optimizer.compute_covariance(historical_returns)
+                target_weights = self.portfolio_optimizer.risk_parity_allocation(symbols, cov_data)
+            else:
+                target_weights = {sym: 1.0 / n_positions for sym in symbols}
+        except Exception as e:
+            logger.warning(f"Risk parity rebalance failed, using equal-weight: {e}")
+            target_weights = {sym: 1.0 / n_positions for sym in symbols}
+
         orders = self.portfolio.compute_rebalance_plan(target_weights, market_prices)
         if not orders:
             return
@@ -1584,4 +1744,4 @@ class StockTradingSystem:
                 self.portfolio.cash -= cost
             executed += 1
         if executed:
-            logger.info(f"Auto-rebalance: {executed}/{len(orders)} orders executed (target: equal-weight)")
+            logger.info(f"Auto-rebalance: {executed}/{len(orders)} orders executed (target: risk-parity)")
