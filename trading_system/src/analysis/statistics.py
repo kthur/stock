@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import List, Dict
+from collections import deque
 import logging
 import math
 
@@ -36,10 +37,15 @@ class AdvancedStatistics:
         self.risk_free_rate = risk_free_rate
         self.logger = logger
         
-        # Kelly Criterion 연동을 위한 실시간 성과 추적 속성
-        self.last_win_rate: float = 0.50       # 최근 승률 (보수적 기본값)
-        self.last_profit_factor: float = 1.2   # 최근 이익계수 (보수적 기본값)
-        self._trade_history: List[Dict] = []   # 누적 거래 기록
+        # Bayesian 추정 — Beta(1,1) uniform prior, posterior = Beta(1+wins, 1+losses)
+        self._wins: int = 0
+        self._losses: int = 0
+        self._total_pnl: float = 0.0
+        self._gross_profit: float = 0.0
+        self._gross_loss: float = 0.0
+        self.last_win_rate: float = 0.50       # Bayesian posterior mean
+        self.last_profit_factor: float = 1.2   # 누적 손익비
+        self._trade_history: deque[Dict] = deque(maxlen=100)   # 최대 100건 보관
         self._conservative_until: int = 10     # 이 거래 수 미만이면 보수적 운영
         self._trade_count: int = 0
     
@@ -286,18 +292,23 @@ class AdvancedStatistics:
             'exit_price': exit_price
         })
         self._trade_count += 1
+        self._total_pnl += pnl
+        if pnl > 0:
+            self._wins += 1
+            self._gross_profit += pnl
+        else:
+            self._losses += 1
+            self._gross_loss -= pnl  # pnl is negative or zero
         
-        # 최근 50건 기준 승률 및 이익계수 갱신
-        window = min(50, max(10, self._trade_count))
-        recent = self._trade_history[-window:]
-        wins = sum(1 for t in recent if t['pnl'] > 0)
-        self.last_win_rate = wins / len(recent)
+        # Bayesian posterior: Beta(1 + wins, 1 + losses)
+        alpha = 1.0 + self._wins
+        beta = 1.0 + self._losses
+        self.last_win_rate = alpha / (alpha + beta)
         
-        gross_profit = sum(t['pnl'] for t in recent if t['pnl'] > 0)
-        gross_loss = abs(sum(t['pnl'] for t in recent if t['pnl'] <= 0))
-        if gross_loss > 0:
-            self.last_profit_factor = gross_profit / gross_loss
-        elif self._trade_count >= 10 and gross_profit > 0:
+        # 누적 profit factor (전체 기간)
+        if self._gross_loss > 0:
+            self.last_profit_factor = self._gross_profit / self._gross_loss
+        elif self._trade_count >= 10 and self._gross_profit > 0:
             self.last_profit_factor = 2.5
         else:
             self.last_profit_factor = 1.2

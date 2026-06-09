@@ -7,9 +7,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
+from collections import deque
 import logging
 from pathlib import Path
 import json
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +39,12 @@ class CrisisDetector:
         self.rm = risk_manager
         self.logger = logger
         self.crisis_level = CrisisLevel.NONE
-        self._vix_history: list[float] = []
-        self._dd_history: list[float] = []
-        self._usdkrw_history: list[float] = []
-        self._oil_history: list[float] = []
-        self._tnx_history: list[float] = []
-        self._dxy_history: list[float] = []
+        self._vix_history: deque[float] = deque(maxlen=252)
+        self._dd_history: deque[float] = deque(maxlen=63)
+        self._usdkrw_history: deque[float] = deque(maxlen=252)
+        self._oil_history: deque[float] = deque(maxlen=252)
+        self._tnx_history: deque[float] = deque(maxlen=252)
+        self._dxy_history: deque[float] = deque(maxlen=252)
         self._volume_spike_threshold = 3.0
         self._recovery_mode = False
         self._recovery_start_day: int | None = None
@@ -61,20 +63,14 @@ class CrisisDetector:
     ) -> CrisisLevel:
         """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러) 융합"""
         self._vix_history.append(vix)
-        if len(self._vix_history) > 252:
-            self._vix_history.pop(0)
 
         dd = self.rm.calculate_drawdown()
         self._dd_history.append(dd)
-        if len(self._dd_history) > 63:
-            self._dd_history.pop(0)
 
         for val, hist in [(usdkrw, self._usdkrw_history), (oil, self._oil_history),
                           (tnx, self._tnx_history), (dxy, self._dxy_history)]:
             if val is not None:
                 hist.append(val)
-                if len(hist) > 252:
-                    hist.pop(0)
 
         vix_score = self._score_vix(vix)
         dd_score = self._score_drawdown(dd)
@@ -291,7 +287,7 @@ class RiskManager:
         self.target_annual_volatility = target_annual_volatility
         self.position_limits: Dict[str, float] = {}
         self._correlation_matrix: Dict[str, Dict[str, float]] = {}
-        self._daily_returns: List[float] = []
+        self._daily_returns: deque[float] = deque(maxlen=252)
         self._consecutive_losses: int = 0
         
         self.crisis_detector = CrisisDetector(self)
@@ -348,14 +344,11 @@ class RiskManager:
     def record_daily_return(self, daily_return: float) -> None:
         """Record daily portfolio return for volatility estimation."""
         self._daily_returns.append(daily_return)
-        if len(self._daily_returns) > 252:
-            self._daily_returns.pop(0)
 
     def get_volatility_scaler(self) -> float:
         """Return scaler to target annualized volatility using recent daily returns."""
         if len(self._daily_returns) < 10:
             return 1.0
-        import numpy as np
         daily_vol = float(np.std(self._daily_returns, ddof=1))
         if daily_vol == 0.0:
             return 1.0
@@ -441,7 +434,57 @@ class RiskManager:
         # 최대 포지션 한도를 초과하지 않도록 제한
         return min(kelly_pct, self.max_position_size_pct)
 
-    
+    def get_vix_position_cap(self, vix: float) -> float:
+        """VIX 수준에 따른 포지션 크기 상한 (Risk-Off 스위치).
+        VIX > 30 → 15%, VIX > 25 → 30%, VIX > 20 → 50%, else 100% (no cap).
+        """
+        if vix > 30:
+            return 0.15
+        elif vix > 25:
+            return 0.30
+        elif vix > 20:
+            return 0.50
+        return 1.0
+
+    def calculate_robust_kelly(self, win_rate: float, win_loss_ratio: float,
+                                n_trades: int, consecutive_losses: int = 0) -> float:
+        """거래 수 기반 신뢰구간 + 연속 손실 감안 Kelly (영역 3-1)"""
+        raw_kelly = win_rate - ((1.0 - win_rate) / max(win_loss_ratio, 0.01))
+        if raw_kelly <= 0:
+            return 0.0
+        confidence_factor = min(1.0, n_trades / 50.0)
+        adjusted = raw_kelly * confidence_factor * 0.25  # Quarter Kelly 시작
+        if consecutive_losses >= 3:
+            adjusted *= 0.5
+        if consecutive_losses >= 5:
+            adjusted *= 0.5
+        if consecutive_losses >= 7:
+            adjusted *= 0.25  # 쿨다운
+        if consecutive_losses >= 10:
+            adjusted = 0.0  # 거래 중단
+        return max(0.01, min(adjusted, self.max_position_size_pct))
+
+    def get_composite_volatility_scalar(self, vix: float, atr_ratio: float = 0.0,
+                                         bb_width: float = 0.0) -> float:
+        """VIX + ATR + BB Width 복합 변동성 스칼라 (영역 3-3)"""
+        vix_score = max(0.3, min(1.5, 20.0 / max(vix, 1)))
+        atr_score = max(0.3, min(1.5, 0.02 / max(atr_ratio, 0.001))) if atr_ratio > 0 else vix_score
+        bb_score = max(0.5, min(1.3, 0.15 / max(bb_width, 0.01))) if bb_width > 0 else 1.0
+        return vix_score * 0.4 + atr_score * 0.35 + bb_score * 0.25
+
+    def get_drawdown_exposure_limit(self) -> float:
+        """드로다운 깊이에 따라 점진적으로 노출 제한 (영역 6-3)"""
+        dd = self.calculate_drawdown()
+        if dd < 0.05:
+            return 1.0
+        elif dd < 0.10:
+            return 0.75
+        elif dd < 0.15:
+            return 0.50
+        elif dd < 0.20:
+            return 0.25
+        return 0.0
+
     def calculate_position_sizing(self, symbol: str, entry_price: float, 
                                  stop_loss_price: float, 
                                  win_rate: float = 0.0, 
@@ -464,7 +507,15 @@ class RiskManager:
         
         vol_scalar = self._volatility_scalar(vix)
         max_value *= vol_scalar
-        
+
+        # VIX Risk-Off 스위치: VIX 수준별 포지션 상한
+        vix_cap = self.get_vix_position_cap(vix)
+        if vix_cap < 1.0:
+            max_value = min(max_value, self.portfolio_value * vix_cap)
+            self.logger.info(
+                f"VIX Risk-Off: {symbol} capped at {vix_cap:.0%} of portfolio (VIX={vix:.1f})"
+            )
+
         position_quantity = max(1, int(max_value / entry_price))
         max_position = self.calculate_max_position_size(entry_price)
         position_quantity = min(position_quantity, max_position)

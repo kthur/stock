@@ -160,7 +160,7 @@ def test_r2_detect_regime_bull():
     bars = generate_mock_bars(250, trend="bull")
     
     regime = engine.detect_regime(bars)
-    assert regime == "bull"
+    assert regime in ("strong_bull", "weak_bull"), f"Expected bull regime, got {regime}"
 
 def test_r2_detect_regime_bear():
     """R2: detect_regime returns 'bear' in a downward trend."""
@@ -169,16 +169,16 @@ def test_r2_detect_regime_bear():
     bars = generate_mock_bars(250, trend="bear")
     
     regime = engine.detect_regime(bars)
-    assert regime == "bear"
+    assert regime in ("strong_bear", "weak_bear"), f"Expected bear regime, got {regime}"
 
 def test_r2_detect_regime_sideways():
-    """R2: detect_regime returns 'sideways' in flat momentum."""
+    """R2: detect_regime returns bear/sideways in flat momentum (4-regime system)."""
     from src.core.strategy_engine import HybridStrategyEngine
     engine = HybridStrategyEngine()
     bars = generate_mock_bars(250, trend="flat")
     
     regime = engine.detect_regime(bars)
-    assert regime == "sideways"
+    assert regime in ("weak_bear", "weak_bull"), f"Expected neutral regime, got {regime}"
 
 def test_r2_bull_weight_adaptation():
     """R2: technical weight adapts upwards when 'bull' market regime is detected."""
@@ -456,13 +456,13 @@ def test_r1_extreme_parameters():
 
 # F2: Market Regime & Strategy Switching
 def test_r2_detect_regime_insufficient_bars():
-    """R2 boundary: fallback to 'sideways' when bars count is less than 200 (EMA period)."""
+    """R2 boundary: fallback to 'weak_bear' when bars count is less than 200."""
     from src.core.strategy_engine import HybridStrategyEngine
     engine = HybridStrategyEngine()
     bars = generate_mock_bars(50, trend="bull") # Less than 200
     
     regime = engine.detect_regime(bars)
-    assert regime == "sideways"
+    assert regime == "weak_bear"
 
 def test_r2_detect_regime_constant_price():
     """R2 boundary: constant price data handles ROC/ATR calculations without division-by-zero."""
@@ -476,7 +476,7 @@ def test_r2_detect_regime_constant_price():
         bars.append(MockPriceBar(current_time + timedelta(days=i), 100.0, 100.0, 100.0, 100.0, 1000000))
         
     regime = engine.detect_regime(bars)
-    assert regime == "sideways"
+    assert regime in ("weak_bear", "weak_bull"), f"Expected neutral regime, got {regime}"
 
 def test_r2_detect_regime_missing_fields():
     """R2 boundary: bars missing crucial high/low fields raise ValueError."""
@@ -790,7 +790,7 @@ def test_tier4_full_regime_cycle_workload():
     # Transition to Sideways
     flat_bars = generate_mock_bars(250, trend="flat")
     regime = engine.detect_regime(flat_bars)
-    assert regime == "sideways"
+    assert regime in ("weak_bear", "weak_bull"), f"Expected neutral regime, got {regime}"
     
     assert w_bull != w_bear
 

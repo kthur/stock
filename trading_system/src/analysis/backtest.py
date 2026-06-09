@@ -2,9 +2,11 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Callable, Optional, cast
+from typing import List, Dict, Tuple, Callable, Optional, Any, cast
 import logging
 import itertools
+import random
+from copy import deepcopy
 import pandas as pd
 import numpy as np
 from .ml_engine import MLEngine
@@ -12,7 +14,7 @@ from .ml_engine import MLEngine
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class PriceBar:
     """가격 바 (OHLCV)"""
     timestamp: datetime
@@ -23,7 +25,7 @@ class PriceBar:
     volume: int
 
 
-@dataclass
+@dataclass(slots=True)
 class BacktestTrade:
     """백테스트 거래"""
     entry_date: datetime
@@ -1468,3 +1470,51 @@ class BacktestEngine:
         else:
             self.logger.warning(f"Unknown strategy: {name}. Falling back to MA.")
             return lambda bars: self._simple_ma_strategy(bars, {})
+
+    def monte_carlo_robustness(self, trades: List[BacktestTrade],
+                                n_simulations: int = 1000) -> Dict:
+        """Monte Carlo 시뮬레이션으로 전략 로버스트니스 검증 (영역 7-3)"""
+        if not trades:
+            return {"error": "No trades provided"}
+        initial_capital = 1_000_000.0  # 모의 초기 자본
+        trade_pnls = [t.pnl for t in trades]
+        equity_endpoints = []
+        for _ in range(n_simulations):
+            shuffled = random.sample(trade_pnls, len(trade_pnls))
+            equity = initial_capital
+            for pnl in shuffled:
+                equity += pnl
+            equity_endpoints.append(equity)
+        endpoints = np.array(equity_endpoints)
+        return {
+            "n_simulations": n_simulations,
+            "n_trades": len(trades),
+            "median_equity": float(np.median(endpoints)),
+            "mean_equity": float(np.mean(endpoints)),
+            "std_equity": float(np.std(endpoints)),
+            "p5_equity": float(np.percentile(endpoints, 5)),
+            "p95_equity": float(np.percentile(endpoints, 95)),
+            "probability_of_loss": float(np.mean(endpoints < initial_capital)),
+        }
+
+    def grid_search(self, bars: List[Any],
+                     param_grid: Dict[str, List[float]],
+                     strategy_func: Callable,
+                     metric: str = "sharpe_ratio") -> Dict:
+        """파라미터 그리드 서치로 최적 조합 탐색 (영역 7-2)"""
+        from itertools import product
+        keys = list(param_grid.keys())
+        values = list(param_grid.values())
+        best_score = -float('inf')
+        best_params = None
+        for combo in product(*values):
+            params = dict(zip(keys, combo))
+            try:
+                result = self.run_backtest(bars, strategy_func, params)
+                score = getattr(result, metric, 0.0) or 0.0
+                if score > best_score:
+                    best_score = score
+                    best_params = params
+            except Exception:
+                continue
+        return {"best_params": best_params, "best_score": best_score, "metric": metric}

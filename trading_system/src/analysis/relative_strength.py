@@ -203,8 +203,8 @@ class RelativeStrengthAnalyzer:
         if not stock_bars or not bench_bars:
             return {"symbol": symbol, "error": "No historical data"}
 
-        stock_closes = [b.close for b in stock_bars if hasattr(b, "close")]
-        bench_closes = [b.close for b in bench_bars if hasattr(b, "close")]
+        stock_closes = [b.close for b in stock_bars if not isinstance(b, (int, float))]
+        bench_closes = [b.close for b in bench_bars if not isinstance(b, (int, float))]
 
         if len(stock_closes) < 5 or len(bench_closes) < 5:
             return {"symbol": symbol, "error": "Insufficient data points"}

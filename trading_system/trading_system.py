@@ -4,13 +4,16 @@
 """메인 트레이딩 시스템 통합 (EventBus 및 DI 구조 개선)"""
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Dict, List, Optional, Callable
 import sys
 import asyncio
 from pathlib import Path
 import sqlite3
 import numpy as np
+import time
+import json
+import calendar
 
 # 프로젝트 경로 추가
 sys.path.insert(0, str(Path(__file__).parent))
@@ -29,11 +32,10 @@ from src.core import (
     DistributedOrderManager,
     DistributedOrderConfig,
 )
-from src.core.order_management import Order, OrderStatus
-from src.persistence import TradeLogger, AssetHistoryDB
 from src.risk import RiskManager
-from src.analysis import BacktestEngine, AdvancedStatistics
+from src.analysis import AdvancedStatistics
 from src.analysis.quantum_optimizer import QuantumPortfolioOptimizer
+from src.analysis.portfolio_optimizer import calculate_risk_parity_weights
 from src.web import WebDashboard
 from src.utils import ErrorHandler, ErrorSeverity, EventBus
 from src.broker import KiwoomConnector, MultiBrokerManager, BrokerType
@@ -149,6 +151,23 @@ class StockTradingSystem:
         # Trade journal
         self._trade_journal: List[Dict] = []
 
+        # 3-Tier Take Profit tracking
+        self._tp_tiers_placed: Dict[str, List[float]] = {}
+        self.TAKE_PROFIT_TIERS = [
+            {"atr_mult": 1.5, "sell_pct": 0.33},
+            {"atr_mult": 3.0, "sell_pct": 0.33},
+            {"atr_mult": 5.0, "sell_pct": 0.34},
+        ]
+
+        # 섹터 집중도 제한 (3-2)
+        self._sector_exposure: Dict[str, float] = {}
+        self.SECTOR_LIMITS = {"max_single_sector_pct": 0.35, "max_correlated_pairs": 3}
+
+        # 일일 손실 제한 (6-1)
+        self._daily_start_pv: float = 0.0
+        self._daily_trading_halted: bool = False
+        self.max_daily_loss_pct: float = 0.03
+
         # State auto-save
         self._last_state_save_time: float = 0.0
         self.state_save_interval_seconds: float = 3600.0  # hourly
@@ -245,6 +264,12 @@ class StockTradingSystem:
                 if position:
                     pnl = (exit_price - position.avg_price) * order.quantity
                     self.statistics.record_trade(pnl=pnl, entry_price=position.avg_price, exit_price=exit_price)
+                    # Daily Risk Guard (6-1)
+                    self._daily_start_pv = self._daily_start_pv or self.portfolio.get_portfolio_value(self.market_data_cache)
+                    daily_loss_pct = -pnl / max(self._daily_start_pv, 1)
+                    if daily_loss_pct >= self.max_daily_loss_pct:
+                        self._daily_trading_halted = True
+                        logger.warning(f"DAILY LOSS LIMIT HIT: {daily_loss_pct:.2%} >= {self.max_daily_loss_pct:.0%}")
                 self.portfolio.reduce_position(order.symbol, order.quantity)
                 logger.warning(f"STOP LOSS EXECUTED: {order.symbol} x{order.quantity} @ {exit_price:,.0f}")
                 # 텔레그램 알림
@@ -707,19 +732,17 @@ class StockTradingSystem:
                 )
                 await self.order_management.submit_order(sl_order)
 
-                # Dynamic ATR-based take-profit tiers
+                # Dynamic ATR-based take-profit tiers (3-Tier TP)
                 atr_for_tp = 0.0
                 if 'atr' in locals() and atr > 0:
                     atr_for_tp = atr
                 if atr_for_tp <= 0:
                     atr_for_tp = price * 0.02
-                tp_tiers_atr = [2.5, 4.0, 6.0]
-                tp_fractions = [0.40, 0.35, 0.25]
-                for atr_mult, fraction in zip(tp_tiers_atr, tp_fractions):
-                    tier_qty = max(1, int(quantity * fraction))
+                for tier in self.TAKE_PROFIT_TIERS:
+                    tier_qty = max(1, int(quantity * tier["sell_pct"]))
                     if tier_qty <= 0:
                         continue
-                    tier_price = price + atr_for_tp * atr_mult
+                    tier_price = price + atr_for_tp * tier["atr_mult"]
                     tp_order = self.order_management.create_take_profit_order(
                         symbol, tier_qty, tier_price, entry_order.order_id
                     )
@@ -969,6 +992,12 @@ class StockTradingSystem:
                             entry_price=position.avg_price,
                             exit_price=order.price
                         )
+                        # Daily Risk Guard (6-1)
+                        self._daily_start_pv = self._daily_start_pv or self.portfolio.get_portfolio_value(self.market_data_cache)
+                        daily_loss_pct = -pnl / max(self._daily_start_pv, 1)
+                        if daily_loss_pct >= self.max_daily_loss_pct:
+                            self._daily_trading_halted = True
+                            logger.warning(f"DAILY LOSS LIMIT HIT: {daily_loss_pct:.2%} >= {self.max_daily_loss_pct:.0%}")
                         # 가중치 적응 파이프라인 연결
                         self.optimization_engine.record_trade_result(
                             signal=TradeSignal.SELL,
@@ -1043,13 +1072,17 @@ class StockTradingSystem:
         self.dashboard.run(debug=debug)
     
     async def _retrain_ml_engine(self) -> None:
-        """ML 엔진 주기적 재학습"""
+        """ML 엔진 주기적 재학습 — 전체 포지션 종목 데이터 융합"""
         try:
             symbols = list(self.portfolio.positions.keys()) or ["AAPL"]
-            bars = self.market_data_handler.fetch_historical_data(symbols[0], period="6mo")
-            if bars and len(bars) >= 100:
-                self.strategy_engine.ml_engine.train(bars)
-                logger.info(f"ML engine retrained ({len(bars)} bars from {symbols[0]})")
+            all_bars: list = []
+            for sym in symbols[:5]:  # 최대 5개 종목
+                bars = self.market_data_handler.fetch_historical_data(sym, period="6mo")
+                if bars and len(bars) >= 100:
+                    all_bars.extend(bars)
+            if all_bars:
+                self.strategy_engine.ml_engine.train(all_bars)
+                logger.info(f"ML engine retrained ({len(all_bars)} bars from {len(symbols)} symbols)")
         except Exception as e:
             logger.debug(f"ML retrain skipped: {e}")
 
@@ -1136,13 +1169,11 @@ class StockTradingSystem:
 
     def _auto_save_state(self) -> None:
         """Periodically save portfolio state to disk for crash recovery."""
-        import time
         now = time.time()
         if now - self._last_state_save_time < self.state_save_interval_seconds:
             return
         self._last_state_save_time = now
         try:
-            import json
             state = {
                 "cash": self.portfolio.cash,
                 "positions": {s: {"qty": p.quantity, "avg_price": p.avg_price, "highest_price": p.highest_price}
@@ -1491,16 +1522,13 @@ class StockTradingSystem:
             bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
             if not bars or len(bars) < 20:
                 return None
-            from datetime import date
             today = date.today()
-            import calendar
             # Estimate next earnings: ~4 weeks after last report
             last_bar_date = getattr(bars[-1], 'timestamp', None) or getattr(bars[-1], 'date', None)
             if last_bar_date:
                 last_date = last_bar_date.date() if hasattr(last_bar_date, 'date') else last_bar_date
                 if isinstance(last_date, str):
-                    from datetime import datetime as dt
-                    last_date = dt.strptime(str(last_date)[:10], "%Y-%m-%d").date()
+                    last_date = datetime.strptime(str(last_date)[:10], "%Y-%m-%d").date()
                 quarters_since = max(0, (today.year - last_date.year) * 4 + (today.month - last_date.month) // 3)
                 next_est = date(last_date.year + (last_date.month + 3) // 12, ((last_date.month + 3) % 12) or 12, last_date.day)
                 if quarters_since > 0:
@@ -1607,7 +1635,8 @@ class StockTradingSystem:
         return self.trail_pct
 
     def _update_trailing_stops(self, symbol: str, price: float) -> None:
-        """Trail stop-loss upward and take-profit upward as price rises."""
+        """Trail stop-loss upward and take-profit upward as price rises.
+           Uses Chandelier Exit (highest_since_entry - 3×ATR) for trailing stop."""
         if symbol not in self.portfolio.positions:
             return
         position = self.portfolio.positions[symbol]
@@ -1615,7 +1644,30 @@ class StockTradingSystem:
             position.highest_price = price
 
         trail_pct = self._get_trailing_pct(symbol)
+
+        # Compute ATR for Chandelier Exit
+        try:
+            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
+            if bars and len(bars) >= 15:
+                true_ranges = []
+                for j in range(max(1, len(bars) - 14), len(bars)):
+                    high = bars[j].high
+                    low = bars[j].low
+                    prev_close = bars[j - 1].close
+                    tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                    true_ranges.append(tr)
+                atr = sum(true_ranges) / len(true_ranges) if true_ranges else 0.0
+            else:
+                atr = 0.0
+        except Exception:
+            atr = 0.0
+
         trail_sl = price * (1.0 - trail_pct)
+        # Chandelier Exit: highest price since entry minus 3×ATR
+        if atr > 0 and position.highest_price > 0:
+            chandelier_stop = position.highest_price - atr * 3.0
+            trail_sl = max(trail_sl, chandelier_stop)
+
         trail_tp = price * (1.0 + trail_pct * 2.0)
         updated = 0
         for order in self.order_management.orders.values():
@@ -1674,7 +1726,6 @@ class StockTradingSystem:
 
     def _check_rebalance_schedule(self) -> None:
         """Trigger rebalance if interval has elapsed since last run."""
-        import time
         now = time.time()
         if now - self._last_rebalance_time >= self.rebalance_interval_hours * 3600:
             self._last_rebalance_time = now
@@ -1702,7 +1753,7 @@ class StockTradingSystem:
         if n_positions == 0:
             return
 
-        # Risk-parity weights via inverse volatility
+        # Risk-parity weights via true Equal Risk Contribution (ERC)
         symbols = list(self.portfolio.positions.keys())
         try:
             historical_returns = {}
@@ -1714,7 +1765,8 @@ class StockTradingSystem:
                     historical_returns[sym] = rets
             if historical_returns and len(historical_returns) >= 2:
                 cov_data = self.portfolio_optimizer.compute_covariance(historical_returns)
-                target_weights = self.portfolio_optimizer.risk_parity_allocation(symbols, cov_data)
+                erc_weights = calculate_risk_parity_weights(cov_data)
+                target_weights = {sym: float(erc_weights[i]) for i, sym in enumerate(symbols)}
             else:
                 target_weights = {sym: 1.0 / n_positions for sym in symbols}
         except Exception as e:

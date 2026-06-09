@@ -3,6 +3,7 @@
 import logging
 from typing import Optional, Dict, List
 from datetime import datetime
+from collections import deque
 import os
 from src.utils.async_helper import run_async
 from src.utils.stock_list import get_tickers as _get_tickers
@@ -29,7 +30,7 @@ class TelegramBotEngine:
         self.logger = logger
         self.is_running = False
         self.subscribed_users: Dict[int, Dict] = {}  # user_id -> user_info
-        self.command_history: list = []
+        self.command_history: deque = deque(maxlen=200)
         self.simulation_mode = True
         
         # 명령어 매핑
@@ -586,17 +587,38 @@ class TelegramBotEngine:
         return response
     
     def get_notification(self, event_type: str, data: Dict) -> str:
-        """이벤트 알림 생성"""
+        """이벤트 알림 생성 (영역 8-2: 확장 알림)"""
+        ALERT_TRIGGERS = {
+            "daily_loss_3pct":    "⚠️ 일일 손실 3% 도달",
+            "drawdown_10pct":     "🔴 드로다운 10% 돌파",
+            "crisis_detected":    "🚨 위기 감지 (VIX > 30)",
+            "consecutive_loss_5": "⛔ 5연패 발생",
+            "consecutive_loss_10":"🛑 10연패 — 거래 중단",
+            "regime_change":      "📊 시장 레짐 변경",
+            "take_profit_hit":    "💰 익절 실행",
+            "stop_loss_hit":      "💸 손절 실행",
+        }
         if event_type == "order_filled":
             return f"✅ 주문 체결: {data['symbol']} {data['quantity']}주 @ ${data['price']}"
         elif event_type == "order_placed":
             return f"📝 주문 접수: {data['symbol']} {data['quantity']}주 @ ${data['price']}"
         elif event_type == "stop_loss":
-            return f"⚠️ 손절매: {data['symbol']} @ ${data['price']}"
+            pct = data.get('pnl_pct', '')
+            pct_str = f" ({pct:+.2f}%)" if isinstance(pct, (int, float)) else ""
+            return f"💸 손절매: {data['symbol']} @ ${data['price']}{pct_str}"
         elif event_type == "take_profit":
-            return f"🎯 익절매: {data['symbol']} @ ${data['price']}"
+            pct = data.get('pnl_pct', '')
+            pct_str = f" ({pct:+.2f}%)" if isinstance(pct, (int, float)) else ""
+            return f"💰 익절매: {data['symbol']} @ ${data['price']}{pct_str}"
         elif event_type == "alert":
             return f"🔔 알림: {data['message']}"
+        elif event_type in ALERT_TRIGGERS:
+            msg = ALERT_TRIGGERS[event_type]
+            if 'symbol' in data:
+                msg += f" — {data['symbol']}"
+            if 'pct' in data:
+                msg += f" ({data['pct']:+.2f}%)"
+            return msg
         
         return "📢 알림"
     

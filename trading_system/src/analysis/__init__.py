@@ -3,6 +3,7 @@
 from .backtest import BacktestEngine, BacktestResult, BacktestTrade, PriceBar
 from .statistics import AdvancedStatistics, PerformanceMetrics
 from .relative_strength import RelativeStrengthAnalyzer
+from .style_rotator import StyleRotator
 
 __all__ = [
     'BacktestEngine',
@@ -12,4 +13,5 @@ __all__ = [
     'AdvancedStatistics',
     'PerformanceMetrics',
     'RelativeStrengthAnalyzer',
+    'StyleRotator',
 ]

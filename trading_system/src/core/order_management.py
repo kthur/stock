@@ -5,6 +5,7 @@
 
 import logging
 import asyncio
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -52,7 +53,6 @@ class Order:
     
     def __post_init__(self):
         if not self.order_id:
-            import uuid
             self.order_id = f"ORD_{self.created_at.timestamp()}_{uuid.uuid4().hex[:6]}"
     
     def is_stop_order(self) -> bool:

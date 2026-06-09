@@ -235,7 +235,7 @@ class TestStrategyEngine(unittest.TestCase):
         self.assertGreater(self.engine.sentiment_weight, initial)
 
     def test_detect_regime_sideways_with_few_bars(self):
-        """200개 미만 봉 -> sideways 반환"""
+        """200개 미만 봉 -> weak_bear 반환 (4-레짐 분류에서 기본값)"""
         import numpy as np
         class FakeBar:
             def __init__(self, close):
@@ -243,7 +243,7 @@ class TestStrategyEngine(unittest.TestCase):
                 self.volume = 1_000_000
         bars = [FakeBar(100.0 + i * 0.1) for i in range(50)]
         regime = self.engine.detect_regime(bars)
-        self.assertEqual(regime, "sideways")
+        self.assertEqual(regime, "weak_bear")
 
     def test_detect_regime_bull(self):
         """EMA50 >> EMA200 -> bull 반환"""
@@ -256,7 +256,7 @@ class TestStrategyEngine(unittest.TestCase):
         prices = [100.0 + i * 0.5 for i in range(250)]
         bars = [FakeBar(p) for p in prices]
         regime = self.engine.detect_regime(bars)
-        self.assertEqual(regime, "bull")
+        self.assertIn(regime, ("strong_bull", "weak_bull"), f"Expected bull regime, got {regime}")
 
     def test_global_market_signal_without_client(self):
         """GlobalMarketClient 없이 analyze 호출 -> 정상 동작"""
@@ -405,8 +405,8 @@ class TestDistributedOrderManager(unittest.TestCase):
     def test_distributed_buy_creates_tranches(self):
         """분산 매수 -> N개의 진입 + N개의 SL + N개의 TP 주문 생성"""
         orders = self.dom.create_distributed_buy("AAPL", 300, 150.0, 142.0, 165.0)
-        # 3 tranches x 3 orders each (entry + SL + TP) = 9
-        self.assertEqual(len(orders), 9, f"Expected 9 orders, got {len(orders)}")
+        # 4 tranches x 3 orders each (entry + SL + TP) = 12
+        self.assertEqual(len(orders), 12, f"Expected 12 orders, got {len(orders)}")
         entry_qty = sum(o.quantity for o in orders if o.order_type == OrderType.BUY)
         self.assertEqual(entry_qty, 300)
 
@@ -414,7 +414,7 @@ class TestDistributedOrderManager(unittest.TestCase):
         """분산 매수 가격이 내림차순인지 확인"""
         orders = self.dom.create_distributed_buy("MSFT", 200, 400.0, 380.0, 440.0)
         buy_prices = [o.price for o in orders if o.order_type == OrderType.BUY]
-        self.assertEqual(len(buy_prices), 3)
+        self.assertEqual(len(buy_prices), 4)
         for i in range(len(buy_prices) - 1):
             self.assertGreaterEqual(buy_prices[i], buy_prices[i + 1])
 

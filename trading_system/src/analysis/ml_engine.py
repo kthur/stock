@@ -48,9 +48,12 @@ class MLEngine:
         self.scaler = None
         self.hmm_model = None
         self.feature_cols = [
-            'ret_1', 'ret_5', 'sma_10_dist', 'sma_50_dist', 
-            'rsi_14', 'volatility_10', 'macd', 'macd_signal', 
-            'bb_upper_dist', 'bb_lower_dist', 'atr_14', 'volume_change'
+            'ret_1', 'ret_5', 'ret_20', 'sma_10_dist', 'sma_50_dist',
+            'rsi_14', 'volatility_10', 'macd', 'macd_signal',
+            'bb_upper_dist', 'bb_lower_dist', 'atr_14', 'volume_change',
+            'log_volume_ratio', 'gap_pct', 'intraday_range', 'bb_width',
+            'rsi_5', 'macd_hist_norm', 'roc_10', 'roc_20',
+            'higher_high', 'higher_low', 'distance_from_52w_high',
         ]
         if HAS_HMM:
             self.feature_cols.append('hmm_regime')
@@ -89,6 +92,7 @@ class MLEngine:
         # 1. 수익률 (Returns)
         df['ret_1'] = df['close'].pct_change(1)
         df['ret_5'] = df['close'].pct_change(5)
+        df['ret_20'] = df['close'].pct_change(20)
         
         # 2. 이동평균 이격도 (SMA Distance)
         df['sma_10'] = df['close'].rolling(10).mean()
@@ -133,9 +137,62 @@ class MLEngine:
         # 8. 거래량 변화율
         if 'volume' in df.columns:
             df['volume_change'] = df['volume'].pct_change(1).clip(lower=-1, upper=5)
+            df['log_volume_ratio'] = np.log1p(df['volume'] / (df['volume'].rolling(20).mean() + 1e-9))
         else:
             df['volume_change'] = 0.0
-            
+            df['log_volume_ratio'] = 0.0
+
+        # 10. 향상된 Feature Engineering (영역 5-1)
+        # 갭 비율
+        if 'open' in df.columns:
+            df['gap_pct'] = (df['open'] - df['close'].shift(1)) / df['close'].shift(1)
+        else:
+            df['gap_pct'] = 0.0
+        # 일중 변동폭
+        if 'high' in df.columns and 'low' in df.columns:
+            df['intraday_range'] = (df['high'] - df['low']) / df['close']
+        else:
+            df['intraday_range'] = df['volatility_10']
+        # BB Width
+        sma_20 = df['close'].rolling(20).mean()
+        std_20 = df['close'].rolling(20).std()
+        df['bb_width'] = 2.0 * std_20 / (sma_20 + 1e-9)
+        # RSI 5 (단기)
+        delta5 = df['close'].diff()
+        gain5 = delta5.where(delta5 > 0, 0.0)
+        loss5 = -delta5.where(delta5 < 0, 0.0)
+        avg_gain5 = gain5.rolling(window=5).mean()
+        avg_loss5 = loss5.rolling(window=5).mean()
+        rs5 = avg_gain5 / (avg_loss5 + 1e-9)
+        df['rsi_5'] = 100.0 - (100.0 / (1.0 + rs5))
+        # MACD 히스토그램 정규화
+        ema_12 = df['close'].ewm(span=12, adjust=False).mean()
+        ema_26 = df['close'].ewm(span=26, adjust=False).mean()
+        macd_line = ema_12 - ema_26
+        macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+        df['macd_hist_norm'] = (macd_line - macd_signal) / (df['close'] + 1e-9)
+        # ROC (Rate of Change)
+        df['roc_10'] = df['close'].pct_change(10)
+        df['roc_20'] = df['close'].pct_change(20)
+        # 전고점/전저점 돌파
+        df['higher_high'] = (df['high'] > df['high'].shift(1)).astype(float) if 'high' in df.columns else 0.0
+        df['higher_low'] = (df['low'] > df['low'].shift(1)).astype(float) if 'low' in df.columns else 0.0
+        # 52주 고점 대비 거리
+        df['distance_from_52w_high'] = (df['close'].rolling(252).max() - df['close']) / (df['close'] + 1e-9)
+
+        # 피처 컬럼 목록 갱신
+        self.feature_cols = [
+            'ret_1', 'ret_5', 'ret_20', 'sma_10_dist', 'sma_50_dist',
+            'rsi_14', 'rsi_5', 'volatility_10', 'macd', 'macd_signal',
+            'bb_upper_dist', 'bb_lower_dist', 'atr_14', 'volume_change',
+            'log_volume_ratio', 'gap_pct', 'intraday_range', 'bb_width',
+            'macd_hist_norm', 'roc_10', 'roc_20', 'higher_high', 'higher_low',
+            'distance_from_52w_high',
+        ]
+        if HAS_HMM and self.hmm_model is not None:
+            if 'hmm_regime' not in self.feature_cols:
+                self.feature_cols.append('hmm_regime')
+
         # 9. HMM Market Regime
         if HAS_HMM and self.hmm_model is not None:
             # HMM requires no NaNs
@@ -168,8 +225,9 @@ class MLEngine:
         } for b in price_bars])
         df = self._create_features(df, is_training=True)
         
-        # Target: 다음날 종가가 오늘 종가보다 높은지 (1=상승, 0=하락)
-        df['target'] = (df['close'].shift(-1) > df['close']).astype(int)
+        # Target: 방향(x) + 크기(o) — 0.5% 이상 상승=1, 0.5% 이상 하락=0, 중간=제외(노이즈 필터)
+        forward_ret = df['close'].pct_change(1).shift(-1)
+        df['target'] = np.where(forward_ret > 0.005, 1, np.where(forward_ret < -0.005, 0, np.nan))
         
         df = df.dropna()
         if len(df) < 50:
@@ -238,7 +296,8 @@ class MLEngine:
             'volume': getattr(b, 'volume', 0)
         } for b in price_bars])
         df = self._create_features(df, is_training=True)
-        df['target'] = (df['close'].shift(-1) > df['close']).astype(int)
+        forward_ret = df['close'].pct_change(1).shift(-1)
+        df['target'] = np.where(forward_ret > 0.005, 1, np.where(forward_ret < -0.005, 0, np.nan))
         df = df.dropna()
         
         if len(df) < 100:
