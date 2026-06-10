@@ -1,0 +1,2 @@
+## 2026-06-10T16:31:00Z
+Run all pytest tests in d:\Finance\code\stock\trading_system. Run 'python -m pytest' and see which tests are failing. Fix the refactoring regressions that cause the 62 existing tests (like E2E tests for Phase 3 and Phase 4) to fail. Make sure all 33+ pytest tests (including test_ml_ensemble.py and all Phase 3 & Phase 4 E2E tests) pass. Do not cheat. Follow all hard constraints and integrity enforcement.

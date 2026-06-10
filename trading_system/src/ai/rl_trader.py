@@ -3,18 +3,18 @@ DQN-based Reinforcement Learning Trading Agent.
 Uses pure PyTorch — no stable-baselines3 dependency.
 """
 
-import random
 import math
+import random
 from collections import deque
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-
 # ─── Trading Environment ──────────────────────────────────────────────────────
+
 
 class TradingEnvironment:
     """
@@ -35,11 +35,11 @@ class TradingEnvironment:
         self._price_mean = float(np.mean(self.prices))
         self._price_std = float(np.std(self.prices)) or 1.0
         self.n_steps = len(self.prices)
-        self.state_dim = 3   # price_norm, position, unrealized_pnl_norm
+        self.state_dim = 3  # price_norm, position, unrealized_pnl_norm
         self.action_dim = 3  # hold, buy, sell
 
         self._step_idx: int = 0
-        self._position: float = 0.0      # 0=flat, 1=long
+        self._position: float = 0.0  # 0=flat, 1=long
         self._entry_price: float = 0.0
         self._done: bool = False
 
@@ -48,10 +48,7 @@ class TradingEnvironment:
         price = self.prices[self._step_idx]
         price_norm = (price - self._price_mean) / self._price_std
 
-        if self._position > 0 and self._entry_price > 0:
-            pnl = (price - self._entry_price) / self._entry_price
-        else:
-            pnl = 0.0
+        pnl = (price - self._entry_price) / self._entry_price if self._position > 0 and self._entry_price > 0 else 0.0
 
         return np.array([price_norm, self._position, pnl], dtype=np.float32)
 
@@ -81,18 +78,17 @@ class TradingEnvironment:
         info: dict = {"action": action, "price": float(current_price)}
 
         # Execute action
-        if action == 1:   # BUY
+        if action == 1:  # BUY
             if self._position == 0:
                 self._position = 1.0
                 self._entry_price = current_price
                 reward = -0.001  # small transaction cost
-        elif action == 2:  # SELL
-            if self._position > 0 and self._entry_price > 0:
-                pnl_pct = (current_price - self._entry_price) / self._entry_price
-                reward = pnl_pct * 10.0  # scale reward
-                self._position = 0.0
-                self._entry_price = 0.0
-                info["pnl_pct"] = pnl_pct
+        elif action == 2 and self._position > 0 and self._entry_price > 0:  # SELL
+            pnl_pct = (current_price - self._entry_price) / self._entry_price
+            reward = pnl_pct * 10.0  # scale reward
+            self._position = 0.0
+            self._entry_price = 0.0
+            info["pnl_pct"] = pnl_pct
         # action == 0: HOLD — reward is unrealized PnL change if in position
 
         if self._position > 0 and action == 0:
@@ -117,6 +113,7 @@ class TradingEnvironment:
 
 
 # ─── Replay Memory ────────────────────────────────────────────────────────────
+
 
 class ReplayBuffer:
     """Experience replay buffer for DQN."""
@@ -144,6 +141,7 @@ class ReplayBuffer:
 
 # ─── DQN Network ─────────────────────────────────────────────────────────────
 
+
 class QNetwork(nn.Module):
     """Deep Q-Network: state_dim -> [64, 64] -> action_dim."""
 
@@ -163,6 +161,7 @@ class QNetwork(nn.Module):
 
 
 # ─── DQN Agent ────────────────────────────────────────────────────────────────
+
 
 class DQNAgent:
     """
@@ -219,8 +218,9 @@ class DQNAgent:
     # ------------------------------------------------------------------
     def _epsilon(self) -> float:
         """Current epsilon using exponential decay."""
-        return self.epsilon_end + (self.epsilon_start - self.epsilon_end) * \
-               math.exp(-1.0 * self.steps_done / self.epsilon_decay)
+        return self.epsilon_end + (self.epsilon_start - self.epsilon_end) * math.exp(
+            -1.0 * self.steps_done / self.epsilon_decay
+        )
 
     def select_action(self, state: np.ndarray) -> int:
         """
@@ -312,6 +312,7 @@ class DQNAgent:
 
 
 # ─── Top-level training function ─────────────────────────────────────────────
+
 
 def train_rl_model(data: Optional[list] = None) -> dict:
     """

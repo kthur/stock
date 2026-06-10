@@ -1,14 +1,16 @@
 """Backtesting Engine - 전략 백테스트"""
 
+import itertools
+import logging
+import math
+import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Callable, Optional, Any, cast
-import logging
-import itertools
-import random
-from copy import deepcopy
-import pandas as pd
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+
 import numpy as np
+import pandas as pd
+
 from .ml_engine import MLEngine
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class PriceBar:
     """가격 바 (OHLCV)"""
+
     timestamp: datetime
     open: float
     high: float
@@ -28,6 +31,7 @@ class PriceBar:
 @dataclass(slots=True)
 class BacktestTrade:
     """백테스트 거래"""
+
     entry_date: datetime
     entry_price: float
     exit_date: datetime
@@ -36,9 +40,9 @@ class BacktestTrade:
     pnl: float
     pnl_pct: float
     direction: str = "LONG"
-    exit_reason: str = "SIGNAL"   # SIGNAL, TRAILING_STOP, FINAL
+    exit_reason: str = "SIGNAL"  # SIGNAL, TRAILING_STOP, FINAL
     duration: timedelta = field(default_factory=lambda: timedelta())
-    
+
     def __post_init__(self):
         self.duration = self.exit_date - self.entry_date
 
@@ -46,6 +50,7 @@ class BacktestTrade:
 @dataclass
 class BacktestResult:
     """백테스트 결과"""
+
     symbol: str
     trades: List[BacktestTrade]
     total_return: float
@@ -66,11 +71,11 @@ class BacktestResult:
 
 
 class BacktestEngine:
-    
     POSITION_SIZE_FRACTION = 0.95
-    
-    def __init__(self, initial_capital: float = 1000000, slippage_pct: float = 0.001,
-                 market_impact_pct: float = 0.0005):
+
+    def __init__(
+        self, initial_capital: float = 1000000, slippage_pct: float = 0.001, market_impact_pct: float = 0.0005
+    ):
         self.initial_capital = initial_capital
         self.logger = logger
         self.fee_pct = 0.001
@@ -104,87 +109,34 @@ class BacktestEngine:
         if is_buy:
             return self._cost_to_sell(price, volume, avg_volume)
         return self._cost_to_buy(price, volume, avg_volume)
-        
+
     # ──────────────────────────────────────────────────────
     # 기술적 지표 유틸리티
     # ──────────────────────────────────────────────────────
-    
+
     @staticmethod
     def _calc_ema(data: List[float], period: int) -> List[float]:
-        """지수이동평균(EMA) 계산. 반환 리스트는 입력과 동일 길이(앞부분은 SMA로 시작)."""
-        period = max(1, period)
-        if len(data) < period:
-            return [sum(data) / len(data)] * len(data)
-        
-        k = 2.0 / (period + 1)
-        ema_values = [0.0] * len(data)
-        # 최초 EMA 값은 첫 period 구간의 SMA
-        ema_values[period - 1] = sum(data[:period]) / period
-        for i in range(period, len(data)):
-            ema_values[i] = data[i] * k + ema_values[i - 1] * (1 - k)
-        # period 이전 구간도 SMA로 채움 (참조용)
-        sma_init = ema_values[period - 1]
-        for i in range(period - 1):
-            ema_values[i] = sma_init
-        return ema_values
-    
+        """지수이동평균(EMA) 계산. 반환 리스트는 입력과 동일 길이."""
+        from src.utils.indicators import calc_ema_list
+
+        return calc_ema_list(data, period)
+
     @staticmethod
-    def _calc_atr(bars: List['PriceBar'], period: int = 14) -> float:
-        """Average True Range (ATR) 계산. 최근 period 바 기준."""
-        period = max(1, period)
-        if len(bars) < 2:
-            return 0.0
-        
-        true_ranges = []
-        start = max(1, len(bars) - period)
-        for i in range(start, len(bars)):
-            high = bars[i].high
-            low = bars[i].low
-            prev_close = bars[i - 1].close
-            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
-            true_ranges.append(tr)
-        
-        return sum(true_ranges) / len(true_ranges) if true_ranges else 0.0
-        
+    def _calc_atr(bars: List["PriceBar"], period: int = 14) -> float:
+        """Average True Range (ATR) 계산."""
+        from src.utils.indicators import calc_atr as _calc_atr_shared
+
+        highs = [b.high for b in bars]
+        lows = [b.low for b in bars]
+        closes = [b.close for b in bars]
+        return _calc_atr_shared(highs, lows, closes, period)
+
     @staticmethod
     def _calc_rsi(closes: List[float], window: int = 14) -> List[float]:
-        """Wilder's RSI (EMA 기반) 계산. closes 길이만큼의 리스트 반환."""
-        window = max(1, window)
-        if len(closes) <= window:
-            return [50.0] * len(closes)
-        
-        rsi_values = [50.0] * len(closes)
-        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
-        
-        gains = [d if d > 0 else 0.0 for d in deltas]
-        losses = [abs(d) if d < 0 else 0.0 for d in deltas]
-        
-        # 첫 번째 값은 단순 이동평균(SMA)
-        avg_gain = sum(gains[:window]) / window
-        avg_loss = sum(losses[:window]) / window
-        
-        if avg_loss == 0:
-            rsi_values[window] = 100.0
-        else:
-            rs = avg_gain / avg_loss
-            rsi_values[window] = 100.0 - (100.0 / (1.0 + rs))
-            
-        # 이후 값은 Wilder의 smoothing (EMA 방식)
-        for i in range(window + 1, len(closes)):
-            delta_idx = i - 1
-            current_gain = gains[delta_idx]
-            current_loss = losses[delta_idx]
-            
-            avg_gain = (avg_gain * (window - 1) + current_gain) / window
-            avg_loss = (avg_loss * (window - 1) + current_loss) / window
-            
-            if avg_loss == 0:
-                rsi_values[i] = 100.0
-            else:
-                rs = avg_gain / avg_loss
-                rsi_values[i] = 100.0 - (100.0 / (1.0 + rs))
-                
-        return rsi_values
+        """Wilder's RSI (EMA 기반) 계산."""
+        from src.utils.indicators import calc_rsi_list
+
+        return calc_rsi_list(closes, window)
 
     def _get_closes(self) -> List[float]:
         if self._closes_cache is None:
@@ -212,16 +164,16 @@ class BacktestEngine:
             sma = [0.0] * len(closes)
             if len(closes) >= window:
                 running_sum = sum(closes[:window])
-                sma[window-1] = running_sum / window
+                sma[window - 1] = running_sum / window
                 for idx in range(window, len(closes)):
-                    running_sum = running_sum + closes[idx] - closes[idx-window]
+                    running_sum = running_sum + closes[idx] - closes[idx - window]
                     sma[idx] = running_sum / window
                 # Fill warm-up
-                for idx in range(window-1):
-                    sma[idx] = sum(closes[:idx+1]) / (idx+1)
+                for idx in range(window - 1):
+                    sma[idx] = sum(closes[: idx + 1]) / (idx + 1)
             else:
                 for idx in range(len(closes)):
-                    sma[idx] = sum(closes[:idx+1]) / (idx+1)
+                    sma[idx] = sum(closes[: idx + 1]) / (idx + 1)
             self._indicator_cache[cache_key] = sma
         return cast(List[float], self._indicator_cache[cache_key])
 
@@ -269,7 +221,7 @@ class BacktestEngine:
             r_max = [0.0] * len(closes)
             for idx in range(len(closes)):
                 start = max(0, idx - window + 1)
-                r_max[idx] = max(closes[start:idx+1])
+                r_max[idx] = max(closes[start : idx + 1])
             self._indicator_cache[cache_key] = r_max
         return cast(List[float], self._indicator_cache[cache_key])
 
@@ -281,15 +233,15 @@ class BacktestEngine:
             r_mean = [0.0] * len(vols)
             if len(vols) >= window:
                 running_sum = sum(vols[:window])
-                r_mean[window-1] = running_sum / window
+                r_mean[window - 1] = running_sum / window
                 for idx in range(window, len(vols)):
-                    running_sum = running_sum + vols[idx] - vols[idx-window]
+                    running_sum = running_sum + vols[idx] - vols[idx - window]
                     r_mean[idx] = running_sum / window
-                for idx in range(window-1):
-                    r_mean[idx] = sum(vols[:idx+1]) / (idx+1)
+                for idx in range(window - 1):
+                    r_mean[idx] = sum(vols[: idx + 1]) / (idx + 1)
             else:
                 for idx in range(len(vols)):
-                    r_mean[idx] = sum(vols[:idx+1]) / (idx+1)
+                    r_mean[idx] = sum(vols[: idx + 1]) / (idx + 1)
             self._indicator_cache[cache_key] = r_mean
         return cast(List[float], self._indicator_cache[cache_key])
 
@@ -301,8 +253,8 @@ class BacktestEngine:
             vol = [0.0] * len(closes)
             for idx in range(len(closes)):
                 start = max(0, idx - window + 1)
-                sub = closes[start:idx+1]
-                diffs = [abs(sub[k] - sub[k-1]) for k in range(1, len(sub))]
+                sub = closes[start : idx + 1]
+                diffs = [abs(sub[k] - sub[k - 1]) for k in range(1, len(sub))]
                 vol[idx] = sum(diffs) / len(diffs) if diffs else 0.0
             self._indicator_cache[cache_key] = vol
         return cast(List[float], self._indicator_cache[cache_key])
@@ -316,10 +268,10 @@ class BacktestEngine:
             lower = [0.0] * len(closes)
             for idx in range(len(closes)):
                 start = max(0, idx - period + 1)
-                sub = closes[start:idx+1]
+                sub = closes[start : idx + 1]
                 sma = sum(sub) / len(sub)
                 variance = sum((c - sma) ** 2 for c in sub) / len(sub)
-                std_dev = variance ** 0.5
+                std_dev = variance**0.5
                 upper[idx] = sma + std_mult * std_dev
                 lower[idx] = sma - std_mult * std_dev
             self._indicator_cache[cache_key] = (upper, lower)
@@ -328,20 +280,25 @@ class BacktestEngine:
     # ──────────────────────────────────────────────────────
     # 메인 백테스트 루프
     # ──────────────────────────────────────────────────────
-    
-    def run_backtest(self, symbol: str, price_bars: List[PriceBar],
-                    strategy_func, target_period_bars: Optional[int] = None,
-                    allow_short: bool = False,
-                    trailing_stop_pct: float = 0.0,
-                    scale_in: bool = False,
-                    stop_loss_pct: float = 0.0,
-                    take_profit_pct: float = 0.0,
-                    market_regime_filter: bool = False,
-                    volatility_sizing: bool = False,
-                    atr_trailing_stop_mult: float = 0.0) -> BacktestResult:
+
+    def run_backtest(
+        self,
+        symbol: str,
+        price_bars: List[PriceBar],
+        strategy_func,
+        target_period_bars: Optional[int] = None,
+        allow_short: bool = False,
+        trailing_stop_pct: float = 0.0,
+        scale_in: bool = False,
+        stop_loss_pct: float = 0.0,
+        take_profit_pct: float = 0.0,
+        market_regime_filter: bool = False,
+        volatility_sizing: bool = False,
+        atr_trailing_stop_mult: float = 0.0,
+    ) -> BacktestResult:
         """
         백테스트 실행
-        
+
         Args:
             symbol: 종목
             price_bars: 가격 바 데이터
@@ -352,7 +309,7 @@ class BacktestEngine:
             scale_in: 분할 진입 (True: 50%→50% 2단계 진입)
             stop_loss_pct: 고정 손절 비율 (0이면 비활성, 예: 0.05 = 5%)
             take_profit_pct: 부분 익절 비율 (0이면 비활성, 예: 0.10 = 10% 도달 시 50% 익절)
-        
+
         Returns:
             BacktestResult: 백테스트 결과
         """
@@ -368,25 +325,25 @@ class BacktestEngine:
         trades: List[BacktestTrade] = []
         equity_curve = [capital]
         trailing_stop_count = 0
-        
+
         # 트레일링 스톱 추적 변수
-        trailing_peak = 0.0   # 롱: 보유 중 최고가
-        trailing_trough = float('inf')  # 숏: 보유 중 최저가
-        
+        trailing_peak = 0.0  # 롱: 보유 중 최고가
+        trailing_trough = float("inf")  # 숏: 보유 중 최저가
+
         # 분할 진입 추적 변수
         scale_in_done = False  # 2차 진입 완료 여부
-        first_entry_qty = 0   # 1차 진입 수량
-        
+        first_entry_qty = 0  # 1차 진입 수량
+
         # 부분 익절 추적 변수
         has_partial_tp = False  # 50% 분할 익절 여부
-        
+
         # 다음 봉 시가 진입을 위한 신호 대기 변수
         pending_signal = "HOLD"
-        
+
         for i, bar in enumerate(price_bars):
             # ── 1단계: 이전 봉에서 넘어온 pending_signal 매매 실행 (현재 봉 시가 bar.open 기준) ──
             size_fraction = (self.POSITION_SIZE_FRACTION / 2) if scale_in else self.POSITION_SIZE_FRACTION
-            
+
             if pending_signal == "BUY" and position == 0:
                 if capital >= bar.open:
                     if volatility_sizing:
@@ -402,7 +359,7 @@ class BacktestEngine:
                             position = int(capital * size_fraction / bar.open)
                     else:
                         position = int(capital * size_fraction / bar.open)
-                    
+
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
                     capital -= position * bar.open * (1 + self.fee_pct + self.slippage_pct)
@@ -412,13 +369,13 @@ class BacktestEngine:
                     has_partial_tp = False
                     self.logger.debug(f"{bar.timestamp}: BUY (Long Entry @ Open) {position} @ {bar.open}")
                 pending_signal = "HOLD"
-                
+
             elif pending_signal == "SELL" and position > 0:
                 exit_price = bar.open
                 pnl = (exit_price - entry_price) * position
                 fees = position * exit_price * self.fee_pct
                 capital += position * exit_price * (1 - self.fee_pct - self.slippage_pct)
-                
+
                 trade = BacktestTrade(
                     entry_date=entry_timestamp or bar.timestamp,
                     entry_price=entry_price,
@@ -428,11 +385,13 @@ class BacktestEngine:
                     pnl=pnl - fees,
                     pnl_pct=((exit_price - entry_price) / entry_price) * 100,
                     direction="LONG",
-                    exit_reason="SIGNAL"
+                    exit_reason="SIGNAL",
                 )
                 trades.append(trade)
-                self.logger.debug(f"{bar.timestamp}: SELL (Long Exit @ Open) {position} @ {exit_price}, PnL={pnl-fees:.2f}")
-                
+                self.logger.debug(
+                    f"{bar.timestamp}: SELL (Long Exit @ Open) {position} @ {exit_price}, PnL={pnl - fees:.2f}"
+                )
+
                 if allow_short:
                     if volatility_sizing:
                         atr = self._calc_atr(price_bars[:i], 14)
@@ -447,7 +406,7 @@ class BacktestEngine:
                             qty = int(capital * size_fraction / bar.open)
                     else:
                         qty = int(capital * size_fraction / bar.open)
-                        
+
                     position = -qty
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
@@ -461,14 +420,14 @@ class BacktestEngine:
                     position = 0
                     scale_in_done = False
                 pending_signal = "HOLD"
-                
+
             elif pending_signal == "BUY" and position < 0 and allow_short:
                 exit_price = bar.open
                 qty = abs(position)
                 pnl = (entry_price - exit_price) * qty
                 fees = qty * exit_price * self.fee_pct
                 capital -= qty * exit_price * (1 + self.fee_pct + self.slippage_pct)
-                
+
                 trade = BacktestTrade(
                     entry_date=entry_timestamp or bar.timestamp,
                     entry_price=entry_price,
@@ -478,11 +437,13 @@ class BacktestEngine:
                     pnl=pnl - fees,
                     pnl_pct=((entry_price - exit_price) / entry_price) * 100,
                     direction="SHORT",
-                    exit_reason="SIGNAL"
+                    exit_reason="SIGNAL",
                 )
                 trades.append(trade)
-                self.logger.debug(f"{bar.timestamp}: BUY (Short Cover @ Open) {qty} @ {exit_price}, PnL={pnl-fees:.2f}")
-                
+                self.logger.debug(
+                    f"{bar.timestamp}: BUY (Short Cover @ Open) {qty} @ {exit_price}, PnL={pnl - fees:.2f}"
+                )
+
                 if capital >= bar.open:
                     if volatility_sizing:
                         atr = self._calc_atr(price_bars[:i], 14)
@@ -497,7 +458,7 @@ class BacktestEngine:
                             position = int(capital * size_fraction / bar.open)
                     else:
                         position = int(capital * size_fraction / bar.open)
-                        
+
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
                     capital -= position * bar.open * (1 + self.fee_pct + self.slippage_pct)
@@ -510,7 +471,7 @@ class BacktestEngine:
                     position = 0
                     scale_in_done = False
                 pending_signal = "HOLD"
-                
+
             elif pending_signal == "SELL" and position == 0 and allow_short:
                 if volatility_sizing:
                     atr = self._calc_atr(price_bars[:i], 14)
@@ -525,7 +486,7 @@ class BacktestEngine:
                         qty = int(capital * size_fraction / bar.open)
                 else:
                     qty = int(capital * size_fraction / bar.open)
-                    
+
                 position = -qty
                 entry_price = bar.open
                 entry_timestamp = bar.timestamp
@@ -536,7 +497,7 @@ class BacktestEngine:
                 has_partial_tp = False
                 self.logger.debug(f"{bar.timestamp}: SELL (Short Entry @ Open) {qty} @ {bar.open}")
                 pending_signal = "HOLD"
-                
+
             # ── 2단계: 장중 실시간 익절/손절/트레일링 스톱 검사 ──
             if position != 0:
                 # (A) 부분 익절 검사
@@ -550,7 +511,7 @@ class BacktestEngine:
                                 pnl = (exit_price - entry_price) * tp_qty
                                 fees = tp_qty * exit_price * self.fee_pct
                                 capital += tp_qty * exit_price * (1 - self.fee_pct - self.slippage_pct)
-                                
+
                                 trade = BacktestTrade(
                                     entry_date=entry_timestamp or bar.timestamp,
                                     entry_price=entry_price,
@@ -560,7 +521,7 @@ class BacktestEngine:
                                     pnl=pnl - fees,
                                     pnl_pct=((exit_price - entry_price) / entry_price) * 100,
                                     direction="LONG",
-                                    exit_reason="PARTIAL_TAKE_PROFIT"
+                                    exit_reason="PARTIAL_TAKE_PROFIT",
                                 )
                                 trades.append(trade)
                                 position -= tp_qty
@@ -576,7 +537,7 @@ class BacktestEngine:
                                 pnl = (entry_price - exit_price) * tp_qty
                                 fees = tp_qty * exit_price * self.fee_pct
                                 capital -= tp_qty * exit_price * (1 + self.fee_pct + self.slippage_pct)
-                                
+
                                 trade = BacktestTrade(
                                     entry_date=entry_timestamp or bar.timestamp,
                                     entry_price=entry_price,
@@ -586,7 +547,7 @@ class BacktestEngine:
                                     pnl=pnl - fees,
                                     pnl_pct=((entry_price - exit_price) / entry_price) * 100,
                                     direction="SHORT",
-                                    exit_reason="PARTIAL_TAKE_PROFIT"
+                                    exit_reason="PARTIAL_TAKE_PROFIT",
                                 )
                                 trades.append(trade)
                                 position += tp_qty
@@ -598,19 +559,19 @@ class BacktestEngine:
                     trailing_peak = max(trailing_peak, bar.high)
                     sl_trigger = entry_price * (1 - stop_loss_pct) if stop_loss_pct > 0.0 else 0.0
                     ts_trigger = trailing_peak * (1 - trailing_stop_pct) if trailing_stop_pct > 0.0 else 0.0
-                    
+
                     if atr_trailing_stop_mult > 0.0:
-                        atr = self._calc_atr(price_bars[:i+1], 14)
+                        atr = self._calc_atr(price_bars[: i + 1], 14)
                         if atr > 0:
                             ts_trigger = max(ts_trigger, trailing_peak - (atr * atr_trailing_stop_mult))
-                            
+
                     trigger_price = max(sl_trigger, ts_trigger)
                     if trigger_price > 0.0 and bar.low <= trigger_price:
                         exit_price = min(bar.open, trigger_price)
                         pnl = (exit_price - entry_price) * position
                         fees = position * exit_price * self.fee_pct
                         capital += position * exit_price * (1 - self.fee_pct - self.slippage_pct)
-                        
+
                         reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
                             entry_date=entry_timestamp or bar.timestamp,
@@ -621,10 +582,12 @@ class BacktestEngine:
                             pnl=pnl - fees,
                             pnl_pct=((exit_price - entry_price) / entry_price) * 100,
                             direction="LONG",
-                            exit_reason=reason
+                            exit_reason=reason,
                         )
                         trades.append(trade)
-                        self.logger.debug(f"{bar.timestamp}: {reason} (Long) {position} @ {exit_price}, peak={trailing_peak:.2f}")
+                        self.logger.debug(
+                            f"{bar.timestamp}: {reason} (Long) {position} @ {exit_price}, peak={trailing_peak:.2f}"
+                        )
                         position = 0
                         scale_in_done = False
                         has_partial_tp = False
@@ -632,26 +595,26 @@ class BacktestEngine:
                             trailing_stop_count += 1
                         equity_curve.append(capital)
                         continue
-                        
+
                 elif position < 0:
                     trailing_trough = min(trailing_trough, bar.low)
-                    sl_trigger = entry_price * (1 + stop_loss_pct) if stop_loss_pct > 0.0 else float('inf')
-                    ts_trigger = trailing_trough * (1 + trailing_stop_pct) if trailing_stop_pct > 0.0 else float('inf')
-                    
+                    sl_trigger = entry_price * (1 + stop_loss_pct) if stop_loss_pct > 0.0 else float("inf")
+                    ts_trigger = trailing_trough * (1 + trailing_stop_pct) if trailing_stop_pct > 0.0 else float("inf")
+
                     if atr_trailing_stop_mult > 0.0:
-                        atr = self._calc_atr(price_bars[:i+1], 14)
+                        atr = self._calc_atr(price_bars[: i + 1], 14)
                         if atr > 0:
                             atr_ts = trailing_trough + (atr * atr_trailing_stop_mult)
-                            ts_trigger = min(ts_trigger, atr_ts) if ts_trigger < float('inf') else atr_ts
-                            
+                            ts_trigger = min(ts_trigger, atr_ts) if ts_trigger < float("inf") else atr_ts
+
                     trigger_price = min(sl_trigger, ts_trigger)
-                    if trigger_price < float('inf') and bar.high >= trigger_price:
+                    if trigger_price < float("inf") and bar.high >= trigger_price:
                         exit_price = max(bar.open, trigger_price)
                         qty = abs(position)
                         pnl = (entry_price - exit_price) * qty
                         fees = qty * exit_price * self.fee_pct
                         capital -= qty * exit_price * (1 + self.fee_pct + self.slippage_pct)
-                        
+
                         reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
                             entry_date=entry_timestamp or bar.timestamp,
@@ -662,10 +625,12 @@ class BacktestEngine:
                             pnl=pnl - fees,
                             pnl_pct=((entry_price - exit_price) / entry_price) * 100,
                             direction="SHORT",
-                            exit_reason=reason
+                            exit_reason=reason,
                         )
                         trades.append(trade)
-                        self.logger.debug(f"{bar.timestamp}: {reason} (Short) {qty} @ {exit_price}, trough={trailing_trough:.2f}")
+                        self.logger.debug(
+                            f"{bar.timestamp}: {reason} (Short) {qty} @ {exit_price}, trough={trailing_trough:.2f}"
+                        )
                         position = 0
                         scale_in_done = False
                         has_partial_tp = False
@@ -673,7 +638,7 @@ class BacktestEngine:
                             trailing_stop_count += 1
                         equity_curve.append(capital)
                         continue
-            
+
             # ── 3단계: 분할 진입 (Scale-In) ──
             if scale_in and position > 0 and not scale_in_done:
                 if bar.close > entry_price * 1.02 and capital >= bar.close:
@@ -684,8 +649,10 @@ class BacktestEngine:
                         entry_price = total_cost / position
                         capital -= add_qty * bar.close * (1 + self.fee_pct + self.slippage_pct)
                         scale_in_done = True
-                        self.logger.debug(f"{bar.timestamp}: SCALE-IN (Long) +{add_qty} @ {bar.close}, avg={entry_price:.2f}")
-            
+                        self.logger.debug(
+                            f"{bar.timestamp}: SCALE-IN (Long) +{add_qty} @ {bar.close}, avg={entry_price:.2f}"
+                        )
+
             elif scale_in and position < 0 and not scale_in_done:
                 if bar.close < entry_price * 0.98 and capital > 0:
                     add_qty = int(capital * size_fraction / bar.close)
@@ -696,10 +663,12 @@ class BacktestEngine:
                         entry_price = total_cost / abs(position)
                         capital += add_qty * bar.close * (1 - self.fee_pct - self.slippage_pct)
                         scale_in_done = True
-                        self.logger.debug(f"{bar.timestamp}: SCALE-IN (Short) +{add_qty} @ {bar.close}, avg={entry_price:.2f}")
-            
+                        self.logger.debug(
+                            f"{bar.timestamp}: SCALE-IN (Short) +{add_qty} @ {bar.close}, avg={entry_price:.2f}"
+                        )
+
             # ── 4단계: 전략 신호 계산 (봉 마감 시그널 -> 다음 봉 시가 매매 진입 예약) ──
-            pending_signal = strategy_func(price_bars[:i+1])
+            pending_signal = strategy_func(price_bars[: i + 1])
             if market_regime_filter and pending_signal == "BUY":
                 if i < 199:
                     pending_signal = "HOLD"
@@ -707,19 +676,19 @@ class BacktestEngine:
                     ema200 = self._get_ema(self._get_closes(), 200)
                     if price_bars[i].close < ema200[i]:
                         pending_signal = "HOLD"
-            
+
             # 포지션 가치 계산 및 누적
             position_value = position * bar.close
             total_value = capital + position_value
             equity_curve.append(total_value)
-            
+
         # 최종 청산 (남은 포지션 강제 종가 정리)
         if position > 0:
             final_price = price_bars[-1].close
             pnl = (final_price - entry_price) * position
             fees = position * final_price * self.fee_pct
             capital += position * final_price * (1 - self.fee_pct - self.slippage_pct)
-            
+
             trade = BacktestTrade(
                 entry_date=entry_timestamp or price_bars[-1].timestamp,
                 entry_price=entry_price,
@@ -729,7 +698,7 @@ class BacktestEngine:
                 pnl=pnl - fees,
                 pnl_pct=((final_price - entry_price) / entry_price) * 100,
                 direction="LONG",
-                exit_reason="FINAL"
+                exit_reason="FINAL",
             )
             trades.append(trade)
         elif position < 0 and allow_short:
@@ -738,7 +707,7 @@ class BacktestEngine:
             pnl = (entry_price - final_price) * qty
             fees = qty * final_price * self.fee_pct
             capital -= qty * final_price * (1 + self.fee_pct + self.slippage_pct)
-            
+
             trade = BacktestTrade(
                 entry_date=entry_timestamp or price_bars[-1].timestamp,
                 entry_price=entry_price,
@@ -748,10 +717,10 @@ class BacktestEngine:
                 pnl=pnl - fees,
                 pnl_pct=((entry_price - final_price) / entry_price) * 100,
                 direction="SHORT",
-                exit_reason="FINAL"
+                exit_reason="FINAL",
             )
             trades.append(trade)
-            
+
         # 결과 계산
         if target_period_bars and target_period_bars < len(price_bars):
             target_start_idx = len(price_bars) - target_period_bars
@@ -759,22 +728,22 @@ class BacktestEngine:
             final_capital_target = equity_curve[-1]
             total_return = final_capital_target - initial_capital_target
             total_return_pct = (total_return / initial_capital_target) * 100
-            
+
             target_trades = []
             for t in trades:
                 if t.exit_date >= price_bars[target_start_idx].timestamp:
                     target_trades.append(t)
-                    
+
             win_rate = self._calculate_win_rate(target_trades)
             profit_factor = self._calculate_profit_factor(target_trades)
-            
+
             target_equity_curve = equity_curve[target_start_idx:]
             max_drawdown = self._calculate_max_drawdown(target_equity_curve)
             sharpe_ratio = self._calculate_sharpe_ratio(target_equity_curve)
-            
+
             dates = [b.timestamp for b in price_bars[target_start_idx:]]
             price_curve = [b.close for b in price_bars[target_start_idx:]]
-            
+
             result = BacktestResult(
                 symbol=symbol,
                 trades=target_trades,
@@ -792,24 +761,26 @@ class BacktestEngine:
                 equity_curve=target_equity_curve,
                 price_curve=price_curve,
                 dates=dates,
-                trailing_stop_count=trailing_stop_count
+                trailing_stop_count=trailing_stop_count,
             )
         else:
             final_capital = capital
             total_return = final_capital - self.initial_capital
             total_return_pct = (total_return / self.initial_capital) * 100
-            
+
             win_rate = self._calculate_win_rate(trades)
             profit_factor = self._calculate_profit_factor(trades)
             max_drawdown = self._calculate_max_drawdown(equity_curve)
             sharpe_ratio = self._calculate_sharpe_ratio(equity_curve)
-            
+
             total_fees = sum(
-                (abs(trade.quantity) * trade.entry_price * (self.fee_pct + self.slippage_pct) +
-                 abs(trade.quantity) * trade.exit_price * (self.fee_pct + self.slippage_pct))
+                (
+                    abs(trade.quantity) * trade.entry_price * (self.fee_pct + self.slippage_pct)
+                    + abs(trade.quantity) * trade.exit_price * (self.fee_pct + self.slippage_pct)
+                )
                 for trade in trades
             )
-            
+
             result = BacktestResult(
                 symbol=symbol,
                 trades=trades,
@@ -827,121 +798,124 @@ class BacktestEngine:
                 equity_curve=equity_curve,
                 price_curve=[b.close for b in price_bars],
                 dates=[b.timestamp for b in price_bars],
-                trailing_stop_count=trailing_stop_count
+                trailing_stop_count=trailing_stop_count,
             )
-        
-        self.logger.info(f"Backtest completed for {symbol}: "
-                        f"return={total_return_pct:.2f}%, "
-                        f"trades={len(trades)}, "
-                        f"win_rate={win_rate:.2%}, "
-                        f"trailing_stops={trailing_stop_count}")
-        
+
+        self.logger.info(
+            f"Backtest completed for {symbol}: "
+            f"return={total_return_pct:.2f}%, "
+            f"trades={len(trades)}, "
+            f"win_rate={win_rate:.2%}, "
+            f"trailing_stops={trailing_stop_count}"
+        )
+
         return result
-    
+
     def _calculate_win_rate(self, trades: List[BacktestTrade]) -> float:
         """승률 계산"""
         if not trades:
             return 0
-        
+
         winning_trades = sum(1 for t in trades if t.pnl > 0)
         return winning_trades / len(trades)
-    
+
     def _calculate_profit_factor(self, trades: List[BacktestTrade]) -> float:
         """이익 계수 계산"""
         if not trades:
             return 0
-        
+
         gross_profit = sum(t.pnl for t in trades if t.pnl > 0)
         gross_loss = abs(sum(t.pnl for t in trades if t.pnl <= 0))
-        
+
         if gross_loss == 0:
-            return float('inf') if gross_profit > 0 else 0
-        
+            return float("inf") if gross_profit > 0 else 0
+
         return gross_profit / gross_loss
-    
+
     def _calculate_max_drawdown(self, equity_curve: List[float]) -> float:
         """최대 낙폭 계산"""
         if not equity_curve:
             return 0
-        
+
         peak = equity_curve[0]
         max_dd = 0.0
-        
+
         for value in equity_curve:
             if value > peak:
                 peak = value
-            
+
             if peak <= 0:
                 dd = 0.0
             else:
                 dd = (peak - value) / peak
             if dd > max_dd:
                 max_dd = dd
-        
+
         return max_dd
-    
+
     def _calculate_sharpe_ratio(self, equity_curve: List[float], risk_free_rate: float = 0.02) -> float:
         """Sharpe Ratio 계산"""
         if len(equity_curve) < 2:
             return 0
-        
+
         returns = []
         for i in range(1, len(equity_curve)):
-            prev = equity_curve[i-1]
+            prev = equity_curve[i - 1]
             if prev <= 0:
                 r = 0.0
             else:
                 r = (equity_curve[i] - prev) / prev
             returns.append(r)
-        
+
         if not returns:
             return 0
-        
+
         avg_return = sum(returns) / len(returns)
         variance = sum((r - avg_return) ** 2 for r in returns) / len(returns)
-        std_dev = variance ** 0.5
-        
+        std_dev = variance**0.5
+
         if std_dev == 0:
             return 0.0
-        
+
         # 연율화 (252 거래일 기준)
-        sharpe = float(((avg_return - risk_free_rate / 252) / std_dev) * (252 ** 0.5))
-        
+        sharpe = float(((avg_return - risk_free_rate / 252) / std_dev) * (252**0.5))
+
         return sharpe
-    
-    def optimize_parameters(self, symbol: str, price_bars: List[PriceBar],
-                           param_ranges: Dict, strategy_name: str = "MA") -> Dict:
+
+    def optimize_parameters(
+        self, symbol: str, price_bars: List[PriceBar], param_ranges: Dict, strategy_name: str = "MA"
+    ) -> Dict:
         """파라미터 최적화 (캐싱 포함)"""
         if price_bars is None or len(price_bars) == 0:
             raise ValueError("price_bars cannot be empty")
-            
+
         if not param_ranges or not isinstance(param_ranges, dict):
             param_ranges = {"short_window": [10, 20], "long_window": [30, 40]}
-            
+
         best_result = None
         best_params = None
-        best_return = -float('inf')
-        
+        best_return = -float("inf")
+
         self.logger.info(f"Starting parameter optimization for {strategy_name}...")
-        
+
         import json
         import os
-        
-        cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
+
+        cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
         os.makedirs(cache_dir, exist_ok=True)
-        cache_file = os.path.join(cache_dir, 'optimized_params.json')
-        
+        cache_file = os.path.join(cache_dir, "optimized_params.json")
+
         if os.path.exists(cache_file):
             try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
                     if "best_params" in cache_data and "best_return" in cache_data:
                         cached_params = cache_data["best_params"]
                         if cached_params and all(k in cached_params for k in param_ranges.keys()):
                             return {
-                                'best_params': cached_params,
-                                'best_result': None,
-                                'best_return': cache_data['best_return']
+                                "best_params": cached_params,
+                                "best_result": None,
+                                "best_return": cache_data["best_return"],
                             }
             except Exception:
                 pass
@@ -957,54 +931,54 @@ class BacktestEngine:
         }
         name_upper = strategy_name.upper()
         strategy_func_unbound = strategy_methods.get(name_upper, self._simple_ma_strategy)
-        
+
         # 간단한 그리드 서치
         for param_combo in self._generate_param_combos(param_ranges):
+
             def strategy(bars):
                 # 파라미터 기반 전략 실행
                 return strategy_func_unbound(bars, param_combo)
-            
+
             result = self.run_backtest(symbol, price_bars, strategy)
-            
+
             if result.total_return_pct > best_return:
                 best_return = result.total_return_pct
                 best_result = result
                 best_params = param_combo
-        
-        self.logger.info(f"Optimization complete: best params={best_params}, "
-                        f"best return={best_return:.2f}%")
-        
+
+        self.logger.info(f"Optimization complete: best params={best_params}, best return={best_return:.2f}%")
+
         # Save to cache
         cache_data = {
-            'best_params': best_params,
-            'best_return': best_return,
-            'sharpe_ratio': best_result.sharpe_ratio if best_result else 0.0
+            "best_params": best_params,
+            "best_return": best_return,
+            "sharpe_ratio": best_result.sharpe_ratio if best_result else 0.0,
         }
-        
-        with open(cache_file, 'w', encoding='utf-8') as f:
+
+        with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(cache_data, f, indent=4)
-        
-        return {
-            'best_params': best_params,
-            'best_result': best_result,
-            'best_return': best_return
-        }
-    
+
+        return {"best_params": best_params, "best_result": best_result, "best_return": best_return}
+
     def _generate_param_combos(self, param_ranges: Dict) -> List[Dict]:
         """파라미터 조합 생성"""
         keys = param_ranges.keys()
         values = [param_ranges[k] for k in keys]
-        
+
         combos = []
         for combo in itertools.product(*values):
             combos.append(dict(zip(keys, combo)))
-        
+
         return combos
 
     def walk_forward_optimize(
-        self, symbol: str, price_bars: List[PriceBar],
-        param_ranges: Dict, strategy_name: str = "MA",
-        train_pct: float = 0.70, n_windows: int = 4,
+        self,
+        symbol: str,
+        price_bars: List[PriceBar],
+        param_ranges: Dict,
+        strategy_name: str = "MA",
+        train_pct: float = 0.70,
+        n_windows: int = 4,
     ) -> Dict:
         """Walk-forward 최적화: train/test 분할로 과적합 방지"""
         if len(price_bars) < 200:
@@ -1031,16 +1005,18 @@ class BacktestEngine:
                 break
 
             train_bars = price_bars[:train_end]
-            test_bars = price_bars[test_start:test_end + 1]
+            test_bars = price_bars[test_start : test_end + 1]
 
             if len(train_bars) < 100 or len(test_bars) < 20:
                 continue
 
-            best_return = -float('inf')
+            best_return = -float("inf")
             best_params = None
             for param_combo in self._generate_param_combos(param_ranges):
+
                 def strategy(bars, pc=param_combo):
                     return strategy_func_unbound(bars, pc)
+
                 result = self.run_backtest(symbol, train_bars, strategy)
                 if result.total_return_pct > best_return:
                     best_return = result.total_return_pct
@@ -1051,6 +1027,7 @@ class BacktestEngine:
 
             def test_strategy(bars, pc=best_params):
                 return strategy_func_unbound(bars, pc)
+
             oos_result = self.run_backtest(symbol, test_bars, test_strategy)
             out_of_sample_returns.append(oos_result.total_return_pct)
             all_params.append(best_params)
@@ -1065,36 +1042,36 @@ class BacktestEngine:
         best_idx = int(np.argmax(out_of_sample_returns)) if out_of_sample_returns else 0
         self.logger.info(
             f"Walk-forward complete: {len(all_params)} windows, "
-            f"avg_oos_return={sum(out_of_sample_returns)/len(out_of_sample_returns):.2f}%, "
+            f"avg_oos_return={sum(out_of_sample_returns) / len(out_of_sample_returns):.2f}%, "
             f"best_oos_return={max(out_of_sample_returns):.2f}%"
         )
         return {
-            'best_params': all_params[best_idx],
-            'all_params': all_params,
-            'out_of_sample_returns': out_of_sample_returns,
-            'avg_oos_return': sum(out_of_sample_returns) / len(out_of_sample_returns) if out_of_sample_returns else 0,
-            'best_oos_return': max(out_of_sample_returns) if out_of_sample_returns else 0,
+            "best_params": all_params[best_idx],
+            "all_params": all_params,
+            "out_of_sample_returns": out_of_sample_returns,
+            "avg_oos_return": sum(out_of_sample_returns) / len(out_of_sample_returns) if out_of_sample_returns else 0,
+            "best_oos_return": max(out_of_sample_returns) if out_of_sample_returns else 0,
         }
 
     # ──────────────────────────────────────────────────────
     # 전략 함수들
     # ──────────────────────────────────────────────────────
-    
+
     def _simple_ma_strategy(self, bars: List[PriceBar], params: Dict) -> str:
         """간단한 이동평균 전략"""
-        short_window = params.get('short_window', 20)
-        long_window = params.get('long_window', 50)
-        
+        short_window = params.get("short_window", 20)
+        long_window = params.get("long_window", 50)
+
         if len(bars) < long_window:
             return "HOLD"
-            
+
         L = len(bars)
         short_ma = self._get_sma(short_window)
         long_ma = self._get_sma(long_window)
-        
-        if short_ma[L-1] > long_ma[L-1]:
+
+        if short_ma[L - 1] > long_ma[L - 1]:
             return "BUY"
-        elif short_ma[L-1] < long_ma[L-1]:
+        elif short_ma[L - 1] < long_ma[L - 1]:
             return "SELL"
         else:
             return "HOLD"
@@ -1103,94 +1080,94 @@ class BacktestEngine:
         """RSI 과매도/과매수 전략"""
         if params is None:
             params = {}
-        window = params.get('window', params.get('rsi_period', 14))
-        buy_threshold = params.get('buy_threshold', params.get('rsi_oversold', 30))
-        sell_threshold = params.get('sell_threshold', params.get('rsi_overbought', 70))
-        
+        window = params.get("window", params.get("rsi_period", 14))
+        buy_threshold = params.get("buy_threshold", params.get("rsi_oversold", 30))
+        sell_threshold = params.get("sell_threshold", params.get("rsi_overbought", 70))
+
         if len(bars) <= window:
             return "HOLD"
-            
+
         L = len(bars)
         rsi_list = self._get_rsi(window)
-        rsi = rsi_list[L-1]
-            
+        rsi = rsi_list[L - 1]
+
         if rsi < buy_threshold:
             return "BUY"
         elif rsi > sell_threshold:
             return "SELL"
         else:
             return "HOLD"
-            
+
     def _macd_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """MACD 전략 (진짜 EMA 기반: EMA12/EMA26/Signal9)"""
         if params is None:
             params = {}
-        fast = params.get('fast', 12)
-        slow = params.get('slow', 26)
-        signal_period = params.get('signal', 9)
-        
+        fast = params.get("fast", 12)
+        slow = params.get("slow", 26)
+        signal_period = params.get("signal", 9)
+
         if len(bars) <= slow + signal_period:
             return "HOLD"
-            
+
         L = len(bars)
         hist = self._get_macd_hist(fast, slow, signal_period)
-        
-        curr_hist = hist[L-1]
-        prev_hist = hist[L-2]
-        
+
+        curr_hist = hist[L - 1]
+        prev_hist = hist[L - 2]
+
         if prev_hist < 0 and curr_hist > 0:
             return "BUY"
         elif prev_hist > 0 and curr_hist < 0:
             return "SELL"
         else:
             return "HOLD"
-            
+
     def _buffett_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         if len(bars) < 200:
             return "HOLD"
         L = len(bars)
         closes = self._get_closes()
-        current_price = closes[L-1]
+        current_price = closes[L - 1]
         ma200 = self._get_sma(200)
         rsi = self._get_rsi(14)
-        
-        if current_price < ma200[L-1] * 0.9 and rsi[L-1] < 30:
+
+        if current_price < ma200[L - 1] * 0.9 and rsi[L - 1] < 30:
             return "BUY"
-        elif current_price > ma200[L-1] or rsi[L-1] > 70:
+        elif current_price > ma200[L - 1] or rsi[L - 1] > 70:
             return "SELL"
         return "HOLD"
-        
+
     def _lynch_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         if len(bars) < 50:
             return "HOLD"
         L = len(bars)
         closes = self._get_closes()
-        current_price = closes[L-1]
-        
+        current_price = closes[L - 1]
+
         highest_50 = self._get_rolling_max(50)
         avg_vol = self._get_rolling_mean_volume(49)
         vols = self._get_volumes()
-        current_vol = vols[L-1]
-        
-        if current_price > highest_50[L-2] and current_vol > avg_vol[L-2] * 1.5:
+        current_vol = vols[L - 1]
+
+        if current_price > highest_50[L - 2] and current_vol > avg_vol[L - 2] * 1.5:
             return "BUY"
-        elif current_price < self._get_sma(20)[L-1]:
+        elif current_price < self._get_sma(20)[L - 1]:
             return "SELL"
         return "HOLD"
-        
+
     def _dalio_proxy_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         if len(bars) < 200:
             return "HOLD"
         L = len(bars)
         closes = self._get_closes()
-        current_price = closes[L-1]
+        current_price = closes[L - 1]
         ma200 = self._get_sma(200)
-        
-        vol_ratio = self._get_rolling_volatility(20)[L-1] / self._get_sma(20)[L-1]
-        
-        if current_price > ma200[L-1] and vol_ratio < 0.02:
+
+        vol_ratio = self._get_rolling_volatility(20)[L - 1] / self._get_sma(20)[L - 1]
+
+        if current_price > ma200[L - 1] and vol_ratio < 0.02:
             return "BUY"
-        elif current_price < ma200[L-1]:
+        elif current_price < ma200[L - 1]:
             return "SELL"
         return "HOLD"
 
@@ -1199,117 +1176,115 @@ class BacktestEngine:
             return "HOLD"
         L = len(bars)
         closes = self._get_closes()
-        current_price = closes[L-1]
+        current_price = closes[L - 1]
         ma200 = self._get_sma(200)
         ma50 = self._get_sma(50)
         ma20 = self._get_sma(20)
-        
-        if current_price > ma200[L-1] and ma20[L-1] > ma50[L-1]:
+
+        if current_price > ma200[L - 1] and ma20[L - 1] > ma50[L - 1]:
             return "BUY"
-        elif current_price < ma200[L-1] or ma20[L-1] < ma50[L-1]:
+        elif current_price < ma200[L - 1] or ma20[L - 1] < ma50[L - 1]:
             return "SELL"
         return "HOLD"
-    
+
     # ──────────────────────────────────────────────────────
     # 신규 전략들
     # ──────────────────────────────────────────────────────
-    
+
     def _momentum_breakout_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """모멘텀 돌파 복합 전략 (EMA 정배열 + 거래량 급증 + RSI 적정)"""
         if len(bars) < 50:
             return "HOLD"
-            
+
         ema20 = self._get_ema(self._get_closes(), 20)
         ema50 = self._get_ema(self._get_closes(), 50)
         rsi = self._get_rsi(14)
         vol_mean = self._get_rolling_mean_volume(20)
-        
+
         idx = len(bars) - 1
-        
+
         # 기본 롱(Buy) 조건: 단기 > 장기 (정배열), RSI 40~70 (과열 전 상승장), 거래량 1.5배 돌파
-        if (ema20[idx] > ema50[idx] and 
-            40 <= rsi[idx] <= 70 and 
-            bars[idx].volume > vol_mean[idx] * 1.5):
+        if ema20[idx] > ema50[idx] and 40 <= rsi[idx] <= 70 and bars[idx].volume > vol_mean[idx] * 1.5:
             return "BUY"
-            
+
         # 매도(Sell) 조건: 데드크로스 혹은 RSI 과열(75 이상)
         if ema20[idx] < ema50[idx] or rsi[idx] >= 75:
             return "SELL"
-            
+
         return "HOLD"
 
     def _bollinger_band_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """볼린저밴드 + RSI 복합 전략 (Mean Reversion)
-        
+
         하단 밴드 터치 + RSI 과매도 → BUY
         상단 밴드 터치 + RSI 과매수 → SELL
         횡보장/박스권에서 높은 수익률을 기대할 수 있음
         """
         if params is None:
             params = {}
-        bb_period = params.get('bb_period', 20)
-        bb_std_mult = params.get('bb_std_mult', 2.0)
-        rsi_window = params.get('rsi_window', 14)
-        
+        bb_period = params.get("bb_period", 20)
+        bb_std_mult = params.get("bb_std_mult", 2.0)
+        rsi_window = params.get("rsi_window", 14)
+
         if len(bars) < max(bb_period, rsi_window) + 1:
             return "HOLD"
-        
+
         L = len(bars)
         closes = self._get_closes()
-        current_price = closes[L-1]
-        
+        current_price = closes[L - 1]
+
         upper_band, lower_band = self._get_bollinger_bands(bb_period, bb_std_mult)
         rsi = self._get_rsi(rsi_window)
-        
-        if current_price <= lower_band[L-1] and rsi[L-1] < 35:
+
+        if current_price <= lower_band[L - 1] and rsi[L - 1] < 35:
             return "BUY"
-        elif current_price >= upper_band[L-1] and rsi[L-1] > 65:
+        elif current_price >= upper_band[L - 1] and rsi[L - 1] > 65:
             return "SELL"
         else:
             return "HOLD"
-    
+
     def _ensemble_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """복합(앙상블) 전략: MA + RSI + MACD 3개 지표 투표
-        
+
         2개 이상 BUY → BUY
         2개 이상 SELL → SELL
         그 외 → HOLD
-        
+
         단일 지표 의존을 탈피하여 거짓 신호(whipsaw)를 필터링함
         """
         # 각 전략의 개별 신호 수집
-        ma_signal = self._simple_ma_strategy(bars, {'short_window': 20, 'long_window': 50})
-        rsi_signal = self._rsi_strategy(bars, {'window': 14, 'buy_threshold': 35, 'sell_threshold': 65})
+        ma_signal = self._simple_ma_strategy(bars, {"short_window": 20, "long_window": 50})
+        rsi_signal = self._rsi_strategy(bars, {"window": 14, "buy_threshold": 35, "sell_threshold": 65})
         macd_signal = self._macd_strategy(bars, {})
-        
+
         votes = [ma_signal, rsi_signal, macd_signal]
-        
+
         buy_votes = sum(1 for v in votes if v == "BUY")
         sell_votes = sum(1 for v in votes if v == "SELL")
-        
+
         if buy_votes >= 2:
             return "BUY"
         elif sell_votes >= 2:
             return "SELL"
         else:
             return "HOLD"
-            
+
     def _ml_ensemble_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
         """머신러닝 예측 앙상블 전략"""
         # 현재 심볼이 변경되었거나 아직 학습이 안된 경우 학습 수행
         if not self.ml_trained_symbol and self._current_price_bars:
             self.ml_engine.train(self._current_price_bars)
             self.ml_trained_symbol = "TRAINED"
-            
+
         prob = self.ml_engine.predict_prob(bars)
-        
+
         # 기존 전략(RSI) 보조
         idx = len(bars) - 1
         rsi = self._get_rsi(14)
         if len(rsi) <= idx:
             return "HOLD"
         rsi_val = rsi[idx]
-        
+
         if prob > 0.60 and rsi_val < 70:
             return "BUY"
         elif prob < 0.45 or rsi_val > 70:
@@ -1319,108 +1294,136 @@ class BacktestEngine:
     # ──────────────────────────────────────────────────────
     # 페어 트레이딩 (Pairs Trading) 엔진
     # ──────────────────────────────────────────────────────
-    def run_pairs_backtest(self, symbol_a: str, bars_a: List[PriceBar], symbol_b: str, bars_b: List[PriceBar], z_score_threshold: float = 2.0) -> BacktestResult:
+    def run_pairs_backtest(
+        self,
+        symbol_a: str,
+        bars_a: List[PriceBar],
+        symbol_b: str,
+        bars_b: List[PriceBar],
+        z_score_threshold: float = 2.0,
+    ) -> BacktestResult:
         """페어 트레이딩(통계적 차익거래) 백테스트 로직"""
         # 공통 타임스탬프로 병합
-        df_a = pd.DataFrame([{'date': b.timestamp, 'close_a': b.close} for b in bars_a]).set_index('date')
-        df_b = pd.DataFrame([{'date': b.timestamp, 'close_b': b.close} for b in bars_b]).set_index('date')
-        df = df_a.join(df_b, how='inner').dropna()
-        
+        df_a = pd.DataFrame([{"date": b.timestamp, "close_a": b.close} for b in bars_a]).set_index("date")
+        df_b = pd.DataFrame([{"date": b.timestamp, "close_b": b.close} for b in bars_b]).set_index("date")
+        df = df_a.join(df_b, how="inner").dropna()
+
         if len(df) < 50:
             return BacktestResult(
                 symbol=f"{symbol_a}/{symbol_b}",
-                trades=[], total_return=0, total_return_pct=0,
-                win_rate=0, profit_factor=0, max_drawdown=0,
-                sharpe_ratio=0, total_fees=0,
-                start_date=datetime.now(), end_date=datetime.now(),
-                initial_capital=self.initial_capital, final_capital=self.initial_capital
+                trades=[],
+                total_return=0,
+                total_return_pct=0,
+                win_rate=0,
+                profit_factor=0,
+                max_drawdown=0,
+                sharpe_ratio=0,
+                total_fees=0,
+                start_date=datetime.now(),
+                end_date=datetime.now(),
+                initial_capital=self.initial_capital,
+                final_capital=self.initial_capital,
             )
-            
-        df['ratio'] = df['close_a'] / df['close_b']
-        df['ratio_sma'] = df['ratio'].rolling(20).mean()
-        df['ratio_std'] = df['ratio'].rolling(20).std()
-        df['z_score'] = (df['ratio'] - df['ratio_sma']) / df['ratio_std']
-        
+
+        df["ratio"] = df["close_a"] / df["close_b"]
+        df["ratio_sma"] = df["ratio"].rolling(20).mean()
+        df["ratio_std"] = df["ratio"].rolling(20).std()
+        df["z_score"] = (df["ratio"] - df["ratio_sma"]) / df["ratio_std"]
+
         capital = self.initial_capital
         position = 0
         trades: List[BacktestTrade] = []
         entry_date: Optional[datetime] = None
         entry_price_a = 0.0
         entry_price_b = 0.0
-        
+
         for i in range(len(df)):
-            if np.isnan(df['z_score'].iloc[i]):
+            if np.isnan(df["z_score"].iloc[i]):
                 continue
-                
+
             date = df.index[i]
             # Convert timestamp to python datetime object if it's pandas timestamp
-            if hasattr(date, 'to_pydatetime'):
+            if hasattr(date, "to_pydatetime"):
                 date = date.to_pydatetime()
-            price_a = float(df['close_a'].iloc[i])
-            price_b = float(df['close_b'].iloc[i])
-            z = float(df['z_score'].iloc[i])
-            
+            price_a = float(df["close_a"].iloc[i])
+            price_b = float(df["close_b"].iloc[i])
+            z = float(df["z_score"].iloc[i])
+
             if position == 0:
                 if z > z_score_threshold:
-                    position = -1 # A고평가: Short A, Long B
+                    position = -1  # A고평가: Short A, Long B
                     entry_date = date
                     entry_price_a = price_a
                     entry_price_b = price_b
                 elif z < -z_score_threshold:
-                    position = 1 # A저평가: Long A, Short B
+                    position = 1  # A저평가: Long A, Short B
                     entry_date = date
                     entry_price_a = price_a
                     entry_price_b = price_b
-                    
+
             elif position == -1 and z <= 0:
                 pnl_a = (entry_price_a - price_a) / entry_price_a
                 pnl_b = (price_b - entry_price_b) / entry_price_b
                 total_pnl_pct = (pnl_a + pnl_b) / 2
                 trade_pnl = capital * total_pnl_pct
-                
+
                 if entry_date is None:
                     entry_date = df.index[0]
-                    if hasattr(entry_date, 'to_pydatetime'):
+                    if hasattr(entry_date, "to_pydatetime"):
                         entry_date = entry_date.to_pydatetime()
-                trades.append(BacktestTrade(
-                    entry_date=entry_date, entry_price=entry_price_a,
-                    exit_date=date, exit_price=price_a,
-                    quantity=int(capital/entry_price_a), pnl=trade_pnl, pnl_pct=total_pnl_pct,
-                    direction="SHORT_A_LONG_B", exit_reason="MEAN_REVERSION"
-                ))
+                trades.append(
+                    BacktestTrade(
+                        entry_date=entry_date,
+                        entry_price=entry_price_a,
+                        exit_date=date,
+                        exit_price=price_a,
+                        quantity=int(capital / entry_price_a),
+                        pnl=trade_pnl,
+                        pnl_pct=total_pnl_pct,
+                        direction="SHORT_A_LONG_B",
+                        exit_reason="MEAN_REVERSION",
+                    )
+                )
                 capital += trade_pnl
                 position = 0
-                
+
             elif position == 1 and z >= 0:
                 pnl_a = (price_a - entry_price_a) / entry_price_a
                 pnl_b = (entry_price_b - price_b) / entry_price_b
                 total_pnl_pct = (pnl_a + pnl_b) / 2
                 trade_pnl = capital * total_pnl_pct
-                
+
                 if entry_date is None:
                     entry_date = df.index[0]
-                    if hasattr(entry_date, 'to_pydatetime'):
+                    if hasattr(entry_date, "to_pydatetime"):
                         entry_date = entry_date.to_pydatetime()
-                trades.append(BacktestTrade(
-                    entry_date=entry_date, entry_price=entry_price_a,
-                    exit_date=date, exit_price=price_a,
-                    quantity=int(capital/entry_price_a), pnl=trade_pnl, pnl_pct=total_pnl_pct,
-                    direction="LONG_A_SHORT_B", exit_reason="MEAN_REVERSION"
-                ))
+                trades.append(
+                    BacktestTrade(
+                        entry_date=entry_date,
+                        entry_price=entry_price_a,
+                        exit_date=date,
+                        exit_price=price_a,
+                        quantity=int(capital / entry_price_a),
+                        pnl=trade_pnl,
+                        pnl_pct=total_pnl_pct,
+                        direction="LONG_A_SHORT_B",
+                        exit_reason="MEAN_REVERSION",
+                    )
+                )
                 capital += trade_pnl
                 position = 0
-                
+
         # Calculate final metrics
         total_return = capital - self.initial_capital
         total_return_pct = total_return / self.initial_capital
         winning_trades = [t for t in trades if t.pnl > 0]
         win_rate = len(winning_trades) / len(trades) if trades else 0.0
-        
+
         # Simple profit factor and max DD for pair
         gross_profit = sum(t.pnl for t in winning_trades)
         gross_loss = sum(abs(t.pnl) for t in trades if t.pnl < 0)
         profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
-        
+
         return BacktestResult(
             symbol=f"{symbol_a}/{symbol_b}",
             trades=trades,
@@ -1428,23 +1431,23 @@ class BacktestEngine:
             total_return_pct=total_return_pct,
             win_rate=win_rate,
             profit_factor=profit_factor,
-            max_drawdown=0.0, # simplified
+            max_drawdown=0.0,  # simplified
             sharpe_ratio=0.0,
             total_fees=0.0,
-            start_date=df.index[0].to_pydatetime() if hasattr(df.index[0], 'to_pydatetime') else df.index[0],
-            end_date=df.index[-1].to_pydatetime() if hasattr(df.index[-1], 'to_pydatetime') else df.index[-1],
+            start_date=df.index[0].to_pydatetime() if hasattr(df.index[0], "to_pydatetime") else df.index[0],
+            end_date=df.index[-1].to_pydatetime() if hasattr(df.index[-1], "to_pydatetime") else df.index[-1],
             initial_capital=self.initial_capital,
-            final_capital=capital
+            final_capital=capital,
         )
 
     # ──────────────────────────────────────────────────────
     # 전략 레지스트리
     # ──────────────────────────────────────────────────────
-            
+
     def get_strategy_func(self, strategy_name: str) -> Callable:
         """이름으로 전략 함수 래퍼 반환"""
         name = strategy_name.upper()
-        
+
         if name == "MA" or name == "이동평균선":
             return lambda bars: self._simple_ma_strategy(bars, {})
         elif name == "RSI":
@@ -1471,8 +1474,7 @@ class BacktestEngine:
             self.logger.warning(f"Unknown strategy: {name}. Falling back to MA.")
             return lambda bars: self._simple_ma_strategy(bars, {})
 
-    def monte_carlo_robustness(self, trades: List[BacktestTrade],
-                                n_simulations: int = 1000) -> Dict:
+    def monte_carlo_robustness(self, trades: List[BacktestTrade], n_simulations: int = 1000) -> Dict:
         """Monte Carlo 시뮬레이션으로 전략 로버스트니스 검증 (영역 7-3)"""
         if not trades:
             return {"error": "No trades provided"}
@@ -1497,20 +1499,22 @@ class BacktestEngine:
             "probability_of_loss": float(np.mean(endpoints < initial_capital)),
         }
 
-    def grid_search(self, bars: List[Any],
-                     param_grid: Dict[str, List[float]],
-                     strategy_func: Callable,
-                     metric: str = "sharpe_ratio") -> Dict:
+    def grid_search(
+        self, bars: List[Any], param_grid: Dict[str, List[float]], strategy_func: Callable, metric: str = "sharpe_ratio"
+    ) -> Dict:
         """파라미터 그리드 서치로 최적 조합 탐색 (영역 7-2)"""
         from itertools import product
+
         keys = list(param_grid.keys())
         values = list(param_grid.values())
-        best_score = -float('inf')
+        best_score = -float("inf")
         best_params = None
         for combo in product(*values):
             params = dict(zip(keys, combo))
             try:
-                result = self.run_backtest(bars, strategy_func, params)
+                def _wrap(pb):
+                    return strategy_func(pb, params)
+                result = self.run_backtest("PARAM_OPT", bars, _wrap)
                 score = getattr(result, metric, 0.0) or 0.0
                 if score > best_score:
                     best_score = score
@@ -1518,3 +1522,90 @@ class BacktestEngine:
             except Exception:
                 continue
         return {"best_params": best_params, "best_score": best_score, "metric": metric}
+
+    # ── Phase 1: Recency-Weighted Metrics ──────────────────────────────────
+
+    @staticmethod
+    def _recency_weights(timestamps: List[datetime], decay_rate: float = 0.02) -> List[float]:
+        """지수감쇠 가중치: 최근일수록 높은 가중치"""
+        if not timestamps:
+            return []
+        latest = max(timestamps)
+        weights = [math.exp(-decay_rate * max((latest - t).days, 0)) for t in timestamps]
+        total_w = sum(weights)
+        if total_w <= 0:
+            return [1.0 / len(timestamps)] * len(timestamps)
+        return [w / total_w for w in weights]
+
+    def _recency_weighted_sharpe(
+        self, returns: List[float], weights: List[float], risk_free_rate: float = 0.0
+    ) -> float:
+        """지수가중 샤프 비율"""
+        if len(returns) < 2:
+            return 0.0
+        total_w = sum(weights)
+        if total_w <= 0:
+            return 0.0
+        mean_r = sum(r * w for r, w in zip(returns, weights)) / total_w
+        variance = sum(w * (r - mean_r) ** 2 for r, w in zip(returns, weights)) / total_w
+        if variance <= 0:
+            return 0.0
+        return float(((mean_r - risk_free_rate / 252) / (variance**0.5)) * (252**0.5))
+
+    def _recency_weighted_mdd(self, equity_curve: List[float], weights: List[float]) -> float:
+        """지수가중 최대 낙폭"""
+        if len(equity_curve) < 2:
+            return 0.0
+        peak = equity_curve[0]
+        max_dd = 0.0
+        for i, eq in enumerate(equity_curve):
+            if eq > peak:
+                peak = eq
+            dd = (peak - eq) / peak if peak > 0 else 0.0
+            max_dd = max(max_dd, dd * weights[i] if i < len(weights) else dd)
+        return max_dd
+
+    def _recency_weighted_win_rate(self, returns: List[float], weights: List[float]) -> float:
+        """지수가중 승률"""
+        if not returns:
+            return 0.0
+        total_w = sum(weights)
+        if total_w <= 0:
+            return 0.0
+        win_w = sum(w for r, w in zip(returns, weights) if r > 0)
+        return win_w / total_w
+
+    def _recency_weighted_profit_factor(self, returns: List[float], weights: List[float]) -> float:
+        """지수가중 이익 요인"""
+        if not returns:
+            return 0.0
+        gross_profit = sum(w * r for r, w in zip(returns, weights) if r > 0)
+        gross_loss = abs(sum(w * r for r, w in zip(returns, weights) if r < 0))
+        if gross_loss <= 0:
+            return 3.0 if gross_profit > 0 else 0.0
+        return gross_profit / gross_loss
+
+    def recency_weighted_score(self, result: BacktestResult, decay_rate: float = 0.02) -> float:
+        """Recency-Weighted 종합 점수 (Multi-Objective)
+
+        Score = Sharpe_norm × 0.40 + (1 - MDD_norm) × 0.30 + WinRate × 0.15 + ProfitFactor_norm × 0.15
+        """
+        if not result.trades:
+            return 0.0
+
+        timestamps = [t.exit_date for t in result.trades]
+        weights = self._recency_weights(timestamps, decay_rate)
+
+        returns = [t.pnl_pct for t in result.trades]
+
+        sharpe = self._recency_weighted_sharpe(returns, weights)
+        mdd = result.max_drawdown
+        win_rate = self._recency_weighted_win_rate(returns, weights)
+        pf = self._recency_weighted_profit_factor(returns, weights)
+
+        sharpe_norm = max(0.0, min(1.0, sharpe / 3.0))
+        mdd_norm = max(0.0, min(1.0, mdd / 0.5))
+        pf_norm = max(0.0, min(1.0, pf / 5.0))
+
+        score = sharpe_norm * 0.40 + (1.0 - mdd_norm) * 0.30 + win_rate * 0.15 + pf_norm * 0.15
+        return score

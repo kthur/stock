@@ -1,10 +1,11 @@
 import logging
 import os
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-env_path = Path(__file__).parent.parent.parent / '.env'
+env_path = Path(__file__).parent.parent.parent / ".env"
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 else:
@@ -18,11 +19,17 @@ class TradingConfig:
     initial_cash: float = 1000000.0
     max_retries: int = 3
     debug_mode: bool = os.getenv("DEBUG_MODE", "False").lower() == "true"
+    mock_trading: bool = True  # 모의투자 API 연동 활성화 여부
 
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     telegram_authorized_user_ids: str = os.getenv("TELEGRAM_AUTHORIZED_USER_IDS", "")
+
+    # KIS 모의투자 키 설정
+    kis_mock_app_key: str = os.getenv("KIS_MOCK_APP_KEY", "")
+    kis_mock_app_secret: str = os.getenv("KIS_MOCK_APP_SECRET", "")
+    kis_mock_account: str = os.getenv("KIS_MOCK_ACCOUNT", "")
 
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
@@ -48,3 +55,7 @@ class TradingConfig:
             raise ValueError(f"max_retries must be non-negative: {self.max_retries}")
         if self.telegram_bot_token and not self.telegram_authorized_user_ids:
             logger.warning("TELEGRAM_BOT_TOKEN set but TELEGRAM_AUTHORIZED_USER_IDS empty")
+        if self.openai_api_key:
+            logger.info("OpenAI API key configured")
+        if not self.openai_api_key and not os.getenv("GOOGLE_API_KEY", ""):
+            logger.warning("No LLM API key configured (OpenAI/Gemini) — AI features disabled")

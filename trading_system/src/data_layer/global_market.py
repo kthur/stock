@@ -2,8 +2,8 @@
 
 import logging
 import time
-from typing import Dict, Any, List
 from datetime import datetime
+from typing import Any, Dict, List
 
 import yfinance as yf
 
@@ -14,17 +14,17 @@ logger = logging.getLogger(__name__)
 GLOBAL_INDICES: Dict[str, str] = {
     "^GSPC": "S&P 500",
     "^IXIC": "NASDAQ",
-    "^DJI":  "Dow Jones",
+    "^DJI": "Dow Jones",
     "^KS11": "KOSPI",
     "^N225": "Nikkei 225",
-    "^HSI":  "Hang Seng",
+    "^HSI": "Hang Seng",
     "^FTSE": "FTSE 100",
     "000001.SS": "Shanghai Composite",
     "^BSESN": "BSE Sensex",
     "^AXJO": "ASX 200",
     "^GDAXI": "DAX",
     "^FCHI": "CAC 40",
-    "^VIX":  "CBOE Volatility",
+    "^VIX": "CBOE Volatility",
 }
 
 FX_PAIRS: Dict[str, str] = {
@@ -151,24 +151,24 @@ class GlobalMarketClient:
         self._cache_ts = now
         return summary
 
-    def get_index_historical(
-        self, symbol: str, period: str = "6mo"
-    ) -> List[Dict[str, float]]:
+    def get_index_historical(self, symbol: str, period: str = "6mo") -> List[Dict[str, float]]:
         """Return OHLCV history for an index."""
         hist = self._get_cached_or_fetch(symbol, period=period)
         if hist is None or hist.empty:
             return []
         records: List[Dict[str, Any]] = []
         for idx, row in hist.iterrows():
-            records.append({
-                "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
-                "open": float(row.get("Open", 0)),
-                "high": float(row.get("High", 0)),
-                "low": float(row.get("Low", 0)),
-                "close": float(row.get("Close", 0)),
-                "volume": int(row.get("Volume", 0)),
-            })
+            records.append(
+                {
+                    "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                    "open": float(row.get("Open", 0)),
+                    "high": float(row.get("High", 0)),
+                    "low": float(row.get("Low", 0)),
+                    "close": float(row.get("Close", 0)),
+                    "volume": int(row.get("Volume", 0)),
+                }
+            )
         return records
 
 
-__all__ = ["GlobalMarketClient", "GLOBAL_INDICES", "FX_PAIRS", "MACRO_COMMODITIES"]
+__all__ = ["FX_PAIRS", "GLOBAL_INDICES", "MACRO_COMMODITIES", "GlobalMarketClient"]

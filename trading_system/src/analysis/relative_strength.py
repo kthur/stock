@@ -1,8 +1,8 @@
 """Relative-strength / market-relative analysis for stock screening"""
 
 import logging
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 
@@ -29,16 +29,16 @@ REGION_BENCHMARKS: Dict[str, str] = {
 
 # Map common ticker suffixes to regions
 _SUFFIX_MAP: Dict[str, str] = {
-    ".KS":  "KR",
-    ".KQ":  "KR",
-    ".T":   "JP",
-    ".HK":  "HK",
-    ".SS":  "CN",
-    ".L":   "GB",
-    ".DE":  "DE",
-    ".PA":  "FR",
-    ".NS":  "IN",
-    ".AX":  "AU",
+    ".KS": "KR",
+    ".KQ": "KR",
+    ".T": "JP",
+    ".HK": "HK",
+    ".SS": "CN",
+    ".L": "GB",
+    ".DE": "DE",
+    ".PA": "FR",
+    ".NS": "IN",
+    ".AX": "AU",
 }
 
 
@@ -209,9 +209,7 @@ class RelativeStrengthAnalyzer:
         if len(stock_closes) < 5 or len(bench_closes) < 5:
             return {"symbol": symbol, "error": "Insufficient data points"}
 
-        metrics = self.compute_metrics_from_histories(
-            symbol, stock_closes, bench_closes, risk_free_rate
-        )
+        metrics = self.compute_metrics_from_histories(symbol, stock_closes, bench_closes, risk_free_rate)
 
         # Additional relative-strength indicators
         stock_return = (stock_closes[-1] - stock_closes[0]) / stock_closes[0]
@@ -233,17 +231,19 @@ class RelativeStrengthAnalyzer:
 
         composite = round(alpha_score * 0.5 + rs_score * 0.3 + vol_score * 0.2, 4)
 
-        metrics.update({
-            "benchmark": benchmark,
-            "stock_return_pct": round(stock_return * 100, 2),
-            "bench_return_pct": round(bench_return * 100, 2),
-            "relative_strength_pct": round(relative_strength * 100, 2),
-            "stock_volatility": round(stock_vol, 6),
-            "bench_volatility": round(bench_vol, 6),
-            "vol_ratio": round(vol_ratio, 4),
-            "composite_score": composite,
-            "period": period,
-        })
+        metrics.update(
+            {
+                "benchmark": benchmark,
+                "stock_return_pct": round(stock_return * 100, 2),
+                "bench_return_pct": round(bench_return * 100, 2),
+                "relative_strength_pct": round(relative_strength * 100, 2),
+                "stock_volatility": round(stock_vol, 6),
+                "bench_volatility": round(bench_vol, 6),
+                "vol_ratio": round(vol_ratio, 4),
+                "composite_score": composite,
+                "period": period,
+            }
+        )
         self._score_cache[symbol] = metrics
         self._cache_ts[symbol] = datetime.now().timestamp()
         return metrics
@@ -287,9 +287,7 @@ class RelativeStrengthAnalyzer:
             r["rank"] = rank
         return results[:top_n]
 
-    def get_market_overview(
-        self, symbols: List[str], period: str = "6mo"
-    ) -> Dict[str, Any]:
+    def get_market_overview(self, symbols: List[str], period: str = "6mo") -> Dict[str, Any]:
         """Return a combined view: global snapshot + top stock ranks."""
         gm_summary = self.gm.get_summary()
         rankings = self.rank_symbols(symbols, period=period)
@@ -302,8 +300,8 @@ class RelativeStrengthAnalyzer:
 
 
 __all__ = [
-    "RelativeStrengthAnalyzer",
     "REGION_BENCHMARKS",
-    "_guess_region",
+    "RelativeStrengthAnalyzer",
     "_benchmark_for_symbol",
+    "_guess_region",
 ]

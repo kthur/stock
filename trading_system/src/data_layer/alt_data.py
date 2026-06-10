@@ -1,8 +1,9 @@
-import yfinance as yf
 import logging
-import numpy as np
-from typing import Dict, Any
 from datetime import datetime
+from typing import Any, Dict
+
+import numpy as np
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class AlternativeDataClient:
             vix = yf.Ticker("^VIX")
             hist = vix.history(period="1d")
             if not hist.empty:
-                return float(hist['Close'].iloc[-1])
+                return float(hist["Close"].iloc[-1])
             return 20.0
         except Exception as e:
             logger.error(f"VIX fetch failed: {e}")
@@ -44,7 +45,7 @@ class AlternativeDataClient:
             hist = spx.history(period="6mo")
             if hist.empty or len(hist) < 50:
                 return {"trend": "NEUTRAL", "strength": 0.0}
-            closes = hist['Close'].values
+            closes = hist["Close"].values
             sma50 = np.mean(closes[-50:])
             sma200 = np.mean(closes[-200:]) if len(closes) >= 200 else sma50
             current = closes[-1]

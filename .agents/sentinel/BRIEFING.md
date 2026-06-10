@@ -1,28 +1,22 @@
-# BRIEFING — 2026-06-07T20:47:19Z
+# BRIEFING — 2026-06-10T16:14:28+09:00
 
 ## Mission
-Start/monitor the orchestrator for global macro cross-correlation and ML stock screening with Dash visualization.
+Enhance the trading system ML engine with a Random Forest and XGBoost ensemble model.
 
 ## 🔒 My Identity
 - Archetype: sentinel
-- Working directory: d:\Finance\code\stock\sentinel
-- Orchestrator: 3914d2cb-e954-4b3d-9049-7f8278bd7a9c
-- Victory Auditor: 894179df-8e59-4eb3-920f-18728682fca3
+- Working directory: d:\Finance\code\stock\.agents\sentinel
+- Orchestrator: e4219ae1-1fd9-4732-9494-ca190299ea5d
+- Victory Auditor: 0766104b-2824-43ba-b999-50fb6513e185
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Run progress report cron (cancelled)
-- Run liveness check cron (cancelled)
 
 ## User Context
-- **Last user request**: Global macro correlation & ML outperformer screening dashboard.
+- **Last user request**: Implement Random Forest + XGBoost ensemble in ml_engine.py with soft voting, pass existing and new pytest cases.
 - **Pending clarifications**: none
-- **Delivered results**:
-  - Global Macro Correlation Engine calculating lead-lag relationships (R1).
-  - ML Outperformer prediction model based on macro features dynamically caching evaluations to data/macro_model_metrics.json (R2).
-  - Global Outperformer stock screener yielding top 10 KOSPI 200 & top 10 S&P 500 tickers (R3).
-  - Dash Dashboard incorporating Global Macro tab with interactive heatmap and outperformer tables (R4).
+- **Delivered results**: none
 
 ## Project Status
 - **Phase**: complete
@@ -30,7 +24,7 @@ Start/monitor the orchestrator for global macro cross-correlation and ML stock s
 ## Victory Audit Status
 - **Triggered**: yes
 - **Verdict**: VICTORY CONFIRMED
-- **Retry count**: 0
+- **Retry count**: 2
 
 ## Artifact Index
 - d:\Finance\code\stock\ORIGINAL_REQUEST.md — Authoritative record of user requests

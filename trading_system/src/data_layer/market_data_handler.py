@@ -1,27 +1,31 @@
 """Market Data Handler - 실시간 시세 수신 및 처리"""
 
+import logging
+import os
+import random
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import List, Callable, Any
-import logging
-import time
-import yfinance as yf
-import random
+from typing import Any, Callable, List
+
 import pandas as pd
-import os
+import yfinance as yf
 from tenacity import retry, stop_after_attempt, wait_exponential
+
 from src.analysis.backtest import PriceBar
 
 logger = logging.getLogger(__name__)
 
+
 class RateLimiter:
     """토큰 버킷 알고리즘 기반 API 호출 제한기"""
+
     def __init__(self, rate_limit: int, time_window: float = 1.0):
         self.rate_limit = rate_limit
         self.time_window = time_window
         self.tokens = rate_limit
         self.last_updated = time.time()
-        
+
     def acquire(self):
         now = time.time()
         elapsed = now - self.last_updated
@@ -29,35 +33,37 @@ class RateLimiter:
         if self.tokens > self.rate_limit:
             self.tokens = self.rate_limit
         self.last_updated = now
-        
+
         if self.tokens >= 1:
             self.tokens -= 1
             return True
         return False
-        
+
     def wait(self):
         while not self.acquire():
             time.sleep(0.1)
 
+
 class CircuitBreaker:
     """연속 실패 시 외부 호출을 차단하는 서킷 브레이커"""
+
     def __init__(self, max_failures: int = 5, reset_timeout: float = 60.0):
         self.max_failures = max_failures
         self.reset_timeout = reset_timeout
         self.failures = 0
         self.last_failure_time = 0
         self.is_open = False
-        
+
     def record_failure(self):
         self.failures += 1
         self.last_failure_time = time.time()
         if self.failures >= self.max_failures:
             self.is_open = True
-            
+
     def record_success(self):
         self.failures = 0
         self.is_open = False
-        
+
     def check_state(self):
         if self.is_open:
             if time.time() - self.last_failure_time > self.reset_timeout:
@@ -71,71 +77,65 @@ class CircuitBreaker:
 @dataclass
 class MarketData:
     """시장 데이터 모델"""
+
     symbol: str
     price: float
     bid: float
     ask: float
     volume: int
     timestamp: datetime
-    
+
     def __repr__(self):
         return f"MarketData({self.symbol}, price={self.price}, bid={self.bid}, ask={self.ask}, vol={self.volume})"
 
 
 class MarketDataHandler:
     """실시간 시세 수신 및 관리"""
-    
+
     def __init__(self, event_bus=None):
         self.market_data_dict: dict[str, MarketData] = {}
         self.subscribers: List[Callable] = []
         self.event_bus = event_bus
         self.logger = logger
-        
+
         # 1초에 최대 5번 요청 허용
         self.rate_limiter = RateLimiter(rate_limit=5, time_window=1.0)
         # 5번 연속 실패 시 60초간 차단
         self.circuit_breaker = CircuitBreaker(max_failures=5, reset_timeout=60.0)
-        
+
     def subscribe(self, callback: Callable):
         """데이터 변경 구독"""
         self.subscribers.append(callback)
-        callback_name = callback.__name__ if hasattr(callback, '__name__') else str(callback)
+        callback_name = callback.__name__ if hasattr(callback, "__name__") else str(callback)
         self.logger.info(f"Subscribed callback: {callback_name}")
-        
+
     def publish_market_data(self, data: MarketData):
         """시장 데이터 발행 (모든 구독자에게 알림)"""
         self.market_data_dict[data.symbol] = data
         self.logger.debug(f"Market data published: {data}")
-        
+
         # 이벤트 버스로 전송
         if self.event_bus:
             self.event_bus.publish("market_data", data)
-            
+
         # 모든 구독자에게 알림 (하위 호환성)
         for callback in self.subscribers:
             try:
                 callback(data)
             except Exception as e:
                 self.logger.error(f"Callback error: {e}")
-    
+
     def get_market_data(self, symbol: str) -> MarketData | None:
         """특정 종목의 최신 시장 데이터 조회"""
         return self.market_data_dict.get(symbol)
-    
+
     def get_all_market_data(self) -> dict:
         """모든 시장 데이터 조회"""
         return self.market_data_dict.copy()
-    
+
     def simulate_api_call(self, symbol: str, price: float, bid: float, ask: float, volume: int) -> MarketData:
         """증권사 API 호출 시뮬레이션"""
-        data = MarketData(
-            symbol=symbol,
-            price=price,
-            bid=bid,
-            ask=ask,
-            volume=volume,
-            timestamp=datetime.now()
-        )
+        data = MarketData(symbol=symbol, price=price, bid=bid, ask=ask, volume=volume, timestamp=datetime.now())
         self.publish_market_data(data)
         return data
 
@@ -143,9 +143,9 @@ class MarketDataHandler:
     def _fetch_yf_with_retry(self, symbol: str):
         if not self.circuit_breaker.check_state():
             raise Exception("Circuit breaker is OPEN. API calls are temporarily blocked.")
-            
+
         self.rate_limiter.wait()
-        
+
         try:
             ticker = yf.Ticker(symbol)
             fast = ticker.fast_info
@@ -154,8 +154,8 @@ class MarketDataHandler:
             if price is None or price <= 0:
                 hist = ticker.history(period="1d", interval="1m")
                 if not hist.empty:
-                    price = float(hist['Close'].iloc[-1])
-                    volume = int(hist['Volume'].iloc[-1])
+                    price = float(hist["Close"].iloc[-1])
+                    volume = int(hist["Volume"].iloc[-1])
                 else:
                     raise ValueError("No price data returned from yfinance")
             else:
@@ -163,7 +163,7 @@ class MarketDataHandler:
 
             self.circuit_breaker.record_success()
             return price, volume
-        except Exception as e:
+        except Exception:
             self.circuit_breaker.record_failure()
             raise
 
@@ -171,22 +171,15 @@ class MarketDataHandler:
         """yfinance를 통해 실제 실시간 시세 데이터를 조회하고 이벤트로 전송"""
         try:
             price, volume = self._fetch_yf_with_retry(symbol)
-            
+
             bid = round(price - 0.05, 2)
             ask = round(price + 0.05, 2)
-            
-            data = MarketData(
-                symbol=symbol,
-                price=price,
-                bid=bid,
-                ask=ask,
-                volume=volume,
-                timestamp=datetime.now()
-            )
+
+            data = MarketData(symbol=symbol, price=price, bid=bid, ask=ask, volume=volume, timestamp=datetime.now())
             self.publish_market_data(data)
             self.logger.info(f"Live data fetched from yfinance for {symbol}: ${price:.2f}")
             return data
-            
+
         except Exception as e:
             self.logger.error(f"Failed to fetch live data from yfinance for {symbol}: {e}. Falling back to simulation.")
             # 실패 시 기존 데이터를 소폭 변동시켜 모의 데이터 생성
@@ -199,11 +192,11 @@ class MarketDataHandler:
         """yfinance를 통해 과거 데이터를 가져오고 로컬 캐시를 활용하여 반환 속도를 향상시킵니다."""
 
         # 캐시 디렉토리 설정
-        cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'cache')
+        cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "cache")
         os.makedirs(cache_dir, exist_ok=True)
 
         # 특수 문자(_) 등 제거 (파일 시스템 안전을 위해)
-        safe_symbol = symbol.replace('/', '_').replace('\\', '_')
+        safe_symbol = symbol.replace("/", "_").replace("\\", "_")
         cache_file = os.path.join(cache_dir, f"{safe_symbol}_{period}.parquet")
 
         hist = None
@@ -244,7 +237,7 @@ class MarketDataHandler:
                     return []
 
                 # NaN 값 정제: Open, High, Low, Close 중 하나라도 NaN인 행 제거
-                hist = hist.dropna(subset=['Open', 'High', 'Low', 'Close'])
+                hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
 
                 if hist.empty:
                     self.logger.warning(f"No historical data found after filtering NaNs for {symbol}")
@@ -266,12 +259,14 @@ class MarketDataHandler:
         price_bars = []
         for date, row in hist.iterrows():
             bar = PriceBar(
-                timestamp=date.to_pydatetime() if hasattr(date, 'to_pydatetime') else pd.to_datetime(date).to_pydatetime(),
-                open=float(row['Open']),
-                high=float(row['High']),
-                low=float(row['Low']),
-                close=float(row['Close']),
-                volume=int(row['Volume'])
+                timestamp=date.to_pydatetime()
+                if hasattr(date, "to_pydatetime")
+                else pd.to_datetime(date).to_pydatetime(),
+                open=float(row["Open"]),
+                high=float(row["High"]),
+                low=float(row["Low"]),
+                close=float(row["Close"]),
+                volume=int(row["Volume"]),
             )
             price_bars.append(bar)
 

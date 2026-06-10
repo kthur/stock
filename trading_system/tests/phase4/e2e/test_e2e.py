@@ -497,7 +497,10 @@ def test_r2_weight_adaptation_bounds():
         ml_weight=0.0,
         rl_weight=0.0,
         darkpool_weight=0.0,
-        llm_weight=0.0
+        llm_weight=0.0,
+        global_market_weight=0.0,
+        cash_ratio_weight=0.0,
+        macro_weight=0.0
     )
     # Trigger normalization/regime adaptation
     bars = generate_mock_bars(250, trend="bull")
@@ -519,7 +522,7 @@ def test_r2_extreme_regime_transition():
     # 200 bull bars followed by 200 bear bars
     bars = generate_mock_bars(200, trend="bull") + generate_mock_bars(200, trend="bear")
     regime = engine.detect_regime(bars)
-    assert regime == "bear" # Last trend dominates
+    assert regime in ("strong_bear", "weak_bear") # Last trend dominates
 
 
 # F3: Trailing Stop
@@ -688,7 +691,7 @@ def test_r1_r2_combination():
     engine_reg.set_strategy_parameters("MA", {"short_window": best_short})
     regime = engine_reg.detect_regime(bars)
     
-    assert regime == "bull"
+    assert regime in ("strong_bull", "weak_bull")
     assert engine_reg.technical_weight > 0.2
 
 def test_r2_r3_combination():
@@ -778,13 +781,13 @@ def test_tier4_full_regime_cycle_workload():
     # Bull phase
     bull_bars = generate_mock_bars(250, trend="bull")
     regime = engine.detect_regime(bull_bars)
-    assert regime == "bull"
+    assert regime in ("strong_bull", "weak_bull")
     w_bull = engine.technical_weight
     
     # Transition to Bear phase
     bear_bars = generate_mock_bars(250, trend="bear")
     regime = engine.detect_regime(bear_bars)
-    assert regime == "bear"
+    assert regime in ("strong_bear", "weak_bear")
     w_bear = engine.technical_weight
     
     # Transition to Sideways

@@ -1,31 +1,49 @@
-# BRIEFING — 2026-06-07T02:50:00+09:00
+# BRIEFING — 2026-06-10T19:21:47+09:00
 
 ## Mission
-Update README.md, IMPLEMENTATION_GUIDE.md, and ADVANCED_FEATURES.md with systematic explanations for Sentiment Analysis, Reinforcement Learning, and Asset Allocation, using the handoff reports from the explorers.
+Eliminate all stack frame inspection bypasses from `src/strategy/allocation.py`, `src/core/strategy_engine.py`, and `trading_system.py`, and update the dependent tests.
 
 ## 🔒 My Identity
 - Archetype: Implementer
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\implementer_1
-- Original parent: d5297d52-07f2-46a1-9c69-0bd415f055a9
-- Milestone: Update documentation
+- Original parent: e4219ae1-1fd9-4732-9494-ca190299ea5d
+- Milestone: Remove inspect bypasses
 
 ## 🔒 Key Constraints
-- Explicitly mention that `src/broker/real_broker.py` and other broker modules only consume final trade signals and are NOT involved in sentiment parsing.
-- Ensure all file paths and class names (`src/strategy/asset_allocation.py`, `AssetAllocator`, `src/ai/sentiment.py`, `src/ai/rl_trading.py`) are accurate.
-- Use `replace_file_content` or `multi_replace_file_content` to make the edits.
-- Only update relevant sections or add new ones.
+- Ensure the ML ensemble requirements (Random Forest + XGBoost, weighted average/soft voting, ml_score in [0.0, 1.0]) are fully preserved and unaffected.
+- No "while I'm here" refactoring outside the scope.
 
 ## Current Parent
-- Conversation ID: d5297d52-07f2-46a1-9c69-0bd415f055a9
-- Updated: 2026-06-07T02:50:00+09:00
+- Conversation ID: e4219ae1-1fd9-4732-9494-ca190299ea5d
+- Updated: 2026-06-10T19:21:47+09:00
 
 ## Task Summary
-- **What to build**: Updated documentation
-- **Success criteria**: Documentation contains details on the three topics, mentions broker modules constraint, and uses accurate paths/classes.
+- **What to build**: Remove stack frame inspection bypasses from implementation files and fix dependent tests.
+- **Success criteria**: All tests pass, no inspection bypasses exist.
 
 ## Key Decisions Made
-- [TBD]
+- Parameterized allocation and ordering methods with explicit boolean parameters (e.g. `strict: bool = False` in `allocate_assets`, `bypass_other_sizing: bool = False` in `_compute_position_size` and `_create_and_submit_order`) to eliminate caller inspect-stack bypass hacks.
+- Updated e2e and unit tests to pass these parameters directly or adjust configuration dynamically instead of relying on the calling frame.
 
 ## Artifact Index
-- [TBD]
+- `.agents/implementer_1/handoff.md` — Detailed handoff report for this task
+
+## Change Tracker
+- **Files modified**:
+  - `src/strategy/allocation.py`: Added `strict` param to `allocate_assets`.
+  - `src/core/strategy_engine.py`: Removed caller inspections from `_normalize_weights` and `detect_regime`.
+  - `trading_system.py`: Added `bypass_other_sizing` to `_compute_position_size` and `_create_and_submit_order`; removed inspect check from `_execute_orders`.
+  - `tests/phase3/e2e/test_e2e.py`: Passed `strict=True` to `allocate_assets` in validation tests.
+  - `tests/phase4/e2e/test_e2e.py`: Passed weights explicitly and updated regime checks.
+  - `tests/test_portfolio_risk.py`: Explicitly bypassed other sizing rules and disabled distributed order configurations.
+- **Build status**: Pass (313 tests passed, 2 skipped)
+- **Pending issues**: None
+
+## Quality Status
+- **Build/test result**: Pass
+- **Lint status**: 0 violations
+- **Tests added/modified**: Updated tests/phase3/e2e/test_e2e.py, tests/phase4/e2e/test_e2e.py, and tests/test_portfolio_risk.py
+
+## Loaded Skills
+- None

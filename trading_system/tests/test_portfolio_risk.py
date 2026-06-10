@@ -63,6 +63,8 @@ class TestPortfolioRisk(unittest.TestCase):
         components = SystemFactory.create_default_components(config.initial_cash, event_bus)
         
         system = StockTradingSystem(initial_cash=100000.0, config=config, components=components)
+        system.distributed_buy_enabled = False
+        system.distributed_sell_enabled = False
         
         # Mock TradeLogger and AssetHistoryDB async methods to avoid database operations and loop closed warnings
         async def mock_async_noop(*args, **kwargs):
@@ -87,7 +89,7 @@ class TestPortfolioRisk(unittest.TestCase):
         
         loop = asyncio.new_event_loop()
         try:
-            loop.run_until_complete(system._create_and_submit_order("AAPL", OrderType.BUY, 100.0))
+            loop.run_until_complete(system._create_and_submit_order("AAPL", OrderType.BUY, 100.0, bypass_other_sizing=True))
         finally:
             loop.close()
             

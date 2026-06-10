@@ -1,4 +1,5 @@
 import logging
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -6,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 # Telegram Mini App Router
 mini_app_router = APIRouter()
+
 
 @mini_app_router.get("/telegram-mini-app")
 async def get_telegram_mini_app():
@@ -52,7 +54,7 @@ async def get_telegram_mini_app():
         <h3 style="margin-top:0;">Cash: <span id="cash">$1,000,000</span></h3>
         <p>Total Return: <span style="color: green;">+5.2%</span></p>
     </div>
-    
+
     <button class="btn" onclick="buyApple()">Buy AAPL (Market)</button>
     <button class="btn" style="background-color: #e53935;" onclick="sellApple()">Sell AAPL (Market)</button>
 
@@ -74,6 +76,7 @@ async def get_telegram_mini_app():
 </html>
 """
     return HTMLResponse(content=html_content)
+
 
 def init_mini_app(app):
     """FastAPI 앱에 라우터 등록"""

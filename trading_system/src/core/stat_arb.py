@@ -1,5 +1,6 @@
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -48,13 +49,15 @@ class StatisticalArbitrageEngine:
                     elif z_score < -2.0:
                         signal = f"LONG_{s1}_SHORT_{s2}"
 
-                    found_pairs.append({
-                        "pair": (s1, s2),
-                        "z_score": round(float(z_score), 2),
-                        "signal": signal,
-                        "correlation": round(float(corr), 3),
-                        "beta": round(float(beta), 4),
-                    })
+                    found_pairs.append(
+                        {
+                            "pair": (s1, s2),
+                            "z_score": round(float(z_score), 2),
+                            "signal": signal,
+                            "correlation": round(float(corr), 3),
+                            "beta": round(float(beta), 4),
+                        }
+                    )
                 except Exception:
                     continue
 

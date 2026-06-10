@@ -12,3 +12,6 @@ Please perform these steps:
 
 MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+## 2026-06-10T16:30:58Z
+Run all pytest tests in d:\Finance\code\stock\trading_system. Run 'python -m pytest' and see which tests are failing. Fix the refactoring regressions that cause the 62 existing tests (like E2E tests for Phase 3 and Phase 4) to fail. Make sure all 33+ pytest tests (including test_ml_ensemble.py and all Phase 3 & Phase 4 E2E tests) pass. Do not cheat. Follow all hard constraints and integrity enforcement.

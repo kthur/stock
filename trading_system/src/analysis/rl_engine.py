@@ -1,6 +1,7 @@
-import numpy as np
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,14 @@ class RLEngine:
             self._is_loaded = False
 
     def get_action(self, state_features: Dict[str, float]) -> Dict[str, Any]:
-        features = np.array([
-            state_features.get('vix', 20.0),
-            state_features.get('rsi', 50.0),
-            state_features.get('macd', 0.0),
-            state_features.get('trend_strength', 0.0),
-        ])
+        features = np.array(
+            [
+                state_features.get("vix", 20.0),
+                state_features.get("rsi", 50.0),
+                state_features.get("macd", 0.0),
+                state_features.get("trend_strength", 0.0),
+            ]
+        )
 
         action_probs = self._simulate_policy_network(features)
 
@@ -81,20 +84,28 @@ class RLEngine:
         sell_acc = accuracies.get("SELL", 0.5)
 
         if buy_acc < 0.4:
-            self._thresholds["vix_buy"] *= (1.0 + self._adaptation_rate)
-            self._thresholds["rsi_buy"] *= (1.0 - self._adaptation_rate)
-            logger.info(f"RL buy thresholds adapted: vix>{self._thresholds['vix_buy']:.1f} rsi<{self._thresholds['rsi_buy']:.1f}")
+            self._thresholds["vix_buy"] *= 1.0 + self._adaptation_rate
+            self._thresholds["rsi_buy"] *= 1.0 - self._adaptation_rate
+            logger.info(
+                "RL buy thresholds adapted: "
+                f"vix>{self._thresholds['vix_buy']:.1f} "
+                f"rsi<{self._thresholds['rsi_buy']:.1f}"
+            )
         elif buy_acc > 0.6:
-            self._thresholds["vix_buy"] *= (1.0 - self._adaptation_rate)
-            self._thresholds["rsi_buy"] *= (1.0 + self._adaptation_rate)
+            self._thresholds["vix_buy"] *= 1.0 - self._adaptation_rate
+            self._thresholds["rsi_buy"] *= 1.0 + self._adaptation_rate
 
         if sell_acc < 0.4:
-            self._thresholds["vix_sell"] *= (1.0 - self._adaptation_rate)
-            self._thresholds["rsi_sell"] *= (1.0 + self._adaptation_rate)
-            logger.info(f"RL sell thresholds adapted: vix<{self._thresholds['vix_sell']:.1f} rsi>{self._thresholds['rsi_sell']:.1f}")
+            self._thresholds["vix_sell"] *= 1.0 - self._adaptation_rate
+            self._thresholds["rsi_sell"] *= 1.0 + self._adaptation_rate
+            logger.info(
+                "RL sell thresholds adapted: "
+                f"vix<{self._thresholds['vix_sell']:.1f} "
+                f"rsi>{self._thresholds['rsi_sell']:.1f}"
+            )
         elif sell_acc > 0.6:
-            self._thresholds["vix_sell"] *= (1.0 + self._adaptation_rate)
-            self._thresholds["rsi_sell"] *= (1.0 - self._adaptation_rate)
+            self._thresholds["vix_sell"] *= 1.0 + self._adaptation_rate
+            self._thresholds["rsi_sell"] *= 1.0 - self._adaptation_rate
 
         total_perf = sum(len(v) for v in self._action_performance.values())
         logger.info(f"RL stats: buy_acc={buy_acc:.2f} sell_acc={sell_acc:.2f} total_actions={total_perf}")

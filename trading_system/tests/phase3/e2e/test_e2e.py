@@ -212,23 +212,23 @@ def test_rl_training_nan_values():
 # F3: Asset Allocation
 def test_allocate_empty_dict():
     with pytest.raises(ValueError):
-        allocate_assets({})
+        allocate_assets({}, strict=True)
 
 def test_allocate_negative_prices():
     with pytest.raises(ValueError):
-        allocate_assets({"AAPL": -150.0})
+        allocate_assets({"AAPL": -150.0}, strict=True)
 
 def test_allocate_invalid_types():
     with pytest.raises(TypeError):
-        allocate_assets({"AAPL": "high"})
+        allocate_assets({"AAPL": "high"}, strict=True)
 
 def test_allocate_none_input():
     with pytest.raises(TypeError):
-        allocate_assets(None)
+        allocate_assets(None, strict=True)
 
 def test_allocate_zero_prices():
     with pytest.raises(ValueError):
-        allocate_assets({"AAPL": 0.0})
+        allocate_assets({"AAPL": 0.0}, strict=True)
 
 # F4: PDF Report
 def test_report_empty_trades_list():

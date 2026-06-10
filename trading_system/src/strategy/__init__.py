@@ -1,22 +1,23 @@
 """Strategy package exports"""
+
+from .asset_allocation import AssetAllocator
 from .famous_investors import (
-    InvestorType,
-    InvestorSignal,
     BuffettStrategy,
+    DividendStrategy,
+    InvestorSignal,
+    InvestorStrategyEngine,
+    InvestorType,
     LynchStrategy,
     MinervaStrategy,
-    DividendStrategy,
-    InvestorStrategyEngine,
 )
-from .asset_allocation import AssetAllocator
 
 __all__ = [
-    "InvestorType",
-    "InvestorSignal",
+    "AssetAllocator",
     "BuffettStrategy",
+    "DividendStrategy",
+    "InvestorSignal",
+    "InvestorStrategyEngine",
+    "InvestorType",
     "LynchStrategy",
     "MinervaStrategy",
-    "DividendStrategy",
-    "InvestorStrategyEngine",
-    "AssetAllocator",
 ]

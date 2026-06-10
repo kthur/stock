@@ -1,6 +1,7 @@
 """LS Securities API integration"""
 
 from typing import Optional
+
 from .simulated_broker import SimulatedBrokerBase
 
 

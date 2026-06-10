@@ -94,7 +94,7 @@ class TestRiskManagerATR(unittest.TestCase):
 
     def test_atr_target_has_ceiling(self):
         target = self.rm.calculate_atr_based_target(100.0, 50.0)
-        self.assertLessEqual(target, 100.0 * (1 + 0.10 * 2))
+        self.assertLessEqual(target, 100.0 * (1 + self.rm.default_take_profit_pct * 2))
 
 
 class TestRiskManagerVolatility(unittest.TestCase):

@@ -1,7 +1,7 @@
 import asyncio
-import threading
-from typing import Callable, Dict, List, Any
 import logging
+import threading
+from typing import Any, Callable, Dict, List
 
 from .async_helper import run_async
 
@@ -24,7 +24,7 @@ class EventBus:
                 self._listeners[event_type] = []
             if listener not in self._listeners[event_type]:
                 self._listeners[event_type].append(listener)
-                listener_name = listener.__name__ if hasattr(listener, '__name__') else str(listener)
+                listener_name = listener.__name__ if hasattr(listener, "__name__") else str(listener)
                 self.logger.info(f"EventBus: Subscribed listener '{listener_name}' to '{event_type}'")
 
     def unsubscribe(self, event_type: str, listener: Callable):

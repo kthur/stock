@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from src.core.order_management import OrderType, OrderManagementSystem, Order, OrderStatus
+from src.core.order_management import Order, OrderManagementSystem, OrderStatus, OrderType
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DistributedOrderConfig:
     """Configuration for distributed order splitting."""
+
     n_tranches_buy: int = 4
     n_tranches_sell: int = 3
     buy_spread_pct: float = 0.02
@@ -50,10 +51,12 @@ def _build_buy_levels(
     levels: List[Dict] = []
     for i in range(n):
         offset = 1.0 - spread_pct * i
-        levels.append({
-            "price": round(center_price * offset, 2),
-            "frac": alloc[i],
-        })
+        levels.append(
+            {
+                "price": round(center_price * offset, 2),
+                "frac": alloc[i],
+            }
+        )
     return levels
 
 
@@ -72,10 +75,12 @@ def _build_sell_levels(
     levels: List[Dict] = []
     for i in range(n):
         offset = 1.0 + spread_pct * (i + 1)
-        levels.append({
-            "price": round(center_price * offset, 2),
-            "frac": alloc[i],
-        })
+        levels.append(
+            {
+                "price": round(center_price * offset, 2),
+                "frac": alloc[i],
+            }
+        )
     return levels
 
 
@@ -121,8 +126,7 @@ class DistributedOrderManager:
             self.cfg.buy_spread_pct,
             self.cfg.buy_allocation,
         )
-        return self._create_tranches(symbol, OrderType.BUY, total_quantity,
-                                     levels, stop_loss_price, take_profit_price)
+        return self._create_tranches(symbol, OrderType.BUY, total_quantity, levels, stop_loss_price, take_profit_price)
 
     def create_distributed_sell(
         self,
@@ -145,15 +149,16 @@ class DistributedOrderManager:
             self.cfg.sell_spread_pct,
             self.cfg.sell_allocation,
         )
-        return self._create_tranches(symbol, OrderType.SELL, total_quantity,
-                                     levels, stop_loss_price, take_profit_price)
+        return self._create_tranches(symbol, OrderType.SELL, total_quantity, levels, stop_loss_price, take_profit_price)
 
     def cancel_all_for_symbol(self, symbol: str) -> int:
         """Cancel every pending/submitted order for *symbol*."""
         cancelled = 0
         for o in list(self.oms.orders.values()):
             if o.symbol == symbol and o.status in (
-                OrderStatus.PENDING, OrderStatus.SUBMITTED, OrderStatus.PARTIALLY_FILLED,
+                OrderStatus.PENDING,
+                OrderStatus.SUBMITTED,
+                OrderStatus.PARTIALLY_FILLED,
             ):
                 o.status = OrderStatus.CANCELLED
                 cancelled += 1
@@ -206,17 +211,29 @@ class DistributedOrderManager:
             tp_price = round(take_profit_price * ratio, 2)
 
             sl_order = self.oms.create_stop_loss_order(
-                symbol, q, sl_price, entry.order_id,
+                symbol,
+                q,
+                sl_price,
+                entry.order_id,
             )
             tp_order = self.oms.create_take_profit_order(
-                symbol, q, tp_price, entry.order_id,
+                symbol,
+                q,
+                tp_price,
+                entry.order_id,
             )
             orders.extend([sl_order, tp_order])
 
             logger.info(
                 "Tranche %d/%d: %s %s x%d @ %.2f (SL=%.2f TP=%.2f)",
-                idx + 1, len(levels), symbol, order_type.value, q, entry_price,
-                sl_price, tp_price,
+                idx + 1,
+                len(levels),
+                symbol,
+                order_type.value,
+                q,
+                entry_price,
+                sl_price,
+                tp_price,
             )
 
         return orders

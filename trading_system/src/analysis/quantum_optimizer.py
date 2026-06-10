@@ -1,6 +1,7 @@
 import logging
+from typing import Dict, List
+
 import numpy as np
-from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,9 @@ class QuantumPortfolioOptimizer:
         self.risk_free_rate = risk_free_rate
 
     def optimize_allocation(
-        self, symbols: List[str], current_weights: Dict[str, float],
+        self,
+        symbols: List[str],
+        current_weights: Dict[str, float],
         expected_returns: Dict[str, float] | None = None,
         cov_matrix: np.ndarray | None = None,
     ) -> Dict[str, float]:
@@ -63,7 +66,9 @@ class QuantumPortfolioOptimizer:
         return optimized
 
     def risk_parity_allocation(
-        self, symbols: List[str], cov_matrix: np.ndarray | None = None,
+        self,
+        symbols: List[str],
+        cov_matrix: np.ndarray | None = None,
     ) -> Dict[str, float]:
         n = len(symbols)
         if n <= 1:

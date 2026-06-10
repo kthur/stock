@@ -1,11 +1,14 @@
-import os
-import aiohttp
 import logging
+import os
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
+
 class NotificationSystem:
     """Telegram 및 Discord 웹훅 기반 알림 시스템"""
+
     def __init__(self):
         self.telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
         self.telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -14,7 +17,7 @@ class NotificationSystem:
     async def send_telegram(self, message: str):
         if not self.telegram_token or not self.telegram_chat_id:
             return
-        
+
         url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
         payload = {"chat_id": self.telegram_chat_id, "text": message, "parse_mode": "HTML"}
         try:
@@ -28,7 +31,7 @@ class NotificationSystem:
     async def send_discord(self, message: str):
         if not self.discord_webhook_url:
             return
-            
+
         payload = {"content": message}
         try:
             async with aiohttp.ClientSession() as session:
@@ -42,6 +45,6 @@ class NotificationSystem:
         """설정된 모든 채널로 메시지 전송"""
         formatted_message = f"<b>{title}</b>\n\n{message}"
         await self.send_telegram(formatted_message)
-        
+
         discord_message = f"**{title}**\n\n{message}"
         await self.send_discord(discord_message)

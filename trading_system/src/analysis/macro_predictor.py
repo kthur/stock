@@ -3,29 +3,38 @@ ML Predictor Model for Global Macro
 Trains a RandomForestRegressor to predict stock excess returns over a benchmark.
 """
 
-import os
 import json
 import logging
+import os
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_squared_error, r2_score
+from xgboost import XGBRegressor
 
 logger = logging.getLogger(__name__)
 
 # Mandatory Integrity Warning
-# DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, 
-# create dummy/facade implementations, or circumvent the intended task. A Forensic 
-# Auditor will independently verify your work. Integrity violations WILL be detected 
+# DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results,
+# create dummy/facade implementations, or circumvent the intended task. A Forensic
+# Auditor will independently verify your work. Integrity violations WILL be detected
 # and your work WILL be rejected.
+
 
 class MacroPredictor:
     """
     Predicts stock excess returns over local benchmark based on global macro variables.
     """
+
     def __init__(self, max_depth: int = 5, n_estimators: int = 100):
-        self.model = RandomForestRegressor(max_depth=max_depth, n_estimators=n_estimators, random_state=42)
+        self.xgb_model = XGBRegressor(
+            max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05
+        )
+        self.lgb_model = LGBMRegressor(
+            max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05, verbose=-1
+        )
         self.is_trained = False
         self.feature_names: Optional[list] = None
 
@@ -36,21 +45,21 @@ class MacroPredictor:
         """
         if features.empty or targets.empty:
             raise ValueError("Empty features or targets provided for model training.")
-            
+
         common_idx = features.index.intersection(targets.index)
         X = features.loc[common_idx]
         y = targets.loc[common_idx]
-        
+
         # Drop rows with NaN values in X or y
         valid_mask = ~(X.isna().any(axis=1) | y.isna())
         X = X[valid_mask]
         y = y[valid_mask]
-        
+
         if len(X) < 5:
             raise ValueError(f"Insufficient aligned non-NaN data points: {len(X)} (need >= 5).")
-            
+
         self.feature_names = list(X.columns)
-        
+
         # Split train/test (e.g. 80/20) if enough samples; otherwise use all for both
         if len(X) >= 10:
             split_idx = int(len(X) * 0.8)
@@ -59,25 +68,30 @@ class MacroPredictor:
         else:
             X_train, X_test = X, X
             y_train, y_test = y, y
-            
-        self.model.fit(X_train, y_train)
+
+        self.xgb_model.fit(X_train, y_train)
+        self.lgb_model.fit(X_train, y_train)
         self.is_trained = True
-        
-        y_pred = self.model.predict(X_test)
+
+        xgb_pred = self.xgb_model.predict(X_test)
+        lgb_pred = self.lgb_model.predict(X_test)
+        y_pred = (xgb_pred + lgb_pred) / 2.0
+
         mse = float(mean_squared_error(y_test, y_pred))
         r2 = float(r2_score(y_test, y_pred))
-        
+
         # Fit on all data for production use
-        self.model.fit(X, y)
-        
+        self.xgb_model.fit(X, y)
+        self.lgb_model.fit(X, y)
+
         metrics = {
             "mse": mse,
             "r2_score": r2,
             "num_samples": len(X),
             "timestamp": datetime.now().isoformat(),
-            "features": self.feature_names
+            "features": self.feature_names,
         }
-        
+
         # Save metrics to cache file
         os.makedirs("data", exist_ok=True)
         try:
@@ -85,7 +99,7 @@ class MacroPredictor:
                 json.dump(metrics, f, indent=4)
         except Exception as e:
             logger.error(f"Failed to save macro model metrics to JSON: {e}")
-            
+
         return metrics
 
     def predict_outperformers(self, features: pd.DataFrame) -> pd.Series:
@@ -95,7 +109,7 @@ class MacroPredictor:
         if not self.is_trained:
             logger.warning("MacroPredictor is not trained yet. Returning zero predictions.")
             return pd.Series(0.0, index=features.index)
-            
+
         # Ensure correct column alignment
         if self.feature_names:
             for col in self.feature_names:
@@ -104,6 +118,8 @@ class MacroPredictor:
             X = features[self.feature_names]
         else:
             X = features
-            
-        preds = self.model.predict(X)
+
+        xgb_preds = self.xgb_model.predict(X)
+        lgb_preds = self.lgb_model.predict(X)
+        preds = (xgb_preds + lgb_preds) / 2.0
         return pd.Series(preds, index=features.index)

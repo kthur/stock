@@ -3,29 +3,32 @@ PDF Report Generator for trading system backtest results and trade journals.
 Uses ReportLab for PDF generation.
 """
 
-import os
 import datetime
+import os
 from typing import List, Optional
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     HRFlowable,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
 )
-from reportlab.lib.enums import TA_CENTER
-
 
 # ─── Colour palette ──────────────────────────────────────────────────────────
-PRIMARY_DARK  = colors.HexColor("#1a2744")   # navy
-PRIMARY_LIGHT = colors.HexColor("#2d5016")   # dark green (profit)
-ACCENT_RED    = colors.HexColor("#c0392b")   # loss red
-ACCENT_BLUE   = colors.HexColor("#2980b9")   # header blue
-TABLE_HEADER  = colors.HexColor("#2c3e50")
-ROW_ALT       = colors.HexColor("#ecf0f1")
-BORDER        = colors.HexColor("#bdc3c7")
+PRIMARY_DARK = colors.HexColor("#1a2744")  # navy
+PRIMARY_LIGHT = colors.HexColor("#2d5016")  # dark green (profit)
+ACCENT_RED = colors.HexColor("#c0392b")  # loss red
+ACCENT_BLUE = colors.HexColor("#2980b9")  # header blue
+TABLE_HEADER = colors.HexColor("#2c3e50")
+ROW_ALT = colors.HexColor("#ecf0f1")
+BORDER = colors.HexColor("#bdc3c7")
 
 
 def _build_styles():
@@ -91,7 +94,7 @@ def _metrics_table(data: dict, styles: dict) -> Table:
     rows = [
         ["Metric", "Value"],
         ["Symbol", str(data.get("symbol", "N/A"))],
-        ["Period", f"{data.get('start_date','?')} → {data.get('end_date','?')}"],
+        ["Period", f"{data.get('start_date', '?')} → {data.get('end_date', '?')}"],
         ["Initial Capital", f"₩{int(data.get('initial_capital', 0)):,}"],
         ["Final Capital", f"₩{int(data.get('final_capital', 0)):,}"],
         ["Total Return", str(data.get("total_return_pct", "N/A"))],
@@ -105,26 +108,30 @@ def _metrics_table(data: dict, styles: dict) -> Table:
 
     col_widths = [7 * cm, 8 * cm]
     tbl = Table(rows, colWidths=col_widths)
-    tbl.setStyle(TableStyle([
-        # Header row
-        ("BACKGROUND",  (0, 0), (-1, 0), TABLE_HEADER),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",    (0, 0), (-1, 0), 10),
-        ("ALIGN",       (0, 0), (-1, 0), "CENTER"),
-        # Data rows
-        ("FONTNAME",    (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE",    (0, 1), (-1, -1), 9),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ROW_ALT]),
-        ("ALIGN",       (1, 1), (1, -1), "RIGHT"),
-        # Grid
-        ("GRID",        (0, 0), (-1, -1), 0.5, BORDER),
-        ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING",  (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-    ]))
+    tbl.setStyle(
+        TableStyle(
+            [
+                # Header row
+                ("BACKGROUND", (0, 0), (-1, 0), TABLE_HEADER),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                # Data rows
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 1), (-1, -1), 9),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ROW_ALT]),
+                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
+                # Grid
+                ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
     return tbl
 
 
@@ -139,32 +146,34 @@ def _trades_table(trades: List[dict], styles: dict) -> Optional[Table]:
     for trade in trades:
         pnl = trade.get("pnl", 0)
         pnl_str = f"₩{int(pnl):+,}"
-        rows.append([
-            str(trade.get("exit_date", "?")),
-            str(trade.get("direction", "?")),
-            str(trade.get("quantity", "?")),
-            f"₩{int(trade.get('entry_price', 0)):,}",
-            f"₩{int(trade.get('exit_price', 0)):,}",
-            pnl_str,
-        ])
+        rows.append(
+            [
+                str(trade.get("exit_date", "?")),
+                str(trade.get("direction", "?")),
+                str(trade.get("quantity", "?")),
+                f"₩{int(trade.get('entry_price', 0)):,}",
+                f"₩{int(trade.get('exit_price', 0)):,}",
+                pnl_str,
+            ]
+        )
 
     col_widths = [3 * cm, 2.5 * cm, 2 * cm, 3 * cm, 3 * cm, 3 * cm]
     tbl = Table(rows, colWidths=col_widths)
 
     # Build per-row styles for P&L colouring
     style_cmds = [
-        ("BACKGROUND",  (0, 0), (-1, 0), TABLE_HEADER),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",    (0, 0), (-1, 0), 9),
-        ("ALIGN",       (0, 0), (-1, 0), "CENTER"),
-        ("FONTNAME",    (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE",    (0, 1), (-1, -1), 8),
+        ("BACKGROUND", (0, 0), (-1, 0), TABLE_HEADER),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ROW_ALT]),
-        ("ALIGN",       (2, 1), (-1, -1), "RIGHT"),
-        ("GRID",        (0, 0), (-1, -1), 0.5, BORDER),
-        ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING",  (0, 0), (-1, -1), 3),
+        ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+        ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -180,6 +189,7 @@ def _trades_table(trades: List[dict], styles: dict) -> Optional[Table]:
 
 
 # ─── PDFReportGenerator class ─────────────────────────────────────────────────
+
 
 class PDFReportGenerator:
     """Generates PDF reports for backtest results and trade journals."""
@@ -230,10 +240,12 @@ class PDFReportGenerator:
 
         # Title
         story.append(Paragraph("Trade Journal", styles["title"]))
-        story.append(Paragraph(
-            f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            styles["subtitle"],
-        ))
+        story.append(
+            Paragraph(
+                f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                styles["subtitle"],
+            )
+        )
         story.append(HRFlowable(width="100%", thickness=1, color=ACCENT_BLUE, spaceAfter=12))
 
         story.append(Paragraph(f"Total Trades: {len(trades)}", styles["normal"]))
@@ -250,6 +262,7 @@ class PDFReportGenerator:
 
 
 # ─── Top-level function ───────────────────────────────────────────────────────
+
 
 def generate_backtest_pdf(data: dict, output_path: str = "report.pdf") -> str:
     """
@@ -284,10 +297,12 @@ def generate_backtest_pdf(data: dict, output_path: str = "report.pdf") -> str:
     # ── Title block ──────────────────────────────────────────────────
     symbol = data.get("symbol", "Portfolio")
     story.append(Paragraph(f"Backtest Report — {symbol}", styles["title"]))
-    story.append(Paragraph(
-        f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        styles["subtitle"],
-    ))
+    story.append(
+        Paragraph(
+            f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            styles["subtitle"],
+        )
+    )
     story.append(HRFlowable(width="100%", thickness=2, color=ACCENT_BLUE, spaceAfter=14))
 
     # ── Performance Metrics ──────────────────────────────────────────
@@ -310,11 +325,13 @@ def generate_backtest_pdf(data: dict, output_path: str = "report.pdf") -> str:
     # ── Footer note ──────────────────────────────────────────────────
     story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceBefore=8))
     story.append(Spacer(1, 4))
-    story.append(Paragraph(
-        "This report is generated by the automated trading system backtest engine. "
-        "Past performance does not guarantee future results.",
-        styles["small"],
-    ))
+    story.append(
+        Paragraph(
+            "This report is generated by the automated trading system backtest engine. "
+            "Past performance does not guarantee future results.",
+            styles["small"],
+        )
+    )
 
     doc.build(story)
     return output_path

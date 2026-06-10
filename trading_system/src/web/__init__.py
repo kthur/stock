@@ -2,4 +2,4 @@
 
 from .dashboard import WebDashboard
 
-__all__ = ['WebDashboard']
+__all__ = ["WebDashboard"]

@@ -1,8 +1,8 @@
 import logging
 import random
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, cast
-from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +48,11 @@ class SimulatedBrokerBase:
 
     def get_account_info(self) -> Dict:
         return {
-            'account_number': self.account_number,
-            'balance': self.balance,
-            'positions': self.positions,
-            'total_value': self.balance + sum(self.positions.values()),
-            'timestamp': datetime.now()
+            "account_number": self.account_number,
+            "balance": self.balance,
+            "positions": self.positions,
+            "total_value": self.balance + sum(self.positions.values()),
+            "timestamp": datetime.now(),
         }
 
     def get_daily_chart(self, code: str, days: int = 20) -> List[Dict]:
@@ -61,15 +61,15 @@ class SimulatedBrokerBase:
         for _ in range(days):
             change = random.uniform(-0.02, 0.02)
             bar = {
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'open': price,
-                'high': price * (1 + abs(change)),
-                'low': price * (1 - abs(change)),
-                'close': price * (1 + change),
-                'volume': random.randint(1000000, 10000000)
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "open": price,
+                "high": price * (1 + abs(change)),
+                "low": price * (1 - abs(change)),
+                "close": price * (1 + change),
+                "volume": random.randint(1000000, 10000000),
             }
             chart.append(bar)
-            price = float(cast(float, bar.get('close', 100.0)))
+            price = float(cast(float, bar.get("close", 100.0)))
         return chart
 
     def place_order(self, code: str, quantity: int, price: float, order_type: str) -> str:
@@ -80,8 +80,8 @@ class SimulatedBrokerBase:
             quantity=quantity,
             price=price,
             order_type=order_type,
-            status='0',
-            timestamp=datetime.now()
+            status="0",
+            timestamp=datetime.now(),
         )
         self.orders[order_id] = order
         self.logger.info(f"Order placed: {order_id} {order_type} {quantity}주 @ {price:,.0f}")
@@ -98,26 +98,26 @@ class SimulatedBrokerBase:
         if order_id in self.orders:
             order = self.orders[order_id]
             return {
-                'order_id': order.order_id,
-                'code': order.code,
-                'quantity': order.quantity,
-                'price': order.price,
-                'order_type': order.order_type,
-                'status': order.status,
-                'timestamp': order.timestamp,
-                'filled_quantity': 0
+                "order_id": order.order_id,
+                "code": order.code,
+                "quantity": order.quantity,
+                "price": order.price,
+                "order_type": order.order_type,
+                "status": order.status,
+                "timestamp": order.timestamp,
+                "filled_quantity": 0,
             }
         return {}
 
     def get_stock_quote(self, code: str) -> Dict:
         return {
-            'code': code,
-            'name': f'Stock_{code}',
-            'current_price': random.uniform(50, 150),
-            'bid': random.uniform(49, 149),
-            'ask': random.uniform(51, 151),
-            'volume': random.randint(1000000, 10000000),
-            'timestamp': datetime.now()
+            "code": code,
+            "name": f"Stock_{code}",
+            "current_price": random.uniform(50, 150),
+            "bid": random.uniform(49, 149),
+            "ask": random.uniform(51, 151),
+            "volume": random.randint(1000000, 10000000),
+            "timestamp": datetime.now(),
         }
 
     def subscribe_realtime(self, code: str, callback) -> bool:
@@ -130,8 +130,8 @@ class SimulatedBrokerBase:
 
     def get_broker_info(self) -> Dict:
         return {
-            'name': self.BROKER_NAME,
-            'code': self.BROKER_CODE,
-            'api_version': self.API_VERSION,
-            'simulation_mode': self.simulation_mode
+            "name": self.BROKER_NAME,
+            "code": self.BROKER_CODE,
+            "api_version": self.API_VERSION,
+            "simulation_mode": self.simulation_mode,
         }

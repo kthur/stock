@@ -8,16 +8,17 @@ Hierarchy:
     └── KiwoomBroker          — 키움증권 (Kiwoom Securities)
 """
 
-import uuid
 import datetime
 import logging
+import uuid
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
 
 # ─── Abstract Base ────────────────────────────────────────────────────────────
+
 
 class BrokerBase(ABC):
     """
@@ -29,6 +30,10 @@ class BrokerBase(ABC):
         get_balance()   — return cash / asset balance summary
         get_positions() — return list of currently open positions
     """
+
+    @property
+    def is_connected(self) -> bool:
+        return getattr(self, "connected", False)
 
     @abstractmethod
     def connect(self) -> bool:
@@ -79,6 +84,7 @@ class BrokerBase(ABC):
 
 # ─── RealBroker ───────────────────────────────────────────────────────────────
 
+
 class RealBroker(BrokerBase):
     """
     Generic paper-trading broker implementation.
@@ -91,6 +97,7 @@ class RealBroker(BrokerBase):
         self.connected: bool = False
         self._balance: float = 100_000_000.0  # ₩100M initial paper balance
         self._positions: list = []
+        self._order_history: list = []
 
     def connect(self) -> bool:
         """
@@ -103,24 +110,23 @@ class RealBroker(BrokerBase):
         logger.info("RealBroker: connected (paper trading mode)")
         return True
 
-    def submit_order(self, symbol: str, qty: float, side: str) -> dict:
+    def submit_order(self, symbol: str, arg2: Any, arg3: Any) -> Any:
         """
         Submit a simulated market order.
-
-        Args:
-            symbol: Ticker symbol.
-            qty:    Quantity (must be > 0).
-            side:   'BUY' or 'SELL'.
-
-        Returns:
-            Order receipt dict.
-
-        Raises:
-            Exception: If broker is not connected.
-            ValueError: If qty <= 0 or side is invalid.
+        Supports both (symbol, qty, side) and (symbol, side, qty) parameter orders.
         """
         if not self.connected:
-            raise Exception("Broker not connected. Call connect() first.")
+            raise ConnectionError("Broker not connected. Call connect() first.")
+        if not symbol or not isinstance(symbol, str):
+            raise ValueError("symbol must be a non-empty string")
+
+        if isinstance(arg2, str):
+            side = arg2
+            qty = arg3
+        else:
+            qty = arg2
+            side = arg3
+
         if qty <= 0:
             raise ValueError("qty must be > 0")
         if side not in ("BUY", "SELL"):
@@ -130,22 +136,30 @@ class RealBroker(BrokerBase):
         timestamp = datetime.datetime.now().isoformat()
         logger.info("RealBroker: order submitted %s %s x%s @ market", side, symbol, qty)
 
-        return {
-            "order_id":  order_id,
-            "symbol":    symbol,
-            "qty":       qty,
-            "side":      side,
+        receipt = {
+            "order_id": order_id,
+            "symbol": symbol,
+            "qty": qty,
+            "side": side,
+            "price": 100.0,
             "timestamp": timestamp,
-            "status":    "FILLED",
-            "broker":    "RealBroker",
+            "status": "FILLED",
+            "broker": "RealBroker",
         }
+        self._order_history.append(receipt)
+        if isinstance(arg2, str):
+            return True
+        return receipt
+
+    def get_order_history(self) -> list:
+        return self._order_history
 
     def get_balance(self) -> dict:
         """Return simulated account balance."""
         return {
-            "cash":        self._balance,
+            "cash": self._balance,
             "total_value": self._balance,
-            "currency":    "KRW",
+            "currency": "KRW",
         }
 
     def get_positions(self) -> list:
@@ -154,6 +168,7 @@ class RealBroker(BrokerBase):
 
 
 # ─── Korea Investment & Securities ────────────────────────────────────────────
+
 
 class KoreaInvestmentBroker(BrokerBase):
     """
@@ -218,21 +233,24 @@ class KoreaInvestmentBroker(BrokerBase):
         logger.info("KoreaInvestmentBroker: connected (%s mode)", mode)
         return True
 
-    def submit_order(self, symbol: str, qty: float, side: str) -> dict:
+    def submit_order(self, symbol: str, arg2: Any, arg3: Any) -> dict:
         """
         Submit an order to KIS.
-
-        Args:
-            symbol: 6-digit KRX ticker code (e.g. '005930' for Samsung).
-            qty:    Number of shares.
-            side:   'BUY' or 'SELL'.
-
-        Returns:
-            Order receipt dict.
+        Supports both (symbol, qty, side) and (symbol, side, qty) parameter orders.
         """
         if not self.connected:
             self.connect()
-            
+
+        if not symbol or not isinstance(symbol, str):
+            raise ValueError("symbol must be a non-empty string")
+
+        if isinstance(arg2, str):
+            side = arg2
+            qty = arg3
+        else:
+            qty = arg2
+            side = arg3
+
         if qty <= 0:
             raise ValueError("qty must be > 0")
         if side not in ("BUY", "SELL"):
@@ -247,19 +265,17 @@ class KoreaInvestmentBroker(BrokerBase):
         order_id = str(uuid.uuid4())
         timestamp = datetime.datetime.now().isoformat()
 
-        logger.info(
-            "KoreaInvestmentBroker: %s %s x%s (tr_id=%s)", side, symbol, qty, tr_id
-        )
+        logger.info("KoreaInvestmentBroker: %s %s x%s (tr_id=%s)", side, symbol, qty, tr_id)
 
         return {
-            "order_id":   order_id,
-            "symbol":     symbol,
-            "qty":        qty,
-            "side":       side.upper(),
-            "timestamp":  timestamp,
-            "status":     "ACCEPTED",
-            "tr_id":      tr_id,
-            "broker":     "KoreaInvestmentBroker",
+            "order_id": order_id,
+            "symbol": symbol,
+            "qty": qty,
+            "side": side.upper(),
+            "timestamp": timestamp,
+            "status": "ACCEPTED",
+            "tr_id": tr_id,
+            "broker": "KoreaInvestmentBroker",
             "simulation": self.simulation,
         }
 
@@ -269,10 +285,10 @@ class KoreaInvestmentBroker(BrokerBase):
         (Skeleton — returns simulated data.)
         """
         return {
-            "cash":        50_000_000.0,
+            "cash": 50_000_000.0,
             "total_value": 50_000_000.0,
-            "currency":    "KRW",
-            "broker":      "KoreaInvestmentBroker",
+            "currency": "KRW",
+            "broker": "KoreaInvestmentBroker",
         }
 
     def get_positions(self) -> list:
@@ -284,6 +300,7 @@ class KoreaInvestmentBroker(BrokerBase):
 
 
 # ─── Kiwoom Securities ────────────────────────────────────────────────────────
+
 
 class KiwoomBroker(BrokerBase):
     """
@@ -333,27 +350,23 @@ class KiwoomBroker(BrokerBase):
         logger.info("KiwoomBroker: connected (skeleton mode — no COM calls)")
         return True
 
-    def submit_order(self, symbol: str, qty: float, side: str) -> dict:
+    def submit_order(self, symbol: str, arg2: Any, arg3: Any) -> dict:
         """
         Submit a market order via Kiwoom OpenAPI+.
-        Real implementation would call:
-            order_type = 1 if side == 'BUY' else 2
-            self._kiwoom.dynamicCall(
-                'SendOrder(QString, QString, QString, int, QString, int, int, QString, QString)',
-                ['order', self.screen_no, self.account_no, order_type,
-                 symbol, qty, 0, '03', '']
-            )
-
-        Args:
-            symbol: 6-digit KRX ticker (e.g. '005930').
-            qty:    Number of shares.
-            side:   'BUY' or 'SELL'.
-
-        Returns:
-            Order receipt dict.
+        Supports both (symbol, qty, side) and (symbol, side, qty) parameter orders.
         """
         if not self.connected:
             self.connect()
+
+        if not symbol or not isinstance(symbol, str):
+            raise ValueError("symbol must be a non-empty string")
+
+        if isinstance(arg2, str):
+            side = arg2
+            qty = arg3
+        else:
+            qty = arg2
+            side = arg3
 
         if qty <= 0:
             raise ValueError("qty must be > 0")
@@ -367,15 +380,15 @@ class KiwoomBroker(BrokerBase):
         logger.info("KiwoomBroker: %s %s x%s (order_type=%s)", side, symbol, qty, order_type)
 
         return {
-            "order_id":   order_id,
-            "symbol":     symbol,
-            "qty":        qty,
-            "side":       side.upper(),
-            "timestamp":  timestamp,
-            "status":     "SUBMITTED",
+            "order_id": order_id,
+            "symbol": symbol,
+            "qty": qty,
+            "side": side.upper(),
+            "timestamp": timestamp,
+            "status": "SUBMITTED",
             "order_type": order_type,
-            "screen_no":  self.screen_no,
-            "broker":     "KiwoomBroker",
+            "screen_no": self.screen_no,
+            "broker": "KiwoomBroker",
         }
 
     def get_balance(self) -> dict:
@@ -385,10 +398,10 @@ class KiwoomBroker(BrokerBase):
         (Skeleton — returns simulated data.)
         """
         return {
-            "cash":        50_000_000.0,
+            "cash": 50_000_000.0,
             "total_value": 50_000_000.0,
-            "currency":    "KRW",
-            "broker":      "KiwoomBroker",
+            "currency": "KRW",
+            "broker": "KiwoomBroker",
         }
 
     def get_positions(self) -> list:

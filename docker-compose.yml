@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  trading:
+    build: .
+    container_name: stock-trading
+    ports:
+      - "5000:5000"
+      - "8000:8000"
+    volumes:
+      - ./trade_logs.db:/app/trade_logs.db
+      - ./asset_history.db:/app/asset_history.db
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

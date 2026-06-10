@@ -1,19 +1,22 @@
 """Strategy Engine - 매매 전략 및 최적화"""
 
+import logging
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Callable, Any, Optional
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 from src.utils import EventBus
+from src.utils.indicators import calc_ema_list, calc_macd
+from src.utils.indicators import calc_rsi as _calc_rsi_shared
 
 logger = logging.getLogger(__name__)
 
 
 class TradeSignal(Enum):
     """매매 신호"""
+
     BUY = 1
     SELL = -1
     HOLD = 0
@@ -32,16 +35,45 @@ class MarketRegime(Enum):
 
 
 REGIME_THRESHOLDS = {
-    "strong_bull": {"buy": 0.48, "sell": 0.38, "min_buy_votes": 1, "position_pct": 1.0, "trail_pct": 0.08, "cash_target": 0.10},
-    "weak_bull":   {"buy": 0.52, "sell": 0.42, "min_buy_votes": 1, "position_pct": 0.8, "trail_pct": 0.06, "cash_target": 0.20},
-    "weak_bear":   {"buy": 0.62, "sell": 0.45, "min_buy_votes": 2, "position_pct": 0.5, "trail_pct": 0.04, "cash_target": 0.40},
-    "strong_bear": {"buy": 0.70, "sell": 0.50, "min_buy_votes": 3, "position_pct": 0.25, "trail_pct": 0.03, "cash_target": 0.70},
+    "strong_bull": {
+        "buy": 0.48,
+        "sell": 0.38,
+        "min_buy_votes": 1,
+        "position_pct": 1.0,
+        "trail_pct": 0.08,
+        "cash_target": 0.10,
+    },
+    "weak_bull": {
+        "buy": 0.52,
+        "sell": 0.42,
+        "min_buy_votes": 1,
+        "position_pct": 0.8,
+        "trail_pct": 0.06,
+        "cash_target": 0.20,
+    },
+    "weak_bear": {
+        "buy": 0.62,
+        "sell": 0.45,
+        "min_buy_votes": 2,
+        "position_pct": 0.5,
+        "trail_pct": 0.04,
+        "cash_target": 0.40,
+    },
+    "strong_bear": {
+        "buy": 0.70,
+        "sell": 0.50,
+        "min_buy_votes": 3,
+        "position_pct": 0.25,
+        "trail_pct": 0.03,
+        "cash_target": 0.70,
+    },
 }
 
 
 @dataclass
 class StrategyResult:
     """전략 실행 결과"""
+
     symbol: str
     signal: TradeSignal
     price: float
@@ -52,9 +84,8 @@ class StrategyResult:
 
 
 class HybridStrategyEngine:
-    
     SIGNAL_NAMES = ["sentiment", "technical", "ml", "rl", "darkpool", "llm", "global_market", "cash_ratio", "macro"]
-    
+
     def __init__(
         self,
         event_bus: EventBus | None = None,
@@ -99,7 +130,7 @@ class HybridStrategyEngine:
         self.relative_strength = relative_strength
         self.portfolio = portfolio
         self.style_rotator = style_rotator
-        
+
         self.volume_threshold = 1000000
         self.sentiment_weight = sentiment_weight
         self.technical_weight = technical_weight
@@ -115,12 +146,12 @@ class HybridStrategyEngine:
         self.sell_threshold = sell_threshold
         self.weight_adaptation_rate = weight_adaptation_rate
         self.weight_adaptation_window = weight_adaptation_window
-        
+
         self._signal_performance: Dict[str, List[bool]] = {s: [] for s in self.SIGNAL_NAMES}
         self._signal_scores: Dict[str, float] = {}
         self._active_regime: str = MarketRegime.WEAK_BULL.value
         self._last_regime_adjustments: dict | None = None
-        
+
         self.strategy_parameters: Dict[str, Any] = {}
         self._normalize_weights()
         self._baseline_weights = {
@@ -134,59 +165,29 @@ class HybridStrategyEngine:
             "cash_ratio_weight": self.cash_ratio_weight,
         }
         self._baseline_sell_threshold = self.sell_threshold
-    
+
     def subscribe(self, callback: Callable) -> None:
         """전략 신호 구독"""
         self.subscribers.append(callback)
-    
-    def _calc_sma(self, closes: list, period: int) -> list:
+
+    @staticmethod
+    def _calc_sma(closes: list, period: int) -> list:
         """단순이동평균(SMA) 계산"""
-        sma = [0.0] * len(closes)
-        for i in range(len(closes)):
-            start = max(0, i - period + 1)
-            sub = closes[start:i+1]
-            sma[i] = sum(sub) / len(sub)
-        return sma
+        from src.utils.indicators import calc_sma
+
+        return calc_sma(closes, period)
 
     def _calc_ema(self, data: list, period: int) -> list:
         """지수이동평균(EMA) 계산"""
-        if len(data) < period:
-            return [sum(data) / len(data)] * len(data)
-        k = 2.0 / (period + 1)
-        ema = [0.0] * len(data)
-        ema[period - 1] = sum(data[:period]) / period
-        for i in range(period, len(data)):
-            ema[i] = data[i] * k + ema[i - 1] * (1 - k)
-        for i in range(period - 1):
-            ema[i] = ema[period - 1]
-        return ema
+        return calc_ema_list(data, period)
 
     def _calc_rsi(self, closes: list, window: int = 14) -> float:
         """현재 RSI 값 계산 (Wilder 방식)"""
-        if len(closes) <= window:
-            return 50.0
-        deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
-        gains = [d if d > 0 else 0.0 for d in deltas]
-        losses = [abs(d) if d < 0 else 0.0 for d in deltas]
-        avg_gain = sum(gains[:window]) / window
-        avg_loss = sum(losses[:window]) / window
-        for i in range(window, len(deltas)):
-            avg_gain = (avg_gain * (window - 1) + gains[i]) / window
-            avg_loss = (avg_loss * (window - 1) + losses[i]) / window
-        if avg_loss == 0:
-            return 100.0 if avg_gain > 0 else 50.0
-        rs = avg_gain / avg_loss
-        return 100.0 - (100.0 / (1.0 + rs))
+        return _calc_rsi_shared(closes, window)
 
     def _calc_macd_histogram(self, closes: list) -> float:
         """현재 MACD 히스토그램 값 계산 (EMA12-EMA26-Signal9)"""
-        if len(closes) < 35:
-            return 0.0
-        ema12 = self._calc_ema(closes, 12)
-        ema26 = self._calc_ema(closes, 26)
-        macd_line = [ema12[i] - ema26[i] for i in range(len(closes))]
-        signal_line = self._calc_ema(macd_line, 9)
-        return float(macd_line[-1] - signal_line[-1])
+        return calc_macd(closes, 12, 26, 9)
 
     def _calc_bollinger_position(self, closes: list, period: int = 20, std_mult: float = 2.0) -> float:
         """볼린저밴드 내 현재 위치 (0.0=하단, 0.5=중심, 1.0=상단)"""
@@ -195,7 +196,7 @@ class HybridStrategyEngine:
         sub = closes[-period:]
         sma = sum(sub) / len(sub)
         variance = sum((c - sma) ** 2 for c in sub) / len(sub)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
         if std_dev == 0:
             return 0.5
         upper = sma + std_mult * std_dev
@@ -213,10 +214,10 @@ class HybridStrategyEngine:
                 closes.append(float(b))
             else:
                 closes.append(b.close)
-        
+
         if len(closes) < 20:
             return {"score": 0.5, "signal": TradeSignal.HOLD, "details": {}}
-        
+
         # RSI (14) - 보다 보수적인 임계값 적용
         rsi = self._calc_rsi(closes)
         if rsi < 25:
@@ -229,12 +230,12 @@ class HybridStrategyEngine:
             rsi_score = 0.3
         else:
             rsi_score = 0.5
-        
+
         # MACD histogram
         macd_hist = self._calc_macd_histogram(closes)
         prev_closes = closes[:-1] if len(closes) > 35 else closes
         prev_macd_hist = self._calc_macd_histogram(prev_closes) if len(prev_closes) >= 35 else 0.0
-        
+
         if prev_macd_hist < 0 and macd_hist > 0:
             macd_score = 0.9  # 골든크로스
         elif prev_macd_hist > 0 and macd_hist < 0:
@@ -245,7 +246,7 @@ class HybridStrategyEngine:
             macd_score = 0.35
         else:
             macd_score = 0.5
-        
+
         # EMA 정배열 (EMA20 > EMA50)
         ema20 = self._calc_ema(closes, 20)
         ema50 = self._calc_ema(closes, 50) if len(closes) >= 50 else ema20
@@ -255,7 +256,7 @@ class HybridStrategyEngine:
             ema_score = 0.3
         else:
             ema_score = 0.5
-        
+
         # 볼린저밴드 위치
         bb_pos = self._calc_bollinger_position(closes)
         if bb_pos < 0.15:
@@ -264,7 +265,7 @@ class HybridStrategyEngine:
             bb_score = 0.15  # 상단 이탈 → 조정 기대
         else:
             bb_score = 0.5
-        
+
         # trend strength: EMA slope + cross position
         ema20_slope = (ema20[-1] - ema20[-5]) / max(ema20[-5], 1e-10) if len(ema20) >= 5 else 0.0
         trend_bias = 0.5
@@ -274,21 +275,21 @@ class HybridStrategyEngine:
             elif ema20[-1] < ema50[-1] and ema20_slope < -0.001:
                 trend_bias = 0.2
 
-        combined = (rsi_score * 0.25 + macd_score * 0.30 + ema_score * 0.25 + bb_score * 0.15)
+        combined = rsi_score * 0.25 + macd_score * 0.30 + ema_score * 0.25 + bb_score * 0.15
         # 추세 바이어스 (신규 5% 독립 가중치)
         combined = combined * 0.95 + trend_bias * 0.05
-        
+
         # 투표 기반 신호 결정
         buy_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s > 0.6)
         sell_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s < 0.4)
-        
+
         if buy_votes >= 3:
             signal = TradeSignal.BUY
         elif sell_votes >= 3:
             signal = TradeSignal.SELL
         else:
             signal = TradeSignal.HOLD
-        
+
         return {
             "score": combined,
             "signal": signal,
@@ -302,10 +303,9 @@ class HybridStrategyEngine:
                 "bb_score": bb_score,
                 "buy_votes": buy_votes,
                 "sell_votes": sell_votes,
-            }
+            },
         }
 
-    
     def analyze(
         self,
         symbol: str,
@@ -321,11 +321,11 @@ class HybridStrategyEngine:
         price_bars: ML 예측을 위한 과거 주가 데이터
         cash_ratio: 0.0 ~ 1.0, portfolio cash / total portfolio value
         """
-        price = market_data.get('price', 0)
-        volume = market_data.get('volume', 0)
-        bid = market_data.get('bid', 0)
-        ask = market_data.get('ask', 0)
-        
+        price = market_data.get("price", 0)
+        volume = market_data.get("volume", 0)
+        bid = market_data.get("bid", 0)
+        ask = market_data.get("ask", 0)
+
         # 거래량 확인
         if volume < self.volume_threshold:
             signal = TradeSignal.HOLD
@@ -346,7 +346,7 @@ class HybridStrategyEngine:
                 else:
                     technical_signal = TradeSignal.HOLD
                     technical_score = 0.5
-            
+
             # 감성 분석: gradient 방식 (news_sentiment를 점수에 직접 매핑)
             sentiment_score = max(0.0, min(1.0, 0.5 + news_sentiment * 0.4))
             if sentiment_score > 0.6:
@@ -355,7 +355,7 @@ class HybridStrategyEngine:
                 sentiment_signal = TradeSignal.SELL
             else:
                 sentiment_signal = TradeSignal.HOLD
-                
+
             ml_score = 0.5
             if self.ml_engine and price_bars:
                 try:
@@ -363,13 +363,13 @@ class HybridStrategyEngine:
                     ml_score = prob
                 except Exception as e:
                     self.logger.warning(f"ML Prediction failed: {e}")
-            
+
             rl_score = 0.5
             rl_action = "HOLD"
             alt_regime = {}
             if self.alt_client:
                 alt_regime = self.alt_client.get_market_regime()
-                
+
             if self.rl_engine:
                 try:
                     rsi_val = 50.0
@@ -377,28 +377,13 @@ class HybridStrategyEngine:
                     if price_bars and len(price_bars) > 15:
                         closes = [b.close for b in price_bars if not isinstance(b, (int, float))]
                         if len(closes) > 15:
-                            gains, losses = 0.0, 0.0
-                            for i in range(len(closes) - 14, len(closes)):
-                                diff = closes[i] - closes[i-1]
-                                if diff > 0:
-                                    gains += diff
-                                else:
-                                    losses -= diff
-                            avg_gain = gains / 14
-                            avg_loss = losses / 14
-                            if avg_loss != 0:
-                                rs = avg_gain / avg_loss
-                                rsi_val = 100.0 - (100.0 / (1.0 + rs))
-                            else:
-                                rsi_val = 100.0 if avg_gain > 0 else 50.0
-                            ema12 = sum(closes[-12:]) / 12
-                            ema26 = sum(closes[-26:]) / 26 if len(closes) >= 26 else ema12
-                            macd_val = ema12 - ema26
+                            rsi_val = _calc_rsi_shared(closes, 14)
+                            macd_val = calc_macd(closes, 12, 26, 9)
                     state = {
                         "vix": alt_regime.get("vix", 20.0),
                         "rsi": rsi_val,
                         "macd": macd_val,
-                        "trend_strength": technical_score
+                        "trend_strength": technical_score,
                     }
                     rl_res = self.rl_engine.get_action(state)
                     rl_action = rl_res["action"]
@@ -409,7 +394,7 @@ class HybridStrategyEngine:
                         rl_score = 0.0
                 except Exception as e:
                     self.logger.warning(f"RL Action failed: {e}")
-                    
+
             darkpool_score = 0.5
             if self.darkpool:
                 dp_res = self.darkpool.fetch_darkpool_activity(symbol)
@@ -417,11 +402,11 @@ class HybridStrategyEngine:
                     darkpool_score = 0.9
                 elif dp_res.get("is_distribution"):
                     darkpool_score = 0.1
-                    
+
             llm_score = 0.5
             if self.llm_earnings:
                 llm_direction = "POSITIVE" if news_sentiment > 0 else "NEGATIVE"
-                transcript = f"최근 뉴스 심리가 {llm_direction}으로 {abs(news_sentiment)*100:.0f}% 수준입니다."
+                transcript = f"최근 뉴스 심리가 {llm_direction}으로 {abs(news_sentiment) * 100:.0f}% 수준입니다."
                 llm_res = self.llm_earnings.analyze_earnings_call(symbol, transcript)
                 if llm_res.get("guidance") == "POSITIVE":
                     llm_score = 0.9
@@ -467,7 +452,7 @@ class HybridStrategyEngine:
                     oil_s = max(0.0, min(1.0, 1.0 - (oil - 50) / 150))
                     tnx_s = max(0.0, min(1.0, 1.0 - (tnx - 2.5) / 5.0))
                     dxy_s = max(0.0, min(1.0, 1.0 - (dxy - 95) / 25))
-                    macro_score = (vix_s * 0.30 + fx_s * 0.20 + oil_s * 0.20 + tnx_s * 0.15 + dxy_s * 0.15)
+                    macro_score = vix_s * 0.30 + fx_s * 0.20 + oil_s * 0.20 + tnx_s * 0.15 + dxy_s * 0.15
                     self.logger.debug(
                         f"Macro composite: {macro_score:.3f} "
                         f"(VIX={vix_val:.1f}/{vix_s:.2f}, USDKRW={usdkrw:.0f}/{fx_s:.2f}, "
@@ -498,30 +483,40 @@ class HybridStrategyEngine:
                 "technical": (technical_score, self.technical_weight, True),
                 "ml": (ml_score, self.ml_weight, self.ml_engine is not None),
                 "rl": (rl_score, self.rl_weight, self.rl_engine is not None),
-                "darkpool": (darkpool_score, self.darkpool_weight, self.darkpool is not None and self.darkpool_weight > 0),
+                "darkpool": (
+                    darkpool_score,
+                    self.darkpool_weight,
+                    self.darkpool is not None and self.darkpool_weight > 0,
+                ),
                 "llm": (llm_score, self.llm_weight, self.llm_earnings is not None),
-                "global_market": (global_market_score, self.global_market_weight, self.global_market is not None and self.global_market_weight > 0),
+                "global_market": (
+                    global_market_score,
+                    self.global_market_weight,
+                    self.global_market is not None and self.global_market_weight > 0,
+                ),
                 "cash_ratio": (cash_ratio_score, self.cash_ratio_weight, True),
                 "macro": (macro_score, self.macro_weight, self.global_market is not None),
             }
             active_scores = {k: (s, w) for k, (s, w, a) in signal_scores.items() if a}
             total_active_weight = sum(w for _, (_, w) in active_scores.items())
             if total_active_weight > 0:
-                combined_score = sum(active_scores[k][0] * active_scores[k][1] for k in active_scores) / total_active_weight
+                combined_score = (
+                    sum(active_scores[k][0] * active_scores[k][1] for k in active_scores) / total_active_weight
+                )
             else:
                 combined_score = 0.5
 
             # Style rotation adjustment (blended, not a formal signal)
             if style_score != 0.5:
                 combined_score = combined_score * 0.85 + style_score * 0.15
-            
+
             # ── 레짐별 동적 임계값 적용 ──────────────────────────────
             regime_profile = REGIME_THRESHOLDS.get(self._active_regime, REGIME_THRESHOLDS["weak_bull"])
             dynamic_buy_threshold = regime_profile["buy"]
             dynamic_sell_threshold = regime_profile["sell"]
-            
+
             raw_scores = {k: v[0] for k, v in signal_scores.items()}
-            
+
             # ── Signal consensus scoring ───────────────────────────────
             bullish_signals = sum(1 for v in raw_scores.values() if v > 0.6)
             bearish_signals = sum(1 for v in raw_scores.values() if v < 0.4)
@@ -551,12 +546,12 @@ class HybridStrategyEngine:
                 if total_adj > 0:
                     weights = {k: v / total_adj for k, v in adjusted.items()}
                     combined_score = sum(raw_scores[k] * weights[k] for k in self.SIGNAL_NAMES)
-            
+
             confidence = combined_score
-            
+
             # 매수/매도 판단: 동적 임계값 사용
             buy_signal_count = sum(1 for s in [sentiment_signal, technical_signal] if s == TradeSignal.BUY)
-            
+
             if combined_score > dynamic_buy_threshold:
                 if buy_signal_count >= regime_profile["min_buy_votes"]:
                     signal = TradeSignal.BUY
@@ -574,34 +569,34 @@ class HybridStrategyEngine:
                 signal = TradeSignal.HOLD
                 reason = f"Neutral market (regime={self._active_regime})"
 
-            # Options Hedging Logic: 
+            # Options Hedging Logic:
             # If we hold the stock (assumed by neutral/buy but high VIX), recommend Protective Put
             if alt_regime and alt_regime.get("is_high_volatility") and signal != TradeSignal.SELL:
                 reason += " | Recommend Protective Put (High VIX)"
-                
+
             # Stat Arb (Pairs Trading) Override
             if self.stat_arb and price_bars and len(price_bars) > 30:
                 price_dict: Dict[str, List[float]] = {}
                 closes = [b.close for b in price_bars if not isinstance(b, (int, float))]
                 if closes:
                     price_dict[symbol] = closes
-                    for sym, pos in getattr(getattr(self, 'portfolio', None), 'positions', {}).items():
-                        price_dict[sym] = closes[-min(len(closes), 30):]
+                    for sym, pos in getattr(getattr(self, "portfolio", None), "positions", {}).items():
+                        price_dict[sym] = closes[-min(len(closes), 30) :]
                     pairs = self.stat_arb.find_cointegrated_pairs(price_dict)
                     for p in pairs:
                         if symbol in p["pair"]:
                             reason += f" | Stat Arb: {p['signal']} (z={p['z_score']})"
-                        
+
             # Execute HFT if available and signal is strong
             if self.hft_engine and signal != TradeSignal.HOLD:
                 self.hft_engine.execute_micro_order(symbol, signal.name, 100)
                 reason += " | (Executed via HFT Engine)"
-        
+
         # Determine dominant signal for performance attribution
         dominant_signal = max(raw_scores, key=lambda k: raw_scores[k])
         if raw_scores.get(dominant_signal, 0.5) < 0.55:
             dominant_signal = "strategy"
-            
+
         result = StrategyResult(
             symbol=symbol,
             signal=signal,
@@ -609,22 +604,22 @@ class HybridStrategyEngine:
             confidence=confidence,
             reason=reason,
             timestamp=datetime.now(),
-            signal_name=dominant_signal
+            signal_name=dominant_signal,
         )
-        
+
         self.results_history.append(result)
-        
+
         # 이벤트 버스로 전송
         if self.event_bus:
             self.event_bus.publish("strategy_signal", result)
-            
+
         # 구독자에게 알림 (하위 호환성)
         for callback in self.subscribers:
             try:
                 callback(result)
             except Exception as e:
                 self.logger.error(f"Strategy callback error: {e}")
-        
+
         self.logger.info(f"Strategy result: {result}")
         return result
 
@@ -633,7 +628,9 @@ class HybridStrategyEngine:
             return
         self._signal_performance[signal_name].append(was_correct)
         if len(self._signal_performance[signal_name]) > self.weight_adaptation_window * 2:
-            self._signal_performance[signal_name] = self._signal_performance[signal_name][-self.weight_adaptation_window:]
+            self._signal_performance[signal_name] = self._signal_performance[signal_name][
+                -self.weight_adaptation_window :
+            ]
         if len(self.results_history) % self.weight_adaptation_window == 0:
             self._adapt_weights()
 
@@ -678,12 +675,18 @@ class HybridStrategyEngine:
         self.global_market_weight = max(0.0, min(1.0, self.global_market_weight))
         self.cash_ratio_weight = max(0.0, min(1.0, self.cash_ratio_weight))
         self.macro_weight = max(0.0, min(1.0, self.macro_weight))
-        
-        total = (self.sentiment_weight + self.technical_weight +
-                 self.ml_weight + self.rl_weight +
-                 self.darkpool_weight + self.llm_weight +
-                 self.global_market_weight + self.cash_ratio_weight +
-                 self.macro_weight)
+
+        total = (
+            self.sentiment_weight
+            + self.technical_weight
+            + self.ml_weight
+            + self.rl_weight
+            + self.darkpool_weight
+            + self.llm_weight
+            + self.global_market_weight
+            + self.cash_ratio_weight
+            + self.macro_weight
+        )
         if total == 0:
             n = len(self.SIGNAL_NAMES)
             self.sentiment_weight = 1.0 / n
@@ -725,11 +728,11 @@ class HybridStrategyEngine:
         for i in range(1, len(price_bars)):
             bar = price_bars[i]
             prev = price_bars[i - 1]
-            high = bar['high'] if isinstance(bar, dict) else bar.high
-            low = bar['low'] if isinstance(bar, dict) else bar.low
-            prev_high = prev['high'] if isinstance(prev, dict) else prev.high
-            prev_low = prev['low'] if isinstance(prev, dict) else prev.low
-            prev_close = prev['close'] if isinstance(prev, dict) else prev.close
+            high = bar["high"] if isinstance(bar, dict) else bar.high
+            low = bar["low"] if isinstance(bar, dict) else bar.low
+            prev_high = prev["high"] if isinstance(prev, dict) else prev.high
+            prev_low = prev["low"] if isinstance(prev, dict) else prev.low
+            prev_close = prev["close"] if isinstance(prev, dict) else prev.close
             tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
             up_move = high - prev_high
             down_move = prev_low - low
@@ -752,10 +755,10 @@ class HybridStrategyEngine:
             return 0.0
         closes = []
         for bar in price_bars[-period:]:
-            closes.append(bar['close'] if isinstance(bar, dict) else bar.close)
+            closes.append(bar["close"] if isinstance(bar, dict) else bar.close)
         sma = sum(closes) / len(closes)
         variance = sum((c - sma) ** 2 for c in closes) / len(closes)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
         if sma == 0:
             return 0.0
         return float(2.0 * std_dev / sma)
@@ -764,12 +767,12 @@ class HybridStrategyEngine:
         """시장 레짐(추세) 감지 및 가중치/임계값 동적 조절"""
         for bar in price_bars:
             if isinstance(bar, dict):
-                if not all(k in bar for k in ['open', 'high', 'low', 'close', 'volume']):
+                if not all(k in bar for k in ["open", "high", "low", "close", "volume"]):
                     raise ValueError("Missing fields in price bar dict")
-                if any(bar[k] is None for k in ['open', 'high', 'low', 'close', 'volume']):
+                if any(bar[k] is None for k in ["open", "high", "low", "close", "volume"]):
                     raise ValueError("None fields in price bar dict")
             else:
-                for attr in ['open', 'high', 'low', 'close', 'volume']:
+                for attr in ["open", "high", "low", "close", "volume"]:
                     if not hasattr(bar, attr):
                         raise ValueError(f"Missing field {attr} in price bar object")
                     if getattr(bar, attr) is None:
@@ -779,12 +782,10 @@ class HybridStrategyEngine:
             self._active_regime = MarketRegime.WEAK_BEAR.value
             return MarketRegime.WEAK_BEAR.value
 
-        closes = [bar.close if not isinstance(bar, dict) else bar['close'] for bar in price_bars]
+        closes = [bar.close if not isinstance(bar, dict) else bar["close"] for bar in price_bars]
 
         ema50 = self._calc_ema(closes, 50)
         ema200 = self._calc_ema(closes, 200)
-
-        ratio = ema50[-1] / ema200[-1] if ema200[-1] != 0.0 else 1.0
 
         # Calculate additional metrics requested:
         # - EMA200 position: check if current close > EMA200
@@ -800,18 +801,14 @@ class HybridStrategyEngine:
         tr_values = []
         for i in range(len(price_bars)):
             bar = price_bars[i]
-            high = bar['high'] if isinstance(bar, dict) else bar.high
-            low = bar['low'] if isinstance(bar, dict) else bar.low
+            high = bar["high"] if isinstance(bar, dict) else bar.high
+            low = bar["low"] if isinstance(bar, dict) else bar.low
             if i == 0:
                 tr = high - low
             else:
-                prev_bar = price_bars[i-1]
-                prev_close = prev_bar['close'] if isinstance(prev_bar, dict) else prev_bar.close
-                tr = max(
-                    high - low,
-                    abs(high - prev_close),
-                    abs(low - prev_close)
-                )
+                prev_bar = price_bars[i - 1]
+                prev_close = prev_bar["close"] if isinstance(prev_bar, dict) else prev_bar.close
+                tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
             tr_values.append(tr)
         atr_14 = sum(tr_values[-14:]) / 14.0
         atr_ratio = atr_14 / current_close if current_close != 0.0 else 0.0
@@ -855,7 +852,7 @@ class HybridStrategyEngine:
             self.ml_weight *= 1.08
             self.rl_weight *= 1.05
             self.sentiment_weight *= 1.03
-            self.cash_ratio_weight *= (0.85 if regime == MarketRegime.STRONG_BULL.value else 0.90)
+            self.cash_ratio_weight *= 0.85 if regime == MarketRegime.STRONG_BULL.value else 0.90
             self.sell_threshold = profile["sell"]
             self.buy_price_threshold = min(1.05, self.buy_price_threshold + 0.01)
             if strong_trend and regime == MarketRegime.STRONG_BULL.value:
@@ -867,13 +864,15 @@ class HybridStrategyEngine:
             self.ml_weight *= 0.85
             self.rl_weight *= 0.85
             self.sentiment_weight *= 0.90
-            self.cash_ratio_weight *= (1.20 if regime == MarketRegime.STRONG_BEAR.value else 1.10)
+            self.cash_ratio_weight *= 1.20 if regime == MarketRegime.STRONG_BEAR.value else 1.10
             self.darkpool_weight *= 1.10
             self.sell_threshold = profile["sell"]
             self.buy_price_threshold = max(1.00, self.buy_price_threshold - 0.02)
             if regime == MarketRegime.STRONG_BEAR.value:
                 self.cash_ratio_weight *= 1.10
-                self.sell_threshold = max(0.1, self.sell_threshold - 0.05)
+                self.sell_threshold = max(0.1, self.sell_threshold - 0.06)
+            else:
+                self.sell_threshold = min(0.44, self.sell_threshold)
             self._normalize_weights()
 
         return regime
@@ -881,12 +880,12 @@ class HybridStrategyEngine:
 
 class OptimizationEngine:
     """최적화 엔진 - 슬리피지 및 손익 기반 파라미터 튜닝"""
-    
+
     def __init__(self, strategy_engine: HybridStrategyEngine) -> None:
         self.strategy_engine = strategy_engine
         self.logger = logger
         self.optimization_history: list = []
-        
+
         # 성과 메트릭
         self.total_trades = 0
         self.winning_trades = 0
@@ -894,19 +893,19 @@ class OptimizationEngine:
 
         # Performance attribution: PnL per signal
         self._signal_pnl: Dict[str, List[float]] = {}
-    
-    def record_trade_result(self, signal: TradeSignal, entry_price: float, 
-                           exit_price: float, quantity: int,
-                           signal_name: str | None = None) -> None:
+
+    def record_trade_result(
+        self, signal: TradeSignal, entry_price: float, exit_price: float, quantity: int, signal_name: str | None = None
+    ) -> None:
         """트레이드 결과 기록"""
         if signal == TradeSignal.BUY:
             slippage = abs(entry_price - exit_price) / entry_price
         else:
             slippage = abs(exit_price - entry_price) / entry_price
-        
+
         pnl = (exit_price - entry_price) * quantity
         is_win = pnl > 0
-        
+
         self.total_trades += 1
         if is_win:
             self.winning_trades += 1
@@ -919,15 +918,15 @@ class OptimizationEngine:
                 self.strategy_engine.record_signal_outcome(signal_name, True)
             else:
                 self.strategy_engine.record_signal_outcome(signal_name, False)
-        
+
         self.logger.info(f"Trade recorded: PnL={pnl}, slippage={slippage:.4f}")
-    
+
     def get_win_rate(self) -> float:
         """승률 계산"""
         if self.total_trades == 0:
             return 0.0
         return self.winning_trades / self.total_trades
-    
+
     def get_avg_slippage(self) -> float:
         """평균 슬리피지 계산"""
         if self.total_trades == 0:
@@ -946,27 +945,27 @@ class OptimizationEngine:
                 "win_rate": round(sum(1 for p in pnls if p > 0) / len(pnls), 4) if pnls else 0.0,
             }
         return attribution
-    
+
     def optimize_parameters(self) -> Dict:
         """파라미터 자동 튜닝"""
         win_rate = self.get_win_rate()
         avg_slippage = self.get_avg_slippage()
-        
+
         optimization = {
-            'win_rate': win_rate,
-            'avg_slippage': avg_slippage,
-            'total_trades': self.total_trades,
-            'timestamp': datetime.now()
+            "win_rate": win_rate,
+            "avg_slippage": avg_slippage,
+            "total_trades": self.total_trades,
+            "timestamp": datetime.now(),
         }
-        
+
         if win_rate < 0.4:
             self.strategy_engine.volume_threshold = int(self.strategy_engine.volume_threshold * 1.1)
             self.logger.warning(f"Adjusted volume threshold to {self.strategy_engine.volume_threshold}")
-        
+
         if avg_slippage > 0.01:
             self.logger.warning(f"High slippage detected: {avg_slippage:.4f}")
-        
+
         self.strategy_engine._adapt_weights()
-        
+
         self.optimization_history.append(optimization)
         return optimization

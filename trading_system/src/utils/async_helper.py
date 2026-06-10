@@ -2,8 +2,9 @@
 
 import asyncio
 import threading
-from typing import Coroutine, Any
-from concurrent.futures import Future, TimeoutError as FutureTimeoutError
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from typing import Any, Coroutine
 
 
 def run_async(coro: Coroutine, timeout: float = 60.0) -> Any:

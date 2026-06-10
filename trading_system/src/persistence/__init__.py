@@ -1,5 +1,5 @@
 """Persistence Layer Module"""
 
-from .database import TradeLogger, AssetHistoryDB, AIPredictionDB
+from .database import AIPredictionDB, AssetHistoryDB, TradeLogger
 
-__all__ = ['TradeLogger', 'AssetHistoryDB', 'AIPredictionDB']
+__all__ = ["AIPredictionDB", "AssetHistoryDB", "TradeLogger"]
