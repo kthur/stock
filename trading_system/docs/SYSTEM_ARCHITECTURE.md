@@ -43,7 +43,7 @@ graph TD
 
     %% 모니터링 및 사용자 인터페이스
     subgraph User_Interface [사용자 및 제어 인터페이스]
-        Dash[FastAPI Web Dashboard]
+        Dash[Plotly Dash Web Dashboard]
         TG[Telegram Bot]
     end
 
@@ -125,7 +125,7 @@ graph TD
 - 비동기 처리 중 발생하는 DB 락(Database Lock)을 방지하기 위해 단일 커넥션 및 동기화 래퍼를 제공합니다.
 
 ### 3.7 웹 대시보드 (`src/web/`) & 텔레그램 (`src/telegram_bot/`)
-* **웹 대시보드**: FastAPI 비동기 서버와 Jinja2 템플릿, 그리고 WebSockets를 이용하여 브라우저에 실시간 자산 총액, 손익률, 보유 포트폴리오 비중, 최근 매매 일지를 푸시합니다.
+* **웹 대시보드**: Plotly Dash 프레임워크와 Flask 서버를 탑재하여 멀티 탭 구조(Strategy Performance, Real-time P&L, Backtest Viewer, Global Macro)로 제공됩니다. 3초 주기의 `dcc.Interval` 풀링 및 Dash 콜백(`@app.callback`)을 활용해 포지션 정보, 자산 추이, 매크로 상관관계 열지도, 백테스트 최적화 캐시 정보를 실시간 동기화합니다.
 * **텔레그램 봇**: `python-telegram-bot` 모듈 기반으로 양방향 통신을 구현하여, 사용자가 언제든 모바일 환경에서 시스템 상태 조회가 가능하며 수동 주문 인터럽트를 전송할 수 있습니다.
 
 ---

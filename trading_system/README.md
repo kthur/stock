@@ -67,7 +67,7 @@ TELEGRAM_BOT_TOKEN=123456789:ABCdefGh...
 ## 💻 실행 방법 및 스크립트 안내
 
 ### 1. 실시간 대시보드 및 백테스트 스캐너 가동
-FastAPI 웹 데몬 및 실시간 포트폴리오 모니터링 화면(HTML)을 가동합니다.
+Plotly Dash 웹 데몬 및 실시간 포트폴리오 모니터링 화면을 가동합니다.
 ```powershell
 python run_dashboard.py
 ```
