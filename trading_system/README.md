@@ -67,7 +67,7 @@ cp .env.example .env        # macOS/Linux
 
 ```ini
 # LLM 제공자 선택: openai / gemini / deepseek
-LLM_PROVIDER=deepseek
+LLM_PROVIDER=gemini
 
 # DeepSeek (https://platform.deepseek.com/api_keys)
 DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
@@ -79,7 +79,7 @@ OPENAI_MODEL=gpt-4o-mini
 
 # Google Gemini (LLM_PROVIDER=gemini 사용 시)
 GEMINI_API_KEY=AIzaSy-xxxxxxxxxxxxxxxxxxxx
-GEMINI_MODEL=gemini-1.5-pro
+GEMINI_MODEL=gemini-1.5-flash
 
 # 텔레그램 봇 (선택)
 TELEGRAM_BOT_TOKEN=your_bot_token_here
@@ -146,7 +146,7 @@ llm_r1 = LLMEngine(provider="deepseek", model="deepseek-reasoner")  # R1 모델
 llm_oai = LLMEngine(provider="openai", model="gpt-4o")
 
 # Google Gemini
-llm_gem = LLMEngine(provider="gemini", model="gemini-1.5-pro")
+llm_gem = LLMEngine(provider="gemini", model="gemini-1.5-flash")
 
 # 투자 의견 조회
 opinion = llm_ds.query_investment_opinion({
@@ -342,7 +342,7 @@ strategies = engine.list_strategies()
 | 제공자 | 환경변수 | 기본 모델 | 비고 |
 |--------|---------|----------|------|
 | **OpenAI** | `OPENAI_API_KEY` | `gpt-4o-mini` | GPT-4o 등 지원 |
-| **Google Gemini** | `GEMINI_API_KEY` | `gemini-1.5-pro` | |
+| **Google Gemini** | `GEMINI_API_KEY` | `gemini-1.5-flash` | |
 | **DeepSeek** | `DEEPSEEK_API_KEY` | `deepseek-chat` | R1(`deepseek-reasoner`) 지원 |
 
 - API 키 없이도 시뮬레이션 모드로 동작 (PER/성장률 기반 규칙)

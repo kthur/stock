@@ -73,7 +73,7 @@ class LLMEngine:
             self._init_openai()
         elif self.provider == "gemini":
             self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-            self.model = model or os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+            self.model = model or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
             self._init_gemini()
         elif self.provider == "deepseek":
             self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
