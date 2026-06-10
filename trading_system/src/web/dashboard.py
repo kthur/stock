@@ -10,6 +10,8 @@ from dash.dependencies import Input, Output
 
 logger = logging.getLogger(__name__)
 
+_active_dashboard = None
+
 # Create the Dash app instance
 app = dash.Dash(__name__)
 # Keep reference to the underlying flask server
@@ -136,6 +138,11 @@ app.layout = html.Div(
                 ),
             ],
         ),
+        dcc.Interval(
+            id="interval-component",
+            interval=3000,
+            n_intervals=0
+        )
     ]
 )
 
@@ -316,6 +323,83 @@ def callback_update_kr_outperformers_table(timeframe, limit):
     return update_outperformers_table("KR", timeframe, limit)
 
 
+@app.callback(
+    [Output("pnl-status-table", "data"), Output("pnl-status-table", "columns")],
+    [Input("interval-component", "n_intervals")]
+)
+def callback_update_positions(n):
+    global _active_dashboard
+    positions = []
+    if _active_dashboard and _active_dashboard.trading_system:
+        # Construct positions list with current price and P&L calculated
+        for sym, pos in _active_dashboard.trading_system.portfolio.positions.items():
+            curr_price = _active_dashboard.trading_system.market_data_cache.get(sym, {}).get("price", pos.avg_price)
+            pnl_val = (curr_price - pos.avg_price) * pos.quantity
+            positions.append({
+                "symbol": sym,
+                "quantity": pos.quantity,
+                "entry_price": pos.avg_price,
+                "current_price": curr_price,
+                "pnl": pnl_val
+            })
+    rows = update_positions_table(positions)
+    columns = [{"name": i.upper().replace("_", " "), "id": i} for i in ["symbol", "quantity", "entry_price", "current_price", "pnl"]]
+    return rows, columns
+
+
+@app.callback(
+    Output("performance-comparison-chart", "figure"),
+    [Input("interval-component", "n_intervals")]
+)
+def callback_update_performance(n):
+    global _active_dashboard
+    perf_data = {}
+    if _active_dashboard and _active_dashboard.trading_system:
+        history = _active_dashboard.trading_system.portfolio.asset_history
+        if history:
+            perf_data = {
+                "Portfolio Equity": {
+                    "equity": [snap.total_value for snap in history],
+                    "dates": [snap.timestamp.strftime("%Y-%m-%d %H:%M:%S") for snap in history]
+                }
+            }
+    return update_performance_comparison(perf_data)
+
+
+@app.callback(
+    Output("backtest-curve-chart", "figure"),
+    [Input("backtest-symbol-dropdown", "value")]
+)
+def callback_update_backtest_chart(symbol):
+    return update_backtest_chart(symbol, "Trend Following")
+
+
+@app.callback(
+    Output("optimized-cache-viewer", "children"),
+    [Input("backtest-symbol-dropdown", "value")]
+)
+def callback_update_optimized_cache(symbol):
+    import json
+    import os
+    cache_path = "data/optimized_params.json"
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            best_params = data.get("best_params", {})
+            best_return = data.get("best_return", 0.0)
+            sharpe = data.get("sharpe_ratio", 0.0)
+            return html.Div([
+                html.H4(f"Cached Parameter Optimization for {symbol}:"),
+                html.P(f"Expected Return: {best_return:.2f}%"),
+                html.P(f"Sharpe Ratio: {sharpe:.2f}"),
+                html.P(f"Parameters: {json.dumps(best_params)}")
+            ], style={"marginTop": "20px", "padding": "10px", "backgroundColor": "#f8f9fa", "borderRadius": "5px"})
+        except Exception as e:
+            return html.P(f"Error reading cache: {e}")
+    return html.P("No cached parameters found. Run parameter optimization script first.", style={"marginTop": "20px"})
+
+
 class DashboardServer:
     """Dashboard configuration server class."""
 
@@ -333,6 +417,8 @@ class WebDashboard:
         self.host = host
         self.port = port
         self.app = app
+        global _active_dashboard
+        _active_dashboard = self
 
     def run(self, debug: bool = False) -> None:
         """Launches the Dash server in a separate background thread to avoid blocking."""
