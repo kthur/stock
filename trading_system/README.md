@@ -88,8 +88,8 @@ TELEGRAM_BOT_TOKEN=your_bot_token_here
 ### 3. 기본 실행
 
 ```bash
-# 전체 테스트 실행 (313 pass, ~2분 소요)
-python -m pytest tests/ -v
+# 전체 테스트 실행 (315개 - 313 pass, 2 skip, 약 4분 소요)
+.venv\Scripts\python -m pytest tests/ -v
 
 # 시스템 데모 실행
 python test_system.py
@@ -348,6 +348,15 @@ python telegram_bot_runner.py
 
 ```
 trading_system/
+├── docs/                    # 시스템 관련 문서 보관 폴더
+│   ├── ADVANCED_FEATURES.md # 고급 기능 상세
+│   ├── ALGORITHMS.md        # 알고리즘 상세 정의서
+│   ├── IMPLEMENTATION_GUIDE.md # 구현 가이드
+│   ├── ORIGINAL_REQUEST.md  # 원본 요구사항 문서
+│   ├── PHASE7_IMPLEMENTATION_PLAN.md # Phase 7 구현 계획서
+│   ├── PROJECT.md           # 프로젝트 명세서
+│   ├── TEST_INFRA.md        # 테스트 인프라 정의서
+│   └── TEST_READY.md        # 테스트 준비 요약서
 ├── src/
 │   ├── data_layer/          # 시장 데이터 & NLP
 │   ├── core/                # 자산관리, 전략, 주문관리
@@ -360,17 +369,12 @@ trading_system/
 │   ├── strategy/            # 유명 투자자 전략 & 자산 배분
 │   ├── ai/                  # LLM (OpenAI/Gemini/DeepSeek) & RL
 │   └── telegram_bot/        # 텔레그램 봇
-├── tests/                   # pytest 테스트 (313 pass)
+├── tests/                   # pytest 테스트 (315개 - 313 pass, 2 skip)
 ├── trading_system.py        # 메인 통합 시스템
 ├── .env.example             # 환경 설정 템플릿
 ├── requirements.txt         # 의존성 목록
-├── README.md                # 이 파일
-├── IMPLEMENTATION_GUIDE.md  # 구현 가이드
-├── ADVANCED_FEATURES.md     # 고급 기능 상세
-└── ALGORITHMS.md            # 알고리즘 상세 문서
+└── README.md                # 이 파일 (본 문서)
 ```
-
----
 
 ## 신호 파이프라인 상세
 
