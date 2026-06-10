@@ -252,16 +252,27 @@ strategies = engine.list_strategies()
 
 ### 웹 대시보드 실행
 
+가상환경을 활성화하거나 가상환경 내의 python을 호출하여 대시보드를 실행합니다:
+
 ```bash
-python run_dashboard.py
-# → http://localhost:8050 에서 실시간 포트폴리오 모니터링
+# Windows
+.venv\Scripts\python run_dashboard.py
+
+# macOS / Linux
+.venv/bin/python run_dashboard.py
+# → 웹 브라우저로 http://localhost:8050 에 접속하여 실시간 모니터링 가능
 ```
 
 ### 텔레그램 봇 실행
 
+`.env` 파일에 `TELEGRAM_BOT_TOKEN`을 기입한 후 실행합니다:
+
 ```bash
-# .env에 TELEGRAM_BOT_TOKEN 설정 후:
-python telegram_bot_runner.py
+# Windows
+.venv\Scripts\python telegram_bot_runner.py
+
+# macOS / Linux
+.venv/bin/python telegram_bot_runner.py
 ```
 
 **텔레그램 명령어:**
@@ -277,6 +288,23 @@ python telegram_bot_runner.py
 | `/stop` | 자동 매매 일시 정지 |
 
 ---
+
+## 트러블슈팅 (Troubleshooting)
+
+### 1. ModuleNotFoundError: No module named 'websockets.asyncio'
+최근 `yfinance` 버전이 `websockets.asyncio` 패키지를 요구하게 되면서, 구버전 websockets(12.0 이하)이 설치되어 있는 경우 임포트 오류가 발생합니다.
+- **해결법**: websockets 패키지를 13.0 이상으로 업그레이드합니다.
+```bash
+.venv\Scripts\python -m pip install --upgrade "websockets>=13.0"
+```
+
+### 2. can't open file '...\\run': [Errno 2] No such file or directory
+`python run run_dashboard.py`와 같이 중간에 `run` 인자를 추가로 오기입하여 파일을 찾지 못하는 오류입니다.
+- **해결법**: `run` 인자를 제외하고 아래와 같이 올바른 파일명만 전달하여 실행해 주세요.
+```bash
+.venv\Scripts\python run_dashboard.py
+```
+
 
 ## 핵심 컴포넌트
 
