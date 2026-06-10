@@ -19,7 +19,10 @@ class StyleRotator:
     포트폴리오 비중을 동적으로 조정하는 클래스.
     """
 
-    def __init__(self):
+    current_regime: str
+    style_preferences: Dict[str, float]
+
+    def __init__(self) -> None:
         self.current_regime = "NEUTRAL"
         self.style_preferences = {"GROWTH": 1.0, "VALUE": 1.0, "LARGE_CAP": 1.0, "SMALL_CAP": 1.0}
 

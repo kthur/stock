@@ -689,5 +689,5 @@ class TelegramBotEngine:
             "subscribed_users": len(self.subscribed_users),
             "total_commands": len(self.command_history),
             "users": self.subscribed_users,
-            "recent_commands": self.command_history[-10:] if self.command_history else [],
+            "recent_commands": list(self.command_history)[-10:] if self.command_history else [],
         }

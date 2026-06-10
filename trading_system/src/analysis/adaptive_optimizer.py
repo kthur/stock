@@ -64,7 +64,7 @@ FULL_PARAM_GRID = {
 REGIME_NAMES = ["strong_bull", "weak_bull", "weak_bear", "strong_bear"]
 
 # 기본 파라미터 (fallback)
-DEFAULT_PARAMS = {
+DEFAULT_PARAMS: Dict[str, Any] = {
     "regime_thresholds": {
         "strong_bull": {
             "buy": 0.48,
@@ -261,7 +261,7 @@ class AdaptiveParameterOptimizer:
 
         sampler = TPESampler(seed=seed)
         best_score = -float("inf")
-        best_params = None
+        best_params: Dict[Any, Any] = {}
         all_scores = []
 
         for trial in range(n_trials):
@@ -339,7 +339,7 @@ class AdaptiveParameterOptimizer:
         """단일 종목 Recency-Weighted Score 계산"""
         strategy_func = self._build_strategy_from_params(params)
         result = self.backtest.run_backtest(symbol, bars, strategy_func)
-        return self.backtest.recency_weighted_score(result, decay_rate)
+        return float(self.backtest.recency_weighted_score(result, decay_rate))
 
     def _build_strategy_from_params(self, params: Dict) -> Callable:
         """파라미터 → 전략 함수 변환"""
@@ -516,13 +516,15 @@ class AdaptiveParameterOptimizer:
 
         for key in ["trail_pct", "max_holding_days", "max_position_size_pct"]:
             test_params = DEFAULT_PARAMS.copy()
-            test_params[key] = random.choice(FULL_PARAM_GRID.get(key, [test_params[key]]))
+            choices = FULL_PARAM_GRID.get(key, [test_params[key]])
+            if isinstance(choices, list):
+                test_params[key] = random.choice(choices)
             score = self._evaluate_params(symbols, test_params, lookback_days, decay_rate)
             importance[key] = max(0, baseline - score)
 
         return importance
 
-    def save_params(self, result: OptimizationResult, filepath: str = None) -> str:
+    def save_params(self, result: OptimizationResult, filepath: Optional[str] = None) -> str:
         """최적화 결과를 JSON으로 저장"""
         if filepath is None:
             filepath = os.path.join(
@@ -534,7 +536,7 @@ class AdaptiveParameterOptimizer:
         if result.best_params:
             for key, value in result.best_params.items():
                 parts = key.split(".")
-                target = full_params
+                target: Any = full_params
                 for p in parts[:-1]:
                     if p.isdigit():
                         p = int(p)
@@ -595,7 +597,7 @@ class AdaptiveParameterOptimizer:
         return filepath
 
     @staticmethod
-    def load_params(filepath: str = None) -> Dict:
+    def load_params(filepath: Optional[str] = None) -> Dict:
         """저장된 파라미터 로드 (없으면 기본값 반환)"""
         if filepath is None:
             filepath = os.path.join(
@@ -609,7 +611,10 @@ class AdaptiveParameterOptimizer:
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return data.get("params", DEFAULT_PARAMS.copy())
+            res = data.get("params", DEFAULT_PARAMS.copy())
+            if isinstance(res, dict):
+                return res
+            return DEFAULT_PARAMS.copy()
         except Exception as e:
             logger.warning(f"Failed to load adaptive params: {e}, using defaults")
             return DEFAULT_PARAMS.copy()
@@ -688,7 +693,7 @@ class OptimizationScheduler:
         )
         return self._current_optimization
 
-    def update_state(self, regime: str = None, sharpe: float = None, drawdown: float = None, vix: float = None) -> None:
+    def update_state(self, regime: Optional[str] = None, sharpe: Optional[float] = None, drawdown: Optional[float] = None, vix: Optional[float] = None) -> None:
         """현재 상태 업데이트"""
         if regime:
             self._current_regime = regime

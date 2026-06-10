@@ -148,11 +148,11 @@ class CrisisDetector:
 
     def _score_macro(self, usdkrw: float | None, oil: float | None, tnx: float | None, dxy: float | None) -> float:
         """거시경제 지표 기반 위험 점수 (0.0 ~ 1.0)"""
-        scores = []
+        scores: List[float] = []
 
         # USD/KRW: 원화 약세(환율 상승) → 자본유출 위험
         if usdkrw is not None and len(self._usdkrw_history) >= 5:
-            baseline = sum(self._usdkrw_history[-5:]) / 5
+            baseline = sum(list(self._usdkrw_history)[-5:]) / 5
             spike = (usdkrw - baseline) / max(baseline, 1.0)
             scores.append(min(1.0, max(0, spike * 5.0)))
 
