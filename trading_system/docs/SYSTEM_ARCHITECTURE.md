@@ -1,163 +1,1037 @@
-# 🏗️ 주식 자동매매 시스템 아키텍처 설계서 (System Architecture)
+# 주식 자동매매 시스템 전체 구조 및 알고리즘 명세서
 
-본 문서는 이벤트 기반 비동기 아키텍처로 구현된 주식 자동매매 플랫폼의 아키텍처 구조, 흐름 설계, 데이터 모델 및 각 핵심 모듈 간의 협력 구조를 명세합니다.
+> **Version**: 2.0  
+> **Last Updated**: 2026-06-12  
+> **Python**: 3.10+  
+> **Database**: SQLite
 
 ---
 
-## 1. 전체 시스템 구조 및 데이터 흐름
+## 목차
 
-시스템은 의존성 결합을 최소화하기 위해 **이벤트 버스(EventBus)**를 중심에 둔 느슨한 결합(Loose Coupling)의 **이벤트 구동형 아키텍처(Event-Driven Architecture)**를 취하고 있습니다.
+1. [프로젝트 개요](#1-프로젝트-개요)
+2. [시스템 아키텍처](#2-시스템-아키텍처)
+3. [설치 및 설정](#3-설치-및-설정)
+4. [실행 방법](#4-실행-방법)
+5. [핵심 모듈별 동작 구조](#5-핵심-모듈별-동작-구조)
+6. [전략 엔진 상세](#6-전략-엔진-상세)
+7. [기술적 지표 목록](#7-기술적-지표-목록)
+8. [리스크 관리](#8-리스크-관리)
+9. [포지션 사이징](#9-포지션-사이징)
+10. [머신러닝/딥러닝](#10-머신러닝딥러닝)
+11. [포트폴리오 최적화](#11-포트폴리오-최적화)
+12. [시장 레짐 및 스타일 로테이션](#12-시장-레짐-및-스타일-로테이션)
+13. [브로커 연동](#13-브로커-연동)
+14. [텔레그램 봇 명령어](#14-텔레그램-봇-명령어)
+15. [데이터베이스 스키마](#15-데이터베이스-스키마)
+16. [테스트](#16-테스트)
+17. [전체 파라미터 일람](#17-전체-파라미터-일람)
 
-```mermaid
-graph TD
-    %% 외부 데이터 소스 및 입력
-    subgraph External_Inputs [외부 데이터 소스]
-        YF[yfinance API]
-        News[뉴스 / RSS 피드]
-    end
+---
 
-    %% 데이터 처리 및 분석
-    subgraph Data_Layer [데이터 및 AI 레이어]
-        MDH[MarketDataHandler]
-        NLP[NLPEngine]
-        LLM[LLMEngine / AI 감성 분석]
-    end
+## 1. 프로젝트 개요
 
-    %% 이벤트 처리 허브
-    EB((EventBus 이벤트 버스))
+### 1.1 목적
 
-    %% 코어 트레이딩 프로세스
-    subgraph Trading_Core [코어 트레이딩 엔진]
-        STE[StrategyEngine]
-        RM[RiskManager]
-        OMS[OrderManagementSystem]
-    end
+미국 주식(S&P 500) 및 한국 주식(KRX)을 대상으로 하는 **자동매매 시스템**입니다.
+실시간 시세 수집 → AI/ML 분석 → 신호 생성 → 리스크 검증 → 자동 주문 실행 → 성과 분석의 전 과정을 자동화합니다.
 
-    %% 브로커 레이어
-    subgraph Broker_Layer [브로커 연동 모듈]
-        MBM[MultiBrokerManager]
-        SimB[SimulatedBroker 모의 매매]
-        KB[KiwoomBroker ZMQ IPC 연동]
-        KIS[KoreaInvestmentBroker]
-    end
+### 1.2 핵심 특징
 
-    %% 모니터링 및 사용자 인터페이스
-    subgraph User_Interface [사용자 및 제어 인터페이스]
-        Dash[Plotly Dash Web Dashboard]
-        TG[Telegram Bot]
-    end
+| 특징 | 설명 |
+|------|------|
+| **이벤트 기반 아키텍처** | EventBus를 통한 Pub/Sub 느슨한 결합 |
+| **9개 하이브리드 신호** | 기술적/ML/RL/감성/거시경제/LLM 등 융합 |
+| **On-device XGBoost** | 클라우드 의존 없이 로컬에서 예측 (1/5/10/20/30/60일) |
+| **8개 증권사 연동** | 키움, 한국투자, 대신, NH, 한화, LS, 미래에셋 + 모의 |
+| **3가지 RL 에이전트** | PPO(stable-baselines3), DQN(PyTorch), Adaptive Heuristic |
+| **텔레그램 풀 명령어** | 20개 명령어로 상태 조회/주문/분석/예측 |
+| **Plotly Dash 대시보드** | 실시간 포트폴리오, 성과, 백테스트, 거시지표 |
+| **4단계 위기 관리** | VIX + DD + 거래량 + 거시경제 통합 위기 점수 |
 
-    %% 데이터베이스 영속성
-    DB[(SQLite Database)]
+### 1.3 의존성
 
-    %% 데이터 흐름 연결
-    YF --> MDH
-    News --> NLP
-    MDH -- "market_data 이벤트" --> EB
-    NLP -- "news_sentiment 이벤트" --> EB
-    
-    EB --> STE
-    STE -- "strategy_signal 이벤트" --> EB
-    EB --> RM
-    RM -- "지정된 주문 전송" --> OMS
-    
-    OMS --> MBM
-    MBM --> SimB
-    MBM --> KB
-    MBM --> KIS
-    
-    %% 데이터베이스 및 대시보드 저장/전달
-    OMS -- "주문 및 체결 기록" --> DB
-    EB -- "실시간 자산/주문 현황" --> Dash
-    EB -- "매매 신호 및 자산 브리핑" --> TG
+```
+fastapi, numpy, pandas, scikit-learn, xgboost, lightgbm,
+torch, stable-baselines3, gymnasium, yfinance, FinanceDataReader,
+dash, plotly, reportlab, openai, google-generativeai,
+python-telegram-bot, aiosqlite, python-dotenv
 ```
 
 ---
 
-## 2. 이벤트 버스 (EventBus) 및 Pub/Sub 흐름
+## 2. 시스템 아키텍처
 
-시스템의 동맥 역할을 하는 `EventBus`는 멀티스레드 환경에서도 안전하게 작동(Thread-safe)하도록 `threading.Lock` 및 비동기 큐 구조를 포함하고 있습니다.
+### 2.1 전체 구조
 
-### 2.1 핵심 이벤트 정의
-* **`market_data`**: 실시간 가격, 시가/고가/저가/종가(OHLCV), 보조지표 연산 결과가 포함된 이벤트 데이터. `MarketDataHandler`에서 발행.
-* **`news_sentiment`**: 수집된 뉴스 및 금융 텍스트를 `NLPEngine`에서 AI 감정 평정 결과(Very Bullish ~ Very Bearish)로 가공하여 발행.
-* **`strategy_signal`**: 대가들의 투자 모델과 ML 앙상블 점수가 결합되어 매수(BUY)/매도(SELL) 판단을 내리는 시점에 `StrategyEngine`에서 발행.
-* **`order_status`**: 브로커로부터 주문 집행(주문 접수, 일부 체결, 전량 체결, 취소 등) 피드백이 올 때마다 `OrderManagementSystem`에서 발행.
-* **`account_sync`**: 예수금, 총자산, 보유 종목 현황이 변경되거나 주기적으로 잔고를 갱신할 때 발행.
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                        StockTradingSystem                          │
+│  (trading_system.py - 2186 lines, 메인 오케스트레이터)              │
+└────────────────────────────────────────────────────────────────────┘
+                                    │
+          ┌─────────────────────────┼────────────────────────────┐
+          ▼                         ▼                            ▼
+   ┌─────────────┐         ┌───────────────┐          ┌─────────────────┐
+   │  EventBus   │◄────────│  SystemFactory │          │  외부 데이터      │
+   │  (Pub/Sub)  │────────►│  (DI 컨테이너)  │          │  yfinance        │
+   └─────────────┘         └───────────────┘          │  FinanceDataReader│
+          │                                            └─────────────────┘
+   ┌──────┼──────┐
+   ▼      ▼      ▼
+┌─────┐ ┌─────┐ ┌──────────┐
+│전략  │ │리스크│ │주문/체결 │
+│엔진  │ │관리  │ │시스템    │
+└─────┘ └─────┘ └──────────┘
+   │                      │
+   ▼                      ▼
+┌──────────┐      ┌──────────────┐
+│  AI/ML   │      │  MultiBroker │
+│  엔진    │      │  Manager     │
+└──────────┘      └──────┬───────┘
+                         │
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+        ┌────────┐ ┌────────┐ ┌────────┐
+        │Simulated│ │ Kiwoom │ │  KIS   │ ...
+        └────────┘ └────────┘ └────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ 사용자 인터페이스                                            │
+│  ┌──────────────┐  ┌──────────────────┐  ┌───────────────┐ │
+│  │ Plotly Dash  │  │  Telegram Bot    │  │  PDF Reports  │ │
+│  │ localhost:5000│  │  20개 명령어     │  │               │ │
+│  └──────────────┘  └──────────────────┘  └───────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 이벤트 흐름
+
+```
+MarketDataHandler ──"market_data"──▶ EventBus ──▶ StrategyEngine
+NLPEngine         ──"news_sentiment"─▶ EventBus ──▶ StrategyEngine
+StrategyEngine    ──"strategy_signal"▶ EventBus ──▶ RiskManager → OMS
+OMS               ──"order_status"──▶ EventBus ──▶ Dashboard / Telegram
+Portfolio         ──"account_sync"──▶ EventBus ──▶ Dashboard
+```
+
+### 2.3 의존성 주입 (DI)
+
+`SystemFactory.create_default_components()`가 모든 컴포넌트를 생성하고 `StockTradingSystem`에 주입합니다:
+
+```
+EventBus, MarketDataHandler, NLPEngine, PortfolioManager,
+AccountSyncAgent, HybridStrategyEngine, OptimizationEngine,
+OrderManagementSystem, TradeLogger, AssetHistoryDB, RiskManager,
+BacktestEngine, AdvancedStatistics, ErrorHandler, BrokerConnector,
+MultiBrokerManager, InvestorStrategyEngine, LLMEngine,
+GlobalMarketClient, RelativeStrengthAnalyzer
+```
 
 ---
 
-## 3. 핵심 구성 요소 (Core Components)
+## 3. 설치 및 설정
 
-### 3.1 MarketDataHandler (`src/data_layer/`)
-- 외부 금융 API(yfinance, 한국투자증권 실시간 웹소켓 등)를 통해 주식 시세를 수집합니다.
-- 수집된 데이터를 바탕으로 이동평균선(MA), 상대강도지수(RSI), 볼린저 밴드(BB), 평균실제범위(ATR) 등의 기술적 보조지표를 동적으로 연산하여 `market_data` 이벤트를 발행합니다.
+### 3.1 설치
 
-### 3.2 StrategyEngine (`src/core/strategy_engine.py`)
-- 등록된 투자 전략들을 보유하고 있으며, 수신되는 `market_data` 및 `news_sentiment` 이벤트를 리스닝하여 매매 조건을 스캔합니다.
-- **다중 전략 모델**: 워렌 버핏, 피터 린치, 레이 달리오, 일반 추세 추종 등 유명 투자가의 조건식 모델을 탑재하고 있습니다.
-- 분석을 거쳐 투자 의견이 매치되면 `strategy_signal`을 발행합니다.
+```bash
+cd trading_system
+pip install -r requirements.txt
+```
 
-### 3.3 RiskManager (`src/risk/risk_manager.py`)
-- `StrategyEngine`이 생성한 매매 신호가 실제 주문으로 집행되기 전, 시스템 전반의 리스크 한도를 침해하지 않는지 실시간 검증합니다.
-- **검증 항목**:
-  1. **손절선 (Stop-loss)** 및 **최대 익절선 (Take-profit)** 도달 여부.
-  2. **종목 노출 한도**: 단일 종목의 최대 매수 한도가 전체 포트폴리오 자산의 특정 비율(예: 20%)을 넘지 못하게 통제.
-  3. **최대 낙폭 관리**: 일일 포트폴리오의 급격한 변동성을 확인하여 비상시 전체 매매를 중단하는 서킷 브레이커 기능.
+### 3.2 환경 변수 (.env)
 
-### 3.4 OrderManagementSystem (OMS) (`src/core/order_management.py`)
-- 리스크 매니저를 통과한 주문을 생성하여 고유의 `Order ID`를 부여하고 거래 대기열에 올립니다.
-- 주문의 상태(`PENDING`, `FILLED`, `CANCELLED` 등)를 추적하고, 체결 내역을 DB에 영속화하며, `order_status` 이벤트를 전송합니다.
+```
+# 트레이딩 설정
+MOCK_TRADING_ENABLED=true
+BROKER_TYPE=KIS
+DB_PATH=market_indicators.db
+TRAIN_SAMPLE_SIZE=50
 
-### 3.5 브로커 어댑터 레이어 (Broker Layer) (`src/broker/`)
-다중 브로커 인터페이스를 통합적으로 운영합니다.
-* **SimulatedBroker (`simulated_broker.py`)**: 
-  - 외부 연동 없이 메모리 상에서 주문을 체결시키는 로컬 모의 매매 엔진입니다.
-  - 슬리피지(Slippage) 시뮬레이션 및 호가 잔량 대기 시간 모델을 탑재하여 현실적인 백테스트를 보장합니다.
-* **KiwoomBroker (`kiwoom.py`, `kiwoom_server.py`)**: 
-  - 32비트 Windows 환경(ActiveX 컨트롤 환경)의 키움 OpenAPI와 64비트 메인 시스템 간의 충돌을 방지하기 위해 **ZeroMQ(ZMQ) IPC 통신 브릿지** 구조를 채택했습니다. 
-  - 32비트 프로세스인 `kiwoom_server.py`가 키움증권 서버와의 통신을 독점하고, 메인 64비트 시스템은 ZMQ 소켓을 통해 명령을 송수신합니다.
-* **KoreaInvestmentBroker (`korea_investment.py`)**:
-  - 한국투자증권 Open API와 연동하며, OAuth2 기반 액세스 토큰 자동 갱신 메커니즘을 지원합니다.
+# LLM API 키 (택1)
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+DEEPSEEK_API_KEY=...
+OPENAI_MODEL=gpt-4o-mini
+LLM_PROVIDER=openai
 
-### 3.6 데이터베이스 영속성 레이어 (`src/persistence/`)
-- SQLite 데이터베이스(`database.py`)를 통해 거래 이력, 체결 데이터, 포트폴리오 상태, 머신러닝 예측 히스토리를 저장합니다.
-- 비동기 처리 중 발생하는 DB 락(Database Lock)을 방지하기 위해 단일 커넥션 및 동기화 래퍼를 제공합니다.
+# 텔레그램
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_AUTHORIZED_USER_IDS=123456,789012
 
-### 3.7 웹 대시보드 (`src/web/`) & 텔레그램 (`src/telegram_bot/`)
-* **웹 대시보드**: Plotly Dash 프레임워크와 Flask 서버를 탑재하여 멀티 탭 구조(Strategy Performance, Real-time P&L, Backtest Viewer, Global Macro)로 제공됩니다. 3초 주기의 `dcc.Interval` 풀링 및 Dash 콜백(`@app.callback`)을 활용해 포지션 정보, 자산 추이, 매크로 상관관계 열지도, 백테스트 최적화 캐시 정보를 실시간 동기화합니다.
-* **텔레그램 봇**: `python-telegram-bot` 모듈 기반으로 양방향 통신을 구현하여, 사용자가 언제든 모바일 환경에서 시스템 상태 조회가 가능하며 수동 주문 인터럽트를 전송할 수 있습니다.
+# 한국투자증권 (KIS) 모의
+KIS_MOCK_APP_KEY=...
+KIS_MOCK_APP_SECRET=...
+KIS_MOCK_ACCOUNT=...
+```
+
+### 3.3 설정 파일
+
+`risk_config.json` — 위험 관리 기본값 (stop_loss_pct, position_size_pct 등)
 
 ---
 
-## 4. 의존성 주입 및 객체 팩토리 (`src/core/factory.py`)
+## 4. 실행 방법
 
-객체 간의 복잡한 연결 관계를 정리하고 단일 지점에서 결합성을 주입하기 위해 `factory.py`에서 코어 엔진 생성을 주도합니다.
+### 4.1 대시보드 실행
+
+```bash
+python run_dashboard.py
+```
+- Plotly Dash 웹 서버 on http://localhost:5000
+- 탭: Strategy Performance / Real-time P&L / Backtest Viewer / Global Macro
+
+### 4.2 AI 예측 파이프라인 실행
+
+```bash
+python run_pipeline.py
+```
+- S&P 500 + KRX 전체 종목 대상
+- XGBoost 1/5/10/20/30/60일 예측
+- 결과 DB 저장 + 콘솔 출력
+
+### 4.3 개별 예측 스크립트
+
+```bash
+python scripts/predict_best_stock.py
+```
+
+### 4.4 텔레그램 봇 실행
+
+```bash
+python telegram_bot_runner.py
+```
+또는 시스템 내에서 `system.start_telegram_bot()` 호출
+
+### 4.5 최적화 실행
+
+```bash
+python update_optimize.py
+```
+- Adaptive Parameter Optimizer 기반 Bayesian 최적화
+
+### 4.6 시스템 테스트
+
+```bash
+python -m pytest tests/
+```
+
+### 4.7 코드 품질 검사
+
+```bash
+ruff check src/
+mypy src/
+```
+
+---
+
+## 5. 핵심 모듈별 동작 구조
+
+### 5.1 StockTradingSystem (trading_system.py)
+
+**메인 오케스트레이터**. 전체 시스템을 초기화하고 이벤트 콜백을 등록합니다.
+
+| 메서드 | 설명 |
+|--------|------|
+| `__init__` | DI 기반 초기화, 30+ 컴포넌트 설정 |
+| `_setup_callbacks` | EventBus 리스너 등록 (market_data, news, strategy_signal 등) |
+| `simulate_trading_day(symbol)` | 하루 단위 거래 시뮬레이션 |
+| `_on_market_data(data)` | 가격 캐싱, 손절/익절 체크, 트레일링 스탑, 시간 기반 청산, 리밸런싱 |
+| `_on_strategy_signal(result)` | 신호 수신 → `_create_and_submit_order` 호출 |
+| `_create_and_submit_order(...)` | 전 주문 파이프라인: 레짐 감지 → 가격 신선도 → max 포지션 → ATR SL/TP → Kelly → 위기 평가 |
+| `run_prediction_pipeline()` | XGBoost 예측 파이프라인 실행 (Telegram /predict) |
+| `start_dashboard()` | WebDashboard 실행 |
+
+### 5.2 HybridStrategyEngine (src/core/strategy_engine.py)
+
+**9개 신호 가중 투표 엔진**.
+
+| 단계 | 상세 |
+|------|------|
+| 1. 레짐 감지 | EMA50/200 + ADX + ROC → 4개 레짐 분류 |
+| 2. 기술 지표 계산 | RSI, MACD, EMA, BB, ADX |
+| 3. 9개 신호 스코어링 | 각 신호별 0~1 점수 산출 |
+| 4. 가중 투표 | `score = Σ(weight_i × signal_i)` |
+| 5. 레짐 임계값 적용 | 레짐별 buy_threshold/sell_threshold로 판별 |
+
+### 5.3 RiskManager (src/risk/risk_manager.py)
+
+**리스크 평가 및 포지션 사이징**을 담당합니다.
+
+| 기능 | 상세 |
+|------|------|
+| ATR 기반 손절/익절 | `stop = entry - ATR × multiplier`, `target = entry + ATR × multiplier` |
+| Kelly Criterion | `f* = W - (1-W)/R` (Half-Kelly 기본) |
+| VIX Risk-Off | VIX > 30 → cap 15%, > 25 → 30%, > 20 → 50% |
+| 위기 감지 | 5개 요소 융합 점수 (VIX 25% + DD 25% + Volume 15% + Trend 10% + Macro 25%) |
+| 낙폭 노출 제한 | DD < 5% → 100%, < 10% → 75%, < 15% → 50%, < 20% → 25% |
+
+### 5.4 OrderManagementSystem (src/core/order_management.py)
+
+**주문 생명주기 관리**.
+
+```
+CREATE → PENDING → SUBMITTED → PARTIALLY_FILLED → FILLED
+                                        → CANCELLED
+                                        → REJECTED
+                    → EXPIRED
+```
+
+### 5.5 BacktestEngine (src/analysis/backtest.py)
+
+**백테스트 엔진** (1611 lines). OHLCV 데이터 기반 전략 검증.
+
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| `initial_capital` | 1,000,000 | 초기 자본 |
+| `slippage_pct` | 0.001 (0.1%) | 슬리피지 |
+| `market_impact_pct` | 0.0005 (0.05%) | 시장 충격 |
+| `fee_pct` | 0.001 (0.1%) | 수수료 |
+
+**지원 전략 함수**: MA, RSI, MACD, Trend Following, Bollinger, Momentum Breakout, Ensemble(MA+RSI+MACD), ML+RSI, Buffett Proxy, Lynch Proxy, Dalio Proxy
+
+**최적화 방법**:
+| 방법 | 설명 |
+|------|------|
+| Grid Search | 전체 파라미터 조합 탐색 |
+| Walk-Forward | Train/Test 윈도우 분할 최적화 |
+| Monte Carlo Robustness | 1000회 PnL 셔플 검증 |
+| Recency-Weighted Score | `Sharpe_norm×0.40 + (1-MDD_norm)×0.30 + WinRate×0.15 + PF_norm×0.15` |
+
+---
+
+## 6. 전략 엔진 상세
+
+### 6.1 9개 신호 가중 투표
+
+| 신호 | 기본 가중치 | 설명 |
+|------|------------|------|
+| Sentiment | 0.20 | 뉴스 감성 -1~1 → 0~1 매핑 |
+| Technical | 0.30 | RSI(25%) + MACD(30%) + EMA(25%) + BB(15%) + Trend(5%) |
+| ML | 0.30 | RandomForest + XGBoost 앙상블 예측 확률 |
+| RL | 0.10 | Adaptive heuristic (VIX/RSI/MACD/추세) |
+| Darkpool | 0.00 | 다크풀 누적 = 매수 신호 |
+| LLM | 0.10 | OpenAI/Gemini/DeepSeek 투자 분석 |
+| Global Market | 0.00 | 상승 지수 비율 |
+| Cash Ratio | 0.08 | 실제 현금 vs VIX 기반 목표 현금 |
+| Macro | 0.08 | VIX(30%) + USDKRW(20%) + Oil(20%) + TNX(15%) + DXY(15%) |
+
+### 6.2 기술 신호 세부 점수
+
+**RSI 점수** (25%):
+- RSI < 25 → 1.0 (강한 매수)
+- RSI < 35 → 0.7
+- RSI > 65 → 0.0 (매도)
+- RSI > 75 → 0.0
+
+**MACD 점수** (30%):
+- MACD > 0 AND 히스토그램 상승 → 1.0
+- MACD 골든크로스 → 0.8
+- MACD 데드크로스 → 0.2
+- MACD < 0 AND 하락 → 0.0
+
+**EMA 점수** (25%):
+- EMA20 > EMA50 (골든크로스) → 0.8
+- EMA20 < EMA50 (데드크로스) → 0.2
+
+**Bollinger Band 점수** (15%):
+- 하한선 근접 → 0.7
+- 상한선 근접 → 0.3
+
+**추세 바이어스** (5%):
+- 추세 상승 → +0.3
+- 추세 하락 → -0.3
+
+### 6.3 레짐별 임계값
+
+| 레짐 | Buy Threshold | Sell Threshold | Min Buy Votes | Position % | Cash Target |
+|------|:------------:|:--------------:|:-------------:|:----------:|:-----------:|
+| Strong Bull | 0.48 | 0.38 | 1 | 100% | 10% |
+| Weak Bull | 0.52 | 0.42 | 1 | 80% | 20% |
+| Weak Bear | 0.62 | 0.45 | 2 | 50% | 40% |
+| Strong Bear | 0.70 | 0.50 | 3 | 25% | 70% |
+
+### 6.4 유명 투자자 전략 (famous_investors.py)
+
+#### Buffett (가치 투자)
+
+| 조건 | 점수 |
+|------|:----:|
+| PER < 15 | +1.0 |
+| PER 15~20 | +0.5 |
+| PBR < 1.0 | +1.0 |
+| PBR 1.0~2.0 | +0.5 |
+| ROE > 15% | +1.0 |
+| ROE 10~15% | +0.5 |
+| 부채비율 < 30% | +1.0 |
+| 부채비율 30~50% | +0.5 |
+| 배당수익률 > 2% | +1.0 |
+
+`Confidence > 0.7 → BUY, > 0.4 → HOLD, else → SELL`
+
+#### Lynch (성장 투자)
+
+| 조건 | 점수 |
+|------|:----:|
+| EPS 성장률 > 25% | +1.5 |
+| EPS 성장률 15~25% | +1.0 |
+| 매출 성장률 > 20% | +1.0 |
+| 매출 성장률 10~20% | +0.5 |
+| PEG < 1.0 | +1.0 |
+| PEG 1.0~2.0 | +0.5 |
+| 업종 평균 초과 성장 | +1.0 |
+
+#### Minerva (모멘텀)
+
+| 조건 | 점수 |
+|------|:----:|
+| 52주 수익률 > 50% | +1.5 |
+| 52주 수익률 > 20% | +1.0 |
+| 6개월 수익률 > 20% | +1.0 |
+| RSI 50~70 | +1.0 |
+| 모멘텀 점수 > 70 | +1.0 |
+| 거래량 증가 > 20% | +0.5 |
+
+#### Dividend (배당 투자)
+
+| 조건 | 점수 |
+|------|:----:|
+| 배당수익률 > 4% | +1.5 |
+| 배당수익률 2.5~4% | +1.0 |
+| 배당 성장률 > 10% | +1.0 |
+| 연속 배당 20년+ | +1.5 |
+| 연속 배당 10년+ | +1.0 |
+| 배당성향 < 60% | +1.0 |
+| FCF 양수 | +0.5 |
+
+### 6.5 컨센서스 시스템
+
+4개 전략 + AI (LLM) 의견 통합:
+- AI 가중치: 1.5x (투자자 전략보다 50% 가중)
+- `buy_count >= 60%` → 강한 매수
+- `buy_count >= 40%` → 매수
+- `buy_count >= 30%` → 보유
+
+---
+
+## 7. 기술적 지표 목록
+
+### 7.1 핵심 지표 (src/utils/indicators.py)
+
+| 지표 | 파라미터 | 용도 |
+|------|----------|------|
+| SMA | 10, 20, 50, 60 | 이동평균 |
+| EMA | 12, 20, 26, 50, 200 | 지수이동평균 |
+| MACD | Fast=12, Slow=26, Signal=9 | 추세 추종 |
+| ATR | 14 | 변동성/손절 거리 |
+| RSI | 14 (Wilder) | 과매수/과매도 |
+
+### 7.2 ML 엔진 피처 (24개)
+
+| 카테고리 | 피처 | 계산식 |
+|----------|------|--------|
+| 수익률 | ret_1, ret_5, ret_20 | `close.pct_change(n)` |
+| 이동평균 거리 | sma_10_dist, sma_50_dist | `(close - SMA) / SMA` |
+| RSI | rsi_14, rsi_5 | Wilder RSI |
+| 변동성 | volatility_10 | `ret_1.rolling(10).std()` |
+| MACD | macd, macd_signal, macd_hist_norm | `EMA12 - EMA26`, 정규화 |
+| Bollinger | bb_upper_dist, bb_lower_dist, bb_width | ±2σ, 폭/중심 |
+| ATR | atr_14 | ATR(14) / close |
+| 거래량 | volume_change, log_volume_ratio | 변화율, 로그비율 |
+| 갭 | gap_pct | `(open - prev_close) / prev_close` |
+| 일중범위 | intraday_range | `(high - low) / close` |
+| 모멘텀 | roc_10, roc_20 | 변화율 |
+| 돌파 | higher_high, higher_low | 고점/저점 갱신 |
+| 52주 | distance_from_52w_high | `(max_252 - close) / close` |
+| HMM | hmm_regime | GaussianHMM(3 states) |
+
+### 7.3 On-Device XGBoost 피처 (6개)
+
+| 피처 | 설명 |
+|------|------|
+| ret_1d | 1일 수익률 |
+| ret_5d | 5일 수익률 |
+| ret_20d | 20일 수익률 |
+| ret_60d | 60일 수익률 |
+| dist_sma_20 | `close / SMA20 - 1` |
+| vol_20d | 20일 변동성 |
+
+---
+
+## 8. 리스크 관리
+
+### 8.1 위기 감지 시스템 (CrisisDetector)
+
+5가지 요소를 융합한 **복합 위기 점수** (0.0 ~ 1.0):
+
+| 요소 | 가중치 | 세부 기준 |
+|------|:------:|-----------|
+| VIX | 25% | `(vix - 15) / 40 + surge_bonus`, VIX 상승률 추가 |
+| 낙폭 (DD) | 25% | `DD / 0.20 + speed_bonus`, 하락 속도 추가 |
+| 거래량 급증 | 15% | `(vol_ratio - 1) / 2`, threshold 3x |
+| 추세 붕괴 | 10% | EMA20 < EMA50 비율 |
+| 거시경제 | 25% | USDKRW + Oil + TNX + DXY |
+
+**위기 등급**:
+| 점수 | 등급 | 현금 목표 | 포지션 승수 | 스탑 승수 | 신규 매수 | 청산 |
+|:----:|:----:|:---------:|:----------:|:---------:|:---------:|:----:|
+| < 0.25 | NONE | 10% | 1.0x | 1.0x | 허용 | No |
+| >= 0.25 | WATCH | 30% | 0.7x | 0.8x | 허용 | No |
+| >= 0.50 | ACTIVE | 60% | 0.4x | 0.6x | 허용 | No |
+| >= 0.75 | SEVERE | 85% | 0.15x | 0.4x | 차단 | 3일 후 |
+
+### 8.2 손절/익절 시스템
+
+**ATR 기반 동적 손절/익절**:
+```
+stop_distance  = ATR × stop_multiplier(regime)
+target_distance = ATR × target_multiplier(regime)
+```
+
+**레짐별 ATR 승수**:
+| 레짐 | Stop | Target | Trail |
+|------|:----:|:------:|:-----:|
+| Strong Bull | 3.0 | 5.0 | 8% |
+| Weak Bull | 2.5 | 4.0 | 6% |
+| Weak Bear | 1.5 | 2.5 | 4% |
+| Strong Bear | 1.0 | 2.0 | 3% |
+
+**ADX 조정**:
+- ADX > 30 → stop/target × 1.2 (강한 추세 = 넓은 범위)
+- ADX < 20 → stop/target × 0.8 (약한 추세 = 좁은 범위)
+
+**3단계 익절 (Take Profit Tiers)**:
+| 단계 | ATR 배수 | 매도 비율 |
+|:----:|:--------:|:---------:|
+| 1 | 3.0× ATR | 33% |
+| 2 | 5.0× ATR | 33% |
+| 3 | 8.0× ATR | 34% |
+
+### 8.3 추세 추종 오버라이드
+
+2026-06-12 변경사항: 기술 신호에 추세 추종 로직 추가
+- EMA20 > EMA50 AND price > SMA200 → buy_score 강화
+- EMA20 < EMA50 AND RSI < 50 → sell_score 강화
+
+---
+
+## 9. 포지션 사이징
+
+### 9.1 Kelly Criterion
+
+```
+kelly = win_rate - (1 - win_rate) / win_loss_ratio
+half_kelly = kelly / 2
+clamp(half_kelly, 0.01, max_position_size_pct)
+```
+
+### 9.2 Robust Kelly (고급)
 
 ```python
-# factory.py 구현 구조 예시
-def create_trading_system(config: TradingConfig) -> StockTradingSystem:
-    # 1. persistence & event bus 초기화
-    db = Database()
-    event_bus = EventBus()
-    
-    # 2. 브로커 구성 및 OMS 초기화
-    broker_manager = MultiBrokerManager()
-    broker_manager.register_broker("simulated", SimulatedBroker())
-    
-    oms = OrderManagementSystem(event_bus, broker_manager, db)
-    
-    # 3. 리스크 매니저 및 전략 엔진 조립
-    risk_manager = RiskManager(config, event_bus)
-    strategy_engine = StrategyEngine(event_bus, config)
-    
-    # 4. 결합 시스템 구성 반환
-    return StockTradingSystem(
-        event_bus=event_bus,
-        oms=oms,
-        strategy_engine=strategy_engine,
-        risk_manager=risk_manager,
-        db=db
-    )
+confidence = min(1.0, n_trades / 50)
+adjusted = raw_kelly × confidence × 0.25  # Quarter Kelly
+if consecutive_losses >= 3: adjusted *= 0.5
+if consecutive_losses >= 5: adjusted *= 0.5
+if consecutive_losses >= 7: adjusted *= 0.25
+if consecutive_losses >= 10: adjusted = 0.0
 ```
-이 팩토리 패턴을 통해 테스트 환경 구성 시 Mock 객체나 SimulatedBroker를 즉시 변경 주입할 수 있어 테스트 용이성(Testability)이 극대화됩니다.
+
+### 9.3 전체 사이징 파이프라인
+
+```
+1. Kelly Criterion → base_qty
+2. VIX Risk-Off Cap → min(base, portfolio × vix_cap)
+3. 위기 포지션 승수 → base × crisis_mult
+4. 변동성 스케일링 → base × vol_scaler [0.25, 2.0]
+5. Conservative Ramp (첫 10트레이트) → base × (0.3 + n×0.07)
+6. 신뢰도 조정 → base × (0.5 + confidence × 0.5)
+7. 낙폭 노출 제한 → base × dd_limit
+8. Max Position Size 캡 → min(base, portfolio × 0.25)
+```
+
+### 9.4 VIX Position Cap
+
+| VIX | Position Cap |
+|:---:|:------------:|
+| > 30 | 15% |
+| > 25 | 30% |
+| > 20 | 50% |
+| ≤ 20 | 100% |
+
+---
+
+## 10. 머신러닝/딥러닝
+
+### 10.1 On-Device XGBoost (prediction_model.py)
+
+**위치**: `src/ai/prediction_model.py`
+**목적**: 클라우드 API 의존 없이 로컬에서 주가 방향 예측
+
+**모델 설정**:
+```python
+XGBRegressor(n_estimators=100, max_depth=5, learning_rate=0.1, n_jobs=-1)
+```
+
+**6개 예측 Horizon**:
+- 1일, 5일, 10일, 20일, 30일, 60일
+
+**Feature (6개)**: ret_1d, ret_5d, ret_20d, ret_60d, dist_sma_20, vol_20d
+
+**Target**: `close.shift(-h) / close - 1` (forward return)
+
+**파이프라인** (`run_pipeline.py`):
+1. FinanceDataReader로 S&P 500 + KRX 유니버스 로드
+2. 샘플링 (설정 가능, 기본 50+50)
+3. 2023-01-01부터 학습 데이터 fetch
+4. XGBoost 6개 모델 학습
+5. 전체 종목 (약 2800개) inference 데이터 fetch
+6. 예측 실행 → DB 저장 → Telegram 포맷 반환
+
+### 10.2 ML Ensemble (ml_engine.py)
+
+**위치**: `src/analysis/ml_engine.py`
+
+**모델**: `RandomForestClassifier` + `XGBClassifier` (Soft Voting 50:50)
+
+**Target**: `1 if forward_ret > 0.005, 0 if forward_ret < -0.005, else NaN`
+
+**Feature (24개)**: section 7.2 참조
+
+**Hyperparameter Optimization**: Optuna with TimeSeriesSplit(3)
+
+### 10.3 Adaptive RL (rl_engine.py)
+
+**위치**: `src/analysis/rl_engine.py`
+
+**Policy**:
+```
+if vix > vix_buy AND rsi < rsi_buy:      → BUY (prob 0.8)
+elif vix < vix_sell AND rsi > rsi_sell:  → SELL (prob 0.8)
+elif trend > trend_buy AND macd > 0:      → BUY (prob 0.7)
+else:                                      → HOLD (prob 0.6)
+```
+
+**Threshold Adaptation**: 매 20회 액션마다 성과에 따라 VIX/RSI 임계값 ±5% 조정
+
+### 10.4 PPO (stable-baselines3)
+
+**위치**: `src/ai/rl_trading.py`
+
+**알고리즘**: CustomPPO (PPO 확장) with MlpPolicy
+**환경**: TradingEnv (Gymnasium) — [price, balance, holdings] → 3 actions
+**학습**: 10 epochs, n_steps=64, batch_size=64
+
+### 10.5 DQN (PyTorch)
+
+**위치**: `src/ai/rl_trader.py`
+
+**네트워크**: QNetwork [3 → 64 → 64 → 3]
+**하이퍼파라미터**: lr=1e-3, gamma=0.99, epsilon 1.0→0.05 (decay 500)
+**손실함수**: SmoothL1Loss (Huber)
+**Target Network**: 50 steps마다 업데이트
+
+### 10.6 LLM 통합 (llm_integration.py)
+
+**위치**: `src/ai/llm_integration.py`
+
+**Provider** (환경변수 `LLM_PROVIDER`로 선택):
+| Provider | 기본 모델 | API |
+|----------|-----------|-----|
+| openai | gpt-4o-mini | `openai.OpenAI` |
+| gemini | gemini-1.5-flash | `google.generativeai` |
+| deepseek | deepseek-chat | OpenAI 호환 |
+
+**파라미터**: temperature=0.7, max_tokens=1024, retry=3 (exponential backoff)
+
+**Simulation Fallback**: API 미연결 시 PER/EPS 성장률 기반 휴리스틱
+
+### 10.7 감성 분석
+
+**SentimentAnalyzer** (src/ai/sentiment.py):
+- 100+ 긍정어, 120+ 부정어, 28 강조어, 30 부정어
+- Bigram + unigram 매칭, negation window=4, intensifier window=2
+- 점수 정규화: tanh 유사, compound score [-1.0, 1.0]
+
+**NLPEngine** (src/data_layer/nlp_engine.py):
+- 15개 긍정 키워드 + 14개 부정 키워드 기반 단순 매칭
+- 주로 한글 뉴스 감성 분석용
+
+---
+
+## 11. 포트폴리오 최적화
+
+### 11.1 Risk Parity (ERC — Equal Risk Contribution)
+
+**최적화 목적**:
+```
+minimize Σ(RC_i - target_risk / n)²
+s.t. Σ w_i = 1, w_i ≥ 0
+```
+
+**알고리즘 캐스케이드**:
+1. Log-barrier (L-BFGS-B): minimize `0.5 × x'Σx - Σlog(x)`
+2. Direct RC variance (SLSQP)
+3. Inverse volatility (`1/σᵢ`)
+4. Equal weight (1/n)
+
+### 11.2 Mean-Variance (QuantumPortfolioOptimizer)
+
+**해석해** (inverse covariance):
+```
+w = Σ⁻¹ × μ / (1' × Σ⁻¹ × μ)
+```
+
+Regularization: condition number > 1e12 시 적용
+
+### 11.3 Adaptive Parameter Optimizer
+
+**위치**: `src/analysis/adaptive_optimizer.py`
+
+**TPE Sampler** (Tree-structured Parzen Estimator):
+- Latin Hypercube Sampling (첫 10 trials)
+- 이후 TPE: top 25% good / bottom 75% bad 분리, `p_good / p_bad` 비율 최대화
+
+**Objective (Recency-Weighted)**:
+```
+score = Sharpe_norm × 0.40
+      + (1 - MDD_norm) × 0.30
+      + WinRate × 0.15
+      + ProfitFactor_norm × 0.15
+```
+
+**최적화 파라미터 공간**:
+| 파라미터 | 탐색 범위 |
+|----------|-----------|
+| Regime Thresholds | 4개 레짐 × buy/sell 각 3~4개 값 |
+| Signal Weights | 6개 신호 × 3~4개 값 |
+| ATR Multipliers | 4개 레짐 × stop/target 각 3개 값 |
+| trail_pct | [0.03, 0.04, 0.05, 0.06, 0.08, 0.10] |
+| max_holding_days | [15, 20, 25, 30, 40] |
+| max_position_size_pct | [0.15, 0.20, 0.25, 0.30, 0.35] |
+| take_profit_tiers | 3개 variation |
+
+**OptimizationScheduler**:
+- 체크 간격: 7일
+- 트리거: regime_change, sharpe_decline > 20%, drawdown > 10%, VIX spike > 1.5x
+
+---
+
+## 12. 시장 레짐 및 스타일 로테이션
+
+### 12.1 레짐 감지 (HybridStrategyEngine)
+
+EMA50/200 크로스 + ADX + ROC로 4개 레짐 분류:
+
+```
+if EMA50 > EMA200 AND ADX > 25 AND ROC20 > 0.03 → strong_bull
+elif EMA50 > EMA200 → weak_bull
+elif EMA50 < EMA200 AND ADX > 25 AND ROC20 < -0.03 → strong_bear
+else → weak_bear
+```
+
+### 12.2 스타일 로테이션 (StyleRotator)
+
+**레짐 감지 조건**:
+| 조건 | 레짐 |
+|------|------|
+| VIX > 25 | DEFENSIVE |
+| TNX change > +2% | INFLATION_RISING |
+| TNX change < -2% | RATE_CUTTING |
+| else | EXPANSION |
+
+**스타일 선호도**:
+| 레짐 | GROWTH | VALUE | LARGE_CAP | SMALL_CAP |
+|------|:------:|:-----:|:---------:|:---------:|
+| DEFENSIVE | 0.5 | 1.5 | 1.5 | 0.5 |
+| INFLATION_RISING | 0.7 | 1.3 | 1.2 | 0.8 |
+| RATE_CUTTING | 1.4 | 0.8 | 0.9 | 1.3 |
+| EXPANSION | 1.2 | 0.9 | 1.1 | 1.0 |
+
+### 12.3 HMM 레짐 (GaussianHMM)
+
+**MLEngine** 내장: 3개 은닉 상태 (Regime 0: 안정상승, Regime 1: 횡보, Regime 2: 패닉)
+
+**Observation**: [daily_return, volatility_10] 2차원
+
+**용도**: Feature `hmm_regime`으로 ML 모델 입력
+
+---
+
+## 13. 브로커 연동
+
+### 13.1 지원 브로커
+
+| 브로커 | 클래스 | 파일 |
+|--------|--------|------|
+| 키움증권 | KiwoomConnector | `broker/kiwoom.py` |
+| 한국투자증권 | KoreaInvestmentConnector | `broker/korea_investment.py` |
+| 대신증권 | DaishinConnector | `broker/daishin.py` |
+| NH농협증권 | NHConnector | `broker/nh.py` |
+| 한화증권 | HanwhaConnector | `broker/hanwha.py` |
+| LS증권 | LSConnector | `broker/ls.py` |
+| 미래에셋증권 | MiraeAssetConnector | `broker/miraeasset.py` |
+| 모의매매 | SimulatedBroker | `broker/simulated_broker.py` |
+
+### 13.2 MultiBrokerManager
+
+**모든 브로커를 통합 관리**하는 오케스트레이터 (`MultiBrokerManager`):
+- `connect(broker_type, account)`
+- `disconnect(broker_type)`
+- `place_order(code, qty, price, type, broker)`
+- `get_stock_quote(code)`
+- `get_all_account_info()`
+
+### 13.3 Kiwoom 아키텍처
+
+키움증권 OpenAPI는 32비트 ActiveX 기반이므로, **ZeroMQ IPC 브릿지** 구조 사용:
+- `kiwoom_server.py`: 32비트 프로세스, 키움 서버와 직접 통신
+- `kiwoom.py`: 64비트 메인 프로세스, ZMQ 소켓으로 서버와 통신
+
+---
+
+## 14. 텔레그램 봇 명령어
+
+### 14.1 명령어 목록
+
+| 명령어 | 파라미터 | 설명 |
+|--------|----------|------|
+| `/start` | - | 환영 메시지 |
+| `/status` | - | 거래 현황 (현금, 포지션, 주문) |
+| `/portfolio` | - | 포트폴리오 개요 |
+| `/positions` | - | 포지션 상세 |
+| `/orders` | - | 미체결 주문 현황 |
+| `/performance` | - | 성과 통계 (수익률, 승률, 낙폭) |
+| `/risk` | - | 위험 보고서 |
+| `/strategy [NAME]` | 전략명 (선택) | 전략 조회/변경 |
+| `/analyze SYMBOL` | 티커 (필수) | AI 주식 분석 |
+| `/news` | - | 시장 뉴스 개요 |
+| `/global` | - | 글로벌 지수 + 환율 |
+| `/screen [SYM] [CORR]` | 티커, 상관계수 (선택) | 상대강도 스크리닝 |
+| `/predict` | - | XGBoost 예측 파이프라인 실행 |
+| `/dashboard` | - | 대시보드 URL 표시 |
+| `/buy SYM QTY [PRICE]` | 종목, 수량, 가격 (선택) | 매수 주문 |
+| `/sell SYM QTY [PRICE]` | 종목, 수량, 가격 (선택) | 매도 주문 |
+| `/cancel ORDER_ID` | 주문 ID (필수) | 주문 취소 |
+| `/brokers` | - | 증권사 연결 상태 |
+| `/connect BROKER ACCT` | 증권사명, 계좌 | 증권사 연결 |
+| `/help` | - | 도움말 |
+
+### 14.2 자동 알림
+
+| 이벤트 | 조건 |
+|--------|------|
+| daily_loss_3pct | 일일 손실 3% 도달 |
+| drawdown_10pct | 낙폭 10% 돌파 |
+| crisis_detected | VIX > 30 |
+| consecutive_loss_5 | 5연패 |
+| consecutive_loss_10 | 10연패 → 거래 중단 |
+| regime_change | 시장 레짐 변경 |
+| take_profit_hit | 익절 실행 |
+| stop_loss_hit | 손절 실행 |
+
+### 14.3 보안
+
+- **Rate Limit**: 10회/10초 (사용자별)
+- **인증된 사용자**: `TELEGRAM_AUTHORIZED_USER_IDS` 환경변수로 제한
+- **제한 명령어**: buy, sell, cancel, portfolio, positions, orders, connect, risk, strategy
+
+---
+
+## 15. 데이터베이스 스키마
+
+### 15.1 trade_logs.db
+
+**orders**:
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| order_id | TEXT PK | 주문 ID |
+| symbol | TEXT | 종목 |
+| order_type | TEXT | BUY/SELL |
+| quantity | INTEGER | 수량 |
+| price | REAL | 가격 |
+| status | TEXT | PENDING/FILLED/CANCELLED |
+| filled_quantity | INTEGER | 체결 수량 |
+| created_at | TIMESTAMP | 생성 시간 |
+| executed_at | TIMESTAMP | 체결 시간 |
+
+**executions**:
+| 컬럼 | 타입 |
+|------|------|
+| id | INTEGER PK AUTOINCREMENT |
+| order_id | TEXT FK |
+| symbol | TEXT |
+| quantity | INTEGER |
+| price | REAL |
+| executed_at | TIMESTAMP |
+
+### 15.2 asset_history.db
+
+**asset_snapshots**: 포트폴리오 스냅샷 이력
+
+### 15.3 market_indicators.db
+
+**global_indicators**:
+| 컬럼 | 타입 |
+|------|------|
+| date | TEXT PK |
+| symbol | TEXT PK |
+| name | TEXT |
+| price | REAL |
+| change_pct | REAL |
+
+**stock_universe**:
+| 컬럼 | 타입 |
+|------|------|
+| symbol | TEXT PK |
+| name | TEXT |
+| market | TEXT (SP500/KRX) |
+
+**ai_predictions**:
+| 컬럼 | 타입 |
+|------|------|
+| date | TEXT PK |
+| symbol | TEXT PK |
+| horizon | INT PK |
+| expected_return | REAL |
+
+### 15.4 ai_predictions.db
+
+동일 스키마의 `ai_predictions` 테이블
+
+---
+
+## 16. 테스트
+
+### 16.1 테스트 파일
+
+| 파일 | 테스트 대상 |
+|------|------------|
+| `tests/test_system.py` | 통합 시스템 |
+| `tests/test_telegram_bot.py` | 텔레그램 봇 |
+| `tests/test_portfolio_risk.py` | 포트폴리오/리스크 |
+| `tests/test_database.py` | 데이터베이스 |
+| `tests/test_indicators.py` | 기술 지표 계산 |
+| `tests/test_async_helper.py` | 비동기 헬퍼 |
+| `tests/test_event_bus.py` | 이벤트 버스 |
+| `tests/test_ml_ensemble.py` | ML 앙상블 |
+| `tests/test_macro.py` | 거시경제 분석 |
+| `tests/test_macro_stress.py` | 거시경제 스트레스 테스트 |
+| `tests/test_risk_manager.py` | 리스크 매니저 단위 |
+| `tests/test_screener_dash_challenger.py` | 스크리너 |
+
+### 16.2 실행
+
+```bash
+# 전체 테스트
+python -m pytest tests/ -v
+
+# 특정 테스트
+python -m pytest tests/test_system.py -v
+
+# 코드 품질
+ruff check src/
+mypy src/
+```
+
+---
+
+## 17. 전체 파라미터 일람
+
+### 17.1 TradingConfig (.env)
+
+| 파라미터 | 기본값 | 환경변수 |
+|----------|--------|----------|
+| initial_cash | 1,000,000 | - |
+| mock_trading | true | MOCK_TRADING_ENABLED |
+| broker_type | "KIS" | BROKER_TYPE |
+| db_path | "market_indicators.db" | DB_PATH |
+| train_sample_size | 50 | TRAIN_SAMPLE_SIZE |
+| openai_api_key | "" | OPENAI_API_KEY |
+| openai_model | "gpt-4o-mini" | OPENAI_MODEL |
+| llm_provider | "openai" | LLM_PROVIDER |
+| telegram_bot_token | "" | TELEGRAM_BOT_TOKEN |
+
+### 17.2 StockTradingSystem
+
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| min_trade_value_pct | 0.001 (0.1%) | 최소 거래 비율 |
+| distributed_threshold_pct | 0.005 (0.5%) | 분산 주문 임계값 |
+| trail_pct | 0.04 (4%) | 트레일링 스탑 거리 |
+| correlation_limit_pct | 0.40 (40%) | 상관 쌍 최대 비율 |
+| target_annual_volatility | 0.15 (15%) | 목표 연간 변동성 |
+| max_portfolio_drawdown_pct | 0.20 (20%) | 최대 낙폭 |
+| rebalance_interval_hours | 168.0 (7일) | 리밸런싱 주기 |
+| max_concurrent_positions | 12 | 최대 동시 포지션 |
+| max_holding_days | 30 | 최대 보유 일수 |
+| max_data_age_seconds | 300.0 (5분) | 가격 신선도 한계 |
+| max_daily_loss_pct | 0.03 (3%) | 일일 손실 한도 |
+| state_save_interval_seconds | 3600.0 (1시간) | 상태 저장 주기 |
+
+### 17.3 RiskManager
+
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| max_loss_per_trade_pct | 0.02 (2%) | 거래당 최대 손실 |
+| max_portfolio_loss_pct | 0.10 (10%) | 포트폴리오 최대 손실 |
+| max_position_size_pct | 0.25 (25%) | 최대 포지션 비중 |
+| default_stop_loss_pct | 0.05 (5%) | 기본 손절 |
+| default_take_profit_pct | 0.15 (15%) | 기본 익절 |
+| max_drawdown_allowed | 0.20 (20%) | 최대 허용 낙폭 |
+| atr_multiplier_stop | 2.0 | ATR 손절 승수 |
+| atr_multiplier_target | 3.0 | ATR 익절 승수 |
+| volatility_scaling | True | 변동성 스케일링 |
+| target_annual_volatility | 0.15 | 목표 연간 변동성 |
+
+### 17.4 Telegram Bot
+
+| 파라미터 | 기본값 |
+|----------|--------|
+| Rate window | 10초 |
+| Max calls per window | 10회 |
+
+### 17.5 XGBoost (On-Device)
+
+| 파라미터 | 기본값 |
+|----------|--------|
+| n_estimators | 100 |
+| max_depth | 5 |
+| learning_rate | 0.1 |
+| Horizons | [1, 5, 10, 20, 30, 60]일 |
+
+### 17.6 DQN Agent
+
+| 파라미터 | 기본값 |
+|----------|--------|
+| learning_rate | 1e-3 |
+| gamma | 0.99 |
+| epsilon_start | 1.0 |
+| epsilon_end | 0.05 |
+| epsilon_decay | 500 |
+| batch_size | 32 |
+| target_update_freq | 50 |
+
+### 17.7 LLM
+
+| 파라미터 | 기본값 |
+|----------|--------|
+| temperature | 0.7 |
+| max_tokens | 1024 |
+| retry_attempts | 3 |
+| AI consensus weight | 1.5x |
+
+### 17.8 Crisis Scoring
+
+| 요소 | 가중치 |
+|------|:------:|
+| VIX | 25% |
+| Drawdown | 25% |
+| Volume Spike | 15% |
+| Trend Breakdown | 10% |
+| Macro (FX/Oil/Rates/DXY) | 25% |
+
+---
+
+> **문서 이력**
+> - 2026-06-12: v2.0 — 추세 추종 오버라이드, XGBoost 예측 시스템, 텔레그램 /predict /dashboard 추가 반영
+> - 초기 작성: v1.0
