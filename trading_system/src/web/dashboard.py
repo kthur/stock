@@ -128,6 +128,7 @@ app.layout = html.Div(
                                                 {
                                                     "name": "Exchange Rate Correlation",
                                                     "id": "correlation_to_exchange_rate",
+                                                    "type": "numeric"
                                                 },
                                             ],
                                             data=[],
@@ -139,6 +140,39 @@ app.layout = html.Div(
                         )
                     ],
                 ),
+                dcc.Tab(
+                    label="AI Stock Predictions",
+                    id="ai-predictions-tab",
+                    children=[
+                        html.Div(
+                            [
+                                html.H3("On-Device XGBoost Stock Predictions"),
+                                html.Button("Run Prediction Pipeline", id="run-pipeline-btn", n_clicks=0, className="btn", style={"margin-bottom": "20px"}),
+                                html.Div(id="pipeline-status-output", style={"margin-bottom": "20px", "font-weight": "bold"}),
+                                html.Div(
+                                    [
+                                        html.Div([
+                                            html.H4(f"{h}d Horizon Top 5"),
+                                            dash_table.DataTable(  # type: ignore[attr-defined]
+                                                id=f"predictions-table-{h}d",
+                                                columns=[
+                                                    {"name": "Symbol", "id": "symbol"},
+                                                    {"name": "Name", "id": "name"},
+                                                    {"name": "Market", "id": "market"},
+                                                    {"name": "Expected Return", "id": "expected_return"}
+                                                ],
+                                                data=[]
+                                            )
+                                        ], style={"width": "30%", "display": "inline-block", "vertical-align": "top", "padding": "10px"})
+                                        for h in [1, 5, 10, 20, 30, 60]
+                                    ],
+                                    style={"display": "flex", "flex-wrap": "wrap"}
+                                )
+                            ],
+                            style={"padding": "20px"}
+                        )
+                    ]
+                )
             ],
         ),
         dcc.Interval(
@@ -458,6 +492,92 @@ def callback_update_optimized_cache(symbol):
         except Exception as e:
             return html.P(f"Error reading cache: {e}")
     return html.P("No cached parameters found. Run parameter optimization script first.", style={"marginTop": "20px"})
+
+
+_pipeline_thread = None
+_pipeline_status = "Not running"
+
+def run_pipeline_in_background():
+    global _pipeline_status
+    _pipeline_status = "Pipeline Running (Fetching indicators & training models)..."
+    try:
+        from run_pipeline import execute_prediction_pipeline
+        execute_prediction_pipeline()
+        _pipeline_status = "Pipeline Finished successfully."
+    except Exception as e:
+        _pipeline_status = f"Pipeline Failed: {str(e)}"
+
+@app.callback(
+    Output("pipeline-status-output", "children"),
+    [Input("run-pipeline-btn", "n_clicks"), Input("interval-component", "n_intervals")]
+)
+def handle_pipeline_execution(n_clicks, n_intervals):
+    global _pipeline_thread, _pipeline_status
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return _pipeline_status
+
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    if trigger_id == "run-pipeline-btn" and n_clicks > 0:
+        if _pipeline_thread is None or not _pipeline_thread.is_alive():
+            _pipeline_status = "Pipeline Starting..."
+            _pipeline_thread = threading.Thread(target=run_pipeline_in_background, daemon=True)
+            _pipeline_thread.start()
+        else:
+            _pipeline_status = "Pipeline is already running in background!"
+
+    return _pipeline_status
+
+
+def generate_horizon_callback(h):
+    @app.callback(
+        Output(f"predictions-table-{h}d", "data"),
+        [Input("interval-component", "n_intervals")]
+    )
+    def update_predictions_table(n):
+        try:
+            import pandas as pd
+            from src.data_layer.indicator_storage import MarketIndicatorStorage
+            from src.config import TradingConfig
+            cfg = TradingConfig()
+            storage = MarketIndicatorStorage(db_path=cfg.db_path)
+            
+            df = storage.get_predictions()
+            if df.empty:
+                return []
+            
+            df_horizon = df[df['horizon'] == h]
+            if df_horizon.empty:
+                return []
+            
+            # Sort by expected_return descending
+            df_horizon = df_horizon.sort_values(by='expected_return', ascending=False).head(5)
+            
+            # Get stock names from universe
+            universe = storage.get_universe()
+            merged = df_horizon.merge(universe, on='symbol', how='left')
+            
+            data = []
+            for _, row in merged.iterrows():
+                data.append({
+                    "symbol": row['symbol'],
+                    "name": row['name'] if pd.notna(row['name']) else "Unknown",
+                    "market": row['market'] if pd.notna(row['market']) else "Unknown",
+                    "expected_return": f"+{row['expected_return']*100:.2f}%"
+                })
+            return data
+        except Exception as e:
+            logger.error(f"Error updating predictions table for {h}d: {e}")
+            return []
+    return update_predictions_table
+
+# Generate callbacks for all horizons
+update_table_1d = generate_horizon_callback(1)
+update_table_5d = generate_horizon_callback(5)
+update_table_10d = generate_horizon_callback(10)
+update_table_20d = generate_horizon_callback(20)
+update_table_30d = generate_horizon_callback(30)
+update_table_60d = generate_horizon_callback(60)
 
 
 class DashboardServer:
