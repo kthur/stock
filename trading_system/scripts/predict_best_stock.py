@@ -6,6 +6,8 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import FinanceDataReader as fdr
 
+_CPU_WORKERS = max(1, (os.cpu_count() or 4))
+
 # Add src to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -58,7 +60,7 @@ def main():
     logger.info(f"Fetching training data for {len(train_symbols)} symbols...")
     train_data_dict = {}
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in train_symbols:
             market = 'SP500' if sym in sp500_symbols else 'KRX'
@@ -88,7 +90,7 @@ def main():
     infer_data_dict = {}
     # Fetch in chunks to not explode memory/api
     count = 0
-    with ThreadPoolExecutor(max_workers=20) as executor:
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in all_symbols:
             market = 'SP500' if sym in sp500_symbols else 'KRX'

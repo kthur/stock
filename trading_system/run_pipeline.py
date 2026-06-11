@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import FinanceDataReader as fdr
 import warnings
 
+_CPU_WORKERS = max(1, (os.cpu_count() or 4))
+
 # Set default socket timeout to prevent hanging connections
 socket.setdefaulttimeout(5)
 
@@ -101,7 +103,7 @@ def execute_prediction_pipeline():
     logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols...")
     train_data_dict = {}
     
-    with ThreadPoolExecutor(max_workers=15) as executor:
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in train_symbols:
             market = 'SP500' if sym in sp500_symbols else 'KRX'
@@ -129,7 +131,7 @@ def execute_prediction_pipeline():
     
     infer_data_dict = {}
     count = 0
-    with ThreadPoolExecutor(max_workers=30) as executor:
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in all_symbols:
             market = 'SP500' if sym in sp500_symbols else 'KRX'
