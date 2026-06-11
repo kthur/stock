@@ -211,6 +211,15 @@ class StockTradingSystem:
         
         # 콜백 등록
         self._setup_callbacks()
+        
+        # Auto-connect broker from config
+        if self.config.mock_trading:
+            logger.info(f"Auto-connecting to broker: {self.config.broker_type}")
+            account = self.config.kis_mock_account or "mock_account_123"
+            try:
+                self.connect_to_broker(self.config.broker_type, account)
+            except Exception as e:
+                logger.error(f"Failed to auto-connect to broker: {e}")
     
     def _setup_callbacks(self) -> None:
         """이벤트 버스 콜백 등록"""
@@ -1574,6 +1583,20 @@ class StockTradingSystem:
     def get_telegram_daily_report(self, user_id: int) -> str:
         """텔레그램 일일 보고서"""
         return self.telegram_bot.send_periodic_report(user_id)
+
+    def run_prediction_pipeline(self) -> str:
+        """AI 예측 파이프라인 실행 (XGBoost) 및 결과 반환"""
+        logger.info("Running AI prediction pipeline from Telegram command...")
+        try:
+            from run_pipeline import execute_prediction_pipeline
+            result = execute_prediction_pipeline()
+            if result is None:
+                return "❌ 예측 파이프라인 실행 실패: 데이터 없음"
+            _res_df, message = result
+            return message
+        except Exception as e:
+            logger.error(f"Prediction pipeline failed: {e}")
+            return f"❌ 예측 파이프라인 오류: {e!s}"
 
     # ── Macro helpers ─────────────────────────────────────────────────────
 

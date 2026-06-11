@@ -70,6 +70,8 @@ class TelegramBotEngine:
             "global": self._cmd_global,
             "screen": self._cmd_screen,
             "help": self._cmd_help,
+            "predict": self._cmd_predict,
+            "dashboard": self._cmd_dashboard,
         }
 
         self.logger.info("Telegram Bot Engine initialized")
@@ -599,6 +601,21 @@ class TelegramBotEngine:
             self.logger.error(f"Screen command failed: {e}")
             return "❌ 스크리닝 중 오류가 발생했습니다."
 
+    def _cmd_predict(self, user_id: int, args: List[str]) -> str:
+        """AI 예측 파이프라인 실행 (XGBoost)"""
+        if not self.trading_system:
+            return "❌ 시스템 연동 안됨"
+        return self.trading_system.run_prediction_pipeline()
+
+    def _cmd_dashboard(self, user_id: int, args: List[str]) -> str:
+        """대시보드 URL 반환"""
+        return (
+            "📊 *대시보드 접속*\n\n"
+            "로컬 서버에서 실행 중인 대시보드:\n"
+            "👉 http://127.0.0.1:5000\n\n"
+            "⚠️ 로컬호스트 전용입니다. 외부 접근이 불가능합니다."
+        )
+
     def _cmd_help(self, user_id: int, args: List[str]) -> str:
         """도움말"""
         response = """📖 *명령어 목록*
@@ -618,6 +635,8 @@ class TelegramBotEngine:
 /news - 시장 뉴스
 /global - 글로벌 지수 및 환율
 /screen [SYMBOLS] [MIN_CORR] - 시장 대비 상대 강도 (예: /screen AAPL,MSFT 0.3)
+/predict - AI 예측 파이프라인 실행 (XGBoost, 수분 소요)
+/dashboard - 대시보드 URL 표시
 
 *거래*
 /buy SYMBOL QTY PRICE - 매수 주문
