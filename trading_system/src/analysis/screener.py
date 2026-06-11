@@ -358,4 +358,24 @@ class StockScreener:
                 {"ticker": missing, "expected_excess_return": 0.0, "correlation_to_exchange_rate": 0.0}
             )
 
+        # Format KR tickers with names
+        KR_NAMES = {
+            "005930.KS": "삼성전자",
+            "000660.KS": "SK하이닉스",
+            "035420.KS": "NAVER",
+            "005380.KS": "현대차",
+            "207940.KS": "삼성바이오로직스",
+            "068270.KS": "셀트리온",
+            "051910.KS": "LG화학",
+            "006400.KS": "삼성SDI",
+            "000270.KS": "기아",
+            "035720.KS": "카카오",
+            "005490.KS": "POSCO홀딩스",
+            "036570.KS": "엔씨소프트",
+        }
+        for item in kr_outperformers:
+            raw_ticker = item["ticker"]
+            if raw_ticker in KR_NAMES:
+                item["ticker"] = f"{KR_NAMES[raw_ticker]} ({raw_ticker})"
+
         return {"US": us_outperformers[:10], "KR": kr_outperformers[:10]}
