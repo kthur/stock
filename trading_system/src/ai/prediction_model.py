@@ -15,6 +15,7 @@ class OnDevicePredictionModel:
     def __init__(self):
         self.models: Dict[int, xgb.XGBRegressor] = {}
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
+        self._has_gpu = _HAS_CUDA
         self._xgb_kwargs = dict(
             n_estimators=100,
             max_depth=5,
@@ -22,8 +23,9 @@ class OnDevicePredictionModel:
             n_jobs=-1,
             random_state=42,
         )
-        if _HAS_CUDA:
-            self._xgb_kwargs['tree_method'] = 'gpu_hist'
+        if self._has_gpu:
+            self._xgb_kwargs['device'] = 'cuda'
+        logger.info(f"OnDevicePredictionModel initialized (GPU={'yes' if self._has_gpu else 'no'})")
 
     def _create_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create technical indicators and momentum features."""

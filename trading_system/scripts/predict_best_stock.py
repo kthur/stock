@@ -114,7 +114,7 @@ def main():
         return
 
     # Output the top 5 for each horizon
-    horizons = [1, 5, 10, 20, 30, 60]
+    horizons = model.horizons  # [1, 5, 10, 20, 30, 60, 120, 200]
 
     print("\n" + "="*50)
     print("AI Prediction Results (On-Device XGBoost)")
