@@ -9,8 +9,13 @@ from trading_system import StockTradingSystem
 
 if __name__ == "__main__":
     try:
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        
+        print("Initializing trading system...")
         system = StockTradingSystem(initial_cash=1000000)
-        asyncio.run(system.simulate_trading_day("AAPL"))
+        
+        print("Starting web dashboard...")
         system.start_dashboard()
         
         print("\n[Dashboard running at http://localhost:5000] Press Ctrl+C to stop.")

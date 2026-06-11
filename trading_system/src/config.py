@@ -19,7 +19,10 @@ class TradingConfig:
     initial_cash: float = 1000000.0
     max_retries: int = 3
     debug_mode: bool = os.getenv("DEBUG_MODE", "False").lower() == "true"
-    mock_trading: bool = True  # 모의투자 API 연동 활성화 여부
+    mock_trading: bool = os.getenv("MOCK_TRADING_ENABLED", "True").lower() == "true"  # 모의투자 API 연동 활성화 여부
+    broker_type: str = os.getenv("BROKER_TYPE", "KIS")
+    db_path: str = os.getenv("DB_PATH", "market_indicators.db")
+    train_sample_size: int = int(os.getenv("TRAIN_SAMPLE_SIZE", "50"))
 
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
