@@ -200,7 +200,10 @@ class DQNAgent:
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        try:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        except Exception:
+            self.device = torch.device("cpu")
 
         # Networks
         self.q_net = QNetwork(state_dim, action_dim).to(self.device)

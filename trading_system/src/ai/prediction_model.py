@@ -6,7 +6,7 @@ from typing import Dict
 try:
     import torch
     _HAS_CUDA = torch.cuda.is_available()
-except ImportError:
+except Exception:
     _HAS_CUDA = False
 
 logger = logging.getLogger(__name__)

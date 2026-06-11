@@ -31,7 +31,7 @@ except ImportError:
 try:
     import torch
     _HAS_CUDA = torch.cuda.is_available()
-except ImportError:
+except Exception:
     _HAS_CUDA = False
 
 try:
