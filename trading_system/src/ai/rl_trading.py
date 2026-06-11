@@ -192,6 +192,9 @@ def train_rl_model(data: Any, epochs: Optional[int] = None, seed: Optional[int] 
         n_steps = max(2, len(env.data))
         batch_size = n_steps
 
-    model = CustomPPO("MlpPolicy", env, verbose=0, n_steps=n_steps, batch_size=batch_size, n_epochs=n_epochs, seed=seed)
+    model = CustomPPO(
+        "MlpPolicy", env, verbose=0, n_steps=n_steps, batch_size=batch_size,
+        n_epochs=n_epochs, seed=seed, device='auto',
+    )
     model.learn(total_timesteps=100)
     return model

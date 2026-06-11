@@ -3,12 +3,27 @@ import pandas as pd
 import xgboost as xgb
 from typing import Dict
 
+try:
+    import torch
+    _HAS_CUDA = torch.cuda.is_available()
+except ImportError:
+    _HAS_CUDA = False
+
 logger = logging.getLogger(__name__)
 
 class OnDevicePredictionModel:
     def __init__(self):
         self.models: Dict[int, xgb.XGBRegressor] = {}
-        self.horizons = [1, 5, 10, 20, 30, 60]
+        self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
+        self._xgb_kwargs = dict(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.1,
+            n_jobs=-1,
+            random_state=42,
+        )
+        if _HAS_CUDA:
+            self._xgb_kwargs['tree_method'] = 'gpu_hist'
 
     def _create_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
@@ -71,13 +86,7 @@ class OnDevicePredictionModel:
             X = df_train[features]
             y = df_train[f'target_{h}d']
 
-            model = xgb.XGBRegressor(
-                n_estimators=100,
-                max_depth=5,
-                learning_rate=0.1,
-                n_jobs=-1, # use all cores
-                random_state=42
-            )
+            model = xgb.XGBRegressor(**self._xgb_kwargs)
             model.fit(X, y)
             self.models[h] = model
             logger.info(f"Model for {h}d trained.")

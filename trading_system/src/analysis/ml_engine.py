@@ -29,6 +29,12 @@ except ImportError:
     HAS_LIGHTGBM = False
 
 try:
+    import torch
+    _HAS_CUDA = torch.cuda.is_available()
+except ImportError:
+    _HAS_CUDA = False
+
+try:
     from hmmlearn.hmm import GaussianHMM
 
     HAS_HMM = True
@@ -94,20 +100,26 @@ class MLEngine:
         self.rf_model = None
         self.xgb_model = None
 
+        xgb_kwargs = dict(self.model_params, eval_metric="logloss")
+        lgb_kwargs = dict(self.model_params, verbose=-1)
+        if _HAS_CUDA:
+            xgb_kwargs['tree_method'] = 'gpu_hist'
+            lgb_kwargs['device'] = 'gpu'
+
         if HAS_SKLEARN and HAS_XGBOOST:
             rf_params = {
                 k: v for k, v in self.model_params.items() if k in ["n_estimators", "max_depth", "random_state"]
             }
             self.rf_model = RandomForestClassifier(**rf_params)
-            self.xgb_model = XGBClassifier(**self.model_params, eval_metric="logloss")
+            self.xgb_model = XGBClassifier(**xgb_kwargs)
             self.model = (self.rf_model, self.xgb_model)
             logger.info(f"Using ensemble of RandomForest and XGBoost with params: {self.model_params}")
         elif HAS_XGBOOST:
-            self.xgb_model = XGBClassifier(**self.model_params, eval_metric="logloss")
+            self.xgb_model = XGBClassifier(**xgb_kwargs)
             self.model = self.xgb_model
             logger.info(f"Using XGBoost fallback for MLEngine with {self.model_params}")
         elif HAS_LIGHTGBM:
-            self.model = lgb.LGBMClassifier(**self.model_params)
+            self.model = lgb.LGBMClassifier(**lgb_kwargs)
             logger.info(f"Using LightGBM for MLEngine with {self.model_params}")
         elif HAS_SKLEARN:
             rf_params = {
@@ -399,14 +411,20 @@ class MLEngine:
                 "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             }
 
+            xgb_kwargs = dict(params, random_state=42, eval_metric="logloss")
+            lgb_kwargs = dict(params, random_state=42, verbose=-1)
+            if _HAS_CUDA:
+                xgb_kwargs['tree_method'] = 'gpu_hist'
+                lgb_kwargs['device'] = 'gpu'
+
             if HAS_SKLEARN and HAS_XGBOOST:
 
                 class EnsembleObjectiveClassifier:
-                    def __init__(self, params):
-                        rf_params = {k: v for k, v in params.items() if k in ["n_estimators", "max_depth"]}
+                    def __init__(self, inner_params):
+                        rf_params = {k: v for k, v in inner_params.items() if k in ["n_estimators", "max_depth"]}
                         rf_params["random_state"] = 42
                         self.rf = RandomForestClassifier(**rf_params)
-                        self.xgb = XGBClassifier(**params, random_state=42, eval_metric="logloss")
+                        self.xgb = XGBClassifier(**xgb_kwargs)
 
                     def fit(self, X_train, y_train):
                         self.rf.fit(X_train, y_train)
@@ -419,9 +437,9 @@ class MLEngine:
 
                 clf = EnsembleObjectiveClassifier(params)
             elif HAS_XGBOOST:
-                clf = XGBClassifier(**params, random_state=42, eval_metric="logloss")
+                clf = XGBClassifier(**xgb_kwargs)
             elif HAS_LIGHTGBM:
-                clf = lgb.LGBMClassifier(**params, random_state=42)
+                clf = lgb.LGBMClassifier(**lgb_kwargs)
             else:
                 rf_params = {k: v for k, v in params.items() if k in ["n_estimators", "max_depth"]}
                 clf = RandomForestClassifier(**rf_params, random_state=42)

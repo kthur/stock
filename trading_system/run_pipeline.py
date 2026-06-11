@@ -36,7 +36,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str) -> pd.DataFrame:
 
 def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> str:
     """Format prediction results as a Telegram-friendly message"""
-    horizons = [1, 5, 10, 20, 30, 60]
+    horizons = [1, 5, 10, 20, 30, 60, 120, 200]
     lines = [
         "🤖 *XGBoost 예측 결과*",
         f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}",

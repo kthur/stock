@@ -23,18 +23,29 @@ logger = logging.getLogger(__name__)
 # and your work WILL be rejected.
 
 
+try:
+    import torch
+    _HAS_CUDA = torch.cuda.is_available()
+except ImportError:
+    _HAS_CUDA = False
+
 class MacroPredictor:
     """
     Predicts stock excess returns over local benchmark based on global macro variables.
     """
 
     def __init__(self, max_depth: int = 5, n_estimators: int = 100):
-        self.xgb_model = XGBRegressor(
+        xgb_kwargs = dict(
             max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05
         )
-        self.lgb_model = LGBMRegressor(
+        lgb_kwargs = dict(
             max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05, verbose=-1
         )
+        if _HAS_CUDA:
+            xgb_kwargs['tree_method'] = 'gpu_hist'
+            lgb_kwargs['device'] = 'gpu'
+        self.xgb_model = XGBRegressor(**xgb_kwargs)
+        self.lgb_model = LGBMRegressor(**lgb_kwargs)
         self.is_trained = False
         self.feature_names: Optional[list] = None
 
