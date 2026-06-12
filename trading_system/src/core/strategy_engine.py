@@ -206,17 +206,41 @@ class HybridStrategyEngine:
             return 0.5
         return float(max(0.0, min(1.0, (closes[-1] - lower) / band_width)))
 
-    def _compute_technical_indicators(self, price_bars: list) -> Dict:
+    def _compute_technical_indicators(self, price_bars: list, volume_bars: list = None, floating_shares: float = None) -> Dict:
         """과거 가격 데이터로부터 기술적 지표 종합 점수 산출"""
         closes = []
+        volumes = []
+
+        # Extract closes and volumes from price_bars if not provided in volume_bars
         for b in price_bars:
             if isinstance(b, (int, float)):
                 closes.append(float(b))
+            elif isinstance(b, dict):
+                closes.append(float(b.get("close", b.get("Close", 0))))
+                if "volume" in b:
+                    volumes.append(float(b["volume"]))
+                elif "Volume" in b:
+                    volumes.append(float(b["Volume"]))
             else:
-                closes.append(b.close)
+                closes.append(float(getattr(b, "close", getattr(b, "Close", 0))))
+                if hasattr(b, "volume"):
+                    volumes.append(float(b.volume))
+                elif hasattr(b, "Volume"):
+                    volumes.append(float(b.Volume))
 
         if len(closes) < 20:
             return {"score": 0.5, "signal": TradeSignal.HOLD, "details": {}}
+
+        # If volume_bars is explicitly provided, use it instead
+        if volume_bars is not None:
+            volumes = []
+            for v in volume_bars:
+                if isinstance(v, (int, float)):
+                    volumes.append(float(v))
+                elif isinstance(v, dict):
+                    volumes.append(float(v.get("volume", v.get("Volume", 0))))
+                else:
+                    volumes.append(float(getattr(v, "volume", getattr(v, "Volume", 0))))
 
         # RSI (14) - 보다 보수적인 임계값 적용
         rsi = self._calc_rsi(closes)
@@ -279,6 +303,41 @@ class HybridStrategyEngine:
         # 추세 바이어스 (신규 5% 독립 가중치)
         combined = combined * 0.95 + trend_bias * 0.05
 
+        # Define price trend for volume expansion
+        price_trend_positive = (ema20[-1] > ema50[-1] if len(closes) >= 50 else False) or macd_hist > 0
+        price_trend_negative = (ema20[-1] < ema50[-1] if len(closes) >= 50 else False) or macd_hist < 0
+
+        # Volume expansion bonus/penalty
+        volume_5sma = None
+        volume_20sma = None
+        volume_expansion_active = False
+        volume_bonus_applied = 0.0
+
+        if len(volumes) >= 20:
+            volume_5sma = sum(volumes[-5:]) / 5.0
+            volume_20sma = sum(volumes[-20:]) / 20.0
+            if volume_20sma > 0.0 and volume_5sma > 1.5 * volume_20sma:
+                volume_expansion_active = True
+                if price_trend_positive:
+                    volume_bonus_applied = 0.05
+                    combined += 0.05
+                elif price_trend_negative:
+                    volume_bonus_applied = -0.05
+                    combined -= 0.05
+
+        # Cap combined score between 0.0 and 1.0
+        combined = max(0.0, min(1.0, combined))
+
+        # Liquidity / floating value penalty
+        low_liquidity_penalty = False
+        if floating_shares is not None:
+            current_price = closes[-1]
+            floating_value = current_price * floating_shares
+            threshold = 10_000_000_000.0 if current_price > 1000.0 else 10_000_000.0
+            if floating_value < threshold:
+                combined = min(combined, 0.4)
+                low_liquidity_penalty = True
+
         # 투표 기반 신호 결정
         buy_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s > 0.6)
         sell_votes = sum(1 for s in [rsi_score, macd_score, ema_score, bb_score] if s < 0.4)
@@ -303,6 +362,11 @@ class HybridStrategyEngine:
                 "bb_score": bb_score,
                 "buy_votes": buy_votes,
                 "sell_votes": sell_votes,
+                "volume_5sma": round(volume_5sma, 1) if volume_5sma is not None else None,
+                "volume_20sma": round(volume_20sma, 1) if volume_20sma is not None else None,
+                "volume_expansion_active": volume_expansion_active,
+                "volume_bonus_applied": volume_bonus_applied,
+                "low_liquidity_penalty": low_liquidity_penalty,
             },
         }
 
@@ -335,7 +399,8 @@ class HybridStrategyEngine:
             # 기술적 지표 분석: price_bars가 충분하면 종합 기술 지표 사용, 아니면 스프레드 기반 폴백
             tech_indicators = None
             if price_bars and len(price_bars) >= 20:
-                tech_indicators = self._compute_technical_indicators(price_bars)
+                floating_shares = market_data.get("floating_shares", None)
+                tech_indicators = self._compute_technical_indicators(price_bars, floating_shares=floating_shares)
                 technical_signal = tech_indicators["signal"]
                 technical_score = tech_indicators["score"]
             else:
@@ -547,7 +612,43 @@ class HybridStrategyEngine:
                     weights = {k: v / total_adj for k, v in adjusted.items()}
                     combined_score = sum(raw_scores[k] * weights[k] for k in self.SIGNAL_NAMES)
 
-            confidence = combined_score
+            # Scale down targets/allocation confidence for assets with low norm_volume or norm_floating_value
+            norm_volume = market_data.get("norm_volume")
+            norm_floating_value = market_data.get("norm_floating_value")
+            
+            # Check if we can get them from price_bars if not in market_data
+            if (norm_volume is None or norm_floating_value is None) and price_bars and len(price_bars) > 0:
+                last_bar = price_bars[-1]
+                if isinstance(last_bar, dict):
+                    if norm_volume is None:
+                        norm_volume = last_bar.get("norm_volume")
+                    if norm_floating_value is None:
+                        norm_floating_value = last_bar.get("norm_floating_value")
+                elif hasattr(last_bar, "norm_volume") or (hasattr(last_bar, "__getitem__") and not isinstance(last_bar, (str, bytes))):
+                    try:
+                        if norm_volume is None:
+                            norm_volume = getattr(last_bar, "norm_volume", None) or last_bar["norm_volume"]
+                    except Exception:
+                        pass
+                    try:
+                        if norm_floating_value is None:
+                            norm_floating_value = getattr(last_bar, "norm_floating_value", None) or last_bar["norm_floating_value"]
+                    except Exception:
+                        pass
+
+            if norm_volume is None:
+                norm_volume = 1.0
+            if norm_floating_value is None:
+                norm_floating_value = 1.0
+
+            scaling_factor = 1.0
+            if norm_volume < 0.01:
+                scaling_factor = min(scaling_factor, norm_volume / 0.01)
+            if norm_floating_value < 0.01:
+                scaling_factor = min(scaling_factor, norm_floating_value / 0.01)
+            
+            scaling_factor = max(0.1, scaling_factor)
+            confidence = combined_score * scaling_factor
 
             # 매수/매도 판단: 동적 임계값 사용
             buy_signal_count = sum(1 for s in [sentiment_signal, technical_signal] if s == TradeSignal.BUY)

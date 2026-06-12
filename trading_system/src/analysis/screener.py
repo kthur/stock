@@ -210,6 +210,7 @@ class StockScreener:
             return {k: v for k, v in closes.items() if not v.dropna().empty}
 
         # Fetch US stocks
+        df_us = pd.DataFrame()
         us_data = {}
         try:
             df_us = yf.download(US_TICKERS, period="1y", progress=False, timeout=5)
@@ -242,6 +243,7 @@ class StockScreener:
         us_returns = us_df.pct_change()
 
         # Fetch KR stocks
+        df_kr = pd.DataFrame()
         kr_data = {}
         try:
             df_kr = yf.download(KR_TICKERS, period="1y", progress=False, timeout=5)
@@ -275,7 +277,7 @@ class StockScreener:
 
         # Helper to train and predict a region
         def train_and_predict_region(
-            tickers: List[str], stock_returns: pd.DataFrame, benchmark_symbol: str
+            tickers: List[str], stock_returns: pd.DataFrame, benchmark_symbol: str, norm_prices_dict: Dict[str, pd.DataFrame]
         ) -> List[Dict]:
             bench_returns = macro_returns[benchmark_symbol]
             X_list = []
@@ -289,6 +291,20 @@ class StockScreener:
                 ticker_features = macro_features_df.copy()
                 for lag in range(1, 6):
                     ticker_features[f"stock_lag_{lag}"] = stock_returns[ticker].shift(lag)
+
+                # Get the normalized values for this stock
+                df_norm = norm_prices_dict.get(ticker)
+                if df_norm is not None:
+                    # Align with ticker_features index
+                    # Note: norm_market_cap, norm_floating_value, norm_volume are in df_norm
+                    ticker_features["norm_market_cap"] = df_norm["norm_market_cap"]
+                    ticker_features["norm_floating_value"] = df_norm["norm_floating_value"]
+                    ticker_features["norm_volume"] = df_norm["norm_volume"]
+                    for lag in range(1, 6):
+                        ticker_features[f"norm_market_cap_lag_{lag}"] = df_norm["norm_market_cap"].shift(lag)
+                        ticker_features[f"norm_floating_value_lag_{lag}"] = df_norm["norm_floating_value"].shift(lag)
+                        ticker_features[f"norm_volume_lag_{lag}"] = df_norm["norm_volume"].shift(lag)
+
                 ticker_features = ticker_features.dropna()
 
                 idx = ticker_features.index.intersection(excess.index)
@@ -323,6 +339,25 @@ class StockScreener:
                         ticker_latest[f"{sym}_lag_{lag}"] = macro_returns[sym].iloc[-lag]
                 for lag in range(1, 6):
                     ticker_latest[f"stock_lag_{lag}"] = stock_returns[ticker].iloc[-lag]
+
+                df_norm = norm_prices_dict.get(ticker)
+                if df_norm is not None and len(df_norm) > 0:
+                    ticker_latest["norm_market_cap"] = df_norm["norm_market_cap"].iloc[-1]
+                    ticker_latest["norm_floating_value"] = df_norm["norm_floating_value"].iloc[-1]
+                    ticker_latest["norm_volume"] = df_norm["norm_volume"].iloc[-1]
+                    for lag in range(1, 6):
+                        ticker_latest[f"norm_market_cap_lag_{lag}"] = df_norm["norm_market_cap"].shift(lag).iloc[-1]
+                        ticker_latest[f"norm_floating_value_lag_{lag}"] = df_norm["norm_floating_value"].shift(lag).iloc[-1]
+                        ticker_latest[f"norm_volume_lag_{lag}"] = df_norm["norm_volume"].shift(lag).iloc[-1]
+                else:
+                    ticker_latest["norm_market_cap"] = 0.0
+                    ticker_latest["norm_floating_value"] = 0.0
+                    ticker_latest["norm_volume"] = 0.0
+                    for lag in range(1, 6):
+                        ticker_latest[f"norm_market_cap_lag_{lag}"] = 0.0
+                        ticker_latest[f"norm_floating_value_lag_{lag}"] = 0.0
+                        ticker_latest[f"norm_volume_lag_{lag}"] = 0.0
+
                 latest_features = pd.DataFrame([ticker_latest])
 
                 pred_series = predictor.predict_outperformers(latest_features)
@@ -343,8 +378,72 @@ class StockScreener:
             results.sort(key=lambda x: x["expected_excess_return"], reverse=True)
             return results[:10]
 
-        us_outperformers = train_and_predict_region(US_TICKERS, us_returns, "^GSPC")
-        kr_outperformers = train_and_predict_region(KR_TICKERS, kr_returns, "^KS11")
+        # Construct norm_us_prices and norm_kr_prices dynamically
+        from src.ai.prediction_model import OnDevicePredictionModel
+        predictor_model = OnDevicePredictionModel()
+
+        us_prices_dict = {}
+        for ticker in US_TICKERS:
+            df_t = None
+            if not df_us.empty and isinstance(df_us.columns, pd.MultiIndex):
+                if ticker in df_us.columns.levels[0]:
+                    df_t = df_us[ticker].copy()
+            if df_t is None:
+                if ticker in us_data:
+                    closes = us_data[ticker]
+                    df_t = pd.DataFrame({"Close": closes}, index=closes.index)
+                else:
+                    df_t = pd.DataFrame(columns=["Close", "Volume"])
+            if "Close" not in df_t.columns and "Adj Close" in df_t.columns:
+                df_t["Close"] = df_t["Adj Close"]
+            if "Close" not in df_t.columns:
+                df_t["Close"] = 100.0
+            if "Volume" not in df_t.columns:
+                df_t["Volume"] = 100000.0
+
+            if not isinstance(df_t.index, pd.DatetimeIndex):
+                df_t.index = pd.to_datetime(df_t.index)
+            if df_t.index.tz is not None:
+                df_t.index = df_t.index.tz_convert(None)
+            df_t.index = df_t.index.normalize()
+            df_t = df_t.groupby(df_t.index).mean()
+            df_t = df_t.ffill().bfill()
+            us_prices_dict[ticker] = df_t
+
+        norm_us_prices = predictor_model.apply_market_normalization(us_prices_dict)
+
+        kr_prices_dict = {}
+        for ticker in KR_TICKERS:
+            df_t = None
+            if not df_kr.empty and isinstance(df_kr.columns, pd.MultiIndex):
+                if ticker in df_kr.columns.levels[0]:
+                    df_t = df_kr[ticker].copy()
+            if df_t is None:
+                if ticker in kr_data:
+                    closes = kr_data[ticker]
+                    df_t = pd.DataFrame({"Close": closes}, index=closes.index)
+                else:
+                    df_t = pd.DataFrame(columns=["Close", "Volume"])
+            if "Close" not in df_t.columns and "Adj Close" in df_t.columns:
+                df_t["Close"] = df_t["Adj Close"]
+            if "Close" not in df_t.columns:
+                df_t["Close"] = 50000.0
+            if "Volume" not in df_t.columns:
+                df_t["Volume"] = 100000.0
+
+            if not isinstance(df_t.index, pd.DatetimeIndex):
+                df_t.index = pd.to_datetime(df_t.index)
+            if df_t.index.tz is not None:
+                df_t.index = df_t.index.tz_convert(None)
+            df_t.index = df_t.index.normalize()
+            df_t = df_t.groupby(df_t.index).mean()
+            df_t = df_t.ffill().bfill()
+            kr_prices_dict[ticker] = df_t
+
+        norm_kr_prices = predictor_model.apply_market_normalization(kr_prices_dict)
+
+        us_outperformers = train_and_predict_region(US_TICKERS, us_returns, "^GSPC", norm_us_prices)
+        kr_outperformers = train_and_predict_region(KR_TICKERS, kr_returns, "^KS11", norm_kr_prices)
 
         # Fallback to make sure exactly 10 are returned
         while len(us_outperformers) < 10 and US_TICKERS:

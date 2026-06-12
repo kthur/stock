@@ -30,9 +30,9 @@ class TradingConfig:
     telegram_authorized_user_ids: str = os.getenv("TELEGRAM_AUTHORIZED_USER_IDS", "")
 
     # KIS 모의투자 키 설정
-    kis_mock_app_key: str = os.getenv("KIS_MOCK_APP_KEY", "")
-    kis_mock_app_secret: str = os.getenv("KIS_MOCK_APP_SECRET", "")
-    kis_mock_account: str = os.getenv("KIS_MOCK_ACCOUNT", "")
+    kis_mock_app_key: str = field(default_factory=lambda: os.getenv("KIS_MOCK_APP_KEY", ""))
+    kis_mock_app_secret: str = field(default_factory=lambda: os.getenv("KIS_MOCK_APP_SECRET", ""))
+    kis_mock_account: str = field(default_factory=lambda: os.getenv("KIS_MOCK_ACCOUNT", ""))
 
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 

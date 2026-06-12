@@ -254,6 +254,29 @@ mypy src/
 | 4. 가중 투표 | `score = Σ(weight_i × signal_i)` |
 | 5. 레짐 임계값 적용 | 레짐별 buy_threshold/sell_threshold로 판별 |
 
+#### 5.2.1 거래량 확장 모멘텀 및 유동성 패널티
+
+기술 지표 종합 점수(`combined`) 계산 시, 시장의 거래량 급증(Volume Expansion)과 유동성(Liquidity)을 반영한 동적 조정이 이루어집니다:
+
+1. **거래량 확장 보너스/패널티 (Volume Expansion Bonus/Penalty)**:
+   - 최소 20일 이상의 거래량 데이터가 존재할 때 활성화됩니다.
+   - **조건**: 5일 거래량 SMA가 20일 거래량 SMA의 1.5배를 초과하는 경우 (`volume_5sma > 1.5 * volume_20sma`)
+   - **조정**:
+     - 가격 추세가 긍정적일 경우: 기술 지표 종합 점수에 **+0.05** 보너스를 부여 (`combined += 0.05`)
+       - *가격 추세 긍정 조건*: `(EMA20 > EMA50 if len(closes) >= 50 else False) or (MACD Histogram > 0)`
+     - 가격 추세가 부정적일 경우: 기술 지표 종합 점수에 **-0.05** 패널티를 부여 (`combined -= 0.05`)
+       - *가격 추세 부정 조건*: `(EMA20 < EMA50 if len(closes) >= 50 else False) or (MACD Histogram < 0)`
+   - 조정 후 종합 점수는 `[0.0, 1.0]` 범위로 클램핑(Capping)됩니다.
+
+2. **낮은 유동 주식 가치 패널티 (Low Floating Value Liquidity Penalty)**:
+   - 유동 주식수(`floating_shares`) 정보가 제공되는 경우 활성화됩니다.
+   - **유동 가치 계산**: $\text{floating\_value} = \text{Close} \times \text{floating\_shares}$
+   - **시장별 임계값(Threshold)**:
+     - 현재 주가(Close) > 1000.0 (원화 기반 한국 주식 기준): **10,000,000,000.0** (100억 원)
+     - 현재 주가(Close) <= 1000.0 (달러 기반 미국 주식 기준): **10,000,000.0** (1,000만 달러)
+   - **조정**: 계산된 유동 주식 가치가 해당 임계값보다 낮은 경우, 유동성 리스크 회피를 위해 종합 점수를 최대 **0.4**로 강제 제한(Cap)합니다: `combined = min(combined, 0.4)`
+
+
 ### 5.3 RiskManager (src/risk/risk_manager.py)
 
 **리스크 평가 및 포지션 사이징**을 담당합니다.
@@ -445,7 +468,7 @@ CREATE → PENDING → SUBMITTED → PARTIALLY_FILLED → FILLED
 | 52주 | distance_from_52w_high | `(max_252 - close) / close` |
 | HMM | hmm_regime | GaussianHMM(3 states) |
 
-### 7.3 On-Device XGBoost 피처 (6개)
+### 7.3 On-Device XGBoost 피처 (9개)
 
 | 피처 | 설명 |
 |------|------|
@@ -454,7 +477,11 @@ CREATE → PENDING → SUBMITTED → PARTIALLY_FILLED → FILLED
 | ret_20d | 20일 수익률 |
 | ret_60d | 60일 수익률 |
 | dist_sma_20 | `close / SMA20 - 1` |
-| vol_20d | 20일 변동성 |
+| vol_20d | 20일 변동성 (20일 일일 수익률의 표준편차) |
+| norm_market_cap | 지역 시장별 정규화된 시가총액 |
+| norm_floating_value | 지역 시장별 정규화된 유동 시가총액 |
+| norm_volume | 지역 시장별 정규화된 거래량 |
+
 
 ---
 
@@ -572,20 +599,35 @@ if consecutive_losses >= 10: adjusted = 0.0
 XGBRegressor(n_estimators=100, max_depth=5, learning_rate=0.1, n_jobs=-1)
 ```
 
-**6개 예측 Horizon**:
-- 1일, 5일, 10일, 20일, 30일, 60일
+**8개 예측 Horizon**:
+- 1일, 5일, 10일, 20일, 30일, 60일, 120일, 200일
 
-**Feature (6개)**: ret_1d, ret_5d, ret_20d, ret_60d, dist_sma_20, vol_20d
+**Feature (9개)**: 
+- `ret_1d`, `ret_5d`, `ret_20d`, `ret_60d`, `dist_sma_20`, `vol_20d`
+- `norm_market_cap`, `norm_floating_value`, `norm_volume` (지역 시장별로 정규화된 피처)
 
 **Target**: `close.shift(-h) / close - 1` (forward return)
+
+**지역 시장 정규화 및 통화 분리 로직 (Regional Market Normalization & Currency Separation)**:
+- 국가/통화 간 합산 오류(예: USD + KRW)를 방지하기 위해 미국(US)과 한국(KR) 시장을 분리하여 정규화합니다.
+- KR 시장 분류 조건: 종목 코드가 숫자이거나 `.KS` / `.KQ` 접미사 포함 시 한국 시장으로 분류하며, 그 외에는 미국 시장으로 분류합니다.
+- 계산 공식:
+  - $\text{market\_cap} = \text{Close} \times \text{shares\_outstanding}$
+  - $\text{floating\_value} = \text{Close} \times \text{floating\_shares}$ (유동 주식수 누락/무효 시 $\text{Close} \times \text{Volume}$으로 대체)
+  - 지역 시장별 총합: $\text{total\_market\_cap} = \sum \text{market\_cap}$, $\text{total\_floating\_value} = \sum \text{floating\_value}$, $\text{total\_volume} = \sum \text{Volume}$
+  - 피처 정규화 공식:
+    - $\text{norm\_market\_cap} = \frac{\text{market\_cap}}{\text{total\_market\_cap}}$
+    - $\text{norm\_floating\_value} = \frac{\text{floating\_value}}{\text{total\_floating\_value}}$
+    - $\text{norm\_volume} = \frac{\text{Volume}}{\text{total\_volume}}$
 
 **파이프라인** (`run_pipeline.py`):
 1. FinanceDataReader로 S&P 500 + KRX 유니버스 로드
 2. 샘플링 (설정 가능, 기본 50+50)
 3. 2023-01-01부터 학습 데이터 fetch
-4. XGBoost 6개 모델 학습
+4. XGBoost 8개 모델 학습
 5. 전체 종목 (약 2800개) inference 데이터 fetch
 6. 예측 실행 → DB 저장 → Telegram 포맷 반환
+
 
 ### 10.2 ML Ensemble (ml_engine.py)
 

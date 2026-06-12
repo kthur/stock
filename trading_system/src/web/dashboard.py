@@ -6,10 +6,11 @@
 import logging
 import threading
 from typing import Any, Dict, List, Optional
+import numpy as np
 
 import dash
 from dash import dash_table, dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,39 @@ app.layout = html.Div(
                 dcc.Tab(
                     label="Strategy Performance",
                     id="performance-tab",
-                    children=[html.Div([dcc.Graph(id="performance-comparison-chart")])],
+                    children=[
+                        html.Div([
+                            dcc.Graph(id="performance-comparison-chart"),
+                            html.Hr(),
+                            html.H3("Strategy Performance Analysis (Backtest on Universe)"),
+                            html.Div([
+                                html.Label("Select Universe Market:", style={"marginRight": "10px"}),
+                                dcc.Dropdown(
+                                    id="perf-universe-dropdown",
+                                    options=[
+                                        {"label": "SP500", "value": "SP500"},
+                                        {"label": "KRX", "value": "KRX"},
+                                    ],
+                                    value="SP500",
+                                    style={"width": "200px", "display": "inline-block", "marginRight": "20px"}
+                                ),
+                                html.Label("Select Strategy:", style={"marginRight": "10px"}),
+                                dcc.Dropdown(
+                                    id="perf-strategy-dropdown",
+                                    options=[
+                                        {"label": "Trend Following", "value": "TREND"},
+                                        {"label": "Mean Reversion", "value": "REVERSION"},
+                                    ],
+                                    value="TREND",
+                                    style={"width": "200px", "display": "inline-block"}
+                                ),
+                                html.Button("Run Strategy Analysis", id="run-strategy-btn", n_clicks=0, className="btn", style={"marginLeft": "20px", "verticalAlign": "top"}),
+                            ], style={"marginBottom": "20px"}),
+                            html.Div(id="strategy-analysis-status", style={"fontWeight": "bold", "marginBottom": "15px"}),
+                            html.Div(id="strategy-metrics-display"),
+                            dcc.Graph(id="strategy-backtest-equity-chart")
+                        ], style={"padding": "20px"})
+                    ],
                 ),
                 dcc.Tab(
                     label="Real-time P&L",
@@ -167,6 +200,39 @@ app.layout = html.Div(
                                         for h in [1, 5, 10, 20, 30, 60]
                                     ],
                                     style={"display": "flex", "flex-wrap": "wrap"}
+                                )
+                            ],
+                            style={"padding": "20px"}
+                        )
+                    ]
+                ),
+                dcc.Tab(
+                    label="Post-Market Rankings",
+                    id="post-market-rankings-tab",
+                    children=[
+                        html.Div(
+                            [
+                                html.H3("Daily Post-Market Stock Rankings"),
+                                html.Button("Run Post-Market Scoring", id="run-scoring-btn", n_clicks=0, className="btn", style={"marginBottom": "20px"}),
+                                html.Div(id="scoring-status-output", style={"marginBottom": "20px", "fontWeight": "bold"}),
+                                dash_table.DataTable(
+                                    id="post-market-rankings-table",
+                                    columns=[
+                                        {"name": "Rank", "id": "rank"},
+                                        {"name": "Symbol", "id": "symbol"},
+                                        {"name": "Name", "id": "name"},
+                                        {"name": "Composite Score", "id": "composite_score"},
+                                        {"name": "Technical Score", "id": "technical_score"},
+                                        {"name": "AI Score", "id": "ai_score"},
+                                        {"name": "Sentiment Score", "id": "sentiment_score"},
+                                    ],
+                                    sort_action="native",
+                                    page_action="native",
+                                    page_current=0,
+                                    page_size=20,
+                                    style_cell={"textAlign": "left"},
+                                    style_header={"backgroundColor": "rgb(230, 230, 230)", "fontWeight": "bold"},
+                                    data=[]
                                 )
                             ],
                             style={"padding": "20px"}
@@ -578,6 +644,199 @@ update_table_10d = generate_horizon_callback(10)
 update_table_20d = generate_horizon_callback(20)
 update_table_30d = generate_horizon_callback(30)
 update_table_60d = generate_horizon_callback(60)
+
+
+# ─── Post-Market Rankings Callbacks ──────────────────────────────────────────
+
+_scoring_thread = None
+_scoring_status = "Not running"
+
+def run_scoring_in_background():
+    global _scoring_status
+    _scoring_status = "Scoring Running (Fetching prices & calculating scores)..."
+    try:
+        from scripts.post_market_scoring import main as run_scoring_main
+        import sys
+        orig_argv = sys.argv
+        sys.argv = ['post_market_scoring.py']
+        try:
+            run_scoring_main()
+            _scoring_status = "Scoring Finished successfully."
+        finally:
+            sys.argv = orig_argv
+    except Exception as e:
+        _scoring_status = f"Scoring Failed: {str(e)}"
+
+@app.callback(
+    Output("scoring-status-output", "children"),
+    [Input("run-scoring-btn", "n_clicks"), Input("interval-component", "n_intervals")]
+)
+def handle_scoring_execution(n_clicks, n_intervals):
+    global _scoring_thread, _scoring_status
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return _scoring_status
+
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    if trigger_id == "run-scoring-btn" and n_clicks > 0:
+        if _scoring_thread is None or not _scoring_thread.is_alive():
+            _scoring_status = "Scoring Starting..."
+            _scoring_thread = threading.Thread(target=run_scoring_in_background, daemon=True)
+            _scoring_thread.start()
+        else:
+            _scoring_status = "Scoring is already running in background!"
+
+    return _scoring_status
+
+
+@app.callback(
+    Output("post-market-rankings-table", "data"),
+    [Input("interval-component", "n_intervals")]
+)
+def update_post_market_rankings_table(n):
+    try:
+        from src.data_layer.indicator_storage import MarketIndicatorStorage
+        from src.config import TradingConfig
+        cfg = TradingConfig()
+        storage = MarketIndicatorStorage(db_path=cfg.db_path)
+        df = storage.get_post_market_rankings()
+        if df.empty:
+            return []
+        
+        data = []
+        for _, row in df.iterrows():
+            data.append({
+                "rank": int(row["rank"]),
+                "symbol": row["symbol"],
+                "name": row["name"],
+                "composite_score": f"{row['composite_score']:.4f}",
+                "technical_score": f"{row['technical_score']:.4f}",
+                "ai_score": f"{row['ai_score']:.4f}",
+                "sentiment_score": f"{row['sentiment_score']:.4f}",
+            })
+        return data
+    except Exception as e:
+        logger.error(f"Error updating post market rankings table: {e}")
+        return []
+
+
+# ─── Strategy Backtest Performance Analysis Callbacks ─────────────────────────
+
+_strategy_thread = None
+_strategy_status = "Not running"
+_strategy_result_data = None
+
+def run_strategy_backtest_in_background(market, strategy_name):
+    global _strategy_status, _strategy_result_data
+    _strategy_status = f"Running backtests for {strategy_name} on {market} universe..."
+    try:
+        from src.config import TradingConfig
+        from src.analysis.backtest import BacktestEngine
+        from src.data_layer.market_data_handler import MarketDataHandler
+        
+        cfg = TradingConfig()
+        engine = BacktestEngine(initial_capital=1000000)
+        handler = MarketDataHandler()
+        
+        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "PEP", "COST", "JNJ"] if market == "SP500" else ["005930", "000660", "035420", "035720", "207940", "005380", "000270", "051910", "006400", "005490"]
+        
+        all_returns = []
+        all_sharpes = []
+        all_win_rates = []
+        all_mdds = []
+        equity_curves = []
+        dates_list = []
+        
+        strat_key = "TREND" if "TREND" in strategy_name.upper() else strategy_name
+        strategy_func = engine.get_strategy_func(strat_key)
+        
+        for sym in symbols:
+            bars = handler.fetch_historical_data(sym, period="1y")
+            if not bars:
+                continue
+                
+            res = engine.run_backtest(symbol=sym, price_bars=bars, strategy_func=strategy_func)
+            if res:
+                all_returns.append(res.total_return_pct)
+                all_sharpes.append(res.sharpe_ratio)
+                all_win_rates.append(res.win_rate)
+                all_mdds.append(res.max_drawdown)
+                if res.equity_curve:
+                    equity_curves.append(res.equity_curve)
+                if res.dates:
+                    dates_list = [d.strftime("%Y-%m-%d") for d in res.dates]
+                    
+        if not all_returns:
+            _strategy_status = "Backtest failed: No data fetched."
+            return
+            
+        min_len = min(len(ec) for ec in equity_curves) if equity_curves else 0
+        avg_equity = []
+        if min_len > 0:
+            for idx in range(min_len):
+                avg_val = np.mean([ec[idx] for ec in equity_curves])
+                avg_equity.append(float(avg_val))
+                
+        _strategy_result_data = {
+            "expected_return": float(np.mean(all_returns)),
+            "sharpe_ratio": float(np.mean(all_sharpes)),
+            "win_rate": float(np.mean(all_win_rates)),
+            "max_drawdown": float(np.mean(all_mdds)),
+            "equity_curve": avg_equity,
+            "dates": dates_list[:min_len] if dates_list else []
+        }
+        _strategy_status = "Backtest analysis completed."
+    except Exception as e:
+        _strategy_status = f"Backtest failed: {str(e)}"
+
+@app.callback(
+    [Output("strategy-analysis-status", "children"), Output("strategy-metrics-display", "children"), Output("strategy-backtest-equity-chart", "figure")],
+    [Input("run-strategy-btn", "n_clicks"), Input("interval-component", "n_intervals")],
+    [State("perf-universe-dropdown", "value"), State("perf-strategy-dropdown", "value")]
+)
+def handle_strategy_analysis(n_clicks, n_intervals, market, strategy):
+    global _strategy_thread, _strategy_status, _strategy_result_data
+    ctx = dash.callback_context
+    
+    triggered_id = ""
+    if ctx.triggered:
+        triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+        
+    if triggered_id == "run-strategy-btn" and n_clicks > 0:
+        if _strategy_thread is None or not _strategy_thread.is_alive():
+            _strategy_status = "Starting strategy backtests..."
+            _strategy_result_data = None
+            _strategy_thread = threading.Thread(target=run_strategy_backtest_in_background, args=(market, strategy), daemon=True)
+            _strategy_thread.start()
+            
+    metrics_html = html.Div("No analysis results. Click 'Run Strategy Analysis' to start.")
+    if _strategy_result_data:
+        metrics_html = html.Div([
+            html.H4("Strategy Analysis Summary Results:"),
+            html.P(f"Expected Annualized Yield (Total Return): {_strategy_result_data['expected_return']:.2f}%"),
+            html.P(f"Average Sharpe Ratio: {_strategy_result_data['sharpe_ratio']:.2f}"),
+            html.P(f"Average Win Rate: {_strategy_result_data['win_rate']*100:.2f}%"),
+            html.P(f"Average Max Drawdown: {_strategy_result_data['max_drawdown']*100:.2f}%"),
+        ], style={"padding": "10px", "backgroundColor": "#eef7ee", "borderRadius": "5px", "borderLeft": "5px solid #2ca02c", "marginBottom": "20px"})
+        
+    fig = {"data": [], "layout": {"title": "Equity Curve Chart"}}
+    if _strategy_result_data and _strategy_result_data["equity_curve"]:
+        fig = {
+            "data": [{
+                "x": _strategy_result_data["dates"],
+                "y": _strategy_result_data["equity_curve"],
+                "type": "scatter",
+                "name": "Average Portfolio Equity",
+                "line": {"color": "#2ca02c"}
+            }],
+            "layout": {
+                "title": f"Average Strategy Equity Curve ({strategy} on {market})",
+                "xaxis": {"title": "Date"},
+                "yaxis": {"title": "Equity (USD)"}
+            }
+        }
+        
+    return _strategy_status, metrics_html, fig
 
 
 class DashboardServer:

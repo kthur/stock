@@ -18,8 +18,11 @@ class TestMockTradingConfig(unittest.TestCase):
         config = TradingConfig()
         self.assertTrue(config.mock_trading)
 
-    def test_kis_mock_keys_default_empty(self):
+    @patch.dict("os.environ", {"KIS_MOCK_APP_KEY": "", "KIS_MOCK_APP_SECRET": "", "KIS_MOCK_ACCOUNT": ""})
+    @patch("src.config.os.getenv")
+    def test_kis_mock_keys_default_empty(self, mock_getenv):
         """KIS 모의투자 키 기본값이 빈 문자열인지 확인"""
+        mock_getenv.side_effect = lambda k, d="": "" if k in ["KIS_MOCK_APP_KEY", "KIS_MOCK_APP_SECRET", "KIS_MOCK_ACCOUNT"] else os.getenv(k, d)
         config = TradingConfig()
         self.assertEqual(config.kis_mock_app_key, "")
         self.assertEqual(config.kis_mock_app_secret, "")
