@@ -47,12 +47,17 @@ def generate_simulated_prices(symbol: str, length: int = 70) -> pd.DataFrame:
         prices.append(prices[-1] * (1.0 + r))
     closes = prices[1:]
     
+    meta = FALLBACK_METADATA[symbol]
+    
     df = pd.DataFrame({
         'Close': closes,
         'Open': closes,
         'High': [c * 1.01 for c in closes],
         'Low': [c * 0.99 for c in closes],
-        'Volume': [1000000] * length
+        'Volume': [1000000] * length,
+        'revenue': [meta['revenue']] * length,
+        'operating_income': [meta['operating_income']] * length,
+        'dividend_per_share': [meta['dividend_per_share']] * length
     }, index=dates)
     return df
 
@@ -204,6 +209,7 @@ def main():
         symbol = stock['symbol']
         market = stock.get('market', 'SP500')
         df_prices = fetch_historical_prices(symbol, market)
+        df_prices = prediction_model.merge_fundamentals(symbol, df_prices, storage)
         prices_dict[symbol] = df_prices
 
     # 2. Apply OnDevicePredictionModel.apply_market_normalization(prices_dict) to compute normalized features cross-sectionally.

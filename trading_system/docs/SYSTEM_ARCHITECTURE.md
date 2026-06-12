@@ -602,9 +602,10 @@ XGBRegressor(n_estimators=100, max_depth=5, learning_rate=0.1, n_jobs=-1)
 **8개 예측 Horizon**:
 - 1일, 5일, 10일, 20일, 30일, 60일, 120일, 200일
 
-**Feature (9개)**: 
+**Feature (12개)**: 
 - `ret_1d`, `ret_5d`, `ret_20d`, `ret_60d`, `dist_sma_20`, `vol_20d`
 - `norm_market_cap`, `norm_floating_value`, `norm_volume` (지역 시장별로 정규화된 피처)
+- `operating_margin`, `revenue_to_market_cap`, `dividend_yield` (펀더멘탈 기반 피처)
 
 **Target**: `close.shift(-h) / close - 1` (forward return)
 
@@ -927,6 +928,15 @@ else → weak_bear
 | symbol | TEXT PK |
 | name | TEXT |
 | market | TEXT (SP500/KRX) |
+
+**stock_fundamentals**:
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| symbol | TEXT | 종목 (Primary Key) |
+| date | TEXT | 보고 일자 (Primary Key) |
+| revenue | REAL | 매출액 |
+| operating_income | REAL | 영업이익 |
+| dividend_per_share | REAL | 주당 배당금 |
 
 **ai_predictions**:
 | 컬럼 | 타입 |

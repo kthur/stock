@@ -100,6 +100,7 @@ def execute_prediction_pipeline():
     start_date_train = '2023-01-01'
     start_date_infer = '2025-01-01'
     
+    model = OnDevicePredictionModel()
     logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols...")
     train_data_dict = {}
     
@@ -114,11 +115,11 @@ def execute_prediction_pipeline():
             try:
                 df = future.result()
                 if df is not None and not df.empty:
+                    df = model.merge_fundamentals(sym, df, storage)
                     train_data_dict[sym] = df
             except Exception:
                 pass
                 
-    model = OnDevicePredictionModel()
     df_train = model.prepare_training_data(train_data_dict)
     
     # 6. Train XGBoost model
@@ -142,6 +143,7 @@ def execute_prediction_pipeline():
             try:
                 df = future.result()
                 if df is not None and not df.empty:
+                    df = model.merge_fundamentals(sym, df, storage)
                     infer_data_dict[sym] = df
             except Exception:
                 pass
