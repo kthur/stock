@@ -171,5 +171,32 @@ class TestFeatureNormalization(unittest.TestCase):
         self.assertAlmostEqual(res_zero["ZERO"]["norm_floating_value"].iloc[0], 0.0)
         self.assertAlmostEqual(res_zero["ZERO"]["norm_volume"].iloc[0], 0.0)
 
+    def test_fundamentals_feature_generation(self):
+        """Test calculation of operating_margin, revenue_to_market_cap, and dividend_yield"""
+        model = OnDevicePredictionModel()
+        length = 70
+        dates = pd.date_range("2026-06-01", periods=length)
+        df = pd.DataFrame({
+            "Close": [150.0] * length,
+            "Open": [150.0] * length,
+            "High": [152.0] * length,
+            "Low": [148.0] * length,
+            "Volume": [1000.0] * length,
+            "shares_outstanding": [15000000000.0] * length,
+            "floating_shares": [14900000000.0] * length,
+            "revenue": [383285000000.0] * length,
+            "operating_income": [114301000000.0] * length,
+            "dividend_per_share": [0.96] * length
+        }, index=dates)
+        
+        df_feat = model._create_features(df)
+        self.assertFalse(df_feat.empty)
+        self.assertIn("operating_margin", df_feat.columns)
+        self.assertIn("revenue_to_market_cap", df_feat.columns)
+        self.assertIn("dividend_yield", df_feat.columns)
+        self.assertAlmostEqual(df_feat["operating_margin"].iloc[0], 114301000000.0 / 383285000000.0, places=4)
+        self.assertAlmostEqual(df_feat["revenue_to_market_cap"].iloc[0], 383285000000.0 / 2250000000000.0, places=4)
+        self.assertAlmostEqual(df_feat["dividend_yield"].iloc[0], 0.96 / 150.0, places=4)
+
 if __name__ == "__main__":
     unittest.main()

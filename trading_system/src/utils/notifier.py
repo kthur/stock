@@ -16,6 +16,14 @@ class NotificationSystem:
 
     async def send_telegram(self, message: str):
         if not self.telegram_token or not self.telegram_chat_id:
+            missing = []
+            if not self.telegram_token:
+                missing.append("TELEGRAM_BOT_TOKEN")
+            if not self.telegram_chat_id:
+                missing.append("TELEGRAM_CHAT_ID")
+            logger.warning(f"Telegram alert skipped: missing config ({', '.join(missing)}). Redirecting to log/console.")
+            logger.info(f"[TELEGRAM FALLBACK ALERT] {message}")
+            print(f"📢 [Telegram Fallback Alert]: {message}")
             return
 
         url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"

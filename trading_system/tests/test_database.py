@@ -117,6 +117,58 @@ class TestAssetHistoryDB(unittest.TestCase):
         asyncio.run(test())
 
 
+from src.data_layer.indicator_storage import MarketIndicatorStorage
+
+class TestMarketIndicatorStorage(unittest.TestCase):
+    """MarketIndicatorStorage 테스트"""
+
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.db_path = self.tmp.name
+        self.tmp.close()
+        self.storage = MarketIndicatorStorage(db_path=self.db_path)
+
+    def tearDown(self):
+        self.storage = None
+        import gc
+        gc.collect()
+        Path(self.db_path).unlink(missing_ok=True)
+
+    def test_save_and_get_fundamentals(self):
+        """기본적 분석 데이터 저장 및 조회 테스트"""
+        import pandas as pd
+        df_fundamentals = pd.DataFrame([
+            {
+                "symbol": "AAPL",
+                "date": "2026-06-01",
+                "revenue": 90000000000.0,
+                "operating_income": 25000000000.0,
+                "dividend_per_share": 0.24
+            },
+            {
+                "symbol": "AAPL",
+                "date": "2026-06-02",
+                "revenue": 95000000000.0,
+                "operating_income": 27000000000.0,
+                "dividend_per_share": 0.25
+            }
+        ])
+
+        self.storage.save_fundamentals(df_fundamentals)
+
+        retrieved = self.storage.get_fundamentals("AAPL")
+        self.assertEqual(len(retrieved), 2)
+        self.assertEqual(retrieved.iloc[0]["symbol"], "AAPL")
+        self.assertEqual(retrieved.iloc[0]["date"], "2026-06-01")
+        self.assertEqual(retrieved.iloc[0]["revenue"], 90000000000.0)
+        self.assertEqual(retrieved.iloc[0]["operating_income"], 25000000000.0)
+        self.assertEqual(retrieved.iloc[0]["dividend_per_share"], 0.24)
+        
+        self.assertEqual(retrieved.iloc[1]["revenue"], 95000000000.0)
+        self.assertEqual(retrieved.iloc[1]["operating_income"], 27000000000.0)
+        self.assertEqual(retrieved.iloc[1]["dividend_per_share"], 0.25)
+
+
 class _MockOrder:
     def __init__(self):
         self.order_id = "ORD_001"

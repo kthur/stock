@@ -89,7 +89,10 @@ class TestPostMarketScoring(unittest.TestCase):
                 'Open': [val] * 70,
                 'High': [val] * 70,
                 'Low': [val] * 70,
-                'Volume': [100000] * 70
+                'Volume': [100000] * 70,
+                'revenue': [3.8e11 if symbol == "AAPL" else 2.4e11] * 70,
+                'operating_income': [1.1e11 if symbol == "AAPL" else 8.8e10] * 70,
+                'dividend_per_share': [0.96 if symbol == "AAPL" else 3.0] * 70
             }, index=pd.date_range(end='2026-06-12', periods=70))
             mock_t.history.return_value = df
             mock_t.news = [{'title': f"Good news for {symbol}"}]
@@ -104,7 +107,10 @@ class TestPostMarketScoring(unittest.TestCase):
                 'Open': [val] * 70,
                 'High': [val] * 70,
                 'Low': [val] * 70,
-                'Volume': [100000] * 70
+                'Volume': [100000] * 70,
+                'revenue': [5e10] * 70,
+                'operating_income': [1e10] * 70,
+                'dividend_per_share': [0.5] * 70
             }, index=pd.date_range(end='2026-06-12', periods=70))
             return df
 

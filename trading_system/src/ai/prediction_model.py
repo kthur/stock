@@ -98,7 +98,8 @@ FALLBACK_METADATA = FallbackMetadataDict()
 
 
 class OnDevicePredictionModel:
-    def __init__(self):
+    def __init__(self, model_dir: str = None):
+        from pathlib import Path
         self.models: Dict[int, xgb.XGBRegressor] = {}
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
         self._has_gpu = _HAS_CUDA
@@ -111,7 +112,38 @@ class OnDevicePredictionModel:
         )
         if self._has_gpu:
             self._xgb_kwargs['device'] = 'cuda'
+            
+        if model_dir is None:
+            self.model_dir = Path(__file__).resolve().parent.parent.parent / "models"
+        else:
+            self.model_dir = Path(model_dir)
+            
         logger.info(f"OnDevicePredictionModel initialized (GPU={'yes' if self._has_gpu else 'no'})")
+        self.load_models()
+
+    def save_models(self):
+        try:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            for h, model in self.models.items():
+                model_path = self.model_dir / f"xgb_model_{h}d.json"
+                model.save_model(str(model_path))
+            logger.info(f"All models saved to {self.model_dir}")
+        except Exception as e:
+            logger.error(f"Failed to save models: {e}")
+
+    def load_models(self):
+        try:
+            for h in self.horizons:
+                model_path = self.model_dir / f"xgb_model_{h}d.json"
+                if model_path.exists():
+                    model = xgb.XGBRegressor()
+                    model.load_model(str(model_path))
+                    self.models[h] = model
+                    logger.debug(f"Loaded model for {h}d from {model_path}")
+            if self.models:
+                logger.info(f"Loaded {len(self.models)} models from {self.model_dir}")
+        except Exception as e:
+            logger.error(f"Failed to load models: {e}")
 
     def apply_market_normalization(self, prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """
@@ -391,6 +423,7 @@ class OnDevicePredictionModel:
             model.fit(X, y)
             self.models[h] = model
             logger.info(f"Model for {h}d trained.")
+        self.save_models()
 
     def predict_current(self, df_current: pd.DataFrame) -> Dict[int, float]:
         """

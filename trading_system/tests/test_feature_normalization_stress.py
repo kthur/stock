@@ -215,5 +215,80 @@ class TestFeatureNormalizationStress(unittest.TestCase):
         for sym in prices_dict.keys():
             self.assertIn("norm_market_cap", res[sym].columns)
 
+    def test_fundamentals_stress_edge_cases(self):
+        """Test edge cases like zero revenue, division by zero, missing records, negative values, inf, NaN"""
+        length = 70
+        dates = pd.date_range("2026-06-01", periods=length)
+        
+        # 1. Zero revenue
+        df_zero_rev = pd.DataFrame({
+            "Close": [150.0] * length,
+            "Open": [150.0] * length,
+            "High": [152.0] * length,
+            "Low": [148.0] * length,
+            "Volume": [1000.0] * length,
+            "shares_outstanding": [10000000] * length,
+            "floating_shares": [10000000] * length,
+            "revenue": [0.0] * length,
+            "operating_income": [50000.0] * length,
+            "dividend_per_share": [1.0] * length
+        }, index=dates)
+        df_feat = self.model._create_features(df_zero_rev)
+        self.assertFalse(df_feat.empty)
+        self.assertEqual(df_feat["operating_margin"].iloc[0], 0.0)
+        
+        # 2. Zero Close
+        closes = [150.0] * 60 + [0.0] * 10
+        df_zero_close = pd.DataFrame({
+            "Close": closes,
+            "Open": closes,
+            "High": [c * 1.01 for c in closes],
+            "Low": [c * 0.99 for c in closes],
+            "Volume": [1000.0] * length,
+            "shares_outstanding": [10000000] * length,
+            "floating_shares": [10000000] * length,
+            "revenue": [10000000.0] * length,
+            "operating_income": [50000.0] * length,
+            "dividend_per_share": [1.0] * length
+        }, index=dates)
+        df_feat = self.model._create_features(df_zero_close)
+        self.assertFalse(df_feat.empty)
+        self.assertEqual(df_feat["dividend_yield"].iloc[-1], 0.0)
+
+        # 3. Negative operating income
+        df_neg_income = pd.DataFrame({
+            "Close": [150.0] * length,
+            "Open": [150.0] * length,
+            "High": [152.0] * length,
+            "Low": [148.0] * length,
+            "Volume": [1000.0] * length,
+            "shares_outstanding": [10000000] * length,
+            "floating_shares": [10000000] * length,
+            "revenue": [10000000.0] * length,
+            "operating_income": [-500000.0] * length,
+            "dividend_per_share": [1.0] * length
+        }, index=dates)
+        df_feat = self.model._create_features(df_neg_income)
+        self.assertEqual(df_feat["operating_margin"].iloc[0], -0.05)
+
+        # 4. Missing records (NaN)
+        df_nan = pd.DataFrame({
+            "Close": [150.0] * length,
+            "Open": [150.0] * length,
+            "High": [152.0] * length,
+            "Low": [148.0] * length,
+            "Volume": [1000.0] * length,
+            "shares_outstanding": [10000000] * length,
+            "floating_shares": [10000000] * length,
+            "revenue": [np.nan] * length,
+            "operating_income": [np.nan] * length,
+            "dividend_per_share": [np.nan] * length
+        }, index=dates)
+        df_feat = self.model._create_features(df_nan)
+        self.assertFalse(df_feat.empty)
+        self.assertFalse(df_feat["operating_margin"].isna().any())
+        self.assertFalse(df_feat["revenue_to_market_cap"].isna().any())
+        self.assertFalse(df_feat["dividend_yield"].isna().any())
+
 if __name__ == "__main__":
     unittest.main()
