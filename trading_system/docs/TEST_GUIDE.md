@@ -23,7 +23,9 @@ trading_system/tests/
 ├── test_macro.py             # 거시경제 피처 및 한도 정책 연동 검증
 ├── test_macro_stress.py      # 극단적 한계 상황(결측 데이터, 이상치 등) 입력 대응 스트레스 테스트
 ├── test_ml_ensemble.py       # Random Forest + XGBoost 소프트 보팅 가중치 예측 정확도 및 API 로드 테스트
+├── test_orchestrator.py      # 오케스트레이터 CLI 구동 및 백그라운드 스케줄러 검증
 ├── test_portfolio_risk.py    # 자산 배분 비중 제한 검증
+├── test_risk_enhancements.py # 변동성 조절 Kelly 및 regime-adaptive trailing stop 검증
 ├── test_risk_manager.py      # 손절/익절 조건 및 포트폴리오 서킷 브레이커 검증
 ├── test_screener_dash_challenger.py # 대시보드 백테스트 스캐너 API 응답성 테스트
 ├── test_system.py            # 시스템 통합 엔진 코어 기능 단위 테스트
@@ -52,10 +54,14 @@ trading_system/tests/
 # 1. 머신러닝 앙상블 기능 테스트
 .venv\Scripts\python -m pytest tests/test_ml_ensemble.py -v
 
-# 2. 리스크 매니저 통제 로직 테스트
+# 2. 리스크 매니저 통제 로직 및 신규 변동성 스케일링 테스트
 .venv\Scripts\python -m pytest tests/test_risk_manager.py -v
+.venv\Scripts\python -m pytest tests/test_risk_enhancements.py -v
 
-# 3. 모의 거래 엔진 테스트
+# 3. 오케스트레이터 및 백그라운드 스케줄러 테스트
+.venv\Scripts\python -m pytest tests/test_orchestrator.py -v
+
+# 4. 모의 거래 엔진 테스트
 .venv\Scripts\python -m pytest tests/phase6/unit/test_mock_trading.py -v
 ```
 

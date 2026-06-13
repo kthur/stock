@@ -93,7 +93,36 @@ python update_optimize.py
 python test_system.py
 ```
 
+### 5. 파이프라인 자동화 오케스트레이터 데몬 (CLI & Scheduler)
+매일 정기적으로 작동해야 하는 파이프라인(데이터 수집, 포스트마켓 스코어링, 모델 재학습 등)을 백그라운드 데몬으로 상시 가동하고 제어합니다.
+
+- **데몬 시작 (Start)**:
+  ```powershell
+  python run_orchestrator.py start
+  ```
+  오케스트레이터 데몬(`orchestrator.py`)이 Windows 백그라운드 프로세스로 분리 실행되어 정해진 스케줄러 시각마다 관련 파이프라인을 자동 트리거합니다. (상태 로깅은 `orchestrator.log` 파일에 저장됩니다.)
+
+- **데몬 정지 (Stop)**:
+  ```powershell
+  python run_orchestrator.py stop
+  ```
+  실행 중인 오케스트레이터 데몬에 종료 플래그(`stop.flag`) 또는 Windows 신호(`CTRL_BREAK_EVENT`)를 전송하여 수행 중인 배치 처리를 보호하고 Graceful하게 정지시킵니다.
+
+- **데몬 상태 조회 (Status)**:
+  ```powershell
+  python run_orchestrator.py status
+  ```
+  현재 데몬의 작동 상태(RUNNING / STOPPED) 및 프로세스 ID(PID), 그리고 SQLite 데이터베이스 `pipeline_runs` 테이블을 조회하여 각 단계별 가장 최근에 가동 완료된 이력 정보를 출력합니다.
+
+- **개별 파이프라인 즉시 강제 트리거 (Run-Now)**:
+  ```powershell
+  python run_orchestrator.py run-now <stage>
+  ```
+  특정 파이프라인 배치를 대기 시각 이전에 수동으로 즉시 구동합니다.
+  - 지원 스테이지: `indicators` (시장 지표 수집), `universe` (유니버스 업데이트), `train` (ML 모델 재학습), `predict` (종가 예측), `score` (포스트마켓 대가 스타일 스코어링), `ingest` (지표 수집+유니버스), `weekly_train_predict` (재학습+예측), `all` (전체 가동)
+
 ---
+
 
 ## 🛠️ 트러블슈팅 (Troubleshooting)
 
