@@ -35,10 +35,10 @@ class MacroPredictor:
     """
 
     def __init__(self, max_depth: int = 5, n_estimators: int = 100):
-        xgb_kwargs = dict(
+        xgb_kwargs: Dict[str, Any] = dict(
             max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05
         )
-        lgb_kwargs = dict(
+        lgb_kwargs: Dict[str, Any] = dict(
             max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05, verbose=-1
         )
         if _HAS_CUDA:

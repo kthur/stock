@@ -3,7 +3,7 @@ import pandas as pd
 import xgboost as xgb
 import hashlib
 import numpy as np
-from typing import Dict
+from typing import Dict, Any, List, Optional
 
 try:
     import torch
@@ -98,12 +98,12 @@ FALLBACK_METADATA = FallbackMetadataDict()
 
 
 class OnDevicePredictionModel:
-    def __init__(self, model_dir: str = None):
+    def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
         self.models: Dict[int, xgb.XGBRegressor] = {}
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
         self._has_gpu = _HAS_CUDA
-        self._xgb_kwargs = dict(
+        self._xgb_kwargs: Dict[str, Any] = dict(
             n_estimators=100,
             max_depth=5,
             learning_rate=0.1,
@@ -267,7 +267,7 @@ class OnDevicePredictionModel:
                     storage = MarketIndicatorStorage()
                 except Exception:
                     try:
-                        from src.data_layer.indicator_storage import MarketIndicatorStorage
+                        from src.data_layer.indicator_storage import MarketIndicatorStorage  # type: ignore
                         storage = MarketIndicatorStorage()
                     except Exception:
                         pass

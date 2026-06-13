@@ -605,7 +605,7 @@ class TelegramBotEngine:
         """AI 예측 파이프라인 실행 (XGBoost)"""
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
-        return self.trading_system.run_prediction_pipeline()
+        return str(self.trading_system.run_prediction_pipeline())
 
     def _cmd_dashboard(self, user_id: int, args: List[str]) -> str:
         """대시보드 URL 반환"""

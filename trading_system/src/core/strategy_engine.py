@@ -206,7 +206,7 @@ class HybridStrategyEngine:
             return 0.5
         return float(max(0.0, min(1.0, (closes[-1] - lower) / band_width)))
 
-    def _compute_technical_indicators(self, price_bars: list, volume_bars: list = None, floating_shares: float = None) -> Dict:
+    def _compute_technical_indicators(self, price_bars: List[Any], volume_bars: Optional[List[Any]] = None, floating_shares: Optional[float] = None) -> Dict[str, Any]:
         """과거 가격 데이터로부터 기술적 지표 종합 점수 산출"""
         closes = []
         volumes = []
@@ -216,17 +216,17 @@ class HybridStrategyEngine:
             if isinstance(b, (int, float)):
                 closes.append(float(b))
             elif isinstance(b, dict):
-                closes.append(float(b.get("close", b.get("Close", 0))))
+                closes.append(float(b.get("close") or b.get("Close") or 0.0))
                 if "volume" in b:
-                    volumes.append(float(b["volume"]))
+                    volumes.append(float(b["volume"] or 0.0))
                 elif "Volume" in b:
-                    volumes.append(float(b["Volume"]))
+                    volumes.append(float(b["Volume"] or 0.0))
             else:
-                closes.append(float(getattr(b, "close", getattr(b, "Close", 0))))
+                closes.append(float(getattr(b, "close", getattr(b, "Close", 0.0)) or 0.0))
                 if hasattr(b, "volume"):
-                    volumes.append(float(b.volume))
+                    volumes.append(float(getattr(b, "volume", 0.0) or 0.0))
                 elif hasattr(b, "Volume"):
-                    volumes.append(float(b.Volume))
+                    volumes.append(float(getattr(b, "Volume", 0.0) or 0.0))
 
         if len(closes) < 20:
             return {"score": 0.5, "signal": TradeSignal.HOLD, "details": {}}
@@ -238,9 +238,9 @@ class HybridStrategyEngine:
                 if isinstance(v, (int, float)):
                     volumes.append(float(v))
                 elif isinstance(v, dict):
-                    volumes.append(float(v.get("volume", v.get("Volume", 0))))
+                    volumes.append(float(v.get("volume") or v.get("Volume") or 0.0))
                 else:
-                    volumes.append(float(getattr(v, "volume", getattr(v, "Volume", 0))))
+                    volumes.append(float(getattr(v, "volume", getattr(v, "Volume", 0.0)) or 0.0))
 
         # RSI (14) - 보다 보수적인 임계값 적용
         rsi = self._calc_rsi(closes)
