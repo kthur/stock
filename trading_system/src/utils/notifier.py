@@ -23,7 +23,12 @@ class NotificationSystem:
                 missing.append("TELEGRAM_CHAT_ID")
             logger.warning(f"Telegram alert skipped: missing config ({', '.join(missing)}). Redirecting to log/console.")
             logger.info(f"[TELEGRAM FALLBACK ALERT] {message}")
-            print(f"📢 [Telegram Fallback Alert]: {message}")
+            try:
+                print(f"📢 [Telegram Fallback Alert]: {message}")
+            except UnicodeEncodeError:
+                # Handle CP949/other console encoding limitations gracefully
+                safe_msg = message.encode('ascii', errors='replace').decode('ascii')
+                print(f"[Telegram Fallback Alert]: {safe_msg}")
             return
 
         url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"

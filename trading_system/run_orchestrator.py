@@ -13,6 +13,13 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 sys.path.append(str(PROJECT_DIR))
 
+# Reconfigure standard streams to prevent UnicodeEncodeError on Windows console print
+try:
+    sys.stdout.reconfigure(errors='replace')
+    sys.stderr.reconfigure(errors='replace')
+except Exception:
+    pass
+
 PID_FILE = PROJECT_DIR / "orchestrator.pid"
 STOP_FLAG = PROJECT_DIR / "stop.flag"
 

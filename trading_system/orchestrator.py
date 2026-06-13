@@ -17,6 +17,13 @@ from filelock import FileLock, Timeout
 PROJECT_DIR = Path(__file__).resolve().parent
 sys.path.append(str(PROJECT_DIR))
 
+# Reconfigure standard streams to prevent UnicodeEncodeError on Windows console print
+try:
+    sys.stdout.reconfigure(errors='replace')
+    sys.stderr.reconfigure(errors='replace')
+except Exception:
+    pass
+
 from src.config import TradingConfig
 from src.data_layer.global_market import GlobalMarketClient
 from src.data_layer.indicator_storage import MarketIndicatorStorage
