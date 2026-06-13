@@ -524,7 +524,8 @@ class StockTradingSystem:
         quantity = await self._compute_position_size(
             symbol, order_type, price, confidence, portfolio_value,
             stop_loss_price, take_profit_price, win_rate, win_loss_ratio,
-            min_trade_quantity, distributed_min_quantity, bypass_other_sizing=bypass_other_sizing
+            min_trade_quantity, distributed_min_quantity, bypass_other_sizing=bypass_other_sizing,
+            atr=atr
         )
         if quantity <= 0:
             return
@@ -547,13 +548,14 @@ class StockTradingSystem:
         self, symbol: str, order_type: OrderType, price: float, confidence: float,
         portfolio_value: float, stop_loss_price: float, take_profit_price: float,
         win_rate: float, win_loss_ratio: float, min_trade_quantity: int,
-        distributed_min_quantity: int, bypass_other_sizing: bool = False
+        distributed_min_quantity: int, bypass_other_sizing: bool = False,
+        atr: float = 0.0
     ) -> int:
         """포지션 사이징 파이프라인: Kelly → 각종 조정 → 최종 수량"""
 
         quantity = self.risk_manager.calculate_position_sizing(
             symbol=symbol, entry_price=price, stop_loss_price=stop_loss_price,
-            win_rate=win_rate, win_loss_ratio=win_loss_ratio,
+            win_rate=win_rate, win_loss_ratio=win_loss_ratio, atr=atr
         )
 
         if bypass_other_sizing:
@@ -1899,10 +1901,11 @@ class StockTradingSystem:
         R3: Trailing Stop-Loss
         Tracks high watermarks and triggers trailing stop-loss (SELL signal) if drawdown exceeds 2 * ATR.
         """
-        if symbol not in self.portfolio.positions:
-            return None
-        
+        if price <= 0.0:
+            return TradeSignal.SELL
         if atr <= 0.0:
+            return None
+        if symbol not in self.portfolio.positions:
             return None
         
         pos = self.portfolio.positions[symbol]
@@ -1912,8 +1915,15 @@ class StockTradingSystem:
         if price > pos.highest_price:
             pos.highest_price = price
             
-        drawdown = pos.highest_price - price
-        if drawdown >= 2.0 * atr:
+        is_triggered = self.risk_manager.check_trailing_stop_signal(
+            symbol=symbol,
+            current_price=price,
+            highest_price=pos.highest_price,
+            atr=atr,
+            regime=self._current_regime,
+            adx=self._current_adx
+        )
+        if is_triggered:
             return TradeSignal.SELL
             
         return None

@@ -220,6 +220,5 @@ class TestRiskManagerDrawdown(unittest.TestCase):
         )
         self.assertEqual(adj, 50)
 
-
 if __name__ == "__main__":
     unittest.main(verbosity=2)

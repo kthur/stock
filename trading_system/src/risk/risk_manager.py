@@ -362,6 +362,38 @@ class RiskManager:
 
         return base
 
+    def check_trailing_stop_signal(
+        self,
+        symbol: str,
+        current_price: float,
+        highest_price: float,
+        atr: float,
+        regime: str = "weak_bull",
+        adx: float = 20.0,
+    ) -> bool:
+        if current_price <= 0.0:
+            return True
+        if atr <= 0.0:
+            return False
+
+        multipliers = self.get_adaptive_atr_multipliers(regime, adx)
+        stop_multiplier = multipliers.get("stop", 2.0)
+        stop_distance = atr * stop_multiplier
+
+        crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
+        if crisis_mult < 1.0:
+            stop_distance *= crisis_mult
+
+        drawdown = self.calculate_drawdown()
+        if drawdown > 0.0 and self.max_drawdown_allowed > 0.0:
+            drawdown_scaler = 1.0 - (drawdown / self.max_drawdown_allowed)
+            drawdown_scaler = max(0.25, min(1.0, drawdown_scaler))
+            stop_distance *= drawdown_scaler
+
+        if highest_price - current_price >= stop_distance:
+            return True
+        return False
+
     def _volatility_scalar(self, vix: float = 20.0) -> float:
         if not self.volatility_scaling or vix <= 0:
             return 1.0
@@ -530,6 +562,7 @@ class RiskManager:
         win_rate: float = 0.0,
         win_loss_ratio: float = 0.0,
         vix: float = 20.0,
+        atr: float = 0.0,
     ) -> int:
         """Kelly Criterion 기반 포지션 사이징 (선택적) 및 리스크 기반 사이징"""
         # 위험금 계산
@@ -541,9 +574,23 @@ class RiskManager:
         # Kelly 공식 적용 (정보가 있는 경우)
         if win_rate > 0 and win_loss_ratio > 0:
             kelly_pct = self.calculate_kelly_fraction(win_rate, win_loss_ratio)
+            if atr > 0.0:
+                asset_vol_annual = (atr / entry_price) * (252**0.5) if entry_price > 0.0 else 0.0
+                if asset_vol_annual > 0.0:
+                    vol_scaler = self.target_annual_volatility / asset_vol_annual
+                    vol_scaler = max(0.25, min(1.5, vol_scaler))
+                    kelly_pct *= vol_scaler
             max_value = self.portfolio_value * kelly_pct
         else:
-            max_loss = self.portfolio_value * self.max_loss_per_trade_pct
+            crisis_risk_mult_map = {
+                CrisisLevel.NONE: 1.0,
+                CrisisLevel.WATCH: 0.75,
+                CrisisLevel.ACTIVE: 0.50,
+                CrisisLevel.SEVERE: 0.25
+            }
+            risk_mult = crisis_risk_mult_map.get(self.crisis_detector.crisis_level, 1.0)
+            scaled_max_loss_pct = self.max_loss_per_trade_pct * risk_mult
+            max_loss = self.portfolio_value * scaled_max_loss_pct
             max_value = max_loss * (entry_price / risk_per_share)
 
         vol_scalar = self._volatility_scalar(vix)
