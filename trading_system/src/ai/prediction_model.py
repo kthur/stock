@@ -349,10 +349,10 @@ class OnDevicePredictionModel:
         df['dividend_yield'] = safe_divide(df['dividend_per_share'], df['Close'])
 
         # Return features
-        df['ret_1d'] = df['Close'].pct_change(1)
-        df['ret_5d'] = df['Close'].pct_change(5)
-        df['ret_20d'] = df['Close'].pct_change(20)
-        df['ret_60d'] = df['Close'].pct_change(60)
+        df['ret_1d'] = df['Close'].pct_change(1, fill_method=None)
+        df['ret_5d'] = df['Close'].pct_change(5, fill_method=None)
+        df['ret_20d'] = df['Close'].pct_change(20, fill_method=None)
+        df['ret_60d'] = df['Close'].pct_change(60, fill_method=None)
 
         # Moving averages
         df['sma_20'] = df['Close'].rolling(20).mean()
@@ -378,6 +378,9 @@ class OnDevicePredictionModel:
 
     def _create_targets(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create forward returns as targets."""
+        df = df.copy()
+        if isinstance(df.index, pd.DatetimeIndex):
+            df = df.sort_index(ascending=True)
         for h in self.horizons:
             df[f'target_{h}d'] = df['Close'].shift(-h) / df['Close'] - 1
         return df
@@ -400,7 +403,25 @@ class OnDevicePredictionModel:
 
         if not all_data:
             return pd.DataFrame()
-        return pd.concat(all_data, ignore_index=True)
+        df_merged = pd.concat(all_data, ignore_index=True)
+
+        # Clip extreme target values to prevent model bias from anomalous data
+        # (e.g. stock splits, near-zero prices, data errors)
+        if not df_merged.empty:
+            target_cols = [f'target_{h}d' for h in self.horizons if f'target_{h}d' in df_merged.columns]
+            for col in target_cols:
+                orig_max = df_merged[col].max()
+                orig_min = df_merged[col].min()
+                df_merged[col] = df_merged[col].clip(lower=-5.0, upper=5.0)
+                clipped_max = df_merged[col].max()
+                clipped_min = df_merged[col].min()
+                if orig_max > 5.0 or orig_min < -5.0:
+                    logger.warning(
+                        f"Clipped extreme targets in {col}: "
+                        f"range [{orig_min:.4f}, {orig_max:.4f}] -> [{clipped_min:.4f}, {clipped_max:.4f}]"
+                    )
+
+        return df_merged
 
     def train(self, df_train: pd.DataFrame):
         """Train XGBoost regressors for each horizon."""
@@ -458,10 +479,13 @@ class OnDevicePredictionModel:
         predictions = {}
         for h in self.horizons:
             if h in self.models:
-                pred = self.models[h].predict(X)[0]
-                predictions[h] = float(pred)
+                pred = float(self.models[h].predict(X)[0])
             else:
-                predictions[h] = 0.0
+                pred = 0.0
+            if abs(pred) > 2.0:
+                logger.warning(f"Clipping extreme prediction for {h}d horizon: {pred:.4f}")
+                pred = max(min(pred, 5.0), -5.0)
+            predictions[h] = pred
         return predictions
 
     def process_and_predict_all(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -507,7 +531,27 @@ class OnDevicePredictionModel:
                 res_dict[h] = preds.tolist()
             else:
                 res_dict[h] = [0.0] * len(symbols_list)
+
         # 4. Convert to DataFrame
         res_df = pd.DataFrame(res_dict)
+
+        # 5. Validate predictions - warn if any are unrealistically extreme
+        if not res_df.empty:
+            for h in self.horizons:
+                if h not in res_df.columns:
+                    continue
+                vals = res_df[h]
+                extreme = vals[abs(vals) > 2.0]
+                if len(extreme) > 0:
+                    logger.warning(
+                        f"Extreme predictions detected for {h}d horizon: "
+                        f"{len(extreme)}/{len(vals)} symbols have |return| > 200%. "
+                        f"Max={vals.max():.4f}, Min={vals.min():.4f}. "
+                        f"Consider retraining with more balanced data."
+                    )
+                    # Clip extreme predictions to prevent display of absurd values
+                    res_df[h] = vals.clip(lower=-5.0, upper=5.0)
+                    logger.warning(f"Clipped extreme {h}d predictions to ±500%.")
+
         return res_df
 
