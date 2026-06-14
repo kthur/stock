@@ -138,6 +138,7 @@ class OnDevicePredictionModel:
                 if model_path.exists():
                     booster = xgb.Booster()
                     booster.load_model(str(model_path))
+                    booster.set_param('predictor', 'auto')
                     if self._has_gpu:
                         booster.set_param('device', 'cuda')
                     model = xgb.XGBRegressor(**self._xgb_kwargs)
@@ -482,19 +483,18 @@ class OnDevicePredictionModel:
         X = latest[features]
 
         predictions = {}
-        X_array = X.values
-        for h in self.horizons:
-            if h in self.models:
-                try:
-                    pred = float(self.models[h].inplace_predict(X_array)[0])
-                except Exception:
-                    pred = float(self.models[h].predict(X_array)[0])
-            else:
-                pred = 0.0
-            if abs(pred) > 2.0:
-                logger.warning(f"Clipping extreme prediction for {h}d horizon: {pred:.4f}")
-                pred = max(min(pred, 5.0), -5.0)
-            predictions[h] = pred
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
+            for h in self.horizons:
+                if h in self.models:
+                    pred = float(self.models[h].predict(X)[0])
+                else:
+                    pred = 0.0
+                if abs(pred) > 2.0:
+                    logger.warning(f"Clipping extreme prediction for {h}d horizon: {pred:.4f}")
+                    pred = max(min(pred, 5.0), -5.0)
+                predictions[h] = pred
         return predictions
 
     def process_and_predict_all(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -532,18 +532,17 @@ class OnDevicePredictionModel:
         # 2. Concatenate into a single batch DataFrame
         X_batch = pd.concat(latest_features_list, ignore_index=True)
 
-        # 3. Predict for each horizon in batch (GPU/CPU device mismatch 방지)
-        X_array = X_batch.values
-        res_dict: dict = {'symbol': symbols_list}
-        for h in self.horizons:
-            if h in self.models:
-                try:
-                    preds = self.models[h].inplace_predict(X_array)
-                except Exception:
-                    preds = self.models[h].predict(X_array)
-                res_dict[h] = preds.tolist()
-            else:
-                res_dict[h] = [0.0] * len(symbols_list)
+        # 3. Predict for each horizon in batch (GPU/CPU device mismatch 경고 억제)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
+            res_dict: dict = {'symbol': symbols_list}
+            for h in self.horizons:
+                if h in self.models:
+                    preds = self.models[h].predict(X_batch)
+                    res_dict[h] = preds.tolist()
+                else:
+                    res_dict[h] = [0.0] * len(symbols_list)
 
         # 4. Convert to DataFrame
         res_df = pd.DataFrame(res_dict)
