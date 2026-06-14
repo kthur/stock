@@ -21,7 +21,9 @@ class NotificationSystem:
                 missing.append("TELEGRAM_BOT_TOKEN")
             if not self.telegram_chat_id:
                 missing.append("TELEGRAM_CHAT_ID")
-            logger.warning(f"Telegram alert skipped: missing config ({', '.join(missing)}). Redirecting to log/console.")
+            logger.warning(
+                f"Telegram alert skipped: missing config ({', '.join(missing)}). Redirecting to log/console."
+            )
             logger.info(f"[TELEGRAM FALLBACK ALERT] {message}")
             try:
                 print(f"📢 [Telegram Fallback Alert]: {message}")

@@ -31,7 +31,7 @@ if "torch" not in sys.modules:
         mock_torch.device = lambda *a, **k: None
         mock_torch.from_numpy = lambda *a, **k: DummyTensor()
         mock_torch.no_grad = lambda *a, **k: DummyTensor()
-        
+
         mock_cuda = types.ModuleType("torch.cuda")
         mock_cuda.is_available = lambda: False
         mock_torch.cuda = mock_cuda

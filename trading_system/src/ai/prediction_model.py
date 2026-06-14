@@ -3,7 +3,7 @@ import pandas as pd
 import xgboost as xgb
 import hashlib
 import numpy as np
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 try:
     import torch
@@ -74,17 +74,17 @@ class FallbackMetadataDict(dict):
         return True
 
     def _generate_mock_metadata(self, symbol: str) -> dict:
-        h = hashlib.md5(symbol.encode('utf-8')).hexdigest()
+        h = hashlib.md5(symbol.encode('utf-8'), usedforsecurity=False).hexdigest()  # nosec B324
         val = int(h, 16)
         shares_outstanding = 10000000 + (val % 990000000)
         float_pct = 0.5 + 0.4 * ((val >> 32) % 100) / 100.0
         floating_shares = shares_outstanding * float_pct
-        
+
         # Deterministic mock fundamentals
         revenue = 1000000.0 + (val % 100000000.0)
         operating_income = revenue * (0.05 + 0.25 * ((val >> 16) % 100) / 100.0)
         dividend_per_share = 0.1 + 4.9 * ((val >> 8) % 100) / 100.0
-        
+
         return {
             "shares_outstanding": float(shares_outstanding),
             "floating_shares": float(floating_shares),
@@ -112,12 +112,12 @@ class OnDevicePredictionModel:
         )
         if self._has_gpu:
             self._xgb_kwargs['device'] = 'cuda'
-            
+
         if model_dir is None:
             self.model_dir = Path(__file__).resolve().parent.parent.parent / "models"
         else:
             self.model_dir = Path(model_dir)
-            
+
         logger.info(f"OnDevicePredictionModel initialized (GPU={'yes' if self._has_gpu else 'no'})")
         self.load_models()
 
@@ -148,7 +148,7 @@ class OnDevicePredictionModel:
     def apply_market_normalization(self, prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """
         Normalize stock-level features relative to the daily regional baseline total.
-        
+
         Inputs: Dict of symbol to DataFrame containing price, volume, and optional stock-level metadata.
         Outputs: Dict of symbol to DataFrame with added columns: norm_market_cap, norm_floating_value, norm_volume.
         """
@@ -237,7 +237,7 @@ class OnDevicePredictionModel:
         DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
         """
         df = df_prices.copy()
-        
+
         # Ensure df is sorted in ascending chronological order before merge and forward-fill
         if isinstance(df.index, pd.DatetimeIndex):
             df = df.sort_index(ascending=True)
@@ -276,14 +276,14 @@ class OnDevicePredictionModel:
                     df_fun = storage.get_fundamentals(symbol)
                 except Exception as e:
                     logger.warning(f"Failed to fetch fundamentals from DB for {symbol}: {e}")
-            
+
             if df_fun is not None and not df_fun.empty:
                 df_fun['date'] = pd.to_datetime(df_fun['date'])
                 if 'symbol' in df_fun.columns:
                     df_fun = df_fun.sort_values('date').groupby(['date', 'symbol'], as_index=False).last()
                 else:
                     df_fun = df_fun.sort_values('date').groupby('date', as_index=False).last()
-                
+
                 # Drop symbol from df_fun before merge to avoid generating duplicate symbol_x and symbol_y columns
                 df_fun = df_fun.drop(columns=['symbol'], errors='ignore')
 
@@ -319,7 +319,7 @@ class OnDevicePredictionModel:
                 df[col] = meta[col]
             else:
                 df[col] = df[col].ffill().fillna(meta[col])
-                
+
         return df
 
     def _create_features(self, df: pd.DataFrame) -> pd.DataFrame:

@@ -1,5 +1,4 @@
 import math
-import inspect
 
 def allocate_assets(prices_dict: dict, strict: bool = False) -> dict:
     """

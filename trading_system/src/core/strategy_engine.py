@@ -615,7 +615,7 @@ class HybridStrategyEngine:
             # Scale down targets/allocation confidence for assets with low norm_volume or norm_floating_value
             norm_volume = market_data.get("norm_volume")
             norm_floating_value = market_data.get("norm_floating_value")
-            
+
             # Check if we can get them from price_bars if not in market_data
             if (norm_volume is None or norm_floating_value is None) and price_bars and len(price_bars) > 0:
                 last_bar = price_bars[-1]
@@ -646,7 +646,7 @@ class HybridStrategyEngine:
                 scaling_factor = min(scaling_factor, norm_volume / 0.01)
             if norm_floating_value < 0.01:
                 scaling_factor = min(scaling_factor, norm_floating_value / 0.01)
-            
+
             scaling_factor = max(0.1, scaling_factor)
             confidence = combined_score * scaling_factor
 
