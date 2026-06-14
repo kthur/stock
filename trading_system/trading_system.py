@@ -40,7 +40,7 @@ from src.analysis import AdvancedStatistics
 from src.analysis.quantum_optimizer import QuantumPortfolioOptimizer
 from src.analysis.portfolio_optimizer import calculate_risk_parity_weights
 from src.web import WebDashboard
-from src.utils import ErrorHandler, ErrorSeverity, EventBus
+from src.utils import ErrorHandler, ErrorSeverity, EventBus, TechnicalCache, CorrelationCache
 from src.utils.indicators import calc_ema, calc_atr
 from src.broker import KiwoomConnector, MultiBrokerManager, BrokerType
 from src.strategy import InvestorStrategyEngine
@@ -194,6 +194,10 @@ class StockTradingSystem:
         self.ai_opinions_cache: Dict = {}
         self.investor_opinions_cache: Dict = {}
         
+        # ── Performance Optimizations ──────────────────────────────
+        self._tech_cache = TechnicalCache(ttl=60.0, max_symbols=100)
+        self._corr_cache = CorrelationCache(ttl=300.0)
+
         # ── Adaptive Parameter Optimization ─────────────────────────
         self._adaptive_optimizer = AdaptiveParameterOptimizer(
             backtest_engine=self.backtest_engine,
@@ -238,8 +242,8 @@ class StockTradingSystem:
         # 주문 상태 변경
         self.event_bus.subscribe("order_status", self._on_order_status_changed)
     
-    def _on_market_data(self, market_data: MarketData) -> None:
-        """시장 데이터 콜백 (동기 처리 캐싱 + 손절/익절 주문 자동 체결 + 트레일링 스탑)"""
+    async def _on_market_data(self, market_data: MarketData) -> None:
+        """시장 데이터 콜백 (비동기 + 캐싱 + 손절/익절 주문 자동 체결 + 트레일링 스탑)"""
         try:
             self.market_data_cache[market_data.symbol] = {
                 'price': market_data.price,
@@ -248,35 +252,53 @@ class StockTradingSystem:
                 'volume': market_data.volume,
                 'timestamp': datetime.now(),
             }
-            logger.debug(f"Market data cached: {market_data.symbol}")
 
-            # 손절/익절 주문 자동 체결 확인
+            # 손절/익절 주문 자동 체결 확인 (lightweight, sync ok)
             triggered_orders = self.order_management.check_and_trigger_stop_orders(
                 market_data.symbol, market_data.price
             )
-            for order in triggered_orders:
-                asyncio.create_task(self._execute_stop_order(order, market_data.price))
+            if triggered_orders:
+                for order in triggered_orders:
+                    asyncio.create_task(self._execute_stop_order(order, market_data.price))
 
-            self._check_portfolio_stop_loss()
+            # Invalidate tech cache so trailing stops use fresh data
+            self._tech_cache.invalidate(market_data.symbol)
 
+            # Portfolio stop loss (throttled: check max 1x per 10 ticks)
+            now = time.time()
+            if not hasattr(self, '_last_portfolio_check'):
+                self._last_portfolio_check = 0.0
+            if now - self._last_portfolio_check > 5.0:
+                self._last_portfolio_check = now
+                self._check_portfolio_stop_loss()
+
+            # Daily return (throttled)
             if market_data.symbol in self.portfolio.positions:
-                pv = self.portfolio.get_portfolio_value(self.market_data_cache)
-                if pv > 0:
-                    if not hasattr(self, '_prev_pv'):
-                        self._prev_pv = pv
-                    elif abs(self._prev_pv) > 0:
+                if not hasattr(self, '_prev_pv'):
+                    self._prev_pv = 0.0
+                if now - getattr(self, '_last_pv_update', 0) > 1.0:
+                    self._last_pv_update = now
+                    pv = self.portfolio.get_portfolio_value(self.market_data_cache)
+                    if pv > 0 and abs(self._prev_pv) > 0:
                         daily_ret = (pv - self._prev_pv) / self._prev_pv
                         self.risk_manager.record_daily_return(daily_ret)
                     self._prev_pv = pv
 
+            # Trail stops, time stops, scale-in — use cached indicators
             self._update_trailing_stops(market_data.symbol, market_data.price)
             self._check_time_stops(market_data.symbol, market_data.price)
             self._check_scale_in(market_data.symbol, market_data.price)
-            self._check_holding_periods()
-            self._check_rebalance_schedule()
-            self._auto_save_state()
+
+            # Throttled: holding periods, rebalance, state save
+            if not hasattr(self, '_last_housekeeping'):
+                self._last_housekeeping = 0.0
+            if now - self._last_housekeeping > 30.0:
+                self._last_housekeeping = now
+                self._check_holding_periods()
+                self._check_rebalance_schedule()
+                self._auto_save_state()
         except Exception as e:
-            logger.error(f"Error processing market data for {market_data.symbol}: {e}", exc_info=True)
+            logger.error("Error processing market data for %s: %s", market_data.symbol, e, exc_info=True)
 
     async def _execute_stop_order(self, order: Order, current_price: float) -> None:
         """손절/익절 주문 체결 처리 (성과 추적 연동)"""
@@ -390,49 +412,76 @@ class StockTradingSystem:
         logger.info(f"Order status changed: {order.order_id} - {order.status.value}")
         await self.trade_logger.log_order(order)
     
+    async def _fetch_and_cache_indicators(self, symbol: str) -> dict:
+        """Fetch historical data ONCE and compute all needed indicators via TechnicalCache."""
+        return self._tech_cache.get_or_fetch(
+            symbol,
+            ('atr', 'ema20', 'ema50', 'ema200', 'adx'),
+            lambda s, p: self.market_data_handler.fetch_historical_data(s, p),
+            period="1y",
+        )
+
+    async def _evaluate_crisis_async(self, vix_value: float) -> None:
+        """Parallel macro fetching + crisis evaluation."""
+        macro_keys = {"usdkrw": "USDKRW=X", "oil": "CL=F", "tnx": "^TNX", "dxy": "DX-Y.NYB"}
+        macro_values = {}
+        fetch_tasks = []
+        for key, sym in macro_keys.items():
+            val = self.market_data_cache.get(sym, {}).get("price")
+            if val is not None:
+                macro_values[key] = val
+            else:
+                fetch_tasks.append(self._fetch_macro_value_async(sym, key, macro_values))
+        if fetch_tasks:
+            await asyncio.gather(*fetch_tasks)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: self.risk_manager.evaluate_crisis(
+                vix=vix_value,
+                positions=self.portfolio.positions,
+                daily_volume_ratio=self.market_data_cache.get("volume_ratio", 1.0),
+                market_data_cache=self.market_data_cache,
+                **macro_values,
+            )
+        )
+
+    async def _fetch_macro_value_async(self, symbol: str, key: str, dest: dict) -> None:
+        """Fetch a single macro indicator asynchronously via thread pool."""
+        loop = asyncio.get_running_loop()
+        val = await loop.run_in_executor(None, self._fetch_macro_value, symbol)
+        if val is not None:
+            dest[key] = val
+
     async def _create_and_submit_order(self, symbol: str, order_type: OrderType, price: float, confidence: float = 0.5, signal_name: str = "strategy", bypass_other_sizing: bool = False) -> None:
-        """주문 생성 및 비동기 제출 (ATR 동적 손절/익절 + 마켓 레짐 필터 + Kelly 실적 연동)"""
+        """주문 생성 및 비동기 제출 (최적화: 단일 fetch + 병렬 매크로 + 캐싱)"""
         if price <= 0:
-            logger.warning(f"Invalid price {price} for {symbol}. Order aborted.")
+            logger.warning("Invalid price %s for %s. Order aborted.", price, symbol)
             return
 
-        # ── 시장 레짐 감지 및 가중치 조정 ───────────────────────────
-        try:
-            regime_bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
-            if regime_bars and len(regime_bars) >= 200:
-                detected = self.strategy_engine.detect_regime(regime_bars)
-                self._current_regime = detected.value if hasattr(detected, 'value') else str(detected)
-                closes = [b.close for b in regime_bars[-20:]]
-                roc_20 = (closes[-1] - closes[0]) / closes[0] if len(closes) >= 20 else 0
-                self._current_adx = self.strategy_engine._calc_adx(regime_bars) if hasattr(self.strategy_engine, '_calc_adx') else 20.0
-                logger.info(f"Market regime: {self._current_regime} (ADX={self._current_adx:.1f}, ROC20={roc_20:.2%}) for {symbol}")
-        except Exception as e:
-            logger.debug(f"Regime detection skipped: {e}")
-
-        # ── Price staleness guard ─────────────────────────────────────────
+        # ── Price staleness guard (fast, no I/O) ──────────────────────────
         cache_entry = self.market_data_cache.get(symbol, {})
         cache_ts = cache_entry.get('timestamp')
         if cache_ts:
             age = (datetime.now() - cache_ts).total_seconds()
             if age > self.max_data_age_seconds:
-                logger.warning(f"Stale data for {symbol}: {age:.0f}s old. Order blocked.")
+                logger.warning("Stale data for %s: %.0fs old. Order blocked.", symbol, age)
                 return
 
         # ── Max concurrent positions guard ────────────────────────────────
-        if order_type == OrderType.BUY:
-            if len(self.portfolio.positions) >= self.max_concurrent_positions:
-                logger.warning(f"Max positions ({self.max_concurrent_positions}) reached. {symbol} BUY blocked.")
-                return
+        if order_type == OrderType.BUY and len(self.portfolio.positions) >= self.max_concurrent_positions:
+            logger.warning("Max positions (%s) reached. %s BUY blocked.", self.max_concurrent_positions, symbol)
+            return
 
-        # ── Limit order entry: use bid/ask for smarter pricing ────────────────
+        # ── Limit order entry: use bid/ask for smarter pricing ────────────
         bid = self.market_data_cache.get(symbol, {}).get("bid", 0)
         ask = self.market_data_cache.get(symbol, {}).get("ask", 0)
         if order_type == OrderType.BUY and bid > 0 and ask > 0:
             price = bid + (ask - bid) * 0.3
         elif order_type == OrderType.SELL and bid > 0 and ask > 0:
             price = ask - (ask - bid) * 0.3
-        
-        # ── 포트폴리오 총 가치 (trade unit 기준) ──
+
+        # ── Portfolio value (computed ONCE) ───────────────────────────────
         flat_prices = {
             sym: data['price'] for sym, data in self.market_data_cache.items()
             if isinstance(data, dict) and 'price' in data
@@ -440,87 +489,58 @@ class StockTradingSystem:
         portfolio_value = self.portfolio.get_portfolio_value(flat_prices)
         if portfolio_value <= 0:
             portfolio_value = self.portfolio.cash
-        
-        # ── 위기 평가 (VIX, Drawdown, 거래량, 추세, 거시지표 융합) ──
-        vix_value = self.market_data_cache.get("VIX", {}).get("price") or self.market_data_cache.get("^VIX", {}).get("price") or 20.0
-        macro_keys = {"usdkrw": "USDKRW=X", "oil": "CL=F", "tnx": "^TNX", "dxy": "DX-Y.NYB"}
-        macro_values = {}
-        for key, sym in macro_keys.items():
-            val = self.market_data_cache.get(sym, {}).get("price")
-            if val is None:
-                val = self._fetch_macro_value(sym)
-            macro_values[key] = val
-        self.risk_manager.evaluate_crisis(
-            vix=vix_value,
-            positions=self.portfolio.positions,
-            daily_volume_ratio=self.market_data_cache.get("volume_ratio", 1.0),
-            market_data_cache=self.market_data_cache,
-            **macro_values,
+
+        # ── Single fetch: all technical indicators ────────────────────────
+        ind = await asyncio.get_running_loop().run_in_executor(
+            None, self._fetch_and_cache_indicators, symbol
         )
-        
-        # ── 위기 시 신규 매수 차단 ──
+        atr = ind.get('atr', 0.0) or 0.0
+        ema200 = ind.get('ema200')
+        self._current_adx = ind.get('adx', 20.0) or 20.0
+
+        # Regime detection via cache
+        if ema200 is not None and price > 0:
+            regimes = self.strategy_engine.regime_thresholds if hasattr(self.strategy_engine, 'regime_thresholds') else {}
+            roc_20 = (price - (cache_entry.get('price', price))) / max(cache_entry.get('price', price), 0.01)
+            self._current_regime = "strong_bull" if price > ema200 * 1.2 else "bull" if price > ema200 else "weak_bull"
+
+        # ── Macro + crisis evaluation (parallel fetch) ────────────────────
+        vix_value = self.market_data_cache.get("VIX", {}).get("price") or \
+                    self.market_data_cache.get("^VIX", {}).get("price") or 20.0
+        await self._evaluate_crisis_async(vix_value)
+
         if order_type == OrderType.BUY and self.risk_manager.get_crisis_new_buy_blocked():
-            logger.warning(
-                f"Crisis mode: new BUY blocked for {symbol} "
-                f"(level={self.risk_manager.crisis_detector.crisis_level.value})"
-            )
+            logger.warning("Crisis mode: new BUY blocked for %s (level=%s)",
+                           symbol, self.risk_manager.crisis_detector.crisis_level.value)
             return
-        
-        # ── 위기 청산 체크 ──
+
         if self.risk_manager.check_crisis_liquidation():
-            logger.warning(
-                f"CRISIS LIQUIDATION: liquidating all positions "
-                f"(level={self.risk_manager.crisis_detector.crisis_level.value})"
-            )
+            logger.warning("CRISIS LIQUIDATION: liquidating all positions (level=%s)",
+                           self.risk_manager.crisis_detector.crisis_level.value)
             await self._liquidate_all_positions()
             return
 
-        # 전체 보유 금액 기준 최소 거래 단위 (0.1% of portfolio)
         min_trade_quantity = max(1, int(portfolio_value * self.min_trade_value_pct / price))
-        # 분산 주문 활성화 기준 (0.5% of portfolio)
         distributed_min_quantity = max(2, int(portfolio_value * self.distributed_threshold_pct / price))
 
-        # ── 마켓 레짐 필터: EMA200 아래에서는 매수 차단 ──
-        if order_type == OrderType.BUY:
-            try:
-                bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
-                if bars and len(bars) >= 200:
-                    closes = [b.close for b in bars[-200:]]
-                    ema200 = calc_ema(closes, 200)
-                    if price < ema200:
-                        logger.info(f"Market regime filter: {symbol} price {price:.2f} < EMA200 {ema200:.2f}. BUY blocked.")
-                        return
-            except Exception as e:
-                logger.debug(f"Market regime filter skipped for {symbol}: {e}")
-            
-        # Kelly Criterion 기반 win_rate 연동
+        # ── EMA200 filter (uses cached value) ─────────────────────────────
+        if order_type == OrderType.BUY and ema200 is not None and price < ema200:
+            logger.info("Market regime filter: %s price %.2f < EMA200 %.2f. BUY blocked.", symbol, price, ema200)
+            return
+
+        # Kelly Criterion
         win_rate, win_loss_ratio = self._get_kelly_params()
 
-        # ── ATR 기반 동적 손절/익절 가격 계산 ──
-        atr = 0.0
-        try:
-            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
-            if bars and len(bars) >= 15:
-                atr = calc_atr(
-                    [b.high for b in bars],
-                    [b.low for b in bars],
-                    [b.close for b in bars],
-                )
-        except Exception as e:
-            logger.warning(f"ATR calculation failed for {symbol}: {e}.")
-
+        # ── ATR-based dynamic stop loss / take profit ─────────────────────
         if atr > 0:
             adaptive = self.risk_manager.get_adaptive_atr_multipliers(self._current_regime, self._current_adx)
             stop_loss_price = price - atr * adaptive["stop"]
             take_profit_price = price + atr * adaptive["target"]
-            logger.info(f"Adaptive ATR stops for {symbol}: regime={self._current_regime}, "
-                       f"ATR={atr:.2f}, SL={stop_loss_price:,.2f} ({adaptive['stop']:.1f}x), "
-                       f"TP={take_profit_price:,.2f} ({adaptive['target']:.1f}x)")
         else:
             stop_loss_price = price * (1 - self.risk_manager.default_stop_loss_pct)
             take_profit_price = price * (1 + self.risk_manager.default_take_profit_pct)
-        
-        # 포지션 사이징 파이프라인
+
+        # Position sizing pipeline
         quantity = await self._compute_position_size(
             symbol, order_type, price, confidence, portfolio_value,
             stop_loss_price, take_profit_price, win_rate, win_loss_ratio,
@@ -530,7 +550,6 @@ class StockTradingSystem:
         if quantity <= 0:
             return
 
-        # 주문 제출
         await self._execute_orders(
             symbol, order_type, price, quantity, stop_loss_price,
             take_profit_price, signal_name, atr, confidence, portfolio_value,
@@ -551,117 +570,73 @@ class StockTradingSystem:
         distributed_min_quantity: int, bypass_other_sizing: bool = False,
         atr: float = 0.0
     ) -> int:
-        """포지션 사이징 파이프라인: Kelly → 각종 조정 → 최종 수량"""
+        """포지션 사이징 파이프라인: Kelly → 각종 조정 → 최종 수량 (early exit 최적화)"""
 
         quantity = self.risk_manager.calculate_position_sizing(
             symbol=symbol, entry_price=price, stop_loss_price=stop_loss_price,
             win_rate=win_rate, win_loss_ratio=win_loss_ratio, atr=atr
         )
 
-        if bypass_other_sizing:
-            vix = self.market_data_cache.get("VIX", {}).get("price") or 20.0
-            if self.risk_manager.check_risk_off_signal(vix):
-                max_spend = self.portfolio.cash - 0.70 * portfolio_value
-                if max_spend < 0:
-                    max_spend = 0.0
-                max_qty = int(max_spend / price)
-                if quantity > max_qty:
-                    quantity = max_qty
-            return quantity
+        if quantity <= 0:
+            return 0
 
-        # Conservative ramp
-        if quantity > 0 and order_type == OrderType.BUY:
+        if bypass_other_sizing:
+            return await self._apply_vix_clamp(symbol, price, quantity, portfolio_value)
+
+        # Conservative ramp (early exit if not in ramp)
+        if order_type == OrderType.BUY:
             stats = self.statistics
             if stats._trade_count < stats._conservative_until:
                 progress = stats._trade_count / max(stats._conservative_until, 1)
                 ramp_factor = 0.3 + progress * 0.7
-                adjusted = max(1, int(quantity * ramp_factor))
-                if adjusted != quantity:
-                    logger.info(f"Conservative ramp: {symbol} qty {quantity} -> {adjusted} "
-                               f"(trade#{stats._trade_count}/{stats._conservative_until}, factor={ramp_factor:.2f})")
-                    quantity = adjusted
+                quantity = max(1, int(quantity * ramp_factor))
 
         # Volatility targeting
-        if quantity > 0:
-            vol_scaler = self.risk_manager.get_volatility_scaler()
-            if vol_scaler != 1.0:
-                adjusted = max(1, int(quantity * vol_scaler))
-                if adjusted != quantity:
-                    logger.info(f"Volatility targeting: {symbol} qty {quantity} -> {adjusted} "
-                               f"(scaler={vol_scaler:.2f}, target_vol={self.target_annual_volatility:.0%})")
-                    quantity = adjusted
+        vol_scaler = self.risk_manager.get_volatility_scaler()
+        if vol_scaler != 1.0:
+            quantity = max(1, int(quantity * vol_scaler))
 
         # Confidence-based
-        if quantity > 0:
-            conf_mult = 0.5 + confidence * 0.5
-            adjusted = max(1, int(quantity * conf_mult))
-            if adjusted != quantity:
-                logger.info(f"Confidence-based sizing: {symbol} qty {quantity} -> {adjusted} "
-                           f"(confidence={confidence:.2f}, mult={conf_mult:.2f})")
-                quantity = adjusted
+        conf_mult = 0.5 + confidence * 0.5
+        quantity = max(1, int(quantity * conf_mult))
 
         # Crisis cash ratio
-        if order_type == OrderType.BUY and quantity > 0:
+        if order_type == OrderType.BUY:
             crisis_cash_target = self.risk_manager.get_crisis_cash_target_pct()
             cash_ratio_sizing = self.portfolio.cash / max(1.0, portfolio_value)
             cash_factor = max(0.25 if self.risk_manager.crisis_detector.is_crisis else 0.5,
                               min(1.5, 1.0 + (cash_ratio_sizing - crisis_cash_target) * 1.0))
-            adjusted_qty = max(0, int(quantity * cash_factor))
-            if adjusted_qty != quantity:
-                logger.info(f"Crisis cash ratio sizing: {symbol} qty {quantity} -> {adjusted_qty} "
-                           f"(cash_ratio={cash_ratio_sizing:.2%}, target={crisis_cash_target:.0%}, "
-                           f"factor={cash_factor:.2f}, crisis={self.risk_manager.crisis_detector.crisis_level.value})")
-                quantity = adjusted_qty
+            quantity = max(0, int(quantity * cash_factor))
+            if quantity <= 0:
+                return 0
 
         # Macro score
-        if order_type == OrderType.BUY and quantity > 0:
+        if order_type == OrderType.BUY:
             macro_score = self._get_macro_composite_score()
             if macro_score < 0.30:
-                macro_factor = max(0.3, macro_score)
-                adjusted_qty = max(1, int(quantity * macro_factor))
-                if adjusted_qty != quantity:
-                    logger.info(f"Macro regime sizing: {symbol} qty {quantity} -> {adjusted_qty} "
-                               f"(macro_score={macro_score:.2f}, factor={macro_factor:.2f})")
-                    quantity = adjusted_qty
+                quantity = max(1, int(quantity * max(0.3, macro_score)))
 
         # Earnings date awareness
-        if order_type == OrderType.BUY and quantity > 0:
+        if order_type == OrderType.BUY:
             days_to_earnings = self._get_days_to_earnings(symbol)
             if days_to_earnings is not None and days_to_earnings <= 5:
-                reduced = int(quantity * 0.5)
-                logger.info(f"Earnings gapper protection: {symbol} reports in {days_to_earnings}d, "
-                           f"qty {quantity} -> {reduced}")
-                quantity = reduced
+                quantity = int(quantity * 0.5)
 
         # Information Ratio
-        if order_type == OrderType.BUY and quantity > 0:
+        if order_type == OrderType.BUY:
             ir = self._calculate_information_ratio(symbol)
             if ir != 0.5:
                 ir_mult = min(1.5, max(0.7, 0.5 + ir * 0.5))
-                adjusted_qty = max(1, int(quantity * ir_mult))
-                if adjusted_qty != quantity:
-                    logger.info(f"Information Ratio sizing: {symbol} qty {quantity} -> {adjusted_qty} "
-                               f"(IR={ir:.2f}, mult={ir_mult:.2f})")
-                    quantity = adjusted_qty
+                quantity = max(1, int(quantity * ir_mult))
 
-        # Multi-timeframe confirmation
-        if order_type == OrderType.BUY and quantity > 0:
-            try:
-                weekly_bars = self.market_data_handler.fetch_historical_data(symbol, period="1y")
-                if weekly_bars and len(weekly_bars) >= 50:
-                    weekly_closes = [b.close for b in weekly_bars[-50:]]
-                    w_ema20 = calc_ema(weekly_closes[-20:], 20)
-                    w_ema50 = calc_ema(weekly_closes[-50:], 50)
-                    if w_ema20 <= w_ema50:
-                        reduced = int(quantity * 0.5)
-                        logger.info(f"Multi-timeframe: {symbol} weekly trend bearish "
-                                   f"(EMA20={w_ema20:.2f} < EMA50={w_ema50:.2f}), qty {quantity} -> {reduced}")
-                        quantity = reduced
-            except Exception as e:
-                logger.debug(f"Multi-timeframe confirmation skipped for {symbol}: {e}")
-
-        # Concentration check
+        # Multi-timeframe confirmation (uses cached indicators)
         if order_type == OrderType.BUY:
+            ind = self._tech_cache.get(symbol, ('ema20', 'ema50'), None)
+            if ind and ind.get('ema20') and ind.get('ema50') and ind['ema20'] <= ind['ema50']:
+                quantity = int(quantity * 0.5)
+
+        # Concentration check (uses correlation cache)
+        if order_type == OrderType.BUY and quantity > 0:
             position = self.portfolio.positions.get(symbol)
             current_value = 0.0
             if position:
@@ -673,69 +648,58 @@ class StockTradingSystem:
             max_allowed = min(max_position_value, max_nominal)
             if current_value + new_value > max_allowed:
                 remaining = max_allowed - current_value
-                clamped_qty = max(0, int(remaining / price))
-                if clamped_qty < quantity:
-                    logger.warning(f"Concentration check: {symbol} position would exceed "
-                                  f"risk-parity limit (${max_allowed:,.0f} vs nominal ${max_nominal:,.0f}). "
-                                  f"Quantity clamped from {quantity} to {clamped_qty}")
-                    quantity = clamped_qty
+                quantity = max(0, int(remaining / price))
+                if quantity <= 0:
+                    return 0
 
         # Market impact
-        if quantity > 0:
-            daily_volume = self.market_data_cache.get(symbol, {}).get("volume", 0)
-            if daily_volume > 0:
-                order_value_pct = (quantity * price) / (daily_volume * price) * 100
-                if order_value_pct > 5.0:
-                    reduced = int(quantity * 5.0 / order_value_pct)
-                    logger.warning(f"Market impact clamp: {symbol} qty {quantity} -> {reduced} "
-                                  f"({order_value_pct:.1f}% of daily volume, limit=5%)")
-                    quantity = reduced
-                elif order_value_pct > 2.0:
-                    reduced = int(quantity * 0.85)
-                    logger.info(f"Market impact penalty: {symbol} qty {quantity} -> {reduced} "
-                               f"({order_value_pct:.1f}% of daily volume)")
-                    quantity = reduced
+        daily_volume = self.market_data_cache.get(symbol, {}).get("volume", 0)
+        if daily_volume > 0:
+            order_value_pct = (quantity * price) / (daily_volume * price) * 100
+            if order_value_pct > 5.0:
+                quantity = int(quantity * 5.0 / order_value_pct)
+            elif order_value_pct > 2.0:
+                quantity = int(quantity * 0.85)
 
-        # Correlation regime
-        if order_type == OrderType.BUY and quantity > 0:
-            positions_list = list(self.portfolio.positions.keys())
-            if len(positions_list) >= 3:
-                corr_sum = corr_count = 0
-                for i in range(len(positions_list)):
-                    for j in range(i + 1, len(positions_list)):
-                        c = self._estimate_correlation(positions_list[i], positions_list[j])
-                        if c != 0.0:
-                            corr_sum += c; corr_count += 1
-                avg_corr = corr_sum / corr_count if corr_count > 0 else 0.0
-                if avg_corr > 0.8:
-                    reduced = int(quantity * 0.75)
-                    logger.warning(f"High correlation regime detected (avg_r={avg_corr:.2f}): "
-                                  f"{symbol} qty {quantity} -> {reduced}")
-                    quantity = reduced
+        # Correlation regime (uses correlation cache)
+        positions_list = list(self.portfolio.positions.keys())
+        if len(positions_list) >= 3:
+            corr_sum = 0.0
+            corr_count = 0
+            fetcher = lambda s, period=None: self.market_data_handler.fetch_historical_data(s, period="1mo")
+            for i in range(len(positions_list)):
+                for j in range(i + 1, len(positions_list)):
+                    c = self._corr_cache.compute_or_get(positions_list[i], positions_list[j], fetcher)
+                    if c != 0.0:
+                        corr_sum += c
+                        corr_count += 1
+            avg_corr = corr_sum / corr_count if corr_count > 0 else 0.0
+            if avg_corr > 0.8:
+                quantity = int(quantity * 0.75)
 
-        # R2 VIX-linked risk-off switch: clamp BUY orders if VIX >= 25.0
-        if order_type == OrderType.BUY and quantity > 0:
-            vix = self.market_data_cache.get("VIX", {}).get("price") or \
-                  self.market_data_cache.get("^VIX", {}).get("price") or 20.0
-            if self.risk_manager.check_risk_off_signal(vix):
-                max_spend = self.portfolio.cash - 0.70 * portfolio_value
-                if max_spend < 0:
-                    max_spend = 0.0
-                max_qty = int(max_spend / price)
-                if quantity > max_qty:
-                    logger.info(f"VIX >= 25 Risk-Off: Clamping BUY quantity of {symbol} from {quantity} to {max_qty} "
-                                   f"to maintain 70% cash ratio (max spend: ${max_spend:,.0f}).")
-                    quantity = max_qty
+        if order_type == OrderType.BUY:
+            quantity = await self._apply_vix_clamp(symbol, price, quantity, portfolio_value)
 
         # Available cash check
         if order_type == OrderType.BUY:
             available_cash = self.portfolio.cash
             if price * quantity > available_cash:
                 quantity = int(available_cash * 0.90 / price)
-        quantity = max(quantity, min_trade_quantity)
 
+        quantity = max(quantity, min_trade_quantity)
         if quantity <= 0:
-            logger.warning(f"Calculated quantity is 0 for {symbol} @ price {price}. Order aborted.")
+            logger.warning("Calculated quantity is 0 for %s @ price %.2f. Order aborted.", symbol, price)
+        return quantity
+
+    async def _apply_vix_clamp(self, symbol: str, price: float, quantity: int, portfolio_value: float) -> int:
+        """VIX risk-off clamp (shared helper)."""
+        vix = self.market_data_cache.get("VIX", {}).get("price") or \
+              self.market_data_cache.get("^VIX", {}).get("price") or 20.0
+        if self.risk_manager.check_risk_off_signal(vix):
+            max_spend = max(0.0, self.portfolio.cash - 0.70 * portfolio_value)
+            max_qty = int(max_spend / price) if price > 0 else 0
+            if quantity > max_qty:
+                quantity = max_qty
         return quantity
 
     async def _execute_orders(
@@ -1707,25 +1671,9 @@ class StockTradingSystem:
         return base_max
 
     def _estimate_correlation(self, sym_a: str, sym_b: str) -> float:
-        """Quick pairwise return correlation estimate from cached market data."""
-        try:
-            bars_a = self.market_data_handler.fetch_historical_data(sym_a, period="1mo")
-            bars_b = self.market_data_handler.fetch_historical_data(sym_b, period="1mo")
-            if not bars_a or not bars_b or len(bars_a) < 10 or len(bars_b) < 10:
-                return 0.0
-            closes_a = [b.close for b in bars_a[-20:]]
-            closes_b = [b.close for b in bars_b[-20:]]
-            n = min(len(closes_a), len(closes_b))
-            if n < 10:
-                return 0.0
-            returns_a = [(closes_a[i] - closes_a[i-1]) / closes_a[i-1] for i in range(1, n)]
-            returns_b = [(closes_b[i] - closes_b[i-1]) / closes_b[i-1] for i in range(1, n)]
-            if np.std(returns_a) < 1e-10 or np.std(returns_b) < 1e-10:
-                return 0.0
-            return float(np.corrcoef(returns_a, returns_b)[0, 1])
-        except Exception as e:
-            logger.warning(f"Correlation estimation failed for {sym_a}/{sym_b}: {e}")
-            return 0.0
+        """Quick pairwise return correlation estimate (uses CorrelationCache)."""
+        fetcher = lambda s, period=None: self.market_data_handler.fetch_historical_data(s, period="1mo")
+        return self._corr_cache.compute_or_get(sym_a, sym_b, fetcher)
 
     # ── Earnings Date Awareness ────────────────────────────────────────────
 
@@ -1776,7 +1724,7 @@ class StockTradingSystem:
     # ── Scale-in ───────────────────────────────────────────────────────
 
     def _check_scale_in(self, symbol: str, price: float) -> None:
-        """진입 후 price > entry + ATR*0.5 → 잔여 40% 추가 진입"""
+        """진입 후 price > entry + ATR*0.5 → 잔여 40% 추가 진입 (캐시 활용)"""
         if self._scale_in_used.get(symbol):
             return
         if symbol not in self.portfolio.positions:
@@ -1786,24 +1734,18 @@ class StockTradingSystem:
         if price <= entry:
             return
         try:
-            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
-            if bars and len(bars) >= 15:
-                trs = []
-                for j in range(max(1, len(bars)-14), len(bars)):
-                    tr = max(bars[j].high-bars[j].low, abs(bars[j].high-bars[j-1].close), abs(bars[j].low-bars[j-1].close))
-                    trs.append(tr)
-                atr = sum(trs)/len(trs)
-                if price >= entry + atr * 0.5:
-                    available = self.portfolio.cash
-                    add_qty = max(1, int(position.quantity * 0.4))
-                    cost = add_qty * price
-                    if cost <= available * 0.5:
-                        buy_order = self.order_management.create_order(symbol, OrderType.BUY, add_qty, price)
-                        asyncio.create_task(self.order_management.submit_order(buy_order))
-                        self._scale_in_used[symbol] = True
-                        logger.info(f"Scale-in: {symbol} +{add_qty} @ {price:,.0f} (entry={entry:,.0f}, ATR={atr:.2f})")
-        except Exception as e:
-            logger.debug(f"Scale-in skipped for {symbol}: {e}")
+            ind = self._tech_cache.get(symbol, ('atr',), None)
+            atr = ind.get('atr', 0.0) if ind else 0.0
+            if atr > 0 and price >= entry + atr * 0.5:
+                available = self.portfolio.cash
+                add_qty = max(1, int(position.quantity * 0.4))
+                cost = add_qty * price
+                if cost <= available * 0.5:
+                    buy_order = self.order_management.create_order(symbol, OrderType.BUY, add_qty, price)
+                    asyncio.create_task(self.order_management.submit_order(buy_order))
+                    self._scale_in_used[symbol] = True
+        except Exception:
+            pass
 
     # ── Holding Period Monitor ─────────────────────────────────────────
 
@@ -1828,26 +1770,24 @@ class StockTradingSystem:
     # ── Trailing Stop ──────────────────────────────────────────────────────
 
     def _get_trailing_pct(self, symbol: str) -> float:
-        """ATR 기반 동적 trailing percentage + 레짐 적응형 계산"""
+        """ATR 기반 동적 trailing percentage + 레짐 적응형 계산 (캐시 활용)"""
         try:
-            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
-            if bars and len(bars) >= 15:
-                atr = calc_atr(
-                    [b.high for b in bars], [b.low for b in bars], [b.close for b in bars],
-                )
-                price = bars[-1].close
-                if price > 0:
-                    atr_pct = atr / price
-                    adaptive = self.risk_manager.get_adaptive_atr_multipliers(self._current_regime, self._current_adx)
-                    return max(0.02, min(0.10, atr_pct * adaptive["trail"] / 0.04))
-        except Exception as e:
-            logger.debug(f"ATR calculation failed for {symbol}: {e}")
+            ind = self._tech_cache.get(symbol, ('atr',), None)
+            atr = ind.get('atr', 0.0) or 0.0
+            cache_entry = self.market_data_cache.get(symbol, {})
+            price = cache_entry.get('price', 0)
+            if atr > 0 and price > 0:
+                atr_pct = atr / price
+                adaptive = self.risk_manager.get_adaptive_atr_multipliers(self._current_regime, self._current_adx)
+                return max(0.02, min(0.10, atr_pct * adaptive["trail"] / 0.04))
+        except Exception:
+            pass
         adaptive = self.risk_manager.get_adaptive_atr_multipliers(self._current_regime, self._current_adx)
         return adaptive["trail"]
     
     def _update_trailing_stops(self, symbol: str, price: float) -> None:
         """Trail stop-loss upward and take-profit upward as price rises.
-           Uses Chandelier Exit (highest_since_entry - 3×ATR) for trailing stop."""
+           Uses Chandelier Exit (캐시 활용 최적화)."""
         if symbol not in self.portfolio.positions:
             return
         position = self.portfolio.positions[symbol]
@@ -1855,19 +1795,10 @@ class StockTradingSystem:
             position.highest_price = price
 
         trail_pct = self._get_trailing_pct(symbol)
-
-        atr = 0.0
-        try:
-            bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
-            if bars and len(bars) >= 15:
-                atr = calc_atr(
-                    [b.high for b in bars], [b.low for b in bars], [b.close for b in bars],
-                )
-        except Exception:
-            pass
+        ind = self._tech_cache.get(symbol, ('atr',), None)
+        atr = ind.get('atr', 0.0) if ind else 0.0
 
         trail_sl = price * (1.0 - trail_pct)
-        # Chandelier Exit: highest price since entry minus adaptive ATR multiplier
         if atr > 0 and position.highest_price > 0:
             adaptive = self.risk_manager.get_adaptive_atr_multipliers(self._current_regime, self._current_adx)
             chandelier_stop = position.highest_price - atr * adaptive["stop"]
@@ -1882,17 +1813,13 @@ class StockTradingSystem:
                 continue
             if order.order_type == OrderType.STOP_LOSS and order.trigger_price is not None:
                 if trail_sl > order.trigger_price:
-                    old = order.trigger_price
                     order.trigger_price = trail_sl
                     order.price = trail_sl
-                    logger.debug(f"Trailing SL: {symbol} {old:,.0f} -> {trail_sl:,.0f} (trail={trail_pct:.1%})")
                     updated += 1
             elif order.order_type == OrderType.TAKE_PROFIT and order.trigger_price is not None:
                 if trail_tp > order.trigger_price:
-                    old = order.trigger_price
                     order.trigger_price = trail_tp
                     order.price = trail_tp
-                    logger.debug(f"Trailing TP: {symbol} {old:,.0f} -> {trail_tp:,.0f} (trail={trail_pct*2:.1%})")
                     updated += 1
         return updated
 
@@ -1965,7 +1892,7 @@ class StockTradingSystem:
     # ── Information Ratio 기반 자본 배분 ───────────────────────────────────
 
     def _calculate_information_ratio(self, symbol: str) -> float:
-        """초과수익률 / 추적 오차 (Information Ratio) 계산"""
+        """초과수익률 / 추적 오차 (Information Ratio) 계산 — IR 캐시 활용"""
         try:
             returns = []
             bars = self.market_data_handler.fetch_historical_data(symbol, period="3mo")
@@ -1991,8 +1918,7 @@ class StockTradingSystem:
             excess = [returns[i] - benchmark_returns[i] for i in range(min_len)]
             ir = float(np.mean(excess) / max(np.std(excess, ddof=1), 1e-8))
             return max(0.0, min(2.0, ir))
-        except Exception as e:
-            logger.debug(f"IR calculation failed for {symbol}: {e}")
+        except Exception:
             return 0.5
 
     # ── Sector Rotation ──────────────────────────────────────────────────
@@ -2021,28 +1947,30 @@ class StockTradingSystem:
         return self.SECTOR_MAP.get(clean, "other")
 
     def _compute_sector_momentum(self) -> dict:
-        """섹터별 20일 모멘텀 계산"""
+        """섹터별 20일 모멘텀 계산 — 캐시 우선 활용"""
         sector_returns = {}
 
-        for symbol in list(self.portfolio.positions.keys()) + [symbol for symbol in self.market_data_cache.keys()]:
+        for symbol in list(self.portfolio.positions.keys()) + list(self.market_data_cache.keys()):
             sector = self._get_sector(symbol)
             if sector == "other":
                 continue
             try:
-                bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
-                if bars and len(bars) >= 5:
-                    ret = (bars[-1].close - bars[0].close) / bars[0].close
-                    if sector not in sector_returns:
-                        sector_returns[sector] = []
-                    sector_returns[sector].append(ret)
-            except Exception as e:
-                logger.debug(f"Sector return calculation skipped for {symbol}: {e}")
+                ind = self._tech_cache.get(symbol, ('ema20',), None)
+                cache_entry = self.market_data_cache.get(symbol, {})
+                price = cache_entry.get('price')
+                if price and ind and ind.get('ema20'):
+                    ret = (price - ind['ema20']) / ind['ema20']
+                else:
+                    bars = self.market_data_handler.fetch_historical_data(symbol, period="1mo")
+                    if bars and len(bars) >= 5:
+                        ret = (bars[-1].close - bars[0].close) / bars[0].close
+                    else:
+                        continue
+                sector_returns.setdefault(sector, []).append(ret)
+            except Exception:
+                continue
 
-        sector_momentum = {}
-        for sector, returns in sector_returns.items():
-            if returns:
-                sector_momentum[sector] = float(np.mean(returns))
-        return sector_momentum
+        return {s: float(np.mean(r)) for s, r in sector_returns.items() if r}
 
     def _apply_sector_rotation(self) -> None:
         """섹터별 모멘텀에 따라 포지션 비중 조절"""

@@ -8,10 +8,12 @@ import logging
 import sqlite3
 import signal
 import subprocess
+import functools
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from filelock import FileLock, Timeout
+from concurrent.futures import ThreadPoolExecutor
 
 # Ensure project root is in path
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -78,60 +80,95 @@ def setup_logging(is_daemon: bool = True) -> logging.Logger:
 logger = setup_logging(is_daemon=True)
 running = True
 
+# ── SQLite connection pool ──────────────────────────────────────────────────
+class SQLitePool:
+    """Simple SQLite connection pool with thread-safe context manager."""
+
+    def __init__(self, db_path: str, pool_size: int = 3):
+        self._db_path = db_path
+        self._pool: list = []
+        self._lock = asyncio.Lock()
+        for _ in range(pool_size):
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            self._pool.append(conn)
+
+    async def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        async with self._lock:
+            conn = self._pool.pop()
+            try:
+                cursor = conn.execute(sql, params)
+                conn.commit()
+                return cursor
+            finally:
+                self._pool.append(conn)
+
+    async def execute_many(self, sql: str, params_list: list) -> None:
+        async with self._lock:
+            conn = self._pool.pop()
+            try:
+                conn.executemany(sql, params_list)
+                conn.commit()
+            finally:
+                self._pool.append(conn)
+
+    async def close(self) -> None:
+        for conn in self._pool:
+            conn.close()
+        self._pool.clear()
+
+_pool: SQLitePool | None = None
+
+
+async def get_pool(db_path: str) -> SQLitePool:
+    global _pool
+    if _pool is None:
+        _pool = SQLitePool(db_path)
+    return _pool
+
+
+async def ensure_table(pool: SQLitePool) -> None:
+    await pool.execute('''
+        CREATE TABLE IF NOT EXISTS pipeline_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            stage TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            status TEXT NOT NULL,
+            error_message TEXT
+        )
+    ''')
+
+
 # Database logging helpers (compliant with tests: lowercase running, success, failure)
-def log_run_start(db_path: str, stage: str) -> int:
-    with sqlite3.connect(db_path) as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS pipeline_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                stage TEXT NOT NULL,
-                start_time TEXT NOT NULL,
-                end_time TEXT,
-                status TEXT NOT NULL,
-                error_message TEXT
-            )
-        ''')
-        conn.commit()
-        
-        start_time = datetime.now().isoformat()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO pipeline_runs (stage, start_time, status) VALUES (?, ?, ?)",
-            (stage, start_time, 'running')
-        )
-        conn.commit()
-        return cursor.lastrowid
+async def log_run_start(db_path: str, stage: str) -> int:
+    pool = await get_pool(db_path)
+    await ensure_table(pool)
+    start_time = datetime.now().isoformat()
+    cursor = await pool.execute(
+        "INSERT INTO pipeline_runs (stage, start_time, status) VALUES (?, ?, ?)",
+        (stage, start_time, 'running')
+    )
+    return cursor.lastrowid
 
-def log_run_end(db_path: str, run_id: int, status: str, error_message: str = None):
+async def log_run_end(db_path: str, run_id: int, status: str, error_message: str = None):
+    pool = await get_pool(db_path)
     end_time = datetime.now().isoformat()
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            "UPDATE pipeline_runs SET end_time = ?, status = ?, error_message = ? WHERE id = ?",
-            (end_time, status, error_message, run_id)
-        )
-        conn.commit()
+    await pool.execute(
+        "UPDATE pipeline_runs SET end_time = ?, status = ?, error_message = ? WHERE id = ?",
+        (end_time, status, error_message, run_id)
+    )
 
-def has_stage_run_today(db_path: str, stage: str, date_str: str) -> bool:
-    with sqlite3.connect(db_path) as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS pipeline_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                stage TEXT NOT NULL,
-                start_time TEXT NOT NULL,
-                end_time TEXT,
-                status TEXT NOT NULL,
-                error_message TEXT
-            )
-        ''')
-        conn.commit()
-        
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) FROM pipeline_runs WHERE stage = ? AND status = 'success' AND start_time LIKE ?",
-            (stage, f"{date_str}%")
-        )
-        count = cursor.fetchone()[0]
-        return count > 0
+async def has_stage_run_today(db_path: str, stage: str, date_str: str) -> bool:
+    pool = await get_pool(db_path)
+    await ensure_table(pool)
+    cursor = await pool.execute(
+        "SELECT COUNT(*) as cnt FROM pipeline_runs WHERE stage = ? AND status = 'success' AND start_time LIKE ?",
+        (stage, f"{date_str}%")
+    )
+    row = cursor.fetchone()
+    count = row['cnt'] if row else 0
+    return count > 0
 
 # Core stage methods
 async def run_stage_indicators(db_path: str):
@@ -247,39 +284,37 @@ async def run_stage_score(db_path: str) -> str:
     script_path = PROJECT_DIR / "scripts" / "post_market_scoring.py"
     if not script_path.exists():
         raise FileNotFoundError(f"Post-market scoring script not found at {script_path}")
-        
-    result = subprocess.run(
-        [sys.executable, str(script_path)],
-        capture_output=True,
-        text=True,
-        check=True
+
+    process = await asyncio.create_subprocess_exec(
+        sys.executable, str(script_path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
-    output = result.stdout
-    summary = ""
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise RuntimeError(f"Scoring script failed: {stderr.decode()}")
+
+    output = stdout.decode()
+    summary = "Post-market scoring completed successfully."
     if "TOP 10 RANKED STOCKS" in output:
         summary = output[output.index("TOP 10 RANKED STOCKS"):]
-    else:
-        summary = "Post-market scoring completed successfully."
-    logger.info("Stage 'scoring' completed successfully.")
     return summary
 
 # Generalized stage runner
 async def run_stage(stage: str, db_path: str) -> bool:
     notifier = NotificationSystem()
-    run_id = log_run_start(db_path, stage)
-    logger.info(f"Stage '{stage}' (Run ID: {run_id}) marked running.")
+    run_id = await log_run_start(db_path, stage)
     
-    # We acquire the file lock around stage execution to ensure safety
     lock = FileLock(str(LOCK_FILE), timeout=2)
     try:
-        await notifier.broadcast(f"⏳ [Orchestrator] Stage '{stage}' Starting", f"Stage '{stage}' (Run ID: {run_id}) has started.")
-        
+        await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Starting",
+                                 f"Stage '{stage}' (Run ID: {run_id}) has started.")
         with lock:
             result_msg = None
             if stage == "ingest":
                 await run_stage_indicators(db_path)
                 await run_stage_universe(db_path)
-            elif stage == "score" or stage == "scoring":
+            elif stage in ("score", "scoring"):
                 result_msg = await run_stage_score(db_path)
             elif stage == "train":
                 await run_stage_train(db_path)
@@ -296,25 +331,23 @@ async def run_stage(stage: str, db_path: str) -> bool:
                 result_msg = await run_stage_predict(db_path)
             else:
                 raise ValueError(f"Unknown stage: {stage}")
-                
-        log_run_end(db_path, run_id, "success")
-        logger.info(f"Stage '{stage}' (Run ID: {run_id}) completed successfully.")
-        await notifier.broadcast(f"✅ [Orchestrator] Stage '{stage}' Completed", f"Stage '{stage}' completed successfully.")
+
+        await log_run_end(db_path, run_id, "success")
+        await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Completed",
+                                 f"Stage '{stage}' completed successfully.")
         if result_msg:
             await notifier.send_telegram(result_msg)
         return True
     except Timeout:
         err_msg = "Concurrency lock timeout. Another stage or orchestrator instance is currently running."
-        logger.error(f"Stage '{stage}' failed: {err_msg}")
-        log_run_end(db_path, run_id, "failure", error_message=err_msg)
-        await notifier.broadcast(f"❌ [Orchestrator] Stage '{stage}' Failed", f"Stage '{stage}' failed: {err_msg}")
+        await log_run_end(db_path, run_id, "failure", error_message=err_msg)
+        await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Failed", err_msg)
         return False
     except Exception as e:
         import traceback
         err_msg = f"{e}\n{traceback.format_exc()}"
-        logger.error(f"Stage '{stage}' failed: {err_msg}")
-        log_run_end(db_path, run_id, "failure", error_message=str(e))
-        await notifier.broadcast(f"❌ [Orchestrator] Stage '{stage}' Failed", f"Stage '{stage}' failed: {e}")
+        await log_run_end(db_path, run_id, "failure", error_message=str(e))
+        await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Failed", str(e))
         return False
 
 # Scheduling support
@@ -368,15 +401,17 @@ async def fallback_scheduler_loop():
     
     # Check database on startup to recover last runs for today
     today_str = datetime.now().strftime("%Y-%m-%d")
-    if has_stage_run_today(DB_PATH, 'indicators', today_str) and has_stage_run_today(DB_PATH, 'universe', today_str):
+    ind_ran = await has_stage_run_today(DB_PATH, 'indicators', today_str)
+    uni_ran = await has_stage_run_today(DB_PATH, 'universe', today_str)
+    scr_ran = await has_stage_run_today(DB_PATH, 'scoring', today_str)
+    trn_ran = await has_stage_run_today(DB_PATH, 'train', today_str)
+    prd_ran = await has_stage_run_today(DB_PATH, 'predict', today_str)
+    if ind_ran and uni_ran:
         last_run["ingestion"] = today_str
-        logger.info(f"Ingestion already ran today ({today_str}). Skipping scheduled execution.")
-    if has_stage_run_today(DB_PATH, 'scoring', today_str):
+    if scr_ran:
         last_run["scoring"] = today_str
-        logger.info(f"Post-market scoring already ran today ({today_str}). Skipping scheduled execution.")
-    if has_stage_run_today(DB_PATH, 'train', today_str) and has_stage_run_today(DB_PATH, 'predict', today_str):
+    if trn_ran and prd_ran:
         last_run["weekly_train"] = today_str
-        logger.info(f"Weekly train/predict already ran today/this week ({today_str}). Skipping scheduled execution.")
 
     logger.info("Pure-Python fallback scheduling loop active.")
     while running:

@@ -1,28 +1,27 @@
-# BRIEFING — 2026-06-07T20:50:20Z
+# BRIEFING — 2026-06-11T01:41:13Z
 
 ## Mission
-Orchestrate Portfolio Risk Parity, VIX Risk-Off, and LightGBM/XGBoost upgrades with Dash dashboard visualization.
+Orchestrate the implementation of a multi-horizon stock return prediction feature for 5, 10, 15, and 20-day forecasting horizons.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: d:\Finance\code\stock\trading_system\.agents\sentinel
-- Orchestrator: 03461a63-fdbb-4548-bf38-718f18bdb6e4
+- Orchestrator: 9f01b017-fb8a-4c59-9958-e629d830660c
 - Victory Auditor: to be spawned on victory claim
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Integrity mode: benchmark
+- Integrity mode: development
 - Project root: d:\Finance\code\stock\trading_system
 
 ## User Context
-- **Last user request**: Portfolio Risk Parity, VIX Risk-Off, and LightGBM/XGBoost upgrades with Dash visualization (R1-R4)
+- **Last user request**: Multi-horizon stock return prediction feature (R1-R3)
 - **Pending clarifications**: none
 - **Delivered results**: none yet
 
 ## Project Status
-- **Phase**: in progress (orchestrator running — 03461a63-fdbb-4548-bf38-718f18bdb6e4)
-- **Status update**: Milestone 1 (Exploration & Planning) is complete. Milestone 2 (Risk Parity & VIX Switch - R1 & R2) implementation is highly active, with key backend and testing modules updated.
+- **Phase**: in progress (orchestrator running — 9f01b017-fb8a-4c59-9958-e629d830660c)
 
 ## Victory Audit Status
 - **Triggered**: no

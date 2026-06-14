@@ -1,7 +1,7 @@
-# BRIEFING — 2026-06-10T16:31:00Z
+# BRIEFING — 2026-06-12T02:56:59Z
 
 ## Mission
-Pass all pytest tests in d:\Finance\code\stock\trading_system by fixing refactoring regressions in Phase 3/4 E2E and unit tests.
+Fix the test-design bug in tests/test_post_market_scoring.py by deferring imports of MarketIndicatorStorage and main, and verify all 300+ tests pass.
 
 ## 🔒 My Identity
 - Archetype: implementer_qa_specialist
@@ -13,32 +13,21 @@ Pass all pytest tests in d:\Finance\code\stock\trading_system by fixing refactor
 ## 🔒 Key Constraints
 - Run all pytest tests and fix the refactoring regressions without cheating or using dummy/facade implementations.
 - Follow the workflow protocol and minimal change principle.
-
-## Change Tracker
-- **Files modified**: None yet.
-- **Build status**: TBD
-- **Pending issues**: TBD
-
-## Quality Status
-- **Build/test result**: TBD
-- **Lint status**: TBD
-- **Tests added/modified**: None yet.
-
-## Loaded Skills
-- None yet.
+- DO NOT CHEAT. All implementations must be genuine.
 
 ## Current Parent
-- Conversation ID: 67155727-9af3-4e9f-9e83-fe21a1f78919
-- Updated: not yet
+- Conversation ID: 3c806a1b-2382-4f40-bdea-5bf3fa689538 / 9806155d-8910-4182-a84a-37a5d6d0acfa
+- Updated: 2026-06-12T02:56:59Z
 
 ## Task Summary
-- **What to build**: Fix regressions in StockTradingSystem and related classes to pass all unit and E2E tests.
-- **Success criteria**: All 62+ tests in python -m pytest pass.
-- **Interface contracts**: PROJECT.md / SCOPE.md
-- **Code layout**: PROJECT.md
+- **What to build**: Fix post market scoring test imports so they are deferred and respect DB_PATH patch.
+- **Success criteria**: tests/test_post_market_scoring.py and the entire suite (300+ tests) pass.
+- **Interface contracts**: tests/test_post_market_scoring.py
+- **Code layout**: tests/
 
 ## Key Decisions Made
-- Starting the investigation by running the tests.
+- Defer imports in tests/test_post_market_scoring.py as specified by the patch in .agents/explorer_m2_verify/test_fix.patch.
 
 ## Artifact Index
-- d:\Finance\code\stock\trading_system\.agents\implementer_1\original_prompt.md — Original prompt with timestamp.
+- d:\Finance\code\stock\trading_system\.agents\implementer_1\ORIGINAL_REQUEST.md — Current task request content.
+- d:\Finance\code\stock\trading_system\.agents\implementer_1\progress.md — Progress tracker.

@@ -1,11 +1,12 @@
-# Progress Log
+# Progress
 
-Last visited: 2026-06-07T12:33:40Z
+Last visited: 2026-06-13T04:49:45Z
 
-- [x] Initialized original_prompt.md and BRIEFING.md
-- [x] Investigate src/analysis/backtest.py for parameter auto-optimization (R1)
-- [x] Investigate src/core/strategy_engine.py for parameter auto-optimization (R1) and market regime detection (R2)
-- [x] Check how optimization results are saved/cached to JSON
-- [x] Check how market regimes are classified (EMA200, ATR ratio, ROC momentum) and weights/thresholds adjusted
-- [x] Running E2E tests via pytest to verify everything passes
-- [x] Write findings to handoff.md
+- [x] Initialized ORIGINAL_REQUEST.md
+- [x] Initialized BRIEFING.md
+- [x] Investigate `trading_system/src/risk/risk_manager.py` structure, classes, and methods
+- [x] Audit stop-loss, take-profit, trailing stop implementation
+- [x] Audit risk metrics and rules
+- [x] Formulate recommendations for ATR-based and dynamic stops
+- [x] Write analysis.md
+- [x] Write handoff.md and send handoff message

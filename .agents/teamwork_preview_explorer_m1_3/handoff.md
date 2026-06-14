@@ -1,138 +1,99 @@
-# Handoff Report - R5 Dash Web UI Dashboard Investigation
-
-This report presents the findings of the investigation into the implementation status of requirement R5 (Dash Web UI dashboard in `src/web/dashboard.py` and `run_dashboard.py`), and the verification of related tests under `tests/phase4/e2e/test_e2e.py`.
-
----
+# Handoff Report - Backtesting Framework Exploration
 
 ## 1. Observation
 
-### A. Current File Structure and Environment
-- The project is configured as a Python application utilizing a local virtual environment located at `d:\Finance\code\stock\trading_system\.venv\`.
-- The entry points and files related to the web dashboard are located at:
-  - `d:\Finance\code\stock\trading_system\src\web\dashboard.py` (FastAPI-based dashboard module)
-  - `d:\Finance\code\stock\trading_system\run_dashboard.py` (FastAPI runner)
-  - `d:\Finance\code\stock\trading_system\tests\phase4\e2e\test_e2e.py` (E2E testing suite containing Dash layout and callback assertions)
+I directly observed the structure, parameters, and algorithms of the backtesting and optimization engine in the `trading_system/` workspace.
 
-### B. Current Web Dashboard Implementation (`src/web/dashboard.py`)
-- The class `WebDashboard` is defined starting at line 31 of `src/web/dashboard.py`:
-  ```python
-  class WebDashboard:
-      """FastAPI 기반 실시간 거래 시스템 대시보드"""
-  ```
-- The framework used is **FastAPI**, not Plotly Dash. It defines endpoints like:
-  - Line 64: `self.app = FastAPI(title="Stock Trading System Dashboard")`
-  - Line 81: `@self.app.get("/", response_class=HTMLResponse)`
-  - Line 89: `@self.app.get("/ws")` (WebSocket connection endpoint)
-  - Line 600: `@self.app.post("/api/backtest")` (Backtest endpoint)
-- The user interface is returned as a single raw HTML string inside the `get_dashboard_html(self)` method starting at line 1127.
-- UI Tabs in the current FastAPI HTML representation are defined in JavaScript and HTML navigation blocks:
-  - `"tabbtn-dashboard"` (Dashboard / 대시보드)
-  - `"tabbtn-screener"` (Screener / 시장 스크리너)
-  - `"tabbtn-backtest"` (Backtest / 백테스트)
-  - `"tabbtn-risk"` (Risk Settings / 리스크 설정)
-  - `"tabbtn-ai"` (AI Investment Advisor / AI 투자 의견)
-  - `"tabbtn-vr"` (BCI WebXR VR / BCI VR 룸)
-- The file **does not export** any module-level Dash instance called `app`, nor does it define the helper functions or structures expected by the test suite.
+### Core Backtesting Module (`trading_system/src/analysis/backtest.py`)
+*   **Engine Definition**:
+    ```python
+    class BacktestEngine:
+        POSITION_SIZE_FRACTION = 0.95
+        ...
+        def run_backtest(
+            self,
+            symbol: str,
+            price_bars: List[PriceBar],
+            strategy_func,
+            target_period_bars: Optional[int] = None,
+            allow_short: bool = False,
+            trailing_stop_pct: float = 0.0,
+            scale_in: bool = False,
+            stop_loss_pct: float = 0.0,
+            take_profit_pct: float = 0.0,
+            market_regime_filter: bool = False,
+            volatility_sizing: bool = False,
+            atr_trailing_stop_mult: float = 0.0,
+        ) -> BacktestResult:
+    ```
+*   **Volatility Sizing Logic**:
+    ```python
+    if volatility_sizing:
+        atr = self._calc_atr(price_bars[:i], 14)
+        if atr > 0:
+            risk_amount = capital * 0.02
+            qty = int(risk_amount / (2 * atr))
+            max_qty = int(capital * size_fraction / bar.open)
+            position = min(qty, max_qty)
+            if position <= 0:
+                position = max_qty
+        else:
+            position = int(capital * size_fraction / bar.open)
+    ```
+*   **ATR Trailing Stop Logic**:
+    ```python
+    if atr_trailing_stop_mult > 0.0:
+        atr = self._calc_atr(price_bars[: i + 1], 14)
+        if atr > 0:
+            ts_trigger = max(ts_trigger, trailing_peak - (atr * atr_trailing_stop_mult))
+    ```
+*   **Metric Calculation Logic**:
+    *   *Win Rate* (Line 814): `winning_trades = sum(1 for t in trades if t.pnl > 0)` / `len(trades)`
+    *   *Profit Factor* (Line 822): `gross_profit / gross_loss`
+    *   *Maximum Drawdown* (Line 835): Tracks rolling `peak` and computes `dd = (peak - value) / peak`.
+    *   *Sharpe Ratio* (Line 856): Annualized using daily returns: `((avg_return - risk_free_rate / 252) / std_dev) * (252**0.5)`.
 
-### C. Test Suite Contract (`tests/phase4/e2e/test_e2e.py`)
-- The Dash E2E tests are defined under `tests/phase4/e2e/test_e2e.py` starting at line 354:
-  - **`test_r5_dashboard_server_instance`** (line 355):
+### Data Loading & Ticker Management (`trading_system/src/data_layer/market_data_handler.py`)
+*   **Historical Data Fetching**:
     ```python
-    def test_r5_dashboard_server_instance():
-        """R5: dashboard exposes app.server Flask instance."""
-        from src.web.dashboard import app
-        import flask
-        assert hasattr(app, "server")
-        assert isinstance(app.server, flask.Flask)
+    def fetch_historical_data(self, symbol: str, period: str = "10y") -> List[Any]:
     ```
-  - **`test_r5_dashboard_layout_tabs`** (line 362):
-    ```python
-    def test_r5_dashboard_layout_tabs():
-        """R5: dashboard layout contains the 3 required tabs."""
-        from src.web.dashboard import app
-        layout = app.layout
-        layout_str = str(layout)
-        assert "performance-tab" in layout_str or "Strategy Performance" in layout_str
-        assert "pnl-tab" in layout_str or "Real-time" in layout_str
-        assert "backtest-tab" in layout_str or "Backtest" in layout_str
-    ```
-  - **`test_r5_dashboard_performance_tab_components`** (line 372): Asserts `"performance-comparison-chart"` and `"Graph"` exist in layout.
-  - **`test_r5_dashboard_pnl_tab_components`** (line 380): Asserts `"DataTable"` or `"pnl-status-table"` exist in layout.
-  - **`test_r5_dashboard_backtest_viewer_components`** (line 386): Asserts `"Dropdown"`, `"backtest-symbol-dropdown"`, and `"backtest-curve-chart"` exist in layout.
-  - **`test_r5_dashboard_callback_missing_inputs`** (line 632):
-    ```python
-    def test_r5_dashboard_callback_missing_inputs():
-        """R5 boundary: update callbacks handle None dropdown inputs gracefully."""
-        from src.web.dashboard import update_backtest_chart
-        fig = update_backtest_chart(None, None)
-    ```
-  - **`test_r5_dashboard_empty_positions_table`** (line 640): Imports and tests `update_positions_table` from `src.web.dashboard`.
-  - **`test_r5_dashboard_missing_performance_data`** (line 647): Imports and tests `update_performance_comparison` from `src.web.dashboard`.
-  - **`test_r5_dashboard_server_port_collision`** (line 654): Imports and tests `DashboardServer` from `src.web.dashboard`.
-  - **`test_r5_dashboard_concurrent_connections`** (line 660): Imports and tests `update_backtest_chart` from `src.web.dashboard`.
-  - **`test_r1_r5_combination`** (line 753): Imports `app` from `src.web.dashboard` and checks for `"optimized-cache-viewer"` in layout.
+    Uses `yfinance` to load ticker data: `ticker = yf.Ticker(symbol)` and `ticker.history(period=period)`.
+*   **Local Cache**: Saves results in Parquet format to `trading_system/data/cache/{symbol}_{period}.parquet`. Cache checks file modification date to see if it is younger than 24 hours (Line 208).
 
-### D. Test Execution and Failure Output
-- Executed the test command:
-  ```powershell
-  .venv\Scripts\pytest tests/phase4/e2e/test_e2e.py -k R5
-  ```
-- Output log from task `e7827a58-0dcf-4a8c-a731-74363d48b487/task-38`:
-  ```
-  tests\phase4\e2e\test_e2e.py FFFFFFFFFFF                                 [100%]
-  ================================== FAILURES ===================================
-  ______________________ test_r5_dashboard_server_instance ______________________
-  ...
-  >       from src.web.dashboard import app
-  E       ImportError: cannot import name 'app' from 'src.web.dashboard' (D:\Finance\code\stock\trading_system\src\web\dashboard.py)
-  ```
-- All 11 tests prefixed with or referencing `R5` failed with a similar `ImportError` on either `app`, `update_backtest_chart`, `update_positions_table`, `update_performance_comparison`, or `DashboardServer`.
+### Stock Universe Mappings (`trading_system/src/utils/stock_list.py`)
+*   **Suffixes**: Resolves Korean stock names using FinanceDataReader or a fallback dictionary, returning tickers with `.KS` or `.KQ` suffixes (e.g. `"삼성전자": "005930.KS"`).
+
+### Verification Runner (`verify_adaptive.py`)
+*   **Verification Script**: Contains a runner script that demonstrates baseline vs adaptive comparison via `run_backtest_comparison` (Line 160) and saves the aggregate metrics as JSON in `trading_system/data/verification_results.json`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Framework Mismatch**:
-   - *Observation A & B*: The current dashboard implementation (`src/web/dashboard.py`) runs a FastAPI application.
-   - *Observation C*: The E2E tests in `tests/phase4/e2e/test_e2e.py` specifically import a Dash app instance (`app`), its Dash layout (`app.layout`), and callbacks (`update_backtest_chart`, etc.).
-   - *Reasoning*: Because FastAPI has a completely different programming model and does not expose a Dash instance, any test importing `app` or layout components will fail.
-
-2. **Missing Module-Level Names**:
-   - *Observation B*: `src/web/dashboard.py` defines a single `WebDashboard` class which wraps a FastAPI instance inside `self.app`.
-   - *Observation D*: The tests fail on import statements (e.g. `ImportError: cannot import name 'app'`).
-   - *Reasoning*: The module-level scope of `src/web/dashboard.py` lacks the expected Dash instance (`app`), callback functions (`update_backtest_chart`, `update_positions_table`, `update_performance_comparison`), and the server configuration wrapper (`DashboardServer`).
-
-3. **Tab and Feature Discrepancies**:
-   - *Observation B*: The current FastAPI-based dashboard lacks the specific tab structures and components expected by the tests.
-   - *Observation C*: The tests require specific Dash component IDs: `"performance-tab"`, `"pnl-tab"`, `"backtest-tab"`, `"performance-comparison-chart"`, `"pnl-status-table"`, `"backtest-symbol-dropdown"`, `"backtest-curve-chart"`, and `"optimized-cache-viewer"`.
-   - *Reasoning*: Even if the FastAPI app were bypassed or wrapped, the HTML/JS rendered on the page does not declare Dash widgets or elements mapping to these IDs, which means E2E element lookups and callbacks would fail.
+1.  **Backtest Engine Execution**: Since `BacktestEngine.run_backtest` takes explicit parameters for `volatility_sizing` and `atr_trailing_stop_mult`, baseline runs and enhanced runs are distinguished by passing these flags accordingly (with baseline having them set to `False`/`0.0`, and enhanced having them set to `True`/`mult > 0`).
+2.  **Data Fetching Scope**: Since `MarketDataHandler` fetches data through Yahoo Finance, it requires correct ticker formatting. Standard US tickers resolve natively, but KRX tickers require suffixes (`.KS` for KOSPI, `.KQ` for KOSDAQ). Any comparative backtest script must append the suffix for KRX codes before invoking `fetch_historical_data`.
+3.  **Metrics Generation**: The `BacktestEngine` calculates return, Sharpe ratio, MDD, win rate, and profit factor. Advanced statistics are calculated by `AdvancedStatistics` in `src/analysis/statistics.py`. A comparative script can fetch these directly from the engine output or pass the equity curves to `AdvancedStatistics.get_performance_summary()` for deep metrics aggregation.
 
 ---
 
 ## 3. Caveats
 
-- **Read-Only Scope**: In compliance with my Explorer role constraint, I have only performed filesystem analysis and test execution. No code was altered to fix the imports or implement the missing components.
-- **FastAPI Core Execution**: The main trading system runner (`trading_system.py`) expects the dashboard to start via `self.dashboard.run()`. If we completely replace FastAPI with Dash, we need to ensure that the runner continues to function properly, or that the FastAPI server hosts the Dash application internally (e.g., mounting Dash inside FastAPI using WSGIMiddleware, or using Dash directly and exposing `app.server` which is a Flask app).
-- **Network Restrictions**: Since the workspace is locked to `CODE_ONLY` mode, no external packages can be downloaded. Plotly/Dash and Dash Bootstrap Components must already be installed in the virtual environment or added to `pyproject.toml` / `requirements.txt` to be resolved during final build.
+*   **API Limits**: `MarketDataHandler` enforces rate limits (5 queries/sec) and a circuit breaker (5 failures -> 60s timeout). When running backtests over a large universe of assets, API throttling might be triggered.
+*   **KRX Suffix Mapping**: The test universe in `verify_adaptive.py` has raw 6-digit codes (`"005930"`, `"000660"`). If passed directly, yfinance will fail or query incorrect symbols. The comparative backtester must append the correct suffixes (`.KS` / `.KQ`) or map them using `KoreanStockList`.
 
 ---
 
 ## 4. Conclusion
 
-The implementation of R5 (Dash Web UI dashboard) in `src/web/dashboard.py` is **completely missing/unimplemented** relative to the required testing contract. While a functioning FastAPI web dashboard is present, it does not conform to the Dash-based structure expected by the 11 E2E tests under `tests/phase4/e2e/test_e2e.py`. 
-
-To pass the tests, the dashboard must be rewritten (or wrapped) as a Plotly Dash application exporting `app`, `update_backtest_chart`, `update_positions_table`, `update_performance_comparison`, and `DashboardServer` at the module level, and incorporating the 3 specified tabs and respective component IDs.
+The backtesting framework is ready to support comparative backtesting. We can construct a comparative script using the existing `BacktestEngine` and `MarketDataHandler` modules by toggling the `volatility_sizing` and `atr_trailing_stop_mult` parameters to compare baseline and enhanced configurations. Aggregated metrics (Cumulative Return, Sharpe, MDD, Win Rate, and Profit Factor) can be computed cleanly via `AdvancedStatistics` and printed as a markdown table.
 
 ---
 
 ## 5. Verification Method
 
-### Test Execution Command
-Run the following command from the `d:\Finance\code\stock\trading_system` directory inside the local environment:
-```powershell
-.venv\Scripts\pytest tests/phase4/e2e/test_e2e.py -k R5
-```
-
-### Invalidation Conditions
-- The verification fails if the output does not report `11 failed` due to `ImportError`.
-- If the tests pass, it means the dashboard has been successfully implemented or updated to export the required Dash objects and functions.
+To independently verify the backtesting engine and parameter loader:
+1.  Verify the baseline tests on the adaptive optimization framework:
+    `python verify_adaptive.py --quick`
+2.  Inspect the resulting output file `trading_system/data/verification_results.json` to verify the generated performance statistics for static and adaptive runs.
+3.  Inspect `trading_system/src/analysis/backtest.py` and `trading_system/src/analysis/statistics.py` to confirm the formulas used for metric calculations.

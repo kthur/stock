@@ -1,12 +1,10 @@
 ## Current Status
-Last visited: 2026-06-07T23:15:00+09:00
-- [x] Phase 4 Core Features (R1-R5) implemented, verified, and audited CLEAN.
-- [/] Global Macro Correlation & ML Predictor Integration:
-  - [x] R1. Global Macro Correlation Analysis Engine (`macro_analyzer.py`)
-  - [x] R2. Macro Feature-based ML Prediction Model (`macro_predictor.py`)
-  - [x] R3. Global Outperform Stock Auto Screener (`StockScreener.screen_global_outperformers`)
-  - [x] R4. Dash Web UI Global Macro Tab Integration (`dashboard.py` and `run_dashboard.py`)
-  - [ ] Verification, Challenger Validation, and Forensic Audit (Worker verified, final Forensic Audit pending)
+Last visited: 2026-06-12T12:01:00+09:00
+- [x] Milestone 1: PyTorch DLL Fix & KIS config test fixes
+- [/] Milestone 2: Daily Post-Market Stock Scoring (Worker applying test fix)
+- [ ] Milestone 3: Dashboard Integration
+- [ ] Milestone 4: E2E Testing Track
+- [ ] Milestone 5: E2E Verification & Audit
 
 ## Iteration Status
 Current iteration: 1 / 32
