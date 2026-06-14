@@ -11,6 +11,10 @@ import warnings
 
 _CPU_WORKERS = max(1, (os.cpu_count() or 4))
 
+# Reconfigure stdout to UTF-8 to prevent UnicodeEncodeError on Windows (cp949)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 # Set default socket timeout to prevent hanging connections
 socket.setdefaulttimeout(5)
 

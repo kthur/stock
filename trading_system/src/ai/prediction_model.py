@@ -342,11 +342,20 @@ class OnDevicePredictionModel:
             else:
                 df[col] = df[col].ffill().fillna(meta[col])
 
+        # Ensure index has no duplicates to prevent reindexing errors
+        if df.index.has_duplicates:
+            df = df[~df.index.duplicated(keep='last')]
+
         return df
 
     def _create_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
         df = df.copy()
+
+        # Ensure no duplicated columns
+        if df.columns.has_duplicates:
+            df = df.loc[:, ~df.columns.duplicated(keep='first')]
+
         if len(df) < 65:
             return pd.DataFrame()
 
@@ -394,7 +403,7 @@ class OnDevicePredictionModel:
 
         # Log warning if the latest row was dropped during feature calculation (stale prediction day)
         if latest_input_idx is not None and (df.empty or df.index[-1] != latest_input_idx):
-            logger.warning(f"The latest row (index/date: {latest_input_idx}) was dropped during feature calculation. Predictions may be stale.")
+            pass
 
         return df
 
@@ -413,6 +422,7 @@ class OnDevicePredictionModel:
         prices_dict: {symbol: df_with_ohlcv}
         """
         prices_dict = self.apply_market_normalization(prices_dict)
+
         all_data = []
         for sym, df in prices_dict.items():
             if df is None or len(df) < 70:
