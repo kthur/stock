@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.13"]
 
     steps:
     - name: Checkout repository
@@ -59,7 +59,7 @@ jobs:
         python -m coverage xml -o coverage.xml
 
     - name: Upload coverage to artifacts
-      if: success() && matrix.python-version == '3.12'
+      if: success() && matrix.python-version == '3.13'
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
