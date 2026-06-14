@@ -5,6 +5,7 @@ import random
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import FinanceDataReader as fdr
+import yfinance as yf
 
 _CPU_WORKERS = max(1, (os.cpu_count() or 4))
 
@@ -17,18 +18,49 @@ from src.ai.prediction_model import OnDevicePredictionModel
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# yfinance suffix mapping for Korean stock markets
+_KR_MARKET_SUFFIX = {
+    'KOSPI': '.KS',
+    'KOSDAQ': '.KQ',
+    'KONEX': '.KQ',
+    'KRX': '.KS',
+}
+
+
 def fetch_data_fdr(symbol: str, market: str, start_date: str) -> pd.DataFrame:
-    """Fetch data using FinanceDataReader"""
+    """Fetch OHLCV data using adjusted prices (수정주가).
+
+    For US stocks (SP500): uses FinanceDataReader (Yahoo Finance, already adjusted).
+    For Korean stocks: uses yfinance with split/dividend-adjusted prices.
+    """
+    if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
+        try:
+            df = fdr.DataReader(symbol, start=start_date)
+            return df
+        except Exception as e:
+            logger.debug(f"Failed to fetch {symbol} via fdr: {e}")
+            return None
+
+    # Korean stock: fetch from yfinance with adjusted prices
+    suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
+    yf_symbol = f"{symbol}{suffix}"
     try:
-        if market == 'SP500':
-            # FDR uses the ticker as is
-            df = fdr.DataReader(symbol, start=start_date)
-        else:
-            # KRX code
-            df = fdr.DataReader(symbol, start=start_date)
+        df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
+        if df is not None and not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.droplevel(1)
+            return df
+    except Exception as e:
+        logger.debug(f"Failed to fetch {yf_symbol} via yfinance: {e}")
+
+    # Fallback to FinanceDataReader if yfinance fails
+    try:
+        df = fdr.DataReader(symbol, start=start_date)
+        if df is not None and not df.empty:
+            logger.warning(f"Falling back to unadjusted KRX data for {symbol}")
         return df
     except Exception as e:
-        logger.debug(f"Failed to fetch {symbol}: {e}")
+        logger.debug(f"Failed to fetch {symbol} via fdr fallback: {e}")
         return None
 
 def main():
@@ -44,6 +76,9 @@ def main():
         universe = storage.get_universe()
 
     logger.info(f"Loaded {len(universe)} symbols from universe.")
+
+    # Build symbol→market mapping for adjusted price fetching
+    symbol_market = dict(zip(universe['symbol'], universe['market']))
 
     # Let's sample for training to save time: 50 SP500, 50 KRX
     sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
@@ -63,8 +98,8 @@ def main():
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in train_symbols:
-            market = 'SP500' if sym in sp500_symbols else 'KRX'
-            future_to_sym[executor.submit(fetch_data_fdr, sym, market, start_date_train)] = sym
+            sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
+            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_train)] = sym
 
         for future in as_completed(future_to_sym):
             sym = future_to_sym[future]
@@ -93,8 +128,8 @@ def main():
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in all_symbols:
-            market = 'SP500' if sym in sp500_symbols else 'KRX'
-            future_to_sym[executor.submit(fetch_data_fdr, sym, market, start_date_infer)] = sym
+            sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
+            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_infer)] = sym
 
         for future in as_completed(future_to_sym):
             sym = future_to_sym[future]

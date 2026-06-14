@@ -136,8 +136,13 @@ class OnDevicePredictionModel:
             for h in self.horizons:
                 model_path = self.model_dir / f"xgb_model_{h}d.json"
                 if model_path.exists():
-                    model = xgb.XGBRegressor()
-                    model.load_model(str(model_path))
+                    booster = xgb.Booster()
+                    booster.load_model(str(model_path))
+                    if self._has_gpu:
+                        booster.set_param('device', 'cuda')
+                    model = xgb.XGBRegressor(**self._xgb_kwargs)
+                    model._Booster = booster
+                    model._estimator_type = 'regressor'
                     self.models[h] = model
                     logger.debug(f"Loaded model for {h}d from {model_path}")
             if self.models:
@@ -477,9 +482,13 @@ class OnDevicePredictionModel:
         X = latest[features]
 
         predictions = {}
+        X_array = X.values
         for h in self.horizons:
             if h in self.models:
-                pred = float(self.models[h].predict(X)[0])
+                try:
+                    pred = float(self.models[h].inplace_predict(X_array)[0])
+                except Exception:
+                    pred = float(self.models[h].predict(X_array)[0])
             else:
                 pred = 0.0
             if abs(pred) > 2.0:
@@ -523,11 +532,15 @@ class OnDevicePredictionModel:
         # 2. Concatenate into a single batch DataFrame
         X_batch = pd.concat(latest_features_list, ignore_index=True)
 
-        # 3. Predict for each horizon in batch
+        # 3. Predict for each horizon in batch (GPU/CPU device mismatch 방지)
+        X_array = X_batch.values
         res_dict: dict = {'symbol': symbols_list}
         for h in self.horizons:
             if h in self.models:
-                preds = self.models[h].predict(X_batch)
+                try:
+                    preds = self.models[h].inplace_predict(X_array)
+                except Exception:
+                    preds = self.models[h].predict(X_array)
                 res_dict[h] = preds.tolist()
             else:
                 res_dict[h] = [0.0] * len(symbols_list)

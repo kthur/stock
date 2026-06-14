@@ -198,6 +198,9 @@ async def run_stage_train(db_path: str):
     sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
     krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
     
+    # Build symbol→market mapping for adjusted price fetching
+    symbol_market = dict(zip(universe['symbol'], universe['market']))
+    
     import random
     random.seed(42)
     sample_size = config.train_sample_size
@@ -213,7 +216,7 @@ async def run_stage_train(db_path: str):
     
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {
-            executor.submit(fetch_data_fdr, sym, 'SP500' if sym in sp500_symbols else 'KRX', start_date_train): sym
+            executor.submit(fetch_data_fdr, sym, symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX'), start_date_train): sym
             for sym in train_symbols
         }
         for future in as_completed(future_to_sym):
@@ -246,6 +249,9 @@ async def run_stage_predict(db_path: str) -> str:
     krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
     all_symbols = sp500_symbols + krx_symbols
     
+    # Build symbol→market mapping for adjusted price fetching
+    symbol_market = dict(zip(universe['symbol'], universe['market']))
+    
     start_date_infer = '2025-01-01'
     model = OnDevicePredictionModel()
     infer_data_dict = {}
@@ -255,7 +261,7 @@ async def run_stage_predict(db_path: str) -> str:
     
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {
-            executor.submit(fetch_data_fdr, sym, 'SP500' if sym in sp500_symbols else 'KRX', start_date_infer): sym
+            executor.submit(fetch_data_fdr, sym, symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX'), start_date_infer): sym
             for sym in all_symbols
         }
         for future in as_completed(future_to_sym):
