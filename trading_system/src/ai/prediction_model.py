@@ -173,6 +173,10 @@ class OnDevicePredictionModel:
 
             df_copy = df.copy()
 
+            # Flatten MultiIndex columns (e.g. from yfinance) to single-level
+            if isinstance(df_copy.columns, pd.MultiIndex):
+                df_copy.columns = df_copy.columns.droplevel(1)
+
             if 'Close' not in df_copy.columns:
                 logger.warning(f"Missing 'Close' column in DataFrame for {sym}.")
                 raise KeyError(f"Missing 'Close' column in DataFrame for {sym}")
@@ -180,22 +184,33 @@ class OnDevicePredictionModel:
                 logger.warning(f"Missing 'Volume' column in DataFrame for {sym}.")
                 raise KeyError(f"Missing 'Volume' column in DataFrame for {sym}")
 
+            close = df_copy['Close']
+            volume = df_copy['Volume']
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            if isinstance(volume, pd.DataFrame):
+                volume = volume.iloc[:, 0]
+
             # Retrieve shares_outstanding and floating_shares from df columns or fallback
             metadata = FALLBACK_METADATA[sym]
             shares_out = df_copy['shares_outstanding'] if 'shares_outstanding' in df_copy.columns else metadata['shares_outstanding']
+            if isinstance(shares_out, pd.DataFrame):
+                shares_out = shares_out.iloc[:, 0]
             float_sh = df_copy['floating_shares'] if 'floating_shares' in df_copy.columns else metadata['floating_shares']
+            if isinstance(float_sh, pd.DataFrame):
+                float_sh = float_sh.iloc[:, 0]
 
-            df_copy['market_cap'] = df_copy['Close'] * shares_out
+            df_copy['market_cap'] = close * shares_out
 
             if isinstance(float_sh, pd.Series):
-                floating_val = df_copy['Close'] * float_sh
+                floating_val = close * float_sh
                 fallback_mask = float_sh.isna() | (float_sh <= 0)
-                df_copy['floating_value'] = floating_val.where(~fallback_mask, df_copy['Close'] * df_copy['Volume'])
+                df_copy['floating_value'] = floating_val.where(~fallback_mask, close * volume)
             else:
                 if float_sh is None or float_sh <= 0:
-                    df_copy['floating_value'] = df_copy['Close'] * df_copy['Volume']
+                    df_copy['floating_value'] = close * volume
                 else:
-                    df_copy['floating_value'] = df_copy['Close'] * float_sh
+                    df_copy['floating_value'] = close * float_sh
 
             if is_kr:
                 kr_group[sym] = df_copy
@@ -203,6 +218,11 @@ class OnDevicePredictionModel:
                 us_group[sym] = df_copy
 
         result_dict = {}
+
+        def _series(col):
+            if isinstance(col, pd.DataFrame):
+                return col.iloc[:, 0]
+            return col
 
         for group in [us_group, kr_group]:
             if not group:
@@ -213,18 +233,14 @@ class OnDevicePredictionModel:
             total_volume = pd.Series(dtype=float)
 
             for df in group.values():
-                total_market_cap = total_market_cap.add(df['market_cap'], fill_value=0.0)
-                total_floating_value = total_floating_value.add(df['floating_value'], fill_value=0.0)
-                total_volume = total_volume.add(df['Volume'], fill_value=0.0)
+                total_market_cap = total_market_cap.add(_series(df['market_cap']), fill_value=0.0)
+                total_floating_value = total_floating_value.add(_series(df['floating_value']), fill_value=0.0)
+                total_volume = total_volume.add(_series(df['Volume']), fill_value=0.0)
 
             for sym, df in group.items():
-                def safe_divide(series_numerator, series_denominator):
-                    res = series_numerator.div(series_denominator)
-                    return res.replace([np.inf, -np.inf], 0.0).fillna(0.0)
-
-                df['norm_market_cap'] = safe_divide(df['market_cap'], total_market_cap)
-                df['norm_floating_value'] = safe_divide(df['floating_value'], total_floating_value)
-                df['norm_volume'] = safe_divide(df['Volume'], total_volume)
+                df['norm_market_cap'] = _series(df['market_cap']).div(total_market_cap).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                df['norm_floating_value'] = _series(df['floating_value']).div(total_floating_value).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                df['norm_volume'] = _series(df['Volume']).div(total_volume).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
                 result_dict[sym] = df
 

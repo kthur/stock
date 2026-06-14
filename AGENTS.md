@@ -82,6 +82,11 @@ Oscar
 <!-- TODO: Add project-specific content -->
 <!-- Add setup instructions, common commands, and daily workflow -->
 
+## CRITICAL: Do NOT modify trading_system/models/ files
+
+The `.json` files under `trading_system/models/` are XGBoost model files that get regenerated on every pipeline run. They are NOT source code and should NOT be committed or pushed.
+These are NOT code changes and should NEVER be added to a commit or pushed to the repository.
+
 ```bash
 # Setup
 python3 -m venv .venv && source .venv/bin/activate
