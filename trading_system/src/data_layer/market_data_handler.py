@@ -188,33 +188,49 @@ class MarketDataHandler:
             price = round(base_price * (1 + random.uniform(-0.002, 0.002)), 2)
             return self.simulate_api_call(symbol, price, price - 0.05, price + 0.05, 5000000)
 
-    def fetch_historical_data(self, symbol: str, period: str = "10y") -> List[Any]:
-        """yfinance를 통해 과거 데이터를 가져오고 로컬 캐시를 활용하여 반환 속도를 향상시킵니다."""
+    def fetch_historical_data(self, symbol: str, period: str = "5y") -> List[Any]:
+        """yfinance를 통해 과거 데이터를 가져오고 DB+Parquet 캐시를 활용합니다.
 
-        # 캐시 디렉토리 설정
-        cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "cache")
-        os.makedirs(cache_dir, exist_ok=True)
+        데이터는 StockPriceDB에 저장되어 이후 재호출을 방지합니다.
+        period: "5y", "10y", "all" (전체기간), 숫자+y 형식
+        """
+        from src.persistence.database import StockPriceDB
+        from src.config import TradingConfig
 
-        # 특수 문자(_) 등 제거 (파일 시스템 안전을 위해)
-        safe_symbol = symbol.replace("/", "_").replace("\\", "_")
-        cache_file = os.path.join(cache_dir, f"{safe_symbol}_{period}.parquet")
+        config = TradingConfig()
+        db = StockPriceDB(db_path=config.stock_price_db_path)
 
-        hist = None
-        use_cache = False
+        # period -> start_date 변환
+        if period == "all":
+            start_date = None  # None → yfinance에 period="max"로 전달
+            yf_period = "max"
+        else:
+            yf_period = None
+            period_map = {
+                "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365,
+                "2y": 730, "3y": 1095, "4y": 1460, "5y": 1825,
+                "10y": 3650, "15y": 5475, "20y": 7300, "30y": 10950,
+            }
+            if period in period_map:
+                days = period_map[period]
+                start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            elif period.endswith("y"):
+                years = int(period.replace("y", ""))
+                start_date = (datetime.now() - timedelta(days=365 * years)).strftime("%Y-%m-%d")
+            else:
+                start_date = None
 
-        # 1. 캐시 파일이 존재하는지, 하루가 지나지 않았는지 확인
-        if os.path.exists(cache_file):
-            file_mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
-            if datetime.now() - file_mod_time < timedelta(hours=24):
-                try:
-                    hist = pd.read_parquet(cache_file)
-                    use_cache = True
-                    self.logger.debug(f"Loaded {symbol} ({period}) from local cache.")
-                except Exception as e:
-                    self.logger.warning(f"Failed to read cache for {symbol}: {e}")
-                    hist = None
+        # 1. DB에서 먼저 조회
+        df = db.get_prices(symbol, start_date=start_date)
+        if not df.empty:
+            latest_db = df.index[-1]
+            cutoff = datetime.now() - timedelta(days=1)
+            needs_fetch = latest_db < cutoff
+        else:
+            needs_fetch = True
 
-        if not use_cache or hist is None:
+        # 2. 추가 fetch가 필요한 경우 yfinance 호출
+        if needs_fetch:
             if not self.circuit_breaker.check_state():
                 self.logger.error(f"Circuit breaker is OPEN. Blocked fetch for {symbol}")
                 return []
@@ -222,53 +238,79 @@ class MarketDataHandler:
             self.rate_limiter.wait()
             try:
                 ticker = yf.Ticker(symbol)
-
-                # yfinance는 15y, 20y, 30y를 네이티브 period로 지원하지 않으므로 직접 날짜를 계산
-                if period in ["15y", "20y", "30y"]:
-                    years = int(period.replace("y", ""))
-                    start_date = datetime.now() - timedelta(days=365 * years)
-                    hist = ticker.history(start=start_date.strftime("%Y-%m-%d"))
+                if yf_period == "max":
+                    hist = ticker.history(period="max")
+                elif start_date:
+                    hist = ticker.history(start=start_date)
                 else:
                     hist = ticker.history(period=period)
 
                 if hist.empty:
                     self.logger.warning(f"No historical data found for {symbol}")
                     self.circuit_breaker.record_success()
+
+                    if not df.empty:
+                        price_bars = self._df_to_price_bars(df)
+                        self.logger.info(f"Returning {len(price_bars)} cached bars for {symbol}")
+                        return price_bars
                     return []
 
-                # NaN 값 정제: Open, High, Low, Close 중 하나라도 NaN인 행 제거
                 hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
-
                 if hist.empty:
-                    self.logger.warning(f"No historical data found after filtering NaNs for {symbol}")
+                    self.logger.warning(f"No historical data after filtering NaNs for {symbol}")
                     self.circuit_breaker.record_success()
+
+                    if not df.empty:
+                        price_bars = self._df_to_price_bars(df)
+                        self.logger.info(f"Returning {len(price_bars)} cached bars for {symbol}")
+                        return price_bars
                     return []
 
                 self.circuit_breaker.record_success()
-                # 2. 새로 받아온 데이터를 Parquet로 캐시 저장
+
+                # 3. 새 데이터 DB에 저장 (Parquet 캐시는 유지보수)
+                db.update_prices(symbol, hist)
+
+                # Parquet에도 저장 (하위 호환성)
+                cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "cache")
+                os.makedirs(cache_dir, exist_ok=True)
+                safe_symbol = symbol.replace("/", "_").replace("\\", "_")
+                cache_file = os.path.join(cache_dir, f"{safe_symbol}_{period}.parquet")
                 try:
                     hist.to_parquet(cache_file)
-                    self.logger.debug(f"Saved {symbol} ({period}) to local cache.")
                 except Exception as e:
-                    self.logger.warning(f"Failed to save cache for {symbol}: {e}")
+                    self.logger.warning(f"Failed to save parquet cache for {symbol}: {e}")
+
+                # DB에서 다시 조회 (최신 전체 범위)
+                df = db.get_prices(symbol, start_date=start_date)
 
             except Exception as e:
                 self.circuit_breaker.record_failure()
                 self.logger.error(f"Failed to fetch historical data for {symbol}: {e}")
-                return []
-        price_bars = []
-        for date, row in hist.iterrows():
-            bar = PriceBar(
-                timestamp=date.to_pydatetime()
-                if hasattr(date, "to_pydatetime")
-                else pd.to_datetime(date).to_pydatetime(),
-                open=float(row["Open"]),
-                high=float(row["High"]),
-                low=float(row["Low"]),
-                close=float(row["Close"]),
-                volume=int(row["Volume"]),
-            )
-            price_bars.append(bar)
 
-        self.logger.info(f"Fetched {len(price_bars)} historical bars for {symbol}")
+                if not df.empty:
+                    price_bars = self._df_to_price_bars(df)
+                    self.logger.info(f"Returning {len(price_bars)} cached bars for {symbol}")
+                    return price_bars
+                return []
+
+        price_bars = self._df_to_price_bars(df)
+        self.logger.info(f"Fetched {len(price_bars)} historical bars for {symbol} (DB cache)")
+        return price_bars
+
+    @staticmethod
+    def _df_to_price_bars(df: pd.DataFrame) -> List[Any]:
+        """DataFrame(인덱스=날짜, 컬럼=OHLCV) → PriceBar 리스트 변환 (대소문자 무관)"""
+        price_bars = []
+        cols = {c.lower(): c for c in df.columns}
+        for date_idx, row in df.iterrows():
+            pydt = date_idx.to_pydatetime() if hasattr(date_idx, "to_pydatetime") else pd.to_datetime(date_idx).to_pydatetime()
+            price_bars.append(PriceBar(
+                timestamp=pydt,
+                open=float(row[cols["open"]]),
+                high=float(row[cols["high"]]),
+                low=float(row[cols["low"]]),
+                close=float(row[cols["close"]]),
+                volume=int(row[cols["volume"]]),
+            ))
         return price_bars

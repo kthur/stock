@@ -4,11 +4,12 @@ import asyncio
 import json
 import logging
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import aiosqlite
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -357,3 +358,119 @@ class AIPredictionDB:
     async def close(self) -> None:
         """데이터베이스 연결 종료"""
         await self._conn_mgr.close()
+
+
+class StockPriceDB:
+    """주가 데이터 SQLite 캐시 (OHLCV + 거래량) — 외부 API 재호출 방지"""
+
+    def __init__(self, db_path: str = "stock_prices.db"):
+        self.db_path = Path(db_path)
+        self.logger = logger
+        self._init_db()
+
+    def _init_db(self):
+        conn = sqlite3.connect(str(self.db_path))
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS stock_prices (
+                symbol TEXT NOT NULL,
+                date TEXT NOT NULL,
+                open REAL,
+                high REAL,
+                low REAL,
+                close REAL,
+                volume INTEGER,
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (symbol, date)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_stock_prices_symbol_date
+            ON stock_prices(symbol, date)
+        """)
+        conn.commit()
+        conn.close()
+        self.logger.info(f"StockPriceDB initialized at {self.db_path}")
+
+    def update_prices(self, symbol: str, df: pd.DataFrame) -> int:
+        """OHLCV DataFrame을 DB에 upsert. 반환: 저장된 행 수"""
+        conn = sqlite3.connect(str(self.db_path))
+        count = 0
+        try:
+            for idx, row in df.iterrows():
+                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
+                conn.execute("""
+                    INSERT OR REPLACE INTO stock_prices
+                    (symbol, date, open, high, low, close, volume, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, (
+                    symbol,
+                    date_str,
+                    float(row["Open"]),
+                    float(row["High"]),
+                    float(row["Low"]),
+                    float(row["Close"]),
+                    int(row["Volume"]),
+                ))
+                count += 1
+            conn.commit()
+        finally:
+            conn.close()
+        self.logger.info(f"Upserted {count} price rows for {symbol}")
+        return count
+
+    def get_prices(self, symbol: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> pd.DataFrame:
+        """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame)"""
+        conn = sqlite3.connect(str(self.db_path))
+        query = "SELECT date, open, high, low, close, volume FROM stock_prices WHERE symbol = ?"
+        params: list = [symbol]
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
+        query += " ORDER BY date ASC"
+        df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
+        conn.close()
+        if not df.empty:
+            df.set_index("date", inplace=True)
+        return df
+
+    def get_latest_date(self, symbol: str) -> Optional[str]:
+        """해당 종목의 DB 내 최신 날짜 반환"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.execute(
+            "SELECT MAX(date) FROM stock_prices WHERE symbol = ?", (symbol,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row and row[0] else None
+
+    def needs_update(self, symbol: str, max_age_days: int = 1) -> bool:
+        """DB 데이터가 max_age_days 이상 지났거나 없으면 True"""
+        latest = self.get_latest_date(symbol)
+        if latest is None:
+            return True
+        latest_dt = datetime.strptime(latest, "%Y-%m-%d")
+        return (datetime.now() - latest_dt).days >= max_age_days
+
+    def get_all_symbols(self) -> List[str]:
+        """DB에 저장된 모든 심볼 목록"""
+        conn = sqlite3.connect(str(self.db_path))
+        cursor = conn.execute("SELECT DISTINCT symbol FROM stock_prices ORDER BY symbol")
+        rows = cursor.fetchall()
+        conn.close()
+        return [r[0] for r in rows]
+
+    def count_rows(self, symbol: Optional[str] = None) -> int:
+        """저장된 행 수 (선택적 symbol 필터)"""
+        conn = sqlite3.connect(str(self.db_path))
+        if symbol:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM stock_prices WHERE symbol = ?", (symbol,)
+            )
+        else:
+            cursor = conn.execute("SELECT COUNT(*) FROM stock_prices")
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else 0

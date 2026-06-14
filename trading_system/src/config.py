@@ -24,6 +24,11 @@ class TradingConfig:
     db_path: str = os.getenv("DB_PATH", "market_indicators.db")
     train_sample_size: int = int(os.getenv("TRAIN_SAMPLE_SIZE", "50"))
 
+    # 백테스트 기간 설정 (숫자=년, "all"=전체)
+    backtest_years: str = os.getenv("BACKTEST_YEARS", "5")
+    # 주가 DB 경로
+    stock_price_db_path: str = os.getenv("STOCK_PRICE_DB_PATH", "stock_prices.db")
+
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
