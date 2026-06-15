@@ -419,7 +419,7 @@ class StockPriceDB:
         return count
 
     def get_prices(self, symbol: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> pd.DataFrame:
-        """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame)"""
+        """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame, 컬럼명 대문자)"""
         conn = sqlite3.connect(str(self.db_path))
         query = "SELECT date, open, high, low, close, volume FROM stock_prices WHERE symbol = ?"
         params: list = [symbol]
@@ -434,6 +434,8 @@ class StockPriceDB:
         conn.close()
         if not df.empty:
             df.set_index("date", inplace=True)
+            # yfinance/fdr과 컬럼명 일관성 유지 (Open, High, Low, Close, Volume)
+            df.columns = [col.capitalize() for col in df.columns]
         return df
 
     def get_latest_date(self, symbol: str) -> Optional[str]:

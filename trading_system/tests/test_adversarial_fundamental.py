@@ -146,14 +146,14 @@ class TestAdversarialFundamental(unittest.TestCase):
         self.assertFalse(df_train.empty, "df_train should not be empty")
 
         # Train models
-        self.model.train(df_train)
+        self.model.train(df_train, market="sp500")
         
         # Verify all horizons have models trained
         for h in self.model.horizons:
-            self.assertIn(h, self.model.models)
+            self.assertIn(h, self.model.models.get("sp500", {}))
 
         # 2. Predict on normal data
-        pred_single = self.model.predict_current(prices_dict["AAPL"])
+        pred_single = self.model.predict_current(prices_dict["AAPL"], market="sp500")
         self.assertEqual(len(pred_single), len(self.model.horizons))
 
         pred_batch = self.model.process_and_predict_all(prices_dict)

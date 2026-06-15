@@ -47,6 +47,8 @@ class FallbackMetadataDict(dict):
             self[sym].update({
                 "revenue": mock_data["revenue"],
                 "operating_income": mock_data["operating_income"],
+                "net_income": mock_data["net_income"],
+                "eps": mock_data["eps"],
                 "dividend_per_share": mock_data["dividend_per_share"]
             })
 
@@ -83,6 +85,8 @@ class FallbackMetadataDict(dict):
         # Deterministic mock fundamentals
         revenue = 1000000.0 + (val % 100000000.0)
         operating_income = revenue * (0.05 + 0.25 * ((val >> 16) % 100) / 100.0)
+        net_income = operating_income * (0.5 + 0.5 * ((val >> 12) % 100) / 100.0)
+        eps = net_income / shares_outstanding if shares_outstanding > 0 else 1.0
         dividend_per_share = 0.1 + 4.9 * ((val >> 8) % 100) / 100.0
 
         return {
@@ -90,6 +94,8 @@ class FallbackMetadataDict(dict):
             "floating_shares": float(floating_shares),
             "revenue": float(revenue),
             "operating_income": float(operating_income),
+            "net_income": float(net_income),
+            "eps": float(eps),
             "dividend_per_share": float(dividend_per_share)
         }
 
@@ -98,17 +104,35 @@ FALLBACK_METADATA = FallbackMetadataDict()
 
 
 class OnDevicePredictionModel:
+    # Core OHLCV + feature engineered columns
+    FEATURES = [
+        'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'dist_sma_20', 'vol_20d',
+        'norm_market_cap', 'norm_floating_value', 'norm_volume',
+        'operating_margin', 'revenue_to_market_cap', 'dividend_yield',
+        'net_profit_margin', 'eps_yield', 'eps_growth_1y',
+    ]
+    # Global market indicators added as features (날짜별 히스토리 merge)
+    GLOBAL_FEATURES = [
+        'vix_change', 'us10y', 'usdkrw_change', 'sp500_change',
+        'dxy_change', 'wti_change', 'kospi_change', 'kosdaq_change',
+    ]
+    ALL_FEATURES = FEATURES + GLOBAL_FEATURES
+
     def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
-        self.models: Dict[int, xgb.XGBRegressor] = {}
+        self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
         self._has_gpu = _HAS_CUDA
         self._xgb_kwargs: Dict[str, Any] = dict(
-            n_estimators=100,
+            n_estimators=500,
             max_depth=5,
-            learning_rate=0.1,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
             n_jobs=-1,
             random_state=42,
+            early_stopping_rounds=50,
         )
         if self._has_gpu:
             self._xgb_kwargs['device'] = 'cuda'
@@ -124,32 +148,43 @@ class OnDevicePredictionModel:
     def save_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
-            for h, model in self.models.items():
-                model_path = self.model_dir / f"xgb_model_{h}d.json"
-                model.save_model(str(model_path))
+            for market, models in self.models.items():
+                for h, model in models.items():
+                    model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
+                    model.save_model(str(model_path))
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
 
     def load_models(self):
         try:
-            for h in self.horizons:
-                model_path = self.model_dir / f"xgb_model_{h}d.json"
-                if model_path.exists():
-                    booster = xgb.Booster()
-                    booster.load_model(str(model_path))
-                    booster.set_param('predictor', 'auto')
-                    if self._has_gpu:
-                        booster.set_param('device', 'cuda')
-                    model = xgb.XGBRegressor(**self._xgb_kwargs)
-                    model._Booster = booster
-                    model._estimator_type = 'regressor'
-                    self.models[h] = model
-                    logger.debug(f"Loaded model for {h}d from {model_path}")
-            if self.models:
-                logger.info(f"Loaded {len(self.models)} models from {self.model_dir}")
+            for market in ['sp500', 'krx']:
+                self.models[market] = {}
+                for h in self.horizons:
+                    model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
+                    if model_path.exists():
+                        booster = xgb.Booster()
+                        booster.load_model(str(model_path))
+                        booster.set_param('predictor', 'auto')
+                        if self._has_gpu:
+                            booster.set_param('device', 'cuda')
+                        model = xgb.XGBRegressor(**self._xgb_kwargs)
+                        model._Booster = booster
+                        model._estimator_type = 'regressor'
+                        self.models[market][h] = model
+                        logger.debug(f"Loaded model for {market} {h}d from {model_path}")
+                if not self.models[market]:
+                    del self.models[market]
+            total = sum(len(v) for v in self.models.values())
+            if total:
+                logger.info(f"Loaded {total} models from {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to load models: {e}")
+
+    @staticmethod
+    def is_krx_symbol(symbol: str) -> bool:
+        cleaned = symbol.strip().upper().split('.')[0]
+        return cleaned.isdigit() or any(s in symbol.upper() for s in [".KS", ".KQ"])
 
     def apply_market_normalization(self, prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """
@@ -279,8 +314,8 @@ class OnDevicePredictionModel:
                 except Exception:
                     df = df.sort_index(ascending=True)
 
-        # Check if already present
-        has_cols = all(col in df.columns for col in ['revenue', 'operating_income', 'dividend_per_share'])
+        FUND_COLS = ['revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share']
+        has_cols = all(col in df.columns for col in FUND_COLS)
         if not has_cols:
             df_fun = None
             if storage is None:
@@ -306,7 +341,14 @@ class OnDevicePredictionModel:
                 else:
                     df_fun = df_fun.sort_values('date').groupby('date', as_index=False).last()
 
-                # Drop symbol from df_fun before merge to avoid generating duplicate symbol_x and symbol_y columns
+                # Compute YoY growth rates from fiscal-year history
+                for gr_col in ['eps', 'revenue']:
+                    if gr_col in df_fun.columns and len(df_fun) >= 2:
+                        prev = df_fun[gr_col].shift(1)
+                        df_fun[f'{gr_col}_growth_1y'] = df_fun[gr_col].sub(prev).div(prev.abs().replace(0, float('nan'))).fillna(0.0).replace([float('inf'), -float('inf')], 0.0)
+                    else:
+                        df_fun[f'{gr_col}_growth_1y'] = 0.0
+
                 df_fun = df_fun.drop(columns=['symbol'], errors='ignore')
 
                 df = df.reset_index()
@@ -330,17 +372,28 @@ class OnDevicePredictionModel:
                     df = df.join(df_fun, how='left')
             else:
                 meta = FALLBACK_METADATA[symbol]
-                df['revenue'] = meta['revenue']
-                df['operating_income'] = meta['operating_income']
-                df['dividend_per_share'] = meta['dividend_per_share']
+                for col in FUND_COLS:
+                    if col not in df.columns:
+                        df[col] = meta[col]
+                if 'eps_growth_1y' not in df.columns:
+                    df['eps_growth_1y'] = 0.0
 
-        # Ensure all columns exist and fill them
+        # Ensure all columns exist and fill NaN from fallback
         meta = FALLBACK_METADATA[symbol]
-        for col in ['revenue', 'operating_income', 'dividend_per_share']:
+        for col in FUND_COLS:
             if col not in df.columns:
                 df[col] = meta[col]
             else:
                 df[col] = df[col].ffill().fillna(meta[col])
+        for col in ['eps_growth_1y']:
+            if col not in df.columns:
+                df[col] = 0.0
+            else:
+                df[col] = df[col].ffill().fillna(0.0)
+        # Columns from DB merge that need forward-fill
+        for col in ['shares_outstanding', 'revenue_growth_1y']:
+            if col in df.columns:
+                df[col] = df[col].ffill().fillna(meta.get(col, 0.0))
 
         # Ensure index has no duplicates to prevent reindexing errors
         if df.index.has_duplicates:
@@ -348,7 +401,21 @@ class OnDevicePredictionModel:
 
         return df
 
-    def _create_features(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _merge_indicator_history(self, df: pd.DataFrame,
+                                  indicator_df: pd.DataFrame = None) -> pd.DataFrame:
+        """Merge global indicator time-series into df by date index."""
+        if indicator_df is None or indicator_df.empty:
+            for col in self.GLOBAL_FEATURES:
+                df[col] = 0.0
+            return df
+        before = len(df)
+        df = df.join(indicator_df, how='left')
+        if len(df) > before:
+            df = df.iloc[:before]
+        df[self.GLOBAL_FEATURES] = df[self.GLOBAL_FEATURES].ffill().fillna(0.0)
+        return df
+
+    def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
         df = df.copy()
 
@@ -376,6 +443,8 @@ class OnDevicePredictionModel:
             return series_num.div(series_den).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         df['operating_margin'] = safe_divide(df['operating_income'], df['revenue'])
+        df['net_profit_margin'] = safe_divide(df['net_income'], df['revenue'])
+        df['eps_yield'] = safe_divide(df['eps'], df['Close'])
         df['revenue_to_market_cap'] = safe_divide(df['revenue'], df['market_cap'])
         df['dividend_yield'] = safe_divide(df['dividend_per_share'], df['Close'])
 
@@ -398,8 +467,8 @@ class OnDevicePredictionModel:
             if col in df.columns:
                 df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
-        # Drop NaN
-        df.dropna(inplace=True)
+        # Merge global indicator history by date index
+        df = self._merge_indicator_history(df, indicator_df)
 
         # Log warning if the latest row was dropped during feature calculation (stale prediction day)
         if latest_input_idx is not None and (df.empty or df.index[-1] != latest_input_idx):
@@ -416,7 +485,8 @@ class OnDevicePredictionModel:
             df[f'target_{h}d'] = df['Close'].shift(-h) / df['Close'] - 1
         return df
 
-    def prepare_training_data(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def prepare_training_data(self, prices_dict: Dict[str, pd.DataFrame],
+                              indicator_df: pd.DataFrame = None) -> pd.DataFrame:
         """
         Merge all stocks into a single training dataset.
         prices_dict: {symbol: df_with_ohlcv}
@@ -429,9 +499,13 @@ class OnDevicePredictionModel:
                 continue
             df = df.copy()
             df['symbol'] = sym
-            df_feat = self._create_features(df)
+            df_feat = self._create_features(df, indicator_df)
             df_feat = self._create_targets(df_feat)
-            all_data.append(df_feat.dropna())
+            df_clean = df_feat.dropna()
+            if not df_clean.empty:
+                df_clean = df_clean.reset_index()
+                df_clean = df_clean.rename(columns={'index': 'date'})
+                all_data.append(df_clean)
 
         if not all_data:
             return pd.DataFrame()
@@ -455,30 +529,53 @@ class OnDevicePredictionModel:
 
         return df_merged
 
-    def train(self, df_train: pd.DataFrame):
-        """Train XGBoost regressors for each horizon."""
+    def train(self, df_train: pd.DataFrame, market: str = "sp500"):
+        """Train XGBoost regressors for each horizon with time-based validation."""
         if df_train.empty:
-            logger.warning("Empty training data.")
+            logger.warning(f"Empty training data for {market}.")
             return
 
-        features = [
-            'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'dist_sma_20', 'vol_20d',
-            'norm_market_cap', 'norm_floating_value', 'norm_volume',
-            'operating_margin', 'revenue_to_market_cap', 'dividend_yield'
-        ]
+        features = self.ALL_FEATURES
+        kw = dict(self._xgb_kwargs)
+
+        # Time-based validation split (last 20% of chronological data)
+        if 'date' in df_train.columns:
+            dates = pd.to_datetime(df_train['date'])
+            cutoff = dates.quantile(0.8)
+            train_idx = dates <= cutoff
+            val_idx = dates > cutoff
+            if val_idx.sum() < 100:
+                train_idx = pd.Series([True] * len(df_train))
+                val_idx = pd.Series([False] * len(df_train))
+        else:
+            train_idx = pd.Series([True] * len(df_train))
+            val_idx = pd.Series([False] * len(df_train))
+
+        if market not in self.models:
+            self.models[market] = {}
 
         for h in self.horizons:
-            logger.info(f"Training model for {h}d horizon...")
+            logger.info(f"Training {market} model for {h}d horizon...")
             X = df_train[features]
             y = df_train[f'target_{h}d']
+            X_train = X[train_idx]
+            y_train = y[train_idx]
+            X_val = X[val_idx]
+            y_val = y[val_idx]
 
-            model = xgb.XGBRegressor(**self._xgb_kwargs)
-            model.fit(X, y)
-            self.models[h] = model
-            logger.info(f"Model for {h}d trained.")
+            if val_idx.any() and 'early_stopping_rounds' in kw:
+                model = xgb.XGBRegressor(**kw)
+                model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+            else:
+                kw_no_es = {k: v for k, v in kw.items() if k != 'early_stopping_rounds'}
+                model = xgb.XGBRegressor(**kw_no_es)
+                model.fit(X_train, y_train)
+            self.models[market][h] = model
+            logger.info(f"{market} model for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
         self.save_models()
 
-    def predict_current(self, df_current: pd.DataFrame) -> Dict[int, float]:
+    def predict_current(self, df_current: pd.DataFrame, indicator_df: pd.DataFrame = None,
+                         market: str = "sp500") -> Dict[int, float]:
         """
         Predict forward returns for a single stock's latest data.
         df_current must have features computed.
@@ -487,34 +584,25 @@ class OnDevicePredictionModel:
         if df_current.empty:
             return {h: 0.0 for h in self.horizons}
 
-        # Check if all 12 required features are present. If not, compute/regenerate them.
-        required_features = [
-            'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'dist_sma_20', 'vol_20d',
-            'norm_market_cap', 'norm_floating_value', 'norm_volume',
-            'operating_margin', 'revenue_to_market_cap', 'dividend_yield'
-        ]
+        required_features = self.ALL_FEATURES
         if not all(col in df_current.columns for col in required_features):
             norm_dict = self.apply_market_normalization({'TEMP': df_current})
             df_current = norm_dict['TEMP']
-            df_current = self._create_features(df_current)
+            df_current = self._create_features(df_current, indicator_df)
             if df_current.empty:
                 return {h: 0.0 for h in self.horizons}
 
         latest = df_current.iloc[-1:]
-        features = [
-            'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'dist_sma_20', 'vol_20d',
-            'norm_market_cap', 'norm_floating_value', 'norm_volume',
-            'operating_margin', 'revenue_to_market_cap', 'dividend_yield'
-        ]
-        X = latest[features]
+        X = latest[self.ALL_FEATURES]
 
         predictions = {}
+        models = self.models.get(market, {})
         import warnings
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
             for h in self.horizons:
-                if h in self.models:
-                    pred = float(self.models[h].predict(X)[0])
+                if h in models:
+                    pred = float(models[h].predict(X)[0])
                 else:
                     pred = 0.0
                 if abs(pred) > 2.0:
@@ -523,57 +611,57 @@ class OnDevicePredictionModel:
                 predictions[h] = pred
         return predictions
 
-    def process_and_predict_all(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def process_and_predict_all(self, prices_dict: Dict[str, pd.DataFrame],
+                                 indicator_df: pd.DataFrame = None) -> pd.DataFrame:
         """
         Apply model to the latest data of all provided stocks in batch.
+        Uses market-specific models (sp500/krx).
         Returns DataFrame with symbols and their predicted returns.
         """
         prices_dict = self.apply_market_normalization(prices_dict)
-        features = [
-            'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'dist_sma_20', 'vol_20d',
-            'norm_market_cap', 'norm_floating_value', 'norm_volume',
-            'operating_margin', 'revenue_to_market_cap', 'dividend_yield'
-        ]
+        features = self.ALL_FEATURES
 
         # 1. Gather the latest features for all symbols
         latest_features_list = []
         symbols_list = []
+        market_list = []
 
         for sym, df in prices_dict.items():
             if df is None or len(df) < 65:
                 continue
             df = df.copy()
             df['symbol'] = sym
-            df_feat = self._create_features(df)
+            df_feat = self._create_features(df, indicator_df)
             if df_feat.empty:
                 continue
 
             latest = df_feat.iloc[-1:]
             latest_features_list.append(latest[features])
             symbols_list.append(sym)
+            market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
 
         if not latest_features_list:
             return pd.DataFrame()
 
-        # 2. Concatenate into a single batch DataFrame
-        X_batch = pd.concat(latest_features_list, ignore_index=True)
-
-        # 3. Predict for each horizon in batch (GPU/CPU device mismatch 경고 억제)
+        # 2. Predict per market (batch per market for efficiency)
         import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
-            res_dict: dict = {'symbol': symbols_list}
-            for h in self.horizons:
-                if h in self.models:
-                    preds = self.models[h].predict(X_batch)
-                    res_dict[h] = preds.tolist()
+        res_dict: dict = {'symbol': symbols_list}
+        for h in self.horizons:
+            preds = []
+            for i, market in enumerate(market_list):
+                models = self.models.get(market, {})
+                if h in models:
+                    X_row = latest_features_list[i]
+                    pred = float(models[h].predict(X_row)[0])
                 else:
-                    res_dict[h] = [0.0] * len(symbols_list)
+                    pred = 0.0
+                preds.append(pred)
+            res_dict[h] = preds
 
-        # 4. Convert to DataFrame
+        # 3. Convert to DataFrame
         res_df = pd.DataFrame(res_dict)
 
-        # 5. Validate predictions - warn if any are unrealistically extreme
+        # 4. Validate predictions - warn if any are unrealistically extreme
         if not res_df.empty:
             for h in self.horizons:
                 if h not in res_df.columns:
@@ -587,7 +675,6 @@ class OnDevicePredictionModel:
                         f"Max={vals.max():.4f}, Min={vals.min():.4f}. "
                         f"Consider retraining with more balanced data."
                     )
-                    # Clip extreme predictions to prevent display of absurd values
                     res_df[h] = vals.clip(lower=-5.0, upper=5.0)
                     logger.warning(f"Clipped extreme {h}d predictions to ±500%.")
 

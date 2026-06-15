@@ -2,6 +2,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -22,7 +23,12 @@ class TradingConfig:
     mock_trading: bool = os.getenv("MOCK_TRADING_ENABLED", "True").lower() == "true"  # 모의투자 API 연동 활성화 여부
     broker_type: str = os.getenv("BROKER_TYPE", "KIS")
     db_path: str = os.getenv("DB_PATH", "market_indicators.db")
-    train_sample_size: int = int(os.getenv("TRAIN_SAMPLE_SIZE", "50"))
+    train_sample_sp500: str = os.getenv("TRAIN_SAMPLE_SP500", "50")
+    train_sample_krx: str = os.getenv("TRAIN_SAMPLE_KRX", "50")
+    train_start_date: str = os.getenv("TRAIN_START_DATE", "2023-01-01")
+    train_seed: str = os.getenv("TRAIN_SEED", "42")
+    stock_price_freshness_days: str = os.getenv("STOCK_PRICE_FRESHNESS_DAYS", "7")
+    update_interval: str = os.getenv("UPDATE_INTERVAL", "0")
 
     # 백테스트 기간 설정 (숫자=년, "all"=전체)
     backtest_years: str = os.getenv("BACKTEST_YEARS", "5")
@@ -55,6 +61,30 @@ class TradingConfig:
     @property
     def parsed_authorized_user_ids(self) -> list:
         return self._parsed_authorized_user_ids
+
+    def resolve_sample_size(self, value: str, universe_size: int) -> int:
+        value = value.strip().lower()
+        if value == "all":
+            return universe_size
+        if value.endswith('%'):
+            ratio = float(value.rstrip('%')) / 100.0
+            return max(1, int(universe_size * ratio))
+        return int(value)
+
+    def get_freshness_days(self) -> int:
+        val = self.stock_price_freshness_days.strip().lower()
+        if val in ("-1", "never", "all", "none"):
+            return -1
+        return int(val)
+
+    def get_train_seed(self) -> Optional[int]:
+        val = self.train_seed.strip().lower()
+        if val in ("none", "", "-1"):
+            return None
+        return int(val)
+
+    def get_update_interval(self) -> int:
+        return int(self.update_interval.strip())
 
     def validate(self) -> None:
         if self.initial_cash <= 0:

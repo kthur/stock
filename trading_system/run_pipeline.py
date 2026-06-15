@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import socket
+import time
+import threading
 from datetime import datetime
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,6 +12,11 @@ import yfinance as yf
 import warnings
 
 _CPU_WORKERS = max(1, (os.cpu_count() or 4))
+_PER_SYMBOL_TIMEOUT = 30  # seconds per symbol before skipping
+
+# Rate limiter for network requests (shared across threads)
+_rate_lock = threading.Lock()
+_last_request_time = 0.0
 
 # Reconfigure stdout to UTF-8 to prevent UnicodeEncodeError on Windows (cp949)
 if hasattr(sys.stdout, 'reconfigure'):
@@ -27,7 +34,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
 from src.config import TradingConfig
 from src.data_layer.global_market import GlobalMarketClient
 from src.data_layer.indicator_storage import MarketIndicatorStorage
+from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
+from src.persistence.database import StockPriceDB
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -41,44 +50,161 @@ _KR_MARKET_SUFFIX = {
 }
 
 
-def fetch_data_fdr(symbol: str, market: str, start_date: str) -> pd.DataFrame:
-    """Fetch OHLCV data using adjusted prices (수정주가).
+def fetch_data_fdr(symbol: str, market: str, start_date: str,
+                   price_db: StockPriceDB = None, freshness_days: int = 7,
+                   update_interval: int = 0) -> pd.DataFrame:
+    """Fetch OHLCV data using adjusted prices (수정주가), with StockPriceDB cache.
 
     For US stocks (SP500): uses FinanceDataReader (Yahoo Finance, already adjusted).
     For Korean stocks: uses yfinance with split/dividend-adjusted prices.
+
+    Rate limiting: if update_interval > 0, sleeps that many seconds between
+    network requests (global across all threads).
     """
+    # 0. StockPriceDB 캐시 조회
+    if price_db is not None:
+        stale = True
+        if freshness_days < 0:
+            stale = False
+        else:
+            stale = price_db.needs_update(symbol, max_age_days=freshness_days)
+        if not stale:
+            df = price_db.get_prices(symbol, start_date=start_date)
+            if not df.empty:
+                logger.debug(f"Using cached prices for {symbol}")
+                return df
+        # stale or empty cache → fall through to network fetch
+
+    # Rate limit before network request
+    if update_interval > 0:
+        global _last_request_time
+        with _rate_lock:
+            elapsed = time.time() - _last_request_time
+            if elapsed < update_interval:
+                sleep_sec = update_interval - elapsed
+                logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {symbol}")
+                time.sleep(sleep_sec)
+            _last_request_time = time.time()
+
+    # 1. Fetch data
+    result = None
     if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
         try:
-            df = fdr.DataReader(symbol, start=start_date)
-            return df
+            result = fdr.DataReader(symbol, start=start_date)
         except Exception as e:
             logger.debug(f"Failed to fetch {symbol} via fdr: {e}")
-            return None
+    else:
+        # Korean stock: fetch from yfinance with adjusted prices
+        suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
+        yf_symbol = f"{symbol}{suffix}"
+        try:
+            df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
+            if df is not None and not df.empty:
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.droplevel(1)
+                result = df
+        except Exception as e:
+            logger.debug(f"Failed to fetch {yf_symbol} via yfinance: {e}")
 
-    # Korean stock: fetch from yfinance with adjusted prices
-    suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
-    yf_symbol = f"{symbol}{suffix}"
-    try:
-        df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
-        if df is not None and not df.empty:
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.droplevel(1)
-            return df
-    except Exception as e:
-        logger.debug(f"Failed to fetch {yf_symbol} via yfinance: {e}")
+        # Fallback to FinanceDataReader if yfinance fails
+        if result is None:
+            try:
+                result = fdr.DataReader(symbol, start=start_date)
+                if result is not None and not result.empty:
+                    logger.warning(f"Falling back to unadjusted KRX data for {symbol}")
+            except Exception as e:
+                logger.debug(f"Failed to fetch {symbol} via fdr fallback: {e}")
 
-    # Fallback to FinanceDataReader if yfinance fails
-    try:
-        df = fdr.DataReader(symbol, start=start_date)
+    # 2. Cache the result in StockPriceDB
+    if result is not None and not result.empty and price_db is not None:
+        try:
+            price_db.update_prices(symbol, result)
+        except Exception as e:
+            logger.debug(f"Failed to cache prices for {symbol}: {e}")
+
+    return result
+
+# 8 Global indicator tickers → feature column names
+_INDICATOR_TICKERS = {
+    '^VIX': 'vix_change',
+    '^TNX': 'us10y',
+    'USDKRW=X': 'usdkrw_change',
+    '^GSPC': 'sp500_change',
+    'DX-Y.NYB': 'dxy_change',
+    'CL=F': 'wti_change',
+    '^KS11': 'kospi_change',
+    '^KQ11': 'kosdaq_change',
+}
+
+
+def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
+                            freshness_days: int = 7) -> pd.DataFrame:
+    """Download 8 global indicator tickers, compute daily change%, return single DataFrame.
+
+    Returns: DataFrame with DatetimeIndex and columns = _INDICATOR_TICKERS.values()
+    """
+    combined = {}
+    for ticker, col_name in _INDICATOR_TICKERS.items():
+        df = None
+        # Try cache first
+        if price_db is not None:
+            stale = price_db.needs_update(ticker, max_age_days=freshness_days)
+            if not stale:
+                df = price_db.get_prices(ticker, start_date=start_date)
+        # Fetch from yfinance if no cache
+        if df is None or df.empty:
+            try:
+                raw = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
+                if raw is not None and not raw.empty:
+                    if isinstance(raw.columns, pd.MultiIndex):
+                        raw.columns = raw.columns.droplevel(1)
+                    df = raw
+                    if price_db is not None:
+                        try:
+                            price_db.update_prices(ticker, df)
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.debug(f"Failed to fetch indicator {ticker}: {e}")
         if df is not None and not df.empty:
-            logger.warning(f"Falling back to unadjusted KRX data for {symbol}")
-        return df
-    except Exception as e:
-        logger.debug(f"Failed to fetch {symbol} via fdr fallback: {e}")
-        return None
+            if col_name.endswith('_change'):
+                combined[col_name] = df['Close'].pct_change().fillna(0.0) * 100
+            else:
+                combined[col_name] = df['Close'].ffill().fillna(0.0)
+
+    if not combined:
+        logger.warning("No indicator data fetched; returning empty DataFrame")
+        return pd.DataFrame()
+
+    result = pd.concat(combined, axis=1)
+    result.index = pd.to_datetime(result.index)
+    result = result.sort_index()
+    logger.info(f"Fetched indicator history: {len(result)} rows x {len(result.columns)} cols")
+    return result
+
+
+def _market_symbols(universe: pd.DataFrame) -> tuple:
+    """Return (krx_set, sp500_set) for quick lookup."""
+    krx = set(universe[universe['market'] != 'SP500']['symbol'])
+    sp500 = set(universe[universe['market'] == 'SP500']['symbol'])
+    return krx, sp500
+
+def _fmt_top(df: pd.DataFrame, horizon: int, krx_set: set, sp500_set: set,
+             universe: pd.DataFrame, count: int = 10) -> list:
+    """Format top-N predictions for a single market segment."""
+    lines = []
+    for rank, (_, row) in enumerate(df.head(count).iterrows(), 1):
+        sym = row['symbol']
+        ret = row[horizon] * 100
+        name_row = universe[universe['symbol'] == sym]
+        name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+        marker = name_row['market'].values[0] if not name_row.empty else ""
+        lines.append(f"  {rank}. [{marker}] {sym} ({name}): +{ret:.2f}%")
+    return lines
 
 def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> str:
     """Format prediction results as a Telegram-friendly message"""
+    krx_set, sp500_set = _market_symbols(universe)
     horizons = [1, 5, 10, 20, 30, 60, 120, 200]
     lines = [
         "🤖 *XGBoost 예측 결과*",
@@ -88,15 +214,17 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
     for h in horizons:
         if h not in res_df.columns:
             continue
-        top5 = res_df.sort_values(by=h, ascending=False).head(5)
-        lines.append(f"\n*{h}일 예상*")
-        for rank, (_, row) in enumerate(top5.iterrows(), 1):
-            sym = row['symbol']
-            ret = row[h] * 100
-            name_row = universe[universe['symbol'] == sym]
-            name = name_row['name'].values[0] if not name_row.empty else "Unknown"
-            marker = name_row['market'].values[0] if not name_row.empty else ""
-            lines.append(f"  {rank}. [{marker}] {sym} ({name}): +{ret:.2f}%")
+        sorted_df = res_df.sort_values(by=h, ascending=False)
+
+        krx_df = sorted_df[sorted_df['symbol'].isin(krx_set)]
+        sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)]
+
+        lines.append(f"\n*{h}일 예상 — KOSPI/KOSDAQ/KONEX TOP 10*")
+        lines.extend(_fmt_top(krx_df, h, krx_set, sp500_set, universe, 10))
+
+        lines.append(f"\n*{h}일 예상 — S&P 500 TOP 10*")
+        lines.extend(_fmt_top(sp500_df, h, krx_set, sp500_set, universe, 10))
+
     return "\n".join(lines)
 
 
@@ -106,7 +234,7 @@ def execute_prediction_pipeline():
     # 1. Load configurations from TradingConfig (.env)
     cfg = TradingConfig()
     cfg.validate()
-    logger.info(f"Loaded config: DB={cfg.db_path}, Train Sample Size={cfg.train_sample_size}, Broker={cfg.broker_type}, Mock Trading={cfg.mock_trading}")
+    logger.info(f"Loaded config: DB={cfg.db_path}, Broker={cfg.broker_type}, Mock Trading={cfg.mock_trading}")
     
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
@@ -129,50 +257,107 @@ def execute_prediction_pipeline():
     
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))
+
+    # StockPriceDB 캐시 초기화
+    price_db = StockPriceDB(db_path=cfg.stock_price_db_path)
+    freshness = cfg.get_freshness_days()
+
+    # 5. Fetch global indicator history for training & inference
+    start_date_train = cfg.train_start_date
+    start_date_infer = '2025-01-01'
+    logger.info("Fetching global indicator history...")
+    indicator_train = fetch_indicator_history(start_date_train, price_db, freshness)
+    indicator_infer = fetch_indicator_history(start_date_infer, price_db, freshness)
     
-    # 5. Prepare Training Data (On-device)
+    # 6. Prepare Training Data (On-device)
     sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
     krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
     
-    # Sample from settings
+    # Sample from settings (절대값 / 퍼센트 / "all")
     import random
-    random.seed(42)
-    sample_size = cfg.train_sample_size
-    train_symbols = random.sample(sp500_symbols, min(sample_size, len(sp500_symbols))) + \
-                    random.sample(krx_symbols, min(sample_size, len(krx_symbols)))
+    seed = cfg.get_train_seed()
+    if seed is not None:
+        random.seed(seed)
+
+    sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(sp500_symbols))
+    krx_sample = cfg.resolve_sample_size(cfg.train_sample_krx, len(krx_symbols))
+
+    def _safe_sample(population, k):
+        if k >= len(population):
+            return list(population)
+        return random.sample(population, k)
+
+    train_symbols = _safe_sample(sp500_symbols, sp500_sample) + \
+                    _safe_sample(krx_symbols, krx_sample)
     
-    start_date_train = '2023-01-01'
-    start_date_infer = '2025-01-01'
+    # 6. Fetch corporate fundamentals in background (non-blocking)
+    import threading
+    def _bg_fundamentals(syms, label):
+        logger.info(f"[BG] Fetching fundamentals for {label} ({len(syms)} symbols)...")
+        try:
+            fetch_and_store_fundamentals_batch(syms, symbol_market, storage)
+            logger.info(f"[BG] Fundamentals fetch complete for {label}")
+        except Exception as e:
+            logger.warning(f"[BG] Fundamentals fetch failed for {label}: {e}")
+    if train_symbols:
+        t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"), daemon=True)
+        t.start()
     
     model = OnDevicePredictionModel()
-    logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols...")
+    update_interval = cfg.get_update_interval()
+    logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols (update_interval={update_interval}s)...")
     train_data_dict = {}
     
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in train_symbols:
             sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
-            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_train)] = sym
-            
+            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_train, price_db, freshness, update_interval)] = sym
+
+        done_count = 0
         for future in as_completed(future_to_sym):
             sym = future_to_sym[future]
             try:
-                df = future.result()
+                df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
                 if df is not None and not df.empty:
                     df = model.merge_fundamentals(sym, df, storage)
                     train_data_dict[sym] = df
+            except TimeoutError:
+                logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
             except Exception:
                 pass
+            done_count += 1
+            if done_count % 100 == 0:
+                logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
                 
-    df_train = model.prepare_training_data(train_data_dict)
+    df_train = model.prepare_training_data(train_data_dict, indicator_train)
     
-    # 6. Train XGBoost model
-    logger.info("Training XGBoost Regressor (On-device)...")
-    model.train(df_train)
+    # 7. Train XGBoost models per market
+    if not df_train.empty and 'symbol' in df_train.columns:
+        from src.ai.prediction_model import OnDevicePredictionModel as _OPM
+        krx_mask = df_train['symbol'].apply(_OPM.is_krx_symbol)
+        sp500_train = df_train[~krx_mask]
+        krx_train = df_train[krx_mask]
+    else:
+        sp500_train = pd.DataFrame()
+        krx_train = pd.DataFrame()
+
+    if not sp500_train.empty:
+        logger.info(f"Training S&P 500 model ({len(sp500_train)} rows)...")
+        model.train(sp500_train, market="sp500")
+
+    if not krx_train.empty:
+        logger.info(f"Training KRX model ({len(krx_train)} rows)...")
+        model.train(krx_train, market="krx")
     
-    # 7. Fetch recent data for ALL symbols to run inference
+    # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
-    logger.info(f"Fetching inference data for ALL {len(all_symbols)} symbols...")
+    if all_symbols:
+        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"), daemon=True)
+        t2.start()
+
+    # 9. Fetch recent data for ALL symbols to run inference
+    logger.info(f"Fetching inference data for ALL {len(all_symbols)} symbols (update_interval={update_interval}s)...")
     
     infer_data_dict = {}
     count = 0
@@ -180,37 +365,67 @@ def execute_prediction_pipeline():
         future_to_sym = {}
         for sym in all_symbols:
             sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
-            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_infer)] = sym
-            
+            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_infer, price_db, freshness, update_interval)] = sym
+
         for future in as_completed(future_to_sym):
             sym = future_to_sym[future]
             try:
-                df = future.result()
+                df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
                 if df is not None and not df.empty:
                     df = model.merge_fundamentals(sym, df, storage)
                     infer_data_dict[sym] = df
+            except TimeoutError:
+                logger.warning(f"[{count+1}/{len(all_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
             except Exception:
                 pass
             count += 1
             if count % 500 == 0:
-                logger.info(f"Fetched inference data: {count}/{len(all_symbols)}")
+                logger.info(f"Fetched inference data: {count}/{len(all_symbols)} ({len(infer_data_dict)} loaded)")
                 
-    # 8. Run predictions
+    # 10. Run predictions
     logger.info("Running prediction inference...")
-    res_df = model.process_and_predict_all(infer_data_dict)
+    res_df = model.process_and_predict_all(infer_data_dict, indicator_infer)
     
     if res_df.empty:
         logger.error("No predictions made.")
         return None
         
-    # 9. Save predictions to DB
+    # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
     logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
     
-    # Build formatted message for Telegram
+    # Build formatted message for Telegram (top-10 per market)
     message_text = format_prediction_message(res_df, universe)
     print(message_text)
-                
+
+    # Save full inference results for ALL symbols to file
+    output_path = os.path.join(os.path.dirname(__file__), "pipeline_result.txt")
+    krx_set, sp500_set = _market_symbols(universe)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(f"=== Full Pipeline Inference Results ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f.write(f"Total symbols: {len(res_df)}\n\n")
+        for h in [1, 5, 10, 20, 30, 60, 120, 200]:
+            if h not in res_df.columns:
+                continue
+            sorted_df = res_df.sort_values(by=h, ascending=False)
+            krx_df = sorted_df[sorted_df['symbol'].isin(krx_set)]
+            sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)]
+            f.write(f"{'='*60}\n")
+            f.write(f"Horizon: {h}d\n\n")
+            f.write(f"--- KOSPI/KOSDAQ/KONEX (all {len(krx_df)} symbols) ---\n")
+            for rank, (_, row) in enumerate(krx_df.iterrows(), 1):
+                name_row = universe[universe['symbol'] == row['symbol']]
+                name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+                f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+            f.write(f"\n--- S&P 500 (all {len(sp500_df)} symbols) ---\n")
+            for rank, (_, row) in enumerate(sp500_df.iterrows(), 1):
+                name_row = universe[universe['symbol'] == row['symbol']]
+                name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+                f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+            f.write("\n")
+    logger.info(f"Saved full pipeline result ({len(res_df)} symbols) to {output_path}")
+
     return res_df, message_text
 
 if __name__ == "__main__":
