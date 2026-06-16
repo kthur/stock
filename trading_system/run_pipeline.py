@@ -405,6 +405,13 @@ def execute_prediction_pipeline():
         logger.info(f"Training KRX model ({len(krx_train)} rows)...")
         model.train(krx_train, market="krx")
     
+    # 7b. Train surge detection classifiers (>= 20% return)
+    logger.info("Training surge detection models...")
+    if not sp500_train.empty:
+        model.train_surge(sp500_train, market="sp500")
+    if not krx_train.empty:
+        model.train_surge(krx_train, market="krx")
+    
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
     if all_symbols:
@@ -456,6 +463,12 @@ def execute_prediction_pipeline():
     if res_df.empty:
         logger.error("No predictions made.")
         return None
+    
+    # 10b. Run surge detection inference (>= 20% return probability)
+    logger.info("Running surge detection inference...")
+    surge_df = model.predict_surge_all(infer_data_dict, indicator_infer)
+    if not surge_df.empty:
+        logger.info(f"Surge predictions generated for {len(surge_df)} symbols")
         
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
@@ -501,6 +514,34 @@ def execute_prediction_pipeline():
                 f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
             f.write("\n")
     logger.info(f"Saved full pipeline result ({len(res_df)} symbols) to {output_path}")
+
+    # Save surge detection results to separate file
+    if not surge_df.empty:
+        surge_output_path = os.path.join(os.path.dirname(__file__), "surge_predictions.txt")
+        with open(surge_output_path, "w", encoding="utf-8") as f:
+            f.write("=== Surge Detection Results (>= 20% return) ===\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f.write(f"Threshold: >= {model.surge_threshold*100:.0f}%\n")
+            f.write(f"Total symbols: {len(surge_df)}\n\n")
+
+            # Merge name/market info
+            surge_df = surge_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+
+            for h in model.surge_horizons:
+                col = f'surge_{h}d'
+                if col not in surge_df.columns:
+                    continue
+                sorted_df = surge_df.sort_values(by=col, ascending=False)
+                f.write(f"{'='*60}\n")
+                f.write(f"[{h}일] Top 20 Surge Candidates\n")
+                f.write(f"{'='*60}\n")
+                for rank, (_, row) in enumerate(sorted_df.head(20).iterrows(), 1):
+                    market_tag = "KRX" if row.get('market', '').startswith('K') else "SP500"
+                    name = row.get('name', 'Unknown')
+                    prob = row[col] * 100
+                    f.write(f"  {rank}. [{market_tag}] {row['symbol']} ({name}): {prob:.1f}%\n")
+                f.write("\n")
+        logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
 
     return res_df, message_text
 

@@ -3,7 +3,7 @@ import pandas as pd
 import xgboost as xgb
 import hashlib
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 _HAS_CUDA = False
 try:
@@ -122,7 +122,10 @@ class OnDevicePredictionModel:
     def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
+        self.surge_models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
+        self.surge_horizons = [1, 3, 5, 20]
+        self.surge_threshold = 0.20
         self._has_gpu = _HAS_CUDA
         self._xgb_kwargs: Dict[str, Any] = dict(
             n_estimators=500,
@@ -135,8 +138,22 @@ class OnDevicePredictionModel:
             random_state=42,
             early_stopping_rounds=50,
         )
+        self._surge_xgb_kwargs: Dict[str, Any] = dict(
+            n_estimators=500,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            max_delta_step=3,
+            n_jobs=-1,
+            random_state=42,
+            early_stopping_rounds=50,
+            eval_metric='auc',
+        )
         if self._has_gpu:
             self._xgb_kwargs['device'] = 'cuda'
+            self._surge_xgb_kwargs['device'] = 'cuda'
 
         if model_dir is None:
             self.model_dir = Path(__file__).resolve().parent.parent.parent / "models"
@@ -145,6 +162,7 @@ class OnDevicePredictionModel:
 
         logger.info(f"OnDevicePredictionModel initialized (GPU={'yes' if self._has_gpu else 'no'})")
         self.load_models()
+        self.load_surge_models()
 
     def save_models(self):
         try:
@@ -153,6 +171,7 @@ class OnDevicePredictionModel:
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
                     model.get_booster().save_model(str(model_path))
+            self.save_surge_models()
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
@@ -179,6 +198,40 @@ class OnDevicePredictionModel:
                 logger.info(f"Loaded {total} models from {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to load models: {e}")
+
+    def save_surge_models(self):
+        try:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            for market, models in self.surge_models.items():
+                for h, model in models.items():
+                    model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
+                    model.get_booster().save_model(str(model_path))
+            logger.info(f"Surge models saved to {self.model_dir}")
+        except Exception as e:
+            logger.error(f"Failed to save surge models: {e}")
+
+    def load_surge_models(self):
+        try:
+            for market in ['sp500', 'krx']:
+                self.surge_models[market] = {}
+                for h in self.surge_horizons:
+                    model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
+                    if model_path.exists():
+                        booster = xgb.Booster()
+                        booster.load_model(str(model_path))
+                        booster.set_param('predictor', 'auto')
+                        model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
+                        model._Booster = booster
+                        model._estimator_type = 'classifier'
+                        self.surge_models[market][h] = model
+                        logger.debug(f"Loaded surge model for {market} {h}d from {model_path}")
+                if not self.surge_models[market]:
+                    del self.surge_models[market]
+            total = sum(len(v) for v in self.surge_models.values())
+            if total:
+                logger.info(f"Loaded {total} surge models from {self.model_dir}")
+        except Exception as e:
+            logger.error(f"Failed to load surge models: {e}")
 
     @staticmethod
     def is_krx_symbol(symbol: str) -> bool:
@@ -570,6 +623,61 @@ class OnDevicePredictionModel:
             logger.info(f"{market} model for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
         self.save_models()
 
+    def train_surge(self, df_train: pd.DataFrame, market: str = "sp500"):
+        """Train XGBoost classifiers for surge detection (>=20% return)."""
+        if df_train.empty:
+            logger.warning(f"Empty training data for surge {market}.")
+            return
+
+        features = self.ALL_FEATURES
+        kw = dict(self._surge_xgb_kwargs)
+
+        # Time-based validation split (last 20%)
+        if 'date' in df_train.columns:
+            dates = pd.to_datetime(df_train['date'])
+            cutoff = dates.quantile(0.8)
+            train_idx = dates <= cutoff
+            val_idx = dates > cutoff
+            if val_idx.sum() < 100:
+                train_idx = pd.Series([True] * len(df_train))
+                val_idx = pd.Series([False] * len(df_train))
+        else:
+            train_idx = pd.Series([True] * len(df_train))
+            val_idx = pd.Series([False] * len(df_train))
+
+        if market not in self.surge_models:
+            self.surge_models[market] = {}
+
+        for h in self.surge_horizons:
+            logger.info(f"Training surge model for {market} {h}d horizon...")
+            X = df_train[features]
+            target = (df_train[f'target_{h}d'] >= self.surge_threshold).astype(int)
+            pos_count = target.sum()
+            neg_count = len(target) - pos_count
+
+            if pos_count == 0:
+                logger.warning(f"No surge samples for {market} {h}d, skipping")
+                continue
+
+            scale_pos_weight = neg_count / pos_count
+            kw['scale_pos_weight'] = scale_pos_weight
+            logger.info(f"Surge {market} {h}d: {pos_count} positive / {neg_count} negative (scale={scale_pos_weight:.1f})")
+
+            X_train = X[train_idx]
+            y_train = target[train_idx]
+            X_val = X[val_idx]
+            y_val = target[val_idx]
+
+            if val_idx.any() and 'early_stopping_rounds' in kw:
+                model = xgb.XGBClassifier(**kw)
+                model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+            else:
+                kw_no_es = {k: v for k, v in kw.items() if k != 'early_stopping_rounds'}
+                model = xgb.XGBClassifier(**kw_no_es)
+                model.fit(X_train, y_train)
+            self.surge_models[market][h] = model
+        self.save_surge_models()
+
     def predict_current(self, df_current: pd.DataFrame, indicator_df: pd.DataFrame = None,
                          market: str = "sp500") -> Dict[int, float]:
         """
@@ -677,4 +785,52 @@ class OnDevicePredictionModel:
                     logger.warning(f"Clipped extreme {h}d predictions to ±500%.")
 
         return res_df
+
+    def predict_surge_all(self, prices_dict: Dict[str, pd.DataFrame],
+                           indicator_df: pd.DataFrame = None) -> pd.DataFrame:
+        """
+        Predict surge probability (>= threshold return) for all symbols.
+        Uses market-specific surge classifiers (sp500/krx).
+        Returns DataFrame with symbols and surge probabilities per horizon.
+        """
+        prices_dict = self.apply_market_normalization(prices_dict)
+        features = self.ALL_FEATURES
+
+        latest_features_list = []
+        symbols_list = []
+        market_list = []
+
+        for sym, df in prices_dict.items():
+            if df is None or len(df) < 65:
+                continue
+            df = df.copy()
+            df['symbol'] = sym
+            df_feat = self._create_features(df, indicator_df)
+            if df_feat.empty:
+                continue
+            latest = df_feat.iloc[-1:]
+            latest_features_list.append(latest[features])
+            symbols_list.append(sym)
+            market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
+
+        if not latest_features_list:
+            return pd.DataFrame()
+
+        import warnings
+        res_dict: dict = {'symbol': symbols_list}
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
+            for h in self.surge_horizons:
+                probs = []
+                for i, market in enumerate(market_list):
+                    models = self.surge_models.get(market, {})
+                    if h in models:
+                        X_row = latest_features_list[i]
+                        prob = float(models[h].predict_proba(X_row)[0, 1])
+                    else:
+                        prob = 0.0
+                    probs.append(prob)
+                res_dict[f'surge_{h}d'] = probs
+
+        return pd.DataFrame(res_dict)
 
