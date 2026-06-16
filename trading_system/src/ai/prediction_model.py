@@ -5,11 +5,12 @@ import hashlib
 import numpy as np
 from typing import Dict, Any, Optional
 
+_HAS_CUDA = False
 try:
     import torch
     _HAS_CUDA = torch.cuda.is_available()
 except Exception:
-    _HAS_CUDA = False
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ class OnDevicePredictionModel:
             for market, models in self.models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
-                    model.save_model(str(model_path))
+                    model.get_booster().save_model(str(model_path))
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
@@ -166,8 +167,6 @@ class OnDevicePredictionModel:
                         booster = xgb.Booster()
                         booster.load_model(str(model_path))
                         booster.set_param('predictor', 'auto')
-                        if self._has_gpu:
-                            booster.set_param('device', 'cuda')
                         model = xgb.XGBRegressor(**self._xgb_kwargs)
                         model._Booster = booster
                         model._estimator_type = 'regressor'
@@ -359,8 +358,9 @@ class OnDevicePredictionModel:
                         break
                 if date_col:
                     df['date_align'] = pd.to_datetime(df[date_col])
-                    df = pd.merge(df, df_fun, left_on='date_align', right_on='date', how='left')
-                    df = df.drop(columns=['date_align', 'date'])
+                    df = pd.merge(df, df_fun, left_on='date_align', right_on='date',
+                                  how='left', suffixes=('', '_fund'))
+                    df = df.drop(columns=['date_align', 'date_fund'])
                     df = df.set_index(date_col)
                 else:
                     try:
@@ -430,10 +430,6 @@ class OnDevicePredictionModel:
         if not all(col in df.columns for col in ['norm_market_cap', 'norm_floating_value', 'norm_volume']):
             norm_dict = self.apply_market_normalization({'TEMP': df})
             df = norm_dict['TEMP']
-
-        # Ensure fundamental columns exist and are filled/merged
-        symbol = df['symbol'].iloc[0] if 'symbol' in df.columns else 'TEMP'
-        df = self.merge_fundamentals(symbol, df)
 
         # Save the latest row identifier to detect if it gets dropped
         latest_input_idx = df.index[-1] if not df.empty else None
@@ -646,17 +642,19 @@ class OnDevicePredictionModel:
         # 2. Predict per market (batch per market for efficiency)
         import warnings
         res_dict: dict = {'symbol': symbols_list}
-        for h in self.horizons:
-            preds = []
-            for i, market in enumerate(market_list):
-                models = self.models.get(market, {})
-                if h in models:
-                    X_row = latest_features_list[i]
-                    pred = float(models[h].predict(X_row)[0])
-                else:
-                    pred = 0.0
-                preds.append(pred)
-            res_dict[h] = preds
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
+            for h in self.horizons:
+                preds = []
+                for i, market in enumerate(market_list):
+                    models = self.models.get(market, {})
+                    if h in models:
+                        X_row = latest_features_list[i]
+                        pred = float(models[h].predict(X_row)[0])
+                    else:
+                        pred = 0.0
+                    preds.append(pred)
+                res_dict[h] = preds
 
         # 3. Convert to DataFrame
         res_df = pd.DataFrame(res_dict)

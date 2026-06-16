@@ -67,12 +67,16 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
         if freshness_days < 0:
             stale = False
         else:
-            stale = price_db.needs_update(symbol, max_age_days=freshness_days)
+            stale = price_db.needs_update(symbol, max_age_days=freshness_days,
+                                          start_date=start_date)
         if not stale:
             df = price_db.get_prices(symbol, start_date=start_date)
             if not df.empty:
                 logger.debug(f"Using cached prices for {symbol}")
                 return df
+            if freshness_days < 0:
+                logger.debug(f"No cached data for {symbol} in offline mode (freshness<0)")
+                return None
         # stale or empty cache → fall through to network fetch
 
     # Rate limit before network request
@@ -148,9 +152,17 @@ def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
         df = None
         # Try cache first
         if price_db is not None:
-            stale = price_db.needs_update(ticker, max_age_days=freshness_days)
+            if freshness_days < 0:
+                stale = False
+            else:
+                stale = price_db.needs_update(ticker, max_age_days=freshness_days,
+                                              start_date=start_date)
             if not stale:
                 df = price_db.get_prices(ticker, start_date=start_date)
+        # If offline mode (freshness<0), skip network fetch
+        if freshness_days < 0 and (df is None or df.empty):
+            combined[col_name] = pd.Series(dtype=float)
+            continue
         # Fetch from yfinance if no cache
         if df is None or df.empty:
             try:
@@ -162,8 +174,8 @@ def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
                     if price_db is not None:
                         try:
                             price_db.update_prices(ticker, df)
-                        except Exception:
-                            pass
+                        except Exception as ex:
+                            logger.debug(f"Failed to cache indicator {ticker}: {ex}")
             except Exception as e:
                 logger.debug(f"Failed to fetch indicator {ticker}: {e}")
         if df is not None and not df.empty:
@@ -226,6 +238,37 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
         lines.extend(_fmt_top(sp500_df, h, krx_set, sp500_set, universe, 10))
 
     return "\n".join(lines)
+
+
+def _get_excluded_krx_symbols() -> set:
+    """Get KRX symbols excluded due to halted trading or admin status.
+
+    Uses FinanceDataReader to check:
+    - Volume=0: trading halted (거래정지)
+    - KRX-ADMINISTRATIVE: under administration (관리종목)
+
+    Returns empty set on failure (e.g. offline mode).
+    """
+    excluded = set()
+    try:
+        try:
+            krx = fdr.StockListing('KRX')
+            halted = set(krx[krx['Volume'] == 0]['Code'].tolist())
+            if halted:
+                logger.info(f"Excluding {len(halted)} halted KRX stocks (Volume=0)")
+            excluded |= halted
+        except Exception as e:
+            logger.debug(f"Could not fetch KRX listing: {e}")
+        try:
+            admin = set(fdr.StockListing('KRX-ADMINISTRATIVE')['Code'].tolist())
+            if admin:
+                logger.info(f"Excluding {len(admin)} administrative KRX stocks (관리종목)")
+            excluded |= admin
+        except Exception as e:
+            logger.debug(f"Could not fetch KRX-ADMINISTRATIVE listing: {e}")
+    except Exception:
+        pass
+    return excluded
 
 
 def execute_prediction_pipeline():
@@ -300,7 +343,7 @@ def execute_prediction_pipeline():
         except Exception as e:
             logger.warning(f"[BG] Fundamentals fetch failed for {label}: {e}")
     if train_symbols:
-        t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"), daemon=True)
+        t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"))
         t.start()
     
     model = OnDevicePredictionModel()
@@ -320,16 +363,28 @@ def execute_prediction_pipeline():
             try:
                 df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
                 if df is not None and not df.empty:
-                    df = model.merge_fundamentals(sym, df, storage)
                     train_data_dict[sym] = df
             except TimeoutError:
                 logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Skipping {sym}: {e}")
             done_count += 1
             if done_count % 100 == 0:
                 logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
-                
+
+    # Wait for fundamentals fetch to complete before merging
+    if train_symbols:
+        logger.info("Waiting for training fundamentals fetch to complete...")
+        t.join()
+
+    # Merge fundamentals (now DB has real data from background thread)
+    for sym in list(train_data_dict.keys()):
+        try:
+            train_data_dict[sym] = model.merge_fundamentals(sym, train_data_dict[sym], storage)
+        except Exception as e:
+            logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
+            del train_data_dict[sym]
+
     df_train = model.prepare_training_data(train_data_dict, indicator_train)
     
     # 7. Train XGBoost models per market
@@ -353,7 +408,7 @@ def execute_prediction_pipeline():
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
     if all_symbols:
-        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"), daemon=True)
+        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"))
         t2.start()
 
     # 9. Fetch recent data for ALL symbols to run inference
@@ -372,15 +427,27 @@ def execute_prediction_pipeline():
             try:
                 df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
                 if df is not None and not df.empty:
-                    df = model.merge_fundamentals(sym, df, storage)
                     infer_data_dict[sym] = df
             except TimeoutError:
                 logger.warning(f"[{count+1}/{len(all_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Skipping {sym}: {e}")
             count += 1
             if count % 500 == 0:
                 logger.info(f"Fetched inference data: {count}/{len(all_symbols)} ({len(infer_data_dict)} loaded)")
+
+    # Wait for inference fundamentals fetch to complete before merging
+    if all_symbols:
+        logger.info("Waiting for inference fundamentals fetch to complete...")
+        t2.join()
+
+    # Merge fundamentals (now DB has real data from background thread)
+    for sym in list(infer_data_dict.keys()):
+        try:
+            infer_data_dict[sym] = model.merge_fundamentals(sym, infer_data_dict[sym], storage)
+        except Exception as e:
+            logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
+            del infer_data_dict[sym]
                 
     # 10. Run predictions
     logger.info("Running prediction inference...")
@@ -393,6 +460,15 @@ def execute_prediction_pipeline():
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
     logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
+    
+    # Filter out halted/admin KRX stocks from display output
+    excluded_krx = _get_excluded_krx_symbols()
+    if excluded_krx:
+        before = len(res_df)
+        res_df = res_df[~res_df['symbol'].isin(excluded_krx)]
+        filtered = before - len(res_df)
+        if filtered:
+            logger.info(f"Filtered out {filtered} halted/admin KRX stocks from display")
     
     # Build formatted message for Telegram (top-10 per market)
     message_text = format_prediction_message(res_df, universe)

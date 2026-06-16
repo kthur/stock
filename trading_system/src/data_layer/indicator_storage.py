@@ -103,6 +103,16 @@ class MarketIndicatorStorage:
         logger.info("Fetching KRX universe...")
         krx = fdr.StockListing('KRX')
 
+        # 거래정지(Volume=0) 및 관리종목 제외
+        excluded = set(krx[krx['Volume'] == 0]['Code'].tolist())
+        try:
+            adm = fdr.StockListing('KRX-ADMINISTRATIVE')
+            for s in adm['Symbol']:
+                excluded.add(f'{s:06d}')
+            logger.info(f"Excluded {len(excluded)} halted/caution KRX symbols")
+        except Exception as e:
+            logger.warning(f"Failed to fetch KRX administrative list: {e}")
+
         with sqlite3.connect(self.db_path) as conn:
             # S&P 500
             for _, row in sp500.iterrows():
@@ -110,9 +120,10 @@ class MarketIndicatorStorage:
                     "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
                     (row['Symbol'], row['Name'], 'SP500')
                 )
-            # KRX
+            # KRX (filtered)
             for _, row in krx.iterrows():
-                # KRX symbols are 6 digits; append .KS/.KQ later if needed for yfinance
+                if row['Code'] in excluded:
+                    continue
                 conn.execute(
                     "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
                     (row['Code'], row['Name'], row.get('Market', 'KRX'))

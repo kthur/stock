@@ -6,7 +6,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-env_path = Path(__file__).parent.parent.parent / ".env"
+env_path = Path(__file__).parent.parent / ".env"
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 else:
@@ -48,7 +48,15 @@ class TradingConfig:
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self):
+        self._resolve_db_paths()
         self._parsed_authorized_user_ids = self._parse_authorized_ids()
+
+    def _resolve_db_paths(self):
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for field_name in ('db_path', 'stock_price_db_path'):
+            val = getattr(self, field_name)
+            if not os.path.isabs(val):
+                setattr(self, field_name, os.path.join(base, val))
 
     def _parse_authorized_ids(self) -> list:
         if not self.telegram_authorized_user_ids.strip():
