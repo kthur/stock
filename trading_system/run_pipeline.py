@@ -430,7 +430,7 @@ def execute_prediction_pipeline():
     
     # 7c. Compute lead-lag correlation matrix (which stocks follow which)
     if not df_train.empty and len(df_train) > 1000:
-        model.compute_lead_lag(df_train, top_leaders=50)
+        model.compute_lead_lag(df_train)
     
     # 7d. Train VCP ML surge models (KOSPI/KOSDAQ/KONEX/SP500 per-market)
     from src.ai.vcp_ml_predictor import VCPSurgePredictor

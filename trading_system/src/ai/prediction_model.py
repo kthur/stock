@@ -923,39 +923,40 @@ class OnDevicePredictionModel:
         except Exception as e:
             logger.error(f"Failed to load lead-lag matrix: {e}")
 
-    def compute_lead_lag(self, df_train: pd.DataFrame, top_leaders: int = 50, lead_lag_days: int = 1):
-        logger.info(f"Computing lead-lag matrix (top {top_leaders} leaders, {lead_lag_days}d lag)...")
+    def compute_lead_lag(self, df_train: pd.DataFrame, lead_lag_days: int = 1):
+        """Compute lead-lag correlation matrix using ALL symbols as potential leaders.
+
+        Uses lag-1 cross-correlation: corr(i,j) = E[ret_i[t] * ret_j[t+1]].
+        For each leader i, stores top 20 followers (symbols with highest positive correlation).
+        """
         import numpy as np
 
+        logger.info("Computing lead-lag matrix for ALL symbols...")
         ret_pivot = df_train.pivot_table(
             index='date', columns='symbol', values='ret_1d', aggfunc='first'
         )
         ret_pivot = ret_pivot.fillna(0)
 
-        leader_ranks = df_train.groupby('symbol')['norm_market_cap'].mean().sort_values(ascending=False)
-        leaders = leader_ranks.head(top_leaders).index.tolist()
-
         all_symbols = ret_pivot.columns.tolist()
-        sym_to_idx = {s: i for i, s in enumerate(all_symbols)}
-        leader_idxs = [sym_to_idx[l] for l in leaders if l in sym_to_idx]
+        N = len(all_symbols)
 
         ret_arr = ret_pivot.values.astype(np.float64)
         ret_z = (ret_arr - ret_arr.mean(axis=0)) / (ret_arr.std(axis=0) + 1e-10)
 
         lead_arr = ret_z[:-lead_lag_days]
         follow_arr = ret_z[lead_lag_days:]
-        n_time = len(lead_arr)
+        n_time = lead_arr.shape[0]
+
+        # Full N×N lag-1 correlation matrix in one matrix multiply
+        corr_matrix = (lead_arr.T @ follow_arr) / (n_time - 1)
 
         self.lead_lag_leaders = []
         self.lead_lag_matrix = {}
-        for l_idx, leader in zip(leader_idxs, leaders):
-            l_ret = lead_arr[:, l_idx:l_idx + 1]
-            corrs = (l_ret * follow_arr).sum(axis=0) / (n_time - 1)
-
+        for i, leader in enumerate(all_symbols):
             followers = [
-                (all_symbols[j], float(corrs[j]))
-                for j in range(len(all_symbols))
-                if j != l_idx and corrs[j] > 0
+                (all_symbols[j], float(corr_matrix[i, j]))
+                for j in range(N)
+                if j != i and corr_matrix[i, j] > 0
             ]
             followers.sort(key=lambda x: -x[1])
             if followers:
@@ -967,14 +968,13 @@ class OnDevicePredictionModel:
         self.save_lead_lag()
 
     def predict_lead_lag(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Predict follower surges based on ALL leaders' today returns."""
         if not self.lead_lag_matrix:
             logger.warning("No lead-lag matrix loaded, skipping prediction")
             return pd.DataFrame()
 
         today_returns = {}
-        needed = set(self.lead_lag_leaders)
-        for sym in needed:
-            df = prices_dict.get(sym)
+        for sym, df in prices_dict.items():
             if df is None or len(df) < 2:
                 continue
             close = df['Close']
