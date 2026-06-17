@@ -412,6 +412,10 @@ def execute_prediction_pipeline():
     if not krx_train.empty:
         model.train_surge(krx_train, market="krx")
     
+    # 7c. Compute lead-lag correlation matrix (which stocks follow which)
+    if not df_train.empty and len(df_train) > 1000:
+        model.compute_lead_lag(df_train, top_leaders=50)
+    
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
     if all_symbols:
@@ -469,6 +473,12 @@ def execute_prediction_pipeline():
     surge_df = model.predict_surge_all(infer_data_dict, indicator_infer)
     if not surge_df.empty:
         logger.info(f"Surge predictions generated for {len(surge_df)} symbols")
+    
+    # 10c. Run lead-lag inference (which stocks may surge based on leader movements)
+    logger.info("Running lead-lag inference...")
+    lead_lag_df = model.predict_lead_lag(infer_data_dict)
+    if not lead_lag_df.empty:
+        logger.info(f"Lead-lag predictions generated for {len(lead_lag_df)} symbols")
         
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
@@ -542,6 +552,35 @@ def execute_prediction_pipeline():
                     f.write(f"  {rank}. [{market_tag}] {row['symbol']} ({name}): {prob:.1f}%\n")
                 f.write("\n")
         logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
+
+    # Save lead-lag predictions to separate file
+    if not lead_lag_df.empty:
+        lead_lag_output_path = os.path.join(os.path.dirname(__file__), "lead_lag_predictions.txt")
+        lead_lag_df = lead_lag_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        with open(lead_lag_output_path, "w", encoding="utf-8") as f:
+            f.write("=== Lead-Lag Surge Predictions ===\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n\n")
+            for rank, (_, row) in enumerate(lead_lag_df.head(20).iterrows(), 1):
+                market_tag = "KRX" if row.get('market', '').startswith('K') else "SP500"
+                name = row.get('name', 'Unknown')
+                score = row['lead_lag_score'] * 100
+                f.write(f"  {rank}. [{market_tag}] {row['symbol']} ({name}): {score:.2f}%\n")
+            f.write(f"\n--- Leaders with highest today return ---\n")
+            leader_returns = []
+            for sym in model.lead_lag_leaders:
+                if sym in infer_data_dict:
+                    close = infer_data_dict[sym]['Close']
+                    if isinstance(close, pd.DataFrame):
+                        close = close.iloc[:, 0]
+                    ret = (close.iloc[-1] / close.iloc[-2]) - 1
+                    leader_returns.append((sym, ret))
+            leader_returns.sort(key=lambda x: -x[1])
+            for rank, (sym, ret) in enumerate(leader_returns[:10], 1):
+                name_row = universe[universe['symbol'] == sym]
+                name = name_row['name'].values[0] if not name_row.empty else sym
+                f.write(f"  {rank}. {sym} ({name}): +{ret*100:.2f}%\n")
+        logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
 
     return res_df, message_text
 

@@ -123,6 +123,8 @@ class OnDevicePredictionModel:
         from pathlib import Path
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
         self.surge_models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
+        self.lead_lag_matrix: Dict[str, List[Tuple[str, float]]] = {}
+        self.lead_lag_leaders: List[str] = []
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
         self.surge_horizons = [1, 3, 5, 20]
         self.surge_threshold = 0.20
@@ -164,6 +166,7 @@ class OnDevicePredictionModel:
         logger.info(f"OnDevicePredictionModel initialized (GPU={'yes' if self._has_gpu else 'no'})")
         self.load_models()
         self.load_surge_models()
+        self.load_lead_lag()
 
     def save_models(self):
         try:
@@ -849,4 +852,118 @@ class OnDevicePredictionModel:
                 res_dict[f'surge_{h}d'] = probs
 
         return pd.DataFrame(res_dict)
+
+    def save_lead_lag(self):
+        if not self.lead_lag_matrix:
+            return
+        try:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            path = self.model_dir / "lead_lag_matrix.json"
+            data = {
+                'leaders': self.lead_lag_leaders,
+                'matrix': {
+                    leader: [(f, float(s)) for f, s in followers]
+                    for leader, followers in self.lead_lag_matrix.items()
+                },
+            }
+            import json
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"Lead-lag matrix saved ({len(self.lead_lag_leaders)} leaders) to {path}")
+        except Exception as e:
+            logger.error(f"Failed to save lead-lag matrix: {e}")
+
+    def load_lead_lag(self):
+        try:
+            path = self.model_dir / "lead_lag_matrix.json"
+            if not path.exists():
+                return
+            import json
+            with open(path) as f:
+                data = json.load(f)
+            self.lead_lag_leaders = data['leaders']
+            self.lead_lag_matrix = {
+                leader: [(f, s) for f, s in followers]
+                for leader, followers in data['matrix'].items()
+            }
+            logger.info(f"Loaded lead-lag matrix ({len(self.lead_lag_leaders)} leaders) from {path}")
+        except Exception as e:
+            logger.error(f"Failed to load lead-lag matrix: {e}")
+
+    def compute_lead_lag(self, df_train: pd.DataFrame, top_leaders: int = 50, lead_lag_days: int = 1):
+        logger.info(f"Computing lead-lag matrix (top {top_leaders} leaders, {lead_lag_days}d lag)...")
+        import numpy as np
+
+        ret_pivot = df_train.pivot_table(
+            index='date', columns='symbol', values='ret_1d', aggfunc='first'
+        )
+        ret_pivot = ret_pivot.fillna(0)
+
+        leader_ranks = df_train.groupby('symbol')['norm_market_cap'].mean().sort_values(ascending=False)
+        leaders = leader_ranks.head(top_leaders).index.tolist()
+
+        all_symbols = ret_pivot.columns.tolist()
+        sym_to_idx = {s: i for i, s in enumerate(all_symbols)}
+        leader_idxs = [sym_to_idx[l] for l in leaders if l in sym_to_idx]
+
+        ret_arr = ret_pivot.values.astype(np.float64)
+        ret_z = (ret_arr - ret_arr.mean(axis=0)) / (ret_arr.std(axis=0) + 1e-10)
+
+        lead_arr = ret_z[:-lead_lag_days]
+        follow_arr = ret_z[lead_lag_days:]
+        n_time = len(lead_arr)
+
+        self.lead_lag_leaders = []
+        self.lead_lag_matrix = {}
+        for l_idx, leader in zip(leader_idxs, leaders):
+            l_ret = lead_arr[:, l_idx:l_idx + 1]
+            corrs = (l_ret * follow_arr).sum(axis=0) / (n_time - 1)
+
+            followers = [
+                (all_symbols[j], float(corrs[j]))
+                for j in range(len(all_symbols))
+                if j != l_idx and corrs[j] > 0
+            ]
+            followers.sort(key=lambda x: -x[1])
+            if followers:
+                self.lead_lag_leaders.append(leader)
+                self.lead_lag_matrix[leader] = followers[:20]
+
+        logger.info(f"Lead-lag matrix computed: {len(self.lead_lag_leaders)} leaders, "
+                     f"avg {sum(len(v) for v in self.lead_lag_matrix.values()) // max(len(self.lead_lag_matrix), 1)} followers each")
+        self.save_lead_lag()
+
+    def predict_lead_lag(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+        if not self.lead_lag_matrix:
+            logger.warning("No lead-lag matrix loaded, skipping prediction")
+            return pd.DataFrame()
+
+        today_returns = {}
+        for sym, df in prices_dict.items():
+            if df is None or len(df) < 2:
+                continue
+            close = df['Close']
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            ret_1d = (close.iloc[-1] / close.iloc[-2]) - 1
+            today_returns[sym] = ret_1d
+
+        follower_scores: Dict[str, float] = {}
+        for leader, followers in self.lead_lag_matrix.items():
+            leader_ret = today_returns.get(leader, 0.0)
+            if leader_ret <= 0.01:
+                continue
+            for follower, corr in followers:
+                weight = leader_ret * corr
+                follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, weight)
+
+        if not follower_scores:
+            return pd.DataFrame()
+
+        result = pd.DataFrame([
+            {'symbol': sym, 'lead_lag_score': score}
+            for sym, score in follower_scores.items()
+        ])
+        result = result.sort_values('lead_lag_score', ascending=False).reset_index(drop=True)
+        return result
 
