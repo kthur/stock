@@ -734,17 +734,11 @@ class OnDevicePredictionModel:
                 predictions[h] = pred
         return predictions
 
-    def process_and_predict_all(self, prices_dict: Dict[str, pd.DataFrame],
-                                 indicator_df: pd.DataFrame = None) -> pd.DataFrame:
-        """
-        Apply model to the latest data of all provided stocks in batch.
-        Uses market-specific models (sp500/krx).
-        Returns DataFrame with symbols and their predicted returns.
-        """
+    def _batch_compute_inference_features(self, prices_dict: Dict[str, pd.DataFrame],
+                                           indicator_df: pd.DataFrame = None):
+        """Compute latest features for all symbols once. Shared by regression + surge."""
         prices_dict = self.apply_market_normalization(prices_dict)
         features = self.ALL_FEATURES
-
-        # 1. Gather the latest features for all symbols
         latest_features_list = []
         symbols_list = []
         market_list = []
@@ -757,16 +751,18 @@ class OnDevicePredictionModel:
             df_feat = self._create_features(df, indicator_df)
             if df_feat.empty:
                 continue
-
             latest = df_feat.iloc[-1:]
             latest_features_list.append(latest[features])
             symbols_list.append(sym)
             market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
 
+        return symbols_list, market_list, latest_features_list
+
+    def _predict_regression(self, symbols_list, market_list,
+                            latest_features_list) -> pd.DataFrame:
+        """Run regression predictions on pre-computed features."""
         if not latest_features_list:
             return pd.DataFrame()
-
-        # 2. Predict per market (batch per market for efficiency)
         import warnings
         res_dict: dict = {'symbol': symbols_list}
         with warnings.catch_warnings():
@@ -776,17 +772,12 @@ class OnDevicePredictionModel:
                 for i, market in enumerate(market_list):
                     models = self.models.get(market, {})
                     if h in models:
-                        X_row = latest_features_list[i]
-                        pred = float(models[h].predict(X_row)[0])
+                        pred = float(models[h].predict(latest_features_list[i])[0])
                     else:
                         pred = 0.0
                     preds.append(pred)
                 res_dict[h] = preds
-
-        # 3. Convert to DataFrame
         res_df = pd.DataFrame(res_dict)
-
-        # 4. Validate predictions - warn if any are unrealistically extreme
         if not res_df.empty:
             for h in self.horizons:
                 if h not in res_df.columns:
@@ -797,44 +788,16 @@ class OnDevicePredictionModel:
                     logger.warning(
                         f"Extreme predictions detected for {h}d horizon: "
                         f"{len(extreme)}/{len(vals)} symbols have |return| > 200%. "
-                        f"Max={vals.max():.4f}, Min={vals.min():.4f}. "
-                        f"Consider retraining with more balanced data."
+                        f"Max={vals.max():.4f}, Min={vals.min():.4f}."
                     )
                     res_df[h] = vals.clip(lower=-5.0, upper=5.0)
-                    logger.warning(f"Clipped extreme {h}d predictions to ±500%.")
-
         return res_df
 
-    def predict_surge_all(self, prices_dict: Dict[str, pd.DataFrame],
-                           indicator_df: pd.DataFrame = None) -> pd.DataFrame:
-        """
-        Predict surge probability (>= threshold return) for all symbols.
-        Uses market-specific surge classifiers (sp500/krx).
-        Returns DataFrame with symbols and surge probabilities per horizon.
-        """
-        prices_dict = self.apply_market_normalization(prices_dict)
-        features = self.ALL_FEATURES
-
-        latest_features_list = []
-        symbols_list = []
-        market_list = []
-
-        for sym, df in prices_dict.items():
-            if df is None or len(df) < 65:
-                continue
-            df = df.copy()
-            df['symbol'] = sym
-            df_feat = self._create_features(df, indicator_df)
-            if df_feat.empty:
-                continue
-            latest = df_feat.iloc[-1:]
-            latest_features_list.append(latest[features])
-            symbols_list.append(sym)
-            market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
-
+    def _predict_surge(self, symbols_list, market_list,
+                       latest_features_list) -> pd.DataFrame:
+        """Run surge predictions on pre-computed features."""
         if not latest_features_list:
             return pd.DataFrame()
-
         import warnings
         res_dict: dict = {'symbol': symbols_list}
         with warnings.catch_warnings():
@@ -844,14 +807,32 @@ class OnDevicePredictionModel:
                 for i, market in enumerate(market_list):
                     models = self.surge_models.get(market, {})
                     if h in models:
-                        X_row = latest_features_list[i]
-                        prob = float(models[h].predict_proba(X_row)[0, 1])
+                        prob = float(models[h].predict_proba(latest_features_list[i])[0, 1])
                     else:
                         prob = 0.0
                     probs.append(prob)
                 res_dict[f'surge_{h}d'] = probs
-
         return pd.DataFrame(res_dict)
+
+    def predict_all(self, prices_dict: Dict[str, pd.DataFrame],
+                     indicator_df: pd.DataFrame = None):
+        """One-shot: compute features once, return (regression_df, surge_df)."""
+        syms, markets, feats = self._batch_compute_inference_features(prices_dict, indicator_df)
+        res_df = self._predict_regression(syms, markets, feats)
+        surge_df = self._predict_surge(syms, markets, feats)
+        return res_df, surge_df
+
+    def process_and_predict_all(self, prices_dict: Dict[str, pd.DataFrame],
+                                 indicator_df: pd.DataFrame = None) -> pd.DataFrame:
+        """Backward-compat: return regression results only."""
+        res, _ = self.predict_all(prices_dict, indicator_df)
+        return res
+
+    def predict_surge_all(self, prices_dict: Dict[str, pd.DataFrame],
+                           indicator_df: pd.DataFrame = None) -> pd.DataFrame:
+        """Backward-compat: return surge results only."""
+        _, surge = self.predict_all(prices_dict, indicator_df)
+        return surge
 
     def save_lead_lag(self):
         if not self.lead_lag_matrix:
@@ -939,7 +920,9 @@ class OnDevicePredictionModel:
             return pd.DataFrame()
 
         today_returns = {}
-        for sym, df in prices_dict.items():
+        needed = set(self.lead_lag_leaders)
+        for sym in needed:
+            df = prices_dict.get(sym)
             if df is None or len(df) < 2:
                 continue
             close = df['Close']

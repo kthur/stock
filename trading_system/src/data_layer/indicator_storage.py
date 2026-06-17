@@ -269,6 +269,12 @@ class MarketIndicatorStorage:
             row = cursor.fetchone()
             return row is not None and row[0] > 0
 
+    def get_all_fundamentals_symbols(self) -> set:
+        """Batch query: return set of all symbols that have fundamentals data."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT DISTINCT symbol FROM stock_fundamentals")
+            return {row[0] for row in cursor.fetchall()}
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

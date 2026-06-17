@@ -113,9 +113,16 @@ def fetch_and_store_fundamentals_batch(
     success = 0
     total = len(symbols)
 
+    # Batch query: get all existing symbols in one DB call
+    exists_set: set = set()
+    if not force_refetch and hasattr(storage, 'get_all_fundamentals_symbols'):
+        try:
+            exists_set = storage.get_all_fundamentals_symbols()
+        except Exception:
+            pass
+
     for idx, sym in enumerate(symbols, 1):
-        # Skip if already in DB
-        if not force_refetch and hasattr(storage, 'fundamentals_exist') and storage.fundamentals_exist(sym):
+        if not force_refetch and sym in exists_set:
             skipped += 1
             continue
 

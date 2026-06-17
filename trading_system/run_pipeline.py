@@ -460,19 +460,14 @@ def execute_prediction_pipeline():
             logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
             del infer_data_dict[sym]
                 
-    # 10. Run predictions
-    logger.info("Running prediction inference...")
-    res_df = model.process_and_predict_all(infer_data_dict, indicator_infer)
+    # 10. Run predictions (regression + surge, shared feature computation)
+    logger.info("Running inference (regression + surge)...")
+    res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer)
     
     if res_df.empty:
         logger.error("No predictions made.")
         return None
-    
-    # 10b. Run surge detection inference (>= 20% return probability)
-    logger.info("Running surge detection inference...")
-    surge_df = model.predict_surge_all(infer_data_dict, indicator_infer)
-    if not surge_df.empty:
-        logger.info(f"Surge predictions generated for {len(surge_df)} symbols")
+    logger.info(f"Regression: {len(res_df)} symbols, Surge: {len(surge_df) if not surge_df.empty else 0} symbols")
     
     # 10c. Run lead-lag inference (which stocks may surge based on leader movements)
     logger.info("Running lead-lag inference...")
@@ -569,12 +564,14 @@ def execute_prediction_pipeline():
             f.write(f"\n--- Leaders with highest today return ---\n")
             leader_returns = []
             for sym in model.lead_lag_leaders:
-                if sym in infer_data_dict:
-                    close = infer_data_dict[sym]['Close']
-                    if isinstance(close, pd.DataFrame):
-                        close = close.iloc[:, 0]
-                    ret = (close.iloc[-1] / close.iloc[-2]) - 1
-                    leader_returns.append((sym, ret))
+                df = infer_data_dict.get(sym)
+                if df is None or len(df) < 2:
+                    continue
+                close = df['Close']
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]
+                ret = (close.iloc[-1] / close.iloc[-2]) - 1
+                leader_returns.append((sym, ret))
             leader_returns.sort(key=lambda x: -x[1])
             for rank, (sym, ret) in enumerate(leader_returns[:10], 1):
                 name_row = universe[universe['symbol'] == sym]
