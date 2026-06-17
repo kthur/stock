@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import pandas as pd
 import numpy as np
@@ -8,6 +9,8 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_CPU_WORKERS = max(1, (os.cpu_count() or 4))
 
 _HAS_CUDA = False
 try:
@@ -84,7 +87,7 @@ class VCPSurgePredictor:
         windows = [5, 10, 20, 40, 60]
         ranges = []
         for w in windows:
-            r = (high.tail(w).max() - low.tail(w).max()) / close.tail(w).mean() * 100
+            r = (high.tail(w).max() - low.tail(w).min()) / close.tail(w).mean() * 100
             ranges.append(r)
 
         feat = {}
@@ -226,18 +229,36 @@ class VCPSurgePredictor:
 
         train_rows = []
         total = len(prices_dict)
-        for idx, (sym, df) in enumerate(prices_dict.items()):
-            if idx % 500 == 0:
-                logger.info(f"VCP ML progress: {idx}/{total}")
+        _prog_lock = threading.Lock()
+        _prog_count = [0]
+
+        def _compute_windows(sym: str, df: pd.DataFrame):
             market = universe_map.get(sym, 'SP500')
             if market not in MARKETS:
-                continue
+                with _prog_lock:
+                    _prog_count[0] += 1
+                return None
             ws = self._windowed_vcp_features(df, step=20)
+            with _prog_lock:
+                _prog_count[0] += 1
+                if _prog_count[0] % 500 == 0:
+                    logger.info(f"VCP ML progress: {_prog_count[0]}/{total}")
             if ws.empty:
-                continue
+                return None
+            ws = ws.copy()
             ws['symbol'] = sym
             ws['market'] = market
-            train_rows.append(ws)
+            return ws
+
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            futures = {pool.submit(_compute_windows, sym, df): sym for sym, df in prices_dict.items()}
+            for f in as_completed(futures):
+                try:
+                    r = f.result()
+                    if r is not None:
+                        train_rows.append(r)
+                except Exception as e:
+                    logger.debug(f"VCP ML window failed for {futures[f]}: {e}")
 
         if not train_rows:
             logger.warning("No VCP ML training rows created")
@@ -252,34 +273,52 @@ class VCPSurgePredictor:
         logger.info("Merging VCP features with base inference features...")
         normed = self._ft.apply_market_normalization(prices_dict)
         base_feat_dfs = []
-        for sym, df in normed.items():
+        _bf_lock = threading.Lock()
+        _bf_count = [0]
+
+        def _compute_base_feat(sym: str, df: pd.DataFrame):
             if df is None or len(df) < 65:
-                continue
+                with _bf_lock:
+                    _bf_count[0] += 1
+                return None
             df = df.copy()
             df['symbol'] = sym
             df_feat = self._ft._create_features(df, indicator_df)
+            with _bf_lock:
+                _bf_count[0] += 1
+                if _bf_count[0] % 500 == 0:
+                    logger.info(f"VCP ML base features: {_bf_count[0]}/{total}")
             if df_feat.empty:
-                continue
+                return None
             df_feat['symbol'] = sym
-            base_feat_dfs.append(df_feat)
+            return df_feat
+
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            futures = {pool.submit(_compute_base_feat, sym, df): sym for sym, df in normed.items()}
+            for f in as_completed(futures):
+                try:
+                    r = f.result()
+                    if r is not None:
+                        base_feat_dfs.append(r)
+                except Exception as e:
+                    logger.debug(f"VCP ML base feat failed for {futures[f]}: {e}")
+
         if base_feat_dfs:
             all_base = pd.concat(base_feat_dfs, ignore_index=True)
-            # Map windowed VCP features to nearest time slice in base features
+            present_base_cols = [c for c in self._ft.ALL_FEATURES if c in all_base.columns]
+            remove_syms = []
             for sym in df_train['symbol'].unique():
                 sym_mask = df_train['symbol'] == sym
-                sym_df = df_train[sym_mask].copy()
                 base_sym = all_base[all_base['symbol'] == sym]
                 if base_sym.empty:
-                    df_train = df_train[~sym_mask]
+                    remove_syms.append(sym)
                     continue
-                for idx2, row2 in sym_df.iterrows():
-                    di = row2['date_idx']
-                    match = base_sym.iloc[-1:] if di >= len(base_sym) else base_sym.iloc[[di - 1]]
-                    if match.empty:
-                        continue
-                    for col in self._ft.ALL_FEATURES:
-                        if col in match.columns:
-                            df_train.at[idx2, col] = match[col].values[0]
+                base_arr = base_sym[present_base_cols].values
+                date_idxs = df_train.loc[sym_mask, 'date_idx'].values - 1
+                date_idxs = np.clip(date_idxs, 0, len(base_arr) - 1)
+                df_train.loc[sym_mask, present_base_cols] = base_arr[date_idxs]
+            if remove_syms:
+                df_train = df_train[~df_train['symbol'].isin(remove_syms)]
             logger.info(f"After base feature merge: {len(df_train)} rows remaining")
 
         feat_cols = [c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in df_train.columns]
