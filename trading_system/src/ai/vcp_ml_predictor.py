@@ -291,6 +291,7 @@ class VCPSurgePredictor:
                 continue
 
             m_df = df_train[m_cond].copy()
+            m_df = m_df.reset_index(drop=True)
             logger.info(f"Training VCP ML for {market} ({len(m_df)} rows)")
 
             kw = dict(self._surge_xgb_kwargs)

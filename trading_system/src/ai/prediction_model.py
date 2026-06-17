@@ -625,6 +625,7 @@ class OnDevicePredictionModel:
             logger.warning(f"Empty training data for {market}.")
             return
 
+        df_train = df_train.reset_index(drop=True)
         features = self.ALL_FEATURES
         kw = dict(self._xgb_kwargs)
 
@@ -670,6 +671,7 @@ class OnDevicePredictionModel:
             logger.warning(f"Empty training data for surge {market}.")
             return
 
+        df_train = df_train.reset_index(drop=True)
         features = self.ALL_FEATURES
         missing = [f for f in features if f not in df_train.columns]
         if missing:
