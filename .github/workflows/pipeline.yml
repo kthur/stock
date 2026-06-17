@@ -18,23 +18,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        id: setup-python
-        with:
-          python-version: '3.12'
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
 
-      - name: Cache pip downloads
+      - name: Cache uv packages
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('trading_system/requirements.txt', 'trading_system/pyproject.toml') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.txt') }}
 
       - name: Install dependencies
         run: |
-          python3 -m venv .venv
-          .venv/bin/pip install --upgrade pip setuptools wheel
-          .venv/bin/pip install -r trading_system/requirements.txt
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          uv pip install -r trading_system/requirements.txt
 
       - name: Cache stock_prices.db
         uses: actions/cache@v4
