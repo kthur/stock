@@ -145,7 +145,8 @@ class OnDevicePredictionModel:
             subsample=0.8,
             colsample_bytree=0.8,
             reg_lambda=1.0,
-            max_delta_step=3,
+            min_child_weight=10,
+            max_delta_step=5,
             n_jobs=-1,
             random_state=42,
             early_stopping_rounds=50,
@@ -171,7 +172,6 @@ class OnDevicePredictionModel:
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
                     model.get_booster().save_model(str(model_path))
-            self.save_surge_models()
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
@@ -630,6 +630,11 @@ class OnDevicePredictionModel:
             return
 
         features = self.ALL_FEATURES
+        missing = [f for f in features if f not in df_train.columns]
+        if missing:
+            logger.error(f"Missing features {missing} for surge {market}, skipping")
+            return
+
         kw = dict(self._surge_xgb_kwargs)
 
         # Time-based validation split (last 20%)
@@ -649,9 +654,20 @@ class OnDevicePredictionModel:
             self.surge_models[market] = {}
 
         for h in self.surge_horizons:
+            target_col = f'target_{h}d'
+            if target_col not in df_train.columns:
+                if 'Close' in df_train.columns and 'symbol' in df_train.columns:
+                    logger.info(f"Computing {target_col} from Close for surge training")
+                    df_train[target_col] = df_train.groupby('symbol')['Close'].transform(
+                        lambda x: x.shift(-h) / x - 1
+                    ).fillna(0.0).replace([np.inf, -np.inf], 0.0)
+                else:
+                    logger.warning(f"Cannot compute {target_col}, missing Close/symbol columns, skipping")
+                    continue
+
             logger.info(f"Training surge model for {market} {h}d horizon...")
             X = df_train[features]
-            target = (df_train[f'target_{h}d'] >= self.surge_threshold).astype(int)
+            target = (df_train[target_col] >= self.surge_threshold).astype(int)
             pos_count = target.sum()
             neg_count = len(target) - pos_count
 
@@ -659,7 +675,7 @@ class OnDevicePredictionModel:
                 logger.warning(f"No surge samples for {market} {h}d, skipping")
                 continue
 
-            scale_pos_weight = neg_count / pos_count
+            scale_pos_weight = min(neg_count / pos_count, 500)
             kw['scale_pos_weight'] = scale_pos_weight
             logger.info(f"Surge {market} {h}d: {pos_count} positive / {neg_count} negative (scale={scale_pos_weight:.1f})")
 
