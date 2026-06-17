@@ -469,7 +469,24 @@ def execute_prediction_pipeline():
         return None
     logger.info(f"Regression: {len(res_df)} symbols, Surge: {len(surge_df) if not surge_df.empty else 0} symbols")
     
-    # 10c. Run lead-lag inference (which stocks may surge based on leader movements)
+    # 10c. Run VCP pattern detection (Volatility Contraction Pattern)
+    logger.info("Running VCP pattern detection...")
+    from src.ai.vcp_detector import detect_vcp
+    vcp_results = []
+    for sym, df in infer_data_dict.items():
+        if df is None or len(df) < 200:
+            continue
+        try:
+            result = detect_vcp(df)
+            if result['is_vcp']:
+                result['symbol'] = sym
+                vcp_results.append(result)
+        except Exception:
+            continue
+    vcp_results.sort(key=lambda x: -x['vcp_score'])
+    logger.info(f"VCP patterns found: {len(vcp_results)} symbols")
+    
+    # 10d. Run lead-lag inference (which stocks may surge based on leader movements)
     logger.info("Running lead-lag inference...")
     lead_lag_df = model.predict_lead_lag(infer_data_dict)
     if not lead_lag_df.empty:
@@ -578,6 +595,30 @@ def execute_prediction_pipeline():
                 name = name_row['name'].values[0] if not name_row.empty else sym
                 f.write(f"  {rank}. {sym} ({name}): +{ret*100:.2f}%\n")
         logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
+
+    # Save VCP pattern detection results
+    if vcp_results:
+        vcp_output_path = os.path.join(os.path.dirname(__file__), "vcp_patterns.txt")
+        vcp_universe_map = {s: (n, m) for s, n, m in zip(universe.get('symbol', []),
+                            universe.get('name', []), universe.get('market', []))}
+        with open(vcp_output_path, "w", encoding="utf-8") as f:
+            f.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f.write(f"Total VCP patterns found: {len(vcp_results)}\n\n")
+            for rank, r in enumerate(vcp_results[:30], 1):
+                sym = r['symbol']
+                name, market = vcp_universe_map.get(sym, ('Unknown', ''))
+                market_tag = "KRX" if str(market).startswith('K') else "SP500"
+                peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks'])
+                f.write(f"  {rank}. [{market_tag}] {sym} ({name})\n")
+                f.write(f"       Score: {r['vcp_score']:.0f}/100 | "
+                        f"Current range: {r['current_range_pct']:.1f}% | "
+                        f"Contraction: {peaks}\n")
+                f.write(f"       Above MA50: {'✓' if r['above_sma50'] else '✗'} | "
+                        f"Above MA200: {'✓' if r['above_sma200'] else '✗'} | "
+                        f"Near high: {'✓' if r['near_high'] else '✗'} | "
+                        f"Volume declining: {'✓' if r['volume_declining'] else '✗'}\n\n")
+        logger.info(f"Saved VCP patterns ({len(vcp_results)} symbols) to {vcp_output_path}")
 
     return res_df, message_text
 
