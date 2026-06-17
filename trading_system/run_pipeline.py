@@ -144,14 +144,12 @@ _INDICATOR_TICKERS = {
 
 def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
                             freshness_days: int = 7) -> pd.DataFrame:
-    """Download 8 global indicator tickers, compute daily change%, return single DataFrame.
+    """Download 8 global indicator tickers in parallel, return single DataFrame.
 
     Returns: DataFrame with DatetimeIndex and columns = _INDICATOR_TICKERS.values()
     """
-    combined = {}
-    for ticker, col_name in _INDICATOR_TICKERS.items():
+    def _fetch_one(ticker: str, col_name: str):
         df = None
-        # Try cache first
         if price_db is not None:
             if freshness_days < 0:
                 stale = False
@@ -160,11 +158,8 @@ def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
                                               start_date=start_date)
             if not stale:
                 df = price_db.get_prices(ticker, start_date=start_date)
-        # If offline mode (freshness<0), skip network fetch
         if freshness_days < 0 and (df is None or df.empty):
-            combined[col_name] = pd.Series(dtype=float)
-            continue
-        # Fetch from yfinance if no cache
+            return (col_name, pd.Series(dtype=float))
         if df is None or df.empty:
             try:
                 raw = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
@@ -181,9 +176,20 @@ def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
                 logger.debug(f"Failed to fetch indicator {ticker}: {e}")
         if df is not None and not df.empty:
             if col_name.endswith('_change'):
-                combined[col_name] = df['Close'].pct_change().fillna(0.0) * 100
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
             else:
-                combined[col_name] = df['Close'].ffill().fillna(0.0)
+                return (col_name, df['Close'].ffill().fillna(0.0))
+        return (col_name, pd.Series(dtype=float))
+
+    combined = {}
+    with ThreadPoolExecutor(max_workers=len(_INDICATOR_TICKERS)) as pool:
+        futures = {pool.submit(_fetch_one, t, c): c for t, c in _INDICATOR_TICKERS.items()}
+        for f in as_completed(futures):
+            try:
+                col_name, series = f.result()
+                combined[col_name] = series
+            except Exception as e:
+                logger.debug(f"Indicator fetch failed for {futures[f]}: {e}")
 
     if not combined:
         logger.warning("No indicator data fetched; returning empty DataFrame")
@@ -391,13 +397,24 @@ def execute_prediction_pipeline():
         logger.info("Waiting for training fundamentals fetch to complete...")
         t.join()
 
-    # Merge fundamentals (now DB has real data from background thread)
-    for sym in list(train_data_dict.keys()):
+    # Merge fundamentals (parallel)
+    merge_lock = threading.Lock()
+    def _merge_one(sym: str, df):
         try:
-            train_data_dict[sym] = model.merge_fundamentals(sym, train_data_dict[sym], storage)
+            merged = model.merge_fundamentals(sym, df, storage)
+            return (sym, merged)
         except Exception as e:
             logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
-            del train_data_dict[sym]
+            return (sym, None)
+
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
+        futures = {pool.submit(_merge_one, sym, df): sym for sym, df in train_data_dict.items()}
+        for f in as_completed(futures):
+            sym, merged = f.result()
+            if merged is not None:
+                train_data_dict[sym] = merged
+            else:
+                train_data_dict.pop(sym, None)
 
     df_train = model.prepare_training_data(train_data_dict, indicator_train)
     
@@ -417,22 +434,39 @@ def execute_prediction_pipeline():
     else:
         market_dfs = {m: pd.DataFrame() for m in ['sp500', 'kospi', 'kosdaq', 'konex']}
 
-    for m_name, m_df in market_dfs.items():
-        if not m_df.empty:
-            logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
-            model.train(m_df, market=m_name)
+    # 7. Train regression models per market (parallel)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {}
+        for m_name, m_df in market_dfs.items():
+            if not m_df.empty:
+                logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
+                futures[pool.submit(model.train, m_df, market=m_name, save_after=False)] = m_name
+        for f in as_completed(futures):
+            try:
+                f.result()
+            except Exception as e:
+                logger.error(f"Regression training failed for {futures[f]}: {e}")
+    model.save_models()
 
-    # 7b. Train surge detection classifiers per market
+    # 7b. Train surge detection classifiers per market (parallel)
     logger.info("Training surge detection models...")
-    for m_name, m_df in market_dfs.items():
-        if not m_df.empty:
-            model.train_surge(m_df, market=m_name)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {}
+        for m_name, m_df in market_dfs.items():
+            if not m_df.empty:
+                futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=False)] = m_name
+        for f in as_completed(futures):
+            try:
+                f.result()
+            except Exception as e:
+                logger.error(f"Surge training failed for {futures[f]}: {e}")
+    model.save_surge_models()
     
     # 7c. Compute lead-lag correlation matrix (which stocks follow which)
     if not df_train.empty and len(df_train) > 1000:
         model.compute_lead_lag(df_train)
     
-    # 7d. Train VCP ML surge models (KOSPI/KOSDAQ/KONEX/SP500 per-market)
+    # 7d. Train VCP ML surge models (4 markets, parallel inside)
     from src.ai.vcp_ml_predictor import VCPSurgePredictor
     vcp_ml = VCPSurgePredictor()
     if train_data_dict:
@@ -490,13 +524,23 @@ def execute_prediction_pipeline():
         logger.info("Waiting for inference fundamentals fetch to complete...")
         t2.join()
 
-    # Merge fundamentals (now DB has real data from background thread)
-    for sym in list(infer_data_dict.keys()):
+    # Merge fundamentals (parallel)
+    def _merge_infer_one(sym: str, df):
         try:
-            infer_data_dict[sym] = model.merge_fundamentals(sym, infer_data_dict[sym], storage)
+            merged = model.merge_fundamentals(sym, df, storage)
+            return (sym, merged)
         except Exception as e:
             logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
-            del infer_data_dict[sym]
+            return (sym, None)
+
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
+        futures = {pool.submit(_merge_infer_one, sym, df): sym for sym, df in infer_data_dict.items()}
+        for f in as_completed(futures):
+            sym, merged = f.result()
+            if merged is not None:
+                infer_data_dict[sym] = merged
+            else:
+                infer_data_dict.pop(sym, None)
                 
     # 10. Run predictions (regression + surge, shared feature computation)
     logger.info("Running inference (regression + surge)...")
@@ -508,20 +552,32 @@ def execute_prediction_pipeline():
         return None
     logger.info(f"Regression: {len(res_df)} symbols, Surge: {len(surge_df) if not surge_df.empty else 0} symbols")
     
-    # 10c. Run VCP pattern detection (Volatility Contraction Pattern)
+    # 10c. Run VCP pattern detection (parallel)
     logger.info("Running VCP pattern detection...")
     from src.ai.vcp_detector import detect_vcp
-    vcp_results = []
-    for sym, df in infer_data_dict.items():
+
+    def _detect_vcp(sym: str, df: pd.DataFrame):
         if df is None or len(df) < 200:
-            continue
+            return None
         try:
             result = detect_vcp(df)
             if result['is_vcp']:
                 result['symbol'] = sym
-                vcp_results.append(result)
+                return result
         except Exception:
-            continue
+            pass
+        return None
+
+    vcp_results = []
+    with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
+        futures = {pool.submit(_detect_vcp, sym, df): sym for sym, df in infer_data_dict.items()}
+        for f in as_completed(futures):
+            try:
+                r = f.result()
+                if r is not None:
+                    vcp_results.append(r)
+            except Exception:
+                continue
     vcp_results.sort(key=lambda x: -x['vcp_score'])
     logger.info(f"VCP patterns found: {len(vcp_results)} symbols")
     

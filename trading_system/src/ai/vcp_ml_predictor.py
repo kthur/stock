@@ -1,7 +1,9 @@
 import logging
+import threading
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
@@ -283,12 +285,14 @@ class VCPSurgePredictor:
         feat_cols = [c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in df_train.columns]
         logger.info(f"Feature columns: {len(feat_cols)}")
 
-        for market in MARKETS:
+        vcp_train_lock = threading.Lock()
+
+        def _train_vcp_market(market: str, feat_cols: list):
             m_cond = df_train['market'] == market
             m_count = m_cond.sum()
             if m_count < 200:
                 logger.info(f"VCP ML skip {market}: only {m_count} samples (< 200)")
-                continue
+                return
 
             m_df = df_train[m_cond].copy()
             m_df = m_df.reset_index(drop=True)
@@ -296,7 +300,6 @@ class VCPSurgePredictor:
 
             kw = dict(self._surge_xgb_kwargs)
 
-            # Time-based split: last 20% by date_idx for validation
             cutoff = m_df['date_idx'].quantile(0.8)
             train_idx = m_df['date_idx'] <= cutoff
             val_idx = m_df['date_idx'] > cutoff
@@ -304,9 +307,7 @@ class VCPSurgePredictor:
                 train_idx = pd.Series([True] * len(m_df))
                 val_idx = pd.Series([False] * len(m_df))
 
-            if market not in self.models:
-                self.models[market] = {}
-
+            local_models = {}
             for h in SURGE_HORIZONS:
                 target_col = f'surge_{h}d'
                 target = m_df[target_col].dropna().astype(int)
@@ -339,7 +340,18 @@ class VCPSurgePredictor:
                     kw_no_es = {k: v for k, v in kw.items() if k != 'early_stopping_rounds'}
                     model = xgb.XGBClassifier(**kw_no_es)
                     model.fit(X_train, y_train)
-                self.models[market][h] = model
+                local_models[h] = model
+
+            with vcp_train_lock:
+                self.models[market] = local_models
+
+        with ThreadPoolExecutor(max_workers=len(MARKETS)) as pool:
+            futures = {pool.submit(_train_vcp_market, m, feat_cols): m for m in MARKETS}
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.error(f"VCP ML market {futures[f]} failed: {e}")
 
         self.save_models()
         logger.info(f"VCP ML models trained: {sum(len(v) for v in self.models.values())} total")

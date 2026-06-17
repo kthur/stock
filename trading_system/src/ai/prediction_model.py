@@ -619,7 +619,7 @@ class OnDevicePredictionModel:
 
         return df_merged
 
-    def train(self, df_train: pd.DataFrame, market: str = "sp500"):
+    def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
         """Train XGBoost regressors for each horizon with time-based validation."""
         if df_train.empty:
             logger.warning(f"Empty training data for {market}.")
@@ -663,9 +663,10 @@ class OnDevicePredictionModel:
                 model.fit(X_train, y_train)
             self.models[market][h] = model
             logger.info(f"{market} model for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
-        self.save_models()
+        if save_after:
+            self.save_models()
 
-    def train_surge(self, df_train: pd.DataFrame, market: str = "sp500"):
+    def train_surge(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
         """Train XGBoost classifiers for surge detection (>=20% return)."""
         if df_train.empty:
             logger.warning(f"Empty training data for surge {market}.")
@@ -735,7 +736,8 @@ class OnDevicePredictionModel:
                 model = xgb.XGBClassifier(**kw_no_es)
                 model.fit(X_train, y_train)
             self.surge_models[market][h] = model
-        self.save_surge_models()
+        if save_after:
+            self.save_surge_models()
 
     def predict_current(self, df_current: pd.DataFrame, indicator_df: pd.DataFrame = None,
                          market: str = "sp500") -> Dict[int, float]:
