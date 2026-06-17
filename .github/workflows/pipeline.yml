@@ -1,0 +1,106 @@
+name: Daily Pipeline
+
+on:
+  schedule:
+    # 16:00 KST = 07:00 UTC
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        id: pip-cache
+        with:
+          path: |
+            .venv
+            ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('trading_system/requirements.txt') }}
+
+      - name: Create virtualenv and install deps
+        if: steps.pip-cache.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip setuptools wheel
+          .venv/bin/pip install -r trading_system/requirements.txt
+
+      - name: Install deps (fast path when cache hit)
+        if: steps.pip-cache.outputs.cache-hit == 'true'
+        run: |
+          if [ ! -d .venv ]; then
+            python3 -m venv .venv
+          fi
+          .venv/bin/pip install -r trading_system/requirements.txt
+
+      - name: Cache stock_prices.db
+        uses: actions/cache@v4
+        id: db-cache
+        with:
+          path: trading_system/stock_prices.db
+          key: stock-prices-v1
+          restore-keys: |
+            stock-prices-v1
+
+      - name: Cache market_indicators.db
+        uses: actions/cache@v4
+        id: indicators-cache
+        with:
+          path: trading_system/market_indicators.db
+          key: indicators-v1
+          restore-keys: |
+            indicators-v1
+
+      - name: Run prediction pipeline
+        id: run
+        continue-on-error: true
+        env:
+          DB_PATH: market_indicators.db
+          STOCK_PRICE_DB_PATH: stock_prices.db
+          STOCK_PRICE_FRESHNESS_DAYS: '1'
+          TRAIN_SAMPLE_SP500: all
+          TRAIN_SAMPLE_KRX: all
+          TRAIN_START_DATE: '2006-01-01'
+          TRAIN_SEED: '42'
+          UPDATE_INTERVAL: '0'
+          INFERENCE_TARGET: SP500,KRX
+          BROKER_TYPE: DUMMY
+          MOCK_TRADING_ENABLED: 'True'
+          DEBUG_MODE: 'False'
+          LOG_LEVEL: INFO
+        run: |
+          .venv/bin/python trading_system/run_pipeline.py 2>&1
+
+      - name: Commit and push results
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            trading_system/pipeline_result.txt \
+            trading_system/surge_predictions.txt \
+            trading_system/lead_lag_predictions.txt \
+            trading_system/vcp_patterns.txt \
+            trading_system/vcp_ml_predictions.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "pipeline: daily prediction results ($(date '+%Y-%m-%d'))"
+            git push
+          else
+            echo "No changes to commit"
+          fi

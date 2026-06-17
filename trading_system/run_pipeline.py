@@ -440,6 +440,14 @@ def execute_prediction_pipeline():
     
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
+
+    # Exclude halted (거래정지) and administrative (관리종목) KRX stocks from all predictions
+    excluded_krx = _get_excluded_krx_symbols()
+    if excluded_krx:
+        before = len(all_symbols)
+        all_symbols = [s for s in all_symbols if s not in excluded_krx]
+        logger.info(f"Excluded {before - len(all_symbols)} halted/admin KRX stocks from inference")
+
     if all_symbols:
         t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"))
         t2.start()
@@ -468,6 +476,14 @@ def execute_prediction_pipeline():
             count += 1
             if count % 500 == 0:
                 logger.info(f"Fetched inference data: {count}/{len(all_symbols)} ({len(infer_data_dict)} loaded)")
+
+    # Filter out symbols with insufficient data (< 200 days)
+    before = len(infer_data_dict)
+    infer_data_dict = {s: df for s, df in infer_data_dict.items()
+                       if df is not None and len(df) >= 200}
+    dropped = before - len(infer_data_dict)
+    if dropped:
+        logger.info(f"Excluded {dropped} symbols with insufficient inference data (< 200 days)")
 
     # Wait for inference fundamentals fetch to complete before merging
     if all_symbols:
@@ -518,15 +534,6 @@ def execute_prediction_pipeline():
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
     logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
-    
-    # Filter out halted/admin KRX stocks from display output
-    excluded_krx = _get_excluded_krx_symbols()
-    if excluded_krx:
-        before = len(res_df)
-        res_df = res_df[~res_df['symbol'].isin(excluded_krx)]
-        filtered = before - len(res_df)
-        if filtered:
-            logger.info(f"Filtered out {filtered} halted/admin KRX stocks from display")
     
     # Build formatted message for Telegram (top-10 per market)
     message_text = format_prediction_message(res_df, universe)
