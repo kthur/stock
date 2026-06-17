@@ -36,6 +36,7 @@ from src.data_layer.global_market import GlobalMarketClient
 from src.data_layer.indicator_storage import MarketIndicatorStorage
 from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
+from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -195,14 +196,14 @@ def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
     return result
 
 
-def _market_symbols(universe: pd.DataFrame) -> tuple:
-    """Return (krx_set, sp500_set) for quick lookup."""
-    krx = set(universe[universe['market'] != 'SP500']['symbol'])
-    sp500 = set(universe[universe['market'] == 'SP500']['symbol'])
-    return krx, sp500
+def _market_symbols(universe: pd.DataFrame) -> dict:
+    """Return dict of {market: set(symbols)} for all known markets."""
+    markets = {}
+    for m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        markets[m] = set(universe[universe['market'] == m]['symbol'])
+    return markets
 
-def _fmt_top(df: pd.DataFrame, horizon: int, krx_set: set, sp500_set: set,
-             universe: pd.DataFrame, count: int = 10) -> list:
+def _fmt_top(df: pd.DataFrame, horizon: int, universe: pd.DataFrame, count: int = 10) -> list:
     """Format top-N predictions for a single market segment."""
     lines = []
     for rank, (_, row) in enumerate(df.head(count).iterrows(), 1):
@@ -216,26 +217,29 @@ def _fmt_top(df: pd.DataFrame, horizon: int, krx_set: set, sp500_set: set,
 
 def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> str:
     """Format prediction results as a Telegram-friendly message"""
-    krx_set, sp500_set = _market_symbols(universe)
+    market_syms = _market_symbols(universe)
     horizons = [1, 5, 10, 20, 30, 60, 120, 200]
     lines = [
         "🤖 *XGBoost 예측 결과*",
         f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "=" * 30,
     ]
+    krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
     for h in horizons:
         if h not in res_df.columns:
             continue
         sorted_df = res_df.sort_values(by=h, ascending=False)
 
-        krx_df = sorted_df[sorted_df['symbol'].isin(krx_set)]
-        sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)]
+        for m in krx_markets:
+            m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
+            if not m_df.empty:
+                lines.append(f"\n*{h}일 예상 — {m} TOP 10*")
+                lines.extend(_fmt_top(m_df, h, universe, 10))
 
-        lines.append(f"\n*{h}일 예상 — KOSPI/KOSDAQ/KONEX TOP 10*")
-        lines.extend(_fmt_top(krx_df, h, krx_set, sp500_set, universe, 10))
-
-        lines.append(f"\n*{h}일 예상 — S&P 500 TOP 10*")
-        lines.extend(_fmt_top(sp500_df, h, krx_set, sp500_set, universe, 10))
+        sp500_df = sorted_df[sorted_df['symbol'].isin(market_syms.get('SP500', set()))]
+        if not sp500_df.empty:
+            lines.append(f"\n*{h}일 예상 — S&P 500 TOP 10*")
+            lines.extend(_fmt_top(sp500_df, h, universe, 10))
 
     return "\n".join(lines)
 
@@ -312,9 +316,12 @@ def execute_prediction_pipeline():
     indicator_train = fetch_indicator_history(start_date_train, price_db, freshness)
     indicator_infer = fetch_indicator_history(start_date_infer, price_db, freshness)
     
-    # 6. Prepare Training Data (On-device)
+    # 6. Prepare Training Data (On-device) — split by market
+    kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
+    kosdaq_symbols = universe[universe['market'] == 'KOSDAQ']['symbol'].tolist()
+    konex_symbols = universe[universe['market'] == 'KONEX']['symbol'].tolist()
     sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
-    krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
+    krx_symbols = kospi_symbols + kosdaq_symbols + konex_symbols
     
     # Sample from settings (절대값 / 퍼센트 / "all")
     import random
@@ -330,8 +337,15 @@ def execute_prediction_pipeline():
             return list(population)
         return random.sample(population, k)
 
-    train_symbols = _safe_sample(sp500_symbols, sp500_sample) + \
-                    _safe_sample(krx_symbols, krx_sample)
+    train_krx_overall = _safe_sample(krx_symbols, krx_sample)
+    train_krx_set = set(train_krx_overall)
+    train_symbols = _safe_sample(sp500_symbols, sp500_sample) + train_krx_overall
+
+    # Per-market breakdown for training (preserve market proportions)
+    train_sp500 = [s for s in train_symbols if s in sp500_symbols]
+    train_kospi = [s for s in train_krx_set if s in kospi_symbols]
+    train_kosdaq = [s for s in train_krx_set if s in kosdaq_symbols]
+    train_konex = [s for s in train_krx_set if s in konex_symbols]
     
     # 6. Fetch corporate fundamentals in background (non-blocking)
     import threading
@@ -387,34 +401,42 @@ def execute_prediction_pipeline():
 
     df_train = model.prepare_training_data(train_data_dict, indicator_train)
     
-    # 7. Train XGBoost models per market
+    # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
     if not df_train.empty and 'symbol' in df_train.columns:
         from src.ai.prediction_model import OnDevicePredictionModel as _OPM
-        krx_mask = df_train['symbol'].apply(_OPM.is_krx_symbol)
-        sp500_train = df_train[~krx_mask]
-        krx_train = df_train[krx_mask]
+        train_symbol_set = set(df_train['symbol'])
+        # Build per-market train DataFrames from the merged df_train
+        market_dfs = {}
+        for m_name, m_symbols in [('sp500', train_sp500), ('kospi', train_kospi),
+                                   ('kosdaq', train_kosdaq), ('konex', train_konex)]:
+            active = [s for s in m_symbols if s in train_symbol_set]
+            m_df = df_train[df_train['symbol'].isin(active)] if active else pd.DataFrame()
+            if not m_df.empty:
+                logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
+            market_dfs[m_name] = m_df
     else:
-        sp500_train = pd.DataFrame()
-        krx_train = pd.DataFrame()
+        market_dfs = {m: pd.DataFrame() for m in ['sp500', 'kospi', 'kosdaq', 'konex']}
 
-    if not sp500_train.empty:
-        logger.info(f"Training S&P 500 model ({len(sp500_train)} rows)...")
-        model.train(sp500_train, market="sp500")
+    for m_name, m_df in market_dfs.items():
+        if not m_df.empty:
+            logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
+            model.train(m_df, market=m_name)
 
-    if not krx_train.empty:
-        logger.info(f"Training KRX model ({len(krx_train)} rows)...")
-        model.train(krx_train, market="krx")
-    
-    # 7b. Train surge detection classifiers (>= 20% return)
+    # 7b. Train surge detection classifiers per market
     logger.info("Training surge detection models...")
-    if not sp500_train.empty:
-        model.train_surge(sp500_train, market="sp500")
-    if not krx_train.empty:
-        model.train_surge(krx_train, market="krx")
+    for m_name, m_df in market_dfs.items():
+        if not m_df.empty:
+            model.train_surge(m_df, market=m_name)
     
     # 7c. Compute lead-lag correlation matrix (which stocks follow which)
     if not df_train.empty and len(df_train) > 1000:
         model.compute_lead_lag(df_train, top_leaders=50)
+    
+    # 7d. Train VCP ML surge models (KOSPI/KOSDAQ/KONEX/SP500 per-market)
+    from src.ai.vcp_ml_predictor import VCPSurgePredictor
+    vcp_ml = VCPSurgePredictor()
+    if train_data_dict:
+        vcp_ml.train(train_data_dict, indicator_train, universe)
     
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
@@ -462,7 +484,8 @@ def execute_prediction_pipeline():
                 
     # 10. Run predictions (regression + surge, shared feature computation)
     logger.info("Running inference (regression + surge)...")
-    res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer)
+    symbol_to_market_lower = {sym: mkt.lower() for sym, mkt in symbol_market.items()}
+    res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower)
     
     if res_df.empty:
         logger.error("No predictions made.")
@@ -511,30 +534,38 @@ def execute_prediction_pipeline():
 
     # Save full inference results for ALL symbols to file
     output_path = os.path.join(os.path.dirname(__file__), "pipeline_result.txt")
-    krx_set, sp500_set = _market_symbols(universe)
+    market_syms = _market_symbols(universe)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(f"=== Full Pipeline Inference Results ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"Total symbols: {len(res_df)}\n\n")
+        krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
         for h in [1, 5, 10, 20, 30, 60, 120, 200]:
             if h not in res_df.columns:
                 continue
             sorted_df = res_df.sort_values(by=h, ascending=False)
-            krx_df = sorted_df[sorted_df['symbol'].isin(krx_set)]
-            sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)]
             f.write(f"{'='*60}\n")
             f.write(f"Horizon: {h}d\n\n")
-            f.write(f"--- KOSPI/KOSDAQ/KONEX (all {len(krx_df)} symbols) ---\n")
-            for rank, (_, row) in enumerate(krx_df.iterrows(), 1):
-                name_row = universe[universe['symbol'] == row['symbol']]
-                name = name_row['name'].values[0] if not name_row.empty else "Unknown"
-                f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
-            f.write(f"\n--- S&P 500 (all {len(sp500_df)} symbols) ---\n")
-            for rank, (_, row) in enumerate(sp500_df.iterrows(), 1):
-                name_row = universe[universe['symbol'] == row['symbol']]
-                name = name_row['name'].values[0] if not name_row.empty else "Unknown"
-                f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
-            f.write("\n")
+            for m in krx_markets:
+                m_set = market_syms.get(m, set())
+                m_df = sorted_df[sorted_df['symbol'].isin(m_set)]
+                if m_df.empty:
+                    continue
+                f.write(f"--- {m} (all {len(m_df)} symbols) ---\n")
+                for rank, (_, row) in enumerate(m_df.iterrows(), 1):
+                    name_row = universe[universe['symbol'] == row['symbol']]
+                    name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+                    f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+                f.write("\n")
+            sp500_set = market_syms.get('SP500', set())
+            sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)]
+            if not sp500_df.empty:
+                f.write(f"--- S&P 500 (all {len(sp500_df)} symbols) ---\n")
+                for rank, (_, row) in enumerate(sp500_df.iterrows(), 1):
+                    name_row = universe[universe['symbol'] == row['symbol']]
+                    name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+                    f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+                f.write("\n")
     logger.info(f"Saved full pipeline result ({len(res_df)} symbols) to {output_path}")
 
     # Save surge detection results to separate file
@@ -549,20 +580,23 @@ def execute_prediction_pipeline():
             # Merge name/market info
             surge_df = surge_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 
+            krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
             for h in model.surge_horizons:
                 col = f'surge_{h}d'
                 if col not in surge_df.columns:
                     continue
-                sorted_df = surge_df.sort_values(by=col, ascending=False)
-                f.write(f"{'='*60}\n")
-                f.write(f"[{h}일] Top 20 Surge Candidates\n")
-                f.write(f"{'='*60}\n")
-                for rank, (_, row) in enumerate(sorted_df.head(20).iterrows(), 1):
-                    market_tag = "KRX" if row.get('market', '').startswith('K') else "SP500"
-                    name = row.get('name', 'Unknown')
-                    prob = row[col] * 100
-                    f.write(f"  {rank}. [{market_tag}] {row['symbol']} ({name}): {prob:.1f}%\n")
-                f.write("\n")
+                for m in krx_markets + ['SP500']:
+                    m_df = surge_df[surge_df['market'] == m].sort_values(by=col, ascending=False)
+                    if m_df.empty:
+                        continue
+                    f.write(f"{'='*60}\n")
+                    f.write(f"[{h}일] {m} Top 20 Surge Candidates\n")
+                    f.write(f"{'='*60}\n")
+                    for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
+                        name = row.get('name', 'Unknown')
+                        prob = row[col] * 100
+                        f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {prob:.1f}%\n")
+                    f.write("\n")
         logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
 
     # Save lead-lag predictions to separate file
@@ -573,12 +607,18 @@ def execute_prediction_pipeline():
             f.write("=== Lead-Lag Surge Predictions ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
             f.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n\n")
-            for rank, (_, row) in enumerate(lead_lag_df.head(20).iterrows(), 1):
-                market_tag = "KRX" if row.get('market', '').startswith('K') else "SP500"
-                name = row.get('name', 'Unknown')
-                score = row['lead_lag_score'] * 100
-                f.write(f"  {rank}. [{market_tag}] {row['symbol']} ({name}): {score:.2f}%\n")
-            f.write(f"\n--- Leaders with highest today return ---\n")
+            krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+            for m in krx_markets + ['SP500']:
+                m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
+                if m_df.empty:
+                    continue
+                f.write(f"--- {m} Top 20 ---\n")
+                for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
+                    name = row.get('name', 'Unknown')
+                    score = row['lead_lag_score'] * 100
+                    f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {score:.2f}%\n")
+                f.write("\n")
+            f.write(f"--- Leaders with highest today return ---\n")
             leader_returns = []
             for sym in model.lead_lag_leaders:
                 df = infer_data_dict.get(sym)
@@ -601,24 +641,58 @@ def execute_prediction_pipeline():
         vcp_output_path = os.path.join(os.path.dirname(__file__), "vcp_patterns.txt")
         vcp_universe_map = {s: (n, m) for s, n, m in zip(universe.get('symbol', []),
                             universe.get('name', []), universe.get('market', []))}
+        krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
         with open(vcp_output_path, "w", encoding="utf-8") as f:
             f.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
             f.write(f"Total VCP patterns found: {len(vcp_results)}\n\n")
-            for rank, r in enumerate(vcp_results[:30], 1):
-                sym = r['symbol']
-                name, market = vcp_universe_map.get(sym, ('Unknown', ''))
-                market_tag = "KRX" if str(market).startswith('K') else "SP500"
-                peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks'])
-                f.write(f"  {rank}. [{market_tag}] {sym} ({name})\n")
-                f.write(f"       Score: {r['vcp_score']:.0f}/100 | "
-                        f"Current range: {r['current_range_pct']:.1f}% | "
-                        f"Contraction: {peaks}\n")
-                f.write(f"       Above MA50: {'✓' if r['above_sma50'] else '✗'} | "
-                        f"Above MA200: {'✓' if r['above_sma200'] else '✗'} | "
-                        f"Near high: {'✓' if r['near_high'] else '✗'} | "
-                        f"Volume declining: {'✓' if r['volume_declining'] else '✗'}\n\n")
+            for m in krx_markets + ['SP500']:
+                m_results = [r for r in vcp_results if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
+                if not m_results:
+                    continue
+                f.write(f"--- {m} ---\n")
+                for rank, r in enumerate(m_results[:30], 1):
+                    sym = r['symbol']
+                    name, _market = vcp_universe_map.get(sym, ('Unknown', ''))
+                    peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks'])
+                    f.write(f"  {rank}. [{m}] {sym} ({name})\n")
+                    f.write(f"       Score: {r['vcp_score']:.0f}/100 | "
+                            f"Current range: {r['current_range_pct']:.1f}% | "
+                            f"Contraction: {peaks}\n")
+                    f.write(f"       Above MA50: {'✓' if r['above_sma50'] else '✗'} | "
+                            f"Above MA200: {'✓' if r['above_sma200'] else '✗'} | "
+                            f"Near high: {'✓' if r['near_high'] else '✗'} | "
+                            f"Volume declining: {'✓' if r['volume_declining'] else '✗'}\n\n")
         logger.info(f"Saved VCP patterns ({len(vcp_results)} symbols) to {vcp_output_path}")
+
+    # 10e. Run VCP ML surge predictions
+    logger.info("Running VCP ML inference...")
+    vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)
+    if not vcp_ml_df.empty:
+        vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        vcp_ml_output_path = os.path.join(os.path.dirname(__file__), "vcp_ml_predictions.txt")
+        with open(vcp_ml_output_path, "w", encoding="utf-8") as f:
+            f.write("=== VCP ML Surge Predictions ===\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+
+            for h in SURGE_HORIZONS:
+                col = f'vcp_{h}d'
+                if col not in vcp_ml_df.columns:
+                    continue
+                for market in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                    m_df = vcp_ml_df[vcp_ml_df['market'] == market].sort_values(by=col, ascending=False)
+                    if m_df.empty:
+                        if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                            f.write(f"[{h}일] {market} - (no symbols)\n\n")
+                        continue
+                    top_n = min(10, len(m_df))
+                    f.write(f"[{h}일] {market} TOP {top_n}\n")
+                    for rank, (_, row) in enumerate(m_df.head(top_n).iterrows(), 1):
+                        name = row.get('name', 'Unknown')
+                        prob = row[col] * 100
+                        f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
+                    f.write("\n")
+        logger.info(f"Saved VCP ML predictions ({len(vcp_ml_df)} symbols) to {vcp_ml_output_path}")
 
     return res_df, message_text
 

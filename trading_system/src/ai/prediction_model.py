@@ -181,21 +181,40 @@ class OnDevicePredictionModel:
 
     def load_models(self):
         try:
-            for market in ['sp500', 'krx']:
-                self.models[market] = {}
-                for h in self.horizons:
-                    model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
-                    if model_path.exists():
-                        booster = xgb.Booster()
-                        booster.load_model(str(model_path))
-                        booster.set_param('predictor', 'auto')
-                        model = xgb.XGBRegressor(**self._xgb_kwargs)
-                        model._Booster = booster
-                        model._estimator_type = 'regressor'
-                        self.models[market][h] = model
-                        logger.debug(f"Loaded model for {market} {h}d from {model_path}")
-                if not self.models[market]:
-                    del self.models[market]
+            for fpath in self.model_dir.glob("xgb_model_*_*d.json"):
+                parts = fpath.stem.replace("xgb_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                if market not in self.models:
+                    self.models[market] = {}
+                if h not in self.models[market]:
+                    booster = xgb.Booster()
+                    booster.load_model(str(fpath))
+                    booster.set_param('predictor', 'auto')
+                    model = xgb.XGBRegressor(**self._xgb_kwargs)
+                    model._Booster = booster
+                    model._estimator_type = 'regressor'
+                    self.models[market][h] = model
+                    logger.debug(f"Loaded model for {market} {h}d from {fpath}")
+            if not self.models:
+                for market in ['sp500', 'krx']:
+                    self.models[market] = {}
+                    for h in self.horizons:
+                        model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
+                        if model_path.exists():
+                            booster = xgb.Booster()
+                            booster.load_model(str(model_path))
+                            booster.set_param('predictor', 'auto')
+                            model = xgb.XGBRegressor(**self._xgb_kwargs)
+                            model._Booster = booster
+                            model._estimator_type = 'regressor'
+                            self.models[market][h] = model
+                            logger.debug(f"Loaded model for {market} {h}d from {model_path}")
+                    if not self.models[market]:
+                        del self.models[market]
             total = sum(len(v) for v in self.models.values())
             if total:
                 logger.info(f"Loaded {total} models from {self.model_dir}")
@@ -215,21 +234,40 @@ class OnDevicePredictionModel:
 
     def load_surge_models(self):
         try:
-            for market in ['sp500', 'krx']:
-                self.surge_models[market] = {}
-                for h in self.surge_horizons:
-                    model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
-                    if model_path.exists():
-                        booster = xgb.Booster()
-                        booster.load_model(str(model_path))
-                        booster.set_param('predictor', 'auto')
-                        model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
-                        model._Booster = booster
-                        model._estimator_type = 'classifier'
-                        self.surge_models[market][h] = model
-                        logger.debug(f"Loaded surge model for {market} {h}d from {model_path}")
-                if not self.surge_models[market]:
-                    del self.surge_models[market]
+            for fpath in self.model_dir.glob("xgb_surge_model_*_*d.json"):
+                parts = fpath.stem.replace("xgb_surge_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                if market not in self.surge_models:
+                    self.surge_models[market] = {}
+                if h not in self.surge_models[market]:
+                    booster = xgb.Booster()
+                    booster.load_model(str(fpath))
+                    booster.set_param('predictor', 'auto')
+                    model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
+                    model._Booster = booster
+                    model._estimator_type = 'classifier'
+                    self.surge_models[market][h] = model
+                    logger.debug(f"Loaded surge model for {market} {h}d from {fpath}")
+            if not self.surge_models:
+                for market in ['sp500', 'krx']:
+                    self.surge_models[market] = {}
+                    for h in self.surge_horizons:
+                        model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
+                        if model_path.exists():
+                            booster = xgb.Booster()
+                            booster.load_model(str(model_path))
+                            booster.set_param('predictor', 'auto')
+                            model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
+                            model._Booster = booster
+                            model._estimator_type = 'classifier'
+                            self.surge_models[market][h] = model
+                            logger.debug(f"Loaded surge model for {market} {h}d from {model_path}")
+                    if not self.surge_models[market]:
+                        del self.surge_models[market]
             total = sum(len(v) for v in self.surge_models.values())
             if total:
                 logger.info(f"Loaded {total} surge models from {self.model_dir}")
@@ -735,8 +773,13 @@ class OnDevicePredictionModel:
         return predictions
 
     def _batch_compute_inference_features(self, prices_dict: Dict[str, pd.DataFrame],
-                                           indicator_df: pd.DataFrame = None):
-        """Compute latest features for all symbols once. Shared by regression + surge."""
+                                           indicator_df: pd.DataFrame = None,
+                                           symbol_to_market: Dict[str, str] = None):
+        """Compute latest features for all symbols once. Shared by regression + surge.
+
+        If symbol_to_market is provided, uses it to assign market tags
+        (kospi/kosdaq/konex/sp500) instead of the _is_krx_symbol heuristic.
+        """
         prices_dict = self.apply_market_normalization(prices_dict)
         features = self.ALL_FEATURES
         latest_features_list = []
@@ -754,7 +797,10 @@ class OnDevicePredictionModel:
             latest = df_feat.iloc[-1:]
             latest_features_list.append(latest[features])
             symbols_list.append(sym)
-            market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
+            if symbol_to_market:
+                market_list.append(symbol_to_market.get(sym, "sp500").lower())
+            else:
+                market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
 
         return symbols_list, market_list, latest_features_list
 
@@ -815,9 +861,15 @@ class OnDevicePredictionModel:
         return pd.DataFrame(res_dict)
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],
-                     indicator_df: pd.DataFrame = None):
-        """One-shot: compute features once, return (regression_df, surge_df)."""
-        syms, markets, feats = self._batch_compute_inference_features(prices_dict, indicator_df)
+                     indicator_df: pd.DataFrame = None,
+                     symbol_to_market: Dict[str, str] = None):
+        """One-shot: compute features once, return (regression_df, surge_df).
+
+        If symbol_to_market is provided, uses per-symbol market tags
+        (e.g. kospi/kosdaq/konex/sp500) instead of the _is_krx_symbol heuristic.
+        """
+        syms, markets, feats = self._batch_compute_inference_features(
+            prices_dict, indicator_df, symbol_to_market)
         res_df = self._predict_regression(syms, markets, feats)
         surge_df = self._predict_surge(syms, markets, feats)
         return res_df, surge_df
