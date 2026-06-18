@@ -44,11 +44,11 @@ class VCPSurgePredictor:
         from src.ai.prediction_model import OnDevicePredictionModel
 
         if model_dir is None:
-            model_dir = Path(__file__).resolve().parent.parent.parent / "models"
-        self.model_dir = Path(model_dir)
+            model_dir = str(Path(__file__).resolve().parent.parent.parent / "models")
+        self.model_dir: Path = Path(model_dir)
 
         # Feature helper: reuse OnDevicePredictionModel's feature computation
-        self._ft = OnDevicePredictionModel(model_dir=self.model_dir)
+        self._ft = OnDevicePredictionModel(model_dir=str(self.model_dir))
         self._ft.models = {}
         self._ft.surge_models = {}
 
@@ -410,7 +410,7 @@ class VCPSurgePredictor:
         feat_cols = [c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in feats[0].columns]
 
         import warnings
-        res_dict = {'symbol': syms, 'market': markets}
+        res_dict: Dict = {'symbol': syms, 'market': markets}
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
             for h in SURGE_HORIZONS:

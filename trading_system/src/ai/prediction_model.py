@@ -3,7 +3,7 @@ import pandas as pd
 import xgboost as xgb
 import hashlib
 import numpy as np
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 
 _HAS_CUDA = False
 try:
@@ -778,7 +778,7 @@ class OnDevicePredictionModel:
 
     def _batch_compute_inference_features(self, prices_dict: Dict[str, pd.DataFrame],
                                            indicator_df: pd.DataFrame = None,
-                                           symbol_to_market: Dict[str, str] = None):
+                                            symbol_to_market: Optional[Dict[str, str]] = None):
         """Compute latest features for all symbols once. Shared by regression + surge.
 
         If symbol_to_market is provided, uses it to assign market tags
@@ -865,8 +865,8 @@ class OnDevicePredictionModel:
         return pd.DataFrame(res_dict)
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],
-                     indicator_df: pd.DataFrame = None,
-                     symbol_to_market: Dict[str, str] = None):
+                     indicator_df: Optional[pd.DataFrame] = None,
+                     symbol_to_market: Optional[Dict[str, str]] = None):
         """One-shot: compute features once, return (regression_df, surge_df).
 
         If symbol_to_market is provided, uses per-symbol market tags

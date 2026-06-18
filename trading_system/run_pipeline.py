@@ -5,6 +5,7 @@ import socket
 import time
 import threading
 from datetime import datetime
+from typing import Optional
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import FinanceDataReader as fdr
@@ -52,7 +53,7 @@ _KR_MARKET_SUFFIX = {
 
 
 def fetch_data_fdr(symbol: str, market: str, start_date: str,
-                   price_db: StockPriceDB = None, freshness_days: int = 7,
+                   price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
                    update_interval: int = 0) -> pd.DataFrame:
     """Fetch OHLCV data using adjusted prices (수정주가), with StockPriceDB cache.
 
@@ -142,7 +143,7 @@ _INDICATOR_TICKERS = {
 }
 
 
-def fetch_indicator_history(start_date: str, price_db: StockPriceDB = None,
+def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
                             freshness_days: int = 7) -> pd.DataFrame:
     """Download 8 global indicator tickers in parallel, return single DataFrame.
 
