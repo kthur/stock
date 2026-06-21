@@ -40,7 +40,13 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            RUN_DATE=$(echo "${{ github.event.workflow_run.created_at }}" | cut -d'T' -f1)
+            echo "date=$RUN_DATE" >> $GITHUB_OUTPUT
+          else
+            echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          fi
 
       - name: Cache stock_prices.db
         uses: actions/cache@v4
