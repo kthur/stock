@@ -29,6 +29,7 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f trading_system/requirements.txt ]; then pip install -r trading_system/requirements.txt; fi
         pip install -e "trading_system[dev]"
+        pip install pytest-github-actions-annotate-failures
 
     - name: Run type checking
       working-directory: trading_system
