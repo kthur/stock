@@ -2,7 +2,7 @@ name: Preseed Database Cache
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '10 15 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -34,7 +34,7 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: echo "date=$(TZ='Asia/Seoul' date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: Cache stock_prices.db
         uses: actions/cache@v4
