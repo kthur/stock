@@ -54,7 +54,22 @@ jobs:
       env:
         STOCK_PRICE_FRESHNESS_DAYS: none
       run: |
-        python -m coverage run --source=src -m pytest tests/ -v
+        python -m coverage run --source=src -m pytest tests/ -v 2>&1 | tee ../pytest_log.txt
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then touch ../pytest_failed.txt; fi
+
+    - name: Push debug logs on failure
+      if: always()
+      run: |
+        if [ -f pytest_failed.txt ]; then
+          git config --global user.name "Github Action Bot"
+          git config --global user.email "bot@github.com"
+          git checkout -b debug-logs || git checkout debug-logs
+          mv pytest_log.txt debug_pytest_log.txt || true
+          git add debug_pytest_log.txt
+          git commit -m "Upload debug logs [skip ci]" || true
+          git push -f origin debug-logs
+          exit 1
+        fi
 
     - name: Generate coverage report
       if: success()
