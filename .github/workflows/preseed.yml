@@ -64,7 +64,7 @@ jobs:
           TRAIN_SAMPLE_KRX: all
           TRAIN_START_DATE: '2006-01-01'
           TRAIN_SEED: '42'
-          UPDATE_INTERVAL: '15'
+          UPDATE_INTERVAL: '1'
           INFERENCE_TARGET: SP500,KRX
           BROKER_TYPE: DUMMY
           MOCK_TRADING_ENABLED: 'True'
