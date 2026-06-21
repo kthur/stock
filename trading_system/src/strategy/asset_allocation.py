@@ -55,10 +55,10 @@ class AssetAllocator:
     Portfolio asset allocator supporting multiple weighting strategies.
 
     Args:
-        strategy: One of 'equal_weight', 'risk_parity', 'momentum'.
+        strategy: One of 'equal_weight', 'risk_parity', 'momentum', 'black_litterman'.
     """
 
-    SUPPORTED_STRATEGIES = ("equal_weight", "risk_parity", "momentum")
+    SUPPORTED_STRATEGIES = ("equal_weight", "risk_parity", "momentum", "black_litterman")
 
     def __init__(self, strategy: str = "equal_weight"):
         if strategy not in self.SUPPORTED_STRATEGIES:
@@ -66,13 +66,14 @@ class AssetAllocator:
         self.strategy = strategy
 
     # ------------------------------------------------------------------
-    def allocate(self, price_data: Dict[str, List[float]]) -> Dict[str, float]:
+    def allocate(self, price_data: Dict[str, List[float]], predicted_returns: dict = None) -> Dict[str, float]:
         """
         Compute portfolio weights from price data.
 
         Args:
             price_data: Mapping of ticker -> list of prices (oldest to newest).
                         Each list must have at least 2 prices.
+            predicted_returns: Optional mapping of ticker -> expected return (float) for Black-Litterman.
 
         Returns:
             Dict mapping ticker -> weight (float), weights sum exactly to 1.0.
@@ -98,6 +99,9 @@ class AssetAllocator:
 
         elif self.strategy == "momentum":
             return self._momentum(price_data)
+
+        elif self.strategy == "black_litterman":
+            return self._black_litterman(price_data, predicted_returns)
 
         else:
             # Should never reach here due to __init__ validation
@@ -168,6 +172,56 @@ class AssetAllocator:
 
         return _normalize(raw)
 
+    def _black_litterman(self, price_data: Dict[str, List[float]], predicted_returns: dict = None) -> Dict[str, float]:
+        """
+        Black-Litterman portfolio optimization ensembled with return predictions.
+        """
+        import numpy as np
+        from src.analysis.portfolio_optimizer import calculate_black_litterman_weights
+
+        tickers = list(price_data.keys())
+        n = len(tickers)
+        if n == 0:
+            return {}
+        if n == 1:
+            return {tickers[0]: 1.0}
+
+        # Compute period simple returns for each ticker
+        returns_dict = {}
+        for ticker in tickers:
+            returns_dict[ticker] = _compute_returns(price_data[ticker])
+
+        # Align returns
+        min_len = min(len(r) for r in returns_dict.values()) if returns_dict else 0
+        if min_len < 2:
+            return self._equal_weight(tickers)
+
+        returns_arr = np.array([returns_dict[t][:min_len] for t in tickers])
+
+        # Compute covariance matrix
+        cov_matrix = np.cov(returns_arr)
+
+        # Prepare predicted returns vector Q (views)
+        pred_list = []
+        for t in tickers:
+            if predicted_returns and t in predicted_returns:
+                pred_list.append(float(predicted_returns[t]))
+            else:
+                # Default to historical momentum return as view
+                prices = price_data[t]
+                if prices[0] > 0:
+                    pred_list.append(max(0.0, (prices[-1] / prices[0]) - 1.0))
+                else:
+                    pred_list.append(0.0)
+
+        predicted_arr = np.array(pred_list)
+
+        # Compute Black-Litterman weights
+        weights = calculate_black_litterman_weights(cov_matrix, predicted_arr)
+
+        weights_dict = {tickers[i]: float(weights[i]) for i in range(n)}
+        return _normalize(weights_dict)
+
 
 # ─── Convenience function ─────────────────────────────────────────────────────
 
@@ -175,16 +229,18 @@ class AssetAllocator:
 def allocate_assets(
     prices_dict: Dict[str, List[float]],
     strategy: str = "equal_weight",
+    predicted_returns: dict = None,
 ) -> Dict[str, float]:
     """
     Convenience function to compute portfolio weights.
 
     Args:
         prices_dict: Mapping of ticker -> list of historical prices.
-        strategy: Allocation strategy ('equal_weight', 'risk_parity', 'momentum').
+        strategy: Allocation strategy ('equal_weight', 'risk_parity', 'momentum', 'black_litterman').
+        predicted_returns: Optional mapping of ticker -> expected return (float).
 
     Returns:
         Dict mapping ticker -> weight. Weights sum exactly to 1.0.
     """
     allocator = AssetAllocator(strategy=strategy)
-    return allocator.allocate(prices_dict)
+    return allocator.allocate(prices_dict, predicted_returns)

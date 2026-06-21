@@ -19,36 +19,82 @@ logger = logging.getLogger(__name__)
 class TradingConfig:
     initial_cash: float = 1000000.0
     max_retries: int = 3
-    debug_mode: bool = os.getenv("DEBUG_MODE", "False").lower() == "true"
-    mock_trading: bool = os.getenv("MOCK_TRADING_ENABLED", "True").lower() == "true"  # 모의투자 API 연동 활성화 여부
-    broker_type: str = os.getenv("BROKER_TYPE", "KIS")
-    db_path: str = os.getenv("DB_PATH", "market_indicators.db")
-    train_sample_sp500: str = os.getenv("TRAIN_SAMPLE_SP500", "50")
-    train_sample_krx: str = os.getenv("TRAIN_SAMPLE_KRX", "50")
-    train_start_date: str = os.getenv("TRAIN_START_DATE", "2023-01-01")
-    train_seed: str = os.getenv("TRAIN_SEED", "42")
-    stock_price_freshness_days: str = os.getenv("STOCK_PRICE_FRESHNESS_DAYS", "7")
-    update_interval: str = os.getenv("UPDATE_INTERVAL", "0")
-    skip_training: bool = os.getenv("SKIP_TRAINING", "False").lower() == "true"
+    debug_mode: bool = False
+    mock_trading: bool = True  # 모의투자 API 연동 활성화 여부
+    broker_type: str = "KIS"
+    db_path: str = "market_indicators.db"
+    train_sample_sp500: str = "50"
+    train_sample_krx: str = "50"
+    train_start_date: str = "2023-01-01"
+    train_seed: str = "42"
+    stock_price_freshness_days: str = "7"
+    update_interval: str = "0"
+    skip_training: bool = False
+    fundamental_cache_expiry_days: int = 90
 
     # 백테스트 기간 설정 (숫자=년, "all"=전체)
-    backtest_years: str = os.getenv("BACKTEST_YEARS", "5")
+    backtest_years: str = "5"
     # 주가 DB 경로
-    stock_price_db_path: str = os.getenv("STOCK_PRICE_DB_PATH", "stock_prices.db")
+    stock_price_db_path: str = "stock_prices.db"
 
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    telegram_authorized_user_ids: str = os.getenv("TELEGRAM_AUTHORIZED_USER_IDS", "")
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    telegram_bot_token: str = ""
+    telegram_authorized_user_ids: str = ""
 
     # KIS 모의투자 키 설정
-    kis_mock_app_key: str = field(default_factory=lambda: os.getenv("KIS_MOCK_APP_KEY", ""))
-    kis_mock_app_secret: str = field(default_factory=lambda: os.getenv("KIS_MOCK_APP_SECRET", ""))
-    kis_mock_account: str = field(default_factory=lambda: os.getenv("KIS_MOCK_ACCOUNT", ""))
+    kis_mock_app_key: str = ""
+    kis_mock_app_secret: str = ""
+    kis_mock_account: str = ""
 
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self):
+        # Override fields with env variables if set in os.environ
+        # This ensures dynamic env evaluation at instantiation time
+        if "DEBUG_MODE" in os.environ:
+            self.debug_mode = os.environ["DEBUG_MODE"].lower() == "true"
+        if "MOCK_TRADING_ENABLED" in os.environ:
+            self.mock_trading = os.environ["MOCK_TRADING_ENABLED"].lower() == "true"
+        if "BROKER_TYPE" in os.environ:
+            self.broker_type = os.environ["BROKER_TYPE"]
+        if "DB_PATH" in os.environ:
+            self.db_path = os.environ["DB_PATH"]
+        if "TRAIN_SAMPLE_SP500" in os.environ:
+            self.train_sample_sp500 = os.environ["TRAIN_SAMPLE_SP500"]
+        if "TRAIN_SAMPLE_KRX" in os.environ:
+            self.train_sample_krx = os.environ["TRAIN_SAMPLE_KRX"]
+        if "TRAIN_START_DATE" in os.environ:
+            self.train_start_date = os.environ["TRAIN_START_DATE"]
+        if "TRAIN_SEED" in os.environ:
+            self.train_seed = os.environ["TRAIN_SEED"]
+        if "STOCK_PRICE_FRESHNESS_DAYS" in os.environ:
+            self.stock_price_freshness_days = os.environ["STOCK_PRICE_FRESHNESS_DAYS"]
+        if "UPDATE_INTERVAL" in os.environ:
+            self.update_interval = os.environ["UPDATE_INTERVAL"]
+        if "SKIP_TRAINING" in os.environ:
+            self.skip_training = os.environ["SKIP_TRAINING"].lower() == "true"
+        if "FUNDAMENTAL_CACHE_EXPIRY_DAYS" in os.environ:
+            self.fundamental_cache_expiry_days = int(os.environ["FUNDAMENTAL_CACHE_EXPIRY_DAYS"])
+        if "BACKTEST_YEARS" in os.environ:
+            self.backtest_years = os.environ["BACKTEST_YEARS"]
+        if "STOCK_PRICE_DB_PATH" in os.environ:
+            self.stock_price_db_path = os.environ["STOCK_PRICE_DB_PATH"]
+        if "OPENAI_API_KEY" in os.environ:
+            self.openai_api_key = os.environ["OPENAI_API_KEY"]
+        if "OPENAI_MODEL" in os.environ:
+            self.openai_model = os.environ["OPENAI_MODEL"]
+        if "TELEGRAM_BOT_TOKEN" in os.environ:
+            self.telegram_bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
+        if "TELEGRAM_AUTHORIZED_USER_IDS" in os.environ:
+            self.telegram_authorized_user_ids = os.environ["TELEGRAM_AUTHORIZED_USER_IDS"]
+        if "KIS_MOCK_APP_KEY" in os.environ:
+            self.kis_mock_app_key = os.environ["KIS_MOCK_APP_KEY"]
+        if "KIS_MOCK_APP_SECRET" in os.environ:
+            self.kis_mock_app_secret = os.environ["KIS_MOCK_APP_SECRET"]
+        if "KIS_MOCK_ACCOUNT" in os.environ:
+            self.kis_mock_account = os.environ["KIS_MOCK_ACCOUNT"]
+
         self._resolve_db_paths()
         self._parsed_authorized_user_ids = self._parse_authorized_ids()
 
@@ -69,7 +115,7 @@ class TradingConfig:
 
     @property
     def parsed_authorized_user_ids(self) -> list:
-        return self._parsed_authorized_user_ids
+        return self._parse_authorized_ids()
 
     def resolve_sample_size(self, value: str, universe_size: int) -> int:
         value = value.strip().lower()

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f trading_system/requirements.txt ]; then pip install -r trading_system/requirements.txt; fi
+        pip install pytest ruff mypy coverage
+
+    - name: Lint with Ruff
+      run: |
+        ruff check trading_system/
+
+    - name: Type check with Mypy
+      run: |
+        mypy --ignore-missing-imports trading_system/src/
+
+    - name: Run unit tests with pytest
+      env:
+        STOCK_PRICE_FRESHNESS_DAYS: none
+      run: |
+        pytest trading_system/tests/ -v

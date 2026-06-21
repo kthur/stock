@@ -7,13 +7,10 @@ import asyncio
 import logging
 import sqlite3
 import signal
-import subprocess
-import functools
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from filelock import FileLock, Timeout
-from concurrent.futures import ThreadPoolExecutor
 
 # Ensure project root is in path
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -351,8 +348,7 @@ async def run_stage(stage: str, db_path: str) -> bool:
         await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Failed", err_msg)
         return False
     except Exception as e:
-        import traceback
-        err_msg = f"{e}\n{traceback.format_exc()}"
+        logger.error(f"Stage '{stage}' failed with exception", exc_info=True)
         await log_run_end(db_path, run_id, "failure", error_message=str(e))
         await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Failed", str(e))
         return False
@@ -451,7 +447,7 @@ async def fallback_scheduler_loop():
             await run_task_safely("weekly_train", lambda: run_stage("all", DB_PATH))
             last_run["weekly_train"] = current_today
             
-        await asyncio.sleep(1)
+        await asyncio.sleep(60)
 
 # Main entrypoint for the daemon
 async def main():
@@ -492,7 +488,7 @@ async def main():
                     logger.info("Stop flag file detected. Stopping daemon gracefully...")
                     running = False
                     break
-                await asyncio.sleep(1)
+                await asyncio.sleep(60)
 
             scheduler.shutdown()
         else:

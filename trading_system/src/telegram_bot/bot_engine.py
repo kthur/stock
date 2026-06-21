@@ -37,7 +37,6 @@ class TelegramBotEngine:
         self._rate_limits: Dict[int, deque] = {}
         self._rate_window = 10.0
         self._rate_max_calls = 10
-        self._authorized_ids = self._parse_authorized_ids()
         self._restricted_commands = {
             "buy",
             "sell",
@@ -93,6 +92,13 @@ class TelegramBotEngine:
         self.is_running = False
         self.logger.info("Telegram bot stopped")
 
+    @property
+    def authorized_ids(self) -> set:
+        """인증된 사용자 ID 세트 반환 (설정과 동기화)"""
+        if self.trading_system and hasattr(self.trading_system, "config"):
+            return set(self.trading_system.config.parsed_authorized_user_ids)
+        return self._parse_authorized_ids()
+
     @staticmethod
     def _parse_authorized_ids() -> set:
         """환경변수에서 인증된 사용자 ID 파싱"""
@@ -139,7 +145,7 @@ class TelegramBotEngine:
         args = parts[1:] if len(parts) > 1 else []
 
         # 텔레그램 권한 검증
-        if self._authorized_ids and command in self._restricted_commands and user_id not in self._authorized_ids:
+        if self.authorized_ids and command in self._restricted_commands and user_id not in self.authorized_ids:
             self.logger.warning(f"Unauthorized command execution attempt by user {user_id}: {message}")
             return "⚠️ 권한 오류: 승인되지 않은 사용자 ID입니다. 관리자에게 문의하세요."
 

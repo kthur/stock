@@ -38,7 +38,7 @@ class TestFeatureNormalization(unittest.TestCase):
         
         # 4. Test dict compatibility
         self.assertTrue("AAPL" in FALLBACK_METADATA)
-        self.assertTrue("UNKNOWN_TICKER" in FALLBACK_METADATA)
+        self.assertFalse("UNKNOWN_TICKER" in FALLBACK_METADATA)
         self.assertEqual(FALLBACK_METADATA.get("AAPL")["shares_outstanding"], 15000000000.0)
         self.assertIsNotNone(FALLBACK_METADATA.get("XYZ"))
         

@@ -80,6 +80,7 @@ trading_system/models/*.json
 trading_system/models/*.txt
 trading_system/models/*.cbm
 trading_system/models/*.bin
+trading_system/models/*.pt
 temp_model.json
 
 # Pipeline output files
@@ -89,10 +90,13 @@ trading_system/lead_lag_predictions.txt
 trading_system/vcp_patterns.txt
 trading_system/vcp_ml_predictions.txt
 trading_system/portfolio_allocation.txt
+trading_system/stat_arb_predictions.txt
 
 # Test artifacts
 *.pdf
 test_*.log
+.coverage
+trading_system/.coverage
 
 # Temporary / scratch output
 out.txt

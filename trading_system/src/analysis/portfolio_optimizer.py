@@ -111,3 +111,103 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
         weights = np.full(n, 1.0 / n)
 
     return weights
+
+
+def calculate_black_litterman_weights(
+    cov_matrix: np.ndarray,
+    predicted_returns: np.ndarray,
+    prior_weights: np.ndarray = None,
+    risk_aversion: float = 2.5,
+    tau: float = 0.05,
+    omega_scale: float = 0.1,
+    risk_free_rate: float = 0.02,
+) -> np.ndarray:
+    """
+    Computes optimal portfolio weights using the Black-Litterman model.
+    Prior return: Pi = risk_aversion * cov_matrix @ prior_weights
+    Views: Q = predicted_returns, P = Identity
+    Uncertainty: Omega = diagonal of cov_matrix * omega_scale
+    Updates expected returns and covariance matrix, then solves for tangency portfolio.
+    """
+    # Guard against invalid inputs
+    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
+        logger.error("Invalid covariance matrix for Black-Litterman: not a numpy array.")
+        return np.array([])
+
+    n = cov_matrix.shape[0]
+    if n == 0:
+        return np.array([])
+    if n == 1:
+        return np.array([1.0])
+
+    try:
+        # Check for non-finite values in covariance matrix
+        if not np.all(np.isfinite(cov_matrix)):
+            raise ValueError("Covariance matrix contains NaN or Inf values.")
+
+        # Prior weights (default to equal weights)
+        if prior_weights is None:
+            w_eq = np.full(n, 1.0 / n)
+        else:
+            w_eq = np.asarray(prior_weights)
+            if len(w_eq) != n:
+                w_eq = np.full(n, 1.0 / n)
+
+        # Prior returns Pi
+        Pi = risk_aversion * (cov_matrix @ w_eq)
+
+        # Views Q (predicted returns)
+        Q = np.asarray(predicted_returns)
+        if len(Q) != n:
+            logger.warning("Length of predicted_returns does not match cov_matrix. Using flat returns.")
+            Q = np.zeros(n)
+
+        # Uncertainty Omega (diagonal of covariance matrix scaled)
+        Omega = np.diag(np.maximum(np.diag(cov_matrix) * omega_scale, 1e-8))
+
+        # Solve for posterior expected returns and covariance matrix
+        # A = (tau * Sigma + Omega)
+        A = tau * cov_matrix + Omega
+        
+        # mu_bl = Pi + tau * Sigma @ (tau * Sigma + Omega)^-1 @ (Q - Pi)
+        inv_A_diff = np.linalg.solve(A, Q - Pi)
+        mu_bl = Pi + tau * (cov_matrix @ inv_A_diff)
+
+        # Sigma_bl = (1 + tau) * Sigma - tau^2 * Sigma @ (tau * Sigma + Omega)^-1 @ Sigma
+        inv_A_Sigma = np.linalg.solve(A, cov_matrix)
+        cov_bl = (1.0 + tau) * cov_matrix - (tau ** 2) * (cov_matrix @ inv_A_Sigma)
+
+        # Check for non-finite values in updated values
+        if not np.all(np.isfinite(mu_bl)) or not np.all(np.isfinite(cov_bl)):
+            raise ValueError("Calculated BL expected returns or covariance contain NaN/Inf.")
+
+        # Optimize weights (maximize Sharpe ratio)
+        def objective(w):
+            w = np.asarray(w)
+            port_ret = float(w @ mu_bl)
+            port_vol = float(np.sqrt(w @ cov_bl @ w))
+            if port_vol < 1e-8:
+                return 0.0
+            # Maximize Sharpe ratio: minimize negative Sharpe ratio
+            return - (port_ret - risk_free_rate) / port_vol
+
+        w0 = np.full(n, 1.0 / n)
+        cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
+        bounds = [(0.0, 1.0) for _ in range(n)]
+
+        res = minimize(objective, w0, method="SLSQP", bounds=bounds, constraints=cons)
+        if res.success:
+            weights = res.x
+            # Normalize to sum to exactly 1.0 and clip
+            weights = np.clip(weights, 0.0, 1.0)
+            sum_w = np.sum(weights)
+            if sum_w > 1e-12:
+                weights /= sum_w
+                return weights
+
+        logger.warning(f"Black-Litterman optimization failed: {res.message}. Falling back to Risk Parity.")
+    except Exception as e:
+        logger.error(f"Exception during Black-Litterman optimization: {e}. Falling back to Risk Parity.")
+
+    # Fallback to Risk Parity
+    return calculate_risk_parity_weights(cov_matrix)

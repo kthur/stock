@@ -620,6 +620,9 @@ class VCPSurgePredictor:
 
     def load_models(self):
         try:
+            cols = list(dict.fromkeys(self._ft.ALL_FEATURES + VCP_FEATURES))
+            dummy_df = pd.DataFrame(0.0, index=[0], columns=cols)
+            
             # Load XGBoost models
             for market in MARKETS:
                 self.models[market] = {}
@@ -632,13 +635,21 @@ class VCPSurgePredictor:
                         model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
                         model._Booster = booster
                         model._estimator_type = 'classifier'
-                        model.n_classes_ = 2
+                        try:
+                            model.n_classes_ = 2
+                        except (AttributeError, TypeError):
+                            model._n_classes = 2
                         try:
                             model.classes_ = np.array([0, 1])
                         except (AttributeError, TypeError):
                             model._classes = np.array([0, 1])
-                        self.models[market][h] = model
-                        logger.debug(f"Loaded VCP ML XGB model for {market} {h}d")
+                        
+                        try:
+                            _ = model.predict_proba(dummy_df)
+                            self.models[market][h] = model
+                            logger.debug(f"Loaded VCP ML XGB model for {market} {h}d")
+                        except Exception as e:
+                            logger.warning(f"VCP ML XGB model for {market} {h}d validation failed: {e}. Skipping.")
                 if not self.models[market]:
                     del self.models[market]
 
@@ -652,12 +663,20 @@ class VCPSurgePredictor:
                         model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
                         model._Booster = booster
                         model.fitted_ = True
-                        model._n_features = len(self._ft.ALL_FEATURES) + len(VCP_FEATURES)
-                        model._n_features_in = len(self._ft.ALL_FEATURES) + len(VCP_FEATURES)
-                        model._n_classes = 2
-                        model._classes = np.array([0, 1])
-                        self.lgb_models[market][h] = model
-                        logger.debug(f"Loaded VCP ML LGB model for {market} {h}d")
+                        
+                        try:
+                            feature_names = booster.feature_name()
+                            n_feats = len(feature_names) if feature_names else len(cols)
+                            model._n_features = n_feats
+                            model._n_features_in = n_feats
+                            model._n_classes = 2
+                            model._classes = np.array([0, 1])
+                            
+                            _ = model.predict_proba(dummy_df)
+                            self.lgb_models[market][h] = model
+                            logger.debug(f"Loaded VCP ML LGB model for {market} {h}d")
+                        except Exception as e:
+                            logger.warning(f"VCP ML LGB model for {market} {h}d validation failed: {e}. Skipping.")
                 if not self.lgb_models[market]:
                     del self.lgb_models[market]
 
@@ -669,8 +688,13 @@ class VCPSurgePredictor:
                     if path.exists():
                         model = cb.CatBoostClassifier()
                         model.load_model(str(path))
-                        self.cat_models[market][h] = model
-                        logger.debug(f"Loaded VCP ML CatBoost model for {market} {h}d")
+                        
+                        try:
+                            _ = model.predict_proba(dummy_df)
+                            self.cat_models[market][h] = model
+                            logger.debug(f"Loaded VCP ML CatBoost model for {market} {h}d")
+                        except Exception as e:
+                            logger.warning(f"VCP ML CatBoost model for {market} {h}d validation failed: {e}. Skipping.")
                 if not self.cat_models[market]:
                     del self.cat_models[market]
 

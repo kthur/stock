@@ -40,6 +40,7 @@ from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
 from src.risk.position_sizing import PortfolioAllocator
+from src.analysis.regime_detector import MarketRegimeDetector
 from src.utils.rate_limiter import get_global_rate_limiter
 from src.utils.technical_cache import DataFrameCache
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
@@ -171,7 +172,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
     return result
 
 
-# 8 Global indicator tickers → feature column names
+# 9 Global indicator tickers → feature column names
 _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
     '^TNX': 'us10y',
@@ -181,6 +182,7 @@ _INDICATOR_TICKERS = {
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
+    '^CPC': 'put_call_ratio',
 }
 
 
@@ -236,6 +238,8 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
         if df is not None and not df.empty:
             if col_name.endswith('_change'):
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
+            elif col_name == 'put_call_ratio':
+                return (col_name, df['Close'].ffill().fillna(0.6))
             else:
                 return (col_name, df['Close'].ffill().fillna(0.0))
         return (col_name, pd.Series(dtype=float))
@@ -268,21 +272,22 @@ def _market_symbols(universe: pd.DataFrame) -> dict:
         markets[m] = set(universe[universe['market'] == m]['symbol'])
     return markets
 
-def _fmt_top(df: pd.DataFrame, horizon: int, universe: pd.DataFrame, count: int = 10) -> list:
+def _fmt_top(df: pd.DataFrame, horizon: int, symbol_to_name: dict, symbol_to_market: dict, count: int = 10) -> list:
     """Format top-N predictions for a single market segment."""
     lines = []
     for rank, (_, row) in enumerate(df.head(count).iterrows(), 1):
         sym = row['symbol']
         ret = row[horizon] * 100
-        name_row = universe[universe['symbol'] == sym]
-        name = name_row['name'].values[0] if not name_row.empty else "Unknown"
-        marker = name_row['market'].values[0] if not name_row.empty else ""
+        name = symbol_to_name.get(sym, "Unknown")
+        marker = symbol_to_market.get(sym, "")
         lines.append(f"  {rank}. [{marker}] {sym} ({name}): +{ret:.2f}%")
     return lines
 
 def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> str:
     """Format prediction results as a Telegram-friendly message"""
     market_syms = _market_symbols(universe)
+    symbol_to_name = dict(zip(universe['symbol'], universe['name']))
+    symbol_to_market = dict(zip(universe['symbol'], universe['market']))
     horizons = [1, 5, 10, 20, 30, 60, 120, 200]
     lines = [
         "🤖 *XGBoost 예측 결과*",
@@ -299,12 +304,12 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
             m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
             if not m_df.empty:
                 lines.append(f"\n*{h}일 예상 — {m} TOP 10*")
-                lines.extend(_fmt_top(m_df, h, universe, 10))
+                lines.extend(_fmt_top(m_df, h, symbol_to_name, symbol_to_market, 10))
 
         sp500_df = sorted_df[sorted_df['symbol'].isin(market_syms.get('SP500', set()))]
         if not sp500_df.empty:
             lines.append(f"\n*{h}일 예상 — S&P 500 TOP 10*")
-            lines.extend(_fmt_top(sp500_df, h, universe, 10))
+            lines.extend(_fmt_top(sp500_df, h, symbol_to_name, symbol_to_market, 10))
 
     return "\n".join(lines)
 
@@ -697,14 +702,67 @@ def execute_prediction_pipeline():
     lead_lag_df = model.predict_lead_lag(infer_data_dict)
     if not lead_lag_df.empty:
         logger.info(f"Lead-lag predictions generated for {len(lead_lag_df)} symbols")
+
+    # 10e. Run Statistical Arbitrage pair scanning
+    logger.info("Running Statistical Arbitrage pair scanning...")
+    from src.core.stat_arb import StatisticalArbitrageEngine
+    stat_arb_engine = StatisticalArbitrageEngine()
+    
+    stat_arb_prices = {}
+    for sym, df_p in infer_data_dict.items():
+        if df_p is not None and not df_p.empty:
+            close_series = df_p['Close']
+            if isinstance(close_series, pd.DataFrame):
+                close_series = close_series.iloc[:, 0]
+            stat_arb_prices[sym] = close_series.tolist()
+            
+    stat_arb_pairs = stat_arb_engine.find_cointegrated_pairs(stat_arb_prices)
+    
+    # Save Stat-Arb predictions to separate file
+    stat_arb_output_path = os.path.join(os.path.dirname(__file__), "stat_arb_predictions.txt")
+    with open(stat_arb_output_path, "w", encoding="utf-8") as f:
+        f.write("=== Statistical Arbitrage Pairs & Signals ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f.write(f"Total pairs found: {len(stat_arb_pairs)}\n\n")
+        f.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta':<10}{'Signal':<20}\n")
+        f.write("-" * 80 + "\n")
+        for p in stat_arb_pairs:
+            pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
+            f.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
+    logger.info(f"Saved Statistical Arbitrage pairs ({len(stat_arb_pairs)}) to {stat_arb_output_path}")
         
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
     logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
 
-    # 11b. Run Portfolio Position Sizing
+    # 11b. Run Market Regime Detection
+    logger.info("Running GMM Market Regime Detection...")
+    regime_detector = MarketRegimeDetector()
+    
+    # Train regime detector on available indicator history
+    if not indicator_train.empty:
+        regime_detector.train(indicator_train)
+    elif not indicator_infer.empty:
+        regime_detector.train(indicator_infer)
+        
+    current_regime_label = regime_detector.predict_regime_label(indicator_infer)
+    current_regime = regime_detector.predict_regime(indicator_infer)
+    logger.info(f"==> CURRENT MARKET REGIME DETECTED: {current_regime_label} ({current_regime})")
+    
+    # Adjust maximum total allocation based on regime
+    if current_regime == 0:  # BEAR
+        max_alloc = 0.20
+        logger.info("Defensive mode active (BEAR market): restricting total allocation to 20.0%")
+    elif current_regime == 1:  # SIDEWAYS
+        max_alloc = 0.50
+        logger.info("Moderate risk mode active (SIDEWAYS market): restricting total allocation to 50.0%")
+    else:  # BULL
+        max_alloc = 0.85
+        logger.info("Standard risk mode active (BULL market): setting total allocation to 85.0%")
+
+    # 11c. Run Portfolio Position Sizing
     logger.info("Running Portfolio Position Sizing allocation...")
-    allocator = PortfolioAllocator(target_horizon=20)
+    allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
     alloc_df = allocator.allocate(res_df, infer_data_dict, total_portfolio_value=1000000000.0)
     if not alloc_df.empty:
         # Merge with universe to get market/name
@@ -736,6 +794,7 @@ def execute_prediction_pipeline():
     # Save full inference results for ALL symbols to file
     output_path = os.path.join(os.path.dirname(__file__), "pipeline_result.txt")
     market_syms = _market_symbols(universe)
+    symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(f"=== Full Pipeline Inference Results ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
@@ -754,8 +813,7 @@ def execute_prediction_pipeline():
                     continue
                 f.write(f"--- {m} (all {len(m_df)} symbols) ---\n")
                 for rank, (_, row) in enumerate(m_df.iterrows(), 1):
-                    name_row = universe[universe['symbol'] == row['symbol']]
-                    name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+                    name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
                 f.write("\n")
             sp500_set = market_syms.get('SP500', set())
@@ -763,8 +821,7 @@ def execute_prediction_pipeline():
             if not sp500_df.empty:
                 f.write(f"--- S&P 500 (all {len(sp500_df)} symbols) ---\n")
                 for rank, (_, row) in enumerate(sp500_df.iterrows(), 1):
-                    name_row = universe[universe['symbol'] == row['symbol']]
-                    name = name_row['name'].values[0] if not name_row.empty else "Unknown"
+                    name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
                 f.write("\n")
     logger.info(f"Saved full pipeline result ({len(res_df)} symbols) to {output_path}")
@@ -831,9 +888,9 @@ def execute_prediction_pipeline():
                 ret = (close.iloc[-1] / close.iloc[-2]) - 1
                 leader_returns.append((sym, ret))
             leader_returns.sort(key=lambda x: -x[1])
+            symbol_to_name = dict(zip(universe['symbol'], universe['name']))
             for rank, (sym, ret) in enumerate(leader_returns[:10], 1):
-                name_row = universe[universe['symbol'] == sym]
-                name = name_row['name'].values[0] if not name_row.empty else sym
+                name = symbol_to_name.get(sym, sym)
                 f.write(f"  {rank}. {sym} ({name}): +{ret*100:.2f}%\n")
         logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
 

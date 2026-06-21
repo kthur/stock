@@ -6,15 +6,17 @@ import subprocess
 # PyTorch WinError 1114 DLL Loading Crash bypass
 if "torch" not in sys.modules:
     should_bypass = os.getenv("BYPASS_TORCH", "").lower() in ("true", "1")
-    if not should_bypass:
+    if os.getenv("BYPASS_TORCH", "").lower() == "false":
+        should_bypass = False
+    elif not should_bypass:
         is_test = "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv)
-        if is_test or os.getenv("BYPASS_TORCH") is not None:
+        if is_test:
             try:
                 res = subprocess.run(
                     [sys.executable, "-c", "import torch"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    timeout=5
+                    timeout=15
                 )
                 if res.returncode != 0:
                     should_bypass = True

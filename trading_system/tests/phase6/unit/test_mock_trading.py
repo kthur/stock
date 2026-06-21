@@ -5,6 +5,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 from typing import Dict, List
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from src.core.order_management import OrderManagementSystem, OrderType, OrderStatus, Order
 from src.config import TradingConfig

@@ -131,7 +131,7 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
         # Before date[10], values should be filled with FallbackMetadata (e.g. AAPL metadata)
         # From date[10] onwards, values should be forward-filled with 500000.0, 100000.0, 2.0
         aapl_meta = FALLBACK_METADATA["AAPL"]
-        self.assertEqual(df_merged["revenue"].iloc[0], aapl_meta["revenue"])
+        self.assertTrue(pd.isna(df_merged["revenue"].iloc[0]) and pd.isna(aapl_meta["revenue"]))
         self.assertEqual(df_merged["revenue"].iloc[10], 500000.0)
         self.assertEqual(df_merged["revenue"].iloc[99], 500000.0)
         self.assertEqual(df_merged["dividend_per_share"].iloc[99], 2.0)

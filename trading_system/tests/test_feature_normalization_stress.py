@@ -286,9 +286,9 @@ class TestFeatureNormalizationStress(unittest.TestCase):
         }, index=dates)
         df_feat = self.model._create_features(df_nan)
         self.assertFalse(df_feat.empty)
-        self.assertFalse(df_feat["operating_margin"].isna().any())
-        self.assertFalse(df_feat["revenue_to_market_cap"].isna().any())
-        self.assertFalse(df_feat["dividend_yield"].isna().any())
+        self.assertTrue(df_feat["operating_margin"].isna().all())
+        self.assertTrue(df_feat["revenue_to_market_cap"].isna().all())
+        self.assertTrue(df_feat["dividend_yield"].isna().all())
 
 if __name__ == "__main__":
     unittest.main()

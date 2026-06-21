@@ -22,8 +22,12 @@ def _make_handler(system: StockTradingSystem) -> Callable:
         user_id = update.effective_user.id
         text = update.message.text
         logger.info(f"Telegram live message received from user {user_id}: {text}")
-        response = system.process_telegram_message(user_id, text)
-        await update.message.reply_text(response, parse_mode="Markdown")
+        try:
+            response = system.process_telegram_message(user_id, text)
+            await update.message.reply_text(response, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Error handling telegram message '{text}': {e}", exc_info=True)
+            await update.message.reply_text("❌ 요청을 처리하는 중 오류가 발생했습니다. 로그를 확인하세요.", parse_mode="Markdown")
     return handle_message
 
 

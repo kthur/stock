@@ -169,6 +169,59 @@ class TestMarketIndicatorStorage(unittest.TestCase):
         self.assertEqual(retrieved.iloc[1]["dividend_per_share"], 0.25)
 
 
+class TestMarketIndicatorStorageConcurrency(unittest.TestCase):
+    """MarketIndicatorStorage 동시성 및 스트레스 테스트"""
+
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.db_path = self.tmp.name
+        self.tmp.close()
+        self.storage = MarketIndicatorStorage(db_path=self.db_path)
+
+    def tearDown(self):
+        self.storage = None
+        import gc
+        gc.collect()
+        Path(self.db_path).unlink(missing_ok=True)
+
+    def test_concurrent_writes(self):
+        """다중 스레드에서 동시에 DB 쓰기 작업이 Lock 에러 없이 처리되는지 검증"""
+        import threading
+        import queue
+        
+        errors = queue.Queue()
+        num_threads = 5
+        writes_per_thread = 20
+
+        def worker(thread_idx):
+            try:
+                for i in range(writes_per_thread):
+                    data = {
+                        "indices": {
+                            f"INDEX_{thread_idx}_{i}": {
+                                "symbol": f"SYM_{thread_idx}_{i}",
+                                "name": f"Name_{thread_idx}_{i}",
+                                "price": 100.0 + i,
+                                "change_pct": 0.01 * i
+                            }
+                        }
+                    }
+                    self.storage.save_indicators(data, f"2026-06-{i+1:02d}")
+            except Exception as e:
+                errors.put(e)
+
+        threads = []
+        for idx in range(num_threads):
+            t = threading.Thread(target=worker, args=(idx,))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        self.assertTrue(errors.empty(), f"Errors occurred during concurrent writes: {list(errors.queue)}")
+
+
 class _MockOrder:
     def __init__(self):
         self.order_id = "ORD_001"
@@ -185,6 +238,59 @@ class _MockOrder:
 class _MockEnum:
     def __init__(self, value):
         self.value = value
+
+
+from src.persistence.database import StockPriceDB
+
+class TestStockPriceDBConcurrency(unittest.TestCase):
+    """StockPriceDB concurrency stress test"""
+
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.db_path = self.tmp.name
+        self.tmp.close()
+        self.db = StockPriceDB(db_path=self.db_path)
+
+    def tearDown(self):
+        self.db = None
+        import gc
+        gc.collect()
+        Path(self.db_path).unlink(missing_ok=True)
+
+    def test_concurrent_price_updates(self):
+        """Verify that concurrent writes to StockPriceDB run without errors or locks"""
+        import threading
+        import queue
+        import pandas as pd
+        
+        errors = queue.Queue()
+        num_threads = 5
+        writes_per_thread = 15
+
+        def worker(thread_idx):
+            try:
+                for i in range(writes_per_thread):
+                    df = pd.DataFrame({
+                        "Open": [100.0 + i],
+                        "High": [105.0 + i],
+                        "Low": [95.0 + i],
+                        "Close": [101.0 + i],
+                        "Volume": [1000 + i]
+                    }, index=[pd.Timestamp(f"2026-06-{i+1:02d}")])
+                    self.db.update_prices(f"SYM_{thread_idx}", df)
+            except Exception as e:
+                errors.put(e)
+
+        threads = []
+        for idx in range(num_threads):
+            t = threading.Thread(target=worker, args=(idx,))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        self.assertTrue(errors.empty(), f"Errors occurred during concurrent StockPriceDB updates: {list(errors.queue)}")
 
 
 if __name__ == "__main__":

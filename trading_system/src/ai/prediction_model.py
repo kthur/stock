@@ -77,7 +77,8 @@ class FallbackMetadataDict(dict):
             return default
 
     def __contains__(self, key):
-        return True
+        cleaned = self._clean_key(key)
+        return super().__contains__(cleaned)
 
     def _generate_mock_metadata(self, symbol: str) -> dict:
         h = hashlib.md5(symbol.encode('utf-8'), usedforsecurity=False).hexdigest()  # nosec B324
@@ -89,11 +90,11 @@ class FallbackMetadataDict(dict):
         return {
             "shares_outstanding": float(shares_outstanding),
             "floating_shares": float(floating_shares),
-            "revenue": 0.0,
-            "operating_income": 0.0,
-            "net_income": 0.0,
-            "eps": 0.0,
-            "dividend_per_share": 0.0
+            "revenue": np.nan,
+            "operating_income": np.nan,
+            "net_income": np.nan,
+            "eps": np.nan,
+            "dividend_per_share": np.nan
         }
 
 
@@ -119,20 +120,25 @@ class OnDevicePredictionModel:
         # Lagged Return Features
         'ret_1d_lag1', 'ret_5d_lag1',
         # Technical Indicators
-        'adx_14', 'tenkan_sen', 'kijun_sen', 'stoch_rsi_k', 'stoch_rsi_d'
+        'adx_14', 'tenkan_sen', 'kijun_sen', 'stoch_rsi_k', 'stoch_rsi_d',
+        # Institutional Flow / Alternative Data Features
+        'dark_pool_ratio', 'block_trade_net_usd'
     ]
     # Global market indicators added as features (날짜별 히스토리 merge)
     GLOBAL_FEATURES = [
         'vix_change', 'us10y', 'usdkrw_change', 'sp500_change',
         'dxy_change', 'wti_change', 'kospi_change', 'kosdaq_change',
+        'put_call_ratio'
     ]
     ALL_FEATURES = FEATURES + GLOBAL_FEATURES
 
     def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
+        from src.ai.lstm_predictor import LSTMPredictor
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
         self.lgb_models: Dict[str, Dict[int, lgb.LGBMRegressor]] = {}
         self.cat_models: Dict[str, Dict[int, cb.CatBoostRegressor]] = {}
+        self.lstm_models: Dict[str, Dict[int, LSTMPredictor]] = {}
         
         self.surge_models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
         self.surge_lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
@@ -313,6 +319,12 @@ class OnDevicePredictionModel:
                 for h, model in models.items():
                     model_path = self.model_dir / f"cat_model_{market}_{h}d.bin"
                     model.save_model(str(model_path))
+            # LSTM
+            for market, models in self.lstm_models.items():
+                for h, model in models.items():
+                    if model.is_trained:
+                        model_path = self.model_dir / f"lstm_model_{market}_{h}d.pt"
+                        model.save_model(str(model_path))
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
@@ -389,6 +401,26 @@ class OnDevicePredictionModel:
                 except Exception as e:
                     logger.warning(f"CatBoost model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
 
+            # Load PyTorch LSTM models
+            for fpath in self.model_dir.glob("lstm_model_*_*d.pt"):
+                parts = fpath.stem.replace("lstm_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                try:
+                    from src.ai.lstm_predictor import LSTMPredictor
+                    model = LSTMPredictor(sequence_length=20)
+                    model.load_model(str(fpath))
+                    if model.is_trained:
+                        if market not in self.lstm_models:
+                            self.lstm_models[market] = {}
+                        self.lstm_models[market][h] = model
+                        logger.debug(f"Loaded LSTM model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"LSTM model {market} {h}d load failed: {e}. Skipping.")
+
             # Fallback check for missing models (compatibility block)
             if not self.models:
                 for market in ['sp500', 'krx']:
@@ -412,7 +444,8 @@ class OnDevicePredictionModel:
             total_xgb = sum(len(v) for v in self.models.values())
             total_lgb = sum(len(v) for v in self.lgb_models.values())
             total_cat = sum(len(v) for v in self.cat_models.values())
-            logger.info(f"Loaded regression models: XGB={total_xgb}, LGB={total_lgb}, Cat={total_cat}")
+            total_lstm = sum(len(v) for v in self.lstm_models.values())
+            logger.info(f"Loaded regression models: XGB={total_xgb}, LGB={total_lgb}, Cat={total_cat}, LSTM={total_lstm}")
         except Exception as e:
             logger.error(f"Failed to load models: {e}")
 
@@ -776,7 +809,7 @@ class OnDevicePredictionModel:
         # Add has_fundamental feature to explicitly differentiate true 0.0 from missing data (Issue S4)
         if 'has_fundamental' not in df.columns:
             if has_cols:
-                df['has_fundamental'] = 1.0
+                df['has_fundamental'] = 1.0 if not df['revenue'].isna().all() else 0.0
             else:
                 # If df_fun was fetched and had data, fundamental exists
                 df['has_fundamental'] = 1.0 if (df_fun is not None and not df_fun.empty) else 0.0
@@ -826,7 +859,7 @@ class OnDevicePredictionModel:
 
         # Ensure fundamental columns exist
         if 'has_fundamental' not in df.columns:
-            df['has_fundamental'] = 1.0 if 'revenue' in df.columns else 0.0
+            df['has_fundamental'] = 1.0 if ('revenue' in df.columns and not df['revenue'].isna().all()) else 0.0
 
         op_inc = df['operating_income'] if 'operating_income' in df.columns else pd.Series(0.0, index=df.index)
         rev = df['revenue'] if 'revenue' in df.columns else pd.Series(0.0, index=df.index)
@@ -1011,6 +1044,14 @@ class OnDevicePredictionModel:
         df['stoch_rsi_k'] = stoch_rsi.fillna(50.0)
         df['stoch_rsi_d'] = stoch_rsi.rolling(3, min_periods=1).mean().fillna(50.0)
 
+        # 12. Microstructure / Alt-data proxy features (vectorized dark pool ratio & block trades)
+        vol_mean_20d = volume.rolling(20, min_periods=1).mean()
+        vol_ratio_20d = (volume / (vol_mean_20d + 1e-9)).fillna(1.0)
+        ret_vol_20d = df['ret_1d'].rolling(20, min_periods=1).std().fillna(0.02)
+        dp_ratio = 0.35 + 0.1 * (vol_ratio_20d - 1.0) - 0.05 * (df['ret_1d'].abs() / (ret_vol_20d + 1e-5))
+        df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
+        df['block_trade_net_usd'] = (volume * close * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)
+
         # Fill NaNs in return and volatility columns with 0.0 before dropna
         new_tech_cols = ['ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'rsi_14', 'rsi_5',
                     'macd', 'macd_signal', 'macd_hist_norm', 'bb_upper_dist', 'bb_lower_dist',
@@ -1019,7 +1060,7 @@ class OnDevicePredictionModel:
                     'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
                     'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
                     'monotonic', 'vcp_score', 'ret_1d_lag1', 'ret_5d_lag1', 'adx_14', 'tenkan_sen', 'kijun_sen',
-                    'stoch_rsi_k', 'stoch_rsi_d']
+                    'stoch_rsi_k', 'stoch_rsi_d', 'dark_pool_ratio', 'block_trade_net_usd']
         for col in new_tech_cols:
             if col in df.columns:
                 df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)
@@ -1036,15 +1077,29 @@ class OnDevicePredictionModel:
                      'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
                      'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
                      'monotonic', 'vcp_score', 'ret_1d_lag1', 'ret_5d_lag1', 'adx_14', 'tenkan_sen', 'kijun_sen',
-                     'stoch_rsi_k', 'stoch_rsi_d']
+                     'stoch_rsi_k', 'stoch_rsi_d', 'dark_pool_ratio', 'block_trade_net_usd']
         existing_tech_cols = [c for c in tech_cols if c in df.columns]
         df = df.dropna(subset=existing_tech_cols)
 
         # S3 fix: ensure no inf values survive into the final feature matrix.
         # Division-by-zero (e.g. Volume=0) may produce inf even after per-column guards above.
         df = df.replace([np.inf, -np.inf], 0.0)
-        # Fill remaining NaNs (like fundamentals) with 0.0
-        df = df.fillna(0.0)
+        # Fill technical indicator NaNs with 0.0, but keep fundamental features as NaN if has_fundamental == 0
+        fundamental_cols = [
+            'operating_margin', 'revenue_to_market_cap', 'dividend_yield', 
+            'net_profit_margin', 'eps_yield', 'eps_growth_1y', 'revenue_growth_1y',
+            'revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share'
+        ]
+        
+        # If has_fundamental is 0, explicitly set fundamental features to NaN
+        if 'has_fundamental' in df.columns:
+            mask_no_fund = (df['has_fundamental'] == 0.0)
+            for col in fundamental_cols:
+                if col in df.columns:
+                    df.loc[mask_no_fund, col] = np.nan
+        
+        other_cols = [c for c in df.columns if c not in fundamental_cols]
+        df[other_cols] = df[other_cols].fillna(0.0)
         return df
 
     def _create_targets(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1072,7 +1127,10 @@ class OnDevicePredictionModel:
             df['symbol'] = sym
             df_feat = self._create_features(df, indicator_df)
             df_feat = self._create_targets(df_feat)
-            df_clean = df_feat.dropna()
+            # Drop rows where non-fundamental features or targets are missing
+            fundamental_cols = ['operating_margin', 'revenue_to_market_cap', 'dividend_yield', 'net_profit_margin', 'eps_yield', 'eps_growth_1y']
+            drop_subset = [c for c in df_feat.columns if c not in fundamental_cols and c != 'symbol']
+            df_clean = df_feat.dropna(subset=drop_subset)
             if not df_clean.empty:
                 df_clean = df_clean.reset_index()
                 df_clean = df_clean.rename(columns={'index': 'date'})
@@ -1107,8 +1165,44 @@ class OnDevicePredictionModel:
 
         return df_merged
 
+    def _prepare_lstm_data(self, df: pd.DataFrame, target_col: str, seq_len: int = 20):
+        """
+        Constructs symbol-grouped sequences of length seq_len.
+        Returns X_all, y_all, and df_indices array.
+        """
+        import numpy as np
+        X_all = []
+        y_all = []
+        df_indices = []
+
+        for sym, group in df.groupby('symbol'):
+            group_sorted = group.sort_values('date')
+            if len(group_sorted) < seq_len:
+                continue
+            
+            returns = group_sorted['ret_1d'].values
+            targets = group_sorted[target_col].values
+            indices = group_sorted.index.values
+
+            # Create rolling windows
+            for i in range(seq_len - 1, len(group_sorted)):
+                window = returns[i - (seq_len - 1) : i + 1]
+                X_all.append(window)
+                y_all.append(targets[i])
+                df_indices.append(indices[i])
+
+        if not X_all:
+            return np.array([]), np.array([]), np.array([])
+
+        X_all = np.expand_dims(np.array(X_all), axis=-1)  # (N, seq_len, 1)
+        y_all = np.array(y_all).reshape(-1, 1)
+        df_indices = np.array(df_indices)
+
+        return X_all, y_all, df_indices
+
     def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
         """Train XGBoost, LightGBM, and CatBoost regressors for each horizon with time-based validation."""
+        from src.ai.lstm_predictor import LSTMPredictor
         if df_train.empty:
             logger.warning(f"Empty training data for {market}.")
             return
@@ -1202,6 +1296,39 @@ class OnDevicePredictionModel:
                     raise ex
             self.cat_models[market][h] = model_cat
 
+            # 4. PyTorch LSTM
+            if market not in self.lstm_models:
+                self.lstm_models[market] = {}
+
+            lstm_predictor = LSTMPredictor(sequence_length=20, epochs=5)
+            X_all, y_all, df_indices = self._prepare_lstm_data(df_train, f'target_{h}d', seq_len=20)
+            
+            if len(X_all) >= 10:
+                train_mask = train_idx.loc[df_indices].values
+                val_mask = val_idx.loc[df_indices].values
+                
+                X_train_lstm = X_all[train_mask]
+                y_train_lstm = y_all[train_mask]
+                X_val_lstm = X_all[val_mask]
+                y_val_lstm = y_all[val_mask]
+                
+                lstm_predictor.train_model(X_train_lstm, y_train_lstm)
+                self.lstm_models[market][h] = lstm_predictor
+                
+                # Evaluate LSTM
+                X_eval_lstm = X_val_lstm if val_idx.any() else X_train_lstm
+                y_eval_lstm = y_val_lstm if val_idx.any() else y_train_lstm
+                if len(X_eval_lstm) > 0:
+                    pred_lstm = lstm_predictor.predict(X_eval_lstm)
+                    mse_lstm = float(mean_squared_error(y_eval_lstm, pred_lstm))
+                    mae_lstm = float(mean_absolute_error(y_eval_lstm, pred_lstm))
+                else:
+                    mse_lstm = 1e6
+                    mae_lstm = 1e6
+            else:
+                mse_lstm = 1e6
+                mae_lstm = 1e6
+
             # Calculate and save validation metrics
             X_eval = X_val if val_idx.any() else X_train
             y_eval = y_val if val_idx.any() else y_train
@@ -1224,14 +1351,20 @@ class OnDevicePredictionModel:
             self.validation_metrics["regression"][market][h] = {
                 "xgb": {"mse": mse_xgb, "mae": mae_xgb},
                 "lgb": {"mse": mse_lgb, "mae": mae_lgb},
-                "cat": {"mse": mse_cat, "mae": mae_cat}
+                "cat": {"mse": mse_cat, "mae": mae_cat},
+                "lstm": {"mse": mse_lstm, "mae": mae_lstm}
             }
 
             # Calculate validation weights (proportional to 1/MSE)
+            use_lstm = mse_lstm < 1e5
             sum_inv_mse = (1.0 / max(mse_xgb, 1e-6)) + (1.0 / max(mse_lgb, 1e-6)) + (1.0 / max(mse_cat, 1e-6))
+            if use_lstm:
+                sum_inv_mse += (1.0 / max(mse_lstm, 1e-6))
+
             w_xgb = (1.0 / max(mse_xgb, 1e-6)) / sum_inv_mse
             w_lgb = (1.0 / max(mse_lgb, 1e-6)) / sum_inv_mse
             w_cat = (1.0 / max(mse_cat, 1e-6)) / sum_inv_mse
+            w_lstm = ((1.0 / max(mse_lstm, 1e-6)) / sum_inv_mse) if use_lstm else 0.0
 
             if "regression" not in self.ensemble_weights:
                 self.ensemble_weights["regression"] = {}
@@ -1240,7 +1373,8 @@ class OnDevicePredictionModel:
             self.ensemble_weights["regression"][market][str(h)] = {
                 "xgb": w_xgb,
                 "lgb": w_lgb,
-                "cat": w_cat
+                "cat": w_cat,
+                "lstm": w_lstm
             }
 
             logger.info(f"{market} models for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
@@ -1587,7 +1721,7 @@ class OnDevicePredictionModel:
         return symbols_list, market_list, latest_features_list
 
     def _predict_regression(self, symbols_list, market_list,
-                            latest_features_list) -> pd.DataFrame:
+                            latest_features_list, prices_dict: Dict[str, pd.DataFrame] = None) -> pd.DataFrame:
         """Run regression predictions on pre-computed features (batch optimized)."""
         if not latest_features_list:
             return pd.DataFrame()
@@ -1609,6 +1743,7 @@ class OnDevicePredictionModel:
                         xgb_m = self.models.get(mkt, {}).get(h)
                         lgb_m = self.lgb_models.get(mkt, {}).get(h)
                         cat_m = self.cat_models.get(mkt, {}).get(h)
+                        lstm_m = self.lstm_models.get(mkt, {}).get(h)
                         
                         preds = []
                         weights = []
@@ -1617,6 +1752,7 @@ class OnDevicePredictionModel:
                         w_xgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
                         w_lgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
                         w_cat_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
+                        w_lstm_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lstm", 0.0)
                         
                         # Convert integer keys back if needed
                         if isinstance(self.ensemble_weights.get("regression", {}).get(mkt, {}), dict):
@@ -1625,6 +1761,7 @@ class OnDevicePredictionModel:
                                 w_xgb_val = w_dict.get("xgb", w_xgb_val)
                                 w_lgb_val = w_dict.get("lgb", w_lgb_val)
                                 w_cat_val = w_dict.get("cat", w_cat_val)
+                                w_lstm_val = w_dict.get("lstm", w_lstm_val)
                         
                         if xgb_m is not None:
                             preds.append(xgb_m.predict(X_mkt))
@@ -1635,6 +1772,27 @@ class OnDevicePredictionModel:
                         if cat_m is not None:
                             preds.append(cat_m.predict(X_mkt))
                             weights.append(w_cat_val)
+                        
+                        if lstm_m is not None and w_lstm_val > 0 and prices_dict is not None:
+                            lstm_preds = []
+                            for idx_val in idx:
+                                sym = symbols_list[idx_val]
+                                df_price = prices_dict.get(sym)
+                                if df_price is not None and len(df_price) >= 20:
+                                    close_series = df_price['Close']
+                                    if isinstance(close_series, pd.DataFrame):
+                                        close_series = close_series.iloc[:, 0]
+                                    ret_seq = close_series.pct_change().dropna().tail(20).values
+                                    if len(ret_seq) == 20:
+                                        x_in = ret_seq.reshape(1, 20, 1)
+                                        pred_val = lstm_m.predict(x_in)[0]
+                                        lstm_preds.append(pred_val)
+                                    else:
+                                        lstm_preds.append(0.0)
+                                else:
+                                    lstm_preds.append(0.0)
+                            preds.append(np.array(lstm_preds))
+                            weights.append(w_lstm_val)
                             
                         if preds:
                             total_w = sum(weights)
@@ -1694,6 +1852,7 @@ class OnDevicePredictionModel:
                         
                         # Convert integer keys back if needed
                         # str(h) key is canonical; int key (h) is in-memory fallback
+                        w_dict = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {})
                         if not w_dict:
                             w_dict = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(h, {})
                         if w_dict:
@@ -1731,7 +1890,7 @@ class OnDevicePredictionModel:
         """
         syms, markets, feats = self._batch_compute_inference_features(
             prices_dict, indicator_df, symbol_to_market)
-        res_df = self._predict_regression(syms, markets, feats)
+        res_df = self._predict_regression(syms, markets, feats, prices_dict)
         surge_df = self._predict_surge(syms, markets, feats)
         return res_df, surge_df
 
