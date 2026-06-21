@@ -30,12 +30,15 @@ jobs:
       run: |
         ruff check trading_system/
 
+    # Use working-directory for mypy and pytest to resolve src package imports correctly
     - name: Type check with Mypy
+      working-directory: trading_system
       run: |
-        mypy --ignore-missing-imports trading_system/src/
+        mypy --ignore-missing-imports src/
 
     - name: Run unit tests with pytest
+      working-directory: trading_system
       env:
         STOCK_PRICE_FRESHNESS_DAYS: none
       run: |
-        pytest trading_system/tests/ -v
+        pytest tests/ -v
