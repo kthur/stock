@@ -32,12 +32,16 @@ jobs:
           uv venv --python 3.12 .venv
           uv pip install -r trading_system/requirements.txt
 
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: Cache stock_prices.db
         uses: actions/cache@v4
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          key: stock-prices-v1-${{ github.run_id }}
+          key: stock-prices-v1-${{ steps.date.outputs.date }}
           restore-keys: |
             stock-prices-v1-
 
@@ -46,7 +50,7 @@ jobs:
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: indicators-v1-${{ github.run_id }}
+          key: indicators-v1-${{ steps.date.outputs.date }}
           restore-keys: |
             indicators-v1-
 
@@ -68,3 +72,13 @@ jobs:
           LOG_LEVEL: INFO
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
+
+      - name: Upload databases as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-databases
+          path: |
+            trading_system/stock_prices.db
+            trading_system/market_indicators.db
+          retention-days: 7
+

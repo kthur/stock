@@ -353,6 +353,14 @@ def execute_prediction_pipeline():
     cfg.validate()
     logger.info(f"Loaded config: DB={cfg.db_path}, Broker={cfg.broker_type}, Mock Trading={cfg.mock_trading}")
 
+    # Auto-download GitHub DB cache if configured
+    if os.environ.get("DOWNLOAD_DB_FROM_GITHUB", "false").lower() == "true":
+        try:
+            from download_db import download_github_databases
+            download_github_databases()
+        except Exception as e:
+            logger.warning(f"Failed to auto-download GitHub database cache: {e}")
+
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
     market_client = GlobalMarketClient()
