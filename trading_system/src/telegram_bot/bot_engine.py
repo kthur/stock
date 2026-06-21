@@ -264,7 +264,7 @@ class TelegramBotEngine:
         try:
             summary = self.trading_system.global_market.get_summary()
             response = "📰 *시장 정보 (실시간 지표)*\n\n"
-            
+
             indices = summary.get("indices", {})
             for sym, info in indices.items():
                 name = info.get("name", sym)
@@ -273,7 +273,7 @@ class TelegramBotEngine:
                 if price is not None:
                     arrow = "↑" if chg >= 0 else "↓"
                     response += f"  • {name}: {arrow} {price:,.2f} ({chg:+.2f}%)\n"
-            
+
             fx = summary.get("fx_rates", {})
             if fx:
                 response += "\n💱 *주요 환율*\n"
@@ -282,7 +282,7 @@ class TelegramBotEngine:
                     chg = info.get("change_pct", 0.0)
                     if rate is not None:
                         response += f"  • {info.get('name', pair)}: {rate:.2f} ({chg:+.2f}%)\n"
-                        
+
             response += f"\n⏱ 업데이트: {summary.get('updated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}"
             return response
         except Exception as e:
@@ -320,18 +320,18 @@ class TelegramBotEngine:
             response += f"현재가: ${price:,.2f}\n"
             response += f"변동률: {chg:+.2f}%\n"
             response += f"거래량: {volume:,}\n\n"
-            
+
             response += "💡 *AI 분석 의견:*\n"
             response += f"  추천: {ai_opinion.get('recommendation', 'UNKNOWN')}\n"
             response += f"  신뢰도: {ai_opinion.get('confidence', 0.0):.1%}\n"
             response += f"  목표가: ${ai_opinion.get('target_price', 0.0):,.2f}\n"
             response += f"  이유: {ai_opinion.get('reasoning', '')}\n\n"
-            
+
             response += "👥 *유명인 투자자 의견:*\n"
             for inv, op in investor_opinion.items():
                 sig = op.get('signal', 'HOLD') if isinstance(op, dict) else str(op)
                 response += f"  • {inv}: {sig}\n"
-                
+
             response += f"\n🏆 *종합 컨센서스:* {consensus.get('recommendation', 'HOLD')}\n"
             return response
         except Exception as e:

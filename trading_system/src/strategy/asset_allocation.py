@@ -66,7 +66,7 @@ class AssetAllocator:
         self.strategy = strategy
 
     # ------------------------------------------------------------------
-    def allocate(self, price_data: Dict[str, List[float]], predicted_returns: dict = None) -> Dict[str, float]:
+    def allocate(self, price_data: Dict[str, List[float]], predicted_returns: dict | None = None) -> Dict[str, float]:
         """
         Compute portfolio weights from price data.
 
@@ -172,7 +172,7 @@ class AssetAllocator:
 
         return _normalize(raw)
 
-    def _black_litterman(self, price_data: Dict[str, List[float]], predicted_returns: dict = None) -> Dict[str, float]:
+    def _black_litterman(self, price_data: Dict[str, List[float]], predicted_returns: dict | None = None) -> Dict[str, float]:
         """
         Black-Litterman portfolio optimization ensembled with return predictions.
         """
@@ -229,7 +229,7 @@ class AssetAllocator:
 def allocate_assets(
     prices_dict: Dict[str, List[float]],
     strategy: str = "equal_weight",
-    predicted_returns: dict = None,
+    predicted_returns: dict | None = None,
 ) -> Dict[str, float]:
     """
     Convenience function to compute portfolio weights.

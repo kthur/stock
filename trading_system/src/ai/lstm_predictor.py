@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ class LSTMPredictor:
                 X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
                 preds = self.model(X_tensor)
                 # Convert back to numpy
-                return preds.cpu().numpy().flatten()
+                return cast(np.ndarray, preds.cpu().numpy().flatten())
         except Exception as e:
             logger.error(f"Error during LSTM prediction: {e}")
             return np.zeros(len(X))

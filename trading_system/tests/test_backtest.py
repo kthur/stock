@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.analysis.backtest import PriceBar, BacktestEngine, BacktestTrade, BacktestResult
+from src.analysis.backtest import PriceBar, BacktestEngine
 
 
 class TestBacktestEngine(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestBacktestEngine(unittest.TestCase):
                 price -= 1.0
             else:
                 price += random.choice([-1.0, 1.0])
-            
+
             bars.append(PriceBar(
                 timestamp=base_time + timedelta(days=i),
                 open=price - 0.5,
@@ -42,7 +42,7 @@ class TestBacktestEngine(unittest.TestCase):
     def test_backtest_no_trades(self):
         """Test backtest with always HOLD (no trades executed)"""
         bars = self._make_dummy_bars(50, "up")
-        
+
         def always_hold_strategy(bars_sub):
             return "HOLD"
 

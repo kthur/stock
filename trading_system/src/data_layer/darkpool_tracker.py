@@ -43,7 +43,7 @@ class DarkPoolTracker:
             # Extract fields
             close = df['Close']
             vol = df['Volume']
-            
+
             # Handle multi-index columns if any
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]

@@ -1,6 +1,6 @@
 import time
 import threading
-from typing import Dict, List, Optional, Callable, Tuple
+from typing import Dict, Optional, Callable, Tuple
 import numpy as np
 import pandas as pd
 from .indicators import calc_atr, calc_ema
@@ -79,8 +79,6 @@ class TechnicalCache:
         lows = [b.low for b in bars]
         result = {}
         n = len(closes)
-        need_long = 'ema200' in keys or 'adx' in keys
-        need_short = 'atr' in keys or 'ema20' in keys or 'ema50' in keys
 
         if 'atr' in keys:
             result['atr'] = calc_atr(highs, lows, closes) if n >= 15 else 0.0
@@ -104,7 +102,7 @@ class TechnicalCache:
 
     def _evict_if_needed(self) -> None:
         if len(self._cache) > self._max_symbols:
-            oldest = min(self._timestamps, key=self._timestamps.get)
+            oldest = min(self._timestamps, key=lambda k: self._timestamps[k])
             self._cache.pop(oldest, None)
             self._timestamps.pop(oldest, None)
 
@@ -132,7 +130,7 @@ class TechnicalCache:
         di_up = avg_up / atr * 100
         di_dn = avg_dn / atr * 100
         dx = abs(di_up - di_dn) / max(di_up + di_dn, 1e-10) * 100
-        return dx
+        return float(dx)
 
 
 class CorrelationCache:

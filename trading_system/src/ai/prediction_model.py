@@ -139,11 +139,11 @@ class OnDevicePredictionModel:
         self.lgb_models: Dict[str, Dict[int, lgb.LGBMRegressor]] = {}
         self.cat_models: Dict[str, Dict[int, cb.CatBoostRegressor]] = {}
         self.lstm_models: Dict[str, Dict[int, LSTMPredictor]] = {}
-        
+
         self.surge_models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
         self.surge_lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
         self.surge_cat_models: Dict[str, Dict[int, cb.CatBoostClassifier]] = {}
-        
+
         self.lead_lag_matrix: Dict[str, List[Tuple[str, float]]] = {}
         self.lead_lag_leaders: List[str] = []
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
@@ -181,7 +181,7 @@ class OnDevicePredictionModel:
             random_seed=42,
             verbose=False,
         )
-        
+
         self._surge_xgb_kwargs: Dict[str, Any] = dict(
             n_estimators=500,
             max_depth=4,
@@ -218,7 +218,7 @@ class OnDevicePredictionModel:
             eval_metric='AUC',
             verbose=False,
         )
-        
+
         if model_dir is None:
             self.model_dir = Path(__file__).resolve().parent.parent.parent / "models"
         else:
@@ -254,11 +254,11 @@ class OnDevicePredictionModel:
             self._cat_kwargs['task_type'] = 'GPU'
             self._surge_cat_kwargs['task_type'] = 'GPU'
 
-        self.ensemble_weights = {"regression": {}, "surge": {}}
-        self.optimal_thresholds = {}
+        self.ensemble_weights: Dict[str, Any] = {"regression": {}, "surge": {}}
+        self.optimal_thresholds: Dict[str, Any] = {}
 
         # Load validation metrics if exists
-        self.validation_metrics = {"regression": {}, "surge": {}}
+        self.validation_metrics: Dict[str, Any] = {"regression": {}, "surge": {}}
         val_metrics_path = self.model_dir / "validation_metrics.json"
         if val_metrics_path.exists():
             try:
@@ -332,7 +332,7 @@ class OnDevicePredictionModel:
     def load_models(self):
         try:
             dummy_df = pd.DataFrame(0.0, index=[0], columns=self.ALL_FEATURES)
-            
+
             # Load XGBoost models
             for fpath in self.model_dir.glob("xgb_model_*_*d.json"):
                 parts = fpath.stem.replace("xgb_model_", "").split("_")
@@ -347,7 +347,7 @@ class OnDevicePredictionModel:
                 model = xgb.XGBRegressor(**self._xgb_kwargs)
                 model._Booster = booster
                 model._estimator_type = 'regressor'
-                
+
                 try:
                     _ = model.predict(dummy_df)
                     if market not in self.models:
@@ -371,7 +371,7 @@ class OnDevicePredictionModel:
                 model.fitted_ = True
                 model._n_features = len(self.ALL_FEATURES)
                 model._n_features_in = len(self.ALL_FEATURES)
-                
+
                 try:
                     _ = model.predict(dummy_df)
                     if market not in self.lgb_models:
@@ -391,7 +391,7 @@ class OnDevicePredictionModel:
                 h = int(h_str)
                 model = cb.CatBoostRegressor()
                 model.load_model(str(fpath))
-                
+
                 try:
                     _ = model.predict(dummy_df)
                     if market not in self.cat_models:
@@ -440,7 +440,7 @@ class OnDevicePredictionModel:
                                 self.models[market][h] = model
                             except Exception as e:
                                 logger.warning(f"Fallback XGB model {market} {h}d validation failed: {e}. Skipping.")
-                                
+
             total_xgb = sum(len(v) for v in self.models.values())
             total_lgb = sum(len(v) for v in self.lgb_models.values())
             total_cat = sum(len(v) for v in self.cat_models.values())
@@ -474,7 +474,7 @@ class OnDevicePredictionModel:
     def load_surge_models(self):
         try:
             dummy_df = pd.DataFrame(0.0, index=[0], columns=self.ALL_FEATURES)
-            
+
             # XGBoost
             for fpath in self.model_dir.glob("xgb_surge_model_*_*d.json"):
                 parts = fpath.stem.replace("xgb_surge_model_", "").split("_")
@@ -497,7 +497,7 @@ class OnDevicePredictionModel:
                     model.classes_ = np.array([0, 1])
                 except (AttributeError, TypeError):
                     model._classes = np.array([0, 1])
-                
+
                 try:
                     _ = model.predict_proba(dummy_df)
                     if market not in self.surge_models:
@@ -523,7 +523,7 @@ class OnDevicePredictionModel:
                 model._n_features_in = len(self.ALL_FEATURES)
                 model._n_classes = 2
                 model._classes = np.array([0, 1])
-                
+
                 try:
                     _ = model.predict_proba(dummy_df)
                     if market not in self.surge_lgb_models:
@@ -543,7 +543,7 @@ class OnDevicePredictionModel:
                 h = int(h_str)
                 model = cb.CatBoostClassifier()
                 model.load_model(str(fpath))
-                
+
                 try:
                     _ = model.predict_proba(dummy_df)
                     if market not in self.surge_cat_models:
@@ -851,7 +851,7 @@ class OnDevicePredictionModel:
             df = norm_dict['TEMP']
 
         # Save the latest row identifier to detect if it gets dropped
-        latest_input_idx = df.index[-1] if not df.empty else None
+        df.index[-1] if not df.empty else None
 
         # Calculate new features with division-by-zero protection
         def safe_divide(series_num, series_den):
@@ -894,7 +894,7 @@ class OnDevicePredictionModel:
         delta = df['Close'].diff()
         gain = delta.where(delta > 0, 0.0)
         loss = -delta.where(delta < 0, 0.0)
-        
+
         # Wilder's EMA uses alpha = 1 / period
         avg_gain14 = gain.ewm(alpha=1/14, adjust=False).mean()
         avg_loss14 = loss.ewm(alpha=1/14, adjust=False).mean()
@@ -1086,18 +1086,18 @@ class OnDevicePredictionModel:
         df = df.replace([np.inf, -np.inf], 0.0)
         # Fill technical indicator NaNs with 0.0, but keep fundamental features as NaN if has_fundamental == 0
         fundamental_cols = [
-            'operating_margin', 'revenue_to_market_cap', 'dividend_yield', 
+            'operating_margin', 'revenue_to_market_cap', 'dividend_yield',
             'net_profit_margin', 'eps_yield', 'eps_growth_1y', 'revenue_growth_1y',
             'revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share'
         ]
-        
+
         # If has_fundamental is 0, explicitly set fundamental features to NaN
         if 'has_fundamental' in df.columns:
             mask_no_fund = (df['has_fundamental'] == 0.0)
             for col in fundamental_cols:
                 if col in df.columns:
                     df.loc[mask_no_fund, col] = np.nan
-        
+
         other_cols = [c for c in df.columns if c not in fundamental_cols]
         df[other_cols] = df[other_cols].fillna(0.0)
         return df
@@ -1179,7 +1179,7 @@ class OnDevicePredictionModel:
             group_sorted = group.sort_values('date')
             if len(group_sorted) < seq_len:
                 continue
-            
+
             returns = group_sorted['ret_1d'].values
             targets = group_sorted[target_col].values
             indices = group_sorted.index.values
@@ -1194,11 +1194,11 @@ class OnDevicePredictionModel:
         if not X_all:
             return np.array([]), np.array([]), np.array([])
 
-        X_all = np.expand_dims(np.array(X_all), axis=-1)  # (N, seq_len, 1)
-        y_all = np.array(y_all).reshape(-1, 1)
-        df_indices = np.array(df_indices)
+        X_arr = np.expand_dims(np.array(X_all), axis=-1)  # (N, seq_len, 1)
+        y_arr = np.array(y_all).reshape(-1, 1)
+        df_indices_arr = np.array(df_indices)
 
-        return X_all, y_all, df_indices
+        return X_arr, y_arr, df_indices_arr
 
     def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
         """Train XGBoost, LightGBM, and CatBoost regressors for each horizon with time-based validation."""
@@ -1302,19 +1302,19 @@ class OnDevicePredictionModel:
 
             lstm_predictor = LSTMPredictor(sequence_length=20, epochs=5)
             X_all, y_all, df_indices = self._prepare_lstm_data(df_train, f'target_{h}d', seq_len=20)
-            
+
             if len(X_all) >= 10:
                 train_mask = train_idx.loc[df_indices].values
                 val_mask = val_idx.loc[df_indices].values
-                
+
                 X_train_lstm = X_all[train_mask]
                 y_train_lstm = y_all[train_mask]
                 X_val_lstm = X_all[val_mask]
                 y_val_lstm = y_all[val_mask]
-                
+
                 lstm_predictor.train_model(X_train_lstm, y_train_lstm)
                 self.lstm_models[market][h] = lstm_predictor
-                
+
                 # Evaluate LSTM
                 X_eval_lstm = X_val_lstm if val_idx.any() else X_train_lstm
                 y_eval_lstm = y_val_lstm if val_idx.any() else y_train_lstm
@@ -1630,11 +1630,11 @@ class OnDevicePredictionModel:
             for h in self.horizons:
                 preds = []
                 weights = []
-                
+
                 xgb_m = self.models.get(market, {}).get(h)
                 lgb_m = self.lgb_models.get(market, {}).get(h)
                 cat_m = self.cat_models.get(market, {}).get(h)
-                
+
                 # Get dynamic weights or fallback to default
                 w_xgb_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("xgb", 0.4)
                 w_lgb_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("lgb", 0.3)
@@ -1658,7 +1658,7 @@ class OnDevicePredictionModel:
                 if cat_m is not None:
                     preds.append(float(cat_m.predict(X)[0]))
                     weights.append(w_cat_val)
-                
+
                 if preds:
                     total_w = sum(weights)
                     pred = sum(p * (w / total_w) for p, w in zip(preds, weights))
@@ -1721,7 +1721,7 @@ class OnDevicePredictionModel:
         return symbols_list, market_list, latest_features_list
 
     def _predict_regression(self, symbols_list, market_list,
-                            latest_features_list, prices_dict: Dict[str, pd.DataFrame] = None) -> pd.DataFrame:
+                            latest_features_list, prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
         """Run regression predictions on pre-computed features (batch optimized)."""
         if not latest_features_list:
             return pd.DataFrame()
@@ -1739,21 +1739,21 @@ class OnDevicePredictionModel:
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
                         X_mkt = df_all.iloc[idx]
-                        
+
                         xgb_m = self.models.get(mkt, {}).get(h)
                         lgb_m = self.lgb_models.get(mkt, {}).get(h)
                         cat_m = self.cat_models.get(mkt, {}).get(h)
                         lstm_m = self.lstm_models.get(mkt, {}).get(h)
-                        
+
                         preds = []
                         weights = []
-                        
+
                         # Get dynamic weights or fallback to default
                         w_xgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
                         w_lgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
                         w_cat_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
                         w_lstm_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lstm", 0.0)
-                        
+
                         # Convert integer keys back if needed
                         if isinstance(self.ensemble_weights.get("regression", {}).get(mkt, {}), dict):
                             w_dict = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(h, {})
@@ -1762,7 +1762,7 @@ class OnDevicePredictionModel:
                                 w_lgb_val = w_dict.get("lgb", w_lgb_val)
                                 w_cat_val = w_dict.get("cat", w_cat_val)
                                 w_lstm_val = w_dict.get("lstm", w_lstm_val)
-                        
+
                         if xgb_m is not None:
                             preds.append(xgb_m.predict(X_mkt))
                             weights.append(w_xgb_val)
@@ -1772,7 +1772,7 @@ class OnDevicePredictionModel:
                         if cat_m is not None:
                             preds.append(cat_m.predict(X_mkt))
                             weights.append(w_cat_val)
-                        
+
                         if lstm_m is not None and w_lstm_val > 0 and prices_dict is not None:
                             lstm_preds = []
                             for idx_val in idx:
@@ -1793,7 +1793,7 @@ class OnDevicePredictionModel:
                                     lstm_preds.append(0.0)
                             preds.append(np.array(lstm_preds))
                             weights.append(w_lstm_val)
-                            
+
                         if preds:
                             total_w = sum(weights)
                             blend_pred = np.zeros(len(idx))
@@ -1837,19 +1837,19 @@ class OnDevicePredictionModel:
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
                         X_mkt = df_all.iloc[idx]
-                        
+
                         xgb_m = self.surge_models.get(mkt, {}).get(h)
                         lgb_m = self.surge_lgb_models.get(mkt, {}).get(h)
                         cat_m = self.surge_cat_models.get(mkt, {}).get(h)
-                        
+
                         preds = []
                         weights = []
-                        
+
                         # Get dynamic weights or fallback to default
                         w_xgb_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
                         w_lgb_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
                         w_cat_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
-                        
+
                         # Convert integer keys back if needed
                         # str(h) key is canonical; int key (h) is in-memory fallback
                         w_dict = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {})
@@ -1869,7 +1869,7 @@ class OnDevicePredictionModel:
                         if cat_m is not None:
                             preds.append(cat_m.predict_proba(X_mkt)[:, 1])
                             weights.append(w_cat_val)
-                            
+
                         if preds:
                             total_w = sum(weights)
                             blend_prob = np.zeros(len(idx))

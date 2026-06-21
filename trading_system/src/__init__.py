@@ -25,6 +25,7 @@ if "torch" not in sys.modules:
 
     if should_bypass:
         import types
+        import numpy as np
         class DummyTensor:
             def __init__(self, *args, **kwargs):
                 pass

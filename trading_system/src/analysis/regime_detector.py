@@ -27,12 +27,12 @@ class MarketRegimeDetector:
         self.gmm = GaussianMixture(n_components=n_regimes, random_state=42, n_init=10)
         self.is_trained = False
         # Map GMM cluster index to regime index (0=BEAR, 1=SIDEWAYS, 2=BULL)
-        self.cluster_to_regime = {}
+        self.cluster_to_regime: dict[int, int] = {}
 
     def _prepare_features(self, indicator_df: pd.DataFrame) -> pd.DataFrame:
         """Computes rolling 20d return and rolling 20d volatility of S&P 500."""
         df = indicator_df.copy()
-        
+
         # Check for sp500_change column (global indicator)
         if 'sp500_change' not in df.columns:
             # Fallback to other columns if sp500_change is missing
@@ -41,7 +41,7 @@ class MarketRegimeDetector:
         # Compute rolling return and rolling volatility
         df['sp500_ret_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).mean()
         df['sp500_vol_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
-        
+
         return df[['sp500_ret_roll', 'sp500_vol_roll']]
 
     def train(self, indicator_df: pd.DataFrame) -> None:
@@ -68,7 +68,7 @@ class MarketRegimeDetector:
             # Assign human-readable regimes based on the means of the components
             # Component means: shape (n_components, 2) where columns are [mean_return, mean_volatility]
             means = self.gmm.means_
-            
+
             # Map each cluster index to a Sharpe-like ratio score: mean_return / (std_volatility + 1e-5)
             scores = []
             for i in range(self.n_regimes):
@@ -79,14 +79,14 @@ class MarketRegimeDetector:
 
             # Sort clusters by Sharpe score: lowest (Bear) -> intermediate (Sideways) -> highest (Bull)
             scores.sort(key=lambda x: x[1])
-            
+
             # Map cluster index to regime
             self.cluster_to_regime = {
                 scores[0][0]: 0,  # BEAR
                 scores[1][0]: 1,  # SIDEWAYS
                 scores[2][0]: 2   # BULL
             }
-            
+
             logger.info("MarketRegimeDetector trained successfully.")
             for reg, (idx, score, r, v) in enumerate(scores):
                 label = ["BEAR", "SIDEWAYS", "BULL"][reg]
@@ -144,7 +144,7 @@ class MarketRegimeDetector:
                 return 0  # BEAR
             elif recent_ret > 0.05:
                 return 2  # BULL
-            
+
             sharpe = recent_ret / (recent_vol + 1e-5)
             if sharpe < -0.02:
                 return 0  # BEAR

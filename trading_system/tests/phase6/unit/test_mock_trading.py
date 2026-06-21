@@ -2,13 +2,13 @@
 dash 미설치 환경에서도 동작하도록 trading_system 직접 임포트 회피"""
 
 import unittest
-from unittest.mock import MagicMock, patch
-from typing import Dict, List
+from unittest.mock import patch
 import sys
+import os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from src.core.order_management import OrderManagementSystem, OrderType, OrderStatus, Order
+from src.core.order_management import OrderManagementSystem, OrderType, Order
 from src.config import TradingConfig
 
 

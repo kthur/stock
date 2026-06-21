@@ -116,7 +116,7 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
 def calculate_black_litterman_weights(
     cov_matrix: np.ndarray,
     predicted_returns: np.ndarray,
-    prior_weights: np.ndarray = None,
+    prior_weights: np.ndarray | None = None,
     risk_aversion: float = 2.5,
     tau: float = 0.05,
     omega_scale: float = 0.1,
@@ -168,7 +168,7 @@ def calculate_black_litterman_weights(
         # Solve for posterior expected returns and covariance matrix
         # A = (tau * Sigma + Omega)
         A = tau * cov_matrix + Omega
-        
+
         # mu_bl = Pi + tau * Sigma @ (tau * Sigma + Omega)^-1 @ (Q - Pi)
         inv_A_diff = np.linalg.solve(A, Q - Pi)
         mu_bl = Pi + tau * (cov_matrix @ inv_A_diff)
@@ -197,7 +197,7 @@ def calculate_black_litterman_weights(
 
         res = minimize(objective, w0, method="SLSQP", bounds=bounds, constraints=cons)
         if res.success:
-            weights = res.x
+            weights = np.asarray(res.x)
             # Normalize to sum to exactly 1.0 and clip
             weights = np.clip(weights, 0.0, 1.0)
             sum_w = np.sum(weights)

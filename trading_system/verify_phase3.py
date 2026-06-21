@@ -33,8 +33,7 @@ except Exception as e:
 # Test 2: RL Trader
 print('\n[2] RL Trading Model...')
 try:
-    from ai.rl_trader import train_rl_model, TradingEnvironment, DQNAgent
-    import numpy as np
+    from ai.rl_trader import train_rl_model
     result = train_rl_model()
     assert result['episodes'] >= 1, 'No episodes completed'
     assert len(result['rewards']) >= 1, 'No rewards recorded'
@@ -44,13 +43,14 @@ try:
     results['rl_trader'] = 'PASS'
 except Exception as e:
     print(f'  FAIL: {e}')
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
     results['rl_trader'] = f'FAIL: {e}'
 
 # Test 3: Asset Allocation
 print('\n[3] Asset Allocation...')
 try:
-    from strategy.asset_allocation import AssetAllocator, allocate_assets
+    from strategy.asset_allocation import allocate_assets
     price_data = {
         'SAMSUNG': [70000, 71000, 69500, 72000, 73500],
         'HYUNDAI': [180000, 182000, 179000, 185000, 188000],
@@ -64,13 +64,14 @@ try:
     results['asset_allocation'] = 'PASS'
 except Exception as e:
     print(f'  FAIL: {e}')
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
     results['asset_allocation'] = f'FAIL: {e}'
 
 # Test 4: PDF Report
 print('\n[4] PDF Report Generator...')
 try:
-    from utils.pdf_report import generate_backtest_pdf, PDFReportGenerator
+    from utils.pdf_report import generate_backtest_pdf
     mock_data = {
         'symbol': 'SAMSUNG',
         'start_date': '2024-01-01',
@@ -99,7 +100,8 @@ try:
     results['pdf_report'] = 'PASS'
 except Exception as e:
     print(f'  FAIL: {e}')
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
     results['pdf_report'] = f'FAIL: {e}'
 
 # Test 5: Broker
@@ -109,29 +111,30 @@ try:
     from abc import ABC
     assert issubclass(BrokerBase, ABC), 'BrokerBase must extend ABC'
     assert issubclass(RealBroker, BrokerBase), 'RealBroker must extend BrokerBase'
-    
+
     rb = RealBroker()
     conn = rb.connect()
     print(f'  RealBroker.connect() = {conn}')
     order = rb.submit_order('SAMSUNG', 10, 'BUY')
     print(f'  RealBroker.submit_order() = {order}')
-    
+
     ki = KoreaInvestmentBroker()
     ki_conn = ki.connect()
     print(f'  KoreaInvestmentBroker.connect() = {ki_conn}')
     ki_order = ki.submit_order('005930', 5, 'BUY')
     print(f'  KoreaInvestmentBroker.submit_order() = {ki_order}')
-    
+
     kw = KiwoomBroker()
     kw_conn = kw.connect()
     print(f'  KiwoomBroker.connect() = {kw_conn}')
     kw_order = kw.submit_order('005930', 5, 'BUY')
     print(f'  KiwoomBroker.submit_order() = {kw_order}')
-    
+
     results['broker'] = 'PASS'
 except Exception as e:
     print(f'  FAIL: {e}')
-    import traceback; traceback.print_exc()
+    import traceback
+    traceback.print_exc()
     results['broker'] = f'FAIL: {e}'
 
 # Summary

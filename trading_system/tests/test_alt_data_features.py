@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
 import pandas as pd
-import numpy as np
 from src.data_layer.alt_data import AlternativeDataClient
 from src.data_layer.darkpool_tracker import DarkPoolTracker
 

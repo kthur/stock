@@ -35,7 +35,7 @@ class GlobalRateLimiter:
                 sleep_time = 0.0
             # Reserve the slot for this request
             self.last_request_time = now + sleep_time
-            
+
         if sleep_time > 0:
             logger.debug(f"GlobalRateLimiter: Async sleeping {sleep_time:.2f}s to respect rate limit")
             await asyncio.sleep(sleep_time)

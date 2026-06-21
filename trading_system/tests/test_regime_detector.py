@@ -19,14 +19,14 @@ class TestRegimeDetector(unittest.TestCase):
         """Test training and prediction of GMM market regime detector."""
         # Generate synthetic global indicator data representing Bull, Bear, and Sideways periods
         np.random.seed(42)
-        
+
         # Bull period: High positive returns, low volatility
         bull_ret = np.random.normal(0.5, 0.1, 50)
         # Bear period: Negative returns, high volatility
         bear_ret = np.random.normal(-0.8, 0.6, 50)
         # Sideways period: Near-zero returns, moderate volatility
         side_ret = np.random.normal(0.0, 0.2, 50)
-        
+
         all_rets = np.concatenate([bull_ret, bear_ret, side_ret])
         dates = pd.date_range("2026-01-01", periods=len(all_rets), freq="B")
         indicator_df = pd.DataFrame({'sp500_change': all_rets}, index=dates)
@@ -56,12 +56,12 @@ class TestRegimeDetector(unittest.TestCase):
         """Test rule-based fallback when GMM is not trained."""
         # Not trained yet
         self.assertFalse(self.detector.is_trained)
-        
+
         # Bull indicators fallback
         bull_df = pd.DataFrame({'sp500_change': [0.1] * 20})
         self.assertEqual(self.detector.predict_regime(bull_df), 2)
         self.assertEqual(self.detector.predict_regime_label(bull_df), "BULL")
-        
+
         # Bear indicators fallback
         bear_df = pd.DataFrame({'sp500_change': [-0.1] * 20})
         self.assertEqual(self.detector.predict_regime(bear_df), 0)

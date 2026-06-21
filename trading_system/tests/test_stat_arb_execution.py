@@ -21,23 +21,23 @@ class TestStatArbExecution(unittest.TestCase):
         # Create cointegrated series
         np.random.seed(42)
         steps = 100
-        
+
         # s1: random walk
         p1 = np.cumsum(np.random.normal(0, 0.5, steps)) + 100.0
         # s2: s1 + stationary noise
         p2 = p1 + np.random.normal(0, 0.1, steps)
-        
+
         # At the very end, force a large spread divergence to trigger a signal
         p1[-1] = p1[-1] + 5.0  # s1 spikes up relative to s2 (z-score should be high, SHORT_s1_LONG_s2)
-        
+
         prices_dict = {
             "AAPL": list(p1),
             "MSFT": list(p2)
         }
-        
+
         pairs = self.stat_arb.find_cointegrated_pairs(prices_dict)
         self.assertTrue(len(pairs) > 0)
-        
+
         pair_info = pairs[0]
         self.assertEqual(pair_info["pair"], ("AAPL", "MSFT"))
         self.assertTrue(pair_info["z_score"] > 2.0)
@@ -63,7 +63,7 @@ class TestStatArbExecution(unittest.TestCase):
         )
 
         self.assertEqual(len(records), intervals)
-        
+
         # 10005 / 5 = 2001 exactly, remainder = 0
         total_executed = sum(r["quantity"] for r in records)
         self.assertEqual(total_executed, total_quantity)
@@ -72,7 +72,7 @@ class TestStatArbExecution(unittest.TestCase):
             self.assertEqual(r["symbol"], symbol)
             self.assertEqual(r["action"], action)
             self.assertTrue(r["slippage"] > 0)
-            
+
             # Verify exact price formula used in execute_twap
             expected_slippage = 0.0001 * (r["quantity"] / 1000.0) * start_price
             expected_price = start_price + expected_slippage + 0.05 * (r["slice_index"] - intervals / 2)
@@ -100,7 +100,7 @@ class TestStatArbExecution(unittest.TestCase):
         )
 
         self.assertEqual(len(records), intervals)
-        
+
         # Expected slices: 4000, 1000, 1000, 4000
         expected_quantities = [4000, 1000, 1000, 4000]
         for idx, r in enumerate(records):
@@ -108,7 +108,7 @@ class TestStatArbExecution(unittest.TestCase):
             self.assertEqual(r["symbol"], symbol)
             self.assertEqual(r["action"], action)
             self.assertTrue(r["slippage"] > 0)
-            
+
             # Verify exact price formula used in execute_vwap
             volume_share = volume_profile[idx]
             impact_factor = (r["quantity"] / 1000.0) / (volume_share + 1e-5)

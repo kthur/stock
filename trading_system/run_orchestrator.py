@@ -44,15 +44,15 @@ def is_process_running(pid: int) -> bool:
     handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, pid)
     if not handle:
         return False
-    
+
     exit_code = ctypes.c_ulong()
     STILL_ACTIVE = 259
     is_active = False
     if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
         is_active = (exit_code.value == STILL_ACTIVE)
-    
+
     kernel32.CloseHandle(handle)
-    
+
     if is_active:
         try:
             output = subprocess.check_output(
@@ -64,7 +64,7 @@ def is_process_running(pid: int) -> bool:
             return "python" in output.lower()
         except Exception:
             return True
-            
+
     return False
 
 def get_daemon_pid() -> int:
@@ -85,7 +85,7 @@ def start_daemon():
     if pid and is_process_running(pid):
         print(f"Orchestrator daemon is already running with PID: {pid}")
         sys.exit(1)
-        
+
     daemon_script = PROJECT_DIR / "orchestrator.py"
     creation_flags = 0
     if sys.platform == "win32":
@@ -93,7 +93,7 @@ def start_daemon():
         DETACHED_PROCESS = 0x00000008
         CREATE_NEW_PROCESS_GROUP = 0x00000200
         creation_flags = CREATE_NO_WINDOW | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        
+
     process = subprocess.Popen(
         [sys.executable, str(daemon_script)],
         creationflags=creation_flags,
@@ -111,17 +111,21 @@ def stop_daemon(timeout: int = 10):
     pid = get_daemon_pid()
     if not pid or not is_process_running(pid):
         if PID_FILE.exists():
-            try: PID_FILE.unlink()
-            except OSError: pass
+            try:
+                PID_FILE.unlink()
+            except OSError:
+                pass
         if STOP_FLAG.exists():
-            try: STOP_FLAG.unlink()
-            except OSError: pass
+            try:
+                STOP_FLAG.unlink()
+            except OSError:
+                pass
         print("Orchestrator daemon is not running.")
         sys.exit(0)
-        
+
     # 1. Trigger Flag File
     STOP_FLAG.write_text("stop")
-    
+
     # 2. Trigger Signal as backup
     try:
         if sys.platform == "win32":
@@ -130,20 +134,24 @@ def stop_daemon(timeout: int = 10):
             os.kill(pid, signal.SIGTERM)
     except Exception:
         pass
-        
+
     # 3. Wait and verify shutdown
     for _ in range(timeout):
         if not is_process_running(pid):
             if PID_FILE.exists():
-                try: PID_FILE.unlink()
-                except OSError: pass
+                try:
+                    PID_FILE.unlink()
+                except OSError:
+                    pass
             if STOP_FLAG.exists():
-                try: STOP_FLAG.unlink()
-                except OSError: pass
+                try:
+                    STOP_FLAG.unlink()
+                except OSError:
+                    pass
             print("Daemon stopped cleanly.")
             return
         time.sleep(1)
-        
+
     # 4. Force termination if hung
     print("Daemon failed to stop gracefully in time. Force killing process...")
     try:
@@ -153,13 +161,17 @@ def stop_daemon(timeout: int = 10):
             os.kill(pid, signal.SIGKILL)
     except Exception as e:
         print(f"Error force terminating: {e}")
-        
+
     if PID_FILE.exists():
-        try: PID_FILE.unlink()
-        except OSError: pass
+        try:
+            PID_FILE.unlink()
+        except OSError:
+            pass
     if STOP_FLAG.exists():
-        try: STOP_FLAG.unlink()
-        except OSError: pass
+        try:
+            STOP_FLAG.unlink()
+        except OSError:
+            pass
 
 def print_status():
     pid = get_daemon_pid()
@@ -167,7 +179,7 @@ def print_status():
         print(f"Status: RUNNING (PID: {pid})")
     else:
         print("Status: STOPPED")
-        
+
     from src.config import TradingConfig
     cfg = TradingConfig()
     print_recent_logs(cfg.db_path)
@@ -191,7 +203,7 @@ def print_recent_logs(db_path: str):
                 )
             ''')
             conn.commit()
-            
+
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT id, stage, start_time, end_time, status, error_message FROM pipeline_runs ORDER BY id DESC LIMIT 5"
@@ -228,20 +240,20 @@ def run_now(stage: str):
 def main():
     parser = argparse.ArgumentParser(description="Stock Trading System Central Orchestrator CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    
+
     subparsers.add_parser("start", help="Start the orchestrator daemon in the background")
     subparsers.add_parser("stop", help="Stop the running orchestrator daemon gracefully")
     subparsers.add_parser("status", help="Get the running status of the orchestrator daemon")
-    
+
     run_parser = subparsers.add_parser("run-now", help="Run a specific pipeline stage immediately")
     run_parser.add_argument(
-        "stage", 
+        "stage",
         choices=["indicators", "universe", "train", "predict", "scoring", "all"],
         help="The stage of the pipeline to run"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "start":
         start_daemon()
     elif args.command == "stop":

@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +45,11 @@ class HFTEngine:
             return []
 
         logger.info(f"[TWAP] Starting TWAP execution for {symbol} {action} {total_quantity} shares over {duration_minutes}m.")
-        
+
         slice_qty = total_quantity // intervals
         remainder = total_quantity % intervals
         execution_records = []
-        
+
         for step in range(intervals):
             qty = slice_qty + (1 if step < remainder else 0)
             if qty <= 0:
@@ -57,10 +57,10 @@ class HFTEngine:
 
             # Model simple random-walk price and slippage (higher quantity -> more slippage)
             slippage = 0.0001 * (qty / 1000.0) * start_price
-            price = start_price + (slippage if action == "BUY" else -slippage) + (np_noise := 0.05 * (step - intervals/2))
-            
+            price = start_price + (slippage if action == "BUY" else -slippage) + (_np_noise := 0.05 * (step - intervals/2))
+
             logger.info(f"[TWAP Step {step+1}/{intervals}] Executing {action} {qty} shares of {symbol} at {price:.2f} (slippage: {slippage:.4f})")
-            
+
             execution_records.append({
                 "timestamp": datetime.now().isoformat(),
                 "symbol": symbol,
@@ -70,9 +70,9 @@ class HFTEngine:
                 "slippage": round(slippage, 4),
                 "slice_index": step
             })
-            
-        total_executed = sum(r["quantity"] for r in execution_records)
-        avg_price = sum(r["price"] * r["quantity"] for r in execution_records) / total_executed if total_executed > 0 else start_price
+
+        total_executed = sum(cast(int, r["quantity"]) for r in execution_records)
+        avg_price = sum(cast(float, r["price"]) * cast(int, r["quantity"]) for r in execution_records) / total_executed if total_executed > 0 else start_price
         logger.info(f"[TWAP] Completed execution for {symbol}. Total: {total_executed}, Avg Price: {avg_price:.2f}")
         return execution_records
 
@@ -134,7 +134,7 @@ class HFTEngine:
                 "slice_index": step
             })
 
-        total_executed = sum(r["quantity"] for r in execution_records)
-        avg_price = sum(r["price"] * r["quantity"] for r in execution_records) / total_executed if total_executed > 0 else start_price
+        total_executed = sum(cast(int, r["quantity"]) for r in execution_records)
+        avg_price = sum(cast(float, r["price"]) * cast(int, r["quantity"]) for r in execution_records) / total_executed if total_executed > 0 else start_price
         logger.info(f"[VWAP] Completed execution for {symbol}. Total: {total_executed}, Avg Price: {avg_price:.2f}")
         return execution_records

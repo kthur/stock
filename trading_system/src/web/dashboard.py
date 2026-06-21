@@ -250,7 +250,7 @@ app.layout = html.Div(
                                     id="scoring-status-output",
                                     style={"marginBottom": "20px", "fontWeight": "bold"}
                                 ),
-                                dash_table.DataTable(
+                                dash_table.DataTable(  # type: ignore[attr-defined]
                                     id="post-market-rankings-table",
                                     columns=[
                                         {"name": "Rank", "id": "rank"},

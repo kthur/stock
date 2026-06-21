@@ -30,7 +30,7 @@ class AlternativeDataClient:
                 return df['Close'].ffill().fillna(0.6)
         except Exception as e:
             logger.warning(f"Failed to fetch Put/Call Ratio via yfinance: {e}")
-        
+
         # Fallback: generate a realistic put/call ratio series (mean around 0.6)
         logger.info("Generating fallback simulated Put/Call Ratio data.")
         dates = pd.date_range(start=start_date, end=datetime.now(), freq="B")

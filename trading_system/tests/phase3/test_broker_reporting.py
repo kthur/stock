@@ -40,10 +40,10 @@ class TestBrokerReporting(unittest.TestCase):
             {"symbol": "GOOGL", "qty": 5, "side": "SELL", "price": 2800.0}
         ]
         generate_pdf_report(trade_data, self.pdf_path)
-        
+
         self.assertTrue(os.path.exists(self.pdf_path))
         self.assertGreater(os.path.getsize(self.pdf_path), 0)
-        
+
         # Verify it's a valid PDF by checking the header
         with open(self.pdf_path, 'rb') as f:
             header = f.read(5)

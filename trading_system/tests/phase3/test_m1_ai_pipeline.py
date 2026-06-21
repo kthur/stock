@@ -23,26 +23,26 @@ def test_train_rl_model():
     model = train_rl_model(data)
     assert isinstance(model, PPO), "Model should be a PPO instance"
     assert model.env is not None, "Model should have an environment"
-    
+
 def test_dummy_trading_env():
     data = np.array([[100.0], [105.0], [102.0], [110.0], [108.0]])
     env = DummyTradingEnv(data)
-    
+
     obs, info = env.reset()
     assert obs.shape == (1,)
     assert obs[0] == 100.0
-    
+
     # Test Buy action (action 1)
     obs, reward, done, truncated, info = env.step(1)
     assert env.position == 1
     assert env.balance == 10000.0 - 100.0
     assert obs[0] == 105.0
-    
+
     # Test Sell action (action 2)
     obs, reward, done, truncated, info = env.step(2)
     assert env.position == 0
     assert env.balance == 10000.0 - 100.0 + 105.0
-    
+
     # Reach the end
     env.step(0) # obs will be 110.0
     obs, reward, done, truncated, info = env.step(0) # obs will be 108.0, should be done

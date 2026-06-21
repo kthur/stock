@@ -27,12 +27,12 @@ class TestOrchestrator(unittest.TestCase):
     def setUp(self):
         self.db_path = TEST_DB_PATH
         self.storage = MarketIndicatorStorage(db_path=self.db_path)
-        
+
         # Override config db_path
         from src.config import TradingConfig
         self.orig_db_path = TradingConfig.db_path
         TradingConfig.db_path = self.db_path
-        
+
         # Re-create pipeline_runs table
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DROP TABLE IF EXISTS pipeline_runs")
@@ -51,17 +51,21 @@ class TestOrchestrator(unittest.TestCase):
     def tearDown(self):
         from src.config import TradingConfig
         TradingConfig.db_path = self.orig_db_path
-        
+
         # Clean up files created during daemon tests
         pid_file = Path(run_orchestrator.__file__).parent / "orchestrator.pid"
         if pid_file.exists():
-            try: pid_file.unlink()
-            except OSError: pass
-            
+            try:
+                pid_file.unlink()
+            except OSError:
+                pass
+
         stop_flag = Path(run_orchestrator.__file__).parent / "stop.flag"
         if stop_flag.exists():
-            try: stop_flag.unlink()
-            except OSError: pass
+            try:
+                stop_flag.unlink()
+            except OSError:
+                pass
 
     @classmethod
     def tearDownClass(cls):
@@ -77,7 +81,7 @@ class TestOrchestrator(unittest.TestCase):
         # Start logging
         run_id = asyncio.run(orchestrator.log_run_start(self.db_path, "test_stage"))
         self.assertIsNotNone(run_id)
-        
+
         # Verify run is logged as running
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -88,10 +92,10 @@ class TestOrchestrator(unittest.TestCase):
             self.assertEqual(row['status'], "running")
             self.assertIsNone(row['end_time'])
             self.assertIsNone(row['error_message'])
-            
+
         # End logging
         asyncio.run(orchestrator.log_run_end(self.db_path, run_id, "success"))
-        
+
         # Verify success log
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -100,11 +104,11 @@ class TestOrchestrator(unittest.TestCase):
             row = cursor.fetchone()
             self.assertEqual(row['status'], "success")
             self.assertIsNotNone(row['end_time'])
-            
+
         # Log failure
         run_id_fail = asyncio.run(orchestrator.log_run_start(self.db_path, "fail_stage"))
         asyncio.run(orchestrator.log_run_end(self.db_path, run_id_fail, "failure", error_message="Something went wrong"))
-        
+
         # Verify failure log
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -123,15 +127,15 @@ class TestOrchestrator(unittest.TestCase):
         with patch('sys.argv', ['run_orchestrator.py', 'start']):
             run_orchestrator.main()
             mock_start.assert_called_once()
-            
+
         with patch('sys.argv', ['run_orchestrator.py', 'stop']):
             run_orchestrator.main()
             mock_stop.assert_called_once()
-            
+
         with patch('sys.argv', ['run_orchestrator.py', 'status']):
             run_orchestrator.main()
             mock_status.assert_called_once()
-            
+
         with patch('sys.argv', ['run_orchestrator.py', 'run-now', 'train']):
             run_orchestrator.main()
             mock_run_now.assert_called_once_with('train')
@@ -145,14 +149,14 @@ class TestOrchestrator(unittest.TestCase):
         mock_process.pid = 99999
         mock_popen.return_value = mock_process
         mock_is_running.side_effect = [False, True]  # Not running initially, running after spawn
-        
+
         run_orchestrator.start_daemon()
-        
+
         # Check PID file is written
         pid = run_orchestrator.get_daemon_pid()
         self.assertEqual(pid, 99999)
         mock_popen.assert_called_once()
-        
+
     @patch('run_orchestrator.is_process_running')
     @patch('os.kill')
     @patch('subprocess.run')
@@ -160,12 +164,12 @@ class TestOrchestrator(unittest.TestCase):
         # 1. Graceful stop (liveness check becomes False)
         pid_file = Path(run_orchestrator.__file__).parent / "orchestrator.pid"
         run_orchestrator.write_pid_file(88888)
-        
+
         # process is running initially, then stops after writing stop.flag
-        mock_is_running.side_effect = [True, True, False] 
-        
+        mock_is_running.side_effect = [True, True, False]
+
         run_orchestrator.stop_daemon()
-        
+
         # Verify flag is checked and PID file deleted
         self.assertFalse(pid_file.exists())
         self.assertFalse(run_orchestrator.STOP_FLAG.exists())
@@ -184,16 +188,16 @@ class TestOrchestrator(unittest.TestCase):
         mock_train.return_value = "Model trained"
         mock_predict.return_value = "Predictions saved"
         mock_score.return_value = "Scoring complete"
-        
+
         # Run stage ingest
         asyncio.run(orchestrator.run_stage("ingest", self.db_path))
         mock_indicators.assert_called_once_with(self.db_path)
         mock_universe.assert_called_once_with(self.db_path)
-        
+
         # Run stage score
         asyncio.run(orchestrator.run_stage("score", self.db_path))
         mock_score.assert_called_once_with(self.db_path)
-        
+
         # Verify database logs reflect success
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -208,7 +212,7 @@ class TestOrchestrator(unittest.TestCase):
         with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": ""}):
             from src.utils.notifier import NotificationSystem
             notifier = NotificationSystem()
-            
+
             # Executing should not raise exceptions
             try:
                 asyncio.run(notifier.send_telegram("Test Fallback Alert"))

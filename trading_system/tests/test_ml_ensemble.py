@@ -2,7 +2,6 @@ import sys
 import unittest
 from unittest.mock import patch
 from pathlib import Path
-import pandas as pd
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -27,7 +26,7 @@ class TestMLEnsemble(unittest.TestCase):
         bars = []
         curr_close = 100.0
         np.random.seed(42)
-        
+
         for i in range(n_bars):
             # Alternate up and down to create enough targets
             change = 0.015 if i % 2 == 0 else -0.015
@@ -54,11 +53,11 @@ class TestMLEnsemble(unittest.TestCase):
     def test_train_and_predict(self):
         """Test that train and predict run successfully and predict a valid probability"""
         bars = self.generate_dummy_data(500)
-        
+
         # Verify training returns True
         train_success = self.engine.train(bars)
         self.assertTrue(train_success, "Training should be successful with sufficient data")
-        
+
         # Verify predict_prob returns a valid probability between 0.0 and 1.0
         prob = self.engine.predict_prob(bars)
         self.assertIsInstance(prob, float)
@@ -73,7 +72,7 @@ class TestMLEnsemble(unittest.TestCase):
             engine = MLEngine()
             self.assertIsNotNone(engine.rf_model)
             self.assertIsNone(engine.xgb_model)
-            
+
             bars = self.generate_dummy_data(500)
             train_success = engine.train(bars)
             self.assertTrue(train_success)
@@ -89,7 +88,7 @@ class TestMLEnsemble(unittest.TestCase):
             engine = MLEngine()
             self.assertIsNone(engine.rf_model)
             self.assertIsNotNone(engine.xgb_model)
-            
+
             bars = self.generate_dummy_data(500)
             train_success = engine.train(bars)
             self.assertTrue(train_success)

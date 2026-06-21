@@ -25,13 +25,13 @@ class TestGlobalMacro(unittest.TestCase):
             index=dates,
             columns=MACRO_SYMBOLS
         )
-        
+
         corr_df = calculate_cross_correlation(mock_data, lags=3)
         self.assertFalse(corr_df.empty)
         # Check MultiIndex structure
         self.assertIn("lag", corr_df.columns.names)
         self.assertIn("ticker", corr_df.columns.names)
-        
+
         # Check that lag 0 has correlation 1.0 on diagonal
         for ticker in MACRO_SYMBOLS:
             self.assertAlmostEqual(corr_df.loc[ticker, (ticker, 0)], 1.0, places=4)
@@ -49,19 +49,19 @@ class TestGlobalMacro(unittest.TestCase):
         np.random.seed(42)
         features = pd.DataFrame(np.random.randn(30, 5), columns=[f"feat_{i}" for i in range(5)])
         targets = pd.Series(np.random.randn(30))
-        
+
         # Test model training
         predictor = MacroPredictor(max_depth=3, n_estimators=10)
         metrics = predictor.train_model(features, targets)
-        
+
         self.assertIn("mse", metrics)
         self.assertIn("r2_score", metrics)
         self.assertTrue(predictor.is_trained)
-        
+
         # Verify JSON caching
         cache_path = "data/macro_model_metrics.json"
         self.assertTrue(os.path.exists(cache_path))
-        
+
         # Test prediction
         preds = predictor.predict_outperformers(features)
         self.assertEqual(len(preds), len(features))
@@ -71,13 +71,13 @@ class TestGlobalMacro(unittest.TestCase):
         """R3: Verify that screen_global_outperformers screens exactly 10 US and 10 KR stocks."""
         screener = StockScreener()
         results = screener.screen_global_outperformers()
-        
+
         self.assertIn("US", results)
         self.assertIn("KR", results)
-        
+
         self.assertEqual(len(results["US"]), 10)
         self.assertEqual(len(results["KR"]), 10)
-        
+
         # Verify structures
         for item in results["US"] + results["KR"]:
             self.assertIn("ticker", item)
@@ -96,11 +96,11 @@ class TestGlobalMacro(unittest.TestCase):
         self.assertIn("layout", fig)
         self.assertGreater(len(fig["data"]), 0)
         self.assertEqual(fig["data"][0]["type"], "heatmap")
-        
+
         # Test with empty input
         fig_empty = update_macro_correlation_heatmap([], "1mo")
         self.assertIn("layout", fig_empty)
-        
+
         # 2. DataTable callback
         data_us = update_outperformers_table("US", "1mo", limit=5)
         self.assertIsInstance(data_us, list)

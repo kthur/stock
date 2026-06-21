@@ -56,29 +56,29 @@ class TestPortfolioRisk(unittest.TestCase):
         from src.config import TradingConfig
         from src.core.factory import SystemFactory
         from src.utils import EventBus
-        
+
         event_bus = EventBus()
         # Initial cash of 100,000
         config = TradingConfig(initial_cash=100000.0)
         components = SystemFactory.create_default_components(config.initial_cash, event_bus)
-        
+
         system = StockTradingSystem(initial_cash=100000.0, config=config, components=components)
         system.distributed_buy_enabled = False
         system.distributed_sell_enabled = False
-        
+
         # Mock TradeLogger and AssetHistoryDB async methods to avoid database operations and loop closed warnings
         async def mock_async_noop(*args, **kwargs):
             return True
         system.trade_logger.log_order = MagicMock(side_effect=mock_async_noop)
         system.trade_logger.log_execution = MagicMock(side_effect=mock_async_noop)
         system.asset_history.log_asset_snapshot = MagicMock(side_effect=mock_async_noop)
-        
+
         # Mock fetch_historical_data to return empty list to bypass slow API calls
         system.market_data_handler.fetch_historical_data = MagicMock(return_value=[])
-        
+
         # Mock VIX to 30.0 (risk-off active)
         system.market_data_cache["VIX"] = {"price": 30.0}
-        
+
         # Portfolio: Cash = 100,000. No open positions, so V_E = 0. PV = 100,000.
         # Stock price = 100.
         # Under risk-off, post-trade cash C' >= 70% of PV (70,000).
@@ -86,13 +86,13 @@ class TestPortfolioRisk(unittest.TestCase):
         # Max quantity allowed = 30,000 / 100 = 300.
         # If position sizing suggests 500 shares, quantity should be clamped to 300.
         system.risk_manager.calculate_position_sizing = MagicMock(return_value=500)
-        
+
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(system._create_and_submit_order("AAPL", OrderType.BUY, 100.0, bypass_other_sizing=True))
         finally:
             loop.close()
-            
+
         # Verify the buy order quantity is clamped to 300
         print("DEBUG - system.order_management.orders:", system.order_management.orders)
         buy_orders = [o for o in system.order_management.orders.values() if o.order_type == OrderType.BUY]

@@ -23,7 +23,7 @@ _KR_MARKET_SUFFIX = {
 def _yf_ticker(symbol: str, market: Optional[str] = None) -> str:
     cleaned = symbol.strip().upper().split('.')[0]
     if cleaned.isdigit():
-        suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
+        suffix = _KR_MARKET_SUFFIX.get(market or '', '.KS')
         return f"{cleaned}{suffix}"
     return cleaned
 
@@ -113,38 +113,38 @@ async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None) ->
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
-    
+
     try:
         # Wait on the global rate limiter
         await get_global_rate_limiter().async_wait()
-        
+
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, timeout=15) as response:
+            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
                 if response.status != 200:
                     logger.debug(f"Failed to fetch fundamentals for {symbol} ({yf_sym}) via async API: status {response.status}")
                     return None
-                
+
                 json_data = await response.json()
                 result = json_data.get("quoteSummary", {}).get("result", [])
                 if not result:
                     return None
-                
+
                 data = result[0]
                 history = data.get("incomeStatementHistory", {}).get("incomeStatementHistory", [])
                 if not history:
                     return None
-                
+
                 rows = []
                 for item in history:
                     end_date_str = item.get("endDate", {}).get("fmt")
                     if not end_date_str:
                         continue
-                    
+
                     rev = item.get("totalRevenue", {}).get("raw", 0.0)
                     op_inc = item.get("operatingIncome", {}).get("raw", 0.0)
                     net_inc = item.get("netIncome", {}).get("raw", 0.0)
                     eps = item.get("basicEps", {}).get("raw", item.get("dilutedEps", {}).get("raw", 0.0))
-                    
+
                     rows.append({
                         "date_align": pd.to_datetime(end_date_str),
                         "revenue": float(rev),
@@ -152,32 +152,32 @@ async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None) ->
                         "net_income": float(net_inc),
                         "eps": float(eps)
                     })
-                
+
                 if not rows:
                     return None
-                
+
                 df = pd.DataFrame(rows)
                 df = df.set_index("date_align")
                 df = df.sort_index()
-                
+
                 stats = data.get("defaultKeyStatistics", {})
                 shares = stats.get("sharesOutstanding", {}).get("raw", 0.0)
-                
+
                 detail = data.get("summaryDetail", {})
                 div_rate = detail.get("dividendRate", {}).get("raw")
                 if div_rate is None:
                     div_yield = detail.get("dividendYield", {}).get("raw", 0.0)
                     last_eps = df['eps'].iloc[-1] if not df.empty else 0.0
                     div_rate = div_yield * last_eps
-                
+
                 df['shares_outstanding'] = float(shares)
                 df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))
-                
+
                 for col in ['revenue', 'operating_income', 'net_income', 'eps']:
                     df[col] = df[col].fillna(0).astype(float)
-                
+
                 return df
-                
+
     except Exception as e:
         logger.debug(f"Async fetch fundamentals exception for {symbol} ({yf_sym}): {e}")
         return None
@@ -201,7 +201,7 @@ def fetch_and_store_fundamentals_batch(
                 meta_cache = storage.get_fundamental_meta()
             except Exception as e:
                 logger.warning(f"Failed to load fundamental cache metadata: {e}")
-        
+
         expiry_days = 90
         try:
             from src.config import TradingConfig
@@ -209,11 +209,11 @@ def fetch_and_store_fundamentals_batch(
             expiry_days = config.fundamental_cache_expiry_days
         except Exception:
             pass
-        
+
         current_time = datetime.now()
         skipped = 0
         to_fetch = []
-        
+
         for sym in symbols:
             if not force_refetch and sym in meta_cache:
                 try:
@@ -224,18 +224,18 @@ def fetch_and_store_fundamentals_batch(
                 except Exception:
                     pass
             to_fetch.append(sym)
-            
+
         if skipped > 0:
             logger.info(f"Skipped {skipped}/{len(symbols)} symbols with fresh fundamental cache (within {expiry_days} days)")
-            
+
         if not to_fetch:
             return 0
-            
+
         results = {}
         success = 0
-        
+
         sem = asyncio.Semaphore(5)
-        
+
         async def _fetch_task(sym):
             async with sem:
                 market = symbol_market_map.get(sym, 'SP500')
@@ -244,11 +244,11 @@ def fetch_and_store_fundamentals_batch(
                     loop = asyncio.get_running_loop()
                     df_fun = await loop.run_in_executor(None, fetch_fundamentals, sym, market)
                 return sym, df_fun
-                
+
         tasks = [_fetch_task(sym) for sym in to_fetch]
         total_fetch = len(to_fetch)
         done_count = 0
-        
+
         for f in asyncio.as_completed(tasks):
             sym, df_fun = await f
             # Always save fundamental meta as fetched today to avoid spamming network calls
@@ -264,9 +264,9 @@ def fetch_and_store_fundamentals_batch(
             done_count += 1
             if done_count % 500 == 0 or done_count == total_fetch:
                 logger.info(f"Fundamentals progress: {done_count}/{total_fetch} ({success} fetched, {skipped} skipped)")
-                
+
         logger.info(f"Fetched fundamentals for {success}/{total_fetch} symbols ({skipped} skipped)")
-        
+
         stored = 0
         for sym, df_fun in results.items():
             try:
@@ -278,7 +278,7 @@ def fetch_and_store_fundamentals_batch(
                 stored += 1
             except Exception as e:
                 logger.warning(f"Failed to store fundamentals for {sym}: {e}")
-                
+
         logger.info(f"Stored fundamentals for {stored}/{success} symbols in DB")
         return stored
 
@@ -286,7 +286,7 @@ def fetch_and_store_fundamentals_batch(
     import threading
     import queue
 
-    q = queue.Queue()
+    q: queue.Queue = queue.Queue()
 
     def worker():
         try:
@@ -303,5 +303,5 @@ def fetch_and_store_fundamentals_batch(
     t.join()
     success, res = q.get()
     if success:
-        return res
+        return int(res)
     raise res

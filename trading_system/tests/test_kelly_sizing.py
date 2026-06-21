@@ -32,7 +32,7 @@ class TestKellySizing(unittest.TestCase):
             'AAPL': pd.DataFrame({'Close': [100.0] * 30}),
             'MSFT': pd.DataFrame({'Close': [100.0] * 30})
         }
-        
+
         # Override Close prices to produce specific standard deviations
         # AAPL: vol = 0.02, MSFT: vol = 0.04
         np.random.seed(42)
@@ -42,7 +42,7 @@ class TestKellySizing(unittest.TestCase):
         # Calculate using Kelly Sizing
         res_kelly = self.allocator.allocate(predictions, prices, total_portfolio_value=1000000.0, use_kelly=True)
         self.assertFalse(res_kelly.empty)
-        
+
         # Calculate using Sharpe Proxy
         res_sharpe = self.allocator.allocate(predictions, prices, total_portfolio_value=1000000.0, use_kelly=False)
         self.assertFalse(res_sharpe.empty)
@@ -50,10 +50,10 @@ class TestKellySizing(unittest.TestCase):
         # The raw score for Kelly should be expected_return / (volatility^2)
         # Verify Kelly ranks AAPL higher because AAPL has much lower variance
         aapl_kelly = res_kelly[res_kelly['symbol'] == 'AAPL'].iloc[0]
-        msft_kelly = res_kelly[res_kelly['symbol'] == 'MSFT'].iloc[0]
-        
+        res_kelly[res_kelly['symbol'] == 'MSFT'].iloc[0]
+
         aapl_sharpe = res_sharpe[res_sharpe['symbol'] == 'AAPL'].iloc[0]
-        msft_sharpe = res_sharpe[res_sharpe['symbol'] == 'MSFT'].iloc[0]
+        res_sharpe[res_sharpe['symbol'] == 'MSFT'].iloc[0]
 
         # Kelly raw score = 0.5 * return / var
         # Sharpe raw score = return / vol
@@ -67,7 +67,7 @@ class TestKellySizing(unittest.TestCase):
             {'symbol': 'AAPL', 20: 0.01},  # 1% predicted return
             {'symbol': 'MSFT', 20: 0.01}
         ])
-        
+
         # High volatility -> 0.15 daily return std
         np.random.seed(42)
         prices = {
@@ -78,7 +78,7 @@ class TestKellySizing(unittest.TestCase):
         # Kelly allocation
         res = self.allocator.allocate(predictions, prices, total_portfolio_value=1000000.0, use_kelly=True, kelly_fraction=0.1)
         self.assertFalse(res.empty)
-        
+
         total_weight = res['weight'].sum()
         # Since expected return is very small and volatility is extremely high, the sum of Kelly fractions
         # should be very small, and it should NOT be scaled up to max_total_allocation (0.80)

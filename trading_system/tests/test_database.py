@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.persistence.database import TradeLogger, AssetHistoryDB, AIPredictionDB
+from src.persistence.database import TradeLogger, AssetHistoryDB
 
 
 class TestTradeLogger(unittest.TestCase):
@@ -163,7 +163,7 @@ class TestMarketIndicatorStorage(unittest.TestCase):
         self.assertEqual(retrieved.iloc[0]["revenue"], 90000000000.0)
         self.assertEqual(retrieved.iloc[0]["operating_income"], 25000000000.0)
         self.assertEqual(retrieved.iloc[0]["dividend_per_share"], 0.24)
-        
+
         self.assertEqual(retrieved.iloc[1]["revenue"], 95000000000.0)
         self.assertEqual(retrieved.iloc[1]["operating_income"], 27000000000.0)
         self.assertEqual(retrieved.iloc[1]["dividend_per_share"], 0.25)
@@ -188,7 +188,7 @@ class TestMarketIndicatorStorageConcurrency(unittest.TestCase):
         """다중 스레드에서 동시에 DB 쓰기 작업이 Lock 에러 없이 처리되는지 검증"""
         import threading
         import queue
-        
+
         errors = queue.Queue()
         num_threads = 5
         writes_per_thread = 20
@@ -262,7 +262,7 @@ class TestStockPriceDBConcurrency(unittest.TestCase):
         import threading
         import queue
         import pandas as pd
-        
+
         errors = queue.Queue()
         num_threads = 5
         writes_per_thread = 15

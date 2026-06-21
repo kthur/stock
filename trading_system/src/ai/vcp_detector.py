@@ -1,7 +1,6 @@
 import logging
 import pandas as pd
-import numpy as np
-from typing import Dict, Optional
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

@@ -542,7 +542,7 @@ class RiskManager:
             adjusted *= 0.25  # 쿨다운
         if consecutive_losses >= 10:
             adjusted = 0.0  # 거래 중단
-        
+
         if consecutive_losses >= 10 or adjusted <= 0.0:
             return 0.0
         return max(0.01, min(adjusted, self.max_position_size_pct))

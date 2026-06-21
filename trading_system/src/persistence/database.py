@@ -5,7 +5,7 @@ import json
 import logging
 import sqlite3
 import threading
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 

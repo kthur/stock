@@ -5,7 +5,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.risk.risk_manager import RiskManager, CrisisLevel, RiskLevel
+from src.risk.risk_manager import RiskManager, CrisisLevel
 
 class TestRiskManagerUpgrades(unittest.TestCase):
     """Milestone 2 Risk Management Upgrades tests"""
@@ -72,19 +72,19 @@ class TestRiskManagerUpgrades(unittest.TestCase):
 
     def test_fixed_risk_crisis_scaling(self):
         # Test Fixed Risk sizing path with active crisis scaling
-        
+
         # Use prices that prevent max position capping
         # entry_price=100.0, stop_loss_price=80.0 -> risk_per_share=20.0
         # max_loss = 2% of 1M = 20,000. max_value = 20,000 * 5 = 100,000 (1000 shares)
         # Cap is 200,000 value (2000 shares), so 1000 is well below the cap.
-        
+
         # CrisisLevel NONE: 1.0x risk_mult, 1.0x position_mult
         self.rm.crisis_detector.crisis_level = CrisisLevel.NONE
         qty_none = self.rm.calculate_position_sizing(
             "AAPL", entry_price=100.0, stop_loss_price=80.0, atr=0.0
         )
         self.assertEqual(qty_none, 1000)
-        
+
         # CrisisLevel WATCH: 0.75x risk_mult, 0.70x position_mult
         self.rm.crisis_detector.crisis_level = CrisisLevel.WATCH
         qty_watch = self.rm.calculate_position_sizing(

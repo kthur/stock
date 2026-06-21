@@ -8,7 +8,7 @@ import lightgbm as lgb
 import catboost as cb
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class VCPSurgePredictor:
         self.lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
         self.cat_models: Dict[str, Dict[int, cb.CatBoostClassifier]] = {}
 
-        self._surge_xgb_kwargs = dict(
+        self._surge_xgb_kwargs: Dict[str, Any] = dict(
             n_estimators=500,
             max_depth=4,
             learning_rate=0.05,
@@ -73,7 +73,7 @@ class VCPSurgePredictor:
             early_stopping_rounds=50,
             eval_metric='auc',
         )
-        self._surge_lgb_kwargs = dict(
+        self._surge_lgb_kwargs: Dict[str, Any] = dict(
             n_estimators=500,
             max_depth=4,
             learning_rate=0.05,
@@ -85,7 +85,7 @@ class VCPSurgePredictor:
             random_state=42,
             verbose=-1,
         )
-        self._surge_cat_kwargs = dict(
+        self._surge_cat_kwargs: Dict[str, Any] = dict(
             iterations=500,
             depth=4,
             learning_rate=0.05,
@@ -115,7 +115,7 @@ class VCPSurgePredictor:
             self._surge_xgb_kwargs['device'] = 'cuda'
 
         # Load validation metrics if exists
-        self.validation_metrics = {"regression": {}, "surge": {}, "vcp_ml": {}}
+        self.validation_metrics: Dict[str, Any] = {"regression": {}, "surge": {}, "vcp_ml": {}}
         val_metrics_path = self.model_dir / "validation_metrics.json"
         if val_metrics_path.exists():
             try:
@@ -415,9 +415,9 @@ class VCPSurgePredictor:
             m_df = m_df.reset_index(drop=True)
             logger.info(f"Training VCP ML for {market} ({len(m_df)} rows)")
 
-            kw_xgb = dict(self._surge_xgb_kwargs)
-            kw_lgb = dict(self._surge_lgb_kwargs)
-            kw_cat = dict(self._surge_cat_kwargs)
+            kw_xgb: Dict[str, Any] = dict(self._surge_xgb_kwargs)
+            kw_lgb: Dict[str, Any] = dict(self._surge_lgb_kwargs)
+            kw_cat: Dict[str, Any] = dict(self._surge_cat_kwargs)
 
             m_df['date'] = pd.to_datetime(m_df['date'])
             cutoff = m_df['date'].quantile(0.8)
@@ -529,8 +529,8 @@ class VCPSurgePredictor:
         # Save validation metrics to file
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
-            with open(self.model_dir / "validation_metrics.json", "w") as f:
-                json.dump(self.validation_metrics, f, indent=2)
+            with open(self.model_dir / "validation_metrics.json", "w") as f_out:
+                json.dump(self.validation_metrics, f_out, indent=2)
         except Exception as e:
             logger.error(f"Failed to save validation_metrics.json in VCP ML: {e}")
 
@@ -567,14 +567,14 @@ class VCPSurgePredictor:
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
                         X_mkt = df_all.iloc[idx][feat_cols]
-                        
+
                         xgb_m = self.models.get(mkt, {}).get(h)
                         lgb_m = self.lgb_models.get(mkt, {}).get(h)
                         cat_m = self.cat_models.get(mkt, {}).get(h)
-                        
+
                         preds = []
                         weights = []
-                        
+
                         if xgb_m is not None:
                             preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
                             weights.append(0.4)
@@ -584,7 +584,7 @@ class VCPSurgePredictor:
                         if cat_m is not None:
                             preds.append(cat_m.predict_proba(X_mkt)[:, 1])
                             weights.append(0.3)
-                            
+
                         if preds:
                             total_w = sum(weights)
                             blend_prob = np.zeros(len(idx))
@@ -622,7 +622,7 @@ class VCPSurgePredictor:
         try:
             cols = list(dict.fromkeys(self._ft.ALL_FEATURES + VCP_FEATURES))
             dummy_df = pd.DataFrame(0.0, index=[0], columns=cols)
-            
+
             # Load XGBoost models
             for market in MARKETS:
                 self.models[market] = {}
@@ -643,7 +643,7 @@ class VCPSurgePredictor:
                             model.classes_ = np.array([0, 1])
                         except (AttributeError, TypeError):
                             model._classes = np.array([0, 1])
-                        
+
                         try:
                             _ = model.predict_proba(dummy_df)
                             self.models[market][h] = model
@@ -663,7 +663,7 @@ class VCPSurgePredictor:
                         model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
                         model._Booster = booster
                         model.fitted_ = True
-                        
+
                         try:
                             feature_names = booster.feature_name()
                             n_feats = len(feature_names) if feature_names else len(cols)
@@ -671,7 +671,7 @@ class VCPSurgePredictor:
                             model._n_features_in = n_feats
                             model._n_classes = 2
                             model._classes = np.array([0, 1])
-                            
+
                             _ = model.predict_proba(dummy_df)
                             self.lgb_models[market][h] = model
                             logger.debug(f"Loaded VCP ML LGB model for {market} {h}d")
@@ -688,7 +688,7 @@ class VCPSurgePredictor:
                     if path.exists():
                         model = cb.CatBoostClassifier()
                         model.load_model(str(path))
-                        
+
                         try:
                             _ = model.predict_proba(dummy_df)
                             self.cat_models[market][h] = model

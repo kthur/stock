@@ -327,12 +327,12 @@ def test_scenario_full_trade_cycle():
     model = train_rl_model([{"price": 100.0}])  # noqa: F841
     action = model.predict([{"price": 100.0}])  # noqa: F841
     weights = allocate_assets({"AAPL": 150.0, "MSFT": 300.0})  # noqa: F841
-    
+
     broker = RealBroker()
     broker.connect()
     for sym, w in weights.items():
         broker.submit_order(sym, "BUY" if score > 0.5 else "SELL", int(w * 100))
-    
+
     history = broker.get_order_history()
     assert len(history) >= 2
 
