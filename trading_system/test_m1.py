@@ -10,7 +10,7 @@ def test_sentiment():
     score = analyze_sentiment("This is a good stock")
     print(f"Score for 'This is a good stock': {score}")
     assert isinstance(score, float)
-    
+
     score2 = analyze_sentiment("This is a terrible stock")
     print(f"Score for 'This is a terrible stock': {score2}")
 

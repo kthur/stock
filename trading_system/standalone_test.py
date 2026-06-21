@@ -4,7 +4,7 @@ def allocate_assets(prices_dict: dict) -> dict:
     if not prices_dict:
         return {}
     valid_prices = {
-        k: v for k, v in prices_dict.items() 
+        k: v for k, v in prices_dict.items()
         if isinstance(v, (int, float)) and math.isfinite(v) and v > 0
     }
     if not valid_prices:

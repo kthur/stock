@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import FinanceDataReader as fdr
 import yfinance as yf
-from typing import List, Dict
+from typing import List
 
 # Add parent directory to sys.path to allow imports from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -27,7 +27,7 @@ def get_latest_ai_return(db_path: str, symbol: str) -> float:
     try:
         with sqlite3.connect(db_path) as conn:
             query = """
-                SELECT expected_return FROM ai_predictions 
+                SELECT expected_return FROM ai_predictions
                 WHERE symbol = ? AND horizon = 30
                 ORDER BY date DESC LIMIT 1
             """
@@ -70,7 +70,7 @@ def calculate_technical_score(closes: List[float]) -> float:
     down = -seed[seed < 0].sum() / 14
     rs = up / down if down != 0 else 0
     rsi = 100 - 100 / (1 + rs) if down != 0 else 100
-    
+
     if rsi < 25:
         rsi_score = 0.9
     elif rsi < 35:
@@ -89,14 +89,14 @@ def calculate_technical_score(closes: List[float]) -> float:
         for val in values[1:]:
             res.append(alpha * val + (1.0 - alpha) * res[-1])
         return res
-    
+
     ema12 = ema(closes, 12)
     ema26 = ema(closes, 26)
     macd = [e12 - e26 for e12, e26 in zip(ema12, ema26)]
     signal = ema(macd, 9)
     macd_hist = macd[-1] - signal[-1]
     prev_macd_hist = macd[-2] - signal[-2] if len(macd) > 1 else 0.0
-    
+
     if prev_macd_hist < 0 and macd_hist > 0:
         macd_score = 0.9
     elif prev_macd_hist > 0 and macd_hist < 0:
@@ -124,7 +124,7 @@ def calculate_technical_score(closes: List[float]) -> float:
     upper = mean + 2.0 * std
     lower = mean - 2.0 * std
     bb_pos = (closes[-1] - lower) / (upper - lower) if upper != lower else 0.5
-    
+
     if bb_pos < 0.15:
         bb_score = 0.85
     elif bb_pos > 0.85:
@@ -139,46 +139,46 @@ def run_post_market_scoring():
     logger.info("Starting Daily Post-Market Stock Scoring and Ranking...")
     cfg = TradingConfig()
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
-    
+
     universe = storage.get_universe()
     if universe.empty:
         logger.info("Stock universe is empty. Updating stock universe...")
         storage.update_stock_universe()
         universe = storage.get_universe()
-        
+
     logger.info(f"Loaded {len(universe)} symbols for post-market ranking.")
-    
+
     date_str = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - pd.Timedelta(days=90)).strftime('%Y-%m-%d')
-    
+
     raw_results = []
-    
+
     for idx, row in universe.iterrows():
         sym = row['symbol']
         name = row['name']
-        market = row['market']
-        
+        row['market']
+
         try:
             df = fdr.DataReader(sym, start=start_date)
             if df.empty or len(df) < 20:
                 ticker = yf.Ticker(sym)
                 df = ticker.history(period="3mo")
-                
+
             if df.empty or len(df) < 20:
                 continue
-                
+
             closes = df['Close'].tolist()
         except Exception as e:
             logger.debug(f"Failed to fetch price data for {sym}: {e}")
             continue
-            
+
         tech_score = calculate_technical_score(closes)
         expected_ret = get_latest_ai_return(cfg.db_path, sym)
         ai_score = max(0.0, min(1.0, (expected_ret + 0.20) / 0.40))
         sent_val = fetch_news_sentiment(sym)
         sent_score = (sent_val + 1.0) / 2.0
         composite = 0.4 * tech_score + 0.4 * ai_score + 0.2 * sent_score
-        
+
         raw_results.append({
             'symbol': sym,
             'name': name,
@@ -187,21 +187,21 @@ def run_post_market_scoring():
             'ai_score': ai_score,
             'sentiment_score': sent_score
         })
-        
+
         if len(raw_results) % 50 == 0:
             logger.info(f"Processed {len(raw_results)} / {len(universe)} symbols...")
-            
+
     if not raw_results:
         logger.error("No stocks successfully processed for scoring.")
         return
-        
+
     raw_results.sort(key=lambda x: x['composite_score'], reverse=True)
-    
+
     top_100 = []
     for rank, item in enumerate(raw_results[:100], 1):
         item['rank'] = rank
         top_100.append(item)
-        
+
     storage.save_post_market_rankings(date_str, top_100)
     logger.info(f"Successfully computed and saved post-market rankings for {len(top_100)} stocks on {date_str}.")
 

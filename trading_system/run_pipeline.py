@@ -37,7 +37,7 @@ from src.data_layer.global_market import GlobalMarketClient
 from src.data_layer.indicator_storage import MarketIndicatorStorage
 from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
-from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
+from src.ai.vcp_ml_predictor import SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
 from src.risk.position_sizing import PortfolioAllocator
 from src.analysis.regime_detector import MarketRegimeDetector
@@ -76,7 +76,7 @@ _KR_MARKET_SUFFIX = {
 def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.DataFrame:
     # Enforce global rate limit coordination
     get_global_rate_limiter().wait()
-    
+
     result = None
     if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
         try:
@@ -107,10 +107,10 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
             except Exception as e:
                 logger.debug(f"Network fetch failed for {symbol} via fdr fallback: {e}")
                 raise e
-                
+
     if result is None or result.empty:
         raise ValueError(f"Fetched data for {symbol} is empty or None")
-        
+
     return result
 
 
@@ -135,7 +135,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                 if df is not None and not df.empty:
                     logger.debug(f"Using StockPriceDB cached prices for {s}")
                     return df
-        
+
         # 2. Rate limit before network request (global)
         if update_interval > 0:
             global _last_request_time
@@ -147,14 +147,14 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
             if sleep_sec > 0:
                 logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
                 time.sleep(sleep_sec)
-                
+
         # 3. Network fetch
         try:
             result = _fetch_data_fdr_network(s, market, d)
         except Exception as e:
             logger.warning(f"Failed to fetch data for {s} after retries: {e}")
             result = None
-        
+
         # 4. Store in DB cache
         if result is not None and not result.empty and price_db is not None:
             try:
@@ -347,23 +347,23 @@ def _get_excluded_krx_symbols() -> set:
 
 def execute_prediction_pipeline():
     logger.info("Starting consolidated market indicator and prediction pipeline...")
-    
+
     # 1. Load configurations from TradingConfig (.env)
     cfg = TradingConfig()
     cfg.validate()
     logger.info(f"Loaded config: DB={cfg.db_path}, Broker={cfg.broker_type}, Mock Trading={cfg.mock_trading}")
-    
+
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
     market_client = GlobalMarketClient()
     market_summary = market_client.get_summary()
-    
+
     # 3. Store indicators
     date_str = datetime.now().strftime('%Y-%m-%d')
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
     storage.save_indicators(market_summary, date_str)
     logger.info("Saved market indicators to database.")
-    
+
     # 4. Update stock universe if needed
     universe = storage.get_universe()
     if universe.empty:
@@ -371,7 +371,7 @@ def execute_prediction_pipeline():
         storage.update_stock_universe()
         universe = storage.get_universe()
     logger.info(f"Loaded {len(universe)} symbols from universe.")
-    
+
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))
 
@@ -391,7 +391,7 @@ def execute_prediction_pipeline():
     start_date_train = cfg.train_start_date
     from datetime import timedelta
     start_date_infer = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-    
+
     # Check if we should skip training based on skip_training config and model availability
     should_skip = False
     model = OnDevicePredictionModel()
@@ -403,12 +403,12 @@ def execute_prediction_pipeline():
         model.load_surge_models()
         from src.ai.vcp_ml_predictor import VCPSurgePredictor
         vcp_ml = VCPSurgePredictor()
-        
+
         # Verify that models are actually loaded for regression, surge, and VCP ML
         regression_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in model.lgb_models.values())
         surge_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.surge_models.values())
         vcp_loaded = any(len(mkt_dict) > 0 for mkt_dict in vcp_ml.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in vcp_ml.lgb_models.values())
-        
+
         if regression_loaded and surge_loaded and vcp_loaded:
             logger.info("Pre-trained models found and loaded successfully. Skipping model training phase.")
             should_skip = True
@@ -419,7 +419,7 @@ def execute_prediction_pipeline():
             vcp_ml = None
 
     update_interval = cfg.get_update_interval()
-    
+
     # 6. Prepare Training Data (On-device) — split by market
     kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
     kosdaq_symbols = universe[universe['market'] == 'KOSDAQ']['symbol'].tolist()
@@ -442,7 +442,7 @@ def execute_prediction_pipeline():
             indicator_infer = indicator_train[indicator_train.index >= start_date_infer]
         else:
             indicator_infer = indicator_train
-        
+
         # Sample from settings (절대값 / 퍼센트 / "all")
         import random
         seed = cfg.get_train_seed()
@@ -471,15 +471,15 @@ def execute_prediction_pipeline():
         train_kospi = [s for s in train_krx_set if s in kospi_symbols]
         train_kosdaq = [s for s in train_krx_set if s in kosdaq_symbols]
         train_konex = [s for s in train_krx_set if s in konex_symbols]
-        
+
         # 6. Fetch corporate fundamentals in background (non-blocking)
         if train_symbols:
             t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"))
             t.start()
-        
+
         logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols (update_interval={update_interval}s)...")
         train_data_dict = {}
-        
+
         with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
             future_to_sym = {}
             for sym in train_symbols:
@@ -507,7 +507,7 @@ def execute_prediction_pipeline():
             t.join()
 
         # Merge fundamentals (parallel)
-        merge_lock = threading.Lock()
+        threading.Lock()
         def _merge_one(sym: str, df):
             try:
                 merged = model.merge_fundamentals(sym, df, storage)
@@ -526,10 +526,9 @@ def execute_prediction_pipeline():
                     train_data_dict.pop(sym, None)
 
         df_train = model.prepare_training_data(train_data_dict, indicator_train)
-        
+
         # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
         if not df_train.empty and 'symbol' in df_train.columns:
-            from src.ai.prediction_model import OnDevicePredictionModel as _OPM
             train_symbol_set = set(df_train['symbol'])
             # Build per-market train DataFrames from the merged df_train
             market_dfs = {}
@@ -569,17 +568,17 @@ def execute_prediction_pipeline():
                 except Exception as e:
                     logger.error(f"Surge training failed for {futures[f]}: {e}")
         model.load_surge_models()
-        
+
         # 7c. Compute lead-lag correlation matrix (which stocks follow which)
         if not df_train.empty and len(df_train) > 1000:
             model.compute_lead_lag(df_train)
-        
+
         # 7d. Train VCP ML surge models (4 markets, parallel inside)
         from src.ai.vcp_ml_predictor import VCPSurgePredictor
         vcp_ml = VCPSurgePredictor()
         if train_data_dict:
             vcp_ml.train(train_data_dict, indicator_train, universe)
-    
+
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
 
@@ -604,7 +603,7 @@ def execute_prediction_pipeline():
 
     # 9. Fetch recent data for ALL symbols to run inference
     logger.info(f"Fetching inference data for ALL {len(all_symbols)} symbols (update_interval={update_interval}s)...")
-    
+
     infer_data_dict = {}
     count = 0
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
@@ -657,17 +656,17 @@ def execute_prediction_pipeline():
                 infer_data_dict[sym] = merged
             else:
                 infer_data_dict.pop(sym, None)
-                
+
     # 10. Run predictions (regression + surge, shared feature computation)
     logger.info("Running inference (regression + surge)...")
     symbol_to_market_lower = {sym: mkt.lower() for sym, mkt in symbol_market.items()}
     res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower)
-    
+
     if res_df.empty:
         logger.error("No predictions made.")
         return None, None
     logger.info(f"Regression: {len(res_df)} symbols, Surge: {len(surge_df) if not surge_df.empty else 0} symbols")
-    
+
     # 10c. Run VCP pattern detection (parallel)
     logger.info("Running VCP pattern detection...")
     from src.ai.vcp_detector import detect_vcp
@@ -696,7 +695,7 @@ def execute_prediction_pipeline():
                 continue
     vcp_results.sort(key=lambda x: -x['vcp_score'])
     logger.info(f"VCP patterns found: {len(vcp_results)} symbols")
-    
+
     # 10d. Run lead-lag inference (which stocks may surge based on leader movements)
     logger.info("Running lead-lag inference...")
     lead_lag_df = model.predict_lead_lag(infer_data_dict)
@@ -707,7 +706,7 @@ def execute_prediction_pipeline():
     logger.info("Running Statistical Arbitrage pair scanning...")
     from src.core.stat_arb import StatisticalArbitrageEngine
     stat_arb_engine = StatisticalArbitrageEngine()
-    
+
     stat_arb_prices = {}
     for sym, df_p in infer_data_dict.items():
         if df_p is not None and not df_p.empty:
@@ -715,9 +714,9 @@ def execute_prediction_pipeline():
             if isinstance(close_series, pd.DataFrame):
                 close_series = close_series.iloc[:, 0]
             stat_arb_prices[sym] = close_series.tolist()
-            
+
     stat_arb_pairs = stat_arb_engine.find_cointegrated_pairs(stat_arb_prices)
-    
+
     # Save Stat-Arb predictions to separate file
     stat_arb_output_path = os.path.join(os.path.dirname(__file__), "stat_arb_predictions.txt")
     with open(stat_arb_output_path, "w", encoding="utf-8") as f:
@@ -730,7 +729,7 @@ def execute_prediction_pipeline():
             pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
             f.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
     logger.info(f"Saved Statistical Arbitrage pairs ({len(stat_arb_pairs)}) to {stat_arb_output_path}")
-        
+
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
     logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
@@ -738,17 +737,17 @@ def execute_prediction_pipeline():
     # 11b. Run Market Regime Detection
     logger.info("Running GMM Market Regime Detection...")
     regime_detector = MarketRegimeDetector()
-    
+
     # Train regime detector on available indicator history
     if not indicator_train.empty:
         regime_detector.train(indicator_train)
     elif not indicator_infer.empty:
         regime_detector.train(indicator_infer)
-        
+
     current_regime_label = regime_detector.predict_regime_label(indicator_infer)
     current_regime = regime_detector.predict_regime(indicator_infer)
     logger.info(f"==> CURRENT MARKET REGIME DETECTED: {current_regime_label} ({current_regime})")
-    
+
     # Adjust maximum total allocation based on regime
     if current_regime == 0:  # BEAR
         max_alloc = 0.20
@@ -771,14 +770,14 @@ def execute_prediction_pipeline():
         with open(alloc_output_path, "w", encoding="utf-8") as f:
             f.write("=== Portfolio Allocation Recommendations (Sharpe/Kelly Optimized) ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Total Capital: 1,000,000,000 KRW/USD\n")
-            f.write(f"Target Horizon: 20d\n\n")
+            f.write("Total Capital: 1,000,000,000 KRW/USD\n")
+            f.write("Target Horizon: 20d\n\n")
             f.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
             f.write("-" * 92 + "\n")
             for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                 f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']*100:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
-            
+
             allocated_weight = alloc_df['weight'].sum()
             cash_weight = 1.0 - allocated_weight
             cash_amount = cash_weight * 1000000000.0
@@ -786,7 +785,7 @@ def execute_prediction_pipeline():
             f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
             f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
         logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")
-    
+
     # Build formatted message for Telegram (top-10 per market)
     message_text = format_prediction_message(res_df, universe)
     print(message_text)
@@ -796,7 +795,7 @@ def execute_prediction_pipeline():
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write(f"=== Full Pipeline Inference Results ===\n")
+        f.write("=== Full Pipeline Inference Results ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"Total symbols: {len(res_df)}\n\n")
         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
@@ -876,7 +875,7 @@ def execute_prediction_pipeline():
                     score = row['lead_lag_score'] * 100
                     f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {score:.2f}%\n")
                 f.write("\n")
-            f.write(f"--- Leaders with highest today return ---\n")
+            f.write("--- Leaders with highest today return ---\n")
             leader_returns = []
             for sym in model.lead_lag_leaders:
                 df = infer_data_dict.get(sym)

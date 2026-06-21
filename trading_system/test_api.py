@@ -14,7 +14,7 @@ async def run():
     engine = BacktestEngine()
     bars = handler.fetch_historical_data("AAPL", "1y")
     result = engine.run_backtest("AAPL", bars, engine.get_strategy_func("MA"))
-    
+
     dates_str = [d.strftime("%Y-%m-%d") for d in getattr(result, 'dates', [])]
     price_curve = getattr(result, 'price_curve', [])
     equity_curve = getattr(result, 'equity_curve', [])

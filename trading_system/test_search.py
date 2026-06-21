@@ -1,6 +1,5 @@
 import urllib.request
 import urllib.parse
-import json
 
 q = "삼성전자"
 url = f"https://finance.daum.net/api/search/search?q={urllib.parse.quote(q)}"

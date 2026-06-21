@@ -52,12 +52,12 @@ def setup_logging(is_daemon: bool = True) -> logging.Logger:
     logger = logging.getLogger("orchestrator")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
-    
+
     formatter = logging.Formatter(
         fmt='%(asctime)s - %(levelname)s - [%(name)s:%(filename)s:%(lineno)d] - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    
+
     file_handler = RotatingFileHandler(
         filename=log_file,
         maxBytes=10 * 1024 * 1024,  # 10MB
@@ -66,12 +66,12 @@ def setup_logging(is_daemon: bool = True) -> logging.Logger:
     )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    
+
     if not is_daemon:
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
-        
+
     return logger
 
 logger = setup_logging(is_daemon=True)
@@ -110,14 +110,14 @@ class SQLitePool:
             conn = self._pool.pop()
         try:
             loop = asyncio.get_event_loop()
-            
+
             def _run():
                 cursor = conn.execute(sql, params)
                 rows = cursor.fetchall() if cursor.description else []
                 lastrowid = cursor.lastrowid
                 conn.commit()
                 return SQLiteResult(rows, lastrowid)
-                
+
             result = await loop.run_in_executor(None, _run)
             return result
         finally:
@@ -242,21 +242,21 @@ async def run_stage_predict(db_path: str) -> str:
         logger.info("Universe is empty. Updating stock universe first...")
         storage.update_stock_universe()
         universe = storage.get_universe()
-        
+
     sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
     krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
     all_symbols = sp500_symbols + krx_symbols
-    
+
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))
-    
+
     start_date_infer = (datetime.now() - timedelta(days=200)).strftime('%Y-%m-%d')
     model = OnDevicePredictionModel()
     infer_data_dict = {}
-    
+
     from concurrent.futures import ThreadPoolExecutor, as_completed
     _CPU_WORKERS = max(1, (os.cpu_count() or 4))
-    
+
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {
             executor.submit(fetch_data_fdr, sym, symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX'), start_date_infer): sym
@@ -271,14 +271,14 @@ async def run_stage_predict(db_path: str) -> str:
                     infer_data_dict[sym] = df
             except Exception as e:
                 logger.warning(f"Error fetching inference data for {sym}: {e}")
-                
+
     res_df = model.process_and_predict_all(infer_data_dict)
     if res_df.empty:
         raise ValueError("No predictions made.")
-        
+
     date_str = datetime.now().strftime('%Y-%m-%d')
     storage.save_predictions(res_df, date_str)
-    
+
     message_text = format_prediction_message(res_df, universe)
     logger.info("Stage 'predict' completed successfully.")
     return message_text
@@ -308,7 +308,7 @@ async def run_stage_score(db_path: str) -> str:
 async def run_stage(stage: str, db_path: str) -> bool:
     notifier = NotificationSystem()
     run_id = await log_run_start(db_path, stage)
-    
+
     lock = FileLock(str(LOCK_FILE), timeout=2)
     try:
         await notifier.broadcast(f"[Orchestrator] Stage '{stage}' Starting",
@@ -401,7 +401,7 @@ async def fallback_scheduler_loop():
         "scoring": None,
         "weekly_train": None
     }
-    
+
     # Check database on startup to recover last runs for today
     today_str = datetime.now().strftime("%Y-%m-%d")
     ind_ran = await has_stage_run_today(DB_PATH, 'indicators', today_str)
@@ -422,31 +422,31 @@ async def fallback_scheduler_loop():
             logger.info("Stop flag file detected. Stopping daemon gracefully...")
             running = False
             break
-            
+
         now = datetime.now()
         current_today = now.strftime("%Y-%m-%d")
-        
+
         # 1. Ingestion: daily at 15:45
         ingestion_time = time(15, 45)
         if now.time() >= ingestion_time and last_run["ingestion"] != current_today:
             logger.info("Scheduled task 'ingestion' (indicators + universe) is due.")
             await run_task_safely("ingestion", lambda: run_stage("ingest", DB_PATH))
             last_run["ingestion"] = current_today
-            
+
         # 2. Post-Market Scoring: daily at 16:30
         scoring_time = time(16, 30)
         if now.time() >= scoring_time and last_run["scoring"] != current_today:
             logger.info("Scheduled task 'scoring' is due.")
             await run_task_safely("scoring", lambda: run_stage("score", DB_PATH))
             last_run["scoring"] = current_today
-            
+
         # 3. Weekly XGBoost training: Sunday at 01:00 AM
         train_time = time(1, 0)
         if now.weekday() == 6 and now.time() >= train_time and last_run["weekly_train"] != current_today:
             logger.info("Scheduled task 'weekly_train' (train + predict) is due.")
             await run_task_safely("weekly_train", lambda: run_stage("all", DB_PATH))
             last_run["weekly_train"] = current_today
-            
+
         await asyncio.sleep(60)
 
 # Main entrypoint for the daemon
@@ -455,11 +455,11 @@ async def main():
     # Register Windows console signals
     if sys.platform == "win32":
         signal.signal(signal.SIGBREAK, handle_sigbreak)
-    
+
     # Write PID file upon startup
     PID_FILE.write_text(str(os.getpid()))
     logger.info(f"Orchestrator daemon started with PID: {os.getpid()}")
-    
+
     try:
         if HAS_APSCHEDULER:
             logger.info("APScheduler is available. Initializing scheduler...")
@@ -493,7 +493,7 @@ async def main():
             scheduler.shutdown()
         else:
             await fallback_scheduler_loop()
-            
+
     finally:
         # Cleanup
         if PID_FILE.exists():

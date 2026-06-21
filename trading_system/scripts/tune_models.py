@@ -6,7 +6,7 @@ import random
 import pandas as pd
 import numpy as np
 import optuna
-from typing import Optional, Dict, List, Any
+from typing import Optional
 from pathlib import Path
 from sklearn.metrics import mean_squared_error, roc_auc_score
 
@@ -28,15 +28,15 @@ def create_mock_tuning_data(model: OnDevicePredictionModel) -> pd.DataFrame:
     n_samples = 300
     dates = pd.date_range(start="2023-01-01", periods=n_samples)
     data = {'date': dates, 'symbol': ['MOCK'] * n_samples}
-    
+
     # Generate random features
     for col in model.ALL_FEATURES:
         data[col] = np.random.randn(n_samples)
-        
+
     # Generate random targets
     for h in model.horizons:
         data[f'target_{h}d'] = np.random.randn(n_samples) * 0.05
-        
+
     df = pd.DataFrame(data)
     return df
 
@@ -54,7 +54,7 @@ def load_tuning_data() -> pd.DataFrame:
     # Sample up to 10 symbols for fast tuning
     random.seed(42)
     sample_symbols = random.sample(symbols, min(len(symbols), 10))
-    
+
     prices_dict = {}
     from run_pipeline import fetch_indicator_history
     indicator_train = fetch_indicator_history(cfg.train_start_date, price_db, -1)
@@ -75,7 +75,7 @@ def load_tuning_data() -> pd.DataFrame:
     df_train = model.prepare_training_data(prices_dict, indicator_train)
     if df_train.empty:
         return create_mock_tuning_data(model)
-        
+
     return df_train
 
 def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
@@ -86,47 +86,47 @@ def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
     """
     logger.info("Loading tuning dataset...")
     df = load_tuning_data()
-    
+
     # Chronological split (80% train, 20% validation)
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values(by='date').reset_index(drop=True)
     split_idx = int(len(df) * 0.8)
-    
+
     train_df = df.iloc[:split_idx]
     val_df = df.iloc[split_idx:]
-    
+
     logger.info(f"Data split chronologically: train={len(train_df)} rows, validation={len(val_df)} rows")
-    
+
     model_ft = OnDevicePredictionModel()
     features = model_ft.ALL_FEATURES
-    
+
     # Filter features that exist in df
     features = [f for f in features if f in train_df.columns]
-    
+
     # We will tune regression and classification (surge) parameters
     # Let's use the first horizon (e.g. 5d or 20d) for target tuning
     reg_target = 'target_5d' if 'target_5d' in train_df.columns else f'target_{model_ft.horizons[0]}d'
     surge_target = 'surge_target'
-    
+
     # Prepare classification target (>= 20% return)
     train_df = train_df.copy()
     val_df = val_df.copy()
     train_df[surge_target] = (train_df[reg_target] >= 0.20).astype(int)
     val_df[surge_target] = (val_df[reg_target] >= 0.20).astype(int)
-    
+
     X_train, y_train_reg = train_df[features], train_df[reg_target]
     X_val, y_val_reg = val_df[features], val_df[reg_target]
-    
+
     y_train_clf, y_val_clf = train_df[surge_target], val_df[surge_target]
-    
+
     # Check if we have positive classes in clf targets. If not, mock them so classification tuning doesn't fail.
     if y_train_clf.sum() == 0:
         y_train_clf = pd.Series([0] * (len(y_train_clf) - 2) + [1, 1], index=y_train_clf.index)
     if y_val_clf.sum() == 0:
         y_val_clf = pd.Series([0] * (len(y_val_clf) - 2) + [1, 1], index=y_val_clf.index)
-        
+
     best_params = {}
-    
+
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
     # 1. XGBoost Regressor
@@ -151,7 +151,7 @@ def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
     study_xgb_reg = optuna.create_study(direction='minimize')
     study_xgb_reg.optimize(objective_xgb_reg, n_trials=n_trials)
     best_params['xgb'] = study_xgb_reg.best_params
-    
+
     # 2. LightGBM Regressor
     logger.info("Tuning LightGBM Regressor...")
     def objective_lgb_reg(trial):
@@ -283,10 +283,10 @@ def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
     model_dir = Path(output_dir) if output_dir else Path(__file__).resolve().parent.parent / "models"
     model_dir.mkdir(parents=True, exist_ok=True)
     output_path = model_dir / "tuned_params.json"
-    
+
     with open(output_path, 'w') as f:
         json.dump(best_params, f, indent=2)
-        
+
     logger.info(f"Saved tuned hyperparameters to {output_path}")
     return best_params
 

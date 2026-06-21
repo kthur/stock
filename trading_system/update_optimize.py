@@ -9,16 +9,16 @@ replacement = """    def optimize_parameters(self, symbol: str, price_bars: List
         best_result = None
         best_params = None
         best_return = -float('inf')
-        
+
         self.logger.info(f"Starting parameter optimization for {strategy_name}...")
-        
+
         import json
         import os
-        
+
         cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data')
         os.makedirs(cache_dir, exist_ok=True)
         cache_file = os.path.join(cache_dir, 'optimized_params.json')
-        
+
         cache_key = f"{symbol}_{strategy_name}"
         if os.path.exists(cache_file):
             try:
@@ -30,23 +30,23 @@ replacement = """    def optimize_parameters(self, symbol: str, price_bars: List
                 pass
 
         strategy_func = self.get_strategy_func(strategy_name)
-        
+
         # 간단한 그리드 서치
         for param_combo in self._generate_param_combos(param_ranges):
             def strategy(bars):
                 # 파라미터 기반 전략 실행
                 return strategy_func(bars, param_combo)
-            
+
             result = self.run_backtest(symbol, price_bars, strategy)
-            
+
             if result.total_return_pct > best_return:
                 best_return = result.total_return_pct
                 best_result = result
                 best_params = param_combo
-        
+
         self.logger.info(f"Optimization complete: best params={best_params}, "
                         f"best return={best_return:.2f}%")
-        
+
         # Save to cache
         cache_data = {}
         if os.path.exists(cache_file):
@@ -55,16 +55,16 @@ replacement = """    def optimize_parameters(self, symbol: str, price_bars: List
                     cache_data = json.load(f)
             except Exception:
                 cache_data = {}
-        
+
         cache_data[cache_key] = {
             'best_params': best_params,
             'best_return': best_return,
             'timestamp': datetime.now().isoformat()
         }
-        
+
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, indent=4)
-        
+
         return {
             'best_params': best_params,
             'best_result': best_result,
