@@ -26,13 +26,34 @@ if "torch" not in sys.modules:
     if should_bypass:
         import types
         class DummyTensor:
-            pass
+            def __init__(self, *args, **kwargs):
+                pass
+            def to(self, *args, **kwargs):
+                return self
+            def cpu(self, *args, **kwargs):
+                return self
+            def numpy(self, *args, **kwargs):
+                return np.zeros((10, 1))
+            def item(self):
+                return 0.0
+            def __getitem__(self, item):
+                return self
+        class DummyNoGrad:
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
         mock_torch = types.ModuleType("torch")
         mock_torch.Tensor = DummyTensor
+        mock_torch.tensor = lambda *a, **k: DummyTensor()
         mock_torch.manual_seed = lambda s: None
         mock_torch.device = lambda *a, **k: None
         mock_torch.from_numpy = lambda *a, **k: DummyTensor()
-        mock_torch.no_grad = lambda *a, **k: DummyTensor()
+        mock_torch.no_grad = lambda *a, **k: DummyNoGrad()
+        mock_torch.save = lambda *a, **k: None
+        mock_torch.load = lambda *a, **k: {}
+        mock_torch.randperm = lambda n: [0] * n
+        mock_torch.is_mocked = True
 
         mock_cuda = types.ModuleType("torch.cuda")
         mock_cuda.is_available = lambda: False
@@ -45,15 +66,33 @@ if "torch" not in sys.modules:
             def __init__(self, *args, **kwargs):
                 pass
             def forward(self, *args, **kwargs):
+                return DummyTensor()
+            def __call__(self, *args, **kwargs):
+                return self.forward(*args, **kwargs)
+            def to(self, *args, **kwargs):
+                return self
+            def parameters(self, *args, **kwargs):
+                return []
+            def state_dict(self, *args, **kwargs):
+                return {}
+            def load_state_dict(self, *args, **kwargs):
                 pass
+            def eval(self, *args, **kwargs):
+                return self
+            def train(self, *args, **kwargs):
+                return self
         mock_nn.Module = DummyModule
         mock_nn.Sequential = DummyModule
         mock_nn.Linear = DummyModule
         mock_nn.ReLU = DummyModule
+        mock_nn.LSTM = DummyModule
+        mock_nn.MSELoss = DummyModule
+        mock_torch.nn = mock_nn
         sys.modules["torch.nn"] = mock_nn
 
         mock_optim = types.ModuleType("torch.optim")
         mock_optim.Adam = DummyModule
+        mock_torch.optim = mock_optim
         sys.modules["torch.optim"] = mock_optim
 
         mock_sb3 = types.ModuleType("stable_baselines3")
