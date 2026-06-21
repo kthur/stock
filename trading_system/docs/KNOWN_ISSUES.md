@@ -23,6 +23,7 @@
 - [x] S1. `orchestrator.py`의 구식 `run_stage_train()` 함수를 메인 파이프라인 호출로 교체
 - [x] S2. `run_pipeline.py` 글로벌 지표 히스토리 이중 Fetch 방지 (데이터 슬라이싱 재사용)
 - [x] S3. `prediction_model.py` 피처 엔지니어링 중 발생하는 `inf` 값 처리 (`replace([np.inf, -np.inf], 0.0)`)
+- [x] S4. `prediction_model.py` 펀더멘탈 데이터 누락 시 0.0으로 인한 모델 판단 오류 방지 (`has_fundamental` 피처 추가)
 - [x] S5. `@retry(reraise=False)` 무음 실패 이슈를 `reraise=True`로 수정하여 네트워크 에러 명시화
 - [x] S6. `indicator_storage.py` SQLite 동시 쓰기 `database is locked` 에러 방지 (WAL 모드 + Thread Lock)
 - [x] S7. `locale.setlocale()` 스레드 안전성 확인 (코드 내 미사용 확인)
