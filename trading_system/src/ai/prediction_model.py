@@ -103,6 +103,7 @@ FALLBACK_METADATA = FallbackMetadataDict()
 class OnDevicePredictionModel:
     # Core OHLCV + feature engineered columns
     FEATURES = [
+        'has_fundamental',
         'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'dist_sma_20', 'vol_20d',
         'norm_market_cap', 'norm_floating_value', 'norm_volume',
         'operating_margin', 'revenue_to_market_cap', 'dividend_yield',
@@ -772,6 +773,14 @@ class OnDevicePredictionModel:
             if col in df.columns:
                 df[col] = df[col].ffill().fillna(meta.get(col, 0.0))
 
+        # Add has_fundamental feature to explicitly differentiate true 0.0 from missing data (Issue S4)
+        if 'has_fundamental' not in df.columns:
+            if has_cols:
+                df['has_fundamental'] = 1.0
+            else:
+                # If df_fun was fetched and had data, fundamental exists
+                df['has_fundamental'] = 1.0 if (df_fun is not None and not df_fun.empty) else 0.0
+
         # Ensure index has no duplicates to prevent reindexing errors
         if df.index.has_duplicates:
             df = df[~df.index.duplicated(keep='last')]
@@ -816,6 +825,9 @@ class OnDevicePredictionModel:
             return series_num.div(series_den).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         # Ensure fundamental columns exist
+        if 'has_fundamental' not in df.columns:
+            df['has_fundamental'] = 1.0 if 'revenue' in df.columns else 0.0
+
         op_inc = df['operating_income'] if 'operating_income' in df.columns else pd.Series(0.0, index=df.index)
         rev = df['revenue'] if 'revenue' in df.columns else pd.Series(0.0, index=df.index)
         net_inc = df['net_income'] if 'net_income' in df.columns else pd.Series(0.0, index=df.index)
