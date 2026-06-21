@@ -41,6 +41,7 @@ class TestRiskManagerPositionSizing(unittest.TestCase):
 
     def setUp(self):
         self.rm = RiskManager(portfolio_value=1_000_000)
+        self.rm.max_position_size_pct = 0.20
 
     def test_position_sizing_basic(self):
         qty = self.rm.calculate_position_sizing(

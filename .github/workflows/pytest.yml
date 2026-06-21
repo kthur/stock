@@ -50,11 +50,15 @@ jobs:
         pip-audit -r trading_system/requirements.txt
 
     - name: Run unit tests
+      working-directory: trading_system
+      env:
+        STOCK_PRICE_FRESHNESS_DAYS: none
       run: |
-        python -m coverage run --source=trading_system/src -m pytest trading_system/tests/ -v
+        python -m coverage run --source=src -m pytest tests/ -v
 
     - name: Generate coverage report
       if: success()
+      working-directory: trading_system
       run: |
         python -m coverage report
         python -m coverage xml -o coverage.xml
@@ -64,4 +68,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: coverage.xml
+        path: trading_system/coverage.xml

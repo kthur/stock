@@ -461,6 +461,7 @@ class TestPreTradeConcentrationCheck(unittest.TestCase):
         from src.core.asset_management import PortfolioManager
         self.portfolio = PortfolioManager(initial_cash=1_000_000)
         self.risk_manager = RiskManager(portfolio_value=1_000_000)
+        self.risk_manager.max_position_size_pct = 0.20
         self.market_cache = {}
 
     def _max_position_value(self):
