@@ -1,7 +1,6 @@
 import sys
 import os
 import datetime
-import traceback
 import uuid
 
 # Add src to path
@@ -13,7 +12,7 @@ from src.utils.report import generate_pdf_report
 def test_broker_validation():
     print("--- Testing RealBroker ---")
     broker = RealBroker()
-    
+
     # 1. Connection check
     try:
         broker.submit_order("AAPL", 10.0, "BUY")
@@ -22,7 +21,7 @@ def test_broker_validation():
         print(f"PASS: submit_order failed without connect(): {e}")
 
     broker.connect()
-    
+
     # 2. Invalid inputs
     try:
         # Extreme quantity
@@ -41,14 +40,14 @@ def test_broker_validation():
 
 def test_pdf_report():
     print("\n--- Testing generate_pdf_report ---")
-    
+
     # 1. Empty data
     try:
         generate_pdf_report([], "empty_report.pdf")
         print("PASS: Empty trade_data handled.")
     except Exception as e:
         print(f"FAIL: Empty trade_data failed: {e}")
-        
+
     # 2. Missing/Invalid fields
     try:
         bad_data = [{"symbol": "AAPL"}, "not a dict"]
@@ -72,7 +71,7 @@ def test_pdf_report():
         large_data = []
         for i in range(20000):
             large_data.append({"order_id": str(uuid.uuid4()), "symbol": "AAPL", "qty": 1.0, "side": "BUY"})
-        
+
         start = datetime.datetime.now()
         generate_pdf_report(large_data, "large_report.pdf")
         duration = (datetime.datetime.now() - start).total_seconds()

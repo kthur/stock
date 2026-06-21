@@ -20,7 +20,7 @@ async def main():
     system.market_data_handler.fetch_historical_data = MagicMock(return_value=[])
     system.market_data_cache["VIX"] = {"price": 30.0}
     system.risk_manager.calculate_position_sizing = MagicMock(return_value=500)
-    
+
     try:
         print("Submitting order...")
         await system._create_and_submit_order("AAPL", OrderType.BUY, 100.0)

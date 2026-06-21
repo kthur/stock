@@ -1,8 +1,4 @@
-import os
-import json
 import pytest
-import math
-from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 
 # Import target modules dynamically inside tests to prevent import-time crashes when files/classes do not exist yet.
@@ -33,7 +29,7 @@ def generate_mock_bars(count=100, trend="flat", base_price=100.0, vol=1000000):
             price = base_price - i * 0.5 + (i % 3 - 1)
         else:
             price = base_price + (i % 5 - 2)
-        
+
         bars.append(MockPriceBar(
             timestamp=current_time + timedelta(days=i),
             open_=price - 0.5,
@@ -55,11 +51,11 @@ def test_r1_optimize_parameters_happy_path():
         from src.analysis.backtest import BacktestEngine
     except ImportError:
         pytest.fail("BacktestEngine import failed")
-        
+
     engine = BacktestEngine(initial_capital=1000000)
     bars = generate_mock_bars(50)
     param_ranges = {"short_window": [10, 20], "long_window": [30, 40]}
-    
+
     result = engine.optimize_parameters("AAPL", bars, param_ranges)
     assert "best_params" in result
     assert "best_result" in result
@@ -71,7 +67,7 @@ def test_r1_json_saving_happy_path(tmp_path):
         from src.analysis.backtest import BacktestEngine
     except ImportError:
         pytest.fail("BacktestEngine import failed")
-        
+
     # Mock file path or run and verify data/optimized_params.json
     # In actual test, check if file exists and has correct structure.
     pass

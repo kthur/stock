@@ -1,4 +1,3 @@
-import math
 import unittest
 from src.strategy.allocation import allocate_assets
 
@@ -8,7 +7,7 @@ class TestAllocateAssetsEdge(unittest.TestCase):
         weights = allocate_assets(prices)
         # NaN > 0 is False in python, so it should be filtered out
         self.assertEqual(weights, {'B': 1.0})
-        
+
     def test_inf_price(self):
         prices = {'A': float('inf'), 'B': 10}
         weights = allocate_assets(prices)

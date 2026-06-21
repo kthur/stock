@@ -1,7 +1,6 @@
 import math
 import random
 import sys
-import os
 
 sys.path.append(r"d:\Finance\code\stock\trading_system")
 
@@ -9,7 +8,7 @@ from src.strategy.allocation import allocate_assets
 
 def run_tests():
     errors = []
-    
+
     print("Test 1")
     res = allocate_assets({})
     if res != {}: errors.append(f"Expected empty dict for {{}}, got {res}")
@@ -21,7 +20,7 @@ def run_tests():
     print("Test 3")
     res = allocate_assets({'A': 10, 'B': 30})
     if sum(res.values()) != 1.0: errors.append(f"Sum not 1.0 for normal case: {sum(res.values())}")
-    
+
     print("Test 4")
     for i in range(100):
         n = random.randint(10, 1000)
