@@ -1,8 +1,11 @@
 import logging
 import pandas as pd
 import xgboost as xgb
+import lightgbm as lgb
+import catboost as cb
 import hashlib
 import numpy as np
+import json
 from typing import Dict, Any, List, Optional, Tuple
 
 _HAS_CUDA = False
@@ -83,21 +86,14 @@ class FallbackMetadataDict(dict):
         float_pct = 0.5 + 0.4 * ((val >> 32) % 100) / 100.0
         floating_shares = shares_outstanding * float_pct
 
-        # Deterministic mock fundamentals
-        revenue = 1000000.0 + (val % 100000000.0)
-        operating_income = revenue * (0.05 + 0.25 * ((val >> 16) % 100) / 100.0)
-        net_income = operating_income * (0.5 + 0.5 * ((val >> 12) % 100) / 100.0)
-        eps = net_income / shares_outstanding if shares_outstanding > 0 else 1.0
-        dividend_per_share = 0.1 + 4.9 * ((val >> 8) % 100) / 100.0
-
         return {
             "shares_outstanding": float(shares_outstanding),
             "floating_shares": float(floating_shares),
-            "revenue": float(revenue),
-            "operating_income": float(operating_income),
-            "net_income": float(net_income),
-            "eps": float(eps),
-            "dividend_per_share": float(dividend_per_share)
+            "revenue": 0.0,
+            "operating_income": 0.0,
+            "net_income": 0.0,
+            "eps": 0.0,
+            "dividend_per_share": 0.0
         }
 
 
@@ -111,6 +107,18 @@ class OnDevicePredictionModel:
         'norm_market_cap', 'norm_floating_value', 'norm_volume',
         'operating_margin', 'revenue_to_market_cap', 'dividend_yield',
         'net_profit_margin', 'eps_yield', 'eps_growth_1y',
+        'rsi_14', 'rsi_5', 'macd', 'macd_signal', 'macd_hist_norm',
+        'bb_upper_dist', 'bb_lower_dist', 'bb_width', 'atr_14',
+        'roc_10', 'roc_20', 'higher_high', 'higher_low', 'distance_from_52w_high',
+        'ema_crossover', 'stoch_k', 'stoch_d', 'volume_ratio',
+        # VCP Vectorized Features
+        'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
+        'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
+        'monotonic', 'vcp_score',
+        # Lagged Return Features
+        'ret_1d_lag1', 'ret_5d_lag1',
+        # Technical Indicators
+        'adx_14', 'tenkan_sen', 'kijun_sen', 'stoch_rsi_k', 'stoch_rsi_d'
     ]
     # Global market indicators added as features (날짜별 히스토리 merge)
     GLOBAL_FEATURES = [
@@ -122,7 +130,13 @@ class OnDevicePredictionModel:
     def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
+        self.lgb_models: Dict[str, Dict[int, lgb.LGBMRegressor]] = {}
+        self.cat_models: Dict[str, Dict[int, cb.CatBoostRegressor]] = {}
+        
         self.surge_models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
+        self.surge_lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
+        self.surge_cat_models: Dict[str, Dict[int, cb.CatBoostClassifier]] = {}
+        
         self.lead_lag_matrix: Dict[str, List[Tuple[str, float]]] = {}
         self.lead_lag_leaders: List[str] = []
         self.horizons = [1, 5, 10, 20, 30, 60, 120, 200]
@@ -140,6 +154,27 @@ class OnDevicePredictionModel:
             random_state=42,
             early_stopping_rounds=50,
         )
+        self._lgb_kwargs: Dict[str, Any] = dict(
+            n_estimators=500,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            n_jobs=-1,
+            random_state=42,
+            verbose=-1,
+        )
+        self._cat_kwargs: Dict[str, Any] = dict(
+            iterations=500,
+            depth=5,
+            learning_rate=0.05,
+            l2_leaf_reg=1.0,
+            thread_count=-1,
+            random_seed=42,
+            verbose=False,
+        )
+        
         self._surge_xgb_kwargs: Dict[str, Any] = dict(
             n_estimators=500,
             max_depth=4,
@@ -154,33 +189,138 @@ class OnDevicePredictionModel:
             early_stopping_rounds=50,
             eval_metric='auc',
         )
-        if self._has_gpu:
-            self._xgb_kwargs['device'] = 'cuda'
-            self._surge_xgb_kwargs['device'] = 'cuda'
-
+        self._surge_lgb_kwargs: Dict[str, Any] = dict(
+            n_estimators=500,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            min_child_samples=10,
+            n_jobs=-1,
+            random_state=42,
+            verbose=-1,
+        )
+        self._surge_cat_kwargs: Dict[str, Any] = dict(
+            iterations=500,
+            depth=4,
+            learning_rate=0.05,
+            l2_leaf_reg=1.0,
+            thread_count=-1,
+            random_seed=42,
+            eval_metric='AUC',
+            verbose=False,
+        )
+        
         if model_dir is None:
             self.model_dir = Path(__file__).resolve().parent.parent.parent / "models"
         else:
             self.model_dir = Path(model_dir)
+
+        # Check and load tuned parameters if they exist
+        tuned_path = self.model_dir / "tuned_params.json"
+        if tuned_path.exists():
+            try:
+                with open(tuned_path, 'r') as f:
+                    tuned_data = json.load(f)
+                logger.info(f"Loaded tuned parameters from {tuned_path}")
+                if 'xgb' in tuned_data:
+                    self._xgb_kwargs.update(tuned_data['xgb'])
+                if 'lgb' in tuned_data:
+                    self._lgb_kwargs.update(tuned_data['lgb'])
+                if 'cat' in tuned_data:
+                    self._cat_kwargs.update(tuned_data['cat'])
+                if 'surge_xgb' in tuned_data:
+                    self._surge_xgb_kwargs.update(tuned_data['surge_xgb'])
+                if 'surge_lgb' in tuned_data:
+                    self._surge_lgb_kwargs.update(tuned_data['surge_lgb'])
+                if 'surge_cat' in tuned_data:
+                    self._surge_cat_kwargs.update(tuned_data['surge_cat'])
+            except Exception as e:
+                logger.warning(f"Failed to load tuned parameters: {e}")
+
+        if self._has_gpu:
+            self._xgb_kwargs['device'] = 'cuda'
+            self._surge_xgb_kwargs['device'] = 'cuda'
+            self._lgb_kwargs['device_type'] = 'gpu'
+            self._surge_lgb_kwargs['device_type'] = 'gpu'
+            self._cat_kwargs['task_type'] = 'GPU'
+            self._surge_cat_kwargs['task_type'] = 'GPU'
+
+        self.ensemble_weights = {"regression": {}, "surge": {}}
+        self.optimal_thresholds = {}
+
+        # Load validation metrics if exists
+        self.validation_metrics = {"regression": {}, "surge": {}}
+        val_metrics_path = self.model_dir / "validation_metrics.json"
+        if val_metrics_path.exists():
+            try:
+                with open(val_metrics_path, 'r') as f:
+                    self.validation_metrics = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load validation metrics: {e}")
+
+        self.load_ensemble_weights()
+        self.load_optimal_thresholds()
 
         logger.info(f"OnDevicePredictionModel initialized (GPU={'yes' if self._has_gpu else 'no'})")
         self.load_models()
         self.load_surge_models()
         self.load_lead_lag()
 
+    def load_ensemble_weights(self):
+        try:
+            path = self.model_dir / "ensemble_weights.json"
+            if path.exists():
+                with open(path, 'r') as f:
+                    self.ensemble_weights = json.load(f)
+                logger.info(f"Loaded ensemble weights from {path}")
+            else:
+                self.ensemble_weights = {"regression": {}, "surge": {}}
+        except Exception as e:
+            logger.warning(f"Failed to load ensemble weights: {e}")
+            self.ensemble_weights = {"regression": {}, "surge": {}}
+
+    def load_optimal_thresholds(self):
+        try:
+            path = self.model_dir / "optimal_thresholds.json"
+            if path.exists():
+                with open(path, 'r') as f:
+                    self.optimal_thresholds = json.load(f)
+                logger.info(f"Loaded optimal thresholds from {path}")
+            else:
+                self.optimal_thresholds = {}
+        except Exception as e:
+            logger.warning(f"Failed to load optimal thresholds: {e}")
+            self.optimal_thresholds = {}
+
     def save_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
+            # XGBoost
             for market, models in self.models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
                     model.get_booster().save_model(str(model_path))
+            # LightGBM
+            for market, models in self.lgb_models.items():
+                for h, model in models.items():
+                    model_path = self.model_dir / f"lgb_model_{market}_{h}d.txt"
+                    model.booster_.save_model(str(model_path))
+            # CatBoost
+            for market, models in self.cat_models.items():
+                for h, model in models.items():
+                    model_path = self.model_dir / f"cat_model_{market}_{h}d.bin"
+                    model.save_model(str(model_path))
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
 
     def load_models(self):
         try:
+            dummy_df = pd.DataFrame(0.0, index=[0], columns=self.ALL_FEATURES)
+            
+            # Load XGBoost models
             for fpath in self.model_dir.glob("xgb_model_*_*d.json"):
                 parts = fpath.stem.replace("xgb_model_", "").split("_")
                 h_str = parts[-1].replace("d", "")
@@ -188,20 +328,69 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                if market not in self.models:
-                    self.models[market] = {}
-                if h not in self.models[market]:
-                    booster = xgb.Booster()
-                    booster.load_model(str(fpath))
-                    booster.set_param('predictor', 'auto')
-                    model = xgb.XGBRegressor(**self._xgb_kwargs)
-                    model._Booster = booster
-                    model._estimator_type = 'regressor'
+                booster = xgb.Booster()
+                booster.load_model(str(fpath))
+                booster.set_param('predictor', 'auto')
+                model = xgb.XGBRegressor(**self._xgb_kwargs)
+                model._Booster = booster
+                model._estimator_type = 'regressor'
+                
+                try:
+                    _ = model.predict(dummy_df)
+                    if market not in self.models:
+                        self.models[market] = {}
                     self.models[market][h] = model
-                    logger.debug(f"Loaded model for {market} {h}d from {fpath}")
+                    logger.debug(f"Loaded XGB model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"XGB model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+
+            # Load LightGBM models
+            for fpath in self.model_dir.glob("lgb_model_*_*d.txt"):
+                parts = fpath.stem.replace("lgb_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                booster = lgb.Booster(model_file=str(fpath))
+                model = lgb.LGBMRegressor(**self._lgb_kwargs)
+                model._Booster = booster
+                model.fitted_ = True
+                model._n_features = len(self.ALL_FEATURES)
+                model._n_features_in = len(self.ALL_FEATURES)
+                
+                try:
+                    _ = model.predict(dummy_df)
+                    if market not in self.lgb_models:
+                        self.lgb_models[market] = {}
+                    self.lgb_models[market][h] = model
+                    logger.debug(f"Loaded LGB model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"LGB model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+
+            # Load CatBoost models
+            for fpath in self.model_dir.glob("cat_model_*_*d.bin"):
+                parts = fpath.stem.replace("cat_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                model = cb.CatBoostRegressor()
+                model.load_model(str(fpath))
+                
+                try:
+                    _ = model.predict(dummy_df)
+                    if market not in self.cat_models:
+                        self.cat_models[market] = {}
+                    self.cat_models[market][h] = model
+                    logger.debug(f"Loaded CatBoost model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"CatBoost model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+
+            # Fallback check for missing models (compatibility block)
             if not self.models:
                 for market in ['sp500', 'krx']:
-                    self.models[market] = {}
                     for h in self.horizons:
                         model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
                         if model_path.exists():
@@ -211,29 +400,48 @@ class OnDevicePredictionModel:
                             model = xgb.XGBRegressor(**self._xgb_kwargs)
                             model._Booster = booster
                             model._estimator_type = 'regressor'
-                            self.models[market][h] = model
-                            logger.debug(f"Loaded model for {market} {h}d from {model_path}")
-                    if not self.models[market]:
-                        del self.models[market]
-            total = sum(len(v) for v in self.models.values())
-            if total:
-                logger.info(f"Loaded {total} models from {self.model_dir}")
+                            try:
+                                _ = model.predict(dummy_df)
+                                if market not in self.models:
+                                    self.models[market] = {}
+                                self.models[market][h] = model
+                            except Exception as e:
+                                logger.warning(f"Fallback XGB model {market} {h}d validation failed: {e}. Skipping.")
+                                
+            total_xgb = sum(len(v) for v in self.models.values())
+            total_lgb = sum(len(v) for v in self.lgb_models.values())
+            total_cat = sum(len(v) for v in self.cat_models.values())
+            logger.info(f"Loaded regression models: XGB={total_xgb}, LGB={total_lgb}, Cat={total_cat}")
         except Exception as e:
             logger.error(f"Failed to load models: {e}")
 
     def save_surge_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
+            # XGBoost
             for market, models in self.surge_models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
                     model.get_booster().save_model(str(model_path))
+            # LightGBM
+            for market, models in self.surge_lgb_models.items():
+                for h, model in models.items():
+                    model_path = self.model_dir / f"lgb_surge_model_{market}_{h}d.txt"
+                    model.booster_.save_model(str(model_path))
+            # CatBoost
+            for market, models in self.surge_cat_models.items():
+                for h, model in models.items():
+                    model_path = self.model_dir / f"cat_surge_model_{market}_{h}d.bin"
+                    model.save_model(str(model_path))
             logger.info(f"Surge models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save surge models: {e}")
 
     def load_surge_models(self):
         try:
+            dummy_df = pd.DataFrame(0.0, index=[0], columns=self.ALL_FEATURES)
+            
+            # XGBoost
             for fpath in self.model_dir.glob("xgb_surge_model_*_*d.json"):
                 parts = fpath.stem.replace("xgb_surge_model_", "").split("_")
                 h_str = parts[-1].replace("d", "")
@@ -241,20 +449,79 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                if market not in self.surge_models:
-                    self.surge_models[market] = {}
-                if h not in self.surge_models[market]:
-                    booster = xgb.Booster()
-                    booster.load_model(str(fpath))
-                    booster.set_param('predictor', 'auto')
-                    model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
-                    model._Booster = booster
-                    model._estimator_type = 'classifier'
+                booster = xgb.Booster()
+                booster.load_model(str(fpath))
+                booster.set_param('predictor', 'auto')
+                model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
+                model._Booster = booster
+                model._estimator_type = 'classifier'
+                try:
+                    model.n_classes_ = 2
+                except (AttributeError, TypeError):
+                    model._n_classes = 2
+                try:
+                    model.classes_ = np.array([0, 1])
+                except (AttributeError, TypeError):
+                    model._classes = np.array([0, 1])
+                
+                try:
+                    _ = model.predict_proba(dummy_df)
+                    if market not in self.surge_models:
+                        self.surge_models[market] = {}
                     self.surge_models[market][h] = model
-                    logger.debug(f"Loaded surge model for {market} {h}d from {fpath}")
+                    logger.debug(f"Loaded XGB surge model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"XGB surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+
+            # LightGBM
+            for fpath in self.model_dir.glob("lgb_surge_model_*_*d.txt"):
+                parts = fpath.stem.replace("lgb_surge_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                booster = lgb.Booster(model_file=str(fpath))
+                model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
+                model._Booster = booster
+                model.fitted_ = True
+                model._n_features = len(self.ALL_FEATURES)
+                model._n_features_in = len(self.ALL_FEATURES)
+                model._n_classes = 2
+                model._classes = np.array([0, 1])
+                
+                try:
+                    _ = model.predict_proba(dummy_df)
+                    if market not in self.surge_lgb_models:
+                        self.surge_lgb_models[market] = {}
+                    self.surge_lgb_models[market][h] = model
+                    logger.debug(f"Loaded LGB surge model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"LGB surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+
+            # CatBoost
+            for fpath in self.model_dir.glob("cat_surge_model_*_*d.bin"):
+                parts = fpath.stem.replace("cat_surge_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                model = cb.CatBoostClassifier()
+                model.load_model(str(fpath))
+                
+                try:
+                    _ = model.predict_proba(dummy_df)
+                    if market not in self.surge_cat_models:
+                        self.surge_cat_models[market] = {}
+                    self.surge_cat_models[market][h] = model
+                    logger.debug(f"Loaded CatBoost surge model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"CatBoost surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+
+            # Fallback checks
             if not self.surge_models:
                 for market in ['sp500', 'krx']:
-                    self.surge_models[market] = {}
                     for h in self.surge_horizons:
                         model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
                         if model_path.exists():
@@ -264,13 +531,26 @@ class OnDevicePredictionModel:
                             model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
                             model._Booster = booster
                             model._estimator_type = 'classifier'
-                            self.surge_models[market][h] = model
-                            logger.debug(f"Loaded surge model for {market} {h}d from {model_path}")
-                    if not self.surge_models[market]:
-                        del self.surge_models[market]
-            total = sum(len(v) for v in self.surge_models.values())
-            if total:
-                logger.info(f"Loaded {total} surge models from {self.model_dir}")
+                            try:
+                                model.n_classes_ = 2
+                            except (AttributeError, TypeError):
+                                model._n_classes = 2
+                            try:
+                                model.classes_ = np.array([0, 1])
+                            except (AttributeError, TypeError):
+                                model._classes = np.array([0, 1])
+                            try:
+                                _ = model.predict_proba(dummy_df)
+                                if market not in self.surge_models:
+                                    self.surge_models[market] = {}
+                                self.surge_models[market][h] = model
+                            except Exception as e:
+                                logger.warning(f"Fallback XGB surge model {market} {h}d validation failed: {e}. Skipping.")
+
+            total_xgb = sum(len(v) for v in self.surge_models.values())
+            total_lgb = sum(len(v) for v in self.surge_lgb_models.values())
+            total_cat = sum(len(v) for v in self.surge_cat_models.values())
+            logger.info(f"Loaded surge models: XGB={total_xgb}, LGB={total_lgb}, Cat={total_cat}")
         except Exception as e:
             logger.error(f"Failed to load surge models: {e}")
 
@@ -356,21 +636,24 @@ class OnDevicePredictionModel:
             if not group:
                 continue
 
-            total_market_cap = pd.Series(dtype=float)
-            total_floating_value = pd.Series(dtype=float)
-            total_volume = pd.Series(dtype=float)
-
-            for df in group.values():
-                total_market_cap = total_market_cap.add(_series(df['market_cap']), fill_value=0.0)
-                total_floating_value = total_floating_value.add(_series(df['floating_value']), fill_value=0.0)
-                total_volume = total_volume.add(_series(df['Volume']), fill_value=0.0)
-
+            # Concatenate all DataFrames in the group to compute daily totals without lookahead bias
+            group_dfs = []
             for sym, df in group.items():
-                df['norm_market_cap'] = _series(df['market_cap']).div(total_market_cap).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-                df['norm_floating_value'] = _series(df['floating_value']).div(total_floating_value).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-                df['norm_volume'] = _series(df['Volume']).div(total_volume).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                temp = pd.DataFrame(index=df.index)
+                temp['market_cap'] = _series(df['market_cap'])
+                temp['floating_value'] = _series(df['floating_value'])
+                temp['Volume'] = _series(df['Volume'])
+                group_dfs.append(temp)
 
-                result_dict[sym] = df
+            if group_dfs:
+                combined = pd.concat(group_dfs)
+                daily_totals = combined.groupby(combined.index).sum()
+
+                for sym, df in group.items():
+                    df['norm_market_cap'] = _series(df['market_cap']).div(daily_totals['market_cap']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                    df['norm_floating_value'] = _series(df['floating_value']).div(daily_totals['floating_value']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                    df['norm_volume'] = _series(df['Volume']).div(daily_totals['Volume']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                    result_dict[sym] = df
 
         # Preserve and return any missing or empty input dataframes
         for sym, df in prices_dict.items():
@@ -454,7 +737,7 @@ class OnDevicePredictionModel:
                     df['date_align'] = pd.to_datetime(df[date_col])
                     df = pd.merge(df, df_fun, left_on='date_align', right_on='date',
                                   how='left', suffixes=('', '_fund'))
-                    df = df.drop(columns=['date_align', 'date_fund'])
+                    df = df.drop(columns=['date_align', 'date_fund'], errors='ignore')
                     df = df.set_index(date_col)
                 else:
                     try:
@@ -532,17 +815,27 @@ class OnDevicePredictionModel:
         def safe_divide(series_num, series_den):
             return series_num.div(series_den).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
-        df['operating_margin'] = safe_divide(df['operating_income'], df['revenue'])
-        df['net_profit_margin'] = safe_divide(df['net_income'], df['revenue'])
-        df['eps_yield'] = safe_divide(df['eps'], df['Close'])
-        df['revenue_to_market_cap'] = safe_divide(df['revenue'], df['market_cap'])
-        df['dividend_yield'] = safe_divide(df['dividend_per_share'], df['Close'])
+        # Ensure fundamental columns exist
+        op_inc = df['operating_income'] if 'operating_income' in df.columns else pd.Series(0.0, index=df.index)
+        rev = df['revenue'] if 'revenue' in df.columns else pd.Series(0.0, index=df.index)
+        net_inc = df['net_income'] if 'net_income' in df.columns else pd.Series(0.0, index=df.index)
+        eps_col = df['eps'] if 'eps' in df.columns else pd.Series(0.0, index=df.index)
+        m_cap = df['market_cap'] if 'market_cap' in df.columns else pd.Series(0.0, index=df.index)
+        div_ps = df['dividend_per_share'] if 'dividend_per_share' in df.columns else pd.Series(0.0, index=df.index)
+        if 'eps_growth_1y' not in df.columns:
+            df['eps_growth_1y'] = 0.0
+
+        df['operating_margin'] = safe_divide(op_inc, rev)
+        df['net_profit_margin'] = safe_divide(net_inc, rev)
+        df['eps_yield'] = safe_divide(eps_col, df['Close'])
+        df['revenue_to_market_cap'] = safe_divide(rev, m_cap)
+        df['dividend_yield'] = safe_divide(div_ps, df['Close'])
 
         # Return features
-        df['ret_1d'] = df['Close'].pct_change(1, fill_method=None)
-        df['ret_5d'] = df['Close'].pct_change(5, fill_method=None)
-        df['ret_20d'] = df['Close'].pct_change(20, fill_method=None)
-        df['ret_60d'] = df['Close'].pct_change(60, fill_method=None)
+        df['ret_1d'] = df['Close'].pct_change(1)
+        df['ret_5d'] = df['Close'].pct_change(5)
+        df['ret_20d'] = df['Close'].pct_change(20)
+        df['ret_60d'] = df['Close'].pct_change(60)
 
         # Moving averages
         df['sma_20'] = df['Close'].rolling(20).mean()
@@ -552,8 +845,170 @@ class OnDevicePredictionModel:
         # Volatility
         df['vol_20d'] = df['ret_1d'].rolling(20).std()
 
+        # 1. RSI (14) & RSI (5) using Wilder's EMA
+        delta = df['Close'].diff()
+        gain = delta.where(delta > 0, 0.0)
+        loss = -delta.where(delta < 0, 0.0)
+        
+        # Wilder's EMA uses alpha = 1 / period
+        avg_gain14 = gain.ewm(alpha=1/14, adjust=False).mean()
+        avg_loss14 = loss.ewm(alpha=1/14, adjust=False).mean()
+        rs14 = avg_gain14 / (avg_loss14 + 1e-9)
+        df['rsi_14'] = 100.0 - (100.0 / (1.0 + rs14))
+
+        avg_gain5 = gain.ewm(alpha=1/5, adjust=False).mean()
+        avg_loss5 = loss.ewm(alpha=1/5, adjust=False).mean()
+        rs5 = avg_gain5 / (avg_loss5 + 1e-9)
+        df['rsi_5'] = 100.0 - (100.0 / (1.0 + rs5))
+
+        # 2. MACD (12, 26, 9)
+        ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
+        ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = ema_12 - ema_26
+        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+        df['macd_hist_norm'] = (df['macd'] - df['macd_signal']) / (df['Close'] + 1e-9)
+
+        # 3. Bollinger Bands (20, 2)
+        sma_20 = df['Close'].rolling(20, min_periods=1).mean()
+        std_20 = df['Close'].rolling(20, min_periods=1).std().fillna(0.0)
+        df['bb_upper_dist'] = (df['Close'] - (sma_20 + 2 * std_20)) / (df['Close'] + 1e-9)
+        df['bb_lower_dist'] = (df['Close'] - (sma_20 - 2 * std_20)) / (df['Close'] + 1e-9)
+        df['bb_width'] = 2.0 * std_20 / (sma_20 + 1e-9)
+
+        # 4. ATR (Average True Range) - 14
+        if 'High' in df.columns and 'Low' in df.columns:
+            tr1 = df['High'] - df['Low']
+            tr2 = (df['High'] - df['Close'].shift()).abs()
+            tr3 = (df['Low'] - df['Close'].shift()).abs()
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            df['atr_14'] = tr.rolling(14, min_periods=1).mean() / (df['Close'] + 1e-9)
+        else:
+            df['atr_14'] = df['vol_20d']
+
+        # 5. ROC (Rate of Change)
+        df['roc_10'] = df['Close'].pct_change(10).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['roc_20'] = df['Close'].pct_change(20).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+
+        # 6. Higher High / Lower Low
+        df['higher_high'] = (df['High'] > df['High'].shift(1)).astype(float) if 'High' in df.columns else 0.0
+        df['higher_low'] = (df['Low'] > df['Low'].shift(1)).astype(float) if 'Low' in df.columns else 0.0
+
+        # 7. Distance from 52-week High
+        df['distance_from_52w_high'] = (df['Close'].rolling(window=252, min_periods=1).max() - df['Close']) / (df['Close'] + 1e-9)
+
+        # 8. EMA Crossover
+        df['ema_12'] = df['Close'].ewm(span=12, adjust=False).mean()
+        df['ema_26'] = df['Close'].ewm(span=26, adjust=False).mean()
+        df['ema_crossover'] = (df['ema_12'] - df['ema_26']) / (df['Close'] + 1e-9)
+
+        # 9. Stochastic Oscillator (%K, %D)
+        if 'High' in df.columns and 'Low' in df.columns:
+            low_14 = df['Low'].rolling(window=14, min_periods=1).min()
+            high_14 = df['High'].rolling(window=14, min_periods=1).max()
+            stoch_k = (df['Close'] - low_14) / (high_14 - low_14 + 1e-9) * 100
+            df['stoch_k'] = stoch_k
+            df['stoch_d'] = stoch_k.rolling(window=3, min_periods=1).mean()
+        else:
+            df['stoch_k'] = 50.0
+            df['stoch_d'] = 50.0
+
+        # 10. Volume Ratio (Volume to 20-day Volume SMA)
+        vol_sma_20 = df['Volume'].rolling(20, min_periods=1).mean()
+        df['volume_ratio'] = df['Volume'] / (vol_sma_20 + 1e-9)
+
+        # 11. 신규 피처 연산 (VCP Vectorized, Lagged Return, ADX, Ichimoku, StochRSI)
+        high = df['High'].astype(float) if 'High' in df.columns else df['Close'].astype(float)
+        low = df['Low'].astype(float) if 'Low' in df.columns else df['Close'].astype(float)
+        close = df['Close'].astype(float)
+        volume = df['Volume'].astype(float)
+
+        range_pct = (high - low) / (close + 1e-9) * 100
+        r5 = range_pct.rolling(5, min_periods=1).max()
+        r10 = range_pct.rolling(10, min_periods=1).max()
+        r20 = range_pct.rolling(20, min_periods=1).max()
+        r40 = range_pct.rolling(40, min_periods=1).max()
+        r60 = range_pct.rolling(60, min_periods=1).max()
+
+        df['range_5v20'] = (r5 / r20.replace(0, 1e-10)).fillna(0.0)
+        df['range_10v20'] = (r10 / r20.replace(0, 1e-10)).fillna(0.0)
+        df['range_20v40'] = (r20 / r40.replace(0, 1e-10)).fillna(0.0)
+        df['range_40v60'] = (r40 / r60.replace(0, 1e-10)).fillna(0.0)
+
+        vol_20d = volume.rolling(20, min_periods=1).mean()
+        vol_60d = volume.rolling(60, min_periods=1).mean()
+        df['vol_20v60'] = (vol_20d / vol_60d.replace(0, 1e-10)).fillna(0.0)
+
+        sma50 = close.rolling(50, min_periods=1).mean()
+        sma200 = close.rolling(200, min_periods=1).mean()
+        df['dist_ma50'] = ((close - sma50) / sma50.abs().replace(0, 1e-10)).fillna(0.0)
+        df['dist_ma200'] = ((close - sma200) / sma200.abs().replace(0, 1e-10)).fillna(0.0)
+
+        high_10d = high.rolling(10, min_periods=1).max()
+        low_10d = low.rolling(10, min_periods=1).min()
+        high_20d = high.rolling(20, min_periods=1).max()
+        low_20d = low.rolling(20, min_periods=1).min()
+        df['range_pos_10d'] = ((close - low_10d) / (high_10d - low_10d).replace(0, 1e-10)).fillna(0.0)
+        df['range_pos_20d'] = ((close - low_20d) / (high_20d - low_20d).replace(0, 1e-10)).fillna(0.0)
+
+        tr1 = high - low
+        tr2 = (high - close.shift(1)).abs()
+        tr3 = (low - close.shift(1)).abs()
+        tr_val = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr_14 = tr_val.rolling(14, min_periods=1).mean()
+        df['atr_14d_norm'] = ((atr_14 / close.replace(0, 1e-10)) * 100).fillna(0.0)
+
+        monotonic = (r5 < r10) & (r10 < r20) & (r20 < r40) & (r40 < r60)
+        df['monotonic'] = monotonic.astype(float)
+
+        score = pd.Series(0.0, index=df.index)
+        score += np.where(monotonic, 25.0, 0.0)
+        score += np.where(vol_20d < vol_60d * 0.85, 15.0, 0.0)
+        score += np.where(close > sma50, 15.0, 0.0)
+        score += np.where(close > sma200, 15.0, 0.0)
+        score += np.where(df['range_pos_10d'] > 0.6, 15.0, 0.0)
+        score += np.where(close > close.shift(10), 15.0, 0.0)
+        score += np.where(r5 < 4.0, 20.0,
+                          np.where(r5 < 7.0, 12.0,
+                                   np.where(r5 < 10.0, 6.0, 0.0)))
+        df['vcp_score'] = score.clip(upper=100.0) / 100.0
+
+        # Lagged returns
+        df['ret_1d_lag1'] = df['ret_1d'].shift(1).fillna(0.0)
+        df['ret_5d_lag1'] = df['ret_5d'].shift(1).fillna(0.0)
+
+        # ADX (14)
+        up_move = high - high.shift(1)
+        down_move = low.shift(1) - low
+        plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+        down_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+        tr_sum = tr_val.rolling(14, min_periods=1).sum().replace(0, 1e-10)
+        plus_di = 100 * (pd.Series(plus_dm, index=df.index).rolling(14, min_periods=1).sum() / tr_sum)
+        minus_di = 100 * (pd.Series(down_dm, index=df.index).rolling(14, min_periods=1).sum() / tr_sum)
+        dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, 1e-10))
+        df['adx_14'] = dx.rolling(14, min_periods=1).mean().fillna(0.0)
+
+        # Ichimoku Cloud
+        df['tenkan_sen'] = ((high.rolling(9, min_periods=1).max() + low.rolling(9, min_periods=1).min()) / 2).fillna(close)
+        df['kijun_sen'] = ((high.rolling(26, min_periods=1).max() + low.rolling(26, min_periods=1).min()) / 2).fillna(close)
+
+        # Stochastic RSI
+        rsi = df['rsi_14']
+        rsi_min = rsi.rolling(14, min_periods=1).min()
+        rsi_max = rsi.rolling(14, min_periods=1).max()
+        stoch_rsi = (rsi - rsi_min) / (rsi_max - rsi_min).replace(0, 1e-10) * 100
+        df['stoch_rsi_k'] = stoch_rsi.fillna(50.0)
+        df['stoch_rsi_d'] = stoch_rsi.rolling(3, min_periods=1).mean().fillna(50.0)
+
         # Fill NaNs in return and volatility columns with 0.0 before dropna
-        for col in ['ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d']:
+        new_tech_cols = ['ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'rsi_14', 'rsi_5',
+                    'macd', 'macd_signal', 'macd_hist_norm', 'bb_upper_dist', 'bb_lower_dist',
+                    'bb_width', 'atr_14', 'roc_10', 'roc_20', 'higher_high', 'higher_low', 'distance_from_52w_high',
+                    'ema_crossover', 'stoch_k', 'stoch_d', 'volume_ratio',
+                    'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
+                    'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
+                    'monotonic', 'vcp_score', 'ret_1d_lag1', 'ret_5d_lag1', 'adx_14', 'tenkan_sen', 'kijun_sen',
+                    'stoch_rsi_k', 'stoch_rsi_d']
+        for col in new_tech_cols:
             if col in df.columns:
                 df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
@@ -561,9 +1016,23 @@ class OnDevicePredictionModel:
         df = self._merge_indicator_history(df, indicator_df)
 
         # Log warning if the latest row was dropped during feature calculation (stale prediction day)
-        if latest_input_idx is not None and (df.empty or df.index[-1] != latest_input_idx):
-            pass
+        # Ensure return and technical indicator columns are valid (dropna on technicals only)
+        tech_cols = ['Close', 'Volume', 'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'sma_20', 'sma_60',
+                     'rsi_14', 'rsi_5', 'macd', 'macd_signal', 'macd_hist_norm', 'bb_upper_dist', 'bb_lower_dist',
+                     'bb_width', 'atr_14', 'roc_10', 'roc_20', 'higher_high', 'higher_low', 'distance_from_52w_high',
+                     'ema_crossover', 'stoch_k', 'stoch_d', 'volume_ratio',
+                     'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
+                     'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
+                     'monotonic', 'vcp_score', 'ret_1d_lag1', 'ret_5d_lag1', 'adx_14', 'tenkan_sen', 'kijun_sen',
+                     'stoch_rsi_k', 'stoch_rsi_d']
+        existing_tech_cols = [c for c in tech_cols if c in df.columns]
+        df = df.dropna(subset=existing_tech_cols)
 
+        # S3 fix: ensure no inf values survive into the final feature matrix.
+        # Division-by-zero (e.g. Volume=0) may produce inf even after per-column guards above.
+        df = df.replace([np.inf, -np.inf], 0.0)
+        # Fill remaining NaNs (like fundamentals) with 0.0
+        df = df.fillna(0.0)
         return df
 
     def _create_targets(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -606,12 +1075,19 @@ class OnDevicePredictionModel:
         if not df_merged.empty:
             target_cols = [f'target_{h}d' for h in self.horizons if f'target_{h}d' in df_merged.columns]
             for col in target_cols:
+                try:
+                    h = int(col.split('_')[1].replace('d', ''))
+                except Exception:
+                    h = 1
+                limit_up = 0.5 * np.sqrt(h)
+                limit_down = -0.5 * np.sqrt(h)
+
                 orig_max = df_merged[col].max()
                 orig_min = df_merged[col].min()
-                df_merged[col] = df_merged[col].clip(lower=-5.0, upper=5.0)
+                df_merged[col] = df_merged[col].clip(lower=limit_down, upper=limit_up)
                 clipped_max = df_merged[col].max()
                 clipped_min = df_merged[col].min()
-                if orig_max > 5.0 or orig_min < -5.0:
+                if orig_max > limit_up or orig_min < limit_down:
                     logger.warning(
                         f"Clipped extreme targets in {col}: "
                         f"range [{orig_min:.4f}, {orig_max:.4f}] -> [{clipped_min:.4f}, {clipped_max:.4f}]"
@@ -620,14 +1096,16 @@ class OnDevicePredictionModel:
         return df_merged
 
     def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
-        """Train XGBoost regressors for each horizon with time-based validation."""
+        """Train XGBoost, LightGBM, and CatBoost regressors for each horizon with time-based validation."""
         if df_train.empty:
             logger.warning(f"Empty training data for {market}.")
             return
 
         df_train = df_train.reset_index(drop=True)
         features = self.ALL_FEATURES
-        kw = dict(self._xgb_kwargs)
+        kw_xgb = dict(self._xgb_kwargs)
+        kw_lgb = dict(self._lgb_kwargs)
+        kw_cat = dict(self._cat_kwargs)
 
         # Time-based validation split (last 20% of chronological data)
         if 'date' in df_train.columns:
@@ -644,9 +1122,15 @@ class OnDevicePredictionModel:
 
         if market not in self.models:
             self.models[market] = {}
+        if market not in self.lgb_models:
+            self.lgb_models[market] = {}
+        if market not in self.cat_models:
+            self.cat_models[market] = {}
+
+        from sklearn.metrics import mean_squared_error, mean_absolute_error
 
         for h in self.horizons:
-            logger.info(f"Training {market} model for {h}d horizon...")
+            logger.info(f"Training {market} model (XGB/LGB/Cat) for {h}d horizon...")
             X = df_train[features]
             y = df_train[f'target_{h}d']
             X_train = X[train_idx]
@@ -654,20 +1138,116 @@ class OnDevicePredictionModel:
             X_val = X[val_idx]
             y_val = y[val_idx]
 
-            if val_idx.any() and 'early_stopping_rounds' in kw:
-                model = xgb.XGBRegressor(**kw)
-                model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+            # 1. XGBoost
+            if val_idx.any() and 'early_stopping_rounds' in kw_xgb:
+                model_xgb = xgb.XGBRegressor(**kw_xgb)
+                model_xgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
             else:
-                kw_no_es = {k: v for k, v in kw.items() if k != 'early_stopping_rounds'}
-                model = xgb.XGBRegressor(**kw_no_es)
-                model.fit(X_train, y_train)
-            self.models[market][h] = model
-            logger.info(f"{market} model for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
+                kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+                model_xgb = xgb.XGBRegressor(**kw_no_es)
+                model_xgb.fit(X_train, y_train)
+            self.models[market][h] = model_xgb
+
+            # 2. LightGBM (with GPU fallback)
+            model_lgb = lgb.LGBMRegressor(**kw_lgb)
+            try:
+                if val_idx.any():
+                    model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], callbacks=[lgb.early_stopping(50, verbose=False)])
+                else:
+                    model_lgb.fit(X_train, y_train)
+            except Exception as ex:
+                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                    logger.warning(f"LightGBM GPU training failed: {ex}. Falling back to CPU.")
+                    kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                    model_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
+                    if val_idx.any():
+                        model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], callbacks=[lgb.early_stopping(50, verbose=False)])
+                    else:
+                        model_lgb.fit(X_train, y_train)
+                else:
+                    raise ex
+            self.lgb_models[market][h] = model_lgb
+
+            # 3. CatBoost (with GPU fallback)
+            try:
+                if val_idx.any():
+                    model_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
+                    model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                else:
+                    model_cat = cb.CatBoostRegressor(**kw_cat)
+                    model_cat.fit(X_train, y_train, verbose=False)
+            except Exception as ex:
+                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                    logger.warning(f"CatBoost GPU training failed: {ex}. Falling back to CPU.")
+                    kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
+                    if val_idx.any():
+                        model_cat = cb.CatBoostRegressor(**kw_cat_cpu, early_stopping_rounds=50)
+                        model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                    else:
+                        model_cat = cb.CatBoostRegressor(**kw_cat_cpu)
+                        model_cat.fit(X_train, y_train, verbose=False)
+                else:
+                    raise ex
+            self.cat_models[market][h] = model_cat
+
+            # Calculate and save validation metrics
+            X_eval = X_val if val_idx.any() else X_train
+            y_eval = y_val if val_idx.any() else y_train
+
+            pred_xgb = model_xgb.predict(X_eval)
+            pred_lgb = model_lgb.predict(X_eval)
+            pred_cat = model_cat.predict(X_eval)
+
+            mse_xgb = float(mean_squared_error(y_eval, pred_xgb))
+            mae_xgb = float(mean_absolute_error(y_eval, pred_xgb))
+
+            mse_lgb = float(mean_squared_error(y_eval, pred_lgb))
+            mae_lgb = float(mean_absolute_error(y_eval, pred_lgb))
+
+            mse_cat = float(mean_squared_error(y_eval, pred_cat))
+            mae_cat = float(mean_absolute_error(y_eval, pred_cat))
+
+            if market not in self.validation_metrics["regression"]:
+                self.validation_metrics["regression"][market] = {}
+            self.validation_metrics["regression"][market][h] = {
+                "xgb": {"mse": mse_xgb, "mae": mae_xgb},
+                "lgb": {"mse": mse_lgb, "mae": mae_lgb},
+                "cat": {"mse": mse_cat, "mae": mae_cat}
+            }
+
+            # Calculate validation weights (proportional to 1/MSE)
+            sum_inv_mse = (1.0 / max(mse_xgb, 1e-6)) + (1.0 / max(mse_lgb, 1e-6)) + (1.0 / max(mse_cat, 1e-6))
+            w_xgb = (1.0 / max(mse_xgb, 1e-6)) / sum_inv_mse
+            w_lgb = (1.0 / max(mse_lgb, 1e-6)) / sum_inv_mse
+            w_cat = (1.0 / max(mse_cat, 1e-6)) / sum_inv_mse
+
+            if "regression" not in self.ensemble_weights:
+                self.ensemble_weights["regression"] = {}
+            if market not in self.ensemble_weights["regression"]:
+                self.ensemble_weights["regression"][market] = {}
+            self.ensemble_weights["regression"][market][str(h)] = {
+                "xgb": w_xgb,
+                "lgb": w_lgb,
+                "cat": w_cat
+            }
+
+            logger.info(f"{market} models for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
+
+        # Save validation metrics and weights to file
+        try:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            with open(self.model_dir / "validation_metrics.json", "w") as f:
+                json.dump(self.validation_metrics, f, indent=2)
+            with open(self.model_dir / "ensemble_weights.json", "w") as f:
+                json.dump(self.ensemble_weights, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save validation metrics/weights: {e}")
+
         if save_after:
             self.save_models()
 
     def train_surge(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
-        """Train XGBoost classifiers for surge detection (>=20% return)."""
+        """Train XGBoost, LightGBM, and CatBoost classifiers for surge detection (>=20% return)."""
         if df_train.empty:
             logger.warning(f"Empty training data for surge {market}.")
             return
@@ -679,7 +1259,9 @@ class OnDevicePredictionModel:
             logger.error(f"Missing features {missing} for surge {market}, skipping")
             return
 
-        kw = dict(self._surge_xgb_kwargs)
+        kw_xgb = dict(self._surge_xgb_kwargs)
+        kw_lgb = dict(self._surge_lgb_kwargs)
+        kw_cat = dict(self._surge_cat_kwargs)
 
         # Time-based validation split (last 20%)
         if 'date' in df_train.columns:
@@ -696,6 +1278,12 @@ class OnDevicePredictionModel:
 
         if market not in self.surge_models:
             self.surge_models[market] = {}
+        if market not in self.surge_lgb_models:
+            self.surge_lgb_models[market] = {}
+        if market not in self.surge_cat_models:
+            self.surge_cat_models[market] = {}
+
+        from sklearn.metrics import roc_auc_score, accuracy_score
 
         for h in self.surge_horizons:
             target_col = f'target_{h}d'
@@ -709,7 +1297,7 @@ class OnDevicePredictionModel:
                     logger.warning(f"Cannot compute {target_col}, missing Close/symbol columns, skipping")
                     continue
 
-            logger.info(f"Training surge model for {market} {h}d horizon...")
+            logger.info(f"Training surge model (XGB/LGB/Cat) for {market} {h}d horizon...")
             X = df_train[features]
             target = (df_train[target_col] >= self.surge_threshold).astype(int)
             pos_count = target.sum()
@@ -720,7 +1308,10 @@ class OnDevicePredictionModel:
                 continue
 
             scale_pos_weight = min(neg_count / pos_count, 500)
-            kw['scale_pos_weight'] = scale_pos_weight
+            kw_xgb['scale_pos_weight'] = scale_pos_weight
+            kw_lgb['scale_pos_weight'] = scale_pos_weight
+            kw_cat['scale_pos_weight'] = scale_pos_weight
+
             logger.info(f"Surge {market} {h}d: {pos_count} positive / {neg_count} negative (scale={scale_pos_weight:.1f})")
 
             X_train = X[train_idx]
@@ -728,14 +1319,140 @@ class OnDevicePredictionModel:
             X_val = X[val_idx]
             y_val = target[val_idx]
 
-            if val_idx.any() and 'early_stopping_rounds' in kw:
-                model = xgb.XGBClassifier(**kw)
-                model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+            # 1. XGBoost
+            if val_idx.any() and 'early_stopping_rounds' in kw_xgb:
+                model_xgb = xgb.XGBClassifier(**kw_xgb)
+                model_xgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
             else:
-                kw_no_es = {k: v for k, v in kw.items() if k != 'early_stopping_rounds'}
-                model = xgb.XGBClassifier(**kw_no_es)
-                model.fit(X_train, y_train)
-            self.surge_models[market][h] = model
+                kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+                model_xgb = xgb.XGBClassifier(**kw_no_es)
+                model_xgb.fit(X_train, y_train)
+            self.surge_models[market][h] = model_xgb
+
+            # 2. LightGBM (with GPU fallback)
+            model_lgb = lgb.LGBMClassifier(**kw_lgb)
+            try:
+                if val_idx.any():
+                    model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
+                else:
+                    model_lgb.fit(X_train, y_train)
+            except Exception as ex:
+                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                    logger.warning(f"LightGBM GPU surge training failed: {ex}. Falling back to CPU.")
+                    kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                    model_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
+                    if val_idx.any():
+                        model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
+                    else:
+                        model_lgb.fit(X_train, y_train)
+                else:
+                    raise ex
+            self.surge_lgb_models[market][h] = model_lgb
+
+            # 3. CatBoost (with GPU fallback)
+            try:
+                if val_idx.any():
+                    model_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
+                    model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                else:
+                    model_cat = cb.CatBoostClassifier(**kw_cat)
+                    model_cat.fit(X_train, y_train, verbose=False)
+            except Exception as ex:
+                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                    logger.warning(f"CatBoost GPU surge training failed: {ex}. Falling back to CPU.")
+                    kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
+                    if val_idx.any():
+                        model_cat = cb.CatBoostClassifier(**kw_cat_cpu, early_stopping_rounds=50)
+                        model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                    else:
+                        model_cat = cb.CatBoostClassifier(**kw_cat_cpu)
+                        model_cat.fit(X_train, y_train, verbose=False)
+                else:
+                    raise ex
+            self.surge_cat_models[market][h] = model_cat
+
+            # Calculate and save validation metrics
+            X_eval = X_val if val_idx.any() else X_train
+            y_eval = y_val if val_idx.any() else y_train
+
+            def get_clf_metrics(m, X_e, y_e):
+                probs = m.predict_proba(X_e)[:, 1]
+                preds = m.predict(X_e)
+                try:
+                    auc = float(roc_auc_score(y_e, probs))
+                except Exception:
+                    auc = 0.5
+                acc = float(accuracy_score(y_e, preds))
+                return auc, acc
+
+            auc_xgb, acc_xgb = get_clf_metrics(model_xgb, X_eval, y_eval)
+            auc_lgb, acc_lgb = get_clf_metrics(model_lgb, X_eval, y_eval)
+            auc_cat, acc_cat = get_clf_metrics(model_cat, X_eval, y_eval)
+
+            if market not in self.validation_metrics["surge"]:
+                self.validation_metrics["surge"][market] = {}
+            self.validation_metrics["surge"][market][h] = {
+                "xgb": {"auc": auc_xgb, "accuracy": acc_xgb},
+                "lgb": {"auc": auc_lgb, "accuracy": acc_lgb},
+                "cat": {"auc": auc_cat, "accuracy": acc_cat}
+            }
+
+            # Calculate validation weights (proportional to max(auc - 0.45, 0.05))
+            def norm_auc(a):
+                return max(a - 0.45, 0.05)
+
+            w_xgb = norm_auc(auc_xgb)
+            w_lgb = norm_auc(auc_lgb)
+            w_cat = norm_auc(auc_cat)
+            sum_w = w_xgb + w_lgb + w_cat
+            w_xgb /= sum_w
+            w_lgb /= sum_w
+            w_cat /= sum_w
+
+            if "surge" not in self.ensemble_weights:
+                self.ensemble_weights["surge"] = {}
+            if market not in self.ensemble_weights["surge"]:
+                self.ensemble_weights["surge"][market] = {}
+            self.ensemble_weights["surge"][market][str(h)] = {
+                "xgb": w_xgb,
+                "lgb": w_lgb,
+                "cat": w_cat
+            }
+
+            # Dynamic Threshold tuning (optimizing F1 score on validation set)
+            from sklearn.metrics import f1_score
+            probs_xgb = model_xgb.predict_proba(X_eval)[:, 1]
+            probs_lgb = model_lgb.predict_proba(X_eval)[:, 1]
+            probs_cat = model_cat.predict_proba(X_eval)[:, 1]
+            blend_probs = w_xgb * probs_xgb + w_lgb * probs_lgb + w_cat * probs_cat
+
+            best_th = 0.20  # default fallback
+            best_f1 = -1.0
+            thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
+            for th in thresholds:
+                pred_binary = (blend_probs >= th).astype(int)
+                score_f1 = f1_score(y_eval, pred_binary, zero_division=0)
+                if score_f1 > best_f1:
+                    best_f1 = score_f1
+                    best_th = th
+
+            if market not in self.optimal_thresholds:
+                self.optimal_thresholds[market] = {}
+            self.optimal_thresholds[market][h] = float(best_th)
+            logger.info(f"Optimal threshold for {market} {h}d: {best_th:.2f} (best validation F1: {best_f1:.4f})")
+
+        # Save validation metrics, weights and thresholds to file
+        try:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            with open(self.model_dir / "validation_metrics.json", "w") as f:
+                json.dump(self.validation_metrics, f, indent=2)
+            with open(self.model_dir / "ensemble_weights.json", "w") as f:
+                json.dump(self.ensemble_weights, f, indent=2)
+            with open(self.model_dir / "optimal_thresholds.json", "w") as f:
+                json.dump(self.optimal_thresholds, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save surge metrics/weights/thresholds: {e}")
+
         if save_after:
             self.save_surge_models()
 
@@ -761,15 +1478,47 @@ class OnDevicePredictionModel:
         X = latest[self.ALL_FEATURES]
 
         predictions = {}
-        models = self.models.get(market, {})
         import warnings
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
             for h in self.horizons:
-                if h in models:
-                    pred = float(models[h].predict(X)[0])
+                preds = []
+                weights = []
+                
+                xgb_m = self.models.get(market, {}).get(h)
+                lgb_m = self.lgb_models.get(market, {}).get(h)
+                cat_m = self.cat_models.get(market, {}).get(h)
+                
+                # Get dynamic weights or fallback to default
+                w_xgb_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("xgb", 0.4)
+                w_lgb_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("lgb", 0.3)
+                w_cat_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("cat", 0.3)
+
+                # str(h) key is canonical after JSON round-trip; try int key (h) as in-memory fallback
+                w_dict = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {})
+                if not w_dict:
+                    w_dict = self.ensemble_weights.get("regression", {}).get(market, {}).get(h, {})
+                if w_dict:
+                    w_xgb_val = w_dict.get("xgb", w_xgb_val)
+                    w_lgb_val = w_dict.get("lgb", w_lgb_val)
+                    w_cat_val = w_dict.get("cat", w_cat_val)
+
+                if xgb_m is not None:
+                    preds.append(float(xgb_m.predict(X)[0]))
+                    weights.append(w_xgb_val)
+                if lgb_m is not None:
+                    preds.append(float(lgb_m.predict(X)[0]))
+                    weights.append(w_lgb_val)
+                if cat_m is not None:
+                    preds.append(float(cat_m.predict(X)[0]))
+                    weights.append(w_cat_val)
+                
+                if preds:
+                    total_w = sum(weights)
+                    pred = sum(p * (w / total_w) for p, w in zip(preds, weights))
                 else:
                     pred = 0.0
+
                 if abs(pred) > 2.0:
                     logger.warning(f"Clipping extreme prediction for {h}d horizon: {pred:.4f}")
                     pred = max(min(pred, 5.0), -5.0)
@@ -786,52 +1535,107 @@ class OnDevicePredictionModel:
         """
         prices_dict = self.apply_market_normalization(prices_dict)
         features = self.ALL_FEATURES
-        latest_features_list = []
-        symbols_list = []
-        market_list = []
 
-        for sym, df in prices_dict.items():
+        from concurrent.futures import ThreadPoolExecutor
+        import os
+        workers = max(1, (os.cpu_count() or 4))
+
+        def _process_one(sym, df):
             if df is None or len(df) < 65:
-                continue
-            df = df.copy()
-            df['symbol'] = sym
-            df_feat = self._create_features(df, indicator_df)
-            if df_feat.empty:
-                continue
-            latest = df_feat.iloc[-1:]
-            latest_features_list.append(latest[features])
-            symbols_list.append(sym)
-            if symbol_to_market:
-                market_list.append(symbol_to_market.get(sym, "sp500").lower())
-            else:
-                market_list.append("krx" if self.is_krx_symbol(sym) else "sp500")
+                return None
+            try:
+                df_copy = df.copy()
+                df_copy['symbol'] = sym
+                df_feat = self._create_features(df_copy, indicator_df)
+                if df_feat.empty:
+                    return None
+                latest = df_feat.iloc[-1:][features]
+                if symbol_to_market:
+                    mkt = symbol_to_market.get(sym, "sp500").lower()
+                else:
+                    mkt = "krx" if self.is_krx_symbol(sym) else "sp500"
+                return sym, mkt, latest
+            except Exception as e:
+                logger.warning(f"Error computing inference features for {sym}: {e}")
+                return None
+
+        results = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_process_one, sym, df) for sym, df in prices_dict.items()]
+            from concurrent.futures import as_completed
+            for f in as_completed(futures):
+                res = f.result()
+                if res is not None:
+                    results.append(res)
+
+        symbols_list = [r[0] for r in results]
+        market_list = [r[1] for r in results]
+        latest_features_list = [r[2] for r in results]
 
         return symbols_list, market_list, latest_features_list
 
     def _predict_regression(self, symbols_list, market_list,
                             latest_features_list) -> pd.DataFrame:
-        """Run regression predictions on pre-computed features."""
+        """Run regression predictions on pre-computed features (batch optimized)."""
         if not latest_features_list:
             return pd.DataFrame()
+
         import warnings
-        res_dict: dict = {'symbol': symbols_list}
+        res_df = pd.DataFrame({'symbol': symbols_list})
+        df_all = pd.concat(latest_features_list, ignore_index=True)
+        market_series = pd.Series(market_list)
+
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
             for h in self.horizons:
-                preds = []
-                for i, market in enumerate(market_list):
-                    models = self.models.get(market, {})
-                    if h in models:
-                        pred = float(models[h].predict(latest_features_list[i])[0])
-                    else:
-                        pred = 0.0
-                    preds.append(pred)
-                res_dict[h] = preds
-        res_df = pd.DataFrame(res_dict)
-        if not res_df.empty:
-            for h in self.horizons:
-                if h not in res_df.columns:
-                    continue
+                res_df[h] = 0.0
+                for mkt in set(market_list):
+                    idx = market_series[market_series == mkt].index
+                    if len(idx) > 0:
+                        X_mkt = df_all.iloc[idx]
+                        
+                        xgb_m = self.models.get(mkt, {}).get(h)
+                        lgb_m = self.lgb_models.get(mkt, {}).get(h)
+                        cat_m = self.cat_models.get(mkt, {}).get(h)
+                        
+                        preds = []
+                        weights = []
+                        
+                        # Get dynamic weights or fallback to default
+                        w_xgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
+                        w_lgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
+                        w_cat_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
+                        
+                        # Convert integer keys back if needed
+                        if isinstance(self.ensemble_weights.get("regression", {}).get(mkt, {}), dict):
+                            w_dict = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(h, {})
+                            if w_dict:
+                                w_xgb_val = w_dict.get("xgb", w_xgb_val)
+                                w_lgb_val = w_dict.get("lgb", w_lgb_val)
+                                w_cat_val = w_dict.get("cat", w_cat_val)
+                        
+                        if xgb_m is not None:
+                            preds.append(xgb_m.predict(X_mkt))
+                            weights.append(w_xgb_val)
+                        if lgb_m is not None:
+                            preds.append(lgb_m.predict(X_mkt))
+                            weights.append(w_lgb_val)
+                        if cat_m is not None:
+                            preds.append(cat_m.predict(X_mkt))
+                            weights.append(w_cat_val)
+                            
+                        if preds:
+                            total_w = sum(weights)
+                            blend_pred = np.zeros(len(idx))
+                            for p, w in zip(preds, weights):
+                                blend_pred += p * (w / total_w)
+                            res_df.loc[idx, h] = blend_pred
+                        else:
+                            res_df.loc[idx, h] = 0.0
+
+        # Clip extreme values
+        for h in self.horizons:
+            if h in res_df.columns:
                 vals = res_df[h]
                 extreme = vals[abs(vals) > 2.0]
                 if len(extreme) > 0:
@@ -845,24 +1649,65 @@ class OnDevicePredictionModel:
 
     def _predict_surge(self, symbols_list, market_list,
                        latest_features_list) -> pd.DataFrame:
-        """Run surge predictions on pre-computed features."""
+        """Run surge predictions on pre-computed features (batch optimized)."""
         if not latest_features_list:
             return pd.DataFrame()
+
         import warnings
-        res_dict: dict = {'symbol': symbols_list}
+        res_df = pd.DataFrame({'symbol': symbols_list})
+        df_all = pd.concat(latest_features_list, ignore_index=True)
+        market_series = pd.Series(market_list)
+
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
             for h in self.surge_horizons:
-                probs = []
-                for i, market in enumerate(market_list):
-                    models = self.surge_models.get(market, {})
-                    if h in models:
-                        prob = float(models[h].predict_proba(latest_features_list[i])[0, 1])
-                    else:
-                        prob = 0.0
-                    probs.append(prob)
-                res_dict[f'surge_{h}d'] = probs
-        return pd.DataFrame(res_dict)
+                col_name = f'surge_{h}d'
+                res_df[col_name] = 0.0
+                for mkt in set(market_list):
+                    idx = market_series[market_series == mkt].index
+                    if len(idx) > 0:
+                        X_mkt = df_all.iloc[idx]
+                        
+                        xgb_m = self.surge_models.get(mkt, {}).get(h)
+                        lgb_m = self.surge_lgb_models.get(mkt, {}).get(h)
+                        cat_m = self.surge_cat_models.get(mkt, {}).get(h)
+                        
+                        preds = []
+                        weights = []
+                        
+                        # Get dynamic weights or fallback to default
+                        w_xgb_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
+                        w_lgb_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
+                        w_cat_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
+                        
+                        # Convert integer keys back if needed
+                        # str(h) key is canonical; int key (h) is in-memory fallback
+                        if not w_dict:
+                            w_dict = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(h, {})
+                        if w_dict:
+                            w_xgb_val = w_dict.get("xgb", w_xgb_val)
+                            w_lgb_val = w_dict.get("lgb", w_lgb_val)
+                            w_cat_val = w_dict.get("cat", w_cat_val)
+
+                        if xgb_m is not None:
+                            preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
+                            weights.append(w_xgb_val)
+                        if lgb_m is not None:
+                            preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
+                            weights.append(w_lgb_val)
+                        if cat_m is not None:
+                            preds.append(cat_m.predict_proba(X_mkt)[:, 1])
+                            weights.append(w_cat_val)
+                            
+                        if preds:
+                            total_w = sum(weights)
+                            blend_prob = np.zeros(len(idx))
+                            for p, w in zip(preds, weights):
+                                blend_prob += p * (w / total_w)
+                            res_df.loc[idx, col_name] = blend_prob
+                        else:
+                            res_df.loc[idx, col_name] = 0.0
+        return res_df
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],
                      indicator_df: Optional[pd.DataFrame] = None,
@@ -928,39 +1773,47 @@ class OnDevicePredictionModel:
             logger.error(f"Failed to load lead-lag matrix: {e}")
 
     def compute_lead_lag(self, df_train: pd.DataFrame, lead_lag_days: int = 1):
-        """Compute lead-lag correlation matrix using ALL symbols as potential leaders.
+        """Compute lead-lag correlation matrix using top 50 symbols by market cap as potential leaders.
 
         Uses lag-1 cross-correlation: corr(i,j) = E[ret_i[t] * ret_j[t+1]].
         For each leader i, stores top 20 followers (symbols with highest positive correlation).
         """
         import numpy as np
 
-        logger.info("Computing lead-lag matrix for ALL symbols...")
+        logger.info("Selecting top 50 leaders by market cap...")
+        cap_col = 'market_cap' if 'market_cap' in df_train.columns else 'norm_market_cap'
+        avg_caps = df_train.groupby('symbol')[cap_col].mean()
+        top_50_leaders = avg_caps.nlargest(50).index.tolist()
+
+        logger.info(f"Computing lead-lag matrix for {len(top_50_leaders)} leaders...")
         ret_pivot = df_train.pivot_table(
             index='date', columns='symbol', values='ret_1d', aggfunc='first'
         )
         ret_pivot = ret_pivot.fillna(0)
 
         all_symbols = ret_pivot.columns.tolist()
-        N = len(all_symbols)
+        leaders_present = [sym for sym in top_50_leaders if sym in ret_pivot.columns]
+        if not leaders_present:
+            leaders_present = all_symbols[:50]
 
         ret_arr = ret_pivot.values.astype(np.float64)
         ret_z = (ret_arr - ret_arr.mean(axis=0)) / (ret_arr.std(axis=0) + 1e-10)
 
-        lead_arr = ret_z[:-lead_lag_days]
+        leader_indices = [ret_pivot.columns.get_loc(sym) for sym in leaders_present]
+        lead_arr = ret_z[:-lead_lag_days, leader_indices]
         follow_arr = ret_z[lead_lag_days:]
         n_time = lead_arr.shape[0]
 
-        # Full N×N lag-1 correlation matrix in one matrix multiply
+        # corr_matrix shape: (len(leaders_present), len(all_symbols))
         corr_matrix = (lead_arr.T @ follow_arr) / (n_time - 1)
 
         self.lead_lag_leaders = []
         self.lead_lag_matrix = {}
-        for i, leader in enumerate(all_symbols):
+        for i, leader in enumerate(leaders_present):
             followers = [
                 (all_symbols[j], float(corr_matrix[i, j]))
-                for j in range(N)
-                if j != i and corr_matrix[i, j] > 0
+                for j in range(len(all_symbols))
+                if all_symbols[j] != leader and corr_matrix[i, j] > 0
             ]
             followers.sort(key=lambda x: -x[1])
             if followers:

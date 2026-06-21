@@ -1,76 +1,298 @@
-# 🧠 주식 자동매매 전략 및 핵심 알고리즘 설명서 (Algorithms & Strategy)
+# 🧠 핵심 알고리즘 및 전략 명세서
 
-본 문서는 플랫폼의 핵심 수익 창출부인 머신러닝 앙상블 모델, HMM 레짐 기반 스타일 로테이션 전략, Optuna 적응형 파라미터 최적화기 및 리스크 관리 알고리즘의 세부 수학적/공학적 스펙을 명세합니다.
-
----
-
-## 1. Random Forest + XGBoost 머신러닝 앙상블
-
-플랫폼의 핵심 예측 모듈(`src/analysis/ml_engine.py`)은 전통적인 정형 데이터 강자인 **Random Forest(RF)** 모델과 그래디언트 부스팅 최강자인 **XGBoost(XGB)** 모델을 혼합한 **소프트 보팅(Soft Voting / 가중 평균) 앙상블**을 채택하고 있습니다.
-
-### 1.1 입력 피처 엔지니어링 (24개 피처)
-데이터 편향을 줄이고 예측 성능을 극대화하기 위해 다음 24개의 다차원 피처를 생성 및 활용합니다:
-- **이동평균 크로스오버**: `MA_5_20_ratio`, `MA_20_60_ratio`
-- **모멘텀 및 강도 지표**: `RSI_14`, `MACD`, `MACD_signal`, `MACD_hist`, `ROC_10` (Rate of Change)
-- **변동성 및 시장 폭**: `Bollinger_width`, `ATR_14_ratio`
-- **거래량 지표**: `OBV_ratio` (On-Balance Volume), `Volume_MA_ratio`
-- **기타 통계치**: 가격 Z-score 정규화 결과 등 24종 기술적 지표.
-
-### 1.2 소프트 보팅 합산 공식
-두 모델이 각각 독립적으로 도출한 매수 확률 예측값을 50:50의 비율로 가중 평균하여 최종 `ml_score`를 산출합니다.
-
-$$\text{ml\_score} = 0.5 \times P_{\text{RandomForest}}(\text{Class}=1) + 0.5 \times P_{\text{XGBoost}}(\text{Class}=1)$$
-
-최종 산출되는 `ml_score`는 **`0.0` ~ `1.0`** 사이의 실수 범위로 한정되며, 설정된 임계치(예: `0.65`)를 상회할 시 매수 강도 강화 신호로 활용됩니다.
-
-### 1.3 하이퍼파라미터 최튜닝 (Optuna & TimeSeriesSplit)
-- 데이터 누수(Data Leakage)를 원천 차단하기 위해 일반 K-Fold 대신 시계열의 순차적 정렬을 보장하는 `TimeSeriesSplit` 교차 검증을 사용합니다.
-- **Optuna** 프레임워크를 연동하여 XGBoost의 `max_depth`, `learning_rate`, `n_estimators` 및 Random Forest의 `min_samples_split` 등을 자동으로 탐색해 Log Loss를 최소화하고 승률을 최적화합니다.
+> **Version**: 3.0 — 2026-06-21 기준 실제 코드 반영  
+> **Source**: `src/ai/prediction_model.py`, `src/ai/vcp_detector.py`, `src/ai/vcp_ml_predictor.py`
 
 ---
 
-## 2. HMM 시장 레짐 감지 & 유명 자산가 스타일 로테이션
+## 목차
 
-시장 환경의 변화에 유연하게 대처하기 위해, 플랫폼은 시장 지수를 감시하여 현재 국면을 감지하고 그에 가장 유효한 포트폴리오 전략을 채택하는 **스타일 로테이션(Style Rotation)** 구조(`src/analysis/style_rotator.py`)를 제공합니다.
-
-### 2.1 GaussianHMM 기반 시장 국면 감지
-보정된 지수 종가의 일일 수익률과 일방 변동성을 2차원 관측 데이터로 삼아, 은닉 마르코프 모형(**Gaussian Hidden Markov Model**)을 통해 시장 국면을 3단계로 실시간 분류합니다:
-1. **Regime 0 (안정 상승장)**: 높은 평균 수익률, 낮은 변동성.
-2. **Regime 1 (횡보/조정장)**: 제로에 수렴하는 수익률, 중간 변동성.
-3. **Regime 2 (패닉 하락장)**: 음의 평균 수익률, 극도로 높은 변동성.
-
-### 2.2 국면별 투자가 전략 매핑 (`src/strategy/famous_investors.py`)
-
-시장 국면(Regime)에 맞춰 다음 4대 시그니처 전략 중 최적의 비중 배분을 제안합니다:
-
-| 시장 국면 (Regime) | 추천 포트폴리오 스타일 | 전략 상세 및 조건식 스펙 |
-| :--- | :--- | :--- |
-| **안정 상승장 (Regime 0)** | **Peter Lynch (성장주/GARP)** | - PER 대비 이익성장률 비율(PEG)이 `1.0` 미만인 종목 필터링.<br>- 신저점 돌파 및 중소형 모멘텀 가중. |
-| **횡보/조정장 (Regime 1)** | **Warren Buffett (가치 투자)** | - ROE가 15% 이상이고, PBR이 `1.5` 이하인 안정적 해자 종목.<br>- 부채 비율이 낮고 잉여현금흐름(FCF)이 풍부한 기업 발굴. |
-| **패닉 하락장 (Regime 2)** | **Ray Dalio (올웨더/자산배분)** | - 단일 종목 위험 극단 통제.<br>- 변동성 역수 가중치(Risk Parity) 및 ATR 기반 안전 배분 비율 확대. |
-| **강한 추세장** | **Trend Following (추세 추종)** | - 20일, 50일, 200일 지수이동평균선(EMA) 정배열 돌파 기법.<br>- 윌리엄스 %R 또는 ADX를 활용한 추세 강도 추적. |
+1. [전략 1: XGBoost 회귀 (수익률 예측)](#1-전략-1-xgboost-회귀-수익률-예측)
+2. [전략 2: Surge 분류기 (급등 확률)](#2-전략-2-surge-분류기-급등-확률)
+3. [전략 3: Lead-Lag 분석](#3-전략-3-lead-lag-분석)
+4. [전략 4: VCP 규칙 기반 패턴](#4-전략-4-vcp-규칙-기반-패턴)
+5. [전략 5: VCP ML 분류기](#5-전략-5-vcp-ml-분류기)
+6. [피처 명세](#6-피처-명세)
+7. [모델 학습 및 저장](#7-모델-학습-및-저장)
 
 ---
 
-## 3. 적응형 파라미터 최적화기 (Adaptive Optimizer)
+## 1. 전략 1: XGBoost 회귀 (수익률 예측)
 
-시간에 따라 변하는 시장의 미시구조(Microstructure)에 대응하기 위해, `AdaptiveParameterOptimizer`(`src/analysis/adaptive_optimizer.py`)는 매 주기 백테스트 성과 지표를 백그라운드 분석하여 매매 규칙 파라미터를 실시간 조정합니다.
+**파일**: `src/ai/prediction_model.py` — `OnDevicePredictionModel`
 
-### 3.1 동적 피드백 제어 흐름
-1. 최근 $N$일간의 실시간 체결 로그와 모의 백테스트 결과를 취합합니다.
-2. **평가 함수(Objective Function)**로 샤프 비율(Sharpe Ratio)의 극대화와 최대 낙폭(MDD)의 최소화를 혼합한 효용 함수 $U$를 정의합니다:
+### 1.1 개요
 
-$$U = w_1 \times \text{SharpeRatio} - w_2 \times \text{MDD}$$
+시장별(SP500/KOSPI/KOSDAQ/KONEX) XGBoost + LightGBM + CatBoost **앙상블 회귀** 모델을 학습하여, 각 종목의 **8개 시간 horizon별 예상 수익률**을 예측합니다.
 
-3. Optuna 탐색을 통하여 익절선 비율(take_profit_pct), 손절선 비율(stop_loss_pct), ML 예측 임계치(ml_threshold)의 최적 점을 탐색해 설정값(`.env` 및 내부 설정 메모리)에 동적 업데이트합니다.
+### 1.2 예측 Horizon
+
+| Horizon | 설명 |
+|---------|------|
+| 1일 | 단기 스캘핑 |
+| 5일 | 단기 스윙 |
+| 10일 | 중단기 |
+| 20일 | 1개월 |
+| 30일 | 중기 |
+| 60일 | 분기 |
+| 120일 | 반기 |
+| 200일 | 장기 |
+
+### 1.3 앙상블 구조
+
+세 모델(XGBoost, LightGBM, CatBoost)의 예측값을 **동적 가중 평균**으로 합산합니다:
+
+$$\hat{y} = w_{\text{xgb}} \cdot \hat{y}_{\text{xgb}} + w_{\text{lgb}} \cdot \hat{y}_{\text{lgb}} + w_{\text{cat}} \cdot \hat{y}_{\text{cat}}$$
+
+- 가중치는 검증 세트 R² 점수 기반으로 시장·horizon별 자동 계산
+- 기본 가중치: XGBoost 0.4, LightGBM 0.3, CatBoost 0.3
+
+### 1.4 XGBoost 하이퍼파라미터
+
+| 파라미터 | 값 | 설명 |
+|----------|-----|------|
+| `n_estimators` | 500 | 부스팅 라운드 |
+| `max_depth` | 5 | 트리 깊이 |
+| `learning_rate` | 0.05 | 학습률 |
+| `subsample` | 0.8 | 행 샘플링 비율 |
+| `colsample_bytree` | 0.8 | 열 샘플링 비율 |
+| `reg_lambda` | 1.0 | L2 정규화 |
+| `early_stopping_rounds` | 50 | 조기 종료 |
+
+### 1.5 타겟 변수
+
+$$\text{target}_{h} = \frac{\text{Close}_{t+h}}{\text{Close}_{t}} - 1$$
+
+극단값 클리핑: $[-0.5\sqrt{h},\ +0.5\sqrt{h}]$
+
+### 1.6 Train/Validation 분리
+
+시계열 특성을 반영한 **날짜 기준 분리** (80% 학습 / 20% 검증):
+
+```
+cutoff = dates.quantile(0.80)
+train_idx = dates <= cutoff
+val_idx = dates > cutoff
+```
 
 ---
 
-## 4. 리스크 매니저 통제 정책 (Risk Manager Limits)
+## 2. 전략 2: Surge 분류기 (급등 확률)
 
-매매 체결부 최전방에 위치하는 `RiskManager`(`src/risk/risk_manager.py`)는 사전에 정해진 규칙에 입각하여 과도한 위험 노출을 완전히 제어합니다.
+**파일**: `src/ai/prediction_model.py` — `train_surge()` / `predict_surge()`
 
-- **Stop-loss (손절 한도)**: 진입가 대비 설정된 범위(기본값: `-3%`)를 이탈 시 시장가 청산 신호 자동 발행.
-- **Take-profit (익절 한도)**: 진입가 대비 설정된 목표치(기본값: `+10%`) 도달 시 자동 익절 매도 처리.
-- **종목별 최대 비중(Max Weight Limit)**: 아무리 훌륭한 매수 신호가 발생해도, 해당 종목이 전체 포트폴리오 평가 자산의 특정 한도(기본값: `20%`)를 초과하여 적재되지 못하도록 주문 수량을 자동으로 하향 조정.
-- **포트폴리오 서킷 브레이커**: 당일 손실이 총 자산 대비 `-5%`를 초과할 시 시스템의 당일 매수 주문 송신 기능을 차단하고 전체 강제 청산 대기 상태로 전환.
+### 2.1 개요
+
+각 종목이 특정 기간 내 **20% 이상 급등**할 확률을 예측하는 **이진 분류** 모델입니다.
+
+### 2.2 Surge Horizon 및 레이블
+
+| Horizon | 레이블 조건 |
+|---------|------------|
+| 1일 | 1일 수익률 ≥ 20% → 1 |
+| 3일 | 3일 수익률 ≥ 20% → 1 |
+| 5일 | 5일 수익률 ≥ 20% → 1 |
+| 20일 | 20일 수익률 ≥ 20% → 1 |
+
+### 2.3 클래스 불균형 처리
+
+급등은 매우 드문 이벤트이므로, `scale_pos_weight`를 자동 계산하여 양성 클래스에 가중치를 부여합니다:
+
+$$\text{scale\_pos\_weight} = \min\left(\frac{N_{\text{neg}}}{N_{\text{pos}}},\ 500\right)$$
+
+### 2.4 Surge XGBClassifier 하이퍼파라미터
+
+| 파라미터 | 값 | 설명 |
+|----------|-----|------|
+| `max_depth` | 4 | (회귀보다 1단계 낮음) |
+| `min_child_weight` | 10 | 리프 최소 샘플 |
+| `max_delta_step` | 5 | 로짓 업데이트 제한 (불균형 안정화) |
+| `scale_pos_weight` | 자동 계산 (≤ 500) | 클래스 불균형 보정 |
+
+### 2.5 최적 임계치 탐색
+
+예측 확률 → 이진 결정 변환 시, 검증 세트에서 F1 점수를 최대화하는 임계치를 그리드 탐색합니다:
+
+```
+thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
+```
+
+### 2.6 출력
+
+시장별·horizon별 **TOP20** 급등 확률 종목을 `surge_predictions.txt`에 출력합니다.
+
+---
+
+## 3. 전략 3: Lead-Lag 분석
+
+**파일**: `src/ai/prediction_model.py` — `train_lead_lag()` / `predict_lead_lag()`
+
+### 3.1 개요
+
+시가총액 상위 50개 종목(leader)의 최근 움직임과 다른 종목(follower)의 과거 수익률 간 **시차 상관관계(lag-1 correlation)**를 분석하여, leader의 움직임을 뒤따를 가능성이 높은 종목을 발굴합니다.
+
+### 3.2 알고리즘
+
+1. **Leader 선정**: 시가총액 상위 50개 종목
+2. **상관 행렬 계산**: 각 leader의 수익률과 모든 종목의 1일 뒤 수익률 간 Pearson 상관 계수
+3. **Follower 점수**: 상관계수 × leader 최근 수익률
+
+$$\text{score}_{\text{follower}} = \sum_{i \in \text{leaders}} \rho_i \times r_i^{\text{recent}}$$
+
+4. **필터**: leader 최근 수익률이 1% 이하인 경우 제외
+
+### 3.3 출력
+
+Leader별 상위 20개 follower 종목을 `lead_lag_predictions.txt`에 출력합니다.
+
+---
+
+## 4. 전략 4: VCP 규칙 기반 패턴
+
+**파일**: `src/ai/vcp_detector.py` — `VCPDetector`
+
+### 4.1 개요
+
+**Volatility Contraction Pattern (VCP)**은 Mark Minervini의 트레이딩 전략으로, 변동성이 점진적으로 수축하고 거래량이 감소하면서 주가가 고점 근처에 위치하는 패턴을 감지합니다.
+
+### 4.2 감지 조건
+
+| 조건 | 설명 | 점수 |
+|------|------|------|
+| 변동성 수축 감소 | 5d > 10d > 20d > 40d > 60d 범위 단조감소 | 25점 |
+| 거래량 감소 | 20일 평균 거래량 < 60일 평균 × 0.85 | 15점 |
+| 50일 이평 근접 | 현재가와 MA50 거리 5% 이내 | 15점 |
+| 200일 이평 상방 | 현재가 > MA200 | 15점 |
+| 고점 근접 | 52주 고점의 85% 이상 | 15점 |
+| 지지선 확인 | 최근 저점이 상승 추세 | 15점 |
+| 패턴 지속 | 2개 이상 수축 사이클 확인 | 20점 |
+
+### 4.3 VCP Score
+
+$$\text{VCP Score} = \min\left(\sum w_i \times \text{condition}_i,\ 100\right)$$
+
+### 4.4 출력
+
+VCP Score ≥ 50 이상인 종목을 `vcp_patterns.txt`에 출력합니다.
+
+---
+
+## 5. 전략 5: VCP ML 분류기
+
+**파일**: `src/ai/vcp_ml_predictor.py` — `VCPSurgePredictor`
+
+### 5.1 개요
+
+VCP 패턴 관련 11개 피처를 사용하여, **4개 시장 × 4개 horizon = 16개** XGBClassifier로 VCP 패턴 이후 급등 확률을 예측합니다.
+
+### 5.2 VCP ML 피처 (11개)
+
+| 피처 | 수식 | 설명 |
+|------|------|------|
+| `range_5v20` | range(5d) / range(20d) | 단기/중기 변동성 비율 |
+| `range_10v20` | range(10d) / range(20d) | 10일/20일 변동성 비율 |
+| `range_20v40` | range(20d) / range(40d) | 중기 변동성 수축도 |
+| `range_40v60` | range(40d) / range(60d) | 장기 변동성 수축도 |
+| `vol_20v60` | vol_avg(20d) / vol_avg(60d) | 거래량 수축 비율 |
+| `dist_ma50` | (close - MA50) / MA50 | 50일 이평선 거리 |
+| `dist_ma200` | (close - MA200) / MA200 | 200일 이평선 거리 |
+| `range_pos_10d` | 최근 10일 양봉 비율 | 단기 추세 강도 |
+| `range_pos_20d` | 최근 20일 양봉 비율 | 중기 추세 강도 |
+| `atr_14d_norm` | ATR(14) / close | 정규화된 변동성 |
+| `monotonic` | 범위 단조감소 여부 (0/1) | VCP 패턴 적합성 |
+
+### 5.3 학습 구조
+
+```
+4 시장 (SP500, KOSPI, KOSDAQ, KONEX)
+  × 4 horizon (1, 3, 5, 20일)
+  = 16개 독립 XGBClassifier
+```
+
+각 모델은 해당 시장의 종목 데이터만으로 학습합니다.
+
+### 5.4 출력
+
+시장별 VCP 기반 급등 확률 **TOP10** 종목을 `vcp_ml_predictions.txt`에 출력합니다.
+
+---
+
+## 6. 피처 명세
+
+### 6.1 기본 피처 (FEATURES)
+
+| 카테고리 | 피처 | 설명 |
+|----------|------|------|
+| **수익률** | `ret_1d`, `ret_5d`, `ret_20d`, `ret_60d` | 기간별 수익률 |
+| **이동평균** | `dist_sma_20` | SMA(20) 대비 거리 |
+| **변동성** | `vol_20d` | 20일 변동성 |
+| **시장 정규화** | `norm_market_cap`, `norm_floating_value`, `norm_volume` | 일별 시장 대비 정규화 |
+| **펀더멘탈** | `operating_margin`, `revenue_to_market_cap`, `dividend_yield`, `net_profit_margin`, `eps_yield`, `eps_growth_1y` | 재무 지표 |
+| **기술적 지표** | `rsi_14`, `rsi_5`, `macd`, `macd_signal`, `macd_hist_norm` | RSI, MACD |
+| **볼린저** | `bb_upper_dist`, `bb_lower_dist`, `bb_width` | 볼린저 밴드 |
+| **추가 기술적** | `atr_14`, `roc_10`, `roc_20`, `adx_14` | ATR, ROC, ADX |
+| **추세** | `higher_high`, `higher_low`, `distance_from_52w_high`, `ema_crossover` | 추세 지표 |
+| **스토캐스틱** | `stoch_k`, `stoch_d`, `stoch_rsi_k`, `stoch_rsi_d` | 스토캐스틱 |
+| **일목균형표** | `tenkan_sen`, `kijun_sen` | 일목균형표 |
+| **거래량** | `volume_ratio` | 거래량 비율 |
+| **VCP** | `range_5v20` ~ `vcp_score` (12개) | VCP 관련 피처 |
+| **래그** | `ret_1d_lag1`, `ret_5d_lag1` | 지연 수익률 |
+
+### 6.2 글로벌 피처 (GLOBAL_FEATURES — 8개)
+
+| 피처 | 소스 | 설명 |
+|------|------|------|
+| `vix_change` | ^VIX | 공포지수 변화율 |
+| `us10y` | ^TNX | 미국 10년 국채 수익률 |
+| `usdkrw_change` | USD/KRW | 원·달러 환율 변화율 |
+| `sp500_change` | ^GSPC | S&P500 지수 변화율 |
+| `dxy_change` | DX-Y.NYB | 달러 인덱스 변화율 |
+| `wti_change` | CL=F | WTI 원유 변화율 |
+| `kospi_change` | ^KS11 | KOSPI 변화율 |
+| `kosdaq_change` | ^KQ11 | KOSDAQ 변화율 |
+
+---
+
+## 7. 모델 학습 및 저장
+
+### 7.1 학습 프로세스
+
+1. 시장별 종목 데이터 수집 (ThreadPoolExecutor)
+2. 피처 엔지니어링 + 글로벌 지표 병합
+3. 시장별 정규화 (일별 시장 총합 대비 비율)
+4. 날짜 기준 Train/Val 분리 (80/20)
+5. XGBoost + LightGBM + CatBoost 각각 학습
+6. 앙상블 가중치 계산 (Val R² 기반)
+7. 모델 파일 저장
+
+### 7.2 저장 형식
+
+```
+trading_system/models/
+├── xgb_regression_{market}_{horizon}d.json     # XGBoost 회귀
+├── lgb_regression_{market}_{horizon}d.txt      # LightGBM 회귀
+├── cat_regression_{market}_{horizon}d.cbm      # CatBoost 회귀
+├── xgb_surge_{market}_{horizon}d.json          # XGBoost Surge
+├── lgb_surge_{market}_{horizon}d.txt           # LightGBM Surge
+├── cat_surge_{market}_{horizon}d.cbm           # CatBoost Surge
+├── vcp_xgb_{market}_{horizon}d.json            # VCP ML
+├── ensemble_weights.json                       # 앙상블 가중치
+└── tuned_params.json                           # 튜닝된 하이퍼파라미터
+```
+
+### 7.3 XGBoost 2.1.4 호환성 Workaround
+
+XGBoost 2.1.4에서 `model.save_model()` 호출 시 `_get_type()` → `TypeError` 버그가 있어,
+**Booster 직접 저장** 방식을 사용합니다:
+
+```python
+# 저장
+model.get_booster().save_model(str(model_path))
+
+# 로드
+booster = xgb.Booster()
+booster.load_model(str(model_path))
+wrapper = xgb.XGBRegressor()
+wrapper._Booster = booster
+wrapper._estimator_type = 'regressor'
+```

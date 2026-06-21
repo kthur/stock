@@ -371,16 +371,19 @@ class StockPriceDB:
         self.db_path = Path(db_path)
         self.logger = logger
         self._lock = threading.Lock()
+        self._conn_lock = threading.Lock()
         self._conn: Optional[sqlite3.Connection] = None
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(
-                str(self.db_path), timeout=30, check_same_thread=False
-            )
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
+            with self._conn_lock:
+                if self._conn is None:
+                    self._conn = sqlite3.connect(
+                        str(self.db_path), timeout=30, check_same_thread=False
+                    )
+                    self._conn.execute("PRAGMA journal_mode=WAL")
+                    self._conn.execute("PRAGMA synchronous=NORMAL")
         return self._conn
 
     def _init_db(self):

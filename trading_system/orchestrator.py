@@ -81,41 +81,71 @@ logger = setup_logging(is_daemon=True)
 running = True
 
 # ── SQLite connection pool ──────────────────────────────────────────────────
+class SQLiteResult:
+    """Helper to mock a cursor for fetched results when connection is returned to pool."""
+    def __init__(self, rows: list, lastrowid: int | None):
+        self.rows = rows
+        self.lastrowid = lastrowid
+
+    def fetchone(self):
+        return self.rows[0] if self.rows else None
+
+    def fetchall(self):
+        return self.rows
+
+
 class SQLitePool:
-    """Simple SQLite connection pool with thread-safe context manager."""
+    """Simple SQLite connection pool with thread-safe context manager and Semaphore protection."""
 
     def __init__(self, db_path: str, pool_size: int = 3):
         self._db_path = db_path
         self._pool: list = []
         self._lock = asyncio.Lock()
+        self._semaphore = asyncio.Semaphore(pool_size)
         for _ in range(pool_size):
             conn = sqlite3.connect(db_path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
             self._pool.append(conn)
 
-    async def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+    async def execute(self, sql: str, params: tuple = ()) -> SQLiteResult:
+        await self._semaphore.acquire()
         async with self._lock:
             conn = self._pool.pop()
-            try:
+        try:
+            loop = asyncio.get_event_loop()
+            
+            def _run():
                 cursor = conn.execute(sql, params)
+                rows = cursor.fetchall() if cursor.description else []
+                lastrowid = cursor.lastrowid
                 conn.commit()
-                return cursor
-            finally:
+                return SQLiteResult(rows, lastrowid)
+                
+            result = await loop.run_in_executor(None, _run)
+            return result
+        finally:
+            async with self._lock:
                 self._pool.append(conn)
+            self._semaphore.release()
 
     async def execute_many(self, sql: str, params_list: list) -> None:
+        await self._semaphore.acquire()
         async with self._lock:
             conn = self._pool.pop()
-            try:
-                conn.executemany(sql, params_list)
-                conn.commit()
-            finally:
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: conn.executemany(sql, params_list))
+            await loop.run_in_executor(None, conn.commit)
+        finally:
+            async with self._lock:
                 self._pool.append(conn)
+            self._semaphore.release()
 
     async def close(self) -> None:
-        for conn in self._pool:
-            conn.close()
-        self._pool.clear()
+        async with self._lock:
+            for conn in self._pool:
+                conn.close()
+            self._pool.clear()
 
 _pool: SQLitePool | None = None
 
@@ -187,54 +217,25 @@ async def run_stage_universe(db_path: str):
     logger.info("Stage 'universe' completed successfully.")
 
 async def run_stage_train(db_path: str):
-    logger.info("Executing stage 'train'...")
-    storage = MarketIndicatorStorage(db_path=db_path)
-    universe = storage.get_universe()
-    if universe.empty:
-        logger.info("Universe is empty. Updating stock universe first...")
-        storage.update_stock_universe()
-        universe = storage.get_universe()
-        
-    sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
-    krx_symbols = universe[universe['market'] != 'SP500']['symbol'].tolist()
-    
-    # Build symbol→market mapping for adjusted price fetching
-    symbol_market = dict(zip(universe['symbol'], universe['market']))
-    
-    import random
-    random.seed(42)
-    sample_size = config.train_sample_size
-    train_symbols = random.sample(sp500_symbols, min(sample_size, len(sp500_symbols))) + \
-                    random.sample(krx_symbols, min(sample_size, len(krx_symbols)))
-                    
-    start_date_train = '2023-01-01'
-    model = OnDevicePredictionModel()
-    train_data_dict = {}
-    
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    _CPU_WORKERS = max(1, (os.cpu_count() or 4))
-    
-    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
-        future_to_sym = {
-            executor.submit(fetch_data_fdr, sym, symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX'), start_date_train): sym
-            for sym in train_symbols
-        }
-        for future in as_completed(future_to_sym):
-            sym = future_to_sym[future]
-            try:
-                df = future.result()
-                if df is not None and not df.empty:
-                    df = model.merge_fundamentals(sym, df, storage)
-                    train_data_dict[sym] = df
-            except Exception as e:
-                logger.warning(f"Error fetching training data for {sym}: {e}")
-                
-    df_train = model.prepare_training_data(train_data_dict)
-    if df_train.empty:
-        raise ValueError("Prepared training data is empty. Cannot train model.")
-        
-    model.train(df_train)
-    logger.info("Stage 'train' completed successfully.")
+    """Train all models by delegating to the main pipeline (execute_prediction_pipeline).
+
+    This replaces the previous inline training logic which was stale and only trained
+    the regression model while missing Surge, Lead-Lag, and VCP ML models.
+    execute_prediction_pipeline() is the single source of truth for all 5 strategies.
+    """
+    logger.info("Executing stage 'train' (delegating to execute_prediction_pipeline)...")
+    from run_pipeline import execute_prediction_pipeline
+    import os
+    # Force re-training by temporarily overriding SKIP_TRAINING env var
+    orig = os.environ.get('SKIP_TRAINING', '')
+    os.environ['SKIP_TRAINING'] = 'False'
+    try:
+        result = execute_prediction_pipeline()
+        if result is None or (isinstance(result, tuple) and result[0] is None):
+            raise RuntimeError("execute_prediction_pipeline() returned no results during train stage")
+        logger.info("Stage 'train' (via pipeline) completed successfully.")
+    finally:
+        os.environ['SKIP_TRAINING'] = orig
 
 async def run_stage_predict(db_path: str) -> str:
     logger.info("Executing stage 'predict'...")
@@ -252,7 +253,7 @@ async def run_stage_predict(db_path: str) -> str:
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))
     
-    start_date_infer = '2025-01-01'
+    start_date_infer = (datetime.now() - timedelta(days=200)).strftime('%Y-%m-%d')
     model = OnDevicePredictionModel()
     infer_data_dict = {}
     
@@ -467,25 +468,32 @@ async def main():
         if HAS_APSCHEDULER:
             logger.info("APScheduler is available. Initializing scheduler...")
             scheduler = AsyncIOScheduler()
-            
+
+            # APScheduler requires async-compatible callables.
+            # Using an async wrapper so coroutines are properly awaited by the event loop.
+            def _make_async_job(stage: str, db: str):
+                async def _job():
+                    await run_stage(stage, db)
+                return _job
+
             # Add jobs
             # 1. Ingestion daily at 15:45
-            scheduler.add_job(lambda: run_stage("ingest", DB_PATH), 'cron', hour=15, minute=45, id='ingestion', max_instances=1)
+            scheduler.add_job(_make_async_job("ingest", DB_PATH), 'cron', hour=15, minute=45, id='ingestion', max_instances=1)
             # 2. Scoring daily at 16:30
-            scheduler.add_job(lambda: run_stage("score", DB_PATH), 'cron', hour=16, minute=30, id='scoring', max_instances=1)
+            scheduler.add_job(_make_async_job("score", DB_PATH), 'cron', hour=16, minute=30, id='scoring', max_instances=1)
             # 3. Weekly train Sunday at 01:00 AM
-            scheduler.add_job(lambda: run_stage("all", DB_PATH), 'cron', day_of_week='sun', hour=1, minute=0, id='weekly_train', max_instances=1)
-            
+            scheduler.add_job(_make_async_job("all", DB_PATH), 'cron', day_of_week='sun', hour=1, minute=0, id='weekly_train', max_instances=1)
+
             scheduler.start()
             logger.info("APScheduler started.")
-            
+
             while running:
                 if STOP_FLAG_FILE.exists():
                     logger.info("Stop flag file detected. Stopping daemon gracefully...")
                     running = False
                     break
                 await asyncio.sleep(1)
-                
+
             scheduler.shutdown()
         else:
             await fallback_scheduler_loop()

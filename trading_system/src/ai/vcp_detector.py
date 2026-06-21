@@ -38,8 +38,11 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
         r = float(df['range_pct'].tail(w).max())
         ranges.append(r)
 
-    # VCP: ranges should be decreasing (T5 > T4 > T3 > T2 > T1)
-    decreasing = all(ranges[i] > ranges[i + 1] for i in range(len(ranges) - 1))
+    # VCP: ranges should be decreasing as window shortens.
+    # windows = [5, 10, 20, 40, 60], so ranges[0]=5d, ranges[4]=60d.
+    # Contraction means the 60d range > 40d > 20d > 10d > 5d (shorter = tighter).
+    # i.e. ranges[i] < ranges[i+1] for i in 0..3 (longer windows have bigger swings).
+    decreasing = all(ranges[i] < ranges[i + 1] for i in range(len(ranges) - 1))
 
     # 3. Volume contraction
     vol_20d = float(volume.tail(20).mean())

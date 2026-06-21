@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import threading
 from typing import Optional, List, Dict
 import pandas as pd
 import FinanceDataReader as fdr
@@ -9,10 +10,19 @@ logger = logging.getLogger(__name__)
 class MarketIndicatorStorage:
     def __init__(self, db_path: str = "market_indicators.db"):
         self.db_path = db_path
+        # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
+        self._write_lock = threading.Lock()
         self._init_db()
 
+    def _connect(self) -> sqlite3.Connection:
+        """Open a WAL-mode connection. Callers are responsible for closing."""
+        conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
+
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             # Create table for global market indicators (indices, fx, macro)
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS global_indicators (
@@ -113,22 +123,23 @@ class MarketIndicatorStorage:
         except Exception as e:
             logger.warning(f"Failed to fetch KRX administrative list: {e}")
 
-        with sqlite3.connect(self.db_path) as conn:
-            # S&P 500
-            for _, row in sp500.iterrows():
-                conn.execute(
-                    "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
-                    (row['Symbol'], row['Name'], 'SP500')
-                )
-            # KRX (filtered)
-            for _, row in krx.iterrows():
-                if row['Code'] in excluded:
-                    continue
-                conn.execute(
-                    "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
-                    (row['Code'], row['Name'], row.get('Market', 'KRX'))
-                )
-            conn.commit()
+        with self._write_lock:
+            with self._connect() as conn:
+                # S&P 500
+                for _, row in sp500.iterrows():
+                    conn.execute(
+                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
+                        (row['Symbol'], row['Name'], 'SP500')
+                    )
+                # KRX (filtered)
+                for _, row in krx.iterrows():
+                    if row['Code'] in excluded:
+                        continue
+                    conn.execute(
+                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
+                        (row['Code'], row['Name'], row.get('Market', 'KRX'))
+                    )
+                conn.commit()
         logger.info("Stock universe updated successfully.")
 
     def save_indicators(self, data: dict, date_str: str):
@@ -137,17 +148,18 @@ class MarketIndicatorStorage:
         `data` is expected to have 'indices', 'fx_rates', 'macro_commodities'
         """
         sql = "INSERT OR REPLACE INTO global_indicators (date,symbol,name,price,change_pct) VALUES (?,?,?,?,?)"
-        with sqlite3.connect(self.db_path) as conn:
-            for sym, info in data.get('indices', {}).items():
-                if info.get('price') is not None:
-                    conn.execute(sql, (date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
-            for sym, info in data.get('fx_rates', {}).items():
-                if info.get('rate') is not None:
-                    conn.execute(sql, (date_str, info['pair'], info['name'], info['rate'], info['change_pct']))
-            for sym, info in data.get('macro_commodities', {}).items():
-                if info.get('price') is not None:
-                    conn.execute(sql, (date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
-            conn.commit()
+        with self._write_lock:
+            with self._connect() as conn:
+                for sym, info in data.get('indices', {}).items():
+                    if info.get('price') is not None:
+                        conn.execute(sql, (date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+                for sym, info in data.get('fx_rates', {}).items():
+                    if info.get('rate') is not None:
+                        conn.execute(sql, (date_str, info['pair'], info['name'], info['rate'], info['change_pct']))
+                for sym, info in data.get('macro_commodities', {}).items():
+                    if info.get('price') is not None:
+                        conn.execute(sql, (date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+                conn.commit()
 
     def get_universe(self, market: Optional[str] = None) -> pd.DataFrame:
         query = "SELECT * FROM stock_universe"
@@ -160,14 +172,15 @@ class MarketIndicatorStorage:
 
     def save_predictions(self, df_preds: pd.DataFrame, date_str: str):
         """Save AI predictions to database."""
-        with sqlite3.connect(self.db_path) as conn:
-            for _, row in df_preds.iterrows():
-                sym = row['symbol']
-                for h in [1, 5, 10, 20, 30, 60]:
-                    if h in row:
-                        sql = "INSERT OR REPLACE INTO ai_predictions (date,symbol,horizon,expected_return) VALUES (?,?,?,?)"  # noqa: E501
-                        conn.execute(sql, (date_str, sym, h, float(row[h])))
-            conn.commit()
+        with self._write_lock:
+            with self._connect() as conn:
+                for _, row in df_preds.iterrows():
+                    sym = row['symbol']
+                    for h in [1, 5, 10, 20, 30, 60, 120, 200]:
+                        if h in row:
+                            sql = "INSERT OR REPLACE INTO ai_predictions (date,symbol,horizon,expected_return) VALUES (?,?,?,?)"  # noqa: E501
+                            conn.execute(sql, (date_str, sym, h, float(row[h])))
+                conn.commit()
 
     def get_predictions(self, date_str: Optional[str] = None) -> pd.DataFrame:
         """Get AI predictions. If date_str is None, returns the latest predictions."""
@@ -191,19 +204,20 @@ class MarketIndicatorStorage:
             (date, symbol, name, rank, composite_score, technical_score, ai_score, sentiment_score)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
-        with sqlite3.connect(self.db_path) as conn:
-            for r in rankings:
-                conn.execute(sql, (
-                    date_str,
-                    r['symbol'],
-                    r['name'],
-                    int(r['rank']),
-                    float(r['composite_score']),
-                    float(r['technical_score']),
-                    float(r['ai_score']),
-                    float(r['sentiment_score'])
-                ))
-            conn.commit()
+        with self._write_lock:
+            with self._connect() as conn:
+                for r in rankings:
+                    conn.execute(sql, (
+                        date_str,
+                        r['symbol'],
+                        r['name'],
+                        int(r['rank']),
+                        float(r['composite_score']),
+                        float(r['technical_score']),
+                        float(r['ai_score']),
+                        float(r['sentiment_score'])
+                    ))
+                conn.commit()
 
     def get_post_market_rankings(self, date_str: Optional[str] = None) -> pd.DataFrame:
         """
@@ -232,19 +246,20 @@ class MarketIndicatorStorage:
             (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
-        with sqlite3.connect(self.db_path) as conn:
-            for _, row in df_fundamentals.iterrows():
-                conn.execute(sql, (
-                    row['symbol'],
-                    row['date'],
-                    float(row['revenue']) if pd.notna(row['revenue']) else 0.0,
-                    float(row['operating_income']) if pd.notna(row['operating_income']) else 0.0,
-                    float(row.get('net_income', 0.0)) if pd.notna(row.get('net_income', 0.0)) else 0.0,
-                    float(row.get('eps', 0.0)) if pd.notna(row.get('eps', 0.0)) else 0.0,
-                    float(row.get('shares_outstanding', 0.0)) if pd.notna(row.get('shares_outstanding', 0.0)) else 0.0,
-                    float(row['dividend_per_share']) if pd.notna(row['dividend_per_share']) else 0.0,
-                ))
-            conn.commit()
+        with self._write_lock:
+            with self._connect() as conn:
+                for _, row in df_fundamentals.iterrows():
+                    conn.execute(sql, (
+                        row['symbol'],
+                        row['date'],
+                        float(row['revenue']) if pd.notna(row['revenue']) else 0.0,
+                        float(row['operating_income']) if pd.notna(row['operating_income']) else 0.0,
+                        float(row.get('net_income', 0.0)) if pd.notna(row.get('net_income', 0.0)) else 0.0,
+                        float(row.get('eps', 0.0)) if pd.notna(row.get('eps', 0.0)) else 0.0,
+                        float(row.get('shares_outstanding', 0.0)) if pd.notna(row.get('shares_outstanding', 0.0)) else 0.0,
+                        float(row['dividend_per_share']) if pd.notna(row['dividend_per_share']) else 0.0,
+                    ))
+                conn.commit()
 
     def get_fundamentals(self, symbol: str) -> pd.DataFrame:
         """

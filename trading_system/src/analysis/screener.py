@@ -213,7 +213,7 @@ class StockScreener:
         df_us = pd.DataFrame()
         us_data = {}
         try:
-            df_us = yf.download(US_TICKERS, period="1y", progress=False, timeout=5)
+            df_us = yf.download(US_TICKERS, period="1y", progress=False, timeout=5, auto_adjust=True)
             us_data = safe_extract_closes(df_us, US_TICKERS)
         except Exception as e:
             logger.warning(f"Failed to fetch US stock data: {e}")
@@ -246,7 +246,7 @@ class StockScreener:
         df_kr = pd.DataFrame()
         kr_data = {}
         try:
-            df_kr = yf.download(KR_TICKERS, period="1y", progress=False, timeout=5)
+            df_kr = yf.download(KR_TICKERS, period="1y", progress=False, timeout=5, auto_adjust=True)
             kr_data = safe_extract_closes(df_kr, KR_TICKERS)
         except Exception as e:
             logger.warning(f"Failed to fetch KR stock data: {e}")

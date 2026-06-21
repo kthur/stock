@@ -4,6 +4,9 @@ import threading
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+import lightgbm as lgb
+import catboost as cb
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -53,6 +56,8 @@ class VCPSurgePredictor:
         self._ft.surge_models = {}
 
         self.models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
+        self.lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
+        self.cat_models: Dict[str, Dict[int, cb.CatBoostClassifier]] = {}
 
         self._surge_xgb_kwargs = dict(
             n_estimators=500,
@@ -68,8 +73,57 @@ class VCPSurgePredictor:
             early_stopping_rounds=50,
             eval_metric='auc',
         )
+        self._surge_lgb_kwargs = dict(
+            n_estimators=500,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            min_child_samples=10,
+            n_jobs=-1,
+            random_state=42,
+            verbose=-1,
+        )
+        self._surge_cat_kwargs = dict(
+            iterations=500,
+            depth=4,
+            learning_rate=0.05,
+            l2_leaf_reg=1.0,
+            thread_count=-1,
+            random_seed=42,
+            eval_metric='AUC',
+            verbose=False,
+        )
+        # Check and load tuned parameters if they exist
+        tuned_path = self.model_dir / "tuned_params.json"
+        if tuned_path.exists():
+            try:
+                with open(tuned_path, 'r') as f:
+                    tuned_data = json.load(f)
+                logger.info(f"VCPSurgePredictor: Loaded tuned parameters from {tuned_path}")
+                if 'surge_xgb' in tuned_data:
+                    self._surge_xgb_kwargs.update(tuned_data['surge_xgb'])
+                if 'surge_lgb' in tuned_data:
+                    self._surge_lgb_kwargs.update(tuned_data['surge_lgb'])
+                if 'surge_cat' in tuned_data:
+                    self._surge_cat_kwargs.update(tuned_data['surge_cat'])
+            except Exception as e:
+                logger.warning(f"VCPSurgePredictor: Failed to load tuned parameters: {e}")
+
         if _HAS_CUDA:
             self._surge_xgb_kwargs['device'] = 'cuda'
+
+        # Load validation metrics if exists
+        self.validation_metrics = {"regression": {}, "surge": {}, "vcp_ml": {}}
+        val_metrics_path = self.model_dir / "validation_metrics.json"
+        if val_metrics_path.exists():
+            try:
+                with open(val_metrics_path, 'r') as f:
+                    self.validation_metrics = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load validation metrics: {e}")
+        self.validation_metrics.setdefault("vcp_ml", {})
 
         self.load_models()
 
@@ -113,13 +167,18 @@ class VCPSurgePredictor:
         feat['range_pos_10d'] = (last_close - low_10d) / max(high_10d - low_10d, 1e-10)
         feat['range_pos_20d'] = (last_close - low_20d) / max(high_20d - low_20d, 1e-10)
 
-        tr14 = np.maximum(
-            high.tail(14).max() - low.tail(14).min(),
-            abs(low.tail(14).min() - close.shift(1).tail(14).min()),
-        )
-        feat['atr_14d_norm'] = tr14 / max(last_close, 1e-10) * 100 if isinstance(tr14, (int, float)) else 0.0
+        # Standard True Range (TR) and 14-period SMA
+        tr_df = pd.DataFrame(index=df.index)
+        tr_df['h_l'] = high - low
+        tr_df['h_pc'] = (high - close.shift(1)).abs()
+        tr_df['l_pc'] = (low - close.shift(1)).abs()
+        tr_val = tr_df[['h_l', 'h_pc', 'l_pc']].max(axis=1)
+        atr_14 = tr_val.rolling(14).mean().iloc[-1]
+        feat['atr_14d_norm'] = (atr_14 / max(last_close, 1e-10)) * 100 if pd.notna(atr_14) else 0.0
 
-        feat['monotonic'] = int(all(ranges[i] > ranges[i + 1] for i in range(len(ranges) - 1)))
+        # VCP contraction: shorter windows should have smaller ranges than longer windows.
+        # windows=[5,10,20,40,60] → ranges[0]=5d, ranges[4]=60d → ranges[i] < ranges[i+1].
+        feat['monotonic'] = int(all(ranges[i] < ranges[i + 1] for i in range(len(ranges) - 1)))
 
         score = 0.0
         if feat['monotonic']:
@@ -155,17 +214,15 @@ class VCPSurgePredictor:
         normed = self._ft.apply_market_normalization(prices_dict)
         base_features = self._ft.ALL_FEATURES
 
-        symbols_list = []
-        market_list = []
-        feature_list = []
-
         universe_map = {}
         if universe is not None:
             universe_map = dict(zip(universe['symbol'], universe['market']))
 
-        for sym, df in normed.items():
+        results = []
+
+        def _process_symbol(sym: str, df: pd.DataFrame) -> Optional[Tuple[str, str, pd.DataFrame]]:
             if df is None or len(df) < 65:
-                continue
+                return None
             market = universe_map.get(sym, 'SP500')
             if market not in MARKETS:
                 market = 'SP500'
@@ -173,21 +230,41 @@ class VCPSurgePredictor:
             df['symbol'] = sym
             df_feat = self._ft._create_features(df, indicator_df)
             if df_feat.empty:
-                continue
+                return None
 
             vcp_feat = self._compute_vcp_features(prices_dict.get(sym))
             if vcp_feat.empty:
-                continue
+                return None
 
             latest = df_feat.iloc[-1:].copy()
+            # Drop VCP columns in latest if they already exist to avoid duplicate columns
+            cols_to_drop = [col for col in vcp_feat.columns if col in latest.columns]
+            if cols_to_drop:
+                latest = latest.drop(columns=cols_to_drop)
             for col in vcp_feat.columns:
                 latest[col] = vcp_feat[col].values[0]
 
+            all_cols = list(dict.fromkeys(list(base_features) + VCP_FEATURES))
+            present = [c for c in all_cols if c in latest.columns]
+            return sym, market, latest[present]
+
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            futures = {pool.submit(_process_symbol, sym, df): sym for sym, df in normed.items()}
+            for f in as_completed(futures):
+                try:
+                    res = f.result()
+                    if res is not None:
+                        results.append(res)
+                except Exception as e:
+                    logger.debug(f"VCP ML batch feature failed for {futures[f]}: {e}")
+
+        symbols_list = []
+        market_list = []
+        feature_list = []
+        for sym, market, feat in results:
             symbols_list.append(sym)
             market_list.append(market)
-            all_cols = list(base_features) + VCP_FEATURES
-            present = [c for c in all_cols if c in latest.columns]
-            feature_list.append(latest[present])
+            feature_list.append(feat)
 
         return symbols_list, market_list, feature_list
 
@@ -204,9 +281,10 @@ class VCPSurgePredictor:
                 continue
             row = vcp.iloc[0].to_dict()
             row['date_idx'] = end
+            row['date'] = window.index[-1]
             for h in SURGE_HORIZONS:
-                if end > h:
-                    target = (close.iloc[end - 1] / close.iloc[end - h - 1] - 1)
+                if end - 1 + h < len(df):
+                    target = (close.iloc[end - 1 + h] / close.iloc[end - 1] - 1)
                     if abs(target) < 10.0:
                         row[f'surge_{h}d'] = int(target >= SURGE_THRESHOLD)
                     else:
@@ -321,7 +399,7 @@ class VCPSurgePredictor:
                 df_train = df_train[~df_train['symbol'].isin(remove_syms)]
             logger.info(f"After base feature merge: {len(df_train)} rows remaining")
 
-        feat_cols = [c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in df_train.columns]
+        feat_cols = list(dict.fromkeys([c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in df_train.columns]))
         logger.info(f"Feature columns: {len(feat_cols)}")
 
         vcp_train_lock = threading.Lock()
@@ -337,16 +415,24 @@ class VCPSurgePredictor:
             m_df = m_df.reset_index(drop=True)
             logger.info(f"Training VCP ML for {market} ({len(m_df)} rows)")
 
-            kw = dict(self._surge_xgb_kwargs)
+            kw_xgb = dict(self._surge_xgb_kwargs)
+            kw_lgb = dict(self._surge_lgb_kwargs)
+            kw_cat = dict(self._surge_cat_kwargs)
 
-            cutoff = m_df['date_idx'].quantile(0.8)
-            train_idx = m_df['date_idx'] <= cutoff
-            val_idx = m_df['date_idx'] > cutoff
+            m_df['date'] = pd.to_datetime(m_df['date'])
+            cutoff = m_df['date'].quantile(0.8)
+            train_idx = m_df['date'] <= cutoff
+            val_idx = m_df['date'] > cutoff
             if val_idx.sum() < 50:
                 train_idx = pd.Series([True] * len(m_df))
                 val_idx = pd.Series([False] * len(m_df))
 
             local_models = {}
+            local_lgb_models = {}
+            local_cat_models = {}
+
+            from sklearn.metrics import roc_auc_score, accuracy_score
+
             for h in SURGE_HORIZONS:
                 target_col = f'surge_{h}d'
                 target = m_df[target_col].dropna().astype(int)
@@ -359,9 +445,11 @@ class VCPSurgePredictor:
                     continue
 
                 scale_pos_weight = min(neg_count / pos_count, 500)
-                kw['scale_pos_weight'] = scale_pos_weight
+                kw_xgb['scale_pos_weight'] = scale_pos_weight
+                kw_lgb['scale_pos_weight'] = scale_pos_weight
+                kw_cat['scale_pos_weight'] = scale_pos_weight
                 logger.info(f"VCP ML {market} {h}d: {pos_count} pos / {neg_count} neg "
-                           f"(scale={scale_pos_weight:.1f})")
+                            f"(scale={scale_pos_weight:.1f})")
 
                 X = m_df.loc[valid_idx, feat_cols]
                 y = target
@@ -372,17 +460,63 @@ class VCPSurgePredictor:
                 X_val = X[vv]
                 y_val = y[vv]
 
-                if vv.any() and 'early_stopping_rounds' in kw:
-                    model = xgb.XGBClassifier(**kw)
-                    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                # 1. XGBoost
+                if vv.any() and 'early_stopping_rounds' in kw_xgb:
+                    model_xgb = xgb.XGBClassifier(**kw_xgb)
+                    model_xgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
                 else:
-                    kw_no_es = {k: v for k, v in kw.items() if k != 'early_stopping_rounds'}
-                    model = xgb.XGBClassifier(**kw_no_es)
-                    model.fit(X_train, y_train)
-                local_models[h] = model
+                    kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+                    model_xgb = xgb.XGBClassifier(**kw_no_es)
+                    model_xgb.fit(X_train, y_train)
+                local_models[h] = model_xgb
+
+                # 2. LightGBM
+                model_lgb = lgb.LGBMClassifier(**kw_lgb)
+                if vv.any():
+                    model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
+                else:
+                    model_lgb.fit(X_train, y_train)
+                local_lgb_models[h] = model_lgb
+
+                # 3. CatBoost
+                if vv.any():
+                    model_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
+                    model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                else:
+                    model_cat = cb.CatBoostClassifier(**kw_cat)
+                    model_cat.fit(X_train, y_train, verbose=False)
+                local_cat_models[h] = model_cat
+
+                # Calculate metrics
+                X_eval = X_val if vv.any() else X_train
+                y_eval = y_val if vv.any() else y_train
+
+                def get_clf_metrics(m, X_e, y_e):
+                    probs = m.predict_proba(X_e)[:, 1]
+                    preds = m.predict(X_e)
+                    try:
+                        auc = float(roc_auc_score(y_e, probs))
+                    except Exception:
+                        auc = 0.5
+                    acc = float(accuracy_score(y_e, preds))
+                    return auc, acc
+
+                auc_xgb, acc_xgb = get_clf_metrics(model_xgb, X_eval, y_eval)
+                auc_lgb, acc_lgb = get_clf_metrics(model_lgb, X_eval, y_eval)
+                auc_cat, acc_cat = get_clf_metrics(model_cat, X_eval, y_eval)
+
+                if market not in self.validation_metrics["vcp_ml"]:
+                    self.validation_metrics["vcp_ml"][market] = {}
+                self.validation_metrics["vcp_ml"][market][h] = {
+                    "xgb": {"auc": auc_xgb, "accuracy": acc_xgb},
+                    "lgb": {"auc": auc_lgb, "accuracy": acc_lgb},
+                    "cat": {"auc": auc_cat, "accuracy": acc_cat}
+                }
 
             with vcp_train_lock:
                 self.models[market] = local_models
+                self.lgb_models[market] = local_lgb_models
+                self.cat_models[market] = local_cat_models
 
         with ThreadPoolExecutor(max_workers=len(MARKETS)) as pool:
             futures = {pool.submit(_train_vcp_market, m, feat_cols): m for m in MARKETS}
@@ -392,13 +526,23 @@ class VCPSurgePredictor:
                 except Exception as e:
                     logger.error(f"VCP ML market {futures[f]} failed: {e}")
 
+        # Save validation metrics to file
+        try:
+            self.model_dir.mkdir(parents=True, exist_ok=True)
+            with open(self.model_dir / "validation_metrics.json", "w") as f:
+                json.dump(self.validation_metrics, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save validation_metrics.json in VCP ML: {e}")
+
         self.save_models()
-        logger.info(f"VCP ML models trained: {sum(len(v) for v in self.models.values())} total")
+        logger.info(f"VCP ML models trained: XGB={sum(len(v) for v in self.models.values())}, "
+                    f"LGB={sum(len(v) for v in self.lgb_models.values())}, "
+                    f"Cat={sum(len(v) for v in self.cat_models.values())} total")
 
     def predict(self, prices_dict: Dict[str, pd.DataFrame],
                 indicator_df: pd.DataFrame = None,
                 universe: pd.DataFrame = None) -> pd.DataFrame:
-        """Predict VCP surge probabilities using market-specific models."""
+        """Predict VCP surge probabilities using market-specific models (batch optimized)."""
         if not self.models:
             logger.warning("No VCP ML models loaded, skipping prediction")
             return pd.DataFrame()
@@ -407,39 +551,76 @@ class VCPSurgePredictor:
         if not feats:
             return pd.DataFrame()
 
-        feat_cols = [c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in feats[0].columns]
+        feat_cols = list(dict.fromkeys([c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in feats[0].columns]))
 
         import warnings
-        res_dict: Dict = {'symbol': syms, 'market': markets}
+        res_df = pd.DataFrame({'symbol': syms, 'market': markets})
+        df_all = pd.concat(feats, ignore_index=True)
+        market_series = pd.Series(markets)
+
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='.*Falling back to prediction using DMatrix.*')
             for h in SURGE_HORIZONS:
-                probs = []
-                for i, market in enumerate(markets):
-                    models = self.models.get(market, {})
-                    if h in models:
-                        X_row = feats[i][feat_cols]
-                        prob = float(models[h].predict_proba(X_row)[0, 1])
-                    else:
-                        prob = 0.0
-                    probs.append(prob)
-                res_dict[f'vcp_{h}d'] = probs
+                col_name = f'vcp_{h}d'
+                res_df[col_name] = 0.0
+                for mkt in set(markets):
+                    idx = market_series[market_series == mkt].index
+                    if len(idx) > 0:
+                        X_mkt = df_all.iloc[idx][feat_cols]
+                        
+                        xgb_m = self.models.get(mkt, {}).get(h)
+                        lgb_m = self.lgb_models.get(mkt, {}).get(h)
+                        cat_m = self.cat_models.get(mkt, {}).get(h)
+                        
+                        preds = []
+                        weights = []
+                        
+                        if xgb_m is not None:
+                            preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
+                            weights.append(0.4)
+                        if lgb_m is not None:
+                            preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
+                            weights.append(0.3)
+                        if cat_m is not None:
+                            preds.append(cat_m.predict_proba(X_mkt)[:, 1])
+                            weights.append(0.3)
+                            
+                        if preds:
+                            total_w = sum(weights)
+                            blend_prob = np.zeros(len(idx))
+                            for p, w in zip(preds, weights):
+                                blend_prob += p * (w / total_w)
+                            res_df.loc[idx, col_name] = blend_prob
+                        else:
+                            res_df.loc[idx, col_name] = 0.0
 
-        return pd.DataFrame(res_dict)
+        return res_df
 
     def save_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
+            # XGBoost
             for market, models in self.models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"vcp_surge_{market}_{h}d.json"
                     model.get_booster().save_model(str(path))
+            # LightGBM
+            for market, models in self.lgb_models.items():
+                for h, model in models.items():
+                    path = self.model_dir / f"lgb_vcp_surge_{market}_{h}d.txt"
+                    model.booster_.save_model(str(path))
+            # CatBoost
+            for market, models in self.cat_models.items():
+                for h, model in models.items():
+                    path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"
+                    model.save_model(str(path))
             logger.info(f"VCP ML models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save VCP ML models: {e}")
 
     def load_models(self):
         try:
+            # Load XGBoost models
             for market in MARKETS:
                 self.models[market] = {}
                 for h in SURGE_HORIZONS:
@@ -451,12 +632,51 @@ class VCPSurgePredictor:
                         model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
                         model._Booster = booster
                         model._estimator_type = 'classifier'
+                        model.n_classes_ = 2
+                        try:
+                            model.classes_ = np.array([0, 1])
+                        except (AttributeError, TypeError):
+                            model._classes = np.array([0, 1])
                         self.models[market][h] = model
-                        logger.debug(f"Loaded VCP ML model for {market} {h}d")
+                        logger.debug(f"Loaded VCP ML XGB model for {market} {h}d")
                 if not self.models[market]:
                     del self.models[market]
-            total = sum(len(v) for v in self.models.values())
-            if total:
-                logger.info(f"Loaded {total} VCP ML models from {self.model_dir}")
+
+            # Load LightGBM models
+            for market in MARKETS:
+                self.lgb_models[market] = {}
+                for h in SURGE_HORIZONS:
+                    path = self.model_dir / f"lgb_vcp_surge_{market}_{h}d.txt"
+                    if path.exists():
+                        booster = lgb.Booster(model_file=str(path))
+                        model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
+                        model._Booster = booster
+                        model.fitted_ = True
+                        model._n_features = len(self._ft.ALL_FEATURES) + len(VCP_FEATURES)
+                        model._n_features_in = len(self._ft.ALL_FEATURES) + len(VCP_FEATURES)
+                        model._n_classes = 2
+                        model._classes = np.array([0, 1])
+                        self.lgb_models[market][h] = model
+                        logger.debug(f"Loaded VCP ML LGB model for {market} {h}d")
+                if not self.lgb_models[market]:
+                    del self.lgb_models[market]
+
+            # Load CatBoost models
+            for market in MARKETS:
+                self.cat_models[market] = {}
+                for h in SURGE_HORIZONS:
+                    path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"
+                    if path.exists():
+                        model = cb.CatBoostClassifier()
+                        model.load_model(str(path))
+                        self.cat_models[market][h] = model
+                        logger.debug(f"Loaded VCP ML CatBoost model for {market} {h}d")
+                if not self.cat_models[market]:
+                    del self.cat_models[market]
+
+            total_xgb = sum(len(v) for v in self.models.values())
+            total_lgb = sum(len(v) for v in self.lgb_models.values())
+            total_cat = sum(len(v) for v in self.cat_models.values())
+            logger.info(f"Loaded VCP ML models: XGB={total_xgb}, LGB={total_lgb}, Cat={total_cat}")
         except Exception as e:
             logger.error(f"Failed to load VCP ML models: {e}")

@@ -26,8 +26,6 @@ share/python-wheels/
 *.egg
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so may be safely ignored.
 *.manifest
 *.spec
 
@@ -61,6 +59,8 @@ output.txt
 # Environments
 .env
 .venv
+.venv.linux/
+.venv_linux/
 env/
 venv/
 ENV/
@@ -72,3 +72,52 @@ data/
 *.parquet
 trading_system/data/
 risk_config.json
+
+# Models (regenerated each pipeline run)
+trading_system/models/*.json
+trading_system/models/*.txt
+trading_system/models/*.cbm
+trading_system/models/*.bin
+temp_model.json
+
+# Pipeline output files
+trading_system/pipeline_result.txt
+trading_system/surge_predictions.txt
+trading_system/lead_lag_predictions.txt
+trading_system/vcp_patterns.txt
+trading_system/vcp_ml_predictions.txt
+trading_system/portfolio_allocation.txt
+
+# Test artifacts
+*.pdf
+test_*.log
+
+# Temporary / scratch output
+out.txt
+out_*.txt
+trading_system/out.txt
+trading_system/out_*.txt
+
+# State files
+state_snapshot.json
+trading_system/state_snapshot.json
+
+# Browser cookies
+cookies/
+trading_system/cookies/
+
+# CatBoost training info
+catboost_info/
+trading_system/catboost_info/
+
+# Dashboard HTML export
+dashboard_html.html
+
+# IDE / editor
+.opencode/
+opencode.json
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

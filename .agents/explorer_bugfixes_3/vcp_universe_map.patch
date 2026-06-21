@@ -1,0 +1,14 @@
+diff --git a/trading_system/run_pipeline.py b/trading_system/run_pipeline.py
+index a123456..b123456 100644
+--- a/trading_system/run_pipeline.py
++++ b/trading_system/run_pipeline.py
+@@ -703,8 +703,8 @@
+     # Save VCP pattern detection results
+     if vcp_results:
+         vcp_output_path = os.path.join(os.path.dirname(__file__), "vcp_patterns.txt")
+-        vcp_universe_map = {s: (n, m) for s, n, m in zip(universe.get('symbol', []),
+-                            universe.get('name', []), universe.get('market', []))}
++        vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
++                            universe['name'], universe['market'])}
+         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+         with open(vcp_output_path, "w", encoding="utf-8") as f:

@@ -1,6 +1,8 @@
 import time
-from typing import Dict, List, Optional, Callable
+import threading
+from typing import Dict, List, Optional, Callable, Tuple
 import numpy as np
+import pandas as pd
 from .indicators import calc_atr, calc_ema
 
 
@@ -186,3 +188,46 @@ class CorrelationCache:
     def clear(self) -> None:
         self._cache.clear()
         self._timestamps.clear()
+
+
+class DataFrameCache:
+    """Thread-safe TTL cache for raw OHLCV DataFrames fetched from yfinance/fdr."""
+    def __init__(self, ttl: float = 60.0, max_items: int = 200):
+        self._ttl = ttl
+        self._max_items = max_items
+        self._cache: Dict[Tuple[str, str], pd.DataFrame] = {}
+        self._timestamps: Dict[Tuple[str, str], float] = {}
+        self._lock = threading.Lock()
+
+    def get_or_compute(self, symbol: str, start_date: str, fetcher: Callable[[str, str], pd.DataFrame]) -> Optional[pd.DataFrame]:
+        key = (symbol, start_date)
+        now = time.time()
+        with self._lock:
+            if key in self._cache:
+                age = now - self._timestamps.get(key, 0)
+                if age < self._ttl:
+                    return self._cache[key]
+            df = fetcher(symbol, start_date)
+            if df is None or df.empty:
+                return df
+            self._cache[key] = df
+            self._timestamps[key] = now
+            self._evict_if_needed()
+            return df
+
+    def invalidate(self, symbol: str, start_date: str):
+        key = (symbol, start_date)
+        with self._lock:
+            self._cache.pop(key, None)
+            self._timestamps.pop(key, None)
+
+    def _evict_if_needed(self):
+        if len(self._cache) > self._max_items:
+            oldest_key = min(self._timestamps, key=self._timestamps.get)
+            self._cache.pop(oldest_key, None)
+            self._timestamps.pop(oldest_key, None)
+
+    def clear(self):
+        with self._lock:
+            self._cache.clear()
+            self._timestamps.clear()

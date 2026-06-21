@@ -412,7 +412,7 @@ class StockTradingSystem:
         logger.info(f"Order status changed: {order.order_id} - {order.status.value}")
         await self.trade_logger.log_order(order)
     
-    async def _fetch_and_cache_indicators(self, symbol: str) -> dict:
+    def _fetch_and_cache_indicators(self, symbol: str) -> dict:
         """Fetch historical data ONCE and compute all needed indicators via TechnicalCache."""
         return self._tech_cache.get_or_fetch(
             symbol,

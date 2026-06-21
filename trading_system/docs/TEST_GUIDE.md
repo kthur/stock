@@ -1,110 +1,176 @@
-# 🧪 주식 자동매매 시스템 테스트 가이드 (Testing Guide)
+# 🧪 테스트 가이드 (Testing Guide)
 
-본 설명서는 시스템의 비동기 이벤트 루프 테스트 기법, 단위/통합 테스트 구조, 모의 거래(Mock Trading) 테스트 케이스 명세 및 로컬 Windows 환경에서의 실행 가이드를 설명합니다.
+> **Last Updated**: 2026-06-21  
+> **Test Framework**: pytest  
+> **추정 커버리지**: ~35-40%
 
 ---
 
-## 1. 테스트 스위트 구조 (Test Directory Mapping)
-
-테스트 코드는 개발 단계별(Phase 4, Phase 6 등) 및 컴포넌트별로 체계적으로 격리되어 설계되었습니다:
+## 1. 테스트 디렉토리 구조
 
 ```
 trading_system/tests/
-├── phase4/                   # E2E 통합 테스트
-│   └── e2e/
-│       └── test_e2e.py       # 시세 수집부터 주문 집행까지의 전체 파이프라인 E2E 시나리오 테스트
-├── phase6/                   # 모의 및 단위 연동 테스트
-│   └── unit/
-│       └── test_mock_trading.py # SimulatedBroker의 잔고 검증, 슬리피지 연산, 백그라운드 오더 폴링 테스트
-├── test_async_helper.py      # 비동기 유틸리티 함수 검증
-├── test_database.py          # SQLite DB 테이블 생성 및 영속성 트랜잭션 무결성 검증
-├── test_event_bus.py         # Thread-safe 이벤트 버스의 Pub/Sub 비동기 전달 검증
-├── test_indicators.py        # 볼린저 밴드, ATR 등 보조지표 수학적 정합성 테스트
-├── test_macro.py             # 거시경제 피처 및 한도 정책 연동 검증
-├── test_macro_stress.py      # 극단적 한계 상황(결측 데이터, 이상치 등) 입력 대응 스트레스 테스트
-├── test_ml_ensemble.py       # Random Forest + XGBoost 소프트 보팅 가중치 예측 정확도 및 API 로드 테스트
-├── test_orchestrator.py      # 오케스트레이터 CLI 구동 및 백그라운드 스케줄러 검증
-├── test_portfolio_risk.py    # 자산 배분 비중 제한 검증
-├── test_risk_enhancements.py # 변동성 조절 Kelly 및 regime-adaptive trailing stop 검증
-├── test_risk_manager.py      # 손절/익절 조건 및 포트폴리오 서킷 브레이커 검증
-├── test_screener_dash_challenger.py # 대시보드 백테스트 스캐너 API 응답성 테스트
-├── test_system.py            # 시스템 통합 엔진 코어 기능 단위 테스트
-└── test_telegram_bot.py      # 텔레그램 명령어 수신 모킹 테스트
+├── __init__.py
+├── phase3/                                    # PyTorch 의존 테스트 (DLL 이슈 가능)
+│   ├── __init__.py
+│   └── test_phase3_integration.py             # Phase3 통합 테스트
+├── phase4/                                    # 오케스트레이터 E2E 테스트
+│   ├── __init__.py
+│   └── test_phase4_orchestrator.py            # 스케줄러, 상태 관리
+├── phase6/                                    # 5전략 파이프라인 테스트
+│   ├── __init__.py
+│   ├── test_lead_lag.py                       # Lead-Lag 행렬 + 예측
+│   ├── test_pipeline_integration.py           # 파이프라인 통합 테스트
+│   ├── test_surge_classifier.py               # Surge 분류기 학습/예측
+│   └── test_vcp.py                            # VCP 규칙 + ML 패턴
+├── test_adversarial_fundamental.py            # 펀더멘탈 적대적 테스트
+├── test_async_helper.py                       # 비동기 유틸리티
+├── test_database.py                           # SQLite CRUD
+├── test_ensemble_lgb_cat.py                   # LGB+Cat 앙상블
+├── test_event_bus.py                          # EventBus Pub/Sub
+├── test_feature_normalization.py              # 피처 정규화
+├── test_feature_normalization_stress.py       # 피처 정규화 스트레스
+├── test_fundamental_prediction_adversarial.py # 펀더멘탈 예측 적대적
+├── test_indicators.py                         # 기술적 지표
+├── test_macro.py                              # 거시경제 피처
+├── test_macro_stress.py                       # 거시경제 스트레스
+├── test_ml_ensemble.py                        # ML 앙상블 예측
+├── test_orchestrator.py                       # 오케스트레이터
+├── test_portfolio_risk.py                     # 포트폴리오 리스크
+├── test_post_market_scoring.py                # 포스트마켓 스코어링
+├── test_risk_enhancements.py                  # 리스크 고도화
+├── test_risk_manager.py                       # 리스크 매니저
+├── test_screener_dash_challenger.py           # 스크리너 대시보드
+├── test_strategy_updates.py                   # 전략 업데이트
+├── test_system.py                             # 시스템 통합 (24KB)
+├── test_telegram_bot.py                       # 텔레그램 봇
+└── test_tuning_and_retry.py                   # 튜닝 및 재시도
 ```
 
 ---
 
-## 2. Windows 로컬 테스트 실행 가이드
+## 2. 테스트 실행 가이드
 
-로컬 머신(Windows) 환경의 그래픽 드라이버(CUDA) 혹은 인텔 MKL 라이브러리 손상 등의 사유로 `torch` 라이브러리가 로드되지 않는 문제(`WinError 1114`)에 직면할 경우, 다음 명령어를 통해 문제 구역을 무시하고 전체 245개 핵심 로직 테스트를 정상 실행할 수 있습니다.
+### 2.1 전체 테스트 (PyTorch DLL 오류 회피)
 
-### 2.1 전체 핵심 테스트 실행 (PyTorch DLL 오류 회피)
-반드시 가상환경 활성화 상태에서 `python -m pytest` 형태로 실행하여 프로젝트 `src` 경로를 path에 포함하십시오.
 ```powershell
-# 가상환경 활성화
 .venv\Scripts\activate
-
-# phase3 테스트(PyTorch DLL 오류 발생 구역)를 제외한 전체 테스트 수행
-.venv\Scripts\python -m pytest tests/ --ignore=tests/phase3/
+.venv\Scripts\python -m pytest tests/ --ignore=tests/phase3/ -v
 ```
 
-### 2.2 특정 테스트 모듈 단독 실행
-특정 알고리즘이나 기능만 타겟하여 고속 검증할 때 사용합니다:
+### 2.2 특정 모듈 단독 실행
+
 ```powershell
-# 1. 머신러닝 앙상블 기능 테스트
-.venv\Scripts\python -m pytest tests/test_ml_ensemble.py -v
+# 5전략 파이프라인 테스트
+.venv\Scripts\python -m pytest tests/phase6/ -v
 
-# 2. 리스크 매니저 통제 로직 및 신규 변동성 스케일링 테스트
-.venv\Scripts\python -m pytest tests/test_risk_manager.py -v
-.venv\Scripts\python -m pytest tests/test_risk_enhancements.py -v
+# ML 모델 테스트
+.venv\Scripts\python -m pytest tests/test_ml_ensemble.py tests/test_ensemble_lgb_cat.py -v
 
-# 3. 오케스트레이터 및 백그라운드 스케줄러 테스트
-.venv\Scripts\python -m pytest tests/test_orchestrator.py -v
+# 리스크 관리 테스트
+.venv\Scripts\python -m pytest tests/test_risk_manager.py tests/test_risk_enhancements.py tests/test_portfolio_risk.py -v
 
-# 4. 모의 거래 엔진 테스트
-.venv\Scripts\python -m pytest tests/phase6/unit/test_mock_trading.py -v
+# 데이터베이스 테스트
+.venv\Scripts\python -m pytest tests/test_database.py -v
+
+# 피처 정규화 (일반 + 스트레스)
+.venv\Scripts\python -m pytest tests/test_feature_normalization.py tests/test_feature_normalization_stress.py -v
+```
+
+### 2.3 커버리지 리포트 (pytest-cov 필요)
+
+```powershell
+pip install pytest-cov
+.venv\Scripts\python -m pytest tests/ --ignore=tests/phase3/ --cov=src --cov-report=html
 ```
 
 ---
 
-## 3. 비동기 이벤트 루프 및 Mocking 팁
+## 3. 컴포넌트별 커버리지 현황
 
-자동매매 엔진은 대시보드와 비동기 큐(`asyncio`), 스레드(`threading`)가 혼재되어 있으므로 테스트 시 다음 원칙을 준수하여 작성되었습니다.
+| 컴포넌트 | 테스트 파일 | 커버리지 | 평가 |
+|----------|------------|----------|------|
+| 피처 정규화 | `test_feature_normalization*.py` (2개) | ~80% | ✅ 우수 |
+| 펀더멘탈 처리 | `test_adversarial_fundamental.py`, `test_fundamental_prediction_adversarial.py` | ~70% | ✅ 양호 |
+| Surge 분류기 | `phase6/test_surge_classifier.py` | ~65% | ✅ 양호 |
+| VCP 탐지 | `phase6/test_vcp.py` | ~60% | ⚠️ 보통 |
+| Lead-Lag | `phase6/test_lead_lag.py` | ~60% | ⚠️ 보통 |
+| 리스크 관리 | `test_risk_manager.py`, `test_risk_enhancements.py`, `test_portfolio_risk.py` | ~70% | ✅ 양호 |
+| 오케스트레이터 | `test_orchestrator.py`, `phase4/test_phase4_orchestrator.py` | ~55% | ⚠️ 보통 |
+| EventBus | `test_event_bus.py` | ~70% | ✅ 양호 |
+| 데이터베이스 | `test_database.py` | ~40% | ❌ 미흡 |
+| **config.py** | *(없음)* | ~0% | ❌ 부재 |
+| **backtest.py** | *(없음)* | ~0% | ❌ 부재 |
+| **report_generator.py** | *(없음)* | ~0% | ❌ 부재 |
+| **formatting.py** | *(없음)* | ~0% | ❌ 부재 |
+| **동시성 테스트** | *(없음)* | ~0% | ❌ 부재 |
 
-### 3.1 `pytest.mark.anyio` 또는 `pytest-asyncio` 활용
-비동기 코루틴(coroutine)을 직접 테스트해야 하는 경우, 테스트 데코레이터와 `anyio` 백엔드를 지정합니다:
+---
+
+## 4. 테스트 작성 가이드라인
+
+### 4.1 비동기 테스트
+
 ```python
 import pytest
 
 @pytest.mark.anyio
 async def test_async_event_delivery():
     event_bus = EventBus()
-    received_events = []
+    received = []
     
     async def subscriber(data):
-        received_events.append(data)
-        
-    await event_bus.subscribe("test_topic", subscriber)
-    await event_bus.publish("test_topic", {"payload": "hello"})
+        received.append(data)
     
-    assert len(received_events) == 1
-    assert received_events[0]["payload"] == "hello"
+    await event_bus.subscribe("test", subscriber)
+    await event_bus.publish("test", {"payload": "hello"})
+    assert len(received) == 1
 ```
 
-### 3.2 Mock을 이용한 외부 API 차단
-실제 OpenAI, Gemini 또는 DeepSeek API 통신 없이 비즈니스 로직을 검증하도록 `unittest.mock`을 적극 활용합니다.
+### 4.2 외부 API 모킹
+
 ```python
 from unittest.mock import MagicMock, patch
 
-def test_llm_opinion_fallback():
-    # LLMEngine의 API 호출부를 모킹하여 더미 응답 데이터 고정 반환
-    with patch("src.ai.llm_integration.LLMEngine._call_gemini_api") as mock_api:
-        mock_api.return_value = '{"recommendation": "BUY", "sentiment": "긍정적", "confidence": 80, "target_price": 150}'
-        
-        engine = LLMEngine(provider="gemini", api_key="dummy")
-        opinion = engine.query_investment_opinion({"symbol": "AAPL", "price": 130})
-        
-        assert opinion.recommendation == "BUY"
-        assert opinion.confidence == 0.8
+def test_with_mock_api():
+    with patch("src.data_layer.earnings_data.fdr.DataReader") as mock_fdr:
+        mock_fdr.return_value = pd.DataFrame({"Close": [100, 105]})
+        # 테스트 로직
 ```
-위와 같이 외부 입출력을 격리(Isolation)함으로써 로컬 네트워크 상태와 무관하게 100% 재현 가능한 독립 테스트 환경을 유지합니다.
+
+### 4.3 SQLite 테스트 격리
+
+```python
+import tempfile
+import os
+
+def test_database_operations():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        db = StockPriceDB(db_path=db_path)
+        # 테스트 로직 — tmpdir 자동 정리
+```
+
+---
+
+## 5. 주의사항
+
+### 스크래치 테스트 파일
+
+`trading_system/` 루트에 다음 스크래치 테스트 파일들이 있으나, 공식 테스트 스위트에 포함되지 않습니다:
+
+| 파일 | 상태 | 비고 |
+|------|------|------|
+| `test.py`, `test2.py`, `test3.py`, `test4.py` | 스크래치 | 탐색적 테스트 |
+| `test_system.py` | 중복 | `tests/test_system.py`와 별도 버전 |
+| `test_api.py` | 네트워크 의존 | API 연결 확인용 |
+| `test_m1.py` | 스크래치 | 모델 테스트 |
+| `standalone_test.py` | 불필요 | pytest로 대체됨 |
+
+### CI/CD
+
+`.github/workflows/`에 GitHub Actions 워크플로우가 설정되어 있습니다:
+- Python 3.11 기반
+- `pip install -r requirements.txt`
+- `pytest` 실행
+- ⚠️ 커버리지 리포팅, 린팅, 타입 검사 미포함

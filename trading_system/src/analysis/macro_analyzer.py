@@ -51,10 +51,10 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
     df = df.groupby(df.index).mean()
 
     # 2. Forward fill and backward fill missing values
-    df = df.ffill().bfill()
+    df = df.infer_objects(copy=False).ffill().bfill()
 
     # 3. Calculate percentage returns
-    returns = df.pct_change().dropna(how="all")
+    returns = df.pct_change(fill_method=None).dropna(how="all")
 
     # 4. Compute Pearson cross-correlation with lags (0 to lags days)
     tickers = [t for t in MACRO_SYMBOLS if t in returns.columns]
@@ -176,7 +176,7 @@ def fetch_macro_indices_data(period: str = "1y") -> pd.DataFrame:
 
         logger.info("Attempting to fetch global macro data via yfinance...")
         # yf.download handles multiple tickers efficiently
-        df = yf.download(MACRO_SYMBOLS, period=period, group_by="ticker", progress=False, timeout=5)
+        df = yf.download(MACRO_SYMBOLS, period=period, group_by="ticker", progress=False, timeout=5, auto_adjust=True)
 
         for sym in MACRO_SYMBOLS:
             if sym in df.columns.levels[0]:

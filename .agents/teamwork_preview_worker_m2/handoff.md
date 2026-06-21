@@ -1,52 +1,47 @@
-# Handoff Report - Milestone 2 Risk Management & Portfolio Construction Upgrades
+# Handoff Report
 
 ## 1. Observation
-- **Modified files**:
-  - `trading_system/src/risk/risk_manager.py`
-  - `trading_system/trading_system.py`
-  - `trading_system/tests/test_risk_manager.py`
-- **Initial Baseline Execution**:
-  - Command: `.venv\Scripts\pytest tests/test_risk_manager.py` in directory `d:\Finance\code\stock\trading_system`.
-  - Output:
-    ```
-    tests\test_risk_manager.py .................................             [100%]
-    ============================= 33 passed in 23.16s =============================
-    ```
-- **Post-Modification Test Execution**:
-  - Command: `.venv\Scripts\pytest tests/test_risk_manager.py` in directory `d:\Finance\code\stock\trading_system`.
-  - Output:
-    ```
-    tests\test_risk_manager.py ........................................      [100%]
-    ============================= 40 passed in 11.76s =============================
-    ```
-  - Added new test class `TestRiskManagerUpgrades` containing 7 test cases covering the new behaviors.
-- **Other Tests**:
-  - Command: `.venv\Scripts\pytest tests/test_system.py` passed with `55 passed in 11.65s`.
-  - Command: `.venv\Scripts\pytest tests/test_portfolio_risk.py` passed with `3 passed, 1 warning in 16.55s`.
+- **Requirements File**: `trading_system/requirements.txt` did not contain `catboost` or `optuna`.
+- **Source Files**: 
+  - `trading_system/src/ai/prediction_model.py` only contained XGBoost Regressor (`xgb.XGBRegressor`) and XGBoost Classifier (`xgb.XGBClassifier`) training and prediction.
+  - `trading_system/src/ai/vcp_ml_predictor.py` only trained and predicted using XGBoost (`xgb.XGBClassifier`).
+- **Feature Definitions**: `OnDevicePredictionModel.FEATURES` did not include EMA crossover, stochastic oscillators, or volume ratio features.
+- **Model Saving and Loading**:
+  - `OnDevicePredictionModel` used `model.get_booster().save_model()` and booster load.
+  - LightGBM estimators require setting `model.fitted_ = True` to tell sklearn they are already fitted when restored from Booster files.
+  - XGBoost estimators on newer versions require try-except block when setting `model.classes_` to fall back to `model._classes`.
+- **Command Output**:
+  - Pip install successfully added `catboost-1.2.10` and `optuna-4.9.0`.
+  - Pytest command `.venv\Scripts\pytest trading_system/tests/test_ensemble_lgb_cat.py -v` outputs:
+    `======================= 4 passed, 12 warnings in 35.46s =======================`
+  - Full pytest command `.venv\Scripts\pytest trading_system/tests/ -v` outputs:
+    `=========== 358 passed, 2 skipped, 44 warnings in 197.15s (0:03:17) ===========`
 
 ## 2. Logic Chain
-1. To implement Adaptive ATR trailing stops and tighten stops under crisis/drawdown conditions, `check_trailing_stop_signal` was implemented in `risk_manager.py` (line 365) and integrated with the crisis detector's stop multiplier and calculated drawdown ratio.
-2. In order to utilize these new stop checks, `_check_trailing_stop` in `trading_system.py` (line 1896) was refactored to delegate evaluations to `check_trailing_stop_signal`, while preserving the existing watermark initialization behavior.
-3. To scale Kelly Criterion sizing dynamically based on asset annualized volatility, `calculate_position_sizing` was modified to accept an `atr` parameter and calculate annualized asset volatility (`(atr / entry_price) * sqrt(252)`), scaling `kelly_pct` before calculating the position size.
-4. To implement Fixed Risk sizing scaling under crisis conditions, the `calculate_position_sizing` fallback path was updated to scale `max_loss_per_trade_pct` by crisis risk multipliers (`NONE: 1.0`, `WATCH: 0.75`, `ACTIVE: 0.50`, `SEVERE: 0.25`).
-5. To support this ATR propagation, `_compute_position_size` signature in `trading_system.py` (line 546) and its caller at line 524 were modified to accept and pass the `atr` parameter down to the risk manager.
-6. The additions were verified by adding unit tests in `TestRiskManagerUpgrades` verifying each path (emergency exits, invalid ATR, basic stops, crisis/drawdown stop tightening, Kelly scaling, and Fixed Risk scaling). All 40 unit tests pass, confirming the validity of the implementation.
+1. We modified `trading_system/requirements.txt` to add `catboost` and `optuna`, then ran `.venv\Scripts\pip install -r trading_system/requirements.txt` to ensure they are available in the python environment.
+2. In `OnDevicePredictionModel`, we added `lightgbm` and `catboost` Regressor/Classifier initialization to `__init__`, and defined appropriate hyperparameters with early stopping support.
+3. In `train` and `train_surge` methods of `OnDevicePredictionModel`, we trained LightGBM and CatBoost models alongside XGBoost. We calculated validation metrics (MSE/MAE for regression, AUC/accuracy for classification) and saved them to `models/validation_metrics.json`.
+4. We extended `save_models`/`load_models` and `save_surge_models`/`load_surge_models` in `OnDevicePredictionModel` and `VCPSurgePredictor` to save LightGBM models via `model.booster_.save_model()` and CatBoost models via `model.save_model()`, loading them back using their respective loader APIs and setting sklearn-specific fit state parameters (`fitted_ = True` for LightGBM, fallback try-except classes setter for XGBoost).
+5. We blended prediction values from all three models using a weighted average (40% XGBoost, 30% LightGBM, 30% CatBoost) with dynamic fallback weights if a subset of models is loaded.
+6. We implemented four new features (`ema_crossover`, `stoch_k`, `stoch_d`, and `volume_ratio`) in `_create_features` and appended them to `OnDevicePredictionModel.FEATURES`. Since `VCPSurgePredictor` builds on `OnDevicePredictionModel.ALL_FEATURES`, these features are automatically calculated and utilized across all regression, surge, and VCP ML predictions.
+7. We created unit tests in `trading_system/tests/test_ensemble_lgb_cat.py` containing four test cases covering feature engineering validity, training/saving/loading/prediction pipelines, VCP ML predictor ensemble pipeline, and fallback logic correctness. All tests pass.
 
 ## 3. Caveats
-- No caveats. The implementation relies entirely on existing parameters, and the new methods integrate cleanly with VIX indicators, crisis levels, and drawdown checks.
+- GPU training was not configured for LightGBM and CatBoost, defaulting to CPU execution, which is appropriate for the scale of training used in the tests.
+- When loading booster files into sklearn estimators, we set internal attributes like `fitted_`, `_n_features`, and `_n_features_in` to satisfy sklearn checks. If future library versions change these internal sklearn attributes, loading could require minor adjustment.
 
 ## 4. Conclusion
-The risk management and portfolio construction upgrades (Milestone 2) are fully implemented and verified. Watermark trailing stops correctly leverage adaptive ATR settings, and position sizing incorporates volatility scaling for Kelly sizing and crisis-scaling for fixed-risk sizing.
+We successfully integrated LightGBM and CatBoost models into the integration and VCP prediction pipelines, implemented a robust ensemble blending strategy with dynamic fallback weights, and engineered new technical indicators. The implementation was validated by creating a comprehensive unit test suite, and verified that it has zero regressions against the existing codebase.
 
 ## 5. Verification Method
-- **Test Commands**:
-  - Run the test suite:
-    ```powershell
-    .venv\Scripts\pytest tests/test_risk_manager.py
-    .venv\Scripts\pytest tests/test_system.py
-    .venv\Scripts\pytest tests/test_portfolio_risk.py
-    ```
-- **Files to Inspect**:
-  - `trading_system/src/risk/risk_manager.py` (methods `check_trailing_stop_signal` and `calculate_position_sizing`)
-  - `trading_system/trading_system.py` (methods `_compute_position_size` and `_check_trailing_stop`)
-  - `trading_system/tests/test_risk_manager.py` (class `TestRiskManagerUpgrades`)
+To verify the changes:
+1. Run the new ensemble unit tests:
+   ```bash
+   .venv\Scripts\pytest trading_system/tests/test_ensemble_lgb_cat.py -v
+   ```
+   All 4 tests (`test_feature_engineering`, `test_training_saving_loading_prediction`, `test_vcp_ml_training_prediction`, `test_ensemble_fallback_logic`) must PASS.
+2. Run the entire test suite to verify no regressions:
+   ```bash
+   .venv\Scripts\pytest trading_system/tests/ -v
+   ```
+   All 358 tests must PASS.

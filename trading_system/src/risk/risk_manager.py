@@ -49,6 +49,7 @@ class CrisisDetector:
         self._recovery_mode = False
         self._recovery_start_day: int | None = None
         self._days_in_crisis = 0
+        self._recovery_days = 0
 
     def evaluate(
         self,
@@ -98,8 +99,16 @@ class CrisisDetector:
             self._days_in_crisis += 1
             self._recovery_mode = False
             self._recovery_start_day = None
-        elif self._days_in_crisis > 0:
-            self._check_recovery(vix, dd)
+            self._recovery_days = 0
+        else:
+            if self._recovery_mode:
+                self._recovery_days += 1
+                if self._recovery_days >= 20:
+                    self._recovery_mode = False
+                    self._recovery_days = 0
+                    self.logger.info("Recovery complete: portfolio exposure fully restored")
+            if self._days_in_crisis > 0:
+                self._check_recovery(vix, dd)
 
         if self.crisis_level != previous:
             self.logger.warning(
@@ -182,6 +191,7 @@ class CrisisDetector:
             days_since = self._days_in_crisis - self._recovery_start_day
             if days_since >= 5 and dd < 0.05 and vix < 25:
                 self._recovery_mode = True
+                self._recovery_days = 1
                 self._days_in_crisis = 0
                 self._recovery_start_day = None
                 self.logger.info("Recovery mode activated: crisis passed, gradually increasing exposure")
@@ -207,7 +217,7 @@ class CrisisDetector:
         }
         base = targets.get(self.crisis_level, 0.10)
         if self._recovery_mode:
-            progress = min(1.0, (self._days_in_crisis or 1) / 20.0)
+            progress = min(1.0, (self._recovery_days or 1) / 20.0)
             return 0.10 + (base - 0.10) * (1.0 - progress)
         return base
 
@@ -220,7 +230,7 @@ class CrisisDetector:
         }
         base = multipliers.get(self.crisis_level, 1.0)
         if self._recovery_mode:
-            progress = min(1.0, (self._days_in_crisis or 1) / 20.0)
+            progress = min(1.0, (self._recovery_days or 1) / 20.0)
             return 0.15 + (1.0 - 0.15) * progress
         return base
 
@@ -523,7 +533,7 @@ class RiskManager:
         if raw_kelly <= 0:
             return 0.0
         confidence_factor = min(1.0, n_trades / 50.0)
-        adjusted = raw_kelly * confidence_factor * 0.25  # Quarter Kelly 시작
+        adjusted = raw_kelly * confidence_factor * 0.5  # Half Kelly 시작
         if consecutive_losses >= 3:
             adjusted *= 0.5
         if consecutive_losses >= 5:
@@ -532,6 +542,9 @@ class RiskManager:
             adjusted *= 0.25  # 쿨다운
         if consecutive_losses >= 10:
             adjusted = 0.0  # 거래 중단
+        
+        if consecutive_losses >= 10 or adjusted <= 0.0:
+            return 0.0
         return max(0.01, min(adjusted, self.max_position_size_pct))
 
     def get_composite_volatility_scalar(self, vix: float, atr_ratio: float = 0.0, bb_width: float = 0.0) -> float:

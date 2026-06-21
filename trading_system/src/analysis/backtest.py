@@ -91,13 +91,13 @@ class BacktestEngine:
     def _cost_to_buy(self, price: float, volume: int = 0, avg_volume: float = 0.0) -> float:
         impact = 0.0
         if avg_volume > 0 and volume > 0:
-            impact = self.market_impact_pct * (volume / max(avg_volume, 1.0))
+            impact = self.market_impact_pct * math.sqrt(volume / max(avg_volume, 1.0))
         return price * (1.0 + self.fee_pct + self.slippage_pct + impact)
 
     def _cost_to_sell(self, price: float, volume: int = 0, avg_volume: float = 0.0) -> float:
         impact = 0.0
         if avg_volume > 0 and volume > 0:
-            impact = self.market_impact_pct * (volume / max(avg_volume, 1.0))
+            impact = self.market_impact_pct * math.sqrt(volume / max(avg_volume, 1.0))
         return price * (1.0 - self.fee_pct - self.slippage_pct - impact)
 
     def _cost_entry(self, price: float, is_buy: bool, volume: int = 0, avg_volume: float = 0.0) -> float:
@@ -901,7 +901,11 @@ class BacktestEngine:
         import json
         import os
 
-        cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+        cwd = os.getcwd()
+        if os.path.basename(cwd) == "stock" or os.path.exists(os.path.join(cwd, "trading_system")):
+            cache_dir = os.path.join(cwd, "data")
+        else:
+            cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
         os.makedirs(cache_dir, exist_ok=True)
         cache_file = os.path.join(cache_dir, "optimized_params.json")
 
@@ -935,9 +939,9 @@ class BacktestEngine:
         # 간단한 그리드 서치
         for param_combo in self._generate_param_combos(param_ranges):
 
-            def strategy(bars):
+            def strategy(bars, pc=param_combo):
                 # 파라미터 기반 전략 실행
-                return strategy_func_unbound(bars, param_combo)
+                return strategy_func_unbound(bars, pc)
 
             result = self.run_backtest(symbol, price_bars, strategy)
 
@@ -1512,8 +1516,8 @@ class BacktestEngine:
         for combo in product(*values):
             params = dict(zip(keys, combo))
             try:
-                def _wrap(pb):
-                    return strategy_func(pb, params)
+                def _wrap(pb, pc=params):
+                    return strategy_func(pb, pc)
                 result = self.run_backtest("PARAM_OPT", bars, _wrap)
                 score = getattr(result, metric, 0.0) or 0.0
                 if score > best_score:

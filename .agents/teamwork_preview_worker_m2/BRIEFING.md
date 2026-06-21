@@ -1,65 +1,53 @@
-# BRIEFING — 2026-06-13T04:52:36Z
+# BRIEFING — 2026-06-20T14:40:00+09:00
 
 ## Mission
-Implement risk management and portfolio construction upgrades (Milestone 2) for stop loss tightening, Adaptive ATR stop calculation, annualized volatility-based Kelly Criterion scaling, and fixed risk sizing scaling based on crisis levels.
+Integrate LightGBM and CatBoost models, add new technical/macro features, and verify their performance with unit tests.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_worker_m2
+- Archetype: teamwork_preview_worker
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\
-- Original parent: d23ffd42-28b4-4f15-a6ee-33b72c3197cf
-- Milestone: Daily Post-Market Stock Scoring Backend
+- Original parent: 1209b847-91a1-4e6e-8c60-4b6cb6d403f0
+- Milestone: LightGBM/CatBoost Integration and Feature Engineering
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: No external internet access.
-- Do not cheat: All implementations must be genuine, no hardcoding of expected outputs/results.
-- Do not use run_command to execute HTTP clients targeting external URLs.
+- CODE_ONLY network mode: no external HTTP/curl/wget.
+- XGBoost 2.1.4 constraints (`_estimator_type` bug, etc.).
+- stock_prices.db has cached prices, offline mode cached-only.
+- Models saved in models/ using appropriate save/load.
+- No "while I'm here" refactoring outside task scope.
 
 ## Current Parent
-- Conversation ID: 7635347b-53a9-4ba1-9cb3-cafe65efe2dc
-- Updated: 2026-06-13T04:52:36Z
+- Conversation ID: 89511627-7d36-45e8-b6fd-2afcd63b7ff7
+- Updated: 2026-06-20T14:40:00+09:00
 
 ## Task Summary
-- **What to build**:
-  1. In `trading_system/src/risk/risk_manager.py`:
-     - Implement `check_trailing_stop_signal` using Adaptive ATR, crisis stop multiplier, and portfolio drawdown-based stop tightening.
-     - Update `calculate_position_sizing` to accept `atr`, scale Kelly Criterion percent by annualized volatility, and scale Fixed Risk unit percent by active crisis levels.
-  2. In `trading_system/trading_system.py`:
-     - Update `_compute_position_size` signature and calls to pass `atr`.
-     - Refactor `_check_trailing_stop` to delegate evaluation to `check_trailing_stop_signal`.
-- **Success criteria**:
-  - `pytest tests/test_risk_manager.py` runs and passes.
-  - Implementations are genuine (no hardcoding).
-- **Interface contracts**:
-  - `check_trailing_stop_signal(self, symbol: str, current_price: float, highest_price: float, atr: float, regime: str = "weak_bull", adx: float = 20.0) -> bool`
-  - `calculate_position_sizing(self, symbol: str, entry_price: float, stop_loss_price: float, win_rate: float = 0.0, win_loss_ratio: float = 0.0, vix: float = 20.0, atr: float = 0.0) -> int`
-- **Code layout**:
-  - `trading_system/src/risk/risk_manager.py`
-  - `trading_system/trading_system.py`
+- **What to build**: LightGBM/CatBoost integration for regression and surge predictions in OnDevicePredictionModel and VCPSurgePredictor, with simple/weighted average ensemble. New technical/macro features.
+- **Success criteria**: All models train/predict/save/load successfully. Ensemble predictions perform fallback. Tests pass.
+- **Interface contracts**: prediction_model.py, vcp_ml_predictor.py
+- **Code layout**: src/ai/
 
 ## Key Decisions Made
-- Integrated crisis detector level and portfolio drawdown indicators directly into trailing stop logic for real-time risk mitigation.
-- Added comprehensive unit tests targeting all the newly introduced branches in `calculate_position_sizing` and `check_trailing_stop_signal`.
+- Use simple/weighted average blending (0.4 * XGBoost + 0.3 * LightGBM + 0.3 * CatBoost) with fallback when model files are not loaded or missing.
+- Save LightGBM using `save_model` and CatBoost using `save_model` functions.
+- Engineered 4 new technical features: `ema_crossover`, `stoch_k`, `stoch_d`, and `volume_ratio`.
+
+## Artifact Index
+- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md — Handoff report
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/risk/risk_manager.py`: Added `check_trailing_stop_signal` method, updated `calculate_position_sizing` method to support annualized asset volatility scaling on Kelly sizing and crisis level scaling on Fixed Risk unit pct.
-  - `trading_system/trading_system.py`: Updated `_compute_position_size` signature and calls, refactored `_check_trailing_stop` to delegate stop loss evaluations to the risk manager.
-  - `trading_system/tests/test_risk_manager.py`: Added 7 new unit tests in `TestRiskManagerUpgrades` class.
-- **Build status**: Pass (all tests pass)
+  - `trading_system/requirements.txt` — Added `catboost` and `optuna` dependencies.
+  - `trading_system/src/ai/prediction_model.py` — Integrated LGBM/CatBoost regression and classification models, validation metrics, ensemble blending, and feature engineering.
+  - `trading_system/src/ai/vcp_ml_predictor.py` — Integrated VCP ML LGBM/CatBoost classifiers, metrics, and blending.
+  - `trading_system/tests/test_ensemble_lgb_cat.py` — Created unit tests verifying features, models, VCP ML, and fallbacks.
+- **Build status**: Pass (all 358 tests passed)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (40 tests passed in `test_risk_manager.py`, 55 in `test_system.py`, 3 in `test_portfolio_risk.py`)
-- **Lint status**: Clean
-- **Tests added/modified**: Added `TestRiskManagerUpgrades` with 7 test cases.
+- **Build/test result**: Pass (358 passed in pytest)
+- **Lint status**: 0 violations (no issues reported)
+- **Tests added/modified**: `trading_system/tests/test_ensemble_lgb_cat.py` added 4 new tests.
 
 ## Loaded Skills
 - None
-
-## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\ORIGINAL_REQUEST.md — The current user request
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\BRIEFING.md — This briefing file
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\progress.md — Progress tracking heartbeat
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\changes.md — Change log
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md — Handoff report

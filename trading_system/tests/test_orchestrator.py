@@ -73,8 +73,9 @@ class TestOrchestrator(unittest.TestCase):
 
     # 1. Database Logging Tests
     def test_database_logging(self):
+        import asyncio
         # Start logging
-        run_id = orchestrator.log_run_start(self.db_path, "test_stage")
+        run_id = asyncio.run(orchestrator.log_run_start(self.db_path, "test_stage"))
         self.assertIsNotNone(run_id)
         
         # Verify run is logged as running
@@ -89,7 +90,7 @@ class TestOrchestrator(unittest.TestCase):
             self.assertIsNone(row['error_message'])
             
         # End logging
-        orchestrator.log_run_end(self.db_path, run_id, "success")
+        asyncio.run(orchestrator.log_run_end(self.db_path, run_id, "success"))
         
         # Verify success log
         with sqlite3.connect(self.db_path) as conn:
@@ -101,8 +102,8 @@ class TestOrchestrator(unittest.TestCase):
             self.assertIsNotNone(row['end_time'])
             
         # Log failure
-        run_id_fail = orchestrator.log_run_start(self.db_path, "fail_stage")
-        orchestrator.log_run_end(self.db_path, run_id_fail, "failure", error_message="Something went wrong")
+        run_id_fail = asyncio.run(orchestrator.log_run_start(self.db_path, "fail_stage"))
+        asyncio.run(orchestrator.log_run_end(self.db_path, run_id_fail, "failure", error_message="Something went wrong"))
         
         # Verify failure log
         with sqlite3.connect(self.db_path) as conn:

@@ -253,16 +253,35 @@ class TelegramBotEngine:
 
     def _cmd_news(self, user_id: int, args: List[str]) -> str:
         """뉴스 및 시장 정보"""
-        response = "📰 *시장 정보*\n\n"
-        response += "🔴 미국 시장\n"
-        response += "  • S&P 500: ↑ 0.5%\n"
-        response += "  • NASDAQ: ↑ 0.8%\n"
-        response += "  • Dow Jones: ↑ 0.3%\n\n"
-        response += "🇰🇷 한국 시장\n"
-        response += "  • KOSPI: ↑ 0.7%\n"
-        response += "  • KOSDAQ: ↑ 1.2%\n"
-
-        return response
+        if not self.trading_system or not hasattr(self.trading_system, 'global_market') or not self.trading_system.global_market:
+            return "📰 *시장 정보*\n\n❌ 글로벌 마켓 모듈을 사용할 수 없습니다."
+        try:
+            summary = self.trading_system.global_market.get_summary()
+            response = "📰 *시장 정보 (실시간 지표)*\n\n"
+            
+            indices = summary.get("indices", {})
+            for sym, info in indices.items():
+                name = info.get("name", sym)
+                price = info.get("price")
+                chg = info.get("change_pct", 0.0)
+                if price is not None:
+                    arrow = "↑" if chg >= 0 else "↓"
+                    response += f"  • {name}: {arrow} {price:,.2f} ({chg:+.2f}%)\n"
+            
+            fx = summary.get("fx_rates", {})
+            if fx:
+                response += "\n💱 *주요 환율*\n"
+                for pair, info in fx.items():
+                    rate = info.get("rate")
+                    chg = info.get("change_pct", 0.0)
+                    if rate is not None:
+                        response += f"  • {info.get('name', pair)}: {rate:.2f} ({chg:+.2f}%)\n"
+                        
+            response += f"\n⏱ 업데이트: {summary.get('updated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}"
+            return response
+        except Exception as e:
+            self.logger.error(f"News command failed: {e}")
+            return "❌ 시장 정보를 가져오는 데 실패했습니다."
 
     def _cmd_analyze(self, user_id: int, args: List[str]) -> str:
         """주식 분석 요청"""
@@ -274,29 +293,57 @@ class TelegramBotEngine:
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
 
-        response = f"🔍 *{symbol} 분석*\n\n"
-        response += "현재가: $150.00\n"
-        response += "변동률: ↑ 1.5%\n"
-        response += "거래량: 1.2M\n\n"
-        response += "💡 AI 분석:\n"
-        response += "  추천: 🟢 매수\n"
-        response += "  신뢰도: 85%\n"
-        response += "  목표가: $165\n\n"
-        response += "👥 투자자 의견:\n"
-        response += "  • 워렌 버펫: 보유\n"
-        response += "  • 성장투자: 매수\n"
-        response += "  • 모멘텀: 보유\n"
+        try:
+            quote = self.trading_system.get_stock_quote_from_broker(symbol)
+            price = quote.get("price") or self.trading_system.market_data_cache.get(symbol, {}).get("price") or 0.0
+            volume = quote.get("volume") or self.trading_system.market_data_cache.get(symbol, {}).get("volume") or 0
+            chg = quote.get("change_pct") or 0.0
 
-        return response
+            stock_data = {
+                'symbol': symbol,
+                'price': price,
+                'volume': volume,
+                'change_pct': chg
+            }
+
+            ai_opinion = self.trading_system.get_ai_investment_opinion(stock_data)
+            investor_opinion = self.trading_system.get_famous_investor_signals(stock_data)
+            consensus = self.trading_system.get_investor_consensus(stock_data)
+
+            response = f"🔍 *{symbol} 분석 결과*\n\n"
+            response += f"현재가: ${price:,.2f}\n"
+            response += f"변동률: {chg:+.2f}%\n"
+            response += f"거래량: {volume:,}\n\n"
+            
+            response += "💡 *AI 분석 의견:*\n"
+            response += f"  추천: {ai_opinion.get('recommendation', 'UNKNOWN')}\n"
+            response += f"  신뢰도: {ai_opinion.get('confidence', 0.0):.1%}\n"
+            response += f"  목표가: ${ai_opinion.get('target_price', 0.0):,.2f}\n"
+            response += f"  이유: {ai_opinion.get('reasoning', '')}\n\n"
+            
+            response += "👥 *유명인 투자자 의견:*\n"
+            for inv, op in investor_opinion.items():
+                sig = op.get('signal', 'HOLD') if isinstance(op, dict) else str(op)
+                response += f"  • {inv}: {sig}\n"
+                
+            response += f"\n🏆 *종합 컨센서스:* {consensus.get('recommendation', 'HOLD')}\n"
+            return response
+        except Exception as e:
+            self.logger.error(f"Analyze command failed for {symbol}: {e}")
+            return f"❌ {symbol} 분석 중 오류 발생: {e!s}"
 
     def _cmd_buy(self, user_id: int, args: List[str]) -> str:
         """매수 주문"""
+        if not self.trading_system:
+            return "❌ 시스템 연동 안됨"
         return self._execute_trade_order(
             args, OrderType.BUY, "매수", "buy", self.trading_system.portfolio.add_position, True
         )
 
     def _cmd_sell(self, user_id: int, args: List[str]) -> str:
         """매도 주문"""
+        if not self.trading_system:
+            return "❌ 시스템 연동 안됨"
         return self._execute_trade_order(
             args, OrderType.SELL, "매도", "sell", self.trading_system.portfolio.reduce_position, False
         )

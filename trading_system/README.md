@@ -1,26 +1,25 @@
-# 📈 주식 자동매매 및 백테스트 통합 시스템 - 실행 가이드
+# 📈 주식 자동매매 및 예측 시스템 — 실행 가이드
 
-본 가이드는 주식 자동매매 시스템의 코어 소스코드(`trading_system/`) 가동법, 가상환경 준비, 실행 명령어, API 연동 구성 및 주요 트러블슈팅 방법을 설명합니다.
+본 가이드는 통합 예측 파이프라인(`run_pipeline.py`) 및 보조 도구의 설치, 설정, 실행, 트러블슈팅을 안내합니다.
 
 ---
 
-## 📂 상세 설계 및 코어 전략 문서 링크
+## 📚 상세 설계 문서
 
-시스템의 알고리즘 세부 설계, 아키텍처 및 테스트 구성은 `docs/` 하위의 개별 설명서를 참조하십시오:
-
-1. **[시스템 아키텍처 설계서 (docs/SYSTEM_ARCHITECTURE.md)](file:///d:/Finance/code/stock/trading_system/docs/SYSTEM_ARCHITECTURE.md)**
-   - 이벤트 기반 아키텍처, 의존성 주입, DB 영속성 레이어, 텔레그램 연동 및 주문 관리 시스템(OMS).
-2. **[전략 및 핵심 알고리즘 설명서 (docs/ALGORITHMS_AND_STRATEGY.md)](file:///d:/Finance/code/stock/trading_system/docs/ALGORITHMS_AND_STRATEGY.md)**
-   - RF + XGBoost 머신러닝 앙상블, HMM 레짐 및 대가들의 투자 스타일 포트폴리오 로테이션, Optuna 파라미터 최적화, 리스크 한도 관리.
-3. **[시스템 테스트 가이드 (docs/TEST_GUIDE.md)](file:///d:/Finance/code/stock/trading_system/docs/TEST_GUIDE.md)**
-   - pytest 테스트 구조, 비동기 검증 팁, Windows 로컬 우회 테스트 가이드.
+| 문서 | 설명 |
+|------|------|
+| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | 5대 전략(XGBoost 회귀, Surge, Lead-Lag, VCP 규칙, VCP ML) 알고리즘 상세 |
+| [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처, 데이터 흐름, DB 스키마 |
+| [CONFIGURATION_REFERENCE.md](docs/CONFIGURATION_REFERENCE.md) | `.env` 환경 변수 완전 참조 |
+| [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | 해결된 이슈 목록 및 미해결 항목 |
+| [IMPROVEMENT_PLAN.md](docs/IMPROVEMENT_PLAN.md) | 중장기 시스템 아키텍처 및 성능 개선 계획 |
+| [TEST_GUIDE.md](docs/TEST_GUIDE.md) | 테스트 인프라 및 실행 가이드 |
 
 ---
 
 ## 🚀 빠른 시작 (Quick Start)
 
-### 1. 가상환경 활성화 및 의존성 패키지 설치
-Windows 환경에서 명령 프롬프트(CMD) 또는 PowerShell을 열고 아래 명령어를 순서대로 실행합니다:
+### 1. 가상환경 활성화 및 의존성 설치
 
 ```powershell
 # 가상환경 생성 (최초 1회)
@@ -29,124 +28,166 @@ python -m venv .venv
 # 가상환경 활성화
 .venv\Scripts\activate
 
-# 의존성 라이브러리 설치 및 업그레이드
+# 의존성 라이브러리 설치
 pip install -r requirements.txt
 ```
 
 ### 2. 환경 설정 파일(`.env`) 생성
-템플릿 파일인 `.env.example`을 복사하여 `.env` 파일을 생성하고 필요한 API 키들을 입력합니다:
 
 ```powershell
 copy .env.example .env
 ```
 
-`.env` 파일에 각 제공자(Gemini, DeepSeek, OpenAI)의 API 키를 입력할 수 있습니다. (설정하지 않을 시 AI 분석 기능은 시뮬레이션/모의 모드로 가동됩니다.)
+`.env` 파일을 열어 필요한 설정값을 입력합니다. 전체 변수 목록은 [CONFIGURATION_REFERENCE.md](docs/CONFIGURATION_REFERENCE.md)를 참조하세요.
 
+핵심 설정 예시:
 ```ini
-# 사용할 LLM 제공자 선택 (openai / gemini / deepseek)
-LLM_PROVIDER=gemini
+# 학습 종목 수 (all = 전량 학습, 숫자 = 샘플 수)
+TRAIN_SAMPLE_SP500=all
+TRAIN_SAMPLE_KRX=all
 
-# Google Gemini API 설정 (기본 권장)
-GEMINI_API_KEY=AIzaSy-YourActualGeminiAPIKeyHere
-GEMINI_MODEL=gemini-1.5-flash
+# 오프라인 모드 (네트워크 없이 캐시만 사용)
+STOCK_PRICE_FRESHNESS_DAYS=none
 
-# DeepSeek API 설정 (OpenAI 호환 엔드포인트 지원)
-DEEPSEEK_API_KEY=sk-YourDeepSeekAPIKey
-DEEPSEEK_MODEL=deepseek-chat
+# 기존 모델 재사용 (학습 건너뛰기)
+SKIP_TRAINING=False
 
-# OpenAI API 설정
-OPENAI_API_KEY=sk-YourOpenAIAPIKey
-OPENAI_MODEL=gpt-4o-mini
-
-# 텔레그램 봇 토큰 (실시간 알림 및 수동 제어용)
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGh...
+# 학습 데이터 시작일
+TRAIN_START_DATE=2006-01-01
 ```
 
 ---
 
-## 💻 실행 방법 및 스크립트 안내
+## 💻 실행 방법
 
-### 1. 실시간 대시보드 및 백테스트 스캐너 가동
-Plotly Dash 웹 데몬 및 실시간 포트폴리오 모니터링 화면을 가동합니다.
-```powershell
-python run_dashboard.py
-```
-- 실행 후 브라우저에서 `http://localhost:5000`으로 접속합니다.
-- 대시보드에서는 실시간 자산 및 누적 수익률 추이, 텔레그램 상태를 확인하고 **백테스트 스캐너 탭**에서 여러 대가들의 투자 모방 전략에 대한 기간별 전수 스캔 및 벤치마크 대비 누적 수익 곡선(Equity Curve) 비교 차트를 조회할 수 있습니다.
+### 1. 통합 예측 파이프라인 (핵심)
 
-### 2. 양방향 텔레그램 제어 봇 실행
-텔레그램 메신저를 통해 실시간 알림을 받고 직접 명령어를 전송할 수 있는 봇을 실행합니다.
-```powershell
-python telegram_bot_runner.py
-```
-- 주요 명령어: `/status` (시스템 상태), `/portfolio` (자산 현황 및 종목별 비중), `/buy <symbol> <qty>` (수동 매수), `/sell <symbol> <qty>` (수동 매도)
+5대 전략 모델을 학습하고 3,379개 종목의 예측 결과를 생성합니다:
 
-### 3. 파라미터 최적화 스케줄러 실행
-Optuna를 가동하여 백테스트 성과 지표(Log Loss, MDD 등)에 맞춰 최적의 매매 및 리스크 제어 변수를 동적으로 탐색하고 설정에 저장합니다.
 ```powershell
-python update_optimize.py
+.venv\Scripts\python run_pipeline.py
 ```
 
-### 4. 전체 시스템 통합 가상 시뮬레이션 테스트
-실제 API 키나 외부 리소스 없이 전체 매매 시뮬레이션 파이프라인(데이터 수집 ➔ 머신러닝/지표 예측 ➔ 주문 OMS 처리 ➔ 포트폴리오 갱신)을 검증하는 독립 실행 파일입니다.
+**실행 흐름** (12단계):
+
+| 단계 | 설명 | 소요 시간 |
+|------|------|-----------|
+| 1 | 설정 로드 (`TradingConfig`) | < 1초 |
+| 2 | 글로벌 지표 수집 (VIX, TNX, USDKRW 등) | ~10초 |
+| 3 | 지표 DB 저장 | < 1초 |
+| 4 | 종목 유니버스 로드 (3,379 종목) | ~5초 |
+| 5 | 글로벌 지표 히스토리 수집 | ~30초 |
+| 6 | 학습 데이터 준비 (병렬 + 펀더멘탈) | ~5-15분 |
+| 7a | 회귀 모델 학습 (시장별 XGB+LGB+Cat) | ~10-30분 |
+| 7b | Surge 분류기 학습 | ~5-15분 |
+| 7c | Lead-Lag 상관 행렬 계산 | ~2분 |
+| 7d | VCP ML 분류기 학습 | ~5-10분 |
+| 8-9 | 추론 데이터 수집 (전 종목) | ~10-30분 |
+| 10-12 | 예측 실행 + 결과 저장 | ~5-10분 |
+
+> **총 소요 시간**: 학습 포함 약 40-90분, `SKIP_TRAINING=True` 시 약 15-40분
+
+### 2. 출력 파일
+
+파이프라인 실행 후 `trading_system/` 하위에 5개 결과 파일이 생성됩니다:
+
+| 파일 | 전략 | 내용 |
+|------|------|------|
+| `pipeline_result.txt` | XGBoost 회귀 | 종목별 horizon별 예상수익률 TOP 종목 |
+| `surge_predictions.txt` | Surge 분류기 | Horizon별 20%↑ 급등 확률 TOP20 |
+| `lead_lag_predictions.txt` | Lead-Lag | Leader 기반 follower 점수 |
+| `vcp_patterns.txt` | VCP 규칙 | 변동성 수축 패턴 발견 종목 |
+| `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 급등 확률 TOP10 |
+
+### 3. 오케스트레이터 데몬 (자동 스케줄러)
+
+매일 정해진 시각에 파이프라인을 자동 실행하는 백그라운드 데몬입니다:
+
 ```powershell
-python test_system.py
+# 데몬 시작
+.venv\Scripts\python run_orchestrator.py start
+
+# 데몬 정지
+.venv\Scripts\python run_orchestrator.py stop
+
+# 상태 조회
+.venv\Scripts\python run_orchestrator.py status
+
+# 특정 스테이지 즉시 실행
+.venv\Scripts\python run_orchestrator.py run-now <stage>
 ```
 
-### 5. 파이프라인 자동화 오케스트레이터 데몬 (CLI & Scheduler)
-매일 정기적으로 작동해야 하는 파이프라인(데이터 수집, 포스트마켓 스코어링, 모델 재학습 등)을 백그라운드 데몬으로 상시 가동하고 제어합니다.
+지원 스테이지: `indicators`, `universe`, `train`, `predict`, `score`, `ingest`, `weekly_train_predict`, `all`
 
-- **데몬 시작 (Start)**:
-  ```powershell
-  python run_orchestrator.py start
-  ```
-  오케스트레이터 데몬(`orchestrator.py`)이 Windows 백그라운드 프로세스로 분리 실행되어 정해진 스케줄러 시각마다 관련 파이프라인을 자동 트리거합니다. (상태 로깅은 `orchestrator.log` 파일에 저장됩니다.)
+### 4. 텔레그램 봇
 
-- **데몬 정지 (Stop)**:
-  ```powershell
-  python run_orchestrator.py stop
-  ```
-  실행 중인 오케스트레이터 데몬에 종료 플래그(`stop.flag`) 또는 Windows 신호(`CTRL_BREAK_EVENT`)를 전송하여 수행 중인 배치 처리를 보호하고 Graceful하게 정지시킵니다.
+```powershell
+.venv\Scripts\python telegram_bot_runner.py
+```
 
-- **데몬 상태 조회 (Status)**:
-  ```powershell
-  python run_orchestrator.py status
-  ```
-  현재 데몬의 작동 상태(RUNNING / STOPPED) 및 프로세스 ID(PID), 그리고 SQLite 데이터베이스 `pipeline_runs` 테이블을 조회하여 각 단계별 가장 최근에 가동 완료된 이력 정보를 출력합니다.
+주요 명령어: `/status`, `/portfolio`, `/buy <symbol> <qty>`, `/sell <symbol> <qty>`
 
-- **개별 파이프라인 즉시 강제 트리거 (Run-Now)**:
-  ```powershell
-  python run_orchestrator.py run-now <stage>
-  ```
-  특정 파이프라인 배치를 대기 시각 이전에 수동으로 즉시 구동합니다.
-  - 지원 스테이지: `indicators` (시장 지표 수집), `universe` (유니버스 업데이트), `train` (ML 모델 재학습), `predict` (종가 예측), `score` (포스트마켓 대가 스타일 스코어링), `ingest` (지표 수집+유니버스), `weekly_train_predict` (재학습+예측), `all` (전체 가동)
+### 5. 대시보드
+
+```powershell
+.venv\Scripts\python run_dashboard.py
+```
+
+브라우저에서 `http://localhost:5000` 접속
 
 ---
 
+## 📁 데이터베이스 파일
 
-## 🛠️ 트러블슈팅 (Troubleshooting)
+| 파일 | 크기 (약) | 설명 |
+|------|-----------|------|
+| `stock_prices.db` | ~1.7GB | 3,388 종목 OHLCV 캐시 |
+| `market_indicators.db` | ~15MB | 글로벌 시장 지표 + 유니버스 + 펀더멘탈 |
+| `ai_predictions.db` | ~12KB | AI 예측 결과 저장 |
+| `asset_history.db` | ~80KB | 자산 히스토리 |
+| `trade_logs.db` | ~20KB | 거래 로그 |
 
-### Q1. "can't open file 'run'" 에러 발생 시
-* **증상**: `python run run_dashboard.py` 실행 시 `[Errno 2] No such file or directory` 에러 발생.
-* **원인**: Windows CLI 환경에서 `run`이라는 명령어나 인자를 잘못 해석하여 발생한 단순 실행 오타입니다.
-* **해결**: 반드시 가상환경 활성화 후 파일명을 단독으로 실행해야 합니다:
-  ```powershell
-  .venv\Scripts\activate
-  python run_dashboard.py
-  ```
+---
 
-### Q2. PyTorch 관련 DLL 로딩 오류 (`WinError 1114`) 발생 시
-* **증상**: `import torch` 또는 테스트 실행 시 `OSError: [WinError 1114] A dynamic link library (DLL) initialization routine failed.` 발생.
-* **원인**: 로컬 Windows 머신 내의 특정 PyTorch 연산 라이브러리(.dll)가 그래픽 드라이버(CUDA) 또는 인텔 CPU MKL 라이브러리와 충돌하여 발생하는 현상입니다.
-* **해결 (테스트 실행 시)**: PyTorch 의존적 로직이 포함된 `phase3` 테스트 폴더를 무시하고 나머지 245개 핵심 로직 테스트만 필터링하여 실행합니다:
-  ```powershell
-  .venv\Scripts\python -m pytest tests/ --ignore=tests/phase3/
-  ```
+## 🛠️ 트러블슈팅
 
-### Q3. "ModuleNotFoundError: No module named 'src'" 에러 발생 시
-* **증상**: `pytest` 실행 시 소스 패키지인 `src` 모듈을 찾지 못함.
-* **원인**: pytest 실행 시 파이썬 path(`sys.path`)에 현재 프로젝트 디렉터리가 등록되지 않아 생기는 문제입니다.
-* **해결**: 단독 `pytest` 대신 파이썬 모듈 실행형태(`python -m pytest`)로 구동하여 현재 디렉터리를 path에 자동으로 로드해야 합니다:
-  ```powershell
-  .venv\Scripts\python -m pytest tests/
-  ```
+### Q1. "can't open file 'run'" 에러
+**원인**: 실행 명령어 오타  
+**해결**: 가상환경 활성화 후 파일명 단독 실행
+```powershell
+.venv\Scripts\activate
+python run_pipeline.py
+```
+
+### Q2. PyTorch DLL 로딩 오류 (`WinError 1114`)
+**원인**: CUDA/MKL DLL 충돌  
+**해결**: phase3 테스트 제외하고 실행
+```powershell
+.venv\Scripts\python -m pytest tests/ --ignore=tests/phase3/
+```
+
+### Q3. "ModuleNotFoundError: No module named 'src'"
+**원인**: `sys.path`에 프로젝트 디렉토리 미등록  
+**해결**: `python -m pytest` 형태로 실행
+```powershell
+.venv\Scripts\python -m pytest tests/
+```
+
+### Q4. "database is locked" 에러
+**원인**: 여러 프로세스가 동시에 SQLite에 쓰기 시도  
+**해결**:
+1. 다른 파이프라인 프로세스가 실행 중인지 확인
+2. 오케스트레이터 데몬 중지 후 재시도
+3. 지속 시 DB 파일 복사 후 재실행
+
+### Q5. 파이프라인 실행 시간이 너무 오래 걸림
+**해결**:
+1. `DEBUG_MODE=True` 설정 (시장당 5개 종목만 학습)
+2. `SKIP_TRAINING=True` 설정 (기존 모델 재사용)
+3. `STOCK_PRICE_FRESHNESS_DAYS=none` 설정 (네트워크 미사용)
+
+### Q6. 메모리 부족 (MemoryError)
+**해결**:
+1. `TRAIN_SAMPLE_SP500`, `TRAIN_SAMPLE_KRX` 줄이기 (예: `100`)
+2. 다른 메모리 사용 프로그램 종료
+3. 8GB 이상 RAM 권장

@@ -1,59 +1,42 @@
-# Project Plan: Post-Market Stock Scoring, Ranking, and Backtest Dashboard
+# Project Plan: Feature Engineering, Alternative Models, Optuna Tuning, and API Stability
 
-## Resuming Project State (2026-06-12)
-The project is being resumed by a new Project Orchestrator instance. 
-- **Milestone 1 (PyTorch & Config Fixes)** is verified and complete (audit verdict: CLEAN).
-- **Milestone 2 (Post-Market Stock Scoring Backend)** has implementation files and tests in place, but needs verification and auditing to confirm if it is fully complete and compliant.
-- **Milestone 3 (Dashboard Integration)** needs to be implemented.
-- **Milestone 4 (E2E Testing Track)** needs to be designed and implemented.
-- **Milestone 5 (E2E Verification & Audit)** needs to be run.
+## Resuming Project State (2026-06-20)
+The user has requested the implementation of feature engineering, alternative models (LightGBM, CatBoost), Optuna tuning, and API/data integration stability.
 
 ---
 
 ## Detailed Milestone Plans
 
-### Milestone 1: PyTorch DLL & Config Fixes
-- **Status**: DONE (Clean Audit)
-- **Objective**: Resolve PyTorch WinError 1114 DLL load crash and the failing KIS mock config tests.
-- **Verification**: Run `tests/phase6/unit/test_mock_trading.py` and confirm all pass.
-
-### Milestone 2: Post-Market Stock Scoring Backend (R1)
-- **Status**: IN_PROGRESS (Verification needed)
-- **Objective**: Implement daily post-market scoring script using technical, AI, and sentiment scores, and store in SQLite table `post_market_rankings`.
-- **Verification**: Run `tests/test_post_market_scoring.py` and run a trial execution of `scripts/post_market_scoring.py`.
+### Milestone 1: Baseline Verification
+- **Objective**: Explore the codebase, review existing pipeline execution, and verify baseline test suite.
+- **Verification**: Run `pytest tests/` and run the pipeline (`run_pipeline.py` or similar) in demo mode if possible, documenting performance metrics.
 - **Steps**:
-  1. Spawn Explorer to verify if the scoring script and tests run successfully.
-  2. If tests pass, spawn a Forensic Auditor to audit Milestone 2.
-  3. If Audit is CLEAN, mark Milestone 2 as DONE. If not, spawn Worker to fix issues.
+  1. Spawn Explorer (`teamwork_preview_explorer`) to search files, list active tests, run the baseline tests and record results.
+  2. Document existing metrics for XGBoost.
 
-### Milestone 3: Web Dashboard UI Integration (R2 & R3)
-- **Status**: PLANNED
-- **Objective**: Add "Post-Market Rankings" tab (R2) and "Strategy Performance Analysis" section (R3).
-- **Verification**: Web dashboard should render sortable DataTable of top 100 stocks and Strategy Performance section (yield, Sharpe, win rate, MDD, and Plotly equity curve).
+### Milestone 2: Feature Engineering & Alternative Models (R1)
+- **Objective**: Integrate new features (technical indicators, macro) and alternative models (LightGBM, CatBoost) without breaking XGBoost compatibility.
+- **Verification**: Confirm models train and predict successfully. Compare performance (MSE decrease, AUC increase) against the baseline.
 - **Steps**:
-  1. Spawn Explorer to analyze the dashboard codebase (`src/web/dashboard.py` and `run_dashboard.py`) and formulate implementation strategy.
-  2. Spawn Worker to implement:
-     - "Post-Market Rankings" tab showing rank, symbol, name, and scores.
-     - "Strategy Performance Analysis" section running backtest and showing metrics + equity curve chart.
-     - Ensure existing dashboard tabs and tests are not broken.
-  3. Spawn Reviewer to inspect design and code.
-  4. Spawn Challenger to perform stress testing on the callbacks.
-  5. Spawn Forensic Auditor to verify compliance.
+  1. Explorer analyzes features and model structures in `src/ai/prediction_model.py` and `src/ai/vcp_ml_predictor.py`.
+  2. Worker (`teamwork_preview_worker`) implements new features and integrates LightGBM & CatBoost models.
+  3. Reviewer (`teamwork_preview_reviewer`) reviews codebase for code quality and compatibility.
+  4. Challenger (`teamwork_preview_challenger`) runs performance comparisons.
+  5. Forensic Auditor (`teamwork_preview_auditor`) audits the implementations.
 
-### Milestone 4: E2E Testing Track
-- **Status**: PLANNED
-- **Objective**: Create a comprehensive, requirement-driven, opaque-box E2E test suite in 4 tiers: Feature Coverage, Boundary/Edge Cases, Cross-Feature, and Real-World Workloads.
-- **Verification**: Output `TEST_READY.md` summarizing the test cases.
+### Milestone 3: Optuna Tuning & API Stability (R2 & R3)
+- **Objective**: Add Optuna tuning for hyperparameters and stability controls (rate limit, retries) for data APIs.
+- **Verification**: Verify hyperparameter optimization runs and saves outputs; verify retry logic handles failed API requests.
 - **Steps**:
-  1. Spawn Explorer to design E2E test cases based on requirements.
-  2. Spawn Worker to implement the test suite in `tests/` and verify they run successfully.
+  1. Explorer plans Optuna search space and rate-limiting strategy.
+  2. Worker implements Optuna script and configures retry wrappers for data fetching.
+  3. Reviewer inspects code for stability and exception handling.
+  4. Challenger tests rate limiting under simulated failures.
+  5. Forensic Auditor verifies no cheating or bypasses.
 
-### Milestone 5: E2E Verification & Adversarial Hardening
-- **Status**: PLANNED
-- **Objective**: Run E2E tests, perform Challenger stress testing (Tier 5 adversarial hardening), and run final Forensic Audit.
-- **Verification**: 100% test pass on final test suite, no gaps reported, and CLEAN audit verdict.
+### Milestone 4: Final E2E Verification & Forensic Audit
+- **Objective**: Ensure entire codebase compiles, all tests pass, and integrity is fully verified.
+- **Verification**: 100% test pass on `pytest tests/` and CLEAN audit.
 - **Steps**:
-  1. Run the E2E test suite against the dashboard and scoring backend.
-  2. Spawn Challenger to audit code coverage, find untested paths, and generate adversarial inputs.
-  3. Spawn Worker to fix any bugs exposed by Challenger.
-  4. Spawn Forensic Auditor for final project audit.
+  1. Run entire test suite.
+  2. Run Forensic Auditor for final project audit.

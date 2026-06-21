@@ -1,51 +1,128 @@
-# 📈 주식 자동매매 및 백테스트 통합 플랫폼 (Stock Trading System)
+# 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-본 저장소는 **이벤트 기반 아키텍처(Event-Driven)**를 채택하여 시세 수집 ➔ 전략 분석 ➔ 리스크 검증 ➔ 주문 집행(OMS) ➔ 실시간 모니터링을 자동화한 주식 자동매매 시스템 및 시뮬레이션 플랫폼의 저장소입니다.
-
-코어 소스코드와 환경 설정, 실행 스크립트 등 실제 시스템은 [trading_system/](file:///d:/Finance/code/stock/trading_system/) 디렉터리 내부에 구현되어 있습니다.
-
----
-
-## 📂 저장소 문서 구성 가이드
-
-현재 작동 중인 최신 시스템 코드베이스를 기준으로 재구축된 공식 문서 가이드라인입니다. 아래 링크를 통해 상세 정보를 확인하실 수 있습니다.
-
-### 1. 사용법 및 시작 안내
-* **[trading_system/README.md](file:///d:/Finance/code/stock/trading_system/README.md)**: 전체 시스템의 설치 가이드, 파이썬 가상환경 설정, 텔레그램 및 대시보드 실행 방법, `.env` 설정 템플릿 및 트러블슈팅 안내.
-
-### 2. 아키텍처 및 시스템 상세 설계
-* **[SYSTEM_ARCHITECTURE.md (시스템 구조)](file:///d:/Finance/code/stock/trading_system/docs/SYSTEM_ARCHITECTURE.md)**: 이벤트 버스(`EventBus`) 기반의 발행/구독(Pub/Sub) 아키텍처, 데이터 레이어, 주문 관리 시스템(OMS), 다중 브로커 인터페이스 구조 및 실시간 대시보드 처리 흐름.
-
-### 3. 코어 전략 및 핵심 알고리즘
-* **[ALGORITHMS_AND_STRATEGY.md (알고리즘 & 전략)](file:///d:/Finance/code/stock/trading_system/docs/ALGORITHMS_AND_STRATEGY.md)**: 
-  * Random Forest와 XGBoost의 50:50 소프트 보팅(Soft Voting) 머신러닝 앙상블 모델.
-  * GaussianHMM 기반 시장 레짐 분석 및 거물 투자가들(버핏, 린치, 달리오 등)의 복합 포트폴리오 스타일 로테이션.
-  * Optuna 교차 검증 기반 적응형 파라미터 최적화기(`AdaptiveParameterOptimizer`).
-  * 손절선(Stop-loss), 최대 익절선(Take-profit) 등의 리스크 한도 통제 로직.
-
-### 4. 테스트 인프라 및 가이드
-* **[TEST_GUIDE.md (테스트 가이드)](file:///d:/Finance/code/stock/trading_system/docs/TEST_GUIDE.md)**: pytest 기반 테스트 인프라, 비동기 테스트 팁, 모의 거래(Mock Trading) 테스트 케이스 검증 및 Windows 로컬 실행 가이드.
+한국(KOSPI/KOSDAQ/KONEX) 및 미국(S&P500) 시장의 **3,379개 종목**을 대상으로
+5개 ML/규칙 기반 전략을 병행 운영하는 통합 예측 파이프라인입니다.
 
 ---
 
-## 🛠️ 빠른 시작 요약 (Quick Start)
+## 🎯 5대 전략 개요
 
-시스템을 실행하려면 반드시 `trading_system/` 디렉터리로 이동하여 아래의 순서대로 작업을 진행하십시오.
+| # | 전략 | 방식 | 출력 파일 |
+|---|------|------|-----------|
+| **1** | XGBoost 회귀 | 8개 horizon(1~200일) 예상수익률 예측 | `pipeline_result.txt` |
+| **2** | Surge 분류기 | 4개 horizon(1/3/5/20일) 20%↑ 급등 확률 | `surge_predictions.txt` |
+| **3** | Lead-Lag 분석 | 시총 TOP50 leader 상관관계 기반 후행 종목 발굴 | `lead_lag_predictions.txt` |
+| **4** | VCP 패턴 (규칙) | 변동성 수축 + 거래량 감소 + 고점 근접 규칙 | `vcp_patterns.txt` |
+| **5** | VCP ML | 시장별 XGBClassifier 기반 VCP 급등 확률 | `vcp_ml_predictions.txt` |
 
-```bash
+---
+
+## 📂 프로젝트 구조
+
+```
+stock/
+├── trading_system/             ← 핵심 시스템 (코드, 설정, 모델)
+│   ├── run_pipeline.py         ← 통합 파이프라인 실행 스크립트
+│   ├── orchestrator.py         ← 자동 스케줄러 데몬
+│   ├── run_orchestrator.py     ← 오케스트레이터 CLI
+│   ├── src/                    ← 소스코드 패키지
+│   │   ├── ai/                 ← ML 모델 (예측, VCP, Lead-Lag)
+│   │   ├── data_layer/         ← 데이터 수집·저장 레이어
+│   │   ├── persistence/        ← DB 영속 계층 (SQLite)
+│   │   ├── risk/               ← 리스크 관리·포지션 사이징
+│   │   ├── config.py           ← TradingConfig (.env 기반 설정)
+│   │   └── ...
+│   ├── models/                 ← 학습된 XGBoost 모델 (.json)
+│   ├── tests/                  ← pytest 기반 테스트
+│   ├── docs/                   ← 상세 문서
+│   └── .env.example            ← 환경 변수 템플릿
+├── AGENTS.md                   ← AI 에이전트 참조 문서
+├── OPTIMIZATION_REPORT.md      ← 성능 최적화 보고서
+└── README.md                   ← 이 문서
+```
+
+---
+
+## 🛠️ 시스템 요구사항
+
+| 항목 | 최소 | 권장 |
+|------|------|------|
+| Python | 3.10+ | 3.11+ |
+| 디스크 | 3GB (DB 캐시 포함) | 5GB |
+| RAM | 4GB | 8GB+ |
+| OS | Windows 10 / Linux | Windows 11 |
+
+---
+
+## 🚀 빠른 시작 (Quick Start)
+
+```powershell
 # 1. trading_system 디렉터리로 이동
 cd trading_system
 
-# 2. 가상환경 활성화 및 의존성 패키지 설치
+# 2. 가상환경 생성 및 활성화
 python -m venv .venv
 .venv\Scripts\activate
+
+# 3. 의존성 설치
 pip install -r requirements.txt
 
-# 3. 환경 설정 (.env) 구성
-cp .env.example .env   # 복사 후 API 키 및 정보 기입
+# 4. 환경 설정 (.env 파일 구성)
+copy .env.example .env
+# .env 파일을 열어 필요한 API 키 및 설정값 입력
 
-# 4. 실시간 대시보드 가동
-python run_dashboard.py
+# 5. 파이프라인 실행
+.venv\Scripts\python run_pipeline.py
 ```
 
-자세한 옵션과 연동 정보는 **[trading_system/README.md](file:///d:/Finance/code/stock/trading_system/README.md)**를 참고하십시오.
+> **참고**: 파이프라인 첫 실행 시 3,379개 종목의 주가 데이터를 다운로드하므로 시간이 걸립니다.
+> 이후 실행에서는 로컬 SQLite 캐시(`stock_prices.db`)를 활용합니다.
+
+---
+
+## 📚 상세 문서
+
+| 문서 | 설명 |
+|------|------|
+| [trading_system/README.md](trading_system/README.md) | 설치 가이드, 실행 방법, 트러블슈팅 |
+| [docs/ALGORITHMS_AND_STRATEGY.md](trading_system/docs/ALGORITHMS_AND_STRATEGY.md) | 5대 전략 알고리즘 상세 |
+| [docs/SYSTEM_ARCHITECTURE.md](trading_system/docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처 및 데이터 흐름 |
+| [docs/CONFIGURATION_REFERENCE.md](trading_system/docs/CONFIGURATION_REFERENCE.md) | `.env` 환경 변수 완전 참조 |
+| [docs/KNOWN_ISSUES.md](trading_system/docs/KNOWN_ISSUES.md) | 알려진 이슈 및 개선 로드맵 |
+| [docs/TEST_GUIDE.md](trading_system/docs/TEST_GUIDE.md) | 테스트 인프라 및 실행 가이드 |
+| [OPTIMIZATION_REPORT.md](OPTIMIZATION_REPORT.md) | 성능 최적화 분석 보고서 |
+
+---
+
+## 📊 파이프라인 실행 흐름
+
+```
+1. 설정 로드 (TradingConfig)
+2. 글로벌 지표 수집 (VIX, TNX, USDKRW 등)
+3. 지표 DB 저장
+4. 종목 유니버스 로드 (3,379 종목)
+5. 지표 히스토리 수집
+6. 학습 데이터 준비 (ThreadPoolExecutor + 펀더멘탈)
+7. 모델 학습:
+   a. 시장별 회귀 모델 (XGBoost + LightGBM + CatBoost)
+   b. 시장별 Surge 분류기
+   c. Lead-Lag 상관 행렬
+   d. 시장별 VCP ML 분류기
+8. 추론 데이터 수집
+9. 예측 실행 (전 종목)
+10. 결과 저장 → 5개 출력 파일 생성
+```
+
+---
+
+## ⚙️ 주요 설정 항목
+
+| 환경 변수 | 기본값 | 설명 |
+|-----------|--------|------|
+| `TRAIN_SAMPLE_SP500` | `50` | SP500 학습 종목 수 (`all` = 전량) |
+| `TRAIN_SAMPLE_KRX` | `50` | KRX 학습 종목 수 (`all` = 전량) |
+| `SKIP_TRAINING` | `False` | 기존 모델 재사용 (학습 건너뛰기) |
+| `STOCK_PRICE_FRESHNESS_DAYS` | `7` | 캐시 유효일 (`none` = 오프라인) |
+| `TRAIN_START_DATE` | `2023-01-01` | 학습 데이터 시작일 |
+
+전체 설정 목록은 [CONFIGURATION_REFERENCE.md](trading_system/docs/CONFIGURATION_REFERENCE.md)를 참조하세요.

@@ -29,6 +29,7 @@ class TradingConfig:
     train_seed: str = os.getenv("TRAIN_SEED", "42")
     stock_price_freshness_days: str = os.getenv("STOCK_PRICE_FRESHNESS_DAYS", "7")
     update_interval: str = os.getenv("UPDATE_INTERVAL", "0")
+    skip_training: bool = os.getenv("SKIP_TRAINING", "False").lower() == "true"
 
     # 백테스트 기간 설정 (숫자=년, "all"=전체)
     backtest_years: str = os.getenv("BACKTEST_YEARS", "5")

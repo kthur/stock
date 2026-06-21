@@ -39,9 +39,23 @@ from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
+from src.risk.position_sizing import PortfolioAllocator
+from src.utils.rate_limiter import get_global_rate_limiter
+from src.utils.technical_cache import DataFrameCache
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+technical_cache = DataFrameCache()
+
+def is_empty_result(result):
+    if result is None:
+        return True
+    if isinstance(result, pd.DataFrame) and result.empty:
+        return True
+    return False
+
 
 # yfinance suffix mapping for Korean stock markets
 _KR_MARKET_SUFFIX = {
@@ -52,53 +66,23 @@ _KR_MARKET_SUFFIX = {
 }
 
 
-def fetch_data_fdr(symbol: str, market: str, start_date: str,
-                   price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
-                   update_interval: int = 0) -> pd.DataFrame:
-    """Fetch OHLCV data using adjusted prices (수정주가), with StockPriceDB cache.
-
-    For US stocks (SP500): uses FinanceDataReader (Yahoo Finance, already adjusted).
-    For Korean stocks: uses yfinance with split/dividend-adjusted prices.
-
-    Rate limiting: if update_interval > 0, sleeps that many seconds between
-    network requests (global across all threads).
-    """
-    # 0. StockPriceDB 캐시 조회
-    if price_db is not None:
-        stale = True
-        if freshness_days < 0:
-            stale = False
-        else:
-            stale = price_db.needs_update(symbol, max_age_days=freshness_days,
-                                          start_date=start_date)
-        if not stale:
-            df = price_db.get_prices(symbol, start_date=start_date)
-            if not df.empty:
-                logger.debug(f"Using cached prices for {symbol}")
-                return df
-            if freshness_days < 0:
-                logger.debug(f"No cached data for {symbol} in offline mode (freshness<0)")
-                return None
-        # stale or empty cache → fall through to network fetch
-
-    # Rate limit before network request
-    if update_interval > 0:
-        global _last_request_time
-        with _rate_lock:
-            elapsed = time.time() - _last_request_time
-            if elapsed < update_interval:
-                sleep_sec = update_interval - elapsed
-                logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {symbol}")
-                time.sleep(sleep_sec)
-            _last_request_time = time.time()
-
-    # 1. Fetch data
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)),
+    reraise=True
+)
+def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.DataFrame:
+    # Enforce global rate limit coordination
+    get_global_rate_limiter().wait()
+    
     result = None
     if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
         try:
             result = fdr.DataReader(symbol, start=start_date)
         except Exception as e:
-            logger.debug(f"Failed to fetch {symbol} via fdr: {e}")
+            logger.debug(f"Network fetch failed for {symbol} via fdr: {e}")
+            raise e
     else:
         # Korean stock: fetch from yfinance with adjusted prices
         suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
@@ -110,25 +94,82 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                     df.columns = df.columns.droplevel(1)
                 result = df
         except Exception as e:
-            logger.debug(f"Failed to fetch {yf_symbol} via yfinance: {e}")
+            logger.debug(f"Network fetch failed for {yf_symbol} via yfinance: {e}")
+            raise e
 
         # Fallback to FinanceDataReader if yfinance fails
-        if result is None:
+        if result is None or result.empty:
             try:
                 result = fdr.DataReader(symbol, start=start_date)
                 if result is not None and not result.empty:
                     logger.warning(f"Falling back to unadjusted KRX data for {symbol}")
             except Exception as e:
-                logger.debug(f"Failed to fetch {symbol} via fdr fallback: {e}")
-
-    # 2. Cache the result in StockPriceDB
-    if result is not None and not result.empty and price_db is not None:
-        try:
-            price_db.update_prices(symbol, result)
-        except Exception as e:
-            logger.debug(f"Failed to cache prices for {symbol}: {e}")
-
+                logger.debug(f"Network fetch failed for {symbol} via fdr fallback: {e}")
+                raise e
+                
+    if result is None or result.empty:
+        raise ValueError(f"Fetched data for {symbol} is empty or None")
+        
     return result
+
+
+def fetch_data_fdr(symbol: str, market: str, start_date: str,
+                   price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
+                   update_interval: int = 0) -> pd.DataFrame:
+    """Fetch OHLCV data using adjusted prices (수정주가), with caching via TechnicalCache.
+
+    This function first checks the global ``technical_cache`` for a recent DataFrame.
+    If a cache miss occurs, it falls back to the DB cache and finally to a network request.
+    """
+    def _fetch_fallback(s: str, d: str) -> pd.DataFrame:
+        # 1. DB cache fallback (if provided)
+        if price_db is not None:
+            stale = True
+            if freshness_days < 0:
+                stale = False
+            else:
+                stale = price_db.needs_update(s, max_age_days=freshness_days, start_date=d)
+            if not stale:
+                df = price_db.get_prices(s, start_date=d)
+                if df is not None and not df.empty:
+                    logger.debug(f"Using StockPriceDB cached prices for {s}")
+                    return df
+        
+        # 2. Rate limit before network request (global)
+        if update_interval > 0:
+            global _last_request_time
+            now = time.time()
+            with _rate_lock:
+                scheduled = max(_last_request_time + update_interval, now)
+                sleep_sec = scheduled - now
+                _last_request_time = scheduled
+            if sleep_sec > 0:
+                logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
+                time.sleep(sleep_sec)
+                
+        # 3. Network fetch
+        try:
+            result = _fetch_data_fdr_network(s, market, d)
+        except Exception as e:
+            logger.warning(f"Failed to fetch data for {s} after retries: {e}")
+            result = None
+        
+        # 4. Store in DB cache
+        if result is not None and not result.empty and price_db is not None:
+            try:
+                price_db.update_prices(s, result)
+            except Exception as e:
+                logger.debug(f"Failed to cache prices for {s}: {e}")
+        return result
+
+    # 0. TechnicalCache lookup (TTL based)
+    result = technical_cache.get_or_compute(
+        symbol,
+        start_date,
+        _fetch_fallback
+    )
+    return result
+
 
 # 8 Global indicator tickers → feature column names
 _INDICATOR_TICKERS = {
@@ -141,6 +182,27 @@ _INDICATOR_TICKERS = {
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
 }
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)),
+    reraise=False
+)
+def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
+    # Coordinate indicator fetch rate limiting
+    get_global_rate_limiter().wait()
+    try:
+        raw = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
+        if raw is not None and not raw.empty:
+            if isinstance(raw.columns, pd.MultiIndex):
+                raw.columns = raw.columns.droplevel(1)
+            return raw
+    except Exception as e:
+        logger.debug(f"Network error downloading indicator {ticker}: {e}")
+        raise e
+    raise ValueError(f"Downloaded indicator {ticker} is empty or None")
 
 
 def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
@@ -163,18 +225,14 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
             return (col_name, pd.Series(dtype=float))
         if df is None or df.empty:
             try:
-                raw = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
-                if raw is not None and not raw.empty:
-                    if isinstance(raw.columns, pd.MultiIndex):
-                        raw.columns = raw.columns.droplevel(1)
-                    df = raw
-                    if price_db is not None:
-                        try:
-                            price_db.update_prices(ticker, df)
-                        except Exception as ex:
-                            logger.debug(f"Failed to cache indicator {ticker}: {ex}")
+                df = _download_indicator_network(ticker, start_date)
+                if df is not None and not df.empty and price_db is not None:
+                    try:
+                        price_db.update_prices(ticker, df)
+                    except Exception as ex:
+                        logger.debug(f"Failed to cache indicator {ticker}: {ex}")
             except Exception as e:
-                logger.debug(f"Failed to fetch indicator {ticker}: {e}")
+                logger.debug(f"Failed to fetch indicator {ticker} after retries: {e}")
         if df is not None and not df.empty:
             if col_name.endswith('_change'):
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
@@ -312,50 +370,6 @@ def execute_prediction_pipeline():
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))
 
-    # StockPriceDB 캐시 초기화
-    price_db = StockPriceDB(db_path=cfg.stock_price_db_path)
-    freshness = cfg.get_freshness_days()
-
-    # 5. Fetch global indicator history for training & inference
-    start_date_train = cfg.train_start_date
-    start_date_infer = '2025-01-01'
-    logger.info("Fetching global indicator history...")
-    indicator_train = fetch_indicator_history(start_date_train, price_db, freshness)
-    indicator_infer = fetch_indicator_history(start_date_infer, price_db, freshness)
-    
-    # 6. Prepare Training Data (On-device) — split by market
-    kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
-    kosdaq_symbols = universe[universe['market'] == 'KOSDAQ']['symbol'].tolist()
-    konex_symbols = universe[universe['market'] == 'KONEX']['symbol'].tolist()
-    sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
-    krx_symbols = kospi_symbols + kosdaq_symbols + konex_symbols
-    
-    # Sample from settings (절대값 / 퍼센트 / "all")
-    import random
-    seed = cfg.get_train_seed()
-    if seed is not None:
-        random.seed(seed)
-
-    sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(sp500_symbols))
-    krx_sample = cfg.resolve_sample_size(cfg.train_sample_krx, len(krx_symbols))
-
-    def _safe_sample(population, k):
-        if k >= len(population):
-            return list(population)
-        return random.sample(population, k)
-
-    train_krx_overall = _safe_sample(krx_symbols, krx_sample)
-    train_krx_set = set(train_krx_overall)
-    train_symbols = _safe_sample(sp500_symbols, sp500_sample) + train_krx_overall
-
-    # Per-market breakdown for training (preserve market proportions)
-    train_sp500 = [s for s in train_symbols if s in sp500_symbols]
-    train_kospi = [s for s in train_krx_set if s in kospi_symbols]
-    train_kosdaq = [s for s in train_krx_set if s in kosdaq_symbols]
-    train_konex = [s for s in train_krx_set if s in konex_symbols]
-    
-    # 6. Fetch corporate fundamentals in background (non-blocking)
-    import threading
     def _bg_fundamentals(syms, label):
         logger.info(f"[BG] Fetching fundamentals for {label} ({len(syms)} symbols)...")
         try:
@@ -363,115 +377,203 @@ def execute_prediction_pipeline():
             logger.info(f"[BG] Fundamentals fetch complete for {label}")
         except Exception as e:
             logger.warning(f"[BG] Fundamentals fetch failed for {label}: {e}")
-    if train_symbols:
-        t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"))
-        t.start()
+
+    # StockPriceDB 캐시 초기화
+    price_db = StockPriceDB(db_path=cfg.stock_price_db_path)
+    freshness = cfg.get_freshness_days()
+
+    # 5. Fetch global indicator history for training & inference
+    start_date_train = cfg.train_start_date
+    from datetime import timedelta
+    start_date_infer = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
     
+    # Check if we should skip training based on skip_training config and model availability
+    should_skip = False
     model = OnDevicePredictionModel()
+    vcp_ml = None
+
+    if cfg.skip_training:
+        logger.info("SKIP_TRAINING is active. Checking for existing models on disk...")
+        model.load_models()
+        model.load_surge_models()
+        from src.ai.vcp_ml_predictor import VCPSurgePredictor
+        vcp_ml = VCPSurgePredictor()
+        
+        # Verify that models are actually loaded for regression, surge, and VCP ML
+        regression_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in model.lgb_models.values())
+        surge_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.surge_models.values())
+        vcp_loaded = any(len(mkt_dict) > 0 for mkt_dict in vcp_ml.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in vcp_ml.lgb_models.values())
+        
+        if regression_loaded and surge_loaded and vcp_loaded:
+            logger.info("Pre-trained models found and loaded successfully. Skipping model training phase.")
+            should_skip = True
+        else:
+            logger.warning("Missing or incomplete pre-trained models on disk. Falling back to training.")
+            model.models = {}
+            model.surge_models = {}
+            vcp_ml = None
+
     update_interval = cfg.get_update_interval()
-    logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols (update_interval={update_interval}s)...")
-    train_data_dict = {}
     
-    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
-        future_to_sym = {}
-        for sym in train_symbols:
-            sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
-            future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_train, price_db, freshness, update_interval)] = sym
+    # 6. Prepare Training Data (On-device) — split by market
+    kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
+    kosdaq_symbols = universe[universe['market'] == 'KOSDAQ']['symbol'].tolist()
+    konex_symbols = universe[universe['market'] == 'KONEX']['symbol'].tolist()
+    sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
+    krx_symbols = kospi_symbols + kosdaq_symbols + konex_symbols
 
-        done_count = 0
-        for future in as_completed(future_to_sym):
-            sym = future_to_sym[future]
-            try:
-                df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
-                if df is not None and not df.empty:
-                    train_data_dict[sym] = df
-            except TimeoutError:
-                logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
-            except Exception as e:
-                logger.debug(f"Skipping {sym}: {e}")
-            done_count += 1
-            if done_count % 100 == 0:
-                logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
-
-    # Wait for fundamentals fetch to complete before merging
-    if train_symbols:
-        logger.info("Waiting for training fundamentals fetch to complete...")
-        t.join()
-
-    # Merge fundamentals (parallel)
-    merge_lock = threading.Lock()
-    def _merge_one(sym: str, df):
-        try:
-            merged = model.merge_fundamentals(sym, df, storage)
-            return (sym, merged)
-        except Exception as e:
-            logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
-            return (sym, None)
-
-    with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
-        futures = {pool.submit(_merge_one, sym, df): sym for sym, df in train_data_dict.items()}
-        for f in as_completed(futures):
-            sym, merged = f.result()
-            if merged is not None:
-                train_data_dict[sym] = merged
-            else:
-                train_data_dict.pop(sym, None)
-
-    df_train = model.prepare_training_data(train_data_dict, indicator_train)
-    
-    # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
-    if not df_train.empty and 'symbol' in df_train.columns:
-        from src.ai.prediction_model import OnDevicePredictionModel as _OPM
-        train_symbol_set = set(df_train['symbol'])
-        # Build per-market train DataFrames from the merged df_train
-        market_dfs = {}
-        for m_name, m_symbols in [('sp500', train_sp500), ('kospi', train_kospi),
-                                   ('kosdaq', train_kosdaq), ('konex', train_konex)]:
-            active = [s for s in m_symbols if s in train_symbol_set]
-            m_df = df_train[df_train['symbol'].isin(active)] if active else pd.DataFrame()
-            if not m_df.empty:
-                logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
-            market_dfs[m_name] = m_df
+    if should_skip:
+        logger.info("Fetching global indicator history for inference only...")
+        indicator_infer = fetch_indicator_history(start_date_infer, price_db, freshness)
+        train_data_dict = {}
+        indicator_train = pd.DataFrame()
+        df_train = pd.DataFrame()
     else:
-        market_dfs = {m: pd.DataFrame() for m in ['sp500', 'kospi', 'kosdaq', 'konex']}
+        logger.info("Fetching global indicator history...")
+        indicator_train = fetch_indicator_history(start_date_train, price_db, freshness)
+        # S2 fix: Reuse indicator_train for inference — slice to infer start date instead of
+        # making a redundant second network request for the same data.
+        if not indicator_train.empty and hasattr(indicator_train.index, 'date'):
+            indicator_infer = indicator_train[indicator_train.index >= start_date_infer]
+        else:
+            indicator_infer = indicator_train
+        
+        # Sample from settings (절대값 / 퍼센트 / "all")
+        import random
+        seed = cfg.get_train_seed()
+        if seed is not None:
+            random.seed(seed)
 
-    # 7. Train regression models per market (parallel)
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = {}
-        for m_name, m_df in market_dfs.items():
-            if not m_df.empty:
-                logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
-                futures[pool.submit(model.train, m_df, market=m_name, save_after=False)] = m_name
-        for f in as_completed(futures):
-            try:
-                f.result()
-            except Exception as e:
-                logger.error(f"Regression training failed for {futures[f]}: {e}")
-    model.save_models()
+        sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(sp500_symbols))
+        krx_sample = cfg.resolve_sample_size(cfg.train_sample_krx, len(krx_symbols))
 
-    # 7b. Train surge detection classifiers per market (parallel)
-    logger.info("Training surge detection models...")
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = {}
-        for m_name, m_df in market_dfs.items():
-            if not m_df.empty:
-                futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=False)] = m_name
-        for f in as_completed(futures):
+        if cfg.debug_mode:
+            sp500_sample = min(5, sp500_sample)
+            krx_sample = min(5, krx_sample)
+            logger.info(f"[DEBUG MODE] Overriding training samples: SP500={sp500_sample}, KRX={krx_sample}")
+
+        def _safe_sample(population, k):
+            if k >= len(population):
+                return list(population)
+            return random.sample(population, k)
+
+        train_krx_overall = _safe_sample(krx_symbols, krx_sample)
+        train_krx_set = set(train_krx_overall)
+        train_symbols = _safe_sample(sp500_symbols, sp500_sample) + train_krx_overall
+
+        # Per-market breakdown for training (preserve market proportions)
+        train_sp500 = [s for s in train_symbols if s in sp500_symbols]
+        train_kospi = [s for s in train_krx_set if s in kospi_symbols]
+        train_kosdaq = [s for s in train_krx_set if s in kosdaq_symbols]
+        train_konex = [s for s in train_krx_set if s in konex_symbols]
+        
+        # 6. Fetch corporate fundamentals in background (non-blocking)
+        if train_symbols:
+            t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"))
+            t.start()
+        
+        logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols (update_interval={update_interval}s)...")
+        train_data_dict = {}
+        
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
+            future_to_sym = {}
+            for sym in train_symbols:
+                sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
+                future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_train, price_db, freshness, update_interval)] = sym
+
+            done_count = 0
+            for future in as_completed(future_to_sym):
+                sym = future_to_sym[future]
+                try:
+                    df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
+                    if df is not None and not df.empty:
+                        train_data_dict[sym] = df
+                except TimeoutError:
+                    logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
+                except Exception as e:
+                    logger.debug(f"Skipping {sym}: {e}")
+                done_count += 1
+                if done_count % 100 == 0:
+                    logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
+
+        # Wait for fundamentals fetch to complete before merging
+        if train_symbols:
+            logger.info("Waiting for training fundamentals fetch to complete...")
+            t.join()
+
+        # Merge fundamentals (parallel)
+        merge_lock = threading.Lock()
+        def _merge_one(sym: str, df):
             try:
-                f.result()
+                merged = model.merge_fundamentals(sym, df, storage)
+                return (sym, merged)
             except Exception as e:
-                logger.error(f"Surge training failed for {futures[f]}: {e}")
-    model.save_surge_models()
-    
-    # 7c. Compute lead-lag correlation matrix (which stocks follow which)
-    if not df_train.empty and len(df_train) > 1000:
-        model.compute_lead_lag(df_train)
-    
-    # 7d. Train VCP ML surge models (4 markets, parallel inside)
-    from src.ai.vcp_ml_predictor import VCPSurgePredictor
-    vcp_ml = VCPSurgePredictor()
-    if train_data_dict:
-        vcp_ml.train(train_data_dict, indicator_train, universe)
+                logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
+                return (sym, None)
+
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
+            futures = {pool.submit(_merge_one, sym, df): sym for sym, df in train_data_dict.items()}
+            for f in as_completed(futures):
+                sym, merged = f.result()
+                if merged is not None:
+                    train_data_dict[sym] = merged
+                else:
+                    train_data_dict.pop(sym, None)
+
+        df_train = model.prepare_training_data(train_data_dict, indicator_train)
+        
+        # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
+        if not df_train.empty and 'symbol' in df_train.columns:
+            from src.ai.prediction_model import OnDevicePredictionModel as _OPM
+            train_symbol_set = set(df_train['symbol'])
+            # Build per-market train DataFrames from the merged df_train
+            market_dfs = {}
+            for m_name, m_symbols in [('sp500', train_sp500), ('kospi', train_kospi),
+                                       ('kosdaq', train_kosdaq), ('konex', train_konex)]:
+                active = [s for s in m_symbols if s in train_symbol_set]
+                m_df = df_train[df_train['symbol'].isin(active)] if active else pd.DataFrame()
+                if not m_df.empty:
+                    logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
+                market_dfs[m_name] = m_df
+        else:
+            market_dfs = {m: pd.DataFrame() for m in ['sp500', 'kospi', 'kosdaq', 'konex']}
+
+        # S8 fix: ThreadPoolExecutor avoids pickle serialization overhead of ProcessPool.
+        # XGBoost/LightGBM release the GIL during training, so threads are efficient here.
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            futures = {}
+            for m_name, m_df in market_dfs.items():
+                if not m_df.empty:
+                    logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
+                    futures[pool.submit(model.train, m_df, market=m_name, save_after=True)] = m_name
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.error(f"Regression training failed for {futures[f]}: {e}")
+        model.load_models()
+
+        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            futures = {}
+            for m_name, m_df in market_dfs.items():
+                if not m_df.empty:
+                    futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=True)] = m_name
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.error(f"Surge training failed for {futures[f]}: {e}")
+        model.load_surge_models()
+        
+        # 7c. Compute lead-lag correlation matrix (which stocks follow which)
+        if not df_train.empty and len(df_train) > 1000:
+            model.compute_lead_lag(df_train)
+        
+        # 7d. Train VCP ML surge models (4 markets, parallel inside)
+        from src.ai.vcp_ml_predictor import VCPSurgePredictor
+        vcp_ml = VCPSurgePredictor()
+        if train_data_dict:
+            vcp_ml.train(train_data_dict, indicator_train, universe)
     
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     all_symbols = sp500_symbols + krx_symbols
@@ -482,6 +584,14 @@ def execute_prediction_pipeline():
         before = len(all_symbols)
         all_symbols = [s for s in all_symbols if s not in excluded_krx]
         logger.info(f"Excluded {before - len(all_symbols)} halted/admin KRX stocks from inference")
+
+    if cfg.debug_mode:
+        debug_symbols = []
+        for m_syms in [sp500_symbols, kospi_symbols, kosdaq_symbols, konex_symbols]:
+            active_m = [s for s in m_syms if s in all_symbols]
+            debug_symbols.extend(active_m[:3])
+        all_symbols = debug_symbols
+        logger.info(f"[DEBUG MODE] Sampled {len(all_symbols)} symbols for fast pipeline dry run")
 
     if all_symbols:
         t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"))
@@ -550,7 +660,7 @@ def execute_prediction_pipeline():
     
     if res_df.empty:
         logger.error("No predictions made.")
-        return None
+        return None, None
     logger.info(f"Regression: {len(res_df)} symbols, Surge: {len(surge_df) if not surge_df.empty else 0} symbols")
     
     # 10c. Run VCP pattern detection (parallel)
@@ -591,6 +701,33 @@ def execute_prediction_pipeline():
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
     logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
+
+    # 11b. Run Portfolio Position Sizing
+    logger.info("Running Portfolio Position Sizing allocation...")
+    allocator = PortfolioAllocator(target_horizon=20)
+    alloc_df = allocator.allocate(res_df, infer_data_dict, total_portfolio_value=1000000000.0)
+    if not alloc_df.empty:
+        # Merge with universe to get market/name
+        alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        alloc_output_path = os.path.join(os.path.dirname(__file__), "portfolio_allocation.txt")
+        with open(alloc_output_path, "w", encoding="utf-8") as f:
+            f.write("=== Portfolio Allocation Recommendations (Sharpe/Kelly Optimized) ===\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f.write(f"Total Capital: 1,000,000,000 KRW/USD\n")
+            f.write(f"Target Horizon: 20d\n\n")
+            f.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
+            f.write("-" * 92 + "\n")
+            for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
+                name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
+                f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']*100:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
+            
+            allocated_weight = alloc_df['weight'].sum()
+            cash_weight = 1.0 - allocated_weight
+            cash_amount = cash_weight * 1000000000.0
+            f.write("-" * 92 + "\n")
+            f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
+            f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
+        logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")
     
     # Build formatted message for Telegram (top-10 per market)
     message_text = format_prediction_message(res_df, universe)
@@ -703,8 +840,8 @@ def execute_prediction_pipeline():
     # Save VCP pattern detection results
     if vcp_results:
         vcp_output_path = os.path.join(os.path.dirname(__file__), "vcp_patterns.txt")
-        vcp_universe_map = {s: (n, m) for s, n, m in zip(universe.get('symbol', []),
-                            universe.get('name', []), universe.get('market', []))}
+        vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
+                            universe['name'], universe['market'])}
         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
         with open(vcp_output_path, "w", encoding="utf-8") as f:
             f.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
@@ -731,9 +868,11 @@ def execute_prediction_pipeline():
 
     # 10e. Run VCP ML surge predictions
     logger.info("Running VCP ML inference...")
-    vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)
+    vcp_ml_df = pd.DataFrame()
+    if vcp_ml is not None:
+        vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)
     if not vcp_ml_df.empty:
-        vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left', suffixes=('', '_univ'))
         vcp_ml_output_path = os.path.join(os.path.dirname(__file__), "vcp_ml_predictions.txt")
         with open(vcp_ml_output_path, "w", encoding="utf-8") as f:
             f.write("=== VCP ML Surge Predictions ===\n")

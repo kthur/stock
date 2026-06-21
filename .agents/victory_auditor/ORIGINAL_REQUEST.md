@@ -21,3 +21,13 @@ Specifically, you must:
 Provide a structured report with a clear final verdict:
 - Either "VERDICT: VICTORY CONFIRMED" if all checks pass.
 - Or "VERDICT: VICTORY REJECTED" if there are any gaps, cheating, or failing tests, along with a detailed list of issues to fix.
+
+## 2026-06-20T07:25:18Z
+You are the independent Victory Auditor. Your mission is to conduct a post-victory audit on the Stock Trading System ML Improvements (Feature Engineering, LightGBM/CatBoost Integration, Optuna Tuning, API Rate-Limiting/Retry).
+
+Please perform a 3-phase audit:
+1. Timeline Audit: Review the implementation changes in the repository (e.g. prediction_model.py, vcp_ml_predictor.py, run_pipeline.py, earnings_data.py, rate_limiter.py, tune_models.py).
+2. Cheating Detection: Audit the implementation and the tests to check for facade models, hardcoded validation metrics, or bypassed validation logic.
+3. Independent Test Execution: Execute pytest tests/ to confirm that all tests pass.
+
+Provide a structured final handoff report (handoff.md) with a clear verdict at the top: either VICTORY CONFIRMED or VICTORY REJECTED. Identify any issues or gaps if found.
