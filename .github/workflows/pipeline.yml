@@ -56,7 +56,6 @@ jobs:
 
       - name: Run prediction pipeline
         id: run
-        continue-on-error: true
         env:
           DB_PATH: market_indicators.db
           STOCK_PRICE_DB_PATH: stock_prices.db

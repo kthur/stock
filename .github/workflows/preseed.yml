@@ -55,7 +55,6 @@ jobs:
             indicators-v1-
 
       - name: Run pipeline (slow preseed, UPDATE_INTERVAL=15)
-        continue-on-error: true
         env:
           DB_PATH: market_indicators.db
           STOCK_PRICE_DB_PATH: stock_prices.db
