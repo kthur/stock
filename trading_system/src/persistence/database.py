@@ -383,13 +383,19 @@ class StockPriceDB:
                         str(self.db_path), timeout=30, check_same_thread=False
                     )
                     self._conn.execute("PRAGMA journal_mode=WAL")
-                    self._conn.execute("PRAGMA synchronous=NORMAL")
+                    self._conn.execute("PRAGMA synchronous=OFF")
+                    self._conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
+                    self._conn.execute("PRAGMA temp_store=MEMORY")
+                    self._conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
         return self._conn
 
     def _init_db(self):
         conn = sqlite3.connect(str(self.db_path), timeout=30)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA cache_size=-500000")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA mmap_size=2000000000")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS stock_prices (
                 symbol TEXT NOT NULL,

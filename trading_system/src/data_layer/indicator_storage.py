@@ -18,7 +18,9 @@ class MarketIndicatorStorage:
         """Open a WAL-mode connection. Callers are responsible for closing."""
         conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA cache_size=-50000")  # 50MB page cache
+        conn.execute("PRAGMA temp_store=MEMORY")
         return conn
 
     def _init_db(self):
