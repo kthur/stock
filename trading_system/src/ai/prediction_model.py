@@ -1132,8 +1132,12 @@ class OnDevicePredictionModel:
             drop_subset = [c for c in df_feat.columns if c not in fundamental_cols and c != 'symbol']
             df_clean = df_feat.dropna(subset=drop_subset)
             if not df_clean.empty:
+                df_clean.index.name = 'date'
                 df_clean = df_clean.reset_index()
-                df_clean = df_clean.rename(columns={'index': 'date'})
+                df_clean = df_clean.rename(columns={'Date': 'date', 'index': 'date'})
+                if df_clean.columns.duplicated().any():
+                    df_clean = df_clean.loc[:, ~df_clean.columns.duplicated()]
+                df_clean['date'] = pd.to_datetime(df_clean['date'])
                 all_data.append(df_clean)
 
         if not all_data:
