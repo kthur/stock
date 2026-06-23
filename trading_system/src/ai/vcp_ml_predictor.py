@@ -386,12 +386,12 @@ class VCPSurgePredictor:
             if 'date' not in all_base.columns:
                 all_base = all_base.rename_axis('date').reset_index()
             present_base_cols = [c for c in self._ft.ALL_FEATURES if c in all_base.columns]
-            
+
             # Drop overlapping columns from df_train to prevent suffix duplication during merge
             cols_to_drop = [c for c in present_base_cols if c in df_train.columns]
             if cols_to_drop:
                 df_train = df_train.drop(columns=cols_to_drop)
-                
+
             merge_cols = ['symbol', 'date'] + present_base_cols
             df_train = df_train.merge(all_base[merge_cols], on=['symbol', 'date'], how='inner')
             logger.info(f"After base feature merge: {len(df_train)} rows remaining")
