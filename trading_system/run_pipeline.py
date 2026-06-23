@@ -172,7 +172,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
     return result
 
 
-# 9 Global indicator tickers → feature column names
+# 16 Global indicator & Sector ETF tickers → feature column names
 _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
     '^TNX': 'us10y',
@@ -183,6 +183,14 @@ _INDICATOR_TICKERS = {
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
     '^CPC': 'put_call_ratio',
+    # Sector ETFs
+    '091160.KS': 'kodex_semicon_change',
+    '305720.KS': 'kodex_battery_change',
+    '244580.KS': 'kodex_bio_change',
+    'XLK': 'xlk_change',
+    'XLF': 'xlf_change',
+    'XLV': 'xlv_change',
+    'XLE': 'xle_change',
 }
 
 
@@ -579,7 +587,7 @@ def execute_prediction_pipeline():
 
         # 7c. Compute lead-lag correlation matrix (which stocks follow which)
         if not df_train.empty and len(df_train) > 1000:
-            model.compute_lead_lag(df_train)
+            model.compute_lead_lag(df_train, indicator_df=indicator_train)
 
         # 7d. Train VCP ML surge models (4 markets, parallel inside)
         from src.ai.vcp_ml_predictor import VCPSurgePredictor
@@ -706,7 +714,7 @@ def execute_prediction_pipeline():
 
     # 10d. Run lead-lag inference (which stocks may surge based on leader movements)
     logger.info("Running lead-lag inference...")
-    lead_lag_df = model.predict_lead_lag(infer_data_dict)
+    lead_lag_df = model.predict_lead_lag(infer_data_dict, indicator_df=indicator_infer)
     if not lead_lag_df.empty:
         logger.info(f"Lead-lag predictions generated for {len(lead_lag_df)} symbols")
 
@@ -725,8 +733,12 @@ def execute_prediction_pipeline():
 
     stat_arb_pairs = stat_arb_engine.find_cointegrated_pairs(stat_arb_prices)
 
+    # Ensure result directory exists
+    result_dir = os.path.join(os.path.dirname(__file__), "result")
+    os.makedirs(result_dir, exist_ok=True)
+
     # Save Stat-Arb predictions to separate file
-    stat_arb_output_path = os.path.join(os.path.dirname(__file__), "stat_arb_predictions.txt")
+    stat_arb_output_path = os.path.join(result_dir, "stat_arb_predictions.txt")
     with open(stat_arb_output_path, "w", encoding="utf-8") as f:
         f.write("=== Statistical Arbitrage Pairs & Signals ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
@@ -767,39 +779,14 @@ def execute_prediction_pipeline():
         max_alloc = 0.85
         logger.info("Standard risk mode active (BULL market): setting total allocation to 85.0%")
 
-    # 11c. Run Portfolio Position Sizing
-    logger.info("Running Portfolio Position Sizing allocation...")
-    allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
-    alloc_df = allocator.allocate(res_df, infer_data_dict, total_portfolio_value=1000000000.0)
-    if not alloc_df.empty:
-        # Merge with universe to get market/name
-        alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
-        alloc_output_path = os.path.join(os.path.dirname(__file__), "portfolio_allocation.txt")
-        with open(alloc_output_path, "w", encoding="utf-8") as f:
-            f.write("=== Portfolio Allocation Recommendations (Sharpe/Kelly Optimized) ===\n")
-            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write("Total Capital: 1,000,000,000 KRW/USD\n")
-            f.write("Target Horizon: 20d\n\n")
-            f.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
-            f.write("-" * 92 + "\n")
-            for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
-                name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']*100:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
 
-            allocated_weight = alloc_df['weight'].sum()
-            cash_weight = 1.0 - allocated_weight
-            cash_amount = cash_weight * 1000000000.0
-            f.write("-" * 92 + "\n")
-            f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
-            f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
-        logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")
 
     # Build formatted message for Telegram (top-10 per market)
     message_text = format_prediction_message(res_df, universe)
     print(message_text)
 
     # Save full inference results for ALL symbols to file
-    output_path = os.path.join(os.path.dirname(__file__), "pipeline_result.txt")
+    output_path = os.path.join(result_dir, "pipeline_result.txt")
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     with open(output_path, "w", encoding="utf-8") as f:
@@ -835,7 +822,7 @@ def execute_prediction_pipeline():
 
     # Save surge detection results to separate file
     if not surge_df.empty:
-        surge_output_path = os.path.join(os.path.dirname(__file__), "surge_predictions.txt")
+        surge_output_path = os.path.join(result_dir, "surge_predictions.txt")
         with open(surge_output_path, "w", encoding="utf-8") as f:
             f.write("=== Surge Detection Results (>= 20% return) ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
@@ -866,7 +853,7 @@ def execute_prediction_pipeline():
 
     # Save lead-lag predictions to separate file
     if not lead_lag_df.empty:
-        lead_lag_output_path = os.path.join(os.path.dirname(__file__), "lead_lag_predictions.txt")
+        lead_lag_output_path = os.path.join(result_dir, "lead_lag_predictions.txt")
         lead_lag_df = lead_lag_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
         with open(lead_lag_output_path, "w", encoding="utf-8") as f:
             f.write("=== Lead-Lag Surge Predictions ===\n")
@@ -903,7 +890,7 @@ def execute_prediction_pipeline():
 
     # Save VCP pattern detection results
     if vcp_results:
-        vcp_output_path = os.path.join(os.path.dirname(__file__), "vcp_patterns.txt")
+        vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
         vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
                             universe['name'], universe['market'])}
         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
@@ -937,7 +924,7 @@ def execute_prediction_pipeline():
         vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)
     if not vcp_ml_df.empty:
         vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left', suffixes=('', '_univ'))
-        vcp_ml_output_path = os.path.join(os.path.dirname(__file__), "vcp_ml_predictions.txt")
+        vcp_ml_output_path = os.path.join(result_dir, "vcp_ml_predictions.txt")
         with open(vcp_ml_output_path, "w", encoding="utf-8") as f:
             f.write("=== VCP ML Surge Predictions ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
@@ -960,6 +947,118 @@ def execute_prediction_pipeline():
                         f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
                     f.write("\n")
         logger.info(f"Saved VCP ML predictions ({len(vcp_ml_df)} symbols) to {vcp_ml_output_path}")
+
+    # 11d. Run Ensemble Scoring
+    logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")
+    from src.ai.ensemble_scorer import EnsembleScoringEngine
+    scorer = EnsembleScoringEngine()
+    
+    # default target horizon is 20d
+    ensemble_df = scorer.calculate_ensemble_score(
+        regime=current_regime,
+        regression_df=res_df,
+        surge_df=surge_df,
+        lead_lag_df=lead_lag_df,
+        vcp_ml_df=vcp_ml_df,
+        target_horizon=20
+    )
+
+    # 11e. Save Ensemble Predictions to DB
+    try:
+        storage.save_ensemble_predictions(ensemble_df, date_str)
+        logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to DB table 'ensemble_predictions'")
+    except Exception as e:
+        logger.error(f"Failed to save ensemble predictions to DB: {e}")
+
+    # 11f. Save Ensemble Predictions Report (ensemble_predictions.txt)
+    # Gather decision basis metrics
+    sp500_ret_20d = float(indicator_infer['sp500_change'].tail(20).mean()) if 'sp500_change' in indicator_infer.columns else 0.0
+    sp500_vol_20d = float(indicator_infer['sp500_change'].tail(20).std()) if 'sp500_change' in indicator_infer.columns else 0.0
+    kospi_ret_20d = float(indicator_infer['kospi_change'].tail(20).mean()) if 'kospi_change' in indicator_infer.columns else 0.0
+    kospi_vol_20d = float(indicator_infer['kospi_change'].tail(20).std()) if 'kospi_change' in indicator_infer.columns else 0.0
+    vix_val = float(indicator_infer['vix_change'].iloc[-1]) if 'vix_change' in indicator_infer.columns else 0.0
+    usdkrw_val = float(indicator_infer['usdkrw_change'].iloc[-1]) if 'usdkrw_change' in indicator_infer.columns else 0.0
+    us10y_val = float(indicator_infer['us10y'].iloc[-1]) if 'us10y' in indicator_infer.columns else 0.0
+
+    ensemble_weights = EnsembleScoringEngine.REGIME_WEIGHTS.get(current_regime, EnsembleScoringEngine.REGIME_WEIGHTS[1])
+
+    ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
+    ensemble_df_merged = ensemble_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+
+    with open(ensemble_output_path, "w", encoding="utf-8") as f:
+        f.write("=== Dynamic Multi-Strategy Ensemble Predictions ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        
+        # 1. Executive Summary & Basis
+        f.write("--- Executive Market Summary ---\n")
+        f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
+        f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
+        
+        f.write("--- Judgment Basis (Global Macro Indicators) ---\n")
+        f.write(f"  S&P 500 (20d Rolling Mean Return) : {sp500_ret_20d:+.3f}% / day\n")
+        f.write(f"  S&P 500 (20d Rolling Volatility)  : {sp500_vol_20d:.3f}%\n")
+        f.write(f"  KOSPI (20d Rolling Mean Return)   : {kospi_ret_20d:+.3f}% / day\n")
+        f.write(f"  KOSPI (20d Rolling Volatility)    : {kospi_vol_20d:.3f}%\n")
+        f.write(f"  VIX Index (Fear Gauge)            : {vix_val:.2f}\n")
+        f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
+        f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
+        
+        f.write("--- Applied Ensemble Strategy Weights ---\n")
+        f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights['regression']*100:.1f}%\n")
+        f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights['surge']*100:.1f}%\n")
+        f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights['lead_lag']*100:.1f}%\n")
+        f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights['vcp_ml']*100:.1f}%\n\n")
+
+        # 2. Recommendations per market
+        f.write("--- Top 20 Recommendations by Market ---\n")
+        krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+        for market in krx_markets + ['SP500']:
+            m_df = ensemble_df_merged[ensemble_df_merged['market'] == market].sort_values(by='ensemble_score', ascending=False)
+            if m_df.empty:
+                continue
+            f.write(f"\n=========================================\n")
+            f.write(f"[{market}] Top 20 Ensemble Picks\n")
+            f.write(f"=========================================\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<8}{'Surge':<8}{'L-L':<8}{'VCP':<8}\n")
+            f.write("-" * 99 + "\n")
+            for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
+                name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']*100:>15.1f}%{row['reg_score']*100:>7.0f}%{row['surge_score']*100:>7.0f}%{row['ll_score']*100:>7.0f}%{row['vcp_ml_score']*100:>7.0f}%\n")
+            f.write("\n")
+    logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
+
+    # 11g. Run Portfolio Position Sizing (Ensemble Link)
+    logger.info("Running Portfolio Position Sizing allocation on Ensemble expectancies...")
+    # Prepare the input DataFrame expected by PortfolioAllocator: ['symbol', 20]
+    ensemble_for_alloc = ensemble_df[['symbol', 'ensemble_expected_return']].rename(
+        columns={'ensemble_expected_return': 20}
+    )
+    allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
+    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=1000000000.0)
+    if not alloc_df.empty:
+        alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        alloc_output_path = os.path.join(result_dir, "portfolio_allocation.txt")
+        with open(alloc_output_path, "w", encoding="utf-8") as f:
+            f.write("=== Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f.write("Total Capital: 1,000,000,000 KRW/USD\n")
+            f.write("Target Horizon: 20d\n\n")
+            f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
+            f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
+            
+            f.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
+            f.write("-" * 92 + "\n")
+            for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
+                name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
+                f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']*100:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
+
+            allocated_weight = alloc_df['weight'].sum()
+            cash_weight = 1.0 - allocated_weight
+            cash_amount = cash_weight * 1000000000.0
+            f.write("-" * 92 + "\n")
+            f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
+            f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
+        logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")
 
     return res_df, message_text
 

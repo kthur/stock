@@ -14,6 +14,8 @@ concurrency:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 360
 
     steps:
@@ -89,17 +91,36 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          for f in \
-            trading_system/pipeline_result.txt \
-            trading_system/surge_predictions.txt \
-            trading_system/lead_lag_predictions.txt \
-            trading_system/vcp_patterns.txt \
-            trading_system/vcp_ml_predictions.txt; do
-            [ -f "$f" ] && git add "$f"
-          done
+          git add -f trading_system/result/*.txt || true
           if ! git diff --cached --quiet; then
             git commit -m "pipeline: daily prediction results ($(date '+%Y-%m-%d'))"
             git push
           else
             echo "No changes to commit"
+          fi
+
+      - name: Create GitHub Release and Upload Assets
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ls trading_system/result/*.txt 1> /dev/null 2>&1; then
+            TAG_NAME="v${{ steps.date.outputs.date }}"
+            gh release create "$TAG_NAME" \
+              --title "Daily Predictions $TAG_NAME" \
+              --notes "Daily prediction results for $TAG_NAME.
+              
+              Includes:
+              - **Regression**: pipeline_result.txt
+              - **Surge**: surge_predictions.txt
+              - **Lead-Lag**: lead_lag_predictions.txt
+              - **VCP Rules**: vcp_patterns.txt
+              - **VCP ML**: vcp_ml_predictions.txt
+              - **Stat-Arb**: stat_arb_predictions.txt
+              - **Ensemble**: ensemble_predictions.txt
+              - **Allocation**: portfolio_allocation.txt" \
+              || echo "Release $TAG_NAME already exists"
+            gh release upload "$TAG_NAME" trading_system/result/*.txt --clobber
+          else
+            echo "No prediction output files found to upload."
           fi

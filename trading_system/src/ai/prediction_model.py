@@ -1948,8 +1948,8 @@ class OnDevicePredictionModel:
         except Exception as e:
             logger.error(f"Failed to load lead-lag matrix: {e}")
 
-    def compute_lead_lag(self, df_train: pd.DataFrame, lead_lag_days: int = 1):
-        """Compute lead-lag correlation matrix using top 50 symbols by market cap as potential leaders.
+    def compute_lead_lag(self, df_train: pd.DataFrame, indicator_df: Optional[pd.DataFrame] = None, lead_lag_days: int = 1):
+        """Compute lead-lag correlation matrix using top 50 symbols by market cap + global indices/sectors as potential leaders.
 
         Uses lag-1 cross-correlation: corr(i,j) = E[ret_i[t] * ret_j[t+1]].
         For each leader i, stores top 20 followers (symbols with highest positive correlation).
@@ -1961,14 +1961,44 @@ class OnDevicePredictionModel:
         avg_caps = df_train.groupby('symbol')[cap_col].mean()
         top_50_leaders = avg_caps.nlargest(50).index.tolist()
 
-        logger.info(f"Computing lead-lag matrix for {len(top_50_leaders)} leaders...")
+        logger.info("Computing lead-lag matrix with index/sector headers...")
         ret_pivot = df_train.pivot_table(
             index='date', columns='symbol', values='ret_1d', aggfunc='first'
         )
-        ret_pivot = ret_pivot.fillna(0)
+
+        # Map index change (%) to virtual symbols
+        index_sector_mapping = {
+            'sp500_change': '^GSPC',
+            'kospi_change': '^KS11',
+            'kosdaq_change': '^KQ11',
+            'kodex_semicon_change': '091160.KS',
+            'kodex_battery_change': '305720.KS',
+            'kodex_bio_change': '244580.KS',
+            'xlk_change': 'XLK',
+            'xlf_change': 'XLF',
+            'xlv_change': 'XLV',
+            'xle_change': 'XLE'
+        }
+
+        forced_leaders = []
+        if indicator_df is not None and not indicator_df.empty:
+            ind_df = indicator_df.copy()
+            # Directly parse the index as datetime
+            ind_df.index = pd.to_datetime(ind_df.index)
+            ind_df.index.name = 'date'
+
+            # Map index change (%) to fractional returns (/ 100.0)
+            for src_col, target_sym in index_sector_mapping.items():
+                if src_col in ind_df.columns:
+                    ret_series = ind_df[src_col] / 100.0
+                    ret_pivot[target_sym] = ret_series
+                    forced_leaders.append(target_sym)
+
+        ret_pivot = ret_pivot.fillna(0.0)
+        all_leaders = top_50_leaders + forced_leaders
 
         all_symbols = ret_pivot.columns.tolist()
-        leaders_present = [sym for sym in top_50_leaders if sym in ret_pivot.columns]
+        leaders_present = [sym for sym in all_leaders if sym in ret_pivot.columns]
         if not leaders_present:
             leaders_present = all_symbols[:50]
 
@@ -1986,10 +2016,11 @@ class OnDevicePredictionModel:
         self.lead_lag_leaders = []
         self.lead_lag_matrix = {}
         for i, leader in enumerate(leaders_present):
+            # Exclude other virtual index symbols from being followers
             followers = [
                 (all_symbols[j], float(corr_matrix[i, j]))
                 for j in range(len(all_symbols))
-                if all_symbols[j] != leader and corr_matrix[i, j] > 0
+                if all_symbols[j] != leader and all_symbols[j] not in index_sector_mapping.values() and corr_matrix[i, j] > 0
             ]
             followers.sort(key=lambda x: -x[1])
             if followers:
@@ -2000,7 +2031,7 @@ class OnDevicePredictionModel:
                      f"avg {sum(len(v) for v in self.lead_lag_matrix.values()) // max(len(self.lead_lag_matrix), 1)} followers each")
         self.save_lead_lag()
 
-    def predict_lead_lag(self, prices_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def predict_lead_lag(self, prices_dict: Dict[str, pd.DataFrame], indicator_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """Predict follower surges based on ALL leaders' today returns."""
         if not self.lead_lag_matrix:
             logger.warning("No lead-lag matrix loaded, skipping prediction")
@@ -2015,6 +2046,29 @@ class OnDevicePredictionModel:
                 close = close.iloc[:, 0]
             ret_1d = (close.iloc[-1] / close.iloc[-2]) - 1
             today_returns[sym] = ret_1d
+
+        # Map index change (%) to virtual symbols
+        index_sector_mapping = {
+            'sp500_change': '^GSPC',
+            'kospi_change': '^KS11',
+            'kosdaq_change': '^KQ11',
+            'kodex_semicon_change': '091160.KS',
+            'kodex_battery_change': '305720.KS',
+            'kodex_bio_change': '244580.KS',
+            'xlk_change': 'XLK',
+            'xlf_change': 'XLF',
+            'xlv_change': 'XLV',
+            'xle_change': 'XLE'
+        }
+
+        # Extract today's index/sector returns from indicator_df
+        if indicator_df is not None and not indicator_df.empty:
+            last_row = indicator_df.iloc[-1]
+            for src_col, target_sym in index_sector_mapping.items():
+                if src_col in last_row:
+                    # Convert percent change to fractional return
+                    val = float(last_row[src_col]) / 100.0
+                    today_returns[target_sym] = val
 
         follower_scores: Dict[str, float] = {}
         for leader, followers in self.lead_lag_matrix.items():

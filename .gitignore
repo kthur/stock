@@ -84,13 +84,7 @@ trading_system/models/*.pt
 temp_model.json
 
 # Pipeline output files
-trading_system/pipeline_result.txt
-trading_system/surge_predictions.txt
-trading_system/lead_lag_predictions.txt
-trading_system/vcp_patterns.txt
-trading_system/vcp_ml_predictions.txt
-trading_system/portfolio_allocation.txt
-trading_system/stat_arb_predictions.txt
+trading_system/result/
 
 # Test artifacts
 *.pdf

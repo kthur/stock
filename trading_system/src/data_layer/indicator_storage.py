@@ -68,6 +68,20 @@ class MarketIndicatorStorage:
                     PRIMARY KEY (date, symbol)
                 )
             ''')
+            # Create table for Ensemble Predictions
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ensemble_predictions (
+                    date TEXT,
+                    symbol TEXT,
+                    ensemble_score REAL,
+                    ensemble_expected_return REAL,
+                    reg_score REAL,
+                    surge_score REAL,
+                    ll_score REAL,
+                    vcp_ml_score REAL,
+                    PRIMARY KEY (date, symbol)
+                )
+            ''')
             # Create table for stock fundamentals
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS stock_fundamentals (
@@ -311,6 +325,30 @@ class MarketIndicatorStorage:
         with self._write_lock:
             with self._connect() as conn:
                 conn.execute(sql, (symbol, date_str))
+                conn.commit()
+
+    def save_ensemble_predictions(self, ensemble_df: pd.DataFrame, date_str: str):
+        """Save the calculated ensemble predictions to DB."""
+        if ensemble_df.empty:
+            return
+        sql = """
+            INSERT OR REPLACE INTO ensemble_predictions 
+            (date, symbol, ensemble_score, ensemble_expected_return, reg_score, surge_score, ll_score, vcp_ml_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with self._write_lock:
+            with self._connect() as conn:
+                for _, row in ensemble_df.iterrows():
+                    conn.execute(sql, (
+                        date_str,
+                        row['symbol'],
+                        float(row['ensemble_score']),
+                        float(row['ensemble_expected_return']),
+                        float(row['reg_score']),
+                        float(row['surge_score']),
+                        float(row['ll_score']),
+                        float(row['vcp_ml_score'])
+                    ))
                 conn.commit()
 
 
