@@ -1,6 +1,5 @@
 import unittest
 import pandas as pd
-import numpy as np
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 
 class TestRegimeEnsemble(unittest.TestCase):
@@ -11,7 +10,7 @@ class TestRegimeEnsemble(unittest.TestCase):
         # Stock_A: Good fundamentals (High regression score), poor surge/momentum
         # Stock_B: High surge probability, average fundamentals
         # Stock_C: Moderate in all categories
-        
+
         self.regression_df = pd.DataFrame([
             {'symbol': 'Stock_A', 20: 0.15},  # 15% expected return
             {'symbol': 'Stock_B', 20: 0.02},  # 2% expected return
@@ -48,12 +47,12 @@ class TestRegimeEnsemble(unittest.TestCase):
             vcp_ml_df=self.vcp_ml_df,
             target_horizon=20
         )
-        
+
         scores = dict(zip(res['symbol'], res['ensemble_score']))
-        
+
         # Verify order: A should be higher than B
         self.assertGreater(scores['Stock_A'], scores['Stock_B'])
-        
+
         # Verify that surge_score did not contribute to Stock_B (weights['surge'] == 0)
         # Check explicit math for Stock_B in BEAR:
         # reg_score: Stock_B is lowest regression (Rank = 1/3 = 0.333)
@@ -74,12 +73,12 @@ class TestRegimeEnsemble(unittest.TestCase):
             vcp_ml_df=self.vcp_ml_df,
             target_horizon=20
         )
-        
+
         scores = dict(zip(res['symbol'], res['ensemble_score']))
-        
+
         # Verify order: B should be higher than A
         self.assertGreater(scores['Stock_B'], scores['Stock_A'])
-        
+
         # In BULL, Stock_B should be the top pick
         self.assertEqual(res['symbol'].iloc[0], 'Stock_B')
 
@@ -94,9 +93,9 @@ class TestRegimeEnsemble(unittest.TestCase):
             vcp_ml_df=self.vcp_ml_df,
             target_horizon=20
         )
-        
+
         scores = dict(zip(res['symbol'], res['ensemble_score']))
-        
+
         # Stock_C should be highly ranked because of high lead_lag_score and decent regression rank
         self.assertGreater(scores['Stock_C'], scores['Stock_A'])
 

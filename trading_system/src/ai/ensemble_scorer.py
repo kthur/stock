@@ -1,7 +1,6 @@
 import logging
+import typing
 import pandas as pd
-import numpy as np
-from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -55,21 +54,21 @@ class EnsembleScoringEngine:
         # 1. Prepare Regression Scores
         # target_horizon or closest numeric column
         reg_df = regression_df.copy()
-        horizon_col = target_horizon
+        horizon_col: typing.Any = target_horizon
         if horizon_col not in reg_df.columns:
             numeric_cols = [c for c in reg_df.columns if isinstance(c, (int, float))]
             if numeric_cols:
                 horizon_col = min(numeric_cols, key=lambda x: abs(x - target_horizon))
             else:
                 horizon_col = reg_df.columns[-1]  # fallback
-        
+
         reg_df = reg_df[['symbol', horizon_col]].rename(columns={horizon_col: 'reg_pred'})
         # Rank-normalize regression outputs to [0, 1] range to avoid outlier dominance
         if len(reg_df) > 1:
             reg_df['reg_score'] = reg_df['reg_pred'].rank(pct=True)
         else:
             reg_df['reg_score'] = 1.0
-        
+
         # 2. Prepare Surge Scores (probabilities already in [0, 1])
         s_df = surge_df.copy()
         # Find the best match for the target horizon

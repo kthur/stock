@@ -952,7 +952,7 @@ def execute_prediction_pipeline():
     logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")
     from src.ai.ensemble_scorer import EnsembleScoringEngine
     scorer = EnsembleScoringEngine()
-    
+
     # default target horizon is 20d
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_regime,
@@ -988,12 +988,12 @@ def execute_prediction_pipeline():
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
         f.write("=== Dynamic Multi-Strategy Ensemble Predictions ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
-        
+
         # 1. Executive Summary & Basis
         f.write("--- Executive Market Summary ---\n")
         f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
         f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
-        
+
         f.write("--- Judgment Basis (Global Macro Indicators) ---\n")
         f.write(f"  S&P 500 (20d Rolling Mean Return) : {sp500_ret_20d:+.3f}% / day\n")
         f.write(f"  S&P 500 (20d Rolling Volatility)  : {sp500_vol_20d:.3f}%\n")
@@ -1002,7 +1002,7 @@ def execute_prediction_pipeline():
         f.write(f"  VIX Index (Fear Gauge)            : {vix_val:.2f}\n")
         f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
         f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
-        
+
         f.write("--- Applied Ensemble Strategy Weights ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights['regression']*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights['surge']*100:.1f}%\n")
@@ -1016,14 +1016,14 @@ def execute_prediction_pipeline():
             m_df = ensemble_df_merged[ensemble_df_merged['market'] == market].sort_values(by='ensemble_score', ascending=False)
             if m_df.empty:
                 continue
-            f.write(f"\n=========================================\n")
+            f.write("\n=========================================\n")
             f.write(f"[{market}] Top 20 Ensemble Picks\n")
-            f.write(f"=========================================\n")
+            f.write("=========================================\n")
             f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<8}{'Surge':<8}{'L-L':<8}{'VCP':<8}\n")
             f.write("-" * 99 + "\n")
             for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']*100:>15.1f}%{row['reg_score']*100:>7.0f}%{row['surge_score']*100:>7.0f}%{row['ll_score']*100:>7.0f}%{row['vcp_ml_score']*100:>7.0f}%\n")
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']:>15.1f}%{row['reg_score']*100:>7.0f}%{row['surge_score']*100:>7.0f}%{row['ll_score']*100:>7.0f}%{row['vcp_ml_score']*100:>7.0f}%\n")
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
@@ -1045,12 +1045,12 @@ def execute_prediction_pipeline():
             f.write("Target Horizon: 20d\n\n")
             f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
             f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
-            
+
             f.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
             f.write("-" * 92 + "\n")
             for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']*100:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
+                f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
 
             allocated_weight = alloc_df['weight'].sum()
             cash_weight = 1.0 - allocated_weight

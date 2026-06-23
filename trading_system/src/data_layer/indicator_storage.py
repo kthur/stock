@@ -332,7 +332,7 @@ class MarketIndicatorStorage:
         if ensemble_df.empty:
             return
         sql = """
-            INSERT OR REPLACE INTO ensemble_predictions 
+            INSERT OR REPLACE INTO ensemble_predictions
             (date, symbol, ensemble_score, ensemble_expected_return, reg_score, surge_score, ll_score, vcp_ml_score)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """

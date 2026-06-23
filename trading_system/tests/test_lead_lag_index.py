@@ -1,6 +1,5 @@
 import unittest
 import pandas as pd
-import numpy as np
 from pathlib import Path
 import tempfile
 import shutil
@@ -12,7 +11,7 @@ class TestLeadLagIndex(unittest.TestCase):
         # Create a temporary directory for model savings
         self.test_dir = Path(tempfile.mkdtemp())
         self.config = TradingConfig()
-        
+
         # Instantiate prediction model with a temp directory for saving models
         self.model = OnDevicePredictionModel(model_dir=str(self.test_dir))
         self.model.model_dir = self.test_dir
@@ -24,7 +23,7 @@ class TestLeadLagIndex(unittest.TestCase):
     def test_compute_and_predict_lead_lag_with_indicators(self):
         # 1. Create dummy training data (dates from T0 to T10)
         dates = pd.date_range(start='2026-06-01', periods=15, freq='D')
-        
+
         # Create stock prices train data
         records = []
         for d in dates:
@@ -33,10 +32,10 @@ class TestLeadLagIndex(unittest.TestCase):
             records.append({'date': d, 'symbol': 'Stock_A', 'ret_1d': 0.0, 'market_cap': 1000})
             records.append({'date': d, 'symbol': 'Stock_B', 'ret_1d': 0.0, 'market_cap': 2000})
             records.append({'date': d, 'symbol': 'Stock_C', 'ret_1d': 0.01, 'market_cap': 500})
-            
+
         df_train = pd.DataFrame(records)
         df_train['date'] = pd.to_datetime(df_train['date'])
-        
+
         # Create indicator train data
         indicator_records = []
         for d in dates:
@@ -73,11 +72,11 @@ class TestLeadLagIndex(unittest.TestCase):
 
         # 2. Compute Lead-Lag Matrix
         self.model.compute_lead_lag(df_train, indicator_df=indicator_df, lead_lag_days=1)
-        
+
         # Assertions on computation
         self.assertIn('^GSPC', self.model.lead_lag_leaders)
         self.assertIn('091160.KS', self.model.lead_lag_leaders)
-        
+
         # Check followers of ^GSPC (Should have Stock_A with strong correlation)
         gspc_followers = dict(self.model.lead_lag_matrix['^GSPC'])
         self.assertIn('Stock_A', gspc_followers)
@@ -87,7 +86,7 @@ class TestLeadLagIndex(unittest.TestCase):
         semicon_followers = dict(self.model.lead_lag_matrix['091160.KS'])
         self.assertIn('Stock_B', semicon_followers)
         self.assertGreater(semicon_followers['Stock_B'], 0.5)
-        
+
         # Verify that virtual index symbols are NOT followers of other leaders
         for leader, followers in self.model.lead_lag_matrix.items():
             follower_symbols = [f[0] for f in followers]
@@ -101,33 +100,33 @@ class TestLeadLagIndex(unittest.TestCase):
             'Stock_B': pd.DataFrame({'Close': [100.0, 101.0]}, index=dates[-2:]),
             'Stock_C': pd.DataFrame({'Close': [100.0, 101.0]}, index=dates[-2:]),
         }
-        
+
         # Case A: Today index change is high (SP500 rose 2.5%)
         indicator_infer_a = pd.DataFrame([{
             'sp500_change': 2.5,
             'kodex_semicon_change': 0.0
         }], index=[dates[-1]])
         indicator_infer_a.index.name = 'date'
-        
+
         res_a = self.model.predict_lead_lag(prices_dict, indicator_df=indicator_infer_a)
         self.assertFalse(res_a.empty)
-        
+
         # Stock_A should have higher score than Stock_B because ^GSPC went up
         scores_a = dict(zip(res_a['symbol'], res_a['lead_lag_score']))
         self.assertIn('Stock_A', scores_a)
         if 'Stock_B' in scores_a:
             self.assertGreater(scores_a['Stock_A'], scores_a['Stock_B'])
-            
+
         # Case B: Semicon ETF change is high (KODEX semicon rose 3.0%)
         indicator_infer_b = pd.DataFrame([{
             'sp500_change': 0.0,
             'kodex_semicon_change': 3.0
         }], index=[dates[-1]])
         indicator_infer_b.index.name = 'date'
-        
+
         res_b = self.model.predict_lead_lag(prices_dict, indicator_df=indicator_infer_b)
         self.assertFalse(res_b.empty)
-        
+
         # Stock_B should have higher score than Stock_A because 091160.KS went up
         scores_b = dict(zip(res_b['symbol'], res_b['lead_lag_score']))
         self.assertIn('Stock_B', scores_b)
