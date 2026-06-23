@@ -382,21 +382,18 @@ class VCPSurgePredictor:
                     logger.debug(f"VCP ML base feat failed for {futures[f]}: {e}")
 
         if base_feat_dfs:
-            all_base = pd.concat(base_feat_dfs, ignore_index=True)
+            all_base = pd.concat(base_feat_dfs, ignore_index=False)
+            if 'date' not in all_base.columns:
+                all_base = all_base.rename_axis('date').reset_index()
             present_base_cols = [c for c in self._ft.ALL_FEATURES if c in all_base.columns]
-            remove_syms = []
-            for sym in df_train['symbol'].unique():
-                sym_mask = df_train['symbol'] == sym
-                base_sym = all_base[all_base['symbol'] == sym]
-                if base_sym.empty:
-                    remove_syms.append(sym)
-                    continue
-                base_arr = base_sym[present_base_cols].values
-                date_idxs = df_train.loc[sym_mask, 'date_idx'].values - 1
-                date_idxs = np.clip(date_idxs, 0, len(base_arr) - 1)
-                df_train.loc[sym_mask, present_base_cols] = base_arr[date_idxs]
-            if remove_syms:
-                df_train = df_train[~df_train['symbol'].isin(remove_syms)]
+            
+            # Drop overlapping columns from df_train to prevent suffix duplication during merge
+            cols_to_drop = [c for c in present_base_cols if c in df_train.columns]
+            if cols_to_drop:
+                df_train = df_train.drop(columns=cols_to_drop)
+                
+            merge_cols = ['symbol', 'date'] + present_base_cols
+            df_train = df_train.merge(all_base[merge_cols], on=['symbol', 'date'], how='inner')
             logger.info(f"After base feature merge: {len(df_train)} rows remaining")
 
         feat_cols = list(dict.fromkeys([c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in df_train.columns]))
