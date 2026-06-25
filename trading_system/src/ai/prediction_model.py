@@ -304,21 +304,25 @@ class OnDevicePredictionModel:
     def save_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
+            from src.ai.model_io import save_model
+            from datetime import datetime
+            current_date = datetime.now().strftime("%Y-%m-%d")
+
             # XGBoost
             for market, models in self.models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
-                    model.get_booster().save_model(str(model_path))
+                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_regression"})
             # LightGBM
             for market, models in self.lgb_models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"lgb_model_{market}_{h}d.txt"
-                    model.booster_.save_model(str(model_path))
+                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_regression"})
             # CatBoost
             for market, models in self.cat_models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"cat_model_{market}_{h}d.bin"
-                    model.save_model(str(model_path))
+                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_regression"})
             # LSTM
             for market, models in self.lstm_models.items():
                 for h, model in models.items():
@@ -328,6 +332,7 @@ class OnDevicePredictionModel:
             logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
+
 
     def load_models(self):
         try:
@@ -452,24 +457,29 @@ class OnDevicePredictionModel:
     def save_surge_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
+            from src.ai.model_io import save_model
+            from datetime import datetime
+            current_date = datetime.now().strftime("%Y-%m-%d")
+
             # XGBoost
             for market, models in self.surge_models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
-                    model.get_booster().save_model(str(model_path))
+                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_surge"})
             # LightGBM
             for market, models in self.surge_lgb_models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"lgb_surge_model_{market}_{h}d.txt"
-                    model.booster_.save_model(str(model_path))
+                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_surge"})
             # CatBoost
             for market, models in self.surge_cat_models.items():
                 for h, model in models.items():
                     model_path = self.model_dir / f"cat_surge_model_{market}_{h}d.bin"
-                    model.save_model(str(model_path))
+                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_surge"})
             logger.info(f"Surge models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save surge models: {e}")
+
 
     def load_surge_models(self):
         try:
@@ -1242,8 +1252,18 @@ class OnDevicePredictionModel:
 
         for h in self.horizons:
             logger.info(f"Training {market} model (XGB/LGB/Cat) for {h}d horizon...")
-            X = df_train[features]
-            y = df_train[f'target_{h}d']
+            
+            # Apply feature scaling
+            from src.ai.feature_engineering import fit_scaler, apply_scaler
+            scaler = fit_scaler(df_train, features, str(self.model_dir), market, h)
+            df_scaled = apply_scaler(df_train, features, scaler)
+            
+            X = df_scaled[features]
+            
+            # Apply target transformation (log1p & clipping)
+            from src.ai.target_transform import transform_return
+            y = transform_return(df_train[f'target_{h}d'])
+            
             X_train = X[train_idx]
             y_train = y[train_idx]
             X_val = X[val_idx]
@@ -1278,6 +1298,7 @@ class OnDevicePredictionModel:
                 else:
                     raise ex
             self.lgb_models[market][h] = model_lgb
+
 
             # 3. CatBoost (with GPU fallback)
             try:
@@ -1575,13 +1596,38 @@ class OnDevicePredictionModel:
             probs_xgb = model_xgb.predict_proba(X_eval)[:, 1]
             probs_lgb = model_lgb.predict_proba(X_eval)[:, 1]
             probs_cat = model_cat.predict_proba(X_eval)[:, 1]
+            
+            # Platt Scaling Calibration: Fit a simple LogisticRegression to calibrate the ensemble probs on eval set
             blend_probs = w_xgb * probs_xgb + w_lgb * probs_lgb + w_cat * probs_cat
+            from sklearn.linear_model import LogisticRegression
+            calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
+            # Reshape for logistic regression
+            X_calib = blend_probs.reshape(-1, 1)
+            try:
+                calibration_model.fit(X_calib, y_eval)
+                calibrated_probs = calibration_model.predict_proba(X_calib)[:, 1]
+                logger.info(f"Fitted Platt scaling calibration model for {market} {h}d. Prob limits: {calibrated_probs.min():.4f} - {calibrated_probs.max():.4f}")
+            except Exception as calib_err:
+                logger.warning(f"Calibration fitting failed: {calib_err}. Falling back to uncalibrated probabilities.")
+                calibrated_probs = blend_probs
+                calibration_model = None
+
+            # Save the calibration coefficients if successful
+            if calibration_model is not None:
+                if "calibration" not in self.ensemble_weights:
+                    self.ensemble_weights["calibration"] = {}
+                if market not in self.ensemble_weights["calibration"]:
+                    self.ensemble_weights["calibration"][market] = {}
+                self.ensemble_weights["calibration"][market][str(h)] = {
+                    "coef": float(calibration_model.coef_[0][0]),
+                    "intercept": float(calibration_model.intercept_[0])
+                }
 
             best_th = 0.20  # default fallback
             best_f1 = -1.0
             thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
             for th in thresholds:
-                pred_binary = (blend_probs >= th).astype(int)
+                pred_binary = (calibrated_probs >= th).astype(int)
                 score_f1 = f1_score(y_eval, pred_binary, zero_division=0)
                 if score_f1 > best_f1:
                     best_f1 = score_f1
@@ -1654,19 +1700,27 @@ class OnDevicePredictionModel:
                     w_lgb_val = w_dict.get("lgb", w_lgb_val)
                     w_cat_val = w_dict.get("cat", w_cat_val)
 
+                # Apply feature scaling
+                from src.ai.feature_engineering import load_scaler, apply_scaler
+                scaler = load_scaler(str(self.model_dir), market, h)
+                X_scaled = apply_scaler(latest, self.ALL_FEATURES, scaler)[self.ALL_FEATURES]
+
                 if xgb_m is not None:
-                    preds.append(float(xgb_m.predict(X)[0]))
+                    preds.append(float(xgb_m.predict(X_scaled)[0]))
                     weights.append(w_xgb_val)
                 if lgb_m is not None:
-                    preds.append(float(lgb_m.predict(X)[0]))
+                    preds.append(float(lgb_m.predict(X_scaled)[0]))
                     weights.append(w_lgb_val)
                 if cat_m is not None:
-                    preds.append(float(cat_m.predict(X)[0]))
+                    preds.append(float(cat_m.predict(X_scaled)[0]))
                     weights.append(w_cat_val)
 
                 if preds:
                     total_w = sum(weights)
                     pred = sum(p * (w / total_w) for p, w in zip(preds, weights))
+                    # Inverse target transform from log1p scale back to normal expected returns
+                    from src.ai.target_transform import inverse_transform
+                    pred = float(inverse_transform(pd.Series([pred])).iloc[0])
                 else:
                     pred = 0.0
 
@@ -1743,7 +1797,12 @@ class OnDevicePredictionModel:
                 for mkt in set(market_list):
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
-                        X_mkt = df_all.iloc[idx]
+                        X_mkt_raw = df_all.iloc[idx]
+                        
+                        # Apply feature scaling
+                        from src.ai.feature_engineering import load_scaler, apply_scaler
+                        scaler = load_scaler(str(self.model_dir), mkt, h)
+                        X_mkt = apply_scaler(X_mkt_raw, self.ALL_FEATURES, scaler)[self.ALL_FEATURES]
 
                         xgb_m = self.models.get(mkt, {}).get(h)
                         lgb_m = self.lgb_models.get(mkt, {}).get(h)
@@ -1804,9 +1863,14 @@ class OnDevicePredictionModel:
                             blend_pred = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
                                 blend_pred += p * (w / total_w)
-                            res_df.loc[idx, h] = blend_pred
+                            
+                            # Inverse target transform from log1p scale back to normal expected returns
+                            from src.ai.target_transform import inverse_transform
+                            blend_pred_inv = inverse_transform(pd.Series(blend_pred)).values
+                            res_df.loc[idx, h] = blend_pred_inv
                         else:
                             res_df.loc[idx, h] = 0.0
+
 
         # Clip extreme values
         for h in self.horizons:
@@ -1880,6 +1944,17 @@ class OnDevicePredictionModel:
                             blend_prob = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
                                 blend_prob += p * (w / total_w)
+                            
+                            # Apply Platt Scaling calibration if coefficient metadata is present
+                            calib_dict = self.ensemble_weights.get("calibration", {}).get(mkt, {}).get(str(h), {})
+                            if calib_dict:
+                                coef = calib_dict.get("coef")
+                                intercept = calib_dict.get("intercept")
+                                if coef is not None and intercept is not None:
+                                    # Logistic function: 1 / (1 + exp(-(coef * x + intercept)))
+                                    # Using clipping to avoid overflow
+                                    z = np.clip(coef * blend_prob + intercept, -20, 20)
+                                    blend_prob = 1.0 / (1.0 + np.exp(-z))
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             res_df.loc[idx, col_name] = 0.0

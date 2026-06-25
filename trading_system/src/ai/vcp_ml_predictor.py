@@ -587,6 +587,15 @@ class VCPSurgePredictor:
                             blend_prob = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
                                 blend_prob += p * (w / total_w)
+                            
+                            # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
+                            calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt, {}).get(str(h), {})
+                            if calib_dict:
+                                coef = calib_dict.get("coef")
+                                intercept = calib_dict.get("intercept")
+                                if coef is not None and intercept is not None:
+                                    z = np.clip(coef * blend_prob + intercept, -20, 20)
+                                    blend_prob = 1.0 / (1.0 + np.exp(-z))
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             res_df.loc[idx, col_name] = 0.0
@@ -596,24 +605,29 @@ class VCPSurgePredictor:
     def save_models(self):
         try:
             self.model_dir.mkdir(parents=True, exist_ok=True)
+            from src.ai.model_io import save_model
+            from datetime import datetime
+            current_date = datetime.now().strftime("%Y-%m-%d")
+
             # XGBoost
             for market, models in self.models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"vcp_surge_{market}_{h}d.json"
-                    model.get_booster().save_model(str(path))
+                    save_model(model, str(path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_xgb_surge"})
             # LightGBM
             for market, models in self.lgb_models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"lgb_vcp_surge_{market}_{h}d.txt"
-                    model.booster_.save_model(str(path))
+                    save_model(model, str(path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_lgb_surge"})
             # CatBoost
             for market, models in self.cat_models.items():
                 for h, model in models.items():
                     path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"
-                    model.save_model(str(path))
+                    save_model(model, str(path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "vcp_cat_surge"})
             logger.info(f"VCP ML models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save VCP ML models: {e}")
+
 
     def load_models(self):
         try:
