@@ -1,13 +1,24 @@
 # ⚠️ Known Issues & 개선 로드맵
 
-> **Last Updated**: 2026-06-21  
-> **분석 기준**: 5개 전문 리뷰어에 의한 전체 코드베이스 정밀 검토, 버그 픽스 및 순차적 시스템 개선 완료
+> **Last Updated**: 2026-06-27  
+> **분석 기준**: 자율 매매 에이전트(Autonomous Trading Agent) 연동 및 4대 퀀트 고도화(ATR 트레일링 스탑, 상관관계 분산, 위기 리스크 캡, 실효 비용 내재화) 적용 완료
 
 ---
 
-## 🟢 Resolved Issues (2026-06-21 완료)
+## 🟢 Resolved Issues (2026-06-27 완료)
 
-다음의 핵심 버그, 안정성 이슈 및 아키텍처 개선 사항들이 모두 반영되어 수정 및 구현이 완료되었습니다.
+다음의 핵심 에이전트 연동, 퀀트 고도화, 안정성 이슈 및 아키텍처 개선 사항들이 모두 반영되어 수정 및 구현이 완료되었습니다.
+
+**Autonomous Trading Agent & Quant (완료)**
+- [x] A1. SQLite 기반 거래 영속 및 통계 산출을 위한 `TradeJournal` 구현 (`trade_logs.db`)
+- [x] A2. Google News RSS 실시간 파싱 및 1시간 메모리 캐싱이 포함된 `NewsSentimentFetcher` 구현
+- [x] A3. 자율 매매 통제 및 계좌 보호를 위한 5대 운영 규칙(Kelly 리스크 조절, VIX/감성 필터, 통계 우위 검사, Telegram 보고서, 지수 폭락 시 전량 현금화 프로토콜) 적용
+- [x] A4. [Q1] 14일 ATR 기반 동적 트레일링 스탑 계산 로직 구현 및 고정 TP 병행 검증
+- [x] A5. [Q2] Pearson 상관관계 분석 기반 동조화 종목 매수 보류(BLOCK ≥0.85) 및 비중 반감(HALVE ≥0.70) 다각화 로직 구현
+- [x] A6. [Q3] VIX 복합 위기 단계별 단일 거래 리스크 캡 동적 조정 및 SEVERE 단계 매수 차단 구현
+- [x] A7. [Q4] 수수료, 세금 및 슬리피지(각 거래당 0.2%) 실효 거래 비용을 매수/매도 단가에 반영한 Net PnL 산출
+- [x] A8. 오케스트레이터 APScheduler 및 폴백 데몬 루프에 `trading` 스테이지 스케줄링 통합 (`09:05` 매수 및 `15:20` 청산)
+- [x] A9. 전체 19개 유닛 테스트 케이스 구성 및 100% 통과 검증 완료
 
 **Critical (해결됨)**
 - [x] C1. `orchestrator.py` `config.train_sample_size` AttributeError 해결 (파이프라인 통합)
@@ -28,6 +39,7 @@
 - [x] S6. `indicator_storage.py` SQLite 동시 쓰기 `database is locked` 에러 방지 (WAL 모드 + Thread Lock)
 - [x] S7. `locale.setlocale()` 스레드 안전성 확인 (코드 내 미사용 확인)
 - [x] S8. `run_pipeline.py` ProcessPoolExecutor의 pickle 오버헤드를 ThreadPoolExecutor로 교체하여 성능 최적화
+
 
 ---
 

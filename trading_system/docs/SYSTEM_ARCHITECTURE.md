@@ -426,6 +426,30 @@ CREATE → PENDING → SUBMITTED → PARTIALLY_FILLED → FILLED
 | Monte Carlo Robustness | 1000회 PnL 셔플 검증 |
 | Recency-Weighted Score | `Sharpe_norm×0.40 + (1-MDD_norm)×0.30 + WinRate×0.15 + PF_norm×0.15` |
 
+### 5.6 Autonomous Trading Agent (src/ai/trading_agent.py)
+
+**자동 트레이딩 에이전트**. 오케스트레이터 데몬 및 파이프라인에서 신호를 처리하여 실제 매매 주문을 수행하고 계좌 자산을 보호합니다. 5대 핵심 운영 규칙 및 4가지 퀀트 고도화 알고리즘이 탑재되어 있습니다.
+
+* **5대 핵심 규칙**:
+  1. **Rule 1 (위험 관리)**: 단일 거래당 자본의 최대 2%로 리스크 제한 (Kelly 비중 기반 수량 조절).
+  2. **Rule 2 (데이터 처리)**: 최근 1시간 뉴스 감성이 부정적(< -0.2)이거나 시장 공포 지표(VIX > 30.0) 발생 시 신규 매수 전면 차단.
+  3. **Rule 3 (통계적 우위)**: 최근 90일 거래 횟수 5회 이상 시 승률 55% 이상 및 기댓값(Edge) > 0 일 때만 시그널 허용. 데이터 부족 시 디폴트 priors 사용.
+  4. **Rule 4 (보고 의무)**: 매수/매도 실행 전, 거래 방향/수량/진입가/손절가/익절가 및 판단의 상세 근거가 기재된 요약 보고서를 Telegram으로 알림.
+  5. **Rule 5 (비상 대응)**: 지수(KOSPI, S&P500 등)가 당일 변동성 5% 이상으로 급변 시, 모든 미체결 주문을 취소하고 보유 중인 모든 포지션을 즉시 시장가 청산하여 100% 현금 보유.
+* **4대 퀀트 고도화**:
+  1. **Q1 (동적 ATR 트레일링 스탑)**: 고정 -5% 손절선을 대체하여, 진입 이후 최고가 대비 `ATR(14) × 2.5` 수준으로 손절선을 유연하게 상향 조정. 고정 익절선(15%)은 병행 유지.
+  2. **Q2 (상관관계 기반 분산)**: 신규 매수 시 기존 보유 종목들과 최근 60영업일 일간 수익률의 Pearson 상관계수를 계산. 0.85 이상 시 진입 차단(`BLOCK`), 0.70 이상 시 비중 절반 축소(`HALVE`).
+  3. **Q3 (동적 위기 리스크 캡)**: VIX 기반 복합 위기 레벨에 따라 단일 거래 리스크 한도를 축소 (`NONE`: 2%, `WATCH`: 1.5%, `ACTIVE`: 1%, `SEVERE`: 신규 매수 전면 차단).
+  4. **Q4 (실제 매매비용/슬리피지 내재화)**: PnL 계산 시 매수 수수료(0.015%) 및 슬리피지(0.2%), 매도 거래세/수수료(0.255%) 및 슬리피지(0.2%)를 포함한 Net PnL 산출 (매수가 × 1.00215, 매도가 × 0.99545 적용).
+
+### 5.7 Trade Journal (src/data_layer/trade_journal.py)
+
+**거래 기록 및 통계 저장소 (SQLite)**. `trade_logs.db` 데이터베이스에 모든 주문 및 실현 손익 기록을 저장하고, 평단가(Average Price), 활성 포지션(Active Positions), 당일 실현 손익(Daily PnL), 승률(Win Rate), 평균 손익비(Win-Loss Ratio) 등 성능 지표를 분석합니다.
+
+### 5.8 News Sentiment Fetcher (src/ai/news_sentiment_fetcher.py)
+
+**뉴스 감성 분석 수집기**. Google News RSS 피드를 `urllib` 및 `ElementTree`로 파싱하고 `SentimentAnalyzer`를 통해 감성 점수(-1 ~ +1)를 산출합니다. 1시간의 인메모리 캐싱 기법을 내장하여 불필요한 네트워크 API 호출 및 지연을 방어합니다.
+
 ---
 
 ## 6. 전략 엔진 상세
@@ -1055,6 +1079,26 @@ else → weak_bear
 
 동일 스키마의 `ai_predictions` 테이블
 
+### 15.5 trade_logs.db
+
+**trade_journal**:
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INTEGER PK | 일련번호 |
+| timestamp | TEXT | 거래 일시 (YYYY-MM-DD HH:MM:SS) |
+| symbol | TEXT | 종목 코드 |
+| side | TEXT | 거래 방향 (BUY, SELL, CANCEL) |
+| quantity | INTEGER | 거래 수량 |
+| price | REAL | 거래 체결 단가 |
+| reason | TEXT | 진입/청산 사유 (예: TP, SL, Sentiment 등) |
+| ensemble_score | REAL | 진입 시점의 앙상블 예상 수익률 |
+| sentiment_score | REAL | 진입 시점의 뉴스 감성 점수 |
+| regime | TEXT | 진입 시점의 시장 레짐 |
+| stop_loss | REAL | 설정된 손절 단가 |
+| take_profit | REAL | 설정된 익절 단가 |
+| pnl | REAL | 매도 시 실현된 손익 (거래 수수료/세금/슬리피지 차감된 Net PnL) |
+| status | TEXT | 주문 상태 (기본 'EXECUTED') |
+
 ---
 
 ## 16. 테스트
@@ -1075,6 +1119,7 @@ else → weak_bear
 | `tests/test_macro_stress.py` | 거시경제 스트레스 테스트 |
 | `tests/test_risk_manager.py` | 리스크 매니저 단위 |
 | `tests/test_screener_dash_challenger.py` | 스크리너 |
+| `tests/test_trading_agent.py` | 오토 트레이딩 에이전트 & 4대 고도화 및 5대 규칙 |
 
 ### 16.2 실행
 
@@ -1187,8 +1232,26 @@ mypy src/
 | Trend Breakdown | 10% |
 | Macro (FX/Oil/Rates/DXY) | 25% |
 
+### 17.9 Autonomous Trading Agent
+
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| `ATR_LOOKBACK_DAYS` | 14 | ATR 계산을 위한 과거 일수 |
+| `ATR_MULTIPLIER` | 2.5 | ATR 손절 및 트레일링 스탑 승수 |
+| `CORRELATION_LOOKBACK_DAYS` | 60 | Pearson 상관계수용 과거 영업일 수 |
+| `CORRELATION_BLOCK_THRESHOLD` | 0.85 | 상관계수 BLOCK(진입 차단) 임계값 |
+| `CORRELATION_HALVE_THRESHOLD` | 0.70 | 상관계수 HALVE(비중 절반) 임계값 |
+| `CRISIS_RISK_CAP (NONE)` | 0.02 (2.0%) | 정상 상태 단일 거래 리스크 한도 |
+| `CRISIS_RISK_CAP (WATCH)` | 0.015 (1.5%) | 주의 상태 단일 거래 리스크 한도 |
+| `CRISIS_RISK_CAP (ACTIVE)` | 0.01 (1.0%) | 위기 상태 단일 거래 리스크 한도 |
+| `CRISIS_RISK_CAP (SEVERE)` | 0.00 (0.0%) | 심각 상태 신규 매수 차단 |
+| `FEES_AND_TAXES (BUY)` | 0.215% | 매수 수수료(0.015%) + 슬리피지(0.2%) |
+| `FEES_AND_TAXES (SELL)` | 0.455% | 매도 수수료/거래세(0.255%) + 슬리피지(0.2%) |
+
 ---
 
 > **문서 이력**
+> - 2026-06-27: v4.0 — 자율 주식 거래 에이전트(Autonomous Trading Agent) 도입, 5대 규칙 적용 및 4대 퀀트 고도화(ATR 트레일링 스탑, 상관관계 분산, 위기 리스크 캡, 실효 비용 내재화) 반영
+> - 2026-06-21: v3.0 — 펀더멘탈 데이터 캐싱, WAL 및 Thread Lock 동시성 해결 등 Known Issues 개선 반영
 > - 2026-06-12: v2.0 — 추세 추종 오버라이드, XGBoost 예측 시스템, 텔레그램 /predict /dashboard 추가 반영
 > - 초기 작성: v1.0

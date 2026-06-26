@@ -117,7 +117,7 @@ TRAIN_START_DATE=2006-01-01
 .venv\Scripts\python run_orchestrator.py run-now <stage>
 ```
 
-지원 스테이지: `indicators`, `universe`, `train`, `predict`, `score`, `ingest`, `weekly_train_predict`, `all`
+지원 스테이지: `indicators`, `universe`, `train`, `predict`, `score`, `ingest`, `trading`, `weekly_train_predict`, `all`
 
 ### 4. 텔레그램 봇
 

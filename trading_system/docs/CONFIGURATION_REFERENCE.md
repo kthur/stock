@@ -130,3 +130,11 @@ TELEGRAM_AUTHORIZED_USER_IDS=12345678,87654321
 | `orchestrator.py` L395 | 수집 시각 | `15:45` | 일일 지표 수집 시각 |
 | `orchestrator.py` L401 | 스코어링 시각 | `16:30` | 포스트마켓 스코어링 시각 |
 | `orchestrator.py` L407 | 학습 시각 | `일요일 01:00` | 주간 모델 재학습 시각 |
+| `trading_agent.py` | `ATR_LOOKBACK_DAYS` | `14` | ATR 계산을 위한 과거 Lookback 기간 |
+| `trading_agent.py` | `ATR_MULTIPLIER` | `2.5` | ATR 기반 손절 및 트레일링 스탑 승수 |
+| `trading_agent.py` | `CORRELATION_LOOKBACK_DAYS` | `60` | Pearson 상관계수 일수 (영업일 기준) |
+| `trading_agent.py` | `CORRELATION_BLOCK_THRESHOLD` | `0.85` | 포트폴리오 상관관계 BLOCK(매수 차단) 임계치 |
+| `trading_agent.py` | `CORRELATION_HALVE_THRESHOLD` | `0.70` | 포트폴리오 상관관계 HALVE(비중 반감) 임계치 |
+| `trading_agent.py` | `CRISIS_RISK_CAP` | `NONE: 2%, WATCH: 1.5%, ACTIVE: 1%, SEVERE: 0%` | 위기 레벨별 단일 종목 최대 리스크 캡 |
+| `trading_agent.py` | `FEES_AND_TAXES` | `BUY: 0.215%, SELL: 0.455%` | 수수료, 거래세 및 슬리피지(0.2%) 통합 실효 비용 |
+
