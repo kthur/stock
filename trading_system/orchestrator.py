@@ -304,6 +304,34 @@ async def run_stage_score(db_path: str) -> str:
         summary = output[output.index("TOP 10 RANKED STOCKS"):]
     return summary
 
+async def run_stage_trading(db_path: str):
+    logger.info("Executing stage 'trading'...")
+    from src.broker.real_broker import RealBroker, KoreaInvestmentBroker
+    from src.risk.risk_manager import RiskManager
+    from src.ai.trading_agent import TradingAgent
+    from src.config import TradingConfig
+
+    cfg = TradingConfig()
+    cfg.db_path = db_path
+
+    if cfg.mock_trading:
+        broker = RealBroker()
+    else:
+        broker = KoreaInvestmentBroker(
+            app_key=cfg.kis_mock_app_key,
+            app_secret=cfg.kis_mock_app_secret,
+            account_no=cfg.kis_mock_account,
+            simulation=True
+        )
+    broker.connect()
+
+    risk_mgr = RiskManager(portfolio_value=cfg.initial_cash)
+    notifier = NotificationSystem()
+
+    agent = TradingAgent(config=cfg, broker=broker, risk_manager=risk_mgr, notifier=notifier)
+    await agent.run_trading_cycle()
+    logger.info("Stage 'trading' completed successfully.")
+
 # Generalized stage runner
 async def run_stage(stage: str, db_path: str) -> bool:
     notifier = NotificationSystem()
@@ -333,6 +361,8 @@ async def run_stage(stage: str, db_path: str) -> bool:
                 await run_stage_universe(db_path)
                 await run_stage_train(db_path)
                 result_msg = await run_stage_predict(db_path)
+            elif stage == "trading":
+                await run_stage_trading(db_path)
             else:
                 raise ValueError(f"Unknown stage: {stage}")
 
@@ -399,7 +429,9 @@ async def fallback_scheduler_loop():
     last_run = {
         "ingestion": None,
         "scoring": None,
-        "weekly_train": None
+        "weekly_train": None,
+        "trading_morning": None,
+        "trading_afternoon": None
     }
 
     # Check database on startup to recover last runs for today
@@ -447,6 +479,20 @@ async def fallback_scheduler_loop():
             await run_task_safely("weekly_train", lambda: run_stage("all", DB_PATH))
             last_run["weekly_train"] = current_today
 
+        # 4. Trading Morning: daily at 09:05
+        trading_morning_time = time(9, 5)
+        if now.time() >= trading_morning_time and last_run["trading_morning"] != current_today:
+            logger.info("Scheduled task 'trading_morning' is due.")
+            await run_task_safely("trading_morning", lambda: run_stage("trading", DB_PATH))
+            last_run["trading_morning"] = current_today
+
+        # 5. Trading Afternoon: daily at 15:20
+        trading_afternoon_time = time(15, 20)
+        if now.time() >= trading_afternoon_time and last_run["trading_afternoon"] != current_today:
+            logger.info("Scheduled task 'trading_afternoon' is due.")
+            await run_task_safely("trading_afternoon", lambda: run_stage("trading", DB_PATH))
+            last_run["trading_afternoon"] = current_today
+
         await asyncio.sleep(60)
 
 # Main entrypoint for the daemon
@@ -479,6 +525,10 @@ async def main():
             scheduler.add_job(_make_async_job("score", DB_PATH), 'cron', hour=16, minute=30, id='scoring', max_instances=1)
             # 3. Weekly train Sunday at 01:00 AM
             scheduler.add_job(_make_async_job("all", DB_PATH), 'cron', day_of_week='sun', hour=1, minute=0, id='weekly_train', max_instances=1)
+            # 4. Trading Morning daily at 09:05
+            scheduler.add_job(_make_async_job("trading", DB_PATH), 'cron', hour=9, minute=5, id='trading_morning', max_instances=1)
+            # 5. Trading Afternoon daily at 15:20
+            scheduler.add_job(_make_async_job("trading", DB_PATH), 'cron', hour=15, minute=20, id='trading_afternoon', max_instances=1)
 
             scheduler.start()
             logger.info("APScheduler started.")
