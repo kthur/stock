@@ -781,11 +781,7 @@ def execute_prediction_pipeline():
 
 
 
-    # Build formatted message for Telegram (top-10 per market)
-    message_text = format_prediction_message(res_df, universe)
-    print(message_text)
-
-    # Save full inference results for ALL symbols to file
+    # Build formatted message for Telegram     # Save full inference results for ALL symbols to file
     output_path = os.path.join(result_dir, "pipeline_result.txt")
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
@@ -820,6 +816,16 @@ def execute_prediction_pipeline():
                 f.write("\n")
     logger.info(f"Saved full pipeline result ({len(res_df)} symbols) to {output_path}")
 
+    # [NEW] Save CSV and JSON Lines format for pipeline_result
+    try:
+        csv_path = os.path.join(result_dir, "pipeline_result.csv")
+        jsonl_path = os.path.join(result_dir, "pipeline_result.jsonl")
+        res_df.to_csv(csv_path, index=False)
+        res_df.to_json(jsonl_path, orient='records', lines=True)
+        logger.info(f"Saved pipeline CSV to {csv_path} and JSON Lines to {jsonl_path}")
+    except Exception as e:
+        logger.error(f"Failed to save CSV/JSONL results: {e}")
+
     # Save surge detection results to separate file
     if not surge_df.empty:
         surge_output_path = os.path.join(result_dir, "surge_predictions.txt")
@@ -850,6 +856,17 @@ def execute_prediction_pipeline():
                         f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {prob:.1f}%\n")
                     f.write("\n")
         logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
+
+        # [NEW] Save CSV and JSON Lines format for surge predictions
+        try:
+            surge_csv_path = os.path.join(result_dir, "surge_predictions.csv")
+            surge_jsonl_path = os.path.join(result_dir, "surge_predictions.jsonl")
+            surge_df.to_csv(surge_csv_path, index=False)
+            surge_df.to_json(surge_jsonl_path, orient='records', lines=True)
+            logger.info(f"Saved surge CSV to {surge_csv_path} and JSON Lines to {surge_jsonl_path}")
+        except Exception as e:
+            logger.error(f"Failed to save surge CSV/JSONL results: {e}")
+
 
     # Save lead-lag predictions to separate file
     if not lead_lag_df.empty:

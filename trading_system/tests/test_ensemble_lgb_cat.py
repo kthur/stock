@@ -167,9 +167,11 @@ class TestEnsembleLgbCat(unittest.TestCase):
         model = OnDevicePredictionModel(model_dir=self.model_dir)
 
         # Manually assign mock XGBoost regressor, but keep LGB and Cat empty
+        # We need the regression mock to return a value that, after inverse_transform (expm1), is 0.77.
+        # Log1p(0.77) = 0.5709795
         class MockModel:
             def predict(self, X):
-                return np.array([0.77])
+                return np.array([0.5709795])
             def predict_proba(self, X):
                 return np.array([[0.23, 0.77]])
 
@@ -180,15 +182,16 @@ class TestEnsembleLgbCat(unittest.TestCase):
         df_current = self.generate_mock_data(80)
         pred = model.predict_current(df_current, market="sp500")
 
-        # It should fall back to XGBoost (which predicts 0.77)
-        self.assertAlmostEqual(pred[5], 0.77)
+        # It should fall back to XGBoost (which predicts 0.77 after inverse transform)
+        self.assertAlmostEqual(pred[5], 0.77, places=4)
 
         # Check batch prediction fallback
         prices_test = {"AAPL": self.generate_mock_data(80)}
         res_df, surge_df = model.predict_all(prices_test)
         self.assertFalse(res_df.empty)
-        self.assertAlmostEqual(res_df.loc[res_df["symbol"] == "AAPL", 5].values[0], 0.77)
-        self.assertAlmostEqual(surge_df.loc[surge_df["symbol"] == "AAPL", "surge_5d"].values[0], 0.77)
+        self.assertAlmostEqual(res_df.loc[res_df["symbol"] == "AAPL", 5].values[0], 0.77, places=4)
+        self.assertAlmostEqual(surge_df.loc[surge_df["symbol"] == "AAPL", "surge_5d"].values[0], 0.77, places=4)
+
 
 if __name__ == "__main__":
     unittest.main()
