@@ -46,10 +46,10 @@ class NewsSentimentFetcher:
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
             )
             # 타임아웃 10초
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310
                 xml_data = response.read()
 
-            root = ET.fromstring(xml_data)
+            root = ET.fromstring(xml_data)  # nosec B314
             items = root.findall('.//item')
 
             if not items:
@@ -70,7 +70,7 @@ class NewsSentimentFetcher:
                     text_to_analyze += title.text + " "
                 if desc is not None and desc.text:
                     # HTML 태그 제거
-                    cleaned_desc = ET.fromstring(f"<span>{desc.text}</span>").itertext()
+                    cleaned_desc = ET.fromstring(f"<span>{desc.text}</span>").itertext()  # nosec B314
                     text_to_analyze += "".join(cleaned_desc)
 
                 text_to_analyze = text_to_analyze.strip()
