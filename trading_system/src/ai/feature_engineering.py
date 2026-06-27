@@ -14,7 +14,7 @@ def fit_scaler(df: pd.DataFrame, features: list, model_dir: str, market: str, ho
     # Fill remaining NaNs with 0 before scaling to ensure safety
     X = df[features].fillna(0.0)
     scaler.fit(X)
-    
+
     os.makedirs(model_dir, exist_ok=True)
     scaler_path = get_scaler_path(model_dir, market, horizon)
     joblib.dump(scaler, scaler_path)

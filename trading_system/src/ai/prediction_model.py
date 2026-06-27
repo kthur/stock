@@ -1252,18 +1252,18 @@ class OnDevicePredictionModel:
 
         for h in self.horizons:
             logger.info(f"Training {market} model (XGB/LGB/Cat) for {h}d horizon...")
-            
+
             # Apply feature scaling
             from src.ai.feature_engineering import fit_scaler, apply_scaler
             scaler = fit_scaler(df_train, features, str(self.model_dir), market, h)
             df_scaled = apply_scaler(df_train, features, scaler)
-            
+
             X = df_scaled[features]
-            
+
             # Apply target transformation (log1p & clipping)
             from src.ai.target_transform import transform_return
             y = transform_return(df_train[f'target_{h}d'])
-            
+
             X_train = X[train_idx]
             y_train = y[train_idx]
             X_val = X[val_idx]
@@ -1596,7 +1596,7 @@ class OnDevicePredictionModel:
             probs_xgb = model_xgb.predict_proba(X_eval)[:, 1]
             probs_lgb = model_lgb.predict_proba(X_eval)[:, 1]
             probs_cat = model_cat.predict_proba(X_eval)[:, 1]
-            
+
             # Platt Scaling Calibration: Fit a simple LogisticRegression to calibrate the ensemble probs on eval set
             blend_probs = w_xgb * probs_xgb + w_lgb * probs_lgb + w_cat * probs_cat
             from sklearn.linear_model import LogisticRegression
@@ -1672,7 +1672,7 @@ class OnDevicePredictionModel:
                 return {h: 0.0 for h in self.horizons}
 
         latest = df_current.iloc[-1:]
-        X = latest[self.ALL_FEATURES]
+        latest[self.ALL_FEATURES]
 
         predictions = {}
         import warnings
@@ -1798,7 +1798,7 @@ class OnDevicePredictionModel:
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
                         X_mkt_raw = df_all.iloc[idx]
-                        
+
                         # Apply feature scaling
                         from src.ai.feature_engineering import load_scaler, apply_scaler
                         scaler = load_scaler(str(self.model_dir), mkt, h)
@@ -1863,7 +1863,7 @@ class OnDevicePredictionModel:
                             blend_pred = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
                                 blend_pred += p * (w / total_w)
-                            
+
                             # Inverse target transform from log1p scale back to normal expected returns
                             from src.ai.target_transform import inverse_transform
                             blend_pred_inv = inverse_transform(pd.Series(blend_pred)).values
@@ -1944,7 +1944,7 @@ class OnDevicePredictionModel:
                             blend_prob = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
                                 blend_prob += p * (w / total_w)
-                            
+
                             # Apply Platt Scaling calibration if coefficient metadata is present
                             calib_dict = self.ensemble_weights.get("calibration", {}).get(mkt, {}).get(str(h), {})
                             if calib_dict:

@@ -781,7 +781,11 @@ def execute_prediction_pipeline():
 
 
 
-    # Build formatted message for Telegram     # Save full inference results for ALL symbols to file
+    # Build formatted message for Telegram (top-10 per market)
+    message_text = format_prediction_message(res_df, universe)
+    print(message_text)
+
+    # Save full inference results for ALL symbols to file
     output_path = os.path.join(result_dir, "pipeline_result.txt")
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))

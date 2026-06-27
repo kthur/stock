@@ -587,7 +587,7 @@ class VCPSurgePredictor:
                             blend_prob = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
                                 blend_prob += p * (w / total_w)
-                            
+
                             # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
                             calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt, {}).get(str(h), {})
                             if calib_dict:

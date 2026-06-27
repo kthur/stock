@@ -5,9 +5,8 @@ import sqlite3
 import shutil
 import tempfile
 import asyncio
-import numpy as np
 from pathlib import Path
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -89,11 +88,11 @@ def _create_price_db(db_path: str, close: float = 80000.0, rows: int = 20):
     for i in range(rows):
         d = (base + _dt.timedelta(days=i)).isoformat()
         # 약간의 변동을 줘서 ATR 계산 가능하게
-        h = close * (1 + 0.01 * (i % 3))
-        l = close * (1 - 0.01 * (i % 3))
+        high_val = close * (1 + 0.01 * (i % 3))
+        low_val = close * (1 - 0.01 * (i % 3))
         conn.execute(
             "INSERT OR REPLACE INTO stock_prices VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            ('005930', d, close, h, l, close, 1000000, d)
+            ('005930', d, close, high_val, low_val, close, 1000000, d)
         )
     conn.commit()
     conn.close()

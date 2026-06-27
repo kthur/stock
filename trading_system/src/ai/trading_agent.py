@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 
 from src.config import TradingConfig
 from src.broker.real_broker import BrokerBase
@@ -555,7 +555,7 @@ class TradingAgent:
 
             closes = np.array([row[0] for row in reversed(rows)], dtype=float)
             returns = np.diff(closes) / closes[:-1]
-            return returns
+            return returns  # type: ignore[no-any-return]
         except Exception as e:
             logger.debug(f"Failed to get daily returns for {symbol}: {e}")
             return None

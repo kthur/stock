@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Union
 from xgboost import XGBRegressor, XGBClassifier
 from lightgbm import LGBMRegressor, LGBMClassifier
 from catboost import CatBoostRegressor, CatBoostClassifier
@@ -49,7 +48,7 @@ class EnsembleRegressor:
         p_lgb = self.lgb.predict(X)
         p_cat = self.cat.predict(X)
         stacked_features = np.column_stack((p_xgb, p_lgb, p_cat))
-        return self.meta_learner.predict(stacked_features)
+        return self.meta_learner.predict(stacked_features)  # type: ignore[no-any-return]
 
 
 class EnsembleClassifier:
@@ -92,7 +91,7 @@ class EnsembleClassifier:
         p_lgb = self.lgb.predict_proba(X)[:, 1]
         p_cat = self.cat.predict_proba(X)[:, 1]
         stacked_features = np.column_stack((p_xgb, p_lgb, p_cat))
-        return self.meta_learner.predict_proba(stacked_features)
+        return self.meta_learner.predict_proba(stacked_features)  # type: ignore[no-any-return]
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         if not self.is_fitted:
@@ -101,4 +100,4 @@ class EnsembleClassifier:
         p_lgb = self.lgb.predict(X)
         p_cat = self.cat.predict(X)
         stacked_features = np.column_stack((p_xgb, p_lgb, p_cat))
-        return self.meta_learner.predict(stacked_features)
+        return self.meta_learner.predict(stacked_features)  # type: ignore[no-any-return]

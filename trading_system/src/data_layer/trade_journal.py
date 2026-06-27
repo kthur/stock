@@ -25,11 +25,11 @@ class TradeRecord:
 
 class TradeJournal:
     """거래 기록 저장 및 통계 분석 (SQLite 기반 동기 구현)"""
-    
+
     def __init__(self, db_path: str = "trade_logs.db"):
         self.db_path = Path(db_path)
         self._init_database()
-        
+
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -143,7 +143,7 @@ class TradeJournal:
                 WHERE side = 'SELL' AND timestamp >= ? AND pnl > 0
             """, (since_date,))
             avg_win = cursor.fetchone()['avg_win']
-            
+
             # 평균 손실
             cursor.execute("""
                 SELECT AVG(pnl) as avg_loss
@@ -151,12 +151,12 @@ class TradeJournal:
                 WHERE side = 'SELL' AND timestamp >= ? AND pnl < 0
             """, (since_date,))
             avg_loss = cursor.fetchone()['avg_loss']
-            
+
             if not avg_win:
                 return 0.0
             if not avg_loss or avg_loss == 0:
                 return float('inf') if avg_win > 0 else 0.0
-            
+
             return float(avg_win) / abs(float(avg_loss))
         except Exception as e:
             logger.error(f"Failed to calculate win-loss ratio: {e}")
@@ -171,13 +171,13 @@ class TradeJournal:
             cursor = conn.cursor()
             if symbol:
                 cursor.execute("""
-                    SELECT * FROM trade_journal 
-                    WHERE symbol = ? 
+                    SELECT * FROM trade_journal
+                    WHERE symbol = ?
                     ORDER BY timestamp DESC
                 """, (symbol,))
             else:
                 cursor.execute("""
-                    SELECT * FROM trade_journal 
+                    SELECT * FROM trade_journal
                     ORDER BY timestamp DESC
                 """)
             rows = cursor.fetchall()
@@ -221,7 +221,7 @@ class TradeJournal:
                 ORDER BY timestamp ASC
             """)
             rows = cursor.fetchall()
-            
+
             positions: Dict[str, Dict[str, Any]] = {}
             for row in rows:
                 symbol = row['symbol']
@@ -230,7 +230,7 @@ class TradeJournal:
                 price = row['price']
                 sl = row['stop_loss']
                 tp = row['take_profit']
-                
+
                 if side == 'BUY':
                     if symbol not in positions:
                         positions[symbol] = {
@@ -257,7 +257,7 @@ class TradeJournal:
                             positions.pop(symbol)
                         else:
                             p['total_cost'] = p['qty'] * p['avg_price']
-                            
+
             return positions
         except Exception as e:
             logger.error(f"Failed to calculate active positions: {e}")

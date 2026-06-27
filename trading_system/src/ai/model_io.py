@@ -7,11 +7,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def save_model(model, filepath: str, metadata: dict = None) -> None:
+def save_model(model, filepath: str, metadata: dict | None = None) -> None:
     """Save machine learning model along with a JSON metadata side-car file."""
     # Ensure folder structure exists
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    
+
     # Save the model booster/weights depending on library type
     if isinstance(model, xgb.XGBModel):
         model.get_booster().save_model(filepath)
@@ -28,12 +28,12 @@ def save_model(model, filepath: str, metadata: dict = None) -> None:
     meta_path = filepath + "_meta.json"
     if metadata is None:
         metadata = {}
-    
+
     metadata.update({
         "saved_filepath": filepath,
         "model_class": model.__class__.__name__
     })
-    
+
     try:
         with open(meta_path, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
