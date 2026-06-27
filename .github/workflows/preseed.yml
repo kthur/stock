@@ -54,24 +54,6 @@ jobs:
           restore-keys: |
             indicators-v1-
 
-      - name: Run pipeline (slow preseed, UPDATE_INTERVAL=15)
-        env:
-          DB_PATH: market_indicators.db
-          STOCK_PRICE_DB_PATH: stock_prices.db
-          STOCK_PRICE_FRESHNESS_DAYS: '1'
-          TRAIN_SAMPLE_SP500: all
-          TRAIN_SAMPLE_KRX: all
-          TRAIN_START_DATE: '2006-01-01'
-          TRAIN_SEED: '42'
-          UPDATE_INTERVAL: '1'
-          INFERENCE_TARGET: SP500,KRX
-          BROKER_TYPE: DUMMY
-          MOCK_TRADING_ENABLED: 'True'
-          DEBUG_MODE: 'False'
-          LOG_LEVEL: INFO
-        run: |
-          .venv/bin/python trading_system/run_pipeline.py 2>&1
-
       - name: Upload databases as artifacts
         uses: actions/upload-artifact@v4
         with:
