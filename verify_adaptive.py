@@ -33,7 +33,6 @@ def load_test_universe() -> list:
 def test_recency_weighted_metrics():
     """Phase 1: Recency-Weighted Metrics 검증"""
     from src.analysis.backtest import BacktestEngine, BacktestResult, BacktestTrade
-    from datetime import datetime, timedelta
 
     engine = BacktestEngine()
 
@@ -80,7 +79,7 @@ def test_recency_weighted_metrics():
 def test_adaptive_optimizer():
     """Phase 2-3: Adaptive Optimizer 검증"""
     from src.analysis.adaptive_optimizer import (
-        AdaptiveParameterOptimizer, OptimizationScheduler, FULL_PARAM_GRID, TPESampler
+        FULL_PARAM_GRID, TPESampler
     )
 
     # TPE Sampler 검증

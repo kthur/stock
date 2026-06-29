@@ -125,7 +125,6 @@ lw_chart_init = """
                                 chartContainer.style.display = 'block';
 """
 # We must replace the Chart.js creation code
-import re
 code = re.sub(r'btChart = new Chart\(ctx, \{.*?options: \{.*?\}\s*\}\);', lw_chart_init, code, flags=re.DOTALL)
 code = code.replace('<canvas id="bt-chart"></canvas>', '<div id="bt-chart"></div>')
 

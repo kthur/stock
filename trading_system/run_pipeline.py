@@ -146,7 +146,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                     if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
                         logger.debug(f"Cache for {s} is up to date (latest: {latest_date_str}). Skipping network fetch.")
                         return cached_df
-                    
+
                     logger.debug(f"Fetching incremental prices for {s} from {latest_date_str} to present...")
                     try:
                         # Rate limit
@@ -159,7 +159,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                             if sleep_sec > 0:
                                 logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
                                 time.sleep(sleep_sec)
-                        
+
                         new_df = _fetch_data_fdr_network(s, market, latest_date_str)
                         if new_df is not None and not new_df.empty:
                             price_db.update_prices(s, new_df)
@@ -265,7 +265,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                                               start_date=start_date)
             if not stale:
                 df = price_db.get_prices(ticker, start_date=start_date)
-            
+
             # Incremental fetch for indicator if stale
             if stale:
                 cached_df = price_db.get_prices(ticker, start_date=start_date)
