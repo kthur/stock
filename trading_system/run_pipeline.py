@@ -123,6 +123,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
     If a cache miss occurs, it falls back to the DB cache and finally to a network request.
     """
     def _fetch_fallback(s: str, d: str) -> pd.DataFrame:
+        global _last_request_time
         # 1. DB cache fallback (if provided)
         if price_db is not None:
             stale = True
@@ -136,9 +137,41 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                     logger.debug(f"Using StockPriceDB cached prices for {s}")
                     return df
 
+            # If it is stale but we already have some cached data, attempt incremental fetch
+            if stale:
+                cached_df = price_db.get_prices(s, start_date=d)
+                if cached_df is not None and not cached_df.empty:
+                    latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
+                    # If latest_date is today or later, we don't need to fetch
+                    if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
+                        logger.debug(f"Cache for {s} is up to date (latest: {latest_date_str}). Skipping network fetch.")
+                        return cached_df
+                    
+                    logger.debug(f"Fetching incremental prices for {s} from {latest_date_str} to present...")
+                    try:
+                        # Rate limit
+                        if update_interval > 0:
+                            now = time.time()
+                            with _rate_lock:
+                                scheduled = max(_last_request_time + update_interval, now)
+                                sleep_sec = scheduled - now
+                                _last_request_time = scheduled
+                            if sleep_sec > 0:
+                                logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
+                                time.sleep(sleep_sec)
+                        
+                        new_df = _fetch_data_fdr_network(s, market, latest_date_str)
+                        if new_df is not None and not new_df.empty:
+                            price_db.update_prices(s, new_df)
+                            merged_df = pd.concat([cached_df, new_df])
+                            merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
+                            logger.debug(f"Successfully updated cache and merged for {s}")
+                            return merged_df
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch incremental data for {s}, falling back to full fetch: {e}")
+
         # 2. Rate limit before network request (global)
         if update_interval > 0:
-            global _last_request_time
             now = time.time()
             with _rate_lock:
                 scheduled = max(_last_request_time + update_interval, now)
@@ -224,6 +257,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     def _fetch_one(ticker: str, col_name: str):
         df = None
         if price_db is not None:
+            stale = True
             if freshness_days < 0:
                 stale = False
             else:
@@ -231,6 +265,26 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                                               start_date=start_date)
             if not stale:
                 df = price_db.get_prices(ticker, start_date=start_date)
+            
+            # Incremental fetch for indicator if stale
+            if stale:
+                cached_df = price_db.get_prices(ticker, start_date=start_date)
+                if cached_df is not None and not cached_df.empty:
+                    latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
+                    if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
+                        df = cached_df
+                    else:
+                        logger.debug(f"Fetching incremental indicator {ticker} from {latest_date_str}...")
+                        try:
+                            new_df = _download_indicator_network(ticker, latest_date_str)
+                            if new_df is not None and not new_df.empty:
+                                price_db.update_prices(ticker, new_df)
+                                merged_df = pd.concat([cached_df, new_df])
+                                merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
+                                df = merged_df
+                        except Exception as e:
+                            logger.warning(f"Failed to fetch incremental indicator {ticker}, falling back to full fetch: {e}")
+
         if freshness_days < 0 and (df is None or df.empty):
             return (col_name, pd.Series(dtype=float))
         if df is None or df.empty:
