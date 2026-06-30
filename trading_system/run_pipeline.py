@@ -114,6 +114,78 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
     return result
 
 
+def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
+                          price_db: Optional[StockPriceDB], freshness_days: int = 1):
+    """Prefetch price data in batches from yfinance and store in SQLite DB to speed up subsequent queries."""
+    if price_db is None or not symbols:
+        return
+
+    # Find symbols that actually need update
+    symbols_to_update = []
+    symbol_start_dates = {}
+
+    for sym in symbols:
+        if price_db.needs_update(sym, max_age_days=freshness_days, start_date=start_date):
+            latest = price_db.get_latest_date(sym)
+            if latest is not None:
+                symbol_start_dates[sym] = latest
+            else:
+                symbol_start_dates[sym] = start_date
+            symbols_to_update.append(sym)
+
+    if not symbols_to_update:
+        logger.info("All symbols are up-to-date in cache. No prefetching needed.")
+        return
+
+    logger.info(f"Prefetching {len(symbols_to_update)} symbols in batches...")
+
+    from collections import defaultdict
+    date_groups = defaultdict(list)
+    for sym in symbols_to_update:
+        date_groups[symbol_start_dates[sym]].append(sym)
+
+    # Fetch in batches for each date group
+    for fetch_start, group_syms in date_groups.items():
+        batch_size = 100
+        for i in range(0, len(group_syms), batch_size):
+            batch = group_syms[i:i+batch_size]
+
+            ticker_to_sym = {}
+            yf_tickers = []
+            for sym in batch:
+                market = symbol_market.get(sym, 'SP500')
+                if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
+                    yf_ticker = sym
+                else:
+                    suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
+                    yf_ticker = f"{sym}{suffix}"
+                yf_tickers.append(yf_ticker)
+                ticker_to_sym[yf_ticker] = sym
+
+            logger.info(f"Downloading batch of {len(batch)} symbols starting from {fetch_start}...")
+
+            # Wait to respect global rate limit
+            get_global_rate_limiter().wait()
+
+            try:
+                df = yf.download(yf_tickers, start=fetch_start, progress=False, auto_adjust=True, group_by='ticker')
+                if df is not None and not df.empty:
+                    for yf_ticker in yf_tickers:
+                        sym = ticker_to_sym[yf_ticker]
+                        ticker_df = None
+                        if len(yf_tickers) == 1:
+                            ticker_df = df
+                        elif yf_ticker in df.columns.levels[0]:
+                            ticker_df = df[yf_ticker].dropna(how='all')
+
+                        if ticker_df is not None and not ticker_df.empty:
+                            if isinstance(ticker_df.columns, pd.MultiIndex):
+                                ticker_df.columns = ticker_df.columns.droplevel(1)
+                            price_db.update_prices(sym, ticker_df)
+            except Exception as e:
+                logger.warning(f"Failed to download batch: {e}")
+
+
 def fetch_data_fdr(symbol: str, market: str, start_date: str,
                    price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
                    update_interval: int = 0) -> pd.DataFrame:
@@ -547,6 +619,9 @@ def execute_prediction_pipeline():
             t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"))
             t.start()
 
+        # Prefetch training data in batches to optimize performance
+        prefetch_prices_batch(train_symbols, symbol_market, start_date_train, price_db, freshness)
+
         logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols (update_interval={update_interval}s)...")
         train_data_dict = {}
 
@@ -671,9 +746,11 @@ def execute_prediction_pipeline():
         t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"))
         t2.start()
 
+    # Prefetch inference data in batches to optimize performance
+    prefetch_prices_batch(all_symbols, symbol_market, start_date_infer, price_db, freshness)
+
     # 9. Fetch recent data for ALL symbols to run inference
     logger.info(f"Fetching inference data for ALL {len(all_symbols)} symbols (update_interval={update_interval}s)...")
-
     infer_data_dict = {}
     count = 0
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
