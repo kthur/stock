@@ -31,6 +31,11 @@ jobs:
           uv python install 3.12
           uv venv --python 3.12 .venv
           uv pip install -r trading_system/requirements.txt
+        
+        - name: Run preseed to update caches
+          run: |
+            source .venv/bin/activate
+            python trading_system/run_pipeline.py --skip-training True
 
       - name: Get current date
         id: date
