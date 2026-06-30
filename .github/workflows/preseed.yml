@@ -2,7 +2,7 @@ name: Preseed Database Cache
 
 on:
   schedule:
-    - cron: '10 15 * * *'
+    - cron: '0 16 * * *'
   workflow_dispatch:
 
 concurrency:
