@@ -1,18 +1,16 @@
-name: Daily Pipeline
+name: Weekly Training Pipeline
 
 on:
-  push:
-    branches: [ main, master ]
   schedule:
-    - cron: '30 11 * * 1-5'
+    - cron: '30 11 * * 6'
   workflow_dispatch:
 
 concurrency:
-  group: pipeline-${{ github.ref }}
+  group: training-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  pipeline:
+  training:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -83,7 +81,7 @@ jobs:
           MOCK_TRADING_ENABLED: 'True'
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
-          SKIP_TRAINING: 'True'
+          SKIP_TRAINING: 'False'
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 
@@ -103,7 +101,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f trading_system/result/*.txt || true
           if ! git diff --cached --quiet; then
-            git commit -m "pipeline: daily prediction results ($(date '+%Y-%m-%d'))"
+            git commit -m "pipeline: weekly training and prediction results ($(date '+%Y-%m-%d'))"
             git push
           else
             echo "No changes to commit"
