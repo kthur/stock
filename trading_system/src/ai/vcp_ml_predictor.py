@@ -369,6 +369,9 @@ class VCPSurgePredictor:
             if df_feat.empty:
                 return None
             df_feat['symbol'] = sym
+            # Downcast to float32 per-symbol to avoid pandas consolidation OOM
+            for c in df_feat.select_dtypes(include='float64').columns:
+                df_feat[c] = df_feat[c].astype('float32')
             return df_feat
 
         with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
