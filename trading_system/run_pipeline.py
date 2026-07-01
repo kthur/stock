@@ -12,7 +12,7 @@ import FinanceDataReader as fdr
 import yfinance as yf
 import warnings
 
-_CPU_WORKERS = max(1, (os.cpu_count() or 4))
+_CPU_WORKERS = min(2, max(1, (os.cpu_count() or 4)))
 _PER_SYMBOL_TIMEOUT = 30  # seconds per symbol before skipping
 
 # Rate limiter for network requests (shared across threads)
@@ -725,7 +725,23 @@ def execute_prediction_pipeline():
             vcp_ml.train(train_data_dict, indicator_train, universe)
 
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
-    all_symbols = sp500_symbols + krx_symbols
+    target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
+    targets = [t.strip() for t in target_env.split(",") if t.strip()]
+    
+    selected_symbols = []
+    if "SP500" in targets:
+        selected_symbols.extend(sp500_symbols)
+    if "KRX" in targets:
+        selected_symbols.extend(krx_symbols)
+    elif any(k in targets for k in ["KOSPI", "KOSDAQ", "KONEX"]):
+        if "KOSPI" in targets:
+            selected_symbols.extend(kospi_symbols)
+        if "KOSDAQ" in targets:
+            selected_symbols.extend(kosdaq_symbols)
+        if "KONEX" in targets:
+            selected_symbols.extend(konex_symbols)
+            
+    all_symbols = selected_symbols if selected_symbols else (sp500_symbols + krx_symbols)
 
     # Exclude halted (거래정지) and administrative (관리종목) KRX stocks from all predictions
     excluded_krx = _get_excluded_krx_symbols()
