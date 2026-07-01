@@ -12,7 +12,7 @@ import FinanceDataReader as fdr
 import yfinance as yf
 import warnings
 
-_CPU_WORKERS = min(2, max(1, (os.cpu_count() or 4)))
+_CPU_WORKERS = max(1, (os.cpu_count() or 4))
 _PER_SYMBOL_TIMEOUT = 30  # seconds per symbol before skipping
 
 # Rate limiter for network requests (shared across threads)
