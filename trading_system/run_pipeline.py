@@ -728,7 +728,7 @@ def execute_prediction_pipeline():
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
     targets = [t.strip() for t in target_env.split(",") if t.strip()]
-    
+
     selected_symbols = []
     if "SP500" in targets:
         selected_symbols.extend(sp500_symbols)
@@ -741,7 +741,7 @@ def execute_prediction_pipeline():
             selected_symbols.extend(kosdaq_symbols)
         if "KONEX" in targets:
             selected_symbols.extend(konex_symbols)
-            
+
     all_symbols = selected_symbols if selected_symbols else (sp500_symbols + krx_symbols)
 
     # Exclude halted (거래정지) and administrative (관리종목) KRX stocks from all predictions
