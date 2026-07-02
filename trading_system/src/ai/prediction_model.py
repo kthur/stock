@@ -134,12 +134,7 @@ class OnDevicePredictionModel:
 
     def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
-        try:
-            from src.ai.lstm_predictor import LSTMPredictor
-            self.lstm_models: Dict[str, Dict[int, Any]] = {}
-        except Exception:
-            logger.warning("LSTM unavailable; skipping LSTM models")
-            self.lstm_models = {}
+        self.lstm_models: Dict[str, Dict[int, Any]] = {}
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
         self.lgb_models: Dict[str, Dict[int, lgb.LGBMRegressor]] = {}
         self.cat_models: Dict[str, Dict[int, cb.CatBoostRegressor]] = {}
