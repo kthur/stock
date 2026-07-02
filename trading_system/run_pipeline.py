@@ -12,8 +12,8 @@ import FinanceDataReader as fdr
 import yfinance as yf
 import warnings
 
-_CPU_WORKERS = os.cpu_count() if os.cpu_count() is not None else 4
-_CPU_WORKERS = max(1, _CPU_WORKERS)
+cpu_count = os.cpu_count()
+_CPU_WORKERS: int = max(1, cpu_count if cpu_count is not None else 4)
 _PER_SYMBOL_TIMEOUT = 30  # seconds per symbol before skipping
 
 # Rate limiter for network requests (shared across threads)
