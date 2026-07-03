@@ -556,10 +556,8 @@ def execute_prediction_pipeline():
             logger.info("Pre-trained models found and loaded successfully. Skipping model training phase.")
             should_skip = True
         else:
-            logger.warning("Missing or incomplete pre-trained models on disk. Falling back to training.")
-            model.models = {}
-            model.surge_models = {}
-            vcp_ml = None
+            logger.warning("Missing or incomplete pre-trained models on disk but SKIP_TRAINING is requested. Skipping model training phase anyway.")
+            should_skip = True
 
     update_interval = cfg.get_update_interval()
 
