@@ -70,37 +70,46 @@ class EnsembleScoringEngine:
             reg_df['reg_score'] = 1.0
 
         # 2. Prepare Surge Scores (probabilities already in [0, 1])
-        s_df = surge_df.copy()
-        # Find the best match for the target horizon
-        surge_horizons = [1, 3, 5, 20]
-        closest_surge_horizon = min(surge_horizons, key=lambda x: abs(x - target_horizon))
-        s_col = f'surge_{closest_surge_horizon}d'
-        if s_col not in s_df.columns:
-            num_cols = [c for c in s_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(s_df[c])]
-            s_col = num_cols[-1] if num_cols else s_df.columns[-1]
-        s_df = s_df[['symbol', s_col]].rename(columns={s_col: 'surge_score'})
+        if not surge_df.empty:
+            s_df = surge_df.copy()
+            # Find the best match for the target horizon
+            surge_horizons = [1, 3, 5, 20]
+            closest_surge_horizon = min(surge_horizons, key=lambda x: abs(x - target_horizon))
+            s_col = f'surge_{closest_surge_horizon}d'
+            if s_col not in s_df.columns:
+                num_cols = [c for c in s_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(s_df[c])]
+                s_col = num_cols[-1] if num_cols else s_df.columns[-1]
+            s_df = s_df[['symbol', s_col]].rename(columns={s_col: 'surge_score'})
+        else:
+            s_df = pd.DataFrame(columns=['symbol', 'surge_score'])
 
         # 3. Prepare Lead-Lag Scores
-        ll_df = lead_lag_df.copy()
-        ll_col = 'lead_lag_score' if 'lead_lag_score' in ll_df.columns else ll_df.columns[-1]
-        ll_df = ll_df[['symbol', ll_col]].rename(columns={ll_col: 'll_raw'})
-        # Min-Max normalize Lead-Lag scores to [0, 1]
-        if len(ll_df) > 1:
-            min_val = ll_df['ll_raw'].min()
-            max_val = ll_df['ll_raw'].max()
-            denom = (max_val - min_val) if max_val != min_val else 1.0
-            ll_df['ll_score'] = (ll_df['ll_raw'] - min_val) / denom
+        if not lead_lag_df.empty:
+            ll_df = lead_lag_df.copy()
+            ll_col = 'lead_lag_score' if 'lead_lag_score' in ll_df.columns else ll_df.columns[-1]
+            ll_df = ll_df[['symbol', ll_col]].rename(columns={ll_col: 'll_raw'})
+            # Min-Max normalize Lead-Lag scores to [0, 1]
+            if len(ll_df) > 1:
+                min_val = ll_df['ll_raw'].min()
+                max_val = ll_df['ll_raw'].max()
+                denom = (max_val - min_val) if max_val != min_val else 1.0
+                ll_df['ll_score'] = (ll_df['ll_raw'] - min_val) / denom
+            else:
+                ll_df['ll_score'] = 1.0
         else:
-            ll_df['ll_score'] = 1.0
+            ll_df = pd.DataFrame(columns=['symbol', 'll_raw', 'll_score'])
 
         # 4. Prepare VCP ML Scores (probabilities already in [0, 1])
-        v_df = vcp_ml_df.copy()
-        closest_vcp_horizon = min(surge_horizons, key=lambda x: abs(x - target_horizon))
-        v_col = f'vcp_{closest_vcp_horizon}d'
-        if v_col not in v_df.columns:
-            num_cols = [c for c in v_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(v_df[c])]
-            v_col = num_cols[-1] if num_cols else v_df.columns[-1]
-        v_df = v_df[['symbol', v_col]].rename(columns={v_col: 'vcp_ml_score'})
+        if not vcp_ml_df.empty:
+            v_df = vcp_ml_df.copy()
+            closest_vcp_horizon = min(surge_horizons, key=lambda x: abs(x - target_horizon))
+            v_col = f'vcp_{closest_vcp_horizon}d'
+            if v_col not in v_df.columns:
+                num_cols = [c for c in v_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(v_df[c])]
+                v_col = num_cols[-1] if num_cols else v_df.columns[-1]
+            v_df = v_df[['symbol', v_col]].rename(columns={v_col: 'vcp_ml_score'})
+        else:
+            v_df = pd.DataFrame(columns=['symbol', 'vcp_ml_score'])
 
         # Outer join all strategies
         merged = reg_df.merge(s_df, on='symbol', how='outer')
