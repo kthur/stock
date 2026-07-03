@@ -185,13 +185,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if ls trading_system/result/*.txt 1> /dev/null 2>&1; then
+          # Check for target files safely using find to avoid argument errors if directory has different files
+          if ls trading_system/result/*.txt 1> /dev/null 2>&1 || ls trading_system/result/*/*.txt 1> /dev/null 2>&1; then
             TAG_NAME="v${{ steps.date.outputs.date }}"
             gh release create "$TAG_NAME" \
               --title "Daily Predictions $TAG_NAME" \
               --notes "Daily prediction results for $TAG_NAME (Merged SP500, KOSPI, KOSDAQ, KONEX)." \
               || echo "Release $TAG_NAME already exists"
-            gh release upload "$TAG_NAME" trading_system/result/*.txt --clobber
+            
+            # Find and upload assets recursively to handle various subdirectory paths gracefully
+            find trading_system/result -name "*.txt" -type f -exec gh release upload "$TAG_NAME" {} --clobber \;
           else
             echo "No prediction output files found to upload."
           fi
