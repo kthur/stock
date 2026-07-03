@@ -65,9 +65,9 @@ jobs:
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v1-${{ steps.date.outputs.date }}
+          key: ai-models-v2
           restore-keys: |
-            ai-models-v1-
+            ai-models-v2
 
       - name: Run prediction pipeline for ${{ matrix.target }}
         id: run
@@ -85,7 +85,7 @@ jobs:
           MOCK_TRADING_ENABLED: 'True'
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
-          SKIP_TRAINING: 'True'
+          SKIP_TRAINING: ${{ steps.models-cache.outputs.cache-hit == 'true' && 'True' || 'False' }}
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 
