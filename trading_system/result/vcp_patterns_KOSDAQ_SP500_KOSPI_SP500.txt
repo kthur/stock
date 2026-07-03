@@ -1,0 +1,17 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-03 10:58
+Total VCP patterns found: 3
+
+--- KOSDAQ ---
+  1. [KOSDAQ] 092730 (네오팜)
+       Score: 100/100 | Current range: 5.3% | Contraction: 5.3% > 5.5% > 7.7% > 8.5% > 9.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  2. [KOSDAQ] 094860 (네오리진)
+       Score: 100/100 | Current range: 8.2% | Contraction: 8.2% > 8.2% > 8.3% > 11.7% > 25.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  3. [KOSDAQ] 197140 (디지캡)
+       Score: 97/100 | Current range: 5.7% | Contraction: 5.7% > 10.3% > 13.6% > 13.7% > 16.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
