@@ -568,9 +568,12 @@ class VCPSurgePredictor:
                     if len(idx) > 0:
                         X_mkt = df_all.iloc[idx][feat_cols]
 
-                        xgb_m = self.models.get(mkt, {}).get(h)
-                        lgb_m = self.lgb_models.get(mkt, {}).get(h)
-                        cat_m = self.cat_models.get(mkt, {}).get(h)
+                        # Safe check for case variations (uppercase & lowercase)
+                        mkt_upper = mkt.upper()
+                        mkt_lower = mkt.lower()
+                        xgb_m = self.models.get(mkt_upper, self.models.get(mkt_lower, {})).get(h)
+                        lgb_m = self.lgb_models.get(mkt_upper, self.lgb_models.get(mkt_lower, {})).get(h)
+                        cat_m = self.cat_models.get(mkt_upper, self.cat_models.get(mkt_lower, {})).get(h)
 
                         preds = []
                         weights = []
@@ -592,7 +595,12 @@ class VCPSurgePredictor:
                                 blend_prob += p * (w / total_w)
 
                             # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
-                            calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt, {}).get(str(h), {})
+                            # Lookup calibration dictionary using case-insensitive check (try lower, then upper)
+                            calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt_lower, {})
+                            if not calib_dict:
+                                calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt_upper, {})
+                            calib_dict = calib_dict.get(str(h), {}) if calib_dict else {}
+
                             if calib_dict:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
