@@ -30,6 +30,7 @@ class TradingConfig:
     stock_price_freshness_days: str = "7"
     update_interval: str = "0"
     skip_training: bool = False
+    skip_inference: bool = False
     fundamental_cache_expiry_days: int = 90
 
     # 백테스트 기간 설정 (숫자=년, "all"=전체)
@@ -74,6 +75,8 @@ class TradingConfig:
             self.update_interval = os.environ["UPDATE_INTERVAL"]
         if "SKIP_TRAINING" in os.environ:
             self.skip_training = os.environ["SKIP_TRAINING"].lower() == "true"
+        if "SKIP_INFERENCE" in os.environ:
+            self.skip_inference = os.environ["SKIP_INFERENCE"].lower() == "true"
         if "FUNDAMENTAL_CACHE_EXPIRY_DAYS" in os.environ:
             self.fundamental_cache_expiry_days = int(os.environ["FUNDAMENTAL_CACHE_EXPIRY_DAYS"])
         if "BACKTEST_YEARS" in os.environ:

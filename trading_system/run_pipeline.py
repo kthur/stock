@@ -870,6 +870,11 @@ def execute_prediction_pipeline():
     if dropped:
         logger.info(f"Excluded {dropped} symbols with insufficient inference data (< 200 days)")
 
+    # If skip-inference is enabled, stop pipeline here (only fetch and cache data)
+    if os.environ.get("SKIP_INFERENCE", "False").lower() == "true":
+        logger.info("SKIP_INFERENCE is enabled. Pipeline completed successfully after caching data.")
+        return pd.DataFrame(), "Pipeline completed successfully after caching data (skip-inference)."
+
     # Wait for inference fundamentals fetch to complete before merging
     if all_symbols:
         logger.info("Waiting for inference fundamentals fetch to complete...")
@@ -1384,6 +1389,12 @@ Examples:
         help="Skip model training and use existing models from disk",
     )
     parser.add_argument(
+        "--skip-inference",
+        action="store_true",
+        default=False,
+        help="Skip prediction phase, only fetch and cache database data",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         default=False,
@@ -1398,6 +1409,9 @@ Examples:
     if args.skip_training:
         os.environ["SKIP_TRAINING"] = "True"
         logger.info("[CLI] SKIP_TRAINING enabled")
+    if args.skip_inference:
+        os.environ["SKIP_INFERENCE"] = "True"
+        logger.info("[CLI] SKIP_INFERENCE enabled")
     if args.debug:
         os.environ["DEBUG_MODE"] = "True"
         logger.info("[CLI] DEBUG_MODE enabled")
