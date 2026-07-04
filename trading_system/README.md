@@ -62,10 +62,38 @@ TRAIN_START_DATE=2006-01-01
 
 ### 1. 통합 예측 파이프라인 (핵심)
 
-5대 전략 모델을 학습하고 3,379개 종목의 예측 결과를 생성합니다:
+5대 전략 모델을 학습하고 3,379개 종목의 예측 결과를 생성합니다.
+
+#### CLI 옵션 (P1)
 
 ```powershell
+# 기본 실행 (전 시장, 모델 학습 포함)
 .venv\Scripts\python run_pipeline.py
+
+# 도움말
+.venv\Scripts\python run_pipeline.py --help
+```
+
+| 옵션 | 설명 | 예시 |
+|------|------|------|
+| `--target {KOSPI,KOSDAQ,KONEX,KRX,SP500}` | 특정 시장만 추론 (학습은 전 유니버스) | `--target KOSPI` |
+| `--skip-training` | 기존 저장 모델 재사용 (학습 건너뛰기) | `--skip-training` |
+| `--debug` | 시장별 3종목만 샘플 — 동작 빠른 검증 | `--debug` |
+
+```powershell
+# 예시 조합
+.venv\Scripts\python run_pipeline.py --target SP500 --skip-training
+.venv\Scripts\python run_pipeline.py --target KOSDAQ --debug
+.venv\Scripts\python run_pipeline.py --target KRX --skip-training
+```
+
+> **`--target KRX`** = KOSPI + KOSDAQ + KONEX 전체
+
+#### 실행 중 진행률 표시 (P0)
+
+```
+📥 Training data:  45%|████████▌          | 1521/3379 [02:14<02:43, 11.3sym/s] loaded=1488
+📡 Inference data: 78%|███████████████▌   | 2636/3379 [01:47<00:30, 24.1sym/s] loaded=2589
 ```
 
 **실행 흐름** (12단계):
@@ -85,21 +113,72 @@ TRAIN_START_DATE=2006-01-01
 | 8-9 | 추론 데이터 수집 (전 종목) | ~10-30분 |
 | 10-12 | 예측 실행 + 결과 저장 | ~5-10분 |
 
-> **총 소요 시간**: 학습 포함 약 40-90분, `SKIP_TRAINING=True` 시 약 15-40분
+> **총 소요 시간**: 학습 포함 약 40-90분 / `--skip-training` 시 약 15-40분
 
-### 2. 출력 파일
+### 2. 출력 파일 (`result/`)
 
-파이프라인 실행 후 `trading_system/` 하위에 5개 결과 파일이 생성됩니다:
+파이프라인 실행 후 `trading_system/result/` 디렉토리에 생성됩니다:
 
-| 파일 | 전략 | 내용 |
+| 파일 | 형식 | 설명 |
 |------|------|------|
-| `pipeline_result.txt` | XGBoost 회귀 | 종목별 horizon별 예상수익률 TOP 종목 |
-| `surge_predictions.txt` | Surge 분류기 | Horizon별 20%↑ 급등 확률 TOP20 |
-| `lead_lag_predictions.txt` | Lead-Lag | Leader 기반 follower 점수 |
-| `vcp_patterns.txt` | VCP 규칙 | 변동성 수축 패턴 발견 종목 |
-| `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 급등 확률 TOP10 |
+| `pipeline_result.txt` | 텍스트 요약 | TOP10/시장/4 horizon (사람이 읽는 요약) |
+| `pipeline_result.csv` | CSV | 전체 종목 회귀 예측값 (기계 가독) |
+| `pipeline_result.jsonl` | JSON Lines | 전체 종목 (REST API / 스트리밍용) |
+| `surge_predictions.txt` | 텍스트 | horizon별 급등 확률 TOP20 |
+| `surge_predictions.csv` | CSV | 서지 예측 원본 |
+| `lead_lag_predictions.txt` | 텍스트 | Leader-Follower 상관 점수 (±30% 이상치 제외) |
+| `vcp_patterns.txt` | 텍스트 | VCP 패턴 감지 종목 (Score 100/100 등) |
+| `vcp_ml_predictions.txt` | 텍스트 | VCP ML surge 확률 TOP10 |
 
-### 3. 오케스트레이터 데몬 (자동 스케줄러)
+> `pipeline_result.txt`는 **요약본**입니다. 전체 원본 데이터는 `.csv` / `.jsonl` 파일을 사용하세요.
+
+### 3. 대시보드 & REST API (P3)
+
+```powershell
+.venv\Scripts\python run_dashboard.py
+# 브라우저에서 http://localhost:5000 접속
+```
+
+#### 대시보드 탭
+
+| 탭 | 설명 |
+|----|------|
+| **📊 Overview** | 시스템 현황 카드 (마지막 실행일·종목 수, 60초 자동 갱신) |
+| **📋 예측 결과** | 전략·시장·Horizon·TOP-N 필터 + 인터랙티브 테이블 |
+| **Strategy Performance** | 전략별 백테스트 성과 차트 |
+
+#### REST API
+
+대시보드 서버 실행 중 아래 엔드포인트를 사용할 수 있습니다:
+
+```bash
+# 헬스 체크
+curl http://localhost:5000/api/v1/health
+
+# 회귀 예측 TOP 50 (KOSPI)
+curl "http://localhost:5000/api/v1/predictions/latest?market=KOSPI&limit=50"
+
+# 서지 예측
+curl http://localhost:5000/api/v1/surge/latest
+
+# VCP 패턴 (구조화 JSON)
+curl http://localhost:5000/api/v1/vcp/latest
+
+# Lead-Lag 점수
+curl http://localhost:5000/api/v1/lead_lag/latest
+```
+
+**응답 형식**:
+```json
+{
+  "status": "ok",
+  "generated_at": "2026-07-04T09:00:12",
+  "count": 50,
+  "data": [{"symbol": "005930", "market": "KOSPI", ...}]
+}
+```
+
+### 4. 오케스트레이터 데몬 (자동 스케줄러)
 
 매일 정해진 시각에 파이프라인을 자동 실행하는 백그라운드 데몬입니다:
 
@@ -119,7 +198,7 @@ TRAIN_START_DATE=2006-01-01
 
 지원 스테이지: `indicators`, `universe`, `train`, `predict`, `score`, `ingest`, `trading`, `weekly_train_predict`, `all`
 
-### 4. 텔레그램 봇
+### 5. 텔레그램 봇 (P0/P2)
 
 ```powershell
 .venv\Scripts\python telegram_bot_runner.py
@@ -127,13 +206,13 @@ TRAIN_START_DATE=2006-01-01
 
 주요 명령어: `/status`, `/portfolio`, `/buy <symbol> <qty>`, `/sell <symbol> <qty>`
 
-### 5. 대시보드
+**파이프라인 완료/실패 자동 알림**: `.env`에 아래 값을 설정하면 파이프라인 완료 시 Telegram 메시지가 전송됩니다.
+GHA에서 실행 시 `[📊 GHA 결과 보기]` 인라인 버튼이 함께 첨부됩니다.
 
-```powershell
-.venv\Scripts\python run_dashboard.py
+```ini
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
 ```
-
-브라우저에서 `http://localhost:5000` 접속
 
 ---
 
