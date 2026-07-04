@@ -97,8 +97,44 @@ jobs:
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
           SKIP_TRAINING: ${{ env.SKIP_TRAINING }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
+
+      # P0: GitHub Step Summary — visible in GHA Actions tab without opening logs
+      - name: Write Step Summary
+        if: always()
+        run: |
+          STATUS="${{ steps.run.outcome }}"
+          ICON="✅"
+          [ "$STATUS" != "success" ] && ICON="❌"
+          echo "## ${ICON} Pipeline: ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 대상 | ${{ matrix.target }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 상태 | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| SKIP_TRAINING | ${{ env.SKIP_TRAINING }} |" >> $GITHUB_STEP_SUMMARY
+
+      # P0: Telegram failure notification — send CRITICAL alert when pipeline fails
+      - name: Notify Telegram on Failure
+        if: failure()
+        run: |
+          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
+          if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+            RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MSG="🚨 *[CRITICAL] GHA Pipeline Failed*%0A%0A"
+            MSG+="*Market:* ${{ matrix.target }}%0A"
+            MSG+="*Status:* ${{ steps.run.outcome }}%0A"
+            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
+            MSG+="*Run URL:* ${RUN_URL}"
+            curl -sf -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+              -d "chat_id=${CHAT}&text=${MSG}&parse_mode=Markdown" > /dev/null || true
+          fi
 
       - name: Rename output files to avoid conflicts
         run: |

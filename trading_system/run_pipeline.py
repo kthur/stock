@@ -4,10 +4,12 @@ import logging
 import socket
 import time
 import threading
+import traceback
 from datetime import datetime
 from typing import Optional
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 import FinanceDataReader as fdr
 import yfinance as yf
 import warnings
@@ -48,6 +50,45 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_resul
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# P0: Telegram notification utility
+# Reads TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID from env.
+# Severity levels: INFO / SUCCESS / WARNING / CRITICAL
+# ---------------------------------------------------------------------------
+def _notify_telegram(msg: str, level: str = "INFO") -> None:
+    """Send a Telegram notification with severity level badge.
+
+    No-ops silently when env vars are missing (local dev without bot).
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        return
+    icons = {
+        "INFO": "\u2139\ufe0f",
+        "SUCCESS": "\u2705",
+        "WARNING": "\u26a0\ufe0f",
+        "CRITICAL": "\U0001f6a8",
+    }
+    icon = icons.get(level, "\u2139\ufe0f")
+    border = "\u2500" * 30
+    text = f"{border}\n{icon} *[{level}] Pipeline Alert*\n{border}\n{msg}"
+    try:
+        import urllib.request
+        import urllib.parse
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "Markdown",
+        }).encode()
+        req = urllib.request.Request(url, data=payload)
+        urllib.request.urlopen(req, timeout=10)
+        logger.debug("[Telegram] Notification sent (%s)", level)
+    except Exception as e:
+        logger.debug("[Telegram] Notification failed: %s", e)
 
 technical_cache = DataFrameCache()
 
@@ -631,19 +672,29 @@ def execute_prediction_pipeline():
                 future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_train, price_db, freshness, update_interval)] = sym
 
             done_count = 0
-            for future in as_completed(future_to_sym):
-                sym = future_to_sym[future]
-                try:
-                    df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
-                    if df is not None and not df.empty:
-                        train_data_dict[sym] = df
-                except TimeoutError:
-                    logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
-                except Exception as e:
-                    logger.debug(f"Skipping {sym}: {e}")
-                done_count += 1
-                if done_count % 100 == 0:
-                    logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
+            with tqdm(
+                total=len(train_symbols),
+                desc="📥 Training data",
+                unit="sym",
+                ncols=100,
+                colour="cyan",
+                dynamic_ncols=True,
+            ) as pbar:
+                for future in as_completed(future_to_sym):
+                    sym = future_to_sym[future]
+                    try:
+                        df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
+                        if df is not None and not df.empty:
+                            train_data_dict[sym] = df
+                    except TimeoutError:
+                        logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
+                    except Exception as e:
+                        logger.debug(f"Skipping {sym}: {e}")
+                    done_count += 1
+                    pbar.update(1)
+                    pbar.set_postfix({"loaded": len(train_data_dict), "sym": sym[:10]})
+                    if done_count % 100 == 0:
+                        logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
 
         # Wait for fundamentals fetch to complete before merging
         if train_symbols:
@@ -767,26 +818,36 @@ def execute_prediction_pipeline():
     # 9. Fetch recent data for ALL symbols to run inference
     logger.info(f"Fetching inference data for ALL {len(all_symbols)} symbols (update_interval={update_interval}s)...")
     infer_data_dict = {}
-    count = 0
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
         future_to_sym = {}
         for sym in all_symbols:
             sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
             future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_infer, price_db, freshness, update_interval)] = sym
 
-        for future in as_completed(future_to_sym):
-            sym = future_to_sym[future]
-            try:
-                df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
-                if df is not None and not df.empty:
-                    infer_data_dict[sym] = df
-            except TimeoutError:
-                logger.warning(f"[{count+1}/{len(all_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
-            except Exception as e:
-                logger.debug(f"Skipping {sym}: {e}")
-            count += 1
-            if count % 500 == 0:
-                logger.info(f"Fetched inference data: {count}/{len(all_symbols)} ({len(infer_data_dict)} loaded)")
+        count = 0
+        with tqdm(
+            total=len(all_symbols),
+            desc="📡 Inference data",
+            unit="sym",
+            ncols=100,
+            colour="green",
+            dynamic_ncols=True,
+        ) as pbar:
+            for future in as_completed(future_to_sym):
+                sym = future_to_sym[future]
+                try:
+                    df = future.result(timeout=_PER_SYMBOL_TIMEOUT)
+                    if df is not None and not df.empty:
+                        infer_data_dict[sym] = df
+                except TimeoutError:
+                    logger.warning(f"[{count+1}/{len(all_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
+                except Exception as e:
+                    logger.debug(f"Skipping {sym}: {e}")
+                count += 1
+                pbar.update(1)
+                pbar.set_postfix({"loaded": len(infer_data_dict), "sym": sym[:10]})
+                if count % 500 == 0:
+                    logger.info(f"Fetched inference data: {count}/{len(all_symbols)} ({len(infer_data_dict)} loaded)")
 
     # Filter out symbols with insufficient data (< 200 days)
     before = len(infer_data_dict)
@@ -1267,4 +1328,28 @@ def execute_prediction_pipeline():
     return res_df, message_text
 
 if __name__ == "__main__":
-    execute_prediction_pipeline()
+    _start = time.time()
+    try:
+        execute_prediction_pipeline()
+        _elapsed = time.time() - _start
+        _notify_telegram(
+            f"✅ 파이프라인 완료\n"
+            f"⏱ 소요시간: {_elapsed / 60:.1f}분\n"
+            f"📅 실행시각: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "SUCCESS",
+        )
+    except KeyboardInterrupt:
+        logger.info("Pipeline interrupted by user.")
+    except Exception as _exc:
+        _elapsed = time.time() - _start
+        _tb = traceback.format_exc()
+        _tb_tail = _tb[-800:] if len(_tb) > 800 else _tb
+        logger.exception("Pipeline failed with unhandled exception.")
+        _notify_telegram(
+            f"🚨 파이프라인 실패\n"
+            f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
+            f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
+            f"```\n{_tb_tail}\n```",
+            "CRITICAL",
+        )
+        sys.exit(1)
