@@ -992,40 +992,43 @@ def execute_prediction_pipeline():
     message_text = format_prediction_message(res_df, universe)
     print(message_text)
 
-    # Save full inference results for ALL symbols to file
+    # Save summarized inference results (TOP10 per market, key horizons only)
+    # Full raw data is available in pipeline_result.csv
     output_path = os.path.join(result_dir, "pipeline_result.txt")
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
+    _SUMMARY_HORIZONS = [h for h in [1, 5, 20, 60] if h in res_df.columns]  # Key horizons only
+    _TOP_N = 10
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write("=== Full Pipeline Inference Results ===\n")
+        f.write("=== Pipeline Inference Summary (TOP10 per Market) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"Total symbols: {len(res_df)}\n\n")
+        f.write(f"Total symbols analyzed: {len(res_df)}\n")
+        f.write(f"Showing: Top {_TOP_N} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
+        f.write(f"Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
-        for h in [1, 5, 10, 20, 30, 60, 120, 200]:
-            if h not in res_df.columns:
-                continue
+        for h in _SUMMARY_HORIZONS:
             sorted_df = res_df.sort_values(by=h, ascending=False)
             f.write(f"{'='*60}\n")
             f.write(f"Horizon: {h}d\n\n")
             for m in krx_markets:
                 m_set = market_syms.get(m, set())
-                m_df = sorted_df[sorted_df['symbol'].isin(m_set)]
+                m_df = sorted_df[sorted_df['symbol'].isin(m_set)].head(_TOP_N)
                 if m_df.empty:
                     continue
-                f.write(f"--- {m} (all {len(m_df)} symbols) ---\n")
+                f.write(f"--- {m} TOP {_TOP_N} ---\n")
                 for rank, (_, row) in enumerate(m_df.iterrows(), 1):
                     name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
                 f.write("\n")
             sp500_set = market_syms.get('SP500', set())
-            sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)]
+            sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)].head(_TOP_N)
             if not sp500_df.empty:
-                f.write(f"--- S&P 500 (all {len(sp500_df)} symbols) ---\n")
+                f.write(f"--- S&P 500 TOP {_TOP_N} ---\n")
                 for rank, (_, row) in enumerate(sp500_df.iterrows(), 1):
                     name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
                 f.write("\n")
-    logger.info(f"Saved full pipeline result ({len(res_df)} symbols) to {output_path}")
+    logger.info(f"Saved summarized pipeline result (TOP{_TOP_N}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
     # [NEW] Save CSV and JSON Lines format for pipeline_result
     try:
@@ -1083,10 +1086,15 @@ def execute_prediction_pipeline():
     if not lead_lag_df.empty:
         lead_lag_output_path = os.path.join(result_dir, "lead_lag_predictions.txt")
         lead_lag_df = lead_lag_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        # P1: clip correlation index to [0, 1] — values >1.0 indicate scaling issues
+        lead_lag_df = lead_lag_df.copy()
+        lead_lag_df['lead_lag_score'] = lead_lag_df['lead_lag_score'].clip(0.0, 1.0)
         with open(lead_lag_output_path, "w", encoding="utf-8") as f:
             f.write("=== Lead-Lag Surge Predictions ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n\n")
+            f.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n")
+            f.write("Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]\n")
+            f.write("        (Higher = stronger historical co-movement with market leaders)\n\n")
             krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
             for m in krx_markets + ['SP500']:
                 m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
@@ -1095,10 +1103,13 @@ def execute_prediction_pipeline():
                 f.write(f"--- {m} Top 20 ---\n")
                 for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
                     name = row.get('name', 'Unknown')
-                    score = row['lead_lag_score'] * 100
+                    score = row['lead_lag_score'] * 100  # now guaranteed <= 100%
                     f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {score:.2f}%\n")
                 f.write("\n")
+            # P1: filter leader returns outliers (>±30% likely corporate actions / data errors)
+            _OUTLIER_THRESHOLD = 0.30
             f.write("--- Leaders with highest today return ---\n")
+            f.write(f"(Outliers >\u00b1{_OUTLIER_THRESHOLD*100:.0f}% excluded as potential data errors)\n")
             leader_returns = []
             for sym in model.lead_lag_leaders:
                 df = infer_data_dict.get(sym)
@@ -1108,12 +1119,16 @@ def execute_prediction_pipeline():
                 if isinstance(close, pd.DataFrame):
                     close = close.iloc[:, 0]
                 ret = (close.iloc[-1] / close.iloc[-2]) - 1
-                leader_returns.append((sym, ret))
+                if abs(ret) <= _OUTLIER_THRESHOLD:  # Filter extreme outliers
+                    leader_returns.append((sym, ret))
             leader_returns.sort(key=lambda x: -x[1])
             symbol_to_name = dict(zip(universe['symbol'], universe['name']))
-            for rank, (sym, ret) in enumerate(leader_returns[:10], 1):
-                name = symbol_to_name.get(sym, sym)
-                f.write(f"  {rank}. {sym} ({name}): +{ret*100:.2f}%\n")
+            if leader_returns:
+                for rank, (sym, ret) in enumerate(leader_returns[:10], 1):
+                    name = symbol_to_name.get(sym, sym)
+                    f.write(f"  {rank}. {sym} ({name}): {ret*100:+.2f}%\n")
+            else:
+                f.write("  (No valid leader returns within normal range today)\n")
         logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
 
     # Save VCP pattern detection results
@@ -1328,6 +1343,52 @@ def execute_prediction_pipeline():
     return res_df, message_text
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Stock Trading Prediction Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python run_pipeline.py
+  python run_pipeline.py --target KOSPI
+  python run_pipeline.py --target SP500 --skip-training
+  python run_pipeline.py --debug --target KOSDAQ
+        """,
+    )
+    parser.add_argument(
+        "--target",
+        choices=["SP500", "KOSPI", "KOSDAQ", "KONEX", "KRX"],
+        default=None,
+        metavar="MARKET",
+        help="Market to run inference on: SP500 / KOSPI / KOSDAQ / KONEX / KRX "
+             "(default: reads INFERENCE_TARGET env var, or all markets)",
+    )
+    parser.add_argument(
+        "--skip-training",
+        action="store_true",
+        default=False,
+        help="Skip model training and use existing models from disk",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable debug mode: small sample (3 symbols/market), fast dry-run",
+    )
+    args = parser.parse_args()
+
+    # Apply CLI overrides to environment (pipeline reads from os.environ)
+    if args.target:
+        os.environ["INFERENCE_TARGET"] = args.target
+        logger.info(f"[CLI] INFERENCE_TARGET overridden to: {args.target}")
+    if args.skip_training:
+        os.environ["SKIP_TRAINING"] = "True"
+        logger.info("[CLI] SKIP_TRAINING enabled")
+    if args.debug:
+        os.environ["DEBUG_MODE"] = "True"
+        logger.info("[CLI] DEBUG_MODE enabled")
+
     _start = time.time()
     try:
         execute_prediction_pipeline()

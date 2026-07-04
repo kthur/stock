@@ -27,10 +27,21 @@ server = app.server
 # Define a clean layout matching the requirements
 app.layout = html.Div(
     [
-        html.H1("Trading System Dashboard"),
+        html.H1("Trading System Dashboard", style={"textAlign": "center", "marginBottom": "5px"}),
+        dcc.Interval(id="overview-interval", interval=60_000, n_intervals=0),  # refresh every 60s
         dcc.Tabs(
             id="tabs-example",
+            value="overview-tab",  # default to Overview
             children=[
+                # ── P1: Overview Tab ──────────────────────────────────────────
+                dcc.Tab(
+                    label="📊 Overview",
+                    value="overview-tab",
+                    id="overview-tab",
+                    children=[
+                        html.Div(id="overview-content", style={"padding": "20px"}),
+                    ],
+                ),
                 dcc.Tab(
                     label="Strategy Performance",
                     id="performance-tab",
@@ -893,6 +904,88 @@ def handle_strategy_analysis(n_clicks, n_intervals, market, strategy):
         }
 
     return _strategy_status, metrics_html, fig
+
+
+# ── P1: Overview Tab Callback ──────────────────────────────────────────────
+@app.callback(
+    Output("overview-content", "children"),
+    Input("overview-interval", "n_intervals"),
+)
+def update_overview(n_intervals):
+    """Populate the Overview tab with system status cards.
+
+    Reads pipeline_result.txt to extract last run date and symbol count.
+    Auto-refreshes every 60 seconds via dcc.Interval.
+    """
+    import os
+    import re
+
+    _RESULT_CANDIDATES = [
+        os.path.join(os.path.dirname(__file__), "..", "..", "result", "pipeline_result.txt"),
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "trading_system", "result", "pipeline_result.txt"),
+        os.path.join("trading_system", "result", "pipeline_result.txt"),
+    ]
+
+    last_run = "N/A"
+    total_symbols = "N/A"
+    horizons_shown = "N/A"
+
+    for candidate in _RESULT_CANDIDATES:
+        try:
+            if os.path.exists(candidate):
+                with open(candidate, "r", encoding="utf-8") as fh:
+                    header = fh.read(500)
+                date_match = re.search(r"Date:\s*(.+)", header)
+                sym_match = re.search(r"Total symbols analyzed:\s*(\d+)", header)
+                hor_match = re.search(r"Horizons:\s*(.+)", header)
+                if date_match:
+                    last_run = date_match.group(1).strip()
+                if sym_match:
+                    total_symbols = f"{int(sym_match.group(1)):,}"
+                if hor_match:
+                    horizons_shown = hor_match.group(1).strip()
+                break
+        except Exception:
+            pass
+
+    _card_style = {
+        "border": "1px solid #ddd",
+        "borderRadius": "8px",
+        "padding": "20px",
+        "margin": "10px",
+        "minWidth": "220px",
+        "flex": "1",
+        "boxShadow": "2px 2px 6px rgba(0,0,0,0.08)",
+        "backgroundColor": "#fafafa",
+    }
+    _label_style = {"fontSize": "12px", "color": "#888", "marginBottom": "6px"}
+    _value_style = {"fontSize": "22px", "fontWeight": "bold", "color": "#222"}
+
+    def _card(icon, label, value, color="#2d7dd2"):
+        return html.Div([
+            html.Div(f"{icon} {label}", style=_label_style),
+            html.Div(value, style={**_value_style, "color": color}),
+        ], style=_card_style)
+
+    cards = html.Div([
+        _card("📅", "마지막 파이프라인 실행", last_run, "#2d7dd2"),
+        _card("📈", "분석 종목 수", total_symbols, "#27ae60"),
+        _card("🔭", "표시 Horizon", horizons_shown, "#8e44ad"),
+        _card("🔄", "다음 새로고침", "60초마다 자동", "#e67e22"),
+    ], style={"display": "flex", "flexWrap": "wrap", "gap": "10px", "marginBottom": "20px"})
+
+    note = html.Div(
+        "ℹ️  전체 예측 데이터는 pipeline_result.csv / pipeline_result.jsonl 파일을 참조하세요.",
+        style={"color": "#555", "fontSize": "13px", "marginTop": "10px",
+               "padding": "10px", "backgroundColor": "#f0f4ff",
+               "borderRadius": "6px", "border": "1px solid #c8d8f8"},
+    )
+
+    return html.Div([
+        html.H3("📊 시스템 현황 (Overview)", style={"marginBottom": "15px"}),
+        cards,
+        note,
+    ])
 
 
 class DashboardServer:
