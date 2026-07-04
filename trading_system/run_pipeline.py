@@ -1015,7 +1015,7 @@ def execute_prediction_pipeline():
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"Total symbols analyzed: {len(res_df)}\n")
         f.write(f"Showing: Top {_TOP_N} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
-        f.write(f"Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
+        f.write("Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
         for h in _SUMMARY_HORIZONS:
             sorted_df = res_df.sort_values(by=h, ascending=False)

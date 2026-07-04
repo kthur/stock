@@ -16,13 +16,10 @@ import sqlite3
 import shutil
 import unittest
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
-import xgboost as xgb
-import lightgbm as lgb
-import catboost as cb
 
 # Setup DB paths in environment BEFORE importing config
 tmp_db_indicator = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -40,10 +37,9 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config import TradingConfig
 from src.persistence.database import StockPriceDB
 from src.data_layer.indicator_storage import MarketIndicatorStorage
-from src.ai.prediction_model import OnDevicePredictionModel, FALLBACK_METADATA
+from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_detector import detect_vcp
 from src.ai.vcp_ml_predictor import VCPSurgePredictor, VCP_FEATURES
 from src.analysis.regime_detector import MarketRegimeDetector
@@ -103,7 +99,7 @@ class TestE2EConsolidated(unittest.TestCase):
         high = close * (1.0 + np.random.rand(num_days) * 0.02)
         low = close * (1.0 - np.random.rand(num_days) * 0.02)
         volume = np.random.randint(100, 1000, size=num_days).astype(float)
-        
+
         return pd.DataFrame({
             "Open": close - 0.5,
             "High": high,
@@ -116,7 +112,7 @@ class TestE2EConsolidated(unittest.TestCase):
         dates = pd.date_range(end=datetime.now(), periods=num_days)
         # Upward trend to be above MA50 & MA200
         close = np.linspace(100.0, 150.0, num_days)
-        
+
         # Volatility contraction: ranges contract over time
         # windows: [5, 10, 20, 40, 60]
         # Set base ranges for contraction: 60d=15%, 40d=8%, 20d=5%, 10d=3%, 5d=1.5%
@@ -319,7 +315,7 @@ class TestE2EConsolidated(unittest.TestCase):
         df_train = pd.DataFrame(records)
         indicator_df = pd.DataFrame([{'sp500_change': 0.0, 'kodex_semicon_change': 0.0}] * len(dates), index=dates)
         indicator_df.index.name = 'date'
-        
+
         # Inject correlation
         for i in range(1, 45):
             if i % 2 == 0:
@@ -328,7 +324,7 @@ class TestE2EConsolidated(unittest.TestCase):
             else:
                 indicator_df.iloc[i, 1] = 4.0
                 df_train.loc[(df_train['date'] == dates[i+1]) & (df_train['symbol'] == 'Stock_B'), 'ret_1d'] = 0.08
-                
+
         self.model.compute_lead_lag(df_train, indicator_df=indicator_df, lead_lag_days=1)
         self.assertIn('^GSPC', self.model.lead_lag_leaders)
 
@@ -366,7 +362,7 @@ class TestE2EConsolidated(unittest.TestCase):
         for i in range(1, 45):
             indicator_df.iloc[i, 0] = 3.0
             df_train.loc[(df_train['date'] == dates[i+1]) & (df_train['symbol'] == 'Stock_A'), 'ret_1d'] = 0.06
-        
+
         self.model.compute_lead_lag(df_train, indicator_df=indicator_df, lead_lag_days=1)
         prices_dict = {'Stock_A': pd.DataFrame({'Close': [100.0, 100.0]}, index=dates[-2:])}
         # sp500_change=0.0 → ^GSPC = 0.0 <= 0.01 → no leader triggers → empty result
@@ -383,7 +379,7 @@ class TestE2EConsolidated(unittest.TestCase):
             ret = -0.02 if i % 2 == 0 else 0.02
             records.append({'date': d, 'symbol': 'Stock_A', 'ret_1d': ret, 'market_cap': 1000000000.0})
         df_train = pd.DataFrame(records)
-        
+
         # indicator leads stock
         indicator_df = pd.DataFrame(index=dates)
         indicator_df['sp500_change'] = [0.0] * len(dates)
@@ -515,7 +511,7 @@ class TestE2EConsolidated(unittest.TestCase):
         surge_df = pd.DataFrame([{"symbol": "AAPL", "surge_20d": 0.80}])
         ll_df = pd.DataFrame([{"symbol": "AAPL", "lead_lag_score": 0.50}])
         vcp_df = pd.DataFrame([{"symbol": "AAPL", "vcp_20d": 0.90}])
-        
+
         res = engine.calculate_ensemble_score(2, reg_df, surge_df, ll_df, vcp_df, target_horizon=20)
         self.assertFalse(res.empty)
         self.assertIn("ensemble_score", res.columns)
@@ -586,7 +582,7 @@ class TestE2EConsolidated(unittest.TestCase):
         df_train = pd.DataFrame(records)
         indicator_df = pd.DataFrame([{'sp500_change': 0.0}] * 2, index=dates)
         indicator_df.index.name = 'date'
-        
+
         # Computing on insufficient sequence shouldn't raise exception but gracefully bypass or fail gracefully
         try:
             self.model.compute_lead_lag(df_train, indicator_df=indicator_df, lead_lag_days=1)
@@ -762,7 +758,7 @@ class TestE2EConsolidated(unittest.TestCase):
         for i in range(1, 45):
             indicator_df.iloc[i, 0] = 3.0
             df_train.loc[(df_train['date'] == dates[i+1]) & (df_train['symbol'] == 'Stock_A'), 'ret_1d'] = 0.06
-        
+
         self.model.compute_lead_lag(df_train, indicator_df=indicator_df, lead_lag_days=1)
 
         # Predict lead lag
@@ -775,10 +771,10 @@ class TestE2EConsolidated(unittest.TestCase):
     def test_t3_vcp_rule_vs_ml_features(self):
         df_vcp = self.generate_vcp_data(500)
         rule_res = detect_vcp(df_vcp)
-        
+
         predictor = VCPSurgePredictor(model_dir=self.tmp_model_dir)
         df_feat = predictor._compute_vcp_features(df_vcp)
-        
+
         # Verify that feature vector matches the scalar metrics from detect_vcp (ML rescales VCP score by /100)
         self.assertAlmostEqual(df_feat["vcp_score"].iloc[-1] * 100.0, rule_res["vcp_score"])
 
@@ -870,10 +866,10 @@ class TestE2EConsolidated(unittest.TestCase):
                 "put_call_ratio": 1.5,
             })
         crash_df = pd.DataFrame(crash_records).set_index("date")
-        
+
         # Combine
         combined_df = pd.concat([indicator_df, crash_df])
-        
+
         # Predict regime, should detect BEAR (0)
         regime = detector.predict_regime(combined_df)
         self.assertEqual(regime, 0) # BEAR
@@ -910,7 +906,7 @@ class TestE2EConsolidated(unittest.TestCase):
             "068270": "KOSDAQ",
             "207940": "KONEX"
         }
-        
+
         predictor = VCPSurgePredictor(model_dir=self.tmp_model_dir)
         # Construct indicators and universe mapping
         indicator_df = self.generate_mock_indicators(500)
@@ -925,7 +921,7 @@ class TestE2EConsolidated(unittest.TestCase):
         # Inject extreme swing at index 100-120
         df_vcp.iloc[100:120, df_vcp.columns.get_loc('High')] = df_vcp.iloc[100:120, df_vcp.columns.get_loc('Close')] * 1.40
         df_vcp.iloc[100:120, df_vcp.columns.get_loc('Low')] = df_vcp.iloc[100:120, df_vcp.columns.get_loc('Close')] * 0.60
-        
+
         # Check that tail contraction is still detected
         res = detect_vcp(df_vcp)
         self.assertTrue(res['is_vcp'])

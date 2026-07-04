@@ -28,7 +28,6 @@ Error responses::
 
 import json
 import logging
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -100,7 +99,7 @@ def _load_jsonl(path: Path) -> List[Dict]:
 
 def _parse_vcp_txt(path: Path) -> List[Dict]:
     """Parse vcp_patterns.txt into a list of structured dicts."""
-    results = []
+    results: List[Dict] = []
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -130,7 +129,7 @@ def _parse_vcp_txt(path: Path) -> List[Dict]:
 
 def _parse_lead_lag_txt(path: Path) -> List[Dict]:
     """Parse lead_lag_predictions.txt into list of dicts."""
-    results = []
+    results: List[Dict] = []
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
