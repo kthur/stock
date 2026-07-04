@@ -138,6 +138,10 @@ class VCPSurgePredictor:
         close = _safe_series(df['Close']).astype(float)
         volume = _safe_series(df['Volume']).astype(float)
 
+        # Guard: return empty if key columns are all NaN
+        if high.isna().all() or close.isna().all():
+            return pd.DataFrame()
+
         windows = [5, 10, 20, 40, 60]
         ranges = []
         for w in windows:
@@ -215,7 +219,7 @@ class VCPSurgePredictor:
         base_features = self._ft.ALL_FEATURES
 
         universe_map = {}
-        if universe is not None:
+        if universe is not None and not universe.empty and 'symbol' in universe.columns:
             universe_map = dict(zip(universe['symbol'], universe['market']))
 
         results = []
@@ -306,7 +310,7 @@ class VCPSurgePredictor:
         logger.info("Computing VCP ML features for training...")
 
         universe_map = {}
-        if universe is not None:
+        if universe is not None and not universe.empty and 'symbol' in universe.columns:
             universe_map = dict(zip(universe['symbol'], universe['market']))
 
         train_rows = []
