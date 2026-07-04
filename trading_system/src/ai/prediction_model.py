@@ -639,6 +639,9 @@ class OnDevicePredictionModel:
             if isinstance(df_copy.columns, pd.MultiIndex):
                 df_copy.columns = df_copy.columns.droplevel(1)
 
+            # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
+            df_copy.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df_copy.columns]
+
             if 'Close' not in df_copy.columns:
                 logger.warning(f"Missing 'Close' column in DataFrame for {sym}.")
                 raise KeyError(f"Missing 'Close' column in DataFrame for {sym}")
@@ -860,6 +863,8 @@ class OnDevicePredictionModel:
     def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
         df = df.copy()
+        # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
+        df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
 
         # Ensure no duplicated columns
         if df.columns.has_duplicates:

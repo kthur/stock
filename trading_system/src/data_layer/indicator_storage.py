@@ -136,7 +136,9 @@ class MarketIndicatorStorage:
         krx = fdr.StockListing('KRX')
 
         # 거래정지(Volume=0) 및 관리종목 제외
-        excluded = set(krx[krx['Volume'] == 0]['Code'].tolist())
+        krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code'] else str(c) for c in krx.columns]
+        excluded = set(krx[krx['Volume'] == 0]['Code'].tolist()) if 'Volume' in krx.columns else set()
+
         try:
             adm = fdr.StockListing('KRX-ADMINISTRATIVE')
             for s in adm['Symbol']:

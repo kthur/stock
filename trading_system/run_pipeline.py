@@ -514,7 +514,9 @@ def _get_excluded_krx_symbols() -> set:
     try:
         try:
             krx = fdr.StockListing('KRX')
-            halted = set(krx[krx['Volume'] == 0]['Code'].tolist())
+            krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code'] else str(c) for c in krx.columns]
+            halted = set(krx[krx['Volume'] == 0]['Code'].tolist()) if 'Volume' in krx.columns else set()
+
             if halted:
                 logger.info(f"Excluding {len(halted)} halted KRX stocks (Volume=0)")
             excluded |= halted

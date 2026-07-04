@@ -133,6 +133,9 @@ class VCPSurgePredictor:
             return pd.DataFrame()
 
         df = df.copy()
+        # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
+        df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+
         high = _safe_series(df['High']).astype(float)
         low = _safe_series(df['Low']).astype(float)
         close = _safe_series(df['Close']).astype(float)

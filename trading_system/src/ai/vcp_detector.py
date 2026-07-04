@@ -23,6 +23,9 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
         return {'is_vcp': False, 'vcp_score': 0.0, 'contraction_peaks': []}
 
     df = df.copy()
+    # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
+    df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+
     high = _safe_series(df['High'])
     low = _safe_series(df['Low'])
     close = _safe_series(df['Close'])
