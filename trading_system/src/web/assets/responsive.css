@@ -1,0 +1,130 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Trading System Dashboard — Responsive CSS  (P2)
+   Dash automatically serves all files in assets/ directory.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* === Global reset & base ================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #1a1a2e;
+    margin: 0;
+    padding: 0;
+}
+
+/* === Layout shell ========================================================= */
+#react-entry-point > div {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 12px;
+}
+
+/* === H1 title ============================================================= */
+h1 {
+    font-size: clamp(18px, 4vw, 28px);
+    padding: 12px 0 4px;
+}
+
+/* === Tabs — horizontal scroll on small screens =========================== */
+.tab-container, .rc-tabs-nav-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Tab labels wrap on mobile */
+.rc-tabs-tab {
+    white-space: normal !important;
+    word-break: break-word;
+    font-size: 13px !important;
+    min-width: 70px;
+}
+
+/* === Overview status cards =============================================== */
+/* Cards container already uses display:flex; flexWrap:wrap via inline style */
+.overview-card {
+    min-width: 160px !important;
+    flex: 1 1 160px !important;
+}
+
+/* === Graphs — full width on mobile ======================================= */
+.js-plotly-plot, .plotly {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+/* === DataTable — horizontal scroll on small screens ====================== */
+.dash-spreadsheet-container {
+    overflow-x: auto !important;
+}
+.dash-spreadsheet.dash-freeze-left,
+.dash-spreadsheet:not(.dash-freeze-left) {
+    min-width: 0 !important;
+}
+
+/* === Dropdowns ============================================================ */
+.Select, .VirtualizedSelect {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+/* === Buttons ============================================================== */
+.btn, button {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* === Generic divs with inline display:flex — wrap on mobile ============== */
+div[style*="display: flex"], div[style*="display:flex"] {
+    flex-wrap: wrap !important;
+}
+
+/* === Tablet (≤ 768px) ==================================================== */
+@media (max-width: 768px) {
+    body { font-size: 13px; }
+
+    h1  { font-size: 18px; padding: 8px 0 2px; }
+    h3  { font-size: 15px; }
+
+    /* Stack buttons and dropdowns vertically */
+    .row-controls {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+
+    /* Make all inline-block elements full width */
+    div[style*="display: inline-block"] {
+        display: block !important;
+        width: 100% !important;
+        margin-right: 0 !important;
+    }
+
+    /* Full-width dropdowns */
+    div[style*="width: 200px"] {
+        width: 100% !important;
+    }
+
+    /* Tab label size */
+    .rc-tabs-tab { font-size: 12px !important; padding: 6px 8px !important; }
+}
+
+/* === Phone (≤ 480px) ===================================================== */
+@media (max-width: 480px) {
+    body { font-size: 12px; }
+
+    h1  { font-size: 16px; }
+
+    /* Collapse padding in tab content */
+    div[style*="padding: 20px"] {
+        padding: 10px !important;
+    }
+
+    /* Overview cards: single column */
+    div[style*="display: flex"][style*="flex-wrap: wrap"] > div {
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+}

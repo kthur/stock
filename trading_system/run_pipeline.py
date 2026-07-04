@@ -57,8 +57,15 @@ logger = logging.getLogger(__name__)
 # Reads TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID from env.
 # Severity levels: INFO / SUCCESS / WARNING / CRITICAL
 # ---------------------------------------------------------------------------
-def _notify_telegram(msg: str, level: str = "INFO") -> None:
+def _notify_telegram(msg: str, level: str = "INFO", buttons: list | None = None) -> None:
     """Send a Telegram notification with severity level badge.
+
+    Args:
+        msg:     Message body (Markdown).
+        level:   INFO / SUCCESS / WARNING / CRITICAL
+        buttons: Optional list-of-rows for Telegram InlineKeyboard.
+                 Each row is a list of dicts: [{"text": "...", "url": "..."}]
+                 Example: [[{"text": "📈 GHA", "url": "https://..."}]]
 
     No-ops silently when env vars are missing (local dev without bot).
     """
@@ -76,15 +83,19 @@ def _notify_telegram(msg: str, level: str = "INFO") -> None:
     border = "\u2500" * 30
     text = f"{border}\n{icon} *[{level}] Pipeline Alert*\n{border}\n{msg}"
     try:
+        import json
         import urllib.request
         import urllib.parse
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = urllib.parse.urlencode({
+        payload: dict = {
             "chat_id": chat_id,
             "text": text,
             "parse_mode": "Markdown",
-        }).encode()
-        req = urllib.request.Request(url, data=payload)
+        }
+        if buttons:
+            payload["reply_markup"] = json.dumps({"inline_keyboard": buttons})
+        data = urllib.parse.urlencode(payload).encode()
+        req = urllib.request.Request(url, data=data)
         urllib.request.urlopen(req, timeout=10)
         logger.debug("[Telegram] Notification sent (%s)", level)
     except Exception as e:
@@ -1390,14 +1401,24 @@ Examples:
         logger.info("[CLI] DEBUG_MODE enabled")
 
     _start = time.time()
+    # Build GHA inline button when running inside GitHub Actions
+    _gha_url = None
+    _gha_server = os.environ.get("GITHUB_SERVER_URL", "").strip()
+    _gha_repo = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    _gha_run_id = os.environ.get("GITHUB_RUN_ID", "").strip()
+    if _gha_server and _gha_repo and _gha_run_id:
+        _gha_url = f"{_gha_server}/{_gha_repo}/actions/runs/{_gha_run_id}"
+
     try:
         execute_prediction_pipeline()
         _elapsed = time.time() - _start
+        _buttons = [[{"text": "📊 GHA 결과 보기", "url": _gha_url}]] if _gha_url else None
         _notify_telegram(
             f"✅ 파이프라인 완료\n"
             f"⏱ 소요시간: {_elapsed / 60:.1f}분\n"
             f"📅 실행시각: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             "SUCCESS",
+            buttons=_buttons,
         )
     except KeyboardInterrupt:
         logger.info("Pipeline interrupted by user.")
@@ -1406,11 +1427,13 @@ Examples:
         _tb = traceback.format_exc()
         _tb_tail = _tb[-800:] if len(_tb) > 800 else _tb
         logger.exception("Pipeline failed with unhandled exception.")
+        _buttons = [[{"text": "📋 에러 로그 보기", "url": _gha_url}]] if _gha_url else None
         _notify_telegram(
             f"🚨 파이프라인 실패\n"
             f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
             f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
             f"```\n{_tb_tail}\n```",
             "CRITICAL",
+            buttons=_buttons,
         )
         sys.exit(1)

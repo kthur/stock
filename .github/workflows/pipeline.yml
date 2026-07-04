@@ -102,7 +102,7 @@ jobs:
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 
-      # P0: GitHub Step Summary — visible in GHA Actions tab without opening logs
+      # P0/P2: GitHub Step Summary — visible in GHA Actions tab without opening logs
       - name: Write Step Summary
         if: always()
         run: |
@@ -111,6 +111,7 @@ jobs:
           [ "$STATUS" != "success" ] && ICON="❌"
           echo "## ${ICON} Pipeline: ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚙️ 실행 정보" >> $GITHUB_STEP_SUMMARY
           echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| 실행 대상 | ${{ matrix.target }} |" >> $GITHUB_STEP_SUMMARY
@@ -118,6 +119,20 @@ jobs:
           echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
           echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| SKIP_TRAINING | ${{ env.SKIP_TRAINING }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
+          echo "| 파일 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|-------|" >> $GITHUB_STEP_SUMMARY
+          for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt pipeline_result.csv; do
+            FPATH="trading_system/result/$f"
+            if [ -f "$FPATH" ]; then
+              SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
+              LINES=$(wc -l < "$FPATH" 2>/dev/null || echo "?")
+              echo "| $f | $SIZE | $LINES |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $f | ⚠️ 없음 | - |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
 
       # P0: Telegram failure notification — send CRITICAL alert when pipeline fails
       - name: Notify Telegram on Failure

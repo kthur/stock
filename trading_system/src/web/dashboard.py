@@ -20,7 +20,14 @@ logger = logging.getLogger(__name__)
 _active_dashboard = None
 
 # Create the Dash app instance
-app = dash.Dash(__name__)
+app = dash.Dash(
+    __name__,
+    # P2: mobile viewport for responsive layout
+    meta_tags=[
+        {"name": "viewport", "content": "width=device-width, initial-scale=1, shrink-to-fit=no"},
+        {"name": "description", "content": "Stock Trading System Dashboard"},
+    ],
+)
 # Keep reference to the underlying flask server
 server = app.server
 
