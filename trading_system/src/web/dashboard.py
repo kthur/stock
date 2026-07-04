@@ -31,6 +31,13 @@ app = dash.Dash(
 # Keep reference to the underlying flask server
 server = app.server
 
+# P3: Register REST API routes (JSON endpoints) on the Flask server
+try:
+    from src.web.api import register_api_routes
+    register_api_routes(server)
+except Exception as _api_err:
+    logger.warning("Could not register API routes: %s", _api_err)
+
 # Define a clean layout matching the requirements
 app.layout = html.Div(
     [
@@ -47,6 +54,84 @@ app.layout = html.Div(
                     id="overview-tab",
                     children=[
                         html.Div(id="overview-content", style={"padding": "20px"}),
+                    ],
+                ),
+                # ── P3: Predictions Viewer Tab ────────────────────────────────
+                dcc.Tab(
+                    label="📋 예측 결과",
+                    value="predictions-tab",
+                    id="predictions-tab",
+                    children=[
+                        html.Div([
+                            html.H3("📋 예측 결과 뷰어", style={"marginBottom": "12px"}),
+                            # ── Controls row ──
+                            html.Div([
+                                html.Div([
+                                    html.Label("전략", style={"fontWeight": "bold", "fontSize": "12px"}),
+                                    dcc.Dropdown(
+                                        id="pred-strategy-dropdown",
+                                        options=[
+                                            {"label": "📈 회귀 예측 (Regression)", "value": "regression"},
+                                            {"label": "🚀 서지 예측 (Surge)", "value": "surge"},
+                                        ],
+                                        value="regression",
+                                        clearable=False,
+                                    ),
+                                ], style={"flex": "1", "minWidth": "200px", "marginRight": "12px"}),
+                                html.Div([
+                                    html.Label("시장", style={"fontWeight": "bold", "fontSize": "12px"}),
+                                    dcc.Dropdown(
+                                        id="pred-market-dropdown",
+                                        options=[
+                                            {"label": "전체", "value": "ALL"},
+                                            {"label": "KOSPI", "value": "KOSPI"},
+                                            {"label": "KOSDAQ", "value": "KOSDAQ"},
+                                            {"label": "KONEX", "value": "KONEX"},
+                                            {"label": "S&P 500", "value": "SP500"},
+                                        ],
+                                        value="ALL",
+                                        clearable=False,
+                                    ),
+                                ], style={"flex": "1", "minWidth": "160px", "marginRight": "12px"}),
+                                html.Div([
+                                    html.Label("Horizon (회귀전용)", style={"fontWeight": "bold", "fontSize": "12px"}),
+                                    dcc.Dropdown(
+                                        id="pred-horizon-dropdown",
+                                        options=[
+                                            {"label": "1일", "value": 1},
+                                            {"label": "5일", "value": 5},
+                                            {"label": "20일", "value": 20},
+                                            {"label": "60일", "value": 60},
+                                        ],
+                                        value=1,
+                                        clearable=False,
+                                    ),
+                                ], style={"flex": "1", "minWidth": "140px", "marginRight": "12px"}),
+                                html.Div([
+                                    html.Label("표시 건수", style={"fontWeight": "bold", "fontSize": "12px"}),
+                                    dcc.Dropdown(
+                                        id="pred-limit-dropdown",
+                                        options=[
+                                            {"label": "TOP 20", "value": 20},
+                                            {"label": "TOP 50", "value": 50},
+                                            {"label": "TOP 100", "value": 100},
+                                        ],
+                                        value=20,
+                                        clearable=False,
+                                    ),
+                                ], style={"flex": "1", "minWidth": "120px"}),
+                            ], style={"display": "flex", "flexWrap": "wrap", "gap": "8px", "marginBottom": "16px"}),
+                            # ── Results table ──
+                            dcc.Loading(
+                                id="pred-loading",
+                                type="circle",
+                                children=html.Div(id="pred-table-container"),
+                            ),
+                            html.Div(
+                                id="pred-api-note",
+                                style={"fontSize": "12px", "color": "#888", "marginTop": "8px"},
+                            ),
+                        ], style={"padding": "20px"}),
                     ],
                 ),
                 dcc.Tab(
@@ -993,6 +1078,147 @@ def update_overview(n_intervals):
         cards,
         note,
     ])
+
+
+# ── P3: Predictions Viewer Callback ─────────────────────────────────────────
+@app.callback(
+    Output("pred-table-container", "children"),
+    Output("pred-api-note", "children"),
+    Input("pred-strategy-dropdown", "value"),
+    Input("pred-market-dropdown", "value"),
+    Input("pred-horizon-dropdown", "value"),
+    Input("pred-limit-dropdown", "value"),
+)
+def update_predictions_table(strategy, market, horizon, limit):
+    """Load prediction CSV and render an interactive DataTable.
+
+    Falls back to a friendly message when data files are not yet generated.
+    """
+    import os
+    import pandas as pd
+
+    _RESULT_CANDIDATES = [
+        os.path.join(os.path.dirname(__file__), "..", "..", "result"),
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "trading_system", "result"),
+        os.path.join("trading_system", "result"),
+    ]
+
+    def _find_result_dir():
+        for c in _RESULT_CANDIDATES:
+            p = os.path.realpath(c)
+            if os.path.isdir(p):
+                return p
+        return None
+
+    rdir = _find_result_dir()
+    api_url = f"/api/v1/{'predictions' if strategy == 'regression' else 'surge'}/latest"
+    note_text = (
+        f"💡 REST API: GET {api_url}"
+        + (f"?market={market}" if market != "ALL" else "")
+        + f"&limit={limit}  ·  데이터 출처: pipeline_result.csv / surge_predictions.csv"
+    )
+
+    if not rdir:
+        return html.Div(
+            "⚠️ 결과 파일을 찾을 수 없습니다. 파이프라인을 먼저 실행하세요.",
+            style={"color": "#c0392b", "padding": "20px"},
+        ), note_text
+
+    # Choose CSV file
+    filename = "pipeline_result.csv" if strategy == "regression" else "surge_predictions.csv"
+    csv_path = os.path.join(rdir, filename)
+
+    if not os.path.exists(csv_path):
+        return html.Div(
+            f"⚠️ {filename} 파일이 없습니다. 파이프라인을 먼저 실행하세요.",
+            style={"color": "#c0392b", "padding": "20px"},
+        ), note_text
+
+    try:
+        df = pd.read_csv(csv_path, dtype={"symbol": str})
+    except Exception as e:
+        return html.Div(f"❌ CSV 로드 오류: {e}", style={"color": "#c0392b"}), note_text
+
+    # Filter by market
+    if market != "ALL" and "market" in df.columns:
+        df = df[df["market"].str.upper() == market.upper()]
+
+    # Select and sort columns
+    if strategy == "regression":
+        sort_col = horizon if horizon in df.columns else (str(horizon) if str(horizon) in df.columns else None)
+        if sort_col and sort_col in df.columns:
+            df = df.sort_values(by=sort_col, ascending=False)
+        # Show key columns only
+        show_cols = ["symbol", "market"]
+        if "name" in df.columns:
+            show_cols.append("name")
+        for h in [1, 5, 20, 60]:
+            if h in df.columns:
+                show_cols.append(h)
+            elif str(h) in df.columns:
+                show_cols.append(str(h))
+        df = df[[c for c in show_cols if c in df.columns]]
+        # Format return columns as %
+        for col in df.columns:
+            if col not in ("symbol", "market", "name"):
+                try:
+                    df[col] = (df[col] * 100).round(2).astype(str) + "%"
+                except Exception:
+                    pass
+    else:
+        # Surge: sort by highest surge prob
+        surge_cols = [c for c in df.columns if "surge" in str(c)]
+        if surge_cols:
+            df = df.sort_values(by=surge_cols[0], ascending=False)
+        show_cols = ["symbol", "market"]
+        if "name" in df.columns:
+            show_cols.append("name")
+        show_cols += surge_cols
+        df = df[[c for c in show_cols if c in df.columns]]
+        for col in surge_cols:
+            if col in df.columns:
+                try:
+                    df[col] = (df[col] * 100).round(1).astype(str) + "%"
+                except Exception:
+                    pass
+
+    df = df.head(limit)
+
+    if df.empty:
+        return html.Div(
+            "검색 결과가 없습니다.",
+            style={"color": "#888", "padding": "20px"},
+        ), note_text
+
+    table = dash_table.DataTable(
+        id="pred-datatable",
+        columns=[{"name": str(c), "id": str(c)} for c in df.columns],
+        data=df.to_dict("records"),
+        page_size=limit,
+        sort_action="native",
+        filter_action="native",
+        style_table={"overflowX": "auto"},
+        style_header={
+            "backgroundColor": "#1a1a2e",
+            "color": "white",
+            "fontWeight": "bold",
+            "fontSize": "13px",
+        },
+        style_cell={
+            "fontSize": "13px",
+            "padding": "6px 10px",
+            "textAlign": "left",
+            "whiteSpace": "normal",
+            "height": "auto",
+        },
+        style_data_conditional=[
+            {
+                "if": {"row_index": "odd"},
+                "backgroundColor": "#f8f9ff",
+            },
+        ],
+    )
+    return table, note_text
 
 
 class DashboardServer:
