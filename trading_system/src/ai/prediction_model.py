@@ -18,6 +18,17 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
+def case_insensitive_get(d: dict, key: str, default=None):
+    if not isinstance(key, str):
+        return d.get(key, default)
+    if key in d:
+        return d[key]
+    for k, v in d.items():
+        if isinstance(k, str) and k.lower() == key.lower():
+            return v
+    return default
+
+
 class FallbackMetadataDict(dict):
     """
     A custom dictionary-like class that contains real values for key benchmarks
@@ -840,6 +851,9 @@ class OnDevicePredictionModel:
         df = df.join(indicator_df, how='left')
         if len(df) > before:
             df = df.iloc[:before]
+        for col in self.GLOBAL_FEATURES:
+            if col not in df.columns:
+                df[col] = 0.0
         df[self.GLOBAL_FEATURES] = df[self.GLOBAL_FEATURES].ffill().fillna(0.0)
         return df
 
@@ -1681,23 +1695,19 @@ class OnDevicePredictionModel:
                 preds = []
                 weights = []
 
-                xgb_m = self.models.get(market, {}).get(h)
-                lgb_m = self.lgb_models.get(market, {}).get(h)
-                cat_m = self.cat_models.get(market, {}).get(h)
+                xgb_m = case_insensitive_get(self.models, market, {}).get(h)
+                lgb_m = case_insensitive_get(self.lgb_models, market, {}).get(h)
+                cat_m = case_insensitive_get(self.cat_models, market, {}).get(h)
 
                 # Get dynamic weights or fallback to default
-                w_xgb_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("xgb", 0.4)
-                w_lgb_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("lgb", 0.3)
-                w_cat_val = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {}).get("cat", 0.3)
+                reg_weights = case_insensitive_get(self.ensemble_weights.get("regression", {}), market, {})
+                w_dict = reg_weights.get(str(h))
+                if w_dict is None:
+                    w_dict = reg_weights.get(h, {})
 
-                # str(h) key is canonical after JSON round-trip; try int key (h) as in-memory fallback
-                w_dict = self.ensemble_weights.get("regression", {}).get(market, {}).get(str(h), {})
-                if not w_dict:
-                    w_dict = self.ensemble_weights.get("regression", {}).get(market, {}).get(h, {})
-                if w_dict:
-                    w_xgb_val = w_dict.get("xgb", w_xgb_val)
-                    w_lgb_val = w_dict.get("lgb", w_lgb_val)
-                    w_cat_val = w_dict.get("cat", w_cat_val)
+                w_xgb_val = w_dict.get("xgb", 0.4) if w_dict else 0.4
+                w_lgb_val = w_dict.get("lgb", 0.3) if w_dict else 0.3
+                w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
 
                 # Apply feature scaling
                 from src.ai.feature_engineering import load_scaler, apply_scaler
@@ -1722,6 +1732,7 @@ class OnDevicePredictionModel:
                     pred = float(inverse_transform(pd.Series([pred])).iloc[0])
                 else:
                     pred = 0.0
+                    logger.warning(f"Prediction for market={market}, horizon={h} defaulted to 0.0 due to missing models.")
 
                 if abs(pred) > 2.0:
                     logger.warning(f"Clipping extreme prediction for {h}d horizon: {pred:.4f}")
@@ -1803,28 +1814,24 @@ class OnDevicePredictionModel:
                         scaler = load_scaler(str(self.model_dir), mkt, h)
                         X_mkt = apply_scaler(X_mkt_raw, self.ALL_FEATURES, scaler)[self.ALL_FEATURES]
 
-                        xgb_m = self.models.get(mkt, {}).get(h)
-                        lgb_m = self.lgb_models.get(mkt, {}).get(h)
-                        cat_m = self.cat_models.get(mkt, {}).get(h)
-                        lstm_m = self.lstm_models.get(mkt, {}).get(h)
+                        xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
+                        lgb_m = case_insensitive_get(self.lgb_models, mkt, {}).get(h)
+                        cat_m = case_insensitive_get(self.cat_models, mkt, {}).get(h)
+                        lstm_m = case_insensitive_get(self.lstm_models, mkt, {}).get(h)
 
                         preds = []
                         weights = []
 
                         # Get dynamic weights or fallback to default
-                        w_xgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
-                        w_lgb_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
-                        w_cat_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
-                        w_lstm_val = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(str(h), {}).get("lstm", 0.0)
+                        reg_weights = case_insensitive_get(self.ensemble_weights.get("regression", {}), mkt, {})
+                        w_dict = reg_weights.get(str(h))
+                        if w_dict is None:
+                            w_dict = reg_weights.get(h, {})
 
-                        # Convert integer keys back if needed
-                        if isinstance(self.ensemble_weights.get("regression", {}).get(mkt, {}), dict):
-                            w_dict = self.ensemble_weights.get("regression", {}).get(mkt, {}).get(h, {})
-                            if w_dict:
-                                w_xgb_val = w_dict.get("xgb", w_xgb_val)
-                                w_lgb_val = w_dict.get("lgb", w_lgb_val)
-                                w_cat_val = w_dict.get("cat", w_cat_val)
-                                w_lstm_val = w_dict.get("lstm", w_lstm_val)
+                        w_xgb_val = w_dict.get("xgb", 0.4) if w_dict else 0.4
+                        w_lgb_val = w_dict.get("lgb", 0.3) if w_dict else 0.3
+                        w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
+                        w_lstm_val = w_dict.get("lstm", 0.0) if w_dict else 0.0
 
                         if xgb_m is not None:
                             preds.append(xgb_m.predict(X_mkt))
@@ -1869,6 +1876,7 @@ class OnDevicePredictionModel:
                             res_df.loc[idx, h] = blend_pred_inv
                         else:
                             res_df.loc[idx, h] = 0.0
+                            logger.warning(f"Regression prediction for market={mkt}, horizon={h} defaulted to 0.0 due to missing models.")
 
 
         # Clip extreme values
@@ -1906,27 +1914,22 @@ class OnDevicePredictionModel:
                     if len(idx) > 0:
                         X_mkt = df_all.iloc[idx]
 
-                        xgb_m = self.surge_models.get(mkt, {}).get(h)
-                        lgb_m = self.surge_lgb_models.get(mkt, {}).get(h)
-                        cat_m = self.surge_cat_models.get(mkt, {}).get(h)
+                        xgb_m = case_insensitive_get(self.surge_models, mkt, {}).get(h)
+                        lgb_m = case_insensitive_get(self.surge_lgb_models, mkt, {}).get(h)
+                        cat_m = case_insensitive_get(self.surge_cat_models, mkt, {}).get(h)
 
                         preds = []
                         weights = []
 
                         # Get dynamic weights or fallback to default
-                        w_xgb_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("xgb", 0.4)
-                        w_lgb_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("lgb", 0.3)
-                        w_cat_val = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {}).get("cat", 0.3)
+                        surge_weights = case_insensitive_get(self.ensemble_weights.get("surge", {}), mkt, {})
+                        w_dict = surge_weights.get(str(h))
+                        if w_dict is None:
+                            w_dict = surge_weights.get(h, {})
 
-                        # Convert integer keys back if needed
-                        # str(h) key is canonical; int key (h) is in-memory fallback
-                        w_dict = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(str(h), {})
-                        if not w_dict:
-                            w_dict = self.ensemble_weights.get("surge", {}).get(mkt, {}).get(h, {})
-                        if w_dict:
-                            w_xgb_val = w_dict.get("xgb", w_xgb_val)
-                            w_lgb_val = w_dict.get("lgb", w_lgb_val)
-                            w_cat_val = w_dict.get("cat", w_cat_val)
+                        w_xgb_val = w_dict.get("xgb", 0.4) if w_dict else 0.4
+                        w_lgb_val = w_dict.get("lgb", 0.3) if w_dict else 0.3
+                        w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
 
                         if xgb_m is not None:
                             preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
@@ -1945,7 +1948,10 @@ class OnDevicePredictionModel:
                                 blend_prob += p * (w / total_w)
 
                             # Apply Platt Scaling calibration if coefficient metadata is present
-                            calib_dict = self.ensemble_weights.get("calibration", {}).get(mkt, {}).get(str(h), {})
+                            calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), mkt, {})
+                            calib_dict = calib_mkt.get(str(h))
+                            if calib_dict is None:
+                                calib_dict = calib_mkt.get(h, {})
                             if calib_dict:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
@@ -1957,6 +1963,7 @@ class OnDevicePredictionModel:
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             res_df.loc[idx, col_name] = 0.0
+                            logger.warning(f"Surge prediction for market={mkt}, horizon={h} defaulted to 0.0 due to missing models.")
         return res_df
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],

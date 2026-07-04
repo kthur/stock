@@ -556,8 +556,8 @@ def execute_prediction_pipeline():
             logger.info("Pre-trained models found and loaded successfully. Skipping model training phase.")
             should_skip = True
         else:
-            logger.warning("Missing or incomplete pre-trained models on disk but SKIP_TRAINING is requested. Skipping model training phase anyway.")
-            should_skip = True
+            logger.warning("Missing or incomplete pre-trained models on disk. Falling back to training. Setting should_skip = False.")
+            should_skip = False
 
     update_interval = cfg.get_update_interval()
 
@@ -1226,6 +1226,43 @@ def execute_prediction_pipeline():
             f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
             f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
         logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")
+
+    # 12. Post-pipeline verification
+    logger.info("Running post-pipeline verification checks...")
+    verification_files = [
+        "pipeline_result.txt",
+        "surge_predictions.txt",
+        "lead_lag_predictions.txt",
+        "vcp_patterns.txt",
+        "vcp_ml_predictions.txt",
+        "stat_arb_predictions.txt"
+    ]
+    for filename in verification_files:
+        filepath = os.path.join(result_dir, filename)
+        if not os.path.exists(filepath):
+            logger.warning(f"Verification failed: Output file {filename} does not exist.")
+        elif os.path.getsize(filepath) == 0:
+            logger.warning(f"Verification failed: Output file {filename} is empty.")
+        else:
+            logger.info(f"Verification check: Output file {filename} exists and is not empty.")
+
+    pipeline_res_path = os.path.join(result_dir, "pipeline_result.txt")
+    if os.path.exists(pipeline_res_path):
+        try:
+            with open(pipeline_res_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            import re
+            returns = re.findall(r'\):\s*([+-]?\d+\.\d+)%', content)
+            if returns:
+                all_zero = all(float(r) == 0.0 for r in returns)
+                if all_zero:
+                    logger.warning("Verification failed: All expected returns in pipeline_result.txt are 0.0.")
+                else:
+                    logger.info("Verification check: Found non-zero expected returns in pipeline_result.txt.")
+            else:
+                logger.warning("Verification failed: Could not parse expected returns from pipeline_result.txt.")
+        except Exception as e:
+            logger.warning(f"Verification failed: Error reading/parsing pipeline_result.txt: {e}")
 
     return res_df, message_text
 

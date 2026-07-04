@@ -245,8 +245,12 @@ class VCPSurgePredictor:
                 latest[col] = vcp_feat[col].values[0]
 
             all_cols = list(dict.fromkeys(list(base_features) + VCP_FEATURES))
-            present = [c for c in all_cols if c in latest.columns]
-            return sym, market, latest[present]
+            # Align feature columns strictly to all_cols and pad missing columns with 0.0
+            for col in all_cols:
+                if col not in latest.columns:
+                    latest[col] = 0.0
+            aligned_latest = latest[all_cols]
+            return sym, market, aligned_latest
 
         with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
             futures = {pool.submit(_process_symbol, sym, df): sym for sym, df in normed.items()}
@@ -399,7 +403,10 @@ class VCPSurgePredictor:
             df_train = df_train.merge(all_base[merge_cols], on=['symbol', 'date'], how='inner')
             logger.info(f"After base feature merge: {len(df_train)} rows remaining")
 
-        feat_cols = list(dict.fromkeys([c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in df_train.columns]))
+        feat_cols = list(dict.fromkeys(list(self._ft.ALL_FEATURES) + VCP_FEATURES))
+        for col in feat_cols:
+            if col not in df_train.columns:
+                df_train[col] = 0.0
         logger.info(f"Feature columns: {len(feat_cols)}")
 
         vcp_train_lock = threading.Lock()
@@ -547,11 +554,13 @@ class VCPSurgePredictor:
             logger.warning("No VCP ML models loaded, skipping prediction")
             return pd.DataFrame()
 
+        from src.ai.prediction_model import case_insensitive_get
+
         syms, markets, feats = self._batch_features_with_vcp(prices_dict, indicator_df, universe)
         if not feats:
             return pd.DataFrame()
 
-        feat_cols = list(dict.fromkeys([c for c in self._ft.ALL_FEATURES + VCP_FEATURES if c in feats[0].columns]))
+        feat_cols = list(dict.fromkeys(list(self._ft.ALL_FEATURES) + VCP_FEATURES))
 
         import warnings
         res_df = pd.DataFrame({'symbol': syms, 'market': markets})
@@ -568,25 +577,38 @@ class VCPSurgePredictor:
                     if len(idx) > 0:
                         X_mkt = df_all.iloc[idx][feat_cols]
 
-                        # Safe check for case variations (uppercase & lowercase)
-                        mkt_upper = mkt.upper()
-                        mkt_lower = mkt.lower()
-                        xgb_m = self.models.get(mkt_upper, self.models.get(mkt_lower, {})).get(h)
-                        lgb_m = self.lgb_models.get(mkt_upper, self.lgb_models.get(mkt_lower, {})).get(h)
-                        cat_m = self.cat_models.get(mkt_upper, self.cat_models.get(mkt_lower, {})).get(h)
+                        xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
+                        lgb_m = case_insensitive_get(self.lgb_models, mkt, {}).get(h)
+                        cat_m = case_insensitive_get(self.cat_models, mkt, {}).get(h)
 
                         preds = []
                         weights = []
 
+                        # Dynamic weights lookup with fallbacks
+                        vcp_weights = case_insensitive_get(self._ft.ensemble_weights, "vcp_ml", {})
+                        if not vcp_weights:
+                            vcp_weights = case_insensitive_get(self._ft.ensemble_weights, "vcp", {})
+                        if not vcp_weights:
+                            vcp_weights = case_insensitive_get(self._ft.ensemble_weights, "surge", {})
+
+                        w_mkt_dict = case_insensitive_get(vcp_weights, mkt, {})
+                        w_dict = w_mkt_dict.get(str(h))
+                        if w_dict is None:
+                            w_dict = w_mkt_dict.get(h, {})
+
+                        w_xgb_val = w_dict.get("xgb", 0.4) if w_dict else 0.4
+                        w_lgb_val = w_dict.get("lgb", 0.3) if w_dict else 0.3
+                        w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
+
                         if xgb_m is not None:
                             preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(0.4)
+                            weights.append(w_xgb_val)
                         if lgb_m is not None:
                             preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(0.3)
+                            weights.append(w_lgb_val)
                         if cat_m is not None:
                             preds.append(cat_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(0.3)
+                            weights.append(w_cat_val)
 
                         if preds:
                             total_w = sum(weights)
@@ -595,12 +617,10 @@ class VCPSurgePredictor:
                                 blend_prob += p * (w / total_w)
 
                             # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
-                            # Lookup calibration dictionary using case-insensitive check (try lower, then upper)
-                            calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt_lower, {})
-                            if not calib_dict:
-                                calib_dict = self._ft.ensemble_weights.get("calibration", {}).get(mkt_upper, {})
-                            calib_dict = calib_dict.get(str(h), {}) if calib_dict else {}
-
+                            calib_mkt = case_insensitive_get(self._ft.ensemble_weights.get("calibration", {}), mkt, {})
+                            calib_dict = calib_mkt.get(str(h))
+                            if calib_dict is None:
+                                calib_dict = calib_mkt.get(h, {})
                             if calib_dict:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
@@ -610,6 +630,7 @@ class VCPSurgePredictor:
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             res_df.loc[idx, col_name] = 0.0
+                            logger.warning(f"VCP ML prediction for market={mkt}, horizon={h} defaulted to 0.0 due to missing models.")
 
         return res_df
 

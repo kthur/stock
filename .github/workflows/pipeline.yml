@@ -65,9 +65,20 @@ jobs:
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2
+          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ github.run_id }}
           restore-keys: |
-            ai-models-v2
+            ai-models-v2-
+
+      - name: Determine if training should be skipped
+        id: check-training
+        run: |
+          if [ -d "trading_system/models" ] && [ "$(ls -A trading_system/models 2>/dev/null)" ]; then
+            echo "SKIP_TRAINING=True" >> $GITHUB_ENV
+            echo "Models found on disk. Skipping training."
+          else
+            echo "SKIP_TRAINING=False" >> $GITHUB_ENV
+            echo "Models not found on disk. Will run training."
+          fi
 
       - name: Run prediction pipeline for ${{ matrix.target }}
         id: run
@@ -85,7 +96,7 @@ jobs:
           MOCK_TRADING_ENABLED: 'True'
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
-          SKIP_TRAINING: ${{ steps.models-cache.outputs.cache-hit == 'true' && 'True' || 'False' }}
+          SKIP_TRAINING: ${{ env.SKIP_TRAINING }}
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 

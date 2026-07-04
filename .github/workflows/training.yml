@@ -61,9 +61,9 @@ jobs:
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2
+          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ github.run_id }}
           restore-keys: |
-            ai-models-v2
+            ai-models-v2-
 
       - name: Run prediction pipeline
         id: run
