@@ -60,25 +60,14 @@ jobs:
           restore-keys: |
             indicators-v1-
 
-      - name: Cache AI models
-        uses: actions/cache@v4
+      - name: Cache AI models (Restore only)
+        uses: actions/cache/restore@v4
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ github.run_id }}
+          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ matrix.target }}
           restore-keys: |
             ai-models-v2-
-
-      - name: Determine if training should be skipped
-        id: check-training
-        run: |
-          if [ -d "trading_system/models" ] && [ "$(ls -A trading_system/models 2>/dev/null)" ]; then
-            echo "SKIP_TRAINING=True" >> $GITHUB_ENV
-            echo "Models found on disk. Skipping training."
-          else
-            echo "SKIP_TRAINING=False" >> $GITHUB_ENV
-            echo "Models not found on disk. Will run training."
-          fi
 
       - name: Run prediction pipeline for ${{ matrix.target }}
         id: run
@@ -96,7 +85,7 @@ jobs:
           MOCK_TRADING_ENABLED: 'True'
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
-          SKIP_TRAINING: ${{ env.SKIP_TRAINING }}
+          SKIP_TRAINING: 'True'
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |

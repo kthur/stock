@@ -1,4 +1,4 @@
-name: Weekly Training Pipeline
+name: Model Training Pipeline
 
 on:
   schedule:
@@ -10,11 +10,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  training:
+  run-training:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [SP500, KOSPI, KOSDAQ, KONEX]
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +40,7 @@ jobs:
         id: date
         run: echo "date=$(TZ='Asia/Seoul' date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-      - name: Cache stock_prices.db
+      - name: Cache stock_prices.db (Restore and Save)
         uses: actions/cache@v4
         id: db-cache
         with:
@@ -47,7 +49,7 @@ jobs:
           restore-keys: |
             stock-prices-v1-
 
-      - name: Cache market_indicators.db
+      - name: Cache market_indicators.db (Restore and Save)
         uses: actions/cache@v4
         id: indicators-cache
         with:
@@ -56,16 +58,14 @@ jobs:
           restore-keys: |
             indicators-v1-
 
-      - name: Cache AI models
+      - name: Cache AI models (Save after training)
         uses: actions/cache@v4
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ github.run_id }}
-          restore-keys: |
-            ai-models-v2-
+          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ matrix.target }}
 
-      - name: Run prediction pipeline
+      - name: Run training pipeline for ${{ matrix.target }}
         id: run
         env:
           DB_PATH: market_indicators.db
@@ -76,59 +76,54 @@ jobs:
           TRAIN_START_DATE: '2006-01-01'
           TRAIN_SEED: '42'
           UPDATE_INTERVAL: '0'
-          INFERENCE_TARGET: SP500,KRX
+          INFERENCE_TARGET: ${{ matrix.target }}
           BROKER_TYPE: DUMMY
           MOCK_TRADING_ENABLED: 'True'
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
           SKIP_TRAINING: 'False'
+          SKIP_INFERENCE: 'True'
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 
-      - name: Upload databases as artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: stock-databases
-          path: |
-            trading_system/stock_prices.db
-            trading_system/market_indicators.db
-          retention-days: 7
-
-      - name: Commit and push results
+      - name: Write Step Summary
         if: always()
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f trading_system/result/*.txt || true
-          if ! git diff --cached --quiet; then
-            git commit -m "pipeline: weekly training and prediction results ($(date '+%Y-%m-%d'))"
-            git push
+          STATUS="${{ steps.run.outcome }}"
+          ICON="✅"
+          [ "$STATUS" != "success" ] && ICON="❌"
+          echo "## ${ICON} Model Training: ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚙️ 실행 정보" >> $GITHUB_STEP_SUMMARY
+          echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 학습 대상 | ${{ matrix.target }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 상태 | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 생성된 모델 수" >> $GITHUB_STEP_SUMMARY
+          if [ -d "trading_system/models" ]; then
+            COUNT=$(ls -1 trading_system/models | wc -l)
+            echo "학습 완료 후 총 **${COUNT}**개의 모델 파일이 디렉토리에 저장되어 캐싱되었습니다." >> $GITHUB_STEP_SUMMARY
           else
-            echo "No changes to commit"
+            echo "⚠️ 모델 폴더가 생성되지 않았습니다." >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Create GitHub Release and Upload Assets
-        if: always()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Notify Telegram on Failure
+        if: failure()
         run: |
-          if ls trading_system/result/*.txt 1> /dev/null 2>&1; then
-            TAG_NAME="v${{ steps.date.outputs.date }}"
-            gh release create "$TAG_NAME" \
-              --title "Daily Predictions $TAG_NAME" \
-              --notes "Daily prediction results for $TAG_NAME.
-              
-              Includes:
-              - **Regression**: pipeline_result.txt
-              - **Surge**: surge_predictions.txt
-              - **Lead-Lag**: lead_lag_predictions.txt
-              - **VCP Rules**: vcp_patterns.txt
-              - **VCP ML**: vcp_ml_predictions.txt
-              - **Stat-Arb**: stat_arb_predictions.txt
-              - **Ensemble**: ensemble_predictions.txt
-              - **Allocation**: portfolio_allocation.txt" \
-              || echo "Release $TAG_NAME already exists"
-            gh release upload "$TAG_NAME" trading_system/result/*.txt --clobber
-          else
-            echo "No prediction output files found to upload."
+          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
+          if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+            RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MSG="🚨 *[CRITICAL] GHA Training Pipeline Failed*%0A%0A"
+            MSG+="*Market:* ${{ matrix.target }}%0A"
+            MSG+="*Status:* ${{ steps.run.outcome }}%0A"
+            MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
+            MSG+="*Run URL:* ${RUN_URL}"
+            curl -sf -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+              -d "chat_id=${CHAT}&text=${MSG}&parse_mode=Markdown" > /dev/null || true
           fi
