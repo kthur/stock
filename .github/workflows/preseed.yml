@@ -41,18 +41,18 @@ jobs:
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          key: stock-prices-v1-${{ steps.date.outputs.date }}
+          key: stock-prices-v2-${{ steps.date.outputs.date }}
           restore-keys: |
-            stock-prices-v1-
+            stock-prices-v2-
 
       - name: Cache market_indicators.db
         uses: actions/cache@v4
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: indicators-v1-${{ steps.date.outputs.date }}
+          key: indicators-v2-${{ steps.date.outputs.date }}
           restore-keys: |
-            indicators-v1-
+            indicators-v2-
 
       - name: Cache AI models
         uses: actions/cache@v4
