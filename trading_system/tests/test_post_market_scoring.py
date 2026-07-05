@@ -32,6 +32,10 @@ class TestPostMarketScoring(unittest.TestCase):
     """
 
     def setUp(self):
+        # Save env to restore later
+        self.original_env = dict(os.environ)
+        os.environ["DB_PATH"] = TEST_DB_PATH
+
         self.db_path = TEST_DB_PATH
         self.storage = MarketIndicatorStorage(db_path=self.db_path)
 
@@ -59,6 +63,9 @@ class TestPostMarketScoring(unittest.TestCase):
     def tearDown(self):
         from src.config import TradingConfig
         TradingConfig.db_path = self.orig_db_path
+        # Restore original env
+        os.environ.clear()
+        os.environ.update(self.original_env)
 
     @classmethod
     def tearDownClass(cls):

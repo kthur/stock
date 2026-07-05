@@ -55,7 +55,10 @@ class TestE2EConsolidated(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Override paths globally
+        # Override paths globally and ensure environment variables are synced
+        os.environ["DB_PATH"] = TEST_INDICATOR_DB_PATH
+        os.environ["STOCK_PRICE_DB_PATH"] = TEST_PRICES_DB_PATH
+
         cls.indicator_db = TEST_INDICATOR_DB_PATH
         cls.prices_db = TEST_PRICES_DB_PATH
 
