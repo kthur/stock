@@ -1,101 +1,101 @@
 === Surge Detection Results (>= 20% return) ===
-Date: 2026-07-03 13:29
+Date: 2026-07-03 15:12
 Threshold: >= 20%
 Total symbols: 499
 
 ============================================================
 [1일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] ABT (Abbott Laboratories): 0.0%
-  2. [SP500] NWS (News Corp (Class B)): 0.0%
-  3. [SP500] OXY (Occidental Petroleum): 0.0%
-  4. [SP500] NUE (Nucor): 0.0%
-  5. [SP500] NVR (NVR, Inc.): 0.0%
-  6. [SP500] NRG (NRG Energy): 0.0%
-  7. [SP500] NVDA (Nvidia): 0.0%
-  8. [SP500] NOC (Northrop Grumman): 0.0%
-  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
-  10. [SP500] NKE (Nike, Inc.): 0.0%
-  11. [SP500] NTRS (Northern Trust): 0.0%
-  12. [SP500] NDAQ (Nasdaq, Inc.): 0.0%
-  13. [SP500] NDSN (Nordson Corporation): 0.0%
-  14. [SP500] NI (NiSource): 0.0%
-  15. [SP500] MCHP (Microchip Technology): 0.0%
-  16. [SP500] NEE (NextEra Energy): 0.0%
-  17. [SP500] PHM (PulteGroup): 0.0%
-  18. [SP500] NWSA (News Corp (Class A)): 0.0%
-  19. [SP500] NEM (Newmont): 0.0%
-  20. [SP500] NTAP (NetApp): 0.0%
+  1. [SP500] ZTS (Zoetis): 0.0%
+  2. [SP500] AOS (A. O. Smith): 0.0%
+  3. [SP500] ABT (Abbott Laboratories): 0.0%
+  4. [SP500] AMD (Advanced Micro Devices): 0.0%
+  5. [SP500] MMM (3M): 0.0%
+  6. [SP500] ACN (Accenture): 0.0%
+  7. [SP500] ABBV (AbbVie): 0.0%
+  8. [SP500] ADBE (Adobe Inc.): 0.0%
+  9. [SP500] AES (AES Corporation): 0.0%
+  10. [SP500] A (Agilent Technologies): 0.0%
+  11. [SP500] AFL (Aflac): 0.0%
+  12. [SP500] ARE (Alexandria Real Estate Equities): 0.0%
+  13. [SP500] APD (Air Products): 0.0%
+  14. [SP500] ALB (Albemarle Corporation): 0.0%
+  15. [SP500] AKAM (Akamai Technologies): 0.0%
+  16. [SP500] ALGN (Align Technology): 0.0%
+  17. [SP500] ABNB (Airbnb): 0.0%
+  18. [SP500] ALLE (Allegion): 0.0%
+  19. [SP500] LNT (Alliant Energy): 0.0%
+  20. [SP500] UHS (Universal Health Services): 0.0%
 
 ============================================================
 [3일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] ABT (Abbott Laboratories): 0.0%
-  2. [SP500] NWS (News Corp (Class B)): 0.0%
-  3. [SP500] OXY (Occidental Petroleum): 0.0%
-  4. [SP500] NUE (Nucor): 0.0%
-  5. [SP500] NVR (NVR, Inc.): 0.0%
-  6. [SP500] NRG (NRG Energy): 0.0%
-  7. [SP500] NVDA (Nvidia): 0.0%
-  8. [SP500] NOC (Northrop Grumman): 0.0%
-  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
-  10. [SP500] NKE (Nike, Inc.): 0.0%
-  11. [SP500] NTRS (Northern Trust): 0.0%
-  12. [SP500] NDAQ (Nasdaq, Inc.): 0.0%
-  13. [SP500] NDSN (Nordson Corporation): 0.0%
-  14. [SP500] NI (NiSource): 0.0%
-  15. [SP500] MCHP (Microchip Technology): 0.0%
-  16. [SP500] NEE (NextEra Energy): 0.0%
-  17. [SP500] PHM (PulteGroup): 0.0%
-  18. [SP500] NWSA (News Corp (Class A)): 0.0%
-  19. [SP500] NEM (Newmont): 0.0%
-  20. [SP500] NTAP (NetApp): 0.0%
+  1. [SP500] ZTS (Zoetis): 0.0%
+  2. [SP500] AOS (A. O. Smith): 0.0%
+  3. [SP500] ABT (Abbott Laboratories): 0.0%
+  4. [SP500] AMD (Advanced Micro Devices): 0.0%
+  5. [SP500] MMM (3M): 0.0%
+  6. [SP500] ACN (Accenture): 0.0%
+  7. [SP500] ABBV (AbbVie): 0.0%
+  8. [SP500] ADBE (Adobe Inc.): 0.0%
+  9. [SP500] AES (AES Corporation): 0.0%
+  10. [SP500] A (Agilent Technologies): 0.0%
+  11. [SP500] AFL (Aflac): 0.0%
+  12. [SP500] ARE (Alexandria Real Estate Equities): 0.0%
+  13. [SP500] APD (Air Products): 0.0%
+  14. [SP500] ALB (Albemarle Corporation): 0.0%
+  15. [SP500] AKAM (Akamai Technologies): 0.0%
+  16. [SP500] ALGN (Align Technology): 0.0%
+  17. [SP500] ABNB (Airbnb): 0.0%
+  18. [SP500] ALLE (Allegion): 0.0%
+  19. [SP500] LNT (Alliant Energy): 0.0%
+  20. [SP500] UHS (Universal Health Services): 0.0%
 
 ============================================================
 [5일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] ABT (Abbott Laboratories): 0.0%
-  2. [SP500] NWS (News Corp (Class B)): 0.0%
-  3. [SP500] OXY (Occidental Petroleum): 0.0%
-  4. [SP500] NUE (Nucor): 0.0%
-  5. [SP500] NVR (NVR, Inc.): 0.0%
-  6. [SP500] NRG (NRG Energy): 0.0%
-  7. [SP500] NVDA (Nvidia): 0.0%
-  8. [SP500] NOC (Northrop Grumman): 0.0%
-  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
-  10. [SP500] NKE (Nike, Inc.): 0.0%
-  11. [SP500] NTRS (Northern Trust): 0.0%
-  12. [SP500] NDAQ (Nasdaq, Inc.): 0.0%
-  13. [SP500] NDSN (Nordson Corporation): 0.0%
-  14. [SP500] NI (NiSource): 0.0%
-  15. [SP500] MCHP (Microchip Technology): 0.0%
-  16. [SP500] NEE (NextEra Energy): 0.0%
-  17. [SP500] PHM (PulteGroup): 0.0%
-  18. [SP500] NWSA (News Corp (Class A)): 0.0%
-  19. [SP500] NEM (Newmont): 0.0%
-  20. [SP500] NTAP (NetApp): 0.0%
+  1. [SP500] ZTS (Zoetis): 0.0%
+  2. [SP500] AOS (A. O. Smith): 0.0%
+  3. [SP500] ABT (Abbott Laboratories): 0.0%
+  4. [SP500] AMD (Advanced Micro Devices): 0.0%
+  5. [SP500] MMM (3M): 0.0%
+  6. [SP500] ACN (Accenture): 0.0%
+  7. [SP500] ABBV (AbbVie): 0.0%
+  8. [SP500] ADBE (Adobe Inc.): 0.0%
+  9. [SP500] AES (AES Corporation): 0.0%
+  10. [SP500] A (Agilent Technologies): 0.0%
+  11. [SP500] AFL (Aflac): 0.0%
+  12. [SP500] ARE (Alexandria Real Estate Equities): 0.0%
+  13. [SP500] APD (Air Products): 0.0%
+  14. [SP500] ALB (Albemarle Corporation): 0.0%
+  15. [SP500] AKAM (Akamai Technologies): 0.0%
+  16. [SP500] ALGN (Align Technology): 0.0%
+  17. [SP500] ABNB (Airbnb): 0.0%
+  18. [SP500] ALLE (Allegion): 0.0%
+  19. [SP500] LNT (Alliant Energy): 0.0%
+  20. [SP500] UHS (Universal Health Services): 0.0%
 
 ============================================================
 [20일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] ABT (Abbott Laboratories): 0.0%
-  2. [SP500] NWS (News Corp (Class B)): 0.0%
-  3. [SP500] OXY (Occidental Petroleum): 0.0%
-  4. [SP500] NUE (Nucor): 0.0%
-  5. [SP500] NVR (NVR, Inc.): 0.0%
-  6. [SP500] NRG (NRG Energy): 0.0%
-  7. [SP500] NVDA (Nvidia): 0.0%
-  8. [SP500] NOC (Northrop Grumman): 0.0%
-  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
-  10. [SP500] NKE (Nike, Inc.): 0.0%
-  11. [SP500] NTRS (Northern Trust): 0.0%
-  12. [SP500] NDAQ (Nasdaq, Inc.): 0.0%
-  13. [SP500] NDSN (Nordson Corporation): 0.0%
-  14. [SP500] NI (NiSource): 0.0%
-  15. [SP500] MCHP (Microchip Technology): 0.0%
-  16. [SP500] NEE (NextEra Energy): 0.0%
-  17. [SP500] PHM (PulteGroup): 0.0%
-  18. [SP500] NWSA (News Corp (Class A)): 0.0%
-  19. [SP500] NEM (Newmont): 0.0%
-  20. [SP500] NTAP (NetApp): 0.0%
+  1. [SP500] ZTS (Zoetis): 0.0%
+  2. [SP500] AOS (A. O. Smith): 0.0%
+  3. [SP500] ABT (Abbott Laboratories): 0.0%
+  4. [SP500] AMD (Advanced Micro Devices): 0.0%
+  5. [SP500] MMM (3M): 0.0%
+  6. [SP500] ACN (Accenture): 0.0%
+  7. [SP500] ABBV (AbbVie): 0.0%
+  8. [SP500] ADBE (Adobe Inc.): 0.0%
+  9. [SP500] AES (AES Corporation): 0.0%
+  10. [SP500] A (Agilent Technologies): 0.0%
+  11. [SP500] AFL (Aflac): 0.0%
+  12. [SP500] ARE (Alexandria Real Estate Equities): 0.0%
+  13. [SP500] APD (Air Products): 0.0%
+  14. [SP500] ALB (Albemarle Corporation): 0.0%
+  15. [SP500] AKAM (Akamai Technologies): 0.0%
+  16. [SP500] ALGN (Align Technology): 0.0%
+  17. [SP500] ABNB (Airbnb): 0.0%
+  18. [SP500] ALLE (Allegion): 0.0%
+  19. [SP500] LNT (Alliant Energy): 0.0%
+  20. [SP500] UHS (Universal Health Services): 0.0%
 

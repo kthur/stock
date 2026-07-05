@@ -1,0 +1,50 @@
+=== Dynamic Multi-Strategy Ensemble Predictions ===
+Date: 2026-07-03 11:01
+
+--- Executive Market Summary ---
+Current Market Regime Detected: SIDEWAYS (Code: 1)
+Maximum Total Allocation Allowed: 50.0%
+
+--- Judgment Basis (Global Macro Indicators) ---
+  S&P 500 (20d Rolling Mean Return) : +0.066% / day
+  S&P 500 (20d Rolling Volatility)  : 0.997%
+  KOSPI (20d Rolling Mean Return)   : +0.521% / day
+  KOSPI (20d Rolling Volatility)    : 4.817%
+  VIX Index (Fear Gauge)            : -1.42
+  USD/KRW FX Rate                   : -1.38 KRW
+  US 10Y Bond Yield (TNX)           : nan%
+
+--- Applied Ensemble Strategy Weights ---
+  XGBoost Regression Fundamentals   : 35.0%
+  Surge Classifier (XGBoost)        : 15.0%
+  Index & Sector Lead-Lag Flow      : 35.0%
+  VCP Machine Learning Predictor    : 15.0%
+
+--- Top 20 Recommendations by Market ---
+
+=========================================
+[SP500] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
+---------------------------------------------------------------------------------------------------
+1    AMD       Advanced Micro Dev           17.5%            3.5%     50%      0%      0%      0%
+2    ZTS       Zoetis                       17.5%            3.5%     50%      0%      0%      0%
+3    A         Agilent Technologi           17.5%            3.5%     50%      0%      0%      0%
+4    AAPL      Apple Inc.                   17.5%            3.5%     50%      0%      0%      0%
+5    ABBV      AbbVie                       17.5%            3.5%     50%      0%      0%      0%
+6    ABNB      Airbnb                       17.5%            3.5%     50%      0%      0%      0%
+7    ABT       Abbott Laboratorie           17.5%            3.5%     50%      0%      0%      0%
+8    ACGL      Arch Capital Group           17.5%            3.5%     50%      0%      0%      0%
+9    ACN       Accenture                    17.5%            3.5%     50%      0%      0%      0%
+10   ADBE      Adobe Inc.                   17.5%            3.5%     50%      0%      0%      0%
+11   ADI       Analog Devices               17.5%            3.5%     50%      0%      0%      0%
+12   ADM       Archer Daniels Mid           17.5%            3.5%     50%      0%      0%      0%
+13   ADP       Automatic Data Pro           17.5%            3.5%     50%      0%      0%      0%
+14   ADSK      Autodesk                     17.5%            3.5%     50%      0%      0%      0%
+15   AEE       Ameren                       17.5%            3.5%     50%      0%      0%      0%
+16   AEP       American Electric            17.5%            3.5%     50%      0%      0%      0%
+17   AES       AES Corporation              17.5%            3.5%     50%      0%      0%      0%
+18   AFL       Aflac                        17.5%            3.5%     50%      0%      0%      0%
+19   AIG       American Internati           17.5%            3.5%     50%      0%      0%      0%
+20   VRSN      Verisign                     17.5%            3.5%     50%      0%      0%      0%
+

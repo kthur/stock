@@ -1,0 +1,40 @@
+=== Lead-Lag Surge Predictions ===
+Date: 2026-07-05 13:38
+Based on today's top 60 leader stock movements
+Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
+        (Higher = stronger historical co-movement with market leaders)
+
+--- SP500 Top 20 ---
+  1. [SP500] EVRG (Evergy): 2.02%
+  2. [SP500] PSKY (Paramount Skydance Corporation): 1.93%
+  3. [SP500] LDOS (Leidos): 1.88%
+  4. [SP500] NEM (Newmont): 1.66%
+  5. [SP500] TSN (Tyson Foods): 1.49%
+  6. [SP500] MOS (Mosaic Company (The)): 1.49%
+  7. [SP500] TJX (TJX Companies): 1.30%
+  8. [SP500] GWW (W. W. Grainger): 1.15%
+  9. [SP500] CMCSA (Comcast): 0.82%
+  10. [SP500] MSFT (Microsoft): 0.76%
+  11. [SP500] AMCR (Amcor): 0.67%
+  12. [SP500] SCHW (Charles Schwab Corporation): 0.58%
+  13. [SP500] DG (Dollar General): 0.58%
+  14. [SP500] NSC (Norfolk Southern): 0.56%
+  15. [SP500] DHR (Danaher Corporation): 0.48%
+  16. [SP500] ADP (Automatic Data Processing): 0.45%
+  17. [SP500] FDX (FedEx): 0.39%
+  18. [SP500] CTAS (Cintas): 0.38%
+  19. [SP500] HON (Honeywell): 0.36%
+  20. [SP500] AON (Aon plc): 0.35%
+
+--- Leaders with highest today return ---
+(Outliers >±30% excluded as potential data errors)
+  1. LDOS (Leidos): +5.60%
+  2. DECK (Deckers Brands): +4.35%
+  3. SYK (Stryker Corporation): +4.20%
+  4. CTAS (Cintas): +4.10%
+  5. AON (Aon plc): +4.05%
+  6. NEM (Newmont): +4.01%
+  7. HON (Honeywell): +3.66%
+  8. MSCI (MSCI Inc.): +3.62%
+  9. MET (MetLife): +3.28%
+  10. VTRS (Viatris): +3.21%

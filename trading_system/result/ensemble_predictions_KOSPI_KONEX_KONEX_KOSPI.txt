@@ -1,0 +1,50 @@
+=== Dynamic Multi-Strategy Ensemble Predictions ===
+Date: 2026-07-03 13:22
+
+--- Executive Market Summary ---
+Current Market Regime Detected: SIDEWAYS (Code: 1)
+Maximum Total Allocation Allowed: 50.0%
+
+--- Judgment Basis (Global Macro Indicators) ---
+  S&P 500 (20d Rolling Mean Return) : +0.066% / day
+  S&P 500 (20d Rolling Volatility)  : 0.997%
+  KOSPI (20d Rolling Mean Return)   : +0.521% / day
+  KOSPI (20d Rolling Volatility)    : 4.817%
+  VIX Index (Fear Gauge)            : -1.42
+  USD/KRW FX Rate                   : -1.38 KRW
+  US 10Y Bond Yield (TNX)           : nan%
+
+--- Applied Ensemble Strategy Weights ---
+  XGBoost Regression Fundamentals   : 35.0%
+  Surge Classifier (XGBoost)        : 15.0%
+  Index & Sector Lead-Lag Flow      : 35.0%
+  VCP Machine Learning Predictor    : 15.0%
+
+--- Top 20 Recommendations by Market ---
+
+=========================================
+[KOSPI] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
+---------------------------------------------------------------------------------------------------
+1    000020    동화약품                         17.5%            3.5%     50%      0%      0%      0%
+2    002170    SYTS                         17.5%            3.5%     50%      0%      0%      0%
+3    000180    성창기업지주                       17.5%            3.5%     50%      0%      0%      0%
+4    000070    삼양홀딩스                        17.5%            3.5%     50%      0%      0%      0%
+5    000080    하이트진로                        17.5%            3.5%     50%      0%      0%      0%
+6    000087    하이트진로2우B                     17.5%            3.5%     50%      0%      0%      0%
+7    000100    유한양행                         17.5%            3.5%     50%      0%      0%      0%
+8    000105    유한양행우                        17.5%            3.5%     50%      0%      0%      0%
+9    000120    CJ대한통운                       17.5%            3.5%     50%      0%      0%      0%
+10   000140    하이트진로홀딩스                     17.5%            3.5%     50%      0%      0%      0%
+11   000145    하이트진로홀딩스우                    17.5%            3.5%     50%      0%      0%      0%
+12   000150    두산                           17.5%            3.5%     50%      0%      0%      0%
+13   000155    두산우                          17.5%            3.5%     50%      0%      0%      0%
+14   000157    두산2우B                        17.5%            3.5%     50%      0%      0%      0%
+15   000210    DL                           17.5%            3.5%     50%      0%      0%      0%
+16   000400    롯데손해보험                       17.5%            3.5%     50%      0%      0%      0%
+17   000215    DL우                          17.5%            3.5%     50%      0%      0%      0%
+18   000220    유유제약                         17.5%            3.5%     50%      0%      0%      0%
+19   000225    유유제약1우                       17.5%            3.5%     50%      0%      0%      0%
+20   000227    유유제약2우B                      17.5%            3.5%     50%      0%      0%      0%
+

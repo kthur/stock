@@ -1,17 +1,17 @@
 === Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-03 16:42
+Date: 2026-07-05 13:39
 
 --- Executive Market Summary ---
 Current Market Regime Detected: SIDEWAYS (Code: 1)
 Maximum Total Allocation Allowed: 50.0%
 
 --- Judgment Basis (Global Macro Indicators) ---
-  S&P 500 (20d Rolling Mean Return) : +0.066% / day
-  S&P 500 (20d Rolling Volatility)  : 0.997%
-  KOSPI (20d Rolling Mean Return)   : +0.521% / day
-  KOSPI (20d Rolling Volatility)    : 4.817%
-  VIX Index (Fear Gauge)            : -1.42
-  USD/KRW FX Rate                   : -1.38 KRW
+  S&P 500 (20d Rolling Mean Return) : +0.086% / day
+  S&P 500 (20d Rolling Volatility)  : 1.026%
+  KOSPI (20d Rolling Mean Return)   : +0.095% / day
+  KOSPI (20d Rolling Volatility)    : 4.574%
+  VIX Index (Fear Gauge)            : nan
+  USD/KRW FX Rate                   : -0.84 KRW
   US 10Y Bond Yield (TNX)           : nan%
 
 --- Applied Ensemble Strategy Weights ---
@@ -27,24 +27,24 @@ Maximum Total Allocation Allowed: 50.0%
 =========================================
 Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
 ---------------------------------------------------------------------------------------------------
-1    A         Agilent Technologi           17.5%            3.5%     50%      0%      0%      0%
-2    AFL       Aflac                        17.5%            3.5%     50%      0%      0%      0%
-3    ABBV      AbbVie                       17.5%            3.5%     50%      0%      0%      0%
-4    ABNB      Airbnb                       17.5%            3.5%     50%      0%      0%      0%
-5    ABT       Abbott Laboratorie           17.5%            3.5%     50%      0%      0%      0%
-6    ACGL      Arch Capital Group           17.5%            3.5%     50%      0%      0%      0%
-7    ACN       Accenture                    17.5%            3.5%     50%      0%      0%      0%
-8    ADBE      Adobe Inc.                   17.5%            3.5%     50%      0%      0%      0%
-9    ADI       Analog Devices               17.5%            3.5%     50%      0%      0%      0%
-10   ADM       Archer Daniels Mid           17.5%            3.5%     50%      0%      0%      0%
-11   ADP       Automatic Data Pro           17.5%            3.5%     50%      0%      0%      0%
-12   ADSK      Autodesk                     17.5%            3.5%     50%      0%      0%      0%
-13   AEE       Ameren                       17.5%            3.5%     50%      0%      0%      0%
-14   AEP       American Electric            17.5%            3.5%     50%      0%      0%      0%
-15   AES       AES Corporation              17.5%            3.5%     50%      0%      0%      0%
-16   AIG       American Internati           17.5%            3.5%     50%      0%      0%      0%
-17   D         Dominion Energy              17.5%            3.5%     50%      0%      0%      0%
-18   AIZ       Assurant                     17.5%            3.5%     50%      0%      0%      0%
-19   AJG       Arthur J. Gallaghe           17.5%            3.5%     50%      0%      0%      0%
-20   AKAM      Akamai Technologie           17.5%            3.5%     50%      0%      0%      0%
+1    PSKY      Paramount Skydance           69.9%           14.0%     92%     27%     96%      3%
+2    MOS       Mosaic Company (Th           61.9%           12.4%     98%      9%     74%      2%
+3    NEM       Newmont                      60.5%           12.1%     87%      6%     82%      3%
+4    EVRG      Evergy                       59.1%           11.8%     68%      2%    100%      1%
+5    TSN       Tyson Foods                  45.1%            9.0%     53%      3%     74%      1%
+6    APTV      Aptiv                        40.7%            8.1%     99%     35%      0%      5%
+7    SMCI      Supermicro                   40.4%            8.1%    100%     12%      0%     25%
+8    ON        ON Semiconductor             40.1%            8.0%    100%     31%      0%      4%
+9    GNRC      Generac                      39.8%            8.0%     97%     26%      0%     13%
+10   CSGP      CoStar Group                 39.6%            7.9%     93%     33%      0%     14%
+11   LDOS      Leidos                       39.0%            7.8%     15%      5%     93%      2%
+12   BLDR      Builders FirstSour           38.4%            7.7%     97%     23%      0%      6%
+13   APP       AppLovin                     38.4%            7.7%     85%     16%     15%      6%
+14   SWKS      Skyworks Solutions           37.6%            7.5%     99%     19%      0%      2%
+15   DLTR      Dollar Tree                  37.6%            7.5%     97%     20%      0%      5%
+16   GLW       Corning Inc.                 37.6%            7.5%     99%      9%      0%     10%
+17   MU        Micron Technology            37.5%            7.5%     98%     12%      0%     10%
+18   IT        Gartner                      37.5%            7.5%     96%     20%      0%      7%
+19   SNDK      Sandisk                      37.4%            7.5%     99%     12%      0%      7%
+20   TTD       Trade Desk (The)             37.3%            7.5%     95%     24%      0%      4%
 

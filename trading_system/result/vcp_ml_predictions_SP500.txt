@@ -1,0 +1,75 @@
+=== VCP ML Surge Predictions ===
+Date: 2026-07-05 13:39
+
+[1일] KOSPI - (no symbols)
+
+[1일] KOSDAQ - (no symbols)
+
+[1일] KONEX - (no symbols)
+
+[1일] SP500 TOP 10
+  1. [SP500] ACN (Accenture): 0.0%
+  2. [SP500] NEE (NextEra Energy): 0.0%
+  3. [SP500] NRG (NRG Energy): 0.0%
+  4. [SP500] NXPI (NXP Semiconductors): 0.0%
+  5. [SP500] NSC (Norfolk Southern): 0.0%
+  6. [SP500] NVDA (Nvidia): 0.0%
+  7. [SP500] NTRS (Northern Trust): 0.0%
+  8. [SP500] NUE (Nucor): 0.0%
+  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
+  10. [SP500] MOS (Mosaic Company (The)): 0.0%
+
+[3일] KOSPI - (no symbols)
+
+[3일] KOSDAQ - (no symbols)
+
+[3일] KONEX - (no symbols)
+
+[3일] SP500 TOP 10
+  1. [SP500] ACN (Accenture): 0.0%
+  2. [SP500] NEE (NextEra Energy): 0.0%
+  3. [SP500] NRG (NRG Energy): 0.0%
+  4. [SP500] NXPI (NXP Semiconductors): 0.0%
+  5. [SP500] NSC (Norfolk Southern): 0.0%
+  6. [SP500] NVDA (Nvidia): 0.0%
+  7. [SP500] NTRS (Northern Trust): 0.0%
+  8. [SP500] NUE (Nucor): 0.0%
+  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
+  10. [SP500] MOS (Mosaic Company (The)): 0.0%
+
+[5일] KOSPI - (no symbols)
+
+[5일] KOSDAQ - (no symbols)
+
+[5일] KONEX - (no symbols)
+
+[5일] SP500 TOP 10
+  1. [SP500] ACN (Accenture): 0.0%
+  2. [SP500] NEE (NextEra Energy): 0.0%
+  3. [SP500] NRG (NRG Energy): 0.0%
+  4. [SP500] NXPI (NXP Semiconductors): 0.0%
+  5. [SP500] NSC (Norfolk Southern): 0.0%
+  6. [SP500] NVDA (Nvidia): 0.0%
+  7. [SP500] NTRS (Northern Trust): 0.0%
+  8. [SP500] NUE (Nucor): 0.0%
+  9. [SP500] NCLH (Norwegian Cruise Line Holdings): 0.0%
+  10. [SP500] MOS (Mosaic Company (The)): 0.0%
+
+[20일] KOSPI - (no symbols)
+
+[20일] KOSDAQ - (no symbols)
+
+[20일] KONEX - (no symbols)
+
+[20일] SP500 TOP 10
+  1. [SP500] SMCI (Supermicro): 24.5%
+  2. [SP500] CCL (Carnival Corporation): 22.7%
+  3. [SP500] TER (Teradyne): 20.6%
+  4. [SP500] INTC (Intel): 18.8%
+  5. [SP500] GEV (GE Vernova): 14.3%
+  6. [SP500] CSGP (CoStar Group): 14.1%
+  7. [SP500] GNRC (Generac): 12.9%
+  8. [SP500] KLAC (KLA Corporation): 12.2%
+  9. [SP500] LRCX (Lam Research): 10.2%
+  10. [SP500] VRT (Vertiv): 10.2%
+

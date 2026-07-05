@@ -1,0 +1,77 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-03 11:01
+Total VCP patterns found: 18
+
+--- SP500 ---
+  1. [SP500] DLTR (Dollar Tree)
+       Score: 100/100 | Current range: 3.9% | Contraction: 3.9% > 5.5% > 5.7% > 7.3% > 8.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  2. [SP500] GE (GE Aerospace)
+       Score: 100/100 | Current range: 2.3% | Contraction: 2.3% > 3.7% > 4.0% > 4.8% > 7.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  3. [SP500] GL (Globe Life)
+       Score: 100/100 | Current range: 2.4% | Contraction: 2.4% > 2.7% > 2.7% > 5.4% > 5.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  4. [SP500] INVH (Invitation Homes)
+       Score: 100/100 | Current range: 1.4% | Contraction: 1.4% > 2.9% > 3.0% > 3.0% > 4.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  5. [SP500] MAA (Mid-America Apartment Communities)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 2.5% > 3.5% > 3.7% > 3.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  6. [SP500] SHW (Sherwin-Williams)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.5% > 4.1% > 4.3% > 7.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  7. [SP500] SNA (Snap-on)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 2.6% > 3.3% > 6.4% > 6.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  8. [SP500] SYY (Sysco)
+       Score: 100/100 | Current range: 2.3% | Contraction: 2.3% > 2.7% > 2.9% > 4.9% > 5.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  9. [SP500] WST (West Pharmaceutical Services)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.0% > 3.0% > 5.4% > 5.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  10. [SP500] CNC (Centene Corporation)
+       Score: 97/100 | Current range: 4.3% | Contraction: 4.3% > 4.4% > 5.8% > 6.6% > 11.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  11. [SP500] LII (Lennox International)
+       Score: 97/100 | Current range: 4.0% | Contraction: 4.0% > 4.9% > 5.2% > 5.9% > 9.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  12. [SP500] LYV (Live Nation Entertainment)
+       Score: 97/100 | Current range: 4.0% | Contraction: 4.0% > 4.1% > 5.0% > 6.4% > 9.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  13. [SP500] CBRE (CBRE Group)
+       Score: 90/100 | Current range: 3.3% | Contraction: 3.3% > 3.4% > 5.7% > 8.5% > 9.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  14. [SP500] PNR (Pentair)
+       Score: 90/100 | Current range: 2.8% | Contraction: 2.8% > 3.7% > 4.3% > 5.0% > 10.3%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  15. [SP500] TSCO (Tractor Supply)
+       Score: 90/100 | Current range: 3.8% | Contraction: 3.7% > 5.0% > 5.1% > 6.5% > 10.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  16. [SP500] ARE (Alexandria Real Estate Equities)
+       Score: 67/100 | Current range: 4.7% | Contraction: 4.7% > 4.7% > 8.5% > 10.4% > 11.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  17. [SP500] BLDR (Builders FirstSource)
+       Score: 67/100 | Current range: 5.8% | Contraction: 5.8% > 8.7% > 8.7% > 8.8% > 10.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  18. [SP500] HWM (Howmet Aerospace)
+       Score: 67/100 | Current range: 4.5% | Contraction: 4.5% > 5.3% > 5.3% > 5.4% > 7.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+

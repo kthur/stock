@@ -1,0 +1,31 @@
+=== Lead-Lag Surge Predictions ===
+Date: 2026-07-05 14:02
+Based on today's top 60 leader stock movements
+Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
+        (Higher = stronger historical co-movement with market leaders)
+
+--- SP500 Top 20 ---
+  1. [SP500] PSKY (Paramount Skydance Corporation): 0.00%
+  2. [SP500] MSFT (Microsoft): 0.00%
+  3. [SP500] TJX (TJX Companies): 0.00%
+  4. [SP500] TSN (Tyson Foods): 0.00%
+  5. [SP500] NEM (Newmont): 0.00%
+  6. [SP500] LDOS (Leidos): 0.00%
+  7. [SP500] MOS (Mosaic Company (The)): 0.00%
+  8. [SP500] DG (Dollar General): 0.00%
+  9. [SP500] DHR (Danaher Corporation): 0.00%
+  10. [SP500] HPE (Hewlett Packard Enterprise): 0.00%
+  11. [SP500] TXT (Textron): 0.00%
+  12. [SP500] EVRG (Evergy): 0.00%
+  13. [SP500] APA (APA Corporation): 0.00%
+  14. [SP500] KEYS (Keysight Technologies): 0.00%
+  15. [SP500] TER (Teradyne): 0.00%
+  16. [SP500] SCHW (Charles Schwab Corporation): 0.00%
+  17. [SP500] MPWR (Monolithic Power Systems): 0.00%
+  18. [SP500] NUE (Nucor): 0.00%
+  19. [SP500] CMI (Cummins): 0.00%
+  20. [SP500] GWW (W. W. Grainger): 0.00%
+
+--- Leaders with highest today return ---
+(Outliers >±30% excluded as potential data errors)
+  (No valid leader returns within normal range today)

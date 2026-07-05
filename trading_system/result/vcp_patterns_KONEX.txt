@@ -1,0 +1,9 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-05 13:29
+Total VCP patterns found: 1
+
+--- KONEX ---
+  1. [KONEX] 185190 (수프로)
+       Score: 85/100 | Current range: 15.3% | Contraction: 15.3% > 19.1% > 29.7% > 34.2% > 34.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+

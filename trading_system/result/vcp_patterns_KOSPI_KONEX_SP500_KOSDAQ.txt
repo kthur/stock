@@ -1,0 +1,21 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-03 13:22
+Total VCP patterns found: 4
+
+--- KOSPI ---
+  1. [KOSPI] 453340 (현대그린푸드)
+       Score: 100/100 | Current range: 5.2% | Contraction: 5.2% > 7.0% > 7.3% > 9.4% > 24.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  2. [KOSPI] 084870 (TBH글로벌)
+       Score: 100/100 | Current range: 7.2% | Contraction: 7.2% > 8.3% > 8.3% > 9.0% > 10.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  3. [KOSPI] 023150 (MH에탄올)
+       Score: 100/100 | Current range: 8.8% | Contraction: 8.8% > 9.4% > 9.6% > 10.7% > 30.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  4. [KOSPI] 025890 (한국주강)
+       Score: 100/100 | Current range: 2.5% | Contraction: 2.5% > 3.3% > 7.2% > 8.3% > 18.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+

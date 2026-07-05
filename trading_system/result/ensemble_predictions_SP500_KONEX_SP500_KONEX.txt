@@ -1,5 +1,5 @@
 === Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-03 11:01
+Date: 2026-07-03 13:29
 
 --- Executive Market Summary ---
 Current Market Regime Detected: SIDEWAYS (Code: 1)
@@ -27,24 +27,24 @@ Maximum Total Allocation Allowed: 50.0%
 =========================================
 Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
 ---------------------------------------------------------------------------------------------------
-1    AMD       Advanced Micro Dev           17.5%            3.5%     50%      0%      0%      0%
-2    ZTS       Zoetis                       17.5%            3.5%     50%      0%      0%      0%
-3    A         Agilent Technologi           17.5%            3.5%     50%      0%      0%      0%
-4    AAPL      Apple Inc.                   17.5%            3.5%     50%      0%      0%      0%
-5    ABBV      AbbVie                       17.5%            3.5%     50%      0%      0%      0%
-6    ABNB      Airbnb                       17.5%            3.5%     50%      0%      0%      0%
-7    ABT       Abbott Laboratorie           17.5%            3.5%     50%      0%      0%      0%
-8    ACGL      Arch Capital Group           17.5%            3.5%     50%      0%      0%      0%
-9    ACN       Accenture                    17.5%            3.5%     50%      0%      0%      0%
-10   ADBE      Adobe Inc.                   17.5%            3.5%     50%      0%      0%      0%
-11   ADI       Analog Devices               17.5%            3.5%     50%      0%      0%      0%
-12   ADM       Archer Daniels Mid           17.5%            3.5%     50%      0%      0%      0%
-13   ADP       Automatic Data Pro           17.5%            3.5%     50%      0%      0%      0%
-14   ADSK      Autodesk                     17.5%            3.5%     50%      0%      0%      0%
-15   AEE       Ameren                       17.5%            3.5%     50%      0%      0%      0%
-16   AEP       American Electric            17.5%            3.5%     50%      0%      0%      0%
-17   AES       AES Corporation              17.5%            3.5%     50%      0%      0%      0%
-18   AFL       Aflac                        17.5%            3.5%     50%      0%      0%      0%
-19   AIG       American Internati           17.5%            3.5%     50%      0%      0%      0%
-20   VRSN      Verisign                     17.5%            3.5%     50%      0%      0%      0%
+1    A         Agilent Technologi           17.5%            3.5%     50%      0%      0%      0%
+2    AFL       Aflac                        17.5%            3.5%     50%      0%      0%      0%
+3    ABBV      AbbVie                       17.5%            3.5%     50%      0%      0%      0%
+4    ABNB      Airbnb                       17.5%            3.5%     50%      0%      0%      0%
+5    ABT       Abbott Laboratorie           17.5%            3.5%     50%      0%      0%      0%
+6    ACGL      Arch Capital Group           17.5%            3.5%     50%      0%      0%      0%
+7    ACN       Accenture                    17.5%            3.5%     50%      0%      0%      0%
+8    ADBE      Adobe Inc.                   17.5%            3.5%     50%      0%      0%      0%
+9    ADI       Analog Devices               17.5%            3.5%     50%      0%      0%      0%
+10   ADM       Archer Daniels Mid           17.5%            3.5%     50%      0%      0%      0%
+11   ADP       Automatic Data Pro           17.5%            3.5%     50%      0%      0%      0%
+12   ADSK      Autodesk                     17.5%            3.5%     50%      0%      0%      0%
+13   AEE       Ameren                       17.5%            3.5%     50%      0%      0%      0%
+14   AEP       American Electric            17.5%            3.5%     50%      0%      0%      0%
+15   AES       AES Corporation              17.5%            3.5%     50%      0%      0%      0%
+16   AIG       American Internati           17.5%            3.5%     50%      0%      0%      0%
+17   D         Dominion Energy              17.5%            3.5%     50%      0%      0%      0%
+18   AIZ       Assurant                     17.5%            3.5%     50%      0%      0%      0%
+19   AJG       Arthur J. Gallaghe           17.5%            3.5%     50%      0%      0%      0%
+20   AKAM      Akamai Technologie           17.5%            3.5%     50%      0%      0%      0%
 

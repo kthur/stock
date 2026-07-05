@@ -1,0 +1,50 @@
+=== Dynamic Multi-Strategy Ensemble Predictions ===
+Date: 2026-07-03 10:58
+
+--- Executive Market Summary ---
+Current Market Regime Detected: SIDEWAYS (Code: 1)
+Maximum Total Allocation Allowed: 50.0%
+
+--- Judgment Basis (Global Macro Indicators) ---
+  S&P 500 (20d Rolling Mean Return) : +0.066% / day
+  S&P 500 (20d Rolling Volatility)  : 0.997%
+  KOSPI (20d Rolling Mean Return)   : +0.521% / day
+  KOSPI (20d Rolling Volatility)    : 4.817%
+  VIX Index (Fear Gauge)            : -1.42
+  USD/KRW FX Rate                   : -1.38 KRW
+  US 10Y Bond Yield (TNX)           : nan%
+
+--- Applied Ensemble Strategy Weights ---
+  XGBoost Regression Fundamentals   : 35.0%
+  Surge Classifier (XGBoost)        : 15.0%
+  Index & Sector Lead-Lag Flow      : 35.0%
+  VCP Machine Learning Predictor    : 15.0%
+
+--- Top 20 Recommendations by Market ---
+
+=========================================
+[KOSDAQ] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
+---------------------------------------------------------------------------------------------------
+1    000250    삼천당제약                        17.5%            3.5%     50%      0%      0%      0%
+2    005290    동진쎄미켐                        17.5%            3.5%     50%      0%      0%      0%
+3    0008Z0    에스엔시스                        17.5%            3.5%     50%      0%      0%      0%
+4    001000    신라섬유                         17.5%            3.5%     50%      0%      0%      0%
+5    0010V0    제이피아이헬스케어                    17.5%            3.5%     50%      0%      0%      0%
+6    001540    안국약품                         17.5%            3.5%     50%      0%      0%      0%
+7    001810    무림SP                         17.5%            3.5%     50%      0%      0%      0%
+8    002230    피에스텍                         17.5%            3.5%     50%      0%      0%      0%
+9    002290    삼일기업공사                       17.5%            3.5%     50%      0%      0%      0%
+10   002800    신신제약                         17.5%            3.5%     50%      0%      0%      0%
+11   003100    선광                           17.5%            3.5%     50%      0%      0%      0%
+12   003310    대주산업                         17.5%            3.5%     50%      0%      0%      0%
+13   0037T0    KB제32호스팩                     17.5%            3.5%     50%      0%      0%      0%
+14   003800    에이스침대                        17.5%            3.5%     50%      0%      0%      0%
+15   0041B0    교보18호스팩                      17.5%            3.5%     50%      0%      0%      0%
+16   0041J0    엘에스스팩1호                      17.5%            3.5%     50%      0%      0%      0%
+17   0041L0    하나35호스팩                      17.5%            3.5%     50%      0%      0%      0%
+18   0044K0    삼성스팩10호                      17.5%            3.5%     50%      0%      0%      0%
+19   004590    한국가구                         17.5%            3.5%     50%      0%      0%      0%
+20   004650    창해에탄올                        17.5%            3.5%     50%      0%      0%      0%
+
