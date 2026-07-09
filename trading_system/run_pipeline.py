@@ -715,7 +715,6 @@ def execute_prediction_pipeline():
             t.join()
 
         # Merge fundamentals (parallel)
-        threading.Lock()
         def _merge_one(sym: str, df):
             try:
                 merged = model.merge_fundamentals(sym, df, storage)
@@ -821,7 +820,10 @@ def execute_prediction_pipeline():
         all_symbols = debug_symbols
         logger.info(f"[DEBUG MODE] Sampled {len(all_symbols)} symbols for fast pipeline dry run")
 
-    if all_symbols:
+    # Do not start inference fundamentals thread when skipping inference
+    # (avoids orphaned non-daemon thread that would keep the process alive after early return)
+    t2 = None
+    if all_symbols and not cfg.skip_inference:
         t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"))
         t2.start()
 
@@ -871,12 +873,12 @@ def execute_prediction_pipeline():
         logger.info(f"Excluded {dropped} symbols with insufficient inference data (< 200 days)")
 
     # If skip-inference is enabled, stop pipeline here (only fetch and cache data)
-    if os.environ.get("SKIP_INFERENCE", "False").lower() == "true":
+    if cfg.skip_inference:
         logger.info("SKIP_INFERENCE is enabled. Pipeline completed successfully after caching data.")
         return pd.DataFrame(), "Pipeline completed successfully after caching data (skip-inference)."
 
     # Wait for inference fundamentals fetch to complete before merging
-    if all_symbols:
+    if all_symbols and t2 is not None:
         logger.info("Waiting for inference fundamentals fetch to complete...")
         t2.join()
 
@@ -1323,13 +1325,15 @@ def execute_prediction_pipeline():
 
     # 12. Post-pipeline verification
     logger.info("Running post-pipeline verification checks...")
+    # stat_arb_predictions.txt is intentionally excluded — it is an optional output
+    # that may not exist when no cointegrated pairs are found, so verification would
+    # produce false-positive warnings.
     verification_files = [
         "pipeline_result.txt",
         "surge_predictions.txt",
         "lead_lag_predictions.txt",
         "vcp_patterns.txt",
         "vcp_ml_predictions.txt",
-        "stat_arb_predictions.txt"
     ]
     for filename in verification_files:
         filepath = os.path.join(result_dir, filename)
