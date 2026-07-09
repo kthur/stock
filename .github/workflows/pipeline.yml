@@ -65,7 +65,7 @@ jobs:
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2-${{ steps.date.outputs.date }}
+          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ matrix.target }}
           restore-keys: |
             ai-models-v2-
 
@@ -144,9 +144,10 @@ jobs:
         if: always()
         run: |
           mkdir -p trading_system/result_split
-          for f in trading_system/result/*.txt; do
-            if [ -f "$f" ]; then
-              mv "$f" "trading_system/result_split/$(basename "$f" .txt)_${{ matrix.target }}.txt"
+          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions ensemble_predictions; do
+            src="trading_system/result/${f}.txt"
+            if [ -f "$src" ]; then
+              cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
             fi
           done
 
@@ -161,7 +162,6 @@ jobs:
   merge-and-release:
     runs-on: ubuntu-latest
     needs: run-pipeline
-    if: always()
     permissions:
       contents: write
     steps:
@@ -226,7 +226,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f trading_system/result/*.txt || true
+          # Add only the 6 core output files to avoid committing thousands of matrix artifact files
+          for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
+                    vcp_patterns.txt vcp_ml_predictions.txt ensemble_predictions.txt; do
+            fpath="trading_system/result/$f"
+            [ -f "$fpath" ] && git add -f "$fpath" || true
+          done
           if ! git diff --cached --quiet; then
             git commit -m "pipeline: daily prediction results ($(date '+%Y-%m-%d'))"
             git pull --rebase origin main
@@ -248,8 +253,59 @@ jobs:
               --notes "Daily prediction results for $TAG_NAME (Merged SP500, KOSPI, KOSDAQ, KONEX)." \
               || echo "Release $TAG_NAME already exists"
             
-            # Find and upload assets recursively to handle various subdirectory paths gracefully
-            find trading_system/result -name "*.txt" -type f -exec gh release upload "$TAG_NAME" {} --clobber \;
+            # Upload only core 6 files
+            for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
+                      vcp_patterns.txt vcp_ml_predictions.txt ensemble_predictions.txt; do
+              fpath="trading_system/result/$f"
+              [ -f "$fpath" ] && gh release upload "$TAG_NAME" "$fpath" --clobber || true
+            done
           else
             echo "No prediction output files found to upload."
           fi
+
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: merge-and-release
+    if: always()
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # Use latest main which now has the committed result files
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+
+      - name: Generate HTML dashboard
+        run: |
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          .venv/bin/python trading_system/generate_report.py \
+            --result-dir trading_system/result \
+            --out gh-pages/index.html
+          # Copy any extra static assets if they exist
+          cp trading_system/result/pipeline_result.txt gh-pages/ 2>/dev/null || true
+
+      - name: Write build info
+        run: |
+          echo "Built: $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')" > gh-pages/build.txt
+          echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> gh-pages/build.txt
+          ls -lh gh-pages/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gh-pages/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

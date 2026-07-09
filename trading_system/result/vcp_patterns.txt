@@ -1,0 +1,83 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-01 15:13
+Total VCP patterns found: 19
+
+--- KOSPI ---
+  1. [KOSPI] 025890 (한국주강)
+       Score: 100/100 | Current range: 2.5% | Contraction: 2.5% > 5.1% > 7.2% > 8.3% > 18.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  2. [KOSPI] 111110 (호전실업)
+       Score: 97/100 | Current range: 4.8% | Contraction: 4.8% > 6.8% > 7.8% > 10.4% > 24.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  3. [KOSPI] 090355 (노루페인트우)
+       Score: 75/100 | Current range: 3.7% | Contraction: 3.7% > 4.0% > 24.8% > 26.5% > 27.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+--- KOSDAQ ---
+  1. [KOSDAQ] 439090 (마녀공장)
+       Score: 100/100 | Current range: 9.9% | Contraction: 9.9% > 10.9% > 12.8% > 20.8% > 21.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  2. [KOSDAQ] 086060 (진바이오텍)
+       Score: 100/100 | Current range: 7.3% | Contraction: 7.3% > 12.2% > 13.0% > 16.8% > 20.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  3. [KOSDAQ] 053350 (이니텍)
+       Score: 91/100 | Current range: 9.1% | Contraction: 9.1% > 10.2% > 11.6% > 18.4% > 24.3%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  4. [KOSDAQ] 473050 (유안타제15호스팩)
+       Score: 90/100 | Current range: 0.5% | Contraction: 0.5% > 0.7% > 0.9% > 1.0% > 1.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  5. [KOSDAQ] 192440 (슈피겐코리아)
+       Score: 76/100 | Current range: 7.0% | Contraction: 7.0% > 8.8% > 11.9% > 18.8% > 27.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  6. [KOSDAQ] 071200 (인피니트헬스케어)
+       Score: 76/100 | Current range: 8.6% | Contraction: 8.6% > 9.5% > 11.1% > 11.7% > 22.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+--- SP500 ---
+  1. [SP500] TDG (TransDigm Group)
+       Score: 100/100 | Current range: 3.3% | Contraction: 3.3% > 3.5% > 4.7% > 5.1% > 6.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  2. [SP500] SHW (Sherwin-Williams)
+       Score: 100/100 | Current range: 3.5% | Contraction: 3.5% > 3.8% > 4.1% > 4.3% > 7.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  3. [SP500] SNA (Snap-on)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 3.3% > 3.3% > 6.4% > 6.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  4. [SP500] DTE (DTE Energy)
+       Score: 100/100 | Current range: 1.4% | Contraction: 1.4% > 2.1% > 2.6% > 2.8% > 3.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  5. [SP500] LNT (Alliant Energy)
+       Score: 100/100 | Current range: 1.7% | Contraction: 1.7% > 2.0% > 2.3% > 2.7% > 4.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  6. [SP500] TPL (Texas Pacific Land Corporation)
+       Score: 97/100 | Current range: 6.0% | Contraction: 6.0% > 7.1% > 9.6% > 14.7% > 20.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  7. [SP500] CNC (Centene Corporation)
+       Score: 97/100 | Current range: 4.5% | Contraction: 4.4% > 5.5% > 5.8% > 6.6% > 11.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  8. [SP500] XEL (Xcel Energy)
+       Score: 90/100 | Current range: 2.1% | Contraction: 2.1% > 2.6% > 3.2% > 3.5% > 4.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  9. [SP500] NRG (NRG Energy)
+       Score: 82/100 | Current range: 4.3% | Contraction: 4.3% > 5.5% > 6.6% > 6.9% > 8.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  10. [SP500] HWM (Howmet Aerospace)
+       Score: 67/100 | Current range: 4.5% | Contraction: 4.5% > 5.3% > 5.3% > 5.4% > 7.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+

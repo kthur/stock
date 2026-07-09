@@ -1,0 +1,81 @@
+=== Lead-Lag Surge Predictions ===
+Date: 2026-07-01 15:13
+Based on today's top 53 leader stock movements
+
+--- KOSPI Top 20 ---
+  1. [KOSPI] 448730 (삼성FN리츠): 1.60%
+  2. [KOSPI] 001720 (신영증권): 1.40%
+  3. [KOSPI] 365550 (ESR켄달스퀘어리츠): 1.20%
+  4. [KOSPI] 357120 (코람코라이프인프라리츠): 1.09%
+  5. [KOSPI] 021820 (세원정공): 1.03%
+  6. [KOSPI] 018500 (동원금속): 1.03%
+  7. [KOSPI] 396690 (미래에셋글로벌리츠): 0.91%
+  8. [KOSPI] 350520 (이지스레지던스리츠): 0.87%
+  9. [KOSPI] 338100 (NH프라임리츠): 0.73%
+  10. [KOSPI] 481850 (신한글로벌액티브리츠): 0.68%
+  11. [KOSPI] 004310 (현대약품): 0.67%
+  12. [KOSPI] 033250 (체시스): 0.67%
+  13. [KOSPI] 417310 (코람코더원리츠): 0.53%
+  14. [KOSPI] 432320 (KB스타리츠): 0.47%
+  15. [KOSPI] 451800 (한화리츠): 0.44%
+  16. [KOSPI] 400760 (NH올원리츠): 0.41%
+  17. [KOSPI] 088260 (이리츠코크렙): 0.33%
+  18. [KOSPI] 293940 (신한알파리츠): 0.31%
+  19. [KOSPI] 334890 (이지스밸류플러스리츠): 0.25%
+  20. [KOSPI] 404990 (신한서부티엔디리츠): 0.18%
+
+--- KOSDAQ Top 20 ---
+  1. [KOSDAQ] 054220 (비츠로시스): 1.74%
+  2. [KOSDAQ] 060310 (3S): 1.52%
+  3. [KOSDAQ] 033200 (모아텍): 1.34%
+  4. [KOSDAQ] 900120 (씨엑스아이): 1.15%
+  5. [KOSDAQ] 067010 (이씨에스): 1.02%
+  6. [KOSDAQ] 099750 (이지케어텍): 0.82%
+  7. [KOSDAQ] 093380 (풍강): 0.53%
+  8. [KOSDAQ] 030960 (양지사): 0.53%
+  9. [KOSDAQ] 097870 (효성오앤비): 0.28%
+  10. [KOSDAQ] 024850 (HLB이노베이션): 0.22%
+  11. [KOSDAQ] 131100 (티엔엔터테인먼트): 0.18%
+  12. [KOSDAQ] 154030 (아시아종묘): 0.18%
+  13. [KOSDAQ] 169330 (엠브레인): 0.17%
+  14. [KOSDAQ] 227950 (엔투텍): 0.12%
+  15. [KOSDAQ] 900290 (GRT): 0.10%
+  16. [KOSDAQ] 019570 (플루토스): 0.10%
+
+--- KONEX Top 20 ---
+  1. [KONEX] 185190 (수프로): 1.49%
+  2. [KONEX] 102950 (아하): 0.53%
+
+--- SP500 Top 20 ---
+  1. [SP500] SYY (Sysco): 1.86%
+  2. [SP500] LYB (LyondellBasell): 1.69%
+  3. [SP500] MSCI (MSCI Inc.): 1.31%
+  4. [SP500] FAST (Fastenal): 1.27%
+  5. [SP500] LHX (L3Harris): 1.18%
+  6. [SP500] GLW (Corning Inc.): 1.17%
+  7. [SP500] HII (Huntington Ingalls Industries): 0.97%
+  8. [SP500] HSIC (Henry Schein): 0.94%
+  9. [SP500] NUE (Nucor): 0.89%
+  10. [SP500] IQV (IQVIA): 0.83%
+  11. [SP500] HCA (HCA Healthcare): 0.81%
+  12. [SP500] MPC (Marathon Petroleum): 0.80%
+  13. [SP500] NOC (Northrop Grumman): 0.79%
+  14. [SP500] DHR (Danaher Corporation): 0.77%
+  15. [SP500] DTE (DTE Energy): 0.75%
+  16. [SP500] TT (Trane Technologies): 0.73%
+  17. [SP500] ALB (Albemarle Corporation): 0.72%
+  18. [SP500] GWW (W. W. Grainger): 0.71%
+  19. [SP500] LDOS (Leidos): 0.68%
+  20. [SP500] BLDR (Builders FirstSource): 0.67%
+
+--- Leaders with highest today return ---
+  1. 042520 (한스바이오메드): +8.85%
+  2. 227950 (엔투텍): +7.47%
+  3. 330590 (롯데리츠): +3.91%
+  4. 900290 (GRT): +3.58%
+  5. 365550 (ESR켄달스퀘어리츠): +3.01%
+  6. AAPL (Apple Inc.): +2.70%
+  7. NVDA (Nvidia): +2.63%
+  8. 395400 (SK리츠): +2.40%
+  9. TSLA (Tesla, Inc.): +2.13%
+  10. 024850 (HLB이노베이션): +1.73%
