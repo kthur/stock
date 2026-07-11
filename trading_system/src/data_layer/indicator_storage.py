@@ -375,7 +375,7 @@ class MarketIndicatorStorage:
         """Batch retrieve historical fundamentals for a list of symbols (chunked to prevent parameter limit errors)."""
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'date', 'revenue', 'operating_income', 'net_income', 'eps', 'shares_outstanding', 'dividend_per_share'])
-        
+
         # Split into chunks of 900 to fit under SQLite query parameter limit (999)
         chunk_size = 900
         chunks = [symbols[i:i + chunk_size] for i in range(0, len(symbols), chunk_size)]

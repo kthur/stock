@@ -740,7 +740,7 @@ class OnDevicePredictionModel:
                 for sym, df in group.items():
                     # Align indices to match datetime index dates to string keys in baseline dict
                     date_keys = df.index.strftime("%Y-%m-%d") if hasattr(df.index, "strftime") else df.index.map(lambda x: str(x)[:10])
-                    
+
                     market_cap_sum = date_keys.map(global_baselines['market_cap_sum']).fillna(1.0).values
                     floating_sum = date_keys.map(global_baselines['floating_value_sum']).fillna(1.0).values
                     volume_sum = date_keys.map(global_baselines['volume_sum']).fillna(1.0).values
@@ -1049,19 +1049,19 @@ class OnDevicePredictionModel:
         close = df['Close'].astype(float)
         volume = df['Volume'].astype(float)
 
-        vol_20d = volume.rolling(20, min_periods=1).mean()
-        vol_60d = volume.rolling(60, min_periods=1).mean()
-        sma50 = close.rolling(50, min_periods=1).mean()
-        sma200 = close.rolling(200, min_periods=1).mean()
-        high_10d = high.rolling(10, min_periods=1).max()
-        low_10d = low.rolling(10, min_periods=1).min()
-        high_20d = high.rolling(20, min_periods=1).max()
-        low_20d = low.rolling(20, min_periods=1).min()
+        volume.rolling(20, min_periods=1).mean()
+        volume.rolling(60, min_periods=1).mean()
+        close.rolling(50, min_periods=1).mean()
+        close.rolling(200, min_periods=1).mean()
+        high.rolling(10, min_periods=1).max()
+        low.rolling(10, min_periods=1).min()
+        high.rolling(20, min_periods=1).max()
+        low.rolling(20, min_periods=1).min()
         tr1 = high - low
         tr2 = (high - close.shift(1)).abs()
         tr3 = (low - close.shift(1)).abs()
         tr_val = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        r5 = (high - low).rolling(5, min_periods=1).max() # fallback local definition for legacy below if needed
+        (high - low).rolling(5, min_periods=1).max() # fallback local definition for legacy below if needed
 
         # Lagged returns
         df['ret_1d_lag1'] = df['ret_1d'].shift(1).fillna(0.0)

@@ -244,7 +244,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
             # ---------------------------------------------------------------------------
             def _validate_price_data(sym: str, df: pd.DataFrame) -> bool:
                 """Return True if data passes quality checks, False if it should be skipped.
-                
+
                 Checks:
                   1. Close <= 0 or NaN ratio > 50% → reject
                   2. Daily return absolute value > 100% on more than 5% of rows → suspicious
@@ -252,19 +252,19 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                 """
                 if df is None or df.empty:
                     return False
-                
+
                 # Normalize column casing
                 cols_lower = {str(c).lower(): c for c in df.columns}
                 close_col = cols_lower.get('close')
                 volume_col = cols_lower.get('volume')
-                
+
                 if close_col is None:
                     logger.warning(f"[DataQualityGate] {sym}: missing Close column, skipping")
                     return False
-                
+
                 close = df[close_col].astype(float)
                 total_rows = len(close)
-                
+
                 # 1. Close zero/negative or too many NaN
                 nan_ratio = close.isna().sum() / total_rows
                 valid_close = close.dropna()
@@ -275,7 +275,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                 if len(valid_close) > 0 and non_positive / len(valid_close) > 0.5:
                     logger.warning(f"[DataQualityGate] {sym}: Close non-positive ratio > 50%, skipping")
                     return False
-                
+
                 # 2. Extreme daily returns (> ±100% on more than 5% of rows)
                 if len(valid_close) >= 5:
                     daily_ret = valid_close.pct_change().abs().dropna()
@@ -283,7 +283,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                     if extreme_ratio > 0.05:
                         logger.warning(f"[DataQualityGate] {sym}: extreme return ratio={extreme_ratio:.1%} > 5%, skipping")
                         return False
-                
+
                 # 3. Volume zero ratio (likely suspended/halted ticker)
                 if volume_col is not None:
                     volume = df[volume_col].astype(float)
@@ -291,7 +291,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                     if zero_vol_ratio > 0.90:
                         logger.debug(f"[DataQualityGate] {sym}: Volume zero ratio={zero_vol_ratio:.1%} > 90% (halted), skipping")
                         return False
-                
+
                 return True
 
             def _download_with_recovery(tickers: list, start_dt: str) -> pd.DataFrame:
@@ -306,16 +306,16 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                     if len(tickers) == 1:
                         logger.warning(f"Excluding bad ticker from batch: {tickers[0]} due to: {ex}")
                         return pd.DataFrame()
-                
+
                 # Binary split
                 mid = len(tickers) // 2
                 left_tickers = tickers[:mid]
                 right_tickers = tickers[mid:]
                 logger.info(f"Retrying batch split: Left={len(left_tickers)}, Right={len(right_tickers)}")
-                
+
                 df_left = _download_with_recovery(left_tickers, start_dt)
                 df_right = _download_with_recovery(right_tickers, start_dt)
-                
+
                 if df_left.empty:
                     return df_right
                 if df_right.empty:

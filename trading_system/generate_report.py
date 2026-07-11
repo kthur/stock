@@ -12,9 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import re
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -132,7 +130,6 @@ def parse_ensemble(text: str) -> EnsembleData:
     # Parse market sections
     current_market = None
     in_data = False
-    market_map = {"KOSPI": None, "KOSDAQ": None, "KONEX": None, "SP500": None}
 
     for line in text.splitlines():
         m = re.match(r"\[(\w+)\] Top \d+ Ensemble Picks", line.strip())
@@ -204,7 +201,6 @@ def parse_vcp(text: str) -> tuple[str, list[VcpRow]]:
     rows: list[VcpRow] = []
     current_symbol = None
     current_market = None
-    rank_counter: dict[str, int] = {}
 
     for line in text.splitlines():
         line = line.strip()

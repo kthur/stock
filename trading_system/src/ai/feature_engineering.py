@@ -51,7 +51,7 @@ def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd
 def compute_vcp_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Vectorized computation of 11 VCP (Volatility Contraction Pattern) features.
-    
+
     Expected input df contains columns (capitalized): ['High', 'Low', 'Close', 'Volume']
     Returns DataFrame with added columns:
       ['range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
