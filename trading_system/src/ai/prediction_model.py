@@ -736,6 +736,7 @@ class OnDevicePredictionModel:
                         result_dict[sym] = df
             else:
                 # Use robust DB global standard baselines
+                assert global_baselines is not None
                 for sym, df in group.items():
                     # Align indices to match datetime index dates to string keys in baseline dict
                     date_keys = df.index.strftime("%Y-%m-%d") if hasattr(df.index, "strftime") else df.index.map(lambda x: str(x)[:10])

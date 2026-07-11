@@ -7,7 +7,7 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import aiosqlite
 import pandas as pd
@@ -388,7 +388,7 @@ class StockPriceDB:
             self._local.conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
             self._local.conn.execute("PRAGMA temp_store=MEMORY")
             self._local.conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
-        return self._local.conn
+        return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self):
         conn = sqlite3.connect(str(self.db_path), timeout=30)
