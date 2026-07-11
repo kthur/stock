@@ -1,14 +1,21 @@
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict
 import pandas as pd
 import FinanceDataReader as fdr
 
 logger = logging.getLogger(__name__)
 
+# Absolute path constant — resolves to trading_system/ directory regardless of CWD
+_TRADING_SYSTEM_ROOT = Path(__file__).resolve().parent.parent.parent
+_DEFAULT_INDICATORS_DB = _TRADING_SYSTEM_ROOT / "market_indicators.db"
+
 class MarketIndicatorStorage:
-    def __init__(self, db_path: str = "market_indicators.db"):
+    def __init__(self, db_path: str = str(_DEFAULT_INDICATORS_DB)):
         self.db_path = db_path
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
         self._write_lock = threading.Lock()
@@ -137,6 +144,60 @@ class MarketIndicatorStorage:
                 except sqlite3.OperationalError:
                     pass
             conn.commit()
+
+    # ------------------------------------------------------------------
+    # P3: pipeline_runs 메트릭 로깅 — Context Manager
+    # ------------------------------------------------------------------
+
+    @contextmanager
+    def pipeline_stage(self, stage: str):
+        """Context manager that records each pipeline stage to pipeline_runs table.
+
+        Usage::
+            with storage.pipeline_stage("training"):
+                model.train(...)
+
+        Writes a row on entry (status='RUNNING') and updates it on exit
+        (status='SUCCESS' or 'FAILED') with elapsed time and error details.
+        """
+        import time as _time
+        start_iso = datetime.now().isoformat(timespec='seconds')
+        row_id: Optional[int] = None
+        try:
+            with self._write_lock:
+                with self._connect() as conn:
+                    cur = conn.execute(
+                        "INSERT INTO pipeline_runs (stage, start_time, status) VALUES (?, ?, ?)",
+                        (stage, start_iso, "RUNNING"),
+                    )
+                    row_id = cur.lastrowid
+                    conn.commit()
+            logger.info(f"[PipelineRun] stage={stage} id={row_id} started")
+        except Exception as _e:
+            logger.warning(f"[PipelineRun] Failed to log stage start for '{stage}': {_e}")
+
+        t0 = _time.monotonic()
+        err_msg: Optional[str] = None
+        try:
+            yield
+        except Exception as exc:
+            err_msg = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            elapsed = _time.monotonic() - t0
+            status = "FAILED" if err_msg else "SUCCESS"
+            end_iso = datetime.now().isoformat(timespec='seconds')
+            try:
+                with self._write_lock:
+                    with self._connect() as conn:
+                        conn.execute(
+                            "UPDATE pipeline_runs SET end_time=?, status=?, error_message=? WHERE id=?",
+                            (end_iso, status, err_msg, row_id),
+                        )
+                        conn.commit()
+                logger.info(f"[PipelineRun] stage={stage} id={row_id} {status} ({elapsed:.1f}s)")
+            except Exception as _e:
+                logger.warning(f"[PipelineRun] Failed to log stage end for '{stage}': {_e}")
 
     def update_stock_universe(self):
         """Fetch and update S&P 500 and KRX all stocks"""

@@ -51,6 +51,28 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_resul
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# P3: Rotating file logger — persists logs across terminal sessions and GHA log expiry
+def _setup_rotating_logger() -> None:
+    """Attach a RotatingFileHandler to the root logger (10MB × 5 backups)."""
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
+    log_dir = Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "pipeline.log"
+    file_handler = RotatingFileHandler(
+        str(log_path),
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=5,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
+    logging.getLogger().addHandler(file_handler)
+    logger.info(f"[P3] RotatingFileHandler attached: {log_path}")
+
+_setup_rotating_logger()
+
+
 
 # ---------------------------------------------------------------------------
 # P0: Telegram notification utility
@@ -217,8 +239,60 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 
             logger.info(f"Downloading batch of {len(batch)} symbols starting from {fetch_start}...")
 
-            # Wait to respect global rate limit
-            get_global_rate_limiter().wait()
+            # ---------------------------------------------------------------------------
+            # P2: Data Quality Gate — validate OHLCV data before storing to DB
+            # ---------------------------------------------------------------------------
+            def _validate_price_data(sym: str, df: pd.DataFrame) -> bool:
+                """Return True if data passes quality checks, False if it should be skipped.
+                
+                Checks:
+                  1. Close <= 0 or NaN ratio > 50% → reject
+                  2. Daily return absolute value > 100% on more than 5% of rows → suspicious
+                  3. Volume == 0 ratio > 90% → likely halted/suspended
+                """
+                if df is None or df.empty:
+                    return False
+                
+                # Normalize column casing
+                cols_lower = {str(c).lower(): c for c in df.columns}
+                close_col = cols_lower.get('close')
+                volume_col = cols_lower.get('volume')
+                
+                if close_col is None:
+                    logger.warning(f"[DataQualityGate] {sym}: missing Close column, skipping")
+                    return False
+                
+                close = df[close_col].astype(float)
+                total_rows = len(close)
+                
+                # 1. Close zero/negative or too many NaN
+                nan_ratio = close.isna().sum() / total_rows
+                valid_close = close.dropna()
+                non_positive = (valid_close <= 0).sum()
+                if nan_ratio > 0.5:
+                    logger.warning(f"[DataQualityGate] {sym}: Close NaN ratio={nan_ratio:.1%} > 50%, skipping")
+                    return False
+                if len(valid_close) > 0 and non_positive / len(valid_close) > 0.5:
+                    logger.warning(f"[DataQualityGate] {sym}: Close non-positive ratio > 50%, skipping")
+                    return False
+                
+                # 2. Extreme daily returns (> ±100% on more than 5% of rows)
+                if len(valid_close) >= 5:
+                    daily_ret = valid_close.pct_change().abs().dropna()
+                    extreme_ratio = (daily_ret > 1.0).sum() / len(daily_ret)
+                    if extreme_ratio > 0.05:
+                        logger.warning(f"[DataQualityGate] {sym}: extreme return ratio={extreme_ratio:.1%} > 5%, skipping")
+                        return False
+                
+                # 3. Volume zero ratio (likely suspended/halted ticker)
+                if volume_col is not None:
+                    volume = df[volume_col].astype(float)
+                    zero_vol_ratio = (volume == 0).sum() / total_rows
+                    if zero_vol_ratio > 0.90:
+                        logger.debug(f"[DataQualityGate] {sym}: Volume zero ratio={zero_vol_ratio:.1%} > 90% (halted), skipping")
+                        return False
+                
+                return True
 
             def _download_with_recovery(tickers: list, start_dt: str) -> pd.DataFrame:
                 if not tickers:
@@ -268,7 +342,9 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                         if ticker_df is not None and not ticker_df.empty:
                             if isinstance(ticker_df.columns, pd.MultiIndex):
                                 ticker_df.columns = ticker_df.columns.droplevel(1)
-                            price_db.update_prices(sym, ticker_df)
+                            # P2: Data Quality Gate — reject bad data before DB write
+                            if _validate_price_data(sym, ticker_df):
+                                price_db.update_prices(sym, ticker_df)
             except Exception as e:
                 logger.warning(f"Failed to process download batch: {e}")
 
@@ -592,7 +668,8 @@ def execute_prediction_pipeline():
     # 3. Store indicators
     date_str = datetime.now().strftime('%Y-%m-%d')
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
-    storage.save_indicators(market_summary, date_str)
+    with storage.pipeline_stage("global_indicators"):
+        storage.save_indicators(market_summary, date_str)
     logger.info("Saved market indicators to database.")
 
     # 4. Update stock universe if needed
@@ -795,40 +872,43 @@ def execute_prediction_pipeline():
 
         # S8 fix: ThreadPoolExecutor avoids pickle serialization overhead of ProcessPool.
         # XGBoost/LightGBM release the GIL during training, so threads are efficient here.
-        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
-            futures = {}
-            for m_name, m_df in market_dfs.items():
-                if not m_df.empty:
-                    logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
-                    futures[pool.submit(model.train, m_df, market=m_name, save_after=True)] = m_name
-            for f in as_completed(futures):
-                try:
-                    f.result()
-                except Exception as e:
-                    logger.error(f"Regression training failed for {futures[f]}: {e}")
+        with storage.pipeline_stage("train_regression"):
+            with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+                futures = {}
+                for m_name, m_df in market_dfs.items():
+                    if not m_df.empty:
+                        logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
+                        futures[pool.submit(model.train, m_df, market=m_name, save_after=True)] = m_name
+                for f in as_completed(futures):
+                    try:
+                        f.result()
+                    except Exception as e:
+                        logger.error(f"Regression training failed for {futures[f]}: {e}")
         model.load_models()
 
-        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
-            futures = {}
-            for m_name, m_df in market_dfs.items():
-                if not m_df.empty:
-                    futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=True)] = m_name
-            for f in as_completed(futures):
-                try:
-                    f.result()
-                except Exception as e:
-                    logger.error(f"Surge training failed for {futures[f]}: {e}")
+        with storage.pipeline_stage("train_surge"):
+            with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+                futures = {}
+                for m_name, m_df in market_dfs.items():
+                    if not m_df.empty:
+                        futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=True)] = m_name
+                for f in as_completed(futures):
+                    try:
+                        f.result()
+                    except Exception as e:
+                        logger.error(f"Surge training failed for {futures[f]}: {e}")
         model.load_surge_models()
 
         # 7c. Compute lead-lag correlation matrix (which stocks follow which)
-        if not df_train.empty and len(df_train) > 1000:
-            model.compute_lead_lag(df_train, indicator_df=indicator_train)
+        with storage.pipeline_stage("train_lead_lag_vcp"):
+            if not df_train.empty and len(df_train) > 1000:
+                model.compute_lead_lag(df_train, indicator_df=indicator_train)
 
-        # 7d. Train VCP ML surge models (4 markets, parallel inside)
-        from src.ai.vcp_ml_predictor import VCPSurgePredictor
-        vcp_ml = VCPSurgePredictor()
-        if train_data_dict:
-            vcp_ml.train(train_data_dict, indicator_train, universe)
+            # 7d. Train VCP ML surge models (4 markets, parallel inside)
+            from src.ai.vcp_ml_predictor import VCPSurgePredictor
+            vcp_ml = VCPSurgePredictor()
+            if train_data_dict:
+                vcp_ml.train(train_data_dict, indicator_train, universe)
 
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
@@ -958,7 +1038,8 @@ def execute_prediction_pipeline():
     # 10. Run predictions (regression + surge, shared feature computation)
     logger.info("Running inference (regression + surge)...")
     symbol_to_market_lower = {sym: mkt.lower() for sym, mkt in symbol_market.items()}
-    res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower, storage=storage, fundamentals_cache=infer_fund_cache)
+    with storage.pipeline_stage("inference_regression_surge"):
+        res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower, storage=storage, fundamentals_cache=infer_fund_cache)
 
     if res_df.empty:
         logger.error("No predictions made.")

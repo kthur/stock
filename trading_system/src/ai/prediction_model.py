@@ -629,57 +629,63 @@ class OnDevicePredictionModel:
             if df is None or df.empty:
                 continue
 
-            cleaned = sym.strip().upper().split('.')[0]
-            is_kr = cleaned.isdigit() or any(suffix in sym.upper() for suffix in [".KS", ".KQ"])
+            try:
+                cleaned = sym.strip().upper().split('.')[0]
+                is_kr = cleaned.isdigit() or any(suffix in sym.upper() for suffix in [".KS", ".KQ"])
 
-            df_copy = df.copy()
+                df_copy = df.copy()
 
-            # Flatten MultiIndex columns (e.g. from yfinance) to single-level
-            if isinstance(df_copy.columns, pd.MultiIndex):
-                df_copy.columns = df_copy.columns.droplevel(1)
+                # Flatten MultiIndex columns (e.g. from yfinance) to single-level
+                if isinstance(df_copy.columns, pd.MultiIndex):
+                    df_copy.columns = df_copy.columns.droplevel(1)
 
-            # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
-            df_copy.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df_copy.columns]
+                # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
+                df_copy.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df_copy.columns]
 
-            if 'Close' not in df_copy.columns:
-                logger.warning(f"Missing 'Close' column in DataFrame for {sym}.")
-                raise KeyError(f"Missing 'Close' column in DataFrame for {sym}")
-            if 'Volume' not in df_copy.columns:
-                logger.warning(f"Missing 'Volume' column in DataFrame for {sym}.")
-                raise KeyError(f"Missing 'Volume' column in DataFrame for {sym}")
+                if 'Close' not in df_copy.columns:
+                    logger.warning(f"Missing 'Close' column in DataFrame for {sym}.")
+                    raise KeyError(f"Missing 'Close' column in DataFrame for {sym}")
+                if 'Volume' not in df_copy.columns:
+                    logger.warning(f"Missing 'Volume' column in DataFrame for {sym}.")
+                    raise KeyError(f"Missing 'Volume' column in DataFrame for {sym}")
 
-            close = df_copy['Close']
-            volume = df_copy['Volume']
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-            if isinstance(volume, pd.DataFrame):
-                volume = volume.iloc[:, 0]
+                close = df_copy['Close']
+                volume = df_copy['Volume']
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]
+                if isinstance(volume, pd.DataFrame):
+                    volume = volume.iloc[:, 0]
 
-            # Retrieve shares_outstanding and floating_shares from df columns or fallback
-            metadata = FALLBACK_METADATA[sym]
-            shares_out = df_copy['shares_outstanding'] if 'shares_outstanding' in df_copy.columns else metadata['shares_outstanding']
-            if isinstance(shares_out, pd.DataFrame):
-                shares_out = shares_out.iloc[:, 0]
-            float_sh = df_copy['floating_shares'] if 'floating_shares' in df_copy.columns else metadata['floating_shares']
-            if isinstance(float_sh, pd.DataFrame):
-                float_sh = float_sh.iloc[:, 0]
+                # Retrieve shares_outstanding and floating_shares from df columns or fallback
+                metadata = FALLBACK_METADATA[sym]
+                shares_out = df_copy['shares_outstanding'] if 'shares_outstanding' in df_copy.columns else metadata['shares_outstanding']
+                if isinstance(shares_out, pd.DataFrame):
+                    shares_out = shares_out.iloc[:, 0]
+                float_sh = df_copy['floating_shares'] if 'floating_shares' in df_copy.columns else metadata['floating_shares']
+                if isinstance(float_sh, pd.DataFrame):
+                    float_sh = float_sh.iloc[:, 0]
 
-            df_copy['market_cap'] = close * shares_out
+                df_copy['market_cap'] = close * shares_out
 
-            if isinstance(float_sh, pd.Series):
-                floating_val = close * float_sh
-                fallback_mask = float_sh.isna() | (float_sh <= 0)
-                df_copy['floating_value'] = floating_val.where(~fallback_mask, close * volume)
-            else:
-                if float_sh is None or float_sh <= 0:
-                    df_copy['floating_value'] = close * volume
+                if isinstance(float_sh, pd.Series):
+                    floating_val = close * float_sh
+                    fallback_mask = float_sh.isna() | (float_sh <= 0)
+                    df_copy['floating_value'] = floating_val.where(~fallback_mask, close * volume)
                 else:
-                    df_copy['floating_value'] = close * float_sh
+                    if float_sh is None or float_sh <= 0:
+                        df_copy['floating_value'] = close * volume
+                    else:
+                        df_copy['floating_value'] = close * float_sh
 
-            if is_kr:
-                kr_group[sym] = df_copy
-            else:
-                us_group[sym] = df_copy
+                if is_kr:
+                    kr_group[sym] = df_copy
+                else:
+                    us_group[sym] = df_copy
+            except KeyError:
+                raise
+            except Exception as ex:
+                logger.error(f"Error applying market normalization for symbol {sym}: {ex}")
+                continue
 
         result_dict = {}
 
@@ -1028,60 +1034,33 @@ class OnDevicePredictionModel:
         df['volume_ratio'] = df['Volume'] / (vol_sma_20 + 1e-9)
 
         # 11. 신규 피처 연산 (VCP Vectorized, Lagged Return, ADX, Ichimoku, StochRSI)
+        from src.ai.feature_engineering import compute_vcp_features, VCP_FEATURES
+        _vcp_df = compute_vcp_features(df)
+        if not _vcp_df.empty:
+            # Safely merge only VCP feature columns onto original df — never replace df itself
+            for _col in VCP_FEATURES:
+                if _col in _vcp_df.columns:
+                    df[_col] = _vcp_df[_col].values if len(_vcp_df) == len(df) else np.nan
+
+
         high = df['High'].astype(float) if 'High' in df.columns else df['Close'].astype(float)
         low = df['Low'].astype(float) if 'Low' in df.columns else df['Close'].astype(float)
         close = df['Close'].astype(float)
         volume = df['Volume'].astype(float)
 
-        range_pct = (high - low) / (close + 1e-9) * 100
-        r5 = range_pct.rolling(5, min_periods=1).max()
-        r10 = range_pct.rolling(10, min_periods=1).max()
-        r20 = range_pct.rolling(20, min_periods=1).max()
-        r40 = range_pct.rolling(40, min_periods=1).max()
-        r60 = range_pct.rolling(60, min_periods=1).max()
-
-        df['range_5v20'] = (r5 / r20.replace(0, 1e-10)).fillna(0.0)
-        df['range_10v20'] = (r10 / r20.replace(0, 1e-10)).fillna(0.0)
-        df['range_20v40'] = (r20 / r40.replace(0, 1e-10)).fillna(0.0)
-        df['range_40v60'] = (r40 / r60.replace(0, 1e-10)).fillna(0.0)
-
         vol_20d = volume.rolling(20, min_periods=1).mean()
         vol_60d = volume.rolling(60, min_periods=1).mean()
-        df['vol_20v60'] = (vol_20d / vol_60d.replace(0, 1e-10)).fillna(0.0)
-
         sma50 = close.rolling(50, min_periods=1).mean()
         sma200 = close.rolling(200, min_periods=1).mean()
-        df['dist_ma50'] = ((close - sma50) / sma50.abs().replace(0, 1e-10)).fillna(0.0)
-        df['dist_ma200'] = ((close - sma200) / sma200.abs().replace(0, 1e-10)).fillna(0.0)
-
         high_10d = high.rolling(10, min_periods=1).max()
         low_10d = low.rolling(10, min_periods=1).min()
         high_20d = high.rolling(20, min_periods=1).max()
         low_20d = low.rolling(20, min_periods=1).min()
-        df['range_pos_10d'] = ((close - low_10d) / (high_10d - low_10d).replace(0, 1e-10)).fillna(0.0)
-        df['range_pos_20d'] = ((close - low_20d) / (high_20d - low_20d).replace(0, 1e-10)).fillna(0.0)
-
         tr1 = high - low
         tr2 = (high - close.shift(1)).abs()
         tr3 = (low - close.shift(1)).abs()
         tr_val = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        atr_14 = tr_val.rolling(14, min_periods=1).mean()
-        df['atr_14d_norm'] = ((atr_14 / close.replace(0, 1e-10)) * 100).fillna(0.0)
-
-        monotonic = (r5 < r10) & (r10 < r20) & (r20 < r40) & (r40 < r60)
-        df['monotonic'] = monotonic.astype(float)
-
-        score = pd.Series(0.0, index=df.index)
-        score += np.where(monotonic, 25.0, 0.0)
-        score += np.where(vol_20d < vol_60d * 0.85, 15.0, 0.0)
-        score += np.where(close > sma50, 15.0, 0.0)
-        score += np.where(close > sma200, 15.0, 0.0)
-        score += np.where(df['range_pos_10d'] > 0.6, 15.0, 0.0)
-        score += np.where(close > close.shift(10), 15.0, 0.0)
-        score += np.where(r5 < 4.0, 20.0,
-                          np.where(r5 < 7.0, 12.0,
-                                   np.where(r5 < 10.0, 6.0, 0.0)))
-        df['vcp_score'] = score.clip(upper=100.0) / 100.0
+        r5 = (high - low).rolling(5, min_periods=1).max() # fallback local definition for legacy below if needed
 
         # Lagged returns
         df['ret_1d_lag1'] = df['ret_1d'].shift(1).fillna(0.0)
@@ -1548,6 +1527,16 @@ class OnDevicePredictionModel:
             X_val = X[val_idx]
             y_val = target[val_idx]
 
+            # Nested Validation Split: Sub-divide val_idx into alpha (weights) and beta (calibration/thresholds)
+            if 'date' in df_train.columns and val_idx.sum() >= 100:
+                val_dates = pd.to_datetime(df_train.loc[val_idx, 'date'])
+                val_mid = val_dates.quantile(0.5)
+                val_alpha_idx = val_idx & (pd.to_datetime(df_train['date']) <= val_mid)
+                val_beta_idx = val_idx & (pd.to_datetime(df_train['date']) > val_mid)
+            else:
+                val_alpha_idx = val_idx
+                val_beta_idx = val_idx
+
             # 1. XGBoost
             if val_idx.any() and 'early_stopping_rounds' in kw_xgb:
                 model_xgb = xgb.XGBClassifier(**kw_xgb)
@@ -1600,9 +1589,13 @@ class OnDevicePredictionModel:
                     raise ex
             self.surge_cat_models[market][h] = model_cat
 
-            # Calculate and save validation metrics
-            X_eval = X_val if val_idx.any() else X_train
-            y_eval = y_val if val_idx.any() else y_train
+            # Calculate validation weights on val_alpha_idx (Ensemble optimization set)
+            X_eval = X[val_alpha_idx] if val_alpha_idx.any() else X_train
+            y_eval = target[val_alpha_idx] if val_alpha_idx.any() else y_train
+
+            # Separate dataset for Calibration & Threshold search on val_beta_idx (Calibration set)
+            X_calib_eval = X[val_beta_idx] if val_beta_idx.any() else X_train
+            y_calib_eval = target[val_beta_idx] if val_beta_idx.any() else y_train
 
             def get_clf_metrics(m, X_e, y_e):
                 probs = m.predict_proba(X_e)[:, 1]
@@ -1648,20 +1641,20 @@ class OnDevicePredictionModel:
                 "cat": w_cat
             }
 
-            # Dynamic Threshold tuning (optimizing F1 score on validation set)
+            # Dynamic Threshold tuning (optimizing F1 score on independent calibration validation set: val_beta_idx)
             from sklearn.metrics import f1_score
-            probs_xgb = model_xgb.predict_proba(X_eval)[:, 1]
-            probs_lgb = model_lgb.predict_proba(X_eval)[:, 1]
-            probs_cat = model_cat.predict_proba(X_eval)[:, 1]
+            probs_xgb = model_xgb.predict_proba(X_calib_eval)[:, 1]
+            probs_lgb = model_lgb.predict_proba(X_calib_eval)[:, 1]
+            probs_cat = model_cat.predict_proba(X_calib_eval)[:, 1]
 
-            # Platt Scaling Calibration: Fit a simple LogisticRegression to calibrate the ensemble probs on eval set
+            # Platt Scaling Calibration: Fit a simple LogisticRegression to calibrate the ensemble probs on calibration set
             blend_probs = w_xgb * probs_xgb + w_lgb * probs_lgb + w_cat * probs_cat
             from sklearn.linear_model import LogisticRegression
             calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
             # Reshape for logistic regression
             X_calib = blend_probs.reshape(-1, 1)
             try:
-                calibration_model.fit(X_calib, y_eval)
+                calibration_model.fit(X_calib, y_calib_eval)
                 calibrated_probs = calibration_model.predict_proba(X_calib)[:, 1]
                 logger.info(f"Fitted Platt scaling calibration model for {market} {h}d. Prob limits: {calibrated_probs.min():.4f} - {calibrated_probs.max():.4f}")
             except Exception as calib_err:
@@ -1685,7 +1678,7 @@ class OnDevicePredictionModel:
             thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
             for th in thresholds:
                 pred_binary = (calibrated_probs >= th).astype(int)
-                score_f1 = f1_score(y_eval, pred_binary, zero_division=0)
+                score_f1 = f1_score(y_calib_eval, pred_binary, zero_division=0)
                 if score_f1 > best_f1:
                     best_f1 = score_f1
                     best_th = th

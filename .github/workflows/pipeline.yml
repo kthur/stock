@@ -30,13 +30,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.txt') }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.lock') }}
 
       - name: Install dependencies
         run: |
           uv python install 3.12
           uv venv --python 3.12 .venv
-          uv pip install -r trading_system/requirements.txt
+          # Use lockfile for deterministic, idempotent builds (P2: 3.3)
+          uv pip sync trading_system/requirements.lock
 
       - name: Get current date
         id: date
@@ -65,9 +66,9 @@ jobs:
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2-${{ steps.date.outputs.date }}-${{ matrix.target }}
+          key: ai-models-v2-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
-            ai-models-v2-
+            ai-models-v2-${{ matrix.target }}-
 
       - name: Run prediction pipeline for ${{ matrix.target }}
         id: run
@@ -221,24 +222,13 @@ jobs:
           cp trading_system/result_KOSDAQ/*_KOSDAQ.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KONEX/*_KONEX.txt trading_system/result/ 2>/dev/null || true
 
-      - name: Commit and push results
+      - name: Upload merged results as artifact
         if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Add only the 6 core output files to avoid committing thousands of matrix artifact files
-          for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
-                    vcp_patterns.txt vcp_ml_predictions.txt ensemble_predictions.txt; do
-            fpath="trading_system/result/$f"
-            [ -f "$fpath" ] && git add -f "$fpath" || true
-          done
-          if ! git diff --cached --quiet; then
-            git commit -m "pipeline: daily prediction results ($(date '+%Y-%m-%d'))"
-            git pull --rebase origin main
-            git push
-          else
-            echo "No changes to commit"
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-results
+          path: trading_system/result/
+          retention-days: 7
 
       - name: Create GitHub Release and Upload Assets
         if: always()
@@ -276,8 +266,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download merged results artifact
+        uses: actions/download-artifact@v4
         with:
-          ref: main  # Use latest main which now has the committed result files
+          name: merged-results
+          path: trading_system/result
+        continue-on-error: true
 
       - name: Install uv and Python 3.12
         uses: astral-sh/setup-uv@v5

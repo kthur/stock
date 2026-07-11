@@ -14,6 +14,11 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# Absolute path constant — resolves to trading_system/ directory regardless of CWD
+_TRADING_SYSTEM_ROOT = Path(__file__).resolve().parent.parent.parent
+_DEFAULT_STOCK_PRICES_DB = _TRADING_SYSTEM_ROOT / "stock_prices.db"
+
+
 
 class _DBConnection:
     """재사용 가능한 aiosqlite 연결 관리자"""
@@ -367,7 +372,7 @@ class StockPriceDB:
     Thread-safe: WAL 모드 + connection 재사용 + mutex lock.
     """
 
-    def __init__(self, db_path: str = "stock_prices.db"):
+    def __init__(self, db_path: str = str(_DEFAULT_STOCK_PRICES_DB)):
         self.db_path = Path(db_path)
         self.logger = logger
         self._local = threading.local()

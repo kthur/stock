@@ -22,13 +22,7 @@ try:
 except Exception:
     pass
 
-VCP_FEATURES = [
-    'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60',
-    'vol_20v60',
-    'dist_ma50', 'dist_ma200',
-    'range_pos_10d', 'range_pos_20d',
-    'atr_14d_norm', 'monotonic', 'vcp_score',
-]
+from src.ai.feature_engineering import VCP_FEATURES  # single source of truth
 
 SURGE_HORIZONS = [1, 3, 5, 20]
 SURGE_THRESHOLD = 0.20
@@ -132,83 +126,16 @@ class VCPSurgePredictor:
         if df is None or len(df) < 200:
             return pd.DataFrame()
 
-        df = df.copy()
-        # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
-        df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
-
-        high = _safe_series(df['High']).astype(float)
-        low = _safe_series(df['Low']).astype(float)
-        close = _safe_series(df['Close']).astype(float)
-        volume = _safe_series(df['Volume']).astype(float)
-
-        # Guard: return empty if key columns are all NaN
-        if high.isna().all() or close.isna().all():
+        try:
+            from src.ai.feature_engineering import compute_vcp_features
+            df_vcp = compute_vcp_features(df)
+            if df_vcp.empty:
+                return pd.DataFrame()
+            # Return last row as a DataFrame with only the 11 VCP features
+            return df_vcp.iloc[-1:][VCP_FEATURES]
+        except Exception as e:
+            logger.warning(f"Failed to compute VCP features via common helper: {e}")
             return pd.DataFrame()
-
-        windows = [5, 10, 20, 40, 60]
-        ranges = []
-        for w in windows:
-            r = (high.tail(w).max() - low.tail(w).min()) / close.tail(w).mean() * 100
-            ranges.append(r)
-
-        feat = {}
-        feat['range_5v20'] = ranges[0] / max(ranges[2], 1e-10)
-        feat['range_10v20'] = ranges[1] / max(ranges[2], 1e-10)
-        feat['range_20v40'] = ranges[2] / max(ranges[3], 1e-10)
-        feat['range_40v60'] = ranges[3] / max(ranges[4], 1e-10)
-
-        vol_20d = volume.tail(20).mean()
-        vol_60d = volume.tail(60).mean()
-        feat['vol_20v60'] = vol_20d / max(vol_60d, 1e-10)
-
-        sma50 = close.rolling(50).mean().iloc[-1]
-        sma200 = close.rolling(200).mean().iloc[-1]
-        last_close = close.iloc[-1]
-        feat['dist_ma50'] = (last_close - sma50) / max(abs(sma50), 1e-10)
-        feat['dist_ma200'] = (last_close - sma200) / max(abs(sma200), 1e-10)
-
-        high_10d = high.tail(10).max()
-        low_10d = low.tail(10).min()
-        high_20d = high.tail(20).max()
-        low_20d = low.tail(20).min()
-        feat['range_pos_10d'] = (last_close - low_10d) / max(high_10d - low_10d, 1e-10)
-        feat['range_pos_20d'] = (last_close - low_20d) / max(high_20d - low_20d, 1e-10)
-
-        # Standard True Range (TR) and 14-period SMA
-        tr_df = pd.DataFrame(index=df.index)
-        tr_df['h_l'] = high - low
-        tr_df['h_pc'] = (high - close.shift(1)).abs()
-        tr_df['l_pc'] = (low - close.shift(1)).abs()
-        tr_val = tr_df[['h_l', 'h_pc', 'l_pc']].max(axis=1)
-        atr_14 = tr_val.rolling(14).mean().iloc[-1]
-        feat['atr_14d_norm'] = (atr_14 / max(last_close, 1e-10)) * 100 if pd.notna(atr_14) else 0.0
-
-        # VCP contraction: shorter windows should have smaller ranges than longer windows.
-        # windows=[5,10,20,40,60] → ranges[0]=5d, ranges[4]=60d → ranges[i] < ranges[i+1].
-        feat['monotonic'] = int(all(ranges[i] < ranges[i + 1] for i in range(len(ranges) - 1)))
-
-        score = 0.0
-        if feat['monotonic']:
-            score += 25.0
-        if vol_20d < vol_60d * 0.85:
-            score += 15.0
-        if last_close > sma50:
-            score += 15.0
-        if last_close > sma200:
-            score += 15.0
-        if feat['range_pos_10d'] > 0.6:
-            score += 15.0
-        if close.tail(10).iloc[0] < last_close:
-            score += 15.0
-        if ranges[0] < 4:
-            score += 20.0
-        elif ranges[0] < 7:
-            score += 12.0
-        elif ranges[0] < 10:
-            score += 6.0
-        feat['vcp_score'] = min(score, 100.0) / 100.0
-
-        return pd.DataFrame([feat])
 
     def _batch_features_with_vcp(self, prices_dict: Dict[str, pd.DataFrame],
                                   indicator_df: pd.DataFrame = None,
