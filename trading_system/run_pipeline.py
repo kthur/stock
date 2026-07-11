@@ -220,23 +220,57 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
             # Wait to respect global rate limit
             get_global_rate_limiter().wait()
 
+            def _download_with_recovery(tickers: list, start_dt: str) -> pd.DataFrame:
+                if not tickers:
+                    return pd.DataFrame()
+                try:
+                    df_res = yf.download(tickers, start=start_dt, progress=False, auto_adjust=True, group_by='ticker')
+                    if df_res is not None and not df_res.empty:
+                        return df_res
+                except Exception as ex:
+                    # If batch is size 1, it's the failing ticker
+                    if len(tickers) == 1:
+                        logger.warning(f"Excluding bad ticker from batch: {tickers[0]} due to: {ex}")
+                        return pd.DataFrame()
+                
+                # Binary split
+                mid = len(tickers) // 2
+                left_tickers = tickers[:mid]
+                right_tickers = tickers[mid:]
+                logger.info(f"Retrying batch split: Left={len(left_tickers)}, Right={len(right_tickers)}")
+                
+                df_left = _download_with_recovery(left_tickers, start_dt)
+                df_right = _download_with_recovery(right_tickers, start_dt)
+                
+                if df_left.empty:
+                    return df_right
+                if df_right.empty:
+                    return df_left
+                # Merge along axis=1 (columns/tickers)
+                return pd.concat([df_left, df_right], axis=1)
+
             try:
-                df = yf.download(yf_tickers, start=fetch_start, progress=False, auto_adjust=True, group_by='ticker')
+                df = _download_with_recovery(yf_tickers, fetch_start)
                 if df is not None and not df.empty:
                     for yf_ticker in yf_tickers:
-                        sym = ticker_to_sym[yf_ticker]
+                        sym = ticker_to_sym.get(yf_ticker)
+                        if not sym:
+                            continue
                         ticker_df = None
                         if len(yf_tickers) == 1:
                             ticker_df = df
-                        elif yf_ticker in df.columns.levels[0]:
+                        elif yf_ticker in df.columns.levels[0] if isinstance(df.columns, pd.MultiIndex) else False:
                             ticker_df = df[yf_ticker].dropna(how='all')
+                        elif yf_ticker in df.columns:
+                            # Single-level columns fallback
+                            ticker_df = df[[yf_ticker]].dropna(how='all')
 
                         if ticker_df is not None and not ticker_df.empty:
                             if isinstance(ticker_df.columns, pd.MultiIndex):
                                 ticker_df.columns = ticker_df.columns.droplevel(1)
                             price_db.update_prices(sym, ticker_df)
             except Exception as e:
-                logger.warning(f"Failed to download batch: {e}")
+                logger.warning(f"Failed to process download batch: {e}")
 
 
 def fetch_data_fdr(symbol: str, market: str, start_date: str,
@@ -714,10 +748,20 @@ def execute_prediction_pipeline():
             logger.info("Waiting for training fundamentals fetch to complete...")
             t.join()
 
+        # Batch fetch all fundamentals to avoid thousands of SQLite query roundtrips
+        logger.info("Batch retrieving training fundamentals from SQLite database...")
+        try:
+            all_train_fund_df = storage.get_all_fundamentals(train_symbols)
+            train_fund_cache = {sym: grp for sym, grp in all_train_fund_df.groupby('symbol')}
+            logger.info(f"Loaded fundamentals cache for {len(train_fund_cache)} symbols.")
+        except Exception as e:
+            logger.error(f"Failed to batch fetch training fundamentals: {e}")
+            train_fund_cache = {}
+
         # Merge fundamentals (parallel)
         def _merge_one(sym: str, df):
             try:
-                merged = model.merge_fundamentals(sym, df, storage)
+                merged = model.merge_fundamentals(sym, df, storage, fundamentals_cache=train_fund_cache)
                 return (sym, merged)
             except Exception as e:
                 logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
@@ -732,7 +776,7 @@ def execute_prediction_pipeline():
                 else:
                     train_data_dict.pop(sym, None)
 
-        df_train = model.prepare_training_data(train_data_dict, indicator_train)
+        df_train = model.prepare_training_data(train_data_dict, indicator_train, storage=storage)
 
         # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
         if not df_train.empty and 'symbol' in df_train.columns:
@@ -882,10 +926,21 @@ def execute_prediction_pipeline():
         logger.info("Waiting for inference fundamentals fetch to complete...")
         t2.join()
 
+    # Batch fetch all inference fundamentals to avoid individual SQLite I/O bottlenecks
+    logger.info("Batch retrieving inference fundamentals from SQLite database...")
+    infer_symbols = list(infer_data_dict.keys())
+    try:
+        all_infer_fund_df = storage.get_all_fundamentals(infer_symbols)
+        infer_fund_cache = {sym: grp for sym, grp in all_infer_fund_df.groupby('symbol')}
+        logger.info(f"Loaded inference fundamentals cache for {len(infer_fund_cache)} symbols.")
+    except Exception as e:
+        logger.error(f"Failed to batch fetch inference fundamentals: {e}")
+        infer_fund_cache = {}
+
     # Merge fundamentals (parallel)
     def _merge_infer_one(sym: str, df):
         try:
-            merged = model.merge_fundamentals(sym, df, storage)
+            merged = model.merge_fundamentals(sym, df, storage, fundamentals_cache=infer_fund_cache)
             return (sym, merged)
         except Exception as e:
             logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
@@ -903,7 +958,7 @@ def execute_prediction_pipeline():
     # 10. Run predictions (regression + surge, shared feature computation)
     logger.info("Running inference (regression + surge)...")
     symbol_to_market_lower = {sym: mkt.lower() for sym, mkt in symbol_market.items()}
-    res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower)
+    res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower, storage=storage, fundamentals_cache=infer_fund_cache)
 
     if res_df.empty:
         logger.error("No predictions made.")

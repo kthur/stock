@@ -370,24 +370,20 @@ class StockPriceDB:
     def __init__(self, db_path: str = "stock_prices.db"):
         self.db_path = Path(db_path)
         self.logger = logger
-        self._lock = threading.Lock()
-        self._conn_lock = threading.Lock()
-        self._conn: Optional[sqlite3.Connection] = None
+        self._local = threading.local()
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        if self._conn is None:
-            with self._conn_lock:
-                if self._conn is None:
-                    self._conn = sqlite3.connect(
-                        str(self.db_path), timeout=30, check_same_thread=False
-                    )
-                    self._conn.execute("PRAGMA journal_mode=WAL")
-                    self._conn.execute("PRAGMA synchronous=OFF")
-                    self._conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
-                    self._conn.execute("PRAGMA temp_store=MEMORY")
-                    self._conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
-        return self._conn
+        if not hasattr(self._local, "conn") or self._local.conn is None:
+            self._local.conn = sqlite3.connect(
+                str(self.db_path), timeout=30, check_same_thread=False
+            )
+            self._local.conn.execute("PRAGMA journal_mode=WAL")
+            self._local.conn.execute("PRAGMA synchronous=OFF")
+            self._local.conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
+            self._local.conn.execute("PRAGMA temp_store=MEMORY")
+            self._local.conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
+        return self._local.conn
 
     def _init_db(self):
         conn = sqlite3.connect(str(self.db_path), timeout=30)
@@ -431,14 +427,13 @@ class StockPriceDB:
                 float(row["Close"]),
                 int(row["Volume"]),
             ))
-        with self._lock:
-            conn = self._get_conn()
-            conn.executemany("""
-                INSERT OR REPLACE INTO stock_prices
-                (symbol, date, open, high, low, close, volume, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            """, records)
-            conn.commit()
+        conn = self._get_conn()
+        conn.executemany("""
+            INSERT OR REPLACE INTO stock_prices
+            (symbol, date, open, high, low, close, volume, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, records)
+        conn.commit()
         count = len(records)
         self.logger.info(f"Upserted {count} price rows for {symbol}")
         return count
@@ -446,18 +441,17 @@ class StockPriceDB:
     def get_prices(self, symbol: str, start_date: Optional[str] = None,
                    end_date: Optional[str] = None) -> pd.DataFrame:
         """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame, 컬럼명 대문자)"""
-        with self._lock:
-            conn = self._get_conn()
-            query = "SELECT date, open, high, low, close, volume FROM stock_prices WHERE symbol = ?"
-            params: list = [symbol]
-            if start_date:
-                query += " AND date >= ?"
-                params.append(start_date)
-            if end_date:
-                query += " AND date <= ?"
-                params.append(end_date)
-            query += " ORDER BY date ASC"
-            df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
+        conn = self._get_conn()
+        query = "SELECT date, open, high, low, close, volume FROM stock_prices WHERE symbol = ?"
+        params: list = [symbol]
+        if start_date:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND date <= ?"
+            params.append(end_date)
+        query += " ORDER BY date ASC"
+        df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
         if not df.empty:
             df.set_index("date", inplace=True)
             df.columns = [col.capitalize() for col in df.columns]
@@ -465,22 +459,20 @@ class StockPriceDB:
 
     def get_latest_date(self, symbol: str) -> Optional[str]:
         """해당 종목의 DB 내 최신 날짜 반환"""
-        with self._lock:
-            conn = self._get_conn()
-            cursor = conn.execute(
-                "SELECT MAX(date) FROM stock_prices WHERE symbol = ?", (symbol,)
-            )
-            row = cursor.fetchone()
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT MAX(date) FROM stock_prices WHERE symbol = ?", (symbol,)
+        )
+        row = cursor.fetchone()
         return row[0] if row and row[0] else None
 
     def _get_earliest_date(self, symbol: str) -> Optional[str]:
         """해당 종목의 DB 내 최초 날짜 반환"""
-        with self._lock:
-            conn = self._get_conn()
-            cursor = conn.execute(
-                "SELECT MIN(date) FROM stock_prices WHERE symbol = ?", (symbol,)
-            )
-            row = cursor.fetchone()
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT MIN(date) FROM stock_prices WHERE symbol = ?", (symbol,)
+        )
+        row = cursor.fetchone()
         return row[0] if row and row[0] else None
 
     def needs_update(self, symbol: str, max_age_days: int = 1,
@@ -504,21 +496,19 @@ class StockPriceDB:
 
     def get_all_symbols(self) -> List[str]:
         """DB에 저장된 모든 심볼 목록"""
-        with self._lock:
-            conn = self._get_conn()
-            cursor = conn.execute("SELECT DISTINCT symbol FROM stock_prices ORDER BY symbol")
-            rows = cursor.fetchall()
+        conn = self._get_conn()
+        cursor = conn.execute("SELECT DISTINCT symbol FROM stock_prices ORDER BY symbol")
+        rows = cursor.fetchall()
         return [r[0] for r in rows]
 
     def count_rows(self, symbol: Optional[str] = None) -> int:
         """저장된 행 수 (선택적 symbol 필터)"""
-        with self._lock:
-            conn = self._get_conn()
-            if symbol:
-                cursor = conn.execute(
-                    "SELECT COUNT(*) FROM stock_prices WHERE symbol = ?", (symbol,)
-                )
-            else:
-                cursor = conn.execute("SELECT COUNT(*) FROM stock_prices")
-            row = cursor.fetchone()
+        conn = self._get_conn()
+        if symbol:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM stock_prices WHERE symbol = ?", (symbol,)
+            )
+        else:
+            cursor = conn.execute("SELECT COUNT(*) FROM stock_prices")
+        row = cursor.fetchone()
         return row[0] if row else 0

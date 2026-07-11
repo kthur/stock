@@ -613,10 +613,9 @@ class OnDevicePredictionModel:
         cleaned = symbol.strip().upper().split('.')[0]
         return cleaned.isdigit() or any(s in symbol.upper() for s in [".KS", ".KQ"])
 
-    def apply_market_normalization(self, prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+    def apply_market_normalization(self, prices_dict: Dict[str, pd.DataFrame], storage=None) -> Dict[str, pd.DataFrame]:
         """
-        Normalize stock-level features relative to the daily regional baseline total.
-
+        Normalize features across the asset market to resolve covariate shifts.
         Inputs: Dict of symbol to DataFrame containing price, volume, and optional stock-level metadata.
         Outputs: Dict of symbol to DataFrame with added columns: norm_market_cap, norm_floating_value, norm_volume.
         """
@@ -693,23 +692,56 @@ class OnDevicePredictionModel:
             if not group:
                 continue
 
-            # Concatenate all DataFrames in the group to compute daily totals without lookahead bias
-            group_dfs = []
-            for sym, df in group.items():
-                temp = pd.DataFrame(index=df.index)
-                temp['market_cap'] = _series(df['market_cap'])
-                temp['floating_value'] = _series(df['floating_value'])
-                temp['Volume'] = _series(df['Volume'])
-                group_dfs.append(temp)
+            # Determine market type from group key formats
+            sample_sym = list(group.keys())[0]
+            # KRX symbols are numbers (e.g. 005930) or end with KRX suffixes
+            is_kr_market = sample_sym.isdigit() or sample_sym.endswith(('.KS', '.KQ', '.KN'))
+            market_type = "KRX" if is_kr_market else "US"
 
-            if group_dfs:
-                combined = pd.concat(group_dfs)
-                daily_totals = combined.groupby(combined.index).sum()
+            # 1. Try to fetch standard global baselines from storage
+            global_baselines = None
+            if storage is not None:
+                try:
+                    global_baselines = storage.get_daily_global_market_baselines(market_type)
+                except Exception as e:
+                    logger.warning(f"Failed to fetch daily global baselines from DB for {market_type}: {e}")
 
+            # 2. Revert to sample grouping sum (fallback) if global baselines are empty or DB is missing
+            use_fallback = (global_baselines is None or global_baselines.empty)
+
+            if use_fallback:
+                # Concatenate all DataFrames in the group to compute daily totals without lookahead bias
+                group_dfs = []
                 for sym, df in group.items():
-                    df['norm_market_cap'] = _series(df['market_cap']).div(daily_totals['market_cap']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-                    df['norm_floating_value'] = _series(df['floating_value']).div(daily_totals['floating_value']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-                    df['norm_volume'] = _series(df['Volume']).div(daily_totals['Volume']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                    temp = pd.DataFrame(index=df.index)
+                    temp['market_cap'] = _series(df['market_cap'])
+                    temp['floating_value'] = _series(df['floating_value'])
+                    temp['Volume'] = _series(df['Volume'])
+                    group_dfs.append(temp)
+
+                if group_dfs:
+                    combined = pd.concat(group_dfs)
+                    daily_totals = combined.groupby(combined.index).sum()
+
+                    for sym, df in group.items():
+                        df['norm_market_cap'] = _series(df['market_cap']).div(daily_totals['market_cap']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                        df['norm_floating_value'] = _series(df['floating_value']).div(daily_totals['floating_value']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                        df['norm_volume'] = _series(df['Volume']).div(daily_totals['Volume']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                        result_dict[sym] = df
+            else:
+                # Use robust DB global standard baselines
+                for sym, df in group.items():
+                    # Align indices to match datetime index dates to string keys in baseline dict
+                    date_keys = df.index.strftime("%Y-%m-%d") if hasattr(df.index, "strftime") else df.index.map(lambda x: str(x)[:10])
+                    
+                    market_cap_sum = date_keys.map(global_baselines['market_cap_sum']).fillna(1.0).values
+                    floating_sum = date_keys.map(global_baselines['floating_value_sum']).fillna(1.0).values
+                    volume_sum = date_keys.map(global_baselines['volume_sum']).fillna(1.0).values
+
+                    # Force baseline series values to match shape
+                    df['norm_market_cap'] = _series(df['market_cap']).div(market_cap_sum).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                    df['norm_floating_value'] = _series(df['floating_value']).div(floating_sum).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                    df['norm_volume'] = _series(df['Volume']).div(volume_sum).replace([np.inf, -np.inf], 0.0).fillna(0.0)
                     result_dict[sym] = df
 
         # Preserve and return any missing or empty input dataframes
@@ -719,7 +751,7 @@ class OnDevicePredictionModel:
 
         return result_dict
 
-    def merge_fundamentals(self, symbol: str, df_prices: pd.DataFrame, storage=None) -> pd.DataFrame:
+    def merge_fundamentals(self, symbol: str, df_prices: pd.DataFrame, storage=None, fundamentals_cache: Optional[dict] = None) -> pd.DataFrame:
         """
         Merge fundamental data (revenue, operating_income, dividend_per_share) into df_prices.
 
@@ -751,21 +783,26 @@ class OnDevicePredictionModel:
         has_cols = all(col in df.columns for col in FUND_COLS)
         if not has_cols:
             df_fun = None
-            if storage is None:
-                try:
-                    from trading_system.src.data_layer.indicator_storage import MarketIndicatorStorage
-                    storage = MarketIndicatorStorage()
-                except Exception:
+            # Check fast memory cache first
+            if fundamentals_cache is not None and symbol in fundamentals_cache:
+                df_fun = fundamentals_cache[symbol]
+
+            if df_fun is None:
+                if storage is None:
                     try:
-                        from src.data_layer.indicator_storage import MarketIndicatorStorage  # type: ignore
+                        from trading_system.src.data_layer.indicator_storage import MarketIndicatorStorage
                         storage = MarketIndicatorStorage()
                     except Exception:
-                        pass
-            if storage is not None:
-                try:
-                    df_fun = storage.get_fundamentals(symbol)
-                except Exception as e:
-                    logger.warning(f"Failed to fetch fundamentals from DB for {symbol}: {e}")
+                        try:
+                            from src.data_layer.indicator_storage import MarketIndicatorStorage  # type: ignore
+                            storage = MarketIndicatorStorage()
+                        except Exception:
+                            pass
+                if storage is not None:
+                    try:
+                        df_fun = storage.get_fundamentals(symbol)
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch fundamentals from DB for {symbol}: {e}")
 
             if df_fun is not None and not df_fun.empty:
                 df_fun['date'] = pd.to_datetime(df_fun['date'])
@@ -860,11 +897,12 @@ class OnDevicePredictionModel:
         df[self.GLOBAL_FEATURES] = df[self.GLOBAL_FEATURES].ffill().fillna(0.0)
         return df
 
-    def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None) -> pd.DataFrame:
+    def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None, storage=None, fundamentals_cache: Optional[dict] = None) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
         df = df.copy()
         # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
-        df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+        df_cols = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+        df.columns = df_cols
 
         # Ensure no duplicated columns
         if df.columns.has_duplicates:
@@ -875,7 +913,7 @@ class OnDevicePredictionModel:
 
         # If normalized features are not present, apply market normalization as single stock fallback
         if not all(col in df.columns for col in ['norm_market_cap', 'norm_floating_value', 'norm_volume']):
-            norm_dict = self.apply_market_normalization({'TEMP': df})
+            norm_dict = self.apply_market_normalization({'TEMP': df}, storage)
             df = norm_dict['TEMP']
 
         # Save the latest row identifier to detect if it gets dropped
@@ -1140,12 +1178,12 @@ class OnDevicePredictionModel:
         return df
 
     def prepare_training_data(self, prices_dict: Dict[str, pd.DataFrame],
-                              indicator_df: pd.DataFrame = None) -> pd.DataFrame:
+                              indicator_df: pd.DataFrame = None, storage=None) -> pd.DataFrame:
         """
         Merge all stocks into a single training dataset.
         prices_dict: {symbol: df_with_ohlcv}
         """
-        prices_dict = self.apply_market_normalization(prices_dict)
+        prices_dict = self.apply_market_normalization(prices_dict, storage)
 
         all_data = []
         for sym, df in prices_dict.items():
@@ -1153,7 +1191,7 @@ class OnDevicePredictionModel:
                 continue
             df = df.copy()
             df['symbol'] = sym
-            df_feat = self._create_features(df, indicator_df)
+            df_feat = self._create_features(df, indicator_df, storage)
             df_feat = self._create_targets(df_feat)
             # Drop rows where non-fundamental features or targets are missing
             fundamental_cols = ['operating_margin', 'revenue_to_market_cap', 'dividend_yield', 'net_profit_margin', 'eps_yield', 'eps_growth_1y']
@@ -1246,11 +1284,12 @@ class OnDevicePredictionModel:
         kw_lgb = dict(self._lgb_kwargs)
         kw_cat = dict(self._cat_kwargs)
 
-        # Time-based validation split (last 20% of chronological data)
+        # Time-based validation split with Chronological Embargo (Prevent overlap leakage)
         if 'date' in df_train.columns:
             dates = pd.to_datetime(df_train['date'])
             cutoff = dates.quantile(0.8)
-            train_idx = dates <= cutoff
+            # Use Timedelta to leave a 20-day gap before validation starts
+            train_idx = dates <= (cutoff - pd.Timedelta(days=20))
             val_idx = dates > cutoff
             if val_idx.sum() < 100:
                 train_idx = pd.Series([True] * len(df_train))
@@ -1747,13 +1786,15 @@ class OnDevicePredictionModel:
 
     def _batch_compute_inference_features(self, prices_dict: Dict[str, pd.DataFrame],
                                            indicator_df: pd.DataFrame = None,
-                                            symbol_to_market: Optional[Dict[str, str]] = None):
+                                            symbol_to_market: Optional[Dict[str, str]] = None,
+                                            storage=None,
+                                            fundamentals_cache: Optional[dict] = None):
         """Compute latest features for all symbols once. Shared by regression + surge.
 
         If symbol_to_market is provided, uses it to assign market tags
         (kospi/kosdaq/konex/sp500) instead of the _is_krx_symbol heuristic.
         """
-        prices_dict = self.apply_market_normalization(prices_dict)
+        prices_dict = self.apply_market_normalization(prices_dict, storage)
         features = self.ALL_FEATURES
 
         from concurrent.futures import ThreadPoolExecutor
@@ -1766,7 +1807,7 @@ class OnDevicePredictionModel:
             try:
                 df_copy = df.copy()
                 df_copy['symbol'] = sym
-                df_feat = self._create_features(df_copy, indicator_df)
+                df_feat = self._create_features(df_copy, indicator_df, storage, fundamentals_cache)
                 if df_feat.empty:
                     return None
                 latest = df_feat.iloc[-1:][features]
@@ -1973,14 +2014,16 @@ class OnDevicePredictionModel:
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],
                      indicator_df: Optional[pd.DataFrame] = None,
-                     symbol_to_market: Optional[Dict[str, str]] = None):
+                     symbol_to_market: Optional[Dict[str, str]] = None,
+                     storage=None,
+                     fundamentals_cache: Optional[dict] = None):
         """One-shot: compute features once, return (regression_df, surge_df).
 
         If symbol_to_market is provided, uses per-symbol market tags
         (e.g. kospi/kosdaq/konex/sp500) instead of the _is_krx_symbol heuristic.
         """
         syms, markets, feats = self._batch_compute_inference_features(
-            prices_dict, indicator_df, symbol_to_market)
+            prices_dict, indicator_df, symbol_to_market, storage, fundamentals_cache)
         res_df = self._predict_regression(syms, markets, feats, prices_dict)
         surge_df = self._predict_surge(syms, markets, feats)
         return res_df, surge_df
