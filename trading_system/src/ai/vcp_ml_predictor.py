@@ -484,7 +484,7 @@ class VCPSurgePredictor:
                 indicator_df: pd.DataFrame = None,
                 universe: pd.DataFrame = None) -> pd.DataFrame:
         """Predict VCP surge probabilities using market-specific models (batch optimized)."""
-        if not self.models:
+        if not self.models and not self.lgb_models and not self.cat_models:
             logger.warning("No VCP ML models loaded, skipping prediction")
             return pd.DataFrame()
 
@@ -512,8 +512,16 @@ class VCPSurgePredictor:
                         X_mkt = df_all.iloc[idx][feat_cols]
 
                         xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
+                        if xgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                            xgb_m = case_insensitive_get(self.models, 'KRX', {}).get(h)
+
                         lgb_m = case_insensitive_get(self.lgb_models, mkt, {}).get(h)
+                        if lgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                            lgb_m = case_insensitive_get(self.lgb_models, 'KRX', {}).get(h)
+
                         cat_m = case_insensitive_get(self.cat_models, mkt, {}).get(h)
+                        if cat_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                            cat_m = case_insensitive_get(self.cat_models, 'KRX', {}).get(h)
 
                         preds = []
                         weights = []
@@ -526,6 +534,8 @@ class VCPSurgePredictor:
                             vcp_weights = case_insensitive_get(self._ft.ensemble_weights, "surge", {})
 
                         w_mkt_dict = case_insensitive_get(vcp_weights, mkt, {})
+                        if not w_mkt_dict and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                            w_mkt_dict = case_insensitive_get(vcp_weights, 'KRX', {})
                         w_dict = w_mkt_dict.get(str(h))
                         if w_dict is None:
                             w_dict = w_mkt_dict.get(h, {})
@@ -552,6 +562,8 @@ class VCPSurgePredictor:
 
                             # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
                             calib_mkt = case_insensitive_get(self._ft.ensemble_weights.get("calibration", {}), mkt, {})
+                            if not calib_mkt and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                                calib_mkt = case_insensitive_get(self._ft.ensemble_weights.get("calibration", {}), 'KRX', {})
                             calib_dict = calib_mkt.get(str(h))
                             if calib_dict is None:
                                 calib_dict = calib_mkt.get(h, {})
@@ -601,7 +613,7 @@ class VCPSurgePredictor:
             dummy_df = pd.DataFrame(0.0, index=[0], columns=cols)
 
             # Load XGBoost models
-            for market in MARKETS:
+            for market in MARKETS + ['KRX']:
                 self.models[market] = {}
                 for h in SURGE_HORIZONS:
                     path = self.model_dir / f"vcp_surge_{market}_{h}d.json"
@@ -631,7 +643,7 @@ class VCPSurgePredictor:
                     del self.models[market]
 
             # Load LightGBM models
-            for market in MARKETS:
+            for market in MARKETS + ['KRX']:
                 self.lgb_models[market] = {}
                 for h in SURGE_HORIZONS:
                     path = self.model_dir / f"lgb_vcp_surge_{market}_{h}d.txt"
@@ -658,7 +670,7 @@ class VCPSurgePredictor:
                     del self.lgb_models[market]
 
             # Load CatBoost models
-            for market in MARKETS:
+            for market in MARKETS + ['KRX']:
                 self.cat_models[market] = {}
                 for h in SURGE_HORIZONS:
                     path = self.model_dir / f"cat_vcp_surge_{market}_{h}d.bin"

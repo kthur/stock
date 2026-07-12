@@ -438,7 +438,7 @@ class OnDevicePredictionModel:
 
             # Fallback check for missing models (compatibility block)
             if not self.models:
-                for market in ['sp500', 'krx']:
+                for market in ['sp500', 'kospi', 'kosdaq', 'konex']:
                     for h in self.horizons:
                         model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
                         if model_path.exists():
@@ -575,7 +575,7 @@ class OnDevicePredictionModel:
 
             # Fallback checks
             if not self.surge_models:
-                for market in ['sp500', 'krx']:
+                for market in ['sp500', 'kospi', 'kosdaq', 'konex']:
                     for h in self.surge_horizons:
                         model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
                         if model_path.exists():
@@ -1851,19 +1851,44 @@ class OnDevicePredictionModel:
 
                         # Apply feature scaling
                         from src.ai.feature_engineering import load_scaler, apply_scaler
-                        scaler = load_scaler(str(self.model_dir), mkt, h)
+                        scaler_mkt = mkt
+                        if mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            import os
+                            specific_exists = False
+                            for test_mkt in [mkt, mkt.lower(), mkt.upper()]:
+                                p = os.path.join(str(self.model_dir), f"scaler_{test_mkt}_{h}d.pkl")
+                                if os.path.exists(p):
+                                    specific_exists = True
+                                    scaler_mkt = test_mkt
+                                    break
+                            if not specific_exists:
+                                scaler_mkt = 'krx'
+                        scaler = load_scaler(str(self.model_dir), scaler_mkt, h)
                         X_mkt = apply_scaler(X_mkt_raw, self.ALL_FEATURES, scaler)[self.ALL_FEATURES]
 
                         xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
+                        if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            xgb_m = case_insensitive_get(self.models, 'krx', {}).get(h)
+
                         lgb_m = case_insensitive_get(self.lgb_models, mkt, {}).get(h)
+                        if lgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            lgb_m = case_insensitive_get(self.lgb_models, 'krx', {}).get(h)
+
                         cat_m = case_insensitive_get(self.cat_models, mkt, {}).get(h)
+                        if cat_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            cat_m = case_insensitive_get(self.cat_models, 'krx', {}).get(h)
+
                         lstm_m = case_insensitive_get(self.lstm_models, mkt, {}).get(h)
+                        if lstm_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            lstm_m = case_insensitive_get(self.lstm_models, 'krx', {}).get(h)
 
                         preds = []
                         weights = []
 
                         # Get dynamic weights or fallback to default
                         reg_weights = case_insensitive_get(self.ensemble_weights.get("regression", {}), mkt, {})
+                        if not reg_weights and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            reg_weights = case_insensitive_get(self.ensemble_weights.get("regression", {}), 'krx', {})
                         w_dict = reg_weights.get(str(h))
                         if w_dict is None:
                             w_dict = reg_weights.get(h, {})
@@ -1955,14 +1980,24 @@ class OnDevicePredictionModel:
                         X_mkt = df_all.iloc[idx]
 
                         xgb_m = case_insensitive_get(self.surge_models, mkt, {}).get(h)
+                        if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            xgb_m = case_insensitive_get(self.surge_models, 'krx', {}).get(h)
+
                         lgb_m = case_insensitive_get(self.surge_lgb_models, mkt, {}).get(h)
+                        if lgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            lgb_m = case_insensitive_get(self.surge_lgb_models, 'krx', {}).get(h)
+
                         cat_m = case_insensitive_get(self.surge_cat_models, mkt, {}).get(h)
+                        if cat_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            cat_m = case_insensitive_get(self.surge_cat_models, 'krx', {}).get(h)
 
                         preds = []
                         weights = []
 
                         # Get dynamic weights or fallback to default
                         surge_weights = case_insensitive_get(self.ensemble_weights.get("surge", {}), mkt, {})
+                        if not surge_weights and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            surge_weights = case_insensitive_get(self.ensemble_weights.get("surge", {}), 'krx', {})
                         w_dict = surge_weights.get(str(h))
                         if w_dict is None:
                             w_dict = surge_weights.get(h, {})
@@ -1989,6 +2024,8 @@ class OnDevicePredictionModel:
 
                             # Apply Platt Scaling calibration if coefficient metadata is present
                             calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), mkt, {})
+                            if not calib_mkt and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                                calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), 'krx', {})
                             calib_dict = calib_mkt.get(str(h))
                             if calib_dict is None:
                                 calib_dict = calib_mkt.get(h, {})
@@ -2071,18 +2108,52 @@ class OnDevicePredictionModel:
         except Exception as e:
             logger.error(f"Failed to load lead-lag matrix: {e}")
 
-    def compute_lead_lag(self, df_train: pd.DataFrame, indicator_df: Optional[pd.DataFrame] = None, lead_lag_days: int = 1):
-        """Compute lead-lag correlation matrix using top 50 symbols by market cap + global indices/sectors as potential leaders.
+    def compute_lead_lag(self, df_train: pd.DataFrame, indicator_df: Optional[pd.DataFrame] = None, lead_lag_days: int = 1, symbol_to_market: Optional[dict] = None):
+        """Compute lead-lag correlation matrix using top leaders by market cap per market + global indices/sectors as potential leaders.
 
         Uses lag-1 cross-correlation: corr(i,j) = E[ret_i[t] * ret_j[t+1]].
         For each leader i, stores top 20 followers (symbols with highest positive correlation).
         """
         import numpy as np
 
-        logger.info("Selecting top 50 leaders by market cap...")
         cap_col = 'market_cap' if 'market_cap' in df_train.columns else 'norm_market_cap'
         avg_caps = df_train.groupby('symbol')[cap_col].mean()
-        top_50_leaders = avg_caps.nlargest(50).index.tolist()
+
+        if symbol_to_market:
+            logger.info("Selecting leaders per market segment (SP500: 20, KOSPI: 20, KOSDAQ: 20, KONEX: 5)...")
+            sym_to_mkt_upper = {str(k).upper(): str(v).upper() for k, v in symbol_to_market.items()}
+            market_limits = {
+                'SP500': 20,
+                'KOSPI': 20,
+                'KOSDAQ': 20,
+                'KONEX': 5
+            }
+            market_symbols: Dict[str, list] = {mkt: [] for mkt in market_limits}
+            for sym, cap in avg_caps.items():
+                sym_upper = str(sym).upper()
+                mkt = sym_to_mkt_upper.get(sym_upper)
+                if not mkt:
+                    mkt = symbol_to_market.get(sym)
+                    if mkt:
+                        mkt = str(mkt).upper()
+                if mkt in market_symbols:
+                    market_symbols[mkt].append((sym, cap))
+
+            top_leaders = []
+            for mkt, limit in market_limits.items():
+                sym_caps = market_symbols[mkt]
+                sym_caps.sort(key=lambda x: -x[1])
+                top_leaders.extend([sym for sym, cap in sym_caps[:limit]])
+
+            if not top_leaders:
+                logger.warning("No market-specific leaders found. Falling back to global top 50.")
+                top_50_leaders = avg_caps.nlargest(50).index.tolist()
+            else:
+                top_50_leaders = top_leaders
+                logger.info(f"Selected {len(top_50_leaders)} market-segmented leaders.")
+        else:
+            logger.info("Selecting top 50 leaders globally by market cap...")
+            top_50_leaders = avg_caps.nlargest(50).index.tolist()
 
         logger.info("Computing lead-lag matrix with index/sector headers...")
         ret_pivot = df_train.pivot_table(
@@ -2196,7 +2267,7 @@ class OnDevicePredictionModel:
         follower_scores: Dict[str, float] = {}
         for leader, followers in self.lead_lag_matrix.items():
             leader_ret = today_returns.get(leader, 0.0)
-            if leader_ret <= 0.01:
+            if leader_ret <= 0.001:
                 continue
             for follower, corr in followers:
                 weight = leader_ret * corr

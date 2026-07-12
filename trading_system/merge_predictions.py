@@ -12,6 +12,7 @@ def merge_pipeline_result(result_dir: Path, target_dirs: dict[str, Path]) -> Non
     merged_path = result_dir / "pipeline_result.txt"
     print(f"Merging pipeline_result.txt -> {merged_path}")
 
+    lines_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write("=== Full Pipeline Inference Results (Merged) ===\n")
         out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
@@ -26,7 +27,13 @@ def merge_pipeline_result(result_dir: Path, target_dirs: dict[str, Path]) -> Non
             for line in content.splitlines():
                 if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols:") or not line.strip():
                     continue
+                if "데이터 없음" in line or "No data" in line:
+                    continue
                 out.write(line + "\n")
+                lines_written += 1
+
+        if lines_written == 0:
+            out.write("데이터 없음\n")
 
 def merge_ensemble_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
     merged_path = result_dir / "ensemble_predictions.txt"
@@ -47,6 +54,7 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
     if not header:
         header = f"=== Dynamic Multi-Strategy Ensemble Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
+    sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
@@ -60,13 +68,19 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
                 continue
 
             content = get_file_content(file_path)
+            if "데이터 없음" in content or "No data" in content:
+                continue
             # Extract section
             pattern = rf"(={{10,}}\s*\n\[{market}\][^\n]*\n={{10,}}\s*\n.*?)(?=\n={{10,}}\s*\n\[|\Z)"
             match = re.search(pattern, content, re.DOTALL)
             if match:
                 out.write(match.group(1).strip() + "\n\n")
+                sections_written += 1
             else:
                 print(f"  Warning: Could not extract section [{market}] from {file_path}")
+
+        if sections_written == 0:
+            out.write("데이터 없음\n")
 
 def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
     merged_path = result_dir / "surge_predictions.txt"
@@ -85,6 +99,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> N
     if not header:
         header = f"=== Surge Detection Results (>= 20% return) ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
+    sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
@@ -101,10 +116,16 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> N
                     continue
 
                 content = get_file_content(file_path)
+                if "데이터 없음" in content or "No data" in content:
+                    continue
                 pattern = rf"(={{10,}}\s*\n\[{hz}\]\s+{mkt}\s+Top[^\n]*\n={{10,}}\s*\n.*?)(?=\n={{10,}}\s*\n\[|\Z)"
                 match = re.search(pattern, content, re.DOTALL)
                 if match:
                     out.write(match.group(1).strip() + "\n\n")
+                    sections_written += 1
+
+        if sections_written == 0:
+            out.write("데이터 없음\n")
 
 def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
     merged_path = result_dir / "vcp_ml_predictions.txt"
@@ -123,6 +144,7 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> 
     if not header:
         header = f"=== VCP ML Surge Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
+    sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
@@ -139,10 +161,16 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> 
                     continue
 
                 content = get_file_content(file_path)
+                if "데이터 없음" in content or "No data" in content:
+                    continue
                 pattern = rf"(\[{hz}\]\s+{mkt}\s+TOP[^\n]*\n.*?)(?=\n\[|\Z)"
                 match = re.search(pattern, content, re.DOTALL)
                 if match:
                     out.write(match.group(1).strip() + "\n\n")
+                    sections_written += 1
+
+        if sections_written == 0:
+            out.write("데이터 없음\n")
 
 def merge_vcp_patterns(result_dir: Path, target_dirs: dict[str, Path]) -> None:
     merged_path = result_dir / "vcp_patterns.txt"
@@ -161,6 +189,8 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict[str, Path]) -> None:
             continue
 
         content = get_file_content(file_path)
+        if "데이터 없음" in content or "No data" in content:
+            continue
         # Parse date from file
         m = re.search(r"Date:\s*(.+)", content)
         if m:
@@ -179,8 +209,11 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict[str, Path]) -> None:
         out.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
         out.write(f"Date: {date_str}\n")
         out.write(f"Total VCP patterns found: {total_patterns}\n\n")
-        for sect in sections:
-            out.write(sect + "\n\n")
+        if not sections:
+            out.write("데이터 없음\n")
+        else:
+            for sect in sections:
+                out.write(sect + "\n\n")
 
 def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
     merged_path = result_dir / "lead_lag_predictions.txt"
@@ -204,6 +237,7 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
     if not header:
         header = f"=== Lead-Lag Surge Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
+    sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
@@ -216,10 +250,16 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
                 continue
 
             content = get_file_content(file_path)
+            if "데이터 없음" in content or "No data" in content:
+                continue
             pattern = rf"(--- {mkt}\s+Top\s+\d+\s*---\n.*?)(?=\n--- |\Z)"
             match = re.search(pattern, content, re.DOTALL)
             if match:
                 out.write(match.group(1).strip() + "\n\n")
+                sections_written += 1
+
+        if sections_written == 0:
+            out.write("데이터 없음\n\n")
 
         if leaders_sect:
             out.write(leaders_sect)
@@ -229,18 +269,13 @@ def main():
     result_dir = base_dir / "result"
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # We will search for target dirs under base_dir (which is trading_system/)
-    # GHA merge job runs in the root directory, so the script is at trading_system/merge_predictions.py
-    # and results are checked out / downloaded under trading_system/result_SP500/ etc.
     markets = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
     target_dirs = {}
     for m in markets:
-        # Check standard path used by download action: trading_system/result_MARKET
         path = base_dir / f"result_{m}"
         if path.exists():
             target_dirs[m] = path
         else:
-            # Fallback to result/ if files were downloaded directly into result/ (e.g. local testing)
             target_dirs[m] = result_dir
 
     print(f"Target directories identified: { {k: str(v.resolve()) for k, v in target_dirs.items()} }")

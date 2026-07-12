@@ -710,7 +710,7 @@ def execute_prediction_pipeline():
         model.load_models()
         model.load_surge_models()
         from src.ai.vcp_ml_predictor import VCPSurgePredictor
-        vcp_ml = VCPSurgePredictor()
+        vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
 
         # Verify that models are actually loaded for regression, surge, and VCP ML
         regression_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in model.lgb_models.values())
@@ -919,11 +919,11 @@ def execute_prediction_pipeline():
         # 7c. Compute lead-lag correlation matrix (which stocks follow which)
         with storage.pipeline_stage("train_lead_lag_vcp"):
             if not df_train.empty and len(df_train) > 1000:
-                model.compute_lead_lag(df_train, indicator_df=indicator_train)
+                model.compute_lead_lag(df_train, indicator_df=indicator_train, symbol_to_market=symbol_market)
 
             # 7d. Train VCP ML surge models (4 markets, parallel inside)
             from src.ai.vcp_ml_predictor import VCPSurgePredictor
-            vcp_ml = VCPSurgePredictor()
+            vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
             if train_data_dict:
                 vcp_ml.train(train_data_dict, indicator_train, universe)
 
@@ -1178,6 +1178,8 @@ def execute_prediction_pipeline():
         f.write(f"Total symbols analyzed: {len(res_df)}\n")
         f.write(f"Showing: Top {_TOP_N} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
         f.write("Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
+        if res_df.empty:
+            f.write("데이터 없음\n")
         krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
         for h in _SUMMARY_HORIZONS:
             sorted_df = res_df.sort_values(by=h, ascending=False)
@@ -1214,14 +1216,16 @@ def execute_prediction_pipeline():
         logger.error(f"Failed to save CSV/JSONL results: {e}")
 
     # Save surge detection results to separate file
-    if not surge_df.empty:
-        surge_output_path = os.path.join(result_dir, "surge_predictions.txt")
-        with open(surge_output_path, "w", encoding="utf-8") as f:
-            f.write("=== Surge Detection Results (>= 20% return) ===\n")
-            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Threshold: >= {model.surge_threshold*100:.0f}%\n")
-            f.write(f"Total symbols: {len(surge_df)}\n\n")
+    surge_output_path = os.path.join(result_dir, "surge_predictions.txt")
+    with open(surge_output_path, "w", encoding="utf-8") as f:
+        f.write("=== Surge Detection Results (>= 20% return) ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f.write(f"Threshold: >= {model.surge_threshold*100:.0f}%\n")
+        f.write(f"Total symbols: {len(surge_df)}\n\n")
 
+        if surge_df.empty:
+            f.write("데이터 없음\n")
+        else:
             # Merge name/market info
             surge_df = surge_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 
@@ -1242,8 +1246,9 @@ def execute_prediction_pipeline():
                         prob = row[col] * 100
                         f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {prob:.1f}%\n")
                     f.write("\n")
-        logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
+    logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
 
+    if not surge_df.empty:
         # [NEW] Save CSV and JSON Lines format for surge predictions
         try:
             surge_csv_path = os.path.join(result_dir, "surge_predictions.csv")
@@ -1256,18 +1261,21 @@ def execute_prediction_pipeline():
 
 
     # Save lead-lag predictions to separate file
-    if not lead_lag_df.empty:
-        lead_lag_output_path = os.path.join(result_dir, "lead_lag_predictions.txt")
-        lead_lag_df = lead_lag_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
-        # P1: clip correlation index to [0, 1] — values >1.0 indicate scaling issues
-        lead_lag_df = lead_lag_df.copy()
-        lead_lag_df['lead_lag_score'] = lead_lag_df['lead_lag_score'].clip(0.0, 1.0)
-        with open(lead_lag_output_path, "w", encoding="utf-8") as f:
-            f.write("=== Lead-Lag Surge Predictions ===\n")
-            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n")
-            f.write("Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]\n")
-            f.write("        (Higher = stronger historical co-movement with market leaders)\n\n")
+    lead_lag_output_path = os.path.join(result_dir, "lead_lag_predictions.txt")
+    with open(lead_lag_output_path, "w", encoding="utf-8") as f:
+        f.write("=== Lead-Lag Surge Predictions ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n")
+        f.write("Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]\n")
+        f.write("        (Higher = stronger historical co-movement with market leaders)\n\n")
+
+        if lead_lag_df.empty:
+            f.write("데이터 없음\n")
+        else:
+            lead_lag_df = lead_lag_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+            # P1: clip correlation index to [0, 1] — values >1.0 indicate scaling issues
+            lead_lag_df = lead_lag_df.copy()
+            lead_lag_df['lead_lag_score'] = lead_lag_df['lead_lag_score'].clip(0.0, 1.0)
             krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
             for m in krx_markets + ['SP500']:
                 m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
@@ -1302,18 +1310,21 @@ def execute_prediction_pipeline():
                     f.write(f"  {rank}. {sym} ({name}): {ret*100:+.2f}%\n")
             else:
                 f.write("  (No valid leader returns within normal range today)\n")
-        logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
+    logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
 
     # Save VCP pattern detection results
-    if vcp_results:
-        vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
-        vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
-                            universe['name'], universe['market'])}
-        krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
-        with open(vcp_output_path, "w", encoding="utf-8") as f:
-            f.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
-            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write(f"Total VCP patterns found: {len(vcp_results)}\n\n")
+    vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
+    vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
+                        universe['name'], universe['market'])}
+    krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+    with open(vcp_output_path, "w", encoding="utf-8") as f:
+        f.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f.write(f"Total VCP patterns found: {len(vcp_results)}\n\n")
+
+        if not vcp_results:
+            f.write("데이터 없음\n")
+        else:
             for m in krx_markets + ['SP500']:
                 m_results = [r for r in vcp_results if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
                 if not m_results:
@@ -1331,20 +1342,22 @@ def execute_prediction_pipeline():
                             f"Above MA200: {'✓' if r['above_sma200'] else '✗'} | "
                             f"Near high: {'✓' if r['near_high'] else '✗'} | "
                             f"Volume declining: {'✓' if r['volume_declining'] else '✗'}\n\n")
-        logger.info(f"Saved VCP patterns ({len(vcp_results)} symbols) to {vcp_output_path}")
+    logger.info(f"Saved VCP patterns ({len(vcp_results)} symbols) to {vcp_output_path}")
 
     # 10e. Run VCP ML surge predictions
     logger.info("Running VCP ML inference...")
     vcp_ml_df = pd.DataFrame()
     if vcp_ml is not None:
         vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)
-    if not vcp_ml_df.empty:
-        vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left', suffixes=('', '_univ'))
-        vcp_ml_output_path = os.path.join(result_dir, "vcp_ml_predictions.txt")
-        with open(vcp_ml_output_path, "w", encoding="utf-8") as f:
-            f.write("=== VCP ML Surge Predictions ===\n")
-            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+    vcp_ml_output_path = os.path.join(result_dir, "vcp_ml_predictions.txt")
+    with open(vcp_ml_output_path, "w", encoding="utf-8") as f:
+        f.write("=== VCP ML Surge Predictions ===\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
 
+        if vcp_ml_df.empty:
+            f.write("데이터 없음\n")
+        else:
+            vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left', suffixes=('', '_univ'))
             for h in SURGE_HORIZONS:
                 col = f'vcp_{h}d'
                 if col not in vcp_ml_df.columns:
@@ -1362,7 +1375,7 @@ def execute_prediction_pipeline():
                         prob = row[col] * 100
                         f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
                     f.write("\n")
-        logger.info(f"Saved VCP ML predictions ({len(vcp_ml_df)} symbols) to {vcp_ml_output_path}")
+    logger.info(f"Saved VCP ML predictions ({len(vcp_ml_df)} symbols) to {vcp_ml_output_path}")
 
     # 11d. Run Ensemble Scoring
     logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")
