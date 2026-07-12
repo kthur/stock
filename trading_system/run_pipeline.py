@@ -755,12 +755,29 @@ def execute_prediction_pipeline():
         if seed is not None:
             random.seed(seed)
 
-        sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(sp500_symbols))
-        krx_sample = cfg.resolve_sample_size(cfg.train_sample_krx, len(krx_symbols))
+        # Filter training sampling based on allowed INFERENCE_TARGET (OOM Fix)
+        target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
+        targets = [t.strip() for t in target_env.split(",") if t.strip()]
+
+        sp500_active = "SP500" in targets or not targets
+        kospi_active = "KOSPI" in targets or "KRX" in targets or not targets
+        kosdaq_active = "KOSDAQ" in targets or "KRX" in targets or not targets
+        konex_active = "KONEX" in targets or "KRX" in targets or not targets
+
+        active_krx_symbols = []
+        if kospi_active:
+            active_krx_symbols.extend(kospi_symbols)
+        if kosdaq_active:
+            active_krx_symbols.extend(kosdaq_symbols)
+        if konex_active:
+            active_krx_symbols.extend(konex_symbols)
+
+        sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(sp500_symbols)) if sp500_active else 0
+        krx_sample = cfg.resolve_sample_size(cfg.train_sample_krx, len(active_krx_symbols)) if active_krx_symbols else 0
 
         if cfg.debug_mode:
-            sp500_sample = min(5, sp500_sample)
-            krx_sample = min(5, krx_sample)
+            sp500_sample = min(5, sp500_sample) if sp500_active else 0
+            krx_sample = min(5, krx_sample) if active_krx_symbols else 0
             logger.info(f"[DEBUG MODE] Overriding training samples: SP500={sp500_sample}, KRX={krx_sample}")
 
         def _safe_sample(population, k):
@@ -768,9 +785,9 @@ def execute_prediction_pipeline():
                 return list(population)
             return random.sample(population, k)
 
-        train_krx_overall = _safe_sample(krx_symbols, krx_sample)
+        train_krx_overall = _safe_sample(active_krx_symbols, krx_sample) if active_krx_symbols else []
         train_krx_set = set(train_krx_overall)
-        train_symbols = _safe_sample(sp500_symbols, sp500_sample) + train_krx_overall
+        train_symbols = (_safe_sample(sp500_symbols, sp500_sample) if sp500_active else []) + train_krx_overall
 
         # Per-market breakdown for training (preserve market proportions)
         train_sp500 = [s for s in train_symbols if s in sp500_symbols]
