@@ -202,21 +202,10 @@ jobs:
 
       - name: Merge and reconstruct outputs
         run: |
-          mkdir -p trading_system/result
+          # Run python merging script to generate unified result files
+          python3 trading_system/merge_predictions.py
           
-          # Merge pipeline_result.txt
-          echo "=== Full Pipeline Inference Results (Merged) ===" > trading_system/result/pipeline_result.txt
-          echo "Date: $(date '+%Y-%m-%d %H:%M')" >> trading_system/result/pipeline_result.txt
-          echo "" >> trading_system/result/pipeline_result.txt
-          
-          for target in SP500 KOSPI KOSDAQ KONEX; do
-            file_path="trading_system/result_${target}/pipeline_result_${target}.txt"
-            if [ -f "$file_path" ]; then
-              cat "$file_path" | grep -v -E '^(===|Date:|Total symbols:)' >> trading_system/result/pipeline_result.txt || true
-            fi
-          done
-          
-          # Combine other files directly or keep both versions
+          # Keep suffix-named files for release assets download (which creation step relies on)
           cp trading_system/result_SP500/*_SP500.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSPI/*_KOSPI.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSDAQ/*_KOSDAQ.txt trading_system/result/ 2>/dev/null || true
