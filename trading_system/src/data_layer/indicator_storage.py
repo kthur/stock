@@ -383,7 +383,7 @@ class MarketIndicatorStorage:
         with sqlite3.connect(self.db_path) as conn:
             for chunk in chunks:
                 placeholders = ",".join(["?"] * len(chunk))
-                query = f"SELECT * FROM stock_fundamentals WHERE symbol IN ({placeholders}) ORDER BY symbol, date ASC"
+                query = f"SELECT * FROM stock_fundamentals WHERE symbol IN ({placeholders}) ORDER BY symbol, date ASC"  # nosec B608
                 df_chunk = pd.read_sql(query, conn, params=chunk)
                 dfs.append(df_chunk)
         return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
