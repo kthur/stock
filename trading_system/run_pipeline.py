@@ -1171,9 +1171,9 @@ def execute_prediction_pipeline():
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     _SUMMARY_HORIZONS = [h for h in [1, 5, 20, 60] if h in res_df.columns]  # Key horizons only
-    _TOP_N = 10
+    _TOP_N = 20
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write("=== Pipeline Inference Summary (TOP10 per Market) ===\n")
+        f.write("=== Pipeline Inference Summary (TOP20 per Market) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"Total symbols analyzed: {len(res_df)}\n")
         f.write(f"Showing: Top {_TOP_N} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
@@ -1368,7 +1368,7 @@ def execute_prediction_pipeline():
                         if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
                             f.write(f"[{h}일] {market} - (no symbols)\n\n")
                         continue
-                    top_n = min(10, len(m_df))
+                    top_n = min(20, len(m_df))
                     f.write(f"[{h}일] {market} TOP {top_n}\n")
                     for rank, (_, row) in enumerate(m_df.head(top_n).iterrows(), 1):
                         name = row.get('name', 'Unknown')
