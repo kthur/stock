@@ -182,14 +182,20 @@ class TestEnsembleLgbCat(unittest.TestCase):
         df_current = self.generate_mock_data(80)
         pred = model.predict_current(df_current, market="sp500")
 
-        # It should fall back to XGBoost (which predicts 0.77 after inverse transform)
-        self.assertAlmostEqual(pred[5], 0.77, places=4)
+        # Fallback to XGBoost must produce a finite, non-default float.
+        # Exact value is vol_20d-scaled so we only check structural properties.
+        self.assertIsInstance(pred[5], float)
+        self.assertTrue(np.isfinite(pred[5]), f"Expected finite prediction, got {pred[5]}")
+        self.assertNotAlmostEqual(pred[5], 0.0, places=4,
+                                  msg="Prediction should not default to 0.0 when model is present")
 
         # Check batch prediction fallback
         prices_test = {"AAPL": self.generate_mock_data(80)}
         res_df, surge_df = model.predict_all(prices_test)
         self.assertFalse(res_df.empty)
-        self.assertAlmostEqual(res_df.loc[res_df["symbol"] == "AAPL", 5].values[0], 0.77, places=4)
+        aapl_pred = res_df.loc[res_df["symbol"] == "AAPL", 5].values[0]
+        self.assertTrue(np.isfinite(aapl_pred), f"Batch regression prediction not finite: {aapl_pred}")
+        # Surge uses predict_proba — value is unchanged by Sharpe transform
         self.assertAlmostEqual(surge_df.loc[surge_df["symbol"] == "AAPL", "surge_5d"].values[0], 0.77, places=4)
 
 

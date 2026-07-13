@@ -1149,12 +1149,31 @@ class OnDevicePredictionModel:
         return df
 
     def _create_targets(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create forward returns as targets."""
+        """Create Sharpe-scaled forward returns as targets.
+
+        target_{h}d = raw_return / vol_20d  (Sharpe-scaled)
+
+        A per-symbol, horizon-independent volatility scaling is applied so that
+        KONEX small-caps and SP500 mega-caps contribute equally to model loss.
+        The raw 20-day realised volatility is stored in '_vol_scale' for use at
+        inference time when inverse-transforming predictions back to raw returns.
+        """
         df = df.copy()
         if isinstance(df.index, pd.DatetimeIndex):
             df = df.sort_index(ascending=True)
+
+        # Compute 20-day realised volatility of daily returns (min 5 obs)
+        pct_chg = df['Close'].pct_change()
+        vol_20d = pct_chg.rolling(20, min_periods=5).std()
+        # Replace zero / NaN vols with a small floor so we never divide by zero
+        vol_20d = vol_20d.replace(0.0, np.nan)
+        vol_20d = vol_20d.fillna(method='bfill').fillna(method='ffill').fillna(0.01)
+        # Store vol scale for inverse-transform at inference time
+        df['_vol_scale'] = vol_20d
+
         for h in self.horizons:
-            df[f'target_{h}d'] = df['Close'].shift(-h) / df['Close'] - 1
+            raw_ret = df['Close'].shift(-h) / df['Close'] - 1
+            df[f'target_{h}d'] = raw_ret / vol_20d
         return df
 
     def prepare_training_data(self, prices_dict: Dict[str, pd.DataFrame],
@@ -1191,8 +1210,10 @@ class OnDevicePredictionModel:
             return pd.DataFrame()
         df_merged = pd.concat(all_data, ignore_index=True)
 
-        # Clip extreme target values to prevent model bias from anomalous data
-        # (e.g. stock splits, near-zero prices, data errors)
+        # Clip extreme Sharpe-scaled target values to prevent model bias from anomalous data
+        # (e.g. stock splits, near-zero prices, data errors).
+        # Sharpe values can legitimately reach ±5–10 for short horizons, so limits are
+        # expanded from the raw-return limits (±0.5√h) to ±5√h.
         if not df_merged.empty:
             target_cols = [f'target_{h}d' for h in self.horizons if f'target_{h}d' in df_merged.columns]
             for col in target_cols:
@@ -1200,8 +1221,9 @@ class OnDevicePredictionModel:
                     h = int(col.split('_')[1].replace('d', ''))
                 except Exception:
                     h = 1
-                limit_up = 0.5 * np.sqrt(h)
-                limit_down = -0.5 * np.sqrt(h)
+                # Sharpe-scaled: ±5 * sqrt(h) covers ~5σ events over h-day horizon
+                limit_up = 5.0 * np.sqrt(h)
+                limit_down = -5.0 * np.sqrt(h)
 
                 orig_max = df_merged[col].max()
                 orig_min = df_merged[col].min()
@@ -1210,7 +1232,7 @@ class OnDevicePredictionModel:
                 clipped_min = df_merged[col].min()
                 if orig_max > limit_up or orig_min < limit_down:
                     logger.warning(
-                        f"Clipped extreme targets in {col}: "
+                        f"Clipped extreme Sharpe targets in {col}: "
                         f"range [{orig_min:.4f}, {orig_max:.4f}] -> [{clipped_min:.4f}, {clipped_max:.4f}]"
                     )
 
@@ -1244,16 +1266,22 @@ class OnDevicePredictionModel:
 
         if not X_all:
             return np.array([]), np.array([]), np.array([])
-
         X_arr = np.expand_dims(np.array(X_all), axis=-1)  # (N, seq_len, 1)
         y_arr = np.array(y_all).reshape(-1, 1)
         df_indices_arr = np.array(df_indices)
-
         return X_arr, y_arr, df_indices_arr
 
     def train(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
-        """Train XGBoost, LightGBM, and CatBoost regressors for each horizon with time-based validation."""
+        """Train XGBoost, LightGBM, and CatBoost regressors for each horizon.
+
+        Validation strategy: 5-fold Walk-Forward (TimeSeriesSplit with 20-day gap).
+        Each fold's MSE is averaged to derive stable ensemble weights.
+        The final model is retrained on the full dataset to maximise data usage.
+        """
         from src.ai.lstm_predictor import LSTMPredictor
+        from sklearn.model_selection import TimeSeriesSplit
+        from sklearn.metrics import mean_squared_error, mean_absolute_error
+
         if df_train.empty:
             logger.warning(f"Empty training data for {market}.")
             return
@@ -1264,19 +1292,31 @@ class OnDevicePredictionModel:
         kw_lgb = dict(self._lgb_kwargs)
         kw_cat = dict(self._cat_kwargs)
 
-        # Time-based validation split with Chronological Embargo (Prevent overlap leakage)
+        # Sort by date to ensure walk-forward splits are chronological
         if 'date' in df_train.columns:
-            dates = pd.to_datetime(df_train['date'])
-            cutoff = dates.quantile(0.8)
-            # Use Timedelta to leave a 20-day gap before validation starts
-            train_idx = dates <= (cutoff - pd.Timedelta(days=20))
-            val_idx = dates > cutoff
-            if val_idx.sum() < 100:
-                train_idx = pd.Series([True] * len(df_train))
-                val_idx = pd.Series([False] * len(df_train))
+            df_train = df_train.sort_values('date').reset_index(drop=True)
+
+        # ── Walk-Forward setup ──────────────────────────────────────────────
+        # Compute n_splits and gap dynamically so that sklearn's constraint is
+        # always satisfied:  n_samples - gap - test_size * n_splits > 0
+        # where test_size ≈ n // (n_splits + 1).
+        _n = len(df_train)
+        if _n >= 500:
+            n_splits, gap = 5, 20
+        elif _n >= 100:
+            # With 2 folds, test_size ≈ n//3, need n - gap - 2*(n//3) > 0
+            gap = max(1, min(20, _n // 10))
+            n_splits = 2
         else:
-            train_idx = pd.Series([True] * len(df_train))
-            val_idx = pd.Series([False] * len(df_train))
+            # Too small for walk-forward; train directly on full data
+            n_splits, gap = 0, 0
+
+        use_wf = n_splits >= 2
+        if use_wf:
+            tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+            logger.info(f"{market}: Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
+        else:
+            logger.info(f"{market}: Dataset too small for walk-forward ({_n} rows). Training on full data.")
 
         if market not in self.models:
             self.models[market] = {}
@@ -1285,162 +1325,180 @@ class OnDevicePredictionModel:
         if market not in self.cat_models:
             self.cat_models[market] = {}
 
-        from sklearn.metrics import mean_squared_error, mean_absolute_error
-
         for h in self.horizons:
             logger.info(f"Training {market} model (XGB/LGB/Cat) for {h}d horizon...")
 
-            # Apply feature scaling
+            # ── Scaler (fit on full training data once) ─────────────────────
             from src.ai.feature_engineering import fit_scaler, apply_scaler
             scaler = fit_scaler(df_train, features, str(self.model_dir), market, h)
             df_scaled = apply_scaler(df_train, features, scaler)
+            X_all = df_scaled[features]
 
-            X = df_scaled[features]
+            # ── Sharpe-aware target transform ───────────────────────────────
+            from src.ai.target_transform import transform_sharpe
+            y_all = transform_sharpe(df_train[f'target_{h}d'])
 
-            # Apply target transformation (log1p & clipping)
-            from src.ai.target_transform import transform_return
-            y = transform_return(df_train[f'target_{h}d'])
+            # ── Walk-Forward cross-validation (or skip if data too small) ─────
+            fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
+            if use_wf:
+                for fold_idx, (tr_idx, va_idx) in enumerate(tscv.split(X_all)):
+                    X_tr, y_tr = X_all.iloc[tr_idx], y_all.iloc[tr_idx]
+                    X_va, y_va = X_all.iloc[va_idx], y_all.iloc[va_idx]
 
-            X_train = X[train_idx]
-            y_train = y[train_idx]
-            X_val = X[val_idx]
-            y_val = y[val_idx]
+                    # XGBoost fold
+                    kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+                    _m_xgb = xgb.XGBRegressor(**kw_xgb)
+                    try:
+                        _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                    except Exception:
+                        _m_xgb = xgb.XGBRegressor(**kw_no_es)
+                        _m_xgb.fit(X_tr, y_tr)
+                    fold_mse_xgb.append(float(mean_squared_error(y_va, _m_xgb.predict(X_va))))
 
-            # 1. XGBoost
-            if val_idx.any() and 'early_stopping_rounds' in kw_xgb:
-                model_xgb = xgb.XGBRegressor(**kw_xgb)
-                model_xgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+                    # LightGBM fold
+                    _m_lgb = lgb.LGBMRegressor(**kw_lgb)
+                    try:
+                        _m_lgb.fit(X_tr, y_tr,
+                                   eval_set=[(X_va, y_va)],
+                                   callbacks=[lgb.early_stopping(50, verbose=False)])
+                    except Exception as ex:
+                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                            kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                            _m_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
+                            _m_lgb.fit(X_tr, y_tr)
+                        else:
+                            _m_lgb.fit(X_tr, y_tr)
+                    fold_mse_lgb.append(float(mean_squared_error(y_va, _m_lgb.predict(X_va))))
+
+                    # CatBoost fold
+                    try:
+                        _m_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
+                        _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                    except Exception as ex:
+                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                            kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
+                            _m_cat = cb.CatBoostRegressor(**kw_cat_cpu)
+                            _m_cat.fit(X_tr, y_tr, verbose=False)
+                        else:
+                            _m_cat = cb.CatBoostRegressor(**kw_cat)
+                            _m_cat.fit(X_tr, y_tr, verbose=False)
+                    fold_mse_cat.append(float(mean_squared_error(y_va, _m_cat.predict(X_va))))
+
+                    logger.debug(
+                        f"{market} {h}d fold {fold_idx+1}/{n_splits}: "
+                        f"XGB={fold_mse_xgb[-1]:.4f} LGB={fold_mse_lgb[-1]:.4f} Cat={fold_mse_cat[-1]:.4f}"
+                    )
+
+                avg_mse_xgb = float(np.mean(fold_mse_xgb))
+                avg_mse_lgb = float(np.mean(fold_mse_lgb))
+                avg_mse_cat = float(np.mean(fold_mse_cat))
+                logger.info(
+                    f"{market} {h}d WF avg MSE: XGB={avg_mse_xgb:.4f} LGB={avg_mse_lgb:.4f} Cat={avg_mse_cat:.4f}"
+                )
             else:
-                kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
-                model_xgb = xgb.XGBRegressor(**kw_no_es)
-                model_xgb.fit(X_train, y_train)
+                # No walk-forward: equal weights, no MSE estimation
+                avg_mse_xgb = avg_mse_lgb = avg_mse_cat = 1.0
+
+            # ── Final model: retrain on ALL data ────────────────────────────
+            kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+            model_xgb = xgb.XGBRegressor(**kw_no_es)
+            model_xgb.fit(X_all, y_all)
             self.models[market][h] = model_xgb
 
-            # 2. LightGBM (with GPU fallback)
-            model_lgb = lgb.LGBMRegressor(**kw_lgb)
+            model_lgb = lgb.LGBMRegressor(
+                **{k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                if self._has_gpu else kw_lgb
+            )
             try:
-                if val_idx.any():
-                    model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], callbacks=[lgb.early_stopping(50, verbose=False)])
-                else:
-                    model_lgb.fit(X_train, y_train)
+                model_lgb.fit(X_all, y_all)
             except Exception as ex:
                 if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
-                    logger.warning(f"LightGBM GPU training failed: {ex}. Falling back to CPU.")
                     kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                     model_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
-                    if val_idx.any():
-                        model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], callbacks=[lgb.early_stopping(50, verbose=False)])
-                    else:
-                        model_lgb.fit(X_train, y_train)
+                    model_lgb.fit(X_all, y_all)
                 else:
                     raise ex
             self.lgb_models[market][h] = model_lgb
 
-
-            # 3. CatBoost (with GPU fallback)
             try:
-                if val_idx.any():
-                    model_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
-                    model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-                else:
-                    model_cat = cb.CatBoostRegressor(**kw_cat)
-                    model_cat.fit(X_train, y_train, verbose=False)
+                model_cat = cb.CatBoostRegressor(**kw_cat)
+                model_cat.fit(X_all, y_all, verbose=False)
             except Exception as ex:
                 if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
-                    logger.warning(f"CatBoost GPU training failed: {ex}. Falling back to CPU.")
                     kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
-                    if val_idx.any():
-                        model_cat = cb.CatBoostRegressor(**kw_cat_cpu, early_stopping_rounds=50)
-                        model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-                    else:
-                        model_cat = cb.CatBoostRegressor(**kw_cat_cpu)
-                        model_cat.fit(X_train, y_train, verbose=False)
+                    model_cat = cb.CatBoostRegressor(**kw_cat_cpu)
+                    model_cat.fit(X_all, y_all, verbose=False)
                 else:
                     raise ex
             self.cat_models[market][h] = model_cat
 
-            # 4. PyTorch LSTM
+            # ── PyTorch LSTM (unchanged logic, uses full data) ───────────────
             if market not in self.lstm_models:
                 self.lstm_models[market] = {}
 
+            mse_lstm = 1e6
+            mae_lstm = 1e6
             lstm_predictor = LSTMPredictor(sequence_length=20, epochs=5)
-            X_all, y_all, df_indices = self._prepare_lstm_data(df_train, f'target_{h}d', seq_len=20)
-
-            if len(X_all) >= 10:
-                train_mask = train_idx.loc[df_indices].values
-                val_mask = val_idx.loc[df_indices].values
-
-                X_train_lstm = X_all[train_mask]
-                y_train_lstm = y_all[train_mask]
-                X_val_lstm = X_all[val_mask]
-                y_val_lstm = y_all[val_mask]
-
-                lstm_predictor.train_model(X_train_lstm, y_train_lstm)
+            X_lstm_all, y_lstm_all, df_lstm_idx = self._prepare_lstm_data(
+                df_train, f'target_{h}d', seq_len=20
+            )
+            if len(X_lstm_all) >= 10:
+                lstm_predictor.train_model(X_lstm_all, y_lstm_all)
                 self.lstm_models[market][h] = lstm_predictor
+                pred_lstm = lstm_predictor.predict(X_lstm_all)
+                mse_lstm = float(mean_squared_error(y_lstm_all, pred_lstm))
+                mae_lstm = float(mean_absolute_error(y_lstm_all, pred_lstm))
 
-                # Evaluate LSTM
-                X_eval_lstm = X_val_lstm if val_idx.any() else X_train_lstm
-                y_eval_lstm = y_val_lstm if val_idx.any() else y_train_lstm
-                if len(X_eval_lstm) > 0:
-                    pred_lstm = lstm_predictor.predict(X_eval_lstm)
-                    mse_lstm = float(mean_squared_error(y_eval_lstm, pred_lstm))
-                    mae_lstm = float(mean_absolute_error(y_eval_lstm, pred_lstm))
-                else:
-                    mse_lstm = 1e6
-                    mae_lstm = 1e6
-            else:
-                mse_lstm = 1e6
-                mae_lstm = 1e6
-
-            # Calculate and save validation metrics
-            X_eval = X_val if val_idx.any() else X_train
-            y_eval = y_val if val_idx.any() else y_train
-
-            pred_xgb = model_xgb.predict(X_eval)
-            pred_lgb = model_lgb.predict(X_eval)
-            pred_cat = model_cat.predict(X_eval)
-
-            mse_xgb = float(mean_squared_error(y_eval, pred_xgb))
-            mae_xgb = float(mean_absolute_error(y_eval, pred_xgb))
-
-            mse_lgb = float(mean_squared_error(y_eval, pred_lgb))
-            mae_lgb = float(mean_absolute_error(y_eval, pred_lgb))
-
-            mse_cat = float(mean_squared_error(y_eval, pred_cat))
-            mae_cat = float(mean_absolute_error(y_eval, pred_cat))
-
-            if market not in self.validation_metrics["regression"]:
-                self.validation_metrics["regression"][market] = {}
-            self.validation_metrics["regression"][market][h] = {
-                "xgb": {"mse": mse_xgb, "mae": mae_xgb},
-                "lgb": {"mse": mse_lgb, "mae": mae_lgb},
-                "cat": {"mse": mse_cat, "mae": mae_cat},
-                "lstm": {"mse": mse_lstm, "mae": mae_lstm}
-            }
-
-            # Calculate validation weights (proportional to 1/MSE)
+            # ── Ensemble weights from walk-forward averaged MSE ─────────────
             use_lstm = mse_lstm < 1e5
-            sum_inv_mse = (1.0 / max(mse_xgb, 1e-6)) + (1.0 / max(mse_lgb, 1e-6)) + (1.0 / max(mse_cat, 1e-6))
+            sum_inv_mse = (
+                (1.0 / max(avg_mse_xgb, 1e-6))
+                + (1.0 / max(avg_mse_lgb, 1e-6))
+                + (1.0 / max(avg_mse_cat, 1e-6))
+            )
             if use_lstm:
                 sum_inv_mse += (1.0 / max(mse_lstm, 1e-6))
 
-            w_xgb = (1.0 / max(mse_xgb, 1e-6)) / sum_inv_mse
-            w_lgb = (1.0 / max(mse_lgb, 1e-6)) / sum_inv_mse
-            w_cat = (1.0 / max(mse_cat, 1e-6)) / sum_inv_mse
+            w_xgb = (1.0 / max(avg_mse_xgb, 1e-6)) / sum_inv_mse
+            w_lgb = (1.0 / max(avg_mse_lgb, 1e-6)) / sum_inv_mse
+            w_cat = (1.0 / max(avg_mse_cat, 1e-6)) / sum_inv_mse
             w_lstm = ((1.0 / max(mse_lstm, 1e-6)) / sum_inv_mse) if use_lstm else 0.0
+
+            # Evaluate final model on last fold's val set (only if WF ran)
+            if market not in self.validation_metrics["regression"]:
+                self.validation_metrics["regression"][market] = {}
+            if use_wf:
+                last_tr_idx, last_va_idx = list(tscv.split(X_all))[-1]
+                X_eval = X_all.iloc[last_va_idx]
+                y_eval = y_all.iloc[last_va_idx]
+                self.validation_metrics["regression"][market][h] = {
+                    "xgb": {"wf_mse": avg_mse_xgb, "mae": float(mean_absolute_error(y_eval, model_xgb.predict(X_eval)))},
+                    "lgb": {"wf_mse": avg_mse_lgb, "mae": float(mean_absolute_error(y_eval, model_lgb.predict(X_eval)))},
+                    "cat": {"wf_mse": avg_mse_cat, "mae": float(mean_absolute_error(y_eval, model_cat.predict(X_eval)))},
+                    "lstm": {"mse": mse_lstm, "mae": mae_lstm},
+                    "n_folds": n_splits,
+                }
+            else:
+                self.validation_metrics["regression"][market][h] = {
+                    "xgb": {"wf_mse": None, "mae": None},
+                    "lgb": {"wf_mse": None, "mae": None},
+                    "cat": {"wf_mse": None, "mae": None},
+                    "lstm": {"mse": mse_lstm, "mae": mae_lstm},
+                    "n_folds": 0,
+                }
 
             if "regression" not in self.ensemble_weights:
                 self.ensemble_weights["regression"] = {}
             if market not in self.ensemble_weights["regression"]:
                 self.ensemble_weights["regression"][market] = {}
             self.ensemble_weights["regression"][market][str(h)] = {
-                "xgb": w_xgb,
-                "lgb": w_lgb,
-                "cat": w_cat,
-                "lstm": w_lstm
+                "xgb": w_xgb, "lgb": w_lgb, "cat": w_cat, "lstm": w_lstm
             }
 
-            logger.info(f"{market} models for {h}d trained (train={train_idx.sum()}, val={val_idx.sum()}).")
+            logger.info(
+                f"{market} {h}d trained on full {len(df_train)} rows. "
+                f"WF weights: XGB={w_xgb:.3f} LGB={w_lgb:.3f} Cat={w_cat:.3f} LSTM={w_lstm:.3f}"
+            )
 
         # Save validation metrics and weights to file
         try:
@@ -1456,7 +1514,12 @@ class OnDevicePredictionModel:
             self.save_models()
 
     def train_surge(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
-        """Train XGBoost, LightGBM, and CatBoost classifiers for surge detection (>=20% return)."""
+        """Train XGBoost, LightGBM, and CatBoost classifiers for surge detection.
+
+        Validation strategy: 5-fold Walk-Forward (TimeSeriesSplit with 20-day gap).
+        AUC is averaged across folds to derive stable ensemble weights.
+        The final model is retrained on the full dataset.
+        """
         if df_train.empty:
             logger.warning(f"Empty training data for surge {market}.")
             return
@@ -1472,18 +1535,28 @@ class OnDevicePredictionModel:
         kw_lgb = dict(self._surge_lgb_kwargs)
         kw_cat = dict(self._surge_cat_kwargs)
 
-        # Time-based validation split (last 20%)
+        # Sort by date to ensure walk-forward splits are chronological
         if 'date' in df_train.columns:
-            dates = pd.to_datetime(df_train['date'])
-            cutoff = dates.quantile(0.8)
-            train_idx = dates <= cutoff
-            val_idx = dates > cutoff
-            if val_idx.sum() < 100:
-                train_idx = pd.Series([True] * len(df_train))
-                val_idx = pd.Series([False] * len(df_train))
+            df_train = df_train.sort_values('date').reset_index(drop=True)
+
+        # Walk-Forward setup
+        from sklearn.model_selection import TimeSeriesSplit
+        _n = len(df_train)
+        if _n >= 500:
+            n_splits, gap = 5, 20
+        elif _n >= 100:
+            gap = max(1, min(20, _n // 10))
+            n_splits = 2
         else:
-            train_idx = pd.Series([True] * len(df_train))
-            val_idx = pd.Series([False] * len(df_train))
+            n_splits, gap = 0, 0
+
+        use_wf = n_splits >= 2
+        if use_wf:
+            tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+            logger.info(f"{market} surge: Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
+        else:
+            logger.info(f"{market} surge: Dataset too small for walk-forward ({_n} rows). Training on full data.")
+
 
         if market not in self.surge_models:
             self.surge_models[market] = {}
@@ -1492,7 +1565,7 @@ class OnDevicePredictionModel:
         if market not in self.surge_cat_models:
             self.surge_cat_models[market] = {}
 
-        from sklearn.metrics import roc_auc_score, accuracy_score
+        from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 
         for h in self.surge_horizons:
             target_col = f'target_{h}d'
@@ -1508,6 +1581,7 @@ class OnDevicePredictionModel:
 
             logger.info(f"Training surge model (XGB/LGB/Cat) for {market} {h}d horizon...")
             X = df_train[features]
+            # Surge label uses raw return thresholded (not Sharpe-scaled)
             target = (df_train[target_col] >= self.surge_threshold).astype(int)
             pos_count = target.sum()
             neg_count = len(target) - pos_count
@@ -1520,150 +1594,156 @@ class OnDevicePredictionModel:
             kw_xgb['scale_pos_weight'] = scale_pos_weight
             kw_lgb['scale_pos_weight'] = scale_pos_weight
             kw_cat['scale_pos_weight'] = scale_pos_weight
-
             logger.info(f"Surge {market} {h}d: {pos_count} positive / {neg_count} negative (scale={scale_pos_weight:.1f})")
 
-            X_train = X[train_idx]
-            y_train = target[train_idx]
-            X_val = X[val_idx]
-            y_val = target[val_idx]
+            # Walk-Forward cross-validation
+            fold_auc_xgb, fold_auc_lgb, fold_auc_cat = [], [], []
+            for fold_idx, (tr_idx, va_idx) in enumerate(tscv.split(X)):
+                X_tr, y_tr = X.iloc[tr_idx], target.iloc[tr_idx]
+                X_va, y_va = X.iloc[va_idx], target.iloc[va_idx]
+                if y_tr.sum() == 0 or y_va.sum() == 0:
+                    logger.debug(f"{market} {h}d fold {fold_idx+1}: no positive samples in split, skipping.")
+                    continue
 
-            # Nested Validation Split: Sub-divide val_idx into alpha (weights) and beta (calibration/thresholds)
-            if 'date' in df_train.columns and val_idx.sum() >= 100:
-                val_dates = pd.to_datetime(df_train.loc[val_idx, 'date'])
-                val_mid = val_dates.quantile(0.5)
-                val_alpha_idx = val_idx & (pd.to_datetime(df_train['date']) <= val_mid)
-                val_beta_idx = val_idx & (pd.to_datetime(df_train['date']) > val_mid)
-            else:
-                val_alpha_idx = val_idx
-                val_beta_idx = val_idx
-
-            # 1. XGBoost
-            if val_idx.any() and 'early_stopping_rounds' in kw_xgb:
-                model_xgb = xgb.XGBClassifier(**kw_xgb)
-                model_xgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-            else:
                 kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
-                model_xgb = xgb.XGBClassifier(**kw_no_es)
-                model_xgb.fit(X_train, y_train)
+                _m_xgb = xgb.XGBClassifier(**kw_xgb)
+                try:
+                    _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                except Exception:
+                    _m_xgb = xgb.XGBClassifier(**kw_no_es)
+                    _m_xgb.fit(X_tr, y_tr)
+                try:
+                    fold_auc_xgb.append(float(roc_auc_score(y_va, _m_xgb.predict_proba(X_va)[:, 1])))
+                except Exception:
+                    fold_auc_xgb.append(0.5)
+
+                _m_lgb = lgb.LGBMClassifier(**kw_lgb)
+                try:
+                    _m_lgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)],
+                               eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
+                except Exception as ex:
+                    if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                        kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                        _m_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
+                    _m_lgb.fit(X_tr, y_tr)
+                try:
+                    fold_auc_lgb.append(float(roc_auc_score(y_va, _m_lgb.predict_proba(X_va)[:, 1])))
+                except Exception:
+                    fold_auc_lgb.append(0.5)
+
+                try:
+                    _m_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
+                    _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                except Exception as ex:
+                    if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                        kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
+                        _m_cat = cb.CatBoostClassifier(**kw_cat_cpu)
+                    else:
+                        _m_cat = cb.CatBoostClassifier(**kw_cat)
+                    _m_cat.fit(X_tr, y_tr, verbose=False)
+                try:
+                    fold_auc_cat.append(float(roc_auc_score(y_va, _m_cat.predict_proba(X_va)[:, 1])))
+                except Exception:
+                    fold_auc_cat.append(0.5)
+
+                logger.debug(
+                    f"{market} {h}d surge fold {fold_idx+1}/{n_splits}: "
+                    f"XGB={fold_auc_xgb[-1]:.4f} LGB={fold_auc_lgb[-1]:.4f} Cat={fold_auc_cat[-1]:.4f}"
+                )
+
+            avg_auc_xgb = float(np.mean(fold_auc_xgb)) if fold_auc_xgb else 0.5
+            avg_auc_lgb = float(np.mean(fold_auc_lgb)) if fold_auc_lgb else 0.5
+            avg_auc_cat = float(np.mean(fold_auc_cat)) if fold_auc_cat else 0.5
+            logger.info(
+                f"{market} {h}d surge WF avg AUC: XGB={avg_auc_xgb:.4f} LGB={avg_auc_lgb:.4f} Cat={avg_auc_cat:.4f}"
+            )
+
+            # Final models: retrain on ALL data
+            kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+            model_xgb = xgb.XGBClassifier(**kw_no_es)
+            model_xgb.fit(X, target)
             self.surge_models[market][h] = model_xgb
 
-            # 2. LightGBM (with GPU fallback)
             model_lgb = lgb.LGBMClassifier(**kw_lgb)
             try:
-                if val_idx.any():
-                    model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
-                else:
-                    model_lgb.fit(X_train, y_train)
+                model_lgb.fit(X, target)
             except Exception as ex:
                 if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
-                    logger.warning(f"LightGBM GPU surge training failed: {ex}. Falling back to CPU.")
                     kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                     model_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
-                    if val_idx.any():
-                        model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
-                    else:
-                        model_lgb.fit(X_train, y_train)
+                    model_lgb.fit(X, target)
                 else:
                     raise ex
             self.surge_lgb_models[market][h] = model_lgb
 
-            # 3. CatBoost (with GPU fallback)
             try:
-                if val_idx.any():
-                    model_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
-                    model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-                else:
-                    model_cat = cb.CatBoostClassifier(**kw_cat)
-                    model_cat.fit(X_train, y_train, verbose=False)
+                model_cat = cb.CatBoostClassifier(**kw_cat)
+                model_cat.fit(X, target, verbose=False)
             except Exception as ex:
                 if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
-                    logger.warning(f"CatBoost GPU surge training failed: {ex}. Falling back to CPU.")
                     kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
-                    if val_idx.any():
-                        model_cat = cb.CatBoostClassifier(**kw_cat_cpu, early_stopping_rounds=50)
-                        model_cat.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
-                    else:
-                        model_cat = cb.CatBoostClassifier(**kw_cat_cpu)
-                        model_cat.fit(X_train, y_train, verbose=False)
+                    model_cat = cb.CatBoostClassifier(**kw_cat_cpu)
+                    model_cat.fit(X, target, verbose=False)
                 else:
                     raise ex
             self.surge_cat_models[market][h] = model_cat
 
-            # Calculate validation weights on val_alpha_idx (Ensemble optimization set)
-            X_eval = X[val_alpha_idx] if val_alpha_idx.any() else X_train
-            y_eval = target[val_alpha_idx] if val_alpha_idx.any() else y_train
+            # Ensemble weights from walk-forward averaged AUC
+            def norm_auc(a: float) -> float:
+                return max(a - 0.45, 0.05)
 
-            # Separate dataset for Calibration & Threshold search on val_beta_idx (Calibration set)
-            X_calib_eval = X[val_beta_idx] if val_beta_idx.any() else X_train
-            y_calib_eval = target[val_beta_idx] if val_beta_idx.any() else y_train
+            w_xgb_s = norm_auc(avg_auc_xgb)
+            w_lgb_s = norm_auc(avg_auc_lgb)
+            w_cat_s = norm_auc(avg_auc_cat)
+            sum_w = w_xgb_s + w_lgb_s + w_cat_s
+            w_xgb_s /= sum_w
+            w_lgb_s /= sum_w
+            w_cat_s /= sum_w
 
-            def get_clf_metrics(m, X_e, y_e):
-                probs = m.predict_proba(X_e)[:, 1]
-                preds = m.predict(X_e)
-                try:
-                    auc = float(roc_auc_score(y_e, probs))
-                except Exception:
-                    auc = 0.5
-                acc = float(accuracy_score(y_e, preds))
-                return auc, acc
-
-            auc_xgb, acc_xgb = get_clf_metrics(model_xgb, X_eval, y_eval)
-            auc_lgb, acc_lgb = get_clf_metrics(model_lgb, X_eval, y_eval)
-            auc_cat, acc_cat = get_clf_metrics(model_cat, X_eval, y_eval)
+            # Calibration & threshold on last fold's val set
+            last_tr_idx, last_va_idx = list(tscv.split(X))[-1]
+            X_calib_eval = X.iloc[last_va_idx]
+            y_calib_eval = target.iloc[last_va_idx]
 
             if market not in self.validation_metrics["surge"]:
                 self.validation_metrics["surge"][market] = {}
             self.validation_metrics["surge"][market][h] = {
-                "xgb": {"auc": auc_xgb, "accuracy": acc_xgb},
-                "lgb": {"auc": auc_lgb, "accuracy": acc_lgb},
-                "cat": {"auc": auc_cat, "accuracy": acc_cat}
+                "xgb": {"wf_auc": avg_auc_xgb},
+                "lgb": {"wf_auc": avg_auc_lgb},
+                "cat": {"wf_auc": avg_auc_cat},
+                "n_folds": n_splits,
             }
-
-            # Calculate validation weights (proportional to max(auc - 0.45, 0.05))
-            def norm_auc(a):
-                return max(a - 0.45, 0.05)
-
-            w_xgb = norm_auc(auc_xgb)
-            w_lgb = norm_auc(auc_lgb)
-            w_cat = norm_auc(auc_cat)
-            sum_w = w_xgb + w_lgb + w_cat
-            w_xgb /= sum_w
-            w_lgb /= sum_w
-            w_cat /= sum_w
 
             if "surge" not in self.ensemble_weights:
                 self.ensemble_weights["surge"] = {}
             if market not in self.ensemble_weights["surge"]:
                 self.ensemble_weights["surge"][market] = {}
             self.ensemble_weights["surge"][market][str(h)] = {
-                "xgb": w_xgb,
-                "lgb": w_lgb,
-                "cat": w_cat
+                "xgb": w_xgb_s, "lgb": w_lgb_s, "cat": w_cat_s
             }
 
-            # Dynamic Threshold tuning (optimizing F1 score on independent calibration validation set: val_beta_idx)
-            from sklearn.metrics import f1_score
+            # Platt Scaling Calibration & threshold tuning on last fold's val set
             probs_xgb = model_xgb.predict_proba(X_calib_eval)[:, 1]
             probs_lgb = model_lgb.predict_proba(X_calib_eval)[:, 1]
             probs_cat = model_cat.predict_proba(X_calib_eval)[:, 1]
+            blend_probs = w_xgb_s * probs_xgb + w_lgb_s * probs_lgb + w_cat_s * probs_cat
 
-            # Platt Scaling Calibration: Fit a simple LogisticRegression to calibrate the ensemble probs on calibration set
-            blend_probs = w_xgb * probs_xgb + w_lgb * probs_lgb + w_cat * probs_cat
             from sklearn.linear_model import LogisticRegression
             calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
-            # Reshape for logistic regression
-            X_calib = blend_probs.reshape(-1, 1)
             try:
-                calibration_model.fit(X_calib, y_calib_eval)
-                calibrated_probs = calibration_model.predict_proba(X_calib)[:, 1]
-                logger.info(f"Fitted Platt scaling calibration model for {market} {h}d. Prob limits: {calibrated_probs.min():.4f} - {calibrated_probs.max():.4f}")
+                calibration_model.fit(blend_probs.reshape(-1, 1), y_calib_eval)
+                calibrated_probs = calibration_model.predict_proba(
+                    blend_probs.reshape(-1, 1)
+                )[:, 1]
+                logger.info(
+                    f"Platt calibration for {market} {h}d. Prob range: "
+                    f"{calibrated_probs.min():.4f} - {calibrated_probs.max():.4f}"
+                )
             except Exception as calib_err:
-                logger.warning(f"Calibration fitting failed: {calib_err}. Falling back to uncalibrated probabilities.")
+                logger.warning(f"Calibration fitting failed: {calib_err}. Using uncalibrated probs.")
                 calibrated_probs = blend_probs
                 calibration_model = None
 
-            # Save the calibration coefficients if successful
             if calibration_model is not None:
                 if "calibration" not in self.ensemble_weights:
                     self.ensemble_weights["calibration"] = {}
@@ -1674,10 +1754,9 @@ class OnDevicePredictionModel:
                     "intercept": float(calibration_model.intercept_[0])
                 }
 
-            best_th = 0.20  # default fallback
+            best_th = 0.20
             best_f1 = -1.0
-            thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
-            for th in thresholds:
+            for th in [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]:
                 pred_binary = (calibrated_probs >= th).astype(int)
                 score_f1 = f1_score(y_calib_eval, pred_binary, zero_division=0)
                 if score_f1 > best_f1:
@@ -1687,7 +1766,10 @@ class OnDevicePredictionModel:
             if market not in self.optimal_thresholds:
                 self.optimal_thresholds[market] = {}
             self.optimal_thresholds[market][h] = float(best_th)
-            logger.info(f"Optimal threshold for {market} {h}d: {best_th:.2f} (best validation F1: {best_f1:.4f})")
+            logger.info(
+                f"{market} {h}d surge: optimal threshold={best_th:.2f} (F1={best_f1:.4f}), "
+                f"WF weights XGB={w_xgb_s:.3f} LGB={w_lgb_s:.3f} Cat={w_cat_s:.3f}"
+            )
 
         # Save validation metrics, weights and thresholds to file
         try:
@@ -1765,9 +1847,15 @@ class OnDevicePredictionModel:
                 if preds:
                     total_w = sum(weights)
                     pred = sum(p * (w / total_w) for p, w in zip(preds, weights))
-                    # Inverse target transform from log1p scale back to normal expected returns
-                    from src.ai.target_transform import inverse_transform
-                    pred = float(inverse_transform(pd.Series([pred])).iloc[0])
+                    # Inverse-transform Sharpe-scaled prediction back to raw return
+                    from src.ai.target_transform import inverse_transform_sharpe
+                    vol_val = float(latest['vol_20d'].iloc[0]) if 'vol_20d' in latest.columns else 0.01
+                    pred = float(
+                        inverse_transform_sharpe(
+                            pd.Series([pred]),
+                            pd.Series([vol_val])
+                        ).iloc[0]
+                    )
                 else:
                     pred = 0.0
                     logger.warning(f"Prediction for market={market}, horizon={h} defaulted to 0.0 due to missing models.")
@@ -1935,9 +2023,18 @@ class OnDevicePredictionModel:
                             for p, w in zip(preds, weights):
                                 blend_pred += p * (w / total_w)
 
-                            # Inverse target transform from log1p scale back to normal expected returns
-                            from src.ai.target_transform import inverse_transform
-                            blend_pred_inv = inverse_transform(pd.Series(blend_pred)).values
+                            # Inverse-transform Sharpe-scaled prediction back to raw expected return:
+                            # 1) sign*log1p(|x|) → Sharpe value
+                            # 2) Sharpe * vol_20d → raw return
+                            from src.ai.target_transform import inverse_transform_sharpe
+                            # vol_20d is in ALL_FEATURES; retrieve from unscaled feature matrix
+                            if 'vol_20d' in X_mkt_raw.columns:
+                                vol_scale = X_mkt_raw['vol_20d'].reset_index(drop=True)
+                            else:
+                                vol_scale = pd.Series(0.01, index=range(len(idx)))
+                            blend_pred_inv = inverse_transform_sharpe(
+                                pd.Series(blend_pred), vol_scale
+                            ).values
                             res_df.loc[idx, h] = blend_pred_inv
                         else:
                             res_df.loc[idx, h] = 0.0
