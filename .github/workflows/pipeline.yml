@@ -48,27 +48,27 @@ jobs:
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          key: stock-prices-v1-${{ steps.date.outputs.date }}
+          key: stock-prices-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            stock-prices-v1-
+            stock-prices-db-
 
       - name: Cache market_indicators.db
         uses: actions/cache@v4
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: indicators-v1-${{ steps.date.outputs.date }}
+          key: market-indicators-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            indicators-v1-
+            market-indicators-db-
 
       - name: Cache AI models (Restore only)
         uses: actions/cache/restore@v4
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-v2-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          key: ai-models-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
-            ai-models-v2-${{ matrix.target }}-
+            ai-models-${{ matrix.target }}-
 
       - name: Run prediction pipeline for ${{ matrix.target }}
         id: run

@@ -1,5 +1,5 @@
 === VCP ML Surge Predictions ===
-Date: 2026-07-05 11:45
+Date: 2026-07-13 21:48
 
 [1일] KOSPI TOP 1
   1. [KOSPI] 005930 (Samsung Electronics): 0.2%
@@ -11,8 +11,8 @@ Date: 2026-07-05 11:45
   1. [KONEX] 207940 (Samsung BioLogics): 0.4%
 
 [1일] SP500 TOP 2
-  1. [SP500] MSFT (Microsoft Corp.): 0.0%
-  2. [SP500] AAPL (Apple Inc.): 0.0%
+  1. [SP500] AAPL (Apple Inc.): 17.2%
+  2. [SP500] MSFT (Microsoft Corp.): 17.2%
 
 [3일] KOSPI TOP 1
   1. [KOSPI] 005930 (Samsung Electronics): 0.8%
@@ -37,8 +37,8 @@ Date: 2026-07-05 11:45
   1. [KONEX] 207940 (Samsung BioLogics): 2.5%
 
 [5일] SP500 TOP 2
-  1. [SP500] MSFT (Microsoft Corp.): 0.1%
-  2. [SP500] AAPL (Apple Inc.): 0.1%
+  1. [SP500] MSFT (Microsoft Corp.): 34.5%
+  2. [SP500] AAPL (Apple Inc.): 33.9%
 
 [20일] KOSPI TOP 1
   1. [KOSPI] 005930 (Samsung Electronics): 8.5%
@@ -50,6 +50,6 @@ Date: 2026-07-05 11:45
   1. [KONEX] 207940 (Samsung BioLogics): 14.0%
 
 [20일] SP500 TOP 2
-  1. [SP500] AAPL (Apple Inc.): 0.2%
-  2. [SP500] MSFT (Microsoft Corp.): 0.2%
+  1. [SP500] AAPL (Apple Inc.): 65.4%
+  2. [SP500] MSFT (Microsoft Corp.): 65.3%
 

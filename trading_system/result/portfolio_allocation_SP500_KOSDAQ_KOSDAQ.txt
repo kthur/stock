@@ -1,5 +1,5 @@
 === Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===
-Date: 2026-07-03 13:29
+Date: 2026-07-03 15:12
 Total Capital: 1,000,000,000 KRW/USD
 Target Horizon: 20d
 

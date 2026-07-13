@@ -12,10 +12,11 @@ concurrency:
 jobs:
   run-training:
     runs-on: ubuntu-latest
-    # Single job trains all 4 markets sequentially and saves ONE unified model cache.
-    # Previously 4 matrix jobs each saved a partial cache (their own market only),
-    # making it impossible for the daily pipeline to restore a complete model set.
-    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [SP500, KOSPI, KOSDAQ, KONEX]
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
@@ -44,28 +45,27 @@ jobs:
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          key: stock-prices-v1-${{ steps.date.outputs.date }}
+          key: stock-prices-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            stock-prices-v1-
+            stock-prices-db-
 
       - name: Cache market_indicators.db (Restore and Save)
         uses: actions/cache@v4
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: indicators-v1-${{ steps.date.outputs.date }}
+          key: market-indicators-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            indicators-v1-
+            market-indicators-db-
 
-      - name: Cache AI models (Save unified cache after full training)
+      - name: Cache AI models (Save after training)
         uses: actions/cache@v4
         id: models-cache
         with:
           path: trading_system/models
-          # Key matches what pipeline.yml restores: ai-models-v2-<date>
-          key: ai-models-v2-${{ steps.date.outputs.date }}
+          key: ai-models-${{ matrix.target }}-${{ steps.date.outputs.date }}
 
-      - name: Run training pipeline (all markets)
+      - name: Run training pipeline for ${{ matrix.target }}
         id: run
         env:
           DB_PATH: market_indicators.db
@@ -76,6 +76,7 @@ jobs:
           TRAIN_START_DATE: '2006-01-01'
           TRAIN_SEED: '42'
           UPDATE_INTERVAL: '0'
+          INFERENCE_TARGET: ${{ matrix.target }}
           BROKER_TYPE: DUMMY
           MOCK_TRADING_ENABLED: 'True'
           DEBUG_MODE: 'False'
@@ -93,28 +94,20 @@ jobs:
           STATUS="${{ steps.run.outcome }}"
           ICON="✅"
           [ "$STATUS" != "success" ] && ICON="❌"
-          echo "## ${ICON} Model Training (All Markets)" >> $GITHUB_STEP_SUMMARY
+          echo "## ${ICON} Model Training: ${{ matrix.target }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### ⚙️ 실행 정보" >> $GITHUB_STEP_SUMMARY
           echo "| 항목 | 값 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| 학습 대상 | SP500 / KOSPI / KOSDAQ / KONEX (전체) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 학습 대상 | ${{ matrix.target }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 상태 | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
           echo "| 실행 일시 | $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST') |" >> $GITHUB_STEP_SUMMARY
           echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📁 생성된 모델 현황" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 생성된 모델 수" >> $GITHUB_STEP_SUMMARY
           if [ -d "trading_system/models" ]; then
             COUNT=$(ls -1 trading_system/models | wc -l)
-            echo "학습 완료 후 총 **${COUNT}**개의 모델 파일이 통합 캐시로 저장되었습니다." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| 모델 종류 | 파일 수 |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|---------|" >> $GITHUB_STEP_SUMMARY
-            echo "| XGBoost 회귀 | $(ls trading_system/models/xgb_model_*.json 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
-            echo "| XGBoost Surge | $(ls trading_system/models/xgb_surge_model_*.json 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
-            echo "| LightGBM 회귀 | $(ls trading_system/models/lgb_model_*.txt 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
-            echo "| LightGBM Surge | $(ls trading_system/models/lgb_surge_model_*.txt 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
-            echo "| VCP ML | $(ls trading_system/models/*vcp_surge* 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
+            echo "학습 완료 후 총 **${COUNT}**개의 모델 파일이 디렉토리에 저장되어 캐싱되었습니다." >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️ 모델 폴더가 생성되지 않았습니다." >> $GITHUB_STEP_SUMMARY
           fi
@@ -127,7 +120,7 @@ jobs:
           if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
             RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             MSG="🚨 *[CRITICAL] GHA Training Pipeline Failed*%0A%0A"
-            MSG+="*Market:* ALL (SP500 / KOSPI / KOSDAQ / KONEX)%0A"
+            MSG+="*Market:* ${{ matrix.target }}%0A"
             MSG+="*Status:* ${{ steps.run.outcome }}%0A"
             MSG+="*Time:* $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')%0A%0A"
             MSG+="*Run URL:* ${RUN_URL}"

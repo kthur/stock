@@ -1,10 +1,10 @@
 # Project Context Log
 
 ## Current Status
-- Initializing the Project Orchestrator for the Phase 4 Trading System Upgrade.
+- Initializing the Project Orchestrator for the codebase audit task.
 - Workspace root: `d:\Finance\code\stock`
-- Target code directory: `d:\Finance\code\stock\trading_system`
+- Target code directories: `d:\Finance\code\stock\src`, `d:\Finance\code\stock\trading_system`, `d:\Finance\code\stock\.github\workflows`
 
 ## Active Tasks
 - Initializing plan and scheduling heartbeat.
-- Preparing to spawn Explorer to check codebase state and test suite failures.
+- Preparing to spawn Explorer to analyze the codebase for the 5 specified audit areas.

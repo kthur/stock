@@ -1,32 +1,32 @@
-# BRIEFING — 2026-06-20T07:30:42Z
+# BRIEFING — 2026-07-12T15:19:30Z
 
 ## Mission
-Improve stock trading system model prediction accuracy with feature engineering, Optuna, and LightGBM/CatBoost, ensuring compatibility and stability.
+Coordinate and monitor the diagnosis and fixing of 4 strategy output quality bugs in the stock prediction pipeline.
 
 ## 🔒 My Identity
 - Archetype: sentinel
 - Working directory: d:\Finance\code\stock\.agents\sentinel
-- Orchestrator: 12027c69-c91d-4bba-8c5f-687face6cd69
-- Victory Auditor: 781561f3-12fa-486b-8baa-ca210fb4fd6a
+- Orchestrator: fadad719-01c9-42dd-b9dc-faee4d9378c0
+- Victory Auditor: TBD
 
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
 
 ## User Context
-- **Last user request**: Improve prediction accuracy using feature engineering, LightGBM/CatBoost, automated hyperparameter tuning (Optuna), and stability controls while passing all tests.
+- **Last user request**: Diagnose and fix all 4 strategy output quality bugs (Surge = 0% KRX, Lead-Lag KRX missing, VCP ML empty, Ensemble all 0% KRX) in the stock prediction pipeline, ensuring >20 non-zero predictions for each strategy.
 - **Pending clarifications**: none
-- **Delivered results**: Feature engineering, LightGBM/CatBoost integration, Optuna tuning script, rate-limiting & retry stability controls implemented and verified. All 364 tests pass.
+- **Delivered results**: none
 
 ## Project Status
-- **Phase**: complete
+- **Phase**: in progress
 
 ## Victory Audit Status
-- **Triggered**: yes
-- **Verdict**: VICTORY CONFIRMED
+- **Triggered**: no
+- **Verdict**: pending
 - **Retry count**: 0
 
 ## Artifact Index
 - d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md — Authoritative record of user requests
 - d:\Finance\code\stock\.agents\sentinel\BRIEFING.md — Persistent working memory of Sentinel
-- d:\Finance\code\stock\.agents\sentinel\handoff.md — Final handoff report
+- d:\Finance\code\stock\.agents\sentinel\handoff.md — Handoff report

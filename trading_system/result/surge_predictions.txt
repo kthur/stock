@@ -1,5 +1,5 @@
 === Surge Detection Results (>= 20% return) ===
-Date: 2026-07-05 11:45
+Date: 2026-07-13 21:48
 Threshold: >= 20%
 Total symbols: 5
 
@@ -21,8 +21,8 @@ Total symbols: 5
 ============================================================
 [1일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] AAPL (Apple Inc.): 0.0%
-  2. [SP500] MSFT (Microsoft Corp.): 0.0%
+  1. [SP500] MSFT (Microsoft Corp.): 25.1%
+  2. [SP500] AAPL (Apple Inc.): 25.1%
 
 ============================================================
 [3일] KOSPI Top 20 Surge Candidates
@@ -63,8 +63,8 @@ Total symbols: 5
 ============================================================
 [5일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] MSFT (Microsoft Corp.): 0.1%
-  2. [SP500] AAPL (Apple Inc.): 0.0%
+  1. [SP500] MSFT (Microsoft Corp.): 27.5%
+  2. [SP500] AAPL (Apple Inc.): 27.5%
 
 ============================================================
 [20일] KOSPI Top 20 Surge Candidates
@@ -84,6 +84,6 @@ Total symbols: 5
 ============================================================
 [20일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] MSFT (Microsoft Corp.): 0.5%
-  2. [SP500] AAPL (Apple Inc.): 0.4%
+  1. [SP500] MSFT (Microsoft Corp.): 86.1%
+  2. [SP500] AAPL (Apple Inc.): 86.1%
 
