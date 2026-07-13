@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
+"""Merge per-market prediction files into unified result files.
+
+Each strategy writes files like: surge_predictions_KOSPI.txt
+This script merges them into: surge_predictions.txt
+"""
 import re
 from datetime import datetime
 from pathlib import Path
+
 
 def get_file_content(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
 
-def merge_pipeline_result(result_dir: Path, target_dirs: dict[str, Path]) -> None:
+
+def _first_available(target_dirs: dict, suffix: str) -> str:
+    """Return content of the first existing file with given suffix."""
+    for market, path in target_dirs.items():
+        content = get_file_content(path / suffix.format(market=market))
+        if content:
+            return content
+    return ""
+
+
+def merge_pipeline_result(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "pipeline_result.txt"
     print(f"Merging pipeline_result.txt -> {merged_path}")
 
@@ -35,17 +51,16 @@ def merge_pipeline_result(result_dir: Path, target_dirs: dict[str, Path]) -> Non
         if lines_written == 0:
             out.write("데이터 없음\n")
 
-def merge_ensemble_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
+
+def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "ensemble_predictions.txt"
     print(f"Merging ensemble_predictions.txt -> {merged_path}")
 
-    # 1. Read header from first available file
     header = ""
     for market, path in target_dirs.items():
         file_path = path / f"ensemble_predictions_{market}.txt"
         if file_path.exists():
             content = get_file_content(file_path)
-            # Find the header section before the first recommendation list
             idx = content.find("=========================================")
             if idx != -1:
                 header = content[:idx].strip() + "\n\n"
@@ -70,8 +85,8 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
             content = get_file_content(file_path)
             if "데이터 없음" in content or "No data" in content:
                 continue
-            # Extract section
-            pattern = rf"(={{10,}}\s*\n\[{market}\][^\n]*\n={{10,}}\s*\n.*?)(?=\n={{10,}}\s*\n\[|\Z)"
+            # Extract section — flexible whitespace handling
+            pattern = rf"(={10,}\s*\n\[{re.escape(market)}\][^\n]*\n={10,}\s*\n.*?)(?=\n={10,}|\Z)"
             match = re.search(pattern, content, re.DOTALL)
             if match:
                 out.write(match.group(1).strip() + "\n\n")
@@ -82,7 +97,8 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
         if sections_written == 0:
             out.write("데이터 없음\n")
 
-def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
+
+def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "surge_predictions.txt"
     print(f"Merging surge_predictions.txt -> {merged_path}")
 
@@ -91,7 +107,8 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> N
         file_path = path / f"surge_predictions_{market}.txt"
         if file_path.exists():
             content = get_file_content(file_path)
-            idx = content.find("============================================================")
+            # Header ends before first ======= block
+            idx = content.find("=" * 10)
             if idx != -1:
                 header = content[:idx].strip() + "\n\n"
                 break
@@ -99,12 +116,14 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> N
     if not header:
         header = f"=== Surge Detection Results (>= 20% return) ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
+    # Actual output format: "[1일] KOSPI Top 20 Surge Candidates"
+    # horizon values from model.surge_horizons = [1, 3, 5, 20]
+    horizons = ["1", "3", "5", "20"]  # numeric, written as f"[{h}일]"
+    markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
+
     sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
-
-        horizons = ["1일", "3일", "5일", "20일"]
-        markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
 
         for hz in horizons:
             for mkt in markets:
@@ -118,16 +137,27 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> N
                 content = get_file_content(file_path)
                 if "데이터 없음" in content or "No data" in content:
                     continue
-                pattern = rf"(={{10,}}\s*\n\[{hz}\]\s+{mkt}\s+Top[^\n]*\n={{10,}}\s*\n.*?)(?=\n={{10,}}\s*\n\[|\Z)"
+
+                # Match: ====...\n[Nd일] MARKET Top ...\n====...\n<body>
+                pattern = (
+                    rf"(={10,}\n"
+                    rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
+                    rf"={10,}\n"
+                    rf".*?)"
+                    rf"(?=={10,}\n|\Z)"
+                )
                 match = re.search(pattern, content, re.DOTALL)
                 if match:
                     out.write(match.group(1).strip() + "\n\n")
                     sections_written += 1
+                else:
+                    print(f"  Warning: [{hz}일] {mkt} section not found in {file_path.name}")
 
         if sections_written == 0:
             out.write("데이터 없음\n")
 
-def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
+
+def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "vcp_ml_predictions.txt"
     print(f"Merging vcp_ml_predictions.txt -> {merged_path}")
 
@@ -136,20 +166,21 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> 
         file_path = path / f"vcp_ml_predictions_{market}.txt"
         if file_path.exists():
             content = get_file_content(file_path)
-            idx = content.find("[1일]")
-            if idx != -1:
-                header = content[:idx].strip() + "\n\n"
+            # Header is everything before the first [Nd일] line
+            idx = re.search(r"^\[", content, re.MULTILINE)
+            if idx:
+                header = content[: idx.start()].strip() + "\n\n"
                 break
 
     if not header:
         header = f"=== VCP ML Surge Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
+    horizons = ["1", "3", "5", "20"]
+    markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
+
     sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
-
-        horizons = ["1일", "3일", "5일", "20일"]
-        markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
 
         for hz in horizons:
             for mkt in markets:
@@ -163,16 +194,25 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> 
                 content = get_file_content(file_path)
                 if "데이터 없음" in content or "No data" in content:
                     continue
-                pattern = rf"(\[{hz}\]\s+{mkt}\s+TOP[^\n]*\n.*?)(?=\n\[|\Z)"
-                match = re.search(pattern, content, re.DOTALL)
+
+                # Actual format: "[1일] KOSPI TOP 5\n  1. ...\n\n"
+                # Also handles: "[1일] KOSPI - (no symbols)\n\n"
+                pattern = (
+                    rf"(\[{re.escape(hz)}일\]\s+{re.escape(mkt)}[^\n]*\n"
+                    rf"(?:[ \t]+[^\n]+\n)*)"
+                )
+                match = re.search(pattern, content)
                 if match:
-                    out.write(match.group(1).strip() + "\n\n")
+                    out.write(match.group(1).rstrip() + "\n\n")
                     sections_written += 1
+                else:
+                    print(f"  Warning: [{hz}일] {mkt} section not found in {file_path.name}")
 
         if sections_written == 0:
             out.write("데이터 없음\n")
 
-def merge_vcp_patterns(result_dir: Path, target_dirs: dict[str, Path]) -> None:
+
+def merge_vcp_patterns(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "vcp_patterns.txt"
     print(f"Merging vcp_patterns.txt -> {merged_path}")
 
@@ -191,17 +231,15 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict[str, Path]) -> None:
         content = get_file_content(file_path)
         if "데이터 없음" in content or "No data" in content:
             continue
-        # Parse date from file
         m = re.search(r"Date:\s*(.+)", content)
         if m:
             date_str = m.group(1).strip()
 
-        pattern = rf"(--- {mkt} ---\n.*?)(?=\n--- |\Z)"
+        pattern = rf"(--- {re.escape(mkt)} ---\n.*?)(?=\n--- |\Z)"
         match = re.search(pattern, content, re.DOTALL)
         if match:
             sect_text = match.group(1).strip()
             sections.append(sect_text)
-            # Count patterns
             cnt = len(re.findall(r"^\s*\d+\.\s+\[", sect_text, re.MULTILINE))
             total_patterns += cnt
 
@@ -215,7 +253,8 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict[str, Path]) -> None:
             for sect in sections:
                 out.write(sect + "\n\n")
 
-def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -> None:
+
+def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "lead_lag_predictions.txt"
     print(f"Merging lead_lag_predictions.txt -> {merged_path}")
 
@@ -228,7 +267,6 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
             idx = content.find("---")
             if idx != -1:
                 header = content[:idx].strip() + "\n\n"
-            # Get leaders section from first file containing it
             idx_leaders = content.find("--- Leaders with highest today return ---")
             if idx_leaders != -1:
                 leaders_sect = content[idx_leaders:].strip() + "\n\n"
@@ -252,11 +290,15 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
             content = get_file_content(file_path)
             if "데이터 없음" in content or "No data" in content:
                 continue
-            pattern = rf"(--- {mkt}\s+Top\s+\d+\s*---\n.*?)(?=\n--- |\Z)"
+
+            # Actual format: "--- KOSPI Top 20 ---\n  1. ...\n"
+            pattern = rf"(--- {re.escape(mkt)}\s+Top\s+\d+\s*---\n.*?)(?=\n--- |\Z)"
             match = re.search(pattern, content, re.DOTALL)
             if match:
                 out.write(match.group(1).strip() + "\n\n")
                 sections_written += 1
+            else:
+                print(f"  Warning: {mkt} Top section not found in {file_path.name}")
 
         if sections_written == 0:
             out.write("데이터 없음\n\n")
@@ -264,21 +306,33 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict[str, Path]) -
         if leaders_sect:
             out.write(leaders_sect)
 
+
 def main():
     base_dir = Path(__file__).resolve().parent
     result_dir = base_dir / "result"
     result_dir.mkdir(parents=True, exist_ok=True)
 
     markets = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
-    target_dirs = {}
+    target_dirs: dict[str, Path] = {}
     for m in markets:
-        path = base_dir / f"result_{m}"
-        if path.exists():
-            target_dirs[m] = path
-        else:
-            target_dirs[m] = result_dir
+        # Prefer market-specific split directory; fall back to unified result dir
+        split_path = base_dir / f"result_{m}"
+        if split_path.exists() and any(split_path.iterdir()):
+            target_dirs[m] = split_path
+        elif result_dir.exists():
+            # Check if market-suffixed files exist inside result_dir itself
+            probe = result_dir / f"surge_predictions_{m}.txt"
+            if probe.exists():
+                target_dirs[m] = result_dir
 
-    print(f"Target directories identified: { {k: str(v.resolve()) for k, v in target_dirs.items()} }")
+    if not target_dirs:
+        print("Warning: No per-market result directories found. Checking result/ for suffix files.")
+        for m in markets:
+            probe = result_dir / f"pipeline_result_{m}.txt"
+            if probe.exists():
+                target_dirs[m] = result_dir
+
+    print(f"Target directories: { {k: str(v) for k, v in target_dirs.items()} }")
 
     merge_pipeline_result(result_dir, target_dirs)
     merge_ensemble_predictions(result_dir, target_dirs)
@@ -288,6 +342,7 @@ def main():
     merge_lead_lag_predictions(result_dir, target_dirs)
 
     print("All prediction files successfully merged.")
+
 
 if __name__ == "__main__":
     main()

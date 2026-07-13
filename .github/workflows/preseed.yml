@@ -59,8 +59,12 @@ jobs:
         id: models-cache
         with:
           path: trading_system/models
-          key: ai-models-${{ steps.date.outputs.date }}-${{ github.run_id }}
+          key: ai-models-preseed-${{ steps.date.outputs.date }}
           restore-keys: |
+            ai-models-KOSPI-
+            ai-models-KOSDAQ-
+            ai-models-KONEX-
+            ai-models-SP500-
             ai-models-
 
       - name: Run preseed to update caches (cache-only)
