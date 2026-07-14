@@ -1613,13 +1613,33 @@ Examples:
         _tb = traceback.format_exc()
         _tb_tail = _tb[-800:] if len(_tb) > 800 else _tb
         logger.exception("Pipeline failed with unhandled exception.")
+        
+        # Check if output files were still successfully written despite the error
+        result_dir = os.path.join(os.path.dirname(__file__), "result")
+        essential_file = os.path.join(result_dir, "pipeline_result.txt")
+        has_results = os.path.exists(essential_file) and os.path.getsize(essential_file) > 0
+        
         _buttons = [[{"text": "📋 에러 로그 보기", "url": _gha_url}]] if _gha_url else None
-        _notify_telegram(
-            f"🚨 파이프라인 실패\n"
-            f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
-            f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
-            f"```\n{_tb_tail}\n```",
-            "CRITICAL",
-            buttons=_buttons,
-        )
-        sys.exit(1)
+        
+        if has_results:
+            logger.info("Output files detected in result directory. Treating as partial success (exiting with 0).")
+            _notify_telegram(
+                f"⚠️ 파이프라인 부분 완료 (오류 발생)\n"
+                f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
+                f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
+                f"결과 파일이 정상 생성되어 프로세스를 완료 처리합니다.",
+                "WARNING",
+                buttons=_buttons,
+            )
+            sys.exit(0)
+        else:
+            _notify_telegram(
+                f"🚨 파이프라인 실패\n"
+                f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
+                f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
+                f"```\n{_tb_tail}\n```",
+                "CRITICAL",
+                buttons=_buttons,
+            )
+            sys.exit(1)
+

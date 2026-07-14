@@ -1,18 +1,18 @@
 === Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-13 21:48
+Date: 2026-07-14 08:27
 
 --- Executive Market Summary ---
 Current Market Regime Detected: BEAR (Code: 0)
 Maximum Total Allocation Allowed: 20.0%
 
 --- Judgment Basis (Global Macro Indicators) ---
-  S&P 500 (20d Rolling Mean Return) : -0.223% / day
-  S&P 500 (20d Rolling Volatility)  : 1.018%
-  KOSPI (20d Rolling Mean Return)   : -0.223% / day
-  KOSPI (20d Rolling Volatility)    : 1.018%
-  VIX Index (Fear Gauge)            : -1.37
-  USD/KRW FX Rate                   : -1.37 KRW
-  US 10Y Bond Yield (TNX)           : 103.48%
+  S&P 500 (20d Rolling Mean Return) : +0.155% / day
+  S&P 500 (20d Rolling Volatility)  : 1.037%
+  KOSPI (20d Rolling Mean Return)   : +1.056% / day
+  KOSPI (20d Rolling Volatility)    : 4.545%
+  VIX Index (Fear Gauge)            : nan
+  USD/KRW FX Rate                   : 0.18 KRW
+  US 10Y Bond Yield (TNX)           : nan%
 
 --- Applied Ensemble Strategy Weights ---
   XGBoost Regression Fundamentals   : 70.0%
@@ -27,7 +27,20 @@ Maximum Total Allocation Allowed: 20.0%
 =========================================
 Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
 ---------------------------------------------------------------------------------------------------
-1    005930    Samsung Electronic           56.9%           11.4%     80%     10%      0%      9%
+1    033250    체시스                          11.9%            2.4%      0%      0%     59%      0%
+2    001720    신영증권                          0.0%            0.0%      0%      0%      0%      0%
+3    448730    삼성FN리츠                        0.0%            0.0%      0%      0%      0%      0%
+4    432320    KB스타리츠                        0.0%            0.0%      0%      0%      0%      0%
+5    417310    코람코더원리츠                       0.0%            0.0%      0%      0%      0%      0%
+6    004310    현대약품                          0.0%            0.0%      0%      0%      0%      0%
+7    365550    ESR켄달스퀘어리츠                    0.0%            0.0%      0%      0%      0%      0%
+8    357120    코람코라이프인프라리츠                   0.0%            0.0%      0%      0%      0%      0%
+9    350520    이지스레지던스리츠                     0.0%            0.0%      0%      0%      0%      0%
+10   338100    NH프라임리츠                       0.0%            0.0%      0%      0%      0%      0%
+11   293940    신한알파리츠                        0.0%            0.0%      0%      0%      0%      0%
+12   088260    이리츠코크렙                        0.0%            0.0%      0%      0%      0%      0%
+13   018500    동원금속                          0.0%            0.0%      0%      0%      0%      0%
+14   396690    미래에셋글로벌리츠                     0.0%            0.0%      0%      0%      0%      0%
 
 
 =========================================
@@ -35,7 +48,14 @@ Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Sur
 =========================================
 Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
 ---------------------------------------------------------------------------------------------------
-1    068270    Celltrion                    70.8%           14.2%    100%      6%      0%      8%
+1    054220    비츠로시스                        14.7%            2.9%      0%      0%     73%      0%
+2    030960    양지사                          13.6%            2.7%      0%      0%     68%      0%
+3    033200    모아텍                          13.5%            2.7%      0%      0%     68%      0%
+4    900120    씨엑스아이                        13.0%            2.6%      0%      0%     65%      0%
+5    131100    티엔엔터테인먼트                      0.0%            0.0%      0%      0%      0%      0%
+6    099750    이지케어텍                         0.0%            0.0%      0%      0%      0%      0%
+7    067010    이씨에스                          0.0%            0.0%      0%      0%      0%      0%
+8    060310    3S                            0.0%            0.0%      0%      0%      0%      0%
 
 
 =========================================
@@ -43,7 +63,9 @@ Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Sur
 =========================================
 Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
 ---------------------------------------------------------------------------------------------------
-1    207940    Samsung BioLogics            43.4%            8.7%     60%     12%      0%     14%
+1    232530    이엠티                          71.5%           14.3%    100%     14%      0%     15%
+2    140610    엔솔바이오사이언스                    48.1%            9.6%     67%     12%      0%     14%
+3    260870    SK시그넷                        24.8%            5.0%     33%     12%      0%     14%
 
 
 =========================================
@@ -51,6 +73,19 @@ Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Sur
 =========================================
 Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
 ---------------------------------------------------------------------------------------------------
-1    AAPL      Apple Inc.                   27.5%            5.5%     30%     86%      0%     65%
-2    MSFT      Microsoft Corp.              27.5%            5.5%     30%     86%      0%     65%
+1    LHX       L3Harris                     20.0%            4.0%      0%      0%    100%      0%
+2    LDOS      Leidos                       17.5%            3.5%      0%      0%     87%      0%
+3    FAST      Fastenal                     15.8%            3.2%      0%      0%     79%      0%
+4    DTE       DTE Energy                   14.8%            3.0%      0%      0%     74%      0%
+5    CMS       CMS Energy                   14.1%            2.8%      0%      0%     70%      0%
+6    SRE       Sempra                       14.1%            2.8%      0%      0%     70%      0%
+7    HSIC      Henry Schein                 13.7%            2.7%      0%      0%     68%      0%
+8    ES        Eversource Energy            13.6%            2.7%      0%      0%     68%      0%
+9    ALB       Albemarle Corporat           13.3%            2.7%      0%      0%     67%      0%
+10   HII       Huntington Ingalls           12.7%            2.5%      0%      0%     64%      0%
+11   MTD       Mettler Toledo               12.7%            2.5%      0%      0%     63%      0%
+12   LYB       LyondellBasell               12.2%            2.4%      0%      0%     61%      0%
+13   IQV       IQVIA                        12.0%            2.4%      0%      0%     60%      0%
+14   LNT       Alliant Energy               11.2%            2.2%      0%      0%     56%      0%
+15   AAPL      Apple Inc.                   11.2%            2.2%      0%      0%     56%      0%
 

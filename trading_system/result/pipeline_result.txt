@@ -1,70 +1,38 @@
-=== Pipeline Inference Summary (TOP10 per Market) ===
-Date: 2026-07-13 21:48
-Total symbols analyzed: 5
-Showing: Top 10 per market | Horizons: 1d, 5d, 20d, 60d
+=== Pipeline Inference Summary (TOP20 per Market) ===
+Date: 2026-07-14 08:27
+Total symbols analyzed: 3
+Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
 Full data: pipeline_result.csv / pipeline_result.jsonl
 
 ============================================================
 Horizon: 1d
 
---- KOSPI TOP 10 ---
-  1. 005930 (Samsung Electronics): -0.00%
-
---- KOSDAQ TOP 10 ---
-  1. 068270 (Celltrion): -0.00%
-
---- KONEX TOP 10 ---
-  1. 207940 (Samsung BioLogics): -0.00%
-
---- S&P 500 TOP 10 ---
-  1. MSFT (Microsoft Corp.): +0.02%
-  2. AAPL (Apple Inc.): +0.02%
+--- KONEX TOP 20 ---
+  1. 232530 (이엠티): +0.14%
+  2. 260870 (SK시그넷): +0.00%
+  3. 140610 (엔솔바이오사이언스): -0.00%
 
 ============================================================
 Horizon: 5d
 
---- KOSPI TOP 10 ---
-  1. 005930 (Samsung Electronics): +0.00%
-
---- KOSDAQ TOP 10 ---
-  1. 068270 (Celltrion): +0.01%
-
---- KONEX TOP 10 ---
-  1. 207940 (Samsung BioLogics): +0.01%
-
---- S&P 500 TOP 10 ---
-  1. MSFT (Microsoft Corp.): -0.28%
-  2. AAPL (Apple Inc.): -0.28%
+--- KONEX TOP 20 ---
+  1. 232530 (이엠티): +0.64%
+  2. 260870 (SK시그넷): +0.09%
+  3. 140610 (엔솔바이오사이언스): -0.01%
 
 ============================================================
 Horizon: 20d
 
---- KOSPI TOP 10 ---
-  1. 005930 (Samsung Electronics): +0.05%
-
---- KOSDAQ TOP 10 ---
-  1. 068270 (Celltrion): +0.22%
-
---- KONEX TOP 10 ---
-  1. 207940 (Samsung BioLogics): -0.01%
-
---- S&P 500 TOP 10 ---
-  1. MSFT (Microsoft Corp.): -0.22%
-  2. AAPL (Apple Inc.): -0.22%
+--- KONEX TOP 20 ---
+  1. 232530 (이엠티): +0.71%
+  2. 140610 (엔솔바이오사이언스): +0.02%
+  3. 260870 (SK시그넷): -0.21%
 
 ============================================================
 Horizon: 60d
 
---- KOSPI TOP 10 ---
-  1. 005930 (Samsung Electronics): +2.49%
-
---- KOSDAQ TOP 10 ---
-  1. 068270 (Celltrion): +0.28%
-
---- KONEX TOP 10 ---
-  1. 207940 (Samsung BioLogics): -0.13%
-
---- S&P 500 TOP 10 ---
-  1. MSFT (Microsoft Corp.): +2.51%
-  2. AAPL (Apple Inc.): +2.51%
+--- KONEX TOP 20 ---
+  1. 260870 (SK시그넷): -0.18%
+  2. 140610 (엔솔바이오사이언스): -0.27%
+  3. 232530 (이엠티): -0.41%
 

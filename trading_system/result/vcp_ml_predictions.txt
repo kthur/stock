@@ -1,55 +1,39 @@
 === VCP ML Surge Predictions ===
-Date: 2026-07-13 21:48
+Date: 2026-07-14 08:27
 
-[1일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 0.2%
+[1일] KOSPI - (no symbols)
 
-[1일] KOSDAQ TOP 1
-  1. [KOSDAQ] 068270 (Celltrion): 0.4%
+[1일] KOSDAQ - (no symbols)
 
-[1일] KONEX TOP 1
-  1. [KONEX] 207940 (Samsung BioLogics): 0.4%
+[1일] KONEX TOP 3
+  1. [KONEX] 140610 (엔솔바이오사이언스): 0.4%
+  2. [KONEX] 232530 (이엠티): 0.4%
+  3. [KONEX] 260870 (SK시그넷): 0.4%
 
-[1일] SP500 TOP 2
-  1. [SP500] AAPL (Apple Inc.): 17.2%
-  2. [SP500] MSFT (Microsoft Corp.): 17.2%
+[3일] KOSPI - (no symbols)
 
-[3일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 0.8%
+[3일] KOSDAQ - (no symbols)
 
-[3일] KOSDAQ TOP 1
-  1. [KOSDAQ] 068270 (Celltrion): 0.8%
+[3일] KONEX TOP 3
+  1. [KONEX] 232530 (이엠티): 1.1%
+  2. [KONEX] 260870 (SK시그넷): 1.1%
+  3. [KONEX] 140610 (엔솔바이오사이언스): 1.1%
 
-[3일] KONEX TOP 1
-  1. [KONEX] 207940 (Samsung BioLogics): 1.1%
+[5일] KOSPI - (no symbols)
 
-[3일] SP500 TOP 2
-  1. [SP500] MSFT (Microsoft Corp.): 0.0%
-  2. [SP500] AAPL (Apple Inc.): 0.0%
+[5일] KOSDAQ - (no symbols)
 
-[5일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 1.5%
+[5일] KONEX TOP 3
+  1. [KONEX] 232530 (이엠티): 2.5%
+  2. [KONEX] 260870 (SK시그넷): 2.5%
+  3. [KONEX] 140610 (엔솔바이오사이언스): 2.5%
 
-[5일] KOSDAQ TOP 1
-  1. [KOSDAQ] 068270 (Celltrion): 1.9%
+[20일] KOSPI - (no symbols)
 
-[5일] KONEX TOP 1
-  1. [KONEX] 207940 (Samsung BioLogics): 2.5%
+[20일] KOSDAQ - (no symbols)
 
-[5일] SP500 TOP 2
-  1. [SP500] MSFT (Microsoft Corp.): 34.5%
-  2. [SP500] AAPL (Apple Inc.): 33.9%
-
-[20일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 8.5%
-
-[20일] KOSDAQ TOP 1
-  1. [KOSDAQ] 068270 (Celltrion): 7.5%
-
-[20일] KONEX TOP 1
-  1. [KONEX] 207940 (Samsung BioLogics): 14.0%
-
-[20일] SP500 TOP 2
-  1. [SP500] AAPL (Apple Inc.): 65.4%
-  2. [SP500] MSFT (Microsoft Corp.): 65.3%
+[20일] KONEX TOP 3
+  1. [KONEX] 232530 (이엠티): 15.0%
+  2. [KONEX] 140610 (엔솔바이오사이언스): 14.5%
+  3. [KONEX] 260870 (SK시그넷): 14.5%
 
