@@ -94,7 +94,14 @@ class LeadLagRow:
 def _read(path: Path) -> str:
     if not path.exists():
         return ""
-    return path.read_text(encoding="utf-8", errors="replace")
+    try:
+        return path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    except UnicodeDecodeError:
+        try:
+            return path.read_text(encoding="cp949").replace("\r\n", "\n")
+        except Exception:
+            return path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+
 
 
 def parse_ensemble(text: str) -> EnsembleData:
@@ -254,12 +261,12 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
         if "Leaders with highest today return" in line:
             in_leaders = True
             continue
-        # "  1. [KOSPI] 448730 (삼성FN리츠): 1.60%"
-        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+%)", line)
+        # "  1. [KOSPI] 448730 (삼성FN리츠): 1.60%" or "  1. [SP500] LHX (L3Harris): 0.78%"
+        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+\s*%)", line)
         if m:
             row = LeadLagRow(
                 rank=int(m.group(1)), market=m.group(2),
-                symbol=m.group(3), name=m.group(4), score=m.group(5)
+                symbol=m.group(3), name=m.group(4).strip(), score=m.group(5).strip()
             )
             if in_leaders:
                 leader_rows.append(row)
@@ -267,13 +274,14 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
                 follower_rows.append(row)
             continue
         # "  1. 042520 (한스바이오메드): +8.85%"  (no [MARKET] bracket for leaders)
-        m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+%)", line)
+        m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+\s*%)", line)
         if m and in_leaders:
             leader_rows.append(LeadLagRow(
                 rank=int(m.group(1)), market="",
-                symbol=m.group(2), name=m.group(3), score=m.group(4)
+                symbol=m.group(2), name=m.group(3).strip(), score=m.group(4).strip()
             ))
     return date, follower_rows, leader_rows
+
 
 
 # ─────────────────────────────────────────────

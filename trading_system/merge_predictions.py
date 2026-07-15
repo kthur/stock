@@ -12,7 +12,16 @@ from pathlib import Path
 def get_file_content(path: Path) -> str:
     if not path.exists():
         return ""
-    return path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+    # Try reading as UTF-8 first, ignoring decoding errors to avoid breaking execution
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore").replace("\r\n", "\n")
+    except Exception:
+        try:
+            return path.read_text(encoding="cp949", errors="ignore").replace("\r\n", "\n")
+        except Exception:
+            return ""
+
+
 
 
 def _first_available(target_dirs: dict, suffix: str) -> str:
@@ -85,14 +94,21 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
             content = get_file_content(file_path)
             if "데이터 없음" in content or "No data" in content:
                 continue
-            # Extract section — flexible whitespace handling
-            pattern = rf"(={10,}\s*\n\[{re.escape(market)}\][^\n]*\n={10,}\s*\n.*?)(?=\n={10,}|\Z)"
+            # Extract section — flexible whitespace and newline handling
+            pattern = rf"(==={{10,}}\s*\n\[{re.escape(market)}\][^\n]*\n==={{10,}}\s*\n.*?)(?=\n==={{10,}}|\Z)"
             match = re.search(pattern, content, re.DOTALL)
             if match:
                 out.write(match.group(1).strip() + "\n\n")
                 sections_written += 1
             else:
-                print(f"  Warning: Could not extract section [{market}] from {file_path}")
+                # Fallback matching with relaxed newlines
+                normalized_content = content.replace("\r\n", "\n")
+                match = re.search(pattern, normalized_content, re.DOTALL)
+                if match:
+                    out.write(match.group(1).strip() + "\n\n")
+                    sections_written += 1
+                else:
+                    print(f"  Warning: Could not extract section [{market}] from {file_path}")
 
         if sections_written == 0:
             out.write("데이터 없음\n")
@@ -116,9 +132,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
     if not header:
         header = f"=== Surge Detection Results (>= 20% return) ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
-    # Actual output format: "[1일] KOSPI Top 20 Surge Candidates"
-    # horizon values from model.surge_horizons = [1, 3, 5, 20]
-    horizons = ["1", "3", "5", "20"]  # numeric, written as f"[{h}일]"
+    horizons = ["1", "3", "5", "20"]
     markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
 
     sections_written = 0
@@ -140,13 +154,18 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
 
                 # Match: ====...\n[Nd일] MARKET Top ...\n====...\n<body>
                 pattern = (
-                    rf"(={10,}\n"
+                    rf"(==={{10,}}\s*\n"
                     rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
-                    rf"={10,}\n"
+                    rf"==={{10,}}\s*\n"
                     rf".*?)"
-                    rf"(?=={10,}\n|\Z)"
+                    rf"(?=\n==={{10,}}|\Z)"
                 )
                 match = re.search(pattern, content, re.DOTALL)
+                if not match:
+                    # Fallback to normalized content
+                    normalized_content = content.replace("\r\n", "\n")
+                    match = re.search(pattern, normalized_content, re.DOTALL)
+
                 if match:
                     out.write(match.group(1).strip() + "\n\n")
                     sections_written += 1
@@ -155,6 +174,8 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
 
         if sections_written == 0:
             out.write("데이터 없음\n")
+
+
 
 
 def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict) -> None:
