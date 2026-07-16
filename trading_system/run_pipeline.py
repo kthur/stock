@@ -46,10 +46,14 @@ from src.risk.position_sizing import PortfolioAllocator
 from src.analysis.regime_detector import MarketRegimeDetector
 from src.utils.rate_limiter import get_global_rate_limiter
 from src.utils.technical_cache import DataFrameCache
+from src.utils.http_session import setup_global_http_headers
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Initialize global HTTP session headers for yfinance and FinanceDataReader calls
+setup_global_http_headers()
 
 # P3: Rotating file logger — persists logs across terminal sessions and GHA log expiry
 def _setup_rotating_logger() -> None:
@@ -153,38 +157,36 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
     get_global_rate_limiter().wait()
 
     result = None
-    if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
-        try:
-            result = fdr.DataReader(symbol, start=start_date)
-        except Exception as e:
-            logger.debug(f"Network fetch failed for {symbol} via fdr: {e}")
-            raise e
+
+    if market in ('SP500', 'NYSE', 'NASDAQ') or not symbol.isdigit():
+        yf_symbol = symbol
     else:
-        # Korean stock: fetch from yfinance with adjusted prices
         suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
         yf_symbol = f"{symbol}{suffix}"
+
+    # Tier 1: Try yfinance primary download
+    try:
+        df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
+        if df is not None and not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.droplevel(1)
+            result = df
+    except Exception as e:
+        logger.debug(f"Tier 1 (yfinance) network fetch failed for {yf_symbol}: {e}")
+
+    # Tier 2: Secondary provider fallback (FinanceDataReader)
+    if result is None or result.empty:
         try:
-            df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
-            if df is not None and not df.empty:
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = df.columns.droplevel(1)
-                result = df
+            logger.debug(f"Attempting Tier 2 (FinanceDataReader) download for {symbol}...")
+            result = fdr.DataReader(symbol, start=start_date)
+            if result is not None and not result.empty:
+                logger.warning(f"Successfully retrieved Tier 2 (FinanceDataReader) data for {symbol}")
         except Exception as e:
-            logger.debug(f"Network fetch failed for {yf_symbol} via yfinance: {e}")
+            logger.debug(f"Tier 2 (FinanceDataReader) network fetch failed for {symbol}: {e}")
             raise e
 
-        # Fallback to FinanceDataReader if yfinance fails
-        if result is None or result.empty:
-            try:
-                result = fdr.DataReader(symbol, start=start_date)
-                if result is not None and not result.empty:
-                    logger.warning(f"Falling back to unadjusted KRX data for {symbol}")
-            except Exception as e:
-                logger.debug(f"Network fetch failed for {symbol} via fdr fallback: {e}")
-                raise e
-
     if result is None or result.empty:
-        raise ValueError(f"Fetched data for {symbol} is empty or None")
+        raise ValueError(f"Fetched data for {symbol} is empty or None across all providers")
 
     return result
 
@@ -352,60 +354,36 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 def fetch_data_fdr(symbol: str, market: str, start_date: str,
                    price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
                    update_interval: int = 0) -> pd.DataFrame:
-    """Fetch OHLCV data using adjusted prices (수정주가), with caching via TechnicalCache.
-
-    This function first checks the global ``technical_cache`` for a recent DataFrame.
-    If a cache miss occurs, it falls back to the DB cache and finally to a network request.
-    """
+    """Fetch OHLCV data using adjusted prices, with 3-tier fallback (yfinance -> FDR -> stock_prices.db cache)."""
     def _fetch_fallback(s: str, d: str) -> pd.DataFrame:
         global _last_request_time
-        # 1. DB cache fallback (if provided)
+        cached_df = None
+
+        # 1. DB cache check (if provided)
         if price_db is not None:
-            stale = True
-            if freshness_days < 0:
-                stale = False
-            else:
+            stale = True if freshness_days >= 0 else False
+            if freshness_days >= 0:
                 stale = price_db.needs_update(s, max_age_days=freshness_days, start_date=d)
-            if not stale:
-                df = price_db.get_prices(s, start_date=d)
-                if df is not None and not df.empty:
-                    logger.debug(f"Using StockPriceDB cached prices for {s}")
-                    return df
 
-            # If it is stale but we already have some cached data, attempt incremental fetch
-            if stale:
-                cached_df = price_db.get_prices(s, start_date=d)
-                if cached_df is not None and not cached_df.empty:
-                    latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
-                    # If latest_date is today or later, we don't need to fetch
-                    if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
-                        logger.debug(f"Cache for {s} is up to date (latest: {latest_date_str}). Skipping network fetch.")
-                        return cached_df
+            cached_df = price_db.get_prices(s, start_date=d)
 
-                    logger.debug(f"Fetching incremental prices for {s} from {latest_date_str} to present...")
-                    try:
-                        # Rate limit
-                        if update_interval > 0:
-                            now = time.time()
-                            with _rate_lock:
-                                scheduled = max(_last_request_time + update_interval, now)
-                                sleep_sec = scheduled - now
-                                _last_request_time = scheduled
-                            if sleep_sec > 0:
-                                logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
-                                time.sleep(sleep_sec)
+            # If cache is fresh, return immediately
+            if not stale and cached_df is not None and not cached_df.empty:
+                logger.debug(f"Using StockPriceDB cached prices for {s}")
+                return cached_df
 
-                        new_df = _fetch_data_fdr_network(s, market, latest_date_str)
-                        if new_df is not None and not new_df.empty:
-                            price_db.update_prices(s, new_df)
-                            merged_df = pd.concat([cached_df, new_df])
-                            merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
-                            logger.debug(f"Successfully updated cache and merged for {s}")
-                            return merged_df
-                    except Exception as e:
-                        logger.warning(f"Failed to fetch incremental data for {s}, falling back to full fetch: {e}")
+            # If cache is up to date relative to today, return immediately
+            if cached_df is not None and not cached_df.empty:
+                latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
+                if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
+                    logger.debug(f"Cache for {s} is up to date (latest: {latest_date_str}). Skipping network fetch.")
+                    return cached_df
 
-        # 2. Rate limit before network request (global)
+        # If offline mode (freshness_days < 0), return cached_df directly without network request
+        if freshness_days < 0:
+            return cached_df
+
+        # 2. Rate limit before network request
         if update_interval > 0:
             now = time.time()
             with _rate_lock:
@@ -416,20 +394,34 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                 logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
                 time.sleep(sleep_sec)
 
-        # 3. Network fetch
+        # 3. Network fetch (Tier 1 & Tier 2)
+        network_result = None
+        fetch_start = cached_df.index.max().strftime("%Y-%m-%d") if (cached_df is not None and not cached_df.empty) else d
         try:
-            result = _fetch_data_fdr_network(s, market, d)
+            network_result = _fetch_data_fdr_network(s, market, fetch_start)
         except Exception as e:
-            logger.warning(f"Failed to fetch data for {s} after retries: {e}")
-            result = None
+            logger.warning(f"Tier 1 & 2 network download failed for {s}: {e}")
 
-        # 4. Store in DB cache
-        if result is not None and not result.empty and price_db is not None:
-            try:
-                price_db.update_prices(s, result)
-            except Exception as e:
-                logger.debug(f"Failed to cache prices for {s}: {e}")
-        return result
+        if network_result is not None and not network_result.empty:
+            if price_db is not None:
+                try:
+                    price_db.update_prices(s, network_result)
+                except Exception as ex:
+                    logger.debug(f"Failed to cache prices for {s}: {ex}")
+
+            if cached_df is not None and not cached_df.empty:
+                merged_df = pd.concat([cached_df, network_result])
+                merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
+                return merged_df
+            return network_result
+
+        # 4. Tier 3 Fallback: Network failed, fall back to DB cache if available
+        if cached_df is not None and not cached_df.empty:
+            logger.warning(f"[Offline Cache Fallback] Network failed for {s}. Falling back to cached DB data ({len(cached_df)} rows)")
+            return cached_df
+
+        logger.warning(f"No network data or DB cache available for {s}.")
+        return None
 
     # 0. TechnicalCache lookup (TTL based)
     result = technical_cache.get_or_compute(
@@ -463,6 +455,21 @@ _INDICATOR_TICKERS = {
 
 
 @retry(
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)),
+    reraise=True
+)
+def _download_indicator_yf(ticker: str, start_date: str) -> pd.DataFrame:
+    raw = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
+    if raw is not None and not raw.empty:
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw.columns = raw.columns.droplevel(1)
+        return raw
+    raise ValueError(f"yfinance download for {ticker} returned empty data")
+
+
+@retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
     retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)),
@@ -471,16 +478,23 @@ _INDICATOR_TICKERS = {
 def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
     # Coordinate indicator fetch rate limiting
     get_global_rate_limiter().wait()
+
+    # Tier 1: Primary provider (yfinance) with transient retry
     try:
-        raw = yf.download(ticker, start=start_date, progress=False, auto_adjust=True)
+        return _download_indicator_yf(ticker, start_date)
+    except Exception as e:
+        logger.debug(f"Tier 1 (yfinance) indicator download error for {ticker}: {e}")
+
+    # Tier 2: Secondary provider fallback (FinanceDataReader)
+    try:
+        raw = fdr.DataReader(ticker, start=start_date)
         if raw is not None and not raw.empty:
-            if isinstance(raw.columns, pd.MultiIndex):
-                raw.columns = raw.columns.droplevel(1)
+            logger.warning(f"Successfully retrieved Tier 2 indicator data for {ticker} via FDR")
             return raw
     except Exception as e:
-        logger.debug(f"Network error downloading indicator {ticker}: {e}")
-        raise e
-    raise ValueError(f"Downloaded indicator {ticker} is empty or None")
+        logger.debug(f"Tier 2 indicator download error for {ticker}: {e}")
+
+    raise ValueError(f"Downloaded indicator {ticker} is empty or None across all providers")
 
 
 def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
@@ -490,38 +504,36 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     Returns: DataFrame with DatetimeIndex and columns = _INDICATOR_TICKERS.values()
     """
     def _fetch_one(ticker: str, col_name: str):
+        cached_df = None
         df = None
         if price_db is not None:
-            stale = True
-            if freshness_days < 0:
-                stale = False
-            else:
-                stale = price_db.needs_update(ticker, max_age_days=freshness_days,
-                                              start_date=start_date)
-            if not stale:
-                df = price_db.get_prices(ticker, start_date=start_date)
+            stale = True if freshness_days >= 0 else False
+            if freshness_days >= 0:
+                stale = price_db.needs_update(ticker, max_age_days=freshness_days, start_date=start_date)
+
+            cached_df = price_db.get_prices(ticker, start_date=start_date)
+            if not stale and cached_df is not None and not cached_df.empty:
+                df = cached_df
 
             # Incremental fetch for indicator if stale
-            if stale:
-                cached_df = price_db.get_prices(ticker, start_date=start_date)
-                if cached_df is not None and not cached_df.empty:
-                    latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
-                    if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
-                        df = cached_df
-                    else:
-                        logger.debug(f"Fetching incremental indicator {ticker} from {latest_date_str}...")
-                        try:
-                            new_df = _download_indicator_network(ticker, latest_date_str)
-                            if new_df is not None and not new_df.empty:
-                                price_db.update_prices(ticker, new_df)
-                                merged_df = pd.concat([cached_df, new_df])
-                                merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
-                                df = merged_df
-                        except Exception as e:
-                            logger.warning(f"Failed to fetch incremental indicator {ticker}, falling back to full fetch: {e}")
+            if stale and cached_df is not None and not cached_df.empty:
+                latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
+                if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
+                    df = cached_df
+                else:
+                    logger.debug(f"Fetching incremental indicator {ticker} from {latest_date_str}...")
+                    try:
+                        new_df = _download_indicator_network(ticker, latest_date_str)
+                        if new_df is not None and not new_df.empty:
+                            price_db.update_prices(ticker, new_df)
+                            df = pd.concat([cached_df, new_df])
+                            df = df[~df.index.duplicated(keep='last')].sort_index()
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch incremental indicator {ticker}: {e}")
 
         if freshness_days < 0 and (df is None or df.empty):
-            return (col_name, pd.Series(dtype=float))
+            df = cached_df
+
         if df is None or df.empty:
             try:
                 df = _download_indicator_network(ticker, start_date)
@@ -531,7 +543,12 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                     except Exception as ex:
                         logger.debug(f"Failed to cache indicator {ticker}: {ex}")
             except Exception as e:
-                logger.debug(f"Failed to fetch indicator {ticker} after retries: {e}")
+                logger.warning(f"Failed to fetch indicator {ticker} after retries: {e}")
+                # Tier 3 Fallback: Use cached indicator data if network fails
+                if cached_df is not None and not cached_df.empty:
+                    logger.warning(f"[Indicator DB Fallback] Using cached indicator data for {ticker}")
+                    df = cached_df
+
         if df is not None and not df.empty:
             if col_name.endswith('_change'):
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)

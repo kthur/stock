@@ -1944,7 +1944,7 @@ class OnDevicePredictionModel:
                             import os
                             specific_exists = False
                             for test_mkt in [mkt, mkt.lower(), mkt.upper()]:
-                                p = os.path.join(str(self.model_dir), f"scaler_{test_mkt}_{h}d.pkl")
+                                p = os.path.join(str(self.model_dir), f"scaler_{test_mkt}_{h}d.joblib")
                                 if os.path.exists(p):
                                     specific_exists = True
                                     scaler_mkt = test_mkt

@@ -101,86 +101,101 @@ def fetch_fundamentals(symbol: str, market: Optional[str] = None, max_retries: i
         return None
 
 
-async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None) -> Optional[pd.DataFrame]:
+async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None, max_retries: int = 3) -> Optional[pd.DataFrame]:
     """
-    Asynchronously fetch annual fundamental data from Yahoo Finance API.
+    Asynchronously fetch annual fundamental data from Yahoo Finance API with exponential backoff retries.
     """
+    from src.utils.http_session import DEFAULT_USER_AGENT
+
     yf_sym = _yf_ticker(symbol, market)
     url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{yf_sym}"
     params = {
         "modules": "incomeStatementHistory,defaultKeyStatistics,summaryDetail"
     }
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": DEFAULT_USER_AGENT
     }
 
-    try:
-        # Wait on the global rate limiter
-        await get_global_rate_limiter().async_wait()
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Wait on the global rate limiter
+            await get_global_rate_limiter().async_wait()
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
-                if response.status != 200:
-                    logger.debug(f"Failed to fetch fundamentals for {symbol} ({yf_sym}) via async API: status {response.status}")
-                    return None
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                    if response.status in (429, 500, 502, 503, 504):
+                        if attempt < max_retries:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        logger.debug(f"Failed to fetch fundamentals for {symbol} ({yf_sym}) via async API: status {response.status}")
+                        return None
 
-                json_data = await response.json()
-                result = json_data.get("quoteSummary", {}).get("result", [])
-                if not result:
-                    return None
+                    if response.status != 200:
+                        logger.debug(f"Failed to fetch fundamentals for {symbol} ({yf_sym}) via async API: status {response.status}")
+                        return None
 
-                data = result[0]
-                history = data.get("incomeStatementHistory", {}).get("incomeStatementHistory", [])
-                if not history:
-                    return None
+                    json_data = await response.json()
+                    result = json_data.get("quoteSummary", {}).get("result", [])
+                    if not result:
+                        return None
 
-                rows = []
-                for item in history:
-                    end_date_str = item.get("endDate", {}).get("fmt")
-                    if not end_date_str:
-                        continue
+                    data = result[0]
+                    history = data.get("incomeStatementHistory", {}).get("incomeStatementHistory", [])
+                    if not history:
+                        return None
 
-                    rev = item.get("totalRevenue", {}).get("raw", 0.0)
-                    op_inc = item.get("operatingIncome", {}).get("raw", 0.0)
-                    net_inc = item.get("netIncome", {}).get("raw", 0.0)
-                    eps = item.get("basicEps", {}).get("raw", item.get("dilutedEps", {}).get("raw", 0.0))
+                    rows = []
+                    for item in history:
+                        end_date_str = item.get("endDate", {}).get("fmt")
+                        if not end_date_str:
+                            continue
 
-                    rows.append({
-                        "date_align": pd.to_datetime(end_date_str),
-                        "revenue": float(rev),
-                        "operating_income": float(op_inc),
-                        "net_income": float(net_inc),
-                        "eps": float(eps)
-                    })
+                        rev = item.get("totalRevenue", {}).get("raw", 0.0)
+                        op_inc = item.get("operatingIncome", {}).get("raw", 0.0)
+                        net_inc = item.get("netIncome", {}).get("raw", 0.0)
+                        eps = item.get("basicEps", {}).get("raw", item.get("dilutedEps", {}).get("raw", 0.0))
 
-                if not rows:
-                    return None
+                        rows.append({
+                            "date_align": pd.to_datetime(end_date_str),
+                            "revenue": float(rev),
+                            "operating_income": float(op_inc),
+                            "net_income": float(net_inc),
+                            "eps": float(eps)
+                        })
 
-                df = pd.DataFrame(rows)
-                df = df.set_index("date_align")
-                df = df.sort_index()
+                    if not rows:
+                        return None
 
-                stats = data.get("defaultKeyStatistics", {})
-                shares = stats.get("sharesOutstanding", {}).get("raw", 0.0)
+                    df = pd.DataFrame(rows)
+                    df = df.set_index("date_align")
+                    df = df.sort_index()
 
-                detail = data.get("summaryDetail", {})
-                div_rate = detail.get("dividendRate", {}).get("raw")
-                if div_rate is None:
-                    div_yield = detail.get("dividendYield", {}).get("raw", 0.0)
-                    last_eps = df['eps'].iloc[-1] if not df.empty else 0.0
-                    div_rate = div_yield * last_eps
+                    stats = data.get("defaultKeyStatistics", {})
+                    shares = stats.get("sharesOutstanding", {}).get("raw", 0.0)
 
-                df['shares_outstanding'] = float(shares)
-                df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))
+                    detail = data.get("summaryDetail", {})
+                    div_rate = detail.get("dividendRate", {}).get("raw")
+                    if div_rate is None:
+                        div_yield = detail.get("dividendYield", {}).get("raw", 0.0)
+                        last_eps = df['eps'].iloc[-1] if not df.empty else 0.0
+                        div_rate = div_yield * last_eps
 
-                for col in ['revenue', 'operating_income', 'net_income', 'eps']:
-                    df[col] = df[col].fillna(0).astype(float)
+                    df['shares_outstanding'] = float(shares)
+                    df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))
 
-                return df
+                    for col in ['revenue', 'operating_income', 'net_income', 'eps']:
+                        df[col] = df[col].fillna(0).astype(float)
 
-    except Exception as e:
-        logger.debug(f"Async fetch fundamentals exception for {symbol} ({yf_sym}): {e}")
-        return None
+                    return df
+
+        except Exception as e:
+            if attempt < max_retries:
+                await asyncio.sleep(2 ** attempt)
+                continue
+            logger.debug(f"Async fetch fundamentals exception for {symbol} ({yf_sym}): {e}")
+            return None
+
+    return None
 
 
 def fetch_and_store_fundamentals_batch(
@@ -209,6 +224,11 @@ def fetch_and_store_fundamentals_batch(
             expiry_days = config.fundamental_cache_expiry_days
         except Exception:
             pass
+
+        # Offline mode check (expiry_days < 0): skip network requests entirely
+        if expiry_days < 0:
+            logger.info("[Offline Mode] Skipping fundamental network fetching (expiry_days < 0). Using existing DB cache.")
+            return 0
 
         current_time = datetime.now()
         skipped = 0
@@ -251,14 +271,13 @@ def fetch_and_store_fundamentals_batch(
 
         for f in asyncio.as_completed(tasks):
             sym, df_fun = await f
-            # Always save fundamental meta as fetched today to avoid spamming network calls
-            try:
-                if hasattr(storage, 'save_fundamental_meta'):
-                    storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
-            except Exception as e:
-                logger.warning(f"Failed to save metadata for {sym}: {e}")
-
+            # Save fundamental meta ONLY when data fetch returned valid non-empty results
             if df_fun is not None and not df_fun.empty:
+                try:
+                    if hasattr(storage, 'save_fundamental_meta'):
+                        storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
+                except Exception as e:
+                    logger.warning(f"Failed to save metadata for {sym}: {e}")
                 results[sym] = df_fun
                 success += 1
             done_count += 1
