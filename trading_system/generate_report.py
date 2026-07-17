@@ -87,6 +87,19 @@ class LeadLagRow:
     name: str
     score: str
 
+@dataclass
+class RegRow:
+    rank: int
+    symbol: str
+    name: str
+    expected_return: str
+
+@dataclass
+class RegSection:
+    horizon: str
+    market: str
+    rows: list[RegRow] = field(default_factory=list)
+
 # ─────────────────────────────────────────────
 # Parsers
 # ─────────────────────────────────────────────
@@ -283,6 +296,69 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
     return date, follower_rows, leader_rows
 
 
+def parse_vcp_ml(text: str) -> tuple[str, list[SurgeSection]]:
+    if not text:
+        return "", []
+    date = ""
+    sections: list[SurgeSection] = []
+    current: Optional[SurgeSection] = None
+
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"Date:\s*(.+)", line)
+        if m:
+            date = m.group(1).strip()
+        m = re.match(r"\[(\d+일)\]\s+(\w+)\s+(TOP|Top)", line)
+        if m:
+            current = SurgeSection(horizon=m.group(1), market=m.group(2))
+            sections.append(current)
+            continue
+        if current:
+            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([\d.]+%)", line)
+            if m:
+                current.rows.append(SurgeRow(
+                    rank=int(m.group(1)),
+                    market=m.group(2),
+                    symbol=m.group(3),
+                    name=m.group(4),
+                    probability=m.group(5),
+                ))
+    return date, sections
+
+
+def parse_regression(text: str) -> tuple[str, list[RegSection]]:
+    if not text:
+        return "", []
+    date = ""
+    sections: list[RegSection] = []
+    current_horizon = ""
+    current_section: Optional[RegSection] = None
+
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"Date:\s*(.+)", line)
+        if m:
+            date = m.group(1).strip()
+        m = re.match(r"Horizon:\s*(\w+)", line)
+        if m:
+            current_horizon = m.group(1)
+            continue
+        m = re.match(r"---\s*(.+?)\s+TOP", line)
+        if m:
+            mkt = m.group(1).replace("S&P ", "SP")
+            current_section = RegSection(horizon=current_horizon, market=mkt.strip())
+            sections.append(current_section)
+            continue
+        if current_section:
+            m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+%)", line)
+            if m:
+                current_section.rows.append(RegRow(
+                    rank=int(m.group(1)),
+                    symbol=m.group(2),
+                    name=m.group(3),
+                    expected_return=m.group(4)
+                ))
+    return date, sections
 
 # ─────────────────────────────────────────────
 # HTML generation
@@ -316,6 +392,8 @@ def build_html(
     surge_date: str, surge_sections: list[SurgeSection],
     vcp_date: str, vcp_rows: list[VcpRow],
     lag_date: str, follower_rows: list[LeadLagRow], leader_rows: list[LeadLagRow],
+    vcp_ml_sections: list[SurgeSection] = None,
+    reg_sections: list[RegSection] = None,
 ) -> str:
     now_kst = datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " UTC"
     regime_label, regime_color = REGIME_INFO.get(ensemble.regime, (ensemble.regime, "#8b949e"))
@@ -505,6 +583,114 @@ def build_html(
           <td class="{rc}">{r.score}</td>
         </tr>"""
 
+    # ── Tab: VCP ML ──
+    vcp_ml_sections = vcp_ml_sections or []
+    vcp_ml_horizons = sorted(set(s.horizon for s in vcp_ml_sections), key=lambda h: int(re.search(r"\d+", h).group())) if vcp_ml_sections else []
+    vcp_ml_tabs_nav = ""
+    vcp_ml_tabs_content = ""
+    for i, hz in enumerate(vcp_ml_horizons):
+        active = "active" if i == 0 else ""
+        vcp_ml_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
+        hz_sections = [s for s in vcp_ml_sections if s.horizon == hz]
+        panels = ""
+        for s in hz_sections:
+            flag = MARKET_FLAGS.get(s.market, "")
+            rows_html = ""
+            for r in s.rows:
+                prob = float(r.probability.rstrip("%"))
+                bar_w = min(100, int(prob))
+                color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
+                rows_html += f"""
+            <tr>
+              <td class="rank">#{r.rank}</td>
+              <td class="symbol">{r.symbol}</td>
+              <td class="name">{r.name}</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:{bar_w}%;background:{color}"></div>
+                  <span class="prob-label" style="color:{color}">{r.probability}</span>
+                </div>
+              </td>
+            </tr>"""
+            if not rows_html:
+                rows_html = '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'
+            panels += f"""
+        <div class="market-panel" data-market="{s.market}">
+          <h3 class="market-title">{flag} {s.market}</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
+              <tbody>{rows_html}</tbody>
+            </table>
+          </div>
+        </div>"""
+        
+        display_style = "display: block;" if i == 0 else "display: none;"
+        vcp_ml_tabs_content += f"""
+    <div class="hz-content" data-hz="{hz}" style="{display_style}">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="all">전체</button>
+        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="KONEX">🇰🇷 KONEX</button>
+        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="SP500">🇺🇸 SP500</button>
+      </div>
+      <div id="vcp_ml-hz-{hz}-panels">
+        {panels}
+      </div>
+    </div>"""
+
+    # ── Tab: Regression ──
+    reg_sections = reg_sections or []
+    reg_horizons = sorted(set(s.horizon for s in reg_sections), key=lambda h: int(re.search(r"\d+", h).group())) if reg_sections else []
+    reg_tabs_nav = ""
+    reg_tabs_content = ""
+    for i, hz in enumerate(reg_horizons):
+        active = "active" if i == 0 else ""
+        reg_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
+        hz_sections = [s for s in reg_sections if s.horizon == hz]
+        panels = ""
+        for s in hz_sections:
+            mkt_key = "SP500" if s.market == "SP500" else s.market
+            flag = MARKET_FLAGS.get(mkt_key, "")
+            rows_html = ""
+            for r in s.rows:
+                rc = ret_class(r.expected_return)
+                rows_html += f"""
+            <tr>
+              <td class="rank">#{r.rank}</td>
+              <td class="symbol">{r.symbol}</td>
+              <td class="name">{r.name}</td>
+              <td class="{rc}">{r.expected_return}</td>
+            </tr>"""
+            if not rows_html:
+                rows_html = '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'
+            panels += f"""
+        <div class="market-panel" data-market="{mkt_key}">
+          <h3 class="market-title">{flag} {mkt_key}</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
+              <tbody>{rows_html}</tbody>
+            </table>
+          </div>
+        </div>"""
+        
+        display_style = "display: block;" if i == 0 else "display: none;"
+        reg_tabs_content += f"""
+    <div class="hz-content" data-hz="{hz}" style="{display_style}">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="all">전체</button>
+        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="KONEX">🇰🇷 KONEX</button>
+        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="SP500">🇺🇸 SP500</button>
+      </div>
+      <div id="reg-hz-{hz}-panels">
+        {panels}
+      </div>
+    </div>"""
+
     # ── Full HTML ──
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -639,6 +825,8 @@ def build_html(
 <nav class="tabs">
   <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 Ensemble</button>
   <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
+  <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
+  <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
   <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP</button>
   <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
 </nav>
@@ -706,6 +894,18 @@ def build_html(
     </div>
   </div>
 
+  <!-- ══ VCP ML Tab ══ -->
+  <div class="tab-panel" id="panel-vcpml">
+    <div class="hz-tabs">{vcp_ml_tabs_nav}</div>
+    {vcp_ml_tabs_content}
+  </div>
+
+  <!-- ══ Regression Tab ══ -->
+  <div class="tab-panel" id="panel-regression">
+    <div class="hz-tabs">{reg_tabs_nav}</div>
+    {reg_tabs_content}
+  </div>
+
 </div>
 
 <script>
@@ -730,9 +930,10 @@ function filterMarket(btn, group) {{
 
 function switchHz(btn) {{
   const hz = btn.dataset.hz;
-  document.querySelectorAll('.hz-tab').forEach(b => b.classList.remove('active'));
+  const parent = btn.closest('.tab-panel');
+  parent.querySelectorAll('.hz-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.querySelectorAll('.hz-content').forEach(c => {{
+  parent.querySelectorAll('.hz-content').forEach(c => {{
     c.style.display = c.dataset.hz === hz ? 'block' : 'none';
   }});
 }}
@@ -761,8 +962,16 @@ def main():
     surge_date, surge_sections = parse_surge(_read(result_dir / "surge_predictions.txt"))
     vcp_date, vcp_rows = parse_vcp(_read(result_dir / "vcp_patterns.txt"))
     lag_date, follower_rows, leader_rows = parse_lead_lag(_read(result_dir / "lead_lag_predictions.txt"))
+    vcp_ml_date, vcp_ml_sections = parse_vcp_ml(_read(result_dir / "vcp_ml_predictions.txt"))
+    reg_date, reg_sections = parse_regression(_read(result_dir / "pipeline_result.txt"))
 
-    html = build_html(ensemble, surge_date, surge_sections, vcp_date, vcp_rows, lag_date, follower_rows, leader_rows)
+    html = build_html(
+        ensemble,
+        surge_date, surge_sections,
+        vcp_date, vcp_rows,
+        lag_date, follower_rows, leader_rows,
+        vcp_ml_sections, reg_sections
+    )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
