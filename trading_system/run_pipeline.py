@@ -726,8 +726,10 @@ def execute_prediction_pipeline():
         logger.info("SKIP_TRAINING is active. Checking for existing models on disk...")
         model.load_models()
         model.load_surge_models()
+        model.load_lead_lag()
         from src.ai.vcp_ml_predictor import VCPSurgePredictor
         vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
+        vcp_ml.load_models()
 
         # Verify that models are actually loaded for regression, surge, and VCP ML
         regression_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in model.lgb_models.values())
