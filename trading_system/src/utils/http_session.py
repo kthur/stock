@@ -59,5 +59,5 @@ def setup_global_http_headers() -> None:
             "Accept-Language": "en-US,en;q=0.9,ko;q=0.8",
         })
 
-    requests.Session.__init__ = new_init
+    requests.Session.__init__ = new_init  # type: ignore[method-assign]
     _GLOBAL_PATCHED = True
