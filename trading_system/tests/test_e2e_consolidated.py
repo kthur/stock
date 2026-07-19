@@ -368,11 +368,17 @@ class TestE2EConsolidated(unittest.TestCase):
 
         self.model.compute_lead_lag(df_train, indicator_df=indicator_df, lead_lag_days=1)
         prices_dict = {'Stock_A': pd.DataFrame({'Close': [100.0, 100.0]}, index=dates[-2:])}
-        # sp500_change=0.0 → ^GSPC = 0.0 <= 0.01 → no leader triggers → empty result
+        # sp500_change=0.0 → ^GSPC return = 0.0 <= 0.001 → no leader triggers
+        # Fallback: correlation-only scores are used instead, so result is NOT empty.
         latest_ind = pd.DataFrame([{'sp500_change': 0.0}], index=[dates[-1]])
         res = self.model.predict_lead_lag(prices_dict, indicator_df=latest_ind)
-        # When leader didn't move, result is empty (no scoring happens)
-        self.assertTrue(res.empty)
+        # With the correlation-only fallback, result should be non-empty when lead_lag_matrix exists
+        if self.model.lead_lag_matrix:
+            self.assertFalse(res.empty, "Expected correlation-only fallback to produce results")
+            self.assertIn('lead_lag_score', res.columns)
+        else:
+            self.assertTrue(res.empty, "No matrix → empty result expected")
+
 
     def test_f3_lead_lag_negative_corr(self):
         dates = pd.date_range(start='2026-06-01', periods=50, freq='D')

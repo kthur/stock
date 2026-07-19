@@ -1331,6 +1331,36 @@ def execute_prediction_pipeline():
                 f.write("  (No valid leader returns within normal range today)\n")
     logger.info(f"Saved lead-lag predictions ({len(lead_lag_df)} symbols) to {lead_lag_output_path}")
 
+    # Also save per-market suffix files so merge_predictions.py can find them when
+    # running in a matrix environment where each job processes one market at a time.
+    if not lead_lag_df.empty:
+        # Ensure market column is available (lead_lag_df may already have it from merge above)
+        if 'market' not in lead_lag_df.columns:
+            _ll_merged = lead_lag_df.merge(universe[['symbol', 'market']], on='symbol', how='left')
+        else:
+            _ll_merged = lead_lag_df.copy()
+        # Also ensure name column is available
+        if 'name' not in _ll_merged.columns:
+            _ll_merged = _ll_merged.merge(universe[['symbol', 'name']], on='symbol', how='left')
+        for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            _m_df = _ll_merged[_ll_merged['market'] == _m]
+            if _m_df.empty:
+                continue
+            _mkt_path = os.path.join(result_dir, f"lead_lag_predictions_{_m}.txt")
+            with open(_mkt_path, "w", encoding="utf-8") as _mf:
+                _mf.write("=== Lead-Lag Surge Predictions ===\n")
+                _mf.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+                _mf.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n")
+                _mf.write("Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]\n")
+                _mf.write("        (Higher = stronger historical co-movement with market leaders)\n\n")
+                _mf.write(f"--- {_m} Top 20 ---\n")
+                for _rank, (_, _row) in enumerate(_m_df.head(20).iterrows(), 1):
+                    _name = _row.get('name', 'Unknown')
+                    _score = float(_row['lead_lag_score']) * 100
+                    _mf.write(f"  {_rank}. [{_m}] {_row['symbol']} ({_name}): {_score:.2f}%\n")
+                _mf.write("\n")
+            logger.info(f"Saved lead-lag predictions for {_m} to {_mkt_path}")
+
     # Save VCP pattern detection results
     vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
     vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],

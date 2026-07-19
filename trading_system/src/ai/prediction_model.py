@@ -1193,7 +1193,11 @@ class OnDevicePredictionModel:
             df_feat = self._create_features(df, indicator_df, storage)
             df_feat = self._create_targets(df_feat)
             # Drop rows where non-fundamental features or targets are missing
-            fundamental_cols = ['operating_margin', 'revenue_to_market_cap', 'dividend_yield', 'net_profit_margin', 'eps_yield', 'eps_growth_1y']
+            fundamental_cols = [
+                'operating_margin', 'revenue_to_market_cap', 'dividend_yield',
+                'net_profit_margin', 'eps_yield', 'eps_growth_1y', 'revenue_growth_1y',
+                'revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share'
+            ]
             drop_subset = [c for c in df_feat.columns if c not in fundamental_cols and c != 'symbol']
             df_clean = df_feat.dropna(subset=drop_subset)
             if not df_clean.empty:
@@ -2369,6 +2373,17 @@ class OnDevicePredictionModel:
             for follower, corr in followers:
                 weight = leader_ret * corr
                 follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, weight)
+
+        # Fallback: if all leaders have negative/zero returns (e.g., down market or partial
+        # market inference), use pure correlation sum so the output is never empty.
+        if not follower_scores:
+            logger.info(
+                "Lead-lag: no positive leader returns today — "
+                "using correlation-only fallback scores"
+            )
+            for leader, followers in self.lead_lag_matrix.items():
+                for follower, corr in followers:
+                    follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, corr)
 
         if not follower_scores:
             return pd.DataFrame()
