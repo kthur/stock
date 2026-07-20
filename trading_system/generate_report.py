@@ -624,7 +624,7 @@ def build_html(
             </table>
           </div>
         </div>"""
-        
+
         display_style = "display: block;" if i == 0 else "display: none;"
         vcp_ml_tabs_content += f"""
     <div class="hz-content" data-hz="{hz}" style="{display_style}">
@@ -675,7 +675,7 @@ def build_html(
             </table>
           </div>
         </div>"""
-        
+
         display_style = "display: block;" if i == 0 else "display: none;"
         reg_tabs_content += f"""
     <div class="hz-content" data-hz="{hz}" style="{display_style}">
