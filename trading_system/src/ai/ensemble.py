@@ -76,7 +76,7 @@ class EnsembleClassifier:
         y_meta_train = y_val if y_val is not None else y_train
 
         p_xgb = self.xgb.predict_proba(X_meta_train)[:, 1]
-        p_lgb = self.lgb.predict_proba(X_meta_train)[:, 1]
+        p_lgb = self.lgb.predict_proba(X_meta_train)[:, 1]  # type: ignore[call-overload]
         p_cat = self.cat.predict_proba(X_meta_train)[:, 1]
 
         stacked_features = np.column_stack((p_xgb, p_lgb, p_cat))
@@ -88,7 +88,7 @@ class EnsembleClassifier:
         if not self.is_fitted:
             raise ValueError("Ensemble models are not fitted.")
         p_xgb = self.xgb.predict_proba(X)[:, 1]
-        p_lgb = self.lgb.predict_proba(X)[:, 1]
+        p_lgb = self.lgb.predict_proba(X)[:, 1]  # type: ignore[call-overload]
         p_cat = self.cat.predict_proba(X)[:, 1]
         stacked_features = np.column_stack((p_xgb, p_lgb, p_cat))
         return self.meta_learner.predict_proba(stacked_features)  # type: ignore[no-any-return]

@@ -1631,7 +1631,7 @@ class OnDevicePredictionModel:
                         _m_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
                     _m_lgb.fit(X_tr, y_tr)
                 try:
-                    fold_auc_lgb.append(float(roc_auc_score(y_va, _m_lgb.predict_proba(X_va)[:, 1])))
+                    fold_auc_lgb.append(float(roc_auc_score(y_va, _m_lgb.predict_proba(X_va)[:, 1])))  # type: ignore[call-overload]
                 except Exception:
                     fold_auc_lgb.append(0.5)
 
@@ -1728,7 +1728,7 @@ class OnDevicePredictionModel:
 
             # Platt Scaling Calibration & threshold tuning on last fold's val set
             probs_xgb = model_xgb.predict_proba(X_calib_eval)[:, 1]
-            probs_lgb = model_lgb.predict_proba(X_calib_eval)[:, 1]
+            probs_lgb = model_lgb.predict_proba(X_calib_eval)[:, 1]  # type: ignore[call-overload]
             probs_cat = model_cat.predict_proba(X_calib_eval)[:, 1]
             blend_probs = w_xgb_s * probs_xgb + w_lgb_s * probs_lgb + w_cat_s * probs_cat
 
