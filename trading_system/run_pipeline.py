@@ -335,8 +335,10 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                         ticker_df = None
                         if len(yf_tickers) == 1:
                             ticker_df = df
-                        elif yf_ticker in df.columns.levels[0] if isinstance(df.columns, pd.MultiIndex) else False:
-                            ticker_df = df[yf_ticker].dropna(how='all')
+                        elif isinstance(df.columns, pd.MultiIndex):
+                            # In yfinance >= 0.2.40, Ticker is at level 1
+                            if yf_ticker in df.columns.get_level_values(1):
+                                ticker_df = df.xs(yf_ticker, level=1, axis=1).dropna(how='all')
                         elif yf_ticker in df.columns:
                             # Single-level columns fallback
                             ticker_df = df[[yf_ticker]].dropna(how='all')
@@ -410,6 +412,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                     logger.debug(f"Failed to cache prices for {s}: {ex}")
 
             if cached_df is not None and not cached_df.empty:
+                # Normalize network columns to match cached DB lowercase columns
+                if network_result is not None and not network_result.empty:
+                    network_result.columns = [str(c).lower() for c in network_result.columns]
                 merged_df = pd.concat([cached_df, network_result])
                 merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
                 return merged_df
