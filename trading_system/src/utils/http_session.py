@@ -46,7 +46,7 @@ def setup_global_http_headers() -> None:
     global _GLOBAL_PATCHED
     if _GLOBAL_PATCHED:
         return
-    
+
     # Initialize configured session instance first
     get_configured_session()
 

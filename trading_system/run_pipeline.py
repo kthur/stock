@@ -1662,14 +1662,14 @@ Examples:
         _tb = traceback.format_exc()
         _tb_tail = _tb[-800:] if len(_tb) > 800 else _tb
         logger.exception("Pipeline failed with unhandled exception.")
-        
+
         # Check if output files were still successfully written despite the error
         result_dir = os.path.join(os.path.dirname(__file__), "result")
         essential_file = os.path.join(result_dir, "pipeline_result.txt")
         has_results = os.path.exists(essential_file) and os.path.getsize(essential_file) > 0
-        
+
         _buttons = [[{"text": "📋 에러 로그 보기", "url": _gha_url}]] if _gha_url else None
-        
+
         if has_results:
             logger.info("Output files detected in result directory. Treating as partial success (exiting with 0).")
             _notify_telegram(

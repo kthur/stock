@@ -1569,7 +1569,7 @@ class OnDevicePredictionModel:
         if market not in self.surge_cat_models:
             self.surge_cat_models[market] = {}
 
-        from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+        from sklearn.metrics import roc_auc_score, f1_score
 
         for h in self.surge_horizons:
             target_col = f'target_{h}d'
