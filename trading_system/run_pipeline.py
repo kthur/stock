@@ -898,12 +898,14 @@ def execute_prediction_pipeline():
 
         # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
         if not df_train.empty and 'symbol' in df_train.columns:
+            df_train['symbol'] = df_train['symbol'].astype(str)
             train_symbol_set = set(df_train['symbol'])
             # Build per-market train DataFrames from the merged df_train
             market_dfs = {}
             for m_name, m_symbols in [('sp500', train_sp500), ('kospi', train_kospi),
                                        ('kosdaq', train_kosdaq), ('konex', train_konex)]:
-                active = [s for s in m_symbols if s in train_symbol_set]
+                m_sym_strs = [str(s) for s in m_symbols]
+                active = [s for s in m_sym_strs if s in train_symbol_set]
                 m_df = df_train[df_train['symbol'].isin(active)] if active else pd.DataFrame()
                 if not m_df.empty:
                     logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")

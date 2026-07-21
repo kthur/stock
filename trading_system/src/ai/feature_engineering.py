@@ -61,16 +61,20 @@ def compute_vcp_features(df: pd.DataFrame) -> pd.DataFrame:
     import numpy as np
     df = df.copy()
 
-    # Align casing
+    # Align casing and remove duplicate columns
     df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()].copy()
 
-    high = df['High'].astype(float) if 'High' in df.columns else df['Close'].astype(float)
-    low = df['Low'].astype(float) if 'Low' in df.columns else df['Close'].astype(float)
-    close = df['Close'].astype(float)
-    volume = df['Volume'].astype(float)
+    high = df['High'].iloc[:, 0].astype(float) if isinstance(df.get('High'), pd.DataFrame) else (df['High'].astype(float) if 'High' in df.columns else df['Close'].astype(float))
+    low = df['Low'].iloc[:, 0].astype(float) if isinstance(df.get('Low'), pd.DataFrame) else (df['Low'].astype(float) if 'Low' in df.columns else df['Close'].astype(float))
+    close = df['Close'].iloc[:, 0].astype(float) if isinstance(df.get('Close'), pd.DataFrame) else df['Close'].astype(float)
+    volume = df['Volume'].iloc[:, 0].astype(float) if isinstance(df.get('Volume'), pd.DataFrame) else df['Volume'].astype(float)
 
     # Guard: return empty DataFrame if key columns are all NaN
-    if high.isna().all() or close.isna().all():
+    is_high_all_nan = high.isna().all() if isinstance(high, pd.Series) else high.isna().all().all()
+    is_close_all_nan = close.isna().all() if isinstance(close, pd.Series) else close.isna().all().all()
+    if is_high_all_nan or is_close_all_nan:
         return pd.DataFrame()
 
     # 1. Range ratios
