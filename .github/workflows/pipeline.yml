@@ -75,6 +75,8 @@ jobs:
       - name: Run prediction pipeline for ${{ matrix.target }}
         id: run
         env:
+          DOWNLOAD_DB_FROM_GITHUB: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DB_PATH: market_indicators.db
           STOCK_PRICE_DB_PATH: stock_prices.db
           STOCK_PRICE_FRESHNESS_DAYS: '1'

@@ -421,6 +421,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
             return network_result
 
         # 4. Tier 3 Fallback: Network failed, fall back to DB cache if available
+        if (cached_df is None or cached_df.empty) and price_db is not None:
+            cached_df = price_db.get_prices(s, start_date=None)
+
         if cached_df is not None and not cached_df.empty:
             logger.warning(f"[Offline Cache Fallback] Network failed for {s}. Falling back to cached DB data ({len(cached_df)} rows)")
             return cached_df
