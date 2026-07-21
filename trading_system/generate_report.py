@@ -383,7 +383,7 @@ def safe_float(val: str) -> float:
         if val_clean.lower() in ("nan", "none", ""):
             return 0.0
         return float(val_clean)
-    except:
+    except Exception:
         return 0.0
 
 def ret_class(val: str) -> str:
@@ -393,7 +393,7 @@ def ret_class(val: str) -> str:
         if safe_float(val) >= 0:
             return "pos"
         return "neg"
-    except:
+    except Exception:
         return "neg"
 
 
