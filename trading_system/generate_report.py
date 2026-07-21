@@ -143,7 +143,7 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
         if m:
             data.us10y = m.group(1).strip()
-        m = re.match(r"(XGBoost Regression|Surge Classifier|Lead-Lag|VCP Machine)\w*.*:\s*([\d.]+%)", line)
+        m = re.match(r"(XGBoost Regression|Surge Classifier|Lead-Lag|VCP Machine)\w*.*:\s*([-\d.]+|nan|NaN|None)%", line)
         if m:
             data.weights[m.group(1)] = m.group(2)
 
@@ -164,7 +164,7 @@ def parse_ensemble(text: str) -> EnsembleData:
         if in_data and current_market:
             # Pattern: "1    005930    Samsung Electronic    56.9%    11.4%    80%    10%    0%    9%"
             m = re.match(
-                r"(\d+)\s+(\S+)\s+(.+?)\s{2,}([\d.]+%)\s+([-+]?[\d.]+%)\s+([\d.]+%)\s+([\d.]+%)\s+([\d.]+%)\s+([\d.]+%)",
+                r"(\d+)\s+(\S+)\s+(.+?)\s{2,}([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)",
                 line.strip()
             )
             if m:
@@ -202,7 +202,7 @@ def parse_surge(text: str) -> tuple[str, list[SurgeSection]]:
             continue
         if current:
             # "  1. [KOSPI] 005930 (Samsung Electronics): 60.7%"
-            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([\d.]+%)", line)
+            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-\d.]+|nan|NaN|None)%", line)
             if m:
                 current.rows.append(SurgeRow(
                     rank=int(m.group(1)),
@@ -275,7 +275,7 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
             in_leaders = True
             continue
         # "  1. [KOSPI] 448730 (삼성FN리츠): 1.60%" or "  1. [SP500] LHX (L3Harris): 0.78%"
-        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+\s*%)", line)
+        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)\s*%)", line)
         if m:
             row = LeadLagRow(
                 rank=int(m.group(1)), market=m.group(2),
@@ -287,7 +287,7 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
                 follower_rows.append(row)
             continue
         # "  1. 042520 (한스바이오메드): +8.85%"  (no [MARKET] bracket for leaders)
-        m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+\s*%)", line)
+        m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)\s*%)", line)
         if m and in_leaders:
             leader_rows.append(LeadLagRow(
                 rank=int(m.group(1)), market="",
@@ -314,7 +314,7 @@ def parse_vcp_ml(text: str) -> tuple[str, list[SurgeSection]]:
             sections.append(current)
             continue
         if current:
-            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([\d.]+%)", line)
+            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-\d.]+|nan|NaN|None)%", line)
             if m:
                 current.rows.append(SurgeRow(
                     rank=int(m.group(1)),
@@ -350,7 +350,7 @@ def parse_regression(text: str) -> tuple[str, list[RegSection]]:
             sections.append(current_section)
             continue
         if current_section:
-            m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?[\d.]+%)", line)
+            m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)%)", line)
             if m:
                 current_section.rows.append(RegRow(
                     rank=int(m.group(1)),
@@ -377,14 +377,24 @@ REGIME_INFO = {
     "SIDEWAYS": ("🟡 SIDEWAYS", "#d29922"),
 }
 
-def ret_class(val: str) -> str:
-    val = val.strip().lstrip("+")
+def safe_float(val: str) -> float:
     try:
-        if float(val.rstrip("%")) >= 0:
+        val_clean = val.replace("%", "").strip()
+        if val_clean.lower() in ("nan", "none", ""):
+            return 0.0
+        return float(val_clean)
+    except:
+        return 0.0
+
+def ret_class(val: str) -> str:
+    if "nan" in val.lower() or "none" in val.lower():
+        return ""
+    try:
+        if safe_float(val) >= 0:
             return "pos"
-    except ValueError:
-        pass
-    return "neg"
+        return "neg"
+    except:
+        return "neg"
 
 
 def build_html(
@@ -464,7 +474,7 @@ def build_html(
             flag = MARKET_FLAGS.get(s.market, "")
             rows_html = ""
             for r in s.rows:
-                prob = float(r.probability.rstrip("%"))
+                prob = safe_float(r.probability)
                 bar_w = min(100, int(prob))
                 color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
                 rows_html += f"""
@@ -597,7 +607,7 @@ def build_html(
             flag = MARKET_FLAGS.get(s.market, "")
             rows_html = ""
             for r in s.rows:
-                prob = float(r.probability.rstrip("%"))
+                prob = safe_float(r.probability)
                 bar_w = min(100, int(prob))
                 color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
                 rows_html += f"""
