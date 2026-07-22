@@ -41,6 +41,12 @@ def inverse_transform_sharpe(pred_series: pd.Series,
     """
     # Invert sign * log1p(|pred|) → Sharpe value
     sharpe = np.sign(pred_series) * (np.expm1(np.abs(pred_series)))
-    # Scale back to raw return
-    raw_ret = sharpe * vol_scale.values
+    # Scale back to raw return with a floor on vol_scale so zero vol doesn't zero returns
+    if hasattr(vol_scale, 'values'):
+        v_vals = vol_scale.values
+    else:
+        v_vals = np.array(vol_scale)
+    v_vals = np.nan_to_num(v_vals, nan=0.01)
+    floored_vol = np.maximum(v_vals, 0.005)
+    raw_ret = sharpe * floored_vol
     return pd.Series(raw_ret, index=pred_series.index)

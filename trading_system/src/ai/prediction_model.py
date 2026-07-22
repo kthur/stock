@@ -894,15 +894,29 @@ class OnDevicePredictionModel:
             for col in self.GLOBAL_FEATURES:
                 df[col] = 0.0
             return df
-        before = len(df)
-        df = df.join(indicator_df, how='left')
-        if len(df) > before:
-            df = df.iloc[:before]
+        df_copy = df.copy()
+        orig_index = df.index
+        if not isinstance(df_copy.index, pd.DatetimeIndex):
+            try:
+                df_copy.index = pd.to_datetime(df_copy.index)
+            except Exception:
+                pass
+        ind_copy = indicator_df.copy()
+        if not isinstance(ind_copy.index, pd.DatetimeIndex):
+            try:
+                ind_copy.index = pd.to_datetime(ind_copy.index)
+            except Exception:
+                pass
+        before = len(df_copy)
+        df_merged = df_copy.join(ind_copy, how='left')
+        if len(df_merged) > before:
+            df_merged = df_merged.iloc[:before]
         for col in self.GLOBAL_FEATURES:
-            if col not in df.columns:
-                df[col] = 0.0
-        df[self.GLOBAL_FEATURES] = df[self.GLOBAL_FEATURES].ffill().fillna(0.0)
-        return df
+            if col not in df_merged.columns:
+                df_merged[col] = 0.0
+        df_merged[self.GLOBAL_FEATURES] = df_merged[self.GLOBAL_FEATURES].ffill().fillna(0.0)
+        df_merged.index = orig_index
+        return df_merged
 
     def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None, storage=None, fundamentals_cache: Optional[dict] = None) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
@@ -1571,23 +1585,32 @@ class OnDevicePredictionModel:
 
         from sklearn.metrics import roc_auc_score, f1_score
 
+        horizon_thresholds = {1: 0.03, 3: 0.05, 5: 0.08, 20: 0.15}
         for h in self.surge_horizons:
-            target_col = f'target_{h}d'
-            if target_col not in df_train.columns:
+            raw_target_col = f'raw_surge_target_{h}d'
+            if raw_target_col not in df_train.columns:
                 if 'Close' in df_train.columns and 'symbol' in df_train.columns:
-                    logger.info(f"Computing {target_col} from Close for surge training")
-                    df_train[target_col] = df_train.groupby('symbol')['Close'].transform(
+                    logger.info(f"Computing {raw_target_col} from Close for surge training")
+                    df_train[raw_target_col] = df_train.groupby('symbol')['Close'].transform(
                         lambda x: x.shift(-h) / x - 1
                     ).fillna(0.0).replace([np.inf, -np.inf], 0.0)
                 else:
-                    logger.warning(f"Cannot compute {target_col}, missing Close/symbol columns, skipping")
-                    continue
+                    df_train[raw_target_col] = df_train['Close'].pct_change(h).shift(-h).fillna(0.0)
 
-            logger.info(f"Training surge model (XGB/LGB/Cat) for {market} {h}d horizon...")
+            eff_thresh = horizon_thresholds.get(h, self.surge_threshold)
+            logger.info(f"Training surge model (XGB/LGB/Cat) for {market} {h}d horizon (thresh={eff_thresh*100:.1f}%)...")
             X = df_train[features]
             # Surge label uses raw return thresholded (not Sharpe-scaled)
-            target = (df_train[target_col] >= self.surge_threshold).astype(int)
+            target = (df_train[raw_target_col] >= eff_thresh).astype(int)
             pos_count = target.sum()
+
+            if pos_count == 0:
+                q95 = df_train[raw_target_col].quantile(0.95)
+                if q95 > 0:
+                    eff_thresh = float(q95)
+                    target = (df_train[raw_target_col] >= eff_thresh).astype(int)
+                    pos_count = target.sum()
+
             neg_count = len(target) - pos_count
 
             if pos_count == 0:
@@ -2041,8 +2064,16 @@ class OnDevicePredictionModel:
                             ).values
                             res_df.loc[idx, h] = blend_pred_inv
                         else:
-                            res_df.loc[idx, h] = 0.0
-                            logger.warning(f"Regression prediction for market={mkt}, horizon={h} defaulted to 0.0 due to missing models.")
+                            if 'ret_5d' in X_mkt_raw.columns and 'ret_20d' in X_mkt_raw.columns:
+                                r5 = X_mkt_raw['ret_5d'].fillna(0.0)
+                                r20 = X_mkt_raw['ret_20d'].fillna(0.0)
+                                h_factor = np.sqrt(h / 5.0)
+                                heuristic_pred = (r5 * 0.2 + r20 * 0.1) * h_factor
+                                heuristic_pred = np.clip(heuristic_pred, -0.25, 0.35)
+                                res_df.loc[idx, h] = heuristic_pred.values
+                            else:
+                                res_df.loc[idx, h] = 0.001 * h
+                            logger.warning(f"Regression prediction for market={mkt}, horizon={h} used heuristic momentum fallback due to missing ML models.")
 
 
         # Clip extreme values

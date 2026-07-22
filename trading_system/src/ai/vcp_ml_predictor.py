@@ -123,7 +123,7 @@ class VCPSurgePredictor:
 
     def _compute_vcp_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compute VCP features from raw OHLCV for a single symbol."""
-        if df is None or len(df) < 200:
+        if df is None or len(df) < 65:
             return pd.DataFrame()
 
         try:
@@ -168,7 +168,7 @@ class VCPSurgePredictor:
 
             vcp_feat = self._compute_vcp_features(prices_dict.get(sym))
             if vcp_feat.empty:
-                return None
+                vcp_feat = pd.DataFrame([{col: 0.0 for col in VCP_FEATURES}])
 
             latest = df_feat.iloc[-1:].copy()
             # Drop VCP columns in latest if they already exist to avoid duplicate columns

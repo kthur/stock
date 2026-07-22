@@ -454,12 +454,16 @@ class StockPriceDB:
             params.append(start_date)
         if end_date:
             query += " AND date <= ?"
-            params.append(end_date)
+            end_param = f"{end_date} 23:59:59" if len(end_date) == 10 else end_date
+            params.append(end_param)
         query += " ORDER BY date ASC"
         df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
         if not df.empty:
             df.set_index("date", inplace=True)
             df.columns = [col.capitalize() for col in df.columns]
+        else:
+            df = pd.DataFrame(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
+            df.index = pd.DatetimeIndex([], name='date')
         return df
 
     def get_latest_date(self, symbol: str) -> Optional[str]:
@@ -483,18 +487,20 @@ class StockPriceDB:
     def needs_update(self, symbol: str, max_age_days: int = 1,
                      start_date: Optional[str] = None) -> bool:
         """DB 데이터가 max_age_days 이상 지났거나, start_date보다 앞 데이터가 부족하면 True"""
+        if max_age_days < 0:
+            return False
         latest = self.get_latest_date(symbol)
         if latest is None:
             return True
-        latest_dt = datetime.strptime(latest, "%Y-%m-%d")
+        latest_dt = datetime.strptime(latest[:10], "%Y-%m-%d")
         if (datetime.now() - latest_dt).days >= max_age_days:
             return True
         if start_date is not None:
             earliest = self._get_earliest_date(symbol)
             if earliest is None:
                 return True
-            earliest_dt = datetime.strptime(earliest, "%Y-%m-%d")
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            earliest_dt = datetime.strptime(earliest[:10], "%Y-%m-%d")
+            start_dt = datetime.strptime(start_date[:10], "%Y-%m-%d")
             if (earliest_dt - start_dt).days > 7:
                 return True
         return False

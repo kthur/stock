@@ -40,12 +40,20 @@ def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd
         return df
     df_copy = df.copy()
     X = df_copy[features].fillna(0.0)
-    # Handle scaler not fitted yet
-    try:
-        scaled_values = scaler.transform(X)
-        df_copy[features] = scaled_values
-    except Exception as e:
-        logger.warning(f"Failed to apply scaling: {e}. Using raw features.")
+    if hasattr(scaler, 'mean_') and scaler.mean_ is not None:
+        try:
+            scaled_values = scaler.transform(X)
+            df_copy[features] = scaled_values
+        except Exception as e:
+            logger.warning(f"Failed to apply scaling: {e}. Fitting on current data.")
+            scaled_values = scaler.fit_transform(X)
+            df_copy[features] = scaled_values
+    else:
+        try:
+            scaled_values = scaler.fit_transform(X)
+            df_copy[features] = scaled_values
+        except Exception as e:
+            logger.warning(f"Failed to fit_transform scaler: {e}. Using raw features.")
     return df_copy
 
 def compute_vcp_features(df: pd.DataFrame) -> pd.DataFrame:

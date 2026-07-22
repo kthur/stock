@@ -33,18 +33,18 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
 
     # 1. Daily range %
     df['range_pct'] = (high - low) / close * 100
-    # 2. VCP contraction windows (T1..T5: narrower range = later contraction)
-    windows = [5, 10, 20, 40, 60]
-    ranges = []
-    for w in windows:
-        r = float(df['range_pct'].tail(w).max())
-        ranges.append(r)
+    # 2. VCP contraction steps on non-overlapping windows
+    # Slice 1: [-5:], Slice 2: [-15:-5], Slice 3: [-35:-15], Slice 4: [-60:-35]
+    n = len(df)
+    r1 = float(df['range_pct'].iloc[-min(5, n):].max())
+    r2 = float(df['range_pct'].iloc[-min(15, n):-min(5, n)].max()) if n > 5 else r1
+    r3 = float(df['range_pct'].iloc[-min(35, n):-min(15, n)].max()) if n > 15 else r2
+    r4 = float(df['range_pct'].iloc[-min(60, n):-min(35, n)].max()) if n > 35 else r3
 
-    # VCP: ranges should be decreasing as window shortens.
-    # windows = [5, 10, 20, 40, 60], so ranges[0]=5d, ranges[4]=60d.
-    # Contraction means the 60d range > 40d > 20d > 10d > 5d (shorter = tighter).
-    # i.e. ranges[i] < ranges[i+1] for i in 0..3 (longer windows have bigger swings).
-    decreasing = all(ranges[i] < ranges[i + 1] for i in range(len(ranges) - 1))
+    ranges = [r1, r2, r3, r4]
+
+    # Contraction: recent ranges are tighter than earlier ranges
+    decreasing = (r1 <= r2 * 1.05) and (r2 <= r3 * 1.05) and (r1 < r4)
 
     # 3. Volume contraction
     vol_20d = float(volume.tail(20).mean())

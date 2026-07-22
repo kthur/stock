@@ -640,7 +640,7 @@ def _get_excluded_krx_symbols() -> set:
     """Get KRX symbols excluded due to halted trading or admin status.
 
     Uses FinanceDataReader to check:
-    - Volume=0: trading halted (거래정지)
+    - Volume=0: trading halted (거래정지) - only applied during active market hours
     - KRX-ADMINISTRATIVE: under administration (관리종목)
 
     Returns empty set on failure (e.g. offline mode).
@@ -650,18 +650,28 @@ def _get_excluded_krx_symbols() -> set:
         try:
             krx = fdr.StockListing('KRX')
             krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code'] else str(c) for c in krx.columns]
-            halted = set(krx[krx['Volume'] == 0]['Code'].tolist()) if 'Volume' in krx.columns else set()
-
-            if halted:
-                logger.info(f"Excluding {len(halted)} halted KRX stocks (Volume=0)")
-            excluded |= halted
+            if 'Volume' in krx.columns and not krx.empty:
+                zero_vol_ratio = (krx['Volume'] == 0).mean()
+                if zero_vol_ratio <= 0.3:
+                    halted = set(krx[krx['Volume'] == 0]['Code'].tolist())
+                    if halted:
+                        logger.info(f"Excluding {len(halted)} halted KRX stocks (Volume=0, active market)")
+                    excluded |= halted
+                else:
+                    logger.info(f"Market off-hours detected (zero volume ratio={zero_vol_ratio:.1%}). Skipping Volume=0 purging.")
         except Exception as e:
             logger.debug(f"Could not fetch KRX listing: {e}")
         try:
-            admin = set(fdr.StockListing('KRX-ADMINISTRATIVE')['Code'].tolist())
-            if admin:
-                logger.info(f"Excluding {len(admin)} administrative KRX stocks (관리종목)")
-            excluded |= admin
+            adm = fdr.StockListing('KRX-ADMINISTRATIVE')
+            code_col = 'Code' if 'Code' in adm.columns else ('Symbol' if 'Symbol' in adm.columns else None)
+            if code_col:
+                admin = set()
+                for s in adm[code_col]:
+                    code_str = str(s).zfill(6) if str(s).isdigit() else str(s)
+                    admin.add(code_str)
+                if admin:
+                    logger.info(f"Excluding {len(admin)} administrative KRX stocks (관리종목)")
+                excluded |= admin
         except Exception as e:
             logger.debug(f"Could not fetch KRX-ADMINISTRATIVE listing: {e}")
     except Exception:

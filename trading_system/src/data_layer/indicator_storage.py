@@ -207,15 +207,18 @@ class MarketIndicatorStorage:
         logger.info("Fetching KRX universe...")
         krx = fdr.StockListing('KRX')
 
-        # 거래정지(Volume=0) 및 관리종목 제외
+        # 관리종목 제외 (Volume=0 스냅샷은 거래일시 정지가 아닐 수 있으므로 유니버스 제거 제외)
         krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code'] else str(c) for c in krx.columns]
-        excluded = set(krx[krx['Volume'] == 0]['Code'].tolist()) if 'Volume' in krx.columns else set()
+        excluded = set()
 
         try:
             adm = fdr.StockListing('KRX-ADMINISTRATIVE')
-            for s in adm['Symbol']:
-                excluded.add(f'{s:06d}')
-            logger.info(f"Excluded {len(excluded)} halted/caution KRX symbols")
+            code_col = 'Code' if 'Code' in adm.columns else ('Symbol' if 'Symbol' in adm.columns else None)
+            if code_col:
+                for s in adm[code_col]:
+                    code_str = str(s).zfill(6) if str(s).isdigit() else str(s)
+                    excluded.add(code_str)
+            logger.info(f"Excluded {len(excluded)} administrative KRX symbols")
         except Exception as e:
             logger.warning(f"Failed to fetch KRX administrative list: {e}")
 
