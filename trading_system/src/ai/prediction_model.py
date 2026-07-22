@@ -1831,8 +1831,10 @@ class OnDevicePredictionModel:
             if df_current.empty:
                 return {h: 0.0 for h in self.horizons}
 
-        latest = df_current.iloc[-1:]
-        latest[self.ALL_FEATURES]
+        latest = df_current.iloc[-1:].copy()
+        for col in self.ALL_FEATURES:
+            if col in latest.columns:
+                latest[col] = latest[col].replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
 
         predictions = {}
         import warnings
@@ -1859,7 +1861,11 @@ class OnDevicePredictionModel:
                 # Apply feature scaling
                 from src.ai.feature_engineering import load_scaler, apply_scaler
                 scaler = load_scaler(str(self.model_dir), market, h)
-                X_scaled = apply_scaler(latest, self.ALL_FEATURES, scaler)[self.ALL_FEATURES]
+                X_scaled = apply_scaler(latest, self.ALL_FEATURES, scaler)[self.ALL_FEATURES].copy()
+                for c in self.ALL_FEATURES:
+                    if c in X_scaled.columns:
+                        X_scaled[c] = pd.to_numeric(X_scaled[c], errors='coerce')
+                X_scaled = X_scaled.replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
 
                 if xgb_m is not None:
                     preds.append(float(xgb_m.predict(X_scaled)[0]))

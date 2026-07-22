@@ -1,5 +1,6 @@
 import os
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import logging
@@ -19,7 +20,7 @@ def get_scaler_path(model_dir: str, market: str, horizon: int) -> str:
 def fit_scaler(df: pd.DataFrame, features: list, model_dir: str, market: str, horizon: int) -> StandardScaler:
     scaler = StandardScaler()
     # Fill remaining NaNs with 0 before scaling to ensure safety
-    X = df[features].fillna(0.0)
+    X = df[features].replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
     scaler.fit(X)
 
     os.makedirs(model_dir, exist_ok=True)
@@ -39,7 +40,11 @@ def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd
     if df.empty:
         return df
     df_copy = df.copy()
-    X = df_copy[features].fillna(0.0)
+    X = df_copy[features].copy()
+    for c in features:
+        if c in X.columns:
+            X[c] = pd.to_numeric(X[c], errors='coerce')
+    X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
     if hasattr(scaler, 'mean_') and scaler.mean_ is not None:
         try:
             scaled_values = scaler.transform(X)
@@ -54,6 +59,7 @@ def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd
             df_copy[features] = scaled_values
         except Exception as e:
             logger.warning(f"Failed to fit_transform scaler: {e}. Using raw features.")
+    df_copy[features] = df_copy[features].replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
     return df_copy
 
 def compute_vcp_features(df: pd.DataFrame) -> pd.DataFrame:
