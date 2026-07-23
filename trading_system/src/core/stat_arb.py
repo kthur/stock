@@ -14,6 +14,10 @@ class StatisticalArbitrageEngine:
 
     def find_cointegrated_pairs(self, prices_dict: Dict[str, List[float]]) -> List[Dict[str, Any]]:
         symbols = list(prices_dict.keys())
+        # Performance optimization: if too many symbols, limit to first 300 to avoid CPU-stalling O(N^2) loop (5M iterations)
+        if len(symbols) > 300:
+            symbols = symbols[:300]
+            
         found_pairs: List[Dict[str, Any]] = []
         min_len = min(len(v) for v in prices_dict.values()) if prices_dict else 0
 

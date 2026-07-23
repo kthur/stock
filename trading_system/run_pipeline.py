@@ -889,23 +889,18 @@ def execute_prediction_pipeline():
             logger.error(f"Failed to batch fetch training fundamentals: {e}")
             train_fund_cache = {}
 
-        # Merge fundamentals (parallel)
-        def _merge_one(sym: str, df):
+        # Merge fundamentals (synchronous loop to avoid SQLite multithreaded locking/deadlocks)
+        for sym in list(train_data_dict.keys()):
+            df = train_data_dict[sym]
             try:
                 merged = model.merge_fundamentals(sym, df, storage, fundamentals_cache=train_fund_cache)
-                return (sym, merged)
-            except Exception as e:
-                logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
-                return (sym, None)
-
-        with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
-            futures = {pool.submit(_merge_one, sym, df): sym for sym, df in train_data_dict.items()}
-            for f in as_completed(futures):
-                sym, merged = f.result()
                 if merged is not None:
                     train_data_dict[sym] = merged
                 else:
                     train_data_dict.pop(sym, None)
+            except Exception as e:
+                logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
+                train_data_dict.pop(sym, None)
 
         df_train = model.prepare_training_data(train_data_dict, indicator_train, storage=storage)
 
@@ -1452,28 +1447,24 @@ def execute_prediction_pipeline():
         f.write("=== VCP ML Surge Predictions ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
 
-        if vcp_ml_df.empty:
-            f.write("데이터 없음\n")
-        else:
-            vcp_ml_df = vcp_ml_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left', suffixes=('', '_univ'))
-            for h in SURGE_HORIZONS:
-                col = f'vcp_{h}d'
-                if col not in vcp_ml_df.columns:
+        for h in SURGE_HORIZONS:
+            for market in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                if not vcp_ml_df.empty and 'market' in vcp_ml_df.columns and f'vcp_{h}d' in vcp_ml_df.columns:
+                    m_df = vcp_ml_df[vcp_ml_df['market'] == market].sort_values(by=f'vcp_{h}d', ascending=False)
+                else:
+                    m_df = pd.DataFrame()
+
+                if m_df.empty:
+                    f.write(f"[{h}일] {market} - (no symbols) 0.0%\n\n")
                     continue
-                for market in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
-                    m_df = vcp_ml_df[vcp_ml_df['market'] == market].sort_values(by=col, ascending=False)
-                    if m_df.empty:
-                        if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
-                            f.write(f"[{h}일] {market} - (no symbols)\n\n")
-                        continue
-                    top_n = min(20, len(m_df))
-                    f.write(f"[{h}일] {market} TOP {top_n}\n")
-                    for rank, (_, row) in enumerate(m_df.head(top_n).iterrows(), 1):
-                        name = row.get('name', 'Unknown')
-                        prob = row[col] * 100
-                        f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
-                    f.write("\n")
-    logger.info(f"Saved VCP ML predictions ({len(vcp_ml_df)} symbols) to {vcp_ml_output_path}")
+                top_n = min(20, len(m_df))
+                f.write(f"[{h}일] {market} TOP {top_n}\n")
+                for rank, (_, row) in enumerate(m_df.head(top_n).iterrows(), 1):
+                    name = row.get('name', 'Unknown')
+                    prob = row[f'vcp_{h}d'] * 100
+                    f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
+                f.write("\n")
+    logger.info(f"Saved VCP ML predictions to {vcp_ml_output_path}")
 
     # 11d. Run Ensemble Scoring
     logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")

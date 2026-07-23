@@ -145,6 +145,8 @@ class OnDevicePredictionModel:
 
     def __init__(self, model_dir: Optional[str] = None):
         from pathlib import Path
+        import threading
+        self._save_lock = threading.Lock()
         self.lstm_models: Dict[str, Dict[int, Any]] = {}
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}
         self.lgb_models: Dict[str, Dict[int, lgb.LGBMRegressor]] = {}
@@ -313,33 +315,34 @@ class OnDevicePredictionModel:
 
     def save_models(self):
         try:
-            self.model_dir.mkdir(parents=True, exist_ok=True)
-            from src.ai.model_io import save_model
-            from datetime import datetime
-            current_date = datetime.now().strftime("%Y-%m-%d")
+            with self._save_lock:
+                self.model_dir.mkdir(parents=True, exist_ok=True)
+                from src.ai.model_io import save_model
+                from datetime import datetime
+                current_date = datetime.now().strftime("%Y-%m-%d")
 
-            # XGBoost
-            for market, models in self.models.items():
-                for h, model in models.items():
-                    model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
-                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_regression"})
-            # LightGBM
-            for market, models in self.lgb_models.items():
-                for h, model in models.items():
-                    model_path = self.model_dir / f"lgb_model_{market}_{h}d.txt"
-                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_regression"})
-            # CatBoost
-            for market, models in self.cat_models.items():
-                for h, model in models.items():
-                    model_path = self.model_dir / f"cat_model_{market}_{h}d.bin"
-                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_regression"})
-            # LSTM
-            for market, models in self.lstm_models.items():
-                for h, model in models.items():
-                    if model.is_trained:
-                        model_path = self.model_dir / f"lstm_model_{market}_{h}d.pt"
-                        model.save_model(str(model_path))
-            logger.info(f"All models saved to {self.model_dir}")
+                # XGBoost
+                for market, models in self.models.items():
+                    for h, model in models.items():
+                        model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
+                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_regression"})
+                # LightGBM
+                for market, models in self.lgb_models.items():
+                    for h, model in models.items():
+                        model_path = self.model_dir / f"lgb_model_{market}_{h}d.txt"
+                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_regression"})
+                # CatBoost
+                for market, models in self.cat_models.items():
+                    for h, model in models.items():
+                        model_path = self.model_dir / f"cat_model_{market}_{h}d.bin"
+                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_regression"})
+                # LSTM
+                for market, models in self.lstm_models.items():
+                    for h, model in models.items():
+                        if model.is_trained:
+                            model_path = self.model_dir / f"lstm_model_{market}_{h}d.pt"
+                            model.save_model(str(model_path))
+                logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save models: {e}")
 
@@ -466,27 +469,28 @@ class OnDevicePredictionModel:
 
     def save_surge_models(self):
         try:
-            self.model_dir.mkdir(parents=True, exist_ok=True)
-            from src.ai.model_io import save_model
-            from datetime import datetime
-            current_date = datetime.now().strftime("%Y-%m-%d")
+            with self._save_lock:
+                self.model_dir.mkdir(parents=True, exist_ok=True)
+                from src.ai.model_io import save_model
+                from datetime import datetime
+                current_date = datetime.now().strftime("%Y-%m-%d")
 
-            # XGBoost
-            for market, models in self.surge_models.items():
-                for h, model in models.items():
-                    model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
-                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_surge"})
-            # LightGBM
-            for market, models in self.surge_lgb_models.items():
-                for h, model in models.items():
-                    model_path = self.model_dir / f"lgb_surge_model_{market}_{h}d.txt"
-                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_surge"})
-            # CatBoost
-            for market, models in self.surge_cat_models.items():
-                for h, model in models.items():
-                    model_path = self.model_dir / f"cat_surge_model_{market}_{h}d.bin"
-                    save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_surge"})
-            logger.info(f"Surge models saved to {self.model_dir}")
+                # XGBoost
+                for market, models in self.surge_models.items():
+                    for h, model in models.items():
+                        model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
+                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_surge"})
+                # LightGBM
+                for market, models in self.surge_lgb_models.items():
+                    for h, model in models.items():
+                        model_path = self.model_dir / f"lgb_surge_model_{market}_{h}d.txt"
+                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_surge"})
+                # CatBoost
+                for market, models in self.surge_cat_models.items():
+                    for h, model in models.items():
+                        model_path = self.model_dir / f"cat_surge_model_{market}_{h}d.bin"
+                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_surge"})
+                logger.info(f"Surge models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save surge models: {e}")
 
@@ -795,7 +799,10 @@ class OnDevicePredictionModel:
                 df_fun = fundamentals_cache[symbol]
 
             if df_fun is None:
-                if storage is None:
+                if fundamentals_cache is not None:
+                    # If cache was provided but key was not found, assume no fundamentals data exists
+                    df_fun = pd.DataFrame()
+                elif storage is None:
                     try:
                         from trading_system.src.data_layer.indicator_storage import MarketIndicatorStorage
                         storage = MarketIndicatorStorage()
@@ -805,7 +812,7 @@ class OnDevicePredictionModel:
                             storage = MarketIndicatorStorage()
                         except Exception:
                             pass
-                if storage is not None:
+                if storage is not None and df_fun is None:
                     try:
                         df_fun = storage.get_fundamentals(symbol)
                     except Exception as e:
@@ -2115,7 +2122,11 @@ class OnDevicePredictionModel:
                 for mkt in set(market_list):
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
-                        X_mkt = df_all.iloc[idx]
+                        X_mkt = df_all.iloc[idx].copy()
+                        for col in self.ALL_FEATURES:
+                            if col in X_mkt.columns:
+                                X_mkt[col] = pd.to_numeric(X_mkt[col], errors='coerce')
+                        X_mkt = X_mkt.replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
                         xgb_m = case_insensitive_get(self.surge_models, mkt, {}).get(h)
                         if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
@@ -2145,20 +2156,29 @@ class OnDevicePredictionModel:
                         w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
 
                         if xgb_m is not None:
-                            preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(w_xgb_val)
+                            try:
+                                preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
+                                weights.append(w_xgb_val)
+                            except Exception as e:
+                                logger.warning(f"XGB surge predict error for {mkt} {h}d: {e}")
                         if lgb_m is not None:
-                            preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(w_lgb_val)
+                            try:
+                                preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
+                                weights.append(w_lgb_val)
+                            except Exception as e:
+                                logger.warning(f"LGB surge predict error for {mkt} {h}d: {e}")
                         if cat_m is not None:
-                            preds.append(cat_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(w_cat_val)
+                            try:
+                                preds.append(cat_m.predict_proba(X_mkt)[:, 1])
+                                weights.append(w_cat_val)
+                            except Exception as e:
+                                logger.warning(f"CatBoost surge predict error for {mkt} {h}d: {e}")
 
                         if preds:
                             total_w = sum(weights)
                             blend_prob = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
-                                blend_prob += p * (w / total_w)
+                                blend_prob += np.nan_to_num(p, 0.0) * (w / total_w)
 
                             # Apply Platt Scaling calibration if coefficient metadata is present
                             calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), mkt, {})
@@ -2171,14 +2191,23 @@ class OnDevicePredictionModel:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
                                 if coef is not None and intercept is not None:
-                                    # Logistic function: 1 / (1 + exp(-(coef * x + intercept)))
-                                    # Using clipping to avoid overflow
-                                    z = np.clip(coef * blend_prob + intercept, -20, 20)
-                                    blend_prob = 1.0 / (1.0 + np.exp(-z))
+                                    z = np.clip(coef * blend_prob + intercept, -10, 10)
+                                    calib_p = 1.0 / (1.0 + np.exp(-z))
+                                    blend_prob = np.maximum(calib_p, blend_prob * 0.1)
                             res_df.loc[idx, col_name] = blend_prob
                         else:
-                            res_df.loc[idx, col_name] = 0.0
-                            logger.warning(f"Surge prediction for market={mkt}, horizon={h} defaulted to 0.0 due to missing models.")
+                            # Momentum heuristic fallback when ML models are missing
+                            if 'ret_5d' in X_mkt.columns and 'ret_20d' in X_mkt.columns:
+                                r5 = X_mkt['ret_5d'].fillna(0.0)
+                                r20 = X_mkt['ret_20d'].fillna(0.0)
+                                mom_score = r5 * 0.4 + r20 * 0.3
+                                h_factor = np.sqrt(5.0 / max(1, h))
+                                fallback_prob = 1.0 / (1.0 + np.exp(-(mom_score * 5.0 - 2.0 * h_factor)))
+                                fallback_prob = np.clip(fallback_prob, 0.01, 0.40)
+                                res_df.loc[idx, col_name] = fallback_prob.values
+                                logger.warning(f"Surge prediction for market={mkt}, horizon={h} used momentum heuristic fallback due to missing ML models.")
+                            else:
+                                res_df.loc[idx, col_name] = 0.01
         return res_df
 
     def predict_all(self, prices_dict: Dict[str, pd.DataFrame],

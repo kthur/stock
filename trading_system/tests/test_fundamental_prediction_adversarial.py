@@ -246,14 +246,16 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
         # A. Predict on short input (len < 65)
         short_df = df_aapl.iloc[:60]
         short_preds = self.model.predict_current(short_df)
-        self.assertEqual(short_preds, {h: 0.0 for h in self.horizons})
+        self.assertEqual(set(short_preds.keys()), set(self.model.horizons))
+        self.assertTrue(all(v == 0.0 for v in short_preds.values()))
 
         # B. Predict on input where dropna removes all rows
         nan_df = df_aapl.copy()
         # Set Close to NaN in enough places to ensure dropna empties it
         nan_df["Close"] = np.nan
         nan_preds = self.model.predict_current(nan_df)
-        self.assertEqual(nan_preds, {h: 0.0 for h in self.horizons})
+        self.assertEqual(set(nan_preds.keys()), set(self.model.horizons))
+        self.assertTrue(all(v == 0.0 for v in nan_preds.values()))
 
         # C. Predict on input with precomputed features where the latest row contains NaNs/Infs
         df_precompute_nan = self.model._create_features(df_aapl)
@@ -265,6 +267,7 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
         try:
             preds_nan = self.model.predict_current(df_precompute_nan)
             self.assertIsNotNone(preds_nan)
+            self.assertEqual(set(preds_nan.keys()), set(self.model.horizons))
         except Exception as e:
             self.fail(f"predict_current crashed with NaN in features: {e}")
 
@@ -274,6 +277,7 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
         try:
             preds_inf = self.model.predict_current(df_precompute_inf)
             self.assertIsNotNone(preds_inf)
+            self.assertEqual(set(preds_inf.keys()), set(self.model.horizons))
         except Exception as e:
             self.fail(f"predict_current crashed with Inf in features: {e}")
 
