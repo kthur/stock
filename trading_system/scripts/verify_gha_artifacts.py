@@ -1,0 +1,424 @@
+#!/usr/bin/env python3
+"""
+verify_gha_artifacts.py — GHA Artifact & Pipeline Result Verification Utility
+
+Verifies prediction pipeline outputs for 4 markets (SP500, KOSPI, KOSDAQ, KONEX)
+across 5 key strategies:
+1. Surge Classifier
+2. VCP ML Predictor
+3. XGBoost Regression
+4. VCP Rule Pattern Detector
+5. Lead-Lag Matrix
+
+Also verifies:
+- Merged Ensemble Predictions (`ensemble_predictions.txt`)
+- GitHub Pages HTML Dashboard (`index.html`)
+
+Usage:
+    python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+MARKETS = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
+STRATEGIES = ["surge", "vcp_ml", "regression", "vcp", "lead_lag"]
+
+
+@dataclass
+class StrategyCheckResult:
+    strategy: str
+    market: str
+    file_found: bool = False
+    valid: bool = False
+    count: int = 0
+    non_zero: bool = False
+    message: str = ""
+
+
+@dataclass
+class MarketCheckResult:
+    market: str
+    strategies: Dict[str, StrategyCheckResult] = field(default_factory=dict)
+    all_strategies_valid: bool = False
+
+
+@dataclass
+class EnsembleCheckResult:
+    file_found: bool = False
+    valid: bool = False
+    markets_found: List[str] = field(default_factory=list)
+    strategy_weights: Dict[str, float] = field(default_factory=dict)
+    total_recommendations: int = 0
+    message: str = ""
+
+
+@dataclass
+class GhPagesCheckResult:
+    file_found: bool = False
+    valid: bool = False
+    markets_in_html: List[str] = field(default_factory=list)
+    has_ensemble_table: bool = False
+    has_surge_card: bool = False
+    has_vcp_card: bool = False
+    has_reg_card: bool = False
+    has_lead_lag_card: bool = False
+    message: str = ""
+
+
+@dataclass
+class PipelineVerificationReport:
+    timestamp: str = ""
+    result_dir: str = ""
+    gh_pages_dir: str = ""
+    markets: Dict[str, MarketCheckResult] = field(default_factory=dict)
+    ensemble: EnsembleCheckResult = field(default_factory=EnsembleCheckResult)
+    gh_pages: GhPagesCheckResult = field(default_factory=GhPagesCheckResult)
+    overall_passed: bool = False
+
+
+def _read_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    except Exception:
+        try:
+            return path.read_text(encoding="cp949").replace("\r\n", "\n")
+        except Exception:
+            return path.read_text(encoding="utf-8", errors="ignore").replace("\r\n", "\n")
+
+
+def check_surge(content: str, market: str) -> StrategyCheckResult:
+    res = StrategyCheckResult(strategy="surge", market=market)
+    if not content or "데이터 없음" in content or "No data" in content:
+        res.message = "No data or empty section"
+        return res
+
+    res.file_found = True
+    pattern = rf"\[{re.escape(market)}\]\s+[\w\d_.-]+\s*\([^)]+\):\s*([\d.]+)%"
+    matches = re.findall(pattern, content)
+    
+    if not matches:
+        pattern2 = rf"\d+\.\s+\[{re.escape(market)}\].*?:\s*([\d.]+)%"
+        matches = re.findall(pattern2, content)
+
+    res.count = len(matches)
+    if matches:
+        percentages = [float(p) for p in matches]
+        non_zero_pcts = [p for p in percentages if p > 0.0]
+        if non_zero_pcts:
+            res.non_zero = True
+            res.valid = True
+            res.message = f"Found {len(matches)} surge items (max: {max(percentages):.1f}%)"
+        else:
+            res.message = f"Found {len(matches)} surge items but all are 0.0%"
+    else:
+        res.message = "No surge entries matching pattern"
+
+    return res
+
+
+def check_vcp_ml(content: str, market: str) -> StrategyCheckResult:
+    res = StrategyCheckResult(strategy="vcp_ml", market=market)
+    if not content or "데이터 없음" in content or "No data" in content:
+        res.message = "No data or empty section"
+        return res
+
+    res.file_found = True
+    pattern = rf"\[{re.escape(market)}\]\s+[\w\d_.-]+\s*\([^)]+\):\s*([\d.]+)%"
+    matches = re.findall(pattern, content)
+
+    if not matches:
+        if f"{market} - (no symbols)" in content or f"[{market}] - (no symbols)" in content:
+            res.message = f"{market} explicitly reports no VCP ML symbols"
+            res.valid = True
+            res.count = 0
+            return res
+
+    res.count = len(matches)
+    if matches:
+        percentages = [float(p) for p in matches]
+        non_zero_pcts = [p for p in percentages if p > 0.0]
+        if non_zero_pcts:
+            res.non_zero = True
+            res.valid = True
+            res.message = f"Found {len(matches)} VCP ML items (max: {max(percentages):.1f}%)"
+        else:
+            res.message = f"Found {len(matches)} VCP ML items but all are 0.0%"
+    else:
+        res.message = "No VCP ML items found"
+
+    return res
+
+
+def check_regression(content: str, market: str) -> StrategyCheckResult:
+    res = StrategyCheckResult(strategy="regression", market=market)
+    if not content or "데이터 없음" in content or "No data" in content:
+        res.message = "No data or empty file"
+        return res
+
+    res.file_found = True
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    data_lines = [l for l in lines if not l.startswith("===") and not l.startswith("Date:") and not l.startswith("Total symbols:")]
+
+    res.count = len(data_lines)
+    if res.count > 0:
+        res.non_zero = True
+        res.valid = True
+        res.message = f"Found {res.count} regression prediction rows"
+    else:
+        res.message = "No regression prediction rows found"
+
+    return res
+
+
+def check_vcp(content: str, market: str) -> StrategyCheckResult:
+    res = StrategyCheckResult(strategy="vcp", market=market)
+    if not content or "데이터 없음" in content or "No data" in content:
+        res.message = "No VCP pattern matches found"
+        if "Total VCP patterns found:" in content:
+            res.file_found = True
+            res.valid = True
+            res.message = "VCP pattern detector executed cleanly (0 patterns found)"
+        return res
+
+    res.file_found = True
+    matches = re.findall(rf"\[{re.escape(market)}\]", content)
+    pattern_count = len(matches)
+
+    res.count = pattern_count
+    res.valid = True
+    res.non_zero = (pattern_count > 0)
+    res.message = f"Found {pattern_count} VCP pattern entries"
+    return res
+
+
+def check_lead_lag(content: str, market: str) -> StrategyCheckResult:
+    res = StrategyCheckResult(strategy="lead_lag", market=market)
+    if not content or "데이터 없음" in content or "No data" in content:
+        res.message = "No lead-lag data"
+        return res
+
+    res.file_found = True
+    matches = re.findall(rf"\[{re.escape(market)}\]", content)
+    res.count = len(matches)
+    
+    if res.count > 0:
+        res.valid = True
+        res.non_zero = True
+        res.message = f"Found {res.count} lead-lag candidate entries"
+    else:
+        if "Leaders with highest today return" in content or "Follower" in content:
+            res.valid = True
+            res.message = "Lead-lag calculated (0 followers triggered)"
+        else:
+            res.message = "No lead-lag entries found"
+
+    return res
+
+
+def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult:
+    m_res = MarketCheckResult(market=market)
+
+    files_map = {
+        "surge": [f"surge_predictions_{market}.txt", "surge_predictions.txt"],
+        "vcp_ml": [f"vcp_ml_predictions_{market}.txt", "vcp_ml_predictions.txt"],
+        "regression": [f"pipeline_result_{market}.txt", "pipeline_result.txt"],
+        "vcp": [f"vcp_patterns_{market}.txt", "vcp_patterns.txt"],
+        "lead_lag": [f"lead_lag_predictions_{market}.txt", "lead_lag_predictions.txt"],
+    }
+
+    check_funcs = {
+        "surge": check_surge,
+        "vcp_ml": check_vcp_ml,
+        "regression": check_regression,
+        "vcp": check_vcp,
+        "lead_lag": check_lead_lag,
+    }
+
+    for strat, filenames in files_map.items():
+        content = ""
+        for fname in filenames:
+            fpath = result_dir / fname
+            if fpath.exists():
+                c = _read_text(fpath)
+                if c.strip():
+                    content = c
+                    break
+
+        func = check_funcs[strat]
+        s_res = func(content, market)
+        m_res.strategies[strat] = s_res
+
+    m_res.all_strategies_valid = all(s.valid for s in m_res.strategies.values())
+    return m_res
+
+
+def verify_ensemble(result_dir: Path) -> EnsembleCheckResult:
+    res = EnsembleCheckResult()
+    ens_path = result_dir / "ensemble_predictions.txt"
+    content = _read_text(ens_path)
+
+    if not content or "데이터 없음" in content:
+        res.message = "ensemble_predictions.txt missing or empty"
+        return res
+
+    res.file_found = True
+
+    weight_matches = re.findall(r"^\s*([\w\s&()-]+?)\s*:\s*([\d.]+)%", content, re.MULTILINE)
+    for name, weight in weight_matches:
+        res.strategy_weights[name.strip()] = float(weight)
+
+    found_mkts = []
+    for mkt in MARKETS:
+        if f"[{mkt}]" in content:
+            found_mkts.append(mkt)
+
+    res.markets_found = found_mkts
+    rows = re.findall(r"^\d+\s+[\w\d_.-]+", content, re.MULTILINE)
+    res.total_recommendations = len(rows)
+
+    if found_mkts and res.total_recommendations > 0:
+        res.valid = True
+        res.message = f"Ensemble updated with {len(found_mkts)} markets and {res.total_recommendations} picks"
+    else:
+        res.message = f"Ensemble partially updated (markets: {found_mkts}, picks: {res.total_recommendations})"
+
+    return res
+
+
+def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
+    res = GhPagesCheckResult()
+    html_path = gh_pages_dir / "index.html"
+    content = _read_text(html_path)
+
+    if not content:
+        res.message = "index.html missing or empty"
+        return res
+
+    res.file_found = True
+
+    for mkt in MARKETS:
+        if mkt in content:
+            res.markets_in_html.append(mkt)
+
+    res.has_ensemble_table = "Ensemble" in content or "앙상블" in content
+    res.has_surge_card = "Surge" in content or "급등" in content
+    res.has_vcp_card = "VCP" in content
+    res.has_reg_card = "Regression" in content or "회귀" in content or "수익률" in content
+    res.has_lead_lag_card = "Lead-Lag" in content or "리드-랙" in content
+
+    if res.has_ensemble_table and len(res.markets_in_html) >= 2:
+        res.valid = True
+        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets"
+    else:
+        res.message = "GitHub Pages HTML missing key sections or markets"
+
+    return res
+
+
+def run_verification(result_dir: Path, gh_pages_dir: Path) -> PipelineVerificationReport:
+    report = PipelineVerificationReport(
+        result_dir=str(result_dir.resolve()),
+        gh_pages_dir=str(gh_pages_dir.resolve()),
+    )
+
+    all_markets_valid = True
+    for market in MARKETS:
+        m_res = verify_market_strategies(result_dir, market)
+        report.markets[market] = m_res
+        if not m_res.all_strategies_valid:
+            all_markets_valid = False
+
+    report.ensemble = verify_ensemble(result_dir)
+    report.gh_pages = verify_gh_pages(gh_pages_dir)
+
+    report.overall_passed = (
+        all_markets_valid and report.ensemble.valid and report.gh_pages.valid
+    )
+    return report
+
+
+def print_report(report: PipelineVerificationReport) -> None:
+    print("\n" + "=" * 70)
+    print(" 🔍 Pipeline GHA Artifact Verification Report")
+    print("=" * 70)
+    print(f"Result Directory   : {report.result_dir}")
+    print(f"GitHub Pages Dir   : {report.gh_pages_dir}")
+    print(f"Overall Status     : {'✅ PASSED' if report.overall_passed else '❌ FAILED'}")
+    print("-" * 70)
+
+    print("\n📊 Strategy Verification by Market:")
+    print(f"{'Market':<10} | {'Surge':<8} | {'VCP ML':<8} | {'Reg':<8} | {'VCP':<8} | {'Lead-Lag':<8} | {'Status'}")
+    print("-" * 70)
+
+    for market in MARKETS:
+        m = report.markets.get(market)
+        if not m:
+            continue
+        st = m.strategies
+        s_surge = "✅" if st["surge"].valid else "❌"
+        s_vcp_ml = "✅" if st["vcp_ml"].valid else "❌"
+        s_reg = "✅" if st["regression"].valid else "❌"
+        s_vcp = "✅" if st["vcp"].valid else "❌"
+        s_ll = "✅" if st["lead_lag"].valid else "❌"
+        status = "✅ PASS" if m.all_strategies_valid else "❌ FAIL"
+
+        print(f"{market:<10} | {s_surge:<8} | {s_vcp_ml:<8} | {s_reg:<8} | {s_vcp:<8} | {s_ll:<8} | {status}")
+
+    print("\n⚡ Merged Ensemble Output:")
+    print(f"  File Found     : {'Yes' if report.ensemble.file_found else 'No'}")
+    print(f"  Valid Status   : {'✅ Valid' if report.ensemble.valid else '❌ Invalid'}")
+    print(f"  Markets Found  : {', '.join(report.ensemble.markets_found)}")
+    print(f"  Total Recommendations: {report.ensemble.total_recommendations}")
+    print(f"  Message        : {report.ensemble.message}")
+
+    print("\n🌐 GitHub Pages HTML Dashboard:")
+    print(f"  File Found     : {'Yes' if report.gh_pages.file_found else 'No'}")
+    print(f"  Valid Status   : {'✅ Valid' if report.gh_pages.valid else '❌ Invalid'}")
+    print(f"  Markets in HTML: {', '.join(report.gh_pages.markets_in_html)}")
+    print(f"  Message        : {report.gh_pages.message}")
+
+    print("\n" + "=" * 70 + "\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Verify pipeline outputs and GitHub Pages artifacts.")
+    parser.add_argument("--result-dir", type=str, default="trading_system/result", help="Path to result directory")
+    parser.add_argument("--gh-pages-dir", type=str, default="gh-pages", help="Path to gh-pages directory")
+    parser.add_argument("--strict", action="store_true", help="Exit with code 1 if verification fails")
+    parser.add_argument("--json", action="store_true", help="Output JSON report")
+
+    args = parser.parse_args()
+
+    result_dir = Path(args.result_dir)
+    gh_pages_dir = Path(args.gh_pages_dir)
+
+    report = run_verification(result_dir, gh_pages_dir)
+
+    if args.json:
+        data = asdict(report)
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+    else:
+        print_report(report)
+
+    if args.strict and not report.overall_passed:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

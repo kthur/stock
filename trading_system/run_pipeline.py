@@ -1257,9 +1257,9 @@ def execute_prediction_pipeline():
     # Save surge detection results to separate file
     surge_output_path = os.path.join(result_dir, "surge_predictions.txt")
     with open(surge_output_path, "w", encoding="utf-8") as f:
-        f.write("=== Surge Detection Results (>= 20% return) ===\n")
+        f.write("=== Surge Detection Results (Classifier Probabilities) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"Threshold: >= {model.surge_threshold*100:.0f}%\n")
+        f.write("Horizon Target Thresholds: 1d (>=3%), 3d (>=5%), 5d (>=8%), 20d (>=15%)\n")
         f.write(f"Total symbols: {len(surge_df)}\n\n")
 
         if surge_df.empty:
@@ -1286,6 +1286,35 @@ def execute_prediction_pipeline():
                         f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {prob:.1f}%\n")
                     f.write("\n")
     logger.info(f"Saved surge predictions ({len(surge_df)} symbols) to {surge_output_path}")
+
+    # Also save per-market suffix files for surge predictions
+    if not surge_df.empty:
+        for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            _m_df_surge = surge_df[surge_df['market'] == _m]
+            if _m_df_surge.empty:
+                continue
+            _mkt_surge_path = os.path.join(result_dir, f"surge_predictions_{_m}.txt")
+            with open(_mkt_surge_path, "w", encoding="utf-8") as _mf:
+                _mf.write("=== Surge Detection Results (Classifier Probabilities) ===\n")
+                _mf.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+                _mf.write("Horizon Target Thresholds: 1d (>=3%), 3d (>=5%), 5d (>=8%), 20d (>=15%)\n")
+                _mf.write(f"Total symbols: {len(_m_df_surge)}\n\n")
+                for h in model.surge_horizons:
+                    col = f'surge_{h}d'
+                    if col not in _m_df_surge.columns:
+                        continue
+                    m_sorted = _m_df_surge.sort_values(by=col, ascending=False)
+                    if m_sorted.empty:
+                        continue
+                    _mf.write(f"{'='*60}\n")
+                    _mf.write(f"[{h}일] {_m} Top 20 Surge Candidates\n")
+                    _mf.write(f"{'='*60}\n")
+                    for rank, (_, row) in enumerate(m_sorted.head(20).iterrows(), 1):
+                        name = row.get('name', 'Unknown')
+                        prob = row[col] * 100
+                        _mf.write(f"  {rank}. [{_m}] {row['symbol']} ({name}): {prob:.1f}%\n")
+                    _mf.write("\n")
+            logger.info(f"Saved surge predictions for {_m} to {_mkt_surge_path}")
 
     if not surge_df.empty:
         # [NEW] Save CSV and JSON Lines format for surge predictions

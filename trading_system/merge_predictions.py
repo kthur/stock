@@ -136,44 +136,48 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
     markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
 
     sections_written = 0
+    buffer = [header]
+
+    for hz in horizons:
+        for mkt in markets:
+            mkt_dir = target_dirs.get(mkt)
+            if mkt_dir is None:
+                continue
+            file_path = mkt_dir / f"surge_predictions_{mkt}.txt"
+            if not file_path.exists():
+                file_path = result_dir / "surge_predictions.txt"
+            if not file_path.exists():
+                continue
+
+            content = get_file_content(file_path)
+            if "데이터 없음" in content or "No data" in content:
+                continue
+
+            # Match: ====...\n[Nd일] MARKET Top ...\n====...\n<body>
+            pattern = (
+                rf"(==={{10,}}\s*\n"
+                rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
+                rf"==={{10,}}\s*\n"
+                rf".*?)"
+                rf"(?=\n==={{10,}}|\Z)"
+            )
+            match = re.search(pattern, content, re.DOTALL)
+            if not match:
+                # Fallback to normalized content
+                normalized_content = content.replace("\r\n", "\n")
+                match = re.search(pattern, normalized_content, re.DOTALL)
+
+            if match:
+                buffer.append(match.group(1).strip() + "\n\n")
+                sections_written += 1
+            else:
+                print(f"  Warning: [{hz}일] {mkt} section not found in {file_path.name}")
+
+    if sections_written == 0:
+        buffer.append("데이터 없음\n")
+
     with open(merged_path, "w", encoding="utf-8") as out:
-        out.write(header)
-
-        for hz in horizons:
-            for mkt in markets:
-                mkt_dir = target_dirs.get(mkt)
-                if mkt_dir is None:
-                    continue
-                file_path = mkt_dir / f"surge_predictions_{mkt}.txt"
-                if not file_path.exists():
-                    continue
-
-                content = get_file_content(file_path)
-                if "데이터 없음" in content or "No data" in content:
-                    continue
-
-                # Match: ====...\n[Nd일] MARKET Top ...\n====...\n<body>
-                pattern = (
-                    rf"(==={{10,}}\s*\n"
-                    rf"\[{re.escape(hz)}일\]\s+{re.escape(mkt)}\s+Top[^\n]*\n"
-                    rf"==={{10,}}\s*\n"
-                    rf".*?)"
-                    rf"(?=\n==={{10,}}|\Z)"
-                )
-                match = re.search(pattern, content, re.DOTALL)
-                if not match:
-                    # Fallback to normalized content
-                    normalized_content = content.replace("\r\n", "\n")
-                    match = re.search(pattern, normalized_content, re.DOTALL)
-
-                if match:
-                    out.write(match.group(1).strip() + "\n\n")
-                    sections_written += 1
-                else:
-                    print(f"  Warning: [{hz}일] {mkt} section not found in {file_path.name}")
-
-        if sections_written == 0:
-            out.write("데이터 없음\n")
+        out.write("".join(buffer))
 
 
 
