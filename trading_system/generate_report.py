@@ -162,9 +162,9 @@ def parse_ensemble(text: str) -> EnsembleData:
             in_data = True
             continue
         if in_data and current_market:
-            # Pattern: "1    005930    Samsung Electronic    56.9%    11.4%    80%    10%    0%    9%"
+            # Pattern: "1    005930    Samsung Electronics    56.9%    11.4%    80%    10%    0%    9%"
             m = re.match(
-                r"(\d+)\s+(\S+)\s+(.+?)\s{2,}([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)",
+                r"^(\d+)\s+(\S+)\s+(.+?)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)$",
                 line.strip()
             )
             if m:
@@ -195,20 +195,20 @@ def parse_surge(text: str) -> tuple[str, list[SurgeSection]]:
         if m:
             date = m.group(1).strip()
         # "[1일] KOSPI Top 20 Surge Candidates"
-        m = re.match(r"\[(\d+일)\]\s+(\w+)\s+Top", line)
+        m = re.match(r"\[(\d+일)\]\s+(\w+)", line)
         if m:
             current = SurgeSection(horizon=m.group(1), market=m.group(2))
             sections.append(current)
             continue
         if current:
             # "  1. [KOSPI] 005930 (Samsung Electronics): 60.7%"
-            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-\d.]+|nan|NaN|None)%", line)
+            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+)\):\s*([-\d.]+|nan|NaN|None)%", line)
             if m:
                 current.rows.append(SurgeRow(
                     rank=int(m.group(1)),
                     market=m.group(2),
                     symbol=m.group(3),
-                    name=m.group(4),
+                    name=m.group(4).strip(),
                     probability=m.group(5),
                 ))
     return date, sections
@@ -228,12 +228,12 @@ def parse_vcp(text: str) -> tuple[str, list[VcpRow]]:
         if m:
             date = m.group(1).strip()
         # "  1. [KOSPI] 025890 (한국주강)"
-        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\)", line)
+        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+)\)", line)
         if m:
             rank = int(m.group(1))
             current_market = m.group(2)
             current_symbol = m.group(3)
-            current_name = m.group(4)
+            current_name = m.group(4).strip()
             rows.append(VcpRow(
                 rank=rank, market=current_market,
                 symbol=current_symbol, name=current_name,
@@ -275,7 +275,7 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
             in_leaders = True
             continue
         # "  1. [KOSPI] 448730 (삼성FN리츠): 1.60%" or "  1. [SP500] LHX (L3Harris): 0.78%"
-        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)\s*%)", line)
+        m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)\s*%)", line)
         if m:
             row = LeadLagRow(
                 rank=int(m.group(1)), market=m.group(2),
@@ -287,7 +287,7 @@ def parse_lead_lag(text: str) -> tuple[str, list[LeadLagRow], list[LeadLagRow]]:
                 follower_rows.append(row)
             continue
         # "  1. 042520 (한스바이오메드): +8.85%"  (no [MARKET] bracket for leaders)
-        m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)\s*%)", line)
+        m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)\s*%)", line)
         if m and in_leaders:
             leader_rows.append(LeadLagRow(
                 rank=int(m.group(1)), market="",
@@ -308,19 +308,19 @@ def parse_vcp_ml(text: str) -> tuple[str, list[SurgeSection]]:
         m = re.match(r"Date:\s*(.+)", line)
         if m:
             date = m.group(1).strip()
-        m = re.match(r"\[(\d+일)\]\s+(\w+)\s+(TOP|Top)", line)
+        m = re.match(r"\[(\d+일)\]\s+(\w+)", line)
         if m:
             current = SurgeSection(horizon=m.group(1), market=m.group(2))
             sections.append(current)
             continue
         if current:
-            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+?)\):\s*([-\d.]+|nan|NaN|None)%", line)
+            m = re.match(r"(\d+)\.\s+\[(\w+)\]\s+(\S+)\s+\((.+)\):\s*([-\d.]+|nan|NaN|None)%", line)
             if m:
                 current.rows.append(SurgeRow(
                     rank=int(m.group(1)),
                     market=m.group(2),
                     symbol=m.group(3),
-                    name=m.group(4),
+                    name=m.group(4).strip(),
                     probability=m.group(5),
                 ))
     return date, sections
@@ -350,12 +350,12 @@ def parse_regression(text: str) -> tuple[str, list[RegSection]]:
             sections.append(current_section)
             continue
         if current_section:
-            m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+?)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)%)", line)
+            m = re.match(r"(\d+)\.\s+(\S+)\s+\((.+)\):\s*([-+]?(?:[\d.]+|nan|NaN|None)%)", line)
             if m:
                 current_section.rows.append(RegRow(
                     rank=int(m.group(1)),
                     symbol=m.group(2),
-                    name=m.group(3),
+                    name=m.group(3).strip(),
                     expected_return=m.group(4)
                 ))
     return date, sections
@@ -397,6 +397,17 @@ def ret_class(val: str) -> str:
         return "neg"
 
 
+def make_stock_link(symbol: str, market: str) -> str:
+    if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
+        return f'<a href="https://finance.naver.com/item/main.naver?code={symbol}" target="_blank" class="stock-link">{symbol}</a>'
+    else:
+        # SP500 등 해외 주식
+        s = symbol
+        if not s.endswith('.O') and not s.endswith('.N') and not s.endswith('.A'):
+            s = f"{s}.O"
+        return f'<a href="https://m.stock.naver.com/worldstock/stock/{s}/total" target="_blank" class="stock-link">{symbol}</a>'
+
+
 def build_html(
     ensemble: EnsembleData,
     surge_date: str, surge_sections: list[SurgeSection],
@@ -418,10 +429,11 @@ def build_html(
         if mkt_data and mkt_data.rows:
             for r in mkt_data.rows:
                 rc = ret_class(r.expected_return)
+                symbol_link = make_stock_link(r.symbol, mkt)
                 rows_html += f"""
             <tr>
               <td class="rank">#{r.rank}</td>
-              <td class="symbol">{r.symbol}</td>
+              <td class="symbol">{symbol_link}</td>
               <td class="name">{r.name}</td>
               <td class="score">{r.score}</td>
               <td class="{rc}">{r.expected_return}</td>
@@ -462,7 +474,7 @@ def build_html(
 
     # ── Tab: Surge ──
     # Group by horizon
-    horizons = sorted(set(s.horizon for s in surge_sections), key=lambda h: int(re.search(r"\d+", h).group()))
+    horizons = sorted(set(s.horizon for s in surge_sections), key=lambda h: int(re.search(r"\d+", h).group())) if surge_sections else ["1일", "3일", "5일", "20일"]
     surge_tabs_nav = ""
     surge_tabs_content = ""
     for i, hz in enumerate(horizons):
@@ -470,17 +482,20 @@ def build_html(
         surge_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
         hz_sections = [s for s in surge_sections if s.horizon == hz]
         panels = ""
-        for s in hz_sections:
-            flag = MARKET_FLAGS.get(s.market, "")
+        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+            s = next((sec for sec in hz_sections if sec.market == mkt), None)
+            flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
-            for r in s.rows:
-                prob = safe_float(r.probability)
-                bar_w = min(100, int(prob))
-                color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
-                rows_html += f"""
+            if s and s.rows:
+                for r in s.rows:
+                    prob = safe_float(r.probability)
+                    bar_w = min(100, int(prob))
+                    color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
+                    symbol_link = make_stock_link(r.symbol, mkt)
+                    rows_html += f"""
               <tr>
                 <td class="rank">#{r.rank}</td>
-                <td class="symbol">{r.symbol}</td>
+                <td class="symbol">{symbol_link}</td>
                 <td class="name">{r.name}</td>
                 <td>
                   <div class="prob-bar">
@@ -492,8 +507,8 @@ def build_html(
             if not rows_html:
                 rows_html = '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'
             panels += f"""
-          <div class="market-panel">
-            <h3 class="market-title">{flag} {s.market}</h3>
+          <div class="market-panel" data-market="{mkt}">
+            <h3 class="market-title">{flag} {mkt}</h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -523,10 +538,11 @@ def build_html(
             ]
             score_val = int(r.score.split("/")[0]) if r.score else 0
             score_color = "#2ea043" if score_val >= 90 else "#d29922" if score_val >= 70 else "#8b949e"
+            symbol_link = make_stock_link(r.symbol, mkt)
             rows_html += f"""
             <tr>
               <td class="rank">#{r.rank}</td>
-              <td class="symbol">{r.symbol}</td>
+              <td class="symbol">{symbol_link}</td>
               <td class="name">{r.name}</td>
               <td><span style="color:{score_color};font-weight:600">{r.score}</span></td>
               <td>{r.current_range}</td>
@@ -561,10 +577,11 @@ def build_html(
         rows_html = ""
         for r in rows:
             rc = ret_class(r.score)
+            symbol_link = make_stock_link(r.symbol, mkt)
             rows_html += f"""
             <tr>
               <td class="rank">#{r.rank}</td>
-              <td class="symbol">{r.symbol}</td>
+              <td class="symbol">{symbol_link}</td>
               <td class="name">{r.name}</td>
               <td class="{rc}">{r.score}</td>
             </tr>"""
@@ -585,17 +602,18 @@ def build_html(
     leader_rows_html = ""
     for r in leader_rows[:10]:
         rc = ret_class(r.score)
+        symbol_link = make_stock_link(r.symbol, getattr(r, 'market', 'KOSPI'))
         leader_rows_html += f"""
         <tr>
           <td class="rank">#{r.rank}</td>
-          <td class="symbol">{r.symbol}</td>
+          <td class="symbol">{symbol_link}</td>
           <td class="name">{r.name}</td>
           <td class="{rc}">{r.score}</td>
         </tr>"""
 
     # ── Tab: VCP ML ──
     vcp_ml_sections = vcp_ml_sections or []
-    vcp_ml_horizons = sorted(set(s.horizon for s in vcp_ml_sections), key=lambda h: int(re.search(r"\d+", h).group())) if vcp_ml_sections else []
+    vcp_ml_horizons = sorted(set(s.horizon for s in vcp_ml_sections), key=lambda h: int(re.search(r"\d+", h).group())) if vcp_ml_sections else ["1일", "3일", "5일", "20일"]
     vcp_ml_tabs_nav = ""
     vcp_ml_tabs_content = ""
     for i, hz in enumerate(vcp_ml_horizons):
@@ -603,17 +621,20 @@ def build_html(
         vcp_ml_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
         hz_sections = [s for s in vcp_ml_sections if s.horizon == hz]
         panels = ""
-        for s in hz_sections:
-            flag = MARKET_FLAGS.get(s.market, "")
+        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+            s = next((sec for sec in hz_sections if sec.market == mkt), None)
+            flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
-            for r in s.rows:
-                prob = safe_float(r.probability)
-                bar_w = min(100, int(prob))
-                color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
-                rows_html += f"""
+            if s and s.rows:
+                for r in s.rows:
+                    prob = safe_float(r.probability)
+                    bar_w = min(100, int(prob))
+                    color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
+                    symbol_link = make_stock_link(r.symbol, mkt)
+                    rows_html += f"""
             <tr>
               <td class="rank">#{r.rank}</td>
-              <td class="symbol">{r.symbol}</td>
+              <td class="symbol">{symbol_link}</td>
               <td class="name">{r.name}</td>
               <td>
                 <div class="prob-bar">
@@ -625,8 +646,8 @@ def build_html(
             if not rows_html:
                 rows_html = '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'
             panels += f"""
-        <div class="market-panel" data-market="{s.market}">
-          <h3 class="market-title">{flag} {s.market}</h3>
+        <div class="market-panel" data-market="{mkt}">
+          <h3 class="market-title">{flag} {mkt}</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -652,7 +673,7 @@ def build_html(
 
     # ── Tab: Regression ──
     reg_sections = reg_sections or []
-    reg_horizons = sorted(set(s.horizon for s in reg_sections), key=lambda h: int(re.search(r"\d+", h).group())) if reg_sections else []
+    reg_horizons = sorted(set(s.horizon for s in reg_sections), key=lambda h: int(re.search(r"\d+", h).group())) if reg_sections else ["1d", "5d", "20d", "60d"]
     reg_tabs_nav = ""
     reg_tabs_content = ""
     for i, hz in enumerate(reg_horizons):
@@ -660,24 +681,26 @@ def build_html(
         reg_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
         hz_sections = [s for s in reg_sections if s.horizon == hz]
         panels = ""
-        for s in hz_sections:
-            mkt_key = "SP500" if s.market == "SP500" else s.market
-            flag = MARKET_FLAGS.get(mkt_key, "")
+        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+            s = next((sec for sec in hz_sections if sec.market in [mkt, "S&P " + mkt, mkt.replace("SP", "S&P")]), None)
+            flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
-            for r in s.rows:
-                rc = ret_class(r.expected_return)
-                rows_html += f"""
+            if s and s.rows:
+                for r in s.rows:
+                    rc = ret_class(r.expected_return)
+                    symbol_link = make_stock_link(r.symbol, mkt)
+                    rows_html += f"""
             <tr>
               <td class="rank">#{r.rank}</td>
-              <td class="symbol">{r.symbol}</td>
+              <td class="symbol">{symbol_link}</td>
               <td class="name">{r.name}</td>
               <td class="{rc}">{r.expected_return}</td>
             </tr>"""
             if not rows_html:
                 rows_html = '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'
             panels += f"""
-        <div class="market-panel" data-market="{mkt_key}">
-          <h3 class="market-title">{flag} {mkt_key}</h3>
+        <div class="market-panel" data-market="{mkt}">
+          <h3 class="market-title">{flag} {mkt}</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
@@ -725,6 +748,8 @@ def build_html(
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5; }}
+  .stock-link {{ color: var(--accent); text-decoration: none; font-weight: 600; }}
+  .stock-link:hover {{ text-decoration: underline; color: #79c0ff; }}
 
   /* Header */
   .header {{ background: linear-gradient(135deg, #0d1117 0%, #1a2332 50%, #0d1117 100%); border-bottom: 1px solid var(--border); padding: 24px 32px; }}
