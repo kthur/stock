@@ -158,22 +158,45 @@ class MarketRegimeDetector:
         """
         Predicts 2D Regime: Direction (BEAR/SIDEWAYS/BULL) + Volatility (LOW_VOL/HIGH_VOL).
         Returns dict with keys: 'direction_code', 'direction_label', 'volatility_label', 'combo_label'
+        Valid combo_label values: BEAR_LOW_VOL, BEAR_HIGH_VOL, SIDEWAYS_LOW_VOL, SIDEWAYS_HIGH_VOL, BULL_LOW_VOL, BULL_HIGH_VOL.
         """
         dir_code = self.predict_regime(indicator_df)
-        dir_label = ["BEAR", "SIDEWAYS", "BULL"][dir_code]
+        dir_label = ["BEAR", "SIDEWAYS", "BULL"][dir_code] if 0 <= dir_code <= 2 else "SIDEWAYS"
 
         try:
-            sp500 = indicator_df.get('sp500_change', pd.Series(dtype=float))
-            recent_vol = float(sp500.tail(self.rolling_window).std()) if len(sp500) >= self.rolling_window else 1.0
-            hist_vol_median = float(sp500.rolling(self.rolling_window).std().median()) if len(sp500) >= self.rolling_window else 1.0
-            vol_label = "HIGH_VOL" if recent_vol > hist_vol_median else "LOW_VOL"
-        except Exception:
+            if not indicator_df.empty and 'sp500_change' in indicator_df.columns:
+                sp500 = indicator_df['sp500_change'].dropna()
+                if len(sp500) >= self.rolling_window:
+                    recent_vol = float(sp500.tail(self.rolling_window).std())
+                    hist_vols = sp500.rolling(self.rolling_window).std().dropna()
+                    hist_vol_median = float(hist_vols.median()) if not hist_vols.empty else 1.0
+                    vol_label = "HIGH_VOL" if recent_vol > hist_vol_median else "LOW_VOL"
+                else:
+                    vol_label = "LOW_VOL"
+            else:
+                vol_label = "LOW_VOL"
+        except Exception as e:
+            logger.warning(f"Error computing 2D regime volatility: {e}. Defaulting to LOW_VOL.")
             vol_label = "LOW_VOL"
+
+        combo_label = f"{dir_label}_{vol_label}"
+        valid_combos = {
+            "BEAR_LOW_VOL", "BEAR_HIGH_VOL",
+            "SIDEWAYS_LOW_VOL", "SIDEWAYS_HIGH_VOL",
+            "BULL_LOW_VOL", "BULL_HIGH_VOL"
+        }
+        if combo_label not in valid_combos:
+            combo_label = "SIDEWAYS_LOW_VOL"
 
         return {
             'direction_code': dir_code,
             'direction_label': dir_label,
             'volatility_label': vol_label,
-            'combo_label': f"{dir_label}_{vol_label}"
+            'combo_label': combo_label
         }
+
+    def predict_2d_regime_label(self, indicator_df: pd.DataFrame) -> str:
+        """Returns standard 2D regime combo label string."""
+        res = self.predict_2d_regime(indicator_df)
+        return res['combo_label']
 

@@ -255,6 +255,8 @@ class OnDevicePredictionModel:
                     self._surge_lgb_kwargs.update(tuned_data['surge_lgb'])
                 if 'surge_cat' in tuned_data:
                     self._surge_cat_kwargs.update(tuned_data['surge_cat'])
+                if 'lead_lag' in tuned_data:
+                    self.lead_lag_params = tuned_data['lead_lag']
             except Exception as e:
                 logger.warning(f"Failed to load tuned parameters: {e}")
 

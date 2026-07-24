@@ -15,12 +15,14 @@ class PortfolioAllocator:
                  max_single_position: float = 0.15,
                  min_single_position: float = 0.02,
                  max_total_allocation: float = 0.85,
+                 max_sector_exposure: float = 0.30,
                  target_horizon: int = 20,
                  use_kelly: bool = True,
                  kelly_fraction: float = 0.5):
         self.max_single_position = max_single_position
         self.min_single_position = min_single_position
         self.max_total_allocation = max_total_allocation
+        self.max_sector_exposure = max_sector_exposure
         self.target_horizon = target_horizon
         self.use_kelly = use_kelly
         self.kelly_fraction = kelly_fraction
@@ -31,7 +33,8 @@ class PortfolioAllocator:
                  total_portfolio_value: float = 10000000.0,
                  use_kelly: Optional[bool] = None,
                  kelly_fraction: Optional[float] = None,
-                 use_hrp: bool = False) -> pd.DataFrame:
+                 use_hrp: bool = False,
+                 sector_map: Optional[Dict[str, str]] = None) -> pd.DataFrame:
         """
         Computes portfolio weights and cash allocation using Kelly Criterion, Sharpe proxy, or HRP (Hierarchical Risk Parity).
 
@@ -156,6 +159,19 @@ class PortfolioAllocator:
         current_sum = df_candidates['weight'].sum()
         if current_sum > self.max_total_allocation and current_sum > 0:
             df_candidates['weight'] = (df_candidates['weight'] / current_sum) * self.max_total_allocation
+
+        # Enforce sector risk cap (max total exposure per sector)
+        effective_sector_map = sector_map or {}
+        if 'sector' in df_candidates.columns or effective_sector_map:
+            if 'sector' not in df_candidates.columns:
+                df_candidates['sector'] = df_candidates['symbol'].map(lambda s: effective_sector_map.get(s, "Unknown"))
+            
+            sector_totals = df_candidates.groupby('sector')['weight'].sum()
+            for sec, sec_weight in sector_totals.items():
+                if sec_weight > self.max_sector_exposure and sec_weight > 0:
+                    scale = self.max_sector_exposure / sec_weight
+                    sec_mask = df_candidates['sector'] == sec
+                    df_candidates.loc[sec_mask, 'weight'] *= scale
 
         # Compute capital allocation amounts
         df_candidates['allocation_amount'] = df_candidates['weight'] * total_portfolio_value

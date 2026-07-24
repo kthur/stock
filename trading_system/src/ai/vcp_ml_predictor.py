@@ -102,6 +102,10 @@ class VCPSurgePredictor:
                     self._surge_lgb_kwargs.update(tuned_data['surge_lgb'])
                 if 'surge_cat' in tuned_data:
                     self._surge_cat_kwargs.update(tuned_data['surge_cat'])
+                if 'vcp_ml' in tuned_data:
+                    vcp_ml_p = tuned_data['vcp_ml']
+                    xgb_keys = {k: v for k, v in vcp_ml_p.items() if k in self._surge_xgb_kwargs or k in ['scale_pos_weight', 'window_step_size']}
+                    self._surge_xgb_kwargs.update(xgb_keys)
             except Exception as e:
                 logger.warning(f"VCPSurgePredictor: Failed to load tuned parameters: {e}")
 

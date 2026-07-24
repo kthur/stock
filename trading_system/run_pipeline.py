@@ -1180,7 +1180,9 @@ def execute_prediction_pipeline():
 
     current_regime_label = regime_detector.predict_regime_label(indicator_infer)
     current_regime = regime_detector.predict_regime(indicator_infer)
-    logger.info(f"==> CURRENT MARKET REGIME DETECTED: {current_regime_label} ({current_regime})")
+    regime_2d_info = regime_detector.predict_2d_regime(indicator_infer)
+    current_2d_regime = regime_2d_info['combo_label']
+    logger.info(f"==> CURRENT MARKET REGIME DETECTED: {current_regime_label} (Code: {current_regime}), 2D: {current_2d_regime}")
 
     # Adjust maximum total allocation based on regime
     if current_regime == 0:  # BEAR
@@ -1471,13 +1473,18 @@ def execute_prediction_pipeline():
     from src.ai.ensemble_scorer import EnsembleScoringEngine
     scorer = EnsembleScoringEngine()
 
+    # Calculate rolling Sharpes for all 5 strategies if strategy_returns exists
+    rolling_sharpes = scorer.compute_rolling_sharpe(strategy_returns) if 'strategy_returns' in locals() and isinstance(strategy_returns, dict) else None
+
     # default target horizon is 20d
     ensemble_df = scorer.calculate_ensemble_score(
-        regime=current_regime,
+        regime=current_2d_regime,
         regression_df=res_df,
         surge_df=surge_df,
         lead_lag_df=lead_lag_df,
+        vcp_rule_df=vcp_df,
         vcp_ml_df=vcp_ml_df,
+        rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )
 
@@ -1498,7 +1505,7 @@ def execute_prediction_pipeline():
     usdkrw_val = float(indicator_infer['usdkrw_change'].iloc[-1]) if 'usdkrw_change' in indicator_infer.columns else 0.0
     us10y_val = float(indicator_infer['us10y'].iloc[-1]) if 'us10y' in indicator_infer.columns else 0.0
 
-    ensemble_weights = EnsembleScoringEngine.REGIME_WEIGHTS.get(current_regime, EnsembleScoringEngine.REGIME_WEIGHTS[1])
+    ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
 
     ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
     ensemble_df_merged = ensemble_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
@@ -1509,7 +1516,7 @@ def execute_prediction_pipeline():
 
         # 1. Executive Summary & Basis
         f.write("--- Executive Market Summary ---\n")
-        f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
+        f.write(f"Current Market Regime Detected: {current_regime_label} (2D State: {current_2d_regime})\n")
         f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
 
         f.write("--- Judgment Basis (Global Macro Indicators) ---\n")
@@ -1522,10 +1529,11 @@ def execute_prediction_pipeline():
         f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
 
         f.write("--- Applied Ensemble Strategy Weights ---\n")
-        f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights['regression']*100:.1f}%\n")
-        f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights['surge']*100:.1f}%\n")
-        f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights['lead_lag']*100:.1f}%\n")
-        f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights['vcp_ml']*100:.1f}%\n\n")
+        f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
+        f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
+        f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
+        f.write(f"  VCP Rule Pattern Detector         : {ensemble_weights.get('vcp_rule', 0.0)*100:.1f}%\n")
+        f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights.get('vcp_ml', 0.0)*100:.1f}%\n\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
@@ -1537,11 +1545,12 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 20 Ensemble Picks\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<8}{'Surge':<8}{'L-L':<8}{'VCP':<8}\n")
-            f.write("-" * 99 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<7}{'Surge':<7}{'L-L':<7}{'VCP-R':<7}{'VCP-M':<7}\n")
+            f.write("-" * 105 + "\n")
             for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']:>15.1f}%{row['reg_score']*100:>7.0f}%{row['surge_score']*100:>7.0f}%{row['ll_score']*100:>7.0f}%{row['vcp_ml_score']*100:>7.0f}%\n")
+                vcp_rule_val = row.get('vcp_rule_score', 0.0)
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']:>15.1f}%{row['reg_score']*100:>6.0f}%{row['surge_score']*100:>6.0f}%{row['ll_score']*100:>6.0f}%{vcp_rule_val*100:>6.0f}%{row['vcp_ml_score']*100:>6.0f}%\n")
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
