@@ -308,9 +308,9 @@ def parse_vcp_ml(text: str) -> tuple[str, list[SurgeSection]]:
         m = re.match(r"Date:\s*(.+)", line)
         if m:
             date = m.group(1).strip()
-        m = re.match(r"\[(\d+일)\]\s+(\w+)", line)
+        m = re.match(r"\[(\d+일)\]\s+(\S+)", line)
         if m:
-            current = SurgeSection(horizon=m.group(1), market=m.group(2))
+            current = SurgeSection(horizon=m.group(1), market=m.group(2).upper())
             sections.append(current)
             continue
         if current:

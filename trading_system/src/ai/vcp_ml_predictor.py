@@ -498,6 +498,11 @@ class VCPSurgePredictor:
 
         import warnings
         res_df = pd.DataFrame({'symbol': syms, 'market': markets})
+        if universe is not None and not universe.empty and 'symbol' in universe.columns and 'name' in universe.columns:
+            name_map = dict(zip(universe['symbol'], universe['name']))
+            res_df['name'] = res_df['symbol'].map(name_map).fillna('Unknown')
+        else:
+            res_df['name'] = 'Unknown'
         df_all = pd.concat(feats, ignore_index=True)
         market_series = pd.Series(markets)
 
