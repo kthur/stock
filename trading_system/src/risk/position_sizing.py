@@ -30,9 +30,10 @@ class PortfolioAllocator:
                  prices_dict: Dict[str, pd.DataFrame],
                  total_portfolio_value: float = 10000000.0,
                  use_kelly: Optional[bool] = None,
-                 kelly_fraction: Optional[float] = None) -> pd.DataFrame:
+                 kelly_fraction: Optional[float] = None,
+                 use_hrp: bool = False) -> pd.DataFrame:
         """
-        Computes portfolio weights and cash allocation using Kelly Criterion or Sharpe proxy.
+        Computes portfolio weights and cash allocation using Kelly Criterion, Sharpe proxy, or HRP (Hierarchical Risk Parity).
 
         Args:
             predictions_df: DataFrame with columns ['symbol', target_horizon] where target_horizon contains predicted returns.
@@ -40,6 +41,7 @@ class PortfolioAllocator:
             total_portfolio_value: Total money available to invest.
             use_kelly: Override class setting for Kelly sizing.
             kelly_fraction: Override class setting for Kelly fraction.
+            use_hrp: If True, computes weights using Hierarchical Risk Parity algorithm.
 
         Returns:
             DataFrame with columns ['symbol', 'predicted_return', 'volatility', 'raw_score', 'weight', 'allocation_amount']
@@ -101,8 +103,26 @@ class PortfolioAllocator:
 
         df_candidates = pd.DataFrame(records)
 
-        # Calculate raw sizing scores
-        if use_kelly:
+        # HRP (Hierarchical Risk Parity) Allocation Path
+        if use_hrp:
+            from src.analysis.portfolio_optimizer import calculate_hrp_weights
+            symbols = df_candidates['symbol'].tolist()
+            returns_matrix = []
+            for s in symbols:
+                df_p = prices_dict[s]
+                c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
+                r = c.pct_change().tail(60).dropna()
+                returns_matrix.append(r)
+            if len(returns_matrix) > 1:
+                ret_df = pd.concat(returns_matrix, axis=1).fillna(0.0)
+                cov_mat = ret_df.cov().values
+                hrp_w = calculate_hrp_weights(cov_mat)
+                df_candidates['raw_score'] = hrp_w
+                df_candidates['weight'] = hrp_w * self.max_total_allocation
+            else:
+                df_candidates['raw_score'] = 1.0
+                df_candidates['weight'] = self.max_total_allocation
+        elif use_kelly:
             # Kelly formula: f* = kelly_fraction * (predicted_return / variance)
             # Floor volatility to prevent division by zero or extreme sizing
             vol_floor = 0.005
@@ -115,7 +135,9 @@ class PortfolioAllocator:
         # Select top candidates (e.g. up to 15) to maintain diversification
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(15).copy()
 
-        if use_kelly:
+        if use_hrp:
+            pass # Weights already computed via HRP
+        elif use_kelly:
             # Under Kelly, the raw_score itself is the target weight
             df_candidates['weight'] = df_candidates['raw_score']
         else:

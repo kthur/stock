@@ -211,3 +211,97 @@ def calculate_black_litterman_weights(
 
     # Fallback to Risk Parity
     return calculate_risk_parity_weights(cov_matrix)
+
+
+def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
+    """
+    Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
+    1. Distance matrix computation from correlation matrix.
+    2. Hierarchical clustering (single linkage).
+    3. Quasi-diagonalization & Recursive Bisection.
+    """
+    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
+        logger.error("Invalid covariance matrix for HRP: not a numpy array.")
+        return np.array([])
+
+    n = cov_matrix.shape[0]
+    if n == 0:
+        return np.array([])
+    if n == 1:
+        return np.array([1.0])
+
+    try:
+        from scipy.cluster.hierarchy import linkage
+        from scipy.spatial.distance import squareform
+
+        # Standard deviation & correlation matrix
+        vols = np.sqrt(np.diag(cov_matrix))
+        vols = np.where(np.isnan(vols) | (vols < 1e-8), 1e-8, vols)
+        outer_vols = np.outer(vols, vols)
+        corr = cov_matrix / outer_vols
+        corr = np.clip(corr, -1.0, 1.0)
+        np.fill_diagonal(corr, 1.0)
+
+        # Distance matrix d_ij = sqrt(0.5 * (1 - corr_ij))
+        dist = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr)))
+        np.fill_diagonal(dist, 0.0)
+
+        # Linkage matrix
+        dist_condensed = squareform(dist, checks=False)
+        link = linkage(dist_condensed, method='single')
+
+        # Quasi-diagonalization
+        def get_quasi_diag(link_mat, num_items):
+            sort_ix = [int(link_mat[-1, 0]), int(link_mat[-1, 1])]
+            num_clusters = link_mat.shape[0]
+            for i in range(num_clusters - 1, -1, -1):
+                cluster_id = num_items + i
+                if cluster_id in sort_ix:
+                    idx = sort_ix.index(cluster_id)
+                    sort_ix[idx:idx+1] = [int(link_mat[i, 0]), int(link_mat[i, 1])]
+            return sort_ix
+
+        quasi_diag = get_quasi_diag(link, n)
+
+        # Recursive Bisection
+        weights = np.ones(n)
+        cluster_items = [quasi_diag]
+
+        while len(cluster_items) > 0:
+            cluster_items = [
+                c[i:j]
+                for c in cluster_items
+                for i, j in ((0, len(c) // 2), (len(c) // 2, len(c)))
+                if len(c) > 1
+            ]
+            for i in range(0, len(cluster_items), 2):
+                c_left = cluster_items[i]
+                c_right = cluster_items[i + 1]
+
+                # Variance of left & right clusters
+                cov_left = cov_matrix[np.ix_(c_left, c_left)]
+                inv_vol_left = 1.0 / np.sqrt(np.diag(cov_left))
+                w_left = inv_vol_left / np.sum(inv_vol_left)
+                var_left = float(w_left @ cov_left @ w_left)
+
+                cov_right = cov_matrix[np.ix_(c_right, c_right)]
+                inv_vol_right = 1.0 / np.sqrt(np.diag(cov_right))
+                w_right = inv_vol_right / np.sum(inv_vol_right)
+                var_right = float(w_right @ cov_right @ w_right)
+
+                # Allocation factor alpha
+                alpha = 1.0 - var_left / (var_left + var_right + 1e-12)
+
+                weights[c_left] *= alpha
+                weights[c_right] *= (1.0 - alpha)
+
+        weights = np.clip(weights, 0.0, 1.0)
+        sum_w = np.sum(weights)
+        if sum_w > 1e-12:
+            return weights / sum_w
+
+    except Exception as e:
+        logger.error(f"HRP optimization exception: {e}. Falling back to Risk Parity.")
+
+    return calculate_risk_parity_weights(cov_matrix)
+
