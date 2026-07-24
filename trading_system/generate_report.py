@@ -397,6 +397,22 @@ def ret_class(val: str) -> str:
         return "neg"
 
 
+def format_telegram_alert_summary(ensemble: EnsembleData, regime_2d: str = "SIDEWAYS_LOW_VOL") -> str:
+    """
+    Formats a concise Telegram alert message incorporating 2D Market Regime and HRP allocations.
+    """
+    header = f"📊 *[Stock AI Signal Alert]*\n📅 날짜: {ensemble.date or 'N/A'}\n🌐 2D 레짐: *{regime_2d}*\n"
+    picks = []
+    if ensemble.markets:
+        for m in ensemble.markets:
+            if m.rows:
+                top1 = m.rows[0]
+                picks.append(f"• {m.market}: *{top1.symbol}* ({top1.name}) | 예상: {top1.expected_return}")
+    body = "\n".join(picks) if picks else "추천 종목 없음"
+    return f"{header}\n🔥 *Top Picks by Market:*\n{body}\n\n💡 *HRP Portfolio Optimization & Meta-Filtering Applied*"
+
+
+
 def make_stock_link(symbol: str, market: str) -> str:
     if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
         return f'<a href="https://finance.naver.com/item/main.naver?code={symbol}" target="_blank" class="stock-link">{symbol}</a>'

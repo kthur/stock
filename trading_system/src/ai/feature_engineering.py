@@ -149,3 +149,53 @@ def compute_vcp_features(df: pd.DataFrame) -> pd.DataFrame:
     df['vcp_score'] = score.clip(upper=100.0) / 100.0
 
     return df
+
+
+ALPHA_FEATURES = [
+    'residual_mom_20d', 'dist_52w_high', 'amihud_illiquidity', 'inst_net_buy_5d', 'foreigner_net_buy_5d'
+]
+
+def compute_advanced_alpha_features(df: pd.DataFrame, market_returns: pd.Series = None) -> pd.DataFrame:
+    """
+    Computes advanced alpha features:
+      - residual_mom_20d: 20-day residual momentum relative to market benchmark.
+      - dist_52w_high: Ratio of current close to 52-week (252d) high.
+      - amihud_illiquidity: Amihud illiquidity ratio (|return| / volume).
+      - inst_net_buy_5d: Institutional net buying flow (if column present).
+      - foreigner_net_buy_5d: Foreigner net buying flow (if column present).
+    """
+    df = df.copy()
+    close = df['Close'].astype(float) if 'Close' in df.columns else pd.Series(dtype=float)
+    high = df['High'].astype(float) if 'High' in df.columns else close
+    volume = df['Volume'].astype(float) if 'Volume' in df.columns else pd.Series(dtype=float)
+    
+    # 1. 52-Week High Distance (George & Hwang)
+    high_52w = high.rolling(252, min_periods=1).max()
+    df['dist_52w_high'] = (close / high_52w.replace(0, 1e-10)).fillna(1.0)
+    
+    # 2. Residual Momentum 20d
+    ret_20d = close.pct_change(20).fillna(0.0)
+    if market_returns is not None and not market_returns.empty:
+        mkt_ret_20d = market_returns.pct_change(20).reindex(ret_20d.index).fillna(0.0)
+        df['residual_mom_20d'] = ret_20d - mkt_ret_20d
+    else:
+        df['residual_mom_20d'] = ret_20d
+
+    # 3. Amihud Illiquidity Ratio
+    ret_1d_abs = close.pct_change().abs().fillna(0.0)
+    vol_mean = volume.rolling(5, min_periods=1).mean().replace(0, 1e-10)
+    df['amihud_illiquidity'] = (ret_1d_abs / vol_mean).fillna(0.0)
+    
+    # 4. Institutional & Foreigner Net Buy Flow
+    if 'InstNetBuy' in df.columns:
+        df['inst_net_buy_5d'] = df['InstNetBuy'].rolling(5, min_periods=1).sum().fillna(0.0)
+    else:
+        df['inst_net_buy_5d'] = 0.0
+
+    if 'ForeignerNetBuy' in df.columns:
+        df['foreigner_net_buy_5d'] = df['ForeignerNetBuy'].rolling(5, min_periods=1).sum().fillna(0.0)
+    else:
+        df['foreigner_net_buy_5d'] = 0.0
+
+    return df
+
