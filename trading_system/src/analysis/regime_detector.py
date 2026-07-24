@@ -153,3 +153,27 @@ class MarketRegimeDetector:
             return 1  # SIDEWAYS
         except Exception:
             return 2  # Default to BULL
+
+    def predict_2d_regime(self, indicator_df: pd.DataFrame) -> dict:
+        """
+        Predicts 2D Regime: Direction (BEAR/SIDEWAYS/BULL) + Volatility (LOW_VOL/HIGH_VOL).
+        Returns dict with keys: 'direction_code', 'direction_label', 'volatility_label', 'combo_label'
+        """
+        dir_code = self.predict_regime(indicator_df)
+        dir_label = ["BEAR", "SIDEWAYS", "BULL"][dir_code]
+
+        try:
+            sp500 = indicator_df.get('sp500_change', pd.Series(dtype=float))
+            recent_vol = float(sp500.tail(self.rolling_window).std()) if len(sp500) >= self.rolling_window else 1.0
+            hist_vol_median = float(sp500.rolling(self.rolling_window).std().median()) if len(sp500) >= self.rolling_window else 1.0
+            vol_label = "HIGH_VOL" if recent_vol > hist_vol_median else "LOW_VOL"
+        except Exception:
+            vol_label = "LOW_VOL"
+
+        return {
+            'direction_code': dir_code,
+            'direction_label': dir_label,
+            'volatility_label': vol_label,
+            'combo_label': f"{dir_label}_{vol_label}"
+        }
+

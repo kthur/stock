@@ -36,6 +36,29 @@ class EnsembleScoringEngine:
     def __init__(self):
         pass
 
+    def compute_dynamic_weights_from_sharpe(self, rolling_sharpes: dict[str, float], regime: int) -> dict[str, float]:
+        """
+        Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy.
+        Formula: weight_i = base_regime_weight_i * exp(Sharpe_i) / sum(...)
+        """
+        import numpy as np
+        base_weights = self.REGIME_WEIGHTS.get(regime, self.REGIME_WEIGHTS[1])
+        if not rolling_sharpes:
+            return base_weights
+
+        scores = {}
+        for strategy, base_w in base_weights.items():
+            sharpe = rolling_sharpes.get(strategy, 0.5)
+            scores[strategy] = base_w * max(0.1, float(np.exp(sharpe)))
+
+        total_score = sum(scores.values())
+        if total_score <= 0:
+            return base_weights
+
+        dynamic_weights = {k: v / total_score for k, v in scores.items()}
+        logger.info(f"Dynamically adjusted Sharpe weights for Regime {regime}: {dynamic_weights}")
+        return dynamic_weights
+
     def calculate_ensemble_score(self,
                                  regime: int,
                                  regression_df: pd.DataFrame,
