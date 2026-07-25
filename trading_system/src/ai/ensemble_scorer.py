@@ -105,6 +105,22 @@ class EnsembleScoringEngine:
         # Per-strategy Isotonic Regression calibrators (fitted via fit_calibrators)
         self._calibrators: Dict[str, Any] = {}
 
+        # Attempt to load Optuna-tuned 2D regime weights from tuned_params.json
+        try:
+            from pathlib import Path
+            import json
+            params_file = Path(__file__).resolve().parent.parent.parent / "models" / "tuned_params.json"
+            if params_file.exists():
+                with open(params_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict) and 'regime_2d_weights' in data:
+                        tuned_w = data['regime_2d_weights']
+                        if isinstance(tuned_w, dict) and tuned_w:
+                            self.REGIME_2D_WEIGHTS.update(tuned_w)
+                            logger.info(f"Loaded Optuna-tuned 2D regime weights: {list(tuned_w.keys())}")
+        except Exception as _e:
+            logger.debug(f"Could not load tuned 2D regime weights: {_e}")
+
     # ------------------------------------------------------------------
     # Phase 4-A: Isotonic Regression Probability Calibration
     # ------------------------------------------------------------------

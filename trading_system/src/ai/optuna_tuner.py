@@ -395,19 +395,71 @@ class OptunaStrategyTuner:
 
         return self.tune_strategy_5_vcp_ml(None, None, n_trials=n_trials)
 
+    def tune_regime_2d_weights(self, strategy_returns_by_regime: Optional[Dict[str, Dict[str, pd.Series]]] = None, n_trials: int = 20) -> Dict[str, Dict[str, float]]:
+        """
+        Optuna optimization for 2D regime ensemble weights across 6 regime combo states.
+        Maximizes composite Sharpe ratio per regime combo state.
+        """
+        logger.info("Tuning 2D Regime Ensemble Weights using Optuna...")
+        regime_combos = [
+            'BEAR_LOW_VOL', 'BEAR_HIGH_VOL',
+            'SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL',
+            'BULL_LOW_VOL', 'BULL_HIGH_VOL'
+        ]
+        strats = ['regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml']
+
+        if not strategy_returns_by_regime:
+            logger.warning("No strategy returns by regime provided; returning default regime 2d weights")
+            from src.ai.ensemble_scorer import EnsembleScoringEngine
+            engine = EnsembleScoringEngine()
+            self.tuned_params['regime_2d_weights'] = engine.REGIME_2D_WEIGHTS
+            return engine.REGIME_2D_WEIGHTS
+
+        best_weights = {}
+        for combo in regime_combos:
+            combo_returns = strategy_returns_by_regime.get(combo, {})
+            valid_strats = [s for s in strats if s in combo_returns and len(combo_returns[s].dropna()) >= 10]
+            if not valid_strats:
+                from src.ai.ensemble_scorer import EnsembleScoringEngine
+                best_weights[combo] = EnsembleScoringEngine.REGIME_2D_WEIGHTS.get(combo, {})
+                continue
+
+            def regime_objective(trial):
+                raw_w = {s: trial.suggest_float(f'w_{s}', 0.05, 0.70) for s in valid_strats}
+                tot = sum(raw_w.values())
+                norm_w = {s: w / tot for s, w in raw_w.items()}
+                
+                combo_series = sum(combo_returns[s] * norm_w[s] for s in valid_strats).dropna()
+                if len(combo_series) < 5 or combo_series.std() < 1e-8:
+                    return 0.0
+                sharpe = float(combo_series.mean() / combo_series.std() * np.sqrt(252))
+                return sharpe
+
+            study = optuna.create_study(direction='maximize')
+            study.optimize(regime_objective, n_trials=n_trials)
+            raw_best = study.best_params
+            raw_w = {s: raw_best[f'w_{s}'] for s in valid_strats}
+            tot = sum(raw_w.values())
+            best_weights[combo] = {s: round(raw_w[s] / tot, 4) for s in valid_strats}
+
+        self.tuned_params['regime_2d_weights'] = best_weights
+        return best_weights
+
     def tune_all(self, df_train: Optional[pd.DataFrame] = None,
                  prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
                  indicator_df: Optional[pd.DataFrame] = None,
+                 strategy_returns_by_regime: Optional[Dict[str, Dict[str, pd.Series]]] = None,
                  n_trials: int = 10,
                  save_path: Optional[str] = None,
                  X_reg=None, y_reg=None, X_surge=None, y_surge=None, X_vcp=None, y_vcp=None) -> Dict[str, Any]:
-        """Tune all 5 strategies and save parameters to tuned_params.json."""
-        logger.info("Executing Optuna HPO tuning across all 5 strategies...")
+        """Tune all 5 strategies and 2D regime weights, saving parameters to tuned_params.json."""
+        logger.info("Executing Optuna HPO tuning across all 5 strategies and 2D regime weights...")
         self.tune_regression(df_train=df_train, X=X_reg, y=y_reg, n_trials=n_trials)
         self.tune_surge(df_train=df_train, X=X_surge, y=y_surge, n_trials=n_trials)
         self.tune_lead_lag(prices_dict=prices_dict, indicator_df=indicator_df, n_trials=n_trials)
         self.tune_vcp_detector(prices_dict=prices_dict, n_trials=n_trials)
         self.tune_vcp_ml(df_train=df_train, X=X_vcp, y=y_vcp, n_trials=n_trials)
+        self.tune_regime_2d_weights(strategy_returns_by_regime=strategy_returns_by_regime, n_trials=n_trials)
 
         save_target = save_path if save_path else str(self.params_file)
         self.save_tuned_params(filepath=save_target)

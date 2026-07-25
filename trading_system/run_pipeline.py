@@ -956,10 +956,26 @@ def execute_prediction_pipeline():
                 model.compute_lead_lag(df_train, indicator_df=indicator_train, symbol_to_market=symbol_market)
 
             # 7d. Train VCP ML surge models (4 markets, parallel inside)
-            from src.ai.vcp_ml_predictor import VCPSurgePredictor
             vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
             if train_data_dict:
                 vcp_ml.train(train_data_dict, indicator_train, universe)
+
+        # 7e. Fit Isotonic Regression calibrators on training data for score alignment
+        if not df_train.empty and 'Close' in df_train.columns:
+            try:
+                logger.info("Fitting Isotonic Regression calibrators on training dataset...")
+                sample_train = df_train.sample(n=min(len(df_train), 5000), random_state=42)
+                reg_preds = model.predict(sample_train)
+                surge_preds = model.predict_surge(sample_train)
+                if not reg_preds.empty and not surge_preds.empty:
+                    y_true = (sample_train.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x - 1) >= 0.15).astype(float).values
+                    calib_scores = {
+                        'regression': reg_preds.get(20, pd.Series(0.5, index=sample_train.index)).values,
+                        'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=sample_train.index)).values,
+                    }
+                    scorer.fit_calibrators(calib_scores, y_true)
+            except Exception as _calib_e:
+                logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
 
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
