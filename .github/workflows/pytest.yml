@@ -1,4 +1,4 @@
-name: Python Testing
+name: CI / Testing & Security Audit
 
 on:
   push:
