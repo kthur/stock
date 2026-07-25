@@ -1126,6 +1126,61 @@ def execute_prediction_pipeline():
     vcp_results.sort(key=lambda x: -x['vcp_score'])
     logger.info(f"VCP patterns found: {len(vcp_results)} symbols")
 
+    # ── Phase 5-C: VCP Real-Time Breakout Trigger ────────────────────────────
+    _vcp_breakout_signals = []
+    if vcp_results:
+        try:
+            from src.ai.vcp_realtime_trigger import VCPBreakoutTrigger
+            _vcp_trigger = VCPBreakoutTrigger(config=cfg)
+            for _vr in vcp_results:
+                _vsym = _vr.get('symbol')
+                _vdf = infer_data_dict.get(_vsym)
+                if _vdf is None or len(_vdf) < 50:
+                    continue
+                try:
+                    _close = _vdf['Close']
+                    _volume = _vdf['Volume']
+                    if isinstance(_close, pd.DataFrame):
+                        _close = _close.iloc[:, 0]
+                    if isinstance(_volume, pd.DataFrame):
+                        _volume = _volume.iloc[:, 0]
+                    _cur_price = float(_close.iloc[-1])
+                    _cur_vol = float(_volume.iloc[-1])
+                    _signal = _vcp_trigger.evaluate_realtime_breakout(
+                        symbol=_vsym,
+                        current_price=_cur_price,
+                        current_volume=_cur_vol,
+                        hist_df=_vdf,
+                        vcp_score=float(_vr.get('vcp_score', 50.0)),
+                    )
+                    if _signal.is_breakout:
+                        _vcp_breakout_signals.append(_signal)
+                        # Apply 1.3× bonus to vcp_score for breakout confirmation
+                        _vr['vcp_score'] = min(_vr['vcp_score'] * 1.3, 100.0)
+                except Exception as _vsig_e:
+                    logger.debug(f"[5-C] Breakout check failed for {_vsym}: {_vsig_e}")
+
+            if _vcp_breakout_signals:
+                _sym_to_name = dict(zip(universe['symbol'], universe.get('name', universe['symbol'])))
+                _alert_lines = []
+                for _sig in _vcp_breakout_signals[:5]:
+                    _nm = _sym_to_name.get(_sig.symbol, _sig.symbol)
+                    _alert_lines.append(
+                        f"  🚀 {_sig.symbol} ({_nm}): ₩{_sig.current_price:,.0f} "
+                        f"| Pivot ₩{_sig.pivot_price:,.0f} "
+                        f"| Vol {_sig.volume_ratio:.1f}x"
+                    )
+                _notify_telegram(
+                    f"🚀 [VCP 돌파] {len(_vcp_breakout_signals)}개 종목 당일 돌파 확인!\n"
+                    + "\n".join(_alert_lines),
+                    "SUCCESS",
+                )
+                logger.info(f"[5-C] VCP breakout detected: {len(_vcp_breakout_signals)} symbols")
+            else:
+                logger.info("[5-C] No VCP breakout signals detected today.")
+        except Exception as _vcp_e:
+            logger.warning(f"[5-C] VCP breakout trigger skipped: {_vcp_e}")
+
     # 10d. Run lead-lag inference (which stocks may surge based on leader movements)
     logger.info("Running lead-lag inference...")
     lead_lag_df = model.predict_lead_lag(infer_data_dict, indicator_df=indicator_infer)
@@ -1471,7 +1526,83 @@ def execute_prediction_pipeline():
     # 11d. Run Ensemble Scoring
     logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")
     from src.ai.ensemble_scorer import EnsembleScoringEngine
-    scorer = EnsembleScoringEngine()
+    from pathlib import Path
+    import joblib
+
+    scorer = EnsembleScoringEngine(config=cfg)
+
+    # ── Phase 5-B: Isotonic Calibrator load / fit ───────────────────────────
+    _calibrator_path = Path(model.model_dir) / "calibrators.pkl"
+    if _calibrator_path.exists():
+        try:
+            scorer._calibrators = joblib.load(str(_calibrator_path))
+            logger.info(f"[5-B] Loaded Isotonic calibrators from {_calibrator_path}")
+        except Exception as _cal_e:
+            logger.warning(f"[5-B] Failed to load calibrators: {_cal_e}")
+    else:
+        # Build historical strategy scores + outcome labels for initial calibration
+        try:
+            _hist_df = storage.get_ensemble_predictions_history(days=60)
+            if _hist_df is not None and len(_hist_df) >= 20 and 'outcome_label' in _hist_df.columns:
+                _strategy_cols = {'regression': 'reg_score', 'surge': 'surge_score',
+                                  'lead_lag': 'll_score', 'vcp_rule': 'vcp_rule_score',
+                                  'vcp_ml': 'vcp_ml_score'}
+                _strat_scores = {}
+                for _sname, _scol in _strategy_cols.items():
+                    if _scol in _hist_df.columns:
+                        _strat_scores[_sname] = _hist_df[_scol].values
+                _true_labels = _hist_df['outcome_label'].values
+                if _strat_scores:
+                    scorer.fit_calibrators(_strat_scores, _true_labels)
+                    joblib.dump(scorer._calibrators, str(_calibrator_path))
+                    logger.info(f"[5-B] Fitted and saved Isotonic calibrators "
+                                f"({len(_true_labels)} samples) → {_calibrator_path}")
+        except Exception as _cal_fit_e:
+            logger.warning(f"[5-B] Calibrator fitting skipped: {_cal_fit_e}")
+
+    # ── Phase 5-A: Sentiment Meta Filter evaluation ──────────────────────────
+    _blacklist_map = {}
+    try:
+        from src.risk.sentiment_filter import SentimentMetaFilter
+        _sentiment_filter = SentimentMetaFilter(
+            risk_threshold=cfg.sentiment_risk_threshold,
+            crawl_naver_news=cfg.sentiment_crawl_naver_news,
+        )
+        # Evaluate top-100 KRX candidates from ensemble preview (by reg_score)
+        _krx_universe_syms = [
+            row['symbol'] for _, row in universe.iterrows()
+            if row.get('market', '') in ('KOSPI', 'KOSDAQ', 'KONEX')
+            and str(row['symbol']).isdigit()
+        ]
+        # Prioritise by regression score if available, else use order
+        if not res_df.empty and 'symbol' in res_df.columns:
+            _reg_top = res_df.sort_values(by=20 if 20 in res_df.columns else res_df.columns[-1],
+                                          ascending=False)['symbol'].tolist()
+            _eval_syms = [s for s in _reg_top if s in set(_krx_universe_syms)][:100]
+        else:
+            _eval_syms = _krx_universe_syms[:100]
+
+        if _eval_syms:
+            logger.info(f"[5-A] Running SentimentMetaFilter on {len(_eval_syms)} KRX candidates...")
+            for _sym in _eval_syms:
+                try:
+                    _result = _sentiment_filter.evaluate_symbol(_sym)
+                    if _result.is_blacklisted:
+                        _blacklist_map[_sym] = _result
+                except Exception:
+                    pass
+            if _blacklist_map:
+                logger.info(f"[5-A] Sentiment blacklist: {len(_blacklist_map)} symbols — "
+                            f"{', '.join(list(_blacklist_map.keys())[:10])}")
+                _notify_telegram(
+                    f"⚠️ [감성 필터] {len(_blacklist_map)}개 종목 블랙리스트 등록:\n"
+                    + "\n".join(f"  • {sym}: {res.reason[:60]}" for sym, res in list(_blacklist_map.items())[:5]),
+                    "WARNING",
+                )
+            else:
+                logger.info("[5-A] Sentiment filter: no blacklisted symbols detected.")
+    except Exception as _sent_e:
+        logger.warning(f"[5-A] SentimentMetaFilter skipped: {_sent_e}")
 
     # Calculate rolling Sharpes for all 5 strategies if strategy_returns exists
     rolling_sharpes = scorer.compute_rolling_sharpe(strategy_returns) if 'strategy_returns' in locals() and isinstance(strategy_returns, dict) else None
@@ -1485,7 +1616,8 @@ def execute_prediction_pipeline():
         vcp_rule_df=vcp_results,
         vcp_ml_df=vcp_ml_df,
         rolling_sharpes=rolling_sharpes,
-        target_horizon=20
+        target_horizon=20,
+        sentiment_blacklist=_blacklist_map,
     )
 
 

@@ -66,18 +66,20 @@ class FallbackMetadataDict(dict):
                 "dividend_per_share": mock_data["dividend_per_share"]
             })
 
-    def _clean_key(self, key: str) -> str:
+    def _clean_key(self, key: Any) -> Any:
         if not isinstance(key, str):
             return key
         return key.strip().upper().split('.')[0]
 
     def __getitem__(self, key):
         cleaned = self._clean_key(key)
-        if super().__contains__(cleaned):
+        if isinstance(cleaned, str) and super().__contains__(cleaned):
             return super().__getitem__(cleaned)
         return self._generate_mock_metadata(cleaned)
 
     def get(self, key, default=None):
+        if not isinstance(key, str):
+            return default
         cleaned = self._clean_key(key)
         if super().__contains__(cleaned):
             return super().__getitem__(cleaned)
@@ -91,19 +93,10 @@ class FallbackMetadataDict(dict):
         return super().__contains__(cleaned)
 
     def _generate_mock_metadata(self, symbol: str) -> dict:
-        """Return median-based placeholder metadata for unknown symbols.
-
-        Phase 4-B Fix: Previously used MD5 hash to generate random shares_outstanding
-        and floating_shares, which introduced systematic bias in norm_market_cap and
-        norm_floating_value features for unknown/small-cap symbols.
-
-        Now returns market-appropriate median values:
-        - KRX symbols (6-digit numbers): Korean market median ~200M shares
-        - US symbols (alphabetic tickers): US market median ~500M shares
-        Fundamentals remain NaN so XGBoost handles them via native missing-value logic.
-        """
+        if not isinstance(symbol, str):
+            raise AttributeError(f"symbol must be str, got {type(symbol)}")
         # Determine market from symbol format
-        is_krx = isinstance(symbol, str) and symbol.isdigit()
+        is_krx = symbol.isdigit()
         if is_krx:
             # KRX market median: ~200M shares outstanding, ~60% float ratio
             shares_outstanding = 200_000_000.0
