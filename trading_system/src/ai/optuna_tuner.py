@@ -428,7 +428,7 @@ class OptunaStrategyTuner:
                 raw_w = {s: trial.suggest_float(f'w_{s}', 0.05, 0.70) for s in valid_strats}
                 tot = sum(raw_w.values())
                 norm_w = {s: w / tot for s, w in raw_w.items()}
-                
+
                 combo_series = sum(combo_returns[s] * norm_w[s] for s in valid_strats).dropna()
                 if len(combo_series) < 5 or combo_series.std() < 1e-8:
                     return 0.0
