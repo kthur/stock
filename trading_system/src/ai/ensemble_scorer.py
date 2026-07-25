@@ -2,7 +2,8 @@ import logging
 import typing
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, Set, List
+
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +184,9 @@ class EnsembleScoringEngine:
                                  vcp_patterns_df: Optional[Union[pd.DataFrame, list]] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  gamma: float = 1.0,
-                                 target_horizon: int = 20) -> pd.DataFrame:
+                                 target_horizon: int = 20,
+                                 sentiment_blacklist: Optional[Union[Set[str], List[str], Dict[str, Any]]] = None) -> pd.DataFrame:
+
         """
         Merges all 5 strategy outputs (Regression, Surge, Lead-Lag, VCP Rule, VCP ML)
         and calculates a unified dynamic weighted ensemble score [0, 1] and expected return proxy (%).
@@ -302,6 +305,16 @@ class EnsembleScoringEngine:
         # Scale Ensemble Score to Return Proxy (%)
         merged['ensemble_expected_return'] = merged['ensemble_score'] * 20.0
 
+        # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
+        if sentiment_blacklist:
+            b_set = set(sentiment_blacklist.keys()) if isinstance(sentiment_blacklist, dict) else set(sentiment_blacklist)
+            if b_set:
+                mask = merged['symbol'].isin(b_set)
+                merged.loc[mask, 'ensemble_score'] = 0.0
+                merged.loc[mask, 'ensemble_expected_return'] = 0.0
+                logger.info(f"[ENSEMBLE SENTIMENT FILTER] Zero-weighted {mask.sum()} blacklisted symbols.")
+
         # Sort by ensemble score descending
         merged = merged.sort_values(by='ensemble_score', ascending=False).reset_index(drop=True)
         return merged
+

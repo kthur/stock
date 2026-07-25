@@ -77,8 +77,17 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
 
     Returns dict with pattern info or all-default if insufficient data.
     """
+    pivot_price = 0.0
+    if df is not None and not df.empty:
+        h_col = [c for c in df.columns if str(c).lower() == 'high']
+        if h_col:
+            h_s = _safe_series(df[h_col[0]])
+            pivot_price = float(h_s.iloc[-20:].max()) if len(h_s) >= 20 else float(h_s.iloc[-1])
+
     if df is None or len(df) < 200:
-        return {'is_vcp': False, 'vcp_score': 0.0, 'contraction_peaks': []}
+        return {'is_vcp': False, 'vcp_score': 0.0, 'pivot_price': round(pivot_price, 2), 'contraction_peaks': []}
+
+
 
     if params is None:
         params = _load_tuned_vcp_params()
@@ -164,9 +173,12 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
     # VCP confirmed: strong contraction + constructive price action
     is_vcp = decreasing and above_sma50 and score >= min_vcp_score
 
+    pivot_price = float(high.iloc[-20:].max()) if len(high) >= 20 else float(high.iloc[-1])
+
     return {
         'is_vcp': is_vcp,
         'vcp_score': score,
+        'pivot_price': round(pivot_price, 2),
         'contraction_peaks': ranges,
         'current_range_pct': round(current_range, 2),
         'volume_declining': volume_declining,
@@ -174,3 +186,4 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
         'above_sma200': above_sma200,
         'near_high': near_high,
     }
+

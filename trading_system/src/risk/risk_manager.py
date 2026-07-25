@@ -433,6 +433,16 @@ class RiskManager:
 
         return max(0.0, highest_price - stop_distance)
 
+    def check_sentiment_blacklist(self, symbol: str, blacklist: Optional[set | list | dict] = None) -> bool:
+        """Returns True if the symbol is blacklisted due to critical sentiment/disclosure risk."""
+        if not symbol or not blacklist:
+            return False
+        b_set = set(blacklist.keys()) if isinstance(blacklist, dict) else set(blacklist)
+        is_blocked = symbol in b_set
+        if is_blocked:
+            logger.warning(f"[RISK MANAGER] Order blocked for symbol '{symbol}': Present in sentiment blacklist!")
+        return is_blocked
+
     def check_sector_risk_cap(
         self,
         sector: str,
@@ -445,6 +455,7 @@ class RiskManager:
             return False
         total_sector_val = current_sector_exposure + new_trade_exposure
         return (total_sector_val / total_portfolio_value) <= self.max_sector_exposure_pct
+
 
     def calculate_max_sector_position_value(
         self,
