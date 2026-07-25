@@ -82,7 +82,7 @@ class OptunaStrategyTuner:
         # 1. XGBoost Regressor
         def xgb_objective(trial):
             params = {
-                'n_estimators': trial.suggest_int('n_estimators', 10, 100),
+                'n_estimators': trial.suggest_int('n_estimators', 50, 100),
                 'max_depth': trial.suggest_int('max_depth', 3, 6),
                 'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
                 'subsample': trial.suggest_float('subsample', 0.6, 1.0),
