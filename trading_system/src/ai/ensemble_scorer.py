@@ -91,8 +91,11 @@ class EnsembleScoringEngine:
         }
     }
 
-    def __init__(self):
-        pass
+    def __init__(self, config=None):
+        # Support TradingConfig for centralized constant management
+        self._return_multiplier = 20.0  # default
+        if config is not None:
+            self._return_multiplier = getattr(config, "ensemble_return_multiplier", 20.0)
 
     def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[pd.Series, list]],
                               window: int = 20,
@@ -303,7 +306,7 @@ class EnsembleScoringEngine:
         )
 
         # Scale Ensemble Score to Return Proxy (%)
-        merged['ensemble_expected_return'] = merged['ensemble_score'] * 20.0
+        merged['ensemble_expected_return'] = merged['ensemble_score'] * self._return_multiplier
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:

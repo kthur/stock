@@ -38,7 +38,13 @@ class VCPBreakoutTrigger:
         breakout_vol_threshold: float = 1.5,
         near_pivot_pct: float = 0.02,
         min_vcp_score: float = 50.0,
+        config=None,
     ):
+        # Allow TradingConfig to override defaults
+        if config is not None:
+            breakout_vol_threshold = getattr(config, "vcp_volume_surge_ratio", breakout_vol_threshold)
+            near_pivot_pct = getattr(config, "vcp_near_pivot_pct", near_pivot_pct)
+            min_vcp_score = getattr(config, "vcp_min_score_threshold", min_vcp_score)
         self.breakout_vol_threshold = breakout_vol_threshold
         self.near_pivot_pct = near_pivot_pct
         self.min_vcp_score = min_vcp_score

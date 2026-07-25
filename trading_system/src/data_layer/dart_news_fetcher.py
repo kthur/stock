@@ -1,12 +1,21 @@
-"""DART Corporate Disclosure & Financial News Fetcher"""
+"""DART Corporate Disclosure & Financial News Fetcher
+
+Fixes:
+  - corp_code is now resolved via DARTCorpMapper (CORPCODE.xml-based lookup)
+    instead of incorrectly using symbol.zfill(8).
+  - Added fetch_naver_news() for real-time Korean financial news crawling.
+"""
 
 import os
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import requests
+
+from src.data_layer.dart_corp_mapper import DARTCorpMapper
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +35,15 @@ CRITICAL_RISK_KEYWORDS = [
     "불성실공시",
 ]
 
+# Negation patterns: if present near the keyword, treat as non-risk
+_NEGATION_PATTERNS = [
+    "계획 없음", "계획없음", "부인", "무혐의", "기각", "해소", "철회", "완료",
+    "없다", "아니다", "아님", "취소", "철수", "면제", "결정 취소", "허위",
+    "오해", "정정", "해명", "반박", "부정", "소송 취하",
+]
+# Window (characters) around keyword to check for negation context
+_NEGATION_WINDOW = 50
+
 
 @dataclass
 class DisclosureEvent:
@@ -40,27 +58,55 @@ class DisclosureEvent:
 
 
 class DARTNewsFetcher:
-    """Fetches corporate disclosures via OpenDART API and recent financial news headlines for stock symbols."""
+    """Fetches corporate disclosures via OpenDART API and recent Korean financial news.
 
-    def __init__(self, api_key: Optional[str] = None):
+    Key Fixes vs. original implementation:
+    - corp_code is now properly resolved via DARTCorpMapper instead of zfill(8).
+    - fetch_naver_news() added for real-time headline crawling.
+    - _match_risk_keyword() now supports negation-context filtering.
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        corp_mapper: Optional[DARTCorpMapper] = None,
+    ):
         self.api_key = api_key or os.environ.get("DART_API_KEY", "").strip()
+        self.corp_mapper = corp_mapper or DARTCorpMapper(api_key=self.api_key)
         self.timeout = 5.0
 
+    # ------------------------------------------------------------------
+    # OpenDART disclosure fetch (bug-fixed)
+    # ------------------------------------------------------------------
+
     def fetch_dart_disclosures(self, symbol: str, days: int = 7) -> List[DisclosureEvent]:
-        """Fetches disclosures from OpenDART API or falls back to rules engine if API key is not set."""
+        """Fetches disclosures from OpenDART API.
+
+        FIXED: corp_code is now resolved via DARTCorpMapper.get_corp_code()
+        instead of the incorrect symbol.zfill(8) which returns the KRX symbol
+        (e.g., "005930") instead of the OpenDART corp_code (e.g., "00126380").
+        """
         if not self.api_key:
             logger.debug(f"DART_API_KEY not set. Using local disclosure scanner for {symbol}")
             return []
 
-        # OpenDART API URL for disclosures
+        # ✅ Fixed: resolve actual DART corp_code from KRX stock symbol
+        corp_code = self.corp_mapper.get_corp_code(symbol)
+        if not corp_code:
+            logger.debug(
+                f"DARTNewsFetcher: no corp_code mapping found for symbol={symbol}. "
+                "Skipping OpenDART API call."
+            )
+            return []
+
         url = "https://opendart.fss.or.kr/api/list.json"
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
 
         params = {
             "crtfc_key": self.api_key,
-            "corp_code": symbol.zfill(8),
-            "bde_de": start_date,
+            "corp_code": corp_code,      # ✅ Correct 8-digit DART corp_code
+            "bgn_de": start_date,
             "end_de": end_date,
             "page_count": 50,
         }
@@ -90,16 +136,80 @@ class DARTNewsFetcher:
 
         return events
 
-    def _match_risk_keyword(self, text: str) -> Optional[str]:
-        """Checks if text contains any of the 12 critical risk keywords."""
-        if not text:
-            return None
-        for kw in CRITICAL_RISK_KEYWORDS:
-            if kw in text:
-                return kw
-        return None
+    # ------------------------------------------------------------------
+    # Naver Financial News Crawler (NEW)
+    # ------------------------------------------------------------------
 
-    def scan_text_items(self, symbol: str, text_items: List[str], source: str = "News") -> List[DisclosureEvent]:
+    def fetch_naver_news(self, symbol: str, max_items: int = 20) -> List[DisclosureEvent]:
+        """Crawls recent Naver Finance news headlines for the given Korean stock symbol.
+
+        Uses Naver Finance news RSS feed (no API key required).
+        Returns DisclosureEvents for any headlines containing risk keywords.
+        """
+        # Naver Finance news search RSS for Korean stocks
+        rss_url = f"https://finance.naver.com/item/news_news.naver?code={symbol}&page=1&sm=title_entity_id.basic&clusterId="
+        events: List[DisclosureEvent] = []
+        today_str = datetime.now().strftime("%Y%m%d")
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://finance.naver.com",
+        }
+
+        try:
+            resp = requests.get(rss_url, headers=headers, timeout=self.timeout)
+            if resp.status_code != 200:
+                logger.debug(f"Naver news fetch returned {resp.status_code} for {symbol}")
+                return []
+
+            # Extract news titles from HTML (lightweight regex; avoids BeautifulSoup dep)
+            # Naver Finance news titles appear in <dt> tags or specific <a> anchor patterns
+            text = resp.text
+            # Match title anchors from the news list table
+            title_pattern = re.compile(
+                r'<a[^>]+class="[^"]*tit[^"]*"[^>]*>(.*?)</a>', re.DOTALL
+            )
+            raw_titles = title_pattern.findall(text)
+
+            # Strip HTML tags and decode entities
+            clean_titles = []
+            for raw in raw_titles[:max_items]:
+                clean = re.sub(r"<[^>]+>", "", raw).strip()
+                clean = clean.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'")
+                if clean:
+                    clean_titles.append(clean)
+
+            # Scan cleaned titles for risk keywords
+            for title in clean_titles:
+                kw = self._match_risk_keyword(title)
+                if kw:
+                    events.append(
+                        DisclosureEvent(
+                            symbol=symbol,
+                            title=title,
+                            date=today_str,
+                            is_risk=True,
+                            risk_keyword=kw,
+                            source="NaverNews",
+                        )
+                    )
+
+        except Exception as e:
+            logger.debug(f"Naver news crawl failed for {symbol}: {e}")
+
+        return events
+
+    # ------------------------------------------------------------------
+    # Text scanning
+    # ------------------------------------------------------------------
+
+    def scan_text_items(
+        self, symbol: str, text_items: List[str], source: str = "News"
+    ) -> List[DisclosureEvent]:
         """Scans a list of text strings (headlines, filings, reports) for risk keywords."""
         events = []
         today_str = datetime.now().strftime("%Y%m%d")
@@ -117,3 +227,40 @@ class DARTNewsFetcher:
                     )
                 )
         return events
+
+    # ------------------------------------------------------------------
+    # Keyword matching with negation context filtering
+    # ------------------------------------------------------------------
+
+    def _match_risk_keyword(self, text: str) -> Optional[str]:
+        """Checks if text contains any of the 12 critical risk keywords.
+
+        NEW: Applies negation-context filtering to reduce false positives.
+        If the keyword appears near a negation phrase (e.g., "유상증자 계획 없음"),
+        it is NOT treated as a risk.
+        """
+        if not text:
+            return None
+        for kw in CRITICAL_RISK_KEYWORDS:
+            idx = text.find(kw)
+            if idx == -1:
+                continue
+            # Check negation context in a window around the keyword
+            start = max(0, idx - _NEGATION_WINDOW)
+            end = min(len(text), idx + len(kw) + _NEGATION_WINDOW)
+            window = text[start:end]
+            if self._has_negation_context(window):
+                logger.debug(
+                    f"Keyword '{kw}' found in '{text[:60]}' but negation context detected – skipped."
+                )
+                continue
+            return kw
+        return None
+
+    @staticmethod
+    def _has_negation_context(window_text: str) -> bool:
+        """Returns True if the text window contains any negation pattern."""
+        for neg in _NEGATION_PATTERNS:
+            if neg in window_text:
+                return True
+        return False

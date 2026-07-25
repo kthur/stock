@@ -28,6 +28,7 @@ class MarketIndicatorStorage:
         conn.execute("PRAGMA synchronous=OFF")
         conn.execute("PRAGMA cache_size=-50000")  # 50MB page cache
         conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=5000")  # 5s retry on locked DB
         return conn
 
     def _init_db(self):

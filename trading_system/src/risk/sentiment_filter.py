@@ -1,4 +1,11 @@
-"""Sentiment Meta-Filter & Blacklist Engine"""
+"""Sentiment Meta-Filter & Blacklist Engine
+
+Changes vs. original:
+- Negation-context filtering is now delegated to DARTNewsFetcher._match_risk_keyword(),
+  so false positives from "유상증자 계획 없음" etc. are eliminated at source.
+- risk_threshold and instant_blacklist_keywords are now configurable via constructor.
+- fetch_naver_news() is called in evaluate_symbol() when no headlines are provided.
+"""
 
 import logging
 from dataclasses import dataclass, field
@@ -7,6 +14,11 @@ from typing import Dict, List, Optional, Set, Any
 from src.data_layer.dart_news_fetcher import DARTNewsFetcher, DisclosureEvent, CRITICAL_RISK_KEYWORDS
 
 logger = logging.getLogger(__name__)
+
+# Default set of keywords that immediately trigger score=1.0 (instant blacklist)
+_DEFAULT_INSTANT_BLACKLIST_KW: Set[str] = {
+    "유상증자", "횡령", "배임", "관리종목", "상장폐지", "감자의견", "영업정지"
+}
 
 
 @dataclass
@@ -22,15 +34,31 @@ class SentimentRiskResult:
 
 
 class SentimentMetaFilter:
-    """Evaluates corporate sentiment risk and filters out blacklisted symbols due to negative disclosures/news."""
+    """Evaluates corporate sentiment risk and filters out blacklisted symbols.
+
+    Scoring logic:
+    - Each unique risk keyword adds 0.40 score (capped at 1.0).
+    - Any keyword in instant_blacklist_keywords immediately sets score = 1.0.
+    - Negation context (e.g., "무혐의", "계획 없음") is filtered inside
+      DARTNewsFetcher._match_risk_keyword() to avoid false positives.
+    - Symbols with score >= risk_threshold are blacklisted.
+    """
 
     def __init__(
         self,
         fetcher: Optional[DARTNewsFetcher] = None,
         risk_threshold: float = 0.70,
+        instant_blacklist_keywords: Optional[Set[str]] = None,
+        crawl_naver_news: bool = True,
     ):
         self.fetcher = fetcher or DARTNewsFetcher()
         self.risk_threshold = risk_threshold
+        self.instant_blacklist_keywords = (
+            instant_blacklist_keywords
+            if instant_blacklist_keywords is not None
+            else _DEFAULT_INSTANT_BLACKLIST_KW
+        )
+        self.crawl_naver_news = crawl_naver_news
         self._blacklist: Dict[str, SentimentRiskResult] = {}
 
     def evaluate_symbol(
@@ -39,19 +67,37 @@ class SentimentMetaFilter:
         headlines: Optional[List[str]] = None,
         disclosures: Optional[List[DisclosureEvent]] = None,
     ) -> SentimentRiskResult:
-        """Evaluates disclosure and news headlines for a stock symbol to check for severe risk."""
+        """Evaluates disclosure and news headlines for a stock symbol.
+
+        Data sources (in order of precedence):
+        1. caller-provided disclosures (pre-fetched DART events)
+        2. DART API via fetcher (if api_key is set)
+        3. Naver Finance news crawler (if crawl_naver_news=True and symbol is KRX)
+        4. caller-provided headlines text list (scan_text_items)
+        """
         events: List[DisclosureEvent] = []
 
-        if disclosures:
+        # 1. Use pre-fetched disclosures if provided; otherwise call DART API
+        if disclosures is not None:
             events.extend(disclosures)
         else:
             api_events = self.fetcher.fetch_dart_disclosures(symbol)
             events.extend(api_events)
 
+        # 2. Crawl Naver Finance news (Korean market symbols only)
+        if self.crawl_naver_news and symbol.isdigit() and len(symbol) == 6:
+            try:
+                naver_events = self.fetcher.fetch_naver_news(symbol)
+                events.extend(naver_events)
+            except Exception as e:
+                logger.debug(f"Naver news crawl skipped for {symbol}: {e}")
+
+        # 3. Scan caller-provided headline strings
         if headlines:
             scanned_events = self.fetcher.scan_text_items(symbol, headlines, source="News")
             events.extend(scanned_events)
 
+        # Aggregate detected risk keywords
         detected_kw: Set[str] = set()
         for ev in events:
             if ev.is_risk and ev.risk_keyword:
@@ -59,14 +105,11 @@ class SentimentMetaFilter:
 
         kw_list = sorted(list(detected_kw))
 
-        # Risk score calculation:
-        # Base score = 0.0
-        # Each unique risk keyword adds 0.40 score (capped at 1.0)
+        # Risk score calculation
         risk_score = min(len(kw_list) * 0.40, 1.0)
 
-        # High priority critical keywords (유상증자, 횡령, 배임, 관리종목, 상장폐지) instantly cause score = 1.0
-        instant_blacklist_kw = {"유상증자", "횡령", "배임", "관리종목", "상장폐지", "감자의견", "영업정지"}
-        if any(kw in instant_blacklist_kw for kw in kw_list):
+        # Instant blacklist keywords bypass the threshold
+        if any(kw in self.instant_blacklist_keywords for kw in kw_list):
             risk_score = 1.0
 
         is_blacklisted = risk_score >= self.risk_threshold
@@ -74,7 +117,10 @@ class SentimentMetaFilter:
         reason = ""
         if is_blacklisted:
             reason = f"Critical risk disclosure/news detected: {', '.join(kw_list)}"
-            logger.warning(f"[SENTIMENT BLACKLIST] Symbol {symbol} BLACKLISTED! Reason: {reason} (Score: {risk_score:.2f})")
+            logger.warning(
+                f"[SENTIMENT BLACKLIST] Symbol {symbol} BLACKLISTED! "
+                f"Reason: {reason} (Score: {risk_score:.2f})"
+            )
 
         result = SentimentRiskResult(
             symbol=symbol,

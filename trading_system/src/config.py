@@ -48,6 +48,21 @@ class TradingConfig:
     kis_mock_app_secret: str = ""
     kis_mock_account: str = ""
 
+    # DART 공시 API 키 (OpenDART)
+    dart_api_key: str = ""
+
+    # VCP 실시간 돌파 파라미터
+    vcp_near_pivot_pct: float = 0.02       # Pivot 돌파 허용 여유 (2%)
+    vcp_min_score_threshold: float = 50.0  # VCP 패턴 최소 점수 임계값
+    vcp_volume_surge_ratio: float = 1.50   # 돌파 확인 거래량 비율 (평균 대비 150%)
+
+    # 감성 메타 필터 파라미터
+    sentiment_risk_threshold: float = 0.70  # 이 이상이면 블랙리스트 등록
+    sentiment_crawl_naver_news: bool = True  # 네이버 금융 뉴스 크롤링 활성화
+
+    # 앙상블 스코어 파라미터
+    ensemble_return_multiplier: float = 20.0  # ensemble_score → expected_return 환산 계수
+
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self):
@@ -97,6 +112,18 @@ class TradingConfig:
             self.kis_mock_app_secret = os.environ["KIS_MOCK_APP_SECRET"]
         if "KIS_MOCK_ACCOUNT" in os.environ:
             self.kis_mock_account = os.environ["KIS_MOCK_ACCOUNT"]
+        if "DART_API_KEY" in os.environ:
+            self.dart_api_key = os.environ["DART_API_KEY"]
+        if "VCP_NEAR_PIVOT_PCT" in os.environ:
+            self.vcp_near_pivot_pct = float(os.environ["VCP_NEAR_PIVOT_PCT"])
+        if "VCP_MIN_SCORE_THRESHOLD" in os.environ:
+            self.vcp_min_score_threshold = float(os.environ["VCP_MIN_SCORE_THRESHOLD"])
+        if "VCP_VOLUME_SURGE_RATIO" in os.environ:
+            self.vcp_volume_surge_ratio = float(os.environ["VCP_VOLUME_SURGE_RATIO"])
+        if "SENTIMENT_RISK_THRESHOLD" in os.environ:
+            self.sentiment_risk_threshold = float(os.environ["SENTIMENT_RISK_THRESHOLD"])
+        if "ENSEMBLE_RETURN_MULTIPLIER" in os.environ:
+            self.ensemble_return_multiplier = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
 
         self._resolve_db_paths()
         self._parsed_authorized_user_ids = self._parse_authorized_ids()
