@@ -165,7 +165,7 @@ class PortfolioAllocator:
         if 'sector' in df_candidates.columns or effective_sector_map:
             if 'sector' not in df_candidates.columns:
                 df_candidates['sector'] = df_candidates['symbol'].map(lambda s: effective_sector_map.get(s, "Unknown"))
-            
+
             sector_totals = df_candidates.groupby('sector')['weight'].sum()
             for sec, sec_weight in sector_totals.items():
                 if sec_weight > self.max_sector_exposure and sec_weight > 0:

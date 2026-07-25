@@ -330,7 +330,7 @@ class KoreaInvestmentConnector:
         headers = self._get_auth_headers(tr_id)
         cano = self.account_number[:8] if self.account_number and len(self.account_number) >= 8 else (self.account_number or "")
         acnt_prdt_cd = self.account_number[-2:] if self.account_number and len(self.account_number) >= 10 else "01"
-        clean_code = code.split(".")[0] if code and "." in code else (code or "")
+        code.split(".")[0] if code and "." in code else (code or "")
 
         body = {
             "CANO": cano,

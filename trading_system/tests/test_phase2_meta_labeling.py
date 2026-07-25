@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from src.ai.triple_barrier import apply_triple_barrier, get_daily_vol
 from src.ai.meta_labeler import MetaLabeler
 
@@ -18,7 +17,7 @@ def test_triple_barrier_method():
         'Low': np.linspace(98, 138, 40),
         'Close': np.linspace(100, 140, 40)
     }, index=dates)
-    
+
     tb_df = apply_triple_barrier(df, pt_sl=(1.0, 1.0), num_days=5)
     assert not tb_df.empty
     assert 'label' in tb_df.columns
@@ -31,15 +30,15 @@ def test_meta_labeler_training_and_filtering():
         'f2': np.random.randn(100)
     })
     meta_y = pd.Series(np.random.choice([0, 1], size=100))
-    
+
     labeler = MetaLabeler(probability_threshold=0.5)
     labeler.train(X, meta_y)
     assert labeler.is_fitted
-    
+
     probs = labeler.predict_probability(X)
     assert len(probs) == 100
     assert np.all(probs >= 0.0) and np.all(probs <= 1.0)
-    
+
     primary_sig = pd.Series(np.ones(100))
     filtered_sig = labeler.filter_signals(X, primary_sig)
     assert len(filtered_sig) == 100

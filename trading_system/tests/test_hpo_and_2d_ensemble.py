@@ -6,11 +6,10 @@ import json
 import pytest
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from src.ai.optuna_tuner import OptunaStrategyTuner
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.analysis.regime_detector import MarketRegimeDetector
-from src.ai.vcp_detector import detect_vcp, VCPPatternDetector
+from src.ai.vcp_detector import detect_vcp
 
 
 @pytest.fixture

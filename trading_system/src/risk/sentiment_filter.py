@@ -10,8 +10,8 @@ Changes vs. original:
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Any
-from src.data_layer.dart_news_fetcher import DARTNewsFetcher, DisclosureEvent, CRITICAL_RISK_KEYWORDS
+from typing import Dict, List, Optional, Set
+from src.data_layer.dart_news_fetcher import DARTNewsFetcher, DisclosureEvent
 
 logger = logging.getLogger(__name__)
 

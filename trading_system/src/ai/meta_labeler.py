@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import logging
-from typing import Dict, Any, Optional
 from xgboost import XGBClassifier
 
 logger = logging.getLogger(__name__)
@@ -12,7 +11,7 @@ class MetaLabeler:
     Filters primary buy/sell trading signals to reject false-positive trades
     and scale position sizing based on expected win probability.
     """
-    
+
     def __init__(self, probability_threshold: float = 0.55):
         self.probability_threshold = probability_threshold
         self.model = XGBClassifier(

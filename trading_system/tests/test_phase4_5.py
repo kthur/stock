@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from src.ai.feature_engineering import compute_advanced_alpha_features, ALPHA_FEATURES
 from src.ai.purged_cv import PurgedKFold
 

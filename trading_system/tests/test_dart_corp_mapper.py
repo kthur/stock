@@ -3,8 +3,6 @@
 import json
 import zipfile
 import io
-import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import sys
@@ -88,7 +86,6 @@ class TestDARTCorpMapper:
     def test_stale_cache_triggers_refresh(self, tmp_path):
         """A cache older than _REFRESH_DAYS should trigger a new download."""
         from datetime import datetime, timedelta
-        import time
 
         cache_path = tmp_path / "stale.json"
         # Write a cache with an old mtime

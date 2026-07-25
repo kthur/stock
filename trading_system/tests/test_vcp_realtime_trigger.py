@@ -3,7 +3,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from src.ai.vcp_realtime_trigger import VCPBreakoutTrigger, VCPBreakoutSignal
+from src.ai.vcp_realtime_trigger import VCPBreakoutTrigger
 from src.ai.vcp_detector import detect_vcp
 
 
@@ -16,7 +16,7 @@ class TestVCPRealtimeTrigger(unittest.TestCase):
         np.random.seed(42)
         base_price = 10000.0
         prices = base_price + np.cumsum(np.random.randn(100) * 100.0)
-        
+
         self.df_hist = pd.DataFrame({
             "Date": dates,
             "Open": prices - 50.0,

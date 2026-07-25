@@ -1,6 +1,5 @@
 import numpy as np
-import pytest
-from src.analysis.portfolio_optimizer import calculate_hrp_weights, calculate_risk_parity_weights
+from src.analysis.portfolio_optimizer import calculate_hrp_weights
 
 def test_calculate_hrp_weights_basic():
     # 3x3 covariance matrix
@@ -31,7 +30,7 @@ def test_portfolio_allocator_hrp_integration():
 
     allocator = PortfolioAllocator()
     preds = pd.DataFrame({'symbol': ['AAPL', 'MSFT', 'GOOGL'], 20: [0.10, 0.08, 0.12]})
-    
+
     dates = pd.date_range('2026-01-01', periods=30)
     prices = {
         'AAPL': pd.DataFrame({'Close': np.linspace(100, 110, 30)}, index=dates),

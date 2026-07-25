@@ -168,11 +168,11 @@ def compute_advanced_alpha_features(df: pd.DataFrame, market_returns: pd.Series 
     close = df['Close'].astype(float) if 'Close' in df.columns else pd.Series(dtype=float)
     high = df['High'].astype(float) if 'High' in df.columns else close
     volume = df['Volume'].astype(float) if 'Volume' in df.columns else pd.Series(dtype=float)
-    
+
     # 1. 52-Week High Distance (George & Hwang)
     high_52w = high.rolling(252, min_periods=1).max()
     df['dist_52w_high'] = (close / high_52w.replace(0, 1e-10)).fillna(1.0)
-    
+
     # 2. Residual Momentum 20d
     ret_20d = close.pct_change(20).fillna(0.0)
     if market_returns is not None and not market_returns.empty:
@@ -185,7 +185,7 @@ def compute_advanced_alpha_features(df: pd.DataFrame, market_returns: pd.Series 
     ret_1d_abs = close.pct_change().abs().fillna(0.0)
     vol_mean = volume.rolling(5, min_periods=1).mean().replace(0, 1e-10)
     df['amihud_illiquidity'] = (ret_1d_abs / vol_mean).fillna(0.0)
-    
+
     # 4. Institutional & Foreigner Net Buy Flow
     if 'InstNetBuy' in df.columns:
         df['inst_net_buy_5d'] = df['InstNetBuy'].rolling(5, min_periods=1).sum().fillna(0.0)

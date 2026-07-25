@@ -2,7 +2,7 @@
 
 import unittest
 import pandas as pd
-from src.data_layer.dart_news_fetcher import DARTNewsFetcher, DisclosureEvent, CRITICAL_RISK_KEYWORDS
+from src.data_layer.dart_news_fetcher import DARTNewsFetcher
 from src.risk.sentiment_filter import SentimentMetaFilter
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.risk.risk_manager import RiskManager
