@@ -175,19 +175,21 @@ class HybridStrategyEngine:
         """단순이동평균(SMA) 계산"""
         from src.utils.indicators import calc_sma
 
-        return calc_sma(closes, period)
+        res = calc_sma(closes, period)
+        return list(res) if isinstance(res, (list, tuple)) else []
 
     def _calc_ema(self, data: list, period: int) -> list:
         """지수이동평균(EMA) 계산"""
-        return calc_ema_list(data, period)
+        res = calc_ema_list(data, period)
+        return list(res) if isinstance(res, (list, tuple)) else []
 
     def _calc_rsi(self, closes: list, window: int = 14) -> float:
         """현재 RSI 값 계산 (Wilder 방식)"""
-        return _calc_rsi_shared(closes, window)
+        return float(_calc_rsi_shared(closes, window))
 
     def _calc_macd_histogram(self, closes: list) -> float:
         """현재 MACD 히스토그램 값 계산 (EMA12-EMA26-Signal9)"""
-        return calc_macd(closes, 12, 26, 9)
+        return float(calc_macd(closes, 12, 26, 9))
 
     def _calc_bollinger_position(self, closes: list, period: int = 20, std_mult: float = 2.0) -> float:
         """볼린저밴드 내 현재 위치 (0.0=하단, 0.5=중심, 1.0=상단)"""

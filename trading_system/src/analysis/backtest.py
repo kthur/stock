@@ -119,7 +119,8 @@ class BacktestEngine:
         """지수이동평균(EMA) 계산. 반환 리스트는 입력과 동일 길이."""
         from src.utils.indicators import calc_ema_list
 
-        return calc_ema_list(data, period)
+        res = calc_ema_list(data, period)
+        return list(res) if isinstance(res, (list, tuple)) else []
 
     @staticmethod
     def _calc_atr(bars: List["PriceBar"], period: int = 14) -> float:
@@ -129,14 +130,15 @@ class BacktestEngine:
         highs = [b.high for b in bars]
         lows = [b.low for b in bars]
         closes = [b.close for b in bars]
-        return _calc_atr_shared(highs, lows, closes, period)
+        return float(_calc_atr_shared(highs, lows, closes, period))
 
     @staticmethod
     def _calc_rsi(closes: List[float], window: int = 14) -> List[float]:
         """Wilder's RSI (EMA 기반) 계산."""
         from src.utils.indicators import calc_rsi_list
 
-        return calc_rsi_list(closes, window)
+        res = calc_rsi_list(closes, window)
+        return list(res) if isinstance(res, (list, tuple)) else []
 
     def _get_closes(self) -> List[float]:
         if self._closes_cache is None:

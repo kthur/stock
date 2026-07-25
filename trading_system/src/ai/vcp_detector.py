@@ -26,10 +26,10 @@ def _load_tuned_vcp_params() -> Dict[str, Any]:
         try:
             with open(tuned_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            if 'vcp_detector' in data:
-                return data['vcp_detector']
-            if 'vcp_rule' in data:
-                return data['vcp_rule']
+            if 'vcp_detector' in data and isinstance(data['vcp_detector'], dict):
+                return dict(data['vcp_detector'])
+            if 'vcp_rule' in data and isinstance(data['vcp_rule'], dict):
+                return dict(data['vcp_rule'])
         except Exception as e:
             logger.warning(f"Failed to load tuned params in vcp_detector: {e}")
     return {}

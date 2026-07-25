@@ -323,7 +323,8 @@ class KoreaInvestmentBroker(BrokerBase):
 
     def get_order_status(self, order_id: str) -> dict:
         """주문 상태 조회"""
-        return self.orders.get(order_id, {})
+        res = self.orders.get(order_id, {})
+        return dict(res) if isinstance(res, dict) else {}
 
     def get_balance(self) -> dict:
         """

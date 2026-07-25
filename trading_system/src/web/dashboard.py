@@ -590,7 +590,8 @@ def update_outperformers_table(country: str, timeframe: str, limit: int = 10) ->
         screener = StockScreener()
         results = screener.screen_global_outperformers()
         region_results = results.get(country, [])
-        return region_results[:limit]
+        res_list = region_results[:limit] if isinstance(region_results, list) else []
+        return list(res_list)
     except Exception as e:
         logger.error(f"Error in update_outperformers_table: {e}")
         return []
