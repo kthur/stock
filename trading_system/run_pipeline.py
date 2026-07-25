@@ -1605,7 +1605,8 @@ def execute_prediction_pipeline():
         logger.warning(f"[5-A] SentimentMetaFilter skipped: {_sent_e}")
 
     # Calculate rolling Sharpes for all 5 strategies if strategy_returns exists
-    rolling_sharpes = scorer.compute_rolling_sharpe(strategy_returns) if 'strategy_returns' in locals() and isinstance(strategy_returns, dict) else None
+    _strat_ret = locals().get('strategy_returns')
+    rolling_sharpes = scorer.compute_rolling_sharpe(_strat_ret) if isinstance(_strat_ret, dict) else None
 
     # default target horizon is 20d
     ensemble_df = scorer.calculate_ensemble_score(

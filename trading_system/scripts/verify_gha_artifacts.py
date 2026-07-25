@@ -26,7 +26,7 @@ import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     try:
@@ -111,7 +111,7 @@ def check_surge(content: str, market: str) -> StrategyCheckResult:
     res.file_found = True
     pattern = rf"\[{re.escape(market)}\]\s+[\w\d_.-]+\s*\([^)]+\):\s*([\d.]+)%"
     matches = re.findall(pattern, content)
-    
+
     if not matches:
         pattern2 = rf"\d+\.\s+\[{re.escape(market)}\].*?:\s*([\d.]+)%"
         matches = re.findall(pattern2, content)
@@ -173,7 +173,7 @@ def check_regression(content: str, market: str) -> StrategyCheckResult:
 
     res.file_found = True
     lines = [line.strip() for line in content.splitlines() if line.strip()]
-    data_lines = [l for l in lines if not l.startswith("===") and not l.startswith("Date:") and not l.startswith("Total symbols:")]
+    data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:")]
 
     res.count = len(data_lines)
     if res.count > 0:
@@ -216,7 +216,7 @@ def check_lead_lag(content: str, market: str) -> StrategyCheckResult:
     res.file_found = True
     matches = re.findall(rf"\[{re.escape(market)}\]", content)
     res.count = len(matches)
-    
+
     if res.count > 0:
         res.valid = True
         res.non_zero = True
