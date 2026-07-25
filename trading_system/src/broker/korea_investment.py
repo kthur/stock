@@ -34,13 +34,21 @@ class KoreaInvestmentConnector:
     PROD_DOMAIN = "https://openapi.koreainvestment.com:9443"
     MOCK_DOMAIN = "https://openapivts.koreainvestment.com:29443"
 
-    def __init__(self, account_number: Optional[str] = None, use_mock: bool = True):
+    def __init__(
+        self,
+        account_number: Optional[str] = None,
+        use_mock: bool = True,
+        max_order_value: float = 50_000_000.0,
+        max_price_deviation_pct: float = 0.03,
+    ):
         """
         한국투자증권 연동 초기화
 
         Args:
             account_number: 8~10자리 계좌번호
             use_mock: True면 모의투자 API, False면 실전투자 API
+            max_order_value: 단일 주문 최대 금액 한도 (원)
+            max_price_deviation_pct: 시장가 대비 주문가 허용 오차 (±3%)
         """
         self.account_number: Optional[str] = account_number
         self.is_connected = False
@@ -48,6 +56,8 @@ class KoreaInvestmentConnector:
         self.app_key = os.getenv("KIS_APP_KEY")
         self.app_secret = os.getenv("KIS_APP_SECRET")
         self.use_mock = use_mock
+        self.max_order_value = max_order_value
+        self.max_price_deviation_pct = max_price_deviation_pct
 
         # API 인증 및 환경 변수가 없으면 순수 시뮬레이션 모드로 작동
         self.simulation_mode = not bool(self.app_key and self.app_secret)
@@ -204,10 +214,42 @@ class KoreaInvestmentConnector:
             self.logger.error(f"Failed to fetch live quote for {symbol}: {e}")
             return {}
 
-    def place_order(self, code: str, quantity: int, price: float, order_type: str) -> str:
+    def place_order(
+        self,
+        code: str,
+        quantity: int,
+        price: float,
+        order_type: str,
+        market_price: Optional[float] = None,
+    ) -> str:
         """
         주식 현금 매수/매도 주문 (TR_ID: VTTC0802U 등)
+        Pre-order safety guards applied:
+          - Single order max value cap (max 50,000,000 KRW)
+          - Limit price sanity bounds (max ±3% deviation from market price)
         """
+        # Safety guard 1: Single order max value cap
+        order_value = price * quantity if price > 0 else 0.0
+        if order_value > self.max_order_value:
+            raise ValueError(
+                f"Order value {order_value:,.0f} KRW exceeds maximum allowed single order value limit of {self.max_order_value:,.0f} KRW"
+            )
+
+        # Safety guard 2: Limit price sanity bounds (±3%)
+        if price > 0:
+            ref_price = market_price
+            if ref_price is None or ref_price <= 0:
+                quote = self.get_live_quote(code)
+                if isinstance(quote, dict) and quote.get("price", 0) > 0:
+                    ref_price = quote["price"]
+
+            if ref_price is not None and ref_price > 0:
+                dev = abs(price - ref_price) / ref_price
+                if dev > self.max_price_deviation_pct:
+                    raise ValueError(
+                        f"Order price {price:,.0f} deviates by {dev:.2%} from market price {ref_price:,.0f}, exceeding ±{self.max_price_deviation_pct:.0%} sanity bound"
+                    )
+
         if self.simulation_mode:
             order_id = f"KIS_SIM_{datetime.now().timestamp()}"
             self.orders[order_id] = KoreaInvestmentOrder(
@@ -216,7 +258,7 @@ class KoreaInvestmentConnector:
                 quantity=quantity,
                 price=price,
                 order_type=order_type,
-                status="0",
+                status="SUBMITTED",
                 timestamp=datetime.now(),
             )
             self.logger.info(f"Simulated order placed: {order_id} {order_type} {quantity}주 @ {price:,.0f}")
@@ -259,28 +301,69 @@ class KoreaInvestmentConnector:
                 return ""
 
             order_id = str(data.get("output", {}).get("ODNO", ""))
+            if order_id:
+                self.orders[order_id] = KoreaInvestmentOrder(
+                    order_id=order_id,
+                    code=code,
+                    quantity=quantity,
+                    price=price,
+                    order_type=order_type,
+                    status="SUBMITTED",
+                    timestamp=datetime.now(),
+                )
             self.logger.info(f"Order submitted to KIS: {order_id}")
             return order_id
         except Exception as e:
             self.logger.error(f"Failed to place order: {e}")
             return ""
 
-    def cancel_order(self, order_id: str) -> bool:
-        """주문 취소"""
+    def cancel_order(self, order_id: str, code: Optional[str] = None, quantity: Optional[int] = None) -> bool:
+        """주문 취소 (TR_ID: VTTC0803U / TTTC0803U)"""
         if self.simulation_mode:
             if order_id in self.orders:
-                del self.orders[order_id]
+                self.orders[order_id].status = "CANCELLED"
                 self.logger.info(f"Simulated order cancelled: {order_id}")
                 return True
             return False
 
-        # 실제 API 취소 로직 (TR_ID: VTTC0803U / TTTC0803U) 구현 필요
-        self.logger.warning("Actual API order cancellation not fully implemented yet.")
-        return True
+        tr_id = "VTTC0803U" if self.use_mock else "TTTC0803U"
+        headers = self._get_auth_headers(tr_id)
+        cano = self.account_number[:8] if self.account_number and len(self.account_number) >= 8 else (self.account_number or "")
+        acnt_prdt_cd = self.account_number[-2:] if self.account_number and len(self.account_number) >= 10 else "01"
+        clean_code = code.split(".")[0] if code and "." in code else (code or "")
+
+        body = {
+            "CANO": cano,
+            "ACNT_PRDT_CD": acnt_prdt_cd,
+            "KRX_FWDG_ORD_ORGNO": "",
+            "ORGN_ODNO": order_id,
+            "ORD_DVSN": "00",
+            "RVSE_CNCL_DVSN_CD": "02",
+            "ORD_QTY": str(quantity) if quantity else "0",
+            "ORD_UNPR": "0",
+            "QTY_ALL_ORD_YN": "Y" if not quantity else "N",
+        }
+
+        url = f"{self.domain}/uapi/domestic-stock/v1/trading/order-rvsecncl"
+        try:
+            res = requests.post(url, headers=headers, data=json.dumps(body), timeout=10)
+            res.raise_for_status()
+            data = res.json()
+            if data.get("rt_cd") == "0":
+                if order_id in self.orders:
+                    self.orders[order_id].status = "CANCELLED"
+                self.logger.info(f"Order cancelled in KIS: {order_id}")
+                return True
+            else:
+                self.logger.error(f"Failed to cancel order {order_id}: {data.get('msg1')}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error executing cancel_order: {e}")
+            return False
 
     def get_order_status(self, order_id: str) -> Dict:
-        """주문 상태 조회"""
-        if self.simulation_mode:
+        """주문 상태 조회 (TR_ID: VTTC8001R / TTTC8001R)"""
+        if self.simulation_mode or order_id in self.orders:
             if order_id in self.orders:
                 order = self.orders[order_id]
                 return {
@@ -294,8 +377,34 @@ class KoreaInvestmentConnector:
                 }
             return {}
 
-        # 실제 API 상태 조회 (TR_ID: VTTC8036R / TTTC8036R 체결/미체결 내역 조회) 구현 필요
-        return {}
+        tr_id = "VTTC8001R" if self.use_mock else "TTTC8001R"
+        headers = self._get_auth_headers(tr_id)
+        cano = self.account_number[:8] if self.account_number and len(self.account_number) >= 8 else (self.account_number or "")
+        acnt_prdt_cd = self.account_number[-2:] if self.account_number and len(self.account_number) >= 10 else "01"
+
+        params = {
+            "CANO": cano,
+            "ACNT_PRDT_CD": acnt_prdt_cd,
+            "INQR_DVSN": "00",
+            "ODNO": order_id,
+        }
+
+        url = f"{self.domain}/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
+        try:
+            res = requests.get(url, headers=headers, params=params, timeout=10)
+            res.raise_for_status()
+            data = res.json()
+            output = data.get("output", [{}])[0] if isinstance(data.get("output"), list) and data.get("output") else data.get("output", {})
+            return {
+                "order_id": order_id,
+                "status": output.get("prcs_stat_name", "SUBMITTED"),
+                "filled_qty": int(output.get("tot_ccld_qty", 0)),
+                "order_price": float(output.get("ord_unpr", 0)),
+                "raw_response": data,
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to fetch order status for {order_id}: {e}")
+            return {}
 
     def get_daily_chart(self, code: str, days: int = 20) -> List[Dict]:
         """일봉 차트 조회"""

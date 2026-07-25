@@ -53,14 +53,11 @@ class TestRegimeEnsemble(unittest.TestCase):
         # Verify order: A should be higher than B
         self.assertGreater(scores['Stock_A'], scores['Stock_B'])
 
-        # Verify that surge_score did not contribute to Stock_B (weights['surge'] == 0)
-        # Check explicit math for Stock_B in BEAR:
-        # reg_score: Stock_B is lowest regression (Rank = 1/3 = 0.333)
-        # surge_score: 0.90 but weight is 0.0
-        # ll_score: Stock_B has lead_lag_score = 0.20. Min-Max of [0.1, 0.2, 0.8] is (0.2-0.1)/(0.8-0.1) = 0.1428
-        # vcp_ml: 0.85, weight is 0.10
-        # Score_B should be roughly: 0.70 * 0.333 + 0.00 * 0.90 + 0.20 * 0.1428 + 0.10 * 0.85 = 0.233 + 0.0285 + 0.085 = 0.347
-        self.assertAlmostEqual(scores['Stock_B'], 0.70 * (1/3) + 0.20 * ((0.2-0.1)/(0.8-0.1)) + 0.10 * 0.85, places=3)
+        # Score_B with 5-strategy weights:
+        # reg(0.55)*(1/3) + surge(0.05)*0.90 + ll(0.15)*((0.2-0.1)/(0.8-0.1)) + vcp_rule(0.15)*0.0 + vcp_ml(0.10)*0.85
+        expected_score_b = 0.55 * (1/3) + 0.05 * 0.90 + 0.15 * ((0.2-0.1)/(0.8-0.1)) + 0.10 * 0.85
+        self.assertAlmostEqual(scores['Stock_B'], expected_score_b, places=3)
+
 
     def test_bull_regime_ensemble(self):
         # 2: BULL market - Surge (40%) and VCP ML (40%) dominate

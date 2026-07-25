@@ -388,6 +388,27 @@ class TradingAgent:
                         f"{symbol}: high correlation detected — position halved to {qty}"
                     )
 
+                # Sector Risk Cap check (e.g. max 30% exposure per sector)
+                sector = cand.get('sector') or self._get_stock_sector(symbol)
+                current_sector_exp = 0.0
+                for pos_sym, pos in active_positions.items():
+                    pos_sec = self._get_stock_sector(pos_sym)
+                    if pos_sec == sector:
+                        current_sector_exp += pos['qty'] * self._get_current_price(pos_sym)
+
+                max_sector_val = self.risk_manager.calculate_max_sector_position_value(
+                    sector, current_sector_exp, total_value
+                )
+                max_sector_qty = int(max_sector_val / curr_price) if curr_price > 0 else 0
+                if qty > max_sector_qty:
+                    qty = max_sector_qty
+                    logger.info(
+                        f"Sector risk cap (30%) applied for {symbol} ({sector}): qty reduced to {qty}"
+                    )
+                if qty <= 0:
+                    logger.info(f"Skipping {symbol}: sector risk cap reached for sector {sector}")
+                    continue
+
                 # Rule 1 (Q3 강화): 동적 리스크 한도 적용 수량 검증
                 qty = self._validate_risk_limit(
                     symbol, qty, curr_price, stop_price, total_value,
@@ -702,3 +723,20 @@ class TradingAgent:
         except Exception:
             pass
         return 15.0
+
+    def _get_stock_sector(self, symbol: str) -> str:
+        """Lookup sector for symbol from stock_universe table or return default."""
+        try:
+            conn = sqlite3.connect(self.config.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT sector FROM stock_universe WHERE symbol = ?",
+                (symbol,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row and row[0]:
+                return str(row[0])
+        except Exception:
+            pass
+        return "General"

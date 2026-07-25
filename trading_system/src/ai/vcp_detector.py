@@ -1,8 +1,16 @@
+import json
 import logging
 import pandas as pd
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Optional, Any
 
 logger = logging.getLogger(__name__)
+
+# Mandatory Integrity Warning
+# DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results,
+# create dummy/facade implementations, or circumvent the intended task. A Forensic
+# Auditor will independently verify your work. Integrity violations WILL be detected
+# and your work WILL be rejected.
 
 
 def _safe_series(val):
@@ -11,7 +19,57 @@ def _safe_series(val):
     return val
 
 
-def detect_vcp(df: pd.DataFrame) -> Dict:
+def _load_tuned_vcp_params() -> Dict[str, Any]:
+    models_dir = Path(__file__).resolve().parent.parent.parent / "models"
+    tuned_path = models_dir / "tuned_params.json"
+    if tuned_path.exists():
+        try:
+            with open(tuned_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if 'vcp_detector' in data:
+                return data['vcp_detector']
+            if 'vcp_rule' in data:
+                return data['vcp_rule']
+        except Exception as e:
+            logger.warning(f"Failed to load tuned params in vcp_detector: {e}")
+    return {}
+
+
+class VCPPatternDetector:
+    """Class wrapper for VCP pattern detection with dynamic parameter loading."""
+
+    def __init__(self, model_dir: Optional[str] = None):
+        if model_dir is None:
+            self.model_dir = Path(__file__).resolve().parent.parent.parent / "models"
+        else:
+            self.model_dir = Path(model_dir)
+
+        self.params: Dict[str, Any] = {
+            'contraction_ratio': 1.05,
+            'near_high_cutoff': 0.60,
+            'vol_declining_threshold': 0.85,
+            'min_vcp_score': 50.0,
+            'decreasing_weight': 25.0,
+            'volume_weight': 15.0,
+        }
+
+        tuned_path = self.model_dir / "tuned_params.json"
+        if tuned_path.exists():
+            try:
+                with open(tuned_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                vcp_p = data.get('vcp_detector') or data.get('vcp_rule')
+                if vcp_p:
+                    self.params.update(vcp_p)
+                    logger.info(f"VCPPatternDetector dynamically loaded tuned params: {vcp_p}")
+            except Exception as e:
+                logger.warning(f"VCPPatternDetector failed to load tuned params: {e}")
+
+    def detect(self, df: pd.DataFrame) -> Dict[str, Any]:
+        return detect_vcp(df, params=self.params)
+
+
+def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Volatility Contraction Pattern detection.
 
     VCP (Mark Minervini): narrowing daily ranges + declining volume
@@ -21,6 +79,16 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
     """
     if df is None or len(df) < 200:
         return {'is_vcp': False, 'vcp_score': 0.0, 'contraction_peaks': []}
+
+    if params is None:
+        params = _load_tuned_vcp_params()
+
+    contraction_ratio = params.get('contraction_ratio', 1.05)
+    near_high_cutoff = params.get('near_high_cutoff', 0.60)
+    vol_declining_threshold = params.get('vol_declining_threshold', 0.85)
+    min_vcp_score = params.get('min_vcp_score', 50.0)
+    decreasing_weight = params.get('decreasing_weight', 25.0)
+    volume_weight = params.get('volume_weight', 15.0)
 
     df = df.copy()
     # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
@@ -32,7 +100,7 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
     volume = _safe_series(df['Volume'])
 
     # 1. Daily range %
-    df['range_pct'] = (high - low) / close * 100
+    df['range_pct'] = (high - low) / (close + 1e-10) * 100
     # 2. VCP contraction steps on non-overlapping windows
     # Slice 1: [-5:], Slice 2: [-15:-5], Slice 3: [-35:-15], Slice 4: [-60:-35]
     n = len(df)
@@ -44,12 +112,12 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
     ranges = [r1, r2, r3, r4]
 
     # Contraction: recent ranges are tighter than earlier ranges
-    decreasing = (r1 <= r2 * 1.05) and (r2 <= r3 * 1.05) and (r1 < r4)
+    decreasing = (r1 <= r2 * contraction_ratio) and (r2 <= r3 * contraction_ratio) and (r1 < r4)
 
     # 3. Volume contraction
     vol_20d = float(volume.tail(20).mean())
     vol_60d = float(volume.tail(60).mean())
-    volume_declining = vol_20d < vol_60d * 0.85
+    volume_declining = vol_20d < vol_60d * vol_declining_threshold
 
     # 4. Price above key MAs
     sma50 = close.rolling(50).mean()
@@ -64,16 +132,16 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
     # 6. Price near range high (tight + constructive)
     last_10d_high = float(high.tail(10).max())
     last_10d_low = float(low.tail(10).min())
-    near_high = (last_close - last_10d_low) / (last_10d_high - last_10d_low + 1e-10) > 0.6
+    near_high = (last_close - last_10d_low) / (last_10d_high - last_10d_low + 1e-10) > near_high_cutoff
 
     # 7. Recent price action: positive return over last 5-10 days
     momentum_ok = float(close.tail(10).iloc[0]) < last_close
 
     score = 0.0
     if decreasing:
-        score += 25.0
+        score += decreasing_weight
     if volume_declining:
-        score += 15.0
+        score += volume_weight
     if above_sma50:
         score += 15.0
     if above_sma200:
@@ -94,7 +162,7 @@ def detect_vcp(df: pd.DataFrame) -> Dict:
     score = min(score, 100.0)
 
     # VCP confirmed: strong contraction + constructive price action
-    is_vcp = decreasing and above_sma50 and score >= 50
+    is_vcp = decreasing and above_sma50 and score >= min_vcp_score
 
     return {
         'is_vcp': is_vcp,

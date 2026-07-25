@@ -1482,11 +1482,12 @@ def execute_prediction_pipeline():
         regression_df=res_df,
         surge_df=surge_df,
         lead_lag_df=lead_lag_df,
-        vcp_rule_df=vcp_df,
+        vcp_rule_df=vcp_results,
         vcp_ml_df=vcp_ml_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )
+
 
     # 11e. Save Ensemble Predictions to DB
     try:

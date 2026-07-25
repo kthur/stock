@@ -159,7 +159,7 @@ class StockTradingSystem:
 
         # 섹터 집중도 제한 (3-2)
         self._sector_exposure: Dict[str, float] = {}
-        self.SECTOR_LIMITS = {"max_single_sector_pct": 0.35, "max_correlated_pairs": 3}
+        self.SECTOR_LIMITS = {"max_single_sector_pct": 0.30, "max_correlated_pairs": 3}
 
         # 일일 손실 제한 (6-1)
         self._daily_start_pv: float = 0.0
@@ -637,6 +637,24 @@ class StockTradingSystem:
                 remaining = max_allowed - current_value
                 quantity = max(0, int(remaining / price))
                 if quantity <= 0:
+                    return 0
+
+        # Sector risk cap check (max 30% exposure per sector)
+        if order_type == OrderType.BUY and quantity > 0:
+            sector = self._get_stock_sector(symbol)
+            current_sector_val = 0.0
+            for pos_sym, pos in self.portfolio.positions.items():
+                if self._get_stock_sector(pos_sym) == sector:
+                    pos_p = self.market_data_cache.get(pos_sym, {}).get("price", pos.avg_price)
+                    current_sector_val += pos.quantity * pos_p
+            max_sec_val = self.risk_manager.calculate_max_sector_position_value(
+                sector, current_sector_val, portfolio_value
+            )
+            if (current_sector_val + (quantity * price)) > max_sec_val:
+                remaining_sec = max(0.0, max_sec_val - current_sector_val)
+                quantity = max(0, int(remaining_sec / price))
+                if quantity <= 0:
+                    logger.warning("Sector risk cap (30%%) reached for %s (%s). BUY blocked.", symbol, sector)
                     return 0
 
         # Market impact
@@ -1789,9 +1807,13 @@ class StockTradingSystem:
 
         trail_sl = price * (1.0 - trail_pct)
         if atr > 0 and position.highest_price > 0:
-            adaptive = self.risk_manager.get_adaptive_atr_multipliers(self._current_regime, self._current_adx)
-            chandelier_stop = position.highest_price - atr * adaptive["stop"]
-            trail_sl = max(trail_sl, chandelier_stop)
+            atr_stop_price = self.risk_manager.calculate_trailing_stop_price(
+                highest_price=position.highest_price,
+                atr=atr,
+                regime=self._current_regime,
+                adx=self._current_adx,
+            )
+            trail_sl = max(trail_sl, atr_stop_price)
 
         trail_tp = price * (1.0 + trail_pct * 2.0)
         updated = 0
@@ -2111,3 +2133,20 @@ class StockTradingSystem:
             executed += 1
         if executed:
             logger.info(f"Auto-rebalance: {executed}/{len(orders)} orders executed (target: risk-parity)")
+
+    def _get_stock_sector(self, symbol: str) -> str:
+        """Lookup sector for symbol from stock_universe table or return default."""
+        try:
+            conn = sqlite3.connect(self.config.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT sector FROM stock_universe WHERE symbol = ?",
+                (symbol,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if row and row[0]:
+                return str(row[0])
+        except Exception:
+            pass
+        return "General"

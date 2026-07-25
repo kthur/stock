@@ -847,6 +847,8 @@ class TestE2EConsolidated(unittest.TestCase):
         except Exception as e:
             self.fail(f"execute_prediction_pipeline failed: {e}")
 
+
+
         # Check result files exist under result/
         res_dir = Path(__file__).resolve().parent.parent / "result"
         self.assertTrue((res_dir / "pipeline_result.txt").exists())

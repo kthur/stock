@@ -202,6 +202,8 @@ class KoreaInvestmentBroker(BrokerBase):
         app_secret: str = "",
         account_no: str = "",
         simulation: bool = True,
+        max_order_value: float = 50_000_000.0,
+        max_price_deviation_pct: float = 0.03,
     ):
         """
         Args:
@@ -209,13 +211,18 @@ class KoreaInvestmentBroker(BrokerBase):
             app_secret: KIS Open API application secret.
             account_no: Brokerage account number (계좌번호).
             simulation: If True, use paper-trading tr_ids (VTTC*).
+            max_order_value: Single order max value cap (default 50,000,000 KRW).
+            max_price_deviation_pct: Limit price sanity bound (default ±3%).
         """
         self.app_key = app_key
         self.app_secret = app_secret
         self.account_no = account_no
         self.simulation = simulation
+        self.max_order_value = max_order_value
+        self.max_price_deviation_pct = max_price_deviation_pct
         self._access_token: Optional[str] = None
         self.connected: bool = False
+        self.orders: dict = {}
 
     def connect(self) -> bool:
         """
@@ -233,10 +240,18 @@ class KoreaInvestmentBroker(BrokerBase):
         logger.info("KoreaInvestmentBroker: connected (%s mode)", mode)
         return True
 
-    def submit_order(self, symbol: str, arg2: Any, arg3: Any) -> dict:
+    def submit_order(
+        self,
+        symbol: str,
+        arg2: Any,
+        arg3: Any,
+        price: Optional[float] = None,
+        market_price: Optional[float] = None,
+    ) -> dict:
         """
         Submit an order to KIS.
         Supports both (symbol, qty, side) and (symbol, side, qty) parameter orders.
+        Applies safety guards: single order max value cap and limit price sanity bounds.
         """
         if not self.connected:
             self.connect()
@@ -256,6 +271,22 @@ class KoreaInvestmentBroker(BrokerBase):
         if side not in ("BUY", "SELL"):
             raise ValueError("side must be 'BUY' or 'SELL'")
 
+        # Safety Guard 1: Single order max value cap
+        if price is not None and price > 0:
+            order_val = price * qty
+            if order_val > self.max_order_value:
+                raise ValueError(
+                    f"Order value {order_val:,.0f} KRW exceeds single order max value cap of {self.max_order_value:,.0f} KRW"
+                )
+
+        # Safety Guard 2: Limit price sanity bounds (±3%)
+        if price is not None and price > 0 and market_price is not None and market_price > 0:
+            dev = abs(price - market_price) / market_price
+            if dev > self.max_price_deviation_pct:
+                raise ValueError(
+                    f"Order price {price:,.0f} deviates by {dev:.2%} from market price {market_price:,.0f}, exceeding ±{self.max_price_deviation_pct:.0%} sanity bound"
+                )
+
         # tr_id selects simulation vs. live and buy vs. sell
         if self.simulation:
             tr_id = "VTTC0802U" if side.upper() == "BUY" else "VTTC0801U"
@@ -267,17 +298,32 @@ class KoreaInvestmentBroker(BrokerBase):
 
         logger.info("KoreaInvestmentBroker: %s %s x%s (tr_id=%s)", side, symbol, qty, tr_id)
 
-        return {
+        receipt = {
             "order_id": order_id,
             "symbol": symbol,
             "qty": qty,
             "side": side.upper(),
+            "price": price if price is not None else 0.0,
             "timestamp": timestamp,
             "status": "ACCEPTED",
             "tr_id": tr_id,
             "broker": "KoreaInvestmentBroker",
             "simulation": self.simulation,
         }
+        self.orders[order_id] = receipt
+        return receipt
+
+    def cancel_order(self, order_id: str) -> bool:
+        """주문 취소"""
+        if order_id in self.orders:
+            self.orders[order_id]["status"] = "CANCELLED"
+            logger.info("KoreaInvestmentBroker: order %s cancelled", order_id)
+            return True
+        return False
+
+    def get_order_status(self, order_id: str) -> dict:
+        """주문 상태 조회"""
+        return self.orders.get(order_id, {})
 
     def get_balance(self) -> dict:
         """

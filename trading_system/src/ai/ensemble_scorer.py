@@ -248,8 +248,9 @@ class EnsembleScoringEngine:
             ll_df = pd.DataFrame(columns=['symbol', 'll_raw', 'll_score'])
 
         # 4. Strategy 4: VCP Rule Detector
-        if vcp_rule_df is not None and not vcp_rule_df.empty:
-            vr_df = vcp_rule_df.copy()
+        if v_rule_df is not None and not v_rule_df.empty:
+            vr_df = v_rule_df.copy()
+
             if 'vcp_score' in vr_df.columns:
                 vr_df['vcp_rule_score'] = vr_df['vcp_score'] / 100.0
             elif 'is_vcp' in vr_df.columns:

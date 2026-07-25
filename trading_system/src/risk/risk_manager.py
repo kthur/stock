@@ -281,6 +281,7 @@ class RiskManager:
         atr_multiplier_target: float = 3.0,
         volatility_scaling: bool = True,
         target_annual_volatility: float = 0.15,
+        max_sector_exposure_pct: float = 0.30,
     ):
         self.portfolio_value = portfolio_value
         self.peak_value = portfolio_value
@@ -296,6 +297,7 @@ class RiskManager:
         self.atr_multiplier_target = atr_multiplier_target
         self.volatility_scaling = volatility_scaling
         self.target_annual_volatility = target_annual_volatility
+        self.max_sector_exposure_pct = max_sector_exposure_pct
         self.position_limits: Dict[str, float] = {}
         self._correlation_matrix: Dict[str, Dict[str, float]] = {}
         self._daily_returns: deque[float] = deque(maxlen=252)
@@ -403,6 +405,56 @@ class RiskManager:
         if highest_price - current_price >= stop_distance:
             return True
         return False
+
+    def calculate_trailing_stop_price(
+        self,
+        highest_price: float,
+        atr: float,
+        regime: str = "weak_bull",
+        adx: float = 20.0,
+    ) -> float:
+        """ATR 기반 동적 트레일링 스탑 가격 계산"""
+        if atr <= 0.0 or highest_price <= 0.0:
+            return 0.0
+
+        multipliers = self.get_adaptive_atr_multipliers(regime, adx)
+        stop_multiplier = multipliers.get("stop", 2.0)
+        stop_distance = atr * stop_multiplier
+
+        crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
+        if crisis_mult < 1.0:
+            stop_distance *= crisis_mult
+
+        drawdown = self.calculate_drawdown()
+        if drawdown > 0.0 and self.max_drawdown_allowed > 0.0:
+            drawdown_scaler = 1.0 - (drawdown / self.max_drawdown_allowed)
+            drawdown_scaler = max(0.25, min(1.0, drawdown_scaler))
+            stop_distance *= drawdown_scaler
+
+        return max(0.0, highest_price - stop_distance)
+
+    def check_sector_risk_cap(
+        self,
+        sector: str,
+        current_sector_exposure: float,
+        new_trade_exposure: float,
+        total_portfolio_value: float,
+    ) -> bool:
+        """Return True if sector exposure stays within max_sector_exposure_pct (default 30%)."""
+        if total_portfolio_value <= 0:
+            return False
+        total_sector_val = current_sector_exposure + new_trade_exposure
+        return (total_sector_val / total_portfolio_value) <= self.max_sector_exposure_pct
+
+    def calculate_max_sector_position_value(
+        self,
+        sector: str,
+        current_sector_exposure: float,
+        total_portfolio_value: float,
+    ) -> float:
+        """Calculate maximum additional capital allowed for a specific sector under the sector risk cap."""
+        max_allowed = total_portfolio_value * self.max_sector_exposure_pct
+        return max(0.0, max_allowed - current_sector_exposure)
 
     def _volatility_scalar(self, vix: float = 20.0) -> float:
         if not self.volatility_scaling or vix <= 0:
