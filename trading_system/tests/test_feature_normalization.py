@@ -23,18 +23,17 @@ class TestFeatureNormalization(unittest.TestCase):
         self.assertEqual(FALLBACK_METADATA["000660.KQ"]["floating_shares"], 500000000.0)
         self.assertEqual(FALLBACK_METADATA["  msft.o "]["shares_outstanding"], 7400000000.0)
 
-        # 3. Test dynamic mock generation
+        # 3. Test dynamic mock generation (returns NaN to prevent data contamination)
         mock_meta1 = FALLBACK_METADATA["XYZ"]
         self.assertIn("shares_outstanding", mock_meta1)
         self.assertIn("floating_shares", mock_meta1)
-        self.assertGreater(mock_meta1["shares_outstanding"], 0.0)
-        self.assertGreater(mock_meta1["floating_shares"], 0.0)
-        self.assertLessEqual(mock_meta1["floating_shares"], mock_meta1["shares_outstanding"])
+        self.assertTrue(np.isnan(mock_meta1["shares_outstanding"]))
+        self.assertTrue(np.isnan(mock_meta1["floating_shares"]))
 
         # Test determinism
         mock_meta2 = FALLBACK_METADATA["XYZ"]
-        self.assertEqual(mock_meta1["shares_outstanding"], mock_meta2["shares_outstanding"])
-        self.assertEqual(mock_meta1["floating_shares"], mock_meta2["floating_shares"])
+        self.assertTrue(np.isnan(mock_meta2["shares_outstanding"]))
+        self.assertTrue(np.isnan(mock_meta2["floating_shares"]))
 
         # 4. Test dict compatibility
         self.assertTrue("AAPL" in FALLBACK_METADATA)

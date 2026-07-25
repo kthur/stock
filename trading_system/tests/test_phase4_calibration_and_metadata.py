@@ -113,22 +113,22 @@ class TestIsotonicCalibration:
 class TestFallbackMetadataMedian:
 
     def test_krx_symbol_returns_market_median_shares(self):
-        """Korean 6-digit symbols should return KRX median shares."""
+        """Korean 6-digit unknown symbols should return NaN shares to prevent data contamination."""
         md = FallbackMetadataDict()
         # Unknown KRX symbol (not in benchmarks)
         result = md.get("123456")
         assert result is not None
-        # Should return KRX median ~200M, not a hash-based random number
-        assert result["shares_outstanding"] == 200_000_000.0
-        assert result["floating_shares"] == 120_000_000.0
+        # Should return NaN, not a fake constant or hash-based random number
+        assert np.isnan(result["shares_outstanding"])
+        assert np.isnan(result["floating_shares"])
 
     def test_us_symbol_returns_us_median_shares(self):
-        """Unknown US ticker symbols should return US market median shares."""
+        """Unknown US ticker symbols should return NaN shares to prevent data contamination."""
         md = FallbackMetadataDict()
         result = md.get("XYZUNKNOWN")
         assert result is not None
-        assert result["shares_outstanding"] == 500_000_000.0
-        assert result["floating_shares"] == 450_000_000.0
+        assert np.isnan(result["shares_outstanding"])
+        assert np.isnan(result["floating_shares"])
 
     def test_fundamentals_remain_nan_for_unknown_symbols(self):
         """Fundamental columns must be NaN for unknown symbols (XGBoost native missing handling)."""
@@ -151,10 +151,8 @@ class TestFallbackMetadataMedian:
         assert aapl["shares_outstanding"] == pytest.approx(15_000_000_000.0)
 
     def test_no_hash_based_variation_across_symbols(self):
-        """Two unknown KRX symbols must return the same median (no hash-based variation)."""
+        """Two unknown KRX symbols must return NaN (no fake constant variation)."""
         md = FallbackMetadataDict()
         sym1 = md.get("111111")
         sym2 = md.get("222222")
-        assert sym1["shares_outstanding"] == sym2["shares_outstanding"], (
-            "Different unknown KRX symbols should return same median value, not hash-based random"
-        )
+        assert np.isnan(sym1["shares_outstanding"]) and np.isnan(sym2["shares_outstanding"])
