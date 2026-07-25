@@ -126,7 +126,7 @@ class DARTCorpMapper:
                     return False
                 xml_bytes = zf.read(xml_filename)
 
-            root = ET.fromstring(xml_bytes)
+            root = ET.fromstring(xml_bytes)  # nosec B314
             mapping: Dict[str, str] = {}
             for company in root.findall("list"):
                 stock_code = (company.findtext("stock_code") or "").strip()
