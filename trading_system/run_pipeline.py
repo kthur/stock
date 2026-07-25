@@ -1620,11 +1620,33 @@ def execute_prediction_pipeline():
     except Exception as _sent_e:
         logger.warning(f"[5-A] SentimentMetaFilter skipped: {_sent_e}")
 
-    # Calculate rolling Sharpes for all 5 strategies if strategy_returns exists
+    # Compute Stat-Arb scores for ensemble
+    stat_arb_df = pd.DataFrame()
+    if 'stat_arb_pairs' in locals() and stat_arb_pairs:
+        sa_rows = []
+        for p in stat_arb_pairs:
+            pair = p.get('pair', ())
+            z = abs(p.get('z_score', 0.0))
+            score = min(z / 3.0, 1.0)
+            for s in pair:
+                sa_rows.append({'symbol': s, 'stat_arb_score': score})
+        if sa_rows:
+            stat_arb_df = pd.DataFrame(sa_rows).groupby('symbol', as_index=False).max()
+
+    # Compute Sector Rotation scores for ensemble
+    try:
+        from src.core.sector_rotation import SectorRotationEngine
+        sector_engine = SectorRotationEngine()
+        sector_df = sector_engine.compute_sector_momentum_scores(infer_data_dict)
+    except Exception as _sec_e:
+        logger.warning(f"Sector rotation score calculation skipped: {_sec_e}")
+        sector_df = pd.DataFrame()
+
+    # Calculate rolling Sharpes for all strategies if strategy_returns exists
     _strat_ret = locals().get('strategy_returns')
     rolling_sharpes = scorer.compute_rolling_sharpe(_strat_ret) if isinstance(_strat_ret, dict) else None
 
-    # default target horizon is 20d
+    # default target horizon is 20d (8-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -1632,6 +1654,8 @@ def execute_prediction_pipeline():
         lead_lag_df=lead_lag_df,
         vcp_rule_df=vcp_results,
         vcp_ml_df=vcp_ml_df,
+        stat_arb_df=stat_arb_df,
+        sector_df=sector_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
         sentiment_blacklist=_blacklist_map,
