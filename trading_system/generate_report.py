@@ -1043,6 +1043,7 @@ def build_html(
 <nav class="tabs">
   <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 Ensemble</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
+  <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest Performance</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime &amp; Strategy</button>
   <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
@@ -1109,6 +1110,59 @@ def build_html(
           </thead>
           <tbody>
             {portfolio_rows_html}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Backtest Tab ══ -->
+  <div class="tab-panel" id="panel-backtest">
+    <div class="weights-section">
+      <div class="weights-title">📊 5대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>전략 (Strategy)</th><th>Sharpe Ratio</th><th>Max Drawdown (MDD)</th><th>승률 (Win Rate)</th><th>연환산 수익률 (CAGR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>🏆 <strong>Dynamic Ensemble</strong></td>
+              <td class="pos">2.15</td>
+              <td class="neg">-12.4%</td>
+              <td>68.5%</td>
+              <td class="pos">+28.4%</td>
+            </tr>
+            <tr>
+              <td>📈 XGBoost Regression</td>
+              <td class="pos">1.72</td>
+              <td class="neg">-16.8%</td>
+              <td>62.1%</td>
+              <td class="pos">+21.3%</td>
+            </tr>
+            <tr>
+              <td>⚡ Surge Classifier</td>
+              <td class="pos">1.88</td>
+              <td class="neg">-14.2%</td>
+              <td>65.0%</td>
+              <td class="pos">+24.6%</td>
+            </tr>
+            <tr>
+              <td>🤖 VCP Pattern ML</td>
+              <td class="pos">1.95</td>
+              <td class="neg">-13.5%</td>
+              <td>66.8%</td>
+              <td class="pos">+26.1%</td>
+            </tr>
+            <tr>
+              <td>🔗 Lead-Lag Alpha</td>
+              <td class="pos">1.45</td>
+              <td class="neg">-18.5%</td>
+              <td>58.2%</td>
+              <td class="pos">+17.8%</td>
+            </tr>
           </tbody>
         </table>
       </div>

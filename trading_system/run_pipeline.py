@@ -1720,6 +1720,21 @@ def execute_prediction_pipeline():
             f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
         logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")
 
+    # ── Phase 6-A: Generate Backtest Summary for GitHub Pages ────────────────
+    try:
+        from src.analysis.backtest_summary import generate_backtest_summary
+        generate_backtest_summary(result_dir=result_dir)
+        logger.info("[6-A] Generated backtest_summary.json for GitHub Pages dashboard")
+    except Exception as _bt_summary_e:
+        logger.warning(f"[6-A] Backtest summary generation skipped: {_bt_summary_e}")
+
+    # ── Phase 6-C: Save Pipeline Profiling Metrics ───────────────────────────
+    try:
+        from src.utils.pipeline_profiler import save_profile_report
+        save_profile_report(result_dir=result_dir)
+    except Exception as _prof_e:
+        logger.warning(f"[6-C] Pipeline profiler report skipped: {_prof_e}")
+
     # 12. Post-pipeline verification
     logger.info("Running post-pipeline verification checks...")
     # stat_arb_predictions.txt is intentionally excluded — it is an optional output

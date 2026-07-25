@@ -1,0 +1,48 @@
+name: Weekly Optuna HPO
+
+on:
+  schedule:
+    - cron: '0 18 * * 0' # Every Sunday 18:00 UTC (Monday 03:00 KST)
+  workflow_dispatch:
+
+jobs:
+  optuna-hpo:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [SP500, KOSPI, KOSDAQ, KONEX]
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@v5
+
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.lock') }}
+
+      - name: Install dependencies
+        run: |
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          uv pip sync trading_system/requirements.lock
+
+      - name: Run Optuna Hyperparameter Optimization
+        env:
+          INFERENCE_TARGET: ${{ matrix.target }}
+          N_TRIALS: '30'
+          LOG_LEVEL: INFO
+        run: |
+          .venv/bin/python trading_system/scripts/tune_models.py || true
+
+      - name: Upload Tuned Parameters Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuned-params-${{ matrix.target }}
+          path: trading_system/models/*.json
+          retention-days: 7
