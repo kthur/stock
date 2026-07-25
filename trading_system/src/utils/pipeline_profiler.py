@@ -9,9 +9,11 @@ import functools
 from pathlib import Path
 from datetime import datetime
 
+from typing import Dict, Any
+
 logger = logging.getLogger(__name__)
 
-PROFILE_DATA = {}
+PROFILE_DATA: Dict[str, Any] = {}
 
 def profile_step(step_name: str):
     """Decorator to measure execution time and memory usage of pipeline steps."""
