@@ -3,7 +3,6 @@ import pandas as pd
 import xgboost as xgb
 import lightgbm as lgb
 import catboost as cb
-import hashlib
 import numpy as np
 import json
 from typing import Dict, Any, List, Optional, Tuple
@@ -92,20 +91,36 @@ class FallbackMetadataDict(dict):
         return super().__contains__(cleaned)
 
     def _generate_mock_metadata(self, symbol: str) -> dict:
-        h = hashlib.md5(symbol.encode('utf-8'), usedforsecurity=False).hexdigest()  # nosec B324
-        val = int(h, 16)
-        shares_outstanding = 10000000 + (val % 990000000)
-        float_pct = 0.5 + 0.4 * ((val >> 32) % 100) / 100.0
-        floating_shares = shares_outstanding * float_pct
+        """Return median-based placeholder metadata for unknown symbols.
+
+        Phase 4-B Fix: Previously used MD5 hash to generate random shares_outstanding
+        and floating_shares, which introduced systematic bias in norm_market_cap and
+        norm_floating_value features for unknown/small-cap symbols.
+
+        Now returns market-appropriate median values:
+        - KRX symbols (6-digit numbers): Korean market median ~200M shares
+        - US symbols (alphabetic tickers): US market median ~500M shares
+        Fundamentals remain NaN so XGBoost handles them via native missing-value logic.
+        """
+        # Determine market from symbol format
+        is_krx = isinstance(symbol, str) and symbol.isdigit()
+        if is_krx:
+            # KRX market median: ~200M shares outstanding, ~60% float ratio
+            shares_outstanding = 200_000_000.0
+            floating_shares = 120_000_000.0
+        else:
+            # US market median: ~500M shares outstanding, ~90% float ratio
+            shares_outstanding = 500_000_000.0
+            floating_shares = 450_000_000.0
 
         return {
-            "shares_outstanding": float(shares_outstanding),
-            "floating_shares": float(floating_shares),
+            "shares_outstanding": shares_outstanding,
+            "floating_shares": floating_shares,
             "revenue": np.nan,
             "operating_income": np.nan,
             "net_income": np.nan,
             "eps": np.nan,
-            "dividend_per_share": np.nan
+            "dividend_per_share": np.nan,
         }
 
 

@@ -4,6 +4,12 @@ import numpy as np
 import pandas as pd
 from typing import Dict, Any, Optional, Union, Set, List
 
+try:
+    from sklearn.isotonic import IsotonicRegression
+    _HAS_SKLEARN = True
+except ImportError:
+    _HAS_SKLEARN = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +102,63 @@ class EnsembleScoringEngine:
         self._return_multiplier = 20.0  # default
         if config is not None:
             self._return_multiplier = getattr(config, "ensemble_return_multiplier", 20.0)
+        # Per-strategy Isotonic Regression calibrators (fitted via fit_calibrators)
+        self._calibrators: Dict[str, Any] = {}
+
+    # ------------------------------------------------------------------
+    # Phase 4-A: Isotonic Regression Probability Calibration
+    # ------------------------------------------------------------------
+
+    def fit_calibrators(
+        self,
+        strategy_scores: Dict[str, np.ndarray],
+        true_labels: np.ndarray,
+    ) -> None:
+        """Fit per-strategy Isotonic Regression calibrators.
+
+        Args:
+            strategy_scores: dict of {strategy_name: 1-D score array (N,)}
+                Keys must be subset of: 'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml'.
+            true_labels: binary outcome array (1 = >20% gain, 0 = not), shape (N,).
+        """
+        if not _HAS_SKLEARN:
+            logger.warning("scikit-learn not available; calibration skipped.")
+            return
+        for strategy, scores in strategy_scores.items():
+            try:
+                s = np.asarray(scores, dtype=float)
+                y = np.asarray(true_labels, dtype=float)
+                mask = np.isfinite(s) & np.isfinite(y)
+                if mask.sum() < 20:
+                    logger.warning(f"Calibrator for '{strategy}': too few samples ({mask.sum()}), skipping.")
+                    continue
+                cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
+                cal.fit(s[mask], y[mask])
+                self._calibrators[strategy] = cal
+                logger.info(f"Fitted Isotonic calibrator for strategy '{strategy}' on {mask.sum()} samples.")
+            except Exception as e:
+                logger.warning(f"Calibrator fitting failed for '{strategy}': {e}")
+
+    def calibrate_scores(
+        self,
+        strategy: str,
+        scores: np.ndarray,
+    ) -> np.ndarray:
+        """Apply per-strategy calibrator if available; otherwise return scores unchanged."""
+        cal = self._calibrators.get(strategy)
+        if cal is None:
+            return scores
+        try:
+            s = np.asarray(scores, dtype=float)
+            out = cal.predict(np.where(np.isfinite(s), s, 0.0))
+            return np.clip(out, 0.0, 1.0)
+        except Exception as e:
+            logger.warning(f"Calibration predict failed for '{strategy}': {e}")
+            return scores
+
+    def has_calibrators(self) -> bool:
+        """Returns True if at least one strategy calibrator has been fitted."""
+        return len(self._calibrators) > 0
 
     def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[pd.Series, list]],
                               window: int = 20,
@@ -295,6 +358,20 @@ class EnsembleScoringEngine:
                 merged[col] = merged[col].fillna(0.0)
             else:
                 merged[col] = 0.0
+
+        # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
+        # This maps each strategy's heterogeneous score distribution to a consistent [0,1] scale
+        if self.has_calibrators():
+            for strategy_col in [
+                ('regression', 'reg_score'),
+                ('surge', 'surge_score'),
+                ('lead_lag', 'll_score'),
+                ('vcp_rule', 'vcp_rule_score'),
+                ('vcp_ml', 'vcp_ml_score'),
+            ]:
+                strategy_name, col = strategy_col
+                if col in merged.columns and strategy_name in self._calibrators:
+                    merged[col] = self.calibrate_scores(strategy_name, merged[col].values)
 
         # Calculate final 5-strategy weighted score [0, 1]
         merged['ensemble_score'] = (
