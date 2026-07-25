@@ -2,15 +2,18 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 4개 전략을 병행 운영:
+통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 **8대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 앙상블:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
 | **1** | XGBoost 회귀 | 8개 horizon(1~200d) 예상수익률 | `pipeline_result.txt` |
-| **2** | Surge 분류기 | 4개 horizon(1/3/5/20d) 20%↑ 확률 | `surge_predictions.txt` |
-| **3** | Lead-Lag | 시총 TOP50 leader 상관관계 기반 후행 종목 | `lead_lag_predictions.txt` |
+| **2** | Surge 분류기 | 4개 horizon(1/3/5/20d) 급등 확률 (scale_pos_weight ≤ 20.0) | `surge_predictions.txt` |
+| **3** | Lead-Lag | 2-Tier 업종 지수/대형주 시차 상관성 기반 후행 종목 | `lead_lag_predictions.txt` |
 | **4** | VCP 패턴 | 변동성 수축 + 거래량 감소 + 고점 근접 규칙 | `vcp_patterns.txt` |
 | **5** | VCP ML | KOSPI/KOSDAQ/KONEX/SP500 시장별 XGBClassifier | `vcp_ml_predictions.txt` |
+| **6** | Strict Causal LSTM | 시점 분리 롤링 정규화 기반 시계열 딥러닝 | 앙상블 피처 결합 |
+| **7** | Stat-Arb Cointegration | 잔차 평균회귀 Z-score 기반 횡보장 차익거래 | `stat_arb_predictions.txt` |
+| **8** | Sector Rotation | KRX/GICS 업종 1M/3M 상대모멘텀 & 순환매 수급 | 앙상블 피처 결합 |
 
 ## Pipeline
 
@@ -22,21 +25,24 @@
 3. Store market indicators
 4. Load/update stock universe (3379 symbols)
 5. Fetch indicator history (train + inference)
-6. Prepare training data (ThreadPoolExecutor + fundamental fetch)
+6. Prepare training data (ThreadPoolExecutor + fundamental fetch + float32 memory downcast)
 7. Train:
    a. Regression (per market: sp500/kospi/kosdaq/konex)
-   b. Surge classifier (per market)
-   c. Lead-Lag matrix
+   b. Surge classifier (per market, capped scale weight)
+   c. Lead-Lag 2-tier matrix
    d. VCP ML (per market)
+   e. Isotonic Regression Calibrators fitting
 8. Fetch inference fundamentals (background)
 9. Fetch inference price data (ALL symbols)
 10. Predict:
     a. Regression + Surge (shared feature computation)
     b. VCP rule-based pattern detection
-    c. Lead-Lag inference
-    d. VCP ML inference
-11. Save predictions to DB
-12. Save 5 output files
+    c. Lead-Lag 2-tier inference
+    d. Stat-Arb pair cointegration scanning
+    e. Sector Rotation relative momentum scoring
+    f. 8-Strategy Dynamic Weighted Ensemble Scoring (Transaction costs & Liquidity filtered)
+11. Save predictions to DB & 8-Strategy Ensemble Output
+12. Save output files & Update GitHub Pages HTML Report
 ```
 
 ## Architecture
@@ -46,13 +52,17 @@
 | Path | 목적 |
 |------|------|
 | `trading_system/run_pipeline.py` | 통합 파이프라인 오케스트레이션 |
-| `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag |
+| `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + memory optimization |
+| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 8대 전략 앙상블 + 2D 레짐 + 거래비용 차감 |
+| `src/core/sector_rotation.py` | SectorRotationEngine: 업종 모멘텀 및 순환매 스코어링 |
+| `src/core/stat_arb.py` | StatisticalArbitrageEngine: 공적분 잔차 평균회귀 |
 | `src/ai/vcp_detector.py` | 규칙 기반 VCP 패턴 검출 |
 | `src/ai/vcp_ml_predictor.py` | 시장별 VCP XGBoost surge 분류기 |
+| `src/ai/optuna_tuner.py` | OptunaStrategyTuner: 5개 전략 및 2D 레짐 가중치 HPO 최적화 |
 | `src/data_layer/indicator_storage.py` | MarketIndicatorStorage: 지표/펀더멘탈 DB |
 | `src/data_layer/earnings_data.py` | Rate-limit retry + progress logging fundamental fetch |
 | `src/persistence/database.py` | StockPriceDB: OHLCV 캐시 |
-| `src/config.py` | TradingConfig (.env 기반 설정) |
+| `src/config.py` | TradingConfig (.env 기반 설정, 거래비용/유동성 파라미터) |
 
 ### Markets
 
@@ -65,10 +75,11 @@ market 컬럼 값: `SP500`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본
 | 파일 | 전략 | 내용 |
 |------|------|------|
 | `pipeline_result.txt` | 회귀 | 종목별 horizon별 예상수익률 |
-| `surge_predictions.txt` | Surge | Horizon별 20%↑ 확률 TOP20 |
-| `lead_lag_predictions.txt` | Lead-Lag | Leader 움직임 기반 follower 점수 |
+| `surge_predictions.txt` | Surge | Horizon별 20%↑ 확률 TOP20 (scale_pos_weight 캡 적용) |
+| `lead_lag_predictions.txt` | Lead-Lag | 업종 지수/대형주 Leader 움직임 기반 follower 점수 |
 | `vcp_patterns.txt` | VCP 규칙 | 변동성 수축 패턴 발견 종목 |
 | `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 기반 surge 확률 TOP10 |
+| `stat_arb_predictions.txt` | Stat-Arb | 공적분 잔차 Z-score 차익거래 페어 및 신호 |
 
 ### Features (ALL_FEATURES = 23개)
 
@@ -95,11 +106,12 @@ market 컬럼 값: `SP500`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본
 - Universe 3379 symbols, DB 3388 symbols, overlap 3376
 - `STOCK_PRICE_FRESHNESS_DAYS=none`: offline cache-only
 - 한국 시장: 거래정지(Volume=0) + 관리종목(KRX-ADMINISTRATIVE) → display에서 제외 (DB 저장은 유지)
+- FallbackMetadata: 미존재 종목 주식수 일괄 주입 금지 (`np.nan` 분리 처리)
 
 ### 모델 학습
 - 전략1(회귀): `TRAIN_SAMPLE_SP500=all`, `TRAIN_SAMPLE_KRX=all` → 3379개 전량
-- 전략2(Surge): `surge_horizons=[1,3,5,20]`, `surge_threshold=0.20`, `min_child_weight=10`, `max_delta_step=5`, `scale_pos_weight ≤ 500`
-- 전략3(Lead-Lag): 시총 상위 50개 leader, lag-1 correlation
+- 전략2(Surge): `surge_horizons=[1,3,5,20]`, `min_child_weight=10`, `max_delta_step=5`, `scale_pos_weight ≤ 20.0`
+- 전략3(Lead-Lag): 2-Tier 업종 지수 및 시총 리더 상관성
 - 전략5(VCP ML): 4 markets × 4 horizons = 16 XGBClassifiers
 
 ## Setup
@@ -141,7 +153,8 @@ pip install -r trading_system/requirements.txt
 | R3 | 2025-06-12 | 펀더멘탈(매출/영업이익/배당) + 12-feature 모델 |
 | R4 | 2025-06-13 | Orchestrator daemon + Telegram alert |
 | R5 | 2025-06-13 | Risk management 고도화 + backtest report |
-| R6 | 이후 | 통합 파이프라인 + 4전략 + VCP ML |
+| R6 | 2026-07-25 | 통합 파이프라인 + 4전략 + VCP ML |
+| R7 | 2026-07-26 | 금융전문가 리뷰 기반 8대 다변화 앙상블 (Strict Causal LSTM + Stat-Arb + Sector Rotation + 거래비용 차감 + Isotonic Calibration) |
 
 ## Performance
 
