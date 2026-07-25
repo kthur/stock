@@ -95,20 +95,11 @@ class FallbackMetadataDict(dict):
     def _generate_mock_metadata(self, symbol: str) -> dict:
         if not isinstance(symbol, str):
             raise AttributeError(f"symbol must be str, got {type(symbol)}")
-        # Determine market from symbol format
-        is_krx = symbol.isdigit()
-        if is_krx:
-            # KRX market median: ~200M shares outstanding, ~60% float ratio
-            shares_outstanding = 200_000_000.0
-            floating_shares = 120_000_000.0
-        else:
-            # US market median: ~500M shares outstanding, ~90% float ratio
-            shares_outstanding = 500_000_000.0
-            floating_shares = 450_000_000.0
-
+        # Do NOT inject fake constant shares outstanding (e.g. 200M/500M) which contaminates norm_market_cap.
+        # Unknown ticker shares_outstanding / floating_shares return np.nan.
         return {
-            "shares_outstanding": shares_outstanding,
-            "floating_shares": floating_shares,
+            "shares_outstanding": np.nan,
+            "floating_shares": np.nan,
             "revenue": np.nan,
             "operating_income": np.nan,
             "net_income": np.nan,
@@ -679,14 +670,22 @@ class OnDevicePredictionModel:
                 if isinstance(float_sh, pd.DataFrame):
                     float_sh = float_sh.iloc[:, 0]
 
-                df_copy['market_cap'] = close * shares_out
+                if isinstance(shares_out, pd.Series):
+                    mcap_val = close * shares_out
+                    fallback_mcap_mask = shares_out.isna() | (shares_out <= 0)
+                    df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * volume)
+                else:
+                    if shares_out is None or pd.isna(shares_out) or shares_out <= 0:
+                        df_copy['market_cap'] = close * volume
+                    else:
+                        df_copy['market_cap'] = close * shares_out
 
                 if isinstance(float_sh, pd.Series):
                     floating_val = close * float_sh
                     fallback_mask = float_sh.isna() | (float_sh <= 0)
                     df_copy['floating_value'] = floating_val.where(~fallback_mask, close * volume)
                 else:
-                    if float_sh is None or float_sh <= 0:
+                    if float_sh is None or pd.isna(float_sh) or float_sh <= 0:
                         df_copy['floating_value'] = close * volume
                     else:
                         df_copy['floating_value'] = close * float_sh
@@ -1634,7 +1633,7 @@ class OnDevicePredictionModel:
                 logger.warning(f"No surge samples for {market} {h}d, skipping")
                 continue
 
-            scale_pos_weight = min(neg_count / pos_count, 500)
+            scale_pos_weight = min(neg_count / pos_count, 20.0)
             kw_xgb['scale_pos_weight'] = scale_pos_weight
             kw_lgb['scale_pos_weight'] = scale_pos_weight
             kw_cat['scale_pos_weight'] = scale_pos_weight

@@ -383,7 +383,20 @@ class EnsembleScoringEngine:
         )
 
         # Scale Ensemble Score to Return Proxy (%)
-        merged['ensemble_expected_return'] = merged['ensemble_score'] * self._return_multiplier
+        raw_exp_ret = merged['ensemble_score'] * self._return_multiplier
+
+        # Apply Market-specific Transaction Cost Deductions (KOSPI: 35bps, KOSDAQ: 50bps, KONEX: 80bps, SP500: 10bps)
+        def _get_cost_pct(symbol: str) -> float:
+            if symbol.isdigit() or symbol.endswith(('.KS', '.KQ', '.KN')):
+                if symbol.endswith('.KN'):
+                    return 0.0080
+                elif symbol.endswith('.KQ'):
+                    return 0.0050
+                return 0.0035
+            return 0.0010
+
+        cost_series = merged['symbol'].apply(_get_cost_pct)
+        merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:

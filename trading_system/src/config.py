@@ -60,10 +60,13 @@ class TradingConfig:
     sentiment_risk_threshold: float = 0.70  # 이 이상이면 블랙리스트 등록
     sentiment_crawl_naver_news: bool = True  # 네이버 금융 뉴스 크롤링 활성화
 
-    # 앙상블 스코어 파라미터
+    # 앙상블 스코어 및 거래비용/유동성 파라미터
     ensemble_return_multiplier: float = 20.0  # ensemble_score → expected_return 환산 계수
+    min_daily_volume_krx: float = 5_000_000_000.0  # KRX 최소 일평균 거래대금 (50억원)
+    min_daily_volume_sp500: float = 1_000_000.0   # SP500 최소 일평균 거래량 (100만 주)
 
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
+
 
     def __post_init__(self):
         # Override fields with env variables if set in os.environ
