@@ -1238,6 +1238,10 @@ class OnDevicePredictionModel:
                 if df_clean.columns.duplicated().any():
                     df_clean = df_clean.loc[:, ~df_clean.columns.duplicated()]
                 df_clean['date'] = pd.to_datetime(df_clean['date'])
+                # Downcast float64 to float32 to halve memory footprint (11M rows x 79 cols)
+                f64_cols = df_clean.select_dtypes(include=['float64']).columns
+                if len(f64_cols) > 0:
+                    df_clean[f64_cols] = df_clean[f64_cols].astype(np.float32)
                 all_data.append(df_clean)
 
         if not all_data:
