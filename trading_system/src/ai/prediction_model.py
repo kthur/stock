@@ -2188,7 +2188,7 @@ class OnDevicePredictionModel:
                             total_w = sum(weights)
                             blend_prob = np.zeros(len(idx))
                             for p, w in zip(preds, weights):
-                                blend_prob += np.nan_to_num(p, 0.0) * (w / total_w)
+                                blend_prob += np.nan_to_num(p, nan=0.0) * (w / total_w)
 
                             # Apply Platt Scaling calibration if coefficient metadata is present
                             calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), mkt, {})

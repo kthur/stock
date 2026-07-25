@@ -2,7 +2,6 @@
 Monitors execution duration and peak memory usage per pipeline step.
 """
 
-import os
 import time
 import json
 import logging

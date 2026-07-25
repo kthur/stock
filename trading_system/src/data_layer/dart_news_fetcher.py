@@ -7,7 +7,6 @@ Fixes:
 """
 
 import os
-import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -103,9 +102,9 @@ class DARTNewsFetcher:
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
 
-        params = {
+        params: Dict[str, Any] = {
             "crtfc_key": self.api_key,
-            "corp_code": corp_code,      # ✅ Correct 8-digit DART corp_code
+            "corp_code": corp_code,
             "bgn_de": start_date,
             "end_de": end_date,
             "page_count": 50,

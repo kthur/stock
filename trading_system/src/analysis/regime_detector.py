@@ -198,5 +198,5 @@ class MarketRegimeDetector:
     def predict_2d_regime_label(self, indicator_df: pd.DataFrame) -> str:
         """Returns standard 2D regime combo label string."""
         res = self.predict_2d_regime(indicator_df)
-        return res['combo_label']
+        return str(res['combo_label'])
 

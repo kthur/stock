@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def generate_backtest_summary(result_dir: str = "trading_system/result") -> Dict[str, Any]:
     """Generates backtest summary metrics for 5 strategies to display on GitHub Pages.
-    
+
     Returns structured metrics: Sharpe Ratio, Max Drawdown, Win Rate, Annualized Return.
     """
     res_dir = Path(result_dir)

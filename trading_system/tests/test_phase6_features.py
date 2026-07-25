@@ -1,8 +1,6 @@
 """Unit tests for Phase 6 (Backtest summary generation and Pipeline Profiler)."""
 
-import os
 import json
-import pytest
 import tempfile
 from pathlib import Path
 
@@ -17,10 +15,10 @@ def test_generate_backtest_summary():
         assert isinstance(res, dict)
         assert "strategies" in res
         assert "Dynamic Ensemble" in res["strategies"]
-        
+
         summary_file = Path(tmp_dir) / "backtest_summary.json"
         assert summary_file.exists()
-        
+
         with open(summary_file, "r", encoding="utf-8") as f:
             data = json.load(f)
             assert data["strategies"]["Dynamic Ensemble"]["sharpe_ratio"] > 0

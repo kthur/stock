@@ -431,7 +431,7 @@ class RiskManager:
             drawdown_scaler = max(0.25, min(1.0, drawdown_scaler))
             stop_distance *= drawdown_scaler
 
-        return max(0.0, highest_price - stop_distance)
+        return float(max(0.0, highest_price - stop_distance))
 
     def check_sentiment_blacklist(self, symbol: str, blacklist: Optional[set | list | dict] = None) -> bool:
         """Returns True if the symbol is blacklisted due to critical sentiment/disclosure risk."""

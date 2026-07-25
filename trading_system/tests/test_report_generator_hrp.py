@@ -24,7 +24,6 @@ try:
         PortfolioRow,
         build_html,
         make_stock_link,
-        parse_ensemble,
         parse_portfolio_allocation,
     )
 except ModuleNotFoundError:
@@ -36,7 +35,6 @@ except ModuleNotFoundError:
         PortfolioRow,
         build_html,
         make_stock_link,
-        parse_ensemble,
         parse_portfolio_allocation,
     )
 
@@ -71,7 +69,7 @@ Target Horizon: 20d
 Current Market Regime Detected: SIDEWAYS (Code: 1)
 Maximum Total Allocation Allowed: 50.0%
 
-No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+No. Symbol    Name                Market    Return    Volatility  Weight    Amount
 --------------------------------------------------------------------------------------------
 1   007590    동방아그로               KOSPI         5.01%       0.42%     3.33%    33,333,333
 2   004080    신흥                  KOSPI         4.21%       0.49%     3.33%    33,333,333

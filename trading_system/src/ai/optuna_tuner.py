@@ -11,14 +11,12 @@ Strategies:
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error, roc_auc_score
 import xgboost as xgb
-import lightgbm as lgb
-import catboost as cb
 import optuna
 
 logger = logging.getLogger(__name__)
@@ -52,7 +50,8 @@ class OptunaStrategyTuner:
         if target.exists():
             try:
                 with open(target, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    res = json.load(f)
+                    return res if isinstance(res, dict) else {}
             except Exception as e:
                 logger.warning(f"Failed to load tuned parameters from {target}: {e}")
         return {}
@@ -301,9 +300,9 @@ class OptunaStrategyTuner:
 
         def vcp_rule_objective(trial):
             c_ratio = trial.suggest_float('contraction_ratio', 0.80, 1.20)
-            near_high = trial.suggest_float('near_high_cutoff', 0.50, 0.85)
-            vol_thresh = trial.suggest_float('vol_declining_threshold', 0.70, 0.95)
-            min_score = trial.suggest_float('min_vcp_score', 30.0, 70.0)
+            trial.suggest_float('near_high_cutoff', 0.50, 0.85)
+            trial.suggest_float('vol_declining_threshold', 0.70, 0.95)
+            trial.suggest_float('min_vcp_score', 30.0, 70.0)
             w_dec = trial.suggest_float('decreasing_weight', 15.0, 35.0)
             w_vol = trial.suggest_float('volume_weight', 10.0, 25.0)
 
@@ -348,7 +347,7 @@ class OptunaStrategyTuner:
             max_depth = trial.suggest_int('max_depth', 3, 6)
             learning_rate = trial.suggest_float('learning_rate', 0.01, 0.2, log=True)
             spw = trial.suggest_float('scale_pos_weight', 1.0, 20.0)
-            window_step = trial.suggest_int('window_step_size', 1, 5)
+            trial.suggest_int('window_step_size', 1, 5)
 
             aucs = []
             for train_idx, val_idx in tscv.split(X):

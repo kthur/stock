@@ -151,10 +151,10 @@ class EnsembleScoringEngine:
         try:
             s = np.asarray(scores, dtype=float)
             out = cal.predict(np.where(np.isfinite(s), s, 0.0))
-            return np.clip(out, 0.0, 1.0)
+            return np.asarray(np.clip(out, 0.0, 1.0))
         except Exception as e:
             logger.warning(f"Calibration predict failed for '{strategy}': {e}")
-            return scores
+            return np.asarray(scores)
 
     def has_calibrators(self) -> bool:
         """Returns True if at least one strategy calibrator has been fitted."""
@@ -296,7 +296,7 @@ class EnsembleScoringEngine:
             s_col = f'surge_{closest_surge_horizon}d'
             if s_col not in s_df.columns:
                 num_cols = [c for c in s_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(s_df[c])]
-                s_col = num_cols[-1] if num_cols else s_df.columns[-1]
+                s_col = str(num_cols[-1]) if num_cols else str(s_df.columns[-1])
             s_df = s_df[['symbol', s_col]].rename(columns={s_col: 'surge_score'})
         else:
             s_df = pd.DataFrame(columns=['symbol', 'surge_score'])
@@ -340,7 +340,7 @@ class EnsembleScoringEngine:
             v_col = f'vcp_{closest_vcp_horizon}d'
             if v_col not in v_df.columns:
                 num_cols = [c for c in v_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(v_df[c])]
-                v_col = num_cols[-1] if num_cols else v_df.columns[-1]
+                v_col = str(num_cols[-1]) if num_cols else str(v_df.columns[-1])
             v_df = v_df[['symbol', v_col]].rename(columns={v_col: 'vcp_ml_score'})
         else:
             v_df = pd.DataFrame(columns=['symbol', 'vcp_ml_score'])
