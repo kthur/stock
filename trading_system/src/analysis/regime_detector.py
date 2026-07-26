@@ -30,19 +30,39 @@ class MarketRegimeDetector:
         self.cluster_to_regime: dict[int, int] = {}
 
     def _prepare_features(self, indicator_df: pd.DataFrame) -> pd.DataFrame:
-        """Computes rolling 20d return and rolling 20d volatility of S&P 500."""
+        """Computes multi-variable macro feature matrix (S&P500 return/vol, VIX, US10Y, USD/KRW, Yield Curve)."""
         df = indicator_df.copy()
 
         # Check for sp500_change column (global indicator)
         if 'sp500_change' not in df.columns:
-            # Fallback to other columns if sp500_change is missing
             raise ValueError("Indicator DataFrame must contain 'sp500_change' column.")
 
-        # Compute rolling return and rolling volatility
-        df['sp500_ret_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).mean()
-        df['sp500_vol_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
+        features = pd.DataFrame(index=df.index)
+        features['sp500_ret_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).mean()
+        features['sp500_vol_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
 
-        return df[['sp500_ret_roll', 'sp500_vol_roll']]
+        # Macro extensions if available
+        if 'vix_change' in df.columns:
+            features['vix_level'] = df['vix_change'].fillna(0.0) / 100.0
+        else:
+            features['vix_level'] = 0.20
+
+        if 'us10y' in df.columns:
+            features['us10y_level'] = df['us10y'].fillna(4.0) / 10.0
+        else:
+            features['us10y_level'] = 0.40
+
+        if 'usdkrw_change' in df.columns:
+            features['usdkrw_ret_roll'] = df['usdkrw_change'].rolling(self.rolling_window, min_periods=1).mean().fillna(0.0)
+        else:
+            features['usdkrw_ret_roll'] = 0.0
+
+        if 'yield_curve_10y3m' in df.columns:
+            features['yield_curve'] = df['yield_curve_10y3m'].fillna(0.0) / 5.0
+        else:
+            features['yield_curve'] = 0.0
+
+        return features
 
     def train(self, indicator_df: pd.DataFrame) -> None:
         """Trains the GMM on historical global indicators and maps components to regimes."""
@@ -54,7 +74,7 @@ class MarketRegimeDetector:
             features_df = self._prepare_features(indicator_df)
             X = features_df.values
 
-            # Drop initial rows if they contain NaNs (or keep them via min_periods=1)
+            # Drop initial rows if they contain NaNs
             valid_mask = np.isfinite(X).all(axis=1)
             X_valid = X[valid_mask]
 
@@ -66,10 +86,9 @@ class MarketRegimeDetector:
             self.is_trained = True
 
             # Assign human-readable regimes based on the means of the components
-            # Component means: shape (n_components, 2) where columns are [mean_return, mean_volatility]
             means = self.gmm.means_
 
-            # Map each cluster index to a Sharpe-like ratio score: mean_return / (std_volatility + 1e-5)
+            # Component 0 = sp500_ret_roll, Component 1 = sp500_vol_roll
             scores = []
             for i in range(self.n_regimes):
                 mean_ret = means[i, 0]
@@ -99,6 +118,7 @@ class MarketRegimeDetector:
     def predict_regime(self, indicator_df: pd.DataFrame) -> int:
         """
         Predicts the current regime.
+        Includes Fast Shock / VIX Override for zero-lag crash detection.
         Returns:
           2: BULL
           1: SIDEWAYS
@@ -106,6 +126,25 @@ class MarketRegimeDetector:
         """
         if indicator_df.empty:
             return 2  # Default to BULL if no data
+
+        # Fast VIX / Shock Override: Check for extreme volatility or rapid drawdowns
+        try:
+            if 'vix_change' in indicator_df.columns:
+                latest_vix = float(indicator_df['vix_change'].dropna().iloc[-1]) if not indicator_df['vix_change'].dropna().empty else 0.0
+                if latest_vix > 30.0:
+                    logger.warning(f"Fast VIX Shock Triggered (VIX={latest_vix:.2f} > 30.0): Forcing BEAR regime.")
+                    return 0  # BEAR
+
+            if 'sp500_change' in indicator_df.columns:
+                sp500_series = indicator_df['sp500_change'].dropna()
+                if not sp500_series.empty:
+                    latest_sp500 = float(sp500_series.iloc[-1])
+                    recent_2d_sum = float(sp500_series.tail(2).sum()) if len(sp500_series) >= 2 else latest_sp500
+                    if latest_sp500 < -3.0 or recent_2d_sum < -5.0:
+                        logger.warning(f"Fast Market Shock Triggered (S&P500 1d={latest_sp500:.2f}%, 2d={recent_2d_sum:.2f}%): Forcing BEAR regime.")
+                        return 0  # BEAR
+        except Exception as ex:
+            logger.debug(f"Fast regime override check error: {ex}")
 
         # Check if trained
         if not self.is_trained or not self.cluster_to_regime:

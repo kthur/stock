@@ -440,7 +440,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
     return result
 
 
-# 16 Global indicator & Sector ETF tickers → feature column names
+# Global indicator & Sector ETF tickers → feature column names
 _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
     '^TNX': 'us10y',
@@ -459,6 +459,13 @@ _INDICATOR_TICKERS = {
     'XLF': 'xlf_change',
     'XLV': 'xlv_change',
     'XLE': 'xle_change',
+    # Expanded Macro Indicators (Yield Curve, Credit, Assets)
+    '^IRX': 'us3m_yield',
+    'TLT': 'tlt_change',
+    'LQD': 'lqd_change',
+    'HYG': 'hyg_change',
+    'GLD': 'gold_change',
+    'EEM': 'eem_change',
 }
 
 
@@ -583,6 +590,27 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     result = pd.concat(combined, axis=1)
     result.index = pd.to_datetime(result.index)
     result = result.sort_index()
+
+    # Derived Macro Features
+    if 'us10y' in result.columns and 'us3m_yield' in result.columns:
+        result['yield_curve_10y3m'] = result['us10y'] - result['us3m_yield']
+    elif 'us10y' in result.columns:
+        result['yield_curve_10y3m'] = 0.0
+
+    if 'hyg_change' in result.columns and 'tlt_change' in result.columns:
+        result['credit_spread_proxy'] = result['hyg_change'] - result['tlt_change']
+    elif 'hyg_change' in result.columns:
+        result['credit_spread_proxy'] = result['hyg_change']
+
+    if 'usdkrw_change' in result.columns:
+        result['usdkrw_lag1'] = result['usdkrw_change'].shift(1).fillna(0.0)
+
+    if 'vix_change' in result.columns:
+        result['vix_spike'] = (result['vix_change'] > 5.0).astype(float)
+
+    if 'us10y' in result.columns:
+        result['real_rate_proxy'] = result['us10y'] - 2.5  # Nominal 10Y minus 2.5% inflation anchor
+
     logger.info(f"Fetched indicator history: {len(result)} rows x {len(result.columns)} cols")
     return result
 
@@ -1221,18 +1249,23 @@ def execute_prediction_pipeline():
     result_dir = os.path.join(os.path.dirname(__file__), "result")
     os.makedirs(result_dir, exist_ok=True)
 
-    # Save Stat-Arb predictions to separate file
+    # Save Stat-Arb predictions to separate file (Limit TXT to Top 200 valid pairs to keep file small)
     stat_arb_output_path = os.path.join(result_dir, "stat_arb_predictions.txt")
+    valid_stat_arb_pairs = [p for p in stat_arb_pairs if abs(p.get('z_score', 0.0)) >= 1.5]
+    valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
+    top_stat_arb_pairs = valid_stat_arb_pairs[:200]
+
     with open(stat_arb_output_path, "w", encoding="utf-8") as f:
-        f.write("=== Statistical Arbitrage Pairs & Signals ===\n")
+        f.write("=== Statistical Arbitrage Pairs & Signals (Top 200 Valid Pairs) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"Total pairs found: {len(stat_arb_pairs)}\n\n")
+        f.write(f"Total cointegrated pairs found: {len(stat_arb_pairs)} (Showing top {len(top_stat_arb_pairs)})\n\n")
         f.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta':<10}{'Signal':<20}\n")
         f.write("-" * 80 + "\n")
-        for p in stat_arb_pairs:
+        for p in top_stat_arb_pairs:
             pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
             f.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
-    logger.info(f"Saved Statistical Arbitrage pairs ({len(stat_arb_pairs)}) to {stat_arb_output_path}")
+    logger.info(f"Saved Statistical Arbitrage pairs (Total: {len(stat_arb_pairs)}, Top 200 written) to {stat_arb_output_path}")
+
 
     # 11. Save predictions to DB
     storage.save_predictions(res_df, date_str)
@@ -1734,7 +1767,8 @@ def execute_prediction_pipeline():
         columns={'ensemble_expected_return': 20}
     )
     allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
-    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=1000000000.0, use_hrp=True)
+    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=1000000000.0, use_hrp=True, regime=current_2d_regime)
+
     if not alloc_df.empty:
         alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
         alloc_output_path = os.path.join(result_dir, "portfolio_allocation.txt")

@@ -147,16 +147,19 @@ class EnsembleScoringEngine:
         }
     }
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, alpha_smoothing: float = 0.2):
         # Support TradingConfig for centralized constant management
         self.config = config
+        self.alpha_smoothing = alpha_smoothing
         self._return_multiplier = 20.0  # default
         if config is not None:
             self._return_multiplier = getattr(config, "ensemble_return_multiplier", 20.0)
         # Per-strategy Isotonic Regression calibrators (fitted via fit_calibrators)
         self._calibrators: Dict[str, Any] = {}
+        self._prev_weights: Optional[Dict[str, float]] = None
 
         # Attempt to load Optuna-tuned 2D regime weights from tuned_params.json
+
         try:
             from pathlib import Path
             import json
@@ -254,11 +257,36 @@ class EnsembleScoringEngine:
                 sharpes[strategy] = 0.0
         return sharpes
 
-    def get_base_weights(self, regime: Union[int, str, dict]) -> Dict[str, float]:
-        """Resolves base weights from 1D, 2D, or 3D macro regime inputs."""
+    def apply_vix_override(self, weights: Dict[str, float], vix_val: Optional[float] = None) -> Dict[str, float]:
+        """
+        Fast VIX Shock Override: Adjusts strategy weights in high volatility environments.
+        - vix_val > 30.0 (High fear): Reduce surge/sector_rotation, increase regression/stat_arb
+        - vix_val > 40.0 (Extreme panic): Maximize stat_arb/regression defensiveness
+        """
+        if vix_val is None or vix_val <= 25.0:
+            return weights
+
+        w = dict(weights)
+        if vix_val > 30.0:
+            w['surge'] = max(0.0, w.get('surge', 0.15) - 0.10)
+            w['sector_rotation'] = max(0.0, w.get('sector_rotation', 0.10) - 0.05)
+            w['regression'] = w.get('regression', 0.20) + 0.10
+            w['stat_arb'] = w.get('stat_arb', 0.10) + 0.05
+
+        if vix_val > 40.0:
+            w['vcp_ml'] = max(0.0, w.get('vcp_ml', 0.15) - 0.10)
+            w['stat_arb'] = w.get('stat_arb', 0.10) + 0.10
+
+        total = sum(w.values())
+        return {k: v / total for k, v in w.items()} if total > 0 else weights
+
+    def get_base_weights(self, regime: Union[int, str, dict], vix_val: Optional[float] = None) -> Dict[str, float]:
+        """Resolves base weights from 1D, 2D, or 3D macro regime inputs, applying Fast VIX Override."""
         macro_label = None
         if isinstance(regime, dict):
             macro_label = regime.get('macro_label')
+            if vix_val is None:
+                vix_val = regime.get('vix_val')
             regime = regime.get('combo_2d_label') or regime.get('combo_label') or regime.get('direction_label', 'SIDEWAYS')
 
         if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
@@ -296,6 +324,10 @@ class EnsembleScoringEngine:
             'stat_arb': w.get('stat_arb', 0.10),
             'sector_rotation': w.get('sector_rotation', 0.10)
         }
+
+        # Apply VIX Fast Override if active
+        res = self.apply_vix_override(res, vix_val=vix_val)
+
         total = sum(res.values())
         return {k: v / total for k, v in res.items()}
 
@@ -318,12 +350,21 @@ class EnsembleScoringEngine:
             scores[strategy] = base_w * multiplier
 
         total_score = sum(scores.values())
-        if total_score <= 0:
-            return base_weights
-
         dynamic_weights = {k: v / total_score for k, v in scores.items()}
+
+        # Apply EMA Weight Smoothing to prevent regime transition whipsaws
+        if self._prev_weights is not None:
+            smoothed = {}
+            for k, target_w in dynamic_weights.items():
+                prev_w = self._prev_weights.get(k, target_w)
+                smoothed[k] = self.alpha_smoothing * target_w + (1 - self.alpha_smoothing) * prev_w
+            tot_s = sum(smoothed.values())
+            dynamic_weights = {k: v / tot_s for k, v in smoothed.items()}
+
+        self._prev_weights = dict(dynamic_weights)
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
+
 
     def calculate_ensemble_score(self,
                                  regime: Union[int, str],
