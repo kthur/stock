@@ -1,40 +1,39 @@
-# BRIEFING — 2026-06-13T04:49:50Z
+# BRIEFING — 2026-07-25T01:20:20Z
 
 ## Mission
-Audit `trading_system/src/risk/risk_manager.py` and understand how risk rules, stops, and risk metrics are implemented, and recommend ATR-based trailing stops or dynamic thresholds.
+Perform codebase audit for R1: Optuna HPO across 5 strategies & 2D regime rolling Sharpe dynamic ensemble weighting.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: Read-only investigation subagent
+- Archetype: teamwork_preview_explorer
+- Roles: Explorer 1 (Codebase Audit & Technical Design)
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1
-- Original parent: 7635347b-53a9-4ba1-9cb3-cafe65efe2dc
-- Milestone: Milestone 1: Risk Manager Audit
+- Original parent: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
+- Milestone: m1_1
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Limit write operations to the agent working directory (no modification to source files in trading_system)
+- Read-only investigation — do NOT implement or modify source code files
+- Use .venv/bin/python or .venv/bin/pytest if running commands
+- Write findings to analysis.md and handoff.md in working directory
+- Send message to parent upon completion
 
 ## Current Parent
-- Conversation ID: 7635347b-53a9-4ba1-9cb3-cafe65efe2dc
-- Updated: 2026-06-13T04:49:50Z
+- Conversation ID: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
+- Updated: 2026-07-25T01:20:20Z
 
 ## Investigation State
-- **Explored paths**:
-  - `trading_system/src/risk/risk_manager.py` (Full implementation audit)
-  - `trading_system/trading_system.py` (Stops execution & trailing stop logic)
-  - `trading_system/risk_config.json` (Configurations)
-  - `trading_system/tests/test_risk_manager.py` (Risk manager unit tests)
-  - `trading_system/tests/phase4/e2e/test_e2e.py` (E2E Trailing Stop test verification)
+- **Explored paths**: `prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`, `merge_predictions.py`, `run_pipeline.py`, `ensemble.py`, `ensemble_scorer.py`, `regime_detector.py`, `macro_analyzer.py`, `macro_predictor.py`, `tune_models.py`, `tune_hyperparams.py`, `position_sizing.py`, `test_regime_ensemble.py`, `test_tuning_and_retry.py`.
 - **Key findings**:
-  - Discovered that `trading_system.py` bypasses `RiskManager`'s stop-loss/take-profit methods, duplicating them locally.
-  - Discovered that `_check_trailing_stop` uses a hardcoded `2.0 * atr` drawdown threshold instead of the adaptive regime-based multipliers available in `RiskManager`.
-  - Formulated a 3-part recommendation to delegate stop evaluation to `RiskManager` and implement portfolio drawdown-based dynamic tightening.
-- **Unexplored areas**: None.
+  1. Optuna 4.9.0 is installed in .venv. HPO scripts exist for Strategies 1 & 2 (regressors and surge classifiers), but Strategies 3 (Lead-Lag), 4 (VCP Rule), and 5 (VCP ML) lack Optuna search spaces.
+  2. `MarketRegimeDetector` has 2D regime detection helper `predict_2d_regime()` (6 combo states: Direction × Volatility), but `run_pipeline.py` currently only uses 1D integers (0=BEAR, 1=SIDEWAYS, 2=BULL).
+  3. `EnsembleScoringEngine` only includes 4 strategies (omitting Strategy 4 VCP Pattern Detector) and lacks 2D regime weight matrix. `compute_dynamic_weights_from_sharpe()` is unlinked in pipeline execution.
+- **Unexplored areas**: None (all R1 components audited).
 
 ## Key Decisions Made
-- Audit complete. Findings captured in `analysis.md`. Delegation recommendations drafted.
+- Completed R1 codebase audit and formulated technical design report in `analysis.md` and `handoff.md`.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\ORIGINAL_REQUEST.md — Original request details
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\analysis.md — Audit report
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\handoff.md — Handoff report
+- `.agents/teamwork_preview_explorer_m1_1/ORIGINAL_REQUEST.md` — Original prompt request
+- `.agents/teamwork_preview_explorer_m1_1/BRIEFING.md` — Agent working memory
+- `.agents/teamwork_preview_explorer_m1_1/progress.md` — Agent liveness heartbeat & task checklist
+- `.agents/teamwork_preview_explorer_m1_1/analysis.md` — Detailed technical design and codebase audit for R1
+- `.agents/teamwork_preview_explorer_m1_1/handoff.md` — 5-component handoff report for R1

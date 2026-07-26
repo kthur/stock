@@ -1,47 +1,45 @@
-# BRIEFING — 2026-06-12T07:02:02+09:00
+# BRIEFING — 2026-07-16T00:35:08Z
 
 ## Mission
-Investigate PyTorch Windows DLL loading crash/issue and failing unit test TestMockTradingConfig.test_kis_mock_keys_default_empty.
+Investigate fundamental fetching and retry logic in `src/data_layer/earnings_data.py` and related data layer modules. Formulate concrete fallback and rate-limiting strategies.
 
 ## 🔒 My Identity
 - Archetype: Teamwork explorer
-- Roles: read-only investigator
+- Roles: Explorer 2 (Milestone 1)
 - Working directory: d:\Finance\code\stock\.agents\explorer_m1_2
-- Original parent: d23ffd42-28b4-4f15-a6ee-33b72c3197cf
-- Milestone: Milestone 1: PyTorch & Config Fixes
+- Original parent: 51bfa322-32fe-4558-8bf8-8bb6240118c5
+- Milestone: Milestone 1
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement or modify source files
-- Code-only network mode (no external web access)
+- Read-only investigation — do NOT modify application source code (except writing reports in `.agents/explorer_m1_2`)
+- Follow AGENTS.md rules and workflow protocol
 
 ## Current Parent
-- Conversation ID: d23ffd42-28b4-4f15-a6ee-33b72c3197cf
-- Updated: 2026-06-12T07:02:02+09:00
+- Conversation ID: 51bfa322-32fe-4558-8bf8-8bb6240118c5
+- Updated: 2026-07-16T00:35:08Z
 
 ## Investigation State
 - **Explored paths**:
-  - `PROJECT.md`
-  - `trading_system/src/config.py`
-  - `trading_system/tests/phase6/unit/test_mock_trading.py`
+  - `trading_system/src/data_layer/earnings_data.py`
+  - `trading_system/src/data_layer/indicator_storage.py`
+  - `trading_system/src/persistence/database.py`
   - `trading_system/src/ai/prediction_model.py`
-  - `trading_system/src/ai/rl_trader.py`
-  - `trading_system/src/ai/rl_trading.py`
-  - `trading_system/src/analysis/macro_predictor.py`
-  - `trading_system/src/analysis/ml_engine.py`
-  - `trading_system/tests/test_screener_dash_challenger.py`
-  - `trading_system/tests/test_ml_ensemble.py`
-  - `trading_system/.env`
+  - `trading_system/run_pipeline.py`
+  - `trading_system/tests/test_tuning_and_retry.py`
+  - `trading_system/src/utils/rate_limiter.py`
 - **Key findings**:
-  - Identified 5 files executing `import torch` (or implicitly importing via `stable_baselines3`).
-  - Access violations from PyTorch binary DLL loading crash the interpreter and cannot be caught via try-except.
-  - A robust bypass strategy is to inject mock objects (`sys.modules`) for `torch`, `torch.nn`, `torch.optim`, and `stable_baselines3` (using dummy classes to allow subclassing and `isinstance` checks).
-  - Confirmed the root cause of `TestMockTradingConfig` failing: class-level config attributes evaluate `os.getenv` at import time when `.env` is loaded, defeating runtime environment patching in tests.
-- **Unexplored areas**: None. Both tasks are fully investigated.
+  - `earnings_data.py` uses yfinance Async API + yfinance Sync Ticker for fundamental data, but currently has no FinanceDataReader (FDR) fallback.
+  - `async_fetch_fundamentals` lacks retry/backoff wrappers, causing transient failures to default immediately.
+  - Metadata date is recorded even on failed network attempts, blocking retries for 90 days.
+  - Formulated a 4-tier fallback chain: Async yfinance -> Sync yfinance -> FDR/Secondary -> SQLite DB Cache (`stock_fundamentals`).
+- **Unexplored areas**: None (Milestone 1 exploration complete).
 
 ## Key Decisions Made
-- Use `default_factory` for env-derived config fields in `src/config.py` combined with `@patch.dict("os.environ", ...)` in the test suite to resolve the unit test failure cleanly.
-- Use a `sys.modules` pre-population mock runner in `conftest.py` or `tests/__init__.py` to safely bypass the PyTorch DLL load crash for CPU-only / testing environments.
+- Analyzed code structures, line references, rate limiting, and database caching.
+- Created analysis report in `analysis.md` and handoff report in `handoff.md`.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\explorer_m1_2\analysis.md — Main analysis report
-- d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md — Handoff report
+- `d:\Finance\code\stock\.agents\explorer_m1_2\ORIGINAL_REQUEST.md` — Original prompt copy
+- `d:\Finance\code\stock\.agents\explorer_m1_2\BRIEFING.md` — State briefing
+- `d:\Finance\code\stock\.agents\explorer_m1_2\analysis.md` — Comprehensive analysis report
+- `d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md` — Structured 5-component handoff report

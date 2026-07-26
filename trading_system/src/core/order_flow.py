@@ -1,0 +1,90 @@
+"""
+src/core/order_flow.py
+Order Flow Imbalance ( 수급 불균형 모니터링 ) Engine.
+Evaluates Institutional and Foreign net buying pressure, volume-weighted order imbalance,
+and flow acceleration to generate order_flow_scores [0.0, 1.0].
+"""
+import logging
+from typing import Dict, Optional, Any
+import numpy as np
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+class OrderFlowEngine:
+    """
+    Order Flow Imbalance Strategy Engine.
+    Scorers stock demand/supply imbalance based on institutional/foreign trading volume and price impact.
+    """
+
+    def compute_order_flow_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        flow_data_dict: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> pd.DataFrame:
+        """
+        Computes Order Flow scores for a set of symbols.
+        Returns DataFrame with ['symbol', 'order_flow_score'].
+        """
+        if not prices_dict:
+            return pd.DataFrame(columns=['symbol', 'order_flow_score'])
+
+        records = []
+
+        for sym, df in prices_dict.items():
+            if df is None or len(df) < 10:
+                continue
+            try:
+                close = df['Close']
+                volume = df['Volume']
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]
+                if isinstance(volume, pd.DataFrame):
+                    volume = volume.iloc[:, 0]
+
+                close = close.dropna()
+                volume = volume.dropna()
+
+                if len(close) < 10 or len(volume) < 10:
+                    continue
+
+                # Volume-Weighted Price Trend (On-Balance Volume Proxy / Money Flow)
+                ret = close.pct_change().dropna()
+                vol_sub = volume.iloc[-len(ret):]
+
+                # Directional Money Flow Volume
+                positive_flow = np.where(ret > 0, ret * vol_sub, 0.0).sum()
+                negative_flow = np.where(ret < 0, abs(ret) * vol_sub, 0.0).sum()
+                total_flow = positive_flow + negative_flow + 1e-12
+
+                mfi_ratio = positive_flow / total_flow
+
+                # Check if detailed foreign/institutional flow data is available
+                inst_boost = 0.0
+                if flow_data_dict and sym in flow_data_dict:
+                    f_df = flow_data_dict[sym]
+                    if f_df is not None and 'foreign_net_buy' in f_df.columns:
+                        f_buy = f_df['foreign_net_buy'].iloc[-5:].sum()
+                        if f_buy > 0:
+                            inst_boost += 0.10
+                    if f_df is not None and 'inst_net_buy' in f_df.columns:
+                        i_buy = f_df['inst_net_buy'].iloc[-5:].sum()
+                        if i_buy > 0:
+                            inst_boost += 0.10
+
+                records.append({
+                    'symbol': sym,
+                    'mfi_ratio': mfi_ratio + inst_boost
+                })
+            except Exception as e:
+                logger.debug(f"Order flow score failed for {sym}: {e}")
+                continue
+
+        if not records:
+            return pd.DataFrame(columns=['symbol', 'order_flow_score'])
+
+        res_df = pd.DataFrame(records)
+        res_df['order_flow_score'] = res_df['mfi_ratio'].rank(pct=True, ascending=True)
+        res_df['order_flow_score'] = res_df['order_flow_score'].clip(0.0, 1.0)
+        return res_df[['symbol', 'order_flow_score']]

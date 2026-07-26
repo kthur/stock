@@ -1,27 +1,26 @@
-# Project: Stock Trading System Comprehensive Codebase Audit
+# Project: Stock Trading System Autonomous Enhancement
 
 ## Architecture
-- `trading_system/run_pipeline.py`: Pipeline entry point and orchestration.
-- `src/`: Deep logic directories containing AI predictions, technical indicators, database, and earnings fetching.
-- `.github/workflows/`: CI/CD workflow configuration files.
+- `trading_system/`: Core python package & scripts.
+- `trading_system/run_pipeline.py`: Main orchestration pipeline.
+- `trading_system/merge_predictions.py`: Ensemble merger & dynamic weighting.
+- `trading_system/generate_report.py`: GitHub Pages report generator.
+- `trading_system/scripts/verify_gha_artifacts.py`: GHA pipeline artifact verifier.
+- `src/ai/`: Prediction models (Regression, Surge, Lead-Lag, VCP, Optuna, Ensemble).
+- `src/trading/`: KIS trading API execution, ATR trailing stop, risk limits.
+- `src/portfolio/`: HRP asset allocation & regime trend calculators.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Audit Initialization & Setup | Initialize metadata tracking files and timers. | None | DONE |
-| 2 | Exploration & Codebase Inspection | Inspect `src/`, `trading_system/`, and `.github/workflows/` to identify 15+ improvement points. | M1 | DONE |
-| 3 | Report Implementation | Generate `reports/improvement_report.md` in Korean (>= 4,000 chars) with executive summary, priority table, before/after snippets for top 5, and weekly roadmap. | M2 | DONE |
-| 4 | Review and Quality Gate | Spawn Reviewer to verify report quality, correctness, and length. | M3 | DONE |
-| 5 | Verification & Completion | Report completion of the task. | M4 | DONE |
+| 1 | Exploration & Gap Analysis | Baseline test run, code audit for R1, R2, R3 | none | DONE |
+| 2 | R1 AI Model Precision & Dynamic Ensemble | Optuna HPO for 5 strategies + 2D regime Sharpe weighting | M1 | IN_PROGRESS |
+| 3 | R2 GitHub Pages & HRP UX Enhancement | HRP allocation chart, regime trends, Naver/Foreign links | M1 | PLANNED |
+| 4 | R3 KIS Trading Safety & ATR Trailing Stop | ATR trailing stop, portfolio exposure limits, order safety | M1 | PLANNED |
+| 5 | Verification & Forensic Audit | Pytest 100%, verify_gha_artifacts PASSED, Auditor verdict CLEAN | M2, M3, M4 | PLANNED |
 
 ## Interface Contracts
-### reports/improvement_report.md
-- **Language**: Korean.
-- **Length**: >= 4,000 characters.
-- **Contents**:
-  - Executive Summary (Rating out of 5, top 3 priorities, expected ROI)
-  - Master Priority Table (P0, P1, P2, P3 with Expected Impact, Implementation Difficulty)
-  - At least 3 improvement points for each of the 5 areas: ML model quality, pipeline performance, CI/CD & infrastructure, code quality, operations/monitoring (total 15+ points).
-  - Exact file path and line number range for each point.
-  - Before/After code snippets for top 5 highest impact improvements with quantified expected gains.
-  - Weekly execution roadmap.
+- Optuna HPO: Output tuned hyperparameters to `models/tuned_params.json` or dynamic load during training.
+- Dynamic Ensemble Weighting: `merge_predictions.py`, `prediction_model.py`, `ensemble_scorer.py` calculate weights using 2D regime + rolling Sharpe.
+- Report Generator (`generate_report.py`): HTML dashboard includes HRP weights chart, regime trends, Naver (`https://m.stock.naver.com/item/main.nhn?code=`) & Foreign (`https://finance.yahoo.com/quote/`) hyperlinks.
+- KIS Execution Engine: `src/trading/` receives target positions with ATR dynamic stops and exposure cap checks before sending orders to KIS API.

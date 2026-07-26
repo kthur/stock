@@ -1,134 +1,31 @@
-# Handoff Report — PyTorch DLL Fixes & Config isolation (M1)
-
-This report details the findings and recommendations for Milestone 1: PyTorch & Config Fixes.
-
----
+# Handoff Report — Explorer 1 (Milestone 1)
 
 ## 1. Observation
-
-### A. PyTorch WinError 1114 DLL Crash
-- **Tool Command**: `.venv\Scripts\python -m pytest tests/phase6/unit/test_mock_trading.py`
-- **Verbatim Error (from log file `task-52.log`)**:
-  ```
-  Windows fatal exception: access violation
-
-  Current thread 0x00009294 (most recent call first):
-    File "D:\Finance\code\stock\trading_system\.venv\Lib\site-packages\torch\__init__.py", line 263 in _load_dll_libraries
-    File "D:\Finance\code\stock\trading_system\.venv\Lib\site-packages\torch\__init__.py", line 287 in <module>
-  ```
-- **Direct Subprocess command**: `.venv\Scripts\python -c "import xgboost; import lightgbm; import torch;"`
-- **Result Output**:
-  ```
-  Traceback (most recent call last):
-    File "<string>", line 1, in <module>
-    File "D:\Finance\code\stock\trading_system\.venv\Lib\site-packages\torch\__init__.py", line 287, in <module>
-      _load_dll_libraries()
-    File "D:\Finance\code\stock\trading_system\.venv\Lib\site-packages\torch\__init__.py", line 270, in _load_dll_libraries
-      raise err
-  OSError: [WinError 1114] DLL 초기화 루틴을 실행할 수 없습니다. Error loading "D:\Finance\code\stock\trading_system\.venv\Lib\site-packages\torch\lib\c10.dll" or one of its dependencies.
-  ```
-
-### B. PyTorch Imports in Source Code
-- `trading_system/src/analysis/ml_engine.py` (Line 32):
-  ```python
-  try:
-      import torch
-      _HAS_CUDA = torch.cuda.is_available()
-  except Exception:
-      _HAS_CUDA = False
-  ```
-- `trading_system/src/analysis/macro_predictor.py` (Line 27):
-  ```python
-  try:
-      import torch
-      _HAS_CUDA = torch.cuda.is_available()
-  except Exception:
-      _HAS_CUDA = False
-  ```
-- `trading_system/src/ai/prediction_model.py` (Line 7):
-  ```python
-  try:
-      import torch
-      _HAS_CUDA = torch.cuda.is_available()
-  except Exception:
-      _HAS_CUDA = False
-  ```
-- `trading_system/src/ai/rl_trading.py` (Line 181):
-  ```python
-          import torch
-  ```
-- `trading_system/src/ai/rl_trader.py` (Lines 12–14):
-  ```python
-  import torch
-  import torch.nn as nn
-  import torch.optim as optim
-  ```
-
-### C. Failing Config Unit Test
-- **Tool Command**: `.venv\Scripts\python -m pytest tests/phase6/unit/test_mock_trading.py`
-- **Verbatim Error**:
-  ```
-  ___________ TestMockTradingConfig.test_kis_mock_keys_default_empty ____________
-
-  self = <unit.test_mock_trading.TestMockTradingConfig testMethod=test_kis_mock_keys_default_empty>
-
-      def test_kis_mock_keys_default_empty(self):
-          """KIS 모의투자 키 기본값이 빈 문자열인지 확인"""
-          config = TradingConfig()
-  >       self.assertEqual(config.kis_mock_app_key, "")
-  E       AssertionError: 'your_kis_mock_app_key_here' != ''
-  ```
-
----
+- **Network Call Locations**:
+  - `_fetch_data_fdr_network` (`trading_system/run_pipeline.py:151-189`): US stocks use `fdr.DataReader` directly without yfinance attempt/fallback. KRX stocks use `yf.download` with fallback to `fdr.DataReader`.
+  - `prefetch_prices_batch` (`trading_system/run_pipeline.py:192-350`): Uses `yf.download` with binary split `_download_with_recovery`. Failed single-ticker downloads log warning and return empty DataFrame without attempting `fdr.DataReader` or fallback cache retrieval.
+  - `fetch_data_fdr` / `_fetch_fallback` (`trading_system/run_pipeline.py:352-440`): Queries `StockPriceDB` (`price_db`). If data is stale and incremental/full network fetches raise exceptions (e.g. rate-limit/offline), `result` becomes `None` (line 424), **discarding** existing cached data in `price_db`.
+  - `_download_indicator_network` & `fetch_indicator_history` (`trading_system/run_pipeline.py:465-563`): Network calls to `yf.download` for 16 macro indicator tickers. On network exception, `_fetch_one` returns an empty `pd.Series` instead of falling back to stale DB cache.
+  - `_get_excluded_krx_symbols` (`trading_system/run_pipeline.py:614-645`): Network calls to `fdr.StockListing('KRX')` and `fdr.StockListing('KRX-ADMINISTRATIVE')`.
+  - `GlobalMarketClient.get_summary` (`src/data_layer/global_market.py:56-143`, called at `run_pipeline.py:666`): Network calls to `yf.Ticker(symbol).history(period=period)`.
+  - `MarketIndicatorStorage.update_stock_universe` (`src/data_layer/indicator_storage.py:202-239`, called at `run_pipeline.py:679`): Network calls to `fdr.StockListing`.
+  - `fetch_and_store_fundamentals_batch` (`src/data_layer/earnings_data.py:45-100`, called at `run_pipeline.py:689, 969`): Network calls to `yf.Ticker(yf_sym).financials` and `.info`.
 
 ## 2. Logic Chain
-
-1. **DLL Initialization Conflicts cause interpreter crash**:
-   - The verbatim error logs show that `c10.dll` fails to load under python due to DLL initialization issues when packages like `xgboost` or `lightgbm` are imported first (Observation A).
-   - This failure triggers a C-level access violation crash, which bypasses python's `try...except Exception` blocks (Observation B).
-   - Therefore, the codebase cannot safely import `torch` directly.
-   
-2. **Safe Mocking prevents the crash**:
-   - Because `torch` is only used for CUDA detection and seeding in the core engines (Observation B), it can be mocked entirely without losing any core trading system features.
-   - Injecting a mock `torch` module into `sys.modules` before it is imported prevents python from attempting to load the actual DLLs.
-   
-3. **Local .env contamination causes config test failure**:
-   - `TradingConfig` loads `.env` globally at import time (Observation C).
-   - The unit test `test_kis_mock_keys_default_empty` instantiates `TradingConfig()` and expects the default keys to be empty.
-   - Because the local `.env` has actual keys set, they contaminate the class attributes (which are evaluated at class definition time).
-   
-4. **Isolating tests resolves the test failure**:
-   - Disabling `load_dotenv` when `pytest` is running prevents local `.env` contamination.
-   - Pre-patching `os.environ` inside `test_mock_trading.py` ensures that even if OS environment variables are set, they are cleared before `TradingConfig` is imported.
-
----
+1. Observations at `run_pipeline.py:376-424` show that `_fetch_fallback()` queries `price_db` for cached OHLCV data. However, if data is flagged as `stale` (e.g. older than `freshness_days`), a network request via `_fetch_data_fdr_network()` is triggered.
+2. If the network call throws an exception (HTTP 429 rate limit, 500 server error, socket timeout, offline environment), line 424 catches the exception and sets `result = None`.
+3. The function returns `None` to callers in the training loop (`line 827`) and inference loop (`line 995`), dropping the symbol from `train_data_dict` and `infer_data_dict`.
+4. Therefore, even when valid historical price data exists in `stock_prices.db`, network failure causes the pipeline to drop the symbol rather than utilizing the offline DB cache.
+5. Furthermore, observations at lines 156–160 show US stock price fetching directly invokes `fdr.DataReader` without attempting `yfinance` primary fetch or Tier 2 recovery, producing an inconsistent download architecture across market segments.
 
 ## 3. Caveats
-
-- **Network limitations**: The system is in `CODE_ONLY` mode, so downloading and reinstalling a CPU-only PyTorch version is not possible.
-- **Deep RL features**: If the user or parent agent explicitly wants to train new RL models during a test, the mock will skip the test (or it will fail to train). However, the current test suite does not contain active RL training tests; the only RL model test (`test_train_rl_model`) has a `pytest.importorskip` which is safely handled.
-
----
+- **Offline Data Freshness**: If network downloading fails, fallback to `stock_prices.db` returns existing cached rows up to the latest available cached date. In long-running offline environments, model predictions will reflect the cached timestamp.
+- **Scope Restriction**: Investigation was strictly read-only per constraints; code refactoring proposals are fully documented in `analysis.md` for Implementation in Milestone 2.
 
 ## 4. Conclusion
-
-- **PyTorch DLL Issue**: The `WinError 1114` crash is caused by loading conflicting DLL runtimes. It can be fully mitigated by placing a dynamic subprocess-based verify-and-mock block in `src/__init__.py`.
-- **Config Unit Test**: The failure in `test_kis_mock_keys_default_empty` is caused by global loading of local `.env`. It is fixed by skipping `load_dotenv` inside `src/config.py` during tests, and patching the environment in `test_mock_trading.py`.
-
----
+The current data fetching implementation in `run_pipeline.py` lacks a unified 3-tier fallback architecture (yfinance -> FinanceDataReader -> `stock_prices.db` cache). On rate-limiting or network failure, stale cached DB data is discarded instead of served, and US stocks bypass yfinance entirely. Cleanly implementing the 3-tier cascade described in `analysis.md` will resolve pipeline fragility and guarantee graceful degradation under offline or rate-limited conditions.
 
 ## 5. Verification Method
-
-### Test Execution Command
-Run the following command from the `d:\Finance\code\stock\trading_system` folder inside the local virtual environment:
-```powershell
-.venv\Scripts\python -m pytest tests/phase6/unit/test_mock_trading.py
-```
-*Expected Outcome*:
-- No access violation or DLL crashes occur.
-- All 11 tests pass successfully.
-
-### Files to Inspect
-- `trading_system/src/__init__.py` to verify the PyTorch subprocess verification and mock injection.
-- `trading_system/src/config.py` (Lines 8-12) to verify the conditional `.env` load check.
-- `trading_system/tests/phase6/unit/test_mock_trading.py` (Lines 9-11) to verify the environment patch around the import of `TradingConfig`.
+1. **Source Inspection**: Inspect `analysis.md` in `d:\Finance\code\stock\.agents\explorer_m1_1\analysis.md` to review line numbers, failure mode matrix, and code structures.
+2. **Offline Fallback Simulation**: Mock network functions (`yf.download` and `fdr.DataReader`) to raise `requests.exceptions.HTTPError` or `socket.timeout`.
+3. **Execution Verification**: Run `.venv/bin/pytest tests/ -v` or run `.venv/bin/python trading_system/run_pipeline.py --debug --skip-training` while offline to verify warnings are logged and cached data from `stock_prices.db` is returned cleanly without pipeline failure.

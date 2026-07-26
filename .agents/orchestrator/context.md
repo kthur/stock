@@ -1,10 +1,12 @@
-# Project Context Log
+# Context & Workspace State
 
-## Current Status
-- Initializing the Project Orchestrator for the codebase audit task.
-- Workspace root: `d:\Finance\code\stock`
-- Target code directories: `d:\Finance\code\stock\src`, `d:\Finance\code\stock\trading_system`, `d:\Finance\code\stock\.github\workflows`
-
-## Active Tasks
-- Initializing plan and scheduling heartbeat.
-- Preparing to spawn Explorer to analyze the codebase for the 5 specified audit areas.
+- Project Root: `d:\Finance\code\stock`
+- Python Environment: `.venv/bin/python`
+- Active Workspaces: `d:\Finance\code\stock`
+- Current Goal: Audit and eliminate 0.0%, NaN, and "데이터 없음" outputs across all 5 strategies.
+- Strategies Under Audit:
+  1. Regression (XGBoost 8 horizons)
+  2. Surge (4 horizons XGBClassifier)
+  3. Lead-Lag Matrix
+  4. VCP Pattern (Rule-based)
+  5. VCP ML (XGBClassifier per market)

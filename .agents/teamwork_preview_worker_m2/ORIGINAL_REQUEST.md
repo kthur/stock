@@ -1,20 +1,25 @@
-## 2026-06-20T14:29:36Z
+## 2026-07-25T01:20:29Z
+You are Worker 1 (`teamwork_preview_worker`) working in `.agents/teamwork_preview_worker_m2/`.
+Your objective is to implement Requirement 1 (R1: AI Model Precision & Auto-tuning with 2D Regime + Rolling Sharpe Dynamic Ensemble Weighting).
 
-Your identity is: teamwork_preview_worker (ID will be generated)
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\
-Your task is:
-1. Open and inspect `trading_system/requirements.txt`. Add `catboost` and `optuna` if they are not present.
-2. Run `.venv/bin/pip install -r trading_system/requirements.txt` to install the new packages.
-3. Review `trading_system/src/ai/prediction_model.py` and `trading_system/src/ai/vcp_ml_predictor.py`.
-4. Integrate LightGBM (`lightgbm.LGBMRegressor` / `lightgbm.LGBMClassifier`) and CatBoost (`catboost.CatBoostRegressor` / `catboost.CatBoostClassifier`) into `OnDevicePredictionModel` and `VCPSurgePredictor` alongside the existing XGBoost models.
-   - For training: in `train`, `train_surge`, and `VCPSurgePredictor.train`, train the LightGBM and CatBoost models alongside XGBoost. Save validation metrics for all three.
-   - For prediction: combine predictions from all three models (e.g. simple average or weighted average like 0.4 * XGBoost + 0.3 * LightGBM + 0.3 * CatBoost). Make sure the prediction logic handles cases where LightGBM/CatBoost are not loaded (e.g. fallback to XGBoost).
-   - For saving and loading: save LightGBM/CatBoost models in `models/` directory using appropriate methods (`booster_.save_model()` or `save_model()`), and load them in `load_models()`.
-5. Implement feature engineering improvements:
-   - Introduce new technical/macro features (e.g. simple/exponential moving average crossovers, stochastic oscillator %K/%D, or additional normalized volume indicators).
-   - Ensure the new features are calculated in both training and inference steps and added to `ALL_FEATURES` or `VCP_FEATURES`.
-6. Add unit tests in `tests/` or edit existing tests to verify that:
-   - LightGBM and CatBoost are successfully trained, saved, loaded, and predict.
-   - Feature engineering generates correct features.
-7. Run the test suite via `.venv/bin/pytest tests/ -v` (or standard command) and verify everything passes.
-8. Document all changes and test results in `handoff.md` and send a message when done.
+MANDATORY INTEGRITY WARNING:
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+
+Tasks:
+1. Create your workspace `.agents/teamwork_preview_worker_m2/` if it doesn't exist.
+2. Create/update `src/ai/optuna_tuner.py` (`OptunaStrategyTuner`) supporting Optuna hyperparameter optimization across all 5 strategies:
+   - Strategy 1: Regression (XGBoost / LightGBM / CatBoost)
+   - Strategy 2: Surge Classifier (1d, 3d, 5d, 20d horizons)
+   - Strategy 3: Lead-Lag Matrix (leader count, lag window, correlation threshold)
+   - Strategy 4: VCP Pattern Detector (rule thresholds, contraction ratio, near-high cutoff, score weights)
+   - Strategy 5: VCP ML Predictor (market classifiers, window step size, scale_pos_weight)
+   - Use `TimeSeriesSplit(n_splits=3)` validation to prevent look-ahead bias.
+   - Output/save tuned hyperparameters to `models/tuned_params.json` and ensure model modules (`prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`) dynamically load tuned parameters.
+3. 2D Market Regime Matrix & 5-Strategy Dynamic Ensemble Weighting:
+   - Update `src/analysis/regime_detector.py` to ensure `predict_2d_regime()` outputs 6 combo states (`BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`).
+   - Update `src/ai/ensemble_scorer.py` (`EnsembleScoringEngine`) to define `REGIME_2D_WEIGHTS` for all 5 strategies (including Strategy 4 VCP Rule Detector).
+   - Implement rolling Sharpe ratio calculation for all 5 strategies and wire dynamic exponential Sharpe weight adjustment: w_i_dynamic proportional to w_i_base * exp(gamma * S_i).
+   - Update `trading_system/run_pipeline.py` and `trading_system/merge_predictions.py` to integrate 2D regime prediction, rolling Sharpe calculation, 5-strategy score aggregation, and formatting.
+4. Run unit and integration tests using `.venv/bin/python -m pytest trading_system/tests/ -v`. Fix any issues to ensure 100% test pass.
+5. Create comprehensive tests in `trading_system/tests/test_hpo_and_2d_ensemble.py` to verify HPO tuning, 2D regime matrix prediction, and dynamic Sharpe ensemble weighting.
+6. Record your work in `.agents/teamwork_preview_worker_m2/changes.md` and `handoff.md`, then send a message to parent (Recipient: "parent") with summary and file paths.

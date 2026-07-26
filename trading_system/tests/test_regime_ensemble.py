@@ -53,9 +53,10 @@ class TestRegimeEnsemble(unittest.TestCase):
         # Verify order: A should be higher than B
         self.assertGreater(scores['Stock_A'], scores['Stock_B'])
 
-        # Score_B with 8-strategy weights:
-        # reg(0.35)*(1/3) + surge(0.05)*0.90 + ll(0.10)*((0.2-0.1)/(0.8-0.1)) + vcp_rule(0.10)*0.0 + vcp_ml(0.05)*0.85
-        expected_score_b = 0.35 * (1/3) + 0.05 * 0.90 + 0.10 * ((0.2-0.1)/(0.8-0.1)) + 0.05 * 0.85
+        # Score_B with 14-strategy weights (BEAR regime) and dynamic weight renormalization:
+        # active weights: reg(0.20), surge(0.03), ll(0.03), vcp_ml(0.03) -> total active weight = 0.29
+        raw_score_b = 0.20 * (1/3) + 0.03 * 0.90 + 0.03 * ((0.2-0.1)/(0.8-0.1)) + 0.03 * 0.85
+        expected_score_b = raw_score_b / 0.29
         self.assertAlmostEqual(scores['Stock_B'], expected_score_b, places=3)
 
 

@@ -1,53 +1,48 @@
-# BRIEFING — 2026-06-20T14:40:00+09:00
+# BRIEFING — 2026-07-25T01:21:00Z
 
 ## Mission
-Integrate LightGBM and CatBoost models, add new technical/macro features, and verify their performance with unit tests.
+Implement R1: AI Model Precision & Auto-tuning with 2D Regime + Rolling Sharpe Dynamic Ensemble Weighting across all 5 strategies.
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_worker
+- Archetype: implementer/qa/specialist
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\
-- Original parent: 1209b847-91a1-4e6e-8c60-4b6cb6d403f0
-- Milestone: LightGBM/CatBoost Integration and Feature Engineering
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
+- Original parent: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
+- Milestone: m2 (R1 implementation)
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: no external HTTP/curl/wget.
-- XGBoost 2.1.4 constraints (`_estimator_type` bug, etc.).
-- stock_prices.db has cached prices, offline mode cached-only.
-- Models saved in models/ using appropriate save/load.
-- No "while I'm here" refactoring outside task scope.
+- Pure Python and valid code; NO cheating or hardcoded test returns.
+- Always run tests via `.venv/bin/python -m pytest trading_system/tests/ -v`.
+- Save tuned parameters to `models/tuned_params.json` (or `trading_system/models/tuned_params.json`).
+- Standard dynamic loading of tuned parameters across model modules.
 
 ## Current Parent
-- Conversation ID: 89511627-7d36-45e8-b6fd-2afcd63b7ff7
-- Updated: 2026-06-20T14:40:00+09:00
+- Conversation ID: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
+- Updated: 2026-07-25T01:21:00Z
 
 ## Task Summary
-- **What to build**: LightGBM/CatBoost integration for regression and surge predictions in OnDevicePredictionModel and VCPSurgePredictor, with simple/weighted average ensemble. New technical/macro features.
-- **Success criteria**: All models train/predict/save/load successfully. Ensemble predictions perform fallback. Tests pass.
-- **Interface contracts**: prediction_model.py, vcp_ml_predictor.py
-- **Code layout**: src/ai/
-
-## Key Decisions Made
-- Use simple/weighted average blending (0.4 * XGBoost + 0.3 * LightGBM + 0.3 * CatBoost) with fallback when model files are not loaded or missing.
-- Save LightGBM using `save_model` and CatBoost using `save_model` functions.
-- Engineered 4 new technical features: `ema_crossover`, `stoch_k`, `stoch_d`, and `volume_ratio`.
-
-## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md — Handoff report
+- **What to build**: 
+  1. `OptunaStrategyTuner` in `trading_system/src/ai/optuna_tuner.py` for 5 strategies using `TimeSeriesSplit(n_splits=3)`.
+  2. Load tuned parameters dynamically in `prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`.
+  3. Update `regime_detector.py` for 6 2D combo states (`BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`).
+  4. Update `ensemble_scorer.py` (`EnsembleScoringEngine`) to define `REGIME_2D_WEIGHTS` for 5 strategies and implement dynamic exponential Sharpe weighting: `w_i_dynamic proportional to w_i_base * exp(gamma * S_i)`.
+  5. Update `run_pipeline.py` and `merge_predictions.py` to integrate 2D regime prediction, rolling Sharpe calculation, and 5-strategy score aggregation.
+  6. Create `trading_system/tests/test_hpo_and_2d_ensemble.py` and ensure 100% pytest pass.
+- **Success criteria**: All tests pass, genuine HPO tuning + 2D regime + dynamic Sharpe ensemble scoring.
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/requirements.txt` — Added `catboost` and `optuna` dependencies.
-  - `trading_system/src/ai/prediction_model.py` — Integrated LGBM/CatBoost regression and classification models, validation metrics, ensemble blending, and feature engineering.
-  - `trading_system/src/ai/vcp_ml_predictor.py` — Integrated VCP ML LGBM/CatBoost classifiers, metrics, and blending.
-  - `trading_system/tests/test_ensemble_lgb_cat.py` — Created unit tests verifying features, models, VCP ML, and fallbacks.
-- **Build status**: Pass (all 358 tests passed)
+- **Files modified**: None yet
+- **Build status**: TBD
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (358 passed in pytest)
-- **Lint status**: 0 violations (no issues reported)
-- **Tests added/modified**: `trading_system/tests/test_ensemble_lgb_cat.py` added 4 new tests.
+- **Build/test result**: TBD
+- **Lint status**: TBD
+- **Tests added/modified**: `test_hpo_and_2d_ensemble.py`
 
 ## Loaded Skills
 - None
+
+## Artifact Index
+- `.agents/teamwork_preview_worker_m2/ORIGINAL_REQUEST.md` — Original User Request
+- `.agents/teamwork_preview_worker_m2/BRIEFING.md` — Agent Briefing

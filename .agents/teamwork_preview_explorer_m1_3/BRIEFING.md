@@ -1,43 +1,50 @@
-# BRIEFING — 2026-06-13T13:47:18+09:00
+# BRIEFING — 2026-07-25T01:21:40Z
 
 ## Mission
-Search the codebase (specifically `trading_system/`) to identify the backtesting framework/runners, how historical data is loaded, how returns are calculated, and how to construct a comparative backtesting script for baseline and enhanced configurations.
+Perform a thorough codebase audit for Requirement 3 (R3) - KIS Automated Trading Safety, ATR Trailing Stop, Portfolio Exposure Limits, Order Safety Checks, and Verification Pipeline baseline status.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: Teamwork explorer
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\
-- Original parent: 86764be9-6705-4e79-983c-3f1e7a601d7d
-- Milestone: Milestone 1
+- Archetype: Explorer
+- Roles: teamwork_preview_explorer
+- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3
+- Original parent: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
+- Milestone: m1_3
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Operation in CODE_ONLY network mode: no external web access, no external commands.
+- Read-only investigation — do NOT implement or modify source code files
+- Audit KIS trading execution modules, risk management, ATR trailing stop, portfolio exposure limits, order safety checks
+- Check verification harness (`pytest trading_system/tests/` and `verify_gha_artifacts.py`)
+- Produce detailed analysis report in `analysis.md` and `handoff.md`
+- Send final summary message to parent ("7743c0d7-2762-4e7d-bbff-54fcbb2e8514")
 
 ## Current Parent
-- Conversation ID: 7635347b-53a9-4ba1-9cb3-cafe65efe2dc
-- Updated: 2026-06-13T13:47:18+09:00
+- Conversation ID: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
+- Updated: 2026-07-25T01:21:40Z
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/src/analysis/backtest.py`
-  - `trading_system/src/analysis/adaptive_optimizer.py`
-  - `trading_system/src/analysis/statistics.py`
-  - `trading_system/src/data_layer/market_data_handler.py`
-  - `trading_system/src/utils/stock_list.py`
-  - `verify_adaptive.py`
+  - `trading_system/src/broker/korea_investment.py` & `real_broker.py`
+  - `trading_system/src/risk/risk_manager.py` & `position_sizing.py`
+  - `trading_system/src/ai/trading_agent.py` & `feature_engineering.py`
+  - `trading_system/src/core/order_management.py`
+  - `trading_system/scripts/verify_gha_artifacts.py`
+  - `trading_system/tests/` test suite
 - **Key findings**:
-  - Identified `BacktestEngine.run_backtest` as the primary backtesting routine.
-  - S&P 500 and KRX universes are loaded via `MarketDataHandler.fetch_historical_data` using `yfinance` with region suffixes (e.g. `.KS`, `.KQ`) for KRX symbols.
-  - Aggregated performance metrics are computed in `BacktestEngine` and `AdvancedStatistics`, covering Cumulative Return, Sharpe Ratio, MDD, Win Rate, and Profit Factor.
-  - Toggled `volatility_sizing=True` and `atr_trailing_stop_mult` to run enhanced backtests compared to baseline.
-- **Unexplored areas**: None. The investigation is complete.
+  1. `verify_gha_artifacts.py` PASSED cleanly (80 recommendations, 4 markets valid, gh-pages dashboard valid).
+  2. Pytest suite ran across 497 test cases.
+  3. KIS API Integration has OAuth token generation & order submission, but `cancel_order` and `get_order_status` are stubbed. Zero KIS unit test files exist.
+  4. ATR Trailing Stop is implemented with regime/ADX adaptive multipliers, crisis scaling, and drawdown scaling. Synchronization with OMS static stop orders is missing.
+  5. Portfolio Exposure Limits: Single-stock cap (15%/25%) and total allocation cap (85%) exist. **Sector Risk Cap is completely missing**.
+  6. Order Safety Checks: Emergency circuit breaker (5% market index drop) is implemented, but **Order Price Bounds & Fat-Finger Protection KRW caps are missing**.
+- **Unexplored areas**: None. Audit is complete.
 
 ## Key Decisions Made
-- Outlined a detailed python runner script to execute comparative backtests between baseline and enhanced configurations.
+- Conducted full codebase audit of R3 and Verification Pipeline
+- Written comprehensive findings and actionable recommendations to `analysis.md` and `handoff.md`
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\original_prompt.md — User's original prompt.
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\progress.md — Execution progress tracking.
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\analysis.md — Analysis report detailing backtesting framework, metrics, and script.
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md — Final handoff report following the 5-component structure.
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\ORIGINAL_REQUEST.md — Original request log
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\BRIEFING.md — Persistent briefing state
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\progress.md — Heartbeat progress log
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\analysis.md — Detailed analysis report
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md — 5-component handoff report

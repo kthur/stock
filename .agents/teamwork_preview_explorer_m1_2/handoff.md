@@ -1,62 +1,111 @@
-# Handoff Report - Strategy Sizing and Asset Allocation Audit
+# Requirement 2 (R2) Codebase Audit Handoff Report
 
 ## 1. Observation
-We observed the following in the codebase:
-*   **Position Sizing Entrance**: In `trading_system/trading_system.py`, order creation triggers a multi-stage position sizing pipeline:
-    *   Line 524: `quantity = await self._compute_position_size(...)`
-    *   Line 554: calls `self.risk_manager.calculate_position_sizing(...)` to get the baseline trade size.
-*   **Baseline Sizing Logic**: In `trading_system/src/risk/risk_manager.py`:
-    *   Lines 525–580 define `calculate_position_sizing(self, symbol, entry_price, stop_loss_price, win_rate, win_loss_ratio, vix)`.
-    *   Lines 542–544: Kelly Criterion: `kelly_pct = self.calculate_kelly_fraction(win_rate, win_loss_ratio)` and `max_value = self.portfolio_value * kelly_pct`.
-    *   Lines 546–547: Fixed Risk Sizing: `max_loss = self.portfolio_value * self.max_loss_per_trade_pct` and `max_value = max_loss * (entry_price / risk_per_share)`.
-    *   Lines 549–550: Volatility scaling: `max_value *= vol_scalar` where `vol_scalar` is `20.0 / vix` (clamped).
-    *   Lines 553–556: VIX Cap: `vix_cap = self.get_vix_position_cap(vix)` clamps `max_value` to a percentage of the portfolio.
-    *   Lines 563–570: Crisis Multiplier: scales down size by `crisis_mult = self.crisis_detector.get_crisis_position_multiplier()`.
-*   **Pipeline Adjustments**: In `trading_system/trading_system.py:546-737`, the quantity is adjusted through 13 sequential filters:
-    *   Conservative Ramp (line 571)
-    *   Volatility Targeting (line 583) using `get_volatility_scaler()`
-    *   Confidence-based Sizing (line 593)
-    *   Crisis Cash Target (line 602)
-    *   Macro Score Sizing (line 615)
-    *   Earnings Date Protection (line 626)
-    *   Information Ratio (line 635)
-    *   Multi-timeframe Trend Confirmation (line 645)
-    *   Concentration Check (line 661) calling `_get_correlation_adjusted_limit` (line 1682)
-    *   Market Impact Clamp (line 682)
-    *   Correlation Regime Sizing (line 698)
-    *   VIX Risk-Off Cash Clamp (line 715)
-    *   Available Cash Check (line 729)
-*   **Asset Allocator classes**:
-    *   Defined in `trading_system/src/strategy/asset_allocation.py` (lines 53–171) which supports:
-        *   `_equal_weight(self, tickers)` (line 107)
-        *   `_risk_parity(self, price_data)` (line 112) calling `calculate_risk_parity_weights(cov_matrix)` in `src/analysis/portfolio_optimizer.py`.
-        *   `_momentum(self, price_data)` (line 149)
-    *   `calculate_risk_parity_weights` (in `trading_system/src/analysis/portfolio_optimizer.py:9-113`) solves log-barrier optimization: `0.5 * w.T @ cov_matrix @ w - sum(log(w))` using L-BFGS-B, falling back to SLSQP, inverse-volatility, or equal-weighting.
-*   **Engine Decoupling**:
-    *   `HybridStrategyEngine.analyze(...)` generates directional trade signals and confidence, but does not use `AssetAllocator`.
-    *   `TradingSystem` executes per-trade sizing on entry, but does not invoke `AssetAllocator` for joint portfolio asset weighting.
-*   **Test Suit Execution**:
-    *   Ran `python -m pytest` inside `trading_system` with output:
-        `347 passed, 2 skipped, 14 warnings in 125.89s (0:02:05)`
+
+1. **`trading_system/generate_report.py` (lines 416–424)**:
+   ```python
+   def make_stock_link(symbol: str, market: str) -> str:
+       if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
+           return f'<a href="https://finance.naver.com/item/main.naver?code={symbol}" target="_blank" class="stock-link">{symbol}</a>'
+       else:
+           # SP500 등 해외 주식
+           s = symbol
+           if not s.endswith('.O') and not s.endswith('.N') and not s.endswith('.A'):
+               s = f"{s}.O"
+           return f'<a href="https://m.stock.naver.com/worldstock/stock/{s}/total" target="_blank" class="stock-link">{symbol}</a>'
+   ```
+   *Observation*: Desktop Naver link is used for KRX (`finance.naver.com`). For SP500, `.O` is forcibly appended to foreign symbols (`worldstock/stock/{s}.O/total`), causing broken URLs for NYSE/AMEX stocks (e.g. `JPM.O`, `IBM.O`, `BRK.B.O`).
+
+2. **`trading_system/generate_report.py` (lines 1012–1018)**:
+   ```python
+   ensemble = parse_ensemble(_read(result_dir / "ensemble_predictions.txt"))
+   surge_date, surge_sections = parse_surge(_read(result_dir / "surge_predictions.txt"))
+   vcp_date, vcp_rows = parse_vcp(_read(result_dir / "vcp_patterns.txt"))
+   lag_date, follower_rows, leader_rows = parse_lead_lag(_read(result_dir / "lead_lag_predictions.txt"))
+   vcp_ml_date, vcp_ml_sections = parse_vcp_ml(_read(result_dir / "vcp_ml_predictions.txt"))
+   reg_date, reg_sections = parse_regression(_read(result_dir / "pipeline_result.txt"))
+   ```
+   *Observation*: `portfolio_allocation.txt` is completely ignored during report generation.
+
+3. **`gh-pages/index.html` (Grep search for `canvas` or `Chart`)**:
+   *Observation*: `grep_search` for `canvas` and `Chart` in `gh-pages/index.html` yielded zero results. There are no interactive JavaScript or Canvas charts rendered in the dashboard.
+
+4. **`trading_system/result/portfolio_allocation.txt` (lines 1–15)**:
+   ```
+   === Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===
+   Date: 2026-07-24 23:14
+   Total Capital: 1,000,000,000 KRW/USD
+   Target Horizon: 20d
+
+   Current Market Regime Detected: SIDEWAYS (Code: 1)
+   Maximum Total Allocation Allowed: 50.0%
+
+   No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+   --------------------------------------------------------------------------------------------
+   1   007590    동방아그로               KOSPI         5.01%       0.42%     3.33%    33,333,333
+   ```
+   *Observation*: Valid HRP / Kelly portfolio position sizing results exist in `trading_system/result/portfolio_allocation.txt` but are unrendered in the web dashboard.
+
+5. **`trading_system/src/risk/position_sizing.py` (lines 107–124)**:
+   ```python
+   if use_hrp:
+       from src.analysis.portfolio_optimizer import calculate_hrp_weights
+       symbols = df_candidates['symbol'].tolist()
+       ...
+       hrp_w = calculate_hrp_weights(cov_mat)
+   ```
+   *Observation*: `PortfolioAllocator` implements Hierarchical Risk Parity (`calculate_hrp_weights`).
+
+---
 
 ## 2. Logic Chain
-1.  **Observation**: Sizing is determined trade-by-trade on entry in `TradingSystem._compute_position_size` using either the volatility-blind Kelly fraction or the ATR-based fixed risk sizing from `RiskManager.calculate_position_sizing`.
-2.  **Observation**: `AssetAllocator` is located in `src/strategy/asset_allocation.py` and provides a true Risk Parity solver.
-3.  **Observation**: Neither `HybridStrategyEngine` nor `TradingSystem` references or instantiates `AssetAllocator` in their core logic.
-4.  **Inference**: The live trading system is completely decoupled from the portfolio-level `AssetAllocator`. Sizing decisions are made locally per-asset on entry, followed by a series of sequential heuristic filters (including correlation and volatility targeting), rather than through a joint portfolio optimizer.
-5.  **Conclusion**: True Risk Parity or Volatility Sizing can be implemented by (A) scaling individual Kelly fractions by relative asset volatility, (B) integrating `AssetAllocator` for scheduled (e.g. weekly) portfolio rebalancing, or (C) scaling the risk-per-trade fraction based on the macro/volatility regime.
+
+1. **Step 1 (Observation 1 -> Hyperlink Defect)**: `make_stock_link` uses desktop Naver links for KRX and blindly appends `.O` to SP500 symbols. On mobile devices, desktop Naver links have poor usability, and foreign stock symbols on NYSE/AMEX get broken URLs. Replacing them with Naver Mobile (`m.stock.naver.com/item/main.nhn?code={symbol}`) for KRX and Yahoo Finance (`finance.yahoo.com/quote/{symbol}`) for SP500 solves both usability and URL resolution.
+2. **Step 2 (Observation 2 & 4 -> Missing HRP Tab)**: `run_pipeline.py` outputs `portfolio_allocation.txt` containing position sizes, expected return, volatility, weights, and cash reserves, but `generate_report.py` does not parse or display it. Adding a `parse_portfolio_allocation` function and a `Portfolio (HRP)` tab makes HRP recommendations visible on GitHub Pages.
+3. **Step 3 (Observation 3 & 5 -> Chart Integration)**: The dashboard currently relies solely on static text tables. Adding responsive Chart.js Donut and Bar charts into the dashboard enables interactive visualization of HRP portfolio weights, asset allocations, and regime strategy weights.
+4. **Step 4 (Regime Trend Integration)**: Current regime display is limited to a text badge (`🟡 SIDEWAYS`). Adding a `Regime & Strategy` tab with a regime parameter matrix and dynamic weight breakdown chart provides complete transparency into market regime behavior.
+
+---
 
 ## 3. Caveats
-*   We did not audit broker integration for live execution (e.g. multi-broker routing).
-*   We assumed historical price bars are always populated and available for indicators (ATR, weekly EMAs, and standard deviation).
+
+- **Network Mode**: The environment operates in `CODE_ONLY` mode. External HTTP tools (`curl`, `wget`) cannot be called. The implementation will include Chart.js via standard CDN in the HTML template while providing a pure Canvas rendering script as a fallback.
+- **Data Availability**: If `portfolio_allocation.txt` is missing or empty, `parse_portfolio_allocation` gracefully defaults to an empty `PortfolioData` object without crashing report generation.
+
+---
 
 ## 4. Conclusion
-The current trading system determines target trade sizes at entry on an individual asset basis using either Kelly Criterion (fixed-fractional) or Fixed Risk Sizing (ATR-based volatility sizing), adjusted by a 13-stage pipeline. The standalone `AssetAllocator` supports equal weight, Risk Parity, and momentum but is decoupled from live execution. We recommend implementing dynamic position sizing via Volatility-Adjusted Kelly Sizing, periodic Risk Parity rebalancing, or Regime-Adaptive Risk-Unit Sizing.
+
+Requirement 2 (R2) requires four clear enhancements:
+1. Update `make_stock_link` to use Naver Mobile for KRX and Yahoo Finance for SP500.
+2. Parse `portfolio_allocation.txt` and display HRP portfolio allocations.
+3. Integrate interactive HRP allocation donut/bar charts and regime performance trend charts using Chart.js / Canvas.
+4. Add `Portfolio (HRP)` and `Regime & Strategy` tabs to `gh-pages/index.html`.
+
+All code changes are localized to `trading_system/generate_report.py`.
+
+---
 
 ## 5. Verification Method
-*   Inspect `analysis.md` for detailed mathematical formulations and pipeline steps.
-*   To verify test suite functionality:
-    ```powershell
-    cd d:\Finance\code\stock\trading_system
-    python -m pytest
-    ```
+
+### A. Independent Verification Command
+Run the report generator script and check output:
+```bash
+# Generate report using virtual environment
+.venv/bin/python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
+
+# Verify contents
+.venv/bin/python -c "
+text = open('gh-pages/index.html', encoding='utf-8').read()
+assert 'm.stock.naver.com' in text, 'Naver mobile link check failed'
+assert 'finance.yahoo.com' in text, 'Yahoo Finance link check failed'
+assert 'Portfolio (HRP)' in text, 'HRP portfolio tab check failed'
+assert 'hrpWeightChart' in text, 'HRP chart canvas check failed'
+print('ALL VERIFICATION CHECKS PASSED!')
+"
+```
+
+### B. Invalidation Conditions
+- Missing or invalid stock URL patterns in generated HTML.
+- Unparsed `portfolio_allocation.txt` resulting in empty HRP table/chart.
+- JavaScript syntax errors preventing chart rendering in browser console.

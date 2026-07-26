@@ -1,38 +1,42 @@
 === Pipeline Inference Summary (TOP20 per Market) ===
-Date: 2026-07-14 08:27
-Total symbols analyzed: 3
+Date: 2026-07-26 20:49
+Total symbols analyzed: 2
 Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
 Full data: pipeline_result.csv / pipeline_result.jsonl
 
 ============================================================
 Horizon: 1d
 
---- KONEX TOP 20 ---
-  1. 232530 (이엠티): +0.14%
-  2. 260870 (SK시그넷): +0.00%
-  3. 140610 (엔솔바이오사이언스): -0.00%
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.02%
+
+--- S&P 500 TOP 20 ---
+  1. AAPL (Apple Inc.): +0.05%
 
 ============================================================
 Horizon: 5d
 
---- KONEX TOP 20 ---
-  1. 232530 (이엠티): +0.64%
-  2. 260870 (SK시그넷): +0.09%
-  3. 140610 (엔솔바이오사이언스): -0.01%
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.51%
+
+--- S&P 500 TOP 20 ---
+  1. AAPL (Apple Inc.): -0.77%
 
 ============================================================
 Horizon: 20d
 
---- KONEX TOP 20 ---
-  1. 232530 (이엠티): +0.71%
-  2. 140610 (엔솔바이오사이언스): +0.02%
-  3. 260870 (SK시그넷): -0.21%
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.30%
+
+--- S&P 500 TOP 20 ---
+  1. AAPL (Apple Inc.): +0.15%
 
 ============================================================
 Horizon: 60d
 
---- KONEX TOP 20 ---
-  1. 260870 (SK시그넷): -0.18%
-  2. 140610 (엔솔바이오사이언스): -0.27%
-  3. 232530 (이엠티): -0.41%
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.09%
+
+--- S&P 500 TOP 20 ---
+  1. AAPL (Apple Inc.): -0.27%
 

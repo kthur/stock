@@ -34,9 +34,10 @@ class PortfolioAllocator:
                  use_kelly: Optional[bool] = None,
                  kelly_fraction: Optional[float] = None,
                  use_hrp: bool = False,
-                 sector_map: Optional[Dict[str, str]] = None) -> pd.DataFrame:
+                 sector_map: Optional[Dict[str, str]] = None,
+                 regime: Optional[Any] = None) -> pd.DataFrame:
         """
-        Computes portfolio weights and cash allocation using Kelly Criterion, Sharpe proxy, or HRP (Hierarchical Risk Parity).
+        Computes portfolio weights and cash allocation using Regime-Adaptive Kelly Criterion, Sharpe proxy, or HRP.
 
         Args:
             predictions_df: DataFrame with columns ['symbol', target_horizon] where target_horizon contains predicted returns.
@@ -45,6 +46,8 @@ class PortfolioAllocator:
             use_kelly: Override class setting for Kelly sizing.
             kelly_fraction: Override class setting for Kelly fraction.
             use_hrp: If True, computes weights using Hierarchical Risk Parity algorithm.
+            sector_map: Mapping of symbol -> sector name.
+            regime: 2D or 1D market regime (BULL, SIDEWAYS, BEAR).
 
         Returns:
             DataFrame with columns ['symbol', 'predicted_return', 'volatility', 'raw_score', 'weight', 'allocation_amount']
@@ -55,13 +58,20 @@ class PortfolioAllocator:
 
         if use_kelly is None:
             use_kelly = self.use_kelly
+
+        # Resolve Regime-Adaptive Kelly Fraction
         if kelly_fraction is None:
-            kelly_fraction = self.kelly_fraction
+            regime_str = str(regime).upper() if regime is not None else ""
+            if "BULL" in regime_str or regime == 2:
+                kelly_fraction = 0.40
+            elif "BEAR" in regime_str or regime == 0:
+                kelly_fraction = 0.15
+            else:
+                kelly_fraction = self.kelly_fraction  # default 0.25
 
         # Target horizon check
         horizon_col: Any = self.target_horizon
         if horizon_col not in predictions_df.columns:
-            # Fallback to the closest available horizon column
             numeric_cols = [c for c in predictions_df.columns if isinstance(c, (int, float))]
             if not numeric_cols:
                 logger.error("No numeric prediction horizons found in DataFrame.")
@@ -82,7 +92,6 @@ class PortfolioAllocator:
             if df_price is None or len(df_price) < 21:
                 continue
 
-            # Calculate recent 20d volatility of daily returns
             close = df_price['Close']
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]
@@ -90,13 +99,36 @@ class PortfolioAllocator:
             daily_returns = close.pct_change().dropna()
             vol = daily_returns.tail(20).std()
 
-            # Avoid division by zero
+            # Liquidity-proportional slippage estimation based on recent 20d volume/value
+            volume_series = df_price['Volume'] if 'Volume' in df_price.columns else None
+            if isinstance(volume_series, pd.DataFrame):
+                volume_series = volume_series.iloc[:, 0]
+
+            if volume_series is not None and len(volume_series) >= 20:
+                avg_vol = float(volume_series.tail(20).mean())
+                last_price = float(close.iloc[-1])
+                daily_val = avg_vol * last_price
+                # Higher slippage for low daily value (< 5B KRW or $1M)
+                if daily_val < 500_000_000:
+                    cost = 0.0085  # 0.85% total cost
+                elif daily_val < 5_000_000_000:
+                    cost = 0.0043  # 0.43% total cost
+                else:
+                    cost = 0.0026  # 0.26% total cost
+            else:
+                cost = 0.005
+
+            net_pred_ret = pred_ret - cost
+            if net_pred_ret <= 0:
+                continue
+
             if pd.isna(vol) or vol <= 0:
-                vol = 0.05  # high default volatility if unknown
+                vol = 0.05
 
             records.append({
                 'symbol': sym,
                 'predicted_return': float(pred_ret),
+                'net_return': float(max(0.0, net_pred_ret)),
                 'volatility': float(vol)
             })
 
@@ -106,7 +138,7 @@ class PortfolioAllocator:
 
         df_candidates = pd.DataFrame(records)
 
-        # HRP (Hierarchical Risk Parity) Allocation Path
+        # HRP Allocation Path
         if use_hrp:
             from src.analysis.portfolio_optimizer import calculate_hrp_weights
             symbols = df_candidates['symbol'].tolist()
@@ -127,21 +159,19 @@ class PortfolioAllocator:
                 df_candidates['weight'] = self.max_total_allocation
         elif use_kelly:
             # Kelly formula: f* = kelly_fraction * (predicted_return / variance)
-            # Floor volatility to prevent division by zero or extreme sizing
             vol_floor = 0.005
             vols = np.where(df_candidates['volatility'] < vol_floor, vol_floor, df_candidates['volatility'])
             df_candidates['raw_score'] = kelly_fraction * (df_candidates['predicted_return'] / (vols ** 2))
         else:
-            # Sharpe-ratio proxy score (predicted return / volatility)
             df_candidates['raw_score'] = df_candidates['predicted_return'] / df_candidates['volatility']
 
-        # Select top candidates (e.g. up to 15) to maintain diversification
+
+        # Select top candidates (up to 15)
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(15).copy()
 
         if use_hrp:
-            pass # Weights already computed via HRP
+            pass
         elif use_kelly:
-            # Under Kelly, the raw_score itself is the target weight
             df_candidates['weight'] = df_candidates['raw_score']
         else:
             total_score = df_candidates['raw_score'].sum()
@@ -155,12 +185,12 @@ class PortfolioAllocator:
         # Filter out positions that are too small
         df_candidates = df_candidates[df_candidates['weight'] >= self.min_single_position].copy()
 
-        # Enforce maximum total allocation (scale down if exceeds, but do NOT scale up under Kelly)
+        # Enforce maximum total allocation
         current_sum = df_candidates['weight'].sum()
         if current_sum > self.max_total_allocation and current_sum > 0:
             df_candidates['weight'] = (df_candidates['weight'] / current_sum) * self.max_total_allocation
 
-        # Enforce sector risk cap (max total exposure per sector)
+        # Enforce sector risk cap
         effective_sector_map = sector_map or {}
         if 'sector' in df_candidates.columns or effective_sector_map:
             if 'sector' not in df_candidates.columns:
@@ -177,3 +207,4 @@ class PortfolioAllocator:
         df_candidates['allocation_amount'] = df_candidates['weight'] * total_portfolio_value
 
         return df_candidates.sort_values('weight', ascending=False).reset_index(drop=True)
+

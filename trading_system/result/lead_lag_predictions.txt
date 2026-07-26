@@ -1,51 +1,8 @@
 === Lead-Lag Surge Predictions ===
-Date: 2026-07-14 08:27
-Based on today's top 53 leader stock movements
+Date: 2026-07-26 20:49
+Based on today's top 13 leader stock movements
 Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
         (Higher = stronger historical co-movement with market leaders)
-
---- KOSPI Top 20 ---
-  1. [KOSPI] 033250 (체시스): 0.46%
-  2. [KOSPI] 448730 (삼성FN리츠): 0.00%
-  3. [KOSPI] 004310 (현대약품): 0.00%
-  4. [KOSPI] 001720 (신영증권): 0.00%
-  5. [KOSPI] 432320 (KB스타리츠): 0.00%
-  6. [KOSPI] 018500 (동원금속): 0.00%
-  7. [KOSPI] 350520 (이지스레지던스리츠): 0.00%
-  8. [KOSPI] 417310 (코람코더원리츠): 0.00%
-  9. [KOSPI] 396690 (미래에셋글로벌리츠): 0.00%
-  10. [KOSPI] 365550 (ESR켄달스퀘어리츠): 0.00%
-  11. [KOSPI] 088260 (이리츠코크렙): 0.00%
-  12. [KOSPI] 338100 (NH프라임리츠): 0.00%
-  13. [KOSPI] 357120 (코람코라이프인프라리츠): 0.00%
-  14. [KOSPI] 293940 (신한알파리츠): 0.00%
-
---- KOSDAQ Top 20 ---
-  1. [KOSDAQ] 054220 (비츠로시스): 0.57%
-  2. [KOSDAQ] 030960 (양지사): 0.53%
-  3. [KOSDAQ] 033200 (모아텍): 0.53%
-  4. [KOSDAQ] 900120 (씨엑스아이): 0.51%
-  5. [KOSDAQ] 131100 (티엔엔터테인먼트): 0.00%
-  6. [KOSDAQ] 099750 (이지케어텍): 0.00%
-  7. [KOSDAQ] 067010 (이씨에스): 0.00%
-  8. [KOSDAQ] 060310 (3S): 0.00%
-
---- SP500 Top 20 ---
-  1. [SP500] LHX (L3Harris): 0.78%
-  2. [SP500] LDOS (Leidos): 0.68%
-  3. [SP500] FAST (Fastenal): 0.62%
-  4. [SP500] DTE (DTE Energy): 0.58%
-  5. [SP500] CMS (CMS Energy): 0.55%
-  6. [SP500] SRE (Sempra): 0.55%
-  7. [SP500] HSIC (Henry Schein): 0.54%
-  8. [SP500] ES (Eversource Energy): 0.53%
-  9. [SP500] ALB (Albemarle Corporation): 0.52%
-  10. [SP500] HII (Huntington Ingalls Industries): 0.50%
-  11. [SP500] MTD (Mettler Toledo): 0.50%
-  12. [SP500] LYB (LyondellBasell): 0.48%
-  13. [SP500] IQV (IQVIA): 0.47%
-  14. [SP500] LNT (Alliant Energy): 0.44%
-  15. [SP500] AAPL (Apple Inc.): 0.44%
 
 --- Leaders with highest today return ---
 (Outliers >±30% excluded as potential data errors)

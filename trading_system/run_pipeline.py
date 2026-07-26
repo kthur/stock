@@ -1740,11 +1740,61 @@ def execute_prediction_pipeline():
         logger.warning(f"RIM valuation score calculation skipped: {_rim_e}")
         rim_df = pd.DataFrame()
 
+    # 10g. Strategy 10: Event-Driven Momentum Engine
+    try:
+        from src.core.event_driven import EventDrivenEngine
+        logger.info("Computing Strategy 10: Event-Driven Momentum Scores...")
+        event_engine = EventDrivenEngine(dart_api_key=getattr(cfg, 'dart_api_key', ''))
+        event_df = event_engine.compute_event_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+    except Exception as _ev_e:
+        logger.warning(f"Event-driven score calculation skipped: {_ev_e}")
+        event_df = pd.DataFrame()
+
+    # 10h. Strategy 11: MQ Factor Engine
+    try:
+        from src.core.mq_factor import MQFactorEngine
+        logger.info("Computing Strategy 11: Momentum Quality (MQ) Factor Scores...")
+        mq_engine = MQFactorEngine()
+        mq_df = mq_engine.compute_mq_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
+    except Exception as _mq_e:
+        logger.warning(f"MQ factor score calculation skipped: {_mq_e}")
+        mq_df = pd.DataFrame()
+
+    # 10i. Strategy 12: Options IV Skew Engine
+    try:
+        from src.core.iv_skew import IVSkewEngine
+        logger.info("Computing Strategy 12: Options IV Skew Scores...")
+        iv_skew_engine = IVSkewEngine()
+        iv_skew_df = iv_skew_engine.compute_iv_skew_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+    except Exception as _iv_e:
+        logger.warning(f"IV skew score calculation skipped: {_iv_e}")
+        iv_skew_df = pd.DataFrame()
+
+    # 10j. Strategy 13: Order Flow Imbalance Engine
+    try:
+        from src.core.order_flow import OrderFlowEngine
+        logger.info("Computing Strategy 13: Order Flow Imbalance Scores...")
+        of_engine = OrderFlowEngine()
+        order_flow_df = of_engine.compute_order_flow_scores(prices_dict=infer_data_dict)
+    except Exception as _of_e:
+        logger.warning(f"Order flow score calculation skipped: {_of_e}")
+        order_flow_df = pd.DataFrame()
+
+    # 10k. Strategy 14: Short-Term Reversal Engine
+    try:
+        from src.core.short_term_reversal import ShortTermReversalEngine
+        logger.info("Computing Strategy 14: Short-Term Reversal Scores...")
+        reversal_engine = ShortTermReversalEngine()
+        reversal_df = reversal_engine.compute_reversal_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
+    except Exception as _rev_e:
+        logger.warning(f"Short-term reversal score calculation skipped: {_rev_e}")
+        reversal_df = pd.DataFrame()
+
     # Calculate rolling Sharpes for all strategies if strategy_returns exists
     _strat_ret = locals().get('strategy_returns')
     rolling_sharpes = scorer.compute_rolling_sharpe(_strat_ret) if isinstance(_strat_ret, dict) else None
 
-    # default target horizon is 20d (9-Strategy Ensemble)
+    # default target horizon is 20d (14-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -1755,6 +1805,11 @@ def execute_prediction_pipeline():
         stat_arb_df=stat_arb_df,
         sector_df=sector_df,
         rim_df=rim_df,
+        event_df=event_df,
+        mq_df=mq_df,
+        iv_skew_df=iv_skew_df,
+        order_flow_df=order_flow_df,
+        reversal_df=reversal_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
         sentiment_blacklist=_blacklist_map,

@@ -1,173 +1,197 @@
-# Risk Management System Audit Report
+# Codebase Audit & Technical Design Report: Requirement 1 (R1)
+**Optuna HPO for 5 Strategies & 2D Regime Rolling Sharpe Dynamic Ensemble Weighting**
 
-## Executive Summary
-This audit provides a comprehensive analysis of the risk management subsystem in `trading_system/src/risk/risk_manager.py`, how stops are currently implemented, and how these risk rules interface with `trading_system.py`. While the subsystem includes robust features like Kelly sizing, crisis detection, and volatility scaling, a key discrepancy exists: `trading_system.py` duplicates and bypasses the `RiskManager`'s built-in stop methods, calculating its own adaptive stops and trailing stops locally.
-
----
-
-## 1. Current Methods for Stops
-
-The trading system employs three types of stops: **Stop Loss (SL)**, **Take Profit (TP)**, and **Trailing Stop (TS)**. These stops use both static percentages and dynamic ATR-based calculations depending on the context:
-
-### A. Static vs. Dynamic Stops
-1. **Static Percentage Stops**: 
-   - Default stop loss and take profit are calculated as static percentages of the entry price:
-     - $\text{Stop Loss Price} = \text{Entry Price} \times (1 - \text{default\_stop\_loss\_pct})$
-     - $\text{Take Profit Price} = \text{Entry Price} \times (1 + \text{default\_take\_profit\_pct})$
-   - These are checked by `RiskManager.check_stop_loss()` and `RiskManager.check_take_profit()`, and also serve as fallback values in `trading_system.py` when ATR data is unavailable.
-2. **Dynamic ATR-Based Stops**:
-   - Dynamic stop distances are computed as a multiple of the Average True Range (ATR):
-     - $\text{Stop Distance} = \text{ATR} \times \text{atr\_multiplier\_stop}$
-     - $\text{Target Distance} = \text{ATR} \times \text{atr\_multiplier\_target}$
-   - These stops are implemented in `RiskManager.calculate_atr_based_stop()` and `RiskManager.calculate_atr_based_target()`, which restrict the stop to be at most twice the default static percentages to prevent extremely wide stops, and tighten them during market crises.
-
-### B. Stop Fields on `RiskManager`
-The following properties configure stops on the `RiskManager` instance:
-- `default_stop_loss_pct` (float, default: `0.05`): Default static stop loss percentage (5%).
-- `default_take_profit_pct` (float, default: `0.15`): Default static take profit percentage (15%).
-- `atr_multiplier_stop` (float, default: `2.0`): Multiplier for ATR-based stop loss distance.
-- `atr_multiplier_target` (float, default: `3.0`): Multiplier for ATR-based take profit distance.
-- `REGIME_ATR_MULTIPLIERS` (class dict): Regime-adaptive stop, target, and trail parameters:
-  - `"strong_bull"`: `{"stop": 3.0, "target": 5.0, "trail": 0.08}`
-  - `"weak_bull"`: `{"stop": 2.5, "target": 4.0, "trail": 0.06}`
-  - `"weak_bear"`: `{"stop": 1.5, "target": 2.5, "trail": 0.04}`
-  - `"strong_bear"`: `{"stop": 1.0, "target": 2.0, "trail": 0.03}`
+**Author**: Explorer 1 (`teamwork_preview_explorer`)  
+**Workspace**: `.agents/teamwork_preview_explorer_m1_1/`  
+**Date**: 2026-07-25  
 
 ---
 
-## 2. Risk Management Component Documentation
+## 1. Executive Summary
 
-The risk management subsystem is composed of several key classes and configurations in `trading_system/src/risk/risk_manager.py`:
+This codebase audit investigates the current state of hyperparameter tuning, market regime detection, and multi-strategy ensemble weighting across the trading system (`d:\Finance\code\stock`). 
 
-### A. Classes and Dataclasses
-1. **`CrisisLevel` (Enum)**:
-   - Defines the system-wide crisis state: `NONE`, `WATCH`, `ACTIVE`, `SEVERE`.
-2. **`RiskLevel` (Enum)**:
-   - Defines the overall portfolio risk: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
-3. **`RiskMetrics` (dataclass)**:
-   - Snapshot of current risk metrics. Fields include: `current_value`, `max_loss_limit`, `max_position_size`, `stop_loss_pct`, `take_profit_pct`, `current_drawdown`, `max_drawdown_allowed`, `portfolio_volatility`, `risk_level`, and `timestamp`.
-4. **`CrisisDetector`**:
-   - Detects systemic market shocks by combining VIX, portfolio drawdown, volume spikes, and macro economic indicators (USD/KRW, Crude Oil, TNX, DXY).
-   - *Key methods*:
-     - `evaluate()`: Computes a composite crisis score (0.0 to 1.0) and transitions `crisis_level`.
-     - `get_crisis_cash_target()`: Dictates cash floor percentages (NONE: 10%, WATCH: 30%, ACTIVE: 60%, SEVERE: 85%).
-     - `get_crisis_position_multiplier()`: Reduces new position sizes (NONE: 1.0x, WATCH: 0.70x, ACTIVE: 0.40x, SEVERE: 0.15x).
-     - `get_crisis_stop_multiplier()`: Tightens stops during crisis (NONE: 1.0x, WATCH: 0.80x, ACTIVE: 0.60x, SEVERE: 0.40x).
-     - `should_block_new_buys()`, `should_liquidate()`: Policy controls for SEVERE crisis levels.
-5. **`RiskManager`**:
-   - The central coordinator for risk policy, position sizing, drawdown tracking, and stop-loss calculations.
-   - *Key methods*:
-     - `calculate_atr_based_stop(entry_price, atr)` / `calculate_atr_based_target(entry_price, atr)`: Incorporate default caps and crisis-based tightening.
-     - `get_adaptive_atr_multipliers(regime, adx)`: Resolves regime-specific stop, target, and trailing multipliers, scaled by ADX strength.
-     - `calculate_position_sizing(...)`: Returns the optimized order quantity, applying Kelly Criterion, volatility scaling, VIX caps, and crisis limits.
-     - `calculate_drawdown()`: Calculates current drawdown from the peak value.
-     - `calculate_risk_level(positions)`: Determines overall risk based on drawdown, position concentration, correlation, and crisis level.
-     - `calculate_var(returns)` / `calculate_cvar(returns)`: Computes Value-at-Risk and Conditional Value-at-Risk.
+Requirement 1 (R1) requires:
+1. **Optuna Hyperparameter Optimization (HPO)** across all 5 active trading strategies:
+   - Strategy 1: XGBoost/LightGBM/CatBoost Regression
+   - Strategy 2: Surge Classifier (20%+ return target)
+   - Strategy 3: Index & Sector Lead-Lag Matrix
+   - Strategy 4: VCP (Volatility Contraction Pattern) Detector (Rule-based)
+   - Strategy 5: VCP ML Predictor (Market-specific XGB/LGB/Cat classifiers)
+2. **2D Market Regime Detection Matrix** (Direction $\times$ Volatility = 6 states) combined with **Rolling Sharpe Ratio Dynamic Ensemble Weighting**.
 
-### B. Configuration File (`risk_config.json`)
-Located at `trading_system/risk_config.json`. Persists core parameters:
-- `default_stop_loss_pct` (e.g. `0.05`)
-- `max_portfolio_loss_pct` (e.g. `0.10`)
-- `max_position_size_pct` (e.g. `0.20`)
-- `active_strategy` (e.g. `"HYBRID"`)
+### Summary of Audit Findings
+- **Optuna Status**: `optuna` (v4.9.0) is installed. Standalone scripts `trading_system/scripts/tune_models.py` and `trading_system/scripts/tune_hyperparams.py` tune regressors and surge classifiers (Strategies 1 & 2) and output `models/tuned_params.json`. However, **Strategies 3 (Lead-Lag), 4 (VCP Rule), and 5 (VCP ML)** lack dedicated Optuna search spaces or parameter integration.
+- **Regime Detection Status**: `MarketRegimeDetector` (`src/analysis/regime_detector.py`) uses GMM on S&P 500 rolling returns and volatility. A 2D helper `predict_2d_regime()` exists returning 6 combo states (e.g., `BULL_LOW_VOL`, `BEAR_HIGH_VOL`), but `run_pipeline.py` currently only utilizes 1D regime integers (0=BEAR, 1=SIDEWAYS, 2=BULL).
+- **Ensemble Weighting Status**: `EnsembleScoringEngine` (`src/ai/ensemble_scorer.py`) defines 1D `REGIME_WEIGHTS` covering only **4 strategies** (`regression`, `surge`, `lead_lag`, `vcp_ml`). **Strategy 4 (VCP Rule Detector)** is completely excluded from ensemble scoring. Furthermore, `compute_dynamic_weights_from_sharpe()` is defined in `ensemble_scorer.py`, but rolling Sharpe calculation is not wired in `run_pipeline.py`.
 
 ---
 
-## 3. Integration Discrepancies and Gap Analysis
+## 2. Codebase Strategy Mapping (The 5 Strategies)
 
-A detailed inspection of `trading_system.py` reveals two critical gaps:
-
-1. **Stop Calculation Duplication**:
-   - `trading_system.py` does not call `RiskManager.calculate_atr_based_stop()` or `RiskManager.calculate_atr_based_target()`.
-   - Instead, it directly retrieves adaptive multipliers and computes stops locally:
-     ```python
-     stop_loss_price = price - atr * adaptive["stop"]
-     take_profit_price = price + atr * adaptive["target"]
-     ```
-   - This bypasses the crisis-tightening logic (`crisis_detector.get_crisis_stop_multiplier()`) and boundary safety caps implemented in `RiskManager`.
-2. **Trailing Stop Static Threshold**:
-   - While `trading_system.py._update_trailing_stops` dynamically adjusts order prices using `_get_trailing_pct(symbol)` and `adaptive["stop"]`, the real-time check in `_check_trailing_stop` uses a hardcoded `2.0 * atr` drawdown threshold:
-     ```python
-     drawdown = pos.highest_price - price
-     if drawdown >= 2.0 * atr:
-         return TradeSignal.SELL
-     ```
-   - This prevents the trailing stop from adapting to the current market regime or ADX strength.
+| Strategy | File Location | Key Class / Function | Inputs | Current Parameters & Hardcoded Values |
+|---|---|---|---|---|
+| **Strategy 1: Regression** | `src/ai/prediction_model.py` | `OnDevicePredictionModel.models` | 23 ALL_FEATURES + Global Indicators | `n_estimators=500`, `max_depth=5`, `learning_rate=0.05`, `subsample=0.8`, `colsample_bytree=0.8`, `reg_lambda=1.0`. Loaded from `tuned_params.json['xgb'/'lgb'/'cat']`. |
+| **Strategy 2: Surge Classifier** | `src/ai/prediction_model.py` | `OnDevicePredictionModel.surge_models` | 23 ALL_FEATURES + Global Indicators | Target $\ge 20\%$ return in 1, 3, 5, 20d. `max_depth=4`, `min_child_weight=10`, `max_delta_step=5`. Loaded from `tuned_params.json['surge_*']`. |
+| **Strategy 3: Lead-Lag Matrix** | `src/ai/prediction_model.py` | `OnDevicePredictionModel.train_lead_lag()` | TOP 50 Market Cap Leaders daily returns | Leader count = 50 (hardcoded), lag = 1 (hardcoded), correlation threshold > 0.0 (hardcoded). |
+| **Strategy 4: VCP Pattern Detector** | `src/ai/vcp_detector.py` | `detect_vcp()` | Raw OHLCV DataFrame | Windows `[-5:]`, `[-15:-5]`, `[-35:-15]`, `[-60:-35]`. Contraction multiplier `1.05`, volume decline `< 0.85*vol_60d`, near high `> 0.6`, score weights `(25, 15, 15, 15, 15, 15)`, tightness thresholds `<4` (+20), `<7` (+12), `<10` (+6). **All hardcoded**. |
+| **Strategy 5: VCP ML Predictor** | `src/ai/vcp_ml_predictor.py` | `VCPSurgePredictor` | 11 VCP Features + ALL_FEATURES | 4 markets (KOSPI, KOSDAQ, KONEX, SP500). Uses `tuned_params.json` for base kwargs, but lacks dedicated VCP ML feature/window step Optuna study. |
 
 ---
 
-## 4. Recommendations for Dynamic/ATR-Based Stops
+## 3. Assessment of Hyperparameter Tuning (Optuna)
 
-To resolve the duplicate logic and implement a fully dynamic, regime-adaptive risk management flow, we recommend the following enhancements:
+### Installed Infrastructure
+- **Environment**: Optuna version `4.9.0` is verified and installed in `.venv`.
+- **Existing Scripts**:
+  1. `trading_system/scripts/tune_models.py`: Chronological split (80% train, 20% validation). Optimizes XGBoost, LightGBM, CatBoost regressors (MSE minimization) and classifiers (AUC maximization). Saves results to `models/tuned_params.json`.
+  2. `trading_system/scripts/tune_hyperparams.py`: `TimeSeriesSplit(3)` cross-validation script for XGBoost regressor and surge classifier.
+  3. `src/analysis/ml_engine.py`: Contains `MLEngine.tune_hyperparameters()` for individual stock model tuning.
 
-### Recommendation 1: Delegate Trailing Stop Evaluation to `RiskManager`
-Unify the trailing stop evaluation by defining a `check_trailing_stop_signal` method in `RiskManager`. This method should calculate the trailing stop boundary dynamically based on the current regime and ADX.
+### Identified HPO Gaps
+1. **Missing Strategy 3 (Lead-Lag) HPO**: No script or method tunes the number of market leaders (10–100), lag window (1–5 days), rolling correlation window (20–120 days), or minimum correlation threshold (0.1–0.5).
+2. **Missing Strategy 4 (VCP Pattern Detector) HPO**: `vcp_detector.py` uses fixed heuristics. Optuna should tune window step sizes, volume contraction ratio, near-high threshold, and score weights to maximize out-of-sample breakout return Sharpe ratio.
+3. **Missing Strategy 5 (VCP ML) Dedicated HPO**: VCP ML uses 11 VCP-specific features and windowed sliding historical samples (`_windowed_vcp_features`). Its window step size (default 20), positive class weighting (`scale_pos_weight`), and feature selection lack Optuna tuning.
+4. **Validation Methodology**: `tune_models.py` uses a simple static 80/20 chronological split, whereas financial time-series require `TimeSeriesSplit` with purged validation margins to avoid look-ahead bias and autocorrelation leakage.
+5. **Pipeline Integration**: HPO runs only manually via `tune_models.py`. There is no automated module to trigger HPO periodically or load structured configuration.
 
-**Proposed Implementation in `RiskManager`**:
-```python
-def check_trailing_stop_signal(
-    self, 
-    symbol: str, 
-    current_price: float, 
-    highest_price: float, 
-    atr: float, 
-    regime: str = "weak_bull", 
-    adx: float = 20.0
-) -> bool:
-    """Checks if trailing stop is triggered using regime-adaptive ATR multipliers."""
-    if current_price <= 0.0:
-        return True  # Emergency exit for zero/invalid price
-    if atr <= 0.0:
-        return False # Gracefully ignore if ATR data is missing
-        
-    # Retrieve adaptive multipliers from regime & ADX strength
-    adaptive = self.get_adaptive_atr_multipliers(regime, adx)
-    stop_distance = atr * adaptive["stop"]
-    
-    # Apply crisis tightening if market is in WATCH/ACTIVE/SEVERE crisis
-    crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-    if crisis_mult < 1.0:
-        stop_distance *= crisis_mult
-        
-    drawdown = highest_price - current_price
-    return drawdown >= stop_distance
+---
+
+## 4. Assessment of Regime Identification & Ensemble Weighting
+
+### 1D vs 2D Regime Detection
+- `MarketRegimeDetector` (`src/analysis/regime_detector.py`) uses a 3-component Gaussian Mixture Model (GMM) trained on 20-day rolling mean return and rolling volatility of S&P 500.
+- `predict_regime()` returns 1D integer codes: `0` (BEAR), `1` (SIDEWAYS), `2` (BULL).
+- `predict_2d_regime()` produces a 2D matrix ($3 \times 2 = 6$ states):
+  - Direction: `BEAR`, `SIDEWAYS`, `BULL`
+  - Volatility: `LOW_VOL`, `HIGH_VOL`
+  - States: `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`.
+- **Gap**: `run_pipeline.py` currently only invokes `predict_regime()` (1D) and passes 1D integer codes to `EnsembleScoringEngine`.
+
+### Ensemble Strategy Weighting & Rolling Sharpe
+- `EnsembleScoringEngine` (`src/ai/ensemble_scorer.py`) defines `REGIME_WEIGHTS` for 1D regimes:
+  - `BEAR`: Regression (70%), Lead-Lag (20%), VCP ML (10%), Surge (0%)
+  - `SIDEWAYS`: Regression (35%), Lead-Lag (35%), Surge (15%), VCP ML (15%)
+  - `BULL`: Surge (40%), VCP ML (40%), Regression (15%), Lead-Lag (5%)
+- **Gap 1 (Excluded Strategy)**: **Strategy 4 (VCP Rule Pattern Detector)** is completely missing from `REGIME_WEIGHTS` and `calculate_ensemble_score()`.
+- **Gap 2 (2D Weights Missing)**: No `REGIME_2D_WEIGHTS` table exists for the 6 2D matrix states (e.g. low-vol bull vs high-vol bull requires different weight allocations).
+- **Gap 3 (Unlinked Rolling Sharpe)**: `compute_dynamic_weights_from_sharpe(rolling_sharpes, regime)` is implemented in `ensemble_scorer.py`, but `run_pipeline.py` does not compute strategy rolling Sharpes during out-of-sample execution nor pass them to `calculate_ensemble_score()`.
+
+---
+
+## 5. Technical Design & Architecture Plan for R1
+
+### Component A: Unified Optuna HPO Framework (`src/ai/optuna_tuner.py`)
+Create a consolidated HPO module `OptunaStrategyTuner` supporting all 5 strategies using `TimeSeriesSplit(n_splits=3)`:
+
+```
+                  ┌──────────────────────────────────────────┐
+                  │       OptunaStrategyTuner (n_trials=20)  │
+                  └────────────────────┬─────────────────────┘
+                                       │
+      ┌──────────────┬─────────────────┼─────────────────┬──────────────┐
+      ▼              ▼                 ▼                 ▼              ▼
+ Strategy 1     Strategy 2        Strategy 3        Strategy 4     Strategy 5
+ Regression       Surge            Lead-Lag         VCP Rule        VCP ML
+(MSE Target)   (AUC Target)      (Sharpe Target)  (Sharpe Target) (AUC Target)
+      │              │                 │                 │              │
+      └──────────────┴─────────────────┼─────────────────┴──────────────┘
+                                       ▼
+                       `models/tuned_params.json` &
+                      `config/strategy_params.json`
 ```
 
-### Recommendation 2: Refactor `_check_trailing_stop` in `trading_system.py`
-Modify `trading_system.py` to delegate the evaluation to the `RiskManager`, ensuring consistency between the static stops and trailing stops:
+#### Optuna Search Spaces & Objective Metrics:
+
+1. **Strategy 1 (Regression)**:
+   - Parameters: `n_estimators` [50–300], `max_depth` [3–8], `learning_rate` [0.01–0.15], `subsample` [0.6–1.0], `colsample_bytree` [0.6–1.0], `reg_lambda` [0.1–10.0], `reg_alpha` [0.0–5.0].
+   - Objective: Minimize Validation RMSE across TimeSeriesSplit.
+
+2. **Strategy 2 (Surge Classifier)**:
+   - Parameters: `n_estimators` [50–300], `max_depth` [3–8], `learning_rate` [0.01–0.15], `subsample` [0.6–1.0], `colsample_bytree` [0.6–1.0], `min_child_weight` [1–20], `scale_pos_weight` [1–50].
+   - Objective: Maximize Validation ROC-AUC across TimeSeriesSplit.
+
+3. **Strategy 3 (Lead-Lag Matrix)**:
+   - Parameters: `n_leaders` [10–100], `corr_threshold` [0.10–0.50], `lag_days` [1–5], `decay_factor` [0.80–1.00].
+   - Objective: Maximize out-of-sample forward 5d/20d follower return correlation / Sharpe.
+
+4. **Strategy 4 (VCP Pattern Detector Rule)**:
+   - Parameters: `vol_declining_ratio` [0.70–0.95], `near_high_threshold` [0.40–0.80], `tightness_cutoff` [3.0–8.0], `score_threshold` [40.0–70.0], weights `w_decreasing`, `w_vol`, `w_ma50`, `w_ma200`, `w_near_high`.
+   - Objective: Maximize out-of-sample 20d breakout return Sharpe ratio.
+
+5. **Strategy 5 (VCP ML Predictor)**:
+   - Parameters: `n_estimators` [50–300], `max_depth` [3–8], `learning_rate` [0.01–0.15], `subsample` [0.6–1.0], `colsample_bytree` [0.6–1.0], `min_child_samples` [5–30], `scale_pos_weight` [1–50], `vcp_step_size` [10–30].
+   - Objective: Maximize Validation ROC-AUC across TimeSeriesSplit.
+
+---
+
+### Component B: 2D Market Regime Matrix & 5-Strategy Dynamic Ensemble Weighting
+
+#### 1. 2D Regime Matrix Configuration (6 Combo States $\times$ 5 Strategies)
+
+Update `EnsembleScoringEngine` in `src/ai/ensemble_scorer.py`:
+
 ```python
-def _check_trailing_stop(self, symbol: str, price: float, atr: float = 2.0) -> Optional[TradeSignal]:
-    if symbol not in self.portfolio.positions:
-        return None
-    
-    pos = self.portfolio.positions[symbol]
-    if not hasattr(pos, "highest_price") or pos.highest_price is None or pos.highest_price == 0.0:
-        pos.highest_price = getattr(pos, "avg_price", price)
-        
-    if price > pos.highest_price:
-        pos.highest_price = price
-        
-    # Delegate trailing stop check to RiskManager
-    triggered = self.risk_manager.check_trailing_stop_signal(
-        symbol=symbol,
-        current_price=price,
-        highest_price=pos.highest_price,
-        atr=atr,
-        regime=self._current_regime,
-        adx=self._current_adx
-    )
-    
-    if triggered:
-        return TradeSignal.SELL
-        
-    return None
+REGIME_2D_WEIGHTS = {
+    # BEAR Regimes (Defensive capital protection)
+    'BEAR_LOW_VOL': {
+        'regression': 0.55, 'surge': 0.00, 'lead_lag': 0.25, 'vcp_rule': 0.10, 'vcp_ml': 0.10
+    },
+    'BEAR_HIGH_VOL': {
+        'regression': 0.65, 'surge': 0.00, 'lead_lag': 0.25, 'vcp_rule': 0.05, 'vcp_ml': 0.05
+    },
+    # SIDEWAYS Regimes (Sector rotation & pattern setups)
+    'SIDEWAYS_LOW_VOL': {
+        'regression': 0.25, 'surge': 0.10, 'lead_lag': 0.35, 'vcp_rule': 0.15, 'vcp_ml': 0.15
+    },
+    'SIDEWAYS_HIGH_VOL': {
+        'regression': 0.40, 'surge': 0.10, 'lead_lag': 0.30, 'vcp_rule': 0.10, 'vcp_ml': 0.10
+    },
+    # BULL Regimes (Aggressive breakout momentum)
+    'BULL_LOW_VOL': {
+        'regression': 0.10, 'surge': 0.35, 'lead_lag': 0.05, 'vcp_rule': 0.20, 'vcp_ml': 0.30
+    },
+    'BULL_HIGH_VOL': {
+        'regression': 0.20, 'surge': 0.30, 'lead_lag': 0.10, 'vcp_rule': 0.15, 'vcp_ml': 0.25
+    },
+}
 ```
 
-### Recommendation 3: Implement Drawdown-Based Dynamic Stop Tightening
-In corporate risk environments, individual stops should tighten as overall portfolio drawdown deepens to protect the capital floor.
-We can scale the ATR multiplier based on current drawdown:
-$$Multiplier_{adjusted} = Multiplier_{regime} \times \left(1.0 - \frac{Current Drawdown}{Max Drawdown Allowed}\right)$$
-For example:
-- If portfolio drawdown is 0%, stops remain at 100% of their regime-adaptive width.
-- If portfolio drawdown is 10% (out of 20% max allowed), stops are tightened by 50% to restrict further risk.
-- This creates an automated defensive feedback loop.
+#### 2. Rolling Sharpe Dynamic Weight Adjustment Formula
+
+Given base weights $w_i^{\text{base}}$ for a 2D regime state and rolling out-of-sample Sharpe ratios $S_i$ over a 20d/60d window for each strategy $i \in \{1 \dots 5\}$:
+
+$$w_i^{\text{dynamic}} = \frac{w_i^{\text{base}} \cdot \exp(\gamma \cdot S_i)}{\sum_{j=1}^{5} w_j^{\text{base}} \cdot \exp(\gamma \cdot S_j)}$$
+
+Where $\gamma = 0.5$ (scaling factor preventing extreme single-strategy domination).
+
+#### 3. 5-Strategy Unified Score Calculation
+
+$$\text{Ensemble Score} = w_{\text{reg}} S_{\text{reg}} + w_{\text{surge}} S_{\text{surge}} + w_{\text{ll}} S_{\text{ll}} + w_{\text{vcp\_rule}} S_{\text{vcp\_rule}} + w_{\text{vcp\_ml}} S_{\text{vcp\_ml}}$$
+
+Where each strategy score $S_i \in [0, 1]$ is normalized (rank or min-max normalization).
+
+---
+
+### Component C: Pipeline Integration Flow (`run_pipeline.py`)
+
+1. **Step 7 (Training)**: Invoke `OptunaStrategyTuner.run_full_hpo()` to generate `models/tuned_params.json` before fitting models.
+2. **Step 10 (Regime Detection)**: Call `regime_detector.predict_2d_regime(indicator_infer)` to obtain 2D combo label (e.g. `BULL_LOW_VOL`).
+3. **Step 11 (Ensemble Scoring)**: Pass all 5 strategy outputs (`res_df`, `surge_df`, `lead_lag_df`, `vcp_patterns_df`, `vcp_ml_df`), 2D regime combo label, and rolling strategy Sharpe ratios into `scorer.calculate_ensemble_score()`.
+4. **Step 12 (Report & Persistence)**: Write updated 5-strategy weights and 2D regime info to `ensemble_predictions.txt` and SQLite DB.
+
+---
+
+## 6. Implementation Roadmap & File Impact Summary
+
+| Task | Target File | Description of Action |
+|---|---|---|
+| **Optuna Tuner** | `src/ai/optuna_tuner.py` *(New)* | Implement `OptunaStrategyTuner` with `TimeSeriesSplit(3)` for 5 strategies. |
+| **Strategy HPO Hooks** | `src/ai/prediction_model.py`, `src/ai/vcp_detector.py`, `src/ai/vcp_ml_predictor.py` | Expose tuneable parameter setters and load tuned JSON configs. |
+| **2D Regime Expansion** | `src/analysis/regime_detector.py` | Standardize 2D matrix classification API (`predict_2d_regime()`). |
+| **5-Strategy 2D Ensemble** | `src/ai/ensemble_scorer.py` | Add `REGIME_2D_WEIGHTS` (6 states $\times$ 5 strategies), integrate Strategy 4 (`vcp_rule`), and wire rolling Sharpe formula. |
+| **Pipeline Integration** | `trading_system/run_pipeline.py` | Wire 2D regime prediction, rolling Sharpe calculation, 5-strategy scoring, and output generation. |
+| **Unit & Integration Tests** | `trading_system/tests/test_hpo_and_2d_ensemble.py` *(New)* | Verify 5-strategy Optuna execution, 2D regime mapping, and Sharpe weight adjustment. |
+
+---
+*Report completed by Explorer 1 (`teamwork_preview_explorer`). Ready for implementation handoff.*

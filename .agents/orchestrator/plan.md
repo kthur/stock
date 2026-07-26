@@ -1,35 +1,49 @@
-# Project Plan: Stock Trading and Prediction System Audit
+# Project Plan: Stock Trading System Autonomous Enhancement
 
-## Mission
-Perform a comprehensive professional audit of the entire stock trading and prediction system codebase at `d:/Finance/code/stock` and generate a detailed report at `reports/improvement_report.md` in Korean (at least 4,000 characters).
+## Architecture & Goals
+Target: 3,379 symbols (SP500, KOSPI, KOSDAQ, KONEX) across 5 strategies:
+1. Regression
+2. Surge Classifier
+3. Lead-Lag Matrix
+4. VCP Rule Pattern Detector
+5. VCP ML Predictor
 
----
+Enhancement Scope:
+- **R1: AI Model Precision & Auto-tuning**
+  - Optuna HPO framework integration for all 5 strategies.
+  - 2D regime + rolling Sharpe dynamic ensemble weighting.
+- **R2: GitHub Pages Dashboard & HRP UX Enhancement**
+  - HRP (Hierarchical Risk Parity) asset allocation weight visualizer in `gh-pages/index.html`.
+  - Regime performance trends chart.
+  - Mobile-friendly hyperlinks to Naver Finance (KRX symbols) and Yahoo Finance / Finviz (SP500 symbols).
+- **R3: KIS Automated Trading Safety & ATR Trailing Stop**
+  - ATR (Average True Range) dynamic trailing stop mechanism for order execution.
+  - Portfolio exposure limit controls (max allocation %, sector cap, risk budget).
+  - Pre-order validation and execution safety guards.
 
-## Detailed Milestone Plans
+## Milestones & Execution Plan
 
-### Milestone 1: Audit Initialization & Setup
-- **Objective**: Initialize tracking files (`plan.md`, `progress.md`, `context.md`, `BRIEFING.md`) and launch the heartbeat cron.
-- **Verification**: Ensure all status files are updated and the heartbeat timer is running.
+### Milestone 1: Exploration & Gap Analysis
+- **Goal**: Audit existing codebase, identify missing pieces for R1, R2, R3, run baseline tests (`pytest trading_system/tests/ -v` and `verify_gha_artifacts.py`).
+- **Agents**: 3 Explorers (teamwork_preview_explorer).
+- **Deliverables**: Detailed gap reports and architecture blueprints for M2, M3, M4.
 
-### Milestone 2: Exploration & Codebase Inspection
-- **Objective**: Inspect the code in `src/`, `trading_system/`, and `.github/workflows/`. Identify at least 3 concrete improvement points for each of the 5 areas (ML model quality, pipeline performance, CI/CD & infrastructure, code quality, operations/monitoring) with exact file names and line ranges.
-- **Verification**: Spawn `teamwork_preview_explorer` to inspect code and generate a detailed audit analysis artifact.
+### Milestone 2: R1 - AI Model Precision & Dynamic Ensemble
+- **Goal**: Implement Optuna HPO tuning for 5 strategies and 2D regime + rolling Sharpe dynamic ensemble weighting.
+- **Agents**: Worker -> Reviewer -> Challenger.
+- **Deliverables**: Optuna integration scripts/modules, regime Sharpe ensemble logic, updated model training/inference scripts.
 
-### Milestone 3: Report Implementation
-- **Objective**: Write the audit report `reports/improvement_report.md` in Korean.
-- **Verification**: The report must contain:
-  1. Executive Summary (Rating out of 5, top 3 priorities, expected ROI)
-  2. 15+ concrete improvement points (3+ per area) with file names and line ranges.
-  3. Master priority table (P0, P1, P2, P3, expected impact, difficulty).
-  4. Before/After code snippets for top 5 highest impact improvements with quantified expected gains.
-  5. Weekly execution roadmap.
-  6. Must be written in Korean, saved at `reports/improvement_report.md`, and >= 4,000 characters long.
-- **Action**: Spawn `teamwork_preview_worker` to write this report.
+### Milestone 3: R2 - GitHub Pages & HRP UX Enhancement
+- **Goal**: Add HRP allocation chart, regime trend visualizations, and symbol hyperlinks (Naver/Foreign) to `generate_report.py` and `gh-pages/index.html`.
+- **Agents**: Worker -> Reviewer -> Challenger.
+- **Deliverables**: Updated `generate_report.py`, HRP visualizer, mobile links.
 
-### Milestone 4: Review and Quality Gate
-- **Objective**: Review the generated report for correctness, length (>= 4,000 characters), language (Korean), and coverage of all required sections.
-- **Verification**: Spawn `teamwork_preview_reviewer` to check the document against instructions.
+### Milestone 4: R3 - KIS Automated Trading Safety & ATR Trailing Stop
+- **Goal**: Implement ATR dynamic trailing stop, portfolio exposure limits, order safety checks in KIS execution module.
+- **Agents**: Worker -> Reviewer -> Challenger.
+- **Deliverables**: KIS execution engine updates, ATR trailing stop module, risk limit rules, test suite.
 
-### Milestone 5: Verification & Completion
-- **Objective**: Finalize and declare completion to the user and parent agent.
-- **Verification**: Ensure `reports/improvement_report.md` is correctly saved and verified.
+### Milestone 5: E2E Verification & Forensic Integrity Audit
+- **Goal**: Run complete verification: `pytest trading_system/tests/ -v` (100% pass), `verify_gha_artifacts.py` (✅ PASSED), 0% NaN/Null, clean audit from Forensic Auditor.
+- **Agents**: Challenger -> Forensic Auditor (`teamwork_preview_auditor`).
+- **Deliverables**: Verification logs, Auditor CLEAN verdict.

@@ -27,110 +27,155 @@ class EnsembleScoringEngine:
     """
 
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
-    # Dynamic Weight Configuration per 1D Market Regime (9 Strategies)
+    # Dynamic Weight Configuration per 1D Market Regime (14 Strategies)
     REGIME_WEIGHTS = {
-        0: {  # BEAR (Defensive: high weight on regression, RIM valuation, stat_arb)
-            'regression': 0.30,
-            'surge': 0.05,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.05,
-            'lstm': 0.05,
-            'stat_arb': 0.15,
-            'sector_rotation': 0.10,
-            'rim_valuation': 0.20
+        0: {  # BEAR (Defensive)
+            'regression': 0.20,
+            'surge': 0.03,
+            'lead_lag': 0.03,
+            'vcp_rule': 0.03,
+            'vcp_ml': 0.03,
+            'lstm': 0.04,
+            'stat_arb': 0.12,
+            'sector_rotation': 0.07,
+            'rim_valuation': 0.15,
+            'event_driven': 0.05,
+            'mq_factor': 0.10,
+            'iv_skew': 0.05,
+            'order_flow': 0.04,
+            'short_term_reversal': 0.06
         },
-        1: {  # SIDEWAYS (Rotation: high weight on Stat-Arb, RIM Valuation, Sector Rotation)
-            'regression': 0.15,
-            'surge': 0.05,
-            'lead_lag': 0.10,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.10,
-            'lstm': 0.15,
-            'stat_arb': 0.15,
-            'sector_rotation': 0.10,
-            'rim_valuation': 0.15
+        1: {  # SIDEWAYS (Rotation)
+            'regression': 0.10,
+            'surge': 0.04,
+            'lead_lag': 0.06,
+            'vcp_rule': 0.04,
+            'vcp_ml': 0.07,
+            'lstm': 0.10,
+            'stat_arb': 0.12,
+            'sector_rotation': 0.08,
+            'rim_valuation': 0.10,
+            'event_driven': 0.07,
+            'mq_factor': 0.08,
+            'iv_skew': 0.04,
+            'order_flow': 0.05,
+            'short_term_reversal': 0.05
         },
-        2: {  # BULL (Aggressive: high weight on Surge, VCP ML, LSTM, Sector Rotation)
-            'regression': 0.08,
-            'surge': 0.22,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.18,
-            'lstm': 0.14,
-            'stat_arb': 0.05,
-            'sector_rotation': 0.15,
-            'rim_valuation': 0.08
+        2: {  # BULL (Aggressive)
+            'regression': 0.05,
+            'surge': 0.15,
+            'lead_lag': 0.04,
+            'vcp_rule': 0.04,
+            'vcp_ml': 0.12,
+            'lstm': 0.10,
+            'stat_arb': 0.04,
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.06,
+            'event_driven': 0.10,
+            'mq_factor': 0.10,
+            'iv_skew': 0.03,
+            'order_flow': 0.05,
+            'short_term_reversal': 0.02
         }
     }
 
-    # 2D Market Regime Matrix Weights (6 Combo States across 9 Strategies)
+    # 2D Market Regime Matrix Weights (6 Combo States across 14 Strategies)
     REGIME_2D_WEIGHTS = {
         'BEAR_LOW_VOL': {
-            'regression': 0.30,
-            'surge': 0.05,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.05,
-            'lstm': 0.05,
-            'stat_arb': 0.15,
-            'sector_rotation': 0.10,
-            'rim_valuation': 0.20
+            'regression': 0.20,
+            'surge': 0.03,
+            'lead_lag': 0.03,
+            'vcp_rule': 0.03,
+            'vcp_ml': 0.03,
+            'lstm': 0.04,
+            'stat_arb': 0.12,
+            'sector_rotation': 0.07,
+            'rim_valuation': 0.15,
+            'event_driven': 0.05,
+            'mq_factor': 0.10,
+            'iv_skew': 0.05,
+            'order_flow': 0.04,
+            'short_term_reversal': 0.06
         },
         'BEAR_HIGH_VOL': {
-            'regression': 0.35,
+            'regression': 0.22,
             'surge': 0.00,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.05,
-            'lstm': 0.05,
-            'stat_arb': 0.20,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.20
+            'lead_lag': 0.03,
+            'vcp_rule': 0.03,
+            'vcp_ml': 0.03,
+            'lstm': 0.04,
+            'stat_arb': 0.15,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.15,
+            'event_driven': 0.05,
+            'mq_factor': 0.10,
+            'iv_skew': 0.05,
+            'order_flow': 0.04,
+            'short_term_reversal': 0.07
         },
         'SIDEWAYS_LOW_VOL': {
-            'regression': 0.15,
-            'surge': 0.05,
-            'lead_lag': 0.10,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.10,
-            'lstm': 0.15,
-            'stat_arb': 0.15,
-            'sector_rotation': 0.10,
-            'rim_valuation': 0.15
+            'regression': 0.10,
+            'surge': 0.04,
+            'lead_lag': 0.06,
+            'vcp_rule': 0.04,
+            'vcp_ml': 0.07,
+            'lstm': 0.10,
+            'stat_arb': 0.12,
+            'sector_rotation': 0.08,
+            'rim_valuation': 0.10,
+            'event_driven': 0.07,
+            'mq_factor': 0.08,
+            'iv_skew': 0.04,
+            'order_flow': 0.05,
+            'short_term_reversal': 0.05
         },
         'SIDEWAYS_HIGH_VOL': {
-            'regression': 0.15,
-            'surge': 0.05,
-            'lead_lag': 0.10,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.10,
-            'lstm': 0.10,
-            'stat_arb': 0.20,
-            'sector_rotation': 0.10,
-            'rim_valuation': 0.15
+            'regression': 0.10,
+            'surge': 0.04,
+            'lead_lag': 0.06,
+            'vcp_rule': 0.04,
+            'vcp_ml': 0.07,
+            'lstm': 0.07,
+            'stat_arb': 0.15,
+            'sector_rotation': 0.08,
+            'rim_valuation': 0.10,
+            'event_driven': 0.07,
+            'mq_factor': 0.08,
+            'iv_skew': 0.04,
+            'order_flow': 0.05,
+            'short_term_reversal': 0.05
         },
         'BULL_LOW_VOL': {
-            'regression': 0.08,
-            'surge': 0.22,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.18,
-            'lstm': 0.14,
-            'stat_arb': 0.05,
-            'sector_rotation': 0.15,
-            'rim_valuation': 0.08
+            'regression': 0.05,
+            'surge': 0.15,
+            'lead_lag': 0.04,
+            'vcp_rule': 0.04,
+            'vcp_ml': 0.12,
+            'lstm': 0.10,
+            'stat_arb': 0.04,
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.06,
+            'event_driven': 0.10,
+            'mq_factor': 0.10,
+            'iv_skew': 0.03,
+            'order_flow': 0.05,
+            'short_term_reversal': 0.02
         },
         'BULL_HIGH_VOL': {
-            'regression': 0.05,
-            'surge': 0.25,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.05,
-            'vcp_ml': 0.18,
-            'lstm': 0.14,
-            'stat_arb': 0.05,
-            'sector_rotation': 0.10,
-            'rim_valuation': 0.08
+            'regression': 0.04,
+            'surge': 0.17,
+            'lead_lag': 0.04,
+            'vcp_rule': 0.04,
+            'vcp_ml': 0.12,
+            'lstm': 0.10,
+            'stat_arb': 0.04,
+            'sector_rotation': 0.07,
+            'rim_valuation': 0.06,
+            'event_driven': 0.10,
+            'mq_factor': 0.10,
+            'iv_skew': 0.03,
+            'order_flow': 0.05,
+            'short_term_reversal': 0.04
         }
     }
 
@@ -388,13 +433,18 @@ class EnsembleScoringEngine:
                                   stat_arb_df: Optional[pd.DataFrame] = None,
                                   sector_df: Optional[pd.DataFrame] = None,
                                   rim_df: Optional[pd.DataFrame] = None,
+                                  event_df: Optional[pd.DataFrame] = None,
+                                  mq_df: Optional[pd.DataFrame] = None,
+                                  iv_skew_df: Optional[pd.DataFrame] = None,
+                                  order_flow_df: Optional[pd.DataFrame] = None,
+                                  reversal_df: Optional[pd.DataFrame] = None,
                                   rolling_sharpes: Optional[Dict[str, float]] = None,
                                   gamma: float = 1.0,
                                   target_horizon: int = 20,
                                   sentiment_blacklist: Optional[Union[Set[str], List[str], Dict[str, Any]]] = None) -> pd.DataFrame:
 
         """
-        Merges 9 strategy outputs (Regression, Surge, Lead-Lag, VCP Rule, VCP ML, LSTM, Stat-Arb, Sector Rotation, RIM Valuation)
+        Merges 14 strategy outputs (Regression, Surge, Lead-Lag, VCP Rule, VCP ML, LSTM, Stat-Arb, Sector Rotation, RIM Valuation, Event-Driven, MQ Factor, IV Skew, Order Flow, Short-Term Reversal)
         and calculates a unified dynamic weighted ensemble score [0, 1] and expected return proxy (%).
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
@@ -407,7 +457,7 @@ class EnsembleScoringEngine:
         else:
             weights = self.get_base_weights(regime)
 
-        logger.info(f"Applying 9-Strategy Ensemble weights for Regime '{regime}': {weights}")
+        logger.info(f"Applying 14-Strategy Ensemble weights for Regime '{regime}': {weights}")
 
         # 1. Strategy 1: Regression
         if not regression_df.empty:
@@ -517,8 +567,48 @@ class EnsembleScoringEngine:
         else:
             r_val_df = pd.DataFrame(columns=['symbol', 'rim_score'])
 
-        # Combine all 9 strategy DataFrames efficiently
-        dfs = [reg_df, s_df, ll_df, vr_df, v_df, l_df, sa_df, sec_df, r_val_df]
+        # 10. Strategy 10: Event-Driven Momentum
+        if event_df is not None and not event_df.empty:
+            ev_df = event_df.copy()
+            ev_col = 'event_score' if 'event_score' in ev_df.columns else ev_df.columns[-1]
+            ev_df = ev_df[['symbol', ev_col]].rename(columns={ev_col: 'event_score'})
+        else:
+            ev_df = pd.DataFrame(columns=['symbol', 'event_score'])
+
+        # 11. Strategy 11: MQ Factor Score
+        if mq_df is not None and not mq_df.empty:
+            m_df = mq_df.copy()
+            m_col = 'mq_score' if 'mq_score' in m_df.columns else m_df.columns[-1]
+            m_df = m_df[['symbol', m_col]].rename(columns={m_col: 'mq_score'})
+        else:
+            m_df = pd.DataFrame(columns=['symbol', 'mq_score'])
+
+        # 12. Strategy 12: Options IV Skew
+        if iv_skew_df is not None and not iv_skew_df.empty:
+            iv_df = iv_skew_df.copy()
+            iv_col = 'iv_skew_score' if 'iv_skew_score' in iv_df.columns else iv_df.columns[-1]
+            iv_df = iv_df[['symbol', iv_col]].rename(columns={iv_col: 'iv_skew_score'})
+        else:
+            iv_df = pd.DataFrame(columns=['symbol', 'iv_skew_score'])
+
+        # 13. Strategy 13: Order Flow Imbalance
+        if order_flow_df is not None and not order_flow_df.empty:
+            of_df = order_flow_df.copy()
+            of_col = 'order_flow_score' if 'order_flow_score' in of_df.columns else of_df.columns[-1]
+            of_df = of_df[['symbol', of_col]].rename(columns={of_col: 'order_flow_score'})
+        else:
+            of_df = pd.DataFrame(columns=['symbol', 'order_flow_score'])
+
+        # 14. Strategy 14: Short-Term Reversal
+        if reversal_df is not None and not reversal_df.empty:
+            rev_df = reversal_df.copy()
+            rev_col = 'reversal_score' if 'reversal_score' in rev_df.columns else rev_df.columns[-1]
+            rev_df = rev_df[['symbol', rev_col]].rename(columns={rev_col: 'reversal_score'})
+        else:
+            rev_df = pd.DataFrame(columns=['symbol', 'reversal_score'])
+
+        # Combine all 14 strategy DataFrames efficiently
+        dfs = [reg_df, s_df, ll_df, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df]
         merged = dfs[0]
         for d in dfs[1:]:
             if not d.empty:
@@ -535,6 +625,11 @@ class EnsembleScoringEngine:
             ('stat_arb', 'stat_arb_score'),
             ('sector_rotation', 'sector_score'),
             ('rim_valuation', 'rim_score'),
+            ('event_driven', 'event_score'),
+            ('mq_factor', 'mq_score'),
+            ('iv_skew', 'iv_skew_score'),
+            ('order_flow', 'order_flow_score'),
+            ('short_term_reversal', 'reversal_score'),
         ]
 
         # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
@@ -561,7 +656,12 @@ class EnsembleScoringEngine:
         merged['ensemble_score'] = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
 
         # Fill raw NaNs with 0.0 for report formatting after ensemble score calculation
-        fill_cols = ['reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score', 'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score']
+        fill_cols = [
+            'reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score',
+            'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
+            'sector_score', 'rim_score', 'event_score', 'mq_score',
+            'iv_skew_score', 'order_flow_score', 'reversal_score'
+        ]
         for col in fill_cols:
             if col in merged.columns:
                 merged[col] = merged[col].fillna(0.0)

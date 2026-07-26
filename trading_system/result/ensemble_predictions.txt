@@ -1,91 +1,44 @@
 === Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-14 08:27
+Date: 2026-07-26 20:49
 
 --- Executive Market Summary ---
-Current Market Regime Detected: BEAR (Code: 0)
-Maximum Total Allocation Allowed: 20.0%
+Current Market Regime Detected: SIDEWAYS (2D State: SIDEWAYS_HIGH_VOL)
+Maximum Total Allocation Allowed: 50.0%
 
 --- Judgment Basis (Global Macro Indicators) ---
-  S&P 500 (20d Rolling Mean Return) : +0.155% / day
-  S&P 500 (20d Rolling Volatility)  : 1.037%
-  KOSPI (20d Rolling Mean Return)   : +1.056% / day
-  KOSPI (20d Rolling Volatility)    : 4.545%
+  S&P 500 (20d Rolling Mean Return) : -0.069% / day
+  S&P 500 (20d Rolling Volatility)  : 1.017%
+  KOSPI (20d Rolling Mean Return)   : -0.069% / day
+  KOSPI (20d Rolling Volatility)    : 1.017%
   VIX Index (Fear Gauge)            : nan
-  USD/KRW FX Rate                   : 0.18 KRW
+  USD/KRW FX Rate                   : nan KRW
   US 10Y Bond Yield (TNX)           : nan%
 
---- Applied Ensemble Strategy Weights ---
-  XGBoost Regression Fundamentals   : 70.0%
-  Surge Classifier (XGBoost)        : 0.0%
-  Index & Sector Lead-Lag Flow      : 20.0%
-  VCP Machine Learning Predictor    : 10.0%
+--- Applied Ensemble Strategy Weights (9 Strategies) ---
+  XGBoost Regression Fundamentals   : 14.1%
+  Surge Classifier (XGBoost)        : 5.6%
+  Index & Sector Lead-Lag Flow      : 8.5%
+  VCP Rule Pattern Detector         : 5.6%
+  VCP Machine Learning Predictor    : 9.9%
+  Strict Causal LSTM Deep Learning  : 9.9%
+  Stat-Arb Cointegration Mean Rev   : 21.1%
+  Sector Rotation Relative Momentum : 11.3%
+  RIM Valuation (Residual Income)   : 14.1%
 
 --- Top 20 Recommendations by Market ---
 
 =========================================
 [KOSPI] Top 20 Ensemble Picks
 =========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    033250    체시스                          11.9%            2.4%      0%      0%     59%      0%
-2    001720    신영증권                          0.0%            0.0%      0%      0%      0%      0%
-3    448730    삼성FN리츠                        0.0%            0.0%      0%      0%      0%      0%
-4    432320    KB스타리츠                        0.0%            0.0%      0%      0%      0%      0%
-5    417310    코람코더원리츠                       0.0%            0.0%      0%      0%      0%      0%
-6    004310    현대약품                          0.0%            0.0%      0%      0%      0%      0%
-7    365550    ESR켄달스퀘어리츠                    0.0%            0.0%      0%      0%      0%      0%
-8    357120    코람코라이프인프라리츠                   0.0%            0.0%      0%      0%      0%      0%
-9    350520    이지스레지던스리츠                     0.0%            0.0%      0%      0%      0%      0%
-10   338100    NH프라임리츠                       0.0%            0.0%      0%      0%      0%      0%
-11   293940    신한알파리츠                        0.0%            0.0%      0%      0%      0%      0%
-12   088260    이리츠코크렙                        0.0%            0.0%      0%      0%      0%      0%
-13   018500    동원금속                          0.0%            0.0%      0%      0%      0%      0%
-14   396690    미래에셋글로벌리츠                     0.0%            0.0%      0%      0%      0%      0%
-
-
-=========================================
-[KOSDAQ] Top 20 Ensemble Picks
-=========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    054220    비츠로시스                        14.7%            2.9%      0%      0%     73%      0%
-2    030960    양지사                          13.6%            2.7%      0%      0%     68%      0%
-3    033200    모아텍                          13.5%            2.7%      0%      0%     68%      0%
-4    900120    씨엑스아이                        13.0%            2.6%      0%      0%     65%      0%
-5    131100    티엔엔터테인먼트                      0.0%            0.0%      0%      0%      0%      0%
-6    099750    이지케어텍                         0.0%            0.0%      0%      0%      0%      0%
-7    067010    이씨에스                          0.0%            0.0%      0%      0%      0%      0%
-8    060310    3S                            0.0%            0.0%      0%      0%      0%      0%
-
-
-=========================================
-[KONEX] Top 20 Ensemble Picks
-=========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    232530    이엠티                          71.5%           14.3%    100%     14%      0%     15%
-2    140610    엔솔바이오사이언스                    48.1%            9.6%     67%     12%      0%     14%
-3    260870    SK시그넷                        24.8%            5.0%     33%     12%      0%     14%
+Rank Symbol    Name                Ensemble Score  Expected Return   Reg   Surge L-L   VCP-R VCP-M LSTM  S-Arb Sec-R RIM   
+------------------------------------------------------------------------------------------------------------------------------------
+1    005930    Samsung Electronic            62.5%           11.65%  100%    2%    0%    0%    7%    0%    0%   75%    0%
 
 
 =========================================
 [SP500] Top 20 Ensemble Picks
 =========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    LHX       L3Harris                     20.0%            4.0%      0%      0%    100%      0%
-2    LDOS      Leidos                       17.5%            3.5%      0%      0%     87%      0%
-3    FAST      Fastenal                     15.8%            3.2%      0%      0%     79%      0%
-4    DTE       DTE Energy                   14.8%            3.0%      0%      0%     74%      0%
-5    CMS       CMS Energy                   14.1%            2.8%      0%      0%     70%      0%
-6    SRE       Sempra                       14.1%            2.8%      0%      0%     70%      0%
-7    HSIC      Henry Schein                 13.7%            2.7%      0%      0%     68%      0%
-8    ES        Eversource Energy            13.6%            2.7%      0%      0%     68%      0%
-9    ALB       Albemarle Corporat           13.3%            2.7%      0%      0%     67%      0%
-10   HII       Huntington Ingalls           12.7%            2.5%      0%      0%     64%      0%
-11   MTD       Mettler Toledo               12.7%            2.5%      0%      0%     63%      0%
-12   LYB       LyondellBasell               12.2%            2.4%      0%      0%     61%      0%
-13   IQV       IQVIA                        12.0%            2.4%      0%      0%     60%      0%
-14   LNT       Alliant Energy               11.2%            2.2%      0%      0%     56%      0%
-15   AAPL      Apple Inc.                   11.2%            2.2%      0%      0%     56%      0%
+Rank Symbol    Name                Ensemble Score  Expected Return   Reg   Surge L-L   VCP-R VCP-M LSTM  S-Arb Sec-R RIM   
+------------------------------------------------------------------------------------------------------------------------------------
+1    AAPL      Apple Inc.                    51.6%           10.21%   50%    2%    0%    0%    1%    0%    0%   75%    0%
 
