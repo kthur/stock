@@ -990,6 +990,8 @@ def execute_prediction_pipeline():
         # 7e. Fit Isotonic Regression calibrators on training data for score alignment
         if not df_train.empty and 'Close' in df_train.columns:
             try:
+                from src.ai.ensemble_scorer import EnsembleScoringEngine
+                scorer_calib = EnsembleScoringEngine(config=cfg)
                 logger.info("Fitting Isotonic Regression calibrators on training dataset...")
                 sample_train = df_train.sample(n=min(len(df_train), 5000), random_state=42)
                 reg_preds = model.predict(sample_train)
@@ -1000,7 +1002,7 @@ def execute_prediction_pipeline():
                         'regression': reg_preds.get(20, pd.Series(0.5, index=sample_train.index)).values,
                         'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=sample_train.index)).values,
                     }
-                    scorer.fit_calibrators(calib_scores, y_true)
+                    scorer_calib.fit_calibrators(calib_scores, y_true)
             except Exception as _calib_e:
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
 
@@ -1678,6 +1680,32 @@ def execute_prediction_pipeline():
             macro_indicators=indicator_infer,
             regime_label=str(current_2d_regime)
         )
+
+        # Save Sector Rotation predictions report
+        if sector_df is not None and not sector_df.empty:
+            sector_output_path = os.path.join(result_dir, "sector_predictions.txt")
+            sector_df_merged = sector_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+            if 'sector' in pipe_sector_map:
+                sector_df_merged['sector'] = sector_df_merged['symbol'].map(lambda s: pipe_sector_map.get(s, 'General'))
+            elif 'sector' in universe.columns:
+                sec_sub = universe[['symbol', 'sector']]
+                sector_df_merged = sector_df_merged.merge(sec_sub, on='symbol', how='left')
+            else:
+                sector_df_merged['sector'] = 'General'
+
+            sector_df_merged = sector_df_merged.sort_values(by='sector_score', ascending=False)
+            with open(sector_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Sector Rotation Momentum & Macro Sensitivity Report ===\n")
+                f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+                f.write(f"Total symbols evaluated: {len(sector_df_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Sector':<25}{'Sector Score':<15}\n")
+                f.write("-" * 85 + "\n")
+                for rank, (_, row) in enumerate(sector_df_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
+                    sec_str = str(row.get('sector', 'General'))[:23]
+                    mkt_str = str(row.get('market', 'KRX'))
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{mkt_str:<10}{sec_str:<25}{row['sector_score']*100:>13.1f}%\n")
+            logger.info(f"Saved sector rotation predictions ({len(sector_df_merged)} symbols) to {sector_output_path}")
     except Exception as _sec_e:
         logger.warning(f"Sector rotation score calculation skipped: {_sec_e}")
         sector_df = pd.DataFrame()
@@ -1742,12 +1770,15 @@ def execute_prediction_pipeline():
         f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
         f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
 
-        f.write("--- Applied Ensemble Strategy Weights ---\n")
+        f.write("--- Applied Ensemble Strategy Weights (8 Strategies) ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
         f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
         f.write(f"  VCP Rule Pattern Detector         : {ensemble_weights.get('vcp_rule', 0.0)*100:.1f}%\n")
-        f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights.get('vcp_ml', 0.0)*100:.1f}%\n\n")
+        f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights.get('vcp_ml', 0.0)*100:.1f}%\n")
+        f.write(f"  Strict Causal LSTM Deep Learning  : {ensemble_weights.get('lstm', 0.0)*100:.1f}%\n")
+        f.write(f"  Stat-Arb Cointegration Mean Rev   : {ensemble_weights.get('stat_arb', 0.0)*100:.1f}%\n")
+        f.write(f"  Sector Rotation Relative Momentum : {ensemble_weights.get('sector_rotation', 0.0)*100:.1f}%\n\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
@@ -1759,12 +1790,15 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 20 Ensemble Picks\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<7}{'Surge':<7}{'L-L':<7}{'VCP-R':<7}{'VCP-M':<7}\n")
-            f.write("-" * 105 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<6}{'Surge':<6}{'L-L':<6}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<6}{'S-Arb':<6}{'Sec-R':<6}\n")
+            f.write("-" * 125 + "\n")
             for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']:>15.1f}%{row['reg_score']*100:>6.0f}%{row['surge_score']*100:>6.0f}%{row['ll_score']*100:>6.0f}%{vcp_rule_val*100:>6.0f}%{row['vcp_ml_score']*100:>6.0f}%\n")
+                lstm_val = row.get('lstm_score', 0.0)
+                sa_val = row.get('stat_arb_score', 0.0)
+                sec_val = row.get('sector_score', 0.0)
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']:>15.1f}%{row['reg_score']*100:>5.0f}%{row['surge_score']*100:>5.0f}%{row['ll_score']*100:>5.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>5.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%\n")
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
@@ -1816,6 +1850,16 @@ def execute_prediction_pipeline():
         save_profile_report(result_dir=result_dir)
     except Exception as _prof_e:
         logger.warning(f"[6-C] Pipeline profiler report skipped: {_prof_e}")
+
+    # ── Phase 6-D: Generate GitHub Pages HTML Dashboard ─────────────────────
+    try:
+        from generate_report import main as generate_html_report
+        gh_pages_dir = Path(__file__).resolve().parent / "gh-pages"
+        gh_pages_dir.mkdir(parents=True, exist_ok=True)
+        generate_html_report(args_list=["--result-dir", str(result_dir), "--out", str(gh_pages_dir / "index.html")])
+        logger.info(f"[6-D] Updated GitHub Pages HTML dashboard at {gh_pages_dir / 'index.html'}")
+    except Exception as _gh_html_e:
+        logger.warning(f"[6-D] GitHub Pages dashboard generation skipped: {_gh_html_e}")
 
     # 12. Post-pipeline verification
     logger.info("Running post-pipeline verification checks...")

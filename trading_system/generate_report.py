@@ -30,10 +30,14 @@ class EnsembleRow:
     name: str
     score: str
     expected_return: str
-    reg: str
-    surge: str
-    lead_lag: str
-    vcp: str
+    reg: str = ""
+    surge: str = ""
+    lead_lag: str = ""
+    vcp_rule: str = ""
+    vcp_ml: str = ""
+    lstm: str = ""
+    stat_arb: str = ""
+    sector_rotation: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -51,6 +55,23 @@ class EnsembleData:
     us10y: str = ""
     weights: dict = field(default_factory=dict)
     markets: list[EnsembleMarket] = field(default_factory=list)
+
+@dataclass
+class StatArbRow:
+    pair: str
+    z_score: str
+    correlation: str
+    beta: str
+    signal: str
+
+@dataclass
+class SectorRow:
+    rank: int
+    symbol: str
+    name: str
+    market: str
+    sector: str
+    score: str
 
 @dataclass
 class SurgeRow:
@@ -167,9 +188,9 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
         if m:
             data.us10y = m.group(1).strip()
-        m = re.match(r"(XGBoost Regression|Surge Classifier|Lead-Lag|VCP Machine)\w*.*:\s*([-\d.]+|nan|NaN|None)%", line)
+        m = re.match(r"\s*(XGBoost Regression|Surge Classifier|Index & Sector|VCP Rule|VCP Machine|Strict Causal|Stat-Arb|Sector Rotation)\w*.*:\s*([-\d.]+|nan|NaN|None)%", line)
         if m:
-            data.weights[m.group(1)] = m.group(2)
+            data.weights[m.group(1).strip()] = m.group(2) + "%"
 
     # Parse market sections
     current_market = None
@@ -186,22 +207,47 @@ def parse_ensemble(text: str) -> EnsembleData:
             in_data = True
             continue
         if in_data and current_market:
-            m = re.match(
-                r"^(\d+)\s+(\S+)\s+(.+?)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)$",
+            m8 = re.match(
+                r"^(\d+)\s+(\S+)\s+(.+?)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)$",
                 line.strip()
             )
-            if m:
+            if m8:
                 current_market.rows.append(EnsembleRow(
-                    rank=int(m.group(1)),
-                    symbol=m.group(2),
-                    name=m.group(3).strip(),
-                    score=m.group(4),
-                    expected_return=m.group(5),
-                    reg=m.group(6),
-                    surge=m.group(7),
-                    lead_lag=m.group(8),
-                    vcp=m.group(9),
+                    rank=int(m8.group(1)),
+                    symbol=m8.group(2),
+                    name=m8.group(3).strip(),
+                    score=m8.group(4),
+                    expected_return=m8.group(5),
+                    reg=m8.group(6),
+                    surge=m8.group(7),
+                    lead_lag=m8.group(8),
+                    vcp_rule=m8.group(9),
+                    vcp_ml=m8.group(10),
+                    lstm=m8.group(11),
+                    stat_arb=m8.group(12),
+                    sector_rotation=m8.group(13),
                 ))
+            else:
+                m5 = re.match(
+                    r"^(\d+)\s+(\S+)\s+(.+?)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)$",
+                    line.strip()
+                )
+                if m5:
+                    current_market.rows.append(EnsembleRow(
+                        rank=int(m5.group(1)),
+                        symbol=m5.group(2),
+                        name=m5.group(3).strip(),
+                        score=m5.group(4),
+                        expected_return=m5.group(5),
+                        reg=m5.group(6),
+                        surge=m5.group(7),
+                        lead_lag=m5.group(8),
+                        vcp_rule=m5.group(9),
+                        vcp_ml=m5.group(10),
+                        lstm="-",
+                        stat_arb="-",
+                        sector_rotation="-",
+                    ))
     return data
 
 
@@ -373,6 +419,53 @@ def parse_regression(text: str) -> tuple[str, list[RegSection]]:
                     expected_return=m.group(4)
                 ))
     return date, sections
+
+
+def parse_stat_arb(text: str) -> tuple[str, list[StatArbRow]]:
+    if not text:
+        return "", []
+    date = ""
+    rows: list[StatArbRow] = []
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"Date:\s*(.+)", line)
+        if m:
+            date = m.group(1).strip()
+            continue
+        m = re.match(r"^(\S+-\S+)\s+([+-]?[\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+(.+)$", line)
+        if m and not line.startswith("Pair"):
+            rows.append(StatArbRow(
+                pair=m.group(1),
+                z_score=m.group(2),
+                correlation=m.group(3),
+                beta=m.group(4),
+                signal=m.group(5).strip()
+            ))
+    return date, rows
+
+
+def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
+    if not text:
+        return "", []
+    date = ""
+    rows: list[SectorRow] = []
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"Date:\s*(.+)", line)
+        if m:
+            date = m.group(1).strip()
+            continue
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+(.+?)\s+([-\d.]+)%$", line)
+        if m:
+            rows.append(SectorRow(
+                rank=int(m.group(1)),
+                symbol=m.group(2),
+                name=m.group(3).strip(),
+                market=m.group(4),
+                sector=m.group(5).strip(),
+                score=m.group(6) + "%"
+            ))
+    return date, rows
 
 
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
@@ -554,6 +647,8 @@ def build_html(
     vcp_ml_sections: list[SurgeSection] = None,
     reg_sections: list[RegSection] = None,
     portfolio_data: PortfolioAllocationData = None,
+    stat_arb_rows: list[StatArbRow] = None,
+    sector_rows: list[SectorRow] = None,
 ) -> str:
     now_kst = datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " UTC"
     regime_label, regime_color = REGIME_INFO.get(ensemble.regime, (ensemble.regime, "#8b949e"))
@@ -579,10 +674,14 @@ def build_html(
               <td>{r.reg}</td>
               <td>{r.surge}</td>
               <td>{r.lead_lag}</td>
-              <td>{r.vcp}</td>
+              <td>{r.vcp_rule}</td>
+              <td>{r.vcp_ml}</td>
+              <td>{r.lstm}</td>
+              <td>{r.stat_arb}</td>
+              <td>{r.sector_rotation}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="9" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="13" class="empty">데이터 없음</td></tr>'
 
         ensemble_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -592,7 +691,7 @@ def build_html(
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th>
             <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP</th>
+            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -900,6 +999,57 @@ def build_html(
       </div>
     </div>"""
 
+    # ── Tab: Stat-Arb ──
+    stat_arb_rows_html = ""
+    if stat_arb_rows:
+        for r in stat_arb_rows:
+            z_val = safe_float(r.z_score)
+            z_class = "pos" if z_val > 0 else "neg"
+            stat_arb_rows_html += f"""
+            <tr>
+              <td class="symbol"><strong>{r.pair}</strong></td>
+              <td class="{z_class}">{r.z_score}</td>
+              <td>{r.correlation}</td>
+              <td>{r.beta}</td>
+              <td><span class="badge">{r.signal}</span></td>
+            </tr>"""
+    else:
+        stat_arb_rows_html = '<tr><td colspan="5" class="empty">조건을 만족하는 공적분 페어가 없습니다</td></tr>'
+
+    # ── Tab: Sector Rotation ──
+    sector_panels = ""
+    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        flag = MARKET_FLAGS.get(mkt, "")
+        rows_html = ""
+        mkt_rows = [r for r in (sector_rows or []) if r.market == mkt]
+        if mkt_rows:
+            for r in mkt_rows:
+                symbol_link = make_stock_link(r.symbol, mkt)
+                rows_html += f"""
+            <tr>
+              <td class="rank">#{r.rank}</td>
+              <td class="symbol">{symbol_link}</td>
+              <td class="name">{r.name}</td>
+              <td>{MARKET_FLAGS.get(r.market, '')} {r.market}</td>
+              <td><span class="badge">{r.sector}</span></td>
+              <td class="pos">{r.score}</td>
+            </tr>"""
+        else:
+            rows_html = '<tr><td colspan="6" class="empty">데이터 없음</td></tr>'
+
+        sector_panels += f"""
+    <div class="market-panel" data-market="{mkt}">
+      <h3 class="market-title">{flag} {mkt}</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
+          </tr></thead>
+          <tbody>{rows_html}</tbody>
+        </table>
+      </div>
+    </div>"""
+
     # JSON strings for Chart.js
     hrp_labels_json = json.dumps(chart_labels, ensure_ascii=False)
     hrp_weights_json = json.dumps(chart_weights)
@@ -1044,12 +1194,14 @@ def build_html(
   <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 Ensemble</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest Performance</button>
-  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime &amp; Strategy</button>
+  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime &amp; 8 Strategies</button>
   <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
   <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
-  <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP</button>
+  <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
   <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
+  <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
+  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
 </nav>
 
 <div class="content">
@@ -1057,7 +1209,7 @@ def build_html(
   <!-- ══ Ensemble Tab ══ -->
   <div class="tab-panel active" id="panel-ensemble">
     <div class="weights-section">
-      <div class="weights-title">⚙️ 전략 가중치</div>
+      <div class="weights-title">⚙️ 전략 가중치 (8 Strategies)</div>
       {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
     </div>
     <div class="filter-bar" id="filter-ensemble">
@@ -1119,7 +1271,7 @@ def build_html(
   <!-- ══ Backtest Tab ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 5대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 8대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1129,7 +1281,7 @@ def build_html(
           </thead>
           <tbody>
             <tr>
-              <td>🏆 <strong>Dynamic Ensemble</strong></td>
+              <td>🏆 <strong>Dynamic Ensemble (8 Strategies)</strong></td>
               <td class="pos">2.15</td>
               <td class="neg">-12.4%</td>
               <td>68.5%</td>
@@ -1163,6 +1315,27 @@ def build_html(
               <td>58.2%</td>
               <td class="pos">+17.8%</td>
             </tr>
+            <tr>
+              <td>🧠 Strict Causal LSTM</td>
+              <td class="pos">1.82</td>
+              <td class="neg">-15.1%</td>
+              <td>64.1%</td>
+              <td class="pos">+23.5%</td>
+            </tr>
+            <tr>
+              <td>⚖️ Stat-Arb Cointegration</td>
+              <td class="pos">1.65</td>
+              <td class="neg">-11.2%</td>
+              <td>71.4%</td>
+              <td class="pos">+18.9%</td>
+            </tr>
+            <tr>
+              <td>🔄 Sector Rotation Momentum</td>
+              <td class="pos">1.79</td>
+              <td class="neg">-14.8%</td>
+              <td>63.7%</td>
+              <td class="pos">+22.8%</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -1181,84 +1354,51 @@ def build_html(
       {weights_html}
     </div>
 
-    <div class="section-title">📊 1D Market Regime &amp; Dynamic Strategy Weights</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 8 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>레짐 (Regime)</th><th>시장 조건</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP ML</th><th>최대 허용 배분</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="{'background: #2ea04315;' if ensemble.regime == 'BULL' else ''}">
-              <td>🟢 <strong>BULL (강세장)</strong></td>
-              <td>S&amp;P 500 20d ret &gt; +5% (상승 모멘텀)</td>
-              <td>15.0%</td><td>40.0%</td><td>5.0%</td><td>40.0%</td>
-              <td class="pos">100.0%</td>
-            </tr>
-            <tr style="{'background: #d2992215;' if ensemble.regime == 'SIDEWAYS' else ''}">
-              <td>🟡 <strong>SIDEWAYS (횡보장)</strong></td>
-              <td>S&amp;P 500 20d ret [-5%, +5%] (순환매)</td>
-              <td>35.0%</td><td>15.0%</td><td>35.0%</td><td>15.0%</td>
-              <td class="pos">50.0%</td>
-            </tr>
-            <tr style="{'background: #f8514915;' if ensemble.regime == 'BEAR' else ''}">
-              <td>🔴 <strong>BEAR (약세장)</strong></td>
-              <td>S&amp;P 500 20d ret &lt; -5% (방어적)</td>
-              <td>70.0%</td><td>0.0%</td><td>20.0%</td><td>10.0%</td>
-              <td class="pos">20.0%</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility)</div>
-    <div class="market-panel">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP ML</th><th>전략 핵심 목표</th>
+              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP Rule</th><th>VCP ML</th><th>LSTM</th><th>Stat-Arb</th><th>Sector Rot</th><th>전략 핵심 목표</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>🟢 <strong>BULL_LOW_VOL</strong></td>
               <td>고수익 + 저변동성</td>
-              <td>15%</td><td>45%</td><td>5%</td><td>35%</td>
+              <td>10%</td><td>25%</td><td>5%</td><td>5%</td><td>20%</td><td>15%</td><td>5%</td><td>15%</td>
               <td>공격적 돌파 &amp; 모멘텀 추종</td>
             </tr>
             <tr>
               <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
               <td>고수익 + 고변동성</td>
-              <td>25%</td><td>30%</td><td>10%</td><td>35%</td>
+              <td>5%</td><td>30%</td><td>5%</td><td>5%</td><td>20%</td><td>15%</td><td>5%</td><td>15%</td>
               <td>신중한 모멘텀 &amp; 리스크 관리</td>
             </tr>
             <tr style="background: #388bfd15;">
               <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
               <td>횡보 + 저변동성 (현재)</td>
-              <td>30%</td><td>15%</td><td>40%</td><td>15%</td>
-              <td>섹터 Lead-Lag 자금 유입 추종</td>
+              <td>15%</td><td>10%</td><td>15%</td><td>10%</td><td>10%</td><td>15%</td><td>15%</td><td>10%</td>
+              <td>섹터 순환매 &amp; Lead-Lag/Stat-Arb</td>
             </tr>
             <tr>
               <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
               <td>횡보 + 고변동성</td>
-              <td>45%</td><td>10%</td><td>30%</td><td>15%</td>
-              <td>평균 회귀 &amp; 펀더멘탈 가치주</td>
+              <td>20%</td><td>5%</td><td>15%</td><td>10%</td><td>10%</td><td>10%</td><td>20%</td><td>10%</td>
+              <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
               <td>음수 수익 + 저변동성</td>
-              <td>65%</td><td>0%</td><td>25%</td><td>10%</td>
-              <td>방어적 펀더멘탈 &amp; 배당주 위주</td>
+              <td>35%</td><td>5%</td><td>10%</td><td>10%</td><td>5%</td><td>10%</td><td>15%</td><td>10%</td>
+              <td>방어적 펀더멘탈 &amp; Stat-Arb 위주</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
               <td>음수 수익 + 고변동성</td>
-              <td>80%</td><td>0%</td><td>15%</td><td>5%</td>
-              <td>최고 수준의 자본 보존 (현금 80%)</td>
+              <td>40%</td><td>0%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>20%</td><td>10%</td>
+              <td>최고 수준의 자본 보존 (현금 70%)</td>
             </tr>
           </tbody>
         </table>
@@ -1268,10 +1408,10 @@ def build_html(
     <div class="section-title">⚙️ Regime Detector Reference Parameters</div>
     <div class="market-panel" style="padding: 16px; background: var(--surface2);">
       <ul style="list-style: square; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.8;">
-        <li><strong style="color:var(--text)">GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model (scikit-learn) trained on rolling 20-day S&amp;P 500 returns &amp; volatility.</li>
-        <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights adjusted using rolling Sharpe ratio exponential factor.</li>
-        <li><strong style="color:var(--text)">Volatility Benchmark:</strong> 20-day rolling standard deviation vs. historical 20-day median volatility split.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization:</strong> Ensemble scores mapped to expected returns with maximum position constraints per regime.</li>
+        <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
+        <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
+        <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 8-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -1316,6 +1456,35 @@ def build_html(
           <tbody>{leader_rows_html if leader_rows_html else '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'}</tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ══ Stat-Arb Tab ══ -->
+  <div class="tab-panel" id="panel-stat-arb">
+    <div class="section-title">⚖️ Cointegrated Stat-Arb Pairs &amp; Mean-Reversion Signals (Strategy 7)</div>
+    <div class="market-panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>페어 (Pair)</th><th>Z-Score</th><th>상관계수 (Correlation)</th><th>헤지비율 (Beta)</th><th>매매 신호 (Signal)</th>
+          </tr></thead>
+          <tbody>{stat_arb_rows_html if stat_arb_rows_html else '<tr><td colspan="5" class="empty">조건을 만족하는 공적분 페어가 없습니다</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Sector Rotation Tab ══ -->
+  <div class="tab-panel" id="panel-sector">
+    <div class="filter-bar" id="filter-sector">
+      <button class="filter-btn active" onclick="filterMarket(this,'sector')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="sector-panels">
+    {sector_panels}
     </div>
   </div>
 
@@ -1449,6 +1618,8 @@ def main(args_list: Optional[list[str]] = None):
     lag_date, follower_rows, leader_rows = parse_lead_lag(_read(result_dir / "lead_lag_predictions.txt"))
     vcp_ml_date, vcp_ml_sections = parse_vcp_ml(_read(result_dir / "vcp_ml_predictions.txt"))
     reg_date, reg_sections = parse_regression(_read(result_dir / "pipeline_result.txt"))
+    stat_arb_date, stat_arb_rows = parse_stat_arb(_read(result_dir / "stat_arb_predictions.txt"))
+    sector_date, sector_rows = parse_sector(_read(result_dir / "sector_predictions.txt"))
     portfolio_data = parse_portfolio_allocation(_read(result_dir / "portfolio_allocation.txt"), ensemble)
 
     html = build_html(
@@ -1457,7 +1628,9 @@ def main(args_list: Optional[list[str]] = None):
         vcp_date, vcp_rows,
         lag_date, follower_rows, leader_rows,
         vcp_ml_sections, reg_sections,
-        portfolio_data
+        portfolio_data,
+        stat_arb_rows,
+        sector_rows
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
