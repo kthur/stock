@@ -28,7 +28,7 @@ def test_dynamic_sharpe_strategy_rebalancing():
     }
 
     weights = engine.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime=1)
-    assert len(weights) == 9
+    assert len(weights) == 14
     assert np.isclose(sum(weights.values()), 1.0)
     # vcp_ml has higher Sharpe so it should receive boosted weight relative to lead_lag
     assert weights['vcp_ml'] > weights['lead_lag']

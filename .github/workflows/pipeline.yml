@@ -118,7 +118,7 @@ jobs:
           echo "### 📁 14대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
           echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
           echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_rotation_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt pipeline_result.csv; do
+          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt pipeline_result.csv; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
@@ -166,7 +166,7 @@ jobs:
         if: always()
         run: |
           mkdir -p trading_system/result_split
-          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions lstm_predictions stat_arb_predictions sector_rotation_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation; do
+          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions stat_arb_predictions sector_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation; do
             src="trading_system/result/${f}.txt"
             if [ -f "$src" ]; then
               cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
@@ -255,8 +255,8 @@ jobs:
             
             # Upload all 14 strategy files and report outputs
             for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
-                      vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt \
-                      stat_arb_predictions.txt sector_rotation_predictions.txt \
+                      vcp_patterns.txt vcp_ml_predictions.txt \
+                      stat_arb_predictions.txt sector_predictions.txt \
                       rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt \
                       iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt \
                       ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt; do
@@ -295,6 +295,8 @@ jobs:
         run: |
           uv python install 3.12
           uv venv --python 3.12 .venv
+          # Install minimal deps required by generate_report.py
+          uv pip sync trading_system/requirements.lock
           .venv/bin/python trading_system/generate_report.py \
             --result-dir trading_system/result \
             --out gh-pages/index.html

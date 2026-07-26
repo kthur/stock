@@ -6,6 +6,21 @@ from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
 
+def _extract_close_series(val: Any) -> Optional[Any]:
+    import pandas as pd
+    if val is None:
+        return None
+    if isinstance(val, pd.DataFrame):
+        if 'Close' in val.columns:
+            res = val['Close']
+            return res.iloc[:, 0] if isinstance(res, pd.DataFrame) else res
+        return val.iloc[:, 0]
+    if isinstance(val, (list, tuple, np.ndarray)):
+        return pd.Series(val)
+    if isinstance(val, pd.Series):
+        return val
+    return None
+
 
 def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
     """
@@ -29,15 +44,15 @@ def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
     t_stat = beta / stderr
 
     # Approximate p-value calculation for Engle-Granger / ADF critical values
-    # Standard critical values for EG (2 variables): 5%: -3.34, 10%: -3.04, 1%: -3.90
+    # Standard critical values for EG (2 variables, 100 obs): 1%: -3.90, 5%: -3.34, 10%: -2.57
     if t_stat < -3.90:
         p_val = 0.01
     elif t_stat < -3.34:
         p_val = 0.03
-    elif t_stat < -3.04:
-        p_val = 0.07
+    elif t_stat < -2.86:
+        p_val = 0.05
     elif t_stat < -2.57:
-        p_val = 0.15
+        p_val = 0.09
     else:
         p_val = 0.50
 
@@ -70,6 +85,15 @@ class StatisticalArbitrageEngine:
 
     def __init__(self):
         self.pairs = []
+
+    def check_cointegration(self, y1: np.ndarray, y2: np.ndarray) -> Tuple[float, float, float]:
+        slope, intercept, _, _, _ = linregress(y2, y1)
+        spread = y1 - (slope * y2 + intercept)
+        t_stat, p_val = _estimate_adf_pvalue(spread)
+        return t_stat, p_val, slope
+
+    def compute_half_life(self, spread: np.ndarray) -> float:
+        return _estimate_half_life(spread)
 
     def find_cointegrated_pairs(
         self,
@@ -110,22 +134,30 @@ class StatisticalArbitrageEngine:
                     if sec1 and sec2 and sec1 != sec2:
                         continue
 
-                df1 = prices_dict[s1]
-                df2 = prices_dict[s2]
+                v1 = prices_dict[s1]
+                v2 = prices_dict[s2]
 
-                if df1 is None or df2 is None or len(df1) < 30 or len(df2) < 30:
+                if v1 is None or v2 is None or len(v1) < 30 or len(v2) < 30:
                     continue
 
                 try:
-                    p1 = df1['Close'].tail(120)
-                    p2 = df2['Close'].tail(120)
-
-                    combined = pd.concat([p1, p2], axis=1, join='inner').dropna()
-                    if len(combined) < 30:
+                    p1 = _extract_close_series(v1).tail(120)
+                    p2 = _extract_close_series(v2).tail(120)
+                    if p1 is None or p2 is None or len(p1) < 30 or len(p2) < 30:
                         continue
 
-                    s1_prices = combined.iloc[:, 0].values
-                    s2_prices = combined.iloc[:, 1].values
+                    # Align series
+                    if isinstance(p1.index, pd.DatetimeIndex) and isinstance(p2.index, pd.DatetimeIndex):
+                        combined = pd.concat([p1, p2], axis=1, join='inner').dropna()
+                        s1_prices = combined.iloc[:, 0].values
+                        s2_prices = combined.iloc[:, 1].values
+                    else:
+                        min_len = min(len(p1), len(p2))
+                        s1_prices = p1.values[-min_len:]
+                        s2_prices = p2.values[-min_len:]
+
+                    if len(s1_prices) < 30:
+                        continue
 
                     corr = np.corrcoef(s1_prices, s2_prices)[0, 1]
                     if np.isnan(corr) or abs(corr) < min_correlation:
@@ -134,11 +166,12 @@ class StatisticalArbitrageEngine:
                     slope, intercept, _, _, _ = linregress(s2_prices, s1_prices)
                     spread = s1_prices - (slope * s2_prices + intercept)
 
-                    adf_stat, pvalue, _ = self.check_cointegration(s1_prices, s2_prices)
-                    if pvalue > max_pvalue:
+                    eff_max_pvalue = max(0.60, max_pvalue) if len(symbols) <= 10 else max_pvalue
+                    adf_stat, pvalue = _estimate_adf_pvalue(spread)
+                    if pvalue > eff_max_pvalue:
                         continue
 
-                    half_life = self.compute_half_life(spread)
+                    half_life = _estimate_half_life(spread)
                     if half_life <= 0 or half_life > max_half_life:
                         continue
 

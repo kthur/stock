@@ -1673,7 +1673,8 @@ def execute_prediction_pipeline():
         if sector_df is not None and not sector_df.empty:
             sector_output_path = os.path.join(result_dir, "sector_predictions.txt")
             sector_df_merged = sector_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
-            if 'sector' in pipe_sector_map:
+            # Fix: use pipe_sector_map (dict) truthiness, not 'sector' in dict
+            if pipe_sector_map:
                 sector_df_merged['sector'] = sector_df_merged['symbol'].map(lambda s: pipe_sector_map.get(s, 'General'))
             elif 'sector' in universe.columns:
                 sec_sub = universe[['symbol', 'sector']]
@@ -1682,18 +1683,32 @@ def execute_prediction_pipeline():
                 sector_df_merged['sector'] = 'General'
 
             sector_df_merged = sector_df_merged.sort_values(by='sector_score', ascending=False)
-            with open(sector_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Sector Rotation Momentum & Macro Sensitivity Report ===\n")
-                f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-                f.write(f"Total symbols evaluated: {len(sector_df_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Sector':<25}{'Sector Score':<15}\n")
-                f.write("-" * 85 + "\n")
-                for rank, (_, row) in enumerate(sector_df_merged.head(100).iterrows(), 1):
+
+            def _write_sector_file(f_out, df_sect):
+                f_out.write("=== Sector Rotation Momentum & Macro Sensitivity Report ===\n")
+                f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_sect)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Sector':<25}{'Sector Score':<15}\n")
+                f_out.write("-" * 85 + "\n")
+                for rank, (_, row) in enumerate(df_sect.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                     sec_str = str(row.get('sector', 'General'))[:23]
                     mkt_str = str(row.get('market', 'KRX'))
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{mkt_str:<10}{sec_str:<25}{row['sector_score']*100:>13.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{mkt_str:<10}{sec_str:<25}{row['sector_score']*100:>13.1f}%\n")
+
+            with open(sector_output_path, "w", encoding="utf-8") as f:
+                _write_sector_file(f, sector_df_merged)
             logger.info(f"Saved sector rotation predictions ({len(sector_df_merged)} symbols) to {sector_output_path}")
+
+            # Per-market suffix files for GHA artifact merge
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = sector_df_merged[sector_df_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                _mkt_path = os.path.join(result_dir, f"sector_predictions_{_m}.txt")
+                with open(_mkt_path, "w", encoding="utf-8") as _mf:
+                    _write_sector_file(_mf, _m_df)
+                logger.info(f"Saved sector predictions for {_m} to {_mkt_path}")
     except Exception as _sec_e:
         logger.warning(f"Sector rotation score calculation skipped: {_sec_e}")
         sector_df = pd.DataFrame()
@@ -1716,17 +1731,29 @@ def execute_prediction_pipeline():
         if not rim_df.empty:
             rim_merged = rim_df.merge(universe[['symbol', 'name']], on='symbol', how='left')
             rim_merged = rim_merged.sort_values(by='rim_score', ascending=False)
-            with open(rim_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===\n")
-                f.write(f"Date: {date_str}\n")
-                f.write(f"Total symbols evaluated: {len(rim_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}{'RIM Score':<12}\n")
-                f.write("-" * 95 + "\n")
-                for rank, (_, row) in enumerate(rim_merged.head(100).iterrows(), 1):
+
+            def _write_rim_file(f_out, df_rim):
+                f_out.write("=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===\n")
+                f_out.write(f"Date: {date_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_rim)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}{'RIM Score':<12}\n")
+                f_out.write("-" * 95 + "\n")
+                for rank, (_, row) in enumerate(df_rim.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                     disc_pct = row.get('discount_ratio', 0.0) * 100.0
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['Close']:<12.2f}{row['intrinsic_value']:<14.2f}{disc_pct:>10.1f}%{row['rim_score']*100:>10.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['Close']:<12.2f}{row['intrinsic_value']:<14.2f}{disc_pct:>10.1f}%{row['rim_score']*100:>10.1f}%\n")
+
+            with open(rim_output_path, "w", encoding="utf-8") as f:
+                _write_rim_file(f, rim_merged)
             logger.info(f"Saved RIM valuation predictions ({len(rim_merged)} symbols) to {rim_output_path}")
+
+            # Per-market suffix files
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = rim_merged[rim_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"rim_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_rim_file(_mf, _m_df)
     except Exception as _rim_e:
         logger.warning(f"RIM valuation score calculation skipped: {_rim_e}")
         rim_df = pd.DataFrame()
@@ -1740,16 +1767,28 @@ def execute_prediction_pipeline():
         event_output_path = os.path.join(result_dir, "event_driven_predictions.txt")
         if not event_df.empty:
             ev_merged = event_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='event_score', ascending=False)
-            with open(event_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Strategy 10: Event-Driven Disclosure Catalyst Predictions ===\n")
-                f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(ev_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Event Score':<14}\n")
-                f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(ev_merged.head(100).iterrows(), 1):
+
+            def _write_event_file(f_out, df_ev):
+                f_out.write("=== Strategy 10: Event-Driven Disclosure Catalyst Predictions ===\n")
+                f_out.write(f"Date: {kst_now_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_ev)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Event Score':<14}\n")
+                f_out.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(df_ev.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['event_score']*100:>12.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['event_score']*100:>12.1f}%\n")
+
+            with open(event_output_path, "w", encoding="utf-8") as f:
+                _write_event_file(f, ev_merged)
             logger.info(f"Saved event-driven predictions ({len(ev_merged)} symbols) to {event_output_path}")
+
+            # Per-market suffix files
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = ev_merged[ev_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"event_driven_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_event_file(_mf, _m_df)
     except Exception as _ev_e:
         logger.warning(f"Event-driven score calculation skipped: {_ev_e}")
         event_df = pd.DataFrame()
@@ -1763,16 +1802,28 @@ def execute_prediction_pipeline():
         mq_output_path = os.path.join(result_dir, "mq_factor_predictions.txt")
         if not mq_df.empty:
             mq_merged = mq_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='mq_score', ascending=False)
-            with open(mq_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Strategy 11: Momentum Quality (MQ) Factor Predictions ===\n")
-                f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(mq_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'MQ Score':<14}\n")
-                f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(mq_merged.head(100).iterrows(), 1):
+
+            def _write_mq_file(f_out, df_mq):
+                f_out.write("=== Strategy 11: Momentum Quality (MQ) Factor Predictions ===\n")
+                f_out.write(f"Date: {kst_now_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_mq)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'MQ Score':<14}\n")
+                f_out.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(df_mq.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['mq_score']*100:>12.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['mq_score']*100:>12.1f}%\n")
+
+            with open(mq_output_path, "w", encoding="utf-8") as f:
+                _write_mq_file(f, mq_merged)
             logger.info(f"Saved MQ factor predictions ({len(mq_merged)} symbols) to {mq_output_path}")
+
+            # Per-market suffix files
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = mq_merged[mq_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"mq_factor_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_mq_file(_mf, _m_df)
     except Exception as _mq_e:
         logger.warning(f"MQ factor score calculation skipped: {_mq_e}")
         mq_df = pd.DataFrame()
@@ -1786,16 +1837,28 @@ def execute_prediction_pipeline():
         iv_output_path = os.path.join(result_dir, "iv_skew_predictions.txt")
         if not iv_skew_df.empty:
             iv_merged = iv_skew_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='iv_skew_score', ascending=False)
-            with open(iv_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Strategy 12: Options Put/Call IV Skew Predictions ===\n")
-                f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(iv_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'IV Skew Score':<14}\n")
-                f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(iv_merged.head(100).iterrows(), 1):
+
+            def _write_iv_file(f_out, df_iv):
+                f_out.write("=== Strategy 12: Options Put/Call IV Skew Predictions ===\n")
+                f_out.write(f"Date: {kst_now_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_iv)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'IV Skew Score':<14}\n")
+                f_out.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(df_iv.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['iv_skew_score']*100:>12.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['iv_skew_score']*100:>12.1f}%\n")
+
+            with open(iv_output_path, "w", encoding="utf-8") as f:
+                _write_iv_file(f, iv_merged)
             logger.info(f"Saved IV skew predictions ({len(iv_merged)} symbols) to {iv_output_path}")
+
+            # Per-market suffix files
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = iv_merged[iv_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"iv_skew_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_iv_file(_mf, _m_df)
     except Exception as _iv_e:
         logger.warning(f"IV skew score calculation skipped: {_iv_e}")
         iv_skew_df = pd.DataFrame()
@@ -1809,16 +1872,28 @@ def execute_prediction_pipeline():
         of_output_path = os.path.join(result_dir, "order_flow_predictions.txt")
         if not order_flow_df.empty:
             of_merged = order_flow_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='order_flow_score', ascending=False)
-            with open(of_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Strategy 13: Order Flow Imbalance (MFI) Predictions ===\n")
-                f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(of_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Order Flow Score':<16}\n")
-                f.write("-" * 62 + "\n")
-                for rank, (_, row) in enumerate(of_merged.head(100).iterrows(), 1):
+
+            def _write_of_file(f_out, df_of):
+                f_out.write("=== Strategy 13: Order Flow Imbalance (MFI) Predictions ===\n")
+                f_out.write(f"Date: {kst_now_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_of)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Order Flow Score':<16}\n")
+                f_out.write("-" * 62 + "\n")
+                for rank, (_, row) in enumerate(df_of.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['order_flow_score']*100:>14.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['order_flow_score']*100:>14.1f}%\n")
+
+            with open(of_output_path, "w", encoding="utf-8") as f:
+                _write_of_file(f, of_merged)
             logger.info(f"Saved order flow predictions ({len(of_merged)} symbols) to {of_output_path}")
+
+            # Per-market suffix files
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = of_merged[of_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"order_flow_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_of_file(_mf, _m_df)
     except Exception as _of_e:
         logger.warning(f"Order flow score calculation skipped: {_of_e}")
         order_flow_df = pd.DataFrame()
@@ -1832,16 +1907,28 @@ def execute_prediction_pipeline():
         rev_output_path = os.path.join(result_dir, "short_term_reversal_predictions.txt")
         if not reversal_df.empty:
             rev_merged = reversal_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='reversal_score', ascending=False)
-            with open(rev_output_path, "w", encoding="utf-8") as f:
-                f.write("=== Strategy 14: Short-Term Mean Reversal Predictions ===\n")
-                f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(rev_merged)}\n\n")
-                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Reversal Score':<16}\n")
-                f.write("-" * 62 + "\n")
-                for rank, (_, row) in enumerate(rev_merged.head(100).iterrows(), 1):
+
+            def _write_rev_file(f_out, df_rev):
+                f_out.write("=== Strategy 14: Short-Term Mean Reversal Predictions ===\n")
+                f_out.write(f"Date: {kst_now_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_rev)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Reversal Score':<16}\n")
+                f_out.write("-" * 62 + "\n")
+                for rank, (_, row) in enumerate(df_rev.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['reversal_score']*100:>14.1f}%\n")
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['reversal_score']*100:>14.1f}%\n")
+
+            with open(rev_output_path, "w", encoding="utf-8") as f:
+                _write_rev_file(f, rev_merged)
             logger.info(f"Saved short-term reversal predictions ({len(rev_merged)} symbols) to {rev_output_path}")
+
+            # Per-market suffix files
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = rev_merged[rev_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"short_term_reversal_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_rev_file(_mf, _m_df)
     except Exception as _rev_e:
         logger.warning(f"Short-term reversal score calculation skipped: {_rev_e}")
         reversal_df = pd.DataFrame()
@@ -1987,7 +2074,36 @@ def execute_prediction_pipeline():
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
-    # 11g. Run Portfolio Position Sizing (Ensemble Link)
+    # Per-market suffix files for GHA artifact merge (merge_ensemble_predictions reads ensemble_predictions_{MARKET}.txt)
+    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        _m_df = ensemble_df_merged[ensemble_df_merged['market'] == _m].sort_values(by='ensemble_score', ascending=False)
+        if _m_df.empty:
+            continue
+        _mkt_ens_path = os.path.join(result_dir, f"ensemble_predictions_{_m}.txt")
+        with open(_mkt_ens_path, "w", encoding="utf-8") as _mf:
+            _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\n")
+            _mf.write(f"Date: {kst_now_str}\n\n")
+            _mf.write(f"\n=========================================\n")
+            _mf.write(f"[{_m}] Top 20 Ensemble Picks\n")
+            _mf.write("=========================================\n")
+            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}\n")
+            _mf.write("-" * 155 + "\n")
+            for _rank, (_, _row) in enumerate(_m_df.head(20).iterrows(), 1):
+                _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
+                _mf.write(
+                    f"{_rank:<5}{_row['symbol']:<10}{_name_str:<18}"
+                    f"{_row['ensemble_score']*100:>10.1f}%{_row['ensemble_expected_return']:>12.2f}%"
+                    f"{_row['reg_score']*100:>4.0f}%{_row['surge_score']*100:>4.0f}%{_row['ll_score']*100:>4.0f}%"
+                    f"{_row.get('vcp_rule_score', 0.0)*100:>5.0f}%{_row['vcp_ml_score']*100:>5.0f}%"
+                    f"{_row.get('lstm_score', 0.0)*100:>4.0f}%{_row.get('stat_arb_score', 0.0)*100:>5.0f}%"
+                    f"{_row.get('sector_score', 0.0)*100:>5.0f}%{_row.get('rim_score', 0.0)*100:>4.0f}%"
+                    f"{_row.get('event_score', 0.0)*100:>5.0f}%{_row.get('mq_score', 0.0)*100:>4.0f}%"
+                    f"{_row.get('iv_skew_score', 0.0)*100:>5.0f}%{_row.get('order_flow_score', 0.0)*100:>4.0f}%"
+                    f"{_row.get('reversal_score', 0.0)*100:>4.0f}%\n"
+                )
+        logger.info(f"Saved ensemble predictions for {_m} to {_mkt_ens_path}")
+
+
     logger.info("Running Portfolio Position Sizing allocation on Ensemble expectancies...")
     # Prepare the input DataFrame expected by PortfolioAllocator: ['symbol', 20]
     ensemble_for_alloc = ensemble_df[['symbol', 'ensemble_expected_return']].rename(

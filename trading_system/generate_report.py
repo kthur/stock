@@ -512,6 +512,64 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
     return date, rows
 
 
+@dataclass
+class SimpleStrategyRow:
+    rank: int
+    symbol: str
+    name: str
+    market: str
+    score: str
+
+
+def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleStrategyRow]]:
+    """Generic parser for Event-Driven / MQ / IV Skew / Order Flow / Short-Term Reversal files.
+
+    Expected format per data line:
+        <rank>  <symbol>  <name>  <market>  <score>%
+    e.g.: 1     005930  삼성전자          KOSPI       82.3%
+    """
+    if not text:
+        return "", []
+    date = ""
+    rows: list[SimpleStrategyRow] = []
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"Date:\s*(.+)", line)
+        if m:
+            date = m.group(1).strip()
+            continue
+        # Matches: rank  symbol  name (anything)  market  score%
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500)\s+([-+]?[\d.]+)%$", line)
+        if m:
+            rows.append(SimpleStrategyRow(
+                rank=int(m.group(1)),
+                symbol=m.group(2),
+                name=m.group(3).strip(),
+                market=m.group(4),
+                score=m.group(5) + "%",
+            ))
+    return date, rows
+
+
+def parse_event_driven(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "event_score")
+
+
+def parse_mq_factor(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "mq_score")
+
+
+def parse_iv_skew(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "iv_skew_score")
+
+
+def parse_order_flow(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "order_flow_score")
+
+
+def parse_short_term_reversal(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "reversal_score")
+
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
         date=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
@@ -696,6 +754,11 @@ def build_html(
     stat_arb_rows: Optional[list[StatArbRow]] = None,
     sector_rows: Optional[list[SectorRow]] = None,
     rim_rows: Optional[list[RimRow]] = None,
+    event_rows: Optional[list[SimpleStrategyRow]] = None,
+    mq_rows: Optional[list[SimpleStrategyRow]] = None,
+    iv_rows: Optional[list[SimpleStrategyRow]] = None,
+    flow_rows: Optional[list[SimpleStrategyRow]] = None,
+    reversal_rows: Optional[list[SimpleStrategyRow]] = None,
 ) -> str:
     from datetime import timezone, timedelta
     KST = timezone(timedelta(hours=9))
@@ -1149,6 +1212,54 @@ def build_html(
       </div>
     </div>"""
 
+    # ── Helper: build per-market panels for simple strategy tables ──
+    def _build_simple_panels(
+        rows_list: list,
+        panel_id: str,
+        col_header: str,
+        score_attr: str = "score",
+        score_class: str = "pos",
+    ) -> str:
+        panels_html = ""
+        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+            flag = MARKET_FLAGS.get(mkt, "")
+            mkt_rows = [r for r in (rows_list or []) if r.market == mkt]
+            rows_html = ""
+            if mkt_rows:
+                for row in mkt_rows:
+                    sym_link = make_stock_link(row.symbol, mkt)
+                    score_val = getattr(row, score_attr, row.score)
+                    rows_html += f"""
+            <tr>
+              <td class="rank">#{row.rank}</td>
+              <td class="symbol">{sym_link}</td>
+              <td class="name">{row.name}</td>
+              <td>{MARKET_FLAGS.get(row.market, "")} {row.market}</td>
+              <td class="{score_class}">{score_val}</td>
+            </tr>"""
+            else:
+                rows_html = f'<tr><td colspan="5" class="empty">데이터 없음</td></tr>'
+
+            panels_html += f"""
+    <div class="market-panel" data-market="{mkt}">
+      <h3 class="market-title">{flag} {mkt}</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>{col_header}</th>
+          </tr></thead>
+          <tbody>{rows_html}</tbody>
+        </table>
+      </div>
+    </div>"""
+        return panels_html
+
+    event_panels = _build_simple_panels(event_rows or [], "event", "이벤트 스코어")
+    mq_panels    = _build_simple_panels(mq_rows or [],    "mq",    "MQ 스코어")
+    iv_panels    = _build_simple_panels(iv_rows or [],    "iv",    "IV Skew 스코어")
+    flow_panels  = _build_simple_panels(flow_rows or [],  "flow",  "수급 스코어")
+    reversal_panels = _build_simple_panels(reversal_rows or [], "reversal", "반전 스코어")
+
     # JSON strings for Chart.js
     hrp_labels_json = json.dumps(chart_labels, ensure_ascii=False)
     hrp_weights_json = json.dumps(chart_weights)
@@ -1302,6 +1413,11 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
   <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
   <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
+  <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
+  <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
+  <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
+  <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
+  <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
 </nav>
 
 <div class="content">
@@ -1610,6 +1726,76 @@ def build_html(
     </div>
   </div>
 
+  <!-- ══ Event-Driven Tab ══ -->
+  <div class="tab-panel" id="panel-event">
+    <div class="filter-bar" id="filter-event">
+      <button class="filter-btn active" onclick="filterMarket(this,'event')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="event-panels">
+    {event_panels}
+    </div>
+  </div>
+
+  <!-- ══ MQ Factor Tab ══ -->
+  <div class="tab-panel" id="panel-mq">
+    <div class="filter-bar" id="filter-mq">
+      <button class="filter-btn active" onclick="filterMarket(this,'mq')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="mq-panels">
+    {mq_panels}
+    </div>
+  </div>
+
+  <!-- ══ IV Skew Tab ══ -->
+  <div class="tab-panel" id="panel-iv">
+    <div class="filter-bar" id="filter-iv">
+      <button class="filter-btn active" onclick="filterMarket(this,'iv')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="iv-panels">
+    {iv_panels}
+    </div>
+  </div>
+
+  <!-- ══ Order Flow Tab ══ -->
+  <div class="tab-panel" id="panel-flow">
+    <div class="filter-bar" id="filter-flow">
+      <button class="filter-btn active" onclick="filterMarket(this,'flow')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="flow-panels">
+    {flow_panels}
+    </div>
+  </div>
+
+  <!-- ══ Short-Term Reversal Tab ══ -->
+  <div class="tab-panel" id="panel-reversal">
+    <div class="filter-bar" id="filter-reversal">
+      <button class="filter-btn active" onclick="filterMarket(this,'reversal')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="reversal-panels">
+    {reversal_panels}
+    </div>
+  </div>
+
   <!-- ══ VCP ML Tab ══ -->
   <div class="tab-panel" id="panel-vcpml">
     <div class="hz-tabs">{vcp_ml_tabs_nav}</div>
@@ -1744,6 +1930,11 @@ def main(args_list: Optional[list[str]] = None):
     sector_date, sector_rows = parse_sector(_read(result_dir / "sector_predictions.txt"))
     rim_date, rim_rows = parse_rim(_read(result_dir / "rim_predictions.txt"))
     portfolio_data = parse_portfolio_allocation(_read(result_dir / "portfolio_allocation.txt"), ensemble)
+    event_date, event_rows = parse_event_driven(_read(result_dir / "event_driven_predictions.txt"))
+    mq_date, mq_rows = parse_mq_factor(_read(result_dir / "mq_factor_predictions.txt"))
+    iv_date, iv_rows = parse_iv_skew(_read(result_dir / "iv_skew_predictions.txt"))
+    flow_date, flow_rows = parse_order_flow(_read(result_dir / "order_flow_predictions.txt"))
+    reversal_date, reversal_rows = parse_short_term_reversal(_read(result_dir / "short_term_reversal_predictions.txt"))
 
     html = build_html(
         ensemble,
@@ -1754,8 +1945,14 @@ def main(args_list: Optional[list[str]] = None):
         portfolio_data,
         stat_arb_rows,
         sector_rows,
-        rim_rows
+        rim_rows,
+        event_rows,
+        mq_rows,
+        iv_rows,
+        flow_rows,
+        reversal_rows,
     )
+
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
