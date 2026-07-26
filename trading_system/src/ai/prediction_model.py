@@ -542,19 +542,14 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
-                model.booster_ = lgb.Booster(model_file=str(fpath))
-                model.fitted_ = True
-                model._n_classes = 2
-                model._classes = np.array([0, 1])
-
                 try:
-                    fn = model.booster_.feature_name() if hasattr(model.booster_, "feature_name") and model.booster_.feature_name() else self.ALL_FEATURES
+                    booster = lgb.Booster(model_file=str(fpath))
+                    fn = booster.feature_name() if hasattr(booster, "feature_name") and booster.feature_name() else self.ALL_FEATURES
                     val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = model.predict_proba(val_df)
+                    _ = booster.predict(val_df)
                     if market not in self.surge_lgb_models:
                         self.surge_lgb_models[market] = {}
-                    self.surge_lgb_models[market][h] = model
+                    self.surge_lgb_models[market][h] = booster
                     logger.debug(f"Loaded LGB surge model for {market} {h}d from {fpath}")
                 except Exception as e:
                     logger.warning(f"LGB surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
