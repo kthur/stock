@@ -191,7 +191,7 @@ class StatisticalArbitrageEngine:
         if not found_pairs:
             return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
 
-        symbol_scores = {}
+        symbol_scores: dict[str, float] = {}
         for item in found_pairs:
             sig = item.get("signal", "")
             z = abs(item.get("z_score", 0.0))

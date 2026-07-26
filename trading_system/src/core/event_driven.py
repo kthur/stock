@@ -51,7 +51,8 @@ class EventDrivenEngine:
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get('status') == '000':
-                    return data.get('list', [])
+                    res = data.get('list', [])
+                    return res if isinstance(res, list) else []
         except Exception as e:
             logger.debug(f"OpenDART fetch failed: {e}")
 
