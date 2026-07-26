@@ -346,6 +346,39 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict) -> None:
             out.write(leaders_sect)
 
 
+def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: str, title: str) -> None:
+    merged_path = result_dir / filename
+    print(f"Merging {filename} -> {merged_path}")
+
+    from datetime import timezone, timedelta
+    kst_now = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
+
+    lines_written = 0
+    with open(merged_path, "w", encoding="utf-8") as out:
+        out.write(f"=== {title} ===\n")
+        out.write(f"Date: {kst_now}\n\n")
+
+        stem = Path(filename).stem
+        for market, path in target_dirs.items():
+            file_path = path / f"{stem}_{market}.txt"
+            if not file_path.exists():
+                file_path = path / filename
+            if not file_path.exists():
+                continue
+
+            content = get_file_content(file_path)
+            for line in content.splitlines():
+                if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols:") or not line.strip():
+                    continue
+                if "데이터 없음" in line or "No data" in line:
+                    continue
+                out.write(line + "\n")
+                lines_written += 1
+
+        if lines_written == 0:
+            out.write("데이터 없음\n")
+
+
 def main():
     base_dir = Path(__file__).resolve().parent
     result_dir = base_dir / "result"
@@ -379,6 +412,15 @@ def main():
     merge_vcp_ml_predictions(result_dir, target_dirs)
     merge_vcp_patterns(result_dir, target_dirs)
     merge_lead_lag_predictions(result_dir, target_dirs)
+
+    # Merge remaining 14 strategy individual outputs
+    merge_generic_strategy_files(result_dir, target_dirs, "sector_rotation_predictions.txt", "Sector Rotation Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "rim_predictions.txt", "RIM Intrinsic Valuation Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "event_driven_predictions.txt", "Event-Driven Disclosure Catalyst Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "mq_factor_predictions.txt", "Momentum Quality (MQ) Factor Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "iv_skew_predictions.txt", "Options Put/Call IV Skew Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "order_flow_predictions.txt", "Order Flow Imbalance (MFI) Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "short_term_reversal_predictions.txt", "Short-Term Mean Reversal Predictions")
 
     print("All prediction files successfully merged.")
 

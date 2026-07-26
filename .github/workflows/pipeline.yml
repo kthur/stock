@@ -115,10 +115,10 @@ jobs:
           echo "| Run ID | [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| SKIP_TRAINING | ${{ env.SKIP_TRAINING }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📁 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
-          echo "| 파일 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt strategy_data_coverage_report.txt pipeline_result.csv; do
+          echo "### 📁 14대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
+          echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
+          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt stat_arb_predictions.txt sector_rotation_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt pipeline_result.csv; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
@@ -128,6 +128,22 @@ jobs:
               echo "| $f | ⚠️ 없음 | - |" >> $GITHUB_STEP_SUMMARY
             fi
           done
+
+          if [ -f "trading_system/result/ensemble_predictions.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 14대 전략 동적 앙상블 상세 추천 리스트" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            head -n 60 trading_system/result/ensemble_predictions.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f "trading_system/result/strategy_data_coverage_report.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🔍 전략별 데이터 커버리지 & 결측 분석" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            cat trading_system/result/strategy_data_coverage_report.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       # P0: Telegram failure notification — send CRITICAL alert when pipeline fails
       - name: Notify Telegram on Failure
@@ -150,7 +166,7 @@ jobs:
         if: always()
         run: |
           mkdir -p trading_system/result_split
-          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions ensemble_predictions; do
+          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions lstm_predictions stat_arb_predictions sector_rotation_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation; do
             src="trading_system/result/${f}.txt"
             if [ -f "$src" ]; then
               cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
@@ -237,9 +253,13 @@ jobs:
               --notes "Daily prediction results for $TAG_NAME (Merged SP500, KOSPI, KOSDAQ, KONEX)." \
               || echo "Release $TAG_NAME already exists"
             
-            # Upload only core 6 files
+            # Upload all 14 strategy files and report outputs
             for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
-                      vcp_patterns.txt vcp_ml_predictions.txt ensemble_predictions.txt; do
+                      vcp_patterns.txt vcp_ml_predictions.txt lstm_predictions.txt \
+                      stat_arb_predictions.txt sector_rotation_predictions.txt \
+                      rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt \
+                      iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt \
+                      ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt; do
               fpath="trading_system/result/$f"
               [ -f "$fpath" ] && gh release upload "$TAG_NAME" "$fpath" --clobber || true
             done

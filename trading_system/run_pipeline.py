@@ -1746,6 +1746,19 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 10: Event-Driven Momentum Scores...")
         event_engine = EventDrivenEngine(dart_api_key=getattr(cfg, 'dart_api_key', ''))
         event_df = event_engine.compute_event_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+        event_output_path = os.path.join(result_dir, "event_driven_predictions.txt")
+        if not event_df.empty:
+            ev_merged = event_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='event_score', ascending=False)
+            with open(event_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 10: Event-Driven Disclosure Catalyst Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(ev_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Event Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(ev_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['event_score']*100:>12.1f}%\n")
+            logger.info(f"Saved event-driven predictions ({len(ev_merged)} symbols) to {event_output_path}")
     except Exception as _ev_e:
         logger.warning(f"Event-driven score calculation skipped: {_ev_e}")
         event_df = pd.DataFrame()
@@ -1756,6 +1769,19 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 11: Momentum Quality (MQ) Factor Scores...")
         mq_engine = MQFactorEngine()
         mq_df = mq_engine.compute_mq_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
+        mq_output_path = os.path.join(result_dir, "mq_factor_predictions.txt")
+        if not mq_df.empty:
+            mq_merged = mq_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='mq_score', ascending=False)
+            with open(mq_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 11: Momentum Quality (MQ) Factor Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(mq_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'MQ Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(mq_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['mq_score']*100:>12.1f}%\n")
+            logger.info(f"Saved MQ factor predictions ({len(mq_merged)} symbols) to {mq_output_path}")
     except Exception as _mq_e:
         logger.warning(f"MQ factor score calculation skipped: {_mq_e}")
         mq_df = pd.DataFrame()
@@ -1766,6 +1792,19 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 12: Options IV Skew Scores...")
         iv_skew_engine = IVSkewEngine()
         iv_skew_df = iv_skew_engine.compute_iv_skew_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+        iv_output_path = os.path.join(result_dir, "iv_skew_predictions.txt")
+        if not iv_skew_df.empty:
+            iv_merged = iv_skew_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='iv_skew_score', ascending=False)
+            with open(iv_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 12: Options Put/Call IV Skew Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(iv_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'IV Skew Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(iv_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['iv_skew_score']*100:>12.1f}%\n")
+            logger.info(f"Saved IV skew predictions ({len(iv_merged)} symbols) to {iv_output_path}")
     except Exception as _iv_e:
         logger.warning(f"IV skew score calculation skipped: {_iv_e}")
         iv_skew_df = pd.DataFrame()
@@ -1776,6 +1815,19 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 13: Order Flow Imbalance Scores...")
         of_engine = OrderFlowEngine()
         order_flow_df = of_engine.compute_order_flow_scores(prices_dict=infer_data_dict)
+        of_output_path = os.path.join(result_dir, "order_flow_predictions.txt")
+        if not order_flow_df.empty:
+            of_merged = order_flow_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='order_flow_score', ascending=False)
+            with open(of_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 13: Order Flow Imbalance (MFI) Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(of_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Order Flow Score':<16}\n")
+                f.write("-" * 62 + "\n")
+                for rank, (_, row) in enumerate(of_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['order_flow_score']*100:>14.1f}%\n")
+            logger.info(f"Saved order flow predictions ({len(of_merged)} symbols) to {of_output_path}")
     except Exception as _of_e:
         logger.warning(f"Order flow score calculation skipped: {_of_e}")
         order_flow_df = pd.DataFrame()
@@ -1786,6 +1838,19 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 14: Short-Term Reversal Scores...")
         reversal_engine = ShortTermReversalEngine()
         reversal_df = reversal_engine.compute_reversal_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
+        rev_output_path = os.path.join(result_dir, "short_term_reversal_predictions.txt")
+        if not reversal_df.empty:
+            rev_merged = reversal_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='reversal_score', ascending=False)
+            with open(rev_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 14: Short-Term Mean Reversal Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(rev_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Reversal Score':<16}\n")
+                f.write("-" * 62 + "\n")
+                for rank, (_, row) in enumerate(rev_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['reversal_score']*100:>14.1f}%\n")
+            logger.info(f"Saved short-term reversal predictions ({len(rev_merged)} symbols) to {rev_output_path}")
     except Exception as _rev_e:
         logger.warning(f"Short-term reversal score calculation skipped: {_rev_e}")
         reversal_df = pd.DataFrame()
