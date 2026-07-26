@@ -94,6 +94,7 @@ def test_portfolio_allocator_sector_risk_cap():
 def test_risk_manager_atr_trailing_stop_signal_and_price():
     """Test RiskManager calculation of ATR trailing stop price and trigger signal."""
     rm = RiskManager(portfolio_value=100_000_000.0)
+    rm.peak_portfolio_value = 100_000_000.0
 
     highest_price = 100000.0
     atr = 2000.0

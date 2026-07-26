@@ -127,6 +127,7 @@ class EnsembleScoringEngine:
 
     def __init__(self, config=None):
         # Support TradingConfig for centralized constant management
+        self.config = config
         self._return_multiplier = 20.0  # default
         if config is not None:
             self._return_multiplier = getattr(config, "ensemble_return_multiplier", 20.0)
@@ -468,7 +469,7 @@ class EnsembleScoringEngine:
         raw_exp_ret = merged['ensemble_score'] * self._return_multiplier
 
         # Apply Market-specific Transaction Cost & Slippage Deductions
-        slippage = self.config.slippage_krx_market_order if self.config else 0.005
+        slippage = getattr(self.config, 'slippage_krx_market_order', 0.005) if self.config is not None else 0.005
 
         def _get_cost_pct(symbol: str) -> float:
             if symbol.isdigit() or symbol.endswith(('.KS', '.KQ', '.KN')):

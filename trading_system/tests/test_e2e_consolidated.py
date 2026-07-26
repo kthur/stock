@@ -521,7 +521,7 @@ class TestE2EConsolidated(unittest.TestCase):
         ll_df = pd.DataFrame([{"symbol": "AAPL", "lead_lag_score": 0.50}])
         vcp_df = pd.DataFrame([{"symbol": "AAPL", "vcp_20d": 0.90}])
 
-        res = engine.calculate_ensemble_score(2, reg_df, surge_df, ll_df, vcp_df, target_horizon=20)
+        res = engine.calculate_ensemble_score(regime=2, regression_df=reg_df, surge_df=surge_df, lead_lag_df=ll_df, vcp_ml_df=vcp_df, target_horizon=20)
         self.assertFalse(res.empty)
         self.assertIn("ensemble_score", res.columns)
         self.assertIn("ensemble_expected_return", res.columns)
@@ -838,7 +838,7 @@ class TestE2EConsolidated(unittest.TestCase):
         os.environ["STOCK_PRICE_FRESHNESS_DAYS"] = "none" # Cache-only offline
 
         # Setup local caches so we don't trigger online fetches
-        for sym in ["AAPL", "005930", "^GSPC", "^TNX", "USDKRW=X", "^VIX", "DX-Y.NYB", "CL=F", "^KS11", "^KQ11", "^CPC", "091160.KS", "305720.KS", "244580.KS", "XLK", "XLF", "XLV", "XLE"]:
+        for sym in ["AAPL", "005930", "^GSPC", "^TNX", "^FVX", "^IRX", "USDKRW=X", "^VIX", "DX-Y.NYB", "CL=F", "^KS11", "^KQ11", "^CPC", "091160.KS", "305720.KS", "273130.KS", "244580.KS", "XLK", "XLF", "XLV", "XLE"]:
             self.price_storage.update_prices(sym, df_hist)
 
         # Run pipeline
