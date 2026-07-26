@@ -743,9 +743,17 @@ class OnDevicePredictionModel:
                     daily_totals = combined.groupby(combined.index).sum()
 
                     for sym, df in group.items():
-                        df['norm_market_cap'] = _series(df['market_cap']).div(daily_totals['market_cap']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-                        df['norm_floating_value'] = _series(df['floating_value']).div(daily_totals['floating_value']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-                        df['norm_volume'] = _series(df['Volume']).div(daily_totals['Volume']).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+                        mc = _series(df['market_cap'])
+                        fv = _series(df['floating_value'])
+                        vol = _series(df['Volume'])
+                        
+                        dt_mc = daily_totals['market_cap'].replace(0.0, np.nan)
+                        dt_fv = daily_totals['floating_value'].replace(0.0, np.nan)
+                        dt_vol = daily_totals['Volume'].replace(0.0, np.nan)
+                        
+                        df['norm_market_cap'] = mc.div(dt_mc).fillna(1.0 if len(group) == 1 else 0.0).replace([np.inf, -np.inf], 0.0)
+                        df['norm_floating_value'] = fv.div(dt_fv).fillna(1.0 if len(group) == 1 else 0.0).replace([np.inf, -np.inf], 0.0)
+                        df['norm_volume'] = vol.div(dt_vol).fillna(1.0 if len(group) == 1 else 0.0).replace([np.inf, -np.inf], 0.0)
                         result_dict[sym] = df
             else:
                 # Use robust DB global standard baselines
