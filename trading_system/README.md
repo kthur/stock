@@ -8,7 +8,7 @@
 
 | 문서 | 설명 |
 |------|------|
-| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | 5대 전략(XGBoost 회귀, Surge, Lead-Lag, VCP 규칙, VCP ML) 알고리즘 상세 |
+| [ALGORITHMS_AND_STRATEGY.md](docs/ALGORITHMS_AND_STRATEGY.md) | 14대 전략(XGBoost 회귀, Surge, Lead-Lag, VCP 규칙, VCP ML, Strict Causal LSTM, Stat-Arb, Sector Rotation, RIM Valuation, Event-Driven, MQ Factor, Options IV Skew, Order Flow, Short-Term Reversal) 알고리즘 상세 |
 | [SYSTEM_ARCHITECTURE.md](docs/SYSTEM_ARCHITECTURE.md) | 시스템 아키텍처, 데이터 흐름, DB 스키마 |
 | [CONFIGURATION_REFERENCE.md](docs/CONFIGURATION_REFERENCE.md) | `.env` 환경 변수 완전 참조 |
 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | 해결된 이슈 목록 및 미해결 항목 |
@@ -38,31 +38,13 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-`.env` 파일을 열어 필요한 설정값을 입력합니다. 전체 변수 목록은 [CONFIGURATION_REFERENCE.md](docs/CONFIGURATION_REFERENCE.md)를 참조하세요.
-
-핵심 설정 예시:
-```ini
-# 학습 종목 수 (all = 전량 학습, 숫자 = 샘플 수)
-TRAIN_SAMPLE_SP500=all
-TRAIN_SAMPLE_KRX=all
-
-# 오프라인 모드 (네트워크 없이 캐시만 사용)
-STOCK_PRICE_FRESHNESS_DAYS=none
-
-# 기존 모델 재사용 (학습 건너뛰기)
-SKIP_TRAINING=False
-
-# 학습 데이터 시작일
-TRAIN_START_DATE=2006-01-01
-```
-
 ---
 
 ## 💻 실행 방법
 
 ### 1. 통합 예측 파이프라인 (핵심)
 
-5대 전략 모델을 학습하고 3,379개 종목의 예측 결과를 생성합니다.
+14대 전략 모델을 기반으로 3,379개 종목의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블을 수행합니다.
 
 #### CLI 옵션 (P1)
 
@@ -89,35 +71,18 @@ TRAIN_START_DATE=2006-01-01
 
 > **`--target KRX`** = KOSPI + KOSDAQ + KONEX 전체
 
-#### 실행 중 진행률 표시 (P0)
-
-```
-📥 Training data:  45%|████████▌          | 1521/3379 [02:14<02:43, 11.3sym/s] loaded=1488
-📡 Inference data: 78%|███████████████▌   | 2636/3379 [01:47<00:30, 24.1sym/s] loaded=2589
-```
-
-**실행 흐름** (12단계):
-
-| 단계 | 설명 | 소요 시간 |
-|------|------|-----------|
-| 1 | 설정 로드 (`TradingConfig`) | < 1초 |
-| 2 | 글로벌 지표 수집 (VIX, TNX, USDKRW 등) | ~10초 |
-| 3 | 지표 DB 저장 | < 1초 |
-| 4 | 종목 유니버스 로드 (3,379 종목) | ~5초 |
-| 5 | 글로벌 지표 히스토리 수집 | ~30초 |
-| 6 | 학습 데이터 준비 (병렬 + 펀더멘탈) | ~5-15분 |
-| 7a | 회귀 모델 학습 (시장별 XGB+LGB+Cat) | ~10-30분 |
-| 7b | Surge 분류기 학습 | ~5-15분 |
-| 7c | Lead-Lag 상관 행렬 계산 | ~2분 |
-| 7d | VCP ML 분류기 학습 | ~5-10분 |
-| 8-9 | 추론 데이터 수집 (전 종목) | ~10-30분 |
-| 10-12 | 예측 실행 + 결과 저장 | ~5-10분 |
-
-> **총 소요 시간**: 학습 포함 약 40-90분 / `--skip-training` 시 약 15-40분
-
 ### 2. 출력 파일 (`result/`)
 
-파이프라인 실행 후 `trading_system/result/` 디렉토리에 생성됩니다:
+| 파일 | 설명 |
+|------|------|
+| `ensemble_predictions.txt` | 14대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 14대 전략별 데이터 커버리지 및 결측 사유 비율 |
+| `pipeline_result.txt` | 회귀 모델 horizon별 예상수익률 TOP10 |
+| `surge_predictions.txt` | Surge 분류기 horizon별 급등 확률 TOP20 |
+| `lead_lag_predictions.txt` | Leader-Follower 시차 상관 점수 |
+| `vcp_patterns.txt` | VCP 패턴 검출 종목 |
+| `vcp_ml_predictions.txt` | 시장별 VCP ML surge 확률 TOP10 |
+| `stat_arb_predictions.txt` | Stat-Arb 차익거래 공적분 잔차 페어 |
 
 | 파일 | 형식 | 설명 |
 |------|------|------|
