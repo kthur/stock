@@ -96,5 +96,29 @@ class TestRegimeEnsemble(unittest.TestCase):
         # Stock_C should be highly ranked because of high lead_lag_score and decent regression rank
         self.assertGreater(scores['Stock_C'], scores['Stock_A'])
 
+    def test_3d_macro_regime_ensemble(self):
+        # Test 3D Macro Regime dictionary input with LIQUIDITY_SQUEEZE modifier
+        macro_3d_input = {
+            'direction_code': 1,
+            'direction_label': 'SIDEWAYS',
+            'volatility_label': 'HIGH_VOL',
+            'combo_2d_label': 'SIDEWAYS_HIGH_VOL',
+            'macro_label': 'LIQUIDITY_SQUEEZE',
+            'combo_3d_label': 'SIDEWAYS_HIGH_VOL_LIQUIDITY_SQUEEZE'
+        }
+
+        res = self.engine.calculate_ensemble_score(
+            regime=macro_3d_input,
+            regression_df=self.regression_df,
+            surge_df=self.surge_df,
+            lead_lag_df=self.lead_lag_df,
+            vcp_ml_df=self.vcp_ml_df,
+            target_horizon=20
+        )
+
+        self.assertIn('symbol', res.columns)
+        self.assertIn('ensemble_score', res.columns)
+        self.assertEqual(len(res), 3)
+
 if __name__ == '__main__':
     unittest.main()

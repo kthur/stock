@@ -200,3 +200,46 @@ class MarketRegimeDetector:
         res = self.predict_2d_regime(indicator_df)
         return str(res['combo_label'])
 
+    def predict_3d_macro_regime(self, indicator_df: pd.DataFrame) -> dict:
+        """
+        Predicts 3D Macro Regime: 2D Regime (Direction + Volatility) + Macro Condition.
+        Macro Conditions:
+          - HIGH_YIELD_BULL: Bull market with elevated yields / USD strength
+          - HIGH_YIELD_BEAR: Bear market with high yields / rate pressure
+          - LIQUIDITY_SQUEEZE: High volatility with spike in VIX / yield curve spread
+          - NEUTRAL_EXPANSION: Normal expansionary environment
+
+        Returns dict with 3D classification details.
+        """
+        res_2d = self.predict_2d_regime(indicator_df)
+        macro_label = "NEUTRAL_EXPANSION"
+
+        try:
+            if not indicator_df.empty:
+                vix_val = float(indicator_df['vix_change'].iloc[-1]) if 'vix_change' in indicator_df.columns else 0.0
+                tnx_val = float(indicator_df['us10y'].iloc[-1]) if 'us10y' in indicator_df.columns else 4.0
+                ktb_spread = float(indicator_df['ktb_spread'].iloc[-1]) if 'ktb_spread' in indicator_df.columns else 0.0
+
+                is_high_yield = tnx_val > 4.2 or ktb_spread > 0.3
+                is_squeeze = vix_val > 5.0 or (res_2d['volatility_label'] == 'HIGH_VOL' and is_high_yield)
+
+                if is_squeeze:
+                    macro_label = "LIQUIDITY_SQUEEZE"
+                elif is_high_yield and res_2d['direction_label'] == 'BULL':
+                    macro_label = "HIGH_YIELD_BULL"
+                elif is_high_yield and res_2d['direction_label'] == 'BEAR':
+                    macro_label = "HIGH_YIELD_BEAR"
+                else:
+                    macro_label = "NEUTRAL_EXPANSION"
+        except Exception as e:
+            logger.warning(f"Error computing 3D macro regime: {e}. Defaulting to NEUTRAL_EXPANSION.")
+
+        return {
+            'direction_code': res_2d['direction_code'],
+            'direction_label': res_2d['direction_label'],
+            'volatility_label': res_2d['volatility_label'],
+            'combo_2d_label': res_2d['combo_label'],
+            'macro_label': macro_label,
+            'combo_3d_label': f"{res_2d['combo_label']}_{macro_label}"
+        }
+

@@ -338,6 +338,36 @@ class KoreaInvestmentBroker(BrokerBase):
             "broker": "KoreaInvestmentBroker",
         }
 
+    def modify_order(self, order_id: str, new_price: float, new_order_type: str = "00") -> bool:
+        """
+        Modify existing unexecuted order (or convert to market order).
+        new_order_type: '00' = limit, '01' = market
+        """
+        if order_id in self.orders and self.orders[order_id]["status"] in ("ACCEPTED", "PENDING"):
+            self.orders[order_id]["price"] = new_price
+            self.orders[order_id]["order_type"] = new_order_type
+            self.orders[order_id]["status"] = "MODIFIED"
+            logger.info("KoreaInvestmentBroker: order %s modified (price=%.2f, type=%s)", order_id, new_price, new_order_type)
+            return True
+        return False
+
+    def process_unfilled_orders(self, max_unfilled_seconds: float = 180.0) -> int:
+        """
+        Scan open orders older than max_unfilled_seconds (3 mins) and automatically convert to market order.
+        """
+        modified_count = 0
+        now = datetime.datetime.now()
+        for oid, order in list(self.orders.items()):
+            if order.get("status") in ("ACCEPTED", "PENDING"):
+                order_time = datetime.datetime.fromisoformat(order["timestamp"])
+                elapsed = (now - order_time).total_seconds()
+                if elapsed >= max_unfilled_seconds:
+                    logger.info("Unfilled order %s elapsed %.1fs -> Auto-converting to Market Order", oid, elapsed)
+                    self.modify_order(oid, new_price=0.0, new_order_type="01")
+                    order["status"] = "FILLED"
+                    modified_count += 1
+        return modified_count
+
     def get_positions(self) -> list:
         """
         Retrieve open positions from KIS.

@@ -125,6 +125,28 @@ class EnsembleScoringEngine:
         }
     }
 
+    # 3D Macro Regime Override Weights (LIQUIDITY_SQUEEZE, HIGH_YIELD_BULL, HIGH_YIELD_BEAR)
+    MACRO_WEIGHT_MODIFIERS = {
+        'LIQUIDITY_SQUEEZE': {
+            'stat_arb': +0.10,
+            'vcp_rule': +0.05,
+            'surge': -0.10,
+            'sector_rotation': -0.05
+        },
+        'HIGH_YIELD_BULL': {
+            'sector_rotation': +0.10,
+            'surge': +0.05,
+            'lead_lag': -0.10,
+            'stat_arb': -0.05
+        },
+        'HIGH_YIELD_BEAR': {
+            'regression': +0.10,
+            'stat_arb': +0.10,
+            'surge': -0.15,
+            'vcp_ml': -0.05
+        }
+    }
+
     def __init__(self, config=None):
         # Support TradingConfig for centralized constant management
         self.config = config
@@ -143,12 +165,13 @@ class EnsembleScoringEngine:
                 with open(params_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     if isinstance(data, dict) and 'regime_2d_weights' in data:
-                        tuned_w = data['regime_2d_weights']
-                        if isinstance(tuned_w, dict) and tuned_w:
-                            self.REGIME_2D_WEIGHTS.update(tuned_w)
-                            logger.info(f"Loaded Optuna-tuned 2D regime weights: {list(tuned_w.keys())}")
-        except Exception as _e:
-            logger.debug(f"Could not load tuned 2D regime weights: {_e}")
+                        tuned = data['regime_2d_weights']
+                        for k, v in tuned.items():
+                            if k in self.REGIME_2D_WEIGHTS:
+                                self.REGIME_2D_WEIGHTS[k].update(v)
+                        logger.info("Loaded Optuna tuned 2D regime weights from tuned_params.json")
+        except Exception as e:
+            logger.warning(f"Could not load tuned_params.json: {e}")
 
     # ------------------------------------------------------------------
     # Phase 4-A: Isotonic Regression Probability Calibration
@@ -231,12 +254,16 @@ class EnsembleScoringEngine:
                 sharpes[strategy] = 0.0
         return sharpes
 
-    def get_base_weights(self, regime: Union[int, str]) -> Dict[str, float]:
-        """Resolves base weights from 1D regime code or 2D regime combo label."""
-        if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
-            return dict(self.REGIME_2D_WEIGHTS[regime])
+    def get_base_weights(self, regime: Union[int, str, dict]) -> Dict[str, float]:
+        """Resolves base weights from 1D, 2D, or 3D macro regime inputs."""
+        macro_label = None
+        if isinstance(regime, dict):
+            macro_label = regime.get('macro_label')
+            regime = regime.get('combo_2d_label') or regime.get('combo_label') or regime.get('direction_label', 'SIDEWAYS')
 
-        if isinstance(regime, str):
+        if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
+            w = dict(self.REGIME_2D_WEIGHTS[regime])
+        elif isinstance(regime, str):
             # Try parsing integer prefix or label matching
             if 'BEAR' in regime:
                 reg_code = 0
@@ -244,20 +271,30 @@ class EnsembleScoringEngine:
                 reg_code = 2
             else:
                 reg_code = 1
+            w = dict(self.REGIME_WEIGHTS.get(reg_code, self.REGIME_WEIGHTS[1]))
         else:
-            reg_code = int(regime)
+            reg_code = int(regime) if isinstance(regime, (int, np.integer)) else 1
+            w = dict(self.REGIME_WEIGHTS.get(reg_code, self.REGIME_WEIGHTS[1]))
 
-        base = self.REGIME_WEIGHTS.get(reg_code, self.REGIME_WEIGHTS[1])
-        # Ensure all 8 strategies are present
+        # Apply 3D Macro Modifier if applicable
+        if macro_label and macro_label in self.MACRO_WEIGHT_MODIFIERS:
+            mods = self.MACRO_WEIGHT_MODIFIERS[macro_label]
+            for strat, delta in mods.items():
+                if strat in w:
+                    w[strat] = max(0.0, w[strat] + delta)
+            total_w = sum(w.values())
+            if total_w > 0:
+                w = {k: v / total_w for k, v in w.items()}
+
         res = {
-            'regression': base.get('regression', 0.20),
-            'surge': base.get('surge', 0.15),
-            'lead_lag': base.get('lead_lag', 0.10),
-            'vcp_rule': base.get('vcp_rule', 0.10),
-            'vcp_ml': base.get('vcp_ml', 0.15),
-            'lstm': base.get('lstm', 0.10),
-            'stat_arb': base.get('stat_arb', 0.10),
-            'sector_rotation': base.get('sector_rotation', 0.10)
+            'regression': w.get('regression', 0.20),
+            'surge': w.get('surge', 0.15),
+            'lead_lag': w.get('lead_lag', 0.10),
+            'vcp_rule': w.get('vcp_rule', 0.10),
+            'vcp_ml': w.get('vcp_ml', 0.15),
+            'lstm': w.get('lstm', 0.10),
+            'stat_arb': w.get('stat_arb', 0.10),
+            'sector_rotation': w.get('sector_rotation', 0.10)
         }
         total = sum(res.values())
         return {k: v / total for k, v in res.items()}
