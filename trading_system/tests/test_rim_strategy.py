@@ -96,6 +96,10 @@ Rank Symbol    Name                Market    Price       Intrinsic V0  Discount 
         surge_date="2026-07-26", surge_sections=[],
         vcp_date="2026-07-26", vcp_rows=[],
         lag_date="2026-07-26", follower_rows=[], leader_rows=[],
+        vcp_ml_sections=[], reg_sections=[],
+        portfolio_data=None,
+        stat_arb_rows=[],
+        sector_rows=[],
         rim_rows=rows
     )
 
