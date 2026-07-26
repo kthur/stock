@@ -498,8 +498,6 @@ class OnDevicePredictionModel:
 
     def load_surge_models(self):
         try:
-            dummy_df = pd.DataFrame(0.0, index=[0], columns=self.ALL_FEATURES)
-
             # XGBoost
             for fpath in self.model_dir.glob("xgb_surge_model_*_*d.json"):
                 parts = fpath.stem.replace("xgb_surge_model_", "").split("_")
@@ -746,11 +744,11 @@ class OnDevicePredictionModel:
                         mc = _series(df['market_cap'])
                         fv = _series(df['floating_value'])
                         vol = _series(df['Volume'])
-                        
+
                         dt_mc = daily_totals['market_cap'].replace(0.0, np.nan)
                         dt_fv = daily_totals['floating_value'].replace(0.0, np.nan)
                         dt_vol = daily_totals['Volume'].replace(0.0, np.nan)
-                        
+
                         norm_mc = mc.div(dt_mc).replace([np.inf, -np.inf], 0.0)
                         norm_fv = fv.div(dt_fv).replace([np.inf, -np.inf], 0.0)
                         norm_vol = vol.div(dt_vol).replace([np.inf, -np.inf], 0.0)
