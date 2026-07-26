@@ -80,50 +80,43 @@ def test_allocate_same_prices():
     assert weights["B"] == 0.5
 
 # F4: PDF Report
-def test_report_basic_trades():
+def test_report_basic_trades(tmp_path):
     trades = [
         {"symbol": "AAPL", "qty": 10, "price": 150.0},
         {"symbol": "MSFT", "qty": 5, "price": 300.0},
         {"symbol": "GOOG", "qty": 2, "price": 1000.0}
     ]
-    path = "./test_report_basic.pdf"
-    if os.path.exists(path):
-        os.remove(path)
+    path = str(tmp_path / "test_report_basic.pdf")
     generate_pdf_report(trades, path)
     assert os.path.exists(path) is True
     assert os.path.getsize(path) > 0
 
-def test_report_single_trade():
+def test_report_single_trade(tmp_path):
     trades = [{"symbol": "AAPL", "qty": 10, "price": 150.0}]
-    path = "./test_report_single.pdf"
-    if os.path.exists(path):
-        os.remove(path)
+    path = str(tmp_path / "test_report_single.pdf")
     generate_pdf_report(trades, path)
     assert os.path.exists(path) is True
     assert os.path.getsize(path) > 0
 
-def test_report_large_number_of_trades():
+def test_report_large_number_of_trades(tmp_path):
     trades = [{"symbol": f"SYM{i}", "qty": 1, "price": 10.0} for i in range(100)]
-    path = "./test_report_large.pdf"
-    if os.path.exists(path):
-        os.remove(path)
+    path = str(tmp_path / "test_report_large.pdf")
     generate_pdf_report(trades, path)
     assert os.path.exists(path) is True
     assert os.path.getsize(path) > 0
 
-def test_report_different_directory():
+def test_report_different_directory(tmp_path):
     trades = [{"symbol": "AAPL", "qty": 10, "price": 150.0}]
-    os.makedirs("./reports", exist_ok=True)
-    path = "./reports/test.pdf"
-    if os.path.exists(path):
-        os.remove(path)
+    sub_dir = tmp_path / "reports"
+    sub_dir.mkdir(exist_ok=True)
+    path = str(sub_dir / "test.pdf")
     generate_pdf_report(trades, path)
     assert os.path.exists(path) is True
 
-def test_report_overwrite():
+def test_report_overwrite(tmp_path):
     trades1 = [{"symbol": "AAPL", "qty": 10, "price": 150.0}]
     trades2 = [{"symbol": "MSFT", "qty": 5, "price": 300.0}]
-    path = "./test_report_overwrite.pdf"
+    path = str(tmp_path / "test_report_overwrite.pdf")
     generate_pdf_report(trades1, path)
     assert os.path.exists(path) is True
     size1 = os.path.getsize(path)
