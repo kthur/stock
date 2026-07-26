@@ -762,7 +762,6 @@ def execute_prediction_pipeline():
             should_skip = False
 
     update_interval = cfg.get_update_interval()
-    vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
 
     # 6. Prepare Training Data (On-device) — split by market
     kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
