@@ -130,6 +130,8 @@ class OptunaStrategyTuner:
     def tune_regression(self, df_train: Optional[pd.DataFrame] = None, n_trials: int = 15, **kwargs) -> Dict[str, Any]:
         """Convenience wrapper for Strategy 1: Regression tuning."""
         if df_train is not None and not df_train.empty:
+            if 'date' in df_train.columns:
+                df_train = df_train.sort_values('date').reset_index(drop=True)
             target_col = 'target_20d' if 'target_20d' in df_train.columns else None
             if not target_col:
                 num_cols = [c for c in df_train.columns if c.startswith('target_')]
@@ -211,6 +213,8 @@ class OptunaStrategyTuner:
     def tune_surge(self, df_train: Optional[pd.DataFrame] = None, n_trials: int = 15, **kwargs) -> Dict[str, Any]:
         """Convenience wrapper for Strategy 2: Surge Classifier tuning."""
         if df_train is not None and not df_train.empty:
+            if 'date' in df_train.columns:
+                df_train = df_train.sort_values('date').reset_index(drop=True)
             target_col = 'target_20d' if 'target_20d' in df_train.columns else None
             if not target_col:
                 num_cols = [c for c in df_train.columns if c.startswith('target_')]
@@ -221,7 +225,8 @@ class OptunaStrategyTuner:
                 if len(df_clean) >= 30:
                     y = (df_clean[target_col] >= 0.20).astype(int)
                     if len(np.unique(y)) < 2:
-                        y.iloc[::5] = 1
+                        logger.warning("Single-class target encountered in surge tuning. Returning defaults without fake label injection.")
+                        return self.tune_strategy_2_surge(None, None, n_trials=n_trials)
                     return self.tune_strategy_2_surge(df_clean[feature_cols], y, n_trials=n_trials)
 
         return self.tune_strategy_2_surge(None, None, n_trials=n_trials)
@@ -242,9 +247,16 @@ class OptunaStrategyTuner:
             lag_window = trial.suggest_int('lag_window', 1, 5)
             corr_cutoff = trial.suggest_float('corr_threshold', 0.1, 0.6)
 
-
             corrs = []
-            syms = list(prices_dict.keys())[:leaders_count]
+
+            # Sort symbols by trading volume / liquidity to pick true market leader candidates
+            def _avg_vol(s):
+                df = prices_dict.get(s)
+                if df is not None and 'Volume' in df.columns:
+                    return float(df['Volume'].iloc[-30:].mean())
+                return 0.0
+            sorted_syms = sorted(prices_dict.keys(), key=_avg_vol, reverse=True)
+            syms = sorted_syms[:leaders_count]
             series_list = []
             for s in syms:
                 df = prices_dict[s]
@@ -380,6 +392,8 @@ class OptunaStrategyTuner:
     def tune_vcp_ml(self, df_train: Optional[pd.DataFrame] = None, n_trials: int = 15, **kwargs) -> Dict[str, Any]:
         """Convenience wrapper for Strategy 5: VCP ML Predictor tuning."""
         if df_train is not None and not df_train.empty:
+            if 'date' in df_train.columns:
+                df_train = df_train.sort_values('date').reset_index(drop=True)
             target_col = 'target_20d' if 'target_20d' in df_train.columns else None
             if not target_col:
                 num_cols = [c for c in df_train.columns if c.startswith('target_')]
@@ -390,7 +404,8 @@ class OptunaStrategyTuner:
                 if len(df_clean) >= 30:
                     y = (df_clean[target_col] >= 0.20).astype(int)
                     if len(np.unique(y)) < 2:
-                        y.iloc[::5] = 1
+                        logger.warning("Single-class target encountered in vcp_ml tuning. Returning defaults without fake label injection.")
+                        return self.tune_strategy_5_vcp_ml(None, None, n_trials=n_trials)
                     return self.tune_strategy_5_vcp_ml(df_clean[feature_cols], y, n_trials=n_trials)
 
         return self.tune_strategy_5_vcp_ml(None, None, n_trials=n_trials)

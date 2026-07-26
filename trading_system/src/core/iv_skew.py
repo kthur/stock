@@ -64,20 +64,21 @@ class IVSkewEngine:
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None
     ) -> pd.DataFrame:
         """
-        Computes IV Skew scores for a list of symbols.
+        Computes IV Skew scores for a list of symbols in parallel using ThreadPoolExecutor.
         Returns DataFrame with ['symbol', 'iv_skew_score'].
         """
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'iv_skew_score'])
 
-        results = []
-        for sym in symbols:
-            # Only attempt yfinance IV skew lookup for US / SP500 stocks without Korean numeric ticker format
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        results = {}
+
+        def _evaluate_one(sym: str):
             score = 0.5
             if not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym:
                 score = self.compute_skew_for_ticker(sym)
             elif prices_dict and sym in prices_dict:
-                # Fallback synthetic IV proxy for non-option stocks based on 20d volatility vs 60d volatility skew
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 60:
                     try:
@@ -86,12 +87,19 @@ class IVSkewEngine:
                         vol_60d = ret.iloc[-60:].std()
                         if vol_60d > 0:
                             vol_ratio = vol_20d / vol_60d
-                            # Sudden volatility spike -> contrarian mean-reversion opportunity
                             score = float(np.clip(0.5 + (vol_ratio - 1.0) * 0.3, 0.0, 1.0))
                     except Exception:
                         score = 0.5
+            return sym, score
 
-            results.append({'symbol': sym, 'iv_skew_score': score})
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_evaluate_one, sym): sym for sym in symbols}
+            for future in as_completed(futures):
+                try:
+                    sym, score = future.result()
+                    results[sym] = score
+                except Exception as e:
+                    logger.debug(f"IV Skew task error: {e}")
 
-        res_df = pd.DataFrame(results)
-        return res_df
+        res_list = [{'symbol': sym, 'iv_skew_score': results.get(sym, 0.5)} for sym in symbols]
+        return pd.DataFrame(res_list)

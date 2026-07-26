@@ -6,7 +6,6 @@ ROE stability, and earnings quality to produce percentile rank MQ scores [0.0, 1
 """
 import logging
 from typing import Dict, Optional
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -78,13 +77,13 @@ class MQFactorEngine:
 
         quality_terms = []
         if 'operating_margin' in res_df.columns:
-            res_df['op_margin_rank'] = res_df['operating_margin'].fillna(0.0).rank(pct=True, ascending=True)
+            res_df['op_margin_rank'] = res_df['operating_margin'].rank(pct=True, ascending=True).fillna(0.5)
             quality_terms.append('op_margin_rank')
         if 'eps_growth_1y' in res_df.columns:
-            res_df['eps_growth_rank'] = res_df['eps_growth_1y'].fillna(0.0).rank(pct=True, ascending=True)
+            res_df['eps_growth_rank'] = res_df['eps_growth_1y'].rank(pct=True, ascending=True).fillna(0.5)
             quality_terms.append('eps_growth_rank')
         if 'roe' in res_df.columns:
-            res_df['roe_rank'] = res_df['roe'].fillna(0.0).rank(pct=True, ascending=True)
+            res_df['roe_rank'] = res_df['roe'].rank(pct=True, ascending=True).fillna(0.5)
             quality_terms.append('roe_rank')
 
         if quality_terms:

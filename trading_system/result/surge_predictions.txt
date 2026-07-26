@@ -1,5 +1,5 @@
 === Surge Detection Results (Classifier Probabilities) ===
-Date: 2026-07-26 20:49
+Date: 2026-07-27 00:29
 Horizon Target Thresholds: 1d (>=3%), 3d (>=5%), 5d (>=8%), 20d (>=15%)
 Total symbols: 2
 
@@ -41,5 +41,5 @@ Total symbols: 2
 ============================================================
 [20일] SP500 Top 20 Surge Candidates
 ============================================================
-  1. [SP500] AAPL (Apple Inc.): 1.9%
+  1. [SP500] AAPL (Apple Inc.): 1.7%
 

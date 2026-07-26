@@ -26,21 +26,24 @@ class _DBConnection:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self._conn = None
+        self._lock = asyncio.Lock()
 
     async def get(self):
-        if self._conn is None:
-            self._conn = await aiosqlite.connect(self.db_path)
-        else:
-            try:
-                await self._conn.execute("SELECT 1")
-            except Exception:
+        async with self._lock:
+            if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
-        return self._conn
+            else:
+                try:
+                    await self._conn.execute("SELECT 1")
+                except Exception:
+                    self._conn = await aiosqlite.connect(self.db_path)
+            return self._conn
 
     async def close(self):
-        if self._conn:
-            await self._conn.close()
-            self._conn = None
+        async with self._lock:
+            if self._conn:
+                await self._conn.close()
+                self._conn = None
 
 
 class TradeLogger:
@@ -318,7 +321,7 @@ class AIPredictionDB:
                 orig_price = row["current_price"]
 
                 try:
-                    latest_price = get_current_price_func(symbol)
+                    latest_price = await asyncio.to_thread(get_current_price_func, symbol)
                     if not latest_price:
                         continue
 
@@ -377,6 +380,15 @@ class StockPriceDB:
         self.logger = logger
         self._local = threading.local()
         self._init_db()
+
+    def close(self):
+        """현재 스레드의 sqlite3 커넥션 명시적 닫기"""
+        if hasattr(self._local, "conn") and self._local.conn is None:
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass
+            self._local.conn = None
 
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn") or self._local.conn is None:

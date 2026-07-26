@@ -70,9 +70,11 @@ class RIMValuationEngine:
             current_bps = bps
             current_roe = roe
             for t in range(1, years + 1):
+                net_income = current_bps * current_roe
                 excess_income = current_bps * (current_roe - r_e)
                 pv_excess += excess_income / ((1.0 + r_e) ** t)
-                current_bps += excess_income
+                # BPS grows by net income retained (assume 80% retention ratio)
+                current_bps += net_income * 0.8
                 current_roe = r_e + (current_roe - r_e) * (1.0 - self.decay_rate)
             return bps + pv_excess
 

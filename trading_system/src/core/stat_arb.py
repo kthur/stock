@@ -87,86 +87,82 @@ class StatisticalArbitrageEngine:
         1. Fast screening by Pearson correlation (|r| >= min_correlation) with optional Same-Sector boost
         2. Engle-Granger cointegration ADF test (p-value <= max_pvalue) & OU Half-life validation
         """
+        import pandas as pd
         symbols = list(prices_dict.keys())
         if len(symbols) > 300:
-            symbols = symbols[:300]
+            def _avg_vol(s):
+                df = prices_dict.get(s)
+                if df is not None and 'Volume' in df.columns:
+                    return float(df['Volume'].iloc[-30:].mean())
+                return 0.0
+            symbols = sorted(symbols, key=_avg_vol, reverse=True)[:300]
 
         found_pairs: List[Dict[str, Any]] = []
-        min_len = min(len(v) for v in prices_dict.values()) if prices_dict else 0
-
-        if len(symbols) < 2 or min_len < 30:
-            return found_pairs
-
         eff_sector_map = sector_map or {}
 
         for i in range(len(symbols)):
             for j in range(i + 1, len(symbols)):
                 s1, s2 = symbols[i], symbols[j]
 
-                # Same-sector pairing constraint check
-                sec1 = eff_sector_map.get(s1)
-                sec2 = eff_sector_map.get(s2)
-                same_sector = (sec1 is not None and sec2 is not None and sec1 == sec2 and sec1 != 'General')
-                if require_same_sector and not same_sector:
-                    continue
+                if require_same_sector and eff_sector_map:
+                    sec1 = eff_sector_map.get(s1)
+                    sec2 = eff_sector_map.get(s2)
+                    if sec1 and sec2 and sec1 != sec2:
+                        continue
 
-                eff_min_corr = min_correlation - 0.05 if same_sector else min_correlation
+                df1 = prices_dict[s1]
+                df2 = prices_dict[s2]
 
-                p1 = np.array(prices_dict[s1][-min_len:], dtype=float)
-                p2 = np.array(prices_dict[s2][-min_len:], dtype=float)
-
-                std1, std2 = np.std(p1), np.std(p2)
-                if std1 < 1e-8 or std2 < 1e-8:
+                if df1 is None or df2 is None or len(df1) < 30 or len(df2) < 30:
                     continue
 
                 try:
-                    # Stage 1: Fast Correlation Screening
-                    cov = np.cov(p1, p2)
-                    corr = float(cov[0, 1] / (std1 * std2 + 1e-12))
-                    if abs(corr) < eff_min_corr:
-                        if len(symbols) <= 10 and abs(corr) >= 0.50:
-                            pass
-                        else:
-                            continue
+                    p1 = df1['Close'].tail(120)
+                    p2 = df2['Close'].tail(120)
 
-                    beta = cov[0, 1] / cov[1, 1]
-                    spread = p1 - beta * p2
-                    spread_mean = np.mean(spread)
-                    spread_std = np.std(spread)
-                    if spread_std < 1e-8:
+                    combined = pd.concat([p1, p2], axis=1, join='inner').dropna()
+                    if len(combined) < 30:
                         continue
 
-                    # Stage 2: Cointegration & Half-life Validation
-                    _, p_val = _estimate_adf_pvalue(spread)
-                    half_life = _estimate_half_life(spread)
+                    s1_prices = combined.iloc[:, 0].values
+                    s2_prices = combined.iloc[:, 1].values
 
-                    # Filter uncointegrated or non-mean-reverting pairs (unless small test dataset)
-                    if len(symbols) > 10:
-                        if p_val > max_pvalue:
-                            continue
-                        if not (min_half_life <= half_life <= max_half_life):
-                            continue
+                    corr = np.corrcoef(s1_prices, s2_prices)[0, 1]
+                    if np.isnan(corr) or abs(corr) < min_correlation:
+                        continue
+
+                    slope, intercept, _, _, _ = linregress(s2_prices, s1_prices)
+                    spread = s1_prices - (slope * s2_prices + intercept)
+
+                    adf_stat, pvalue, _ = self.check_cointegration(s1_prices, s2_prices)
+                    if pvalue > max_pvalue:
+                        continue
+
+                    half_life = self.compute_half_life(spread)
+                    if half_life <= 0 or half_life > max_half_life:
+                        continue
+
+                    spread_mean = np.mean(spread)
+                    spread_std = np.std(spread)
+                    if spread_std <= 1e-8:
+                        continue
 
                     z_score = (spread[-1] - spread_mean) / spread_std
 
-                    # Signal Thresholding (SNR filtering)
-                    signal = "HOLD"
-                    if z_score > 2.0:
+                    signal = "NEUTRAL"
+                    if z_score >= min_zscore:
                         signal = f"SHORT_{s1}_LONG_{s2}"
-                    elif z_score < -2.0:
+                    elif z_score <= -min_zscore:
                         signal = f"LONG_{s1}_SHORT_{s2}"
-
-                    if signal == "HOLD":
-                        continue
 
                     found_pairs.append(
                         {
                             "pair": (s1, s2),
+                            "correlation": round(float(corr), 4),
+                            "hedge_ratio": round(float(slope), 4),
+                            "adf_pvalue": round(float(pvalue), 4),
                             "z_score": round(float(z_score), 2),
                             "signal": signal,
-                            "correlation": round(float(corr), 3),
-                            "beta": round(float(beta), 4),
-                            "p_value": round(float(p_val), 4),
                             "half_life": round(float(half_life), 1),
                         }
                     )
@@ -174,7 +170,6 @@ class StatisticalArbitrageEngine:
                     logger.debug(f"Error checking pair ({s1}, {s2}): {e}")
                     continue
 
-        # Sort pairs by absolute z-score descending and limit to top 500 active pairs to prevent disk/memory bloat
         found_pairs.sort(key=lambda x: abs(x.get("z_score", 0.0)), reverse=True)
         found_pairs = found_pairs[:500]
 
@@ -186,6 +181,7 @@ class StatisticalArbitrageEngine:
     def get_symbol_stat_arb_scores(found_pairs: List[Dict[str, Any]]) -> Any:
         """
         Adapts StatArb pair signals into per-symbol stat_arb_score [0, 1] for EnsembleScoringEngine.
+        Handles both LONG and SHORT legs.
         """
         import pandas as pd
         if not found_pairs:
@@ -199,18 +195,20 @@ class StatisticalArbitrageEngine:
             if len(pair) != 2:
                 continue
             s1, s2 = pair
+            score_delta = min(0.4, z * 0.1)
+
             if "LONG_" + s1 in sig:
-                symbol_scores[s1] = max(symbol_scores.get(s1, 0.0), z)
+                symbol_scores[s1] = max(symbol_scores.get(s1, 0.5), 0.5 + score_delta)
+            if "SHORT_" + s1 in sig:
+                symbol_scores[s1] = min(symbol_scores.get(s1, 0.5), 0.5 - score_delta)
+
             if "LONG_" + s2 in sig:
-                symbol_scores[s2] = max(symbol_scores.get(s2, 0.0), z)
+                symbol_scores[s2] = max(symbol_scores.get(s2, 0.5), 0.5 + score_delta)
+            if "SHORT_" + s2 in sig:
+                symbol_scores[s2] = min(symbol_scores.get(s2, 0.5), 0.5 - score_delta)
 
         if not symbol_scores:
             return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
 
-        df = pd.DataFrame(list(symbol_scores.items()), columns=['symbol', 'raw_score'])
-        if len(df) > 1 and df['raw_score'].max() > df['raw_score'].min():
-            df['stat_arb_score'] = (df['raw_score'] - df['raw_score'].min()) / (df['raw_score'].max() - df['raw_score'].min())
-        else:
-            df['stat_arb_score'] = 0.5
+        df = pd.DataFrame(list(symbol_scores.items()), columns=['symbol', 'stat_arb_score'])
         return df[['symbol', 'stat_arb_score']]
-

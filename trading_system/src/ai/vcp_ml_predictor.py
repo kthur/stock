@@ -111,6 +111,8 @@ class VCPSurgePredictor:
 
         if _HAS_CUDA:
             self._surge_xgb_kwargs['device'] = 'cuda'
+            self._surge_lgb_kwargs['device_type'] = 'gpu'
+            self._surge_cat_kwargs['task_type'] = 'GPU'
 
         # Load validation metrics if exists
         self.validation_metrics: Dict[str, Any] = {"regression": {}, "surge": {}, "vcp_ml": {}}
@@ -557,17 +559,30 @@ class VCPSurgePredictor:
                             preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
                             weights.append(w_xgb_val)
                         if lgb_m is not None:
-                            preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(w_lgb_val)
+                            try:
+                                fn = lgb_m.feature_name_() if hasattr(lgb_m, 'feature_name_') and callable(getattr(lgb_m, 'feature_name_')) else None
+                                X_lgb = X_mkt.reindex(columns=fn, fill_value=0.0) if fn else X_mkt
+                                preds.append(lgb_m.predict_proba(X_lgb)[:, 1])
+                                weights.append(w_lgb_val)
+                            except Exception as lgb_err:
+                                logger.warning(f"VCP ML LGB prediction skipped due to feature mismatch: {lgb_err}")
                         if cat_m is not None:
-                            preds.append(cat_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(w_cat_val)
+                            try:
+                                fn_cat = cat_m.feature_names_ if hasattr(cat_m, 'feature_names_') and cat_m.feature_names_ else None
+                                X_cat = X_mkt.reindex(columns=fn_cat, fill_value=0.0) if fn_cat else X_mkt
+                                preds.append(cat_m.predict_proba(X_cat)[:, 1])
+                                weights.append(w_cat_val)
+                            except Exception as cat_err:
+                                logger.warning(f"VCP ML CatBoost prediction skipped due to feature mismatch: {cat_err}")
 
                         if preds:
                             total_w = sum(weights)
-                            blend_prob = np.zeros(len(idx))
-                            for p, w in zip(preds, weights):
-                                blend_prob += p * (w / total_w)
+                            if total_w > 0:
+                                blend_prob = np.zeros(len(idx))
+                                for p, w in zip(preds, weights):
+                                    blend_prob += p * (w / total_w)
+                            else:
+                                blend_prob = np.mean(preds, axis=0)
 
                             # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
                             calib_mkt = case_insensitive_get(self._ft.ensemble_weights.get("calibration", {}), mkt, {})

@@ -97,7 +97,10 @@ class TradingConfig:
         if "SKIP_INFERENCE" in os.environ:
             self.skip_inference = os.environ["SKIP_INFERENCE"].lower() == "true"
         if "FUNDAMENTAL_CACHE_EXPIRY_DAYS" in os.environ:
-            self.fundamental_cache_expiry_days = int(os.environ["FUNDAMENTAL_CACHE_EXPIRY_DAYS"])
+            try:
+                self.fundamental_cache_expiry_days = int(os.environ["FUNDAMENTAL_CACHE_EXPIRY_DAYS"])
+            except ValueError:
+                logger.warning("Invalid FUNDAMENTAL_CACHE_EXPIRY_DAYS in env, keeping default")
         if "BACKTEST_YEARS" in os.environ:
             self.backtest_years = os.environ["BACKTEST_YEARS"]
         if "STOCK_PRICE_DB_PATH" in os.environ:
@@ -119,15 +122,30 @@ class TradingConfig:
         if "DART_API_KEY" in os.environ:
             self.dart_api_key = os.environ["DART_API_KEY"]
         if "VCP_NEAR_PIVOT_PCT" in os.environ:
-            self.vcp_near_pivot_pct = float(os.environ["VCP_NEAR_PIVOT_PCT"])
+            try:
+                self.vcp_near_pivot_pct = float(os.environ["VCP_NEAR_PIVOT_PCT"])
+            except ValueError:
+                pass
         if "VCP_MIN_SCORE_THRESHOLD" in os.environ:
-            self.vcp_min_score_threshold = float(os.environ["VCP_MIN_SCORE_THRESHOLD"])
+            try:
+                self.vcp_min_score_threshold = float(os.environ["VCP_MIN_SCORE_THRESHOLD"])
+            except ValueError:
+                pass
         if "VCP_VOLUME_SURGE_RATIO" in os.environ:
-            self.vcp_volume_surge_ratio = float(os.environ["VCP_VOLUME_SURGE_RATIO"])
+            try:
+                self.vcp_volume_surge_ratio = float(os.environ["VCP_VOLUME_SURGE_RATIO"])
+            except ValueError:
+                pass
         if "SENTIMENT_RISK_THRESHOLD" in os.environ:
-            self.sentiment_risk_threshold = float(os.environ["SENTIMENT_RISK_THRESHOLD"])
+            try:
+                self.sentiment_risk_threshold = float(os.environ["SENTIMENT_RISK_THRESHOLD"])
+            except ValueError:
+                pass
         if "ENSEMBLE_RETURN_MULTIPLIER" in os.environ:
-            self.ensemble_return_multiplier = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
+            try:
+                self.ensemble_return_multiplier = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
+            except ValueError:
+                pass
 
         self._resolve_db_paths()
         self._parsed_authorized_user_ids = self._parse_authorized_ids()

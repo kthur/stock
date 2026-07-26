@@ -58,11 +58,20 @@ class GlobalMarketClient:
         self._cache_ts: float = 0.0
 
     def _get_cached_or_fetch(self, symbol: str, period: str = "1d") -> Any:
+        cache_key = f"{symbol}_{period}"
+        now = time.time()
+        if cache_key in self._cache:
+            data, ts = self._cache[cache_key]
+            if now - ts < _CACHE_TTL:
+                return data
+
         try:
             tk = yf.Ticker(symbol)
             hist = tk.history(period=period)
             if hist.empty:
                 logger.warning("No data returned for %s", symbol)
+            else:
+                self._cache[cache_key] = (hist, now)
             return hist
         except Exception as e:
             logger.error("yfinance error for %s: %s", symbol, e)

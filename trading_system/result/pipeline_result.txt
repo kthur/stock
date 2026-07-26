@@ -1,5 +1,5 @@
 === Pipeline Inference Summary (TOP20 per Market) ===
-Date: 2026-07-26 20:49
+Date: 2026-07-27 00:29
 Total symbols analyzed: 2
 Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
 Full data: pipeline_result.csv / pipeline_result.jsonl
@@ -8,35 +8,35 @@ Full data: pipeline_result.csv / pipeline_result.jsonl
 Horizon: 1d
 
 --- KOSPI TOP 20 ---
-  1. 005930 (Samsung Electronics): +0.02%
+  1. 005930 (Samsung Electronics): +0.04%
 
 --- S&P 500 TOP 20 ---
-  1. AAPL (Apple Inc.): +0.05%
+  1. AAPL (Apple Inc.): +0.53%
 
 ============================================================
 Horizon: 5d
 
 --- KOSPI TOP 20 ---
-  1. 005930 (Samsung Electronics): -0.51%
-
---- S&P 500 TOP 20 ---
-  1. AAPL (Apple Inc.): -0.77%
-
-============================================================
-Horizon: 20d
-
---- KOSPI TOP 20 ---
-  1. 005930 (Samsung Electronics): +0.30%
+  1. 005930 (Samsung Electronics): -0.52%
 
 --- S&P 500 TOP 20 ---
   1. AAPL (Apple Inc.): +0.15%
 
 ============================================================
+Horizon: 20d
+
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.26%
+
+--- S&P 500 TOP 20 ---
+  1. AAPL (Apple Inc.): +1.31%
+
+============================================================
 Horizon: 60d
 
 --- KOSPI TOP 20 ---
-  1. 005930 (Samsung Electronics): -0.09%
+  1. 005930 (Samsung Electronics): -0.29%
 
 --- S&P 500 TOP 20 ---
-  1. AAPL (Apple Inc.): -0.27%
+  1. AAPL (Apple Inc.): +0.36%
 

@@ -21,15 +21,25 @@ class EventDrivenEngine:
     """
 
     EVENT_WEIGHTS = {
-        '01': 0.85,   # 사업보고서 / 실적공시 (Positive / Earnings surprise candidate)
-        '02': 0.90,   # 주식분할 / 주식배당 (Strong positive catalyst)
-        '03': 0.80,   # 자기주식 취득 (Buyback - Positive)
-        '04': 0.25,   # 유상증자 / CB·BW 발행 (Dilution risk - Negative)
-        '05': 0.60,   # 대표이사 변경 / 경영권 분쟁 (Volatile / Mild catalyst)
+        'A': 0.75,   # 정기공시 (사업/반기/분기보고서)
+        'B': 0.70,   # 주요사항보고서 (주요경영사항)
+        'C': 0.35,   # 발행공시 (유상증자, CB/BW 발행 등)
+        'D': 0.60,   # 지분공시 (임원/주요주주 소유주식)
+        'E': 0.80,   # 기타공시 (자사주 취득/처분)
+        'F': 0.50,   # 외부감사인 관련
+        # Legacy / Numeric code fallbacks
+        '01': 0.75,
+        '02': 0.85,
+        '03': 0.80,
+        '04': 0.35,
+        '05': 0.60,
     }
 
-    def __init__(self, dart_api_key: str = ""):
+    def __init__(self, config=None, dart_api_key: str = ""):
+        self.config = config
         self.dart_api_key = dart_api_key.strip()
+        if not self.dart_api_key and config is not None:
+            self.dart_api_key = getattr(config, 'dart_api_key', '').strip()
 
     def fetch_recent_dart_filings(self, bgn_de: str = "", end_de: str = "") -> List[Dict[str, Any]]:
         """
@@ -62,7 +72,8 @@ class EventDrivenEngine:
         self,
         symbols: List[str],
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
-        filings: Optional[List[Dict[str, Any]]] = None
+        filings: Optional[List[Dict[str, Any]]] = None,
+        price_db=None
     ) -> pd.DataFrame:
         """
         Computes Event-Driven momentum scores per symbol.
@@ -78,14 +89,16 @@ class EventDrivenEngine:
         eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
         if eff_filings:
             for item in eff_filings:
-                corp_code = item.get('stock_code', '') or item.get('corp_code', '')
+                stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
+                corp_code = str(item.get('corp_code', '')).strip()
                 report_nm = item.get('report_nm', '')
                 pblntf_ty = item.get('pblntf_ty', '')
 
                 # Match corp_code/stock_code with symbol list
                 for sym in symbols:
-                    sym_clean = sym.split('.')[0]
-                    if corp_code and (corp_code in sym or sym_clean in corp_code):
+                    sym_clean = sym.split('.')[0].zfill(6)
+                    matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code == sym))
+                    if matched:
                         weight = self.EVENT_WEIGHTS.get(pblntf_ty, 0.5)
                         # Text keyword adjustments
                         if '유상증자' in report_nm or '전환사채' in report_nm:

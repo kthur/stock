@@ -103,10 +103,8 @@ def fetch_fundamentals(symbol: str, market: Optional[str] = None, max_retries: i
         return None
 
 
-async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None, max_retries: int = 3) -> Optional[pd.DataFrame]:
-    """
-    Asynchronously fetch annual fundamental data from Yahoo Finance API with exponential backoff retries.
-    """
+async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[aiohttp.ClientSession] = None, max_retries: int = 3) -> Optional[pd.DataFrame]:
+    """Async variant using aiohttp with connection pooling & rate limit checks."""
     from src.utils.http_session import DEFAULT_USER_AGENT
 
     yf_sym = _yf_ticker(symbol, market)
@@ -118,13 +116,13 @@ async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None, ma
         "User-Agent": DEFAULT_USER_AGENT
     }
 
-    for attempt in range(1, max_retries + 1):
-        try:
-            # Wait on the global rate limiter
-            await get_global_rate_limiter().async_wait()
+    async def _do_request(sess: aiohttp.ClientSession):
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Wait on the global rate limiter
+                await get_global_rate_limiter().async_wait()
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                async with sess.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as response:
                     if response.status in (429, 500, 502, 503, 504):
                         if attempt < max_retries:
                             await asyncio.sleep(2 ** attempt)
@@ -172,14 +170,19 @@ async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None, ma
                     df = df.set_index("date_align")
                     df = df.sort_index()
 
-                    stats = data.get("defaultKeyStatistics", {})
-                    shares = stats.get("sharesOutstanding", {}).get("raw", 0.0)
+                    stats = data.get("defaultKeyStatistics") or {}
+                    shares_obj = stats.get("sharesOutstanding") or {}
+                    shares = shares_obj.get("raw", 0.0) if isinstance(shares_obj, dict) else 0.0
 
-                    detail = data.get("summaryDetail", {})
-                    div_rate = detail.get("dividendRate", {}).get("raw")
+                    detail = data.get("summaryDetail") or {}
+                    div_rate_obj = detail.get("dividendRate") or {}
+                    div_rate = div_rate_obj.get("raw") if isinstance(div_rate_obj, dict) else None
+
                     if div_rate is None:
-                        div_yield = detail.get("dividendYield", {}).get("raw", 0.0)
-                        current_price = detail.get("previousClose", {}).get("raw", 0.0)
+                        div_yield_obj = detail.get("dividendYield") or {}
+                        div_yield = div_yield_obj.get("raw", 0.0) if isinstance(div_yield_obj, dict) else 0.0
+                        prev_close_obj = detail.get("previousClose") or {}
+                        current_price = prev_close_obj.get("raw", 0.0) if isinstance(prev_close_obj, dict) else 0.0
                         div_rate = div_yield * current_price
 
                     df['shares_outstanding'] = float(shares)
@@ -190,14 +193,19 @@ async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None, ma
 
                     return df
 
-        except Exception as e:
-            if attempt < max_retries:
-                await asyncio.sleep(2 ** attempt)
-                continue
-            logger.debug(f"Async fetch fundamentals exception for {symbol} ({yf_sym}): {e}")
-            return None
+            except Exception as e:
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.debug(f"Async fetch fundamentals exception for {symbol} ({yf_sym}): {e}")
+                return None
+        return None
 
-    return None
+    if session is not None:
+        return await _do_request(session)
+    else:
+        async with aiohttp.ClientSession() as new_session:
+            return await _do_request(new_session)
 
 
 def fetch_and_store_fundamentals_batch(
@@ -255,36 +263,36 @@ def fetch_and_store_fundamentals_batch(
 
         results = {}
         success = 0
+        sem = asyncio.Semaphore(10)
 
-        sem = asyncio.Semaphore(5)
+        async with aiohttp.ClientSession() as shared_session:
+            async def _fetch_task(sym):
+                async with sem:
+                    market = symbol_market_map.get(sym, 'SP500')
+                    df_fun = await async_fetch_fundamentals(sym, market, session=shared_session)
+                    if df_fun is None:
+                        loop = asyncio.get_running_loop()
+                        df_fun = await loop.run_in_executor(None, fetch_fundamentals, sym, market)
+                    return sym, df_fun
 
-        async def _fetch_task(sym):
-            async with sem:
-                market = symbol_market_map.get(sym, 'SP500')
-                df_fun = await async_fetch_fundamentals(sym, market)
-                if df_fun is None:
-                    loop = asyncio.get_running_loop()
-                    df_fun = await loop.run_in_executor(None, fetch_fundamentals, sym, market)
-                return sym, df_fun
+            tasks = [_fetch_task(sym) for sym in to_fetch]
+            total_fetch = len(to_fetch)
+            done_count = 0
 
-        tasks = [_fetch_task(sym) for sym in to_fetch]
-        total_fetch = len(to_fetch)
-        done_count = 0
-
-        for f in asyncio.as_completed(tasks):
-            sym, df_fun = await f
-            # Save fundamental meta ONLY when data fetch returned valid non-empty results
-            if df_fun is not None and not df_fun.empty:
-                try:
-                    if hasattr(storage, 'save_fundamental_meta'):
-                        storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
-                except Exception as e:
-                    logger.warning(f"Failed to save metadata for {sym}: {e}")
-                results[sym] = df_fun
-                success += 1
-            done_count += 1
-            if done_count % 500 == 0 or done_count == total_fetch:
-                logger.info(f"Fundamentals progress: {done_count}/{total_fetch} ({success} fetched, {skipped} skipped)")
+            for f in asyncio.as_completed(tasks):
+                sym, df_fun = await f
+                # Save fundamental meta ONLY when data fetch returned valid non-empty results
+                if df_fun is not None and not df_fun.empty:
+                    try:
+                        if hasattr(storage, 'save_fundamental_meta'):
+                            storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
+                    except Exception as e:
+                        logger.warning(f"Failed to save metadata for {sym}: {e}")
+                    results[sym] = df_fun
+                    success += 1
+                done_count += 1
+                if done_count % 500 == 0 or done_count == total_fetch:
+                    logger.info(f"Fundamentals progress: {done_count}/{total_fetch} ({success} fetched, {skipped} skipped)")
 
         logger.info(f"Fetched fundamentals for {success}/{total_fetch} symbols ({skipped} skipped)")
 

@@ -4,7 +4,7 @@ Strategy Data Coverage & Missingness Analyzer.
 Analyzes coverage rates, valid predictions, and data missingness reasons across all 14 strategies.
 """
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
@@ -36,7 +36,6 @@ class StrategyCoverageAnalyzer:
             return {'total_symbols': 0, 'strategies': {}}
 
         total_symbols = len(ensemble_df)
-        symbols = set(ensemble_df['symbol']) if 'symbol' in ensemble_df.columns else set()
 
         col_map = {
             'regression': 'reg_score',
@@ -61,8 +60,8 @@ class StrategyCoverageAnalyzer:
             c_col = col_map.get(strat)
             if c_col and c_col in ensemble_df.columns:
                 series = ensemble_df[c_col]
-                # Valid if non-null and not exactly 0.0 (except neutral default 0.5)
-                valid_mask = series.notna() & (series > 0.0)
+                # Valid if non-null and finite
+                valid_mask = series.notna() & np.isfinite(series)
                 valid_cnt = int(valid_mask.sum())
                 missing_cnt = total_symbols - valid_cnt
                 cov_pct = (valid_cnt / total_symbols * 100.0) if total_symbols > 0 else 0.0

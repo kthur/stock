@@ -336,8 +336,10 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                         if len(yf_tickers) == 1:
                             ticker_df = df
                         elif isinstance(df.columns, pd.MultiIndex):
-                            # In yfinance >= 0.2.40, Ticker is at level 1
-                            if yf_ticker in df.columns.get_level_values(1):
+                            # MultiIndex check: level 0 or level 1 depending on yfinance group_by
+                            if yf_ticker in df.columns.get_level_values(0):
+                                ticker_df = df.xs(yf_ticker, level=0, axis=1).dropna(how='all')
+                            elif yf_ticker in df.columns.get_level_values(1):
                                 ticker_df = df.xs(yf_ticker, level=1, axis=1).dropna(how='all')
                         elif yf_ticker in df.columns:
                             # Single-level columns fallback
@@ -349,58 +351,37 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                             # P2: Data Quality Gate — reject bad data before DB write
                             if _validate_price_data(sym, ticker_df):
                                 price_db.update_prices(sym, ticker_df)
+                                prefetched_count += 1
             except Exception as e:
-                logger.warning(f"Failed to process download batch: {e}")
+                logger.debug(f"Batch download failed for chunk: {e}")
+
+    logger.info(f"Prefetched and cached prices for {prefetched_count}/{len(symbols)} symbols in DB.")
+    return prefetched_count
 
 
-def fetch_data_fdr(symbol: str, market: str, start_date: str,
-                   price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
-                   update_interval: int = 0) -> pd.DataFrame:
-    """Fetch OHLCV data using adjusted prices, with 3-tier fallback (yfinance -> FDR -> stock_prices.db cache)."""
-    def _fetch_fallback(s: str, d: str) -> pd.DataFrame:
-        global _last_request_time
+def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional[StockPriceDB] = None,
+                   freshness_days: int = 7, update_interval: int = 0) -> Optional[pd.DataFrame]:
+    """Fetch price data for a single symbol using technical_cache + MarketDataHandler (Tier 1 yfinance, Tier 2 FDR, Tier 3 DB)."""
+    def _fetch_fallback(s: str, m: str, d: str) -> Optional[pd.DataFrame]:
         cached_df = None
-
-        # 1. DB cache check (if provided)
+        stale = True if freshness_days >= 0 else False
         if price_db is not None:
-            stale = True if freshness_days >= 0 else False
             if freshness_days >= 0:
                 stale = price_db.needs_update(s, max_age_days=freshness_days, start_date=d)
 
             cached_df = price_db.get_prices(s, start_date=d)
+            if cached_df is not None and not cached_df.empty:
+                cached_df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in cached_df.columns]
 
-            # If cache is fresh, return immediately
             if not stale and cached_df is not None and not cached_df.empty:
-                logger.debug(f"Using StockPriceDB cached prices for {s}")
                 return cached_df
 
-            # If cache is up to date relative to today, return immediately
-            if cached_df is not None and not cached_df.empty:
-                latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
-                if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
-                    logger.debug(f"Cache for {s} is up to date (latest: {latest_date_str}). Skipping network fetch.")
-                    return cached_df
-
-        # If offline mode (freshness_days < 0), return cached_df directly without network request
-        if freshness_days < 0:
-            return cached_df
-
-        # 2. Rate limit before network request
-        if update_interval > 0:
-            now = time.time()
-            with _rate_lock:
-                scheduled = max(_last_request_time + update_interval, now)
-                sleep_sec = scheduled - now
-                _last_request_time = scheduled
-            if sleep_sec > 0:
-                logger.debug(f"Rate limit: waiting {sleep_sec:.1f}s before {s}")
-                time.sleep(sleep_sec)
-
-        # 3. Network fetch (Tier 1 & Tier 2)
         network_result = None
         fetch_start = cached_df.index.max().strftime("%Y-%m-%d") if (cached_df is not None and not cached_df.empty) else d
         try:
             network_result = _fetch_data_fdr_network(s, market, fetch_start)
+            if network_result is not None and not network_result.empty:
+                network_result.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in network_result.columns]
         except Exception as e:
             logger.warning(f"Tier 1 & 2 network download failed for {s}: {e}")
 
@@ -412,9 +393,6 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
                     logger.debug(f"Failed to cache prices for {s}: {ex}")
 
             if cached_df is not None and not cached_df.empty:
-                # Normalize network columns to match cached DB lowercase columns
-                if network_result is not None and not network_result.empty:
-                    network_result.columns = [str(c).lower() for c in network_result.columns]
                 merged_df = pd.concat([cached_df, network_result])
                 merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
                 return merged_df
@@ -423,6 +401,8 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
         # 4. Tier 3 Fallback: Network failed, fall back to DB cache if available
         if (cached_df is None or cached_df.empty) and price_db is not None:
             cached_df = price_db.get_prices(s, start_date=None)
+            if cached_df is not None and not cached_df.empty:
+                cached_df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in cached_df.columns]
 
         if cached_df is not None and not cached_df.empty:
             logger.warning(f"[Offline Cache Fallback] Network failed for {s}. Falling back to cached DB data ({len(cached_df)} rows)")
@@ -437,6 +417,8 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str,
         start_date,
         _fetch_fallback
     )
+    if result is not None and not result.empty:
+        result.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in result.columns]
     return result
 
 
@@ -445,8 +427,6 @@ _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
     '^TNX': 'us10y',
     'USDKRW=X': 'usdkrw_change',
-    '^GSPC': 'sp500_change',
-    'DX-Y.NYB': 'dxy_change',
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
@@ -480,6 +460,7 @@ def _download_indicator_yf(ticker: str, start_date: str) -> pd.DataFrame:
     if raw is not None and not raw.empty:
         if isinstance(raw.columns, pd.MultiIndex):
             raw.columns = raw.columns.droplevel(1)
+        raw.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in raw.columns]
         return raw
     raise ValueError(f"yfinance download for {ticker} returned empty data")
 
@@ -505,6 +486,7 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
         raw = fdr.DataReader(ticker, start=start_date)
         if raw is not None and not raw.empty:
             logger.warning(f"Successfully retrieved Tier 2 indicator data for {ticker} via FDR")
+            raw.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in raw.columns]
             return raw
     except Exception as e:
         logger.debug(f"Tier 2 indicator download error for {ticker}: {e}")
@@ -527,8 +509,10 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                 stale = price_db.needs_update(ticker, max_age_days=freshness_days, start_date=start_date)
 
             cached_df = price_db.get_prices(ticker, start_date=start_date)
-            if not stale and cached_df is not None and not cached_df.empty:
-                df = cached_df
+            if cached_df is not None and not cached_df.empty:
+                cached_df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in cached_df.columns]
+                if not stale:
+                    df = cached_df
 
             # Incremental fetch for indicator if stale
             if stale and cached_df is not None and not cached_df.empty:
@@ -540,6 +524,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                     try:
                         new_df = _download_indicator_network(ticker, latest_date_str)
                         if new_df is not None and not new_df.empty:
+                            new_df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in new_df.columns]
                             price_db.update_prices(ticker, new_df)
                             df = pd.concat([cached_df, new_df])
                             df = df[~df.index.duplicated(keep='last')].sort_index()
@@ -552,11 +537,13 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
         if df is None or df.empty:
             try:
                 df = _download_indicator_network(ticker, start_date)
-                if df is not None and not df.empty and price_db is not None:
-                    try:
-                        price_db.update_prices(ticker, df)
-                    except Exception as ex:
-                        logger.debug(f"Failed to cache indicator {ticker}: {ex}")
+                if df is not None and not df.empty:
+                    df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+                    if price_db is not None:
+                        try:
+                            price_db.update_prices(ticker, df)
+                        except Exception as ex:
+                            logger.debug(f"Failed to cache indicator {ticker}: {ex}")
             except Exception as e:
                 logger.warning(f"Failed to fetch indicator {ticker} after retries: {e}")
                 # Tier 3 Fallback: Use cached indicator data if network fails
@@ -565,6 +552,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                     df = cached_df
 
         if df is not None and not df.empty:
+            df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
             if col_name.endswith('_change'):
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
             elif col_name == 'put_call_ratio':
@@ -984,25 +972,30 @@ def execute_prediction_pipeline():
 
             # 7d. Train VCP ML surge models (4 markets, parallel inside)
             vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
-            if train_data_dict:
-                vcp_ml.train(train_data_dict, indicator_train, universe)
-
-        # 7e. Fit Isotonic Regression calibrators on training data for score alignment
+             # 7e. Fit Isotonic Regression calibrators on training data for score alignment
         if not df_train.empty and 'Close' in df_train.columns:
             try:
                 from src.ai.ensemble_scorer import EnsembleScoringEngine
+                import joblib
                 scorer_calib = EnsembleScoringEngine(config=cfg)
                 logger.info("Fitting Isotonic Regression calibrators on training dataset...")
-                sample_train = df_train.sample(n=min(len(df_train), 5000), random_state=42)
-                reg_preds = model.predict(sample_train)
-                surge_preds = model.predict_surge(sample_train)
-                if not reg_preds.empty and not surge_preds.empty:
-                    y_true = (sample_train.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x - 1) >= 0.15).astype(float).values
-                    calib_scores = {
-                        'regression': reg_preds.get(20, pd.Series(0.5, index=sample_train.index)).values,
-                        'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=sample_train.index)).values,
-                    }
-                    scorer_calib.fit_calibrators(calib_scores, y_true)
+                df_calib_base = df_train.copy()
+                df_calib_base['future_return_20d'] = df_calib_base.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x - 1)
+                valid_calib_df = df_calib_base.dropna(subset=['future_return_20d'])
+                if len(valid_calib_df) > 100:
+                    sample_train = valid_calib_df.sample(n=min(len(valid_calib_df), 5000), random_state=42)
+                    reg_preds = model.predict(sample_train)
+                    surge_preds = model.predict_surge(sample_train)
+                    if not reg_preds.empty and not surge_preds.empty:
+                        y_true = (sample_train['future_return_20d'] >= 0.15).astype(float).values
+                        calib_scores = {
+                            'regression': reg_preds.get(20, pd.Series(0.5, index=sample_train.index)).values,
+                            'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=sample_train.index)).values,
+                        }
+                        scorer_calib.fit_calibrators(calib_scores, y_true)
+                        calib_path = Path(model.model_dir) / "calibrators.pkl"
+                        joblib.dump(scorer_calib._calibrators, str(calib_path))
+                        logger.info(f"Fitted and saved Isotonic calibrators to {calib_path}")
             except Exception as _calib_e:
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
 
@@ -1198,10 +1191,8 @@ def execute_prediction_pipeline():
                         hist_df=_vdf,
                         vcp_score=float(_vr.get('vcp_score', 50.0)),
                     )
-                    if _signal.is_breakout:
+                    if _signal is not None:
                         _vcp_breakout_signals.append(_signal)
-                        # Apply 1.3× bonus to vcp_score for breakout confirmation
-                        _vr['vcp_score'] = min(_vr['vcp_score'] * 1.3, 100.0)
                 except Exception as _vsig_e:
                     logger.debug(f"[5-C] Breakout check failed for {_vsym}: {_vsig_e}")
 
@@ -1856,8 +1847,24 @@ def execute_prediction_pipeline():
         reversal_df = pd.DataFrame()
 
     # Calculate rolling Sharpes for all strategies if strategy_returns exists
-    _strat_ret = locals().get('strategy_returns')
-    rolling_sharpes = scorer.compute_rolling_sharpe(_strat_ret) if isinstance(_strat_ret, dict) else None
+    strategy_returns = {}
+    try:
+        hist_df = storage.get_ensemble_predictions_history(days=60)
+        if hist_df is not None and not hist_df.empty:
+            for strat, col in [
+                ('regression', 'reg_score'), ('surge', 'surge_score'), ('lead_lag', 'll_score'),
+                ('vcp_rule', 'vcp_rule_score'), ('vcp_ml', 'vcp_ml_score'), ('stat_arb', 'stat_arb_score'),
+                ('sector_rotation', 'sector_score'), ('rim_valuation', 'rim_score'), ('event_driven', 'event_score'),
+                ('mq_factor', 'mq_score'), ('iv_skew', 'iv_skew_score'), ('order_flow', 'order_flow_score'),
+                ('short_term_reversal', 'reversal_score')
+            ]:
+                if col in hist_df.columns and 'outcome_return' in hist_df.columns:
+                    strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean())
+                    strategy_returns[strat] = strat_series
+    except Exception as _sr_e:
+        logger.debug(f"Strategy returns computation for Sharpe weighting: {_sr_e}")
+
+    rolling_sharpes = scorer.compute_rolling_sharpe(strategy_returns) if strategy_returns else None
 
     # default target horizon is 20d (14-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(

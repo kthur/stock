@@ -212,6 +212,10 @@ class EnsembleScoringEngine:
         self._calibrators: Dict[str, Any] = {}
         self._prev_weights: Optional[Dict[str, float]] = None
 
+    def has_calibrators(self) -> bool:
+        """Return True if calibrators dictionary is non-empty."""
+        return bool(self._calibrators)
+
         # Attempt to load Optuna-tuned 2D regime weights from tuned_params.json
 
         try:
@@ -280,19 +284,15 @@ class EnsembleScoringEngine:
         except Exception as e:
             logger.warning(f"Calibration predict failed for '{strategy}': {e}")
             return np.asarray(scores)
-
-    def has_calibrators(self) -> bool:
-        """Returns True if at least one strategy calibrator has been fitted."""
-        return len(self._calibrators) > 0
-
-    def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[pd.Series, list]],
-                              window: int = 20,
-                              risk_free_rate: float = 0.0) -> Dict[str, float]:
+    def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[List[float], pd.Series]],
+                               window: int = 60,
+                               risk_free_rate: float = 0.0) -> Dict[str, float]:
         """
         Computes recent rolling Sharpe ratio for each strategy.
-        Sharpe_i = (mean(R_i) - r_f) / (std(R_i) + 1e-6) * sqrt(252)
+        Sharpe_i = (mean(R_i) - r_f/252) / (std(R_i) + 1e-6) * sqrt(252)
         """
         sharpes = {}
+        rf_daily = risk_free_rate / 252.0 if risk_free_rate > 0 else 0.0
         for strategy, ret_data in strategy_returns.items():
             try:
                 s = pd.Series(ret_data).dropna()
@@ -302,7 +302,7 @@ class EnsembleScoringEngine:
                     std_ret = float(recent.std())
                     if std_ret < 1e-8:
                         std_ret = 1e-6
-                    sharpe = ((mean_ret - risk_free_rate) / std_ret) * np.sqrt(252)
+                    sharpe = ((mean_ret - rf_daily) / std_ret) * np.sqrt(252)
                     sharpes[strategy] = float(sharpe)
                 else:
                     sharpes[strategy] = 0.0
@@ -312,11 +312,6 @@ class EnsembleScoringEngine:
         return sharpes
 
     def apply_vix_override(self, weights: Dict[str, float], vix_val: Optional[float] = None) -> Dict[str, float]:
-        """
-        Fast VIX Shock Override: Adjusts strategy weights in high volatility environments.
-        - vix_val > 30.0 (High fear): Reduce surge/sector_rotation, increase regression/stat_arb
-        - vix_val > 40.0 (Extreme panic): Maximize stat_arb/regression defensiveness
-        """
         if vix_val is None or vix_val <= 25.0:
             return weights
 
@@ -328,35 +323,23 @@ class EnsembleScoringEngine:
             w['stat_arb'] = w.get('stat_arb', 0.10) + 0.05
 
         if vix_val > 40.0:
-            w['vcp_ml'] = max(0.0, w.get('vcp_ml', 0.15) - 0.10)
-            w['stat_arb'] = w.get('stat_arb', 0.10) + 0.10
+            w['surge'] = 0.0
+            w['vcp_ml'] = 0.0
+            w['stat_arb'] = w.get('stat_arb', 0.10) + 0.15
+            w['rim_valuation'] = w.get('rim_valuation', 0.10) + 0.10
 
-        total = sum(w.values())
-        return {k: v / total for k, v in w.items()} if total > 0 else weights
+        total_w = sum(w.values())
+        return {k: v / total_w for k, v in w.items()}
 
-    def get_base_weights(self, regime: Union[int, str, dict], vix_val: Optional[float] = None) -> Dict[str, float]:
-        """Resolves base weights from 1D, 2D, or 3D macro regime inputs, applying Fast VIX Override."""
-        macro_label = None
-        if isinstance(regime, dict):
-            macro_label = regime.get('macro_label')
-            if vix_val is None:
-                vix_val = regime.get('vix_val')
-            regime = regime.get('combo_2d_label') or regime.get('combo_label') or regime.get('direction_label', 'SIDEWAYS')
-
+    def get_base_weights(self, regime: Union[int, str], vix_val: Optional[float] = None,
+                         macro_label: Optional[str] = None) -> Dict[str, float]:
+        """Return baseline strategy weights according to 1D integer regime or 2D string regime."""
         if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
             w = dict(self.REGIME_2D_WEIGHTS[regime])
-        elif isinstance(regime, str):
-            # Try parsing integer prefix or label matching
-            if 'BEAR' in regime:
-                reg_code = 0
-            elif 'BULL' in regime:
-                reg_code = 2
-            else:
-                reg_code = 1
-            w = dict(self.REGIME_WEIGHTS.get(reg_code, self.REGIME_WEIGHTS[1]))
+        elif isinstance(regime, int) and regime in self.REGIME_WEIGHTS:
+            w = dict(self.REGIME_WEIGHTS[regime])
         else:
-            reg_code = int(regime) if isinstance(regime, (int, np.integer)) else 1
-            w = dict(self.REGIME_WEIGHTS.get(reg_code, self.REGIME_WEIGHTS[1]))
+            w = dict(self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
 
         # Apply 3D Macro Modifier if applicable
         if macro_label and macro_label in self.MACRO_WEIGHT_MODIFIERS:
@@ -369,15 +352,20 @@ class EnsembleScoringEngine:
                 w = {k: v / total_w for k, v in w.items()}
 
         res = {
-            'regression': w.get('regression', 0.20),
-            'surge': w.get('surge', 0.15),
-            'lead_lag': w.get('lead_lag', 0.10),
-            'vcp_rule': w.get('vcp_rule', 0.10),
-            'vcp_ml': w.get('vcp_ml', 0.15),
-            'lstm': w.get('lstm', 0.10),
+            'regression': w.get('regression', 0.10),
+            'surge': w.get('surge', 0.05),
+            'lead_lag': w.get('lead_lag', 0.05),
+            'vcp_rule': w.get('vcp_rule', 0.05),
+            'vcp_ml': w.get('vcp_ml', 0.08),
+            'lstm': w.get('lstm', 0.08),
             'stat_arb': w.get('stat_arb', 0.10),
-            'sector_rotation': w.get('sector_rotation', 0.10),
-            'rim_valuation': w.get('rim_valuation', 0.10)
+            'sector_rotation': w.get('sector_rotation', 0.08),
+            'rim_valuation': w.get('rim_valuation', 0.10),
+            'event_driven': w.get('event_driven', 0.07),
+            'mq_factor': w.get('mq_factor', 0.08),
+            'iv_skew': w.get('iv_skew', 0.04),
+            'order_flow': w.get('order_flow', 0.06),
+            'short_term_reversal': w.get('short_term_reversal', 0.06),
         }
 
         # Apply VIX Fast Override if active
@@ -417,6 +405,18 @@ class EnsembleScoringEngine:
             dynamic_weights = {k: v / tot_s for k, v in smoothed.items()}
 
         self._prev_weights = dict(dynamic_weights)
+
+        # Persist EMA weights to disk for continuity across runs
+        try:
+            from pathlib import Path
+            import json
+            models_dir = Path(__file__).resolve().parent.parent.parent / "models"
+            models_dir.mkdir(exist_ok=True)
+            with open(models_dir / "prev_weights.json", "w", encoding="utf-8") as f:
+                json.dump(self._prev_weights, f, indent=2)
+        except Exception as _se:
+            logger.warning(f"Could not persist prev_weights.json: {_se}")
+
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
 

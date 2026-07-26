@@ -21,15 +21,19 @@ class MarketIndicatorStorage:
         self._write_lock = threading.Lock()
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
-        """Open a WAL-mode connection. Callers are responsible for closing."""
+    @contextmanager
+    def _connect(self):
+        """Open a WAL-mode connection context manager that automatically closes connections on exit."""
         conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA cache_size=-50000")  # 50MB page cache
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA busy_timeout=5000")  # 5s retry on locked DB
-        return conn
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def _init_db(self):
         with self._connect() as conn:

@@ -41,13 +41,14 @@ class LSTMPredictor:
     Wrapper class to train and predict using the PyTorch LSTM model.
     """
 
-    def __init__(self, sequence_length: int = 20, hidden_size: int = 32, epochs: int = 5, lr: float = 0.01):
+    def __init__(self, sequence_length: int = 20, input_size: int = 1, hidden_size: int = 32, epochs: int = 5, lr: float = 0.01):
         self.sequence_length = sequence_length
+        self.input_size = input_size
         self.hidden_size = hidden_size
         self.epochs = epochs
         self.lr = lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = LSTMNetwork(input_size=1, hidden_size=hidden_size, num_layers=1, output_size=1).to(self.device)
+        self.model = LSTMNetwork(input_size=input_size, hidden_size=hidden_size, num_layers=1, output_size=1).to(self.device)
         self.is_trained = False
 
     def train_model(self, X_train: np.ndarray, y_train: np.ndarray) -> None:

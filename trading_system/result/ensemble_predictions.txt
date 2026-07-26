@@ -1,5 +1,5 @@
-=== Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-26 20:49
+=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===
+Date: 2026-07-27 00:29 KST
 
 --- Executive Market Summary ---
 Current Market Regime Detected: SIDEWAYS (2D State: SIDEWAYS_HIGH_VOL)
@@ -14,7 +14,24 @@ Maximum Total Allocation Allowed: 50.0%
   USD/KRW FX Rate                   : nan KRW
   US 10Y Bond Yield (TNX)           : nan%
 
---- Applied Ensemble Strategy Weights (9 Strategies) ---
+[2D Market Regime & Strategy Decision Rationale]
+• Selected 2D Regime State: SIDEWAYS_HIGH_VOL
+  - Market Trend Rationale: Range-bound consolidation detected. Rotation & Arbitrage strategies prioritized.
+  - Volatility State: HIGH_VOL (VIX >= 20.0 or High Realized Volatility). Increased weight on defensive Stat-Arb & RIM Valuation.
+
+[14-Strategy Dynamic Weight Allocation]
+• Dynamic Weighting Scheme: Baseline 2D Regime Matrix Weights (No historical performance penalty)
+  - regression            :  14.1%
+  - surge                 :   5.6%
+  - lead_lag              :   8.5%
+  - vcp_rule              :   5.6%
+  - vcp_ml                :   9.9%
+  - lstm                  :   9.9%
+  - stat_arb              :  21.1%
+  - sector_rotation       :  11.3%
+  - rim_valuation         :  14.1%
+
+--- Applied Ensemble Strategy Weights (14 Strategies) ---
   XGBoost Regression Fundamentals   : 14.1%
   Surge Classifier (XGBoost)        : 5.6%
   Index & Sector Lead-Lag Flow      : 8.5%
@@ -24,21 +41,26 @@ Maximum Total Allocation Allowed: 50.0%
   Stat-Arb Cointegration Mean Rev   : 21.1%
   Sector Rotation Relative Momentum : 11.3%
   RIM Valuation (Residual Income)   : 14.1%
+  Event-Driven Disclosure Catalyst  : 0.0%
+  Momentum Quality (MQ) Factor      : 0.0%
+  Options Put/Call IV Skew          : 0.0%
+  Order Flow Imbalance (MFI)        : 0.0%
+  Short-Term Mean Reversal          : 0.0%
 
 --- Top 20 Recommendations by Market ---
 
 =========================================
 [KOSPI] Top 20 Ensemble Picks
 =========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg   Surge L-L   VCP-R VCP-M LSTM  S-Arb Sec-R RIM   
-------------------------------------------------------------------------------------------------------------------------------------
-1    005930    Samsung Electronic            62.5%           11.65%  100%    2%    0%    0%    7%    0%    0%   75%    0%
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    005930    Samsung Electron        54.7%       10.10%  50%   2%   0%    0%    7%   0%    0%   75%   0%   50%  85%   49%  75%  75%
 
 
 =========================================
 [SP500] Top 20 Ensemble Picks
 =========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg   Surge L-L   VCP-R VCP-M LSTM  S-Arb Sec-R RIM   
-------------------------------------------------------------------------------------------------------------------------------------
-1    AAPL      Apple Inc.                    51.6%           10.21%   50%    2%    0%    0%    1%    0%    0%   75%    0%
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    AAPL      Apple Inc.              59.3%       11.76% 100%   2%   0%    0%    1%   0%    0%   75%   0%   50%  65%   46%  75%  75%
 

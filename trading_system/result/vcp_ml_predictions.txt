@@ -1,5 +1,5 @@
 === VCP ML Surge Predictions ===
-Date: 2026-07-26 20:49
+Date: 2026-07-27 00:29
 
 [1일] KOSPI TOP 1
   1. [KOSPI] 005930 (Samsung Electronics): 1.2%
@@ -22,7 +22,7 @@ Date: 2026-07-26 20:49
   1. [SP500] AAPL (Apple Inc.): 0.5%
 
 [5일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 2.8%
+  1. [KOSPI] 005930 (Samsung Electronics): 2.7%
 
 [5일] KOSDAQ - (no symbols) 0.0%
 

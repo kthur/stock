@@ -120,8 +120,9 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
 
     ranges = [r1, r2, r3, r4]
 
-    # Contraction: recent ranges are tighter than earlier ranges
-    decreasing = (r1 <= r2 * contraction_ratio) and (r2 <= r3 * contraction_ratio) and (r1 < r4)
+    # Contraction: recent ranges are tighter than earlier ranges (strict non-expanding)
+    eff_ratio = min(1.0, float(contraction_ratio))
+    decreasing = (r1 <= r2 * eff_ratio) and (r2 <= r3 * eff_ratio) and (r1 < r4)
 
     # 3. Volume contraction
     vol_20d = float(volume.tail(20).mean())

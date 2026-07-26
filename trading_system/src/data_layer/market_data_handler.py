@@ -2,42 +2,49 @@
 
 import logging
 import os
-import random
 import time
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, List
 
 import pandas as pd
 import yfinance as yf
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, retry_if_not_exception_type
 
 from src.analysis.backtest import PriceBar
 
 logger = logging.getLogger(__name__)
 
 
+class CircuitBreakerOpenException(Exception):
+    """서킷 브레이커가 OPEN 상태일 때 발생하는 예외 (재시도 불가)"""
+    pass
+
+
 class RateLimiter:
-    """토큰 버킷 알고리즘 기반 API 호출 제한기"""
+    """토큰 버킷 알고리즘 기반 API 호출 제한기 (Thread-Safe)"""
 
     def __init__(self, rate_limit: int, time_window: float = 1.0):
         self.rate_limit = rate_limit
         self.time_window = time_window
         self.tokens = rate_limit
         self.last_updated = time.time()
+        self._lock = threading.Lock()
 
     def acquire(self):
-        now = time.time()
-        elapsed = now - self.last_updated
-        self.tokens += elapsed * (self.rate_limit / self.time_window)
-        if self.tokens > self.rate_limit:
-            self.tokens = self.rate_limit
-        self.last_updated = now
+        with self._lock:
+            now = time.time()
+            elapsed = now - self.last_updated
+            self.tokens += elapsed * (self.rate_limit / self.time_window)
+            if self.tokens > self.rate_limit:
+                self.tokens = self.rate_limit
+            self.last_updated = now
 
-        if self.tokens >= 1:
-            self.tokens -= 1
-            return True
-        return False
+            if self.tokens >= 1:
+                self.tokens -= 1
+                return True
+            return False
 
     def wait(self):
         while not self.acquire():
@@ -139,10 +146,15 @@ class MarketDataHandler:
         self.publish_market_data(data)
         return data
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception) & retry_if_not_exception_type(CircuitBreakerOpenException),
+        reraise=True
+    )
     def _fetch_yf_with_retry(self, symbol: str):
         if not self.circuit_breaker.check_state():
-            raise Exception("Circuit breaker is OPEN. API calls are temporarily blocked.")
+            raise CircuitBreakerOpenException("Circuit breaker is OPEN. API calls are temporarily blocked.")
 
         self.rate_limiter.wait()
 
@@ -163,6 +175,8 @@ class MarketDataHandler:
 
             self.circuit_breaker.record_success()
             return price, volume
+        except CircuitBreakerOpenException:
+            raise
         except Exception:
             self.circuit_breaker.record_failure()
             raise
@@ -181,12 +195,8 @@ class MarketDataHandler:
             return data
 
         except Exception as e:
-            self.logger.error(f"Failed to fetch live data from yfinance for {symbol}: {e}. Falling back to simulation.")
-            # 실패 시 기존 데이터를 소폭 변동시켜 모의 데이터 생성
-            existing = self.get_market_data(symbol)
-            base_price = existing.price if existing else 150.0
-            price = round(base_price * (1 + random.uniform(-0.002, 0.002)), 2)
-            return self.simulate_api_call(symbol, price, price - 0.05, price + 0.05, 5000000)
+            self.logger.error(f"Failed to fetch live data from yfinance for {symbol}: {e}")
+            return None
 
     def fetch_historical_data(self, symbol: str, period: str = "5y") -> List[Any]:
         """yfinance를 통해 과거 데이터를 가져오고 DB+Parquet 캐시를 활용합니다.
