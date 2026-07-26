@@ -195,9 +195,9 @@ class Test2DRegimeAndEnsembleScorer:
         for combo in combos:
             assert combo in engine.REGIME_2D_WEIGHTS
             weights = engine.get_base_weights(combo)
-            assert len(weights) == 5
+            assert len(weights) == 8
             assert pytest.approx(sum(weights.values()), abs=1e-5) == 1.0
-            for strat in ["regression", "surge", "lead_lag", "vcp_rule", "vcp_ml"]:
+            for strat in ["regression", "surge", "lead_lag", "vcp_rule", "vcp_ml", "lstm", "stat_arb", "sector_rotation"]:
                 assert strat in weights
 
     def test_compute_dynamic_weights_from_sharpe_exponential(self):

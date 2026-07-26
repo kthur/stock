@@ -40,7 +40,7 @@ from src.data_layer.global_market import GlobalMarketClient
 from src.data_layer.indicator_storage import MarketIndicatorStorage
 from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
-from src.ai.vcp_ml_predictor import SURGE_HORIZONS
+from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
 from src.risk.position_sizing import PortfolioAllocator
 from src.analysis.regime_detector import MarketRegimeDetector
@@ -762,6 +762,7 @@ def execute_prediction_pipeline():
             should_skip = False
 
     update_interval = cfg.get_update_interval()
+    vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
 
     # 6. Prepare Training Data (On-device) — split by market
     kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
