@@ -1223,7 +1223,7 @@ class OnDevicePredictionModel:
         vol_20d = pct_chg.rolling(20, min_periods=5).std()
         # Replace zero / NaN vols with a small floor so we never divide by zero
         vol_20d = vol_20d.replace(0.0, np.nan)
-        vol_20d = vol_20d.fillna(method='bfill').fillna(method='ffill').fillna(0.01)
+        vol_20d = vol_20d.bfill().ffill().fillna(0.01)
         # Store vol scale for inverse-transform at inference time
         df['_vol_scale'] = vol_20d
 
