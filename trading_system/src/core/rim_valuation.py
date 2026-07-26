@@ -12,12 +12,12 @@ Formula:
 Scoring:
   Transforms discount ratio to percentile rank [0.0, 1.0] per market.
 """
+import logging
 from typing import Dict, Optional
 import numpy as np
 import pandas as pd
-from src.utils.logger import get_logger
 
-logger = get_logger("rim_valuation")
+logger = logging.getLogger(__name__)
 
 
 class RIMValuationEngine:
