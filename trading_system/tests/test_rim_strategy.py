@@ -104,5 +104,5 @@ Rank Symbol    Name                Market    Price       Intrinsic V0  Discount 
     )
 
     assert "💎 RIM Valuation" in html
-    assert "#panel-rim" in html
+    assert 'id="panel-rim"' in html
     assert "9 Strategies" in html
