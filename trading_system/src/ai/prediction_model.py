@@ -755,10 +755,10 @@ class OnDevicePredictionModel:
                         norm_fv = fv.div(dt_fv).replace([np.inf, -np.inf], 0.0)
                         norm_vol = vol.div(dt_vol).replace([np.inf, -np.inf], 0.0)
 
-                        if len(group) == 1 and (dt_mc > 0).any():
-                            df['norm_market_cap'] = norm_mc.fillna(1.0)
-                            df['norm_floating_value'] = norm_fv.fillna(1.0)
-                            df['norm_volume'] = norm_vol.fillna(1.0)
+                        if len(group) == 1:
+                            df['norm_market_cap'] = norm_mc.fillna(1.0 if not (dt_mc.isna().all()) else 0.0)
+                            df['norm_floating_value'] = norm_fv.fillna(1.0 if not (dt_fv.isna().all()) else 0.0)
+                            df['norm_volume'] = norm_vol.fillna(1.0 if not (dt_vol.isna().all()) else 0.0)
                         else:
                             df['norm_market_cap'] = norm_mc.fillna(0.0)
                             df['norm_floating_value'] = norm_fv.fillna(0.0)
