@@ -1736,7 +1736,7 @@ def execute_prediction_pipeline():
         columns={'ensemble_expected_return': 20}
     )
     allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
-    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=1000000000.0)
+    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=1000000000.0, use_hrp=True)
     if not alloc_df.empty:
         alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
         alloc_output_path = os.path.join(result_dir, "portfolio_allocation.txt")

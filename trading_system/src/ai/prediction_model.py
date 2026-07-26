@@ -132,13 +132,13 @@ class OnDevicePredictionModel:
         # Technical Indicators
         'adx_14', 'tenkan_sen', 'kijun_sen', 'stoch_rsi_k', 'stoch_rsi_d',
         # Institutional Flow / Alternative Data Features
-        'dark_pool_ratio', 'block_trade_net_usd'
+        'dark_pool_ratio', 'block_trade_net_usd', 'fx_beta_60d'
     ]
     # Global market indicators added as features (날짜별 히스토리 merge)
     GLOBAL_FEATURES = [
         'vix_change', 'us10y', 'usdkrw_change', 'sp500_change',
         'dxy_change', 'wti_change', 'kospi_change', 'kosdaq_change',
-        'put_call_ratio'
+        'put_call_ratio', 'ktb_spread'
     ]
     ALL_FEATURES = FEATURES + GLOBAL_FEATURES
 
@@ -1136,6 +1136,15 @@ class OnDevicePredictionModel:
         df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
         df['block_trade_net_usd'] = (volume * close * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)
 
+        # 13. FX (KRW/USD) 60-day rolling Sensitivity Beta
+        if 'usdkrw_change' in df.columns:
+            fx_change = df['usdkrw_change'].fillna(0.0)
+            cov_fx = df['ret_1d'].rolling(60, min_periods=20).cov(fx_change)
+            var_fx = fx_change.rolling(60, min_periods=20).var().replace(0.0, 1e-9)
+            df['fx_beta_60d'] = (cov_fx / var_fx).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        else:
+            df['fx_beta_60d'] = 0.0
+
         # Fill NaNs in return and volatility columns with 0.0 before dropna
         new_tech_cols = ['ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'rsi_14', 'rsi_5',
                     'macd', 'macd_signal', 'macd_hist_norm', 'bb_upper_dist', 'bb_lower_dist',
@@ -1144,7 +1153,7 @@ class OnDevicePredictionModel:
                     'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
                     'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
                     'monotonic', 'vcp_score', 'ret_1d_lag1', 'ret_5d_lag1', 'adx_14', 'tenkan_sen', 'kijun_sen',
-                    'stoch_rsi_k', 'stoch_rsi_d', 'dark_pool_ratio', 'block_trade_net_usd']
+                    'stoch_rsi_k', 'stoch_rsi_d', 'dark_pool_ratio', 'block_trade_net_usd', 'fx_beta_60d']
         for col in new_tech_cols:
             if col in df.columns:
                 df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)

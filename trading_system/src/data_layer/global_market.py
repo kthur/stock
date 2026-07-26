@@ -36,11 +36,15 @@ FX_PAIRS: Dict[str, str] = {
     "USDCNY=X": "USD/CNY",
 }
 
-# 추가 거시경제 지표: 금리, 원자재, 달러인덱스
+# 추가 거시경제 지표: 금리, 원자재, 달러인덱스, 한국 국채
 MACRO_COMMODITIES: Dict[str, str] = {
     "^TNX": "US 10Y Treasury Yield",
+    "^FVX": "US 5Y Treasury Yield",
+    "^IRX": "US 13W Treasury Bill",
     "CL=F": "WTI Crude Oil",
     "DX-Y.NYB": "US Dollar Index (DXY)",
+    "305720.KS": "KODEX KTB 3Y ETF",
+    "273130.KS": "KODEX KTB 10Y ETF",
 }
 
 _CACHE_TTL = 300  # 5-minute cache

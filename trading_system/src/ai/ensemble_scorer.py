@@ -467,14 +467,16 @@ class EnsembleScoringEngine:
         # Scale Ensemble Score to Return Proxy (%)
         raw_exp_ret = merged['ensemble_score'] * self._return_multiplier
 
-        # Apply Market-specific Transaction Cost Deductions (KOSPI: 35bps, KOSDAQ: 50bps, KONEX: 80bps, SP500: 10bps)
+        # Apply Market-specific Transaction Cost & Slippage Deductions
+        slippage = self.config.slippage_krx_market_order if self.config else 0.005
+
         def _get_cost_pct(symbol: str) -> float:
             if symbol.isdigit() or symbol.endswith(('.KS', '.KQ', '.KN')):
                 if symbol.endswith('.KN'):
-                    return 0.0080
+                    return 0.0080 + slippage
                 elif symbol.endswith('.KQ'):
-                    return 0.0050
-                return 0.0035
+                    return 0.0050 + slippage
+                return 0.0035 + slippage
             return 0.0010
 
         cost_series = merged['symbol'].apply(_get_cost_pct)
