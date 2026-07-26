@@ -491,7 +491,7 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
         if m:
             date = m.group(1).strip()
             continue
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+%)\s+([-\d.]+)%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.]+)\s+([-\d.]+)\s+([-+]?[\d.]+%)\s+([-\d.]+)%$", line)
         if m:
             rows.append(RimRow(
                 rank=int(m.group(1)),

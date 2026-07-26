@@ -152,12 +152,7 @@ class RIMValuationEngine:
         df['discount_ratio'] = discount_list
 
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market
-        def rank_market(group: pd.DataFrame) -> pd.Series:
-            if len(group) <= 1:
-                return pd.Series(0.5, index=group.index)
-            return group['discount_ratio'].rank(pct=True, ascending=True)
-
-        df['rim_score'] = df.groupby('market', group_keys=False).apply(rank_market).fillna(0.5)
+        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
 
         out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'intrinsic_value', 'discount_ratio', 'rim_score']
         return df[[c for c in out_cols if c in df.columns]]

@@ -331,7 +331,8 @@ class EnsembleScoringEngine:
             'vcp_ml': w.get('vcp_ml', 0.15),
             'lstm': w.get('lstm', 0.10),
             'stat_arb': w.get('stat_arb', 0.10),
-            'sector_rotation': w.get('sector_rotation', 0.10)
+            'sector_rotation': w.get('sector_rotation', 0.10),
+            'rim_valuation': w.get('rim_valuation', 0.10)
         }
 
         # Apply VIX Fast Override if active
