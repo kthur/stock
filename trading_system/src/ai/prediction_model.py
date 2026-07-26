@@ -524,7 +524,9 @@ class OnDevicePredictionModel:
                     model._classes = np.array([0, 1])
 
                 try:
-                    _ = model.predict_proba(dummy_df)
+                    fn = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = model.predict_proba(val_df)
                     if market not in self.surge_models:
                         self.surge_models[market] = {}
                     self.surge_models[market][h] = model
@@ -540,17 +542,16 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                booster = lgb.Booster(model_file=str(fpath))
                 model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
-                model._Booster = booster
+                model.booster_ = lgb.Booster(model_file=str(fpath))
                 model.fitted_ = True
-                model._n_features = len(self.ALL_FEATURES)
-                model._n_features_in = len(self.ALL_FEATURES)
                 model._n_classes = 2
                 model._classes = np.array([0, 1])
 
                 try:
-                    _ = model.predict_proba(dummy_df)
+                    fn = model.booster_.feature_name() if hasattr(model.booster_, "feature_name") and model.booster_.feature_name() else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = model.predict_proba(val_df)
                     if market not in self.surge_lgb_models:
                         self.surge_lgb_models[market] = {}
                     self.surge_lgb_models[market][h] = model
@@ -570,7 +571,9 @@ class OnDevicePredictionModel:
                 model.load_model(str(fpath))
 
                 try:
-                    _ = model.predict_proba(dummy_df)
+                    fn = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = model.predict_proba(val_df)
                     if market not in self.surge_cat_models:
                         self.surge_cat_models[market] = {}
                     self.surge_cat_models[market][h] = model
@@ -599,7 +602,9 @@ class OnDevicePredictionModel:
                             except (AttributeError, TypeError):
                                 model._classes = np.array([0, 1])
                             try:
-                                _ = model.predict_proba(dummy_df)
+                                fn = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else self.ALL_FEATURES
+                                val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                                _ = model.predict_proba(val_df)
                                 if market not in self.surge_models:
                                     self.surge_models[market] = {}
                                 self.surge_models[market][h] = model
