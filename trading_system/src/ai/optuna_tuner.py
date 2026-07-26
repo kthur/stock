@@ -411,10 +411,9 @@ class OptunaStrategyTuner:
         if not strategy_returns_by_regime:
             logger.warning("No strategy returns by regime provided; returning default regime 2d weights")
             from src.ai.ensemble_scorer import EnsembleScoringEngine
-            from typing import cast
             engine = EnsembleScoringEngine()
             self.tuned_params['regime_2d_weights'] = engine.REGIME_2D_WEIGHTS
-            return cast(dict[str, dict[str, float]], engine.REGIME_2D_WEIGHTS)
+            return engine.REGIME_2D_WEIGHTS
 
         best_weights = {}
         for combo in regime_combos:

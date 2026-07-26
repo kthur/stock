@@ -39,6 +39,11 @@ class EnsembleRow:
     stat_arb: str = ""
     sector_rotation: str = ""
     rim_valuation: str = ""
+    event_driven: str = ""
+    mq_factor: str = ""
+    iv_skew: str = ""
+    order_flow: str = ""
+    short_term_reversal: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -56,6 +61,8 @@ class EnsembleData:
     us10y: str = ""
     weights: dict = field(default_factory=dict)
     markets: list[EnsembleMarket] = field(default_factory=list)
+    decision_rationale: str = ""
+    coverage_report: str = ""
 
 @dataclass
 class StatArbRow:
@@ -200,65 +207,64 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
         if m:
             data.us10y = m.group(1).strip()
-        m = re.match(r"\s*(XGBoost Regression|Surge Classifier|Index & Sector|VCP Rule|VCP Machine|Strict Causal|Stat-Arb|Sector Rotation)\w*.*:\s*([-\d.]+|nan|NaN|None)%", line)
+        m = re.match(r"\s*(XGBoost Regression|Surge Classifier|Index & Sector|VCP Rule|VCP Machine|Strict Causal|Stat-Arb|Sector Rotation|RIM Valuation|Event-Driven|Momentum Quality|Options Put/Call|Order Flow|Short-Term)\w*.*:\s*([-\d.]+|nan|NaN|None)%", line)
         if m:
             data.weights[m.group(1).strip()] = m.group(2) + "%"
+
+    # Extract Decision Rationale Block
+    if "[2D Market Regime & Strategy Decision Rationale]" in text:
+        idx1 = text.find("[2D Market Regime & Strategy Decision Rationale]")
+        idx2 = text.find("--- Applied Ensemble Strategy Weights", idx1)
+        if idx2 != -1:
+            data.decision_rationale = text[idx1:idx2].strip()
+        else:
+            data.decision_rationale = text[idx1:idx1+800].strip()
 
     # Parse market sections
     current_market = None
     in_data = False
 
     for line in text.splitlines():
-        m = re.match(r"\[(\w+)\] Top \d+ Ensemble Picks", line.strip())
+        l_str = line.strip()
+        m = re.match(r"\[(\w+)\] Top \d+ Ensemble Picks", l_str)
         if m:
             current_market = EnsembleMarket(market=m.group(1))
             data.markets.append(current_market)
             in_data = False
             continue
-        if current_market and re.match(r"^-{3,}", line.strip()):
+        if current_market and re.match(r"^-{3,}", l_str):
             in_data = True
             continue
-        if in_data and current_market:
-            m8 = re.match(
-                r"^(\d+)\s+(\S+)\s+(.+?)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)$",
-                line.strip()
-            )
-            if m8:
-                current_market.rows.append(EnsembleRow(
-                    rank=int(m8.group(1)),
-                    symbol=m8.group(2),
-                    name=m8.group(3).strip(),
-                    score=m8.group(4),
-                    expected_return=m8.group(5),
-                    reg=m8.group(6),
-                    surge=m8.group(7),
-                    lead_lag=m8.group(8),
-                    vcp_rule=m8.group(9),
-                    vcp_ml=m8.group(10),
-                    lstm=m8.group(11),
-                    stat_arb=m8.group(12),
-                    sector_rotation=m8.group(13),
-                ))
-            else:
-                m5 = re.match(
-                    r"^(\d+)\s+(\S+)\s+(.+?)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-+]?(?:[\d.]+%|nan%|NaN%|None%))\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)$",
-                    line.strip()
-                )
-                if m5:
+        if in_data and current_market and l_str and not l_str.startswith("="):
+            parts = l_str.split()
+            if parts and parts[0].isdigit() and len(parts) >= 5:
+                rank = int(parts[0])
+                symbol = parts[1]
+                pct_indices = [idx for idx, p in enumerate(parts) if p.endswith('%') or p in ['-', 'N/A', 'nan%', 'NaN%', 'None%']]
+                if len(pct_indices) >= 2:
+                    s_start = pct_indices[0]
+                    name = " ".join(parts[2:s_start])
+                    score = parts[s_start]
+                    exp_ret = parts[s_start + 1]
+                    s_vals = parts[s_start + 2:]
+
                     current_market.rows.append(EnsembleRow(
-                        rank=int(m5.group(1)),
-                        symbol=m5.group(2),
-                        name=m5.group(3).strip(),
-                        score=m5.group(4),
-                        expected_return=m5.group(5),
-                        reg=m5.group(6),
-                        surge=m5.group(7),
-                        lead_lag=m5.group(8),
-                        vcp_rule=m5.group(9),
-                        vcp_ml=m5.group(10),
-                        lstm="-",
-                        stat_arb="-",
-                        sector_rotation="-",
+                        rank=rank, symbol=symbol, name=name,
+                        score=score, expected_return=exp_ret,
+                        reg=s_vals[0] if len(s_vals) > 0 else "-",
+                        surge=s_vals[1] if len(s_vals) > 1 else "-",
+                        lead_lag=s_vals[2] if len(s_vals) > 2 else "-",
+                        vcp_rule=s_vals[3] if len(s_vals) > 3 else "-",
+                        vcp_ml=s_vals[4] if len(s_vals) > 4 else "-",
+                        lstm=s_vals[5] if len(s_vals) > 5 else "-",
+                        stat_arb=s_vals[6] if len(s_vals) > 6 else "-",
+                        sector_rotation=s_vals[7] if len(s_vals) > 7 else "-",
+                        rim_valuation=s_vals[8] if len(s_vals) > 8 else "-",
+                        event_driven=s_vals[9] if len(s_vals) > 9 else "-",
+                        mq_factor=s_vals[10] if len(s_vals) > 10 else "-",
+                        iv_skew=s_vals[11] if len(s_vals) > 11 else "-",
+                        order_flow=s_vals[12] if len(s_vals) > 12 else "-",
+                        short_term_reversal=s_vals[13] if len(s_vals) > 13 else "-",
                     ))
     return data
 
@@ -691,7 +697,9 @@ def build_html(
     sector_rows: Optional[list[SectorRow]] = None,
     rim_rows: Optional[list[RimRow]] = None,
 ) -> str:
-    now_kst = datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " UTC"
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
     regime_label, regime_color = REGIME_INFO.get(ensemble.regime, (ensemble.regime, "#8b949e"))
     report_date = ensemble.date or surge_date or vcp_date or lag_date or "N/A"
 
@@ -721,9 +729,14 @@ def build_html(
               <td>{r.stat_arb}</td>
               <td>{r.sector_rotation}</td>
               <td>{r.rim_valuation}</td>
+              <td>{r.event_driven}</td>
+              <td>{r.mq_factor}</td>
+              <td>{r.iv_skew}</td>
+              <td>{r.order_flow}</td>
+              <td>{r.short_term_reversal}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="14" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="19" class="empty">데이터 없음</td></tr>'
 
         ensemble_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -733,7 +746,7 @@ def build_html(
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th>
             <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th>
+            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -743,6 +756,14 @@ def build_html(
     weights_html = ""
     for k, v in ensemble.weights.items():
         weights_html += f'<div class="weight-item"><span class="wk">{k}</span><span class="wv">{v}</span></div>'
+
+    rationale_html = ""
+    if ensemble.decision_rationale:
+        rationale_html = f"""
+    <div class="card rationale-card" style="margin-top: 15px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; padding: 15px; border-radius: 8px;">
+      <h3 style="color: #38bdf8; margin-bottom: 8px; font-size: 1.1em;">🧠 [2D Regime &amp; Strategy Decision Rationale]</h3>
+      <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: #cbd5e1; margin: 0;">{ensemble.decision_rationale}</pre>
+    </div>"""
 
     macro_html = f"""
     <div class="macro-grid">
@@ -1288,9 +1309,10 @@ def build_html(
   <!-- ══ Ensemble Tab ══ -->
   <div class="tab-panel active" id="panel-ensemble">
     <div class="weights-section">
-      <div class="weights-title">⚙️ 전략 가중치 (9 Strategies)</div>
+      <div class="weights-title">⚙️ 전략 가중치 (14 Strategies)</div>
       {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
     </div>
+    {rationale_html}
     <div class="filter-bar" id="filter-ensemble">
       <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>

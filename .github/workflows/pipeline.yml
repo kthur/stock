@@ -91,6 +91,7 @@ jobs:
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
           SKIP_TRAINING: 'True'
+          TZ: 'Asia/Seoul'
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
@@ -117,7 +118,7 @@ jobs:
           echo "### 📁 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
           echo "| 파일 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt pipeline_result.csv; do
+          for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt strategy_data_coverage_report.txt pipeline_result.csv; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)

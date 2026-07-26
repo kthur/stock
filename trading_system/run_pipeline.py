@@ -1808,23 +1808,17 @@ def execute_prediction_pipeline():
         event_df=event_df,
         mq_df=mq_df,
         iv_skew_df=iv_skew_df,
-        order_flow_df=order_flow_df,
         reversal_df=reversal_df,
         rolling_sharpes=rolling_sharpes,
-        target_horizon=20,
-        sentiment_blacklist=_blacklist_map,
+        target_horizon=20
     )
-
-
-    # 11e. Save Ensemble Predictions to DB
-    try:
-        storage.save_ensemble_predictions(ensemble_df, date_str)
-        logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to DB table 'ensemble_predictions'")
-    except Exception as e:
-        logger.error(f"Failed to save ensemble predictions to DB: {e}")
 
     # 11f. Save Ensemble Predictions Report (ensemble_predictions.txt)
     # Gather decision basis metrics
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    kst_now_str = datetime.now(KST).strftime('%Y-%m-%d %H:%M KST')
+
     sp500_ret_20d = float(indicator_infer['sp500_change'].tail(20).mean()) if 'sp500_change' in indicator_infer.columns else 0.0
     sp500_vol_20d = float(indicator_infer['sp500_change'].tail(20).std()) if 'sp500_change' in indicator_infer.columns else 0.0
     kospi_ret_20d = float(indicator_infer['kospi_change'].tail(20).mean()) if 'kospi_change' in indicator_infer.columns else 0.0
@@ -1835,12 +1829,29 @@ def execute_prediction_pipeline():
 
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
 
+    # Generate Decision Rationale Summary
+    decision_rationale_text = scorer.get_regime_reasoning_summary(current_2d_regime, rolling_sharpes)
+
+    # Generate Strategy Data Coverage & Missingness Analysis Report
+    try:
+        from src.analysis.coverage_analyzer import StrategyCoverageAnalyzer
+        cov_analyzer = StrategyCoverageAnalyzer()
+        cov_data = cov_analyzer.analyze_coverage(ensemble_df, prices_dict=infer_data_dict)
+        cov_report_text = cov_analyzer.generate_coverage_report(cov_data, date_str=kst_now_str)
+
+        cov_output_path = os.path.join(result_dir, "strategy_data_coverage_report.txt")
+        with open(cov_output_path, "w", encoding="utf-8") as f_cov:
+            f_cov.write(cov_report_text + "\n")
+        logger.info(f"Saved Strategy Data Coverage report to {cov_output_path}")
+    except Exception as _cov_e:
+        logger.warning(f"Strategy Coverage analysis skipped: {_cov_e}")
+
     ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
     ensemble_df_merged = ensemble_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
-        f.write("=== Dynamic Multi-Strategy Ensemble Predictions ===\n")
-        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        f.write("=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\n")
+        f.write(f"Date: {kst_now_str}\n\n")
 
         # 1. Executive Summary & Basis
         f.write("--- Executive Market Summary ---\n")
@@ -1856,7 +1867,9 @@ def execute_prediction_pipeline():
         f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
         f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
 
-        f.write("--- Applied Ensemble Strategy Weights (9 Strategies) ---\n")
+        f.write(f"{decision_rationale_text}\n\n")
+
+        f.write("--- Applied Ensemble Strategy Weights (14 Strategies) ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
         f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
@@ -1865,7 +1878,12 @@ def execute_prediction_pipeline():
         f.write(f"  Strict Causal LSTM Deep Learning  : {ensemble_weights.get('lstm', 0.0)*100:.1f}%\n")
         f.write(f"  Stat-Arb Cointegration Mean Rev   : {ensemble_weights.get('stat_arb', 0.0)*100:.1f}%\n")
         f.write(f"  Sector Rotation Relative Momentum : {ensemble_weights.get('sector_rotation', 0.0)*100:.1f}%\n")
-        f.write(f"  RIM Valuation (Residual Income)   : {ensemble_weights.get('rim_valuation', 0.0)*100:.1f}%\n\n")
+        f.write(f"  RIM Valuation (Residual Income)   : {ensemble_weights.get('rim_valuation', 0.0)*100:.1f}%\n")
+        f.write(f"  Event-Driven Disclosure Catalyst  : {ensemble_weights.get('event_driven', 0.0)*100:.1f}%\n")
+        f.write(f"  Momentum Quality (MQ) Factor      : {ensemble_weights.get('mq_factor', 0.0)*100:.1f}%\n")
+        f.write(f"  Options Put/Call IV Skew          : {ensemble_weights.get('iv_skew', 0.0)*100:.1f}%\n")
+        f.write(f"  Order Flow Imbalance (MFI)        : {ensemble_weights.get('order_flow', 0.0)*100:.1f}%\n")
+        f.write(f"  Short-Term Mean Reversal          : {ensemble_weights.get('short_term_reversal', 0.0)*100:.1f}%\n\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
@@ -1877,16 +1895,22 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 20 Ensemble Picks\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<6}{'Surge':<6}{'L-L':<6}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<6}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<6}\n")
-            f.write("-" * 132 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}\n")
+            f.write("-" * 155 + "\n")
             for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
-                name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
+                name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
                 lstm_val = row.get('lstm_score', 0.0)
                 sa_val = row.get('stat_arb_score', 0.0)
                 sec_val = row.get('sector_score', 0.0)
                 rim_val = row.get('rim_score', 0.0)
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>14.1f}%{row['ensemble_expected_return']:>16.2f}%{row['reg_score']*100:>5.0f}%{row['surge_score']*100:>5.0f}%{row['ll_score']*100:>5.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>5.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>5.0f}%\n")
+                ev_val = row.get('event_score', 0.0)
+                mq_val = row.get('mq_score', 0.0)
+                iv_val = row.get('iv_skew_score', 0.0)
+                of_val = row.get('order_flow_score', 0.0)
+                rev_val = row.get('reversal_score', 0.0)
+
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%\n")
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 

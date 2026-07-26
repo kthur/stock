@@ -76,7 +76,9 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
                 break
 
     if not header:
-        header = f"=== Dynamic Multi-Strategy Ensemble Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        from datetime import timezone, timedelta
+        kst_now = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
+        header = f"=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\nDate: {kst_now}\n\n"
 
     sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:

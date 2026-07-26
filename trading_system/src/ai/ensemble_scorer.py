@@ -420,6 +420,43 @@ class EnsembleScoringEngine:
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
 
+    def get_regime_reasoning_summary(self, regime: Union[int, str], rolling_sharpes: Optional[Dict[str, float]] = None) -> str:
+        """
+        Generates a human-readable decision rationale summary for the selected 2D Regime
+        and 14-strategy dynamic weighting scheme.
+        """
+        reg_str = str(regime)
+        lines = []
+        lines.append("[2D Market Regime & Strategy Decision Rationale]")
+        lines.append(f"• Selected 2D Regime State: {reg_str}")
+
+        if "BEAR" in reg_str:
+            lines.append("  - Market Trend Rationale: Downward trend detected (20d index return < 0). Defensive allocation active.")
+        elif "SIDEWAYS" in reg_str:
+            lines.append("  - Market Trend Rationale: Range-bound consolidation detected. Rotation & Arbitrage strategies prioritized.")
+        elif "BULL" in reg_str:
+            lines.append("  - Market Trend Rationale: Upward momentum trend confirmed (20d index return > 0). Momentum & Surge strategies boosted.")
+
+        if "HIGH_VOL" in reg_str:
+            lines.append("  - Volatility State: HIGH_VOL (VIX >= 20.0 or High Realized Volatility). Increased weight on defensive Stat-Arb & RIM Valuation.")
+        else:
+            lines.append("  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.")
+
+        base_weights = self.get_base_weights(regime)
+        lines.append("\n[14-Strategy Dynamic Weight Allocation]")
+        if rolling_sharpes:
+            dyn_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime)
+            lines.append("• Dynamic Weighting Scheme: Base Regime Weight x Exponential Sharpe Multiplier exp(1.0 x Sharpe_20d) with EMA Smoothing")
+            for strat, w in dyn_weights.items():
+                sh = rolling_sharpes.get(strat, 0.0)
+                lines.append(f"  - {strat:<22}: {w*100:>5.1f}% (Base: {base_weights.get(strat, 0.0)*100:>4.1f}%, Rolling Sharpe: {sh:+.2f})")
+        else:
+            lines.append("• Dynamic Weighting Scheme: Baseline 2D Regime Matrix Weights (No historical performance penalty)")
+            for strat, w in base_weights.items():
+                lines.append(f"  - {strat:<22}: {w*100:>5.1f}%")
+
+        return "\n".join(lines)
+
 
     def calculate_ensemble_score(self,
                                  regime: Union[int, str],
