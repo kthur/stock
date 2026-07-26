@@ -1710,11 +1710,44 @@ def execute_prediction_pipeline():
         logger.warning(f"Sector rotation score calculation skipped: {_sec_e}")
         sector_df = pd.DataFrame()
 
+    # 10f. Strategy 9: RIM (Residual Income Model) Valuation Engine
+    try:
+        from src.core.rim_valuation import RIMValuationEngine
+        logger.info("Computing Strategy 9: RIM Intrinsic Valuation & Margin of Safety Scores...")
+        rim_engine = RIMValuationEngine(default_required_return=0.08)
+        rim_input_rows = []
+        for sym, df_p in infer_data_dict.items():
+            if df_p is not None and not df_p.empty:
+                latest = df_p.iloc[-1].to_dict()
+                latest['symbol'] = sym
+                latest['market'] = symbol_market.get(sym, 'KOSPI')
+                rim_input_rows.append(latest)
+        df_rim_input = pd.DataFrame(rim_input_rows) if rim_input_rows else pd.DataFrame()
+        rim_df = rim_engine.compute_rim_scores(df_rim_input, symbol_market_map=symbol_market)
+        rim_output_path = os.path.join(result_dir, "rim_predictions.txt")
+        if not rim_df.empty:
+            rim_merged = rim_df.merge(universe[['symbol', 'name']], on='symbol', how='left')
+            rim_merged = rim_merged.sort_values(by='rim_score', ascending=False)
+            with open(rim_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===\n")
+                f.write(f"Date: {date_str}\n")
+                f.write(f"Total symbols evaluated: {len(rim_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}{'RIM Score':<12}\n")
+                f.write("-" * 95 + "\n")
+                for rank, (_, row) in enumerate(rim_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
+                    disc_pct = row.get('discount_ratio', 0.0) * 100.0
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['Close']:<12.2f}{row['intrinsic_value']:<14.2f}{disc_pct:>10.1f}%{row['rim_score']*100:>10.1f}%\n")
+            logger.info(f"Saved RIM valuation predictions ({len(rim_merged)} symbols) to {rim_output_path}")
+    except Exception as _rim_e:
+        logger.warning(f"RIM valuation score calculation skipped: {_rim_e}")
+        rim_df = pd.DataFrame()
+
     # Calculate rolling Sharpes for all strategies if strategy_returns exists
     _strat_ret = locals().get('strategy_returns')
     rolling_sharpes = scorer.compute_rolling_sharpe(_strat_ret) if isinstance(_strat_ret, dict) else None
 
-    # default target horizon is 20d (8-Strategy Ensemble)
+    # default target horizon is 20d (9-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -1724,6 +1757,7 @@ def execute_prediction_pipeline():
         vcp_ml_df=vcp_ml_df,
         stat_arb_df=stat_arb_df,
         sector_df=sector_df,
+        rim_df=rim_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20,
         sentiment_blacklist=_blacklist_map,
@@ -1770,7 +1804,7 @@ def execute_prediction_pipeline():
         f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
         f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
 
-        f.write("--- Applied Ensemble Strategy Weights (8 Strategies) ---\n")
+        f.write("--- Applied Ensemble Strategy Weights (9 Strategies) ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
         f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
@@ -1778,7 +1812,8 @@ def execute_prediction_pipeline():
         f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights.get('vcp_ml', 0.0)*100:.1f}%\n")
         f.write(f"  Strict Causal LSTM Deep Learning  : {ensemble_weights.get('lstm', 0.0)*100:.1f}%\n")
         f.write(f"  Stat-Arb Cointegration Mean Rev   : {ensemble_weights.get('stat_arb', 0.0)*100:.1f}%\n")
-        f.write(f"  Sector Rotation Relative Momentum : {ensemble_weights.get('sector_rotation', 0.0)*100:.1f}%\n\n")
+        f.write(f"  Sector Rotation Relative Momentum : {ensemble_weights.get('sector_rotation', 0.0)*100:.1f}%\n")
+        f.write(f"  RIM Valuation (Residual Income)   : {ensemble_weights.get('rim_valuation', 0.0)*100:.1f}%\n\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
@@ -1790,15 +1825,16 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 20 Ensemble Picks\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<6}{'Surge':<6}{'L-L':<6}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<6}{'S-Arb':<6}{'Sec-R':<6}\n")
-            f.write("-" * 125 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Ensemble Score':<16}{'Expected Return':<18}{'Reg':<6}{'Surge':<6}{'L-L':<6}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<6}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<6}\n")
+            f.write("-" * 132 + "\n")
             for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
                 lstm_val = row.get('lstm_score', 0.0)
                 sa_val = row.get('stat_arb_score', 0.0)
                 sec_val = row.get('sector_score', 0.0)
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>13.1f}%{row['ensemble_expected_return']:>15.1f}%{row['reg_score']*100:>5.0f}%{row['surge_score']*100:>5.0f}%{row['ll_score']*100:>5.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>5.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%\n")
+                rim_val = row.get('rim_score', 0.0)
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['ensemble_score']*100:>14.1f}%{row['ensemble_expected_return']:>16.2f}%{row['reg_score']*100:>5.0f}%{row['surge_score']*100:>5.0f}%{row['ll_score']*100:>5.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>5.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>5.0f}%\n")
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 

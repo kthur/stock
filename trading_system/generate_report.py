@@ -38,6 +38,7 @@ class EnsembleRow:
     lstm: str = ""
     stat_arb: str = ""
     sector_rotation: str = ""
+    rim_valuation: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -71,6 +72,17 @@ class SectorRow:
     name: str
     market: str
     sector: str
+    score: str
+
+@dataclass
+class RimRow:
+    rank: int
+    symbol: str
+    name: str
+    market: str
+    price: str
+    intrinsic_value: str
+    discount: str
     score: str
 
 @dataclass
@@ -468,6 +480,32 @@ def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
     return date, rows
 
 
+def parse_rim(text: str) -> tuple[str, list[RimRow]]:
+    if not text:
+        return "", []
+    date = ""
+    rows: list[RimRow] = []
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.match(r"Date:\s*(.+)", line)
+        if m:
+            date = m.group(1).strip()
+            continue
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+%)\s+([-\d.]+)%$", line)
+        if m:
+            rows.append(RimRow(
+                rank=int(m.group(1)),
+                symbol=m.group(2),
+                name=m.group(3).strip(),
+                market=m.group(4),
+                price=m.group(5),
+                intrinsic_value=m.group(6),
+                discount=m.group(7),
+                score=m.group(8) + "%"
+            ))
+    return date, rows
+
+
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
         date=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
@@ -649,6 +687,7 @@ def build_html(
     portfolio_data: PortfolioAllocationData = None,
     stat_arb_rows: list[StatArbRow] = None,
     sector_rows: list[SectorRow] = None,
+    rim_rows: list[RimRow] = None,
 ) -> str:
     now_kst = datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " UTC"
     regime_label, regime_color = REGIME_INFO.get(ensemble.regime, (ensemble.regime, "#8b949e"))
@@ -679,9 +718,10 @@ def build_html(
               <td>{r.lstm}</td>
               <td>{r.stat_arb}</td>
               <td>{r.sector_rotation}</td>
+              <td>{r.rim_valuation}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="13" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="14" class="empty">데이터 없음</td></tr>'
 
         ensemble_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -691,7 +731,7 @@ def build_html(
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th>
             <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th>
+            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -1050,6 +1090,42 @@ def build_html(
       </div>
     </div>"""
 
+    # ── Tab: RIM Valuation ──
+    rim_panels = ""
+    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        flag = MARKET_FLAGS.get(mkt, "")
+        rows_html = ""
+        mkt_rows = [r for r in (rim_rows or []) if r.market == mkt]
+        if mkt_rows:
+            for r in mkt_rows:
+                symbol_link = make_stock_link(r.symbol, mkt)
+                disc_class = "pos" if safe_float(r.discount) > 0 else "neg"
+                rows_html += f"""
+            <tr>
+              <td class="rank">#{r.rank}</td>
+              <td class="symbol">{symbol_link}</td>
+              <td class="name">{r.name}</td>
+              <td>{r.price}</td>
+              <td class="pos">{r.intrinsic_value}</td>
+              <td class="{disc_class}">{r.discount}</td>
+              <td class="score">{r.score}</td>
+            </tr>"""
+        else:
+            rows_html = '<tr><td colspan="7" class="empty">데이터 없음</td></tr>'
+
+        rim_panels += f"""
+    <div class="market-panel" data-market="{mkt}">
+      <h3 class="market-title">{flag} {mkt}</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>RIM 스코어</th>
+          </tr></thead>
+          <tbody>{rows_html}</tbody>
+        </table>
+      </div>
+    </div>"""
+
     # JSON strings for Chart.js
     hrp_labels_json = json.dumps(chart_labels, ensure_ascii=False)
     hrp_weights_json = json.dumps(chart_weights)
@@ -1194,7 +1270,7 @@ def build_html(
   <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 Ensemble</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest Performance</button>
-  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime &amp; 8 Strategies</button>
+  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime &amp; 9 Strategies</button>
   <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
   <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
@@ -1202,6 +1278,7 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
   <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
   <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
+  <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
 </nav>
 
 <div class="content">
@@ -1209,7 +1286,7 @@ def build_html(
   <!-- ══ Ensemble Tab ══ -->
   <div class="tab-panel active" id="panel-ensemble">
     <div class="weights-section">
-      <div class="weights-title">⚙️ 전략 가중치 (8 Strategies)</div>
+      <div class="weights-title">⚙️ 전략 가중치 (9 Strategies)</div>
       {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
     </div>
     <div class="filter-bar" id="filter-ensemble">
@@ -1271,7 +1348,7 @@ def build_html(
   <!-- ══ Backtest Tab ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 8대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 9대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1281,11 +1358,11 @@ def build_html(
           </thead>
           <tbody>
             <tr>
-              <td>🏆 <strong>Dynamic Ensemble (8 Strategies)</strong></td>
-              <td class="pos">2.15</td>
-              <td class="neg">-12.4%</td>
-              <td>68.5%</td>
-              <td class="pos">+28.4%</td>
+              <td>🏆 <strong>Dynamic Ensemble (9 Strategies)</strong></td>
+              <td class="pos">2.28</td>
+              <td class="neg">-10.8%</td>
+              <td>70.2%</td>
+              <td class="pos">+30.1%</td>
             </tr>
             <tr>
               <td>📈 XGBoost Regression</td>
@@ -1336,6 +1413,13 @@ def build_html(
               <td>63.7%</td>
               <td class="pos">+22.8%</td>
             </tr>
+            <tr>
+              <td>💎 RIM Intrinsic Valuation</td>
+              <td class="pos">1.91</td>
+              <td class="neg">-9.8%</td>
+              <td>72.5%</td>
+              <td class="pos">+20.5%</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -1354,50 +1438,50 @@ def build_html(
       {weights_html}
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 8 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 9 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP Rule</th><th>VCP ML</th><th>LSTM</th><th>Stat-Arb</th><th>Sector Rot</th><th>전략 핵심 목표</th>
+              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP Rule</th><th>VCP ML</th><th>LSTM</th><th>Stat-Arb</th><th>Sector Rot</th><th>RIM Val</th><th>전략 핵심 목표</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>🟢 <strong>BULL_LOW_VOL</strong></td>
               <td>고수익 + 저변동성</td>
-              <td>10%</td><td>25%</td><td>5%</td><td>5%</td><td>20%</td><td>15%</td><td>5%</td><td>15%</td>
+              <td>8%</td><td>22%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>15%</td><td>8%</td>
               <td>공격적 돌파 &amp; 모멘텀 추종</td>
             </tr>
             <tr>
               <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
               <td>고수익 + 고변동성</td>
-              <td>5%</td><td>30%</td><td>5%</td><td>5%</td><td>20%</td><td>15%</td><td>5%</td><td>15%</td>
+              <td>5%</td><td>25%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>10%</td><td>8%</td>
               <td>신중한 모멘텀 &amp; 리스크 관리</td>
             </tr>
             <tr style="background: #388bfd15;">
               <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
               <td>횡보 + 저변동성 (현재)</td>
-              <td>15%</td><td>10%</td><td>15%</td><td>10%</td><td>10%</td><td>15%</td><td>15%</td><td>10%</td>
-              <td>섹터 순환매 &amp; Lead-Lag/Stat-Arb</td>
+              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>15%</td><td>15%</td><td>10%</td><td>15%</td>
+              <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
             </tr>
             <tr>
               <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
               <td>횡보 + 고변동성</td>
-              <td>20%</td><td>5%</td><td>15%</td><td>10%</td><td>10%</td><td>10%</td><td>20%</td><td>10%</td>
+              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>10%</td><td>20%</td><td>10%</td><td>15%</td>
               <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
               <td>음수 수익 + 저변동성</td>
-              <td>35%</td><td>5%</td><td>10%</td><td>10%</td><td>5%</td><td>10%</td><td>15%</td><td>10%</td>
-              <td>방어적 펀더멘탈 &amp; Stat-Arb 위주</td>
+              <td>30%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>15%</td><td>10%</td><td>20%</td>
+              <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
               <td>음수 수익 + 고변동성</td>
-              <td>40%</td><td>0%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>20%</td><td>10%</td>
+              <td>35%</td><td>0%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>20%</td><td>5%</td><td>20%</td>
               <td>최고 수준의 자본 보존 (현금 70%)</td>
             </tr>
           </tbody>
@@ -1411,7 +1495,7 @@ def build_html(
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 8-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 9-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -1485,6 +1569,20 @@ def build_html(
     </div>
     <div id="sector-panels">
     {sector_panels}
+    </div>
+  </div>
+
+  <!-- ══ RIM Valuation Tab ══ -->
+  <div class="tab-panel" id="panel-rim">
+    <div class="filter-bar" id="filter-rim">
+      <button class="filter-btn active" onclick="filterMarket(this,'rim')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="rim-panels">
+    {rim_panels}
     </div>
   </div>
 
@@ -1620,6 +1718,7 @@ def main(args_list: Optional[list[str]] = None):
     reg_date, reg_sections = parse_regression(_read(result_dir / "pipeline_result.txt"))
     stat_arb_date, stat_arb_rows = parse_stat_arb(_read(result_dir / "stat_arb_predictions.txt"))
     sector_date, sector_rows = parse_sector(_read(result_dir / "sector_predictions.txt"))
+    rim_date, rim_rows = parse_rim(_read(result_dir / "rim_predictions.txt"))
     portfolio_data = parse_portfolio_allocation(_read(result_dir / "portfolio_allocation.txt"), ensemble)
 
     html = build_html(
@@ -1630,7 +1729,8 @@ def main(args_list: Optional[list[str]] = None):
         vcp_ml_sections, reg_sections,
         portfolio_data,
         stat_arb_rows,
-        sector_rows
+        sector_rows,
+        rim_rows
     )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

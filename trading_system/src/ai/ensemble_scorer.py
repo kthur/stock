@@ -27,101 +27,110 @@ class EnsembleScoringEngine:
     """
 
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
-    # Dynamic Weight Configuration per 1D Market Regime (8 Strategies)
+    # Dynamic Weight Configuration per 1D Market Regime (9 Strategies)
     REGIME_WEIGHTS = {
-        0: {  # BEAR (Defensive: high weight on regression, stat_arb, vcp_rule)
-            'regression': 0.35,
+        0: {  # BEAR (Defensive: high weight on regression, RIM valuation, stat_arb)
+            'regression': 0.30,
+            'surge': 0.05,
+            'lead_lag': 0.05,
+            'vcp_rule': 0.05,
+            'vcp_ml': 0.05,
+            'lstm': 0.05,
+            'stat_arb': 0.15,
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.20
+        },
+        1: {  # SIDEWAYS (Rotation: high weight on Stat-Arb, RIM Valuation, Sector Rotation)
+            'regression': 0.15,
             'surge': 0.05,
             'lead_lag': 0.10,
-            'vcp_rule': 0.10,
-            'vcp_ml': 0.05,
-            'lstm': 0.10,
-            'stat_arb': 0.15,
-            'sector_rotation': 0.10
-        },
-        1: {  # SIDEWAYS (Rotation: high weight on Stat-Arb, Sector Rotation, Lead-Lag)
-            'regression': 0.15,
-            'surge': 0.10,
-            'lead_lag': 0.15,
-            'vcp_rule': 0.10,
+            'vcp_rule': 0.05,
             'vcp_ml': 0.10,
             'lstm': 0.15,
             'stat_arb': 0.15,
-            'sector_rotation': 0.10
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.15
         },
         2: {  # BULL (Aggressive: high weight on Surge, VCP ML, LSTM, Sector Rotation)
-            'regression': 0.10,
-            'surge': 0.25,
+            'regression': 0.08,
+            'surge': 0.22,
             'lead_lag': 0.05,
             'vcp_rule': 0.05,
-            'vcp_ml': 0.20,
-            'lstm': 0.15,
+            'vcp_ml': 0.18,
+            'lstm': 0.14,
             'stat_arb': 0.05,
-            'sector_rotation': 0.15
+            'sector_rotation': 0.15,
+            'rim_valuation': 0.08
         }
     }
 
-    # 2D Market Regime Matrix Weights (6 Combo States across 8 Strategies)
+    # 2D Market Regime Matrix Weights (6 Combo States across 9 Strategies)
     REGIME_2D_WEIGHTS = {
         'BEAR_LOW_VOL': {
-            'regression': 0.35,
+            'regression': 0.30,
             'surge': 0.05,
-            'lead_lag': 0.10,
-            'vcp_rule': 0.10,
+            'lead_lag': 0.05,
+            'vcp_rule': 0.05,
             'vcp_ml': 0.05,
-            'lstm': 0.10,
+            'lstm': 0.05,
             'stat_arb': 0.15,
-            'sector_rotation': 0.10
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.20
         },
         'BEAR_HIGH_VOL': {
-            'regression': 0.40,
+            'regression': 0.35,
             'surge': 0.00,
             'lead_lag': 0.05,
-            'vcp_rule': 0.10,
+            'vcp_rule': 0.05,
             'vcp_ml': 0.05,
-            'lstm': 0.10,
+            'lstm': 0.05,
             'stat_arb': 0.20,
-            'sector_rotation': 0.10
+            'sector_rotation': 0.05,
+            'rim_valuation': 0.20
         },
         'SIDEWAYS_LOW_VOL': {
             'regression': 0.15,
-            'surge': 0.10,
-            'lead_lag': 0.15,
-            'vcp_rule': 0.10,
+            'surge': 0.05,
+            'lead_lag': 0.10,
+            'vcp_rule': 0.05,
             'vcp_ml': 0.10,
             'lstm': 0.15,
             'stat_arb': 0.15,
-            'sector_rotation': 0.10
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.15
         },
         'SIDEWAYS_HIGH_VOL': {
-            'regression': 0.20,
+            'regression': 0.15,
             'surge': 0.05,
-            'lead_lag': 0.15,
-            'vcp_rule': 0.10,
+            'lead_lag': 0.10,
+            'vcp_rule': 0.05,
             'vcp_ml': 0.10,
             'lstm': 0.10,
             'stat_arb': 0.20,
-            'sector_rotation': 0.10
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.15
         },
         'BULL_LOW_VOL': {
-            'regression': 0.10,
-            'surge': 0.25,
+            'regression': 0.08,
+            'surge': 0.22,
             'lead_lag': 0.05,
             'vcp_rule': 0.05,
-            'vcp_ml': 0.20,
-            'lstm': 0.15,
+            'vcp_ml': 0.18,
+            'lstm': 0.14,
             'stat_arb': 0.05,
-            'sector_rotation': 0.15
+            'sector_rotation': 0.15,
+            'rim_valuation': 0.08
         },
         'BULL_HIGH_VOL': {
             'regression': 0.05,
-            'surge': 0.30,
+            'surge': 0.25,
             'lead_lag': 0.05,
             'vcp_rule': 0.05,
-            'vcp_ml': 0.20,
-            'lstm': 0.15,
+            'vcp_ml': 0.18,
+            'lstm': 0.14,
             'stat_arb': 0.05,
-            'sector_rotation': 0.15
+            'sector_rotation': 0.10,
+            'rim_valuation': 0.08
         }
     }
 
@@ -377,13 +386,14 @@ class EnsembleScoringEngine:
                                   lstm_df: Optional[pd.DataFrame] = None,
                                   stat_arb_df: Optional[pd.DataFrame] = None,
                                   sector_df: Optional[pd.DataFrame] = None,
+                                  rim_df: Optional[pd.DataFrame] = None,
                                   rolling_sharpes: Optional[Dict[str, float]] = None,
                                   gamma: float = 1.0,
                                   target_horizon: int = 20,
                                   sentiment_blacklist: Optional[Union[Set[str], List[str], Dict[str, Any]]] = None) -> pd.DataFrame:
 
         """
-        Merges 8 strategy outputs (Regression, Surge, Lead-Lag, VCP Rule, VCP ML, LSTM, Stat-Arb, Sector Rotation)
+        Merges 9 strategy outputs (Regression, Surge, Lead-Lag, VCP Rule, VCP ML, LSTM, Stat-Arb, Sector Rotation, RIM Valuation)
         and calculates a unified dynamic weighted ensemble score [0, 1] and expected return proxy (%).
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
@@ -396,7 +406,7 @@ class EnsembleScoringEngine:
         else:
             weights = self.get_base_weights(regime)
 
-        logger.info(f"Applying 8-Strategy Ensemble weights for Regime '{regime}': {weights}")
+        logger.info(f"Applying 9-Strategy Ensemble weights for Regime '{regime}': {weights}")
 
         # 1. Strategy 1: Regression
         if not regression_df.empty:
@@ -498,7 +508,15 @@ class EnsembleScoringEngine:
         else:
             sec_df = pd.DataFrame(columns=['symbol', 'sector_score'])
 
-        # Outer join all 8 strategies
+        # 9. Strategy 9: RIM Valuation Score
+        if rim_df is not None and not rim_df.empty:
+            r_val_df = rim_df.copy()
+            r_col = 'rim_score' if 'rim_score' in r_val_df.columns else r_val_df.columns[-1]
+            r_val_df = r_val_df[['symbol', r_col]].rename(columns={r_col: 'rim_score'})
+        else:
+            r_val_df = pd.DataFrame(columns=['symbol', 'rim_score'])
+
+        # Outer join all 9 strategies
         merged = reg_df.merge(s_df, on='symbol', how='outer')
         merged = merged.merge(ll_df, on='symbol', how='outer')
         merged = merged.merge(vr_df, on='symbol', how='outer')
@@ -506,9 +524,10 @@ class EnsembleScoringEngine:
         merged = merged.merge(l_df, on='symbol', how='outer')
         merged = merged.merge(sa_df, on='symbol', how='outer')
         merged = merged.merge(sec_df, on='symbol', how='outer')
+        merged = merged.merge(r_val_df, on='symbol', how='outer')
 
         # Fill NaNs with 0.0 or neutral 0.5
-        fill_cols = ['reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score', 'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score', 'sector_score']
+        fill_cols = ['reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score', 'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score']
         for col in fill_cols:
             if col in merged.columns:
                 merged[col] = merged[col].fillna(0.0)
@@ -526,21 +545,23 @@ class EnsembleScoringEngine:
                 ('lstm', 'lstm_score'),
                 ('stat_arb', 'stat_arb_score'),
                 ('sector_rotation', 'sector_score'),
+                ('rim_valuation', 'rim_score'),
             ]:
                 strategy_name, col = strategy_col
                 if col in merged.columns and strategy_name in self._calibrators:
                     merged[col] = self.calibrate_scores(strategy_name, merged[col].values)
 
-        # Calculate final 8-strategy weighted score [0, 1]
+        # Calculate final 9-strategy weighted score [0, 1]
         merged['ensemble_score'] = (
             weights.get('regression', 0.15) * merged['reg_score'] +
             weights.get('surge', 0.15) * merged['surge_score'] +
-            weights.get('lead_lag', 0.10) * merged['ll_score'] +
-            weights.get('vcp_rule', 0.10) * merged['vcp_rule_score'] +
+            weights.get('lead_lag', 0.05) * merged['ll_score'] +
+            weights.get('vcp_rule', 0.05) * merged['vcp_rule_score'] +
             weights.get('vcp_ml', 0.15) * merged['vcp_ml_score'] +
             weights.get('lstm', 0.15) * merged['lstm_score'] +
             weights.get('stat_arb', 0.10) * merged['stat_arb_score'] +
-            weights.get('sector_rotation', 0.10) * merged['sector_score']
+            weights.get('sector_rotation', 0.10) * merged['sector_score'] +
+            weights.get('rim_valuation', 0.10) * merged['rim_score']
         )
 
         # Scale Ensemble Score to Return Proxy (%)
