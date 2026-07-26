@@ -759,13 +759,13 @@ class OnDevicePredictionModel:
                             has_vol = not (vol.isna().all() or (vol == 0.0).all())
                             df['norm_market_cap'] = norm_mc.fillna(1.0 if has_mc else 0.0)
                             if has_mc:
-                                df['norm_market_cap'] = df['norm_market_cap'].replace(0.0, 1.0)
+                                df['norm_market_cap'] = df['norm_market_cap'].where(df['norm_market_cap'] != 0.0, 1.0)
                             df['norm_floating_value'] = norm_fv.fillna(1.0 if has_fv else 0.0)
                             if has_fv:
-                                df['norm_floating_value'] = df['norm_floating_value'].replace(0.0, 1.0)
+                                df['norm_floating_value'] = df['norm_floating_value'].where(df['norm_floating_value'] != 0.0, 1.0)
                             df['norm_volume'] = norm_vol.fillna(1.0 if has_vol else 0.0)
                             if has_vol:
-                                df['norm_volume'] = df['norm_volume'].replace(0.0, 1.0)
+                                df['norm_volume'] = df['norm_volume'].where(df['norm_volume'] != 0.0, 1.0)
                         else:
                             df['norm_market_cap'] = norm_mc.fillna(0.0)
                             df['norm_floating_value'] = norm_fv.fillna(0.0)
