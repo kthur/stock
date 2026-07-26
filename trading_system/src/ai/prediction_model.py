@@ -751,9 +751,9 @@ class OnDevicePredictionModel:
                         dt_fv = daily_totals['floating_value'].replace(0.0, np.nan)
                         dt_vol = daily_totals['Volume'].replace(0.0, np.nan)
                         
-                        df['norm_market_cap'] = mc.div(dt_mc).replace([np.inf, -np.inf], 0.0).fillna(1.0 if len(group) == 1 and mc.iloc[0] != 0.0 else 0.0)
-                        df['norm_floating_value'] = fv.div(dt_fv).replace([np.inf, -np.inf], 0.0).fillna(1.0 if len(group) == 1 and fv.iloc[0] != 0.0 else 0.0)
-                        df['norm_volume'] = vol.div(dt_vol).replace([np.inf, -np.inf], 0.0).fillna(1.0 if len(group) == 1 and vol.iloc[0] != 0.0 else 0.0)
+                        df['norm_market_cap'] = mc.div(dt_mc).replace([np.inf, -np.inf], 0.0).fillna(1.0 if len(group) == 1 else 0.0)
+                        df['norm_floating_value'] = fv.div(dt_fv).replace([np.inf, -np.inf], 0.0).fillna(1.0 if len(group) == 1 else 0.0)
+                        df['norm_volume'] = vol.div(dt_vol).replace([np.inf, -np.inf], 0.0).fillna(1.0 if len(group) == 1 else 0.0)
                         result_dict[sym] = df
             else:
                 # Use robust DB global standard baselines
