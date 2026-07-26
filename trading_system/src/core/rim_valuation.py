@@ -29,6 +29,15 @@ class RIMValuationEngine:
         self.default_required_return = default_required_return
         self.decay_rate = decay_rate
 
+    def derive_required_return(self, market: str = "KOSPI", us10y_yield: Optional[float] = None) -> float:
+        """
+        Derives dynamic required return r_e based on US 10Y Treasury Yield + Equity Risk Premium (ERP).
+        """
+        base_rf = (us10y_yield / 100.0) if (us10y_yield is not None and us10y_yield > 0) else 0.04
+        erp = 0.05 if market == 'SP500' else 0.06
+        dynamic_re = np.clip(base_rf + erp, 0.06, 0.15)
+        return float(dynamic_re)
+
     def calculate_intrinsic_value(
         self,
         bps: float,
@@ -38,11 +47,12 @@ class RIMValuationEngine:
     ) -> float:
         """
         Computes RIM intrinsic value V_0 per share.
+        Returns np.nan if BPS is invalid or non-positive.
         """
         r_e = required_return if (required_return is not None and required_return > 0) else self.default_required_return
 
-        if bps <= 0 or np.isnan(bps):
-            return 0.0
+        if np.isnan(bps) or bps <= 0:
+            return np.nan
 
         if np.isnan(roe):
             roe = r_e  # Neutral assumption: ROE = r_e => V_0 = BPS
@@ -52,7 +62,6 @@ class RIMValuationEngine:
             if r_e <= 0:
                 return bps
             excess_return_ratio = (roe - r_e) / r_e
-            # Cap excess_return_ratio to avoid negative valuation or extreme explosion [-0.8, 5.0]
             excess_return_ratio = max(-0.8, min(5.0, excess_return_ratio))
             return bps * (1.0 + excess_return_ratio)
         else:
@@ -72,17 +81,11 @@ class RIMValuationEngine:
         features_df: pd.DataFrame,
         symbol_market_map: Optional[Dict[str, str]] = None,
         required_return: Optional[float] = None,
+        us10y_yield: Optional[float] = None,
     ) -> pd.DataFrame:
         """
-        Computes RIM intrinsic values and percentile scores for a dataset of stocks.
-
-        Expected columns in features_df:
-          - 'symbol' (or index as symbol)
-          - 'Close' or 'price'
-          - Optional: 'bps', 'roe', 'eps', 'eps_yield', 'net_profit_margin', 'market'
-
-        Returns pd.DataFrame with columns:
-          ['symbol', 'market', 'Close', 'bps', 'roe', 'intrinsic_value', 'discount_ratio', 'rim_score']
+        Computes RIM intrinsic values and percentile scores for a dataset of stocks using vectorized operations.
+        Missing fundamental BPS yields NaN rim_score for dynamic ensemble weight renormalization.
         """
         if features_df is None or features_df.empty:
             logger.warning("Empty features_df provided to RIMValuationEngine.")
@@ -96,8 +99,6 @@ class RIMValuationEngine:
         if 'date' in df.columns and 'symbol' in df.columns:
             df = df.sort_values('date').groupby('symbol').last().reset_index()
 
-        r_e = required_return if (required_return is not None and required_return > 0) else self.default_required_return
-
         # Ensure Market Column
         if 'market' not in df.columns:
             if symbol_market_map:
@@ -107,52 +108,57 @@ class RIMValuationEngine:
 
         # Ensure Close / Price
         if 'Close' not in df.columns:
-            df['Close'] = df.get('price', 0.0)
+            df['Close'] = df.get('price', np.nan)
 
-        # Derive BPS & ROE if not directly provided
+        # Handle BPS: Set to NaN if missing or non-positive to avoid false discount ratio 0.0
         if 'bps' not in df.columns:
             if 'book_value' in df.columns and 'shares_outstanding' in df.columns:
-                df['bps'] = (df['book_value'] / df['shares_outstanding']).fillna(0.0)
+                df['bps'] = (df['book_value'] / df['shares_outstanding']).replace([np.inf, -np.inf], np.nan)
             elif 'eps' in df.columns and 'roe' in df.columns:
-                df['bps'] = (df['eps'] / df['roe']).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+                df['bps'] = (df['eps'] / df['roe']).replace([np.inf, -np.inf], np.nan)
             else:
-                # Estimate BPS using Close & fallback PBR
-                pbr_proxy = 1.0
-                df['bps'] = (df['Close'] / pbr_proxy).fillna(0.0)
+                df['bps'] = np.nan
+        else:
+            df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
 
+        # Handle ROE
         if 'roe' not in df.columns:
             if 'eps' in df.columns and 'bps' in df.columns:
-                df['roe'] = (df['eps'] / df['bps']).replace([np.inf, -np.inf], np.nan).fillna(r_e)
-            elif 'eps_yield' in df.columns:
-                df['roe'] = (df['eps_yield']).fillna(r_e)
-            elif 'net_profit_margin' in df.columns:
-                df['roe'] = (df['net_profit_margin'] * 0.5).fillna(r_e)
+                df['roe'] = (df['eps'] / df['bps']).replace([np.inf, -np.inf], np.nan)
             else:
-                df['roe'] = r_e
+                df['roe'] = np.nan
 
-        # Compute Intrinsic Value V_0 & Discount Ratio
+        # Vectorized calculation per market with dynamic r_e
         v0_list = []
         discount_list = []
 
-        for _, row in df.iterrows():
-            p = float(row.get('Close', 0.0))
-            b = float(row.get('bps', 0.0))
-            r = float(row.get('roe', r_e))
+        for idx, row in df.iterrows():
+            mkt = row.get('market', 'KOSPI')
+            if us10y_yield is not None:
+                r_e = self.derive_required_return(mkt, us10y_yield)
+            elif required_return is not None and required_return > 0:
+                r_e = required_return
+            else:
+                r_e = self.default_required_return
+
+            b = float(row['bps']) if pd.notna(row['bps']) else np.nan
+            r = float(row['roe']) if pd.notna(row['roe']) else r_e
+            p = float(row['Close']) if pd.notna(row['Close']) else np.nan
 
             v0 = self.calculate_intrinsic_value(b, r, required_return=r_e)
             v0_list.append(v0)
 
-            if p > 0 and v0 > 0:
+            if pd.notna(p) and p > 0 and pd.notna(v0) and v0 > 0:
                 disc = (v0 - p) / p
             else:
-                disc = 0.0
+                disc = np.nan
             discount_list.append(disc)
 
         df['intrinsic_value'] = v0_list
         df['discount_ratio'] = discount_list
 
-        # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market
-        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
+        # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market (NaNs remain NaN)
+        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True)
 
         out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'intrinsic_value', 'discount_ratio', 'rim_score']
         return df[[c for c in out_cols if c in df.columns]]

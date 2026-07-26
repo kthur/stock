@@ -517,53 +517,56 @@ class EnsembleScoringEngine:
         else:
             r_val_df = pd.DataFrame(columns=['symbol', 'rim_score'])
 
-        # Outer join all 9 strategies
-        merged = reg_df.merge(s_df, on='symbol', how='outer')
-        merged = merged.merge(ll_df, on='symbol', how='outer')
-        merged = merged.merge(vr_df, on='symbol', how='outer')
-        merged = merged.merge(v_df, on='symbol', how='outer')
-        merged = merged.merge(l_df, on='symbol', how='outer')
-        merged = merged.merge(sa_df, on='symbol', how='outer')
-        merged = merged.merge(sec_df, on='symbol', how='outer')
-        merged = merged.merge(r_val_df, on='symbol', how='outer')
+        # Combine all 9 strategy DataFrames efficiently
+        dfs = [reg_df, s_df, ll_df, vr_df, v_df, l_df, sa_df, sec_df, r_val_df]
+        merged = dfs[0]
+        for d in dfs[1:]:
+            if not d.empty:
+                merged = merged.merge(d, on='symbol', how='outer')
 
-        # Fill NaNs with 0.0 or neutral 0.5
+        # Map strategy names to score column names
+        strategy_cols = [
+            ('regression', 'reg_score'),
+            ('surge', 'surge_score'),
+            ('lead_lag', 'll_score'),
+            ('vcp_rule', 'vcp_rule_score'),
+            ('vcp_ml', 'vcp_ml_score'),
+            ('lstm', 'lstm_score'),
+            ('stat_arb', 'stat_arb_score'),
+            ('sector_rotation', 'sector_score'),
+            ('rim_valuation', 'rim_score'),
+        ]
+
+        # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
+        if self.has_calibrators():
+            for strategy_name, col in strategy_cols:
+                if col in merged.columns and strategy_name in self._calibrators:
+                    valid_mask = merged[col].notna()
+                    if valid_mask.any():
+                        merged.loc[valid_mask, col] = self.calibrate_scores(strategy_name, merged.loc[valid_mask, col].values)
+
+        # Dynamic Weight Renormalization for missing/NaN strategy scores per symbol
+        total_score_series = pd.Series(0.0, index=merged.index)
+        total_weight_series = pd.Series(0.0, index=merged.index)
+
+        for strat_name, score_col in strategy_cols:
+            w = weights.get(strat_name, 0.10)
+            if score_col in merged.columns:
+                valid_mask = merged[score_col].notna()
+                total_score_series += merged[score_col].fillna(0.0) * w * valid_mask.astype(float)
+                total_weight_series += w * valid_mask.astype(float)
+
+        # Avoid division by zero: if no strategy scores exist, score is 0.0
+        safe_weight_series = total_weight_series.replace(0.0, np.nan)
+        merged['ensemble_score'] = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+
+        # Fill raw NaNs with 0.0 for report formatting after ensemble score calculation
         fill_cols = ['reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score', 'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score']
         for col in fill_cols:
             if col in merged.columns:
                 merged[col] = merged[col].fillna(0.0)
             else:
                 merged[col] = 0.0
-
-        # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
-        if self.has_calibrators():
-            for strategy_col in [
-                ('regression', 'reg_score'),
-                ('surge', 'surge_score'),
-                ('lead_lag', 'll_score'),
-                ('vcp_rule', 'vcp_rule_score'),
-                ('vcp_ml', 'vcp_ml_score'),
-                ('lstm', 'lstm_score'),
-                ('stat_arb', 'stat_arb_score'),
-                ('sector_rotation', 'sector_score'),
-                ('rim_valuation', 'rim_score'),
-            ]:
-                strategy_name, col = strategy_col
-                if col in merged.columns and strategy_name in self._calibrators:
-                    merged[col] = self.calibrate_scores(strategy_name, merged[col].values)
-
-        # Calculate final 9-strategy weighted score [0, 1]
-        merged['ensemble_score'] = (
-            weights.get('regression', 0.15) * merged['reg_score'] +
-            weights.get('surge', 0.15) * merged['surge_score'] +
-            weights.get('lead_lag', 0.05) * merged['ll_score'] +
-            weights.get('vcp_rule', 0.05) * merged['vcp_rule_score'] +
-            weights.get('vcp_ml', 0.15) * merged['vcp_ml_score'] +
-            weights.get('lstm', 0.15) * merged['lstm_score'] +
-            weights.get('stat_arb', 0.10) * merged['stat_arb_score'] +
-            weights.get('sector_rotation', 0.10) * merged['sector_score'] +
-            weights.get('rim_valuation', 0.10) * merged['rim_score']
-        )
 
         # Scale Ensemble Score to Return Proxy (%)
         raw_exp_ret = merged['ensemble_score'] * self._return_multiplier
@@ -572,11 +575,11 @@ class EnsembleScoringEngine:
         slippage = getattr(self.config, 'slippage_krx_market_order', 0.005) if self.config is not None else 0.005
 
         def _get_cost_pct(symbol: str) -> float:
-            if symbol.isdigit() or symbol.endswith(('.KS', '.KQ', '.KN')):
-                if symbol.endswith('.KN'):
-                    return 0.0080 + slippage
-                elif symbol.endswith('.KQ'):
-                    return 0.0050 + slippage
+            if symbol.endswith('.KN'):
+                return 0.0080 + slippage
+            elif symbol.endswith('.KQ'):
+                return 0.0050 + slippage
+            elif symbol.isdigit() or symbol.endswith('.KS'):
                 return 0.0035 + slippage
             return 0.0010
 

@@ -1657,15 +1657,12 @@ def execute_prediction_pipeline():
     # Compute Stat-Arb scores for ensemble
     stat_arb_df = pd.DataFrame()
     if 'stat_arb_pairs' in locals() and stat_arb_pairs:
-        sa_rows = []
-        for p in stat_arb_pairs:
-            pair = p.get('pair', ())
-            z = abs(p.get('z_score', 0.0))
-            score = min(z / 3.0, 1.0)
-            for s in pair:
-                sa_rows.append({'symbol': s, 'stat_arb_score': score})
-        if sa_rows:
-            stat_arb_df = pd.DataFrame(sa_rows).groupby('symbol', as_index=False).max()
+        try:
+            from src.core.stat_arb import StatisticalArbitrageEngine
+            stat_arb_df = StatisticalArbitrageEngine.get_symbol_stat_arb_scores(stat_arb_pairs)
+        except Exception as _sa_e:
+            logger.warning(f"Stat-Arb symbol score conversion error: {_sa_e}")
+            stat_arb_df = pd.DataFrame()
 
     # Compute Sector Rotation scores for ensemble
     try:
@@ -1908,6 +1905,10 @@ def execute_prediction_pipeline():
         "lead_lag_predictions.txt",
         "vcp_patterns.txt",
         "vcp_ml_predictions.txt",
+        "stat_arb_predictions.txt",
+        "sector_predictions.txt",
+        "rim_predictions.txt",
+        "ensemble_predictions.txt",
     ]
     for filename in verification_files:
         filepath = os.path.join(result_dir, filename)

@@ -131,6 +131,7 @@ class TradingConfig:
 
         self._resolve_db_paths()
         self._parsed_authorized_user_ids = self._parse_authorized_ids()
+        self.validate()
 
     def _resolve_db_paths(self):
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

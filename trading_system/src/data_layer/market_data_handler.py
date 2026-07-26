@@ -223,9 +223,9 @@ class MarketDataHandler:
         # 1. DB에서 먼저 조회
         df = db.get_prices(symbol, start_date=start_date)
         if not df.empty:
-            latest_db = df.index[-1]
+            latest_db_dt = pd.to_datetime(df.index[-1]).tz_localize(None)
             cutoff = datetime.now() - timedelta(days=1)
-            needs_fetch = latest_db < cutoff
+            needs_fetch = latest_db_dt < cutoff
         else:
             needs_fetch = True
 

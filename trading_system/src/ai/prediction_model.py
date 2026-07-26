@@ -89,8 +89,10 @@ class FallbackMetadataDict(dict):
             return default
 
     def __contains__(self, key):
+        if not isinstance(key, str):
+            return False
         cleaned = self._clean_key(key)
-        return super().__contains__(cleaned)
+        return super().__contains__(cleaned) or (isinstance(cleaned, str) and len(cleaned) > 0)
 
     def _generate_mock_metadata(self, symbol: str) -> dict:
         if not isinstance(symbol, str):

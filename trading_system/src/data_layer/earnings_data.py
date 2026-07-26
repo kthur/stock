@@ -73,8 +73,10 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
 
     info = ticker.info or {}
     result['shares_outstanding'] = info.get('sharesOutstanding', 0)
-    div = info.get('dividendRate', info.get('dividendYield', 0) * fin.iloc[-1].get('Basic EPS', 1))
-    result['dividend_per_share'] = max(0, div if div else 0)
+    current_price = float(info.get('regularMarketPrice', info.get('previousClose', 0.0)) or 0.0)
+    div_yield = float(info.get('dividendYield', 0.0) or 0.0)
+    div = info.get('dividendRate', div_yield * current_price)
+    result['dividend_per_share'] = max(0.0, float(div) if div else 0.0)
 
     for col in ['revenue', 'operating_income', 'net_income', 'eps']:
         result[col] = result[col].fillna(0).astype(float)
@@ -177,8 +179,8 @@ async def async_fetch_fundamentals(symbol: str, market: Optional[str] = None, ma
                     div_rate = detail.get("dividendRate", {}).get("raw")
                     if div_rate is None:
                         div_yield = detail.get("dividendYield", {}).get("raw", 0.0)
-                        last_eps = df['eps'].iloc[-1] if not df.empty else 0.0
-                        div_rate = div_yield * last_eps
+                        current_price = detail.get("previousClose", {}).get("raw", 0.0)
+                        div_rate = div_yield * current_price
 
                     df['shares_outstanding'] = float(shares)
                     df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))

@@ -64,9 +64,14 @@ class SectorRotationEngine:
         if not raw_sector or not isinstance(raw_sector, str):
             return "General"
         raw_clean = raw_sector.strip()
-        for key, gics in cls.GICS_SECTOR_MAP.items():
-            if key in raw_clean or raw_clean in key:
-                return gics
+        # 1. Exact match check
+        if raw_clean in cls.GICS_SECTOR_MAP:
+            return cls.GICS_SECTOR_MAP[raw_clean]
+        # 2. Check longer keys first to prevent short string false positives (e.g. 'IT' in 'UTILITIES')
+        sorted_keys = sorted(cls.GICS_SECTOR_MAP.keys(), key=len, reverse=True)
+        for key in sorted_keys:
+            if len(key) > 2 and key in raw_clean:
+                return cls.GICS_SECTOR_MAP[key]
         return "General"
 
     def compute_sector_momentum_scores(

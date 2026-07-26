@@ -155,7 +155,8 @@ class StatisticalArbitrageEngine:
                         signal = f"SHORT_{s1}_LONG_{s2}"
                     elif z_score < -2.0:
                         signal = f"LONG_{s1}_SHORT_{s2}"
-                    elif abs(z_score) < min_zscore and len(symbols) > 10:
+
+                    if signal == "HOLD":
                         continue
 
                     found_pairs.append(
@@ -173,7 +174,43 @@ class StatisticalArbitrageEngine:
                     logger.debug(f"Error checking pair ({s1}, {s2}): {e}")
                     continue
 
+        # Sort pairs by absolute z-score descending and limit to top 500 active pairs to prevent disk/memory bloat
+        found_pairs.sort(key=lambda x: abs(x.get("z_score", 0.0)), reverse=True)
+        found_pairs = found_pairs[:500]
+
         if found_pairs:
-            logger.info(f"StatArb found {len(found_pairs)} cointegrated pair(s).")
+            logger.info(f"StatArb found {len(found_pairs)} active cointegrated pair(s).")
         return found_pairs
+
+    @staticmethod
+    def get_symbol_stat_arb_scores(found_pairs: List[Dict[str, Any]]) -> Any:
+        """
+        Adapts StatArb pair signals into per-symbol stat_arb_score [0, 1] for EnsembleScoringEngine.
+        """
+        import pandas as pd
+        if not found_pairs:
+            return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
+
+        symbol_scores = {}
+        for item in found_pairs:
+            sig = item.get("signal", "")
+            z = abs(item.get("z_score", 0.0))
+            pair = item.get("pair", ())
+            if len(pair) != 2:
+                continue
+            s1, s2 = pair
+            if "LONG_" + s1 in sig:
+                symbol_scores[s1] = max(symbol_scores.get(s1, 0.0), z)
+            if "LONG_" + s2 in sig:
+                symbol_scores[s2] = max(symbol_scores.get(s2, 0.0), z)
+
+        if not symbol_scores:
+            return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
+
+        df = pd.DataFrame(list(symbol_scores.items()), columns=['symbol', 'raw_score'])
+        if len(df) > 1 and df['raw_score'].max() > df['raw_score'].min():
+            df['stat_arb_score'] = (df['raw_score'] - df['raw_score'].min()) / (df['raw_score'].max() - df['raw_score'].min())
+        else:
+            df['stat_arb_score'] = 0.5
+        return df[['symbol', 'stat_arb_score']]
 
