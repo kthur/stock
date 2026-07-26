@@ -49,7 +49,9 @@ class MarketIndicatorStorage:
                 CREATE TABLE IF NOT EXISTS stock_universe (
                     symbol TEXT PRIMARY KEY,
                     name TEXT,
-                    market TEXT
+                    market TEXT,
+                    sector TEXT,
+                    industry TEXT
                 )
             ''')
             # Create table for AI Predictions
@@ -134,11 +136,13 @@ class MarketIndicatorStorage:
                     error_message TEXT
                 )
             ''')
-            # Migration: add new columns to stock_fundamentals if missing
+            # Migration: add new columns to stock_fundamentals and stock_universe if missing
             for col_sql in [
                 "ALTER TABLE stock_fundamentals ADD COLUMN net_income REAL DEFAULT 0",
                 "ALTER TABLE stock_fundamentals ADD COLUMN eps REAL DEFAULT 0",
                 "ALTER TABLE stock_fundamentals ADD COLUMN shares_outstanding REAL DEFAULT 0",
+                "ALTER TABLE stock_universe ADD COLUMN sector TEXT DEFAULT ''",
+                "ALTER TABLE stock_universe ADD COLUMN industry TEXT DEFAULT ''",
             ]:
                 try:
                     conn.execute(col_sql)
@@ -227,20 +231,24 @@ class MarketIndicatorStorage:
             with self._connect() as conn:
                 # S&P 500
                 for _, row in sp500.iterrows():
+                    sec = str(row.get('Sector') or row.get('GICS Sector') or row.get('GICS_Sector') or '')
+                    ind = str(row.get('Industry') or row.get('GICS Sub-Industry') or row.get('GICS_Sub_Industry') or '')
                     conn.execute(
-                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
-                        (row['Symbol'], row['Name'], 'SP500')
+                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
+                        (row['Symbol'], row['Name'], 'SP500', sec, ind)
                     )
                 # KRX (filtered)
                 for _, row in krx.iterrows():
                     if row['Code'] in excluded:
                         continue
+                    sec = str(row.get('Sector') or row.get('Dept') or row.get('Industry') or '')
+                    ind = str(row.get('Industry') or '')
                     conn.execute(
-                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)",
-                        (row['Code'], row['Name'], row.get('Market', 'KRX'))
+                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
+                        (row['Code'], row['Name'], row.get('Market', 'KRX'), sec, ind)
                     )
                 conn.commit()
-        logger.info("Stock universe updated successfully.")
+        logger.info("Stock universe updated successfully with sector information.")
 
     def save_indicators(self, data: dict, date_str: str):
         """
@@ -269,6 +277,17 @@ class MarketIndicatorStorage:
             params = (market,)
         with sqlite3.connect(self.db_path) as conn:
             return pd.read_sql(query, conn, params=params)
+
+    def get_sector_map(self) -> Dict[str, str]:
+        """Returns mapping of symbol -> sector string from stock_universe table."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                df = pd.read_sql("SELECT symbol, sector FROM stock_universe", conn)
+                if not df.empty and 'sector' in df.columns:
+                    return dict(zip(df['symbol'], df['sector'].fillna('General')))
+        except Exception as e:
+            logger.warning(f"Failed to retrieve sector map from DB: {e}")
+        return {}
 
     def save_predictions(self, df_preds: pd.DataFrame, date_str: str):
         """Save AI predictions to database."""

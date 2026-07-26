@@ -1669,7 +1669,15 @@ def execute_prediction_pipeline():
     try:
         from src.core.sector_rotation import SectorRotationEngine
         sector_engine = SectorRotationEngine()
-        sector_df = sector_engine.compute_sector_momentum_scores(infer_data_dict)
+        pipe_sector_map = storage.get_sector_map() if hasattr(storage, 'get_sector_map') else {}
+        if not pipe_sector_map and 'sector' in universe.columns:
+            pipe_sector_map = dict(zip(universe['symbol'], universe['sector'].fillna('General')))
+        sector_df = sector_engine.compute_sector_momentum_scores(
+            infer_data_dict,
+            sector_map=pipe_sector_map,
+            macro_indicators=indicator_infer,
+            regime_label=str(current_2d_regime)
+        )
     except Exception as _sec_e:
         logger.warning(f"Sector rotation score calculation skipped: {_sec_e}")
         sector_df = pd.DataFrame()

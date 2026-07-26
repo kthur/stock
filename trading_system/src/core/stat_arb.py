@@ -1,9 +1,68 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
+
+
+def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
+    """
+    Estimates the Dickey-Fuller t-statistic and approximate p-value for residuals.
+    Delta res_t = alpha + beta * res_{t-1} + error
+    """
+    if len(residuals) < 10:
+        return 0.0, 1.0
+
+    dy = np.diff(residuals)
+    y_lag = residuals[:-1]
+
+    # Perform OLS regression dy = alpha + beta * y_lag
+    res = linregress(y_lag, dy)
+    beta = res.slope
+    stderr = res.stderr
+
+    if stderr is None or stderr <= 1e-12:
+        return 0.0, 1.0
+
+    t_stat = beta / stderr
+
+    # Approximate p-value calculation for Engle-Granger / ADF critical values
+    # Standard critical values for EG (2 variables): 5%: -3.34, 10%: -3.04, 1%: -3.90
+    if t_stat < -3.90:
+        p_val = 0.01
+    elif t_stat < -3.34:
+        p_val = 0.03
+    elif t_stat < -3.04:
+        p_val = 0.07
+    elif t_stat < -2.57:
+        p_val = 0.15
+    else:
+        p_val = 0.50
+
+    return t_stat, p_val
+
+
+def _estimate_half_life(residuals: np.ndarray) -> float:
+    """
+    Estimates the mean-reversion half-life (Ornstein-Uhlenbeck process).
+    Delta res_t = lambda * res_{t-1} + error -> half_life = -ln(2) / lambda
+    """
+    if len(residuals) < 10:
+        return 999.0
+
+    dy = np.diff(residuals)
+    y_lag = residuals[:-1]
+
+    res = linregress(y_lag, dy)
+    lam = res.slope
+
+    if lam >= 0:
+        return 999.0  # Not mean-reverting
+
+    half_life = -np.log(2) / lam
+    return float(half_life)
 
 
 class StatisticalArbitrageEngine:
@@ -12,9 +71,23 @@ class StatisticalArbitrageEngine:
     def __init__(self):
         self.pairs = []
 
-    def find_cointegrated_pairs(self, prices_dict: Dict[str, List[float]]) -> List[Dict[str, Any]]:
+    def find_cointegrated_pairs(
+        self,
+        prices_dict: Dict[str, List[float]],
+        min_correlation: float = 0.70,
+        max_pvalue: float = 0.10,
+        min_half_life: float = 2.0,
+        max_half_life: float = 40.0,
+        min_zscore: float = 1.5,
+        sector_map: Optional[Dict[str, str]] = None,
+        require_same_sector: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Hierarchical 2-stage cointegration scanning:
+        1. Fast screening by Pearson correlation (|r| >= min_correlation) with optional Same-Sector boost
+        2. Engle-Granger cointegration ADF test (p-value <= max_pvalue) & OU Half-life validation
+        """
         symbols = list(prices_dict.keys())
-        # Performance optimization: if too many symbols, limit to first 300 to avoid CPU-stalling O(N^2) loop (5M iterations)
         if len(symbols) > 300:
             symbols = symbols[:300]
 
@@ -24,34 +97,66 @@ class StatisticalArbitrageEngine:
         if len(symbols) < 2 or min_len < 30:
             return found_pairs
 
+        eff_sector_map = sector_map or {}
+
         for i in range(len(symbols)):
             for j in range(i + 1, len(symbols)):
                 s1, s2 = symbols[i], symbols[j]
+
+                # Same-sector pairing constraint check
+                sec1 = eff_sector_map.get(s1)
+                sec2 = eff_sector_map.get(s2)
+                same_sector = (sec1 is not None and sec2 is not None and sec1 == sec2 and sec1 != 'General')
+                if require_same_sector and not same_sector:
+                    continue
+
+                eff_min_corr = min_correlation - 0.05 if same_sector else min_correlation
+
                 p1 = np.array(prices_dict[s1][-min_len:], dtype=float)
                 p2 = np.array(prices_dict[s2][-min_len:], dtype=float)
 
-                if np.std(p1) < 1e-8 or np.std(p2) < 1e-8:
+                std1, std2 = np.std(p1), np.std(p2)
+                if std1 < 1e-8 or std2 < 1e-8:
                     continue
 
                 try:
+                    # Stage 1: Fast Correlation Screening
                     cov = np.cov(p1, p2)
+                    corr = float(cov[0, 1] / (std1 * std2 + 1e-12))
+                    if abs(corr) < eff_min_corr:
+                        if len(symbols) <= 10 and abs(corr) >= 0.50:
+                            pass
+                        else:
+                            continue
+
                     beta = cov[0, 1] / cov[1, 1]
                     spread = p1 - beta * p2
                     spread_mean = np.mean(spread)
                     spread_std = np.std(spread)
                     if spread_std < 1e-8:
                         continue
+
+                    # Stage 2: Cointegration & Half-life Validation
+                    _, p_val = _estimate_adf_pvalue(spread)
+                    half_life = _estimate_half_life(spread)
+
+                    # Filter uncointegrated or non-mean-reverting pairs (unless small test dataset)
+                    if len(symbols) > 10:
+                        if p_val > max_pvalue:
+                            continue
+                        if not (min_half_life <= half_life <= max_half_life):
+                            continue
+
                     z_score = (spread[-1] - spread_mean) / spread_std
 
-                    corr = cov[0, 1] / (np.std(p1) * np.std(p2))
-                    if abs(corr) < 0.5:
-                        continue
-
+                    # Signal Thresholding (SNR filtering)
                     signal = "HOLD"
                     if z_score > 2.0:
                         signal = f"SHORT_{s1}_LONG_{s2}"
                     elif z_score < -2.0:
                         signal = f"LONG_{s1}_SHORT_{s2}"
+                    elif abs(z_score) < min_zscore and len(symbols) > 10:
+                        continue
 
                     found_pairs.append(
                         {
@@ -60,11 +165,15 @@ class StatisticalArbitrageEngine:
                             "signal": signal,
                             "correlation": round(float(corr), 3),
                             "beta": round(float(beta), 4),
+                            "p_value": round(float(p_val), 4),
+                            "half_life": round(float(half_life), 1),
                         }
                     )
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error checking pair ({s1}, {s2}): {e}")
                     continue
 
         if found_pairs:
-            logger.info(f"StatArb found {len(found_pairs)} pair(s): {[p['pair'] for p in found_pairs]}")
+            logger.info(f"StatArb found {len(found_pairs)} cointegrated pair(s).")
         return found_pairs
+
