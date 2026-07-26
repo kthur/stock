@@ -745,7 +745,6 @@ def execute_prediction_pipeline():
         model.load_models()
         model.load_surge_models()
         model.load_lead_lag()
-        from src.ai.vcp_ml_predictor import VCPSurgePredictor
         vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
         vcp_ml.load_models()
 
