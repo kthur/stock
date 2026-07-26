@@ -368,7 +368,9 @@ class OnDevicePredictionModel:
                 model._estimator_type = 'regressor'
 
                 try:
-                    _ = model.predict(dummy_df)
+                    fn = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = model.predict(val_df)
                     if market not in self.models:
                         self.models[market] = {}
                     self.models[market][h] = model
@@ -384,18 +386,14 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                booster = lgb.Booster(model_file=str(fpath))
-                model = lgb.LGBMRegressor(**self._lgb_kwargs)
-                model._Booster = booster
-                model.fitted_ = True
-                model._n_features = len(self.ALL_FEATURES)
-                model._n_features_in = len(self.ALL_FEATURES)
-
                 try:
-                    _ = model.predict(dummy_df)
+                    booster = lgb.Booster(model_file=str(fpath))
+                    fn = booster.feature_name() if hasattr(booster, "feature_name") and booster.feature_name() else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = booster.predict(val_df)
                     if market not in self.lgb_models:
                         self.lgb_models[market] = {}
-                    self.lgb_models[market][h] = model
+                    self.lgb_models[market][h] = booster
                     logger.debug(f"Loaded LGB model for {market} {h}d from {fpath}")
                 except Exception as e:
                     logger.warning(f"LGB model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
@@ -412,7 +410,9 @@ class OnDevicePredictionModel:
                 model.load_model(str(fpath))
 
                 try:
-                    _ = model.predict(dummy_df)
+                    fn = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = model.predict(val_df)
                     if market not in self.cat_models:
                         self.cat_models[market] = {}
                     self.cat_models[market][h] = model
