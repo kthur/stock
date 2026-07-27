@@ -1,0 +1,301 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-27 23:09
+Total symbols evaluated: 74
+
+--- KONEX Top 74 ---
+  1. [KONEX] 102950 (아하)
+       Score: 100/100 | Current range: 15.4% | Contraction: 15.4% > 20.2% > 28.9% > 28.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  2. [KONEX] 317860 (노드메이슨)
+       Score: 100/100 | Current range: 0.8% | Contraction: 0.8% > 7.4% > 15.0% > 9.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  3. [KONEX] 234070 (에이원큐브텍)
+       Score: 100/100 | Current range: 0.0% | Contraction: 0.0% > 15.0% > 26.9% > 19.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  4. [KONEX] 245450 (씨앤에스링크)
+       Score: 100/100 | Current range: 0.0% | Contraction: 0.0% > 0.0% > 26.1% > 21.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  5. [KONEX] 260870 (SK시그넷)
+       Score: 97/100 | Current range: 4.1% | Contraction: 4.1% > 8.7% > 11.8% > 13.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  6. [KONEX] 116100 (태양기계)
+       Score: 95/100 | Current range: 1.8% | Contraction: 1.7% > 25.6% > 24.9% > 28.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  7. [KONEX] 254160 (제이엠멀티)
+       Score: 90/100 | Current range: 3.1% | Contraction: 3.1% > 6.5% > 12.5% > 34.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  8. [KONEX] 244880 (나눔테크)
+       Score: 90/100 | Current range: 2.6% | Contraction: 2.6% > 9.2% > 16.4% > 17.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  9. [KONEX] 122830 (원포유)
+       Score: 85/100 | Current range: 19.4% | Contraction: 19.4% > 19.5% > 28.0% > 26.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  10. [KONEX] 206950 (볼빅)
+       Score: 85/100 | Current range: 25.0% | Contraction: 25.0% > 26.5% > 33.1% > 28.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  11. [KONEX] 103660 (씨앗)
+       Score: 85/100 | Current range: 17.9% | Contraction: 17.9% > 20.8% > 25.5% > 28.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  12. [KONEX] 185190 (수프로)
+       Score: 85/100 | Current range: 15.8% | Contraction: 15.8% > 23.4% > 29.7% > 34.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  13. [KONEX] 278990 (EMB)
+       Score: 82/100 | Current range: 5.7% | Contraction: 5.7% > 12.0% > 16.7% > 18.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  14. [KONEX] 199290 (바이오프로테크)
+       Score: 81/100 | Current range: 7.7% | Contraction: 7.7% > 35.0% > 29.0% > 33.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  15. [KONEX] 250030 (진코스텍)
+       Score: 76/100 | Current range: 9.1% | Contraction: 9.1% > 18.9% > 20.5% > 19.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  16. [KONEX] 189350 (코셋)
+       Score: 75/100 | Current range: 13.2% | Contraction: 13.2% > 10.8% > 24.4% > 34.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  17. [KONEX] 236340 (메디젠휴먼케어)
+       Score: 75/100 | Current range: 18.5% | Contraction: 18.5% > 15.4% > 20.0% > 32.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  18. [KONEX] 311960 (인터로이드)
+       Score: 75/100 | Current range: 23.3% | Contraction: 23.3% > 26.2% > 24.8% > 27.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  19. [KONEX] 217910 (에스제이켐)
+       Score: 75/100 | Current range: 24.0% | Contraction: 24.0% > 28.6% > 28.4% > 27.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  20. [KONEX] 270210 (에스알바이오텍)
+       Score: 72/100 | Current range: 6.5% | Contraction: 6.5% > 32.8% > 18.0% > 16.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  21. [KONEX] 337840 (유엑스엔)
+       Score: 70/100 | Current range: 16.2% | Contraction: 16.2% > 18.9% > 20.6% > 18.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  22. [KONEX] 318660 (타임기술)
+       Score: 70/100 | Current range: 17.0% | Contraction: 17.0% > 18.8% > 26.9% > 25.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  23. [KONEX] 215570 (크로넥스)
+       Score: 70/100 | Current range: 18.8% | Contraction: 18.8% > 21.6% > 26.1% > 24.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  24. [KONEX] 149010 (아이케이세미콘)
+       Score: 67/100 | Current range: 5.6% | Contraction: 5.6% > 15.0% > 17.2% > 18.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  25. [KONEX] 199150 (데이터스트림즈)
+       Score: 67/100 | Current range: 5.0% | Contraction: 5.0% > 17.4% > 17.9% > 20.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  26. [KONEX] 232530 (이엠티)
+       Score: 61/100 | Current range: 9.8% | Contraction: 9.8% > 20.0% > 27.2% > 33.2%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  27. [KONEX] 243870 (아이티센코어)
+       Score: 61/100 | Current range: 7.3% | Contraction: 7.3% > 16.1% > 25.9% > 28.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  28. [KONEX] 112190 (KC산업)
+       Score: 60/100 | Current range: 15.2% | Contraction: 15.2% > 11.0% > 17.8% > 15.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  29. [KONEX] 354390 (바스칸바이오제약)
+       Score: 60/100 | Current range: 10.1% | Contraction: 10.1% > 9.4% > 20.6% > 19.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  30. [KONEX] 336040 (타스컴)
+       Score: 60/100 | Current range: 0.0% | Contraction: 0.0% > 8.0% > 16.2% > 28.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  31. [KONEX] 299480 (지앤이헬스케어)
+       Score: 60/100 | Current range: 30.9% | Contraction: 30.9% > 30.6% > 30.1% > 17.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  32. [KONEX] 266470 (바이오인프라생명과학)
+       Score: 60/100 | Current range: 25.9% | Contraction: 25.9% > 23.1% > 34.0% > 32.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  33. [KONEX] 296160 (프로젠)
+       Score: 55/100 | Current range: 14.1% | Contraction: 14.1% > 14.8% > 23.6% > 18.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  34. [KONEX] 447690 (아이오바이오)
+       Score: 55/100 | Current range: 19.3% | Contraction: 19.3% > 20.8% > 28.7% > 28.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  35. [KONEX] 448780 (마이크로엔엑스)
+       Score: 55/100 | Current range: 15.7% | Contraction: 15.7% > 24.5% > 28.7% > 32.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  36. [KONEX] 217950 (파마리서치바이오)
+       Score: 52/100 | Current range: 4.2% | Contraction: 4.2% > 5.5% > 9.3% > 8.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  37. [KONEX] 456570 (아이엠지티)
+       Score: 51/100 | Current range: 8.8% | Contraction: 8.8% > 16.2% > 14.6% > 15.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  38. [KONEX] 162120 (루켄테크놀러지스)
+       Score: 51/100 | Current range: 8.5% | Contraction: 8.5% > 21.6% > 21.5% > 15.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  39. [KONEX] 176590 (코나솔)
+       Score: 46/100 | Current range: 9.8% | Contraction: 9.8% > 15.2% > 25.9% > 19.7%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  40. [KONEX] 207490 (에이펙스인텍)
+       Score: 45/100 | Current range: 0.0% | Contraction: 0.0% > 0.0% > 3.0% > 29.7%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  41. [KONEX] 208850 (이비테크)
+       Score: 45/100 | Current range: 0.0% | Contraction: 0.0% > 11.1% > 12.9% > 13.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  42. [KONEX] 253610 (루트락)
+       Score: 45/100 | Current range: 0.0% | Contraction: 0.0% > 27.8% > 29.1% > 32.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  43. [KONEX] 178600 (대동고려삼)
+       Score: 45/100 | Current range: 28.7% | Contraction: 28.7% > 21.2% > 18.5% > 30.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  44. [KONEX] 202960 (판도라티비)
+       Score: 45/100 | Current range: 25.8% | Contraction: 25.8% > 34.1% > 32.0% > 26.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  45. [KONEX] 180060 (탑선)
+       Score: 40/100 | Current range: 10.2% | Contraction: 10.2% > 14.0% > 22.4% > 14.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  46. [KONEX] 331660 (한국미라클피플사)
+       Score: 35/100 | Current range: 2.3% | Contraction: 2.3% > 15.6% > 5.2% > 29.6%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  47. [KONEX] 227420 (도부)
+       Score: 30/100 | Current range: 34.4% | Contraction: 34.4% > 33.9% > 34.7% > 31.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  48. [KONEX] 403360 (라피치)
+       Score: 30/100 | Current range: 20.0% | Contraction: 20.0% > 15.4% > 16.7% > 15.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  49. [KONEX] 434190 (탈로스)
+       Score: 30/100 | Current range: 19.1% | Contraction: 19.0% > 30.1% > 23.2% > 15.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  50. [KONEX] 052960 (태양3C)
+       Score: 30/100 | Current range: 14.6% | Contraction: 14.6% > 17.4% > 21.6% > 12.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  51. [KONEX] 224810 (엄지하우스)
+       Score: 30/100 | Current range: 30.7% | Contraction: 30.7% > 30.2% > 34.4% > 30.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  52. [KONEX] 251280 (안지오랩)
+       Score: 30/100 | Current range: 16.3% | Contraction: 16.3% > 18.6% > 17.3% > 17.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  53. [KONEX] 402420 (켈스)
+       Score: 30/100 | Current range: 28.2% | Contraction: 28.2% > 24.9% > 28.9% > 29.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  54. [KONEX] 341170 (퓨쳐메디신)
+       Score: 30/100 | Current range: 25.4% | Contraction: 25.4% > 34.8% > 33.5% > 34.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  55. [KONEX] 446440 (에피바이오텍)
+       Score: 25/100 | Current range: 17.7% | Contraction: 17.7% > 19.6% > 20.7% > 25.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  56. [KONEX] 217880 (틸론)
+       Score: 25/100 | Current range: 15.0% | Contraction: 15.0% > 27.0% > 27.9% > 22.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  57. [KONEX] 086220 (광동헬스바이오)
+       Score: 25/100 | Current range: 16.5% | Contraction: 16.5% > 18.0% > 21.7% > 28.6%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  58. [KONEX] 169670 (코스텍시스템)
+       Score: 25/100 | Current range: 11.1% | Contraction: 11.1% > 16.4% > 24.0% > 17.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  59. [KONEX] 322970 (무진메디)
+       Score: 21/100 | Current range: 8.8% | Contraction: 8.9% > 8.1% > 14.4% > 16.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  60. [KONEX] 311060 (엘에이티)
+       Score: 15/100 | Current range: 14.7% | Contraction: 14.7% > 8.4% > 14.4% > 16.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  61. [KONEX] 233990 (질경이)
+       Score: 15/100 | Current range: 19.7% | Contraction: 19.7% > 19.4% > 29.1% > 29.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  62. [KONEX] 289170 (바이오텐)
+       Score: 15/100 | Current range: 33.6% | Contraction: 33.6% > 25.5% > 34.7% > 33.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  63. [KONEX] 114920 (대주이엔티)
+       Score: 15/100 | Current range: 29.3% | Contraction: 29.3% > 30.6% > 29.6% > 32.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  64. [KONEX] 276240 (엘리비젼)
+       Score: 15/100 | Current range: 29.5% | Contraction: 29.5% > 24.4% > 35.0% > 34.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  65. [KONEX] 121060 (유니포인트)
+       Score: 15/100 | Current range: 34.6% | Contraction: 34.6% > 34.9% > 34.8% > 29.8%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  66. [KONEX] 236030 (씨알푸드)
+       Score: 15/100 | Current range: 15.7% | Contraction: 15.7% > 21.4% > 15.8% > 17.6%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  67. [KONEX] 140610 (엔솔바이오사이언스)
+       Score: 6/100 | Current range: 7.4% | Contraction: 7.4% > 13.6% > 9.3% > 17.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  68. [KONEX] 229500 (노브메타파마)
+       Score: 0/100 | Current range: 21.6% | Contraction: 21.6% > 26.1% > 22.6% > 20.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  69. [KONEX] 233250 (메디안디노스틱)
+       Score: 0/100 | Current range: 16.8% | Contraction: 16.8% > 5.6% > 15.3% > 7.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  70. [KONEX] 216400 (인바이츠바이오코아)
+       Score: 0/100 | Current range: 33.5% | Contraction: 33.5% > 35.2% > 27.8% > 30.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  71. [KONEX] 136660 (큐엠씨)
+       Score: 0/100 | Current range: 24.9% | Contraction: 24.9% > 33.4% > 26.7% > 25.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  72. [KONEX] 140660 (위월드)
+       Score: 0/100 | Current range: 16.5% | Contraction: 16.5% > 26.0% > 25.5% > 32.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  73. [KONEX] 223220 (로지스몬)
+       Score: 0/100 | Current range: 35.2% | Contraction: 35.2% > 34.4% > 33.6% > 35.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  74. [KONEX] 390110 (애니메디솔루션)
+       Score: 0/100 | Current range: 34.8% | Contraction: 34.8% > 34.8% > 34.5% > 31.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+

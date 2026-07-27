@@ -1,0 +1,85 @@
+=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===
+Date: 2026-07-27 17:21 KST
+
+--- Executive Market Summary ---
+Current Market Regime Detected: BULL (2D State: BULL_LOW_VOL)
+Maximum Total Allocation Allowed: 85.0%
+
+--- Judgment Basis (Global Macro Indicators) ---
+  S&P 500 (20d Rolling Mean Return) : +0.000% / day
+  S&P 500 (20d Rolling Volatility)  : 0.000%
+  KOSPI (20d Rolling Mean Return)   : -0.069% / day
+  KOSPI (20d Rolling Volatility)    : 1.017%
+  VIX Index (Fear Gauge)            : nan
+  USD/KRW FX Rate                   : nan KRW
+  US 10Y Bond Yield (TNX)           : nan%
+
+[2D Market Regime & Strategy Decision Rationale]
+• Selected 2D Regime State: BULL_LOW_VOL
+  - Market Trend Rationale: Upward momentum trend confirmed (20d index return > 0). Momentum & Surge strategies boosted.
+  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.
+
+[14-Strategy Dynamic Weight Allocation]
+• Dynamic Weighting Scheme: Baseline 2D Regime Matrix Weights (No historical performance penalty)
+  - regression            :   5.0%
+  - surge                 :  15.0%
+  - lead_lag              :   4.0%
+  - vcp_rule              :   4.0%
+  - vcp_ml                :  12.0%
+  - lstm                  :  10.0%
+  - stat_arb              :   4.0%
+  - sector_rotation       :  10.0%
+  - rim_valuation         :   6.0%
+  - event_driven          :  10.0%
+  - mq_factor             :  10.0%
+  - iv_skew               :   3.0%
+  - order_flow            :   5.0%
+  - short_term_reversal   :   2.0%
+
+--- Applied Ensemble Strategy Weights (14 Strategies) ---
+  XGBoost Regression Fundamentals   : 5.0%
+  Surge Classifier (XGBoost)        : 15.0%
+  Index & Sector Lead-Lag Flow      : 4.0%
+  VCP Rule Pattern Detector         : 4.0%
+  VCP Machine Learning Predictor    : 12.0%
+  Strict Causal LSTM Deep Learning  : 10.0%
+  Stat-Arb Cointegration Mean Rev   : 4.0%
+  Sector Rotation Relative Momentum : 10.0%
+  RIM Valuation (Residual Income)   : 6.0%
+  Event-Driven Disclosure Catalyst  : 10.0%
+  Momentum Quality (MQ) Factor      : 10.0%
+  Options Put/Call IV Skew          : 3.0%
+  Order Flow Imbalance (MFI)        : 5.0%
+  Short-Term Mean Reversal          : 2.0%
+
+--- Top 20 Recommendations by Market ---
+
+=========================================
+[KOSPI] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    005930    Samsung Electron        21.0%        3.36%  40%   2%   0%    0%    4%   0%    0%   60%   0%    0%   0%    0%   0%   0%
+
+=========================================
+[KOSDAQ] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    068270    Celltrion               46.5%        8.44%  20%  73%   0%    0%   13%   0%    0%   60%   0%    0%   0%    0%   0%   0%
+
+=========================================
+[KONEX] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    207940    Samsung BioLogic        27.3%        4.62% 100%   2%   0%    0%    2%   0%    0%   60%   0%    0%   0%    0%   0%   0%
+
+=========================================
+[SP500] Top 20 Ensemble Picks
+=========================================
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    MSFT      Microsoft Corp.         24.2%        4.75%  80%   1%   0%    0%    1%   0%    0%   60%   0%    0%   0%    0%   0%   0%
+2    AAPL      Apple Inc.              21.9%        4.27%  60%   1%   0%    0%    1%   0%    0%   60%   0%    0%   0%    0%   0%   0%
+

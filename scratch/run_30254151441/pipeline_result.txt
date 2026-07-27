@@ -1,0 +1,175 @@
+=== Full Pipeline Inference Results (Merged) ===
+Date: 2026-07-27 10:13
+
+Total symbols analyzed: 5
+Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
+Full data: pipeline_result.csv / pipeline_result.jsonl
+Horizon: 1d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.02%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.22%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.17%
+  2. AAPL (Apple Inc.): +0.17%
+Horizon: 5d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.71%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.53%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.33%
+  2. AAPL (Apple Inc.): -0.33%
+Horizon: 20d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.26%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.08%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.48%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.35%
+  2. AAPL (Apple Inc.): +0.35%
+Horizon: 60d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.12%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.06%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.15%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.49%
+  2. AAPL (Apple Inc.): -0.49%
+Total symbols analyzed: 5
+Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
+Full data: pipeline_result.csv / pipeline_result.jsonl
+Horizon: 1d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.02%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.22%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.17%
+  2. AAPL (Apple Inc.): +0.17%
+Horizon: 5d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.71%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.53%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.33%
+  2. AAPL (Apple Inc.): -0.33%
+Horizon: 20d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.26%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.08%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.48%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.35%
+  2. AAPL (Apple Inc.): +0.35%
+Horizon: 60d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.12%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.06%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.15%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.49%
+  2. AAPL (Apple Inc.): -0.49%
+Total symbols analyzed: 5
+Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
+Full data: pipeline_result.csv / pipeline_result.jsonl
+Horizon: 1d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.02%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.22%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.17%
+  2. AAPL (Apple Inc.): +0.17%
+Horizon: 5d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.71%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.53%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.33%
+  2. AAPL (Apple Inc.): -0.33%
+Horizon: 20d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.26%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.08%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.48%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.35%
+  2. AAPL (Apple Inc.): +0.35%
+Horizon: 60d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.12%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.06%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.15%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.49%
+  2. AAPL (Apple Inc.): -0.49%
+Total symbols analyzed: 5
+Showing: Top 20 per market | Horizons: 1d, 5d, 20d, 60d
+Full data: pipeline_result.csv / pipeline_result.jsonl
+Horizon: 1d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.02%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.22%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.17%
+  2. AAPL (Apple Inc.): +0.17%
+Horizon: 5d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.71%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.01%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.53%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.33%
+  2. AAPL (Apple Inc.): -0.33%
+Horizon: 20d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): +0.26%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.08%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): +0.48%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): +0.35%
+  2. AAPL (Apple Inc.): +0.35%
+Horizon: 60d
+--- KOSPI TOP 20 ---
+  1. 005930 (Samsung Electronics): -0.12%
+--- KOSDAQ TOP 20 ---
+  1. 068270 (Celltrion): +0.06%
+--- KONEX TOP 20 ---
+  1. 207940 (Samsung BioLogics): -0.15%
+--- S&P 500 TOP 20 ---
+  1. MSFT (Microsoft Corp.): -0.49%
+  2. AAPL (Apple Inc.): -0.49%

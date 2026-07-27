@@ -1,0 +1,435 @@
+=== VCP ML Surge Predictions ===
+Date: 2026-07-27 23:14
+
+[1일] KOSPI - (no symbols) 0.0%
+
+[1일] KOSDAQ - (no symbols) 0.0%
+
+[1일] KONEX - (no symbols) 0.0%
+
+[1일] SP500 TOP 100
+  1. [SP500] ZTS (Zoetis): 0.0%
+  2. [SP500] AOS (A. O. Smith): 0.0%
+  3. [SP500] ABBV (AbbVie): 0.0%
+  4. [SP500] MMM (3M): 0.0%
+  5. [SP500] ABT (Abbott Laboratories): 0.0%
+  6. [SP500] ADBE (Adobe Inc.): 0.0%
+  7. [SP500] AMD (Advanced Micro Devices): 0.0%
+  8. [SP500] ACN (Accenture): 0.0%
+  9. [SP500] AES (AES Corporation): 0.0%
+  10. [SP500] APD (Air Products): 0.0%
+  11. [SP500] AFL (Aflac): 0.0%
+  12. [SP500] A (Agilent Technologies): 0.0%
+  13. [SP500] ABNB (Airbnb): 0.0%
+  14. [SP500] AKAM (Akamai Technologies): 0.0%
+  15. [SP500] ALB (Albemarle Corporation): 0.0%
+  16. [SP500] ARE (Alexandria Real Estate Equities): 0.0%
+  17. [SP500] ALGN (Align Technology): 0.0%
+  18. [SP500] UHS (Universal Health Services): 0.0%
+  19. [SP500] VEEV (Veeva Systems): 0.0%
+  20. [SP500] VLO (Valero Energy): 0.0%
+  21. [SP500] VTR (Ventas): 0.0%
+  22. [SP500] VLTO (Veralto): 0.0%
+  23. [SP500] VRSN (Verisign): 0.0%
+  24. [SP500] VRSK (Verisk Analytics): 0.0%
+  25. [SP500] VZ (Verizon): 0.0%
+  26. [SP500] UBER (Uber): 0.0%
+  27. [SP500] UDR (UDR, Inc.): 0.0%
+  28. [SP500] ULTA (Ulta Beauty): 0.0%
+  29. [SP500] UNP (Union Pacific Corporation): 0.0%
+  30. [SP500] UPS (United Parcel Service): 0.0%
+  31. [SP500] UAL (United Airlines Holdings): 0.0%
+  32. [SP500] URI (United Rentals): 0.0%
+  33. [SP500] UNH (UnitedHealth Group): 0.0%
+  34. [SP500] TT (Trane Technologies): 0.0%
+  35. [SP500] TDG (TransDigm Group): 0.0%
+  36. [SP500] TRMB (Trimble Inc.): 0.0%
+  37. [SP500] TRV (Travelers Companies (The)): 0.0%
+  38. [SP500] TYL (Tyler Technologies): 0.0%
+  39. [SP500] TFC (Truist Financial): 0.0%
+  40. [SP500] TSN (Tyson Foods): 0.0%
+  41. [SP500] USB (U.S. Bancorp): 0.0%
+  42. [SP500] TXN (Texas Instruments): 0.0%
+  43. [SP500] TXT (Textron): 0.0%
+  44. [SP500] TPL (Texas Pacific Land Corporation): 0.0%
+  45. [SP500] TMO (Thermo Fisher Scientific): 0.0%
+  46. [SP500] TJX (TJX Companies): 0.0%
+  47. [SP500] TKO (TKO Group Holdings): 0.0%
+  48. [SP500] TTD (Trade Desk (The)): 0.0%
+  49. [SP500] TSCO (Tractor Supply): 0.0%
+  50. [SP500] BR (Broadridge Financial Solutions): 0.0%
+  51. [SP500] BRO (Brown & Brown): 0.0%
+  52. [SP500] CHRW (C.H. Robinson): 0.0%
+  53. [SP500] BG (Bunge Global): 0.0%
+  54. [SP500] BXP (BXP, Inc.): 0.0%
+  55. [SP500] BLDR (Builders FirstSource): 0.0%
+  56. [SP500] CDNS (Cadence Design Systems): 0.0%
+  57. [SP500] CPT (Camden Property Trust): 0.0%
+  58. [SP500] XYZ (Block, Inc.): 0.0%
+  59. [SP500] BX (Blackstone Inc.): 0.0%
+  60. [SP500] BNY (BNY Mellon): 0.0%
+  61. [SP500] BA (Boeing): 0.0%
+  62. [SP500] BKNG (Booking Holdings): 0.0%
+  63. [SP500] BSX (Boston Scientific): 0.0%
+  64. [SP500] BMY (Bristol Myers Squibb): 0.0%
+  65. [SP500] AVGO (Broadcom): 0.0%
+  66. [SP500] BALL (Ball Corporation): 0.0%
+  67. [SP500] BAC (Bank of America): 0.0%
+  68. [SP500] BAX (Baxter International): 0.0%
+  69. [SP500] BDX (Becton Dickinson): 0.0%
+  70. [SP500] BBY (Best Buy): 0.0%
+  71. [SP500] TECH (Bio-Techne): 0.0%
+  72. [SP500] BIIB (Biogen): 0.0%
+  73. [SP500] BLK (BlackRock): 0.0%
+  74. [SP500] ADSK (Autodesk): 0.0%
+  75. [SP500] ATO (Atmos Energy): 0.0%
+  76. [SP500] ADP (Automatic Data Processing): 0.0%
+  77. [SP500] AZO (AutoZone): 0.0%
+  78. [SP500] AVB (AvalonBay Communities): 0.0%
+  79. [SP500] AVY (Avery Dennison): 0.0%
+  80. [SP500] AXON (Axon Enterprise): 0.0%
+  81. [SP500] BKR (Baker Hughes): 0.0%
+  82. [SP500] CTAS (Cintas): 0.0%
+  83. [SP500] C (Citigroup): 0.0%
+  84. [SP500] CSCO (Cisco): 0.0%
+  85. [SP500] CFG (Citizens Financial Group): 0.0%
+  86. [SP500] CLX (Clorox): 0.0%
+  87. [SP500] CME (CME Group): 0.0%
+  88. [SP500] CMS (CMS Energy): 0.0%
+  89. [SP500] KO (Coca-Cola Company (The)): 0.0%
+  90. [SP500] CHTR (Charter Communications): 0.0%
+  91. [SP500] CMG (Chipotle Mexican Grill): 0.0%
+  92. [SP500] CVX (Chevron Corporation): 0.0%
+  93. [SP500] CB (Chubb Limited): 0.0%
+  94. [SP500] CIEN (Ciena): 0.0%
+  95. [SP500] CI (Cigna): 0.0%
+  96. [SP500] CHD (Church & Dwight): 0.0%
+  97. [SP500] CINF (Cincinnati Financial): 0.0%
+  98. [SP500] CBRE (CBRE Group): 0.0%
+  99. [SP500] COR (Cencora): 0.0%
+  100. [SP500] CDW (CDW Corporation): 0.0%
+
+[3일] KOSPI - (no symbols) 0.0%
+
+[3일] KOSDAQ - (no symbols) 0.0%
+
+[3일] KONEX - (no symbols) 0.0%
+
+[3일] SP500 TOP 100
+  1. [SP500] ZTS (Zoetis): 0.0%
+  2. [SP500] AOS (A. O. Smith): 0.0%
+  3. [SP500] ABBV (AbbVie): 0.0%
+  4. [SP500] MMM (3M): 0.0%
+  5. [SP500] ABT (Abbott Laboratories): 0.0%
+  6. [SP500] ADBE (Adobe Inc.): 0.0%
+  7. [SP500] AMD (Advanced Micro Devices): 0.0%
+  8. [SP500] ACN (Accenture): 0.0%
+  9. [SP500] AES (AES Corporation): 0.0%
+  10. [SP500] APD (Air Products): 0.0%
+  11. [SP500] AFL (Aflac): 0.0%
+  12. [SP500] A (Agilent Technologies): 0.0%
+  13. [SP500] ABNB (Airbnb): 0.0%
+  14. [SP500] AKAM (Akamai Technologies): 0.0%
+  15. [SP500] ALB (Albemarle Corporation): 0.0%
+  16. [SP500] ARE (Alexandria Real Estate Equities): 0.0%
+  17. [SP500] ALGN (Align Technology): 0.0%
+  18. [SP500] UHS (Universal Health Services): 0.0%
+  19. [SP500] VEEV (Veeva Systems): 0.0%
+  20. [SP500] VLO (Valero Energy): 0.0%
+  21. [SP500] VTR (Ventas): 0.0%
+  22. [SP500] VLTO (Veralto): 0.0%
+  23. [SP500] VRSN (Verisign): 0.0%
+  24. [SP500] VRSK (Verisk Analytics): 0.0%
+  25. [SP500] VZ (Verizon): 0.0%
+  26. [SP500] UBER (Uber): 0.0%
+  27. [SP500] UDR (UDR, Inc.): 0.0%
+  28. [SP500] ULTA (Ulta Beauty): 0.0%
+  29. [SP500] UNP (Union Pacific Corporation): 0.0%
+  30. [SP500] UPS (United Parcel Service): 0.0%
+  31. [SP500] UAL (United Airlines Holdings): 0.0%
+  32. [SP500] URI (United Rentals): 0.0%
+  33. [SP500] UNH (UnitedHealth Group): 0.0%
+  34. [SP500] TT (Trane Technologies): 0.0%
+  35. [SP500] TDG (TransDigm Group): 0.0%
+  36. [SP500] TRMB (Trimble Inc.): 0.0%
+  37. [SP500] TRV (Travelers Companies (The)): 0.0%
+  38. [SP500] TYL (Tyler Technologies): 0.0%
+  39. [SP500] TFC (Truist Financial): 0.0%
+  40. [SP500] TSN (Tyson Foods): 0.0%
+  41. [SP500] USB (U.S. Bancorp): 0.0%
+  42. [SP500] TXN (Texas Instruments): 0.0%
+  43. [SP500] TXT (Textron): 0.0%
+  44. [SP500] TPL (Texas Pacific Land Corporation): 0.0%
+  45. [SP500] TMO (Thermo Fisher Scientific): 0.0%
+  46. [SP500] TJX (TJX Companies): 0.0%
+  47. [SP500] TKO (TKO Group Holdings): 0.0%
+  48. [SP500] TTD (Trade Desk (The)): 0.0%
+  49. [SP500] TSCO (Tractor Supply): 0.0%
+  50. [SP500] BR (Broadridge Financial Solutions): 0.0%
+  51. [SP500] BRO (Brown & Brown): 0.0%
+  52. [SP500] CHRW (C.H. Robinson): 0.0%
+  53. [SP500] BG (Bunge Global): 0.0%
+  54. [SP500] BXP (BXP, Inc.): 0.0%
+  55. [SP500] BLDR (Builders FirstSource): 0.0%
+  56. [SP500] CDNS (Cadence Design Systems): 0.0%
+  57. [SP500] CPT (Camden Property Trust): 0.0%
+  58. [SP500] XYZ (Block, Inc.): 0.0%
+  59. [SP500] BX (Blackstone Inc.): 0.0%
+  60. [SP500] BNY (BNY Mellon): 0.0%
+  61. [SP500] BA (Boeing): 0.0%
+  62. [SP500] BKNG (Booking Holdings): 0.0%
+  63. [SP500] BSX (Boston Scientific): 0.0%
+  64. [SP500] BMY (Bristol Myers Squibb): 0.0%
+  65. [SP500] AVGO (Broadcom): 0.0%
+  66. [SP500] BALL (Ball Corporation): 0.0%
+  67. [SP500] BAC (Bank of America): 0.0%
+  68. [SP500] BAX (Baxter International): 0.0%
+  69. [SP500] BDX (Becton Dickinson): 0.0%
+  70. [SP500] BBY (Best Buy): 0.0%
+  71. [SP500] TECH (Bio-Techne): 0.0%
+  72. [SP500] BIIB (Biogen): 0.0%
+  73. [SP500] BLK (BlackRock): 0.0%
+  74. [SP500] ADSK (Autodesk): 0.0%
+  75. [SP500] ATO (Atmos Energy): 0.0%
+  76. [SP500] ADP (Automatic Data Processing): 0.0%
+  77. [SP500] AZO (AutoZone): 0.0%
+  78. [SP500] AVB (AvalonBay Communities): 0.0%
+  79. [SP500] AVY (Avery Dennison): 0.0%
+  80. [SP500] AXON (Axon Enterprise): 0.0%
+  81. [SP500] BKR (Baker Hughes): 0.0%
+  82. [SP500] CTAS (Cintas): 0.0%
+  83. [SP500] C (Citigroup): 0.0%
+  84. [SP500] CSCO (Cisco): 0.0%
+  85. [SP500] CFG (Citizens Financial Group): 0.0%
+  86. [SP500] CLX (Clorox): 0.0%
+  87. [SP500] CME (CME Group): 0.0%
+  88. [SP500] CMS (CMS Energy): 0.0%
+  89. [SP500] KO (Coca-Cola Company (The)): 0.0%
+  90. [SP500] CHTR (Charter Communications): 0.0%
+  91. [SP500] CMG (Chipotle Mexican Grill): 0.0%
+  92. [SP500] CVX (Chevron Corporation): 0.0%
+  93. [SP500] CB (Chubb Limited): 0.0%
+  94. [SP500] CIEN (Ciena): 0.0%
+  95. [SP500] CI (Cigna): 0.0%
+  96. [SP500] CHD (Church & Dwight): 0.0%
+  97. [SP500] CINF (Cincinnati Financial): 0.0%
+  98. [SP500] CBRE (CBRE Group): 0.0%
+  99. [SP500] COR (Cencora): 0.0%
+  100. [SP500] CDW (CDW Corporation): 0.0%
+
+[5일] KOSPI - (no symbols) 0.0%
+
+[5일] KOSDAQ - (no symbols) 0.0%
+
+[5일] KONEX - (no symbols) 0.0%
+
+[5일] SP500 TOP 100
+  1. [SP500] MOS (Mosaic Company (The)): 56.6%
+  2. [SP500] CF (CF Industries): 49.6%
+  3. [SP500] SMCI (Supermicro): 29.4%
+  4. [SP500] PSKY (Paramount Skydance Corporation): 26.3%
+  5. [SP500] UBER (Uber): 24.4%
+  6. [SP500] MRVL (Marvell Technology): 20.2%
+  7. [SP500] FSLR (First Solar): 17.4%
+  8. [SP500] ORCL (Oracle Corporation): 15.1%
+  9. [SP500] ACN (Accenture): 14.4%
+  10. [SP500] CHTR (Charter Communications): 13.9%
+  11. [SP500] UAL (United Airlines Holdings): 13.6%
+  12. [SP500] HPQ (HP Inc.): 12.4%
+  13. [SP500] CRWD (CrowdStrike): 10.7%
+  14. [SP500] CVNA (Carvana): 9.8%
+  15. [SP500] COHR (Coherent Corp.): 9.6%
+  16. [SP500] T (AT&T): 8.7%
+  17. [SP500] MRNA (Moderna): 8.6%
+  18. [SP500] PYPL (PayPal): 8.2%
+  19. [SP500] STX (Seagate Technology): 7.8%
+  20. [SP500] KLAC (KLA Corporation): 7.8%
+  21. [SP500] GLW (Corning Inc.): 7.4%
+  22. [SP500] UHS (Universal Health Services): 6.6%
+  23. [SP500] IP (International Paper): 5.7%
+  24. [SP500] WDAY (Workday, Inc.): 5.6%
+  25. [SP500] CCL (Carnival Corporation): 5.4%
+  26. [SP500] ECHO (EchoStar): 5.4%
+  27. [SP500] LITE (Lumentum): 5.3%
+  28. [SP500] LRCX (Lam Research): 5.1%
+  29. [SP500] CMG (Chipotle Mexican Grill): 4.7%
+  30. [SP500] SNDK (Sandisk): 4.7%
+  31. [SP500] HOOD (Robinhood Markets): 4.6%
+  32. [SP500] NCLH (Norwegian Cruise Line Holdings): 4.6%
+  33. [SP500] TTD (Trade Desk (The)): 4.6%
+  34. [SP500] HPE (Hewlett Packard Enterprise): 4.1%
+  35. [SP500] INTC (Intel): 3.9%
+  36. [SP500] GDDY (GoDaddy): 3.8%
+  37. [SP500] TSCO (Tractor Supply): 3.8%
+  38. [SP500] ON (ON Semiconductor): 3.8%
+  39. [SP500] AMD (Advanced Micro Devices): 3.7%
+  40. [SP500] DOW (Dow Inc.): 3.7%
+  41. [SP500] WDC (Western Digital): 3.7%
+  42. [SP500] DECK (Deckers Brands): 3.7%
+  43. [SP500] LYB (LyondellBasell): 3.6%
+  44. [SP500] APH (Amphenol): 3.4%
+  45. [SP500] COIN (Coinbase): 3.3%
+  46. [SP500] ALB (Albemarle Corporation): 3.3%
+  47. [SP500] CTSH (Cognizant): 3.1%
+  48. [SP500] KEY (KeyCorp): 2.9%
+  49. [SP500] TER (Teradyne): 2.8%
+  50. [SP500] SYF (Synchrony Financial): 2.7%
+  51. [SP500] MCHP (Microchip Technology): 2.7%
+  52. [SP500] MU (Micron Technology): 2.6%
+  53. [SP500] NVDA (Nvidia): 2.6%
+  54. [SP500] BLDR (Builders FirstSource): 2.4%
+  55. [SP500] TSLA (Tesla, Inc.): 2.3%
+  56. [SP500] AKAM (Akamai Technologies): 2.3%
+  57. [SP500] APA (APA Corporation): 2.3%
+  58. [SP500] RF (Regions Financial Corporation): 2.2%
+  59. [SP500] FISV (Fiserv): 2.1%
+  60. [SP500] CHRW (C.H. Robinson): 2.1%
+  61. [SP500] ALGN (Align Technology): 2.0%
+  62. [SP500] SOLV (Solventum): 2.0%
+  63. [SP500] DG (Dollar General): 2.0%
+  64. [SP500] CRM (Salesforce): 2.0%
+  65. [SP500] LUV (Southwest Airlines): 2.0%
+  66. [SP500] CMCSA (Comcast): 1.9%
+  67. [SP500] DAL (Delta Air Lines): 1.9%
+  68. [SP500] GNRC (Generac): 1.8%
+  69. [SP500] DELL (Dell Technologies): 1.8%
+  70. [SP500] HAS (Hasbro): 1.8%
+  71. [SP500] ADBE (Adobe Inc.): 1.8%
+  72. [SP500] VLO (Valero Energy): 1.7%
+  73. [SP500] ROST (Ross Stores): 1.7%
+  74. [SP500] GEHC (GE HealthCare): 1.7%
+  75. [SP500] IT (Gartner): 1.7%
+  76. [SP500] PNR (Pentair): 1.6%
+  77. [SP500] PGR (Progressive Corporation): 1.6%
+  78. [SP500] CBOE (Cboe Global Markets): 1.5%
+  79. [SP500] SWKS (Skyworks Solutions): 1.5%
+  80. [SP500] VRT (Vertiv): 1.3%
+  81. [SP500] AMAT (Applied Materials): 1.3%
+  82. [SP500] ELV (Elevance Health): 1.3%
+  83. [SP500] CTAS (Cintas): 1.2%
+  84. [SP500] BAX (Baxter International): 1.2%
+  85. [SP500] SLB (Schlumberger): 1.2%
+  86. [SP500] NEM (Newmont): 1.2%
+  87. [SP500] HBAN (Huntington Bancshares): 1.2%
+  88. [SP500] ANET (Arista Networks): 1.2%
+  89. [SP500] CDNS (Cadence Design Systems): 1.1%
+  90. [SP500] CSGP (CoStar Group): 1.1%
+  91. [SP500] META (Meta Platforms): 1.1%
+  92. [SP500] IBM (IBM): 1.1%
+  93. [SP500] JBL (Jabil): 1.1%
+  94. [SP500] VEEV (Veeva Systems): 1.1%
+  95. [SP500] PWR (Quanta Services): 1.1%
+  96. [SP500] VST (Vistra Corp.): 1.1%
+  97. [SP500] DHI (D. R. Horton): 1.0%
+  98. [SP500] NWSA (News Corp (Class A)): 1.0%
+  99. [SP500] AVGO (Broadcom): 1.0%
+  100. [SP500] EIX (Edison International): 1.0%
+
+[20일] KOSPI - (no symbols) 0.0%
+
+[20일] KOSDAQ - (no symbols) 0.0%
+
+[20일] KONEX - (no symbols) 0.0%
+
+[20일] SP500 TOP 100
+  1. [SP500] KLAC (KLA Corporation): 84.7%
+  2. [SP500] LRCX (Lam Research): 80.3%
+  3. [SP500] SNDK (Sandisk): 54.2%
+  4. [SP500] INTC (Intel): 45.9%
+  5. [SP500] PSKY (Paramount Skydance Corporation): 31.0%
+  6. [SP500] VLO (Valero Energy): 30.9%
+  7. [SP500] COHR (Coherent Corp.): 28.8%
+  8. [SP500] MRVL (Marvell Technology): 28.2%
+  9. [SP500] TSLA (Tesla, Inc.): 20.8%
+  10. [SP500] SMCI (Supermicro): 20.3%
+  11. [SP500] GEV (GE Vernova): 19.9%
+  12. [SP500] CCL (Carnival Corporation): 17.2%
+  13. [SP500] NKE (Nike, Inc.): 12.5%
+  14. [SP500] ORCL (Oracle Corporation): 11.8%
+  15. [SP500] HAL (Halliburton): 11.7%
+  16. [SP500] MPC (Marathon Petroleum): 10.4%
+  17. [SP500] CRWD (CrowdStrike): 10.2%
+  18. [SP500] PNR (Pentair): 9.9%
+  19. [SP500] CHRW (C.H. Robinson): 9.0%
+  20. [SP500] CIEN (Ciena): 8.9%
+  21. [SP500] GIS (General Mills): 8.0%
+  22. [SP500] CSGP (CoStar Group): 7.1%
+  23. [SP500] MRNA (Moderna): 6.8%
+  24. [SP500] TTD (Trade Desk (The)): 6.2%
+  25. [SP500] UAL (United Airlines Holdings): 5.8%
+  26. [SP500] AMAT (Applied Materials): 5.7%
+  27. [SP500] MU (Micron Technology): 5.5%
+  28. [SP500] PSX (Phillips 66): 5.3%
+  29. [SP500] GLW (Corning Inc.): 5.1%
+  30. [SP500] MCHP (Microchip Technology): 5.0%
+  31. [SP500] DOW (Dow Inc.): 4.8%
+  32. [SP500] UNH (UnitedHealth Group): 4.7%
+  33. [SP500] PYPL (PayPal): 4.5%
+  34. [SP500] ECHO (EchoStar): 4.5%
+  35. [SP500] TER (Teradyne): 4.3%
+  36. [SP500] WSM (Williams-Sonoma, Inc.): 4.3%
+  37. [SP500] IVZ (Invesco): 4.2%
+  38. [SP500] WDC (Western Digital): 4.2%
+  39. [SP500] META (Meta Platforms): 4.1%
+  40. [SP500] GNRC (Generac): 4.0%
+  41. [SP500] PANW (Palo Alto Networks): 3.9%
+  42. [SP500] LITE (Lumentum): 3.9%
+  43. [SP500] BLDR (Builders FirstSource): 3.8%
+  44. [SP500] WDAY (Workday, Inc.): 3.7%
+  45. [SP500] LEN (Lennar): 3.7%
+  46. [SP500] VEEV (Veeva Systems): 3.5%
+  47. [SP500] LYB (LyondellBasell): 3.4%
+  48. [SP500] VRT (Vertiv): 3.2%
+  49. [SP500] CHTR (Charter Communications): 3.2%
+  50. [SP500] MOS (Mosaic Company (The)): 3.2%
+  51. [SP500] LUV (Southwest Airlines): 3.2%
+  52. [SP500] CTSH (Cognizant): 3.1%
+  53. [SP500] NVDA (Nvidia): 3.1%
+  54. [SP500] SW (Smurfit Westrock): 3.1%
+  55. [SP500] ADSK (Autodesk): 2.9%
+  56. [SP500] ADBE (Adobe Inc.): 2.9%
+  57. [SP500] VTRS (Viatris): 2.8%
+  58. [SP500] ELV (Elevance Health): 2.6%
+  59. [SP500] DDOG (Datadog): 2.6%
+  60. [SP500] APP (AppLovin): 2.5%
+  61. [SP500] DAL (Delta Air Lines): 2.4%
+  62. [SP500] ALB (Albemarle Corporation): 2.4%
+  63. [SP500] HPQ (HP Inc.): 2.4%
+  64. [SP500] ANET (Arista Networks): 2.3%
+  65. [SP500] SYF (Synchrony Financial): 2.3%
+  66. [SP500] CNC (Centene Corporation): 2.2%
+  67. [SP500] ROST (Ross Stores): 2.2%
+  68. [SP500] ROL (Rollins, Inc.): 2.1%
+  69. [SP500] AMD (Advanced Micro Devices): 2.1%
+  70. [SP500] IBM (IBM): 2.1%
+  71. [SP500] ALGN (Align Technology): 2.0%
+  72. [SP500] DECK (Deckers Brands): 1.9%
+  73. [SP500] FOXA (Fox Corporation (Class A)): 1.9%
+  74. [SP500] HPE (Hewlett Packard Enterprise): 1.8%
+  75. [SP500] HUM (Humana): 1.7%
+  76. [SP500] TXT (Textron): 1.7%
+  77. [SP500] IP (International Paper): 1.7%
+  78. [SP500] PHM (PulteGroup): 1.6%
+  79. [SP500] ACN (Accenture): 1.6%
+  80. [SP500] GPN (Global Payments): 1.6%
+  81. [SP500] CRM (Salesforce): 1.5%
+  82. [SP500] DG (Dollar General): 1.5%
+  83. [SP500] CVNA (Carvana): 1.5%
+  84. [SP500] VRSK (Verisk Analytics): 1.4%
+  85. [SP500] GEHC (GE HealthCare): 1.4%
+  86. [SP500] HII (Huntington Ingalls Industries): 1.4%
+  87. [SP500] MKC (McCormick & Company): 1.4%
+  88. [SP500] GDDY (GoDaddy): 1.4%
+  89. [SP500] AKAM (Akamai Technologies): 1.3%
+  90. [SP500] JBL (Jabil): 1.3%
+  91. [SP500] BKR (Baker Hughes): 1.3%
+  92. [SP500] BBY (Best Buy): 1.3%
+  93. [SP500] SNPS (Synopsys): 1.3%
+  94. [SP500] BAX (Baxter International): 1.3%
+  95. [SP500] GM (General Motors): 1.2%
+  96. [SP500] TSCO (Tractor Supply): 1.2%
+  97. [SP500] IFF (International Flavors & Fragrances): 1.2%
+  98. [SP500] TJX (TJX Companies): 1.2%
+  99. [SP500] ISRG (Intuitive Surgical): 1.2%
+  100. [SP500] LDOS (Leidos): 1.2%
+

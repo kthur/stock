@@ -58,7 +58,7 @@ class EventDrivenEngine:
                 url += f"&end_de={end_de}"
 
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
                 data = json.loads(resp.read().decode('utf-8'))
                 if data.get('status') == '000':
                     res = data.get('list', [])

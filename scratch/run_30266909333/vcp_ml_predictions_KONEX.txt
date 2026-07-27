@@ -1,0 +1,55 @@
+=== VCP ML Surge Predictions ===
+Date: 2026-07-27 17:21
+
+[1일] KOSPI TOP 1
+  1. [KOSPI] 005930 (Samsung Electronics): 1.0%
+
+[1일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 11.4%
+
+[1일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 1.0%
+
+[1일] SP500 TOP 2
+  1. [SP500] AAPL (Apple Inc.): 0.4%
+  2. [SP500] MSFT (Microsoft Corp.): 0.4%
+
+[3일] KOSPI TOP 1
+  1. [KOSPI] 005930 (Samsung Electronics): 1.5%
+
+[3일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 7.6%
+
+[3일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 1.5%
+
+[3일] SP500 TOP 2
+  1. [SP500] MSFT (Microsoft Corp.): 0.4%
+  2. [SP500] AAPL (Apple Inc.): 0.4%
+
+[5일] KOSPI TOP 1
+  1. [KOSPI] 005930 (Samsung Electronics): 2.9%
+
+[5일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 6.6%
+
+[5일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 3.2%
+
+[5일] SP500 TOP 2
+  1. [SP500] AAPL (Apple Inc.): 3.2%
+  2. [SP500] MSFT (Microsoft Corp.): 3.2%
+
+[20일] KOSPI TOP 1
+  1. [KOSPI] 005930 (Samsung Electronics): 4.2%
+
+[20일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 13.0%
+
+[20일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 1.8%
+
+[20일] SP500 TOP 2
+  1. [SP500] AAPL (Apple Inc.): 0.6%
+  2. [SP500] MSFT (Microsoft Corp.): 0.6%
+

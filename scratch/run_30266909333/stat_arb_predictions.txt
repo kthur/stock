@@ -1,0 +1,15 @@
+=== Statistical Arbitrage Cointegration Predictions ===
+Date: 2026-07-27 22:25 KST
+
+Total cointegrated pairs found: 200
+Pair                     Z-Score   Correlation    Beta      Signal              
+--------------------------------------------------------------------------------
+Total cointegrated pairs found: 200
+Pair                     Z-Score   Correlation    Beta      Signal              
+--------------------------------------------------------------------------------
+Total cointegrated pairs found: 200
+Pair                     Z-Score   Correlation    Beta      Signal              
+--------------------------------------------------------------------------------
+Total cointegrated pairs found: 200
+Pair                     Z-Score   Correlation    Beta      Signal              
+--------------------------------------------------------------------------------

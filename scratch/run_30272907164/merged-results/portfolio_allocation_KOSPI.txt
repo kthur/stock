@@ -1,0 +1,14 @@
+=== Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===
+Date: 2026-07-27 23:27
+Total Capital: 1,000,000,000 KRW/USD
+Target Horizon: 20d
+
+Current Market Regime Detected: BULL (Code: 2)
+Maximum Total Allocation Allowed: 85.0%
+
+No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+--------------------------------------------------------------------------------------------
+1   004080    신흥                  KOSPI         6.99%       0.15%     4.69%    46,870,077
+--------------------------------------------------------------------------------------------
+Allocated Capital:  4.69% (    46,870,077)
+Remaining Cash   : 95.31% (   953,129,923)

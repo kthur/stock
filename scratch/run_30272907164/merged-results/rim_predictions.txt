@@ -1,0 +1,389 @@
+=== RIM Intrinsic Valuation Predictions ===
+Date: 2026-07-27 23:48 KST
+
+Total symbols evaluated: 497
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score   
+-----------------------------------------------------------------------------------------------
+1    MMM       3M                  SP500     178.15      nan                  nan%       nan%
+2    AOS       A. O. Smith         SP500     62.15       nan                  nan%       nan%
+3    ABT       Abbott Laboratorie  SP500     104.01      nan                  nan%       nan%
+4    ABBV      AbbVie              SP500     261.64      nan                  nan%       nan%
+5    ACN       Accenture           SP500     152.14      nan                  nan%       nan%
+6    ADBE      Adobe Inc.          SP500     234.80      nan                  nan%       nan%
+7    AMD       Advanced Micro Dev  SP500     501.14      nan                  nan%       nan%
+8    AES       AES Corporation     SP500     14.85       nan                  nan%       nan%
+9    AFL       Aflac               SP500     126.08      nan                  nan%       nan%
+10   A         Agilent Technologi  SP500     137.71      nan                  nan%       nan%
+11   APD       Air Products        SP500     293.70      nan                  nan%       nan%
+12   ABNB      Airbnb              SP500     145.43      nan                  nan%       nan%
+13   AKAM      Akamai Technologie  SP500     113.72      nan                  nan%       nan%
+14   ALB       Albemarle Corporat  SP500     115.83      nan                  nan%       nan%
+15   ARE       Alexandria Real Es  SP500     51.76       nan                  nan%       nan%
+16   ALGN      Align Technology    SP500     170.73      nan                  nan%       nan%
+17   ALLE      Allegion            SP500     155.74      nan                  nan%       nan%
+18   LNT       Alliant Energy      SP500     74.84       nan                  nan%       nan%
+19   ALL       Allstate            SP500     260.55      nan                  nan%       nan%
+20   GOOGL     Alphabet Inc. (Cla  SP500     328.11      nan                  nan%       nan%
+21   GOOG      Alphabet Inc. (Cla  SP500     327.68      nan                  nan%       nan%
+22   MO        Altria              SP500     72.32       nan                  nan%       nan%
+23   AMZN      Amazon              SP500     234.46      nan                  nan%       nan%
+24   AMCR      Amcor               SP500     44.99       nan                  nan%       nan%
+25   AEE       Ameren              SP500     113.07      nan                  nan%       nan%
+26   AEP       American Electric   SP500     135.20      nan                  nan%       nan%
+27   AXP       American Express    SP500     332.61      nan                  nan%       nan%
+28   AIG       American Internati  SP500     79.65       nan                  nan%       nan%
+29   AMT       American Tower      SP500     166.38      nan                  nan%       nan%
+30   AWK       American Water Wor  SP500     135.21      nan                  nan%       nan%
+31   AMP       Ameriprise Financi  SP500     538.94      nan                  nan%       nan%
+32   AME       Ametek              SP500     242.20      nan                  nan%       nan%
+33   AMGN      Amgen               SP500     381.08      nan                  nan%       nan%
+34   APH       Amphenol            SP500     150.65      nan                  nan%       nan%
+35   ADI       Analog Devices      SP500     372.11      nan                  nan%       nan%
+36   AON       Aon plc             SP500     364.94      nan                  nan%       nan%
+37   APA       APA Corporation     SP500     35.69       nan                  nan%       nan%
+38   APO       Apollo Global Mana  SP500     125.33      nan                  nan%       nan%
+39   AAPL      Apple Inc.          SP500     336.73      nan                  nan%       nan%
+40   AMAT      Applied Materials   SP500     521.46      nan                  nan%       nan%
+41   APP       AppLovin            SP500     407.70      nan                  nan%       nan%
+42   APTV      Aptiv               SP500     56.90       nan                  nan%       nan%
+43   ACGL      Arch Capital Group  SP500     103.82      nan                  nan%       nan%
+44   ADM       Archer Daniels Mid  SP500     83.62       nan                  nan%       nan%
+45   ARES      Ares Management     SP500     130.20      nan                  nan%       nan%
+46   ANET      Arista Networks     SP500     169.93      nan                  nan%       nan%
+47   AJG       Arthur J. Gallaghe  SP500     251.01      nan                  nan%       nan%
+48   AIZ       Assurant            SP500     278.89      nan                  nan%       nan%
+49   T         AT&T                SP500     24.25       nan                  nan%       nan%
+50   ATO       Atmos Energy        SP500     178.71      nan                  nan%       nan%
+51   ADSK      Autodesk            SP500     218.64      nan                  nan%       nan%
+52   ADP       Automatic Data Pro  SP500     254.05      nan                  nan%       nan%
+53   AZO       AutoZone            SP500     3022.67     nan                  nan%       nan%
+54   AVB       AvalonBay Communit  SP500     189.62      nan                  nan%       nan%
+55   AVY       Avery Dennison      SP500     162.40      nan                  nan%       nan%
+56   AXON      Axon Enterprise     SP500     521.38      nan                  nan%       nan%
+57   BKR       Baker Hughes        SP500     62.30       nan                  nan%       nan%
+58   BALL      Ball Corporation    SP500     64.78       nan                  nan%       nan%
+59   BAC       Bank of America     SP500     62.71       nan                  nan%       nan%
+60   BAX       Baxter Internation  SP500     23.19       nan                  nan%       nan%
+61   BDX       Becton Dickinson    SP500     158.48      nan                  nan%       nan%
+62   BBY       Best Buy            SP500     87.39       nan                  nan%       nan%
+63   TECH      Bio-Techne          SP500     71.71       nan                  nan%       nan%
+64   BIIB      Biogen              SP500     203.98      nan                  nan%       nan%
+65   BLK       BlackRock           SP500     1061.90     nan                  nan%       nan%
+66   BX        Blackstone Inc.     SP500     134.04      nan                  nan%       nan%
+67   XYZ       Block, Inc.         SP500     79.90       nan                  nan%       nan%
+68   BNY       BNY Mellon          SP500     159.41      nan                  nan%       nan%
+69   BA        Boeing              SP500     213.88      nan                  nan%       nan%
+70   BKNG      Booking Holdings    SP500     183.37      nan                  nan%       nan%
+71   BSX       Boston Scientific   SP500     45.90       nan                  nan%       nan%
+72   BMY       Bristol Myers Squi  SP500     63.04       nan                  nan%       nan%
+73   AVGO      Broadcom            SP500     381.44      nan                  nan%       nan%
+74   BR        Broadridge Financi  SP500     151.76      nan                  nan%       nan%
+75   BRO       Brown & Brown       SP500     68.94       nan                  nan%       nan%
+76   CHRW      C.H. Robinson       SP500     179.04      nan                  nan%       nan%
+77   BG        Bunge Global        SP500     117.99      nan                  nan%       nan%
+78   BXP       BXP, Inc.           SP500     69.55       nan                  nan%       nan%
+79   BLDR      Builders FirstSour  SP500     73.17       nan                  nan%       nan%
+80   CDNS      Cadence Design Sys  SP500     338.63      nan                  nan%       nan%
+81   CPT       Camden Property Tr  SP500     113.48      nan                  nan%       nan%
+82   COF       Capital One         SP500     207.58      nan                  nan%       nan%
+83   CAH       Cardinal Health     SP500     228.28      nan                  nan%       nan%
+84   CCL       Carnival Corporati  SP500     27.20       nan                  nan%       nan%
+85   CARR      Carrier Global      SP500     69.05       nan                  nan%       nan%
+86   CVNA      Carvana             SP500     63.77       nan                  nan%       nan%
+87   CASY      Casey's             SP500     856.58      nan                  nan%       nan%
+88   CAT       Caterpillar Inc.    SP500     873.90      nan                  nan%       nan%
+89   CBOE      Cboe Global Market  SP500     282.51      nan                  nan%       nan%
+90   CBRE      CBRE Group          SP500     142.37      nan                  nan%       nan%
+91   CDW       CDW Corporation     SP500     137.94      nan                  nan%       nan%
+92   COR       Cencora             SP500     309.42      nan                  nan%       nan%
+93   CNC       Centene Corporatio  SP500     63.10       nan                  nan%       nan%
+94   CNP       CenterPoint Energy  SP500     44.25       nan                  nan%       nan%
+95   CF        CF Industries       SP500     120.79      nan                  nan%       nan%
+96   CRL       Charles River Labo  SP500     226.45      nan                  nan%       nan%
+97   SCHW      Charles Schwab Cor  SP500     103.93      nan                  nan%       nan%
+98   CHTR      Charter Communicat  SP500     127.42      nan                  nan%       nan%
+99   CVX       Chevron Corporatio  SP500     192.24      nan                  nan%       nan%
+100  CMG       Chipotle Mexican G  SP500     32.91       nan                  nan%       nan%
+Total symbols evaluated: 898
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score   
+-----------------------------------------------------------------------------------------------
+1    005930    삼성전자                KOSPI     254000.00   nan                  nan%       nan%
+2    000660    SK하이닉스              KOSPI     1816000.00  nan                  nan%       nan%
+3    402340    SK스퀘어               KOSPI     1096000.00  nan                  nan%       nan%
+4    005935    삼성전자우               KOSPI     179800.00   nan                  nan%       nan%
+5    009150    삼성전기                KOSPI     1325000.00  nan                  nan%       nan%
+6    005380    현대차                 KOSPI     403000.00   nan                  nan%       nan%
+7    373220    LG에너지솔루션            KOSPI     333000.00   nan                  nan%       nan%
+8    105560    KB금융                KOSPI     172600.00   nan                  nan%       nan%
+9    032830    삼성생명                KOSPI     311500.00   nan                  nan%       nan%
+10   207940    삼성바이오로직스            KOSPI     1545000.00  nan                  nan%       nan%
+11   028260    삼성물산                KOSPI     339500.00   nan                  nan%       nan%
+12   000270    기아                  KOSPI     130400.00   nan                  nan%       nan%
+13   055550    신한지주                KOSPI     105000.00   nan                  nan%       nan%
+14   329180    HD현대중공업             KOSPI     486500.00   nan                  nan%       nan%
+15   012450    한화에어로스페이스           KOSPI     899000.00   nan                  nan%       nan%
+16   034020    두산에너빌리티             KOSPI     70900.00    nan                  nan%       nan%
+17   012330    현대모비스               KOSPI     463500.00   nan                  nan%       nan%
+18   034730    SK                  KOSPI     623000.00   nan                  nan%       nan%
+19   068270    셀트리온                KOSPI     178700.00   nan                  nan%       nan%
+20   086790    하나금융지주              KOSPI     130600.00   nan                  nan%       nan%
+21   006400    삼성SDI               KOSPI     431000.00   nan                  nan%       nan%
+22   066570    LG전자                KOSPI     172300.00   nan                  nan%       nan%
+23   035420    NAVER               KOSPI     225000.00   nan                  nan%       nan%
+24   000810    삼성화재                KOSPI     645000.00   nan                  nan%       nan%
+25   267260    HD현대일렉트릭            KOSPI     797000.00   nan                  nan%       nan%
+26   010120    LS ELECTRIC         KOSPI     200000.00   nan                  nan%       nan%
+27   298040    효성중공업               KOSPI     2625000.00  nan                  nan%       nan%
+28   005490    POSCO홀딩스            KOSPI     316000.00   nan                  nan%       nan%
+29   009540    HD한국조선해양            KOSPI     378500.00   nan                  nan%       nan%
+30   042660    한화오션                KOSPI     88800.00    nan                  nan%       nan%
+31   316140    우리금융지주              KOSPI     33100.00    nan                  nan%       nan%
+32   006800    미래에셋증권              KOSPI     37050.00    nan                  nan%       nan%
+33   015760    한국전력                KOSPI     36200.00    nan                  nan%       nan%
+34   010130    고려아연                KOSPI     1029000.00  nan                  nan%       nan%
+35   000150    두산                  KOSPI     1197000.00  nan                  nan%       nan%
+36   042700    한미반도체               KOSPI     204500.00   nan                  nan%       nan%
+37   138040    메리츠금융지주             KOSPI     125600.00   nan                  nan%       nan%
+38   010140    삼성중공업               KOSPI     22650.00    nan                  nan%       nan%
+39   096770    SK이노베이션             KOSPI     116700.00   nan                  nan%       nan%
+40   064350    현대로템                KOSPI     132500.00   nan                  nan%       nan%
+41   011200    HMM                 KOSPI     20650.00    nan                  nan%       nan%
+42   017670    SK텔레콤               KOSPI     97900.00    nan                  nan%       nan%
+43   051910    LG화학                KOSPI     260000.00   nan                  nan%       nan%
+44   033780    KT&G                KOSPI     182600.00   nan                  nan%       nan%
+45   024110    기업은행                KOSPI     21350.00    nan                  nan%       nan%
+46   079550    LIG디펜스앤에어로스페이스      KOSPI     696000.00   nan                  nan%       nan%
+47   010950    S-Oil               KOSPI     136400.00   nan                  nan%       nan%
+48   011070    LG이노텍               KOSPI     614000.00   nan                  nan%       nan%
+49   267250    HD현대                KOSPI     210500.00   nan                  nan%       nan%
+50   035720    카카오                 KOSPI     37050.00    nan                  nan%       nan%
+51   003550    LG                  KOSPI     97700.00    nan                  nan%       nan%
+52   018260    삼성에스디에스             KOSPI     217500.00   nan                  nan%       nan%
+53   278470    에이피알                KOSPI     354500.00   nan                  nan%       nan%
+54   086280    현대글로비스              KOSPI     204500.00   nan                  nan%       nan%
+55   047810    한국항공우주              KOSPI     146200.00   nan                  nan%       nan%
+56   003670    포스코퓨처엠              KOSPI     143600.00   nan                  nan%       nan%
+57   030200    KT                  KOSPI     54400.00    nan                  nan%       nan%
+58   071050    한국금융지주              KOSPI     212500.00   nan                  nan%       nan%
+59   272210    한화시스템               KOSPI     63000.00    nan                  nan%       nan%
+60   307950    현대오토에버              KOSPI     394000.00   nan                  nan%       nan%
+61   000720    현대건설                KOSPI     103600.00   nan                  nan%       nan%
+62   323410    카카오뱅크               KOSPI     22150.00    nan                  nan%       nan%
+63   005940    NH투자증권              KOSPI     29250.00    nan                  nan%       nan%
+64   259960    크래프톤                KOSPI     248000.00   nan                  nan%       nan%
+65   005830    DB손해보험              KOSPI     163400.00   nan                  nan%       nan%
+66   016360    삼성증권                KOSPI     101400.00   nan                  nan%       nan%
+67   003490    대한항공                KOSPI     26450.00    nan                  nan%       nan%
+68   006260    LS                  KOSPI     305000.00   nan                  nan%       nan%
+69   352820    하이브                 KOSPI     225000.00   nan                  nan%       nan%
+70   047050    포스코인터내셔널            KOSPI     52700.00    nan                  nan%       nan%
+71   180640    한진칼                 KOSPI     110700.00   nan                  nan%       nan%
+72   443060    HD현대마린솔루션           KOSPI     206000.00   nan                  nan%       nan%
+73   161390    한국타이어앤테크놀로지         KOSPI     69800.00    nan                  nan%       nan%
+74   039490    키움증권                KOSPI     300000.00   nan                  nan%       nan%
+75   003230    삼양식품                KOSPI     1220000.00  nan                  nan%       nan%
+76   028050    삼성E&A               KOSPI     47650.00    nan                  nan%       nan%
+77   078930    GS                  KOSPI     91600.00    nan                  nan%       nan%
+78   007660    이수페타시스              KOSPI     85800.00    nan                  nan%       nan%
+79   090430    아모레퍼시픽              KOSPI     123500.00   nan                  nan%       nan%
+80   005387    현대차2우B              KOSPI     196000.00   nan                  nan%       nan%
+81   064400    LG씨엔에스              KOSPI     67000.00    nan                  nan%       nan%
+82   047040    대우건설                KOSPI     15180.00    nan                  nan%       nan%
+83   000880    한화                  KOSPI     93800.00    nan                  nan%       nan%
+84   021240    코웨이                 KOSPI     92300.00    nan                  nan%       nan%
+85   326030    SK바이오팜              KOSPI     81900.00    nan                  nan%       nan%
+86   032640    LG유플러스              KOSPI     14710.00    nan                  nan%       nan%
+87   267270    HD건설기계              KOSPI     134600.00   nan                  nan%       nan%
+88   241560    두산밥캣                KOSPI     64200.00    nan                  nan%       nan%
+89   138930    BNK금융지주             KOSPI     18120.00    nan                  nan%       nan%
+90   353200    대덕전자                KOSPI     109400.00   nan                  nan%       nan%
+91   004170    신세계                 KOSPI     517000.00   nan                  nan%       nan%
+92   001440    대한전선                KOSPI     28500.00    nan                  nan%       nan%
+93   029780    삼성카드                KOSPI     50200.00    nan                  nan%       nan%
+94   009830    한화솔루션               KOSPI     26200.00    nan                  nan%       nan%
+95   000100    유한양행                KOSPI     72000.00    nan                  nan%       nan%
+96   377300    카카오페이               KOSPI     44750.00    nan                  nan%       nan%
+97   271560    오리온                 KOSPI     130000.00   nan                  nan%       nan%
+98   175330    JB금융지주              KOSPI     28750.00    nan                  nan%       nan%
+99   062040    산일전기                KOSPI     166400.00   nan                  nan%       nan%
+100  036570    NC                  KOSPI     232500.00   nan                  nan%       nan%
+Total symbols evaluated: 1573
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score   
+-----------------------------------------------------------------------------------------------
+1    277810    레인보우로보틱스            KOSDAQ    446000.00   nan                  nan%       nan%
+2    950160    코오롱티슈진              KOSDAQ    15910.00    nan                  nan%       nan%
+3    319660    피에스케이               KOSDAQ    146000.00   nan                  nan%       nan%
+4    039030    이오테크닉스              KOSDAQ    309000.00   nan                  nan%       nan%
+5    000250    삼천당제약               KOSDAQ    149400.00   nan                  nan%       nan%
+6    440110    파두                  KOSDAQ    64900.00    nan                  nan%       nan%
+7    347850    디앤디파마텍              KOSDAQ    59000.00    nan                  nan%       nan%
+8    084370    유진테크                KOSDAQ    112300.00   nan                  nan%       nan%
+9    028300    HLB                 KOSDAQ    31450.00    nan                  nan%       nan%
+10   214370    케어젠                 KOSDAQ    59700.00    nan                  nan%       nan%
+11   095340    ISC                 KOSDAQ    137000.00   nan                  nan%       nan%
+12   031980    피에스케이홀딩스            KOSDAQ    111500.00   nan                  nan%       nan%
+13   108490    로보티즈                KOSDAQ    201000.00   nan                  nan%       nan%
+14   145020    휴젤                  KOSDAQ    243000.00   nan                  nan%       nan%
+15   131290    티에스이                KOSDAQ    209000.00   nan                  nan%       nan%
+16   310210    보로노이                KOSDAQ    125900.00   nan                  nan%       nan%
+17   080220    제주반도체               KOSDAQ    74000.00    nan                  nan%       nan%
+18   067310    하나마이크론              KOSDAQ    35200.00    nan                  nan%       nan%
+19   087010    펩트론                 KOSDAQ    128900.00   nan                  nan%       nan%
+20   257720    실리콘투                KOSDAQ    38400.00    nan                  nan%       nan%
+21   178320    서진시스템               KOSDAQ    39800.00    nan                  nan%       nan%
+22   089970    브이엠                 KOSDAQ    74900.00    nan                  nan%       nan%
+23   319400    현대무벡스               KOSDAQ    21850.00    nan                  nan%       nan%
+24   005290    동진쎄미켐               KOSDAQ    42500.00    nan                  nan%       nan%
+25   263750    펄어비스                KOSDAQ    35250.00    nan                  nan%       nan%
+26   420770    기가비스                KOSDAQ    115600.00   nan                  nan%       nan%
+27   290650    엘앤씨바이오              KOSDAQ    58100.00    nan                  nan%       nan%
+28   032820    우리기술                KOSDAQ    10130.00    nan                  nan%       nan%
+29   068760    셀트리온제약              KOSDAQ    40850.00    nan                  nan%       nan%
+30   098460    고영                  KOSDAQ    27650.00    nan                  nan%       nan%
+31   010170    대한광통신               KOSDAQ    9740.00     nan                  nan%       nan%
+32   140410    메지온                 KOSDAQ    60600.00    nan                  nan%       nan%
+33   183300    코미코                 KOSDAQ    63500.00    nan                  nan%       nan%
+34   089030    테크윙                 KOSDAQ    44550.00    nan                  nan%       nan%
+35   058610    에스피지                KOSDAQ    75000.00    nan                  nan%       nan%
+36   007390    네이처셀                KOSDAQ    24150.00    nan                  nan%       nan%
+37   083650    비에이치아이              KOSDAQ    44400.00    nan                  nan%       nan%
+38   060370    LS마린솔루션             KOSDAQ    30000.00    nan                  nan%       nan%
+39   030530    원익홀딩스               KOSDAQ    16960.00    nan                  nan%       nan%
+40   043260    성호전자                KOSDAQ    17510.00    nan                  nan%       nan%
+41   127120    제이에스링크              KOSDAQ    33300.00    nan                  nan%       nan%
+42   078600    대주전자재료              KOSDAQ    75700.00    nan                  nan%       nan%
+43   458870    씨어스                 KOSDAQ    27350.00    nan                  nan%       nan%
+44   218410    RFHIC               KOSDAQ    45450.00    nan                  nan%       nan%
+45   039200    오스코텍                KOSDAQ    31600.00    nan                  nan%       nan%
+46   166090    하나머티리얼즈             KOSDAQ    56100.00    nan                  nan%       nan%
+47   323280    태성                  KOSDAQ    33100.00    nan                  nan%       nan%
+48   031330    에스에이엠티              KOSDAQ    10130.00    nan                  nan%       nan%
+49   347700    스피어                 KOSDAQ    16960.00    nan                  nan%       nan%
+50   437730    삼현                  KOSDAQ    33400.00    nan                  nan%       nan%
+51   475830    오름테라퓨틱              KOSDAQ    47450.00    nan                  nan%       nan%
+52   204270    제이앤티씨               KOSDAQ    13970.00    nan                  nan%       nan%
+53   085660    차바이오텍               KOSDAQ    8960.00     nan                  nan%       nan%
+54   099320    쎄트렉아이               KOSDAQ    75200.00    nan                  nan%       nan%
+55   036540    SFA반도체              KOSDAQ    5280.00     nan                  nan%       nan%
+56   083450    GST                 KOSDAQ    44000.00    nan                  nan%       nan%
+57   232140    와이씨                 KOSDAQ    9510.00     nan                  nan%       nan%
+58   100790    미래에셋벤처투자            KOSDAQ    13500.00    nan                  nan%       nan%
+59   417200    LS머트리얼즈             KOSDAQ    11670.00    nan                  nan%       nan%
+60   281740    레이크머티리얼즈            KOSDAQ    11780.00    nan                  nan%       nan%
+61   090710    휴림로봇                KOSDAQ    6710.00     nan                  nan%       nan%
+62   074600    원익QnC               KOSDAQ    26750.00    nan                  nan%       nan%
+63   065350    신성델타테크              KOSDAQ    28150.00    nan                  nan%       nan%
+64   019210    와이지-원               KOSDAQ    20200.00    nan                  nan%       nan%
+65   388720    유일로보틱스              KOSDAQ    63400.00    nan                  nan%       nan%
+66   252990    샘씨엔에스               KOSDAQ    12760.00    nan                  nan%       nan%
+67   445680    큐리옥스바이오시스템즈         KOSDAQ    39950.00    nan                  nan%       nan%
+68   328130    루닛                  KOSDAQ    9610.00     nan                  nan%       nan%
+69   356860    티엘비                 KOSDAQ    29100.00    nan                  nan%       nan%
+70   213420    덕산네오룩스              KOSDAQ    30300.00    nan                  nan%       nan%
+71   189300    인텔리안테크              KOSDAQ    61500.00    nan                  nan%       nan%
+72   041830    인바디                 KOSDAQ    50500.00    nan                  nan%       nan%
+73   032190    다우데이타               KOSDAQ    18580.00    nan                  nan%       nan%
+74   161580    필옵틱스                KOSDAQ    26650.00    nan                  nan%       nan%
+75   115180    큐리언트                KOSDAQ    17970.00    nan                  nan%       nan%
+76   048410    현대바이오               KOSDAQ    6160.00     nan                  nan%       nan%
+77   032500    케이엠더블유              KOSDAQ    15680.00    nan                  nan%       nan%
+78   122640    예스티                 KOSDAQ    22000.00    nan                  nan%       nan%
+79   094170    동운아나텍               KOSDAQ    29300.00    nan                  nan%       nan%
+80   090360    로보스타                KOSDAQ    63700.00    nan                  nan%       nan%
+81   093320    케이아이엔엑스             KOSDAQ    143200.00   nan                  nan%       nan%
+82   466100    클로봇                 KOSDAQ    25300.00    nan                  nan%       nan%
+83   397030    에이프릴바이오             KOSDAQ    25050.00    nan                  nan%       nan%
+84   053800    안랩                  KOSDAQ    54500.00    nan                  nan%       nan%
+85   112040    위메이드                KOSDAQ    15610.00    nan                  nan%       nan%
+86   045100    한양이엔지               KOSDAQ    32050.00    nan                  nan%       nan%
+87   053610    프로텍                 KOSDAQ    64800.00    nan                  nan%       nan%
+88   376900    로킷헬스케어              KOSDAQ    42700.00    nan                  nan%       nan%
+89   050890    쏠리드                 KOSDAQ    9270.00     nan                  nan%       nan%
+90   102710    이엔에프테크놀로지           KOSDAQ    43600.00    nan                  nan%       nan%
+91   399720    가온칩스                KOSDAQ    50900.00    nan                  nan%       nan%
+92   225570    넥슨게임즈               KOSDAQ    8950.00     nan                  nan%       nan%
+93   064290    인텍플러스               KOSDAQ    31200.00    nan                  nan%       nan%
+94   383310    에코프로에이치엔            KOSDAQ    24850.00    nan                  nan%       nan%
+95   170920    엘티씨                 KOSDAQ    40300.00    nan                  nan%       nan%
+96   121600    나노신소재               KOSDAQ    42350.00    nan                  nan%       nan%
+97   295310    에이치브이엠              KOSDAQ    40100.00    nan                  nan%       nan%
+98   171090    선익시스템               KOSDAQ    63600.00    nan                  nan%       nan%
+99   041960    코미팜                 KOSDAQ    6990.00     nan                  nan%       nan%
+100  037460    삼지전자                KOSDAQ    34750.00    nan                  nan%       nan%
+Total symbols evaluated: 74
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score   
+-----------------------------------------------------------------------------------------------
+1    232530    이엠티                 KONEX     10000.00    nan                  nan%       nan%
+2    140610    엔솔바이오사이언스           KONEX     11910.00    nan                  nan%       nan%
+3    260870    SK시그넷               KONEX     7470.00     nan                  nan%       nan%
+4    217950    파마리서치바이오            KONEX     31450.00    nan                  nan%       nan%
+5    229500    노브메타파마              KONEX     5520.00     nan                  nan%       nan%
+6    250030    진코스텍                KONEX     23950.00    nan                  nan%       nan%
+7    456570    아이엠지티               KONEX     10890.00    nan                  nan%       nan%
+8    180060    탑선                  KONEX     4900.00     nan                  nan%       nan%
+9    296160    프로젠                 KONEX     2795.00     nan                  nan%       nan%
+10   162120    루켄테크놀러지스            KONEX     3180.00     nan                  nan%       nan%
+11   112190    KC산업                KONEX     1287.00     nan                  nan%       nan%
+12   122830    원포유                 KONEX     1235.00     nan                  nan%       nan%
+13   446440    에피바이오텍              KONEX     12580.00    nan                  nan%       nan%
+14   337840    유엑스엔                KONEX     6290.00     nan                  nan%       nan%
+15   311060    엘에이티                KONEX     3385.00     nan                  nan%       nan%
+16   270210    에스알바이오텍             KONEX     14930.00    nan                  nan%       nan%
+17   227420    도부                  KONEX     675.00      nan                  nan%       nan%
+18   243870    아이티센코어              KONEX     8200.00     nan                  nan%       nan%
+19   233990    질경이                 KONEX     1478.00     nan                  nan%       nan%
+20   207490    에이펙스인텍              KONEX     6410.00     nan                  nan%       nan%
+21   102950    아하                  KONEX     1827.00     nan                  nan%       nan%
+22   331660    한국미라클피플사            KONEX     3785.00     nan                  nan%       nan%
+23   403360    라피치                 KONEX     6390.00     nan                  nan%       nan%
+24   354390    바스칸바이오제약            KONEX     4000.00     nan                  nan%       nan%
+25   206950    볼빅                  KONEX     1640.00     nan                  nan%       nan%
+26   317860    노드메이슨               KONEX     4795.00     nan                  nan%       nan%
+27   278990    EMB                 KONEX     2650.00     nan                  nan%       nan%
+28   322970    무진메디                KONEX     1850.00     nan                  nan%       nan%
+29   254160    제이엠멀티               KONEX     3200.00     nan                  nan%       nan%
+30   052960    태양3C                KONEX     3295.00     nan                  nan%       nan%
+31   336040    타스컴                 KONEX     2600.00     nan                  nan%       nan%
+32   434190    탈로스                 KONEX     2100.00     nan                  nan%       nan%
+33   233250    메디안디노스틱             KONEX     5780.00     nan                  nan%       nan%
+34   208850    이비테크                KONEX     4700.00     nan                  nan%       nan%
+35   086220    광동헬스바이오             KONEX     615.00      nan                  nan%       nan%
+36   217880    틸론                  KONEX     979.00      nan                  nan%       nan%
+37   169670    코스텍시스템              KONEX     3750.00     nan                  nan%       nan%
+38   289170    바이오텐                KONEX     2750.00     nan                  nan%       nan%
+39   176590    코나솔                 KONEX     1605.00     nan                  nan%       nan%
+40   149010    아이케이세미콘             KONEX     3470.00     nan                  nan%       nan%
+41   103660    씨앗                  KONEX     1696.00     nan                  nan%       nan%
+42   253610    루트락                 KONEX     873.00      nan                  nan%       nan%
+43   199150    데이터스트림즈             KONEX     2000.00     nan                  nan%       nan%
+44   114920    대주이엔티               KONEX     2335.00     nan                  nan%       nan%
+45   244880    나눔테크                KONEX     1733.00     nan                  nan%       nan%
+46   185190    수프로                 KONEX     997.00      nan                  nan%       nan%
+47   318660    타임기술                KONEX     3485.00     nan                  nan%       nan%
+48   189350    코셋                  KONEX     1844.00     nan                  nan%       nan%
+49   236340    메디젠휴먼케어             KONEX     2700.00     nan                  nan%       nan%
+50   447690    아이오바이오              KONEX     2475.00     nan                  nan%       nan%
+51   178600    대동고려삼               KONEX     1699.00     nan                  nan%       nan%
+52   234070    에이원큐브텍              KONEX     920.00      nan                  nan%       nan%
+53   224810    엄지하우스               KONEX     1494.00     nan                  nan%       nan%
+54   199290    바이오프로테크             KONEX     428.00      nan                  nan%       nan%
+55   251280    안지오랩                KONEX     1793.00     nan                  nan%       nan%
+56   276240    엘리비젼                KONEX     450.00      nan                  nan%       nan%
+57   311960    인터로이드               KONEX     2090.00     nan                  nan%       nan%
+58   121060    유니포인트               KONEX     750.00      nan                  nan%       nan%
+59   236030    씨알푸드                KONEX     2455.00     nan                  nan%       nan%
+60   215570    크로넥스                KONEX     800.00      nan                  nan%       nan%
+61   116100    태양기계                KONEX     649.00      nan                  nan%       nan%
+62   299480    지앤이헬스케어             KONEX     694.00      nan                  nan%       nan%
+63   217910    에스제이켐               KONEX     361.00      nan                  nan%       nan%
+64   341170    퓨쳐메디신               KONEX     389.00      nan                  nan%       nan%
+65   402420    켈스                  KONEX     1500.00     nan                  nan%       nan%
+66   216400    인바이츠바이오코아           KONEX     394.00      nan                  nan%       nan%
+67   136660    큐엠씨                 KONEX     1201.00     nan                  nan%       nan%
+68   202960    판도라티비               KONEX     320.00      nan                  nan%       nan%
+69   266470    바이오인프라생명과학          KONEX     135.00      nan                  nan%       nan%
+70   245450    씨앤에스링크              KONEX     1599.00     nan                  nan%       nan%
+71   448780    마이크로엔엑스             KONEX     760.00      nan                  nan%       nan%
+72   223220    로지스몬                KONEX     219.00      nan                  nan%       nan%
+73   140660    위월드                 KONEX     651.00      nan                  nan%       nan%
+74   390110    애니메디솔루션             KONEX     59.00       nan                  nan%       nan%

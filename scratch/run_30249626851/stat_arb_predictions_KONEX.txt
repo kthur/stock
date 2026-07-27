@@ -1,0 +1,6 @@
+=== Statistical Arbitrage Pairs & Signals (Top 200 Valid Pairs) ===
+Date: 2026-07-27 17:30
+Total cointegrated pairs found: 206 (Showing top 32)
+
+Pair                     Z-Score   Correlation    Beta      Signal              
+--------------------------------------------------------------------------------
