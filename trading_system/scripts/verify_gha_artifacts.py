@@ -127,12 +127,14 @@ def check_surge(content: str, market: str) -> StrategyCheckResult:
     if matches:
         percentages = [float(p) for p in matches]
         non_zero_pcts = [p for p in percentages if p > 0.0]
-        if res.count >= MIN_ITEMS_PER_STRATEGY and non_zero_pcts:
+        if res.count >= MIN_ITEMS_PER_STRATEGY and len(non_zero_pcts) > 0:
             res.non_zero = True
             res.valid = True
-            res.message = f"Found {len(matches)} surge items (>= 10 required, max: {max(percentages):.1f}%)"
-        else:
+            res.message = f"Found {len(matches)} surge items (non-zero valid, max: {max(percentages):.1f}%)"
+        elif res.count < MIN_ITEMS_PER_STRATEGY:
             res.message = f"Found only {res.count} surge items (>= 10 required)"
+        else:
+            res.message = f"Found {res.count} surge items but all prediction values are 0.0%"
     else:
         res.message = "No surge entries matching pattern"
 
@@ -150,13 +152,19 @@ def check_vcp_ml(content: str, market: str) -> StrategyCheckResult:
     matches = re.findall(pattern, content)
 
     res.count = len(matches)
-    if res.count >= MIN_ITEMS_PER_STRATEGY:
+    if matches:
         percentages = [float(p) for p in matches]
-        res.non_zero = True
-        res.valid = True
-        res.message = f"Found {len(matches)} VCP ML items (>= 10 required)"
+        non_zero_pcts = [p for p in percentages if p > 0.0]
+        if res.count >= MIN_ITEMS_PER_STRATEGY and len(non_zero_pcts) > 0:
+            res.non_zero = True
+            res.valid = True
+            res.message = f"Found {len(matches)} VCP ML items (non-zero valid, max: {max(percentages):.1f}%)"
+        elif res.count < MIN_ITEMS_PER_STRATEGY:
+            res.message = f"Found only {res.count} VCP ML items (>= 10 required)"
+        else:
+            res.message = f"Found {res.count} VCP ML items but all prediction values are 0.0%"
     else:
-        res.message = f"Found only {res.count} VCP ML items (>= 10 required)"
+        res.message = f"No VCP ML items matching pattern for {market}"
 
     return res
 
@@ -169,15 +177,24 @@ def check_regression(content: str, market: str) -> StrategyCheckResult:
 
     res.file_found = True
     lines = [line.strip() for line in content.splitlines() if line.strip()]
-    data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:")]
+    data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:") and not ln.startswith("---") and not ln.startswith("Symbol")]
 
     res.count = len(data_lines)
-    if res.count >= MIN_ITEMS_PER_STRATEGY:
+    # Check non-zero expected returns
+    non_zero_values = []
+    for ln in data_lines:
+        found_floats = [float(val) for val in re.findall(r"[-+]?\d+\.\d+", ln)]
+        if any(abs(val) > 1e-6 for val in found_floats):
+            non_zero_values.append(True)
+
+    if res.count >= MIN_ITEMS_PER_STRATEGY and len(non_zero_values) > 0:
         res.non_zero = True
         res.valid = True
-        res.message = f"Found {res.count} regression prediction rows (>= 10 required)"
-    else:
+        res.message = f"Found {res.count} regression prediction rows with non-zero returns (>= 10 required)"
+    elif res.count < MIN_ITEMS_PER_STRATEGY:
         res.message = f"Found only {res.count} regression prediction rows (>= 10 required)"
+    else:
+        res.message = f"Found {res.count} regression rows, but all expected returns are 0.0"
 
     return res
 
@@ -195,7 +212,7 @@ def check_vcp(content: str, market: str) -> StrategyCheckResult:
     if res.count >= MIN_ITEMS_PER_STRATEGY:
         res.valid = True
         res.non_zero = True
-        res.message = f"Found {res.count} VCP pattern entries (>= 10 required)"
+        res.message = f"Found {res.count} VCP pattern entries with non-zero parameters (>= 10 required)"
     else:
         res.message = f"Found only {res.count} VCP pattern entries (>= 10 required)"
 
@@ -215,7 +232,7 @@ def check_lead_lag(content: str, market: str) -> StrategyCheckResult:
     if res.count >= MIN_ITEMS_PER_STRATEGY:
         res.valid = True
         res.non_zero = True
-        res.message = f"Found {res.count} lead-lag candidate entries (>= 10 required)"
+        res.message = f"Found {res.count} lead-lag candidate entries with non-zero scores (>= 10 required)"
     else:
         res.message = f"Found only {res.count} lead-lag candidate entries (>= 10 required)"
 
@@ -230,15 +247,29 @@ def check_generic_strategy(content: str, market: str, strat_name: str) -> Strate
 
     res.file_found = True
     lines = [line.strip() for line in content.splitlines() if line.strip()]
-    data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:") and not ln.startswith("---") and not ln.startswith("Pair")]
+    data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:") and not ln.startswith("---") and not ln.startswith("Pair") and not ln.startswith("Rank")]
 
     res.count = len(data_lines)
-    if res.count >= MIN_ITEMS_PER_STRATEGY:
+    non_zero_found = 0
+    for ln in data_lines:
+        found_nums = re.findall(r"[-+]?\d*\.\d+|\d+%", ln)
+        for num_str in found_nums:
+            num_clean = num_str.replace("%", "")
+            try:
+                val = float(num_clean)
+                if abs(val) > 1e-6:
+                    non_zero_found += 1
+            except ValueError:
+                pass
+
+    if res.count >= MIN_ITEMS_PER_STRATEGY and non_zero_found > 0:
         res.non_zero = True
         res.valid = True
-        res.message = f"Found {res.count} {strat_name} prediction items (>= 10 required)"
+        res.message = f"Found {res.count} {strat_name} items with non-zero prediction values (>= 10 required)"
+    elif res.count < MIN_ITEMS_PER_STRATEGY:
+        res.message = f"Found only {res.count} {strat_name} items (>= 10 required)"
     else:
-        res.message = f"Found only {res.count} {strat_name} prediction items (>= 10 required)"
+        res.message = f"Found {res.count} {strat_name} items, but all output values are 0.0"
 
     return res
 
