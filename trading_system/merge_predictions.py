@@ -414,6 +414,7 @@ def main():
     merge_lead_lag_predictions(result_dir, target_dirs)
 
     # Merge remaining 14 strategy individual outputs
+    merge_generic_strategy_files(result_dir, target_dirs, "lstm_predictions.txt", "Strict Causal LSTM Time-Series Deep Learning Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "sector_predictions.txt", "Sector Rotation Momentum & Macro Sensitivity Report")
     merge_generic_strategy_files(result_dir, target_dirs, "rim_predictions.txt", "RIM Intrinsic Valuation Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "event_driven_predictions.txt", "Event-Driven Disclosure Catalyst Predictions")

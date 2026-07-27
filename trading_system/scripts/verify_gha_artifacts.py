@@ -36,7 +36,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 
 MARKETS = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
 STRATEGIES = [
-    "surge", "vcp_ml", "regression", "vcp", "lead_lag",
+    "surge", "vcp_ml", "regression", "vcp", "lead_lag", "lstm",
     "stat_arb", "sector", "rim", "event_driven", "mq_factor",
     "iv_skew", "order_flow", "short_term_reversal"
 ]
@@ -265,6 +265,7 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "regression": [f"pipeline_result_{market}.txt", "pipeline_result.txt"],
         "vcp": [f"vcp_patterns_{market}.txt", "vcp_patterns.txt"],
         "lead_lag": [f"lead_lag_predictions_{market}.txt", "lead_lag_predictions.txt"],
+        "lstm": [f"lstm_predictions_{market}.txt", "lstm_predictions.txt"],
         "stat_arb": [f"stat_arb_predictions_{market}.txt", "stat_arb_predictions.txt"],
         "sector": [f"sector_predictions_{market}.txt", "sector_predictions.txt"],
         "rim": [f"rim_predictions_{market}.txt", "rim_predictions.txt"],
@@ -281,6 +282,7 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "regression": check_regression,
         "vcp": check_vcp,
         "lead_lag": check_lead_lag,
+        "lstm": lambda c, m: check_generic_strategy(c, m, "lstm"),
         "stat_arb": lambda c, m: check_generic_strategy(c, m, "stat_arb"),
         "sector": lambda c, m: check_generic_strategy(c, m, "sector"),
         "rim": lambda c, m: check_generic_strategy(c, m, "rim"),
@@ -404,7 +406,7 @@ def print_report(report: PipelineVerificationReport) -> None:
     print("-" * 110)
 
     print("\n📊 Strategy Verification by Market:")
-    headers = ["Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "S-Arb", "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "Status"]
+    headers = ["Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "LSTM", "S-Arb", "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "Status"]
     header_str = f"{headers[0]:<8} | " + " | ".join(f"{h:<5}" for h in headers[1:-1]) + f" | {headers[-1]}"
     print(header_str)
     print("-" * 110)

@@ -2157,6 +2157,34 @@ def execute_prediction_pipeline():
                 )
         logger.info(f"Saved ensemble predictions for {_m} to {_mkt_ens_path}")
 
+    # Save Strategy 6: Strict Causal LSTM predictions standalone report
+    try:
+        lstm_output_path = os.path.join(result_dir, "lstm_predictions.txt")
+        if 'lstm_score' in ensemble_df_merged.columns:
+            lstm_merged = ensemble_df_merged.sort_values(by='lstm_score', ascending=False)
+            def _write_lstm_file(f_out, df_lstm):
+                f_out.write("=== Strategy 6: Strict Causal LSTM Time-Series Predictions ===\n")
+                f_out.write(f"Date: {kst_now_str}\n")
+                f_out.write(f"Total symbols evaluated: {len(df_lstm)}\n\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'LSTM Score':<14}\n")
+                f_out.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(df_lstm.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['lstm_score']*100:>12.1f}%\n")
+
+            with open(lstm_output_path, "w", encoding="utf-8") as f:
+                _write_lstm_file(f, lstm_merged)
+            logger.info(f"Saved LSTM deep learning predictions ({len(lstm_merged)} symbols) to {lstm_output_path}")
+
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = lstm_merged[lstm_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"lstm_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _write_lstm_file(_mf, _m_df)
+    except Exception as _lstm_e:
+        logger.warning(f"LSTM prediction standalone file save skipped: {_lstm_e}")
+
 
     logger.info("Running Portfolio Position Sizing allocation on Ensemble expectancies...")
     # Prepare the input DataFrame expected by PortfolioAllocator: ['symbol', 20]
