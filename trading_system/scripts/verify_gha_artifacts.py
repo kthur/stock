@@ -35,7 +35,11 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         pass
 
 MARKETS = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
-STRATEGIES = ["surge", "vcp_ml", "regression", "vcp", "lead_lag"]
+STRATEGIES = [
+    "surge", "vcp_ml", "regression", "vcp", "lead_lag",
+    "stat_arb", "sector", "rim", "event_driven", "mq_factor",
+    "iv_skew", "order_flow", "short_term_reversal"
+]
 
 
 @dataclass
@@ -190,10 +194,10 @@ def check_vcp(content: str, market: str) -> StrategyCheckResult:
     res = StrategyCheckResult(strategy="vcp", market=market)
     if not content or "데이터 없음" in content or "No data" in content:
         res.message = "No VCP pattern matches found"
-        if "Total VCP patterns found:" in content:
+        if "Total VCP patterns found:" in content or "Total symbols evaluated:" in content:
             res.file_found = True
             res.valid = True
-            res.message = "VCP pattern detector executed cleanly (0 patterns found)"
+            res.message = "VCP pattern detector executed cleanly"
         return res
 
     res.file_found = True
@@ -231,6 +235,27 @@ def check_lead_lag(content: str, market: str) -> StrategyCheckResult:
     return res
 
 
+def check_generic_strategy(content: str, market: str, strat_name: str) -> StrategyCheckResult:
+    res = StrategyCheckResult(strategy=strat_name, market=market)
+    if not content or "데이터 없음" in content or "No data" in content:
+        res.message = f"No {strat_name} data"
+        return res
+
+    res.file_found = True
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:") and not ln.startswith("---") and not ln.startswith("Pair")]
+
+    res.count = len(data_lines)
+    if res.count > 0:
+        res.non_zero = True
+        res.valid = True
+        res.message = f"Found {res.count} {strat_name} prediction items"
+    else:
+        res.message = f"No {strat_name} prediction items found"
+
+    return res
+
+
 def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult:
     m_res = MarketCheckResult(market=market)
 
@@ -240,6 +265,14 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "regression": [f"pipeline_result_{market}.txt", "pipeline_result.txt"],
         "vcp": [f"vcp_patterns_{market}.txt", "vcp_patterns.txt"],
         "lead_lag": [f"lead_lag_predictions_{market}.txt", "lead_lag_predictions.txt"],
+        "stat_arb": [f"stat_arb_predictions_{market}.txt", "stat_arb_predictions.txt"],
+        "sector": [f"sector_predictions_{market}.txt", "sector_predictions.txt"],
+        "rim": [f"rim_predictions_{market}.txt", "rim_predictions.txt"],
+        "event_driven": [f"event_driven_predictions_{market}.txt", "event_driven_predictions.txt"],
+        "mq_factor": [f"mq_factor_predictions_{market}.txt", "mq_factor_predictions.txt"],
+        "iv_skew": [f"iv_skew_predictions_{market}.txt", "iv_skew_predictions.txt"],
+        "order_flow": [f"order_flow_predictions_{market}.txt", "order_flow_predictions.txt"],
+        "short_term_reversal": [f"short_term_reversal_predictions_{market}.txt", "short_term_reversal_predictions.txt"],
     }
 
     check_funcs = {
@@ -248,6 +281,14 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "regression": check_regression,
         "vcp": check_vcp,
         "lead_lag": check_lead_lag,
+        "stat_arb": lambda c, m: check_generic_strategy(c, m, "stat_arb"),
+        "sector": lambda c, m: check_generic_strategy(c, m, "sector"),
+        "rim": lambda c, m: check_generic_strategy(c, m, "rim"),
+        "event_driven": lambda c, m: check_generic_strategy(c, m, "event_driven"),
+        "mq_factor": lambda c, m: check_generic_strategy(c, m, "mq_factor"),
+        "iv_skew": lambda c, m: check_generic_strategy(c, m, "iv_skew"),
+        "order_flow": lambda c, m: check_generic_strategy(c, m, "order_flow"),
+        "short_term_reversal": lambda c, m: check_generic_strategy(c, m, "short_term_reversal"),
     }
 
     for strat, filenames in files_map.items():
@@ -354,31 +395,32 @@ def run_verification(result_dir: Path, gh_pages_dir: Path) -> PipelineVerificati
 
 
 def print_report(report: PipelineVerificationReport) -> None:
-    print("\n" + "=" * 70)
-    print(" 🔍 Pipeline GHA Artifact Verification Report")
-    print("=" * 70)
+    print("\n" + "=" * 110)
+    print(" 🔍 Pipeline GHA Artifact Verification Report (14 Strategies & Dashboard)")
+    print("=" * 110)
     print(f"Result Directory   : {report.result_dir}")
     print(f"GitHub Pages Dir   : {report.gh_pages_dir}")
     print(f"Overall Status     : {'✅ PASSED' if report.overall_passed else '❌ FAILED'}")
-    print("-" * 70)
+    print("-" * 110)
 
     print("\n📊 Strategy Verification by Market:")
-    print(f"{'Market':<10} | {'Surge':<8} | {'VCP ML':<8} | {'Reg':<8} | {'VCP':<8} | {'Lead-Lag':<8} | {'Status'}")
-    print("-" * 70)
+    headers = ["Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "S-Arb", "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "Status"]
+    header_str = f"{headers[0]:<8} | " + " | ".join(f"{h:<5}" for h in headers[1:-1]) + f" | {headers[-1]}"
+    print(header_str)
+    print("-" * 110)
 
     for market in MARKETS:
         m = report.markets.get(market)
         if not m:
             continue
         st = m.strategies
-        s_surge = "✅" if st["surge"].valid else "❌"
-        s_vcp_ml = "✅" if st["vcp_ml"].valid else "❌"
-        s_reg = "✅" if st["regression"].valid else "❌"
-        s_vcp = "✅" if st["vcp"].valid else "❌"
-        s_ll = "✅" if st["lead_lag"].valid else "❌"
-        status = "✅ PASS" if m.all_strategies_valid else "❌ FAIL"
+        row_vals = []
+        for s in STRATEGIES:
+            row_vals.append("✅" if st.get(s) and st[s].valid else "❌")
 
-        print(f"{market:<10} | {s_surge:<8} | {s_vcp_ml:<8} | {s_reg:<8} | {s_vcp:<8} | {s_ll:<8} | {status}")
+        status = "✅ PASS" if m.all_strategies_valid else "❌ FAIL"
+        row_str = f"{market:<8} | " + " | ".join(f"{v:<5}" for v in row_vals) + f" | {status}"
+        print(row_str)
 
     print("\n⚡ Merged Ensemble Output:")
     print(f"  File Found     : {'Yes' if report.ensemble.file_found else 'No'}")
@@ -393,7 +435,7 @@ def print_report(report: PipelineVerificationReport) -> None:
     print(f"  Markets in HTML: {', '.join(report.gh_pages.markets_in_html)}")
     print(f"  Message        : {report.gh_pages.message}")
 
-    print("\n" + "=" * 70 + "\n")
+    print("\n" + "=" * 110 + "\n")
 
 
 def main():
