@@ -195,7 +195,9 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                           price_db: Optional[StockPriceDB], freshness_days: int = 1):
     """Prefetch price data in batches from yfinance and store in SQLite DB to speed up subsequent queries."""
     if price_db is None or not symbols:
-        return
+        return 0
+
+    prefetched_count = 0
 
     # Find symbols that actually need update
     symbols_to_update = []
@@ -212,7 +214,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 
     if not symbols_to_update:
         logger.info("All symbols are up-to-date in cache. No prefetching needed.")
-        return
+        return 0
 
     logger.info(f"Prefetching {len(symbols_to_update)} symbols in batches...")
 

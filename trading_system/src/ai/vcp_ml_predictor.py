@@ -556,11 +556,16 @@ class VCPSurgePredictor:
                         w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
 
                         if xgb_m is not None:
-                            preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
-                            weights.append(w_xgb_val)
+                            try:
+                                fn_xgb = xgb_m._Booster.feature_names if hasattr(xgb_m, '_Booster') and hasattr(xgb_m._Booster, 'feature_names') and xgb_m._Booster.feature_names else None
+                                X_xgb = X_mkt.reindex(columns=fn_xgb, fill_value=0.0) if fn_xgb else X_mkt
+                                preds.append(xgb_m.predict_proba(X_xgb)[:, 1])
+                                weights.append(w_xgb_val)
+                            except Exception as xgb_err:
+                                logger.warning(f"VCP ML XGB prediction skipped due to feature mismatch: {xgb_err}")
                         if lgb_m is not None:
                             try:
-                                fn = lgb_m.feature_name_() if hasattr(lgb_m, 'feature_name_') and callable(getattr(lgb_m, 'feature_name_')) else None
+                                fn = lgb_m._Booster.feature_name() if hasattr(lgb_m, '_Booster') and hasattr(lgb_m._Booster, 'feature_name') and callable(getattr(lgb_m._Booster, 'feature_name')) else None
                                 X_lgb = X_mkt.reindex(columns=fn, fill_value=0.0) if fn else X_mkt
                                 preds.append(lgb_m.predict_proba(X_lgb)[:, 1])
                                 weights.append(w_lgb_val)
@@ -658,7 +663,9 @@ class VCPSurgePredictor:
                             model._classes = np.array([0, 1])
 
                         try:
-                            _ = model.predict_proba(dummy_df)
+                            fn_xgb = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else cols
+                            val_df = pd.DataFrame(0.0, index=[0], columns=fn_xgb)
+                            _ = model.predict_proba(val_df)
                             self.models[market][h] = model
                             logger.debug(f"Loaded VCP ML XGB model for {market} {h}d")
                         except Exception as e:
@@ -678,14 +685,15 @@ class VCPSurgePredictor:
                         model.fitted_ = True
 
                         try:
-                            feature_names = booster.feature_name()
-                            n_feats = len(feature_names) if feature_names else len(cols)
+                            feature_names = booster.feature_name() if hasattr(booster, "feature_name") and booster.feature_name() else cols
+                            n_feats = len(feature_names)
                             model._n_features = n_feats
                             model._n_features_in = n_feats
                             model._n_classes = 2
                             model._classes = np.array([0, 1])
 
-                            _ = model.predict_proba(dummy_df)
+                            val_df = pd.DataFrame(0.0, index=[0], columns=feature_names)
+                            _ = model.predict_proba(val_df)
                             self.lgb_models[market][h] = model
                             logger.debug(f"Loaded VCP ML LGB model for {market} {h}d")
                         except Exception as e:
@@ -703,7 +711,9 @@ class VCPSurgePredictor:
                         model.load_model(str(path))
 
                         try:
-                            _ = model.predict_proba(dummy_df)
+                            fn_cat = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else cols
+                            val_df = pd.DataFrame(0.0, index=[0], columns=fn_cat)
+                            _ = model.predict_proba(val_df)
                             self.cat_models[market][h] = model
                             logger.debug(f"Loaded VCP ML CatBoost model for {market} {h}d")
                         except Exception as e:
