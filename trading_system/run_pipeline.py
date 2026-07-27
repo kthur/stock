@@ -1226,76 +1226,83 @@ def execute_prediction_pipeline():
         logger.info(f"Lead-lag predictions generated for {len(lead_lag_df)} symbols")
 
     # 10e. Run Statistical Arbitrage pair scanning
-    logger.info("Running Statistical Arbitrage pair scanning...")
-    from src.core.stat_arb import StatisticalArbitrageEngine
-    stat_arb_engine = StatisticalArbitrageEngine()
+    try:
+        logger.info("Running Statistical Arbitrage pair scanning...")
+        from src.core.stat_arb import StatisticalArbitrageEngine
+        stat_arb_engine = StatisticalArbitrageEngine()
 
-    stat_arb_prices = {}
-    for sym, df_p in infer_data_dict.items():
-        if df_p is not None and not df_p.empty:
-            close_series = df_p['Close']
-            if isinstance(close_series, pd.DataFrame):
-                close_series = close_series.iloc[:, 0]
-            stat_arb_prices[sym] = close_series.tolist()
-
-    stat_arb_pairs = stat_arb_engine.find_cointegrated_pairs(stat_arb_prices)
-
-    # Ensure result directory exists
-    result_dir = os.path.join(os.path.dirname(__file__), "result")
-    os.makedirs(result_dir, exist_ok=True)
-
-    if not stat_arb_pairs:
-        # Continuous fallback: calculate 20-day MA Z-score deviation for all symbols
+        stat_arb_prices = {}
         for sym, df_p in infer_data_dict.items():
-            if df_p is not None and len(df_p) >= 20:
-                try:
-                    c = df_p['Close']
-                    if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
-                    c = c.dropna()
-                    if len(c) >= 20:
-                        ma20 = float(c.rolling(20).mean().iloc[-1])
-                        std20 = float(c.rolling(20).std().iloc[-1])
-                        if std20 > 0:
-                            z = (float(c.iloc[-1]) - ma20) / std20
-                            mkt = symbol_market.get(sym, 'KOSPI')
-                            stat_arb_pairs.append({
-                                'pair': (sym, 'BENCHMARK'),
-                                'z_score': round(float(z), 2),
-                                'correlation': 0.85,
-                                'beta': 1.0,
-                                'signal': 'LONG_SPREAD' if z < -1.0 else ('SHORT_SPREAD' if z > 1.0 else 'NEUTRAL'),
-                                'market': mkt
-                            })
-                except Exception:
-                    pass
+            if df_p is not None and not df_p.empty:
+                close_series = df_p['Close']
+                if isinstance(close_series, pd.DataFrame):
+                    close_series = close_series.iloc[:, 0]
+                stat_arb_prices[sym] = close_series.tolist()
 
-    valid_stat_arb_pairs = list(stat_arb_pairs)
-    valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
-    top_stat_arb_pairs = valid_stat_arb_pairs[:200]
+        stat_arb_pairs = stat_arb_engine.find_cointegrated_pairs(stat_arb_prices)
 
-    def _write_stat_arb_file(f_out, pairs_list):
-        f_out.write("=== Statistical Arbitrage Pairs & Signals ===\n")
-        f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f_out.write(f"Total cointegrated pairs found: {len(pairs_list)}\n\n")
-        f_out.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta':<10}{'Signal':<20}\n")
-        f_out.write("-" * 80 + "\n")
-        for p in pairs_list[:100]:
-            pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
-            f_out.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
+        # Ensure result directory exists
+        result_dir = os.path.join(os.path.dirname(__file__), "result")
+        os.makedirs(result_dir, exist_ok=True)
 
-    stat_arb_output_path = os.path.join(result_dir, "stat_arb_predictions.txt")
-    with open(stat_arb_output_path, "w", encoding="utf-8") as f:
-        _write_stat_arb_file(f, top_stat_arb_pairs)
+        if not stat_arb_pairs:
+            # Continuous fallback: calculate 20-day MA Z-score deviation for all symbols
+            for sym, df_p in infer_data_dict.items():
+                if df_p is not None and len(df_p) >= 20:
+                    try:
+                        c = df_p['Close']
+                        if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                        c = c.dropna()
+                        if len(c) >= 20:
+                            ma20 = float(c.rolling(20).mean().iloc[-1])
+                            std20 = float(c.rolling(20).std().iloc[-1])
+                            if std20 > 0:
+                                z = (float(c.iloc[-1]) - ma20) / std20
+                                mkt = symbol_market.get(sym, 'KOSPI')
+                                stat_arb_pairs.append({
+                                    'pair': (sym, 'BENCHMARK'),
+                                    'z_score': round(float(z), 2),
+                                    'correlation': 0.85,
+                                    'beta': 1.0,
+                                    'signal': 'LONG_SPREAD' if z < -1.0 else ('SHORT_SPREAD' if z > 1.0 else 'NEUTRAL'),
+                                    'market': mkt
+                                })
+                    except Exception:
+                        pass
 
-    # Per-market suffix files
-    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
-        _m_pairs = [p for p in top_stat_arb_pairs if p.get('market') == _m or p['pair'][0] in set(universe[universe['market'] == _m]['symbol'])]
-        if not _m_pairs:
-            _m_pairs = top_stat_arb_pairs[:20]
-        _mkt_path = os.path.join(result_dir, f"stat_arb_predictions_{_m}.txt")
-        with open(_mkt_path, "w", encoding="utf-8") as _mf:
-            _write_stat_arb_file(_mf, _m_pairs)
-    logger.info(f"Saved Statistical Arbitrage pairs (Total: {len(stat_arb_pairs)}, Top 200 written) to {stat_arb_output_path}")
+        valid_stat_arb_pairs = list(stat_arb_pairs)
+        valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
+        top_stat_arb_pairs = valid_stat_arb_pairs[:200]
+
+        def _write_stat_arb_file(f_out, pairs_list):
+            f_out.write("=== Statistical Arbitrage Pairs & Signals ===\n")
+            f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            f_out.write(f"Total cointegrated pairs found: {len(pairs_list)}\n\n")
+            f_out.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta/Hedge':<12}{'Signal':<20}\n")
+            f_out.write("-" * 80 + "\n")
+            for p in pairs_list[:100]:
+                pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
+                beta_val = p.get('beta', p.get('hedge_ratio', 1.0))
+                z_val = p.get('z_score', 0.0)
+                corr_val = p.get('correlation', p.get('adf_pvalue', 0.0))
+                sig_val = p.get('signal', 'NEUTRAL')
+                f_out.write(f"{pair_str:<25}{z_val:<10}{corr_val:<15}{beta_val:<12}{sig_val:<20}\n")
+
+        stat_arb_output_path = os.path.join(result_dir, "stat_arb_predictions.txt")
+        with open(stat_arb_output_path, "w", encoding="utf-8") as f:
+            _write_stat_arb_file(f, top_stat_arb_pairs)
+
+        # Per-market suffix files
+        for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            _m_pairs = [p for p in top_stat_arb_pairs if p.get('market') == _m or p['pair'][0] in set(universe[universe['market'] == _m]['symbol'])]
+            if not _m_pairs:
+                _m_pairs = top_stat_arb_pairs[:20]
+            _mkt_path = os.path.join(result_dir, f"stat_arb_predictions_{_m}.txt")
+            with open(_mkt_path, "w", encoding="utf-8") as _mf:
+                _write_stat_arb_file(_mf, _m_pairs)
+        logger.info(f"Saved Statistical Arbitrage pairs (Total: {len(stat_arb_pairs)}, Top 200 written) to {stat_arb_output_path}")
+    except Exception as _stat_arb_e:
+        logger.warning(f"Statistical Arbitrage calculation error: {_stat_arb_e}")
 
 
     # 11. Save predictions to DB
