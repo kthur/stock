@@ -1341,9 +1341,9 @@ def execute_prediction_pipeline():
     market_syms = _market_symbols(universe)
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     _SUMMARY_HORIZONS = [h for h in [1, 5, 20, 60] if h in res_df.columns]  # Key horizons only
-    _TOP_N = 20
+    _TOP_N = 100
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write("=== Pipeline Inference Summary (TOP20 per Market) ===\n")
+        f.write("=== Pipeline Inference Summary (TOP100 per Market) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"Total symbols analyzed: {len(res_df)}\n")
         f.write(f"Showing: Top {_TOP_N} per market | Horizons: {', '.join(str(h)+'d' for h in _SUMMARY_HORIZONS)}\n")
@@ -1409,9 +1409,9 @@ def execute_prediction_pipeline():
                     if m_df.empty:
                         continue
                     f.write(f"{'='*60}\n")
-                    f.write(f"[{h}일] {m} Top 20 Surge Candidates\n")
+                    f.write(f"[{h}일] {m} Top 100 Surge Candidates\n")
                     f.write(f"{'='*60}\n")
-                    for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
+                    for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                         name = row.get('name', 'Unknown')
                         prob = row[col] * 100
                         f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {prob:.1f}%\n")
@@ -1438,9 +1438,9 @@ def execute_prediction_pipeline():
                     if m_sorted.empty:
                         continue
                     _mf.write(f"{'='*60}\n")
-                    _mf.write(f"[{h}일] {_m} Top 20 Surge Candidates\n")
+                    _mf.write(f"[{h}일] {_m} Top 100 Surge Candidates\n")
                     _mf.write(f"{'='*60}\n")
-                    for rank, (_, row) in enumerate(m_sorted.head(20).iterrows(), 1):
+                    for rank, (_, row) in enumerate(m_sorted.head(100).iterrows(), 1):
                         name = row.get('name', 'Unknown')
                         prob = row[col] * 100
                         _mf.write(f"  {rank}. [{_m}] {row['symbol']} ({name}): {prob:.1f}%\n")
@@ -1480,8 +1480,8 @@ def execute_prediction_pipeline():
                 m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
                 if m_df.empty:
                     continue
-                f.write(f"--- {m} Top 20 ---\n")
-                for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
+                f.write(f"--- {m} Top 100 ---\n")
+                for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                     name = row.get('name', 'Unknown')
                     score = row['lead_lag_score'] * 100  # now guaranteed <= 100%
                     f.write(f"  {rank}. [{m}] {row['symbol']} ({name}): {score:.2f}%\n")
@@ -1533,8 +1533,8 @@ def execute_prediction_pipeline():
                 _mf.write(f"Based on today's top {len(model.lead_lag_leaders)} leader stock movements\n")
                 _mf.write("Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]\n")
                 _mf.write("        (Higher = stronger historical co-movement with market leaders)\n\n")
-                _mf.write(f"--- {_m} Top 20 ---\n")
-                for _rank, (_, _row) in enumerate(_m_df.head(20).iterrows(), 1):
+                _mf.write(f"--- {_m} Top 100 ---\n")
+                for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
                     _name = _row.get('name', 'Unknown')
                     _score = float(_row['lead_lag_score']) * 100
                     _mf.write(f"  {_rank}. [{_m}] {_row['symbol']} ({_name}): {_score:.2f}%\n")
@@ -1556,8 +1556,8 @@ def execute_prediction_pipeline():
             m_results = [r for r in res_list if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
             if not m_results:
                 continue
-            f_out.write(f"--- {m} Top {min(20, len(m_results))} ---\n")
-            for rank, r in enumerate(m_results[:20], 1):
+            f_out.write(f"--- {m} Top {min(100, len(m_results))} ---\n")
+            for rank, r in enumerate(m_results[:100], 1):
                 sym = r['symbol']
                 name, _market = vcp_universe_map.get(sym, ('Unknown', ''))
                 peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks']) if 'contraction_peaks' in r and r['contraction_peaks'] else 'N/A'
@@ -1602,7 +1602,7 @@ def execute_prediction_pipeline():
                 if m_df.empty:
                     f.write(f"[{h}일] {market} - (no symbols) 0.0%\n\n")
                     continue
-                top_n = min(20, len(m_df))
+                top_n = min(100, len(m_df))
                 f.write(f"[{h}일] {market} TOP {top_n}\n")
                 for rank, (_, row) in enumerate(m_df.head(top_n).iterrows(), 1):
                     name = row.get('name', 'Unknown')
@@ -2100,11 +2100,11 @@ def execute_prediction_pipeline():
             if m_df.empty:
                 continue
             f.write("\n=========================================\n")
-            f.write(f"[{market}] Top 20 Ensemble Picks\n")
+            f.write(f"[{market}] Top 100 Ensemble Picks\n")
             f.write("=========================================\n")
             f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}\n")
             f.write("-" * 155 + "\n")
-            for rank, (_, row) in enumerate(m_df.head(20).iterrows(), 1):
+            for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                 name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
                 lstm_val = row.get('lstm_score', 0.0)
@@ -2131,11 +2131,11 @@ def execute_prediction_pipeline():
             _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
             _mf.write(f"\n=========================================\n")
-            _mf.write(f"[{_m}] Top 20 Ensemble Picks\n")
+            _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")
             _mf.write("=========================================\n")
             _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}\n")
             _mf.write("-" * 155 + "\n")
-            for _rank, (_, _row) in enumerate(_m_df.head(20).iterrows(), 1):
+            for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
                 _mf.write(
                     f"{_rank:<5}{_row['symbol']:<10}{_name_str:<18}"
