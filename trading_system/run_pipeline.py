@@ -1818,6 +1818,7 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 10: Event-Driven Momentum Scores...")
         event_engine = EventDrivenEngine(dart_api_key=getattr(cfg, 'dart_api_key', ''))
         event_df = event_engine.compute_event_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+        logger.info(f"Event-driven scores computed: {len(event_df)} symbols, empty={event_df.empty}")
         event_output_path = os.path.join(result_dir, "event_driven_predictions.txt")
         if not event_df.empty:
             ev_merged = event_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='event_score', ascending=False)
@@ -1853,6 +1854,7 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 11: Momentum Quality (MQ) Factor Scores...")
         mq_engine = MQFactorEngine()
         mq_df = mq_engine.compute_mq_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
+        logger.info(f"MQ factor scores computed: {len(mq_df)} symbols, empty={mq_df.empty}")
         mq_output_path = os.path.join(result_dir, "mq_factor_predictions.txt")
         if not mq_df.empty:
             mq_merged = mq_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='mq_score', ascending=False)
@@ -1888,6 +1890,7 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 12: Options IV Skew Scores...")
         iv_skew_engine = IVSkewEngine()
         iv_skew_df = iv_skew_engine.compute_iv_skew_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+        logger.info(f"IV skew scores computed: {len(iv_skew_df)} symbols, empty={iv_skew_df.empty}")
         iv_output_path = os.path.join(result_dir, "iv_skew_predictions.txt")
         if not iv_skew_df.empty:
             iv_merged = iv_skew_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='iv_skew_score', ascending=False)
@@ -1923,6 +1926,7 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 13: Order Flow Imbalance Scores...")
         of_engine = OrderFlowEngine()
         order_flow_df = of_engine.compute_order_flow_scores(prices_dict=infer_data_dict)
+        logger.info(f"Order flow scores computed: {len(order_flow_df)} symbols, empty={order_flow_df.empty}")
         of_output_path = os.path.join(result_dir, "order_flow_predictions.txt")
         if not order_flow_df.empty:
             of_merged = order_flow_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='order_flow_score', ascending=False)
@@ -1958,6 +1962,7 @@ def execute_prediction_pipeline():
         logger.info("Computing Strategy 14: Short-Term Reversal Scores...")
         reversal_engine = ShortTermReversalEngine()
         reversal_df = reversal_engine.compute_reversal_scores(prices_dict=infer_data_dict, features_df=df_rim_input if 'df_rim_input' in locals() else None)
+        logger.info(f"Short-term reversal scores computed: {len(reversal_df)} symbols, empty={reversal_df.empty}")
         rev_output_path = os.path.join(result_dir, "short_term_reversal_predictions.txt")
         if not reversal_df.empty:
             rev_merged = reversal_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='reversal_score', ascending=False)

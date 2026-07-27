@@ -353,30 +353,44 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
     from datetime import timezone, timedelta
     kst_now = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
 
-    lines_written = 0
+    stem = Path(filename).stem
+
+    # Pre-read source content BEFORE opening output file to avoid
+    # self-referencing bug where fallback reads the same file being truncated.
+    data_lines: list[str] = []
+    all_fallbacks_self_ref = True
+
+    for market, path in target_dirs.items():
+        file_path = path / f"{stem}_{market}.txt"
+        if not file_path.exists():
+            # Check if fallback would self-reference (same as output file)
+            if (path / filename) != merged_path:
+                all_fallbacks_self_ref = False
+            continue
+
+        all_fallbacks_self_ref = False
+        content = get_file_content(file_path)
+        for line in content.splitlines():
+            if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols:") or not line.strip():
+                continue
+            if "데이터 없음" in line or "No data" in line:
+                continue
+            data_lines.append(line + "\n")
+
+    # If all per-market files are missing and the only fallback is self-referencing,
+    # leave the original pipeline file untouched (nothing to merge).
+    if all_fallbacks_self_ref:
+        if merged_path.exists():
+            print(f"  Only self-referencing fallbacks available; leaving {filename} untouched.")
+            return
+
+    if not data_lines:
+        data_lines.append("데이터 없음\n")
+
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(f"=== {title} ===\n")
         out.write(f"Date: {kst_now}\n\n")
-
-        stem = Path(filename).stem
-        for market, path in target_dirs.items():
-            file_path = path / f"{stem}_{market}.txt"
-            if not file_path.exists():
-                file_path = path / filename
-            if not file_path.exists():
-                continue
-
-            content = get_file_content(file_path)
-            for line in content.splitlines():
-                if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols:") or not line.strip():
-                    continue
-                if "데이터 없음" in line or "No data" in line:
-                    continue
-                out.write(line + "\n")
-                lines_written += 1
-
-        if lines_written == 0:
-            out.write("데이터 없음\n")
+        out.writelines(data_lines)
 
 
 def main():
