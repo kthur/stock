@@ -421,7 +421,11 @@ class OptunaStrategyTuner:
             'SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL',
             'BULL_LOW_VOL', 'BULL_HIGH_VOL'
         ]
-        strats = ['regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml']
+        strats = [
+            'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
+            'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
+            'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal'
+        ]
 
         if not strategy_returns_by_regime:
             logger.warning("No strategy returns by regime provided; returning default regime 2d weights")

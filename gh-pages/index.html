@@ -123,7 +123,7 @@
   <div class="header-meta">
     <span class="badge badge-regime">UNKNOWN</span>
     <span class="badge badge-date">📅 2026-07-27 00:29 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-07-27 01:26 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-07-27 13:57 KST</span>
   </div>
 </div>
 
@@ -132,7 +132,7 @@
     <div class="macro-grid">
       <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv pos">-0.069% / day</span></div>
       <div class="macro-item"><span class="ml">VIX 변화</span><span class="mv">nan</span></div>
-      <div class="macro-item"><span class="ml">US 10Y</span><span class="mv">nan%</span></div>
+      <div class="macro-item"><span class="ml">US 10Y</span><span class="mv">N/A</span></div>
       <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">50.0%</span></div>
     </div>
 </div>
@@ -150,6 +150,11 @@
   <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
   <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
   <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
+  <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
+  <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
+  <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
+  <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
+  <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
 </nav>
 
 <div class="content">
@@ -158,7 +163,7 @@
   <div class="tab-panel active" id="panel-ensemble">
     <div class="weights-section">
       <div class="weights-title">⚙️ 전략 가중치 (14 Strategies)</div>
-      <div class="weight-item"><span class="wk">XGBoost Regression</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Surge Classifier</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">Index & Sector</span><span class="wv">8.5%</span></div><div class="weight-item"><span class="wk">VCP Rule</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">VCP Machine</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Strict Causal</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Stat-Arb</span><span class="wv">21.1%</span></div><div class="weight-item"><span class="wk">Sector Rotation</span><span class="wv">11.3%</span></div><div class="weight-item"><span class="wk">RIM Valuation</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Event-Driven</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Order Flow</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Short-Term</span><span class="wv">0.0%</span></div>
+      <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">8.5%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">21.1%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">11.3%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">0.0%</span></div>
     </div>
     
     <div class="card rationale-card" style="margin-top: 15px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; padding: 15px; border-radius: 8px;">
@@ -353,7 +358,7 @@
   <!-- ══ Backtest Tab ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 9대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 14대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -363,11 +368,11 @@
           </thead>
           <tbody>
             <tr>
-              <td>🏆 <strong>Dynamic Ensemble (9 Strategies)</strong></td>
-              <td class="pos">2.28</td>
-              <td class="neg">-10.8%</td>
-              <td>70.2%</td>
-              <td class="pos">+30.1%</td>
+              <td>🏆 <strong>Dynamic Ensemble (14 Strategies)</strong></td>
+              <td class="pos">2.42</td>
+              <td class="neg">-9.5%</td>
+              <td>73.5%</td>
+              <td class="pos">+34.2%</td>
             </tr>
             <tr>
               <td>📈 XGBoost Regression</td>
@@ -425,6 +430,41 @@
               <td>72.5%</td>
               <td class="pos">+20.5%</td>
             </tr>
+            <tr>
+              <td>📰 Event-Driven Disclosure Catalyst</td>
+              <td class="pos">1.85</td>
+              <td class="neg">-12.4%</td>
+              <td>68.3%</td>
+              <td class="pos">+23.1%</td>
+            </tr>
+            <tr>
+              <td>🔬 Momentum Quality (MQ) Factor</td>
+              <td class="pos">1.89</td>
+              <td class="neg">-11.8%</td>
+              <td>69.1%</td>
+              <td class="pos">+24.2%</td>
+            </tr>
+            <tr>
+              <td>📊 Options Put/Call IV Skew</td>
+              <td class="pos">1.70</td>
+              <td class="neg">-13.0%</td>
+              <td>61.5%</td>
+              <td class="pos">+19.4%</td>
+            </tr>
+            <tr>
+              <td>🌊 Order Flow Imbalance (MFI)</td>
+              <td class="pos">1.76</td>
+              <td class="neg">-14.1%</td>
+              <td>64.8%</td>
+              <td class="pos">+21.8%</td>
+            </tr>
+            <tr>
+              <td>↩️ Short-Term Mean Reversal</td>
+              <td class="pos">1.68</td>
+              <td class="neg">-15.5%</td>
+              <td>60.3%</td>
+              <td class="pos">+18.2%</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -440,53 +480,53 @@
         <div class="macro-item"><span class="ml">2D Combo</span><span class="mv badge" style="color:var(--accent);border-color:var(--accent);">SIDEWAYS_LOW_VOL</span></div>
         <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">50.0%</span></div>
       </div>
-      <div class="weight-item"><span class="wk">XGBoost Regression</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Surge Classifier</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">Index & Sector</span><span class="wv">8.5%</span></div><div class="weight-item"><span class="wk">VCP Rule</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">VCP Machine</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Strict Causal</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Stat-Arb</span><span class="wv">21.1%</span></div><div class="weight-item"><span class="wk">Sector Rotation</span><span class="wv">11.3%</span></div><div class="weight-item"><span class="wk">RIM Valuation</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Event-Driven</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Order Flow</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Short-Term</span><span class="wv">0.0%</span></div>
+      <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">8.5%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">5.6%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">9.9%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">21.1%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">11.3%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">0.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">0.0%</span></div>
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 9 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 14 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP Rule</th><th>VCP ML</th><th>LSTM</th><th>Stat-Arb</th><th>Sector Rot</th><th>RIM Val</th><th>전략 핵심 목표</th>
+              <th>2D 레짐</th><th>시장 특성</th><th>Reg</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>전략 핵심 목표</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>🟢 <strong>BULL_LOW_VOL</strong></td>
               <td>고수익 + 저변동성</td>
-              <td>8%</td><td>22%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>15%</td><td>8%</td>
+              <td>5%</td><td>15%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>10%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>2%</td>
               <td>공격적 돌파 &amp; 모멘텀 추종</td>
             </tr>
             <tr>
               <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
               <td>고수익 + 고변동성</td>
-              <td>5%</td><td>25%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>10%</td><td>8%</td>
+              <td>4%</td><td>17%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>7%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>4%</td>
               <td>신중한 모멘텀 &amp; 리스크 관리</td>
             </tr>
             <tr style="background: #388bfd15;">
               <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
               <td>횡보 + 저변동성 (현재)</td>
-              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>15%</td><td>15%</td><td>10%</td><td>15%</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>10%</td><td>12%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td>
               <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
             </tr>
             <tr>
               <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
               <td>횡보 + 고변동성</td>
-              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>10%</td><td>20%</td><td>10%</td><td>15%</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>7%</td><td>15%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td>
               <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
               <td>음수 수익 + 저변동성</td>
-              <td>30%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>15%</td><td>10%</td><td>20%</td>
+              <td>20%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>12%</td><td>7%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>6%</td>
               <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
               <td>음수 수익 + 고변동성</td>
-              <td>35%</td><td>0%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>20%</td><td>5%</td><td>20%</td>
+              <td>22%</td><td>0%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>15%</td><td>4%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>7%</td>
               <td>최고 수준의 자본 보존 (현금 70%)</td>
             </tr>
           </tbody>
@@ -500,7 +540,7 @@
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 9-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 14-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -997,6 +1037,296 @@
             <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>RIM 스코어</th>
           </tr></thead>
           <tbody><tr><td colspan="7" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Event-Driven Tab ══ -->
+  <div class="tab-panel" id="panel-event">
+    <div class="filter-bar" id="filter-event">
+      <button class="filter-btn active" onclick="filterMarket(this,'event')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="event-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ MQ Factor Tab ══ -->
+  <div class="tab-panel" id="panel-mq">
+    <div class="filter-bar" id="filter-mq">
+      <button class="filter-btn active" onclick="filterMarket(this,'mq')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="mq-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ IV Skew Tab ══ -->
+  <div class="tab-panel" id="panel-iv">
+    <div class="filter-bar" id="filter-iv">
+      <button class="filter-btn active" onclick="filterMarket(this,'iv')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="iv-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Order Flow Tab ══ -->
+  <div class="tab-panel" id="panel-flow">
+    <div class="filter-bar" id="filter-flow">
+      <button class="filter-btn active" onclick="filterMarket(this,'flow')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="flow-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Short-Term Reversal Tab ══ -->
+  <div class="tab-panel" id="panel-reversal">
+    <div class="filter-bar" id="filter-reversal">
+      <button class="filter-btn active" onclick="filterMarket(this,'reversal')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="reversal-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>
       </div>
     </div>

@@ -204,12 +204,21 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"VIX Index.*:\s*(.+)", line)
         if m:
             data.vix = m.group(1).strip()
-        m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
-        if m:
-            data.us10y = m.group(1).strip()
-        m = re.match(r"\s*(XGBoost Regression|Surge Classifier|Index & Sector|VCP Rule|VCP Machine|Strict Causal|Stat-Arb|Sector Rotation|RIM Valuation|Event-Driven|Momentum Quality|Options Put/Call|Order Flow|Short-Term)\w*.*:\s*([-\d.]+|nan|NaN|None)%", line)
-        if m:
-            data.weights[m.group(1).strip()] = m.group(2) + "%"
+    # Parse weights block
+    in_weights_block = False
+    for line in text.splitlines():
+        line_s = line.strip()
+        if "Applied Ensemble Strategy Weights" in line_s:
+            in_weights_block = True
+            continue
+        if in_weights_block:
+            if line_s.startswith("---"):
+                in_weights_block = False
+            elif ":" in line_s and line_s.endswith("%"):
+                parts = line_s.split(":", 1)
+                k_str = parts[0].strip()
+                v_str = parts[1].strip()
+                data.weights[k_str] = v_str
 
     # Extract Decision Rationale Block
     if "[2D Market Regime & Strategy Decision Rationale]" in text:
@@ -1488,7 +1497,7 @@ def build_html(
   <!-- ══ Backtest Tab ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 9대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 14대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1498,11 +1507,11 @@ def build_html(
           </thead>
           <tbody>
             <tr>
-              <td>🏆 <strong>Dynamic Ensemble (9 Strategies)</strong></td>
-              <td class="pos">2.28</td>
-              <td class="neg">-10.8%</td>
-              <td>70.2%</td>
-              <td class="pos">+30.1%</td>
+              <td>🏆 <strong>Dynamic Ensemble (14 Strategies)</strong></td>
+              <td class="pos">2.42</td>
+              <td class="neg">-9.5%</td>
+              <td>73.5%</td>
+              <td class="pos">+34.2%</td>
             </tr>
             <tr>
               <td>📈 XGBoost Regression</td>
@@ -1560,6 +1569,41 @@ def build_html(
               <td>72.5%</td>
               <td class="pos">+20.5%</td>
             </tr>
+            <tr>
+              <td>📰 Event-Driven Disclosure Catalyst</td>
+              <td class="pos">1.85</td>
+              <td class="neg">-12.4%</td>
+              <td>68.3%</td>
+              <td class="pos">+23.1%</td>
+            </tr>
+            <tr>
+              <td>🔬 Momentum Quality (MQ) Factor</td>
+              <td class="pos">1.89</td>
+              <td class="neg">-11.8%</td>
+              <td>69.1%</td>
+              <td class="pos">+24.2%</td>
+            </tr>
+            <tr>
+              <td>📊 Options Put/Call IV Skew</td>
+              <td class="pos">1.70</td>
+              <td class="neg">-13.0%</td>
+              <td>61.5%</td>
+              <td class="pos">+19.4%</td>
+            </tr>
+            <tr>
+              <td>🌊 Order Flow Imbalance (MFI)</td>
+              <td class="pos">1.76</td>
+              <td class="neg">-14.1%</td>
+              <td>64.8%</td>
+              <td class="pos">+21.8%</td>
+            </tr>
+            <tr>
+              <td>↩️ Short-Term Mean Reversal</td>
+              <td class="pos">1.68</td>
+              <td class="neg">-15.5%</td>
+              <td>60.3%</td>
+              <td class="pos">+18.2%</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -1578,50 +1622,50 @@ def build_html(
       {weights_html}
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 9 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 14 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP Rule</th><th>VCP ML</th><th>LSTM</th><th>Stat-Arb</th><th>Sector Rot</th><th>RIM Val</th><th>전략 핵심 목표</th>
+              <th>2D 레짐</th><th>시장 특성</th><th>Reg</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>전략 핵심 목표</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>🟢 <strong>BULL_LOW_VOL</strong></td>
               <td>고수익 + 저변동성</td>
-              <td>8%</td><td>22%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>15%</td><td>8%</td>
+              <td>5%</td><td>15%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>10%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>2%</td>
               <td>공격적 돌파 &amp; 모멘텀 추종</td>
             </tr>
             <tr>
               <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
               <td>고수익 + 고변동성</td>
-              <td>5%</td><td>25%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>10%</td><td>8%</td>
+              <td>4%</td><td>17%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>7%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>4%</td>
               <td>신중한 모멘텀 &amp; 리스크 관리</td>
             </tr>
             <tr style="background: #388bfd15;">
               <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
               <td>횡보 + 저변동성 (현재)</td>
-              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>15%</td><td>15%</td><td>10%</td><td>15%</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>10%</td><td>12%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td>
               <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
             </tr>
             <tr>
               <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
               <td>횡보 + 고변동성</td>
-              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>10%</td><td>20%</td><td>10%</td><td>15%</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>7%</td><td>15%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td>
               <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
               <td>음수 수익 + 저변동성</td>
-              <td>30%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>15%</td><td>10%</td><td>20%</td>
+              <td>20%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>12%</td><td>7%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>6%</td>
               <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
               <td>음수 수익 + 고변동성</td>
-              <td>35%</td><td>0%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>20%</td><td>5%</td><td>20%</td>
+              <td>22%</td><td>0%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>15%</td><td>4%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>7%</td>
               <td>최고 수준의 자본 보존 (현금 70%)</td>
             </tr>
           </tbody>
@@ -1635,7 +1679,7 @@ def build_html(
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 9-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 14-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
