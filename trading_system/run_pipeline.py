@@ -1283,6 +1283,7 @@ def execute_prediction_pipeline():
             pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
             f_out.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
 
+    stat_arb_output_path = os.path.join(result_dir, "stat_arb_predictions.txt")
     with open(stat_arb_output_path, "w", encoding="utf-8") as f:
         _write_stat_arb_file(f, top_stat_arb_pairs)
 
