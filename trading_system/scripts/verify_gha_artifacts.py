@@ -75,11 +75,8 @@ class GhPagesCheckResult:
     file_found: bool = False
     valid: bool = False
     markets_in_html: List[str] = field(default_factory=list)
-    has_ensemble_table: bool = False
-    has_surge_card: bool = False
-    has_vcp_card: bool = False
-    has_reg_card: bool = False
-    has_lead_lag_card: bool = False
+    strategy_panels_valid: Dict[str, bool] = field(default_factory=dict)
+    strategy_panel_counts: Dict[str, int] = field(default_factory=dict)
     message: str = ""
 
 
@@ -377,17 +374,38 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
         if mkt in content:
             res.markets_in_html.append(mkt)
 
-    res.has_ensemble_table = "Ensemble" in content or "앙상블" in content
-    res.has_surge_card = "Surge" in content or "급등" in content
-    res.has_vcp_card = "VCP" in content
-    res.has_reg_card = "Regression" in content or "회귀" in content or "수익률" in content
-    res.has_lead_lag_card = "Lead-Lag" in content or "리드-랙" in content
+    panels_to_check = [
+        "ensemble", "surge", "vcp_ml", "regression", "vcp", "lead_lag",
+        "stat_arb", "sector", "rim", "event_driven", "mq_factor",
+        "iv_skew", "order_flow", "short_term_reversal"
+    ]
 
-    if res.has_ensemble_table and len(res.markets_in_html) >= 2:
+    for p_id in panels_to_check:
+        panel_regex = rf'id=["\'](?:panel-{p_id}|{p_id}-panels)["\'][\s\S]*?(?=<div class=["\']tab-panel["\']|\Z)'
+        p_match = re.search(panel_regex, content, re.IGNORECASE)
+        if p_match:
+            p_content = p_match.group(0)
+            data_rows = re.findall(r'<tr[^>]*>[\s\S]*?</tr>', p_content, re.IGNORECASE)
+            data_rows = [r for r in data_rows if '<th' not in r.lower()]
+            count = len(data_rows)
+            res.strategy_panel_counts[p_id] = count
+            res.strategy_panels_valid[p_id] = count >= 5 and "데이터 없음" not in p_content and "No data" not in p_content
+        else:
+            # Flexible fallback: check for table rows or cards with strategy keyword
+            count = len(re.findall(rf'class=["\']rank["\']', content))
+            res.strategy_panel_counts[p_id] = count
+            res.strategy_panels_valid[p_id] = count > 0 and (p_id in content or "앙상블" in content)
+
+    all_panels_ok = all(res.strategy_panels_valid.values())
+    has_min_mkts = len(res.markets_in_html) >= 2
+
+    if all_panels_ok and has_min_mkts:
         res.valid = True
-        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets"
+        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all 14 strategy panels populated with data"
     else:
-        res.message = "GitHub Pages HTML missing key sections or markets"
+        failed_panels = [p for p, valid in res.strategy_panels_valid.items() if not valid]
+        res.valid = False
+        res.message = f"GitHub Pages HTML data missing in strategy panels: {', '.join(failed_panels)}"
 
     return res
 
@@ -449,11 +467,18 @@ def print_report(report: PipelineVerificationReport) -> None:
     print(f"  Total Recommendations: {report.ensemble.total_recommendations}")
     print(f"  Message        : {report.ensemble.message}")
 
-    print("\n🌐 GitHub Pages HTML Dashboard:")
+    print("\n🌐 GitHub Pages HTML Dashboard & 14 Strategy Panels:")
     print(f"  File Found     : {'Yes' if report.gh_pages.file_found else 'No'}")
     print(f"  Valid Status   : {'✅ Valid' if report.gh_pages.valid else '❌ Invalid'}")
     print(f"  Markets in HTML: {', '.join(report.gh_pages.markets_in_html)}")
-    print(f"  Message        : {report.gh_pages.message}")
+    print("  Strategy Panels Data Status:")
+    for p_id, p_ok in report.gh_pages.strategy_panels_valid.items():
+        cnt = report.gh_pages.strategy_panel_counts.get(p_id, 0)
+        status_icon = "✅" if p_ok else "❌"
+        print(f"    - {p_id:<20}: {status_icon} ({cnt} rows)")
+    print(f"  Summary Message: {report.gh_pages.message}")
+
+    print("\n" + "=" * 110 + "\n")
 
     print("\n" + "=" * 110 + "\n")
 

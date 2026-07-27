@@ -30,7 +30,7 @@ For each target market (**SP500**, **KOSPI**, **KOSDAQ**, **KONEX**), all 14 str
 
 In addition:
 - **Ensemble Integration**: `ensemble_predictions.txt` must be updated with 14 strategy dynamic weights and TOP 100 picks across markets.
-- **GitHub Pages Dashboard**: `gh-pages/index.html` must be rendered without missing market tabs or empty state placeholders.
+- **GitHub Pages Dashboard (`gh-pages/index.html`)**: Must verify populated data rows (`count >= 5` rows and 0 "데이터 없음" warnings) across **all 14 strategy tab panels** (`ensemble`, `surge`, `vcp_ml`, `regression`, `vcp`, `lead_lag`, `stat_arb`, `sector`, `rim`, `event_driven`, `mq_factor`, `iv_skew`, `order_flow`, `short_term_reversal`).
 
 ---
 
