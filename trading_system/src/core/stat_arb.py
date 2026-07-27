@@ -116,8 +116,14 @@ class StatisticalArbitrageEngine:
         if len(symbols) > 300:
             def _avg_vol(s):
                 df = prices_dict.get(s)
-                if df is not None and 'Volume' in df.columns:
-                    return float(df['Volume'].iloc[-30:].mean())
+                if isinstance(df, pd.DataFrame) and not df.empty:
+                    cols_lower = {str(c).lower(): c for c in df.columns}
+                    vol_col = cols_lower.get('volume')
+                    if vol_col is not None:
+                        try:
+                            return float(df[vol_col].iloc[-30:].mean())
+                        except Exception:
+                            return 0.0
                 return 0.0
             symbols = sorted(symbols, key=_avg_vol, reverse=True)[:300]
 
