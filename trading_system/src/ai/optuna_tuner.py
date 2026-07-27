@@ -432,7 +432,7 @@ class OptunaStrategyTuner:
             from src.ai.ensemble_scorer import EnsembleScoringEngine
             engine = EnsembleScoringEngine()
             self.tuned_params['regime_2d_weights'] = engine.REGIME_2D_WEIGHTS
-            return engine.REGIME_2D_WEIGHTS
+            return dict(engine.REGIME_2D_WEIGHTS)
 
         best_weights = {}
         for combo in regime_combos:

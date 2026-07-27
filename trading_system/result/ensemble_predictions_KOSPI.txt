@@ -1,77 +1,10 @@
-=== Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-05 13:48
+=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===
+Date: 2026-07-27 17:21 KST
 
---- Executive Market Summary ---
-Current Market Regime Detected: SIDEWAYS (Code: 1)
-Maximum Total Allocation Allowed: 50.0%
-
---- Judgment Basis (Global Macro Indicators) ---
-  S&P 500 (20d Rolling Mean Return) : +0.086% / day
-  S&P 500 (20d Rolling Volatility)  : 1.026%
-  KOSPI (20d Rolling Mean Return)   : +0.095% / day
-  KOSPI (20d Rolling Volatility)    : 4.574%
-  VIX Index (Fear Gauge)            : nan
-  USD/KRW FX Rate                   : -0.84 KRW
-  US 10Y Bond Yield (TNX)           : nan%
-
---- Applied Ensemble Strategy Weights ---
-  XGBoost Regression Fundamentals   : 35.0%
-  Surge Classifier (XGBoost)        : 15.0%
-  Index & Sector Lead-Lag Flow      : 35.0%
-  VCP Machine Learning Predictor    : 15.0%
-
---- Top 20 Recommendations by Market ---
 
 =========================================
 [KOSPI] Top 20 Ensemble Picks
 =========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    066575    LG전자우                        22.9%            4.6%     50%      0%      0%     36%
-2    192080    더블유게임즈                       22.9%            4.6%     50%      0%      0%     36%
-3    023530    롯데쇼핑                         22.9%            4.6%     50%      0%      0%     36%
-4    003650    미창석유                         22.9%            4.6%     50%      0%      0%     36%
-5    062040    산일전기                         22.9%            4.6%     50%      0%      0%     36%
-6    336260    두산퓨얼셀                        22.9%            4.6%     50%      0%      0%     36%
-7    017670    SK텔레콤                        22.9%            4.6%     50%      0%      0%     36%
-8    003030    세아제강지주                       22.9%            4.6%     50%      0%      0%     36%
-9    004800    효성                           22.9%            4.6%     50%      0%      0%     36%
-10   161390    한국타이어앤테크놀로지                  22.9%            4.6%     50%      0%      0%     36%
-11   012330    현대모비스                        22.9%            4.6%     50%      0%      0%     36%
-12   028260    삼성물산                         22.9%            4.6%     50%      0%      0%     36%
-13   322000    HD현대에너지솔루션                   22.9%            4.6%     50%      0%      0%     36%
-14   035420    NAVER                        22.9%            4.6%     50%      0%      0%     36%
-15   093370    후성                           22.8%            4.6%     50%      0%      0%     35%
-16   007610    선도전기                         22.8%            4.6%     50%      0%      0%     35%
-17   014680    한솔케미칼                        22.8%            4.6%     50%      0%      0%     35%
-18   456040    OCI                          22.8%            4.6%     50%      0%      0%     35%
-19   012750    에스원                          22.8%            4.6%     50%      0%      0%     35%
-20   052690    한전기술                         22.8%            4.6%     50%      0%      0%     35%
-
-
-=========================================
-[SP500] Top 20 Ensemble Picks
-=========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    NSC       Norfolk Southern              0.0%            0.0%      0%      0%      0%      0%
-2    EVRG      Evergy                        0.0%            0.0%      0%      0%      0%      0%
-3    ADP       Automatic Data Pro            0.0%            0.0%      0%      0%      0%      0%
-4    AMCR      Amcor                         0.0%            0.0%      0%      0%      0%      0%
-5    APA       APA Corporation               0.0%            0.0%      0%      0%      0%      0%
-6    CMCSA     Comcast                       0.0%            0.0%      0%      0%      0%      0%
-7    CMI       Cummins                       0.0%            0.0%      0%      0%      0%      0%
-8    COHR      Coherent Corp.                0.0%            0.0%      0%      0%      0%      0%
-9    CTAS      Cintas                        0.0%            0.0%      0%      0%      0%      0%
-10   DG        Dollar General                0.0%            0.0%      0%      0%      0%      0%
-11   KEYS      Keysight Technolog            0.0%            0.0%      0%      0%      0%      0%
-12   LDOS      Leidos                        0.0%            0.0%      0%      0%      0%      0%
-13   EXPD      Expeditors Interna            0.0%            0.0%      0%      0%      0%      0%
-14   EXPE      Expedia Group                 0.0%            0.0%      0%      0%      0%      0%
-15   FANG      Diamondback Energy            0.0%            0.0%      0%      0%      0%      0%
-16   FDX       FedEx                         0.0%            0.0%      0%      0%      0%      0%
-17   FFIV      F5, Inc.                      0.0%            0.0%      0%      0%      0%      0%
-18   GWW       W. W. Grainger                0.0%            0.0%      0%      0%      0%      0%
-19   HON       Honeywell                     0.0%            0.0%      0%      0%      0%      0%
-20   HPE       Hewlett Packard En            0.0%            0.0%      0%      0%      0%      0%
-
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    005930    Samsung Electron        21.0%        3.36%  40%   2%   0%    0%    4%   0%    0%   60%   0%    0%   0%    0%   0%   0%

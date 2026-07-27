@@ -639,7 +639,6 @@ class VCPSurgePredictor:
     def load_models(self):
         try:
             cols = list(dict.fromkeys(self._ft.ALL_FEATURES + VCP_FEATURES))
-            dummy_df = pd.DataFrame(0.0, index=[0], columns=cols)
 
             # Load XGBoost models
             for market in MARKETS + ['KRX']:

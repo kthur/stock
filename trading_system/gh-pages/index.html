@@ -122,18 +122,18 @@
   <h1>📈 Stock Prediction Dashboard</h1>
   <div class="header-meta">
     <span class="badge badge-regime">UNKNOWN</span>
-    <span class="badge badge-date">📅 N/A</span>
-    <span class="badge badge-updated">🔄 생성: 2026-07-27 00:32 KST</span>
+    <span class="badge badge-date">📅 2026-07-27 17:21 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-07-27 17:21 KST</span>
   </div>
 </div>
 
 <div class="macro-strip">
   
     <div class="macro-grid">
-      <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv pos">N/A</span></div>
-      <div class="macro-item"><span class="ml">VIX 변화</span><span class="mv">N/A</span></div>
+      <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv pos">+0.000% / day</span></div>
+      <div class="macro-item"><span class="ml">VIX 변화</span><span class="mv">nan</span></div>
       <div class="macro-item"><span class="ml">US 10Y</span><span class="mv">N/A</span></div>
-      <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">N/A</span></div>
+      <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">85.0%</span></div>
     </div>
 </div>
 
@@ -150,6 +150,11 @@
   <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
   <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
   <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
+  <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
+  <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
+  <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
+  <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
+  <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
 </nav>
 
 <div class="content">
@@ -158,9 +163,33 @@
   <div class="tab-panel active" id="panel-ensemble">
     <div class="weights-section">
       <div class="weights-title">⚙️ 전략 가중치 (14 Strategies)</div>
-      <span style="color:var(--muted)">데이터 없음</span>
+      <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">15.0%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">12.0%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">6.0%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">2.0%</span></div>
     </div>
     
+    <div class="card rationale-card" style="margin-top: 15px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; padding: 15px; border-radius: 8px;">
+      <h3 style="color: #38bdf8; margin-bottom: 8px; font-size: 1.1em;">🧠 [2D Regime &amp; Strategy Decision Rationale]</h3>
+      <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: #cbd5e1; margin: 0;">[2D Market Regime & Strategy Decision Rationale]
+• Selected 2D Regime State: BULL_LOW_VOL
+  - Market Trend Rationale: Upward momentum trend confirmed (20d index return > 0). Momentum & Surge strategies boosted.
+  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.
+
+[14-Strategy Dynamic Weight Allocation]
+• Dynamic Weighting Scheme: Baseline 2D Regime Matrix Weights (No historical performance penalty)
+  - regression            :   5.0%
+  - surge                 :  15.0%
+  - lead_lag              :   4.0%
+  - vcp_rule              :   4.0%
+  - vcp_ml                :  12.0%
+  - lstm                  :  10.0%
+  - stat_arb              :   4.0%
+  - sector_rotation       :  10.0%
+  - rim_valuation         :   6.0%
+  - event_driven          :  10.0%
+  - mq_factor             :  10.0%
+  - iv_skew               :   3.0%
+  - order_flow            :   5.0%
+  - short_term_reversal   :   2.0%</pre>
+    </div>
     <div class="filter-bar" id="filter-ensemble">
       <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
@@ -179,7 +208,28 @@
             <th>앙상블</th><th>기대수익</th>
             <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th>
           </tr></thead>
-          <tbody><tr><td colspan="19" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electron</td>
+              <td class="score">21.0%</td>
+              <td class="pos">3.36%</td>
+              <td>40%</td>
+              <td>2%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>4%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>60%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -192,7 +242,28 @@
             <th>앙상블</th><th>기대수익</th>
             <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th>
           </tr></thead>
-          <tbody><tr><td colspan="19" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td class="score">46.5%</td>
+              <td class="pos">8.44%</td>
+              <td>20%</td>
+              <td>73%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>13%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>60%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -205,7 +276,28 @@
             <th>앙상블</th><th>기대수익</th>
             <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th>
           </tr></thead>
-          <tbody><tr><td colspan="19" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogic</td>
+              <td class="score">27.3%</td>
+              <td class="pos">4.62%</td>
+              <td>100%</td>
+              <td>2%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>2%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>60%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -218,7 +310,49 @@
             <th>앙상블</th><th>기대수익</th>
             <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th>
           </tr></thead>
-          <tbody><tr><td colspan="19" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td class="score">24.2%</td>
+              <td class="pos">4.75%</td>
+              <td>80%</td>
+              <td>1%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>1%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>60%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td class="score">21.9%</td>
+              <td class="pos">4.27%</td>
+              <td>60%</td>
+              <td>1%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>1%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>60%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -231,8 +365,8 @@
       <div class="macro-grid">
         <div class="macro-item"><span class="ml">총 자본금</span><span class="mv">1,000,000,000 KRW/USD</span></div>
         <div class="macro-item"><span class="ml">투자기간</span><span class="mv">20d</span></div>
-        <div class="macro-item"><span class="ml">배분 비중</span><span class="mv pos">50.00%</span></div>
-        <div class="macro-item"><span class="ml">현금 잔고</span><span class="mv">50.00%</span></div>
+        <div class="macro-item"><span class="ml">배분 비중</span><span class="mv pos">58.20%</span></div>
+        <div class="macro-item"><span class="ml">현금 잔고</span><span class="mv">41.80%</span></div>
       </div>
     </div>
 
@@ -265,53 +399,53 @@
             
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
-              <td class="name">삼성전자</td>
-              <td>🇰🇷 KOSPI</td>
-              <td class="pos">5.2%</td>
-              <td>0.30%</td>
-              <td class="pos">10.00%</td>
-              <td>99,999,999</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">8.44%</td>
+              <td>1.02%</td>
+              <td class="pos">15.00%</td>
+              <td>150,000,000</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=000660" target="_blank" class="stock-link">000660</a></td>
-              <td class="name">SK하이닉스</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronic</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">4.8%</td>
-              <td>0.35%</td>
-              <td class="pos">10.00%</td>
-              <td>99,999,999</td>
+              <td class="pos">3.36%</td>
+              <td>1.02%</td>
+              <td class="pos">15.00%</td>
+              <td>150,000,000</td>
             </tr>
             <tr>
               <td class="rank">#3</td>
-              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=035420" target="_blank" class="stock-link">035420</a></td>
-              <td class="name">NAVER</td>
-              <td>🇰🇷 KOSPI</td>
-              <td class="pos">3.5%</td>
-              <td>0.40%</td>
-              <td class="pos">10.00%</td>
-              <td>100,000,000</td>
-            </tr>
-            <tr>
-              <td class="rank">#4</td>
-              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=035720" target="_blank" class="stock-link">035720</a></td>
-              <td class="name">카카오</td>
-              <td>🇰🇷 KOSPI</td>
-              <td class="pos">3.1%</td>
-              <td>0.45%</td>
-              <td class="pos">10.00%</td>
-              <td>100,000,000</td>
-            </tr>
-            <tr>
-              <td class="rank">#5</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">4.2%</td>
-              <td>0.50%</td>
-              <td class="pos">10.00%</td>
-              <td>100,000,000</td>
+              <td class="pos">4.27%</td>
+              <td>1.02%</td>
+              <td class="pos">14.10%</td>
+              <td>140,994,706</td>
+            </tr>
+            <tr>
+              <td class="rank">#4</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td>🇰🇷 KONEX</td>
+              <td class="pos">4.62%</td>
+              <td>1.02%</td>
+              <td class="pos">7.05%</td>
+              <td>70,497,352</td>
+            </tr>
+            <tr>
+              <td class="rank">#5</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">4.75%</td>
+              <td>1.02%</td>
+              <td class="pos">7.05%</td>
+              <td>70,497,351</td>
             </tr>
           </tbody>
         </table>
@@ -322,7 +456,7 @@
   <!-- ══ Backtest Tab ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 9대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 14대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -332,11 +466,11 @@
           </thead>
           <tbody>
             <tr>
-              <td>🏆 <strong>Dynamic Ensemble (9 Strategies)</strong></td>
-              <td class="pos">2.28</td>
-              <td class="neg">-10.8%</td>
-              <td>70.2%</td>
-              <td class="pos">+30.1%</td>
+              <td>🏆 <strong>Dynamic Ensemble (14 Strategies)</strong></td>
+              <td class="pos">2.42</td>
+              <td class="neg">-9.5%</td>
+              <td>73.5%</td>
+              <td class="pos">+34.2%</td>
             </tr>
             <tr>
               <td>📈 XGBoost Regression</td>
@@ -394,6 +528,41 @@
               <td>72.5%</td>
               <td class="pos">+20.5%</td>
             </tr>
+            <tr>
+              <td>📰 Event-Driven Disclosure Catalyst</td>
+              <td class="pos">1.85</td>
+              <td class="neg">-12.4%</td>
+              <td>68.3%</td>
+              <td class="pos">+23.1%</td>
+            </tr>
+            <tr>
+              <td>🔬 Momentum Quality (MQ) Factor</td>
+              <td class="pos">1.89</td>
+              <td class="neg">-11.8%</td>
+              <td>69.1%</td>
+              <td class="pos">+24.2%</td>
+            </tr>
+            <tr>
+              <td>📊 Options Put/Call IV Skew</td>
+              <td class="pos">1.70</td>
+              <td class="neg">-13.0%</td>
+              <td>61.5%</td>
+              <td class="pos">+19.4%</td>
+            </tr>
+            <tr>
+              <td>🌊 Order Flow Imbalance (MFI)</td>
+              <td class="pos">1.76</td>
+              <td class="neg">-14.1%</td>
+              <td>64.8%</td>
+              <td class="pos">+21.8%</td>
+            </tr>
+            <tr>
+              <td>↩️ Short-Term Mean Reversal</td>
+              <td class="pos">1.68</td>
+              <td class="neg">-15.5%</td>
+              <td>60.3%</td>
+              <td class="pos">+18.2%</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -407,55 +576,55 @@
       <div class="macro-grid" style="margin-bottom: 12px;">
         <div class="macro-item"><span class="ml">1D 레짐</span><span class="mv badge badge-regime">UNKNOWN</span></div>
         <div class="macro-item"><span class="ml">2D Combo</span><span class="mv badge" style="color:var(--accent);border-color:var(--accent);">SIDEWAYS_LOW_VOL</span></div>
-        <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">50.0%</span></div>
+        <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">85.0%</span></div>
       </div>
-      
+      <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">15.0%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">12.0%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">6.0%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">2.0%</span></div>
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 9 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 14 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>2D 레짐</th><th>시장 특성</th><th>Regression</th><th>Surge</th><th>Lead-Lag</th><th>VCP Rule</th><th>VCP ML</th><th>LSTM</th><th>Stat-Arb</th><th>Sector Rot</th><th>RIM Val</th><th>전략 핵심 목표</th>
+              <th>2D 레짐</th><th>시장 특성</th><th>Reg</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>전략 핵심 목표</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>🟢 <strong>BULL_LOW_VOL</strong></td>
               <td>고수익 + 저변동성</td>
-              <td>8%</td><td>22%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>15%</td><td>8%</td>
+              <td>5%</td><td>15%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>10%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>2%</td>
               <td>공격적 돌파 &amp; 모멘텀 추종</td>
             </tr>
             <tr>
               <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
               <td>고수익 + 고변동성</td>
-              <td>5%</td><td>25%</td><td>5%</td><td>5%</td><td>18%</td><td>14%</td><td>5%</td><td>10%</td><td>8%</td>
+              <td>4%</td><td>17%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>7%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>4%</td>
               <td>신중한 모멘텀 &amp; 리스크 관리</td>
             </tr>
             <tr style="background: #388bfd15;">
               <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
               <td>횡보 + 저변동성 (현재)</td>
-              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>15%</td><td>15%</td><td>10%</td><td>15%</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>10%</td><td>12%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td>
               <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
             </tr>
             <tr>
               <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
               <td>횡보 + 고변동성</td>
-              <td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>10%</td><td>10%</td><td>20%</td><td>10%</td><td>15%</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>7%</td><td>15%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td>
               <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
               <td>음수 수익 + 저변동성</td>
-              <td>30%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>15%</td><td>10%</td><td>20%</td>
+              <td>20%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>12%</td><td>7%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>6%</td>
               <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
             </tr>
             <tr>
               <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
               <td>음수 수익 + 고변동성</td>
-              <td>35%</td><td>0%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>20%</td><td>5%</td><td>20%</td>
+              <td>22%</td><td>0%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>15%</td><td>4%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>7%</td>
               <td>최고 수준의 자본 보존 (현금 70%)</td>
             </tr>
           </tbody>
@@ -469,7 +638,7 @@
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 9-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 14-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -483,7 +652,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+                <td class="name">Samsung Electronics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.9</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -492,7 +672,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+                <td class="name">Celltrion</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.4</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -501,7 +692,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+                <td class="name">Samsung BioLogics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.7</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -510,7 +712,29 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+                <td class="name">Apple Inc.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.3</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="rank">#2</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+                <td class="name">Microsoft Corp.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.3</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div></div><div class="hz-content" data-hz="3일" style="display:none">
@@ -519,7 +743,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+                <td class="name">Samsung Electronics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">1.0</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -528,7 +763,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+                <td class="name">Celltrion</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.9</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -537,7 +783,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+                <td class="name">Samsung BioLogics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.7</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -546,7 +803,29 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+                <td class="name">Apple Inc.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.3</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="rank">#2</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+                <td class="name">Microsoft Corp.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.3</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div></div><div class="hz-content" data-hz="5일" style="display:none">
@@ -555,7 +834,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+                <td class="name">Samsung Electronics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:2%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">2.3</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -564,7 +854,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+                <td class="name">Celltrion</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.9</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -573,7 +874,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+                <td class="name">Samsung BioLogics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:2%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">2.3</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -582,7 +894,29 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+                <td class="name">Apple Inc.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">1.9</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="rank">#2</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+                <td class="name">Microsoft Corp.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">1.9</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div></div><div class="hz-content" data-hz="20일" style="display:none">
@@ -591,7 +925,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+                <td class="name">Samsung Electronics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:2%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">2.2</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -600,7 +945,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+                <td class="name">Celltrion</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:73%;background:#2ea043"></div>
+                    <span class="prob-label" style="color:#2ea043">73.0</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -609,7 +965,18 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+                <td class="name">Samsung BioLogics</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">1.8</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div>
@@ -618,7 +985,29 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+                <tbody>
+              <tr>
+                <td class="rank">#1</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+                <td class="name">Apple Inc.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.7</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="rank">#2</td>
+                <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+                <td class="name">Microsoft Corp.</td>
+                <td>
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">0.7</span>
+                  </div>
+                </td>
+              </tr></tbody>
               </table>
             </div>
           </div></div>
@@ -789,7 +1178,15 @@
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
           </tr></thead>
-          <tbody><tr><td colspan="6" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#4</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">60.0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -811,7 +1208,23 @@
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
           </tr></thead>
-          <tbody><tr><td colspan="6" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>🇺🇸 SP500</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">60.0%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>🇺🇸 SP500</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">60.0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -876,6 +1289,296 @@
     </div>
   </div>
 
+  <!-- ══ Event-Driven Tab ══ -->
+  <div class="tab-panel" id="panel-event">
+    <div class="filter-bar" id="filter-event">
+      <button class="filter-btn active" onclick="filterMarket(this,'event')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="event-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>이벤트 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ MQ Factor Tab ══ -->
+  <div class="tab-panel" id="panel-mq">
+    <div class="filter-bar" id="filter-mq">
+      <button class="filter-btn active" onclick="filterMarket(this,'mq')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="mq-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>MQ 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ IV Skew Tab ══ -->
+  <div class="tab-panel" id="panel-iv">
+    <div class="filter-bar" id="filter-iv">
+      <button class="filter-btn active" onclick="filterMarket(this,'iv')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="iv-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>IV Skew 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Order Flow Tab ══ -->
+  <div class="tab-panel" id="panel-flow">
+    <div class="filter-bar" id="filter-flow">
+      <button class="filter-btn active" onclick="filterMarket(this,'flow')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="flow-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Short-Term Reversal Tab ══ -->
+  <div class="tab-panel" id="panel-reversal">
+    <div class="filter-bar" id="filter-reversal">
+      <button class="filter-btn active" onclick="filterMarket(this,'reversal')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="reversal-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KONEX">
+      <h3 class="market-title">🇰🇷 KONEX</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>반전 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
   <!-- ══ VCP ML Tab ══ -->
   <div class="tab-panel" id="panel-vcpml">
     <div class="hz-tabs"><button class="hz-tab active" data-hz="1일" onclick="switchHz(this)">1일</button><button class="hz-tab " data-hz="3일" onclick="switchHz(this)">3일</button><button class="hz-tab " data-hz="5일" onclick="switchHz(this)">5일</button><button class="hz-tab " data-hz="20일" onclick="switchHz(this)">20일</button></div>
@@ -895,7 +1598,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">1.0</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -904,7 +1618,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:11%;background:#d29922"></div>
+                  <span class="prob-label" style="color:#d29922">11.4</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -913,7 +1638,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">1.0</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -922,7 +1658,29 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">0.4</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">0.4</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -943,7 +1701,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">1.5</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -952,7 +1721,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:7%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">7.6</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -961,7 +1741,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">1.5</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -970,7 +1761,29 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">0.4</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">0.4</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -991,7 +1804,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:2%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">2.9</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1000,7 +1824,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:6%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">6.6</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1009,7 +1844,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.2</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1018,7 +1864,29 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.2</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.2</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1039,7 +1907,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:4%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">4.2</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1048,7 +1927,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:13%;background:#d29922"></div>
+                  <span class="prob-label" style="color:#d29922">13.0</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1057,7 +1947,18 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">1.8</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1066,7 +1967,29 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">0.6</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>
+                <div class="prob-bar">
+                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">0.6</span>
+                </div>
+              </td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1093,7 +2016,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td class="pos">+0.02%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1102,7 +2031,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td class="pos">+0.01%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1111,7 +2046,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td class="pos">+0.22%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1120,7 +2061,19 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td class="pos">+0.17%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td class="pos">+0.17%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1141,7 +2094,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td class="neg">-0.71%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1150,7 +2109,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td class="pos">+0.01%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1159,7 +2124,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td class="neg">-0.53%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1168,7 +2139,19 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td class="neg">-0.33%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td class="neg">-0.33%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1189,7 +2172,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td class="pos">+0.26%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1198,7 +2187,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td class="pos">+0.08%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1207,7 +2202,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td class="pos">+0.48%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1216,7 +2217,19 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td class="pos">+0.35%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td class="pos">+0.35%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1237,7 +2250,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=005930" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td class="neg">-0.12%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1246,7 +2265,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=068270" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td class="pos">+0.06%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1255,7 +2280,13 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/item/main.nhn?code=207940" target="_blank" class="stock-link">207940</a></td>
+              <td class="name">Samsung BioLogics</td>
+              <td class="neg">-0.15%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1264,7 +2295,19 @@
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td class="neg">-0.49%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td class="neg">-0.49%</td>
+            </tr></tbody>
             </table>
           </div>
         </div>
@@ -1306,10 +2349,10 @@ function switchHz(btn) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  const hrpLabels = ["삼성전자", "SK하이닉스", "NAVER", "카카오", "Apple Inc.", "Remaining Cash"];
-  const hrpWeights = [10.0, 10.0, 10.0, 10.0, 10.0, 50.0];
+  const hrpLabels = ["Celltrion", "Samsung Electronic", "Apple Inc.", "Samsung BioLogics", "Microsoft Corp.", "Remaining Cash"];
+  const hrpWeights = [15.0, 15.0, 14.1, 7.05, 7.05, 41.8];
   const mktLabels = ["KOSPI", "KOSDAQ", "KONEX", "SP500", "CASH"];
-  const mktWeights = [40.0, 0.0, 0.0, 10.0, 50.0];
+  const mktWeights = [15.0, 15.0, 7.05, 21.15, 41.8];
 
   const donutCtx = document.getElementById('hrpDonutChart');
   if (donutCtx && typeof Chart !== 'undefined' && hrpLabels.length > 0) {

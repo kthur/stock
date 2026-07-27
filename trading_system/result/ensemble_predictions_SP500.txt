@@ -1,50 +1,11 @@
-=== Dynamic Multi-Strategy Ensemble Predictions ===
-Date: 2026-07-05 13:39
+=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===
+Date: 2026-07-27 17:21 KST
 
---- Executive Market Summary ---
-Current Market Regime Detected: SIDEWAYS (Code: 1)
-Maximum Total Allocation Allowed: 50.0%
-
---- Judgment Basis (Global Macro Indicators) ---
-  S&P 500 (20d Rolling Mean Return) : +0.086% / day
-  S&P 500 (20d Rolling Volatility)  : 1.026%
-  KOSPI (20d Rolling Mean Return)   : +0.095% / day
-  KOSPI (20d Rolling Volatility)    : 4.574%
-  VIX Index (Fear Gauge)            : nan
-  USD/KRW FX Rate                   : -0.84 KRW
-  US 10Y Bond Yield (TNX)           : nan%
-
---- Applied Ensemble Strategy Weights ---
-  XGBoost Regression Fundamentals   : 35.0%
-  Surge Classifier (XGBoost)        : 15.0%
-  Index & Sector Lead-Lag Flow      : 35.0%
-  VCP Machine Learning Predictor    : 15.0%
-
---- Top 20 Recommendations by Market ---
 
 =========================================
 [SP500] Top 20 Ensemble Picks
 =========================================
-Rank Symbol    Name                Ensemble Score  Expected Return   Reg     Surge   L-L     VCP     
----------------------------------------------------------------------------------------------------
-1    PSKY      Paramount Skydance           69.9%           14.0%     92%     27%     96%      3%
-2    MOS       Mosaic Company (Th           61.9%           12.4%     98%      9%     74%      2%
-3    NEM       Newmont                      60.5%           12.1%     87%      6%     82%      3%
-4    EVRG      Evergy                       59.1%           11.8%     68%      2%    100%      1%
-5    TSN       Tyson Foods                  45.1%            9.0%     53%      3%     74%      1%
-6    APTV      Aptiv                        40.7%            8.1%     99%     35%      0%      5%
-7    SMCI      Supermicro                   40.4%            8.1%    100%     12%      0%     25%
-8    ON        ON Semiconductor             40.1%            8.0%    100%     31%      0%      4%
-9    GNRC      Generac                      39.8%            8.0%     97%     26%      0%     13%
-10   CSGP      CoStar Group                 39.6%            7.9%     93%     33%      0%     14%
-11   LDOS      Leidos                       39.0%            7.8%     15%      5%     93%      2%
-12   BLDR      Builders FirstSour           38.4%            7.7%     97%     23%      0%      6%
-13   APP       AppLovin                     38.4%            7.7%     85%     16%     15%      6%
-14   SWKS      Skyworks Solutions           37.6%            7.5%     99%     19%      0%      2%
-15   DLTR      Dollar Tree                  37.6%            7.5%     97%     20%      0%      5%
-16   GLW       Corning Inc.                 37.6%            7.5%     99%      9%      0%     10%
-17   MU        Micron Technology            37.5%            7.5%     98%     12%      0%     10%
-18   IT        Gartner                      37.5%            7.5%     96%     20%      0%      7%
-19   SNDK      Sandisk                      37.4%            7.5%     99%     12%      0%      7%
-20   TTD       Trade Desk (The)             37.3%            7.5%     95%     24%      0%      4%
-
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    MSFT      Microsoft Corp.         24.2%        4.75%  80%   1%   0%    0%    1%   0%    0%   60%   0%    0%   0%    0%   0%   0%
+2    AAPL      Apple Inc.              21.9%        4.27%  60%   1%   0%    0%    1%   0%    0%   60%   0%    0%   0%    0%   0%   0%

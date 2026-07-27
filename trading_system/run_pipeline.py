@@ -364,7 +364,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional[StockPriceDB] = None,
                    freshness_days: int = 7, update_interval: int = 0) -> Optional[pd.DataFrame]:
     """Fetch price data for a single symbol using technical_cache + MarketDataHandler (Tier 1 yfinance, Tier 2 FDR, Tier 3 DB)."""
-    def _fetch_fallback(s: str, m: str, d: str) -> Optional[pd.DataFrame]:
+    def _fetch_fallback(s: str, d: str) -> Optional[pd.DataFrame]:
         cached_df = None
         stale = True if freshness_days >= 0 else False
         if price_db is not None:

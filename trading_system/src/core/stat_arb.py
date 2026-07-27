@@ -141,9 +141,13 @@ class StatisticalArbitrageEngine:
                     continue
 
                 try:
-                    p1 = _extract_close_series(v1).tail(120)
-                    p2 = _extract_close_series(v2).tail(120)
-                    if p1 is None or p2 is None or len(p1) < 30 or len(p2) < 30:
+                    s1_close = _extract_close_series(v1)
+                    s2_close = _extract_close_series(v2)
+                    if s1_close is None or s2_close is None:
+                        continue
+                    p1 = s1_close.tail(120)
+                    p2 = s2_close.tail(120)
+                    if len(p1) < 30 or len(p2) < 30:
                         continue
 
                     # Align series

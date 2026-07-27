@@ -2072,14 +2072,31 @@ class OnDevicePredictionModel:
                         w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
                         w_lstm_val = w_dict.get("lstm", 0.0) if w_dict else 0.0
 
+                        def _align(m, df):
+                            feat_names = None
+                            if hasattr(m, "feature_names_in_") and m.feature_names_in_ is not None:
+                                feat_names = list(m.feature_names_in_)
+                            elif hasattr(m, "get_booster"):
+                                try:
+                                    feat_names = m.get_booster().feature_names
+                                except Exception:
+                                    feat_names = None
+                            if feat_names:
+                                df_aligned = df.copy()
+                                for col in feat_names:
+                                    if col not in df_aligned.columns:
+                                        df_aligned[col] = 0.0
+                                return df_aligned[feat_names]
+                            return df
+
                         if xgb_m is not None:
-                            preds.append(xgb_m.predict(X_mkt))
+                            preds.append(xgb_m.predict(_align(xgb_m, X_mkt)))
                             weights.append(w_xgb_val)
                         if lgb_m is not None:
-                            preds.append(lgb_m.predict(X_mkt))
+                            preds.append(lgb_m.predict(_align(lgb_m, X_mkt)))
                             weights.append(w_lgb_val)
                         if cat_m is not None:
-                            preds.append(cat_m.predict(X_mkt))
+                            preds.append(cat_m.predict(_align(cat_m, X_mkt)))
                             weights.append(w_cat_val)
 
                         if lstm_m is not None and w_lstm_val > 0 and prices_dict is not None:
@@ -2201,21 +2218,38 @@ class OnDevicePredictionModel:
                         w_lgb_val = w_dict.get("lgb", 0.3) if w_dict else 0.3
                         w_cat_val = w_dict.get("cat", 0.3) if w_dict else 0.3
 
+                        def _align_surge(m, df):
+                            feat_names = None
+                            if hasattr(m, "feature_names_in_") and m.feature_names_in_ is not None:
+                                feat_names = list(m.feature_names_in_)
+                            elif hasattr(m, "get_booster"):
+                                try:
+                                    feat_names = m.get_booster().feature_names
+                                except Exception:
+                                    feat_names = None
+                            if feat_names:
+                                df_aligned = df.copy()
+                                for col in feat_names:
+                                    if col not in df_aligned.columns:
+                                        df_aligned[col] = 0.0
+                                return df_aligned[feat_names]
+                            return df
+
                         if xgb_m is not None:
                             try:
-                                preds.append(xgb_m.predict_proba(X_mkt)[:, 1])
+                                preds.append(xgb_m.predict_proba(_align_surge(xgb_m, X_mkt))[:, 1])
                                 weights.append(w_xgb_val)
                             except Exception as e:
                                 logger.warning(f"XGB surge predict error for {mkt} {h}d: {e}")
                         if lgb_m is not None:
                             try:
-                                preds.append(lgb_m.predict_proba(X_mkt)[:, 1])
+                                preds.append(lgb_m.predict_proba(_align_surge(lgb_m, X_mkt))[:, 1])
                                 weights.append(w_lgb_val)
                             except Exception as e:
                                 logger.warning(f"LGB surge predict error for {mkt} {h}d: {e}")
                         if cat_m is not None:
                             try:
-                                preds.append(cat_m.predict_proba(X_mkt)[:, 1])
+                                preds.append(cat_m.predict_proba(_align_surge(cat_m, X_mkt))[:, 1])
                                 weights.append(w_cat_val)
                             except Exception as e:
                                 logger.warning(f"CatBoost surge predict error for {mkt} {h}d: {e}")
