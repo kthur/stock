@@ -106,6 +106,9 @@ def _read_text(path: Path) -> str:
             return path.read_text(encoding="utf-8", errors="ignore").replace("\r\n", "\n")
 
 
+MIN_ITEMS_PER_STRATEGY = 10
+
+
 def check_surge(content: str, market: str) -> StrategyCheckResult:
     res = StrategyCheckResult(strategy="surge", market=market)
     if not content or "데이터 없음" in content or "No data" in content:
@@ -124,12 +127,12 @@ def check_surge(content: str, market: str) -> StrategyCheckResult:
     if matches:
         percentages = [float(p) for p in matches]
         non_zero_pcts = [p for p in percentages if p > 0.0]
-        if non_zero_pcts:
+        if res.count >= MIN_ITEMS_PER_STRATEGY and non_zero_pcts:
             res.non_zero = True
             res.valid = True
-            res.message = f"Found {len(matches)} surge items (max: {max(percentages):.1f}%)"
+            res.message = f"Found {len(matches)} surge items (>= 10 required, max: {max(percentages):.1f}%)"
         else:
-            res.message = f"Found {len(matches)} surge items but all are 0.0%"
+            res.message = f"Found only {res.count} surge items (>= 10 required)"
     else:
         res.message = "No surge entries matching pattern"
 
@@ -146,25 +149,14 @@ def check_vcp_ml(content: str, market: str) -> StrategyCheckResult:
     pattern = rf"\[{re.escape(market)}\]\s+[\w\d_.-]+\s*\([^)]+\):\s*([\d.]+)%"
     matches = re.findall(pattern, content)
 
-    if not matches:
-        if f"{market} - (no symbols)" in content or f"[{market}] - (no symbols)" in content:
-            res.message = f"{market} explicitly reports no VCP ML symbols"
-            res.valid = True
-            res.count = 0
-            return res
-
     res.count = len(matches)
-    if matches:
+    if res.count >= MIN_ITEMS_PER_STRATEGY:
         percentages = [float(p) for p in matches]
-        non_zero_pcts = [p for p in percentages if p > 0.0]
-        if non_zero_pcts:
-            res.non_zero = True
-            res.valid = True
-            res.message = f"Found {len(matches)} VCP ML items (max: {max(percentages):.1f}%)"
-        else:
-            res.message = f"Found {len(matches)} VCP ML items but all are 0.0%"
+        res.non_zero = True
+        res.valid = True
+        res.message = f"Found {len(matches)} VCP ML items (>= 10 required)"
     else:
-        res.message = "No VCP ML items found"
+        res.message = f"Found only {res.count} VCP ML items (>= 10 required)"
 
     return res
 
@@ -180,12 +172,12 @@ def check_regression(content: str, market: str) -> StrategyCheckResult:
     data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:")]
 
     res.count = len(data_lines)
-    if res.count > 0:
+    if res.count >= MIN_ITEMS_PER_STRATEGY:
         res.non_zero = True
         res.valid = True
-        res.message = f"Found {res.count} regression prediction rows"
+        res.message = f"Found {res.count} regression prediction rows (>= 10 required)"
     else:
-        res.message = "No regression prediction rows found"
+        res.message = f"Found only {res.count} regression prediction rows (>= 10 required)"
 
     return res
 
@@ -194,20 +186,19 @@ def check_vcp(content: str, market: str) -> StrategyCheckResult:
     res = StrategyCheckResult(strategy="vcp", market=market)
     if not content or "데이터 없음" in content or "No data" in content:
         res.message = "No VCP pattern matches found"
-        if "Total VCP patterns found:" in content or "Total symbols evaluated:" in content:
-            res.file_found = True
-            res.valid = True
-            res.message = "VCP pattern detector executed cleanly"
         return res
 
     res.file_found = True
     matches = re.findall(rf"\[{re.escape(market)}\]", content)
-    pattern_count = len(matches)
+    res.count = len(matches)
 
-    res.count = pattern_count
-    res.valid = True
-    res.non_zero = (pattern_count > 0)
-    res.message = f"Found {pattern_count} VCP pattern entries"
+    if res.count >= MIN_ITEMS_PER_STRATEGY:
+        res.valid = True
+        res.non_zero = True
+        res.message = f"Found {res.count} VCP pattern entries (>= 10 required)"
+    else:
+        res.message = f"Found only {res.count} VCP pattern entries (>= 10 required)"
+
     return res
 
 
@@ -221,16 +212,12 @@ def check_lead_lag(content: str, market: str) -> StrategyCheckResult:
     matches = re.findall(rf"\[{re.escape(market)}\]", content)
     res.count = len(matches)
 
-    if res.count > 0:
+    if res.count >= MIN_ITEMS_PER_STRATEGY:
         res.valid = True
         res.non_zero = True
-        res.message = f"Found {res.count} lead-lag candidate entries"
+        res.message = f"Found {res.count} lead-lag candidate entries (>= 10 required)"
     else:
-        if "Leaders with highest today return" in content or "Follower" in content:
-            res.valid = True
-            res.message = "Lead-lag calculated (0 followers triggered)"
-        else:
-            res.message = "No lead-lag entries found"
+        res.message = f"Found only {res.count} lead-lag candidate entries (>= 10 required)"
 
     return res
 
@@ -246,12 +233,12 @@ def check_generic_strategy(content: str, market: str, strat_name: str) -> Strate
     data_lines = [ln for ln in lines if not ln.startswith("===") and not ln.startswith("Date:") and not ln.startswith("Total symbols:") and not ln.startswith("---") and not ln.startswith("Pair")]
 
     res.count = len(data_lines)
-    if res.count > 0:
+    if res.count >= MIN_ITEMS_PER_STRATEGY:
         res.non_zero = True
         res.valid = True
-        res.message = f"Found {res.count} {strat_name} prediction items"
+        res.message = f"Found {res.count} {strat_name} prediction items (>= 10 required)"
     else:
-        res.message = f"No {strat_name} prediction items found"
+        res.message = f"Found only {res.count} {strat_name} prediction items (>= 10 required)"
 
     return res
 

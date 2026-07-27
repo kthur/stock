@@ -9,24 +9,24 @@ This skill provides comprehensive instructions and automated tooling to verify t
 
 ## Key Verification Requirements
 
-For each target market (**SP500**, **KOSPI**, **KOSDAQ**, **KONEX**), all 14 strategies must output valid prediction data:
+For each target market (**SP500**, **KOSPI**, **KOSDAQ**, **KONEX**), all 14 strategies must output valid prediction data with **at least 10 items (count >= 10)** per market:
 
-| # | Strategy | Output Artifact | Non-Zero Validation Rule |
-|---|----------|-----------------|--------------------------|
-| 1 | **Surge Classifier** | `surge_predictions.txt` / `surge_predictions_{MARKET}.txt` | Probability values > 0.0% (not all 0.0% or empty) |
-| 2 | **VCP ML Predictor** | `vcp_ml_predictions.txt` / `vcp_ml_predictions_{MARKET}.txt` | Valid predictions or explicit symbol status |
-| 3 | **Regression Model** | `pipeline_result.txt` / `pipeline_result_{MARKET}.txt` | Expected return predictions count > 0 |
-| 4 | **VCP Rule Detector** | `vcp_patterns.txt` / `vcp_patterns_{MARKET}.txt` | Clean execution & valid pattern listings |
-| 5 | **Lead-Lag Matrix** | `lead_lag_predictions.txt` / `lead_lag_predictions_{MARKET}.txt` | Leader/follower correlation entries > 0 |
-| 6 | **Stat-Arb Cointegration** | `stat_arb_predictions.txt` / `stat_arb_predictions_{MARKET}.txt` | Cointegrated pairs or fallback mean-reversion entries > 0 |
-| 7 | **Sector Rotation** | `sector_predictions.txt` / `sector_predictions_{MARKET}.txt` | Relative sector momentum scores > 0 |
-| 8 | **RIM Valuation** | `rim_predictions.txt` / `rim_predictions_{MARKET}.txt` | Residual income intrinsic valuation entries > 0 |
-| 9 | **Event-Driven Catalyst** | `event_driven_predictions.txt` / `event_driven_predictions_{MARKET}.txt` | Disclosure/volume catalyst score entries > 0 |
-| 10 | **MQ Factor** | `mq_factor_predictions.txt` / `mq_factor_predictions_{MARKET}.txt` | Momentum quality factor score entries > 0 |
-| 11 | **Options IV Skew** | `iv_skew_predictions.txt` / `iv_skew_predictions_{MARKET}.txt` | Option IV skew or volatility skew entries > 0 |
-| 12 | **Order Flow (MFI)** | `order_flow_predictions.txt` / `order_flow_predictions_{MARKET}.txt` | Foreign/institutional order flow entries > 0 |
-| 13 | **Short-Term Reversal** | `short_term_reversal_predictions.txt` / `short_term_reversal_predictions_{MARKET}.txt` | Overbought/oversold mean reversion entries > 0 |
-| 14 | **14-Strategy Ensemble** | `ensemble_predictions.txt` / `ensemble_predictions_{MARKET}.txt` | Dynamic weighted ensemble picks > 0 |
+| # | Strategy | Output Artifact | Non-Zero & Minimum Count Validation Rule |
+|---|----------|-----------------|------------------------------------------|
+| 1 | **Surge Classifier** | `surge_predictions.txt` / `surge_predictions_{MARKET}.txt` | Probability values > 0.0% & count >= 10 |
+| 2 | **VCP ML Predictor** | `vcp_ml_predictions.txt` / `vcp_ml_predictions_{MARKET}.txt` | Valid predictions & count >= 10 |
+| 3 | **Regression Model** | `pipeline_result.txt` / `pipeline_result_{MARKET}.txt` | Expected return predictions & count >= 10 |
+| 4 | **VCP Rule Detector** | `vcp_patterns.txt` / `vcp_patterns_{MARKET}.txt` | Technical pattern listings & count >= 10 |
+| 5 | **Lead-Lag Matrix** | `lead_lag_predictions.txt` / `lead_lag_predictions_{MARKET}.txt` | Leader/follower correlation entries & count >= 10 |
+| 6 | **Strict Causal LSTM** | `lstm_predictions.txt` / `lstm_predictions_{MARKET}.txt` | Deep learning time-series predictions & count >= 10 |
+| 7 | **Stat-Arb Cointegration** | `stat_arb_predictions.txt` / `stat_arb_predictions_{MARKET}.txt` | Cointegrated pairs or mean-reversion entries & count >= 10 |
+| 8 | **Sector Rotation** | `sector_predictions.txt` / `sector_predictions_{MARKET}.txt` | Relative sector momentum scores & count >= 10 |
+| 9 | **RIM Valuation** | `rim_predictions.txt` / `rim_predictions_{MARKET}.txt` | Residual income intrinsic valuation entries & count >= 10 |
+| 10 | **Event-Driven Catalyst** | `event_driven_predictions.txt` / `event_driven_predictions_{MARKET}.txt` | Disclosure/volume catalyst score entries & count >= 10 |
+| 11 | **MQ Factor** | `mq_factor_predictions.txt` / `mq_factor_predictions_{MARKET}.txt` | Momentum quality factor score entries & count >= 10 |
+| 12 | **Options IV Skew** | `iv_skew_predictions.txt` / `iv_skew_predictions_{MARKET}.txt` | Option IV skew or volatility skew entries & count >= 10 |
+| 13 | **Order Flow (MFI)** | `order_flow_predictions.txt` / `order_flow_predictions_{MARKET}.txt` | Foreign/institutional order flow entries & count >= 10 |
+| 14 | **Short-Term Reversal** | `short_term_reversal_predictions.txt` / `short_term_reversal_predictions_{MARKET}.txt` | Overbought/oversold mean reversion entries & count >= 10 |
 
 In addition:
 - **Ensemble Integration**: `ensemble_predictions.txt` must be updated with 14 strategy dynamic weights and TOP 100 picks across markets.
