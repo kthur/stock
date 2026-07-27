@@ -1,0 +1,20 @@
+=== 14-Strategy Data Coverage & Missingness Report ===
+Date: 2026-07-28 00:48 KST
+Total Evaluated Symbols: 898
+
+Strategy              Valid Count    Missing Count  Coverage %     Primary Missing Reason        
+-------------------------------------------------------------------------------------------------
+regression            898            0               100.0%          None (100% Valid)             
+surge                 898            0               100.0%          None (100% Valid)             
+lead_lag              898            0               100.0%          None (100% Valid)             
+vcp_rule              898            0               100.0%          None (100% Valid)             
+vcp_ml                898            0               100.0%          None (100% Valid)             
+lstm                  898            0               100.0%          None (100% Valid)             
+stat_arb              898            0               100.0%          None (100% Valid)             
+sector_rotation       898            0               100.0%          None (100% Valid)             
+rim_valuation         898            0               100.0%          None (100% Valid)             
+event_driven          898            0               100.0%          None (100% Valid)             
+mq_factor             898            0               100.0%          None (100% Valid)             
+iv_skew               898            0               100.0%          None (100% Valid)             
+order_flow            898            0               100.0%          None (100% Valid)             
+short_term_reversal   898            0               100.0%          None (100% Valid)             

@@ -1,0 +1,7 @@
+=== Lead-Lag Surge Predictions ===
+Date: 2026-07-28 00:29
+Based on today's top 0 leader stock movements
+Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
+        (Higher = stronger historical co-movement with market leaders)
+
+데이터 없음

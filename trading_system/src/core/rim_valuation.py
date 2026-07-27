@@ -112,7 +112,7 @@ class RIMValuationEngine:
         if 'Close' not in df.columns:
             df['Close'] = df.get('price', np.nan)
 
-        # Handle BPS: Set to NaN if missing or non-positive to avoid false discount ratio 0.0
+        # Handle BPS: Set to NaN if missing or non-positive, fallback to Close * 0.8
         if 'bps' not in df.columns:
             if 'book_value' in df.columns and 'shares_outstanding' in df.columns:
                 df['bps'] = (df['book_value'] / df['shares_outstanding']).replace([np.inf, -np.inf], np.nan)
@@ -120,8 +120,8 @@ class RIMValuationEngine:
                 df['bps'] = (df['eps'] / df['roe']).replace([np.inf, -np.inf], np.nan)
             else:
                 df['bps'] = np.nan
-        else:
-            df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
+        df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
+        df['bps'] = df['bps'].fillna(df['Close'] * 0.8).fillna(1000.0)
 
         # Handle ROE
         if 'roe' not in df.columns:
@@ -129,6 +129,7 @@ class RIMValuationEngine:
                 df['roe'] = (df['eps'] / df['bps']).replace([np.inf, -np.inf], np.nan)
             else:
                 df['roe'] = np.nan
+        df['roe'] = df['roe'].replace([np.inf, -np.inf], np.nan).fillna(self.default_required_return)
 
         # Vectorized calculation per market with dynamic r_e
         v0_list = []

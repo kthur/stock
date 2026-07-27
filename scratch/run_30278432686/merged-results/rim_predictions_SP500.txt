@@ -1,0 +1,106 @@
+=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===
+Date: 2026-07-28
+Total symbols evaluated: 497
+
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score   
+-----------------------------------------------------------------------------------------------
+1    MMM       3M                  SP500     176.57      nan                  nan%       nan%
+2    AOS       A. O. Smith         SP500     62.36       nan                  nan%       nan%
+3    ABT       Abbott Laboratorie  SP500     105.76      nan                  nan%       nan%
+4    ABBV      AbbVie              SP500     261.27      nan                  nan%       nan%
+5    ACN       Accenture           SP500     154.96      nan                  nan%       nan%
+6    ADBE      Adobe Inc.          SP500     237.64      nan                  nan%       nan%
+7    AMD       Advanced Micro Dev  SP500     482.10      nan                  nan%       nan%
+8    AES       AES Corporation     SP500     14.85       nan                  nan%       nan%
+9    AFL       Aflac               SP500     126.65      nan                  nan%       nan%
+10   A         Agilent Technologi  SP500     138.25      nan                  nan%       nan%
+11   APD       Air Products        SP500     292.52      nan                  nan%       nan%
+12   ABNB      Airbnb              SP500     145.38      nan                  nan%       nan%
+13   AKAM      Akamai Technologie  SP500     112.66      nan                  nan%       nan%
+14   ALB       Albemarle Corporat  SP500     114.83      nan                  nan%       nan%
+15   ARE       Alexandria Real Es  SP500     51.99       nan                  nan%       nan%
+16   ALGN      Align Technology    SP500     168.60      nan                  nan%       nan%
+17   ALLE      Allegion            SP500     156.18      nan                  nan%       nan%
+18   LNT       Alliant Energy      SP500     74.29       nan                  nan%       nan%
+19   ALL       Allstate            SP500     261.96      nan                  nan%       nan%
+20   GOOGL     Alphabet Inc. (Cla  SP500     328.85      nan                  nan%       nan%
+21   GOOG      Alphabet Inc. (Cla  SP500     328.77      nan                  nan%       nan%
+22   MO        Altria              SP500     72.74       nan                  nan%       nan%
+23   AMZN      Amazon              SP500     233.26      nan                  nan%       nan%
+24   AMCR      Amcor               SP500     45.21       nan                  nan%       nan%
+25   AEE       Ameren              SP500     112.95      nan                  nan%       nan%
+26   AEP       American Electric   SP500     134.77      nan                  nan%       nan%
+27   AXP       American Express    SP500     333.53      nan                  nan%       nan%
+28   AIG       American Internati  SP500     79.82       nan                  nan%       nan%
+29   AMT       American Tower      SP500     167.14      nan                  nan%       nan%
+30   AWK       American Water Wor  SP500     135.27      nan                  nan%       nan%
+31   AMP       Ameriprise Financi  SP500     540.08      nan                  nan%       nan%
+32   AME       Ametek              SP500     239.15      nan                  nan%       nan%
+33   AMGN      Amgen               SP500     380.81      nan                  nan%       nan%
+34   APH       Amphenol            SP500     147.94      nan                  nan%       nan%
+35   ADI       Analog Devices      SP500     366.34      nan                  nan%       nan%
+36   AON       Aon plc             SP500     369.00      nan                  nan%       nan%
+37   APA       APA Corporation     SP500     35.38       nan                  nan%       nan%
+38   APO       Apollo Global Mana  SP500     124.87      nan                  nan%       nan%
+39   AAPL      Apple Inc.          SP500     338.72      nan                  nan%       nan%
+40   AMAT      Applied Materials   SP500     503.38      nan                  nan%       nan%
+41   APP       AppLovin            SP500     409.85      nan                  nan%       nan%
+42   APTV      Aptiv               SP500     56.68       nan                  nan%       nan%
+43   ACGL      Arch Capital Group  SP500     104.50      nan                  nan%       nan%
+44   ADM       Archer Daniels Mid  SP500     83.18       nan                  nan%       nan%
+45   ARES      Ares Management     SP500     129.52      nan                  nan%       nan%
+46   ANET      Arista Networks     SP500     167.09      nan                  nan%       nan%
+47   AJG       Arthur J. Gallaghe  SP500     254.12      nan                  nan%       nan%
+48   AIZ       Assurant            SP500     278.40      nan                  nan%       nan%
+49   T         AT&T                SP500     24.27       nan                  nan%       nan%
+50   ATO       Atmos Energy        SP500     179.32      nan                  nan%       nan%
+51   ADSK      Autodesk            SP500     222.98      nan                  nan%       nan%
+52   ADP       Automatic Data Pro  SP500     255.68      nan                  nan%       nan%
+53   AZO       AutoZone            SP500     3064.56     nan                  nan%       nan%
+54   AVB       AvalonBay Communit  SP500     189.62      nan                  nan%       nan%
+55   AVY       Avery Dennison      SP500     163.46      nan                  nan%       nan%
+56   AXON      Axon Enterprise     SP500     525.26      nan                  nan%       nan%
+57   BKR       Baker Hughes        SP500     60.80       nan                  nan%       nan%
+58   BALL      Ball Corporation    SP500     64.78       nan                  nan%       nan%
+59   BAC       Bank of America     SP500     62.47       nan                  nan%       nan%
+60   BAX       Baxter Internation  SP500     23.27       nan                  nan%       nan%
+61   BDX       Becton Dickinson    SP500     160.12      nan                  nan%       nan%
+62   BBY       Best Buy            SP500     87.67       nan                  nan%       nan%
+63   TECH      Bio-Techne          SP500     71.80       nan                  nan%       nan%
+64   BIIB      Biogen              SP500     203.11      nan                  nan%       nan%
+65   BLK       BlackRock           SP500     1055.69     nan                  nan%       nan%
+66   BX        Blackstone Inc.     SP500     133.37      nan                  nan%       nan%
+67   XYZ       Block, Inc.         SP500     79.70       nan                  nan%       nan%
+68   BNY       BNY Mellon          SP500     158.10      nan                  nan%       nan%
+69   BA        Boeing              SP500     212.91      nan                  nan%       nan%
+70   BKNG      Booking Holdings    SP500     184.51      nan                  nan%       nan%
+71   BSX       Boston Scientific   SP500     46.19       nan                  nan%       nan%
+72   BMY       Bristol Myers Squi  SP500     63.08       nan                  nan%       nan%
+73   AVGO      Broadcom            SP500     381.62      nan                  nan%       nan%
+74   BR        Broadridge Financi  SP500     153.77      nan                  nan%       nan%
+75   BRO       Brown & Brown       SP500     69.79       nan                  nan%       nan%
+76   BLDR      Builders FirstSour  SP500     72.96       nan                  nan%       nan%
+77   BG        Bunge Global        SP500     117.25      nan                  nan%       nan%
+78   BXP       BXP, Inc.           SP500     69.62       nan                  nan%       nan%
+79   CHRW      C.H. Robinson       SP500     176.43      nan                  nan%       nan%
+80   CDNS      Cadence Design Sys  SP500     341.30      nan                  nan%       nan%
+81   CPT       Camden Property Tr  SP500     113.61      nan                  nan%       nan%
+82   COF       Capital One         SP500     205.93      nan                  nan%       nan%
+83   CAH       Cardinal Health     SP500     229.68      nan                  nan%       nan%
+84   CCL       Carnival Corporati  SP500     26.91       nan                  nan%       nan%
+85   CARR      Carrier Global      SP500     68.50       nan                  nan%       nan%
+86   CVNA      Carvana             SP500     63.04       nan                  nan%       nan%
+87   CASY      Casey's             SP500     857.46      nan                  nan%       nan%
+88   CAT       Caterpillar Inc.    SP500     846.91      nan                  nan%       nan%
+89   CBOE      Cboe Global Market  SP500     280.77      nan                  nan%       nan%
+90   CBRE      CBRE Group          SP500     143.64      nan                  nan%       nan%
+91   CDW       CDW Corporation     SP500     137.97      nan                  nan%       nan%
+92   COR       Cencora             SP500     311.92      nan                  nan%       nan%
+93   CNC       Centene Corporatio  SP500     63.71       nan                  nan%       nan%
+94   CNP       CenterPoint Energy  SP500     44.16       nan                  nan%       nan%
+95   CF        CF Industries       SP500     120.11      nan                  nan%       nan%
+96   CRL       Charles River Labo  SP500     225.75      nan                  nan%       nan%
+97   SCHW      Charles Schwab Cor  SP500     103.71      nan                  nan%       nan%
+98   CHTR      Charter Communicat  SP500     127.36      nan                  nan%       nan%
+99   CVX       Chevron Corporatio  SP500     191.42      nan                  nan%       nan%
+100  CMG       Chipotle Mexican G  SP500     33.02       nan                  nan%       nan%

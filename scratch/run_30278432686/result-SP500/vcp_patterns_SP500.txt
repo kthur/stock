@@ -1,0 +1,405 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-28 00:29
+Total symbols evaluated: 497
+
+--- SP500 Top 100 ---
+  1. [SP500] ABBV (AbbVie)
+       Score: 100/100 | Current range: 2.2% | Contraction: 2.2% > 4.3% > 4.5% > 3.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  2. [SP500] AFL (Aflac)
+       Score: 100/100 | Current range: 1.6% | Contraction: 1.6% > 3.1% > 3.5% > 3.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  3. [SP500] ARE (Alexandria Real Estate Equities)
+       Score: 100/100 | Current range: 3.7% | Contraction: 3.7% > 4.4% > 8.5% > 10.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  4. [SP500] ABNB (Airbnb)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 4.2% > 5.9% > 6.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  5. [SP500] MO (Altria)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.2% > 3.3% > 5.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  6. [SP500] ALL (Allstate)
+       Score: 100/100 | Current range: 2.4% | Contraction: 2.4% > 3.2% > 4.1% > 4.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  7. [SP500] AMGN (Amgen)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 4.6% > 4.8% > 3.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  8. [SP500] AME (Ametek)
+       Score: 100/100 | Current range: 2.4% | Contraction: 2.4% > 3.4% > 3.7% > 4.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  9. [SP500] AON (Aon plc)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 3.3% > 5.7% > 5.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  10. [SP500] ADM (Archer Daniels Midland)
+       Score: 100/100 | Current range: 2.7% | Contraction: 2.7% > 2.9% > 5.8% > 7.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  11. [SP500] AIZ (Assurant)
+       Score: 100/100 | Current range: 2.0% | Contraction: 2.0% > 2.1% > 3.0% > 4.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  12. [SP500] AJG (Arthur J. Gallagher & Co.)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 3.8% > 6.0% > 6.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  13. [SP500] ADP (Automatic Data Processing)
+       Score: 100/100 | Current range: 3.1% | Contraction: 3.1% > 3.9% > 4.3% > 4.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  14. [SP500] BAX (Baxter International)
+       Score: 100/100 | Current range: 4.0% | Contraction: 4.0% > 5.1% > 6.4% > 10.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  15. [SP500] TECH (Bio-Techne)
+       Score: 100/100 | Current range: 0.5% | Contraction: 0.5% > 0.9% > 5.8% > 24.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  16. [SP500] BBY (Best Buy)
+       Score: 100/100 | Current range: 4.2% | Contraction: 4.2% > 4.6% > 5.3% > 11.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  17. [SP500] BKNG (Booking Holdings)
+       Score: 100/100 | Current range: 3.3% | Contraction: 3.3% > 4.3% > 7.7% > 5.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  18. [SP500] BR (Broadridge Financial Solutions)
+       Score: 100/100 | Current range: 2.7% | Contraction: 2.7% > 3.7% > 5.3% > 5.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  19. [SP500] BXP (BXP, Inc.)
+       Score: 100/100 | Current range: 2.8% | Contraction: 2.8% > 3.5% > 4.6% > 4.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  20. [SP500] CPT (Camden Property Trust)
+       Score: 100/100 | Current range: 1.6% | Contraction: 1.6% > 3.3% > 3.6% > 3.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  21. [SP500] CASY (Casey's)
+       Score: 100/100 | Current range: 4.6% | Contraction: 4.6% > 5.1% > 13.6% > 4.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  22. [SP500] CF (CF Industries)
+       Score: 100/100 | Current range: 3.5% | Contraction: 3.5% > 5.1% > 5.8% > 7.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  23. [SP500] CNP (CenterPoint Energy)
+       Score: 100/100 | Current range: 1.8% | Contraction: 1.8% > 3.2% > 4.3% > 2.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  24. [SP500] CVX (Chevron Corporation)
+       Score: 100/100 | Current range: 2.0% | Contraction: 2.0% > 2.6% > 3.6% > 3.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  25. [SP500] CHD (Church & Dwight)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 3.8% > 4.0% > 6.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  26. [SP500] CL (Colgate-Palmolive)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 3.6% > 4.5% > 3.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  27. [SP500] COP (ConocoPhillips)
+       Score: 100/100 | Current range: 2.0% | Contraction: 2.0% > 3.9% > 5.4% > 3.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  28. [SP500] CTVA (Corteva)
+       Score: 100/100 | Current range: 1.8% | Contraction: 1.8% > 3.4% > 3.6% > 3.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  29. [SP500] DVA (DaVita)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.7% > 4.1% > 12.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  30. [SP500] FANG (Diamondback Energy)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 3.8% > 5.7% > 5.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  31. [SP500] EBAY (eBay Inc.)
+       Score: 100/100 | Current range: 3.0% | Contraction: 2.9% > 3.1% > 4.1% > 8.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  32. [SP500] ECL (Ecolab)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 3.3% > 3.9% > 3.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  33. [SP500] EOG (EOG Resources)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.5% > 4.1% > 4.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  34. [SP500] ES (Eversource Energy)
+       Score: 100/100 | Current range: 1.9% | Contraction: 1.9% > 2.5% > 4.2% > 3.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  35. [SP500] EXPE (Expedia Group)
+       Score: 100/100 | Current range: 3.5% | Contraction: 3.5% > 5.5% > 8.7% > 5.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  36. [SP500] XOM (ExxonMobil)
+       Score: 100/100 | Current range: 2.2% | Contraction: 2.2% > 3.3% > 4.1% > 4.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  37. [SP500] FRT (Federal Realty Investment Trust)
+       Score: 100/100 | Current range: 1.6% | Contraction: 1.7% > 2.2% > 2.9% > 3.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  38. [SP500] FE (FirstEnergy)
+       Score: 100/100 | Current range: 1.7% | Contraction: 1.7% > 3.0% > 4.2% > 5.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  39. [SP500] F (Ford Motor Company)
+       Score: 100/100 | Current range: 3.3% | Contraction: 3.3% > 4.6% > 6.0% > 14.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  40. [SP500] FISV (Fiserv)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 5.3% > 7.9% > 6.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  41. [SP500] GEN (Gen Digital)
+       Score: 100/100 | Current range: 3.1% | Contraction: 3.1% > 4.7% > 7.2% > 7.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  42. [SP500] GPN (Global Payments)
+       Score: 100/100 | Current range: 3.9% | Contraction: 3.9% > 6.4% > 6.7% > 13.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  43. [SP500] HRL (Hormel Foods)
+       Score: 100/100 | Current range: 2.7% | Contraction: 2.7% > 3.8% > 5.2% > 6.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  44. [SP500] HWM (Howmet Aerospace)
+       Score: 100/100 | Current range: 4.1% | Contraction: 4.1% > 4.4% > 5.3% > 5.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  45. [SP500] IR (Ingersoll Rand)
+       Score: 100/100 | Current range: 3.5% | Contraction: 3.5% > 4.8% > 5.4% > 4.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  46. [SP500] INCY (Incyte)
+       Score: 100/100 | Current range: 3.5% | Contraction: 3.5% > 4.6% > 6.7% > 6.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  47. [SP500] JKHY (Jack Henry & Associates)
+       Score: 100/100 | Current range: 3.0% | Contraction: 3.0% > 4.8% > 5.8% > 7.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  48. [SP500] J (Jacobs Solutions)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 4.3% > 4.9% > 8.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  49. [SP500] KVUE (Kenvue)
+       Score: 100/100 | Current range: 2.3% | Contraction: 2.3% > 4.3% > 4.6% > 3.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  50. [SP500] KMB (Kimberly-Clark)
+       Score: 100/100 | Current range: 2.5% | Contraction: 2.5% > 5.6% > 5.7% > 3.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  51. [SP500] KKR (KKR & Co.)
+       Score: 100/100 | Current range: 3.7% | Contraction: 3.7% > 5.2% > 5.9% > 7.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  52. [SP500] LLY (Lilly (Eli))
+       Score: 100/100 | Current range: 4.0% | Contraction: 4.0% > 4.1% > 7.3% > 5.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  53. [SP500] MTB (M&T Bank)
+       Score: 100/100 | Current range: 1.6% | Contraction: 1.6% > 3.0% > 3.4% > 3.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  54. [SP500] MCK (McKesson Corporation)
+       Score: 100/100 | Current range: 3.9% | Contraction: 3.9% > 4.7% > 4.8% > 6.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  55. [SP500] MAS (Masco)
+       Score: 100/100 | Current range: 3.1% | Contraction: 3.1% > 4.7% > 5.0% > 5.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  56. [SP500] MA (Mastercard)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 2.8% > 3.6% > 3.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  57. [SP500] MDT (Medtronic)
+       Score: 100/100 | Current range: 2.3% | Contraction: 2.3% > 4.3% > 5.3% > 3.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  58. [SP500] MRK (Merck & Co.)
+       Score: 100/100 | Current range: 2.5% | Contraction: 2.5% > 3.9% > 4.0% > 3.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  59. [SP500] MGM (MGM Resorts)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.4% > 4.2% > 6.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  60. [SP500] NDAQ (Nasdaq, Inc.)
+       Score: 100/100 | Current range: 3.9% | Contraction: 3.8% > 5.2% > 7.8% > 5.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  61. [SP500] NDSN (Nordson Corporation)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 2.9% > 5.2% > 4.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  62. [SP500] OMC (Omnicom Group)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.3% > 5.4% > 6.7% > 5.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  63. [SP500] NUE (Nucor)
+       Score: 100/100 | Current range: 3.0% | Contraction: 3.0% > 3.4% > 6.0% > 3.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  64. [SP500] PAYX (Paychex)
+       Score: 100/100 | Current range: 3.3% | Contraction: 3.3% > 4.6% > 6.1% > 5.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  65. [SP500] PH (Parker Hannifin)
+       Score: 100/100 | Current range: 2.4% | Contraction: 2.4% > 4.4% > 4.6% > 4.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  66. [SP500] PYPL (PayPal)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 4.5% > 6.4% > 5.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  67. [SP500] PPG (PPG Industries)
+       Score: 100/100 | Current range: 3.6% | Contraction: 3.6% > 4.3% > 4.7% > 5.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  68. [SP500] PSA (Public Storage)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 3.6% > 4.0% > 3.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  69. [SP500] PRU (Prudential Financial)
+       Score: 100/100 | Current range: 2.4% | Contraction: 2.4% > 3.1% > 3.7% > 4.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  70. [SP500] PHM (PulteGroup)
+       Score: 100/100 | Current range: 3.6% | Contraction: 3.7% > 5.0% > 6.9% > 5.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  71. [SP500] ROST (Ross Stores)
+       Score: 100/100 | Current range: 3.2% | Contraction: 3.2% > 3.8% > 7.0% > 7.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  72. [SP500] SJM (J.M. Smucker Company (The))
+       Score: 100/100 | Current range: 2.8% | Contraction: 2.8% > 5.4% > 8.7% > 4.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  73. [SP500] STLD (Steel Dynamics)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 4.0% > 6.7% > 4.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  74. [SP500] STE (Steris)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 4.3% > 5.0% > 9.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  75. [SP500] TTWO (Take-Two Interactive)
+       Score: 100/100 | Current range: 2.4% | Contraction: 2.4% > 3.9% > 7.2% > 11.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  76. [SP500] TGT (Target Corporation)
+       Score: 100/100 | Current range: 2.5% | Contraction: 2.4% > 4.5% > 4.7% > 6.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  77. [SP500] TJX (TJX Companies)
+       Score: 100/100 | Current range: 2.5% | Contraction: 2.5% > 2.8% > 7.7% > 5.1%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  78. [SP500] TSN (Tyson Foods)
+       Score: 100/100 | Current range: 3.3% | Contraction: 3.3% > 3.4% > 4.4% > 9.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  79. [SP500] ULTA (Ulta Beauty)
+       Score: 100/100 | Current range: 2.8% | Contraction: 2.8% > 3.6% > 6.9% > 4.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  80. [SP500] USB (U.S. Bancorp)
+       Score: 100/100 | Current range: 1.7% | Contraction: 1.7% > 3.1% > 3.5% > 3.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  81. [SP500] VTR (Ventas)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 3.3% > 5.1% > 4.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  82. [SP500] VRSK (Verisk Analytics)
+       Score: 100/100 | Current range: 4.0% | Contraction: 4.0% > 4.2% > 4.6% > 5.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  83. [SP500] V (Visa Inc.)
+       Score: 100/100 | Current range: 1.5% | Contraction: 1.5% > 3.2% > 4.5% > 3.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  84. [SP500] WELL (Welltower)
+       Score: 100/100 | Current range: 2.7% | Contraction: 2.7% > 3.3% > 5.0% > 5.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  85. [SP500] ZBRA (Zebra Technologies)
+       Score: 100/100 | Current range: 4.2% | Contraction: 4.2% > 5.2% > 8.7% > 8.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  86. [SP500] WTW (Willis Towers Watson)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 3.2% > 5.0% > 8.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  87. [SP500] ZBH (Zimmer Biomet)
+       Score: 100/100 | Current range: 2.3% | Contraction: 2.3% > 4.5% > 6.8% > 4.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  88. [SP500] AMP (Ameriprise Financial)
+       Score: 97/100 | Current range: 4.1% | Contraction: 4.1% > 4.4% > 4.9% > 4.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  89. [SP500] ADSK (Autodesk)
+       Score: 97/100 | Current range: 5.0% | Contraction: 5.0% > 5.2% > 8.0% > 7.3%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  90. [SP500] CTSH (Cognizant)
+       Score: 97/100 | Current range: 4.6% | Contraction: 4.6% > 6.0% > 9.1% > 8.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  91. [SP500] DAL (Delta Air Lines)
+       Score: 97/100 | Current range: 4.2% | Contraction: 4.2% > 4.5% > 6.8% > 9.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  92. [SP500] DG (Dollar General)
+       Score: 97/100 | Current range: 4.5% | Contraction: 4.5% > 4.7% > 5.3% > 8.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  93. [SP500] FDS (FactSet)
+       Score: 97/100 | Current range: 4.9% | Contraction: 4.9% > 5.5% > 13.4% > 11.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  94. [SP500] FICO (Fair Isaac)
+       Score: 97/100 | Current range: 5.8% | Contraction: 5.8% > 6.1% > 8.5% > 7.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  95. [SP500] IT (Gartner)
+       Score: 97/100 | Current range: 4.9% | Contraction: 4.9% > 5.4% > 7.2% > 8.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  96. [SP500] GDDY (GoDaddy)
+       Score: 97/100 | Current range: 5.3% | Contraction: 5.3% > 5.4% > 7.3% > 12.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  97. [SP500] HON (Honeywell Technologies)
+       Score: 97/100 | Current range: 5.1% | Contraction: 5.1% > 5.6% > 10.9% > 7.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  98. [SP500] PODD (Insulet Corporation)
+       Score: 97/100 | Current range: 5.2% | Contraction: 5.2% > 5.3% > 8.0% > 13.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  99. [SP500] NCLH (Norwegian Cruise Line Holdings)
+       Score: 97/100 | Current range: 5.1% | Contraction: 5.1% > 7.1% > 7.3% > 11.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  100. [SP500] TSCO (Tractor Supply)
+       Score: 97/100 | Current range: 5.0% | Contraction: 5.0% > 5.1% > 5.8% > 6.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+

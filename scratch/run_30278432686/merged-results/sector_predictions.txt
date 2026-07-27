@@ -1,0 +1,389 @@
+=== Sector Rotation Momentum & Macro Sensitivity Report ===
+Date: 2026-07-28 01:23 KST
+
+Total symbols evaluated: 497
+Rank Symbol    Name                Market    Sector                   Sector Score   
+-------------------------------------------------------------------------------------
+1    DELL      Dell Technologies   SP500                                      100.0%
+2    DDOG      Datadog             SP500                                       99.8%
+3    FTNT      Fortinet            SP500                                       99.6%
+4    PANW      Palo Alto Networks  SP500                                       99.4%
+5    HPE       Hewlett Packard En  SP500                                       99.2%
+6    BBY       Best Buy            SP500                                       99.0%
+7    DVA       DaVita              SP500                                       98.8%
+8    CRWD      CrowdStrike         SP500                                       98.6%
+9    NTAP      NetApp              SP500                                       98.4%
+10   HUM       Humana              SP500                                       98.2%
+11   CTAS      Cintas              SP500                                       98.0%
+12   IP        International Pape  SP500                                       97.8%
+13   AAPL      Apple Inc.          SP500                                       97.6%
+14   TRV       Travelers Companie  SP500                                       97.4%
+15   PYPL      PayPal              SP500                                       97.2%
+16   PAYX      Paychex             SP500                                       97.0%
+17   MPC       Marathon Petroleum  SP500                                       96.8%
+18   HPQ       HP Inc.             SP500                                       96.6%
+19   WDAY      Workday, Inc.       SP500                                       96.4%
+20   RTX       RTX Corporation     SP500                                       96.2%
+21   GEN       Gen Digital         SP500                                       96.0%
+22   IQV       IQVIA               SP500                                       95.8%
+23   AMP       Ameriprise Financi  SP500                                       95.6%
+24   PRU       Prudential Financi  SP500                                       95.4%
+25   CPAY      Corpay              SP500                                       95.2%
+26   PSX       Phillips 66         SP500                                       95.0%
+27   DOC       Healthpeak Propert  SP500                                       94.8%
+28   ADP       Automatic Data Pro  SP500                                       94.6%
+29   ARES      Ares Management     SP500                                       94.4%
+30   FDS       FactSet             SP500                                       94.2%
+31   VEEV      Veeva Systems       SP500                                       94.0%
+32   GPN       Global Payments     SP500                                       93.8%
+33   AJG       Arthur J. Gallaghe  SP500                                       93.6%
+34   WTW       Willis Towers Wats  SP500                                       93.4%
+35   BAX       Baxter Internation  SP500                                       93.2%
+36   FICO      Fair Isaac          SP500                                       93.0%
+37   VLO       Valero Energy       SP500                                       92.8%
+38   AON       Aon plc             SP500                                       92.6%
+39   ABT       Abbott Laboratorie  SP500                                       92.4%
+40   VRSK      Verisk Analytics    SP500                                       92.2%
+41   MET       MetLife             SP500                                       92.0%
+42   LMT       Lockheed Martin     SP500                                       91.8%
+43   SW        Smurfit Westrock    SP500                                       91.5%
+44   TMO       Thermo Fisher Scie  SP500                                       91.3%
+45   SCHW      Charles Schwab Cor  SP500                                       91.1%
+46   VTR       Ventas              SP500                                       90.9%
+47   CRL       Charles River Labo  SP500                                       90.7%
+48   AXON      Axon Enterprise     SP500                                       90.5%
+49   NDAQ      Nasdaq, Inc.        SP500                                       90.3%
+50   IVZ       Invesco             SP500                                       90.1%
+51   MMM       3M                  SP500                                       89.9%
+52   ALL       Allstate            SP500                                       89.7%
+53   STT       State Street Corpo  SP500                                       89.5%
+54   RJF       Raymond James Fina  SP500                                       89.3%
+55   GPC       Genuine Parts Comp  SP500                                       89.1%
+56   GDDY      GoDaddy             SP500                                       88.9%
+57   CVS       CVS Health          SP500                                       88.7%
+58   BNY       BNY Mellon          SP500                                       88.5%
+59   DGX       Quest Diagnostics   SP500                                       88.3%
+60   INCY      Incyte              SP500                                       88.1%
+61   GD        General Dynamics    SP500                                       87.9%
+62   TECH      Bio-Techne          SP500                                       87.7%
+63   ALLE      Allegion            SP500                                       87.5%
+64   DXCM      Dexcom              SP500                                       87.3%
+65   VTRS      Viatris             SP500                                       87.1%
+66   BX        Blackstone Inc.     SP500                                       86.9%
+67   MU        Micron Technology   SP500                                       86.7%
+68   DLTR      Dollar Tree         SP500                                       86.5%
+69   WELL      Welltower           SP500                                       86.3%
+70   ROST      Ross Stores         SP500                                       86.1%
+71   DPZ       Domino's            SP500                                       85.9%
+72   BRO       Brown & Brown       SP500                                       85.7%
+73   SJM       J.M. Smucker Compa  SP500                                       85.5%
+74   KHC       Kraft Heinz         SP500                                       85.3%
+75   BAC       Bank of America     SP500                                       85.1%
+76   SPGI      S&P Global          SP500                                       84.9%
+77   UNP       Union Pacific Corp  SP500                                       84.7%
+78   AMCR      Amcor               SP500                                       84.5%
+79   PKG       Packaging Corporat  SP500                                       84.3%
+80   PM        Philip Morris Inte  SP500                                       84.1%
+81   HST       Host Hotels & Reso  SP500                                       83.9%
+82   ABBV      AbbVie              SP500                                       83.7%
+83   BXP       BXP, Inc.           SP500                                       83.5%
+84   ROP       Roper Technologies  SP500                                       83.3%
+85   PCAR      Paccar              SP500                                       83.1%
+86   EXPD      Expeditors Interna  SP500                                       82.9%
+87   CSX       CSX Corporation     SP500                                       82.7%
+88   OMC       Omnicom Group       SP500                                       82.5%
+89   ACN       Accenture           SP500                                       82.3%
+90   A         Agilent Technologi  SP500                                       82.1%
+91   MRSH      Marsh McLennan      SP500                                       81.9%
+92   MCK       McKesson Corporati  SP500                                       81.7%
+93   LH        Labcorp             SP500                                       81.5%
+94   JPM       JPMorgan Chase      SP500                                       81.3%
+95   HWM       Howmet Aerospace    SP500                                       81.1%
+96   CBOE      Cboe Global Market  SP500                                       80.9%
+97   NOW       ServiceNow          SP500                                       80.7%
+98   F         Ford Motor Company  SP500                                       80.5%
+99   LLY       Lilly (Eli)         SP500                                       80.3%
+100  MRK       Merck & Co.         SP500                                       80.1%
+Total symbols evaluated: 898
+Rank Symbol    Name                Market    Sector                   Sector Score   
+-------------------------------------------------------------------------------------
+1    317400    자이에스앤디              KOSPI                                      100.0%
+2    003680    한성기업                KOSPI                                       99.9%
+3    298000    효성화학                KOSPI                                       99.8%
+4    010400    우진아이엔에스             KOSPI                                       99.7%
+5    006340    대원전선                KOSPI                                       99.6%
+6    089860    롯데렌탈                KOSPI                                       99.4%
+7    002990    금호건설                KOSPI                                       99.3%
+8    078930    GS                  KOSPI                                       99.2%
+9    006370    대구백화점               KOSPI                                       99.1%
+10   005360    모나미                 KOSPI                                       99.0%
+11   010950    S-Oil               KOSPI                                       98.9%
+12   465770    STX그린로지스            KOSPI                                       98.8%
+13   014710    사조씨푸드               KOSPI                                       98.7%
+14   007610    선도전기                KOSPI                                       98.6%
+15   001450    현대해상                KOSPI                                       98.4%
+16   002870    신풍                  KOSPI                                       98.3%
+17   002810    삼영무역                KOSPI                                       98.2%
+18   005950    이수화학                KOSPI                                       98.1%
+19   006345    대원전선우               KOSPI                                       98.0%
+20   000500    가온전선                KOSPI                                       97.9%
+21   011230    삼화전자                KOSPI                                       97.8%
+22   005430    한국공항                KOSPI                                       97.7%
+23   044820    코스맥스비티아이            KOSPI                                       97.6%
+24   018260    삼성에스디에스             KOSPI                                       97.4%
+25   138040    메리츠금융지주             KOSPI                                       97.3%
+26   009460    한창제지                KOSPI                                       97.2%
+27   000810    삼성화재                KOSPI                                       97.1%
+28   010955    S-Oil우              KOSPI                                       97.0%
+29   006660    삼성공조                KOSPI                                       96.9%
+30   008490    서흥                  KOSPI                                       96.8%
+31   453340    현대그린푸드              KOSPI                                       96.7%
+32   013700    까뮤이앤씨               KOSPI                                       96.5%
+33   003650    미창석유                KOSPI                                       96.4%
+34   002820    SUN&L               KOSPI                                       96.3%
+35   175330    JB금융지주              KOSPI                                       96.2%
+36   105560    KB금융                KOSPI                                       96.1%
+37   415640    KB발해인프라             KOSPI                                       96.0%
+38   483650    달바글로벌               KOSPI                                       95.9%
+39   111770    영원무역                KOSPI                                       95.8%
+40   268280    미원에스씨               KOSPI                                       95.7%
+41   004430    송원산업                KOSPI                                       95.5%
+42   003690    코리안리                KOSPI                                       95.4%
+43   012160    영흥                  KOSPI                                       95.3%
+44   002390    한독                  KOSPI                                       95.2%
+45   475150    SK이터닉스              KOSPI                                       95.1%
+46   014130    한익스프레스              KOSPI                                       95.0%
+47   005830    DB손해보험              KOSPI                                       94.9%
+48   090080    평화산업                KOSPI                                       94.8%
+49   086790    하나금융지주              KOSPI                                       94.7%
+50   073240    금호타이어               KOSPI                                       94.5%
+51   007070    GS리테일               KOSPI                                       94.4%
+52   001070    대한방직                KOSPI                                       94.3%
+53   161390    한국타이어앤테크놀로지         KOSPI                                       94.2%
+54   082640    동양생명                KOSPI                                       94.1%
+55   009970    영원무역홀딩스             KOSPI                                       94.0%
+56   008930    한미사이언스              KOSPI                                       93.9%
+57   134790    시디즈                 KOSPI                                       93.8%
+58   079160    CJ CGV              KOSPI                                       93.7%
+59   316140    우리금융지주              KOSPI                                       93.5%
+60   009240    한샘                  KOSPI                                       93.4%
+61   034730    SK                  KOSPI                                       93.3%
+62   055550    신한지주                KOSPI                                       93.2%
+63   009160    SIMPAC              KOSPI                                       93.1%
+64   161890    한국콜마                KOSPI                                       93.0%
+65   192820    코스맥스                KOSPI                                       92.9%
+66   035420    NAVER               KOSPI                                       92.8%
+67   069730    DSR제강               KOSPI                                       92.7%
+68   078935    GS우                 KOSPI                                       92.5%
+69   181710    NHN                 KOSPI                                       92.4%
+70   081660    미스토홀딩스              KOSPI                                       92.3%
+71   001800    오리온홀딩스              KOSPI                                       92.2%
+72   417310    코람코더원리츠             KOSPI                                       92.1%
+73   026960    동서                  KOSPI                                       92.0%
+74   000700    유수홀딩스               KOSPI                                       91.9%
+75   003300    한일홀딩스               KOSPI                                       91.8%
+76   096770    SK이노베이션             KOSPI                                       91.6%
+77   383220    F&F                 KOSPI                                       91.5%
+78   007690    국도화학                KOSPI                                       91.4%
+79   017670    SK텔레콤               KOSPI                                       91.3%
+80   034310    NICE                KOSPI                                       91.2%
+81   155660    DSR                 KOSPI                                       91.1%
+82   004370    농심                  KOSPI                                       91.0%
+83   352820    하이브                 KOSPI                                       90.9%
+84   051900    LG생활건강              KOSPI                                       90.8%
+85   002960    한국쉘석유               KOSPI                                       90.6%
+86   019685    대교우B                KOSPI                                       90.5%
+87   207940    삼성바이오로직스            KOSPI                                       90.4%
+88   002760    보락                  KOSPI                                       90.3%
+89   244920    에이플러스에셋             KOSPI                                       90.2%
+90   018670    SK가스                KOSPI                                       90.1%
+91   013000    세우글로벌               KOSPI                                       90.0%
+92   033780    KT&G                KOSPI                                       89.9%
+93   000240    한국앤컴퍼니              KOSPI                                       89.8%
+94   011090    에넥스                 KOSPI                                       89.6%
+95   011200    HMM                 KOSPI                                       89.5%
+96   021240    코웨이                 KOSPI                                       89.4%
+97   481850    신한글로벌액티브리츠          KOSPI                                       89.3%
+98   025890    한국주강                KOSPI                                       89.2%
+99   139130    iM금융지주              KOSPI                                       89.1%
+100  003960    사조대림                KOSPI                                       89.0%
+Total symbols evaluated: 1573
+Rank Symbol    Name                Market    Sector                   Sector Score   
+-------------------------------------------------------------------------------------
+1    900100    파이온엑스               KOSDAQ                                     100.0%
+2    038880    아이에이                KOSDAQ                                      99.9%
+3    032580    피델릭스                KOSDAQ                                      99.9%
+4    457600    벡트                  KOSDAQ                                      99.8%
+5    079650    서산                  KOSDAQ                                      99.7%
+6    270520    앱튼                  KOSDAQ                                      99.7%
+7    126640    화신정공                KOSDAQ                                      99.6%
+8    079940    가비아                 KOSDAQ                                      99.6%
+9    018700    졸스                  KOSDAQ                                      99.5%
+10   026910    광진실업                KOSDAQ                                      99.4%
+11   097780    에코볼트                KOSDAQ                                      99.4%
+12   227610    아우딘퓨쳐스              KOSDAQ                                      99.3%
+13   368600    아이씨에이치              KOSDAQ                                      99.2%
+14   144960    뉴파워프라즈마             KOSDAQ                                      99.2%
+15   052460    아이크래프트              KOSDAQ                                      99.1%
+16   222040    코스맥스엔비티             KOSDAQ                                      99.0%
+17   053350    이니텍                 KOSDAQ                                      99.0%
+18   119850    지엔씨에너지              KOSDAQ                                      98.9%
+19   091970    LSK아이로봇             KOSDAQ                                      98.9%
+20   040350    크레오에스지              KOSDAQ                                      98.8%
+21   104040    디에스엠                KOSDAQ                                      98.7%
+22   093320    케이아이엔엑스             KOSDAQ                                      98.7%
+23   044340    위닉스                 KOSDAQ                                      98.6%
+24   489460    바이오비쥬               KOSDAQ                                      98.5%
+25   024840    KBI메탈               KOSDAQ                                      98.5%
+26   372800    아이티아이즈              KOSDAQ                                      98.4%
+27   033560    블루콤                 KOSDAQ                                      98.3%
+28   039830    오로라                 KOSDAQ                                      98.3%
+29   065690    파커스                 KOSDAQ                                      98.2%
+30   212560    네오오토                KOSDAQ                                      98.2%
+31   035610    솔본                  KOSDAQ                                      98.1%
+32   219130    타이거일렉               KOSDAQ                                      98.0%
+33   041830    인바디                 KOSDAQ                                      98.0%
+34   045510    정원엔시스               KOSDAQ                                      97.9%
+35   193250    링크드                 KOSDAQ                                      97.8%
+36   189330    씨이랩                 KOSDAQ                                      97.8%
+37   121440    골프존홀딩스              KOSDAQ                                      97.7%
+38   071200    인피니트헬스케어            KOSDAQ                                      97.6%
+39   413630    씨피시스템               KOSDAQ                                      97.6%
+40   001540    안국약품                KOSDAQ                                      97.5%
+41   066590    스모트로닉               KOSDAQ                                      97.5%
+42   310200    애니플러스               KOSDAQ                                      97.4%
+43   068790    DMS                 KOSDAQ                                      97.3%
+44   301300    바이브컴퍼니              KOSDAQ                                      97.3%
+45   275630    에스에스알               KOSDAQ                                      97.2%
+46   420570    제이투케이바이오            KOSDAQ                                      97.1%
+47   348030    모비릭스                KOSDAQ                                      97.1%
+48   303360    프로티아                KOSDAQ                                      97.0%
+49   290720    푸드나무                KOSDAQ                                      96.9%
+50   078590    휴림에이텍               KOSDAQ                                      96.9%
+51   331380    포커스에이아이             KOSDAQ                                      96.8%
+52   320000    한울반도체               KOSDAQ                                      96.8%
+53   138070    신진에스엠               KOSDAQ                                      96.7%
+54   043590    웰킵스하이텍              KOSDAQ                                      96.6%
+55   082210    옵트론텍                KOSDAQ                                      96.6%
+56   950190    고스트스튜디오             KOSDAQ                                      96.5%
+57   481070    에이유브랜즈              KOSDAQ                                      96.4%
+58   377450    리파인                 KOSDAQ                                      96.4%
+59   093380    풍강                  KOSDAQ                                      96.3%
+60   054410    케이피티유               KOSDAQ                                      96.2%
+61   014100    메디앙스                KOSDAQ                                      96.2%
+62   208640    썸에이지                KOSDAQ                                      96.1%
+63   009620    삼보산업                KOSDAQ                                      96.1%
+64   263800    데이타솔루션              KOSDAQ                                      96.0%
+65   086060    진바이오텍               KOSDAQ                                      95.9%
+66   091440    한울소재과학              KOSDAQ                                      95.9%
+67   322780    코퍼스코리아              KOSDAQ                                      95.8%
+68   332570    PS일렉트로닉스            KOSDAQ                                      95.7%
+69   057540    옴니시스템               KOSDAQ                                      95.7%
+70   090850    현대이지웰               KOSDAQ                                      95.6%
+71   361670    삼영에스앤씨              KOSDAQ                                      95.5%
+72   094840    슈프리마에이치큐            KOSDAQ                                      95.5%
+73   319660    피에스케이               KOSDAQ                                      95.4%
+74   950170    JTC                 KOSDAQ                                      95.4%
+75   263920    휴엠앤씨                KOSDAQ                                      95.3%
+76   048830    엔피케이                KOSDAQ                                      95.2%
+77   042420    네오위즈홀딩스             KOSDAQ                                      95.2%
+78   065060    지엔코                 KOSDAQ                                      95.1%
+79   419080    엔젯                  KOSDAQ                                      95.0%
+80   192440    슈피겐코리아              KOSDAQ                                      95.0%
+81   270870    뉴트리                 KOSDAQ                                      94.9%
+82   148930    에이치와이티씨             KOSDAQ                                      94.9%
+83   053290    NE능률                KOSDAQ                                      94.8%
+84   085810    알티캐스트               KOSDAQ                                      94.7%
+85   123750    알톤                  KOSDAQ                                      94.7%
+86   099440    스맥                  KOSDAQ                                      94.6%
+87   339950    아이비김영               KOSDAQ                                      94.5%
+88   017890    한국알콜                KOSDAQ                                      94.5%
+89   080010    이상네트웍스              KOSDAQ                                      94.4%
+90   484810    티엑스알로보틱스            KOSDAQ                                      94.3%
+91   019210    와이지-원               KOSDAQ                                      94.3%
+92   405000    플라즈맵                KOSDAQ                                      94.2%
+93   048550    SM C&C              KOSDAQ                                      94.2%
+94   331520    밸로프                 KOSDAQ                                      94.1%
+95   052330    코텍                  KOSDAQ                                      94.0%
+96   004780    대륙제관                KOSDAQ                                      94.0%
+97   318010    팜스빌                 KOSDAQ                                      93.9%
+98   120240    대정화금                KOSDAQ                                      93.8%
+99   089140    넥스턴앤롤코리아            KOSDAQ                                      93.8%
+100  134060    이퓨쳐                 KOSDAQ                                      93.7%
+Total symbols evaluated: 74
+Rank Symbol    Name                Market    Sector                   Sector Score   
+-------------------------------------------------------------------------------------
+1    299480    지앤이헬스케어             KONEX                                      100.0%
+2    266470    바이오인프라생명과학          KONEX                                       98.6%
+3    270210    에스알바이오텍             KONEX                                       97.3%
+4    236340    메디젠휴먼케어             KONEX                                       95.9%
+5    402420    켈스                  KONEX                                       94.6%
+6    311960    인터로이드               KONEX                                       93.2%
+7    199290    바이오프로테크             KONEX                                       91.9%
+8    250030    진코스텍                KONEX                                       90.5%
+9    217910    에스제이켐               KONEX                                       89.2%
+10   317860    노드메이슨               KONEX                                       87.8%
+11   116100    태양기계                KONEX                                       86.5%
+12   122830    원포유                 KONEX                                       85.1%
+13   199150    데이터스트림즈             KONEX                                       83.8%
+14   189350    코셋                  KONEX                                       82.4%
+15   331660    한국미라클피플사            KONEX                                       81.1%
+16   185190    수프로                 KONEX                                       79.7%
+17   206950    볼빅                  KONEX                                       78.4%
+18   224810    엄지하우스               KONEX                                       77.0%
+19   162120    루켄테크놀러지스            KONEX                                       75.7%
+20   169670    코스텍시스템              KONEX                                       74.3%
+21   354390    바스칸바이오제약            KONEX                                       73.0%
+22   103660    씨앗                  KONEX                                       71.6%
+23   227420    도부                  KONEX                                       70.3%
+24   121060    유니포인트               KONEX                                       68.9%
+25   112190    KC산업                KONEX                                       67.6%
+26   318660    타임기술                KONEX                                       66.2%
+27   234070    에이원큐브텍              KONEX                                       64.9%
+28   245450    씨앤에스링크              KONEX                                       63.5%
+29   278990    EMB                 KONEX                                       62.2%
+30   254160    제이엠멀티               KONEX                                       60.8%
+31   311060    엘에이티                KONEX                                       59.5%
+32   217950    파마리서치바이오            KONEX                                       58.1%
+33   207490    에이펙스인텍              KONEX                                       56.8%
+34   244880    나눔테크                KONEX                                       55.4%
+35   233990    질경이                 KONEX                                       54.1%
+36   052960    태양3C                KONEX                                       52.7%
+37   276240    엘리비젼                KONEX                                       51.4%
+38   260870    SK시그넷               KONEX                                       50.0%
+39   178600    대동고려삼               KONEX                                       48.6%
+40   448780    마이크로엔엑스             KONEX                                       47.3%
+41   140610    엔솔바이오사이언스           KONEX                                       45.9%
+42   446440    에피바이오텍              KONEX                                       44.6%
+43   149010    아이케이세미콘             KONEX                                       43.2%
+44   253610    루트락                 KONEX                                       41.9%
+45   403360    라피치                 KONEX                                       40.5%
+46   215570    크로넥스                KONEX                                       39.2%
+47   456570    아이엠지티               KONEX                                       37.8%
+48   251280    안지오랩                KONEX                                       36.5%
+49   202960    판도라티비               KONEX                                       35.1%
+50   289170    바이오텐                KONEX                                       33.8%
+51   114920    대주이엔티               KONEX                                       32.4%
+52   102950    아하                  KONEX                                       31.1%
+53   208850    이비테크                KONEX                                       29.7%
+54   336040    타스컴                 KONEX                                       28.4%
+55   337840    유엑스엔                KONEX                                       27.0%
+56   243870    아이티센코어              KONEX                                       25.7%
+57   447690    아이오바이오              KONEX                                       24.3%
+58   322970    무진메디                KONEX                                       23.0%
+59   217880    틸론                  KONEX                                       21.6%
+60   232530    이엠티                 KONEX                                       20.3%
+61   180060    탑선                  KONEX                                       18.9%
+62   176590    코나솔                 KONEX                                       17.6%
+63   296160    프로젠                 KONEX                                       16.2%
+64   136660    큐엠씨                 KONEX                                       14.9%
+65   434190    탈로스                 KONEX                                       13.5%
+66   233250    메디안디노스틱             KONEX                                       12.2%
+67   236030    씨알푸드                KONEX                                       10.8%
+68   229500    노브메타파마              KONEX                                        9.5%
+69   140660    위월드                 KONEX                                        8.1%
+70   086220    광동헬스바이오             KONEX                                        6.8%
+71   341170    퓨쳐메디신               KONEX                                        5.4%
+72   223220    로지스몬                KONEX                                        4.1%
+73   216400    인바이츠바이오코아           KONEX                                        2.7%
+74   390110    애니메디솔루션             KONEX                                        1.4%

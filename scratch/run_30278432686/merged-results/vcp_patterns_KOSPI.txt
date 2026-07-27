@@ -1,0 +1,405 @@
+=== VCP (Volatility Contraction Pattern) Results ===
+Date: 2026-07-28 00:46
+Total symbols evaluated: 898
+
+--- KOSPI Top 100 ---
+  1. [KOSPI] 024110 (기업은행)
+       Score: 100/100 | Current range: 3.0% | Contraction: 3.0% > 4.9% > 6.2% > 5.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  2. [KOSPI] 029780 (삼성카드)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 8.4% > 10.8% > 5.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  3. [KOSPI] 001450 (현대해상)
+       Score: 100/100 | Current range: 9.4% | Contraction: 9.4% > 9.7% > 10.0% > 12.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  4. [KOSPI] 009970 (영원무역홀딩스)
+       Score: 100/100 | Current range: 5.2% | Contraction: 5.2% > 7.5% > 13.2% > 9.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  5. [KOSPI] 483650 (달바글로벌)
+       Score: 100/100 | Current range: 14.0% | Contraction: 14.0% > 15.0% > 16.7% > 24.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  6. [KOSPI] 026960 (동서)
+       Score: 100/100 | Current range: 3.8% | Contraction: 3.8% > 4.6% > 10.0% > 5.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  7. [KOSPI] 003690 (코리안리)
+       Score: 100/100 | Current range: 5.5% | Contraction: 5.4% > 7.6% > 9.7% > 13.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  8. [KOSPI] 030000 (제일기획)
+       Score: 100/100 | Current range: 2.1% | Contraction: 2.1% > 6.8% > 10.3% > 4.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  9. [KOSPI] 214320 (이노션)
+       Score: 100/100 | Current range: 3.7% | Contraction: 3.7% > 5.2% > 6.4% > 14.1%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  10. [KOSPI] 293940 (신한알파리츠)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 3.4% > 9.8% > 7.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  11. [KOSPI] 094800 (맵스리얼티)
+       Score: 100/100 | Current range: 4.2% | Contraction: 4.1% > 7.5% > 13.9% > 16.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  12. [KOSPI] 001530 (DI동일)
+       Score: 100/100 | Current range: 6.4% | Contraction: 6.4% > 9.0% > 9.8% > 12.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  13. [KOSPI] 448730 (삼성FN리츠)
+       Score: 100/100 | Current range: 4.3% | Contraction: 4.3% > 4.6% > 12.6% > 9.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  14. [KOSPI] 005945 (NH투자증권우)
+       Score: 100/100 | Current range: 3.8% | Contraction: 3.7% > 5.1% > 5.2% > 6.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  15. [KOSPI] 284740 (쿠쿠홈시스)
+       Score: 100/100 | Current range: 3.8% | Contraction: 3.8% > 4.8% > 5.9% > 6.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  16. [KOSPI] 357120 (코람코라이프인프라리츠)
+       Score: 100/100 | Current range: 2.3% | Contraction: 2.3% > 4.2% > 11.5% > 8.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  17. [KOSPI] 194370 (제이에스코퍼레이션)
+       Score: 100/100 | Current range: 6.6% | Contraction: 6.6% > 7.0% > 14.0% > 11.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  18. [KOSPI] 104700 (한국철강)
+       Score: 100/100 | Current range: 3.1% | Contraction: 3.1% > 3.4% > 15.0% > 12.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  19. [KOSPI] 126560 (현대퓨처넷)
+       Score: 100/100 | Current range: 4.0% | Contraction: 3.9% > 6.3% > 7.6% > 4.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  20. [KOSPI] 004430 (송원산업)
+       Score: 100/100 | Current range: 6.2% | Contraction: 6.2% > 8.2% > 13.1% > 23.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  21. [KOSPI] 096760 (JW홀딩스)
+       Score: 100/100 | Current range: 3.4% | Contraction: 3.4% > 5.5% > 7.6% > 8.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  22. [KOSPI] 123890 (한국자산신탁)
+       Score: 100/100 | Current range: 3.3% | Contraction: 3.3% > 4.6% > 12.9% > 30.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  23. [KOSPI] 334890 (이지스밸류플러스리츠)
+       Score: 100/100 | Current range: 3.1% | Contraction: 3.1% > 4.1% > 10.1% > 5.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  24. [KOSPI] 404990 (신한서부티엔디리츠)
+       Score: 100/100 | Current range: 4.1% | Contraction: 4.1% > 5.9% > 22.7% > 7.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  25. [KOSPI] 009680 (모토닉)
+       Score: 100/100 | Current range: 3.8% | Contraction: 3.8% > 4.1% > 7.5% > 6.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  26. [KOSPI] 000970 (한국주철관)
+       Score: 100/100 | Current range: 3.5% | Contraction: 3.5% > 4.0% > 5.5% > 8.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  27. [KOSPI] 000700 (유수홀딩스)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 5.1% > 6.4% > 5.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  28. [KOSPI] 020120 (키다리스튜디오)
+       Score: 100/100 | Current range: 5.5% | Contraction: 5.5% > 7.9% > 13.4% > 21.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  29. [KOSPI] 004080 (신흥)
+       Score: 100/100 | Current range: 0.7% | Contraction: 0.7% > 0.9% > 5.7% > 3.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  30. [KOSPI] 227840 (현대코퍼레이션홀딩스)
+       Score: 100/100 | Current range: 2.8% | Contraction: 2.8% > 4.2% > 6.3% > 5.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  31. [KOSPI] 001275 (부국증권우)
+       Score: 100/100 | Current range: 1.5% | Contraction: 1.5% > 2.9% > 4.7% > 3.6%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  32. [KOSPI] 396690 (미래에셋글로벌리츠)
+       Score: 100/100 | Current range: 1.6% | Contraction: 1.6% > 6.3% > 7.0% > 10.3%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  33. [KOSPI] 111110 (호전실업)
+       Score: 100/100 | Current range: 3.2% | Contraction: 3.2% > 5.9% > 6.8% > 9.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  34. [KOSPI] 025530 (SJM홀딩스)
+       Score: 100/100 | Current range: 2.6% | Contraction: 2.6% > 4.1% > 5.7% > 7.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  35. [KOSPI] 025890 (한국주강)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 5.0% > 7.2% > 8.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  36. [KOSPI] 108675 (LX하우시스우)
+       Score: 100/100 | Current range: 3.9% | Contraction: 3.9% > 5.3% > 6.1% > 8.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  37. [KOSPI] 088350 (한화생명)
+       Score: 97/100 | Current range: 4.4% | Contraction: 4.4% > 10.5% > 13.7% > 17.0%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  38. [KOSPI] 051900 (LG생활건강)
+       Score: 97/100 | Current range: 4.3% | Contraction: 4.3% > 6.2% > 9.3% > 9.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  39. [KOSPI] 005850 (에스엘)
+       Score: 97/100 | Current range: 5.9% | Contraction: 5.9% > 9.1% > 13.8% > 12.7%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  40. [KOSPI] 002790 (아모레퍼시픽홀딩스)
+       Score: 97/100 | Current range: 5.3% | Contraction: 5.3% > 8.1% > 10.7% > 12.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  41. [KOSPI] 006040 (동원산업)
+       Score: 97/100 | Current range: 6.0% | Contraction: 6.0% > 6.3% > 9.4% > 8.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  42. [KOSPI] 030190 (NICE평가정보)
+       Score: 97/100 | Current range: 4.2% | Contraction: 4.1% > 5.1% > 7.7% > 7.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  43. [KOSPI] 009240 (한샘)
+       Score: 97/100 | Current range: 4.1% | Contraction: 4.1% > 5.3% > 10.3% > 8.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  44. [KOSPI] 453340 (현대그린푸드)
+       Score: 97/100 | Current range: 5.4% | Contraction: 5.4% > 6.6% > 7.3% > 24.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  45. [KOSPI] 002810 (삼영무역)
+       Score: 97/100 | Current range: 6.7% | Contraction: 6.7% > 6.8% > 7.6% > 8.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  46. [KOSPI] 024720 (콜마홀딩스)
+       Score: 97/100 | Current range: 5.0% | Contraction: 5.0% > 7.1% > 9.2% > 11.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  47. [KOSPI] 016450 (한세예스24홀딩스)
+       Score: 97/100 | Current range: 4.7% | Contraction: 4.7% > 5.8% > 8.9% > 8.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  48. [KOSPI] 013520 (화승코퍼레이션)
+       Score: 97/100 | Current range: 6.0% | Contraction: 6.0% > 8.2% > 9.5% > 13.4%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  49. [KOSPI] 083420 (그린케미칼)
+       Score: 97/100 | Current range: 5.4% | Contraction: 5.4% > 7.8% > 13.1% > 12.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  50. [KOSPI] 002390 (한독)
+       Score: 97/100 | Current range: 6.1% | Contraction: 6.1% > 7.2% > 9.8% > 9.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  51. [KOSPI] 078935 (GS우)
+       Score: 97/100 | Current range: 5.3% | Contraction: 5.3% > 6.1% > 6.2% > 9.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  52. [KOSPI] 069730 (DSR제강)
+       Score: 97/100 | Current range: 4.8% | Contraction: 4.9% > 6.5% > 12.5% > 9.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  53. [KOSPI] 001070 (대한방직)
+       Score: 97/100 | Current range: 5.6% | Contraction: 5.6% > 6.9% > 16.6% > 15.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  54. [KOSPI] 002960 (한국쉘석유)
+       Score: 95/100 | Current range: 3.9% | Contraction: 3.9% > 10.7% > 6.2% > 25.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  55. [KOSPI] 072710 (농심홀딩스)
+       Score: 95/100 | Current range: 3.0% | Contraction: 3.0% > 7.5% > 6.3% > 6.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  56. [KOSPI] 003475 (유안타증권우)
+       Score: 95/100 | Current range: 3.9% | Contraction: 3.9% > 9.4% > 8.4% > 22.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  57. [KOSPI] 259960 (크래프톤)
+       Score: 91/100 | Current range: 8.1% | Contraction: 8.1% > 9.0% > 10.4% > 11.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  58. [KOSPI] 443060 (HD현대마린솔루션)
+       Score: 91/100 | Current range: 9.5% | Contraction: 9.5% > 10.0% > 11.4% > 15.4%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  59. [KOSPI] 375500 (DL이앤씨)
+       Score: 91/100 | Current range: 7.5% | Contraction: 7.4% > 9.9% > 18.8% > 11.2%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  60. [KOSPI] 282330 (BGF리테일)
+       Score: 91/100 | Current range: 7.2% | Contraction: 7.2% > 8.6% > 11.8% > 8.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  61. [KOSPI] 000210 (DL)
+       Score: 91/100 | Current range: 8.2% | Contraction: 8.3% > 8.3% > 11.1% > 12.8%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  62. [KOSPI] 451800 (한화리츠)
+       Score: 91/100 | Current range: 7.1% | Contraction: 7.1% > 7.3% > 18.2% > 11.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  63. [KOSPI] 03473K (SK우)
+       Score: 91/100 | Current range: 7.2% | Contraction: 7.2% > 10.3% > 17.8% > 14.7%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  64. [KOSPI] 37550L (DL이앤씨2우(전환))
+       Score: 91/100 | Current range: 7.2% | Contraction: 7.2% > 8.5% > 25.2% > 11.6%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  65. [KOSPI] 308170 (씨티알모빌리티)
+       Score: 91/100 | Current range: 8.6% | Contraction: 8.6% > 9.5% > 14.1% > 18.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  66. [KOSPI] 030200 (KT)
+       Score: 90/100 | Current range: 3.0% | Contraction: 3.0% > 8.1% > 10.7% > 6.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  67. [KOSPI] 032640 (LG유플러스)
+       Score: 90/100 | Current range: 3.1% | Contraction: 3.1% > 5.9% > 10.4% > 17.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  68. [KOSPI] 097950 (CJ제일제당)
+       Score: 90/100 | Current range: 3.9% | Contraction: 3.9% > 5.1% > 8.1% > 10.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  69. [KOSPI] 017800 (현대엘리베이터)
+       Score: 90/100 | Current range: 3.7% | Contraction: 3.7% > 4.8% > 9.1% > 8.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  70. [KOSPI] 000080 (하이트진로)
+       Score: 90/100 | Current range: 4.0% | Contraction: 4.0% > 5.2% > 6.5% > 5.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  71. [KOSPI] 192400 (쿠쿠홀딩스)
+       Score: 90/100 | Current range: 3.5% | Contraction: 3.5% > 4.2% > 10.0% > 6.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  72. [KOSPI] 005180 (빙그레)
+       Score: 90/100 | Current range: 3.3% | Contraction: 3.3% > 4.2% > 6.8% > 7.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  73. [KOSPI] 383800 (LX홀딩스)
+       Score: 90/100 | Current range: 3.7% | Contraction: 3.7% > 4.8% > 7.7% > 12.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  74. [KOSPI] 016380 (KG스틸)
+       Score: 90/100 | Current range: 3.9% | Contraction: 3.9% > 4.5% > 9.6% > 14.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  75. [KOSPI] 027410 (BGF)
+       Score: 90/100 | Current range: 3.3% | Contraction: 3.3% > 4.4% > 7.1% > 8.7%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  76. [KOSPI] 018250 (애경산업)
+       Score: 90/100 | Current range: 3.5% | Contraction: 3.5% > 8.1% > 8.4% > 25.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  77. [KOSPI] 034830 (한국토지신탁)
+       Score: 90/100 | Current range: 3.8% | Contraction: 3.8% > 5.7% > 9.6% > 29.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  78. [KOSPI] 003960 (사조대림)
+       Score: 90/100 | Current range: 3.2% | Contraction: 3.2% > 5.2% > 11.5% > 6.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  79. [KOSPI] 003120 (일성아이에스)
+       Score: 90/100 | Current range: 3.6% | Contraction: 3.6% > 5.0% > 9.3% > 6.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  80. [KOSPI] 003920 (남양유업)
+       Score: 90/100 | Current range: 3.8% | Contraction: 3.8% > 6.9% > 13.7% > 16.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  81. [KOSPI] 004360 (세방)
+       Score: 90/100 | Current range: 2.6% | Contraction: 2.6% > 4.7% > 6.2% > 5.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  82. [KOSPI] 035150 (백산)
+       Score: 90/100 | Current range: 4.0% | Contraction: 4.0% > 6.4% > 6.8% > 5.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  83. [KOSPI] 377190 (디앤디플랫폼리츠)
+       Score: 90/100 | Current range: 3.4% | Contraction: 3.4% > 3.9% > 10.0% > 9.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  84. [KOSPI] 213500 (한솔제지)
+       Score: 90/100 | Current range: 2.8% | Contraction: 2.8% > 4.4% > 5.8% > 4.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  85. [KOSPI] 006060 (화승인더)
+       Score: 90/100 | Current range: 3.7% | Contraction: 3.7% > 6.6% > 10.8% > 10.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  86. [KOSPI] 005800 (신영와코루)
+       Score: 90/100 | Current range: 2.3% | Contraction: 2.3% > 5.3% > 8.3% > 8.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  87. [KOSPI] 032560 (황금에스티)
+       Score: 90/100 | Current range: 2.8% | Contraction: 2.8% > 4.6% > 5.8% > 9.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  88. [KOSPI] 163560 (동일고무벨트)
+       Score: 90/100 | Current range: 3.7% | Contraction: 3.7% > 5.7% > 10.5% > 12.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  89. [KOSPI] 001465 (BYC우)
+       Score: 90/100 | Current range: 2.6% | Contraction: 2.6% > 7.1% > 10.3% > 10.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  90. [KOSPI] 001065 (JW중외제약우)
+       Score: 90/100 | Current range: 2.9% | Contraction: 2.9% > 3.6% > 5.5% > 7.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  91. [KOSPI] 090355 (노루페인트우)
+       Score: 90/100 | Current range: 1.9% | Contraction: 1.9% > 4.8% > 4.9% > 18.6%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  92. [KOSPI] 003300 (한일홀딩스)
+       Score: 87/100 | Current range: 4.4% | Contraction: 4.4% > 20.6% > 14.2% > 5.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  93. [KOSPI] 417310 (코람코더원리츠)
+       Score: 87/100 | Current range: 5.9% | Contraction: 5.9% > 2.1% > 3.9% > 4.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  94. [KOSPI] 005720 (넥센)
+       Score: 87/100 | Current range: 6.2% | Contraction: 6.1% > 10.0% > 8.4% > 8.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  95. [KOSPI] 108670 (LX하우시스)
+       Score: 87/100 | Current range: 5.2% | Contraction: 5.2% > 11.9% > 7.3% > 11.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  96. [KOSPI] 009180 (한솔로지스틱스)
+       Score: 87/100 | Current range: 4.9% | Contraction: 4.9% > 4.3% > 7.3% > 8.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  97. [KOSPI] 090080 (평화산업)
+       Score: 87/100 | Current range: 6.3% | Contraction: 6.3% > 5.3% > 9.0% > 7.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  98. [KOSPI] 004365 (세방우)
+       Score: 87/100 | Current range: 5.8% | Contraction: 5.8% > 5.0% > 4.9% > 4.5%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  99. [KOSPI] 006340 (대원전선)
+       Score: 85/100 | Current range: 12.7% | Contraction: 12.7% > 24.2% > 26.7% > 24.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  100. [KOSPI] 244920 (에이플러스에셋)
+       Score: 85/100 | Current range: 10.6% | Contraction: 10.6% > 10.7% > 12.7% > 15.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+

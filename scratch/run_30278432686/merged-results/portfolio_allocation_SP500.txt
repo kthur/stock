@@ -1,0 +1,15 @@
+=== Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===
+Date: 2026-07-28 00:30
+Total Capital: 1,000,000,000 KRW/USD
+Target Horizon: 20d
+
+Current Market Regime Detected: BULL (Code: 2)
+Maximum Total Allocation Allowed: 85.0%
+
+No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+--------------------------------------------------------------------------------------------
+1   EA        Electronic Arts     SP500         5.87%       0.25%     8.97%    89,748,753
+2   AES       AES Corporation     SP500         6.81%       0.25%     3.22%    32,204,516
+--------------------------------------------------------------------------------------------
+Allocated Capital: 12.20% (   121,953,269)
+Remaining Cash   : 87.80% (   878,046,731)

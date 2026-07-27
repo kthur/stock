@@ -1,0 +1,421 @@
+=== Surge Detection Results (Classifier Probabilities) ===
+Date: 2026-07-28 00:29
+Horizon Target Thresholds: 1d (>=3%), 3d (>=5%), 5d (>=8%), 20d (>=15%)
+Total symbols: 497
+
+============================================================
+[1일] SP500 Top 100 Surge Candidates
+============================================================
+  1. [SP500] ORCL (Oracle Corporation): 45.5%
+  2. [SP500] KLAC (KLA Corporation): 41.5%
+  3. [SP500] MRVL (Marvell Technology): 35.5%
+  4. [SP500] AMAT (Applied Materials): 35.1%
+  5. [SP500] LITE (Lumentum): 34.5%
+  6. [SP500] IT (Gartner): 33.5%
+  7. [SP500] PSKY (Paramount Skydance Corporation): 32.0%
+  8. [SP500] CPRT (Copart): 29.5%
+  9. [SP500] CRM (Salesforce): 29.4%
+  10. [SP500] INTC (Intel): 29.0%
+  11. [SP500] AVGO (Broadcom): 26.1%
+  12. [SP500] SNDK (Sandisk): 26.1%
+  13. [SP500] LRCX (Lam Research): 25.7%
+  14. [SP500] CTSH (Cognizant): 24.9%
+  15. [SP500] CVNA (Carvana): 24.4%
+  16. [SP500] BSX (Boston Scientific): 23.1%
+  17. [SP500] GLW (Corning Inc.): 19.5%
+  18. [SP500] TSN (Tyson Foods): 19.4%
+  19. [SP500] BKR (Baker Hughes): 18.5%
+  20. [SP500] IBM (IBM): 18.5%
+  21. [SP500] COIN (Coinbase): 17.8%
+  22. [SP500] TSCO (Tractor Supply): 17.3%
+  23. [SP500] TSLA (Tesla, Inc.): 16.3%
+  24. [SP500] SMCI (Supermicro): 16.3%
+  25. [SP500] IP (International Paper): 16.1%
+  26. [SP500] COHR (Coherent Corp.): 15.3%
+  27. [SP500] MU (Micron Technology): 15.0%
+  28. [SP500] MCHP (Microchip Technology): 14.5%
+  29. [SP500] CSGP (CoStar Group): 14.1%
+  30. [SP500] HOOD (Robinhood Markets): 13.3%
+  31. [SP500] AMD (Advanced Micro Devices): 12.5%
+  32. [SP500] TTD (Trade Desk (The)): 12.5%
+  33. [SP500] VRT (Vertiv): 12.0%
+  34. [SP500] ZTS (Zoetis): 11.7%
+  35. [SP500] WDC (Western Digital): 11.6%
+  36. [SP500] LULU (Lululemon Athletica): 11.3%
+  37. [SP500] MPWR (Monolithic Power Systems): 10.7%
+  38. [SP500] HSY (Hershey Company (The)): 9.8%
+  39. [SP500] QCOM (Qualcomm): 9.7%
+  40. [SP500] DOW (Dow Inc.): 8.6%
+  41. [SP500] ADSK (Autodesk): 8.5%
+  42. [SP500] INTU (Intuit): 8.5%
+  43. [SP500] LHX (L3Harris): 8.3%
+  44. [SP500] NCLH (Norwegian Cruise Line Holdings): 8.3%
+  45. [SP500] UHS (Universal Health Services): 8.3%
+  46. [SP500] VICI (Vici Properties): 7.9%
+  47. [SP500] TRMB (Trimble Inc.): 7.8%
+  48. [SP500] BKNG (Booking Holdings): 7.8%
+  49. [SP500] HAL (Halliburton): 7.5%
+  50. [SP500] COST (Costco): 7.2%
+  51. [SP500] RMD (ResMed): 6.9%
+  52. [SP500] SLB (Schlumberger): 6.9%
+  53. [SP500] FCX (Freeport-McMoRan): 6.7%
+  54. [SP500] JBL (Jabil): 6.3%
+  55. [SP500] KR (Kroger): 6.3%
+  56. [SP500] ROP (Roper Technologies): 6.2%
+  57. [SP500] FTV (Fortive): 6.2%
+  58. [SP500] AKAM (Akamai Technologies): 5.8%
+  59. [SP500] GOOG (Alphabet Inc. (Class C)): 5.6%
+  60. [SP500] VZ (Verizon): 5.6%
+  61. [SP500] MDLZ (Mondelez International): 5.6%
+  62. [SP500] PLTR (Palantir Technologies): 5.5%
+  63. [SP500] FOX (Fox Corporation (Class B)): 5.3%
+  64. [SP500] ETN (Eaton Corporation): 5.3%
+  65. [SP500] WBD (Warner Bros. Discovery): 5.2%
+  66. [SP500] ROL (Rollins, Inc.): 5.1%
+  67. [SP500] GNRC (Generac): 4.9%
+  68. [SP500] GDDY (GoDaddy): 4.7%
+  69. [SP500] FISV (Fiserv): 4.6%
+  70. [SP500] PNR (Pentair): 4.6%
+  71. [SP500] AVY (Avery Dennison): 4.6%
+  72. [SP500] MSFT (Microsoft): 4.4%
+  73. [SP500] T (AT&T): 4.2%
+  74. [SP500] MDT (Medtronic): 4.1%
+  75. [SP500] EXE (Expand Energy): 4.0%
+  76. [SP500] CIEN (Ciena): 3.9%
+  77. [SP500] PODD (Insulet Corporation): 3.9%
+  78. [SP500] CAT (Caterpillar Inc.): 3.8%
+  79. [SP500] LMT (Lockheed Martin): 3.7%
+  80. [SP500] FOXA (Fox Corporation (Class A)): 3.6%
+  81. [SP500] ECHO (EchoStar): 3.6%
+  82. [SP500] UBER (Uber): 3.6%
+  83. [SP500] ISRG (Intuitive Surgical): 3.4%
+  84. [SP500] TER (Teradyne): 3.4%
+  85. [SP500] GOOGL (Alphabet Inc. (Class A)): 3.4%
+  86. [SP500] BAX (Baxter International): 3.4%
+  87. [SP500] SJM (J.M. Smucker Company (The)): 3.3%
+  88. [SP500] APP (AppLovin): 3.3%
+  89. [SP500] STX (Seagate Technology): 3.3%
+  90. [SP500] AMCR (Amcor): 3.2%
+  91. [SP500] LVS (Las Vegas Sands): 3.1%
+  92. [SP500] HPE (Hewlett Packard Enterprise): 3.1%
+  93. [SP500] CCL (Carnival Corporation): 3.0%
+  94. [SP500] CMG (Chipotle Mexican Grill): 2.9%
+  95. [SP500] MRNA (Moderna): 2.9%
+  96. [SP500] WYNN (Wynn Resorts): 2.8%
+  97. [SP500] PTC (PTC Inc.): 2.7%
+  98. [SP500] WSM (Williams-Sonoma, Inc.): 2.7%
+  99. [SP500] FIS (Fidelity National Information Services): 2.7%
+  100. [SP500] NOW (ServiceNow): 2.6%
+
+============================================================
+[3일] SP500 Top 100 Surge Candidates
+============================================================
+  1. [SP500] LMT (Lockheed Martin): 11.1%
+  2. [SP500] RTX (RTX Corporation): 10.9%
+  3. [SP500] ACN (Accenture): 10.7%
+  4. [SP500] IP (International Paper): 10.7%
+  5. [SP500] ALLE (Allegion): 10.5%
+  6. [SP500] WAB (Wabtec): 10.4%
+  7. [SP500] SLB (Schlumberger): 10.4%
+  8. [SP500] ARES (Ares Management): 10.3%
+  9. [SP500] CTAS (Cintas): 10.3%
+  10. [SP500] TRV (Travelers Companies (The)): 10.2%
+  11. [SP500] PYPL (PayPal): 10.2%
+  12. [SP500] CTSH (Cognizant): 10.1%
+  13. [SP500] HPQ (HP Inc.): 10.1%
+  14. [SP500] BX (Blackstone Inc.): 10.1%
+  15. [SP500] ICE (Intercontinental Exchange): 10.0%
+  16. [SP500] DGX (Quest Diagnostics): 9.9%
+  17. [SP500] AAPL (Apple Inc.): 9.8%
+  18. [SP500] DPZ (Domino's): 9.8%
+  19. [SP500] GM (General Motors): 9.7%
+  20. [SP500] FDS (FactSet): 9.7%
+  21. [SP500] AMP (Ameriprise Financial): 9.6%
+  22. [SP500] SMCI (Supermicro): 9.6%
+  23. [SP500] T (AT&T): 9.6%
+  24. [SP500] MMM (3M): 9.6%
+  25. [SP500] INTU (Intuit): 9.5%
+  26. [SP500] LDOS (Leidos): 9.5%
+  27. [SP500] CME (CME Group): 9.5%
+  28. [SP500] UHS (Universal Health Services): 9.5%
+  29. [SP500] NDAQ (Nasdaq, Inc.): 9.4%
+  30. [SP500] BKR (Baker Hughes): 9.4%
+  31. [SP500] GPN (Global Payments): 9.3%
+  32. [SP500] TMO (Thermo Fisher Scientific): 9.3%
+  33. [SP500] SW (Smurfit Westrock): 9.3%
+  34. [SP500] IT (Gartner): 9.3%
+  35. [SP500] VTR (Ventas): 9.2%
+  36. [SP500] WDAY (Workday, Inc.): 9.2%
+  37. [SP500] GD (General Dynamics): 9.2%
+  38. [SP500] WTW (Willis Towers Watson): 9.2%
+  39. [SP500] RJF (Raymond James Financial): 9.1%
+  40. [SP500] KKR (KKR & Co.): 9.1%
+  41. [SP500] ADBE (Adobe Inc.): 9.1%
+  42. [SP500] DELL (Dell Technologies): 9.1%
+  43. [SP500] VRSK (Verisk Analytics): 9.1%
+  44. [SP500] PKG (Packaging Corporation of America): 9.1%
+  45. [SP500] ROP (Roper Technologies): 9.1%
+  46. [SP500] PAYX (Paychex): 9.0%
+  47. [SP500] XOM (ExxonMobil): 9.0%
+  48. [SP500] GDDY (GoDaddy): 9.0%
+  49. [SP500] PCAR (Paccar): 9.0%
+  50. [SP500] CPAY (Corpay): 9.0%
+  51. [SP500] ABT (Abbott Laboratories): 9.0%
+  52. [SP500] HAS (Hasbro): 9.0%
+  53. [SP500] MPC (Marathon Petroleum): 9.0%
+  54. [SP500] PSX (Phillips 66): 8.9%
+  55. [SP500] PRU (Prudential Financial): 8.9%
+  56. [SP500] LH (Labcorp): 8.9%
+  57. [SP500] BMY (Bristol Myers Squibb): 8.9%
+  58. [SP500] ROST (Ross Stores): 8.9%
+  59. [SP500] CBOE (Cboe Global Markets): 8.9%
+  60. [SP500] ADSK (Autodesk): 8.9%
+  61. [SP500] BBY (Best Buy): 8.9%
+  62. [SP500] IQV (IQVIA): 8.8%
+  63. [SP500] SCHW (Charles Schwab Corporation): 8.8%
+  64. [SP500] JKHY (Jack Henry & Associates): 8.8%
+  65. [SP500] LHX (L3Harris): 8.7%
+  66. [SP500] JNJ (Johnson & Johnson): 8.7%
+  67. [SP500] NSC (Norfolk Southern): 8.7%
+  68. [SP500] MCK (McKesson Corporation): 8.7%
+  69. [SP500] NOC (Northrop Grumman): 8.7%
+  70. [SP500] VZ (Verizon): 8.7%
+  71. [SP500] UNP (Union Pacific Corporation): 8.7%
+  72. [SP500] GPC (Genuine Parts Company): 8.7%
+  73. [SP500] FIS (Fidelity National Information Services): 8.7%
+  74. [SP500] MET (MetLife): 8.6%
+  75. [SP500] NTAP (NetApp): 8.6%
+  76. [SP500] BR (Broadridge Financial Solutions): 8.6%
+  77. [SP500] TXT (Textron): 8.6%
+  78. [SP500] FOXA (Fox Corporation (Class A)): 8.6%
+  79. [SP500] ITW (Illinois Tool Works): 8.6%
+  80. [SP500] ADP (Automatic Data Processing): 8.6%
+  81. [SP500] AON (Aon plc): 8.6%
+  82. [SP500] JPM (JPMorgan Chase): 8.6%
+  83. [SP500] IVZ (Invesco): 8.6%
+  84. [SP500] HPE (Hewlett Packard Enterprise): 8.5%
+  85. [SP500] EMR (Emerson Electric): 8.5%
+  86. [SP500] ALL (Allstate): 8.5%
+  87. [SP500] CSX (CSX Corporation): 8.5%
+  88. [SP500] NUE (Nucor): 8.5%
+  89. [SP500] SJM (J.M. Smucker Company (The)): 8.5%
+  90. [SP500] DLR (Digital Realty): 8.5%
+  91. [SP500] TSN (Tyson Foods): 8.5%
+  92. [SP500] OMC (Omnicom Group): 8.5%
+  93. [SP500] WELL (Welltower): 8.4%
+  94. [SP500] CVX (Chevron Corporation): 8.4%
+  95. [SP500] EFX (Equifax): 8.4%
+  96. [SP500] FANG (Diamondback Energy): 8.4%
+  97. [SP500] URI (United Rentals): 8.4%
+  98. [SP500] APO (Apollo Global Management): 8.4%
+  99. [SP500] TRMB (Trimble Inc.): 8.4%
+  100. [SP500] J (Jacobs Solutions): 8.4%
+
+============================================================
+[5일] SP500 Top 100 Surge Candidates
+============================================================
+  1. [SP500] LMT (Lockheed Martin): 18.3%
+  2. [SP500] RTX (RTX Corporation): 18.0%
+  3. [SP500] ACN (Accenture): 17.7%
+  4. [SP500] IP (International Paper): 17.7%
+  5. [SP500] ALLE (Allegion): 17.3%
+  6. [SP500] WAB (Wabtec): 17.2%
+  7. [SP500] SLB (Schlumberger): 17.2%
+  8. [SP500] ARES (Ares Management): 17.0%
+  9. [SP500] CTAS (Cintas): 17.0%
+  10. [SP500] TRV (Travelers Companies (The)): 17.0%
+  11. [SP500] PYPL (PayPal): 16.9%
+  12. [SP500] CTSH (Cognizant): 16.8%
+  13. [SP500] HPQ (HP Inc.): 16.7%
+  14. [SP500] BX (Blackstone Inc.): 16.7%
+  15. [SP500] ICE (Intercontinental Exchange): 16.5%
+  16. [SP500] DGX (Quest Diagnostics): 16.4%
+  17. [SP500] AAPL (Apple Inc.): 16.3%
+  18. [SP500] DPZ (Domino's): 16.3%
+  19. [SP500] GM (General Motors): 16.1%
+  20. [SP500] FDS (FactSet): 16.1%
+  21. [SP500] AMP (Ameriprise Financial): 16.0%
+  22. [SP500] SMCI (Supermicro): 15.9%
+  23. [SP500] T (AT&T): 15.9%
+  24. [SP500] MMM (3M): 15.9%
+  25. [SP500] INTU (Intuit): 15.8%
+  26. [SP500] LDOS (Leidos): 15.8%
+  27. [SP500] CME (CME Group): 15.8%
+  28. [SP500] UHS (Universal Health Services): 15.7%
+  29. [SP500] NDAQ (Nasdaq, Inc.): 15.7%
+  30. [SP500] BKR (Baker Hughes): 15.7%
+  31. [SP500] GPN (Global Payments): 15.6%
+  32. [SP500] TMO (Thermo Fisher Scientific): 15.5%
+  33. [SP500] SW (Smurfit Westrock): 15.5%
+  34. [SP500] IT (Gartner): 15.5%
+  35. [SP500] VTR (Ventas): 15.4%
+  36. [SP500] WDAY (Workday, Inc.): 15.4%
+  37. [SP500] GD (General Dynamics): 15.4%
+  38. [SP500] WTW (Willis Towers Watson): 15.3%
+  39. [SP500] RJF (Raymond James Financial): 15.2%
+  40. [SP500] KKR (KKR & Co.): 15.2%
+  41. [SP500] ADBE (Adobe Inc.): 15.2%
+  42. [SP500] DELL (Dell Technologies): 15.2%
+  43. [SP500] VRSK (Verisk Analytics): 15.2%
+  44. [SP500] PKG (Packaging Corporation of America): 15.1%
+  45. [SP500] ROP (Roper Technologies): 15.1%
+  46. [SP500] PAYX (Paychex): 15.1%
+  47. [SP500] XOM (ExxonMobil): 15.1%
+  48. [SP500] GDDY (GoDaddy): 15.1%
+  49. [SP500] PCAR (Paccar): 15.0%
+  50. [SP500] CPAY (Corpay): 15.0%
+  51. [SP500] ABT (Abbott Laboratories): 15.0%
+  52. [SP500] HAS (Hasbro): 15.0%
+  53. [SP500] MPC (Marathon Petroleum): 15.0%
+  54. [SP500] PSX (Phillips 66): 15.0%
+  55. [SP500] PRU (Prudential Financial): 14.9%
+  56. [SP500] LH (Labcorp): 14.9%
+  57. [SP500] BMY (Bristol Myers Squibb): 14.9%
+  58. [SP500] ROST (Ross Stores): 14.9%
+  59. [SP500] CBOE (Cboe Global Markets): 14.9%
+  60. [SP500] ADSK (Autodesk): 14.8%
+  61. [SP500] BBY (Best Buy): 14.8%
+  62. [SP500] IQV (IQVIA): 14.7%
+  63. [SP500] SCHW (Charles Schwab Corporation): 14.7%
+  64. [SP500] JKHY (Jack Henry & Associates): 14.6%
+  65. [SP500] LHX (L3Harris): 14.6%
+  66. [SP500] JNJ (Johnson & Johnson): 14.6%
+  67. [SP500] NSC (Norfolk Southern): 14.6%
+  68. [SP500] MCK (McKesson Corporation): 14.6%
+  69. [SP500] NOC (Northrop Grumman): 14.5%
+  70. [SP500] VZ (Verizon): 14.5%
+  71. [SP500] UNP (Union Pacific Corporation): 14.5%
+  72. [SP500] GPC (Genuine Parts Company): 14.5%
+  73. [SP500] FIS (Fidelity National Information Services): 14.5%
+  74. [SP500] MET (MetLife): 14.5%
+  75. [SP500] NTAP (NetApp): 14.5%
+  76. [SP500] BR (Broadridge Financial Solutions): 14.5%
+  77. [SP500] TXT (Textron): 14.4%
+  78. [SP500] FOXA (Fox Corporation (Class A)): 14.4%
+  79. [SP500] ITW (Illinois Tool Works): 14.4%
+  80. [SP500] ADP (Automatic Data Processing): 14.4%
+  81. [SP500] AON (Aon plc): 14.4%
+  82. [SP500] JPM (JPMorgan Chase): 14.4%
+  83. [SP500] IVZ (Invesco): 14.4%
+  84. [SP500] HPE (Hewlett Packard Enterprise): 14.3%
+  85. [SP500] EMR (Emerson Electric): 14.3%
+  86. [SP500] ALL (Allstate): 14.2%
+  87. [SP500] CSX (CSX Corporation): 14.2%
+  88. [SP500] NUE (Nucor): 14.2%
+  89. [SP500] SJM (J.M. Smucker Company (The)): 14.2%
+  90. [SP500] DLR (Digital Realty): 14.2%
+  91. [SP500] TSN (Tyson Foods): 14.2%
+  92. [SP500] OMC (Omnicom Group): 14.2%
+  93. [SP500] WELL (Welltower): 14.2%
+  94. [SP500] CVX (Chevron Corporation): 14.1%
+  95. [SP500] EFX (Equifax): 14.1%
+  96. [SP500] FANG (Diamondback Energy): 14.1%
+  97. [SP500] URI (United Rentals): 14.1%
+  98. [SP500] APO (Apollo Global Management): 14.1%
+  99. [SP500] TRMB (Trimble Inc.): 14.1%
+  100. [SP500] J (Jacobs Solutions): 14.1%
+
+============================================================
+[20일] SP500 Top 100 Surge Candidates
+============================================================
+  1. [SP500] LMT (Lockheed Martin): 37.8%
+  2. [SP500] RTX (RTX Corporation): 37.4%
+  3. [SP500] ACN (Accenture): 36.9%
+  4. [SP500] IP (International Paper): 36.9%
+  5. [SP500] ALLE (Allegion): 36.3%
+  6. [SP500] WAB (Wabtec): 36.1%
+  7. [SP500] SLB (Schlumberger): 36.0%
+  8. [SP500] ARES (Ares Management): 35.8%
+  9. [SP500] CTAS (Cintas): 35.8%
+  10. [SP500] TRV (Travelers Companies (The)): 35.7%
+  11. [SP500] PYPL (PayPal): 35.6%
+  12. [SP500] CTSH (Cognizant): 35.5%
+  13. [SP500] HPQ (HP Inc.): 35.3%
+  14. [SP500] BX (Blackstone Inc.): 35.2%
+  15. [SP500] ICE (Intercontinental Exchange): 35.0%
+  16. [SP500] DGX (Quest Diagnostics): 34.8%
+  17. [SP500] AAPL (Apple Inc.): 34.6%
+  18. [SP500] DPZ (Domino's): 34.6%
+  19. [SP500] GM (General Motors): 34.3%
+  20. [SP500] FDS (FactSet): 34.3%
+  21. [SP500] AMP (Ameriprise Financial): 34.1%
+  22. [SP500] SMCI (Supermicro): 34.0%
+  23. [SP500] T (AT&T): 34.0%
+  24. [SP500] MMM (3M): 33.9%
+  25. [SP500] INTU (Intuit): 33.8%
+  26. [SP500] LDOS (Leidos): 33.8%
+  27. [SP500] CME (CME Group): 33.7%
+  28. [SP500] UHS (Universal Health Services): 33.7%
+  29. [SP500] NDAQ (Nasdaq, Inc.): 33.6%
+  30. [SP500] BKR (Baker Hughes): 33.6%
+  31. [SP500] GPN (Global Payments): 33.4%
+  32. [SP500] TMO (Thermo Fisher Scientific): 33.3%
+  33. [SP500] SW (Smurfit Westrock): 33.3%
+  34. [SP500] IT (Gartner): 33.2%
+  35. [SP500] VTR (Ventas): 33.1%
+  36. [SP500] WDAY (Workday, Inc.): 33.1%
+  37. [SP500] GD (General Dynamics): 33.0%
+  38. [SP500] WTW (Willis Towers Watson): 32.9%
+  39. [SP500] RJF (Raymond James Financial): 32.8%
+  40. [SP500] KKR (KKR & Co.): 32.8%
+  41. [SP500] ADBE (Adobe Inc.): 32.8%
+  42. [SP500] DELL (Dell Technologies): 32.8%
+  43. [SP500] VRSK (Verisk Analytics): 32.7%
+  44. [SP500] PKG (Packaging Corporation of America): 32.7%
+  45. [SP500] ROP (Roper Technologies): 32.7%
+  46. [SP500] PAYX (Paychex): 32.6%
+  47. [SP500] XOM (ExxonMobil): 32.6%
+  48. [SP500] GDDY (GoDaddy): 32.5%
+  49. [SP500] PCAR (Paccar): 32.5%
+  50. [SP500] CPAY (Corpay): 32.4%
+  51. [SP500] ABT (Abbott Laboratories): 32.4%
+  52. [SP500] HAS (Hasbro): 32.4%
+  53. [SP500] MPC (Marathon Petroleum): 32.4%
+  54. [SP500] PSX (Phillips 66): 32.3%
+  55. [SP500] PRU (Prudential Financial): 32.3%
+  56. [SP500] LH (Labcorp): 32.3%
+  57. [SP500] BMY (Bristol Myers Squibb): 32.3%
+  58. [SP500] ROST (Ross Stores): 32.3%
+  59. [SP500] CBOE (Cboe Global Markets): 32.2%
+  60. [SP500] ADSK (Autodesk): 32.1%
+  61. [SP500] BBY (Best Buy): 32.1%
+  62. [SP500] IQV (IQVIA): 32.0%
+  63. [SP500] SCHW (Charles Schwab Corporation): 31.8%
+  64. [SP500] JKHY (Jack Henry & Associates): 31.8%
+  65. [SP500] LHX (L3Harris): 31.7%
+  66. [SP500] JNJ (Johnson & Johnson): 31.7%
+  67. [SP500] NSC (Norfolk Southern): 31.7%
+  68. [SP500] MCK (McKesson Corporation): 31.6%
+  69. [SP500] NOC (Northrop Grumman): 31.6%
+  70. [SP500] VZ (Verizon): 31.6%
+  71. [SP500] UNP (Union Pacific Corporation): 31.6%
+  72. [SP500] GPC (Genuine Parts Company): 31.6%
+  73. [SP500] FIS (Fidelity National Information Services): 31.5%
+  74. [SP500] MET (MetLife): 31.5%
+  75. [SP500] NTAP (NetApp): 31.5%
+  76. [SP500] BR (Broadridge Financial Solutions): 31.5%
+  77. [SP500] TXT (Textron): 31.4%
+  78. [SP500] FOXA (Fox Corporation (Class A)): 31.4%
+  79. [SP500] ITW (Illinois Tool Works): 31.4%
+  80. [SP500] ADP (Automatic Data Processing): 31.4%
+  81. [SP500] AON (Aon plc): 31.4%
+  82. [SP500] JPM (JPMorgan Chase): 31.4%
+  83. [SP500] IVZ (Invesco): 31.4%
+  84. [SP500] HPE (Hewlett Packard Enterprise): 31.2%
+  85. [SP500] EMR (Emerson Electric): 31.2%
+  86. [SP500] ALL (Allstate): 31.1%
+  87. [SP500] CSX (CSX Corporation): 31.1%
+  88. [SP500] NUE (Nucor): 31.1%
+  89. [SP500] SJM (J.M. Smucker Company (The)): 31.0%
+  90. [SP500] DLR (Digital Realty): 31.0%
+  91. [SP500] TSN (Tyson Foods): 31.0%
+  92. [SP500] OMC (Omnicom Group): 31.0%
+  93. [SP500] WELL (Welltower): 31.0%
+  94. [SP500] CVX (Chevron Corporation): 30.9%
+  95. [SP500] EFX (Equifax): 30.9%
+  96. [SP500] FANG (Diamondback Energy): 30.9%
+  97. [SP500] URI (United Rentals): 30.9%
+  98. [SP500] APO (Apollo Global Management): 30.9%
+  99. [SP500] TRMB (Trimble Inc.): 30.9%
+  100. [SP500] J (Jacobs Solutions): 30.9%
+

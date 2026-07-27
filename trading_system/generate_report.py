@@ -506,8 +506,10 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
         if m:
             date = m.group(1).strip()
             continue
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.]+)\s+([-\d.]+)\s+([-+]?[\d.]+%)\s+([-\d.]+)%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+([-+\d.nanNaN%]+)$", line)
         if m:
+            val_str = m.group(8).strip()
+            score_val = val_str if val_str.endswith("%") else val_str + "%"
             rows.append(RimRow(
                 rank=int(m.group(1)),
                 symbol=m.group(2),
@@ -516,7 +518,7 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
                 price=m.group(5),
                 intrinsic_value=m.group(6),
                 discount=m.group(7),
-                score=m.group(8) + "%"
+                score=score_val
             ))
     return date, rows
 

@@ -1,0 +1,162 @@
+=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===
+Date: 2026-07-28 00:30 KST
+
+--- Executive Market Summary ---
+Current Market Regime Detected: BULL (2D State: BULL_LOW_VOL)
+Maximum Total Allocation Allowed: 85.0%
+
+--- Judgment Basis (Global Macro Indicators) ---
+  S&P 500 (20d Rolling Mean Return) : +0.000% / day
+  S&P 500 (20d Rolling Volatility)  : 0.000%
+  KOSPI (20d Rolling Mean Return)   : -0.729% / day
+  KOSPI (20d Rolling Volatility)    : 4.483%
+  VIX Index (Fear Gauge)            : 3.66
+  USD/KRW FX Rate                   : 0.65 KRW
+  US 10Y Bond Yield (TNX)           : 4.66%
+
+[2D Market Regime & Strategy Decision Rationale]
+• Selected 2D Regime State: BULL_LOW_VOL
+  - Market Trend Rationale: Upward momentum trend confirmed (20d index return > 0). Momentum & Surge strategies boosted.
+  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.
+
+[14-Strategy Dynamic Weight Allocation]
+• Dynamic Weighting Scheme: Baseline 2D Regime Matrix Weights (No historical performance penalty)
+  - regression            :   5.0%
+  - surge                 :  15.0%
+  - lead_lag              :   4.0%
+  - vcp_rule              :   4.0%
+  - vcp_ml                :  12.0%
+  - lstm                  :  10.0%
+  - stat_arb              :   4.0%
+  - sector_rotation       :  10.0%
+  - rim_valuation         :   6.0%
+  - event_driven          :  10.0%
+  - mq_factor             :  10.0%
+  - iv_skew               :   3.0%
+  - order_flow            :   5.0%
+  - short_term_reversal   :   2.0%
+
+--- Applied Ensemble Strategy Weights (14 Strategies) ---
+  XGBoost Regression Fundamentals   : 5.0%
+  Surge Classifier (XGBoost)        : 15.0%
+  Index & Sector Lead-Lag Flow      : 4.0%
+  VCP Rule Pattern Detector         : 4.0%
+  VCP Machine Learning Predictor    : 12.0%
+  Strict Causal LSTM Deep Learning  : 10.0%
+  Stat-Arb Cointegration Mean Rev   : 4.0%
+  Sector Rotation Relative Momentum : 10.0%
+  RIM Valuation (Residual Income)   : 6.0%
+  Event-Driven Disclosure Catalyst  : 10.0%
+  Momentum Quality (MQ) Factor      : 10.0%
+  Options Put/Call IV Skew          : 3.0%
+  Order Flow Imbalance (MFI)        : 5.0%
+  Short-Term Mean Reversal          : 2.0%
+
+--- Top 20 Recommendations by Market ---
+
+=========================================
+[SP500] Top 100 Ensemble Picks
+=========================================
+Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+1    BBY       Best Buy                52.9%       10.48%  87%  32%   0%  100%    5%   0%   68%   99%   0%    0%   0%    0%   0%   0%
+2    PYPL      PayPal                  52.8%       10.46%  95%  36%   0%  100%    4%   0%    0%   97%   0%    0%   0%    0%   0%   0%
+3    RTX       RTX Corporation         51.6%       10.22% 100%  37%   0%   87%    0%   0%    0%   96%   0%    0%   0%    0%   0%   0%
+4    MPC       Marathon Petrole        51.1%       10.11%  82%  32%   0%   72%   10%   0%   71%   97%   0%    0%   0%    0%   0%   0%
+5    LMT       Lockheed Martin         51.0%       10.10% 100%  38%   0%   72%    0%   0%   69%   92%   0%    0%   0%    0%   0%   0%
+6    AMP       Ameriprise Finan        50.7%       10.03%  94%  34%   0%   97%    1%   0%    0%   96%   0%    0%   0%    0%   0%   0%
+7    CTAS      Cintas                  50.6%       10.02%  97%  36%   0%   80%    0%   0%    0%   98%   0%    0%   0%    0%   0%   0%
+8    GPN       Global Payments         50.5%       10.00%  92%  33%   0%  100%    2%   0%    0%   94%   0%    0%   0%    0%   0%   0%
+9    TRV       Travelers Compan        50.5%       10.00%  98%  36%   0%   80%    0%   0%    0%   97%   0%    0%   0%    0%   0%   0%
+10   PAYX      Paychex                 50.1%        9.92%  88%  33%   0%  100%    0%   0%    0%   97%   0%    0%   0%    0%   0%   0%
+11   HPQ       HP Inc.                 49.8%        9.86%  98%  35%   0%   87%    2%   0%   32%   97%   0%    0%   0%    0%   0%   0%
+12   WTW       Willis Towers Wa        49.7%        9.85%  92%  33%   0%  100%    0%   0%    0%   93%   0%    0%   0%    0%   0%   0%
+13   PRU       Prudential Finan        49.7%        9.83%  89%  32%   0%  100%    0%   0%    0%   95%   0%    0%   0%    0%   0%   0%
+14   VTR       Ventas                  49.6%        9.81%  93%  33%   0%  100%    1%   0%    0%   91%   0%    0%   0%    0%   0%   0%
+15   VRSK      Verisk Analytics        49.5%        9.80%  90%  33%   0%  100%    1%   0%    0%   92%   0%    0%   0%    0%   0%   0%
+16   IP        International Pa        49.4%        9.79% 100%  37%   0%   75%    1%   0%   32%   98%   0%    0%   0%    0%   0%   0%
+17   NDAQ      Nasdaq, Inc.            49.4%        9.78%  93%  34%   0%  100%    0%   0%    0%   90%   0%    0%   0%    0%   0%   0%
+18   ICE       Intercontinental        49.3%        9.76%  96%  35%   0%   90%    1%   0%   76%   79%   0%    0%   0%    0%   0%   0%
+19   VLO       Valero Energy           48.9%        9.68%  61%  30%   0%   42%   33%   0%    0%   93%   0%    0%   0%    0%   0%   0%
+20   AJG       Arthur J. Gallag        48.8%        9.66%  74%  31%   0%  100%    0%   0%   68%   94%   0%    0%   0%    0%   0%   0%
+21   CTSH      Cognizant               48.5%        9.61%  97%  35%   0%   97%    4%   0%    0%   78%   0%    0%   0%    0%   0%   0%
+22   FDS       FactSet                 48.5%        9.60%  96%  34%   0%   97%    2%   0%   18%   94%   0%    0%   0%    0%   0%   0%
+23   WDAY      Workday, Inc.           48.5%        9.60%  89%  33%   0%   66%    5%   0%    0%   96%   0%    0%   0%    0%   0%   0%
+24   GEN       Gen Digital             48.4%        9.59%  65%  30%   0%  100%    0%   0%   73%   96%   0%    0%   0%    0%   0%   0%
+25   GDDY      GoDaddy                 48.4%        9.57%  88%  33%   0%   97%    2%   0%    0%   89%   0%    0%   0%    0%   0%   0%
+26   HPE       Hewlett Packard         48.3%        9.56%  85%  31%   0%   57%    2%   0%   70%   99%   0%    0%   0%    0%   0%   0%
+27   IT        Gartner                 48.2%        9.55%  93%  33%   0%   97%    1%   0%   73%   75%   0%    0%   0%    0%   0%   0%
+28   ROST      Ross Stores             48.1%        9.51%  88%  32%   0%  100%    2%   0%    0%   86%   0%    0%   0%    0%   0%   0%
+29   AAPL      Apple Inc.              47.7%        9.44%  95%  35%   0%   80%    0%   0%   23%   98%   0%    0%   0%    0%   0%   0%
+30   ARES      Ares Management         47.5%        9.39%  98%  36%   0%   72%    0%   0%   27%   94%   0%    0%   0%    0%   0%   0%
+31   TMO       Thermo Fisher Sc        47.4%        9.37%  94%  33%   0%   72%    1%   0%    0%   91%   0%    0%   0%    0%   0%   0%
+32   KKR       KKR & Co.               47.3%        9.37%  92%  33%   0%  100%    0%   0%   75%   71%   0%    0%   0%    0%   0%   0%
+33   IQV       IQVIA                   47.1%        9.33%  87%  32%   0%   87%    1%   0%   32%   96%   0%    0%   0%    0%   0%   0%
+34   DGX       Quest Diagnostic        47.1%        9.33%  98%  35%   0%   66%    1%   0%    0%   88%   0%    0%   0%    0%   0%   0%
+35   SW        Smurfit Westrock        47.1%        9.31%  96%  33%   0%   60%    2%   0%    0%   92%   0%    0%   0%    0%   0%   0%
+36   AMCR      Amcor                   47.0%        9.30%  77%  30%   0%   95%    1%   0%   69%   85%   0%    0%   0%    0%   0%   0%
+37   RJF       Raymond James Fi        47.0%        9.29%  90%  33%   0%   80%    0%   0%    0%   89%   0%    0%   0%    0%   0%   0%
+38   SCHW      Charles Schwab C        47.0%        9.29%  84%  32%   0%   87%    1%   0%    0%   91%   0%    0%   0%    0%   0%   0%
+39   CPAY      Corpay                  47.0%        9.29%  89%  32%   0%   87%    0%   0%   30%   95%   0%    0%   0%    0%   0%   0%
+40   PSX       Phillips 66             47.0%        9.29%  82%  32%   0%   57%    7%   0%    0%   95%   0%    0%   0%    0%   0%   0%
+41   VTRS      Viatris                 46.8%        9.27%  80%  31%   0%   87%    6%   0%    0%   87%   0%    0%   0%    0%   0%   0%
+42   SJM       J.M. Smucker Com        46.8%        9.26%  86%  31%   0%  100%    0%   0%    0%   86%   0%    0%   0%    0%   0%   0%
+43   GPC       Genuine Parts Co        46.8%        9.26%  86%  32%   0%   66%    0%   0%   70%   89%   0%    0%   0%    0%   0%   0%
+44   JKHY      Jack Henry & Ass        46.6%        9.22%  83%  32%   0%  100%    1%   0%   72%   74%   0%    0%   0%    0%   0%   0%
+45   FICO      Fair Isaac              46.5%        9.21%  73%  30%   0%   97%    0%   0%    0%   93%   0%    0%   0%    0%   0%   0%
+46   NTAP      NetApp                  46.5%        9.21%  85%  31%   0%   65%    0%   0%    0%   98%   0%    0%   0%    0%   0%   0%
+47   DVA       DaVita                  46.5%        9.21%  74%  30%   0%  100%    0%   0%   27%   99%   0%    0%   0%    0%   0%   0%
+48   MET       MetLife                 46.4%        9.19%  84%  32%   0%   80%    0%   0%    0%   92%   0%    0%   0%    0%   0%   0%
+49   ACN       Accenture               46.4%        9.19%  99%  37%   0%   82%    2%   0%   26%   82%   0%    0%   0%    0%   0%   0%
+50   ADP       Automatic Data P        46.4%        9.18%  79%  31%   0%  100%    0%   0%   26%   95%   0%    0%   0%    0%   0%   0%
+51   AON       Aon plc                 46.3%        9.17%  81%  31%   0%  100%    0%   0%   29%   93%   0%    0%   0%    0%   0%   0%
+52   WELL      Welltower               46.3%        9.16%  79%  31%   0%  100%    1%   0%    0%   86%   0%    0%   0%    0%   0%   0%
+53   BAX       Baxter Internati        46.3%        9.16%  83%  31%   0%  100%    1%   0%   22%   93%   0%    0%   0%    0%   0%   0%
+54   ALLE      Allegion                46.1%        9.12%  99%  36%   0%   72%    1%   0%   24%   88%   0%    0%   0%    0%   0%   0%
+55   MCK       McKesson Corpora        46.0%        9.09%  84%  32%   0%  100%    0%   0%    0%   82%   0%    0%   0%    0%   0%   0%
+56   IVZ       Invesco                 45.9%        9.09%  78%  31%   0%   90%    4%   0%   31%   90%   0%    0%   0%    0%   0%   0%
+57   BX        Blackstone Inc.         45.9%        9.07%  98%  35%   0%   72%    2%   0%   25%   87%   0%    0%   0%    0%   0%   0%
+58   DELL      Dell Technologie        45.8%        9.06%  95%  33%   0%   51%    1%   0%   28%  100%   0%    0%   0%    0%   0%   0%
+59   PCAR      Paccar                  45.7%        9.05%  92%  32%   0%   80%    0%   0%    0%   83%   0%    0%   0%    0%   0%   0%
+60   WAB       Wabtec                  45.7%        9.04%  99%  36%   0%   66%    1%   0%    0%   79%   0%    0%   0%    0%   0%   0%
+61   GD        General Dynamics        45.7%        9.04%  93%  33%   0%   80%    1%   0%   29%   88%   0%    0%   0%    0%   0%   0%
+62   ALL       Allstate                45.6%        9.02%  82%  31%   0%  100%    0%   0%   26%   90%   0%    0%   0%    0%   0%   0%
+63   DOC       Healthpeak Prope        45.5%        8.99%  49%  28%   0%   95%    0%   0%   69%   95%   0%    0%   0%    0%   0%   0%
+64   VEEV      Veeva Systems           45.4%        8.98%  72%  31%   0%   72%    3%   0%    0%   94%   0%    0%   0%    0%   0%   0%
+65   GM        General Motors          45.3%        8.97%  97%  34%   0%   72%    1%   0%    0%   78%   0%    0%   0%    0%   0%   0%
+66   ITW       Illinois Tool Wo        45.3%        8.96%  86%  31%   0%   80%    0%   0%   68%   77%   0%    0%   0%    0%   0%   0%
+67   NUE       Nucor                   45.3%        8.96%  87%  31%   0%  100%    1%   0%    0%   78%   0%    0%   0%    0%   0%   0%
+68   OMC       Omnicom Group           45.2%        8.95%  76%  31%   0%  100%    1%   0%    0%   82%   0%    0%   0%    0%   0%   0%
+69   PKG       Packaging Corpor        45.1%        8.93%  94%  33%   0%   66%    1%   0%    0%   84%   0%    0%   0%    0%   0%   0%
+70   ROP       Roper Technologi        45.1%        8.92%  92%  33%   0%   72%    0%   0%    0%   83%   0%    0%   0%    0%   0%   0%
+71   MMM       3M                      45.0%        8.90%  97%  34%   0%   72%    0%   0%   17%   90%   0%    0%   0%    0%   0%   0%
+72   ADBE      Adobe Inc.              44.9%        8.89%  89%  33%   0%   82%    7%   0%    0%   72%   0%    0%   0%    0%   0%   0%
+73   CBOE      Cboe Global Mark        44.8%        8.86%  86%  32%   0%   82%    1%   0%    0%   81%   0%    0%   0%    0%   0%   0%
+74   F         Ford Motor Compa        44.8%        8.85%  64%  29%   0%  100%    0%   0%   70%   80%   0%    0%   0%    0%   0%   0%
+75   AXON      Axon Enterprise         44.7%        8.85%  72%  31%   0%   82%    0%   0%    0%   91%   0%    0%   0%    0%   0%   0%
+76   LLY       Lilly (Eli)             44.7%        8.84%  64%  29%   0%  100%    0%   0%   71%   80%   0%    0%   0%    0%   0%   0%
+77   ABT       Abbott Laborator        44.7%        8.83%  90%  32%   0%   65%    0%   0%   28%   92%   0%    0%   0%    0%   0%   0%
+78   MRK       Merck & Co.             44.6%        8.83%  80%  30%   0%  100%    0%   0%    0%   80%   0%    0%   0%    0%   0%   0%
+79   XOM       ExxonMobil              44.4%        8.77%  91%  33%   0%  100%    1%   0%   32%   74%   0%    0%   0%    0%   0%   0%
+80   DPZ       Domino's                44.2%        8.74%  96%  35%   0%   57%    1%   0%   30%   86%   0%    0%   0%    0%   0%   0%
+81   MA        Mastercard              43.8%        8.66%  76%  31%   0%  100%    0%   0%    0%   77%   0%    0%   0%    0%   0%   0%
+82   HWM       Howmet Aerospace        43.7%        8.63%  79%  31%   0%  100%    0%   0%   29%   81%   0%    0%   0%    0%   0%   0%
+83   INCY      Incyte                  43.6%        8.63%  73%  30%   0%  100%    0%   0%   21%   88%   0%    0%   0%    0%   0%   0%
+84   SPGI      S&P Global              43.6%        8.63%  68%  30%   0%   90%    0%   0%    0%   85%   0%    0%   0%    0%   0%   0%
+85   TECH      Bio-Techne              43.6%        8.61%  40%  27%   0%  100%    1%   0%   71%   88%   0%    0%   0%    0%   0%   0%
+86   HON       Honeywell Techno        43.5%        8.61%  84%  30%   0%   97%    0%   0%    0%   74%   0%    0%   0%    0%   0%   0%
+87   STLD      Steel Dynamics          43.5%        8.61%  85%  31%   0%  100%    1%   0%    0%   71%   0%    0%   0%    0%   0%   0%
+88   BR        Broadridge Finan        43.2%        8.55%  83%  31%   0%  100%    0%   0%   31%   75%   0%    0%   0%    0%   0%   0%
+89   CSX       CSX Corporation         43.2%        8.55%  82%  31%   0%   80%    1%   0%   32%   83%   0%    0%   0%    0%   0%   0%
+90   LH        Labcorp                 43.2%        8.54%  91%  32%   0%   72%    0%   0%   29%   81%   0%    0%   0%    0%   0%   0%
+91   ADSK      Autodesk                43.2%        8.54%  87%  32%   0%   97%    8%   0%   28%   65%   0%    0%   0%    0%   0%   0%
+92   JPM       JPMorgan Chase          43.1%        8.53%  85%  31%   0%   80%    0%   0%   31%   81%   0%    0%   0%    0%   0%   0%
+93   NSC       Norfolk Southern        43.1%        8.52%  86%  32%   0%   72%    0%   0%    0%   79%   0%    0%   0%    0%   0%   0%
+94   BAC       Bank of America         43.1%        8.52%  79%  31%   0%   80%    0%   0%   31%   85%   0%    0%   0%    0%   0%   0%
+95   CRL       Charles River La        43.1%        8.52%  69%  29%   0%   42%    0%   0%   73%   91%   0%    0%   0%    0%   0%   0%
+96   CF        CF Industries           42.9%        8.49%  62%  30%   0%  100%    1%   0%   69%   70%   0%    0%   0%    0%   0%   0%
+97   UNP       Union Pacific Co        42.7%        8.45%  82%  32%   0%   57%    0%   0%    0%   85%   0%    0%   0%    0%   0%   0%
+98   KHC       Kraft Heinz             42.7%        8.44%  75%  31%   0%   80%    0%   0%   32%   85%   0%    0%   0%    0%   0%   0%
+99   STT       State Street Cor        42.7%        8.43%  71%  30%   0%   65%    0%   0%    0%   90%   0%    0%   0%    0%   0%   0%
+100  CME       CME Group               42.6%        8.43%  94%  34%   0%   57%    1%   0%   70%   64%   0%    0%   0%    0%   0%   0%
+
