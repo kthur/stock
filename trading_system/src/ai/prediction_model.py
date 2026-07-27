@@ -2528,7 +2528,8 @@ class OnDevicePredictionModel:
                 if df is None or len(df) < 5:
                     continue
                 c = df['Close']
-                if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                if isinstance(c, pd.DataFrame):
+                    c = c.iloc[:, 0]
                 c = c.dropna()
                 if len(c) >= 5:
                     ret_5d = float((c.iloc[-1] / c.iloc[-5]) - 1.0)

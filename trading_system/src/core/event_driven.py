@@ -120,8 +120,10 @@ class EventDrivenEngine:
                 try:
                     c = df['Close']
                     v = df['Volume']
-                    if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
-                    if isinstance(v, pd.DataFrame): v = v.iloc[:, 0]
+                    if isinstance(c, pd.DataFrame):
+                        c = c.iloc[:, 0]
+                    if isinstance(v, pd.DataFrame):
+                        v = v.iloc[:, 0]
                     c = c.dropna()
                     v = v.dropna()
                     if len(c) >= 5 and len(v) >= 5:

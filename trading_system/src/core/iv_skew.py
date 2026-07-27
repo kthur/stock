@@ -83,14 +83,17 @@ class IVSkewEngine:
                 if df is not None and len(df) >= 20:
                     try:
                         c = df['Close']
-                        if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                        if isinstance(c, pd.DataFrame):
+                            c = c.iloc[:, 0]
                         ret = c.pct_change().dropna()
                         down_ret = ret[ret < 0]
                         up_ret = ret[ret > 0]
                         down_vol = float(down_ret.iloc[-20:].std()) if len(down_ret) >= 2 else 0.01
                         up_vol = float(up_ret.iloc[-20:].std()) if len(up_ret) >= 2 else 0.01
-                        if np.isnan(down_vol): down_vol = 0.01
-                        if np.isnan(up_vol) or up_vol <= 0: up_vol = 0.01
+                        if np.isnan(down_vol):
+                            down_vol = 0.01
+                        if np.isnan(up_vol) or up_vol <= 0:
+                            up_vol = 0.01
                         skew_ratio = down_vol / up_vol
                         score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.3, 0.0, 1.0))
                     except Exception:
