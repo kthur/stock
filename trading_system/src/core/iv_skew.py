@@ -80,14 +80,19 @@ class IVSkewEngine:
                 score = self.compute_skew_for_ticker(sym)
             elif prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
-                if df is not None and len(df) >= 60:
+                if df is not None and len(df) >= 20:
                     try:
-                        ret = df['Close'].pct_change().dropna()
-                        vol_20d = ret.iloc[-20:].std()
-                        vol_60d = ret.iloc[-60:].std()
-                        if vol_60d > 0:
-                            vol_ratio = vol_20d / vol_60d
-                            score = float(np.clip(0.5 + (vol_ratio - 1.0) * 0.3, 0.0, 1.0))
+                        c = df['Close']
+                        if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                        ret = c.pct_change().dropna()
+                        down_ret = ret[ret < 0]
+                        up_ret = ret[ret > 0]
+                        down_vol = float(down_ret.iloc[-20:].std()) if len(down_ret) >= 2 else 0.01
+                        up_vol = float(up_ret.iloc[-20:].std()) if len(up_ret) >= 2 else 0.01
+                        if np.isnan(down_vol): down_vol = 0.01
+                        if np.isnan(up_vol) or up_vol <= 0: up_vol = 0.01
+                        skew_ratio = down_vol / up_vol
+                        score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.3, 0.0, 1.0))
                     except Exception:
                         score = 0.5
             return sym, score

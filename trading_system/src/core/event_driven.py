@@ -112,22 +112,25 @@ class EventDrivenEngine:
 
                         scores_map[sym] = max(scores_map[sym], weight)
 
-        # Volatility / Volume Event Boost from price data
+        # Volatility / Volume Event Boost from price data (continuous scoring for all symbols)
         if prices_dict:
             for sym, df in prices_dict.items():
                 if sym not in scores_map or df is None or len(df) < 5:
                     continue
                 try:
-                    vol = df['Volume']
-                    if isinstance(vol, pd.DataFrame):
-                        vol = vol.iloc[:, 0]
-                    vol = vol.dropna()
-                    if len(vol) >= 5:
-                        avg_vol = float(vol.iloc[-5:-1].mean())
-                        cur_vol = float(vol.iloc[-1])
-                        if avg_vol > 0 and cur_vol / avg_vol >= 3.0:
-                            # 3x volume surge disclosure catalyst boost
-                            scores_map[sym] = float(np.clip(scores_map[sym] + 0.15, 0.0, 1.0))
+                    c = df['Close']
+                    v = df['Volume']
+                    if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                    if isinstance(v, pd.DataFrame): v = v.iloc[:, 0]
+                    c = c.dropna()
+                    v = v.dropna()
+                    if len(c) >= 5 and len(v) >= 5:
+                        avg_vol = float(v.iloc[-5:-1].mean())
+                        cur_vol = float(v.iloc[-1])
+                        v_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                        ret_5d = float((c.iloc[-1] / c.iloc[-5]) - 1.0)
+                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.10 * ret_5d, -0.2, 0.4)
+                        scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.0, 1.0))
                 except Exception:
                     pass
 

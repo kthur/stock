@@ -2523,13 +2523,16 @@ class OnDevicePredictionModel:
         # Fallback: if all leaders have negative/zero returns (e.g., down market or partial
         # market inference), use pure correlation sum so the output is never empty.
         if not follower_scores:
-            logger.info(
-                "Lead-lag: no positive leader returns today — "
-                "using correlation-only fallback scores"
-            )
-            for leader, followers in self.lead_lag_matrix.items():
-                for follower, corr in followers:
-                    follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, corr)
+            logger.info("Lead-lag: calculating relative momentum follower scores for all symbols")
+            for sym, df in prices_dict.items():
+                if df is None or len(df) < 5:
+                    continue
+                c = df['Close']
+                if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                c = c.dropna()
+                if len(c) >= 5:
+                    ret_5d = float((c.iloc[-1] / c.iloc[-5]) - 1.0)
+                    follower_scores[sym] = max(0.001, round(ret_5d * 100, 4))
 
         if not follower_scores:
             return pd.DataFrame()

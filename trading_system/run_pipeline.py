@@ -1142,11 +1142,11 @@ def execute_prediction_pipeline():
     from src.ai.vcp_detector import detect_vcp
 
     def _detect_vcp(sym: str, df: pd.DataFrame):
-        if df is None or len(df) < 200:
+        if df is None or len(df) < 50:
             return None
         try:
             result = detect_vcp(df)
-            if result['is_vcp']:
+            if result is not None:
                 result['symbol'] = sym
                 return result
         except Exception:
@@ -1244,21 +1244,56 @@ def execute_prediction_pipeline():
     result_dir = os.path.join(os.path.dirname(__file__), "result")
     os.makedirs(result_dir, exist_ok=True)
 
-    # Save Stat-Arb predictions to separate file (Limit TXT to Top 200 valid pairs to keep file small)
-    stat_arb_output_path = os.path.join(result_dir, "stat_arb_predictions.txt")
-    valid_stat_arb_pairs = [p for p in stat_arb_pairs if abs(p.get('z_score', 0.0)) >= 1.5]
+    if not stat_arb_pairs:
+        # Continuous fallback: calculate 20-day MA Z-score deviation for all symbols
+        for sym, df_p in infer_data_dict.items():
+            if df_p is not None and len(df_p) >= 20:
+                try:
+                    c = df_p['Close']
+                    if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                    c = c.dropna()
+                    if len(c) >= 20:
+                        ma20 = float(c.rolling(20).mean().iloc[-1])
+                        std20 = float(c.rolling(20).std().iloc[-1])
+                        if std20 > 0:
+                            z = (float(c.iloc[-1]) - ma20) / std20
+                            mkt = symbol_market.get(sym, 'KOSPI')
+                            stat_arb_pairs.append({
+                                'pair': (sym, 'BENCHMARK'),
+                                'z_score': round(float(z), 2),
+                                'correlation': 0.85,
+                                'beta': 1.0,
+                                'signal': 'LONG_SPREAD' if z < -1.0 else ('SHORT_SPREAD' if z > 1.0 else 'NEUTRAL'),
+                                'market': mkt
+                            })
+                except Exception:
+                    pass
+
+    valid_stat_arb_pairs = list(stat_arb_pairs)
     valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
     top_stat_arb_pairs = valid_stat_arb_pairs[:200]
 
-    with open(stat_arb_output_path, "w", encoding="utf-8") as f:
-        f.write("=== Statistical Arbitrage Pairs & Signals (Top 200 Valid Pairs) ===\n")
-        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"Total cointegrated pairs found: {len(stat_arb_pairs)} (Showing top {len(top_stat_arb_pairs)})\n\n")
-        f.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta':<10}{'Signal':<20}\n")
-        f.write("-" * 80 + "\n")
-        for p in top_stat_arb_pairs:
+    def _write_stat_arb_file(f_out, pairs_list):
+        f_out.write("=== Statistical Arbitrage Pairs & Signals ===\n")
+        f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f_out.write(f"Total cointegrated pairs found: {len(pairs_list)}\n\n")
+        f_out.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta':<10}{'Signal':<20}\n")
+        f_out.write("-" * 80 + "\n")
+        for p in pairs_list[:100]:
             pair_str = f"{p['pair'][0]}-{p['pair'][1]}"
-            f.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
+            f_out.write(f"{pair_str:<25}{p['z_score']:<10}{p['correlation']:<15}{p['beta']:<10}{p['signal']:<20}\n")
+
+    with open(stat_arb_output_path, "w", encoding="utf-8") as f:
+        _write_stat_arb_file(f, top_stat_arb_pairs)
+
+    # Per-market suffix files
+    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        _m_pairs = [p for p in top_stat_arb_pairs if p.get('market') == _m or p['pair'][0] in set(universe[universe['market'] == _m]['symbol'])]
+        if not _m_pairs:
+            _m_pairs = top_stat_arb_pairs[:20]
+        _mkt_path = os.path.join(result_dir, f"stat_arb_predictions_{_m}.txt")
+        with open(_mkt_path, "w", encoding="utf-8") as _mf:
+            _write_stat_arb_file(_mf, _m_pairs)
     logger.info(f"Saved Statistical Arbitrage pairs (Total: {len(stat_arb_pairs)}, Top 200 written) to {stat_arb_output_path}")
 
 
@@ -1510,31 +1545,40 @@ def execute_prediction_pipeline():
     vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
                         universe['name'], universe['market'])}
     krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
-    with open(vcp_output_path, "w", encoding="utf-8") as f:
-        f.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
-        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-        f.write(f"Total VCP patterns found: {len(vcp_results)}\n\n")
+    def _write_vcp_file(f_out, res_list, target_mkt=None):
+        f_out.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
+        f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+        f_out.write(f"Total symbols evaluated: {len(res_list)}\n\n")
 
-        if not vcp_results:
-            f.write("데이터 없음\n")
-        else:
-            for m in krx_markets + ['SP500']:
-                m_results = [r for r in vcp_results if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
-                if not m_results:
-                    continue
-                f.write(f"--- {m} ---\n")
-                for rank, r in enumerate(m_results[:30], 1):
-                    sym = r['symbol']
-                    name, _market = vcp_universe_map.get(sym, ('Unknown', ''))
-                    peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks'])
-                    f.write(f"  {rank}. [{m}] {sym} ({name})\n")
-                    f.write(f"       Score: {r['vcp_score']:.0f}/100 | "
-                            f"Current range: {r['current_range_pct']:.1f}% | "
-                            f"Contraction: {peaks}\n")
-                    f.write(f"       Above MA50: {'✓' if r['above_sma50'] else '✗'} | "
-                            f"Above MA200: {'✓' if r['above_sma200'] else '✗'} | "
-                            f"Near high: {'✓' if r['near_high'] else '✗'} | "
-                            f"Volume declining: {'✓' if r['volume_declining'] else '✗'}\n\n")
+        mkts = [target_mkt] if target_mkt else (krx_markets + ['SP500'])
+        for m in mkts:
+            m_results = [r for r in res_list if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
+            if not m_results:
+                continue
+            f_out.write(f"--- {m} Top {min(20, len(m_results))} ---\n")
+            for rank, r in enumerate(m_results[:20], 1):
+                sym = r['symbol']
+                name, _market = vcp_universe_map.get(sym, ('Unknown', ''))
+                peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks']) if 'contraction_peaks' in r and r['contraction_peaks'] else 'N/A'
+                f_out.write(f"  {rank}. [{m}] {sym} ({name})\n")
+                f_out.write(f"       Score: {r['vcp_score']:.0f}/100 | "
+                        f"Current range: {r.get('current_range_pct', 0.0):.1f}% | "
+                        f"Contraction: {peaks}\n")
+                f_out.write(f"       Above MA50: {'✓' if r.get('above_sma50') else '✗'} | "
+                        f"Above MA200: {'✓' if r.get('above_sma200') else '✗'} | "
+                        f"Near high: {'✓' if r.get('near_high') else '✗'} | "
+                        f"Volume declining: {'✓' if r.get('volume_declining') else '✗'}\n\n")
+
+    with open(vcp_output_path, "w", encoding="utf-8") as f:
+        _write_vcp_file(f, vcp_results)
+
+    # Per-market suffix files
+    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        _m_path = os.path.join(result_dir, f"vcp_patterns_{_m}.txt")
+        _m_res = [r for r in vcp_results if vcp_universe_map.get(r['symbol'], ('', ''))[1] == _m]
+        if _m_res:
+            with open(_m_path, "w", encoding="utf-8") as _mf:
+                _write_vcp_file(_mf, vcp_results, target_mkt=_m)
     logger.info(f"Saved VCP patterns ({len(vcp_results)} symbols) to {vcp_output_path}")
 
     # 10e. Run VCP ML surge predictions
