@@ -1820,7 +1820,7 @@ def execute_prediction_pipeline():
     try:
         from src.core.rim_valuation import RIMValuationEngine
         logger.info("Computing Strategy 9: RIM Intrinsic Valuation & Margin of Safety Scores...")
-        rim_engine = RIMValuationEngine(default_required_return=0.08)
+        rim_engine = RIMValuationEngine(default_required_return=0.08, decay_rate=0.10, retention_ratio=0.6)
         rim_input_rows = []
         for sym, df_p in infer_data_dict.items():
             if df_p is not None and not df_p.empty:
@@ -1829,6 +1829,23 @@ def execute_prediction_pipeline():
                 latest['market'] = symbol_market.get(sym, 'KOSPI')
                 rim_input_rows.append(latest)
         df_rim_input = pd.DataFrame(rim_input_rows) if rim_input_rows else pd.DataFrame()
+        # Merge fundamental data (BPS, ROE) into RIM input to avoid artificial -20% discount
+        if not df_rim_input.empty:
+            try:
+                fund_df = storage.get_all_fundamentals(df_rim_input['symbol'].tolist())
+                if fund_df is not None and not fund_df.empty:
+                    # Take latest fundamental year per symbol
+                    fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
+                    # Compute BPS = book_value / shares_outstanding
+                    fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf')], None)
+                    # Compute ROE = net_income / book_value
+                    fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                    # Merge into rim_input
+                    merge_cols = ['symbol', 'bps', 'roe']
+                    df_rim_input = df_rim_input.merge(fund_df[merge_cols], on='symbol', how='left')
+                    logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
+            except Exception as _fund_e:
+                logger.warning(f"Fundamental data merge for RIM skipped: {_fund_e}")
         rim_df = rim_engine.compute_rim_scores(df_rim_input, symbol_market_map=symbol_market)
         rim_output_path = os.path.join(result_dir, "rim_predictions.txt")
         if not rim_df.empty:

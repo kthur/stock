@@ -5,12 +5,16 @@ Residual Income Model (RIM / 초과이익모형) Valuation Engine.
 Calculates stock intrinsic value (V0) and margin of safety / discount ratio
 based on Book Value Per Share (BPS), Return on Equity (ROE), and Required Return (r_e).
 
-Formula:
-  V_0 = BPS * (1 + (ROE - r_e) / r_e)
-  Discount Ratio = (V_0 - Price) / Price
+Decaying ROE Finite-Horizon Formula (유보금 반영):
+  Each year t:
+    net_income_t     = BPS_{t-1} × ROE_{t-1}
+    excess_income_t  = BPS_{t-1} × (ROE_{t-1} - r_e)
+    BPS_t            = BPS_{t-1} + net_income_t × retention_ratio
+    ROE_t            = r_e + (ROE_{t-1} - r_e) × (1 - decay_rate)
+  V_0 = BPS_0 + Σ PV(excess_income_t) for t=1..years
 
-Scoring:
-  Transforms discount ratio to percentile rank [0.0, 1.0] per market.
+Discount Ratio = (V_0 - Price) / Price
+Scoring: percentile rank [0.0, 1.0] per market.
 """
 import logging
 from typing import Dict, Optional
@@ -21,13 +25,15 @@ logger = logging.getLogger(__name__)
 
 
 class RIMValuationEngine:
-    def __init__(self, default_required_return: float = 0.08, decay_rate: float = 0.0):
+    def __init__(self, default_required_return: float = 0.08, decay_rate: float = 0.10, retention_ratio: float = 0.6):
         """
         :param default_required_return: Baseline required rate of return (r_e), default 8.0%
-        :param decay_rate: ROE persistence decay rate per year (0.0 = constant ROE, 0.10 = 10% decay)
+        :param decay_rate: ROE persistence decay rate per year (0.10 = 10% decay toward r_e)
+        :param retention_ratio: Fraction of net income retained (유보율), default 0.6 (60%)
         """
         self.default_required_return = default_required_return
         self.decay_rate = decay_rate
+        self.retention_ratio = retention_ratio
 
     def derive_required_return(self, market: str = "KOSPI", us10y_yield: Optional[float] = None) -> float:
         """
@@ -43,10 +49,11 @@ class RIMValuationEngine:
         bps: float,
         roe: float,
         required_return: Optional[float] = None,
-        years: int = 5,
+        years: int = 8,
     ) -> float:
         """
         Computes RIM intrinsic value V_0 per share.
+        Uses finite-horizon decaying ROE with retained earnings (유보금) accumulation.
         Returns np.nan if BPS is invalid or non-positive.
         """
         r_e = required_return if (required_return is not None and required_return > 0) else self.default_required_return
@@ -58,14 +65,15 @@ class RIMValuationEngine:
             roe = r_e  # Neutral assumption: ROE = r_e => V_0 = BPS
 
         if self.decay_rate <= 0:
-            # Constant ROE Perpetuity Formula: V_0 = BPS * (1 + (ROE - r_e) / r_e)
+            # Constant ROE Perpetuity Formula (legacy, no 유보금):
+            # V_0 = BPS * (1 + (ROE - r_e) / r_e)
             if r_e <= 0:
                 return bps
             excess_return_ratio = (roe - r_e) / r_e
             excess_return_ratio = max(-0.8, min(5.0, excess_return_ratio))
             return bps * (1.0 + excess_return_ratio)
         else:
-            # Finite horizon / Decaying ROE formula
+            # Finite horizon / Decaying ROE with 유보금 retention
             pv_excess = 0.0
             current_bps = bps
             current_roe = roe
@@ -73,10 +81,12 @@ class RIMValuationEngine:
                 net_income = current_bps * current_roe
                 excess_income = current_bps * (current_roe - r_e)
                 pv_excess += excess_income / ((1.0 + r_e) ** t)
-                # BPS grows by net income retained (assume 80% retention ratio)
-                current_bps += net_income * 0.8
+                # BPS grows by retained net income (유보금)
+                current_bps += net_income * self.retention_ratio
                 current_roe = r_e + (current_roe - r_e) * (1.0 - self.decay_rate)
-            return bps + pv_excess
+            # Terminal value: BPS at end of horizon (ROE ≈ r_e so excess ≈ 0)
+            pv_terminal = (current_bps - bps) / ((1.0 + r_e) ** years)
+            return bps + pv_excess + pv_terminal
 
     def compute_rim_scores(
         self,
@@ -86,7 +96,8 @@ class RIMValuationEngine:
         us10y_yield: Optional[float] = None,
     ) -> pd.DataFrame:
         """
-        Computes RIM intrinsic values and percentile scores for a dataset of stocks using vectorized operations.
+        Computes RIM intrinsic values and percentile scores using finite-horizon decaying ROE model
+        with 유보금 (retained earnings) accumulation.
         Missing fundamental BPS yields NaN rim_score for dynamic ensemble weight renormalization.
         """
         if features_df is None or features_df.empty:
@@ -112,7 +123,7 @@ class RIMValuationEngine:
         if 'Close' not in df.columns:
             df['Close'] = df.get('price', np.nan)
 
-        # Handle BPS: Set to NaN if missing or non-positive, fallback to Close * 0.8
+        # Handle BPS: Set to NaN if missing or non-positive
         if 'bps' not in df.columns:
             if 'book_value' in df.columns and 'shares_outstanding' in df.columns:
                 df['bps'] = (df['book_value'] / df['shares_outstanding']).replace([np.inf, -np.inf], np.nan)
@@ -121,7 +132,8 @@ class RIMValuationEngine:
             else:
                 df['bps'] = np.nan
         df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
-        df['bps'] = df['bps'].fillna(df['Close'] * 0.8).fillna(1000.0)
+        # Only fill NaN BPS with Close*0.8 when fundamentals exist for that stock but BPS is temporarily missing
+        # Never invent BPS from price alone — that creates an artificial -20% discount for all symbols
 
         # Handle ROE
         if 'roe' not in df.columns:
