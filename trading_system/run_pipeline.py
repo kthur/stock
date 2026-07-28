@@ -1861,6 +1861,11 @@ def execute_prediction_pipeline():
         logger.warning(f"RIM valuation score calculation skipped: {_rim_e}")
         rim_df = pd.DataFrame()
 
+    # Define KST timestamp for all strategy write functions (must be before strategies 10-14)
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    kst_now_str = datetime.now(KST).strftime('%Y-%m-%d %H:%M KST')
+
     # 10g. Strategy 10: Event-Driven Momentum Engine
     try:
         from src.core.event_driven import EventDrivenEngine
@@ -2082,10 +2087,7 @@ def execute_prediction_pipeline():
     )
 
     # 11f. Save Ensemble Predictions Report (ensemble_predictions.txt)
-    # Gather decision basis metrics
-    from datetime import timezone, timedelta
-    KST = timezone(timedelta(hours=9))
-    kst_now_str = datetime.now(KST).strftime('%Y-%m-%d %H:%M KST')
+    # Gather decision basis metrics (kst_now_str and KST already defined above)
 
     sp500_ret_20d = float(indicator_infer['sp500_change'].tail(20).mean()) if 'sp500_change' in indicator_infer.columns else 0.0
     sp500_vol_20d = float(indicator_infer['sp500_change'].tail(20).std()) if 'sp500_change' in indicator_infer.columns else 0.0
