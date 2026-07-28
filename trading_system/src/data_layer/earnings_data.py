@@ -78,7 +78,24 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     div = info.get('dividendRate', div_yield * current_price)
     result['dividend_per_share'] = max(0.0, float(div) if div else 0.0)
 
-    for col in ['revenue', 'operating_income', 'net_income', 'eps']:
+    # Fetch book value (Total Stockholder Equity) from balance sheet for RIM BPS calculation
+    try:
+        bs = ticker.balance_sheet
+        if bs is not None and not bs.empty:
+            bs_t = bs.T
+            bs_t.index = pd.to_datetime(bs_t.index)
+            bs_t = bs_t.sort_index()
+            bv_cols = [c for c in ['Total Stockholder Equity', 'Stockholders Equity', 'Total Equity Gross Minority Interest'] if c in bs_t.columns]
+            if bv_cols:
+                result['book_value'] = bs_t[bv_cols[0]]
+            else:
+                result['book_value'] = 0.0
+        else:
+            result['book_value'] = 0.0
+    except Exception:
+        result['book_value'] = 0.0
+
+    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value']:
         result[col] = result[col].fillna(0).astype(float)
 
     return result

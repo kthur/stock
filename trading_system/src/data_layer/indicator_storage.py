@@ -145,6 +145,7 @@ class MarketIndicatorStorage:
                 "ALTER TABLE stock_fundamentals ADD COLUMN net_income REAL DEFAULT 0",
                 "ALTER TABLE stock_fundamentals ADD COLUMN eps REAL DEFAULT 0",
                 "ALTER TABLE stock_fundamentals ADD COLUMN shares_outstanding REAL DEFAULT 0",
+                "ALTER TABLE stock_fundamentals ADD COLUMN book_value REAL DEFAULT 0",
                 "ALTER TABLE stock_universe ADD COLUMN sector TEXT DEFAULT ''",
                 "ALTER TABLE stock_universe ADD COLUMN industry TEXT DEFAULT ''",
             ]:
@@ -366,8 +367,8 @@ class MarketIndicatorStorage:
         """
         sql = """
             INSERT OR REPLACE INTO stock_fundamentals
-            (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         with self._write_lock:
             with self._connect() as conn:
@@ -381,6 +382,7 @@ class MarketIndicatorStorage:
                         float(row.get('eps', 0.0)) if pd.notna(row.get('eps', 0.0)) else 0.0,
                         float(row.get('shares_outstanding', 0.0)) if pd.notna(row.get('shares_outstanding', 0.0)) else 0.0,
                         float(row['dividend_per_share']) if pd.notna(row['dividend_per_share']) else 0.0,
+                        float(row.get('book_value', 0.0)) if pd.notna(row.get('book_value', 0.0)) else 0.0,
                     ))
                 conn.commit()
 
@@ -401,7 +403,7 @@ class MarketIndicatorStorage:
     def get_all_fundamentals(self, symbols: list[str]) -> pd.DataFrame:
         """Batch retrieve historical fundamentals for a list of symbols (chunked to prevent parameter limit errors)."""
         if not symbols:
-            return pd.DataFrame(columns=['symbol', 'date', 'revenue', 'operating_income', 'net_income', 'eps', 'shares_outstanding', 'dividend_per_share'])
+            return pd.DataFrame(columns=['symbol', 'date', 'revenue', 'operating_income', 'net_income', 'eps', 'shares_outstanding', 'dividend_per_share', 'book_value'])
 
         # Split into chunks of 900 to fit under SQLite query parameter limit (999)
         chunk_size = 900
