@@ -1382,6 +1382,30 @@ def execute_prediction_pipeline():
                 f.write("\n")
     logger.info(f"Saved summarized pipeline result (TOP{_TOP_N}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
+    # Per-market suffix files for pipeline_result (Strategy 1 / Regression)
+    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        _m_set = market_syms.get(_m, set())
+        _m_path = os.path.join(result_dir, f"pipeline_result_{_m}.txt")
+        _m_sorted = res_df[res_df['symbol'].isin(_m_set)].sort_values(by=20 if 20 in res_df.columns else res_df.columns[-1], ascending=False)
+        if _m_sorted.empty:
+            # Still write a minimal file so merge_predictions can detect the market
+            with open(_m_path, "w", encoding="utf-8") as _mf:
+                _mf.write(f"=== Pipeline Inference Summary ({_m}) ===\n")
+                _mf.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+                _mf.write("데이터 없음\n")
+            continue
+        with open(_m_path, "w", encoding="utf-8") as _mf:
+            _mf.write(f"=== Pipeline Inference Summary ({_m}) ===\n")
+            _mf.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            _mf.write(f"Total symbols analyzed: {len(_m_sorted)}\n\n")
+            for h in _SUMMARY_HORIZONS:
+                _m_h_sorted = _m_sorted.sort_values(by=h, ascending=False)
+                _mf.write(f"--- {_m} TOP {min(_TOP_N, len(_m_h_sorted))} (Horizon: {h}d) ---\n")
+                for _rank, (_, _row) in enumerate(_m_h_sorted.head(_TOP_N).iterrows(), 1):
+                    _name = symbol_to_name.get(_row['symbol'], "Unknown")
+                    _mf.write(f"  {_rank}. {_row['symbol']} ({_name}): {_row[h]*100:+.2f}%\n")
+                _mf.write("\n")
+
     # [NEW] Save CSV and JSON Lines format for pipeline_result
     try:
         csv_path = os.path.join(result_dir, "pipeline_result.csv")
@@ -1617,6 +1641,31 @@ def execute_prediction_pipeline():
                     f.write(f"  {rank}. [{market}] {row['symbol']} ({name}): {prob:.1f}%\n")
                 f.write("\n")
     logger.info(f"Saved VCP ML predictions to {vcp_ml_output_path}")
+
+    # Per-market suffix files for VCP ML (Strategy 5)
+    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        _m_path = os.path.join(result_dir, f"vcp_ml_predictions_{_m}.txt")
+        if vcp_ml_df.empty:
+            with open(_m_path, "w", encoding="utf-8") as _mf:
+                _mf.write(f"=== VCP ML Surge Predictions ({_m}) ===\n")
+                _mf.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+                _mf.write("데이터 없음\n")
+            continue
+        with open(_m_path, "w", encoding="utf-8") as _mf:
+            _mf.write(f"=== VCP ML Surge Predictions ({_m}) ===\n")
+            _mf.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+            for h in SURGE_HORIZONS:
+                m_df = vcp_ml_df[vcp_ml_df['market'] == _m].sort_values(by=f'vcp_{h}d', ascending=False) if 'market' in vcp_ml_df.columns and f'vcp_{h}d' in vcp_ml_df.columns else pd.DataFrame()
+                if m_df.empty:
+                    _mf.write(f"[{h}일] {_m} - (no symbols) 0.0%\n\n")
+                    continue
+                top_n = min(100, len(m_df))
+                _mf.write(f"[{h}일] {_m} TOP {top_n}\n")
+                for _rank, (_, _row) in enumerate(m_df.head(top_n).iterrows(), 1):
+                    _name = _row.get('name', 'Unknown')
+                    _prob = _row[f'vcp_{h}d'] * 100
+                    _mf.write(f"  {_rank}. [{_m}] {_row['symbol']} ({_name}): {_prob:.1f}%\n")
+                _mf.write("\n")
 
     # 11d. Run Ensemble Scoring
     logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")
