@@ -132,6 +132,11 @@ class RIMValuationEngine:
             else:
                 df['bps'] = np.nan
         df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
+        # Fallback BPS from eps/roe when book_value is unavailable (DB default=0)
+        nan_mask = df['bps'].isna()
+        if nan_mask.any() and 'eps' in df.columns and 'roe' in df.columns:
+            fallback = (df.loc[nan_mask, 'eps'] / df.loc[nan_mask, 'roe']).replace([np.inf, -np.inf], np.nan)
+            df.loc[nan_mask, 'bps'] = fallback
         # Only fill NaN BPS with Close*0.8 when fundamentals exist for that stock but BPS is temporarily missing
         # Never invent BPS from price alone — that creates an artificial -20% discount for all symbols
 
@@ -172,8 +177,8 @@ class RIMValuationEngine:
         df['intrinsic_value'] = v0_list
         df['discount_ratio'] = discount_list
 
-        # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market (NaNs remain NaN)
-        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True)
+        # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market
+        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
 
         out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'intrinsic_value', 'discount_ratio', 'rim_score']
         return df[[c for c in out_cols if c in df.columns]]

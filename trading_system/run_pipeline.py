@@ -1834,12 +1834,14 @@ def execute_prediction_pipeline():
             try:
                 fund_df = storage.get_all_fundamentals(df_rim_input['symbol'].tolist())
                 if fund_df is not None and not fund_df.empty:
-                    # Take latest fundamental year per symbol
                     fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
-                    # Compute BPS = book_value / shares_outstanding
-                    fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf')], None)
-                    # Compute ROE = net_income / book_value
+                    # Compute BPS = book_value / shares_outstanding; 0 book_value → None (not merged)
+                    fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+                    # Compute ROE = net_income / book_value; 0 book_value → None
                     fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                    # Fallback BPS from eps when book_value unavailable
+                    no_bps = fund_df['bps'].isna() & fund_df['eps'].notna()
+                    fund_df.loc[no_bps, 'bps'] = fund_df.loc[no_bps, 'eps'] / 0.08
                     # Merge into rim_input
                     merge_cols = ['symbol', 'bps', 'roe']
                     df_rim_input = df_rim_input.merge(fund_df[merge_cols], on='symbol', how='left')

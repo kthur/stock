@@ -87,7 +87,8 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
             bs_t = bs_t.sort_index()
             bv_cols = [c for c in ['Total Stockholder Equity', 'Stockholders Equity', 'Total Equity Gross Minority Interest'] if c in bs_t.columns]
             if bv_cols:
-                result['book_value'] = bs_t[bv_cols[0]]
+                bv_series = bs_t[bv_cols[0]].reindex(result.index).ffill()
+                result['book_value'] = bv_series
             else:
                 result['book_value'] = 0.0
         else:

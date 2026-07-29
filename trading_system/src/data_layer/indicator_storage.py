@@ -382,7 +382,7 @@ class MarketIndicatorStorage:
                         float(row.get('eps', 0.0)) if pd.notna(row.get('eps', 0.0)) else 0.0,
                         float(row.get('shares_outstanding', 0.0)) if pd.notna(row.get('shares_outstanding', 0.0)) else 0.0,
                         float(row['dividend_per_share']) if pd.notna(row['dividend_per_share']) else 0.0,
-                        float(row.get('book_value', 0.0)) if pd.notna(row.get('book_value', 0.0)) else 0.0,
+                        float(row.get('book_value')) if pd.notna(row.get('book_value')) else None,
                     ))
                 conn.commit()
 

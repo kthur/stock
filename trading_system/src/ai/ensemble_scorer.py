@@ -212,12 +212,15 @@ class EnsembleScoringEngine:
         self._calibrators: Dict[str, Any] = {}
         self._prev_weights: Optional[Dict[str, float]] = None
 
+        # Load Optuna-tuned 2D regime weights from tuned_params.json (if available)
+        self._load_tuned_regime_weights()
+
     def has_calibrators(self) -> bool:
         """Return True if calibrators dictionary is non-empty."""
         return bool(self._calibrators)
 
-        # Attempt to load Optuna-tuned 2D regime weights from tuned_params.json
-
+    def _load_tuned_regime_weights(self) -> None:
+        """Load Optuna-tuned 2D regime weights from tuned_params.json into REGIME_2D_WEIGHTS."""
         try:
             from pathlib import Path
             import json
