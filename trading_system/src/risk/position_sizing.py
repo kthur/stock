@@ -7,9 +7,25 @@ logger = logging.getLogger(__name__)
 
 class PortfolioAllocator:
     """
-    Optimizes portfolio allocation based on predicted returns, volatility,
-    and risk parameters (Kelly Criterion / Sharpe Ratio proxy).
+    3-Layer 하향식 포트폴리오 배분 엔진 (Top-down Market Budget → Regime Overlay → Kelly/HRP)
+
+    Layer 1 — 시장별 기본 예산 (Market Budget):
+        변동성 역비례 × 유동성(시장규모) × 거래비용 조정으로 시장별 최대 투자 비중 확정
+        (KONEX 고위험·저유동성 → 낮은 예산, SP500 저위험·고유동성 → 높은 예산)
+    Layer 2 — 레짐/디커플링 조정 (Regime Overlay):
+        YIELD_INVERSION / INFLATION_SHOCK / 디커플링 발생 시 시장별 예산 동적 조정
+    Layer 3 — 종목별 Kelly/HRP 미세 배분:
+        시장 예산 범위 내에서 Kelly Criterion 또는 HRP 알고리즘으로 종목별 최종 배분
     """
+
+    # Layer 1: 시장별 기본 속성 (변동성·유동성·거래비용 기반 예산 비율)
+    # 기준: 글로벌 시장 시가총액 + 일평균거래량 비중 + 비용 조정
+    MARKET_BASE_BUDGETS = {
+        'SP500':  {'vol_proxy': 0.14, 'liquidity': 0.80, 'cost': 0.006},   # 저변동·고유동·저비용
+        'KOSPI':  {'vol_proxy': 0.18, 'liquidity': 0.60, 'cost': 0.0085},  # 중변동·중유동·중비용
+        'KOSDAQ': {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.010},   # 고변동·저유동·고비용
+        'KONEX':  {'vol_proxy': 0.38, 'liquidity': 0.08, 'cost': 0.013},   # 최고변동·최저유동·최고비용
+    }
 
     def __init__(self,
                  max_single_position: float = 0.15,
@@ -27,6 +43,74 @@ class PortfolioAllocator:
         self.use_kelly = use_kelly
         self.kelly_fraction = kelly_fraction
 
+    def compute_market_budgets(self,
+                               regime: Optional[Any] = None,
+                               decoupling_info: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+        """
+        Layer 1 + 2: 시장별 포트폴리오 예산 비율을 계산합니다.
+
+        기본 산식:
+            raw_budget = (1 / vol_proxy) * liquidity * (1 - cost)
+        정규화 후 합산 = 1.0
+
+        레짐/디커플링 Overlay(Layer 2):
+            - YIELD_INVERSION: 한국 시장 예산 추가 축소 (경기침체 선행)
+            - INFLATION_SHOCK: KONEX 예산 최소화 (고비용·저유동성 위험 극대화)
+            - DECOUPLING_US_BULL_KR_BEAR: SP500 예산 확대, KR 시장 예산 축소
+            - DECOUPLING_KR_BULL_US_BEAR: KR 시장 예산 확대, SP500 예산 축소
+        """
+        # Layer 1: 기본 예산 계산
+        raw = {}
+        for mkt, props in self.MARKET_BASE_BUDGETS.items():
+            raw[mkt] = (1.0 / props['vol_proxy']) * props['liquidity'] * (1.0 - props['cost'])
+
+        # Layer 2: 레짐 및 디커플링 Overlay
+        regime_str = str(regime).upper() if regime is not None else ""
+
+        if "YIELD_INVERSION" in regime_str:
+            # 장단기 금리 역전 → 한국 소형주 예산 축소
+            raw['KOSDAQ'] *= 0.60
+            raw['KONEX']  *= 0.40
+            logger.info("[Market Budget] YIELD_INVERSION: KR small-cap budget reduced.")
+
+        if "INFLATION_SHOCK" in regime_str:
+            # 인플레이션 충격 → 고비용·저유동성 KONEX 최소화
+            raw['KONEX']  *= 0.30
+            raw['KOSDAQ'] *= 0.75
+            logger.info("[Market Budget] INFLATION_SHOCK: KONEX budget minimized.")
+
+        if "LIQUIDITY_SQUEEZE" in regime_str or "BEAR" in regime_str:
+            # 유동성 위기·약세장 → 전체 KR 시장 축소, SP500 방어 집중
+            raw['KOSDAQ'] *= 0.50
+            raw['KONEX']  *= 0.25
+            raw['KOSPI']  *= 0.75
+
+        if decoupling_info:
+            status = decoupling_info.get('decoupling_status', 'COUPLED')
+            corr = decoupling_info.get('correlation_20d', 1.0)
+            # 상관관계가 낮을수록 디커플링 조정 강도 증가 (최대 ×1.5배 조정)
+            decoupling_strength = max(0.0, 1.0 - max(0.0, corr)) * 0.5
+
+            if status == 'DECOUPLING_US_BULL_KR_BEAR':
+                raw['SP500']  *= (1.0 + decoupling_strength)
+                raw['KOSPI']  *= (1.0 - decoupling_strength)
+                raw['KOSDAQ'] *= (1.0 - decoupling_strength)
+                raw['KONEX']  *= (1.0 - decoupling_strength * 1.5)
+                logger.info(f"[Market Budget] DECOUPLING_US_BULL_KR_BEAR: SP500 boosted, KR reduced (strength={decoupling_strength:.2f})")
+            elif status == 'DECOUPLING_KR_BULL_US_BEAR':
+                raw['SP500']  *= (1.0 - decoupling_strength)
+                raw['KOSPI']  *= (1.0 + decoupling_strength)
+                raw['KOSDAQ'] *= (1.0 + decoupling_strength * 0.7)
+                logger.info(f"[Market Budget] DECOUPLING_KR_BULL_US_BEAR: KR boosted, SP500 reduced (strength={decoupling_strength:.2f})")
+
+        # 정규화: 합산 = 1.0
+        total = sum(raw.values())
+        budgets = {k: v / total for k, v in raw.items()} if total > 0 else \
+                  {k: 0.25 for k in raw}
+
+        logger.info(f"[Market Budget] Layer1+2 Final Budgets: { {k: f'{v:.1%}' for k, v in budgets.items()} }")
+        return budgets
+
     def allocate(self,
                  predictions_df: pd.DataFrame,
                  prices_dict: Dict[str, pd.DataFrame],
@@ -35,22 +119,29 @@ class PortfolioAllocator:
                  kelly_fraction: Optional[float] = None,
                  use_hrp: bool = False,
                  sector_map: Optional[Dict[str, str]] = None,
-                 regime: Optional[Any] = None) -> pd.DataFrame:
+                 regime: Optional[Any] = None,
+                 market_col: Optional[str] = 'market',
+                 decoupling_info: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
         """
-        Computes portfolio weights and cash allocation using Regime-Adaptive Kelly Criterion, Sharpe proxy, or HRP.
+        3-Layer 하향식 포트폴리오 배분:
+          Layer 1+2: compute_market_budgets()로 시장별 예산 비율 확정
+          Layer 3: 시장 예산 내에서 Kelly/HRP로 종목별 최종 배분
 
         Args:
-            predictions_df: DataFrame with columns ['symbol', target_horizon] where target_horizon contains predicted returns.
-            prices_dict: Dict of symbol -> OHLCV DataFrame to extract recent volatility (vol_20d).
+            predictions_df: DataFrame with columns ['symbol', market_col, target_horizon].
+            prices_dict: Dict of symbol -> OHLCV DataFrame.
             total_portfolio_value: Total money available to invest.
             use_kelly: Override class setting for Kelly sizing.
             kelly_fraction: Override class setting for Kelly fraction.
             use_hrp: If True, computes weights using Hierarchical Risk Parity algorithm.
             sector_map: Mapping of symbol -> sector name.
-            regime: 2D or 1D market regime (BULL, SIDEWAYS, BEAR).
+            regime: 2D or 1D market regime string (BULL, SIDEWAYS, BEAR, YIELD_INVERSION, etc.).
+            market_col: Column name for market identifier in predictions_df ('market').
+            decoupling_info: Dict from predict_dual_market_regime() with decoupling_status & correlation_20d.
 
         Returns:
-            DataFrame with columns ['symbol', 'predicted_return', 'volatility', 'raw_score', 'weight', 'allocation_amount']
+            DataFrame with columns ['symbol', 'market', 'predicted_return', 'volatility',
+                                    'raw_score', 'weight', 'market_budget', 'allocation_amount']
         """
         if predictions_df.empty or not prices_dict:
             logger.warning("Empty predictions or prices_dict. Allocation skipped.")
@@ -142,6 +233,20 @@ class PortfolioAllocator:
 
         df_candidates = pd.DataFrame(records)
 
+        # ── Layer 1 + 2: Market Budget 계산 ──────────────────────────────────
+        market_budgets = self.compute_market_budgets(regime=regime, decoupling_info=decoupling_info)
+
+        # 종목별 시장 레이블 매핑 (predictions_df에 market 컬럼이 있을 경우 활용)
+        if market_col and market_col in predictions_df.columns:
+            sym_to_market = predictions_df.set_index('symbol')[market_col].to_dict()
+            df_candidates['market'] = df_candidates['symbol'].map(sym_to_market).fillna('KOSPI')
+        else:
+            df_candidates['market'] = 'KOSPI'  # 기본값
+
+        df_candidates['market_budget'] = df_candidates['market'].map(
+            lambda m: market_budgets.get(m.upper(), market_budgets.get('KOSPI', 0.25))
+        )
+
         # HRP Allocation Path
         if use_hrp:
             from src.analysis.portfolio_optimizer import calculate_hrp_weights
@@ -157,19 +262,19 @@ class PortfolioAllocator:
                 cov_mat = ret_df.cov().values
                 hrp_w = calculate_hrp_weights(cov_mat)
                 df_candidates['raw_score'] = hrp_w
-                df_candidates['weight'] = hrp_w * self.max_total_allocation
+                # ── Layer 3: Market Budget × HRP weight ──
+                df_candidates['weight'] = hrp_w * df_candidates['market_budget'] * self.max_total_allocation
             else:
                 df_candidates['raw_score'] = 1.0
-                df_candidates['weight'] = self.max_total_allocation
+                df_candidates['weight'] = df_candidates['market_budget'] * self.max_total_allocation
         elif use_kelly:
-            # Kelly formula with matched 20-day variance horizon: f* = kelly_fraction * (net_return / var_20d)
+            # Kelly formula: f* = kelly_fraction × (net_return / var_20d)
             vol_floor = 0.005
             vols = np.where(df_candidates['volatility'] < vol_floor, vol_floor, df_candidates['volatility'])
-            var_20d = 20.0 * (vols ** 2)  # Scale daily variance to 20-day horizon to match 20-day net_return
+            var_20d = 20.0 * (vols ** 2)
             df_candidates['raw_score'] = kelly_fraction * (df_candidates['net_return'] / var_20d)
         else:
             df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
-
 
         # Select top candidates (up to 15)
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(15).copy()
@@ -177,12 +282,23 @@ class PortfolioAllocator:
         if use_hrp:
             pass
         elif use_kelly:
-            df_candidates['weight'] = df_candidates['raw_score']
+            # ── Layer 3: Kelly raw_score × Market Budget ──
+            df_candidates['weight'] = df_candidates['raw_score'] * df_candidates['market_budget']
         else:
-            total_score = df_candidates['raw_score'].sum()
-            if total_score <= 0:
-                return pd.DataFrame()
-            df_candidates['weight'] = (df_candidates['raw_score'] / total_score) * self.max_total_allocation
+            # ── Layer 3: Sharpe-proxy score × Market Budget 정규화 ──
+            # 시장별로 그룹화하여 Market Budget 내에서 종목 가중치 합산
+            market_weights = []
+            for mkt, grp in df_candidates.groupby('market'):
+                budget = market_budgets.get(mkt.upper(), 0.25)
+                total_score = grp['raw_score'].sum()
+                if total_score > 0:
+                    grp = grp.copy()
+                    grp['weight'] = (grp['raw_score'] / total_score) * budget * self.max_total_allocation
+                else:
+                    grp = grp.copy()
+                    grp['weight'] = 0.0
+                market_weights.append(grp)
+            df_candidates = pd.concat(market_weights).sort_values('raw_score', ascending=False)
 
         # Enforce maximum single position constraints
         df_candidates['weight'] = df_candidates['weight'].clip(upper=self.max_single_position)
@@ -212,4 +328,5 @@ class PortfolioAllocator:
         df_candidates['allocation_amount'] = df_candidates['weight'] * total_portfolio_value
 
         return df_candidates.sort_values('weight', ascending=False).reset_index(drop=True)
+
 
