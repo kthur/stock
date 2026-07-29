@@ -276,8 +276,20 @@ class PortfolioAllocator:
         else:
             df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
 
-        # Select top candidates (up to 15)
-        df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(15).copy()
+        # Resolve Regime-Adaptive Max Candidates & Minimum Position Threshold
+        regime_str = str(regime).upper() if regime is not None else ""
+        if "BULL" in regime_str or regime == 2:
+            max_top_n = 30           # 강세장: 최상위 유망주 20~30개 적극 배분으로 수익률 극대화
+            effective_min_pos = 0.005 # 최소 투자비중 0.5%로 완화하여 유망 종목 폭넓게 포착
+        elif "SIDEWAYS" in regime_str or regime == 1:
+            max_top_n = 15           # 횡보장: 12~15개 종목 안정적 분산
+            effective_min_pos = 0.01  # 최소 투자비중 1.0%
+        else:
+            max_top_n = 8            # 약세장/위기: 방어주 5~8개로 엄격하게 압축하여 손실 방어
+            effective_min_pos = 0.02  # 최소 투자비중 2.0%
+
+        # Select top candidates based on regime dynamics
+        df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(max_top_n).copy()
 
         if use_hrp:
             pass
@@ -303,8 +315,8 @@ class PortfolioAllocator:
         # Enforce maximum single position constraints
         df_candidates['weight'] = df_candidates['weight'].clip(upper=self.max_single_position)
 
-        # Filter out positions that are too small
-        df_candidates = df_candidates[df_candidates['weight'] >= self.min_single_position].copy()
+        # Filter out positions that are too small based on regime-adaptive minimum
+        df_candidates = df_candidates[df_candidates['weight'] >= effective_min_pos].copy()
 
         # Enforce maximum total allocation
         current_sum = df_candidates['weight'].sum()
