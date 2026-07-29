@@ -67,6 +67,10 @@ class EnsembleData:
     markets: list[EnsembleMarket] = field(default_factory=list)
     decision_rationale: str = ""
     coverage_report: str = ""
+    decoupling_status: str = "COUPLED"
+    decoupling_corr: str = "1.00"
+    us_regime: str = "BULL_LOW_VOL"
+    kr_regime: str = "BULL_LOW_VOL"
 
 @dataclass
 class StatArbRow:
@@ -257,6 +261,20 @@ def parse_ensemble(text: str) -> EnsembleData:
             else:
                 data.decision_rationale = text[idx1:idx1+800].strip()
             break
+
+    # Parse Dual Market Decoupling Info
+    m_dec = re.search(r"Dual Market Correlation \(20d\):\s*([-\d.]+)\s*\|\s*Status:\s*(\w+)", text)
+    if m_dec:
+        data.decoupling_corr = m_dec.group(1).strip()
+        data.decoupling_status = m_dec.group(2).strip()
+
+    m_us = re.search(r"US Market Regime \(S&P500\)\s*:\s*(.+)", text)
+    if m_us:
+        data.us_regime = m_us.group(1).strip()
+
+    m_kr = re.search(r"KR Market Regime \(KOSPI\)\s*:\s*(.+)", text)
+    if m_kr:
+        data.kr_regime = m_kr.group(1).strip()
 
     # Parse market sections
     current_market = None
@@ -869,8 +887,13 @@ def build_html(
       <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: #cbd5e1; margin: 0;">{ensemble.decision_rationale}</pre>
     </div>"""
 
+    dec_status = ensemble.decoupling_status or "COUPLED"
+    dec_corr = ensemble.decoupling_corr or "1.00"
+    dec_class = "neg" if "DECOUPLING" in dec_status else "pos"
+
     macro_html = f"""
     <div class="macro-grid">
+      <div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv {dec_class}">{dec_status} (상관: {dec_corr})</span></div>
       <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv {ret_class(ensemble.sp500_return or '0%')}">{ensemble.sp500_return or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">VIX 공포지수</span><span class="mv">{ensemble.vix or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">USD/KRW 환율</span><span class="mv">{ensemble.usdkrw or 'N/A'}</span></div>
