@@ -1453,17 +1453,71 @@ def build_html(
   /* Leader section */
   .section-title {{ font-size: 14px; font-weight: 600; color: var(--muted); margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }}
 
-  /* Responsive */
-  @media (max-width: 768px) {{
-    .header, .macro-strip, .tabs, .content, .row1-wrapper {{ padding-left: 16px; padding-right: 16px; }}
-    .header h1 {{ font-size: 18px; }}
-    .row1-wrapper {{ grid-template-columns: 1fr; }}
-  }}
+  /* Responsive & Mobile Enhancements */
+  @media (max-width: 768px) {
+    .header, .macro-strip, .tabs, .content, .row1-wrapper { padding-left: 12px; padding-right: 12px; }
+    .header h1 { font-size: 18px; }
+    .row1-wrapper { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
+    .macro-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .tabs { position: sticky; top: 0; z-index: 100; background: #161b22ee; backdrop-filter: blur(8px); -webkit-overflow-scrolling: touch; padding: 0 8px; }
+    .tab { padding: 10px 14px; font-size: 13px; }
+    thead th, tbody td { padding: 8px 6px; font-size: 11px; }
+    .table-wrap { -webkit-overflow-scrolling: touch; }
+    .filter-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+    .filter-btn { flex-shrink: 0; font-size: 11px; padding: 4px 10px; }
+  }
+
+  /* Strategy Info Guide Modal & Accordion */
+  .strat-guide-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    padding: 14px 18px;
+  }
+  .strat-guide-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .strat-guide-title {
+    font-weight: 700;
+    font-size: 1.05em;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .strat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .strat-card-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+  .strat-card-name {
+    font-weight: 700;
+    color: #38bdf8;
+    font-size: 0.95em;
+    margin-bottom: 4px;
+  }
+  .strat-card-desc {
+    font-size: 0.85em;
+    color: var(--muted);
+    line-height: 1.4;
+  }
 
   /* Scrollbar */
-  ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
-  ::-webkit-scrollbar-track {{ background: var(--bg); }}
-  ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 3px; }}
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -1479,6 +1533,39 @@ def build_html(
 
 <div class="macro-strip">
   {macro_html}
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 17대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="content" style="padding-bottom: 0;">
+  <div class="strat-guide-card">
+    <div class="strat-guide-header" onclick="toggleStratGuide()">
+      <div class="strat-guide-title">📖 17대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
+      <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold;">▼ 보기</span>
+    </div>
+    <div id="strat-guide-body" style="display: none;">
+      <div class="strat-grid">
+        <div class="strat-card-item"><div class="strat-card-name">1. XGBoost 회귀</div><div class="strat-card-desc">1~200일 Horizon별 예상수익률 머신러닝 추정</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">2. Surge 분류기</div><div class="strat-card-desc">20% 이상 급등 가능성을 4개 구간별 확률로 예측</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">3. Lead-Lag</div><div class="strat-card-desc">업종 지수/대형 선행주 대비 후행 반응 종목 시차 포착</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">4. VCP 패턴 (Rule)</div><div class="strat-card-desc">변동성 수축(VCP) + 거래량 감축 규칙 기반 파동 검출</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">5. VCP ML</div><div class="strat-card-desc">시장별 특화 XGBoost로 VCP 패턴 성패 확률 수치화</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">6. Causal LSTM</div><div class="strat-card-desc">시점 분리 정규화 시계열 딥러닝 종목 모멘텀 추적</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">7. Stat-Arb</div><div class="strat-card-desc">공적분 잔차 평균회귀 Z-score 기반 횡보장 차익거래</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">8. Sector Rotation</div><div class="strat-card-desc">KRX/GICS 업종 상대모멘텀 및 순환매 수급 스코어링</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">9. RIM Valuation</div><div class="strat-card-desc">잔여이익 모델 기반 정밀 가치평가 및 안전마진 측정</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">10. Event-Driven</div><div class="strat-card-desc">DART 공시, 실적 서프라이즈, 자사주, 거래량 3배 신호</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">11. MQ Factor</div><div class="strat-card-desc">12M-1M 노이즈 제거 모멘텀 + 영업이익률/ROE 퀄리티</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">12. Options IV Skew</div><div class="strat-card-desc">yfinance 풋/콜 IV Skew 및 공포 역발상 매수 점수</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">13. Order Flow</div><div class="strat-card-desc">외인/기관 순매수 수급 가속도 (MFI) 추적</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">14. ST Reversal</div><div class="strat-card-desc">3~5일 연속 과매도/볼린저 하단 이탈 단기 반등 포착</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">15. ARM Factor</div><div class="strat-card-desc">증권가 컨센서스(EPS/목표가) 상향 조정 및 실적 서프라이즈</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">16. CARD Factor</div><div class="strat-card-desc">주식-원자재-환율 이탈 괴리율 역발상 매수 점수</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">17. LATR Factor</div><div class="strat-card-desc">52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 반등</div></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 
@@ -1948,6 +2035,18 @@ def build_html(
 </div><!-- end .row2-wrapper -->
 
 <script>
+function toggleStratGuide() {
+  const body = document.getElementById('strat-guide-body');
+  const icon = document.getElementById('strat-guide-icon');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    icon.textContent = '▲ 접기';
+  } else {
+    body.style.display = 'none';
+    icon.textContent = '▼ 보기';
+  }
+}
+
 function switchTab(btn, id) {{
   // Scope to the parent nav to support multiple tab navs on the page
   const nav = btn.closest('nav');
