@@ -429,11 +429,14 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
 _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
     '^TNX': 'us10y',
+    '^IRX': 'us3m_yield',
     'USDKRW=X': 'usdkrw_change',
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
     '^CPC': 'put_call_ratio',
+    # Korean macro
+    'KR10YT=RR': 'kr10y',           # Korean 10Y Gov Bond Yield (Reuters code via yfinance)
     # Sector ETFs
     '091160.KS': 'kodex_semicon_change',
     '305720.KS': 'kodex_battery_change',
@@ -443,7 +446,6 @@ _INDICATOR_TICKERS = {
     'XLV': 'xlv_change',
     'XLE': 'xle_change',
     # Expanded Macro Indicators (Yield Curve, Credit, Assets)
-    '^IRX': 'us3m_yield',
     'TLT': 'tlt_change',
     'LQD': 'lqd_change',
     'HYG': 'hyg_change',
@@ -561,13 +563,13 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
             elif col_name == 'put_call_ratio':
                 return (col_name, df['Close'].ffill().fillna(0.6))
-            elif col_name in ('us10y', 'us3m_yield'):
-                # ^TNX and ^IRX: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5)
+            elif col_name in ('us10y', 'us3m_yield', 'kr10y'):
+                # ^TNX, ^IRX, KR10YT=RR: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5)
                 # Divide by 10 to restore actual yield percentage.
                 raw_yield = df['Close'].ffill()
                 scaled = raw_yield / 10.0
-                # If scaled value still looks like ×10 (> 20%), it may already be correct; keep it
-                scaled = scaled.where(raw_yield < 200, raw_yield)  # safety guard
+                # If raw value looks already scaled (<= 20), keep as-is (some providers return real %)
+                scaled = scaled.where(raw_yield >= 1.0, raw_yield)  # safety guard: raw < 1 => already percent
                 return (col_name, scaled.fillna(float('nan')))
             else:
                 return (col_name, df['Close'].ffill().fillna(float('nan')))
@@ -2160,6 +2162,31 @@ def execute_prediction_pipeline():
     except Exception:
         pass
     us10y_val = _safe_yield(indicator_infer['us10y'].iloc[-1] if 'us10y' in indicator_infer.columns else float('nan'), 4.25)
+    # Korean 10Y Bond Yield
+    kr10y_val = _safe_yield(indicator_infer['kr10y'].iloc[-1] if 'kr10y' in indicator_infer.columns else float('nan'), 3.50)
+    # WTI Crude Oil level (CL=F absolute Close price)
+    wti_val = 75.0
+    try:
+        if price_db is not None:
+            _wti_df = price_db.get_prices('CL=F', start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'))
+            if _wti_df is not None and not _wti_df.empty and 'Close' in _wti_df.columns:
+                _last_wti = _wti_df['Close'].dropna().iloc[-1]
+                if 10 < _last_wti < 300:  # sanity check
+                    wti_val = float(_last_wti)
+    except Exception:
+        pass
+    # Gold level (GLD ETF absolute Close price)
+    gold_val = 220.0
+    try:
+        if price_db is not None:
+            _gold_df = price_db.get_prices('GLD', start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'))
+            if _gold_df is not None and not _gold_df.empty and 'Close' in _gold_df.columns:
+                _last_gold = _gold_df['Close'].dropna().iloc[-1]
+                if _last_gold > 0:
+                    gold_val = float(_last_gold)
+    except Exception:
+        pass
+
 
 
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
@@ -2200,7 +2227,11 @@ def execute_prediction_pipeline():
         f.write(f"  KOSPI (20d Rolling Volatility)    : {kospi_vol_20d:.3f}%\n")
         f.write(f"  VIX Index (Fear Gauge)            : {vix_val:.2f}\n")
         f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
-        f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n\n")
+        f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n")
+        f.write(f"  KR 10Y Bond Yield                 : {kr10y_val:.2f}%\n")
+        f.write(f"  WTI Crude Oil                     : ${wti_val:.2f} / bbl\n")
+        f.write(f"  Gold (GLD ETF)                    : ${gold_val:.2f}\n\n")
+
 
         f.write(f"{decision_rationale_text}\n\n")
 

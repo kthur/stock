@@ -59,7 +59,10 @@ class EnsembleData:
     sp500_return: str = ""
     vix: str = ""
     us10y: str = ""
+    kr10y: str = ""
     usdkrw: str = ""
+    wti: str = ""
+    gold: str = ""
     weights: dict = field(default_factory=dict)
     markets: list[EnsembleMarket] = field(default_factory=list)
     decision_rationale: str = ""
@@ -208,9 +211,18 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
         if m:
             data.us10y = m.group(1).strip()
+        m = re.match(r"KR 10Y Bond Yield.*:\s*(.+)", line)
+        if m:
+            data.kr10y = m.group(1).strip()
         m = re.match(r"USD/KRW FX Rate.*:\s*(.+)", line)
         if m:
             data.usdkrw = m.group(1).strip()
+        m = re.match(r"WTI Crude Oil.*:\s*(.+)", line)
+        if m:
+            data.wti = m.group(1).strip()
+        m = re.match(r"Gold \(GLD ETF\).*:\s*(.+)", line)
+        if m:
+            data.gold = m.group(1).strip()
     # Parse weights block
     in_weights_block = False
     for line in text.splitlines():
@@ -850,9 +862,12 @@ def build_html(
     macro_html = f"""
     <div class="macro-grid">
       <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv {ret_class(ensemble.sp500_return or '0%')}">{ensemble.sp500_return or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">VIX 변화</span><span class="mv">{ensemble.vix or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">US 10Y 국채</span><span class="mv">{ensemble.us10y or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">USD/KRW</span><span class="mv">{ensemble.usdkrw or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">VIX 공포지수</span><span class="mv">{ensemble.vix or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">USD/KRW 환율</span><span class="mv">{ensemble.usdkrw or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">US 10Y 국채금리</span><span class="mv">{ensemble.us10y or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">KR 10Y 국채금리</span><span class="mv">{ensemble.kr10y or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">WTI 국제유가</span><span class="mv">{ensemble.wti or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">금 (GLD ETF)</span><span class="mv">{ensemble.gold or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">{ensemble.max_allocation or 'N/A'}</span></div>
     </div>"""
 
@@ -1378,12 +1393,24 @@ def build_html(
   .contraction {{ font-size: 12px; color: var(--muted); max-width: 200px; }}
 
   /* Weights */
-  .weights-section {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; }}
+  .weights-section {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }}
   .weights-title {{ font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }}
-  .weight-item {{ display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }}
+  .weight-item {{ display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }}
   .weight-item:last-child {{ border-bottom: none; }}
   .wk {{ color: var(--text); }}
   .wv {{ font-weight: 700; color: var(--accent); }}
+
+  /* Row 1: Ensemble + Strategy split layout */
+  .row1-wrapper {{ display: grid; grid-template-columns: 280px 1fr; gap: 20px; padding: 20px 32px; border-bottom: 1px solid var(--border); }}
+  @media (max-width: 1024px) {{ .row1-wrapper {{ grid-template-columns: 1fr; }} }}
+  .strategy-sidebar {{ display: flex; flex-direction: column; gap: 0; }}
+  .ensemble-main {{ min-width: 0; }}
+  .ensemble-main-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }}
+  .ensemble-main-title {{ font-size: 15px; font-weight: 700; color: var(--text); }}
+
+  /* Row 2: Individual strategy tabs */
+  .row2-wrapper {{ padding: 0; }}
+  .strategy-tabs-label {{ padding: 12px 32px 0; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; border-top: 1px solid var(--border); }}
 
   /* Horizon tabs */
   .hz-tabs {{ display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }}
@@ -1395,8 +1422,9 @@ def build_html(
 
   /* Responsive */
   @media (max-width: 768px) {{
-    .header, .macro-strip, .tabs, .content {{ padding-left: 16px; padding-right: 16px; }}
+    .header, .macro-strip, .tabs, .content, .row1-wrapper {{ padding-left: 16px; padding-right: 16px; }}
     .header h1 {{ font-size: 18px; }}
+    .row1-wrapper {{ grid-template-columns: 1fr; }}
   }}
 
   /* Scrollbar */
@@ -1420,11 +1448,49 @@ def build_html(
   {macro_html}
 </div>
 
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Row 1: 전략 가중치 + 앙상블 결과 (항상 표시)           -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="row1-wrapper">
+
+  <!-- 좌: 전략 사이드바 -->
+  <div class="strategy-sidebar">
+    <div class="weights-section">
+      <div class="weights-title">⚙️ 전략 가중치 (14 Strategies)</div>
+      {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
+    </div>
+    {rationale_html}
+  </div>
+
+  <!-- 우: 앙상블 종목 결과 -->
+  <div class="ensemble-main">
+    <div class="ensemble-main-header">
+      <span class="ensemble-main-title">🏆 14대 앙상블 TOP 종목</span>
+      <div class="filter-bar" id="filter-ensemble" style="margin:0">
+        <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
+        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KONEX">🇰🇷 KONEX</button>
+        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="SP500">🇺🇸 SP500</button>
+      </div>
+    </div>
+    <div id="ensemble-panels">
+    {ensemble_panels}
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Row 2: 개별 전략 탭                                    -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="row2-wrapper">
+<div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
+
 <nav class="tabs">
-  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 Ensemble</button>
-  <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
-  <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest Performance</button>
-  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime &amp; 9 Strategies</button>
+  <button class="tab active" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
+  <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
   <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
@@ -1438,31 +1504,13 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
   <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
   <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
+  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
 <div class="content">
 
-  <!-- ══ Ensemble Tab ══ -->
-  <div class="tab-panel active" id="panel-ensemble">
-    <div class="weights-section">
-      <div class="weights-title">⚙️ 전략 가중치 (14 Strategies)</div>
-      {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
-    </div>
-    {rationale_html}
-    <div class="filter-bar" id="filter-ensemble">
-      <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
-      <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-      <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KONEX">🇰🇷 KONEX</button>
-      <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="SP500">🇺🇸 SP500</button>
-    </div>
-    <div id="ensemble-panels">
-    {ensemble_panels}
-    </div>
-  </div>
-
   <!-- ══ Portfolio (HRP) Tab ══ -->
-  <div class="tab-panel" id="panel-portfolio">
+  <div class="tab-panel active" id="panel-portfolio">
     <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
       <div class="macro-grid">
         <div class="macro-item"><span class="ml">총 자본금</span><span class="mv">{portfolio_data.total_capital or '1,000,000,000 KRW/USD'}</span></div>
@@ -1863,12 +1911,16 @@ def build_html(
     {reg_tabs_content}
   </div>
 
-</div>
+</div><!-- end .content -->
+</div><!-- end .row2-wrapper -->
 
 <script>
 function switchTab(btn, id) {{
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  // Scope to the parent nav to support multiple tab navs on the page
+  const nav = btn.closest('nav');
+  const content = nav ? nav.nextElementSibling : null;
+  if (nav) nav.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (content) content.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   const panel = document.getElementById('panel-' + id);
   if (panel) panel.classList.add('active');
