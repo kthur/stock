@@ -1,13 +1,12 @@
-# Progress Log - teamwork_preview_worker_m2
+# Progress Log
 
-Last visited: 2026-07-25T01:45:00Z
+Last visited: 2026-07-29T14:28:00Z
 
-- [x] Step 1: Created workspace directory `.agents/teamwork_preview_worker_m2/`, ORIGINAL_REQUEST.md, and BRIEFING.md.
-- [x] Step 2: Codebase exploration and baseline test execution.
-- [x] Step 3: Implement `OptunaStrategyTuner` (`trading_system/src/ai/optuna_tuner.py`) and dynamic param loading in models (`prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`).
-- [x] Step 4: Implement 2D regime detector (`trading_system/src/analysis/regime_detector.py`).
-- [x] Step 5: Implement 5-strategy dynamic ensemble scorer with rolling Sharpe (`trading_system/src/ai/ensemble_scorer.py`).
-- [x] Step 6: Integrate with `run_pipeline.py` and `merge_predictions.py`.
-- [x] Step 7: Create unit & integration tests `trading_system/tests/test_hpo_and_2d_ensemble.py`.
-- [x] Step 8: Run pytest to ensure 100% pass.
-- [x] Step 9: Write changes.md, handoff.md, and send message to parent.
+- [x] Initialized workspace and briefing.
+- [x] Inspect source code: `src/ai/ensemble_scorer.py`, `src/analysis/coverage_analyzer.py`, `src/ai/prediction_model.py`, `src/data_layer/indicator_storage.py`, `trading_system/run_pipeline.py`.
+- [x] Implement Task Item 1: Fix valid 0.0 score handling in `ensemble_scorer.py` (`valid_mask = notna() & isfinite()`).
+- [x] Implement Task Item 2: Expose raw un-mutated strategy scores preserving NaNs on `scorer.raw_scores` and `ensemble_df.attrs['raw_scores']` for `StrategyCoverageAnalyzer`.
+- [x] Implement Task Item 3: Fix global macro indicator retrieval header output (VIX, TNX, USD/KRW) in `indicator_storage.py` and `run_pipeline.py`.
+- [x] Implement Task Item 4: Verify market-specific transaction costs & liquidity filters (SP500 0.10% + 0.5% slippage, KONEX 0.8%, KOSDAQ 0.5%, KOSPI 0.35%) and rationale text.
+- [x] Implement Task Item 5: Created comprehensive unit tests in `trading_system/tests/test_r1_ensemble_regime_fixes.py`.
+- [x] Write handoff report and send summary message to parent orchestrator.

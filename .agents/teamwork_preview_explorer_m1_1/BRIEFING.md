@@ -1,39 +1,41 @@
-# BRIEFING — 2026-07-25T01:20:20Z
+# BRIEFING — 2026-07-29T14:22:00+09:00
 
 ## Mission
-Perform codebase audit for R1: Optuna HPO across 5 strategies & 2D regime rolling Sharpe dynamic ensemble weighting.
+Comprehensive audit of the 14-Strategy Dynamic Weighted Ensemble & 2D Market Regime Engine (R1).
 
 ## 🔒 My Identity
-- Archetype: teamwork_preview_explorer
-- Roles: Explorer 1 (Codebase Audit & Technical Design)
+- Archetype: Explorer
+- Roles: Read-only investigation, analysis, test execution, handoff report generation
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1
-- Original parent: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
-- Milestone: m1_1
+- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
+- Milestone: Milestone 1 (R1 Audit)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement or modify source code files
-- Use .venv/bin/python or .venv/bin/pytest if running commands
-- Write findings to analysis.md and handoff.md in working directory
-- Send message to parent upon completion
+- Read-only investigation — do NOT implement changes in source code
+- Operate using python from `.venv\Scripts\python.exe`
+- Write analysis and handoff files to working directory
+- Communicate via `send_message` to parent orchestrator
 
 ## Current Parent
-- Conversation ID: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
-- Updated: 2026-07-25T01:20:20Z
+- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
+- Updated: 2026-07-29T14:22:00+09:00
 
 ## Investigation State
-- **Explored paths**: `prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`, `merge_predictions.py`, `run_pipeline.py`, `ensemble.py`, `ensemble_scorer.py`, `regime_detector.py`, `macro_analyzer.py`, `macro_predictor.py`, `tune_models.py`, `tune_hyperparams.py`, `position_sizing.py`, `test_regime_ensemble.py`, `test_tuning_and_retry.py`.
+- **Explored paths**: `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/prediction_model.py`, `trading_system/src/analysis/regime_detector.py`, `trading_system/src/analysis/coverage_analyzer.py`, `trading_system/run_pipeline.py`, `trading_system/tests/*`
 - **Key findings**:
-  1. Optuna 4.9.0 is installed in .venv. HPO scripts exist for Strategies 1 & 2 (regressors and surge classifiers), but Strategies 3 (Lead-Lag), 4 (VCP Rule), and 5 (VCP ML) lack Optuna search spaces.
-  2. `MarketRegimeDetector` has 2D regime detection helper `predict_2d_regime()` (6 combo states: Direction × Volatility), but `run_pipeline.py` currently only uses 1D integers (0=BEAR, 1=SIDEWAYS, 2=BULL).
-  3. `EnsembleScoringEngine` only includes 4 strategies (omitting Strategy 4 VCP Pattern Detector) and lacks 2D regime weight matrix. `compute_dynamic_weights_from_sharpe()` is unlinked in pipeline execution.
-- **Unexplored areas**: None (all R1 components audited).
+  1. All 14 strategies are fully integrated in `EnsembleScoringEngine` with 2D regime weights, Sharpe dynamic weighting, EMA smoothing, and VIX shock overrides.
+  2. 2D Market Regime GMM engine classifies direction (BEAR/SIDEWAYS/BULL) + volatility (LOW_VOL/HIGH_VOL) into 6 combo states with fast shock overrides.
+  3. Transaction costs and liquidity filtering (SPAC + Preferred stock zero-weighting) are applied prior to outputting net expected returns.
+  4. Executive decision rationale summary formatted in `ensemble_predictions.txt` with KST timestamp.
+  5. Critical bug found in `ensemble_scorer.py` line 690: `valid_mask = merged[score_col].notna() & (merged[score_col] > 0.0)` incorrectly excludes valid `0.0` scores from total weight denominator.
+- **Unexplored areas**: None for M1 scope.
 
 ## Key Decisions Made
-- Completed R1 codebase audit and formulated technical design report in `analysis.md` and `handoff.md`.
+- Completed full technical audit of Requirement R1.
+- Documented findings in `analysis.md` and `handoff.md`.
 
 ## Artifact Index
-- `.agents/teamwork_preview_explorer_m1_1/ORIGINAL_REQUEST.md` — Original prompt request
-- `.agents/teamwork_preview_explorer_m1_1/BRIEFING.md` — Agent working memory
-- `.agents/teamwork_preview_explorer_m1_1/progress.md` — Agent liveness heartbeat & task checklist
-- `.agents/teamwork_preview_explorer_m1_1/analysis.md` — Detailed technical design and codebase audit for R1
-- `.agents/teamwork_preview_explorer_m1_1/handoff.md` — 5-component handoff report for R1
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\ORIGINAL_REQUEST.md — Prompt log
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\BRIEFING.md — Working state index
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\analysis.md — Comprehensive audit report
+- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\handoff.md — 5-component handoff report

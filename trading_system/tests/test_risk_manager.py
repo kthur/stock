@@ -221,5 +221,33 @@ class TestRiskManagerDrawdown(unittest.TestCase):
         )
         self.assertEqual(adj, 50)
 
+
+class TestRiskManagerLiquidity(unittest.TestCase):
+    """Liquidity screening tests (preferred stocks, SPACs, zero volume)"""
+
+    def setUp(self):
+        self.rm = RiskManager(portfolio_value=1_000_000)
+
+    def test_screen_liquidity_valid_stock(self):
+        self.assertTrue(self.rm.screen_liquidity("005930", "삼성전자", 1000000))
+        self.assertFalse(self.rm.is_illiquid_or_preferred("005930", "삼성전자", 1000000))
+
+    def test_screen_liquidity_preferred_stocks(self):
+        self.assertFalse(self.rm.screen_liquidity("005935", "삼성전자우", 500000))
+        self.assertTrue(self.rm.is_illiquid_or_preferred("005935", "삼성전자우", 500000))
+        self.assertFalse(self.rm.screen_liquidity("000665", "SK하이닉스1우", 500000))
+        self.assertFalse(self.rm.screen_liquidity("00593K", "삼성전자우B", 500000))
+
+    def test_screen_liquidity_spac(self):
+        self.assertFalse(self.rm.screen_liquidity("300000", "미래에셋스팩1호", 100000))
+        self.assertTrue(self.rm.is_illiquid_or_preferred("300000", "미래에셋스팩1호", 100000))
+        self.assertFalse(self.rm.screen_liquidity("300001", "ACME SPAC CORP", 100000))
+
+    def test_screen_liquidity_zero_volume(self):
+        self.assertFalse(self.rm.screen_liquidity("005930", "삼성전자", 0))
+        self.assertTrue(self.rm.is_illiquid_or_preferred("005930", "삼성전자", 0))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

@@ -88,3 +88,28 @@ def test_sector_rotation_macro_adjustments():
     score_semi_boosted = float(res_usd_surge[res_usd_surge['symbol'] == '005930']['sector_score'].iloc[0])
 
     assert score_semi_boosted >= score_semi_normal
+
+
+def test_yield_inversion_3d_regime():
+    detector = MarketRegimeDetector(n_regimes=3, rolling_window=10)
+    df = make_dummy_indicator_df(rows=40, vix_val=15.0, sp500_ret=0.1)
+    df['us10y'] = 3.8
+    df['us5y'] = 4.2
+    df['us10y_us5y_spread'] = -0.4
+
+    detector.train(df)
+    res = detector.predict_3d_macro_regime(df)
+    assert res['macro_label'] == 'YIELD_INVERSION'
+
+
+def test_inflation_shock_3d_regime():
+    detector = MarketRegimeDetector(n_regimes=3, rolling_window=10)
+    df = make_dummy_indicator_df(rows=40, vix_val=15.0, sp500_ret=0.1)
+    df['wti_change'] = 3.0
+    df['usdkrw_change'] = 2.0
+    df['inflation_shock_index'] = 5.0
+
+    detector.train(df)
+    res = detector.predict_3d_macro_regime(df)
+    assert res['macro_label'] == 'INFLATION_SHOCK'
+

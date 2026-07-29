@@ -358,5 +358,74 @@ class MarketRegimeDetector:
             'combo_3d_label': f"{res_2d['combo_label']}_{macro_label}"
         }
 
+    def predict_dual_market_regime(self, indicator_df: pd.DataFrame) -> dict:
+        """
+        Predicts Dual Market Regimes separately for US (SP500) and KR (KOSPI/KOSDAQ) markets,
+        and computes Market Decoupling Status & Correlation Coefficient.
+
+        Returns dict:
+          - 'us_regime': US 3D Macro Regime Dict
+          - 'kr_regime': KR 3D Macro Regime Dict
+          - 'decoupling_status': 'COUPLED' | 'DECOUPLING_US_BULL_KR_BEAR' | 'DECOUPLING_KR_BULL_US_BEAR'
+          - 'correlation_20d': 20-day rolling return correlation between S&P500 and KOSPI
+        """
+        us_regime = self.predict_3d_macro_regime(indicator_df)
+
+        # Compute KR-specific regime (based on kospi_change if available)
+        kr_dir_label = us_regime['direction_label']
+        kr_vol_label = us_regime['volatility_label']
+        corr_20d = 1.0
+
+        try:
+            if not indicator_df.empty and 'kospi_change' in indicator_df.columns:
+                kospi = indicator_df['kospi_change'].dropna()
+                if len(kospi) >= 20:
+                    cum_ret_20d = float(kospi.tail(20).sum())
+                    if cum_ret_20d < -2.0:
+                        kr_dir_label = "BEAR"
+                    elif cum_ret_20d > 2.0:
+                        kr_dir_label = "BULL"
+                    else:
+                        kr_dir_label = "SIDEWAYS"
+
+                    recent_vol = float(kospi.tail(20).std())
+                    hist_vols = kospi.rolling(20).std().dropna()
+                    median_vol = float(hist_vols.median()) if not hist_vols.empty else 1.0
+                    kr_vol_label = "HIGH_VOL" if recent_vol > median_vol else "LOW_VOL"
+
+                if 'sp500_change' in indicator_df.columns and len(kospi) >= 20:
+                    sp500 = indicator_df['sp500_change'].dropna()
+                    common_idx = sp500.index.intersection(kospi.index)
+                    if len(common_idx) >= 10:
+                        corr_val = float(sp500.loc[common_idx].tail(20).corr(kospi.loc[common_idx].tail(20)))
+                        corr_20d = corr_val if not np.isnan(corr_val) else 0.5
+        except Exception as ex:
+            logger.warning(f"Error computing KR market regime: {ex}")
+
+        # Determine Decoupling Status
+        us_dir = us_regime['direction_label']
+        if us_dir == "BULL" and kr_dir_label == "BEAR":
+            decoupling_status = "DECOUPLING_US_BULL_KR_BEAR"
+        elif us_dir == "BEAR" and kr_dir_label == "BULL":
+            decoupling_status = "DECOUPLING_KR_BULL_US_BEAR"
+        else:
+            decoupling_status = "COUPLED"
+
+        kr_regime = {
+            'direction_label': kr_dir_label,
+            'volatility_label': kr_vol_label,
+            'combo_2d_label': f"{kr_dir_label}_{kr_vol_label}",
+            'macro_label': us_regime['macro_label'],
+            'combo_3d_label': f"{kr_dir_label}_{kr_vol_label}_{us_regime['macro_label']}"
+        }
+
+        return {
+            'us_regime': us_regime,
+            'kr_regime': kr_regime,
+            'decoupling_status': decoupling_status,
+            'correlation_20d': corr_20d
+        }
+
+
 
 

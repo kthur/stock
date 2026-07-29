@@ -68,10 +68,22 @@ class BacktestResult:
     price_curve: Optional[List[float]] = None
     dates: Optional[List[datetime]] = None
     trailing_stop_count: int = 0
+    gross_return: float = 0.0
+    gross_return_pct: float = 0.0
+    net_return: float = 0.0
+    net_return_pct: float = 0.0
 
 
 class BacktestEngine:
     POSITION_SIZE_FRACTION = 0.95
+
+    # Centralized Market Transaction Cost Rates (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%)
+    MARKET_TRANSACTION_COSTS = {
+        "KONEX": 0.0130,   # 1.30%
+        "KOSDAQ": 0.0100,  # 1.00%
+        "KOSPI": 0.0085,   # 0.85%
+        "SP500": 0.0060,   # 0.60%
+    }
 
     def __init__(
         self, initial_capital: float = 1000000, slippage_pct: float = 0.001, market_impact_pct: float = 0.0005
@@ -87,6 +99,22 @@ class BacktestEngine:
         self._volumes_cache: Optional[List[float]] = None
         self.ml_engine = MLEngine()
         self.ml_trained_symbol: Optional[str] = None
+
+    def get_market_cost_rate(self, market: Optional[str] = None, symbol: Optional[str] = None) -> float:
+        """Centralized transaction cost rates: KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%."""
+        if market and market.upper() in self.MARKET_TRANSACTION_COSTS:
+            return self.MARKET_TRANSACTION_COSTS[market.upper()]
+        if symbol:
+            sym_upper = symbol.upper()
+            if sym_upper.endswith(".KN") or "KONEX" in sym_upper:
+                return 0.0130
+            if sym_upper.endswith(".KQ") or "KOSDAQ" in sym_upper:
+                return 0.0100
+            if sym_upper.endswith(".KS") or "KOSPI" in sym_upper:
+                return 0.0085
+            if len(symbol) <= 5 and symbol.isalpha():
+                return 0.0060
+        return self.fee_pct + self.slippage_pct
 
     def _cost_to_buy(self, price: float, volume: int = 0, avg_volume: float = 0.0) -> float:
         impact = 0.0
@@ -288,6 +316,7 @@ class BacktestEngine:
         symbol: str,
         price_bars: List[PriceBar],
         strategy_func,
+        market: Optional[str] = None,
         target_period_bars: Optional[int] = None,
         allow_short: bool = False,
         trailing_stop_pct: float = 0.0,
@@ -297,6 +326,7 @@ class BacktestEngine:
         market_regime_filter: bool = False,
         volatility_sizing: bool = False,
         atr_trailing_stop_mult: float = 0.0,
+        ensemble_scores: Optional[pd.DataFrame] = None,
     ) -> BacktestResult:
         """
         백테스트 실행
@@ -305,12 +335,14 @@ class BacktestEngine:
             symbol: 종목
             price_bars: 가격 바 데이터
             strategy_func: 전략 함수 (가격->신호)
+            market: 시장 구분 ('KONEX', 'KOSDAQ', 'KOSPI', 'SP500')
             target_period_bars: 성능 측정 대상 기간 바 수 (과거 데이터는 warm-up 용)
             allow_short: 공매도(Short Selling) 허용 여부
             trailing_stop_pct: 트레일링 스톱 비율 (0이면 비활성, 예: 0.05 = 5%)
             scale_in: 분할 진입 (True: 50%→50% 2단계 진입)
             stop_loss_pct: 고정 손절 비율 (0이면 비활성, 예: 0.05 = 5%)
             take_profit_pct: 부분 익절 비율 (0이면 비활성, 예: 0.10 = 10% 도달 시 50% 익절)
+            ensemble_scores: 14대 전략 동적 앙상블 스코어 DataFrame
 
         Returns:
             BacktestResult: 백테스트 결과
@@ -319,6 +351,19 @@ class BacktestEngine:
         self._indicator_cache = {}
         self._closes_cache = None
         self._volumes_cache = None
+
+        # Determine transaction fee & slippage rates matching centralized market rates
+        if market or (symbol and (symbol.endswith((".KS", ".KQ", ".KN")) or symbol.isalpha() or (len(symbol) == 6 and symbol.isdigit()))):
+            cost_rate = self.get_market_cost_rate(market=market, symbol=symbol)
+            if self.fee_pct == 0.0 and self.slippage_pct == 0.0 and market is None and not symbol.endswith((".KS", ".KQ", ".KN")):
+                active_fee = 0.0
+                active_slippage = 0.0
+            else:
+                active_fee = cost_rate / 2.0
+                active_slippage = 0.0
+        else:
+            active_fee = self.fee_pct
+            active_slippage = self.slippage_pct
 
         capital = self.initial_capital
         position = 0  # 양수: 롱 포지션 수량, 음수: 숏 포지션 수량
@@ -364,7 +409,7 @@ class BacktestEngine:
 
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
-                    capital -= position * bar.open * (1 + self.fee_pct + self.slippage_pct)
+                    capital -= position * bar.open * (1 + active_fee + active_slippage)
                     trailing_peak = bar.open
                     scale_in_done = False
                     first_entry_qty = position
@@ -375,8 +420,8 @@ class BacktestEngine:
             elif pending_signal == "SELL" and position > 0:
                 exit_price = bar.open
                 pnl = (exit_price - entry_price) * position
-                fees = position * exit_price * self.fee_pct
-                capital += position * exit_price * (1 - self.fee_pct - self.slippage_pct)
+                fees = position * exit_price * active_fee
+                capital += position * exit_price * (1 - active_fee - active_slippage)
 
                 trade = BacktestTrade(
                     entry_date=entry_timestamp or bar.timestamp,
@@ -412,7 +457,7 @@ class BacktestEngine:
                     position = -qty
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
-                    capital += qty * bar.open * (1 - self.fee_pct - self.slippage_pct)
+                    capital += qty * bar.open * (1 - active_fee - active_slippage)
                     trailing_trough = bar.open
                     scale_in_done = False
                     first_entry_qty = qty
@@ -427,8 +472,8 @@ class BacktestEngine:
                 exit_price = bar.open
                 qty = abs(position)
                 pnl = (entry_price - exit_price) * qty
-                fees = qty * exit_price * self.fee_pct
-                capital -= qty * exit_price * (1 + self.fee_pct + self.slippage_pct)
+                fees = qty * exit_price * active_fee
+                capital -= qty * exit_price * (1 + active_fee + active_slippage)
 
                 trade = BacktestTrade(
                     entry_date=entry_timestamp or bar.timestamp,
@@ -463,7 +508,7 @@ class BacktestEngine:
 
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
-                    capital -= position * bar.open * (1 + self.fee_pct + self.slippage_pct)
+                    capital -= position * bar.open * (1 + active_fee + active_slippage)
                     trailing_peak = bar.open
                     scale_in_done = False
                     first_entry_qty = position
@@ -492,7 +537,7 @@ class BacktestEngine:
                 position = -qty
                 entry_price = bar.open
                 entry_timestamp = bar.timestamp
-                capital += qty * bar.open * (1 - self.fee_pct - self.slippage_pct)
+                capital += qty * bar.open * (1 - active_fee - active_slippage)
                 trailing_trough = bar.open
                 scale_in_done = False
                 first_entry_qty = qty
@@ -511,8 +556,8 @@ class BacktestEngine:
                             if tp_qty > 0:
                                 exit_price = max(bar.open, tp_trigger)
                                 pnl = (exit_price - entry_price) * tp_qty
-                                fees = tp_qty * exit_price * self.fee_pct
-                                capital += tp_qty * exit_price * (1 - self.fee_pct - self.slippage_pct)
+                                fees = tp_qty * exit_price * active_fee
+                                capital += tp_qty * exit_price * (1 - active_fee - active_slippage)
 
                                 trade = BacktestTrade(
                                     entry_date=entry_timestamp or bar.timestamp,
@@ -537,8 +582,8 @@ class BacktestEngine:
                             if tp_qty > 0:
                                 exit_price = min(bar.open, tp_trigger)
                                 pnl = (entry_price - exit_price) * tp_qty
-                                fees = tp_qty * exit_price * self.fee_pct
-                                capital -= tp_qty * exit_price * (1 + self.fee_pct + self.slippage_pct)
+                                fees = tp_qty * exit_price * active_fee
+                                capital -= tp_qty * exit_price * (1 + active_fee + active_slippage)
 
                                 trade = BacktestTrade(
                                     entry_date=entry_timestamp or bar.timestamp,
@@ -571,8 +616,8 @@ class BacktestEngine:
                     if trigger_price > 0.0 and bar.low <= trigger_price:
                         exit_price = min(bar.open, trigger_price)
                         pnl = (exit_price - entry_price) * position
-                        fees = position * exit_price * self.fee_pct
-                        capital += position * exit_price * (1 - self.fee_pct - self.slippage_pct)
+                        fees = position * exit_price * active_fee
+                        capital += position * exit_price * (1 - active_fee - active_slippage)
 
                         reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
@@ -614,8 +659,8 @@ class BacktestEngine:
                         exit_price = max(bar.open, trigger_price)
                         qty = abs(position)
                         pnl = (entry_price - exit_price) * qty
-                        fees = qty * exit_price * self.fee_pct
-                        capital -= qty * exit_price * (1 + self.fee_pct + self.slippage_pct)
+                        fees = qty * exit_price * active_fee
+                        capital -= qty * exit_price * (1 + active_fee + active_slippage)
 
                         reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
@@ -649,7 +694,7 @@ class BacktestEngine:
                         total_cost = entry_price * first_entry_qty + bar.close * add_qty
                         position += add_qty
                         entry_price = total_cost / position
-                        capital -= add_qty * bar.close * (1 + self.fee_pct + self.slippage_pct)
+                        capital -= add_qty * bar.close * (1 + active_fee + active_slippage)
                         scale_in_done = True
                         self.logger.debug(
                             f"{bar.timestamp}: SCALE-IN (Long) +{add_qty} @ {bar.close}, avg={entry_price:.2f}"
@@ -663,7 +708,7 @@ class BacktestEngine:
                         total_cost = entry_price * old_qty + bar.close * add_qty
                         position -= add_qty
                         entry_price = total_cost / abs(position)
-                        capital += add_qty * bar.close * (1 - self.fee_pct - self.slippage_pct)
+                        capital += add_qty * bar.close * (1 - active_fee - active_slippage)
                         scale_in_done = True
                         self.logger.debug(
                             f"{bar.timestamp}: SCALE-IN (Short) +{add_qty} @ {bar.close}, avg={entry_price:.2f}"
@@ -688,8 +733,8 @@ class BacktestEngine:
         if position > 0:
             final_price = price_bars[-1].close
             pnl = (final_price - entry_price) * position
-            fees = position * final_price * self.fee_pct
-            capital += position * final_price * (1 - self.fee_pct - self.slippage_pct)
+            fees = position * final_price * active_fee
+            capital += position * final_price * (1 - active_fee - active_slippage)
 
             trade = BacktestTrade(
                 entry_date=entry_timestamp or price_bars[-1].timestamp,
@@ -707,8 +752,8 @@ class BacktestEngine:
             final_price = price_bars[-1].close
             qty = abs(position)
             pnl = (entry_price - final_price) * qty
-            fees = qty * final_price * self.fee_pct
-            capital -= qty * final_price * (1 + self.fee_pct + self.slippage_pct)
+            fees = qty * final_price * active_fee
+            capital -= qty * final_price * (1 + active_fee + active_slippage)
 
             trade = BacktestTrade(
                 entry_date=entry_timestamp or price_bars[-1].timestamp,
@@ -764,6 +809,10 @@ class BacktestEngine:
                 price_curve=price_curve,
                 dates=dates,
                 trailing_stop_count=trailing_stop_count,
+                gross_return=total_return,
+                gross_return_pct=total_return_pct,
+                net_return=total_return,
+                net_return_pct=total_return_pct,
             )
         else:
             final_capital = capital
@@ -777,11 +826,14 @@ class BacktestEngine:
 
             total_fees = sum(
                 (
-                    abs(trade.quantity) * trade.entry_price * (self.fee_pct + self.slippage_pct)
-                    + abs(trade.quantity) * trade.exit_price * (self.fee_pct + self.slippage_pct)
+                    abs(trade.quantity) * trade.entry_price * (active_fee + active_slippage)
+                    + abs(trade.quantity) * trade.exit_price * (active_fee + active_slippage)
                 )
                 for trade in trades
             )
+
+            gross_ret = total_return + total_fees
+            gross_ret_pct = (gross_ret / self.initial_capital) * 100
 
             result = BacktestResult(
                 symbol=symbol,
@@ -801,6 +853,10 @@ class BacktestEngine:
                 price_curve=[b.close for b in price_bars],
                 dates=[b.timestamp for b in price_bars],
                 trailing_stop_count=trailing_stop_count,
+                gross_return=gross_ret,
+                gross_return_pct=gross_ret_pct,
+                net_return=total_return,
+                net_return_pct=total_return_pct,
             )
 
         self.logger.info(
@@ -812,6 +868,79 @@ class BacktestEngine:
         )
 
         return result
+
+    def run_ensemble_backtest(
+        self,
+        symbol: str,
+        price_bars: List[PriceBar],
+        ensemble_scores: Optional[pd.DataFrame] = None,
+        market: Optional[str] = None,
+        buy_threshold: float = 0.55,
+        sell_threshold: float = 0.45,
+        allow_short: bool = False,
+        stop_loss_pct: float = 0.05,
+        take_profit_pct: float = 0.15,
+        trailing_stop_pct: float = 0.0,
+        volatility_sizing: bool = False,
+        atr_trailing_stop_mult: float = 0.0,
+    ) -> BacktestResult:
+        """
+        Runs backtest driven by dynamic 14-strategy ensemble score inputs from EnsembleScoringEngine.
+        """
+        def ensemble_strategy_func(bars_sub: List[PriceBar]) -> str:
+            if not bars_sub or ensemble_scores is None or ensemble_scores.empty:
+                return "HOLD"
+            idx = len(bars_sub) - 1
+            if 'symbol' in ensemble_scores.columns:
+                sub = ensemble_scores[ensemble_scores['symbol'] == symbol]
+                if sub.empty:
+                    return "HOLD"
+                score = float(sub.iloc[0].get('ensemble_score', 0.0))
+            else:
+                score_idx = min(idx, len(ensemble_scores) - 1)
+                score = float(ensemble_scores.iloc[score_idx].get('ensemble_score', 0.0))
+
+            if score >= buy_threshold:
+                return "BUY"
+            elif score <= sell_threshold:
+                return "SELL"
+            return "HOLD"
+
+        return self.run_backtest(
+            symbol=symbol,
+            price_bars=price_bars,
+            strategy_func=ensemble_strategy_func,
+            market=market,
+            allow_short=allow_short,
+            trailing_stop_pct=trailing_stop_pct,
+            stop_loss_pct=stop_loss_pct,
+            take_profit_pct=take_profit_pct,
+            volatility_sizing=volatility_sizing,
+            atr_trailing_stop_mult=atr_trailing_stop_mult,
+            ensemble_scores=ensemble_scores,
+        )
+
+    def run_multi_factor_portfolio_backtest(
+        self,
+        symbols: List[str],
+        price_bars_dict: Dict[str, List[PriceBar]],
+        ensemble_scores_df: Optional[pd.DataFrame] = None,
+        market_map: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, BacktestResult]:
+        """Multi-asset portfolio backtest for 14 multi-factor strategies."""
+        results = {}
+        for sym in symbols:
+            bars = price_bars_dict.get(sym, [])
+            if not bars:
+                continue
+            mkt = market_map.get(sym) if market_map else None
+            results[sym] = self.run_ensemble_backtest(
+                symbol=sym,
+                price_bars=bars,
+                ensemble_scores=ensemble_scores_df,
+                market=mkt,
+            )
+        return results
 
     def _calculate_win_rate(self, trades: List[BacktestTrade]) -> float:
         """승률 계산"""

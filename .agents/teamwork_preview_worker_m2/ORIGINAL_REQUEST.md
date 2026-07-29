@@ -1,25 +1,22 @@
-## 2026-07-25T01:20:29Z
-You are Worker 1 (`teamwork_preview_worker`) working in `.agents/teamwork_preview_worker_m2/`.
-Your objective is to implement Requirement 1 (R1: AI Model Precision & Auto-tuning with 2D Regime + Rolling Sharpe Dynamic Ensemble Weighting).
+## 2026-07-29T14:22:48Z
+You are Worker 1 for Milestone 2 of the Stock Trading System project.
+Your Working Directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
+Project Root: d:\Finance\code\stock
+Scope Document: d:\Finance\code\stock\.agents\orchestrator_r8\PROJECT.md
 
 MANDATORY INTEGRITY WARNING:
 DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Tasks:
-1. Create your workspace `.agents/teamwork_preview_worker_m2/` if it doesn't exist.
-2. Create/update `src/ai/optuna_tuner.py` (`OptunaStrategyTuner`) supporting Optuna hyperparameter optimization across all 5 strategies:
-   - Strategy 1: Regression (XGBoost / LightGBM / CatBoost)
-   - Strategy 2: Surge Classifier (1d, 3d, 5d, 20d horizons)
-   - Strategy 3: Lead-Lag Matrix (leader count, lag window, correlation threshold)
-   - Strategy 4: VCP Pattern Detector (rule thresholds, contraction ratio, near-high cutoff, score weights)
-   - Strategy 5: VCP ML Predictor (market classifiers, window step size, scale_pos_weight)
-   - Use `TimeSeriesSplit(n_splits=3)` validation to prevent look-ahead bias.
-   - Output/save tuned hyperparameters to `models/tuned_params.json` and ensure model modules (`prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`) dynamically load tuned parameters.
-3. 2D Market Regime Matrix & 5-Strategy Dynamic Ensemble Weighting:
-   - Update `src/analysis/regime_detector.py` to ensure `predict_2d_regime()` outputs 6 combo states (`BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`).
-   - Update `src/ai/ensemble_scorer.py` (`EnsembleScoringEngine`) to define `REGIME_2D_WEIGHTS` for all 5 strategies (including Strategy 4 VCP Rule Detector).
-   - Implement rolling Sharpe ratio calculation for all 5 strategies and wire dynamic exponential Sharpe weight adjustment: w_i_dynamic proportional to w_i_base * exp(gamma * S_i).
-   - Update `trading_system/run_pipeline.py` and `trading_system/merge_predictions.py` to integrate 2D regime prediction, rolling Sharpe calculation, 5-strategy score aggregation, and formatting.
-4. Run unit and integration tests using `.venv/bin/python -m pytest trading_system/tests/ -v`. Fix any issues to ensure 100% test pass.
-5. Create comprehensive tests in `trading_system/tests/test_hpo_and_2d_ensemble.py` to verify HPO tuning, 2D regime matrix prediction, and dynamic Sharpe ensemble weighting.
-6. Record your work in `.agents/teamwork_preview_worker_m2/changes.md` and `handoff.md`, then send a message to parent (Recipient: "parent") with summary and file paths.
+Python environment constraint:
+ALWAYS use `.venv\Scripts\python.exe` on Windows to run builds, tests, or python scripts.
+
+Task:
+Implement fixes and enhancements for Requirement R1 (14-Strategy Dynamic Weighted Ensemble & 2D Market Regime Engine):
+1. In `src/ai/ensemble_scorer.py:690` (and any related score combination logic), fix `valid_mask = merged[score_col].notna() & (merged[score_col] > 0.0)`. Change it so that valid `0.0` prediction scores are NOT discarded as missing data. Use `merged[score_col].notna() & np.isfinite(merged[score_col])`.
+2. In `EnsembleScoringEngine`, ensure that raw un-mutated strategy scores (which preserve actual `NaN`s for missing strategy components) are exposed or saved to `raw_scores` or returned as an attribute/column dict, so that `StrategyCoverageAnalyzer` can accurately calculate missingness ratios without being misled by `fillna(0.0)`.
+3. In `ensemble_scorer.py` / `prediction_model.py` / `indicator_storage.py`, fix global macro indicator retrieval for `ensemble_predictions.txt` header output (VIX, US 10Y Yield, USD/KRW FX) so they render correct non-NaN macro values.
+4. Verify that market-specific transaction costs (KONEX 0.8%, KOSDAQ 0.5%, KOSPI 0.35%, SP500 0.10% + 0.5% slippage) and liquidity filters are consistently applied when computing net expected returns and generating decision rationales.
+5. Run ensemble unit & integration tests using `.venv\Scripts\python.exe -m pytest tests/` and `.venv\Scripts\python.exe -m pytest trading_system/tests/`. Ensure all ensemble and 2D regime tests pass 100%.
+
+Document all changes and test execution results in `d:\Finance\code\stock\.agents\teamwork_preview_worker_m2\handoff.md`.
+Then send a summary message back to parent orchestrator.

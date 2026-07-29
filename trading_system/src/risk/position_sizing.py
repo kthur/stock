@@ -59,15 +59,19 @@ class PortfolioAllocator:
         if use_kelly is None:
             use_kelly = self.use_kelly
 
-        # Resolve Regime-Adaptive Kelly Fraction
+        # Resolve Regime-Adaptive Kelly Fraction & Macro Adjustment
         if kelly_fraction is None:
             regime_str = str(regime).upper() if regime is not None else ""
-            if "BULL" in regime_str or regime == 2:
-                kelly_fraction = 0.40
-            elif "BEAR" in regime_str or regime == 0:
-                kelly_fraction = 0.15
+            if "YIELD_INVERSION" in regime_str or "LIQUIDITY_SQUEEZE" in regime_str:
+                kelly_fraction = 0.10  # 장단기 금리 역전 / 유동성 위기 시 극보수적 포지션 (10%)
+                logger.info(f"[RISK ADAPTIVE SIZING] Macro Crisis Regime ({regime_str}) -> Reduced Kelly Fraction to {kelly_fraction}")
+            elif "INFLATION_SHOCK" in regime_str or "BEAR" in regime_str or regime == 0:
+                kelly_fraction = 0.15  # 인플레이션 충격 / 약세장 시 보수적 포지션 (15%)
+                logger.info(f"[RISK ADAPTIVE SIZING] Defensive Regime ({regime_str}) -> Reduced Kelly Fraction to {kelly_fraction}")
+            elif "BULL" in regime_str or regime == 2:
+                kelly_fraction = 0.40  # 강세장 시 적극적 포지션 (40%)
             else:
-                kelly_fraction = self.kelly_fraction  # default 0.25
+                kelly_fraction = self.kelly_fraction  # 기본 (25%)
 
         # Target horizon check
         horizon_col: Any = self.target_horizon

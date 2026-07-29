@@ -186,5 +186,96 @@ class TestBacktestEngine(unittest.TestCase):
         self.assertEqual(res.trades[0].direction, "SHORT")
 
 
+    def test_backtest_centralized_market_transaction_costs(self):
+        """Test exact centralized rates: KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%"""
+        engine = BacktestEngine(initial_capital=100000.0)
+
+        # Check market cost rates
+        self.assertAlmostEqual(engine.get_market_cost_rate(market="KONEX"), 0.0130, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(market="KOSDAQ"), 0.0100, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(market="KOSPI"), 0.0085, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(market="SP500"), 0.0060, places=6)
+
+        # Symbol inference
+        self.assertAlmostEqual(engine.get_market_cost_rate(symbol="300000.KN"), 0.0130, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(symbol="035720.KQ"), 0.0100, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(symbol="005930.KS"), 0.0085, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(symbol="AAPL"), 0.0060, places=6)
+
+    def test_backtest_metrics_sharpe_mdd_win_rate(self):
+        """Test calculation of Sharpe ratio, MDD, win rate, profit factor, and net return"""
+        bars = self._make_dummy_bars(50, "up")
+        engine = BacktestEngine(initial_capital=100000.0)
+
+        def buy_strategy(bars_sub):
+            if len(bars_sub) == 5:
+                return "BUY"
+            if len(bars_sub) == 25:
+                return "SELL"
+            return "HOLD"
+
+        res = engine.run_backtest(
+            symbol="005930.KS",
+            price_bars=bars,
+            strategy_func=buy_strategy,
+            market="KOSPI"
+        )
+
+        # Metrics presence and sanity
+        self.assertGreater(len(res.trades), 0)
+        self.assertIsNotNone(res.sharpe_ratio)
+        self.assertGreaterEqual(res.win_rate, 0.0)
+        self.assertLessEqual(res.win_rate, 1.0)
+        self.assertGreaterEqual(res.max_drawdown, 0.0)
+        self.assertIsNotNone(res.profit_factor)
+        self.assertIsNotNone(res.net_return)
+        self.assertIsNotNone(res.gross_return)
+        self.assertTrue(res.total_fees > 0.0)
+
+    def test_run_ensemble_backtest_with_14_strategy_scores(self):
+        """Test BacktestEngine support for dynamic 14-strategy ensemble score inputs"""
+        import pandas as pd
+        bars = self._make_dummy_bars(30, "up")
+        engine = BacktestEngine(initial_capital=100000.0)
+
+        ensemble_df = pd.DataFrame([
+            {"symbol": "AAPL", "ensemble_score": 0.75, "ensemble_expected_return": 15.0}
+        ])
+
+        res = engine.run_ensemble_backtest(
+            symbol="AAPL",
+            price_bars=bars,
+            ensemble_scores=ensemble_df,
+            market="SP500",
+            buy_threshold=0.55
+        )
+
+        self.assertGreater(len(res.trades), 0)
+        self.assertEqual(res.symbol, "AAPL")
+
+    def test_run_multi_factor_portfolio_backtest(self):
+        """Test multi-asset portfolio backtest for 14 multi-factor strategies"""
+        import pandas as pd
+        bars_aapl = self._make_dummy_bars(20, "up")
+        bars_msft = self._make_dummy_bars(20, "up")
+        engine = BacktestEngine(initial_capital=100000.0)
+
+        ensemble_df = pd.DataFrame([
+            {"symbol": "AAPL", "ensemble_score": 0.80},
+            {"symbol": "MSFT", "ensemble_score": 0.70}
+        ])
+
+        results = engine.run_multi_factor_portfolio_backtest(
+            symbols=["AAPL", "MSFT"],
+            price_bars_dict={"AAPL": bars_aapl, "MSFT": bars_msft},
+            ensemble_scores_df=ensemble_df,
+            market_map={"AAPL": "SP500", "MSFT": "SP500"}
+        )
+
+        self.assertIn("AAPL", results)
+        self.assertIn("MSFT", results)
+
+
 if __name__ == "__main__":
     unittest.main()
+

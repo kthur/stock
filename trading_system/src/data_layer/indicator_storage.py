@@ -274,6 +274,22 @@ class MarketIndicatorStorage:
                         conn.execute(sql, (date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
                 conn.commit()
 
+    def get_latest_global_indicators(self) -> Dict[str, float]:
+        """
+        Retrieve latest price/rate values for ^VIX, USDKRW=X, ^TNX, CL=F, GLD, etc. from global_indicators table.
+        """
+        try:
+            with self._connect() as conn:
+                df = pd.read_sql(
+                    "SELECT symbol, price FROM global_indicators WHERE date = (SELECT MAX(date) FROM global_indicators)",
+                    conn
+                )
+                if not df.empty and 'symbol' in df.columns and 'price' in df.columns:
+                    return dict(zip(df['symbol'], df['price'].fillna(0.0)))
+        except Exception as e:
+            logger.warning(f"Failed to fetch latest global indicators from DB: {e}")
+        return {}
+
     def get_universe(self, market: Optional[str] = None) -> pd.DataFrame:
         query = "SELECT * FROM stock_universe"
         params: tuple = ()

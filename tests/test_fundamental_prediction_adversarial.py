@@ -1,0 +1,1 @@
+from trading_system.tests.test_fundamental_prediction_adversarial import *

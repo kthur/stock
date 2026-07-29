@@ -1,111 +1,80 @@
-# Requirement 2 (R2) Codebase Audit Handoff Report
+# Handoff Report — Backtest Engine & Risk Management Audit (Requirement R2)
+
+**Agent:** Explorer 2  
+**Working Directory:** `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2`  
+**Handoff Type:** Hard  
+
+---
 
 ## 1. Observation
 
-1. **`trading_system/generate_report.py` (lines 416–424)**:
-   ```python
-   def make_stock_link(symbol: str, market: str) -> str:
-       if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
-           return f'<a href="https://finance.naver.com/item/main.naver?code={symbol}" target="_blank" class="stock-link">{symbol}</a>'
-       else:
-           # SP500 등 해외 주식
-           s = symbol
-           if not s.endswith('.O') and not s.endswith('.N') and not s.endswith('.A'):
-               s = f"{s}.O"
-           return f'<a href="https://m.stock.naver.com/worldstock/stock/{s}/total" target="_blank" class="stock-link">{symbol}</a>'
-   ```
-   *Observation*: Desktop Naver link is used for KRX (`finance.naver.com`). For SP500, `.O` is forcibly appended to foreign symbols (`worldstock/stock/{s}.O/total`), causing broken URLs for NYSE/AMEX stocks (e.g. `JPM.O`, `IBM.O`, `BRK.B.O`).
+1. **Backtesting Modules**:
+   - `trading_system/src/analysis/backtest.py`: 1,618 lines. Implements `PriceBar`, `BacktestTrade`, `BacktestResult`, `BacktestEngine`.
+   - `BacktestEngine` handles single-symbol backtesting (`run_backtest`), pairs trading (`run_pairs_backtest`), parameter optimization (`optimize_parameters`), walk-forward optimization (`walk_forward_optimize`), Monte Carlo robustness (`monte_carlo_robustness`), and recency-weighted multi-objective scoring (`recency_weighted_score`).
+   - `backtest.py:345-501`: Execution loop evaluates strategy signal at bar $i$ close (`pending_signal`), executes at bar $i+1$ open (`bar.open`).
+   - `backtest.py:81-111`: Fee (0.1%), slippage (0.1%), and square-root market impact ($\text{impact} = \text{market\_impact\_pct} \times \sqrt{\text{volume} / \text{avg\_volume}}$) are calculated and deducted at trade entry and exit.
+   - `trading_system/src/analysis/backtest_summary.py`: `generate_backtest_summary()` writes `trading_system/result/backtest_summary.json` with strategy metrics (Sharpe, MDD, Win Rate, Annualized Return).
 
-2. **`trading_system/generate_report.py` (lines 1012–1018)**:
-   ```python
-   ensemble = parse_ensemble(_read(result_dir / "ensemble_predictions.txt"))
-   surge_date, surge_sections = parse_surge(_read(result_dir / "surge_predictions.txt"))
-   vcp_date, vcp_rows = parse_vcp(_read(result_dir / "vcp_patterns.txt"))
-   lag_date, follower_rows, leader_rows = parse_lead_lag(_read(result_dir / "lead_lag_predictions.txt"))
-   vcp_ml_date, vcp_ml_sections = parse_vcp_ml(_read(result_dir / "vcp_ml_predictions.txt"))
-   reg_date, reg_sections = parse_regression(_read(result_dir / "pipeline_result.txt"))
-   ```
-   *Observation*: `portfolio_allocation.txt` is completely ignored during report generation.
+2. **Portfolio Tracking Metrics**:
+   - `backtest.py:858-885`: Sharpe Ratio calculated on 252-day annualized return basis ($R_f = 0.02$).
+   - `backtest.py:837-856`: Max Drawdown (MDD) calculated as peak-to-trough ratio on `equity_curve`.
+   - `backtest.py:816-835`: Win Rate and Profit Factor ($\text{Gross Profit} / \text{Gross Loss}$) calculated on trade records.
+   - `backtest.py:1534-1617`: Recency-weighted metrics using exponential decay weights ($\lambda=0.02$) for time-decay weighted Sharpe, MDD, Win Rate, and Profit Factor scoring.
 
-3. **`gh-pages/index.html` (Grep search for `canvas` or `Chart`)**:
-   *Observation*: `grep_search` for `canvas` and `Chart` in `gh-pages/index.html` yielded zero results. There are no interactive JavaScript or Canvas charts rendered in the dashboard.
+3. **Risk Management Systems**:
+   - `trading_system/src/risk/risk_manager.py:35-253`: `CrisisDetector` evaluates 4 crisis levels (`NONE`, `WATCH`, `ACTIVE`, `SEVERE`) using a composite score of VIX (25%), Drawdown (25%), Volume Spike (15%), Trend Breakdown (10%), and Macro indicators (25%: USD/KRW, WTI Oil, ^TNX, DXY).
+   - `risk_manager.py:211-249`: Cash targets (10% to 85%), position multipliers (1.0x to 0.15x), stop multipliers (1.0x to 0.40x), new buy blocking (`SEVERE`), and emergency liquidation (3+ days in `SEVERE`).
+   - `trading_system/src/risk/position_sizing.py:160-166` & `risk_manager.py:591-612`: Regime-Adaptive Kelly Criterion (Bull 0.40, Bear 0.15, Sideways 0.25), 20-day variance-matched horizon, Half-Kelly default, trade count confidence scaling, and consecutive loss cooldown (3/5/7/10 losses).
+   - `risk_manager.py:364-435`: ATR dynamic trailing stops with regime-based multipliers (`strong_bull` 3.0x, `weak_bull` 2.5x, `weak_bear` 1.5x, `strong_bear` 1.0x), ADX trend scaling, and drawdown tightening.
+   - `risk_manager.py:446-468` & `position_sizing.py:194-206`: 30% maximum sector exposure limit.
+   - `src/broker/korea_investment.py` & `real_broker.py`: Broker execution safety guards enforcing 50,000,000 KRW (50M KRW) max single order value cap and $\pm 3\%$ limit price sanity bounds.
 
-4. **`trading_system/result/portfolio_allocation.txt` (lines 1–15)**:
-   ```
-   === Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===
-   Date: 2026-07-24 23:14
-   Total Capital: 1,000,000,000 KRW/USD
-   Target Horizon: 20d
-
-   Current Market Regime Detected: SIDEWAYS (Code: 1)
-   Maximum Total Allocation Allowed: 50.0%
-
-   No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
-   --------------------------------------------------------------------------------------------
-   1   007590    동방아그로               KOSPI         5.01%       0.42%     3.33%    33,333,333
-   ```
-   *Observation*: Valid HRP / Kelly portfolio position sizing results exist in `trading_system/result/portfolio_allocation.txt` but are unrendered in the web dashboard.
-
-5. **`trading_system/src/risk/position_sizing.py` (lines 107–124)**:
-   ```python
-   if use_hrp:
-       from src.analysis.portfolio_optimizer import calculate_hrp_weights
-       symbols = df_candidates['symbol'].tolist()
-       ...
-       hrp_w = calculate_hrp_weights(cov_mat)
-   ```
-   *Observation*: `PortfolioAllocator` implements Hierarchical Risk Parity (`calculate_hrp_weights`).
+4. **Test Suite Verification**:
+   - Direct inspection of unit test files in `trading_system/tests/`:
+     - `test_backtest.py`: Tests HOLD, Buy & Hold, Stop Loss, Trailing Stop, Take Profit, Scale-In, Short Selling.
+     - `test_risk_manager.py`: Tests Kelly fraction, position sizing, ATR stops, VIX volatility scaling, risk off signals, VaR/CVaR, Risk Level, Drawdown.
+     - `test_risk_enhancements.py`: Tests trailing stop emergency exit, ATR invalidation, crisis tightening, drawdown tightening, Kelly vol scaling, fixed risk crisis scaling.
+     - `test_kelly_sizing.py`: Tests Kelly vs Sharpe scores, variance vs vol scaling, cash retention.
+     - `test_portfolio_risk.py`: Tests Risk Parity weights, VIX risk off signal, buy order clamping under risk off.
+     - `test_kis_safety_and_atr.py`: Tests sector risk cap (RiskManager & PortfolioAllocator), ATR trailing stop price calculation, order sync, KIS connector 50M KRW cap & $\pm 3\%$ price bounds.
+   - `run_command` execution returned sandbox path error (`sandbox configuration error: readwrite stock: non-absolute file path`), indicating local execution environment constraint; static code inspection confirmed test suites are structured using standard `unittest` and `pytest`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Step 1 (Observation 1 -> Hyperlink Defect)**: `make_stock_link` uses desktop Naver links for KRX and blindly appends `.O` to SP500 symbols. On mobile devices, desktop Naver links have poor usability, and foreign stock symbols on NYSE/AMEX get broken URLs. Replacing them with Naver Mobile (`m.stock.naver.com/item/main.nhn?code={symbol}`) for KRX and Yahoo Finance (`finance.yahoo.com/quote/{symbol}`) for SP500 solves both usability and URL resolution.
-2. **Step 2 (Observation 2 & 4 -> Missing HRP Tab)**: `run_pipeline.py` outputs `portfolio_allocation.txt` containing position sizes, expected return, volatility, weights, and cash reserves, but `generate_report.py` does not parse or display it. Adding a `parse_portfolio_allocation` function and a `Portfolio (HRP)` tab makes HRP recommendations visible on GitHub Pages.
-3. **Step 3 (Observation 3 & 5 -> Chart Integration)**: The dashboard currently relies solely on static text tables. Adding responsive Chart.js Donut and Bar charts into the dashboard enables interactive visualization of HRP portfolio weights, asset allocations, and regime strategy weights.
-4. **Step 4 (Regime Trend Integration)**: Current regime display is limited to a text badge (`🟡 SIDEWAYS`). Adding a `Regime & Strategy` tab with a regime parameter matrix and dynamic weight breakdown chart provides complete transparency into market regime behavior.
+1. **Observation 1 & 2** demonstrate that `BacktestEngine` provides non-lookahead bar-by-bar backtesting with transaction cost deduction (fee, slippage, market impact), real-time intra-bar risk exits (SL, TP, ATR trailing stop), scale-in entry, short selling, standard performance metrics (Sharpe, MDD, Win Rate, Profit Factor), and advanced recency-weighted multi-objective scoring.
+2. **Observation 3** establishes that `RiskManager`, `CrisisDetector`, and `PortfolioAllocator` implement comprehensive risk controls: multi-indicator crisis detection, cash target escalation, regime-adaptive Kelly sizing, volatility scaling (VIX, ATR, BB), ADX/regime ATR trailing stops, 30% sector risk caps, and KIS execution safety guards (50M KRW single order cap, $\pm 3\%$ price sanity bounds).
+3. **Observation 4** confirms that extensive unit and integration tests exist across `trading_system/tests/` validating each backtest metric and risk management mechanism.
+4. **Synthesis & Gap Analysis**:
+   - `BacktestEngine` operates primarily on single-symbol price bars, while `PortfolioAllocator` operates on candidate DataFrames.
+   - The 14 multi-factor strategies (#1-#14) are evaluated in `EnsembleScoringEngine` during live pipeline execution, but are not directly hooked into `BacktestEngine.get_strategy_func()`.
+   - Transaction cost models vary slightly between `BacktestEngine` (0.1% fee + 0.1% slippage + sqrt impact), `PortfolioAllocator` (trading value tiers 0.26%-0.85%), and `EnsembleScoringEngine` (liquidity tiers 20/50/100 bps). Standardizing transaction cost parameters will guarantee 100% net-return consistency across all pipeline modules.
 
 ---
 
 ## 3. Caveats
 
-- **Network Mode**: The environment operates in `CODE_ONLY` mode. External HTTP tools (`curl`, `wget`) cannot be called. The implementation will include Chart.js via standard CDN in the HTML template while providing a pure Canvas rendering script as a fallback.
-- **Data Availability**: If `portfolio_allocation.txt` is missing or empty, `parse_portfolio_allocation` gracefully defaults to an empty `PortfolioData` object without crashing report generation.
+- **Test Execution Sandbox Constraint**: The `run_command` tool encountered a sandbox workspace path issue (`sandbox configuration error: readwrite stock: non-absolute file path`). Test logic was verified via static code analysis of `trading_system/tests/`.
+- **Scope Limitation**: Explorer 2 is restricted to read-only investigation. No project code modifications were executed.
 
 ---
 
 ## 4. Conclusion
 
-Requirement 2 (R2) requires four clear enhancements:
-1. Update `make_stock_link` to use Naver Mobile for KRX and Yahoo Finance for SP500.
-2. Parse `portfolio_allocation.txt` and display HRP portfolio allocations.
-3. Integrate interactive HRP allocation donut/bar charts and regime performance trend charts using Chart.js / Canvas.
-4. Add `Portfolio (HRP)` and `Regime & Strategy` tabs to `gh-pages/index.html`.
-
-All code changes are localized to `trading_system/generate_report.py`.
+The Backtest Engine & Risk Management System (Requirement R2) is architecturally robust, featuring sophisticated multi-tier risk controls, crisis detection, regime-adaptive Kelly sizing, ATR dynamic trailing stops, and execution safety guards. To complete Requirement R2 integration in Milestone 3, two primary enhancements are recommended:
+1. Implement a multi-symbol portfolio backtest wrapper linking `BacktestEngine` with `EnsembleScoringEngine` for full 14-strategy universe backtesting.
+2. Unify transaction cost parameter definitions across `BacktestEngine`, `PortfolioAllocator`, and `EnsembleScoringEngine`.
 
 ---
 
 ## 5. Verification Method
 
-### A. Independent Verification Command
-Run the report generator script and check output:
-```bash
-# Generate report using virtual environment
-.venv/bin/python trading_system/generate_report.py --result-dir trading_system/result --out gh-pages/index.html
-
-# Verify contents
-.venv/bin/python -c "
-text = open('gh-pages/index.html', encoding='utf-8').read()
-assert 'm.stock.naver.com' in text, 'Naver mobile link check failed'
-assert 'finance.yahoo.com' in text, 'Yahoo Finance link check failed'
-assert 'Portfolio (HRP)' in text, 'HRP portfolio tab check failed'
-assert 'hrpWeightChart' in text, 'HRP chart canvas check failed'
-print('ALL VERIFICATION CHECKS PASSED!')
-"
-```
-
-### B. Invalidation Conditions
-- Missing or invalid stock URL patterns in generated HTML.
-- Unparsed `portfolio_allocation.txt` resulting in empty HRP table/chart.
-- JavaScript syntax errors preventing chart rendering in browser console.
+1. **Inspect Backtest Engine Implementation**:
+   - `trading_system/src/analysis/backtest.py` (lines 345–725: bar loop, cost calculation, exit checks; lines 816–885, 1534–1617: metrics and recency scoring).
+2. **Inspect Risk Management & Sizing Implementation**:
+   - `trading_system/src/risk/risk_manager.py` (lines 35–253: CrisisDetector; lines 364–468: ATR stops, sector cap; lines 591–703: Kelly sizing, crisis position scaling).
+   - `trading_system/src/risk/position_sizing.py` (lines 62–209: PortfolioAllocator Kelly allocation and sector risk cap).
+3. **Execute Test Suite (when terminal environment is active)**:
+   - Command: `.venv\Scripts\python.exe -m pytest trading_system/tests/test_backtest.py trading_system/tests/test_risk_manager.py trading_system/tests/test_risk_enhancements.py trading_system/tests/test_portfolio_risk.py trading_system/tests/test_kelly_sizing.py trading_system/tests/test_kis_safety_and_atr.py -v`
+   - Invalidation Condition: Any test failure in ATR stop calculations, Kelly sizing formulas, sector risk cap enforcement, or KIS safety limit exceptions.

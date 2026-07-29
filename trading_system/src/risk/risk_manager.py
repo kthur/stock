@@ -443,6 +443,31 @@ class RiskManager:
             logger.warning(f"[RISK MANAGER] Order blocked for symbol '{symbol}': Present in sentiment blacklist!")
         return is_blocked
 
+    def screen_liquidity(self, symbol: str, name: str = "", volume: float = 1.0) -> bool:
+        """
+        Liquidity screening gate:
+        Returns False if preferred stock ('우', '우B', etc.), SPAC ('스팩', 'SPAC'),
+        or zero volume symbol (volume <= 0). Returns True if valid.
+        """
+        if not symbol:
+            return False
+        # Preferred stock check
+        if name.endswith('우') or name.endswith('우B') or name.endswith('1우') or name.endswith('2우B') or name.endswith('3우B'):
+            return False
+        if len(symbol) == 6 and symbol[-1] in ['K', 'L', 'M', 'N', 'O']:
+            return False
+        # SPAC check
+        if '스팩' in name or 'SPAC' in name.upper():
+            return False
+        # Zero volume check
+        if volume <= 0:
+            return False
+        return True
+
+    def is_illiquid_or_preferred(self, symbol: str, name: str = "", volume: float = 1.0) -> bool:
+        """Returns True if preferred stock, SPAC, or zero volume symbol."""
+        return not self.screen_liquidity(symbol, name, volume)
+
     def check_sector_risk_cap(
         self,
         sector: str,

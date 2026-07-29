@@ -1,48 +1,52 @@
-# BRIEFING — 2026-07-25T01:21:00Z
+# BRIEFING — 2026-07-29T14:28:00Z
 
 ## Mission
-Implement R1: AI Model Precision & Auto-tuning with 2D Regime + Rolling Sharpe Dynamic Ensemble Weighting across all 5 strategies.
+Fixes and enhancements for Requirement R1 (14-Strategy Dynamic Weighted Ensemble & 2D Market Regime Engine).
 
 ## 🔒 My Identity
-- Archetype: implementer/qa/specialist
+- Archetype: implementer / qa / specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
-- Original parent: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
-- Milestone: m2 (R1 implementation)
+- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
+- Milestone: Milestone 2 (Worker 1)
 
 ## 🔒 Key Constraints
-- Pure Python and valid code; NO cheating or hardcoded test returns.
-- Always run tests via `.venv/bin/python -m pytest trading_system/tests/ -v`.
-- Save tuned parameters to `models/tuned_params.json` (or `trading_system/models/tuned_params.json`).
-- Standard dynamic loading of tuned parameters across model modules.
+- ALWAYS use `.venv\Scripts\python.exe` on Windows for running scripts, builds, tests.
+- DO NOT CHEAT (no hardcoded test results, facade implementations).
+- All communications to parent must be via send_message to Recipient "b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb".
 
 ## Current Parent
-- Conversation ID: 7743c0d7-2762-4e7d-bbff-54fcbb2e8514
-- Updated: 2026-07-25T01:21:00Z
+- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
+- Updated: 2026-07-29T14:28:00Z
 
 ## Task Summary
-- **What to build**: 
-  1. `OptunaStrategyTuner` in `trading_system/src/ai/optuna_tuner.py` for 5 strategies using `TimeSeriesSplit(n_splits=3)`.
-  2. Load tuned parameters dynamically in `prediction_model.py`, `vcp_detector.py`, `vcp_ml_predictor.py`.
-  3. Update `regime_detector.py` for 6 2D combo states (`BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`).
-  4. Update `ensemble_scorer.py` (`EnsembleScoringEngine`) to define `REGIME_2D_WEIGHTS` for 5 strategies and implement dynamic exponential Sharpe weighting: `w_i_dynamic proportional to w_i_base * exp(gamma * S_i)`.
-  5. Update `run_pipeline.py` and `merge_predictions.py` to integrate 2D regime prediction, rolling Sharpe calculation, and 5-strategy score aggregation.
-  6. Create `trading_system/tests/test_hpo_and_2d_ensemble.py` and ensure 100% pytest pass.
-- **Success criteria**: All tests pass, genuine HPO tuning + 2D regime + dynamic Sharpe ensemble scoring.
+- **What to build**: Fix 0.0 prediction scores filtering in `src/ai/ensemble_scorer.py`, expose raw un-mutated strategy scores (preserving NaNs) for `StrategyCoverageAnalyzer`, fix global macro indicator retrieval header output (VIX, US 10Y, USD/KRW), verify transaction costs & liquidity filters, create and verify unit tests.
+- **Success criteria**: All items 1-5 addressed cleanly, unit and integration tests written and passing.
 
 ## Change Tracker
-- **Files modified**: None yet
-- **Build status**: TBD
+- **Files modified**:
+  - `trading_system/src/ai/ensemble_scorer.py`: Fixed valid 0.0 score filtering (`notna() & isfinite()`), preserved `raw_scores` attribute and dataframe `.attrs['raw_scores']`, unified market transaction costs (SP500 0.10% + 0.5% slippage, KONEX 0.8% + slippage, KOSDAQ 0.5% + slippage, KOSPI 0.35% + slippage), added transaction cost rationale text.
+  - `trading_system/src/analysis/coverage_analyzer.py`: Updated `analyze_coverage` to read un-mutated `raw_scores` preserving NaNs.
+  - `trading_system/src/data_layer/indicator_storage.py`: Added `get_latest_global_indicators()` to query SQLite global macro table.
+  - `trading_system/run_pipeline.py`: Preserved `vix_raw` and `usdkrw_raw` in indicator fetch, implemented robust multi-tier fallback for VIX/USD-KRW/US-10Y, passed `raw_scores` to `StrategyCoverageAnalyzer`.
+  - `trading_system/tests/test_r1_ensemble_regime_fixes.py`: Added unit test suite covering all 5 items.
+- **Build status**: PASS
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: TBD
-- **Lint status**: TBD
-- **Tests added/modified**: `test_hpo_and_2d_ensemble.py`
+- **Build/test result**: All unit tests written and pass 100%.
+- **Lint status**: Clean, compliant Python.
+- **Tests added/modified**: `trading_system/tests/test_r1_ensemble_regime_fixes.py` added with 6 test cases.
 
 ## Loaded Skills
-- None
+- None.
+
+## Key Decisions Made
+- `valid_mask` updated from `merged[col].notna() & (merged[col] > 0.0)` to `merged[col].notna() & np.isfinite(merged[col])` so valid 0.0 scores count towards weight renormalization.
+- `raw_scores` preserved prior to report-formatting `fillna(0.0)` so `StrategyCoverageAnalyzer` receives true NaNs and calculates accurate coverage percentages.
 
 ## Artifact Index
-- `.agents/teamwork_preview_worker_m2/ORIGINAL_REQUEST.md` — Original User Request
-- `.agents/teamwork_preview_worker_m2/BRIEFING.md` — Agent Briefing
+- `.agents/teamwork_preview_worker_m2/ORIGINAL_REQUEST.md` — User request copy
+- `.agents/teamwork_preview_worker_m2/BRIEFING.md` — Agent briefing state
+- `.agents/teamwork_preview_worker_m2/progress.md` — Heartbeat and progress tracker
+- `.agents/teamwork_preview_worker_m2/handoff.md` — Final handoff report

@@ -1,197 +1,107 @@
-# Codebase Audit & Technical Design Report: Requirement 1 (R1)
-**Optuna HPO for 5 Strategies & 2D Regime Rolling Sharpe Dynamic Ensemble Weighting**
+# Audit Report: 14-Strategy Dynamic Weighted Ensemble & 2D Market Regime Engine (Requirement R1)
 
-**Author**: Explorer 1 (`teamwork_preview_explorer`)  
-**Workspace**: `.agents/teamwork_preview_explorer_m1_1/`  
-**Date**: 2026-07-25  
+## Executive Summary
 
----
-
-## 1. Executive Summary
-
-This codebase audit investigates the current state of hyperparameter tuning, market regime detection, and multi-strategy ensemble weighting across the trading system (`d:\Finance\code\stock`). 
-
-Requirement 1 (R1) requires:
-1. **Optuna Hyperparameter Optimization (HPO)** across all 5 active trading strategies:
-   - Strategy 1: XGBoost/LightGBM/CatBoost Regression
-   - Strategy 2: Surge Classifier (20%+ return target)
-   - Strategy 3: Index & Sector Lead-Lag Matrix
-   - Strategy 4: VCP (Volatility Contraction Pattern) Detector (Rule-based)
-   - Strategy 5: VCP ML Predictor (Market-specific XGB/LGB/Cat classifiers)
-2. **2D Market Regime Detection Matrix** (Direction $\times$ Volatility = 6 states) combined with **Rolling Sharpe Ratio Dynamic Ensemble Weighting**.
-
-### Summary of Audit Findings
-- **Optuna Status**: `optuna` (v4.9.0) is installed. Standalone scripts `trading_system/scripts/tune_models.py` and `trading_system/scripts/tune_hyperparams.py` tune regressors and surge classifiers (Strategies 1 & 2) and output `models/tuned_params.json`. However, **Strategies 3 (Lead-Lag), 4 (VCP Rule), and 5 (VCP ML)** lack dedicated Optuna search spaces or parameter integration.
-- **Regime Detection Status**: `MarketRegimeDetector` (`src/analysis/regime_detector.py`) uses GMM on S&P 500 rolling returns and volatility. A 2D helper `predict_2d_regime()` exists returning 6 combo states (e.g., `BULL_LOW_VOL`, `BEAR_HIGH_VOL`), but `run_pipeline.py` currently only utilizes 1D regime integers (0=BEAR, 1=SIDEWAYS, 2=BULL).
-- **Ensemble Weighting Status**: `EnsembleScoringEngine` (`src/ai/ensemble_scorer.py`) defines 1D `REGIME_WEIGHTS` covering only **4 strategies** (`regression`, `surge`, `lead_lag`, `vcp_ml`). **Strategy 4 (VCP Rule Detector)** is completely excluded from ensemble scoring. Furthermore, `compute_dynamic_weights_from_sharpe()` is defined in `ensemble_scorer.py`, but rolling Sharpe calculation is not wired in `run_pipeline.py`.
+This audit evaluates the implementation of Requirement R1 in the Stock Trading System project (`d:\Finance\code\stock`). The scope encompasses:
+1. `src/ai/ensemble_scorer.py` (`EnsembleScoringEngine`) and `src/ai/prediction_model.py` (`OnDevicePredictionModel`).
+2. Weighting, normalization, and combination of all 14 strategies.
+3. The Gaussian Mixture Model (GMM) 2D Market Regime Engine (`src/analysis/regime_detector.py`).
+4. Transaction cost subtraction (fees, tax, slippage) and liquidity filtering (SPACs, preferred stocks).
+5. Formatting of `ensemble_predictions.txt` with decision rationale.
+6. Test suite status and gap analysis.
 
 ---
 
-## 2. Codebase Strategy Mapping (The 5 Strategies)
+## 1. 14-Strategy Architecture & Score Combination
 
-| Strategy | File Location | Key Class / Function | Inputs | Current Parameters & Hardcoded Values |
-|---|---|---|---|---|
-| **Strategy 1: Regression** | `src/ai/prediction_model.py` | `OnDevicePredictionModel.models` | 23 ALL_FEATURES + Global Indicators | `n_estimators=500`, `max_depth=5`, `learning_rate=0.05`, `subsample=0.8`, `colsample_bytree=0.8`, `reg_lambda=1.0`. Loaded from `tuned_params.json['xgb'/'lgb'/'cat']`. |
-| **Strategy 2: Surge Classifier** | `src/ai/prediction_model.py` | `OnDevicePredictionModel.surge_models` | 23 ALL_FEATURES + Global Indicators | Target $\ge 20\%$ return in 1, 3, 5, 20d. `max_depth=4`, `min_child_weight=10`, `max_delta_step=5`. Loaded from `tuned_params.json['surge_*']`. |
-| **Strategy 3: Lead-Lag Matrix** | `src/ai/prediction_model.py` | `OnDevicePredictionModel.train_lead_lag()` | TOP 50 Market Cap Leaders daily returns | Leader count = 50 (hardcoded), lag = 1 (hardcoded), correlation threshold > 0.0 (hardcoded). |
-| **Strategy 4: VCP Pattern Detector** | `src/ai/vcp_detector.py` | `detect_vcp()` | Raw OHLCV DataFrame | Windows `[-5:]`, `[-15:-5]`, `[-35:-15]`, `[-60:-35]`. Contraction multiplier `1.05`, volume decline `< 0.85*vol_60d`, near high `> 0.6`, score weights `(25, 15, 15, 15, 15, 15)`, tightness thresholds `<4` (+20), `<7` (+12), `<10` (+6). **All hardcoded**. |
-| **Strategy 5: VCP ML Predictor** | `src/ai/vcp_ml_predictor.py` | `VCPSurgePredictor` | 11 VCP Features + ALL_FEATURES | 4 markets (KOSPI, KOSDAQ, KONEX, SP500). Uses `tuned_params.json` for base kwargs, but lacks dedicated VCP ML feature/window step Optuna study. |
+The 14 strategies evaluated in `EnsembleScoringEngine.calculate_ensemble_score()` are:
 
----
+| # | Strategy Key | Source Score Column | Normalization / Scaling Method |
+|---|--------------|---------------------|--------------------------------|
+| 1 | `regression` | `reg_pred` | Percentile ranking `reg_df['reg_pred'].rank(pct=True)` |
+| 2 | `surge` | `surge_20d` | Direct probability output `[0.0, 1.0]` |
+| 3 | `lead_lag` | `lead_lag_score` | Min-Max normalization `(x - min) / (max - min)` |
+| 4 | `vcp_rule` | `vcp_score` / `is_vcp` | Scaled `vcp_score / 100.0` or binary float |
+| 5 | `vcp_ml` | `vcp_20d` | Direct probability output `[0.0, 1.0]` |
+| 6 | `lstm` | `lstm_score` | Direct probability / score output `[0.0, 1.0]` |
+| 7 | `stat_arb` | `stat_arb_score` | Z-score mean-reversion score `[0.0, 1.0]` |
+| 8 | `sector_rotation` | `sector_score` | Relative momentum score `[0.0, 1.0]` |
+| 9 | `rim_valuation` | `rim_score` | Fundamental Residual Income valuation score `[0.0, 1.0]` |
+| 10 | `event_driven` | `event_score` | Corporate event/catalyst score `[0.0, 1.0]` |
+| 11 | `mq_factor` | `mq_score` | Momentum Quality & fundamental quality score `[0.0, 1.0]` |
+| 12 | `iv_skew` | `iv_skew_score` | Options put/call IV skew contrarian score `[0.0, 1.0]` |
+| 13 | `order_flow` | `order_flow_score` | Net institutional money flow acceleration score `[0.0, 1.0]` |
+| 14 | `short_term_reversal` | `reversal_score` | Oversold/Overbought mean-reversion score `[0.0, 1.0]` |
 
-## 3. Assessment of Hyperparameter Tuning (Optuna)
-
-### Installed Infrastructure
-- **Environment**: Optuna version `4.9.0` is verified and installed in `.venv`.
-- **Existing Scripts**:
-  1. `trading_system/scripts/tune_models.py`: Chronological split (80% train, 20% validation). Optimizes XGBoost, LightGBM, CatBoost regressors (MSE minimization) and classifiers (AUC maximization). Saves results to `models/tuned_params.json`.
-  2. `trading_system/scripts/tune_hyperparams.py`: `TimeSeriesSplit(3)` cross-validation script for XGBoost regressor and surge classifier.
-  3. `src/analysis/ml_engine.py`: Contains `MLEngine.tune_hyperparameters()` for individual stock model tuning.
-
-### Identified HPO Gaps
-1. **Missing Strategy 3 (Lead-Lag) HPO**: No script or method tunes the number of market leaders (10–100), lag window (1–5 days), rolling correlation window (20–120 days), or minimum correlation threshold (0.1–0.5).
-2. **Missing Strategy 4 (VCP Pattern Detector) HPO**: `vcp_detector.py` uses fixed heuristics. Optuna should tune window step sizes, volume contraction ratio, near-high threshold, and score weights to maximize out-of-sample breakout return Sharpe ratio.
-3. **Missing Strategy 5 (VCP ML) Dedicated HPO**: VCP ML uses 11 VCP-specific features and windowed sliding historical samples (`_windowed_vcp_features`). Its window step size (default 20), positive class weighting (`scale_pos_weight`), and feature selection lack Optuna tuning.
-4. **Validation Methodology**: `tune_models.py` uses a simple static 80/20 chronological split, whereas financial time-series require `TimeSeriesSplit` with purged validation margins to avoid look-ahead bias and autocorrelation leakage.
-5. **Pipeline Integration**: HPO runs only manually via `tune_models.py`. There is no automated module to trigger HPO periodically or load structured configuration.
-
----
-
-## 4. Assessment of Regime Identification & Ensemble Weighting
-
-### 1D vs 2D Regime Detection
-- `MarketRegimeDetector` (`src/analysis/regime_detector.py`) uses a 3-component Gaussian Mixture Model (GMM) trained on 20-day rolling mean return and rolling volatility of S&P 500.
-- `predict_regime()` returns 1D integer codes: `0` (BEAR), `1` (SIDEWAYS), `2` (BULL).
-- `predict_2d_regime()` produces a 2D matrix ($3 \times 2 = 6$ states):
-  - Direction: `BEAR`, `SIDEWAYS`, `BULL`
-  - Volatility: `LOW_VOL`, `HIGH_VOL`
-  - States: `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`.
-- **Gap**: `run_pipeline.py` currently only invokes `predict_regime()` (1D) and passes 1D integer codes to `EnsembleScoringEngine`.
-
-### Ensemble Strategy Weighting & Rolling Sharpe
-- `EnsembleScoringEngine` (`src/ai/ensemble_scorer.py`) defines `REGIME_WEIGHTS` for 1D regimes:
-  - `BEAR`: Regression (70%), Lead-Lag (20%), VCP ML (10%), Surge (0%)
-  - `SIDEWAYS`: Regression (35%), Lead-Lag (35%), Surge (15%), VCP ML (15%)
-  - `BULL`: Surge (40%), VCP ML (40%), Regression (15%), Lead-Lag (5%)
-- **Gap 1 (Excluded Strategy)**: **Strategy 4 (VCP Rule Pattern Detector)** is completely missing from `REGIME_WEIGHTS` and `calculate_ensemble_score()`.
-- **Gap 2 (2D Weights Missing)**: No `REGIME_2D_WEIGHTS` table exists for the 6 2D matrix states (e.g. low-vol bull vs high-vol bull requires different weight allocations).
-- **Gap 3 (Unlinked Rolling Sharpe)**: `compute_dynamic_weights_from_sharpe(rolling_sharpes, regime)` is implemented in `ensemble_scorer.py`, but `run_pipeline.py` does not compute strategy rolling Sharpes during out-of-sample execution nor pass them to `calculate_ensemble_score()`.
+### Score Integration Workflow
+- Strategy outputs are outer-merged on `symbol`.
+- Optional `IsotonicRegression` calibrators (`fit_calibrators`, `calibrate_scores`) calibrate raw strategy scores to true empirical probabilities (`>20%` gain outcome).
+- Weighted summation across valid scores:
+  `ensemble_score = (sum(score_i * w_i)) / (sum(w_i_valid))` clipped to `[0.0, 1.0]`.
 
 ---
 
-## 5. Technical Design & Architecture Plan for R1
+## 2. 2D Market Regime Engine & Dynamic Weighting
 
-### Component A: Unified Optuna HPO Framework (`src/ai/optuna_tuner.py`)
-Create a consolidated HPO module `OptunaStrategyTuner` supporting all 5 strategies using `TimeSeriesSplit(n_splits=3)`:
+### GMM Market Regime Engine (`src/analysis/regime_detector.py`)
+- **Macro Feature Matrix**: S&P500 20d rolling return, S&P500 20d rolling volatility, VIX index level (`vix_change / 100`), US 10Y yield (`us10y / 10`), USD/KRW rolling return (`usdkrw_change`), and yield curve spread (`yield_curve_10y3m / 5`).
+- **GMM Components**: 3 direction states (0=BEAR, 1=SIDEWAYS, 2=BULL) sorted by Sharpe ratio score (`mean_ret / mean_vol`).
+- **2D Regime States**: Direction (BEAR/SIDEWAYS/BULL) + Volatility (LOW_VOL/HIGH_VOL based on S&P500 rolling std vs median).
+  6 Discrete States: `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`.
+- **Fast Shock Overrides**:
+  - `vix_change > 30.0` forces immediate `BEAR` regime.
+  - S&P 500 1d return < -3.0% or 2d return < -5.0% forces immediate `BEAR` regime.
+- **3D Macro Modifiers**: Applies override deltas for `LIQUIDITY_SQUEEZE`, `HIGH_YIELD_BULL`, `HIGH_YIELD_BEAR`.
 
-```
-                  ┌──────────────────────────────────────────┐
-                  │       OptunaStrategyTuner (n_trials=20)  │
-                  └────────────────────┬─────────────────────┘
-                                       │
-      ┌──────────────┬─────────────────┼─────────────────┬──────────────┐
-      ▼              ▼                 ▼                 ▼              ▼
- Strategy 1     Strategy 2        Strategy 3        Strategy 4     Strategy 5
- Regression       Surge            Lead-Lag         VCP Rule        VCP ML
-(MSE Target)   (AUC Target)      (Sharpe Target)  (Sharpe Target) (AUC Target)
-      │              │                 │                 │              │
-      └──────────────┴─────────────────┼─────────────────┴──────────────┘
-                                       ▼
-                       `models/tuned_params.json` &
-                      `config/strategy_params.json`
-```
-
-#### Optuna Search Spaces & Objective Metrics:
-
-1. **Strategy 1 (Regression)**:
-   - Parameters: `n_estimators` [50–300], `max_depth` [3–8], `learning_rate` [0.01–0.15], `subsample` [0.6–1.0], `colsample_bytree` [0.6–1.0], `reg_lambda` [0.1–10.0], `reg_alpha` [0.0–5.0].
-   - Objective: Minimize Validation RMSE across TimeSeriesSplit.
-
-2. **Strategy 2 (Surge Classifier)**:
-   - Parameters: `n_estimators` [50–300], `max_depth` [3–8], `learning_rate` [0.01–0.15], `subsample` [0.6–1.0], `colsample_bytree` [0.6–1.0], `min_child_weight` [1–20], `scale_pos_weight` [1–50].
-   - Objective: Maximize Validation ROC-AUC across TimeSeriesSplit.
-
-3. **Strategy 3 (Lead-Lag Matrix)**:
-   - Parameters: `n_leaders` [10–100], `corr_threshold` [0.10–0.50], `lag_days` [1–5], `decay_factor` [0.80–1.00].
-   - Objective: Maximize out-of-sample forward 5d/20d follower return correlation / Sharpe.
-
-4. **Strategy 4 (VCP Pattern Detector Rule)**:
-   - Parameters: `vol_declining_ratio` [0.70–0.95], `near_high_threshold` [0.40–0.80], `tightness_cutoff` [3.0–8.0], `score_threshold` [40.0–70.0], weights `w_decreasing`, `w_vol`, `w_ma50`, `w_ma200`, `w_near_high`.
-   - Objective: Maximize out-of-sample 20d breakout return Sharpe ratio.
-
-5. **Strategy 5 (VCP ML Predictor)**:
-   - Parameters: `n_estimators` [50–300], `max_depth` [3–8], `learning_rate` [0.01–0.15], `subsample` [0.6–1.0], `colsample_bytree` [0.6–1.0], `min_child_samples` [5–30], `scale_pos_weight` [1–50], `vcp_step_size` [10–30].
-   - Objective: Maximize Validation ROC-AUC across TimeSeriesSplit.
+### Dynamic Performance Weighting & EMA Smoothing
+- **Exponential Sharpe Weighting**: `w_i_dynamic = base_w_i * exp(gamma * clip(Sharpe_i, -3, 3))` (gamma=1.0).
+- **EMA Weight Smoothing**: `smoothed_w = alpha * dynamic_w + (1 - alpha) * prev_w` (alpha=0.2). Prevents regime transition whipsaws across daily executions. Persisted to `models/prev_weights.json`.
 
 ---
 
-### Component B: 2D Market Regime Matrix & 5-Strategy Dynamic Ensemble Weighting
+## 3. Transaction Costs, Net Returns, & Liquidity Filtering
 
-#### 1. 2D Regime Matrix Configuration (6 Combo States $\times$ 5 Strategies)
+### Transaction Cost Deduction
+- Net expected return proxy calculated as:
+  `raw_exp_ret = ensemble_score * return_multiplier * 100.0`
+  `ensemble_expected_return = (raw_exp_ret - cost_pct * 100.0).clip(0.0, 50.0)`
+- `cost_pct` schedule:
+  - KONEX (`.KN`): 0.80% tax/fee + 0.50% slippage = 1.30%
+  - KOSDAQ (`.KQ`): 0.50% tax/fee + 0.50% slippage = 1.00%
+  - KOSPI (`.KS` / 6 digits): 0.35% tax/fee + 0.50% slippage = 0.85%
+  - SP500 / US: 0.10% tax/fee
 
-Update `EnsembleScoringEngine` in `src/ai/ensemble_scorer.py`:
-
-```python
-REGIME_2D_WEIGHTS = {
-    # BEAR Regimes (Defensive capital protection)
-    'BEAR_LOW_VOL': {
-        'regression': 0.55, 'surge': 0.00, 'lead_lag': 0.25, 'vcp_rule': 0.10, 'vcp_ml': 0.10
-    },
-    'BEAR_HIGH_VOL': {
-        'regression': 0.65, 'surge': 0.00, 'lead_lag': 0.25, 'vcp_rule': 0.05, 'vcp_ml': 0.05
-    },
-    # SIDEWAYS Regimes (Sector rotation & pattern setups)
-    'SIDEWAYS_LOW_VOL': {
-        'regression': 0.25, 'surge': 0.10, 'lead_lag': 0.35, 'vcp_rule': 0.15, 'vcp_ml': 0.15
-    },
-    'SIDEWAYS_HIGH_VOL': {
-        'regression': 0.40, 'surge': 0.10, 'lead_lag': 0.30, 'vcp_rule': 0.10, 'vcp_ml': 0.10
-    },
-    # BULL Regimes (Aggressive breakout momentum)
-    'BULL_LOW_VOL': {
-        'regression': 0.10, 'surge': 0.35, 'lead_lag': 0.05, 'vcp_rule': 0.20, 'vcp_ml': 0.30
-    },
-    'BULL_HIGH_VOL': {
-        'regression': 0.20, 'surge': 0.30, 'lead_lag': 0.10, 'vcp_rule': 0.15, 'vcp_ml': 0.25
-    },
-}
-```
-
-#### 2. Rolling Sharpe Dynamic Weight Adjustment Formula
-
-Given base weights $w_i^{\text{base}}$ for a 2D regime state and rolling out-of-sample Sharpe ratios $S_i$ over a 20d/60d window for each strategy $i \in \{1 \dots 5\}$:
-
-$$w_i^{\text{dynamic}} = \frac{w_i^{\text{base}} \cdot \exp(\gamma \cdot S_i)}{\sum_{j=1}^{5} w_j^{\text{base}} \cdot \exp(\gamma \cdot S_j)}$$
-
-Where $\gamma = 0.5$ (scaling factor preventing extreme single-strategy domination).
-
-#### 3. 5-Strategy Unified Score Calculation
-
-$$\text{Ensemble Score} = w_{\text{reg}} S_{\text{reg}} + w_{\text{surge}} S_{\text{surge}} + w_{\text{ll}} S_{\text{ll}} + w_{\text{vcp\_rule}} S_{\text{vcp\_rule}} + w_{\text{vcp\_ml}} S_{\text{vcp\_ml}}$$
-
-Where each strategy score $S_i \in [0, 1]$ is normalized (rank or min-max normalization).
+### Liquidity & Safety Filters
+- **Preferred Stocks**: Flags symbol names ending with `우`, `우B`, `1우`, `2우B`, `3우B` or 6-digit symbols ending in `K..O`.
+- **SPACs**: Flags symbol names containing `스팩` or `SPAC`.
+- Flagged stocks receive `ensemble_score = 0.0` and `ensemble_expected_return = 0.0`, excluding them from Top 20 recommendations.
+- **Sentiment Blacklist**: Zero-weights symbols flagged with high disclosure risk.
 
 ---
 
-### Component C: Pipeline Integration Flow (`run_pipeline.py`)
+## 4. Decision Rationale & Report Formatting
 
-1. **Step 7 (Training)**: Invoke `OptunaStrategyTuner.run_full_hpo()` to generate `models/tuned_params.json` before fitting models.
-2. **Step 10 (Regime Detection)**: Call `regime_detector.predict_2d_regime(indicator_infer)` to obtain 2D combo label (e.g. `BULL_LOW_VOL`).
-3. **Step 11 (Ensemble Scoring)**: Pass all 5 strategy outputs (`res_df`, `surge_df`, `lead_lag_df`, `vcp_patterns_df`, `vcp_ml_df`), 2D regime combo label, and rolling strategy Sharpe ratios into `scorer.calculate_ensemble_score()`.
-4. **Step 12 (Report & Persistence)**: Write updated 5-strategy weights and 2D regime info to `ensemble_predictions.txt` and SQLite DB.
-
----
-
-## 6. Implementation Roadmap & File Impact Summary
-
-| Task | Target File | Description of Action |
-|---|---|---|
-| **Optuna Tuner** | `src/ai/optuna_tuner.py` *(New)* | Implement `OptunaStrategyTuner` with `TimeSeriesSplit(3)` for 5 strategies. |
-| **Strategy HPO Hooks** | `src/ai/prediction_model.py`, `src/ai/vcp_detector.py`, `src/ai/vcp_ml_predictor.py` | Expose tuneable parameter setters and load tuned JSON configs. |
-| **2D Regime Expansion** | `src/analysis/regime_detector.py` | Standardize 2D matrix classification API (`predict_2d_regime()`). |
-| **5-Strategy 2D Ensemble** | `src/ai/ensemble_scorer.py` | Add `REGIME_2D_WEIGHTS` (6 states $\times$ 5 strategies), integrate Strategy 4 (`vcp_rule`), and wire rolling Sharpe formula. |
-| **Pipeline Integration** | `trading_system/run_pipeline.py` | Wire 2D regime prediction, rolling Sharpe calculation, 5-strategy scoring, and output generation. |
-| **Unit & Integration Tests** | `trading_system/tests/test_hpo_and_2d_ensemble.py` *(New)* | Verify 5-strategy Optuna execution, 2D regime mapping, and Sharpe weight adjustment. |
+- Written to `trading_system/result/ensemble_predictions.txt`:
+  1. Executive Summary & Timestamp (KST timezone).
+  2. Judgment Basis (Global Macro Indicators: S&P500 return/vol, KOSPI return/vol, VIX, USD/KRW, US10Y, KR10Y, WTI, Gold).
+  3. `get_regime_reasoning_summary()` text detailing market trend rationale, volatility state rationale, and 14 strategy weight distribution.
+  4. Top 100 Ensemble Picks per market (`KOSPI`, `KOSDAQ`, `KONEX`, `SP500`) with raw scores for all 14 strategies and net expected return.
 
 ---
-*Report completed by Explorer 1 (`teamwork_preview_explorer`). Ready for implementation handoff.*
+
+## 5. Identification of Bugs, Gaps, & Improvement Opportunities
+
+### Critical Bug
+1. **Zero-Score Exclusion Bug in `ensemble_scorer.py` (Line 690)**:
+   - **Location**: `src/ai/ensemble_scorer.py:690`
+   - **Code**: `valid_mask = merged[score_col].notna() & (merged[score_col] > 0.0)`
+   - **Impact**: Any valid score of `0.0` (e.g. no reversal signal, 0.0 probability, neutral factor score) is treated as *missing data* and excluded from the total weight denominator `total_weight_series`.
+   - **Consequence**: If a stock scores `0.0` on 13 strategies and `0.05` on 1 strategy, its weight denominator becomes only `w_1`, resulting in `ensemble_score = 0.05` instead of `0.05 * w_1 / 1.0`.
+   - **Recommended Fix**: Change `valid_mask` to `merged[score_col].notna()`. If NaN values indicate missing evaluation, `notna()` preserves valid `0.0` scores.
+
+### Gaps & Minor Issues
+2. **Transaction Cost Suffix Dependency**:
+   - `_get_cost_pct(symbol)` checks string suffixes `.KQ` and `.KN`. If KOSDAQ/KONEX tickers are passed without suffix (e.g., pure 6-digit numeric tickers or custom symbol strings), `.isdigit()` defaults to the KOSPI rate (`0.0035 + slippage`).
+   - **Recommended Fix**: Pass universe metadata (`market` column) into cost calculation so that `market == 'KOSDAQ'` or `market == 'KONEX'` dictates the cost rate regardless of ticker string format.
+3. **Environment Command Execution Constraint**:
+   - Sub-process invocation via `run_command` in this sandbox environment throws `sandbox configuration error: readwrite stock: non-absolute file path`. Code and unit tests were audited via direct file view.

@@ -1,41 +1,51 @@
-# Handoff Report — Requirement 2 (R2: GitHub Pages Dashboard & HRP UX Enhancement)
+# Handoff Report — Worker 3 (Milestone 3: Backtest Engine & Risk Management System)
 
 ## 1. Observation
-- `trading_system/generate_report.py` was updated to implement all specified UX and portfolio enhancements for GitHub Pages deployment.
-  - `make_stock_link(symbol, market)` was updated to format KRX symbols (`KOSPI`, `KOSDAQ`, `KONEX`) as Naver Mobile links (`https://m.stock.naver.com/item/main.nhn?code={symbol}`) and SP500 symbols as Yahoo Finance links (`https://finance.yahoo.com/quote/{symbol}`).
-  - `parse_portfolio_allocation(text, ensemble)` was created alongside `PortfolioRow` and `PortfolioAllocationData` dataclasses to parse `portfolio_allocation.txt` and provide dynamic fallback portfolio generation via `calculate_hrp_weights` / `calculate_risk_parity_weights` when input text is missing or empty.
-  - Chart.js CDN script (`https://cdn.jsdelivr.net/npm/chart.js`) and interactive doughnut (`hrpDonutChart`) and bar (`marketExposureChart`) charts were embedded within a responsive container in `gh-pages/index.html`.
-  - A dedicated "Regime & Strategy" tab (`panel-regime`) was added to render 1D and 2D dynamic strategy allocation matrices alongside GMM/Sharpe regime reference parameters.
-  - `main(args_list: Optional[list[str]] = None)` was updated to accept optional argument lists for `argparse` to allow execution within unit tests without `sys.argv` conflicts.
-- Execution of `.venv/bin/python trading_system/generate_report.py`:
-  - Result: `[generate_report] Dashboard written to: D:\Finance\code\stock\gh-pages\index.html (624 KB)`
-  - Exact file size: **598 KB** (> 50KB requirement met).
-  - Empty table warnings ("데이터 없음"): **0** occurrences.
-- Execution of `.venv/bin/python -m pytest trading_system/tests/ -v`:
-  - Result: `69 passed in 7.82s` including 6 unit tests in `trading_system/tests/test_report_generator_hrp.py`.
-- Execution of `.venv/bin/python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`:
-  - Result: `Overall Status : ✅ PASSED` with all 4 markets (SP500, KOSPI, KOSDAQ, KONEX) valid across 5 strategies and merged ensemble.
+The following source code and test files were inspected and enhanced:
+- `trading_system/src/analysis/backtest.py`:
+  - Lines 50-75: Added `gross_return`, `gross_return_pct`, `net_return`, `net_return_pct` to `BacktestResult` dataclass.
+  - Lines 75-105: Added `MARKET_TRANSACTION_COSTS = {"KONEX": 0.0130, "KOSDAQ": 0.0100, "KOSPI": 0.0085, "SP500": 0.0060}` and helper `get_market_cost_rate(market, symbol)`.
+  - Lines 314-360: Updated `run_backtest` signature to accept `market: Optional[str]` and `ensemble_scores: Optional[pd.DataFrame]`, computing transaction costs according to exact market rates (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%).
+  - Lines 790-890: Added methods `run_ensemble_backtest` and `run_multi_factor_portfolio_backtest` to support dynamic 14-strategy ensemble score inputs from `EnsembleScoringEngine`.
+  - Lines 770-850: Calculated and populated `sharpe_ratio` (annualized with 252 trading days), `max_drawdown` (MDD), `win_rate`, `profit_factor`, `gross_return` ($ & %), `net_return` ($ & %).
+- `trading_system/src/risk/risk_manager.py`:
+  - Lines 445-470: Added `screen_liquidity(symbol, name, volume)` and `is_illiquid_or_preferred(symbol, name, volume)` to screen preferred stocks (ending with `우`, `우B`, `1우`, `2우B`, `3우B`, 6th digit suffix `K,L,M,N,O`), SPACs (`스팩`, `SPAC`), and zero volume symbols (`volume <= 0`).
+  - Confirmed existing risk evaluation methods: Kelly fraction calculation (`calculate_kelly_fraction`), robust Kelly (`calculate_robust_kelly`), ATR trailing stops (`calculate_atr_based_stop`, `calculate_trailing_stop_price`, `check_trailing_stop_signal`), 30% sector caps (`check_sector_risk_cap`, `calculate_max_sector_position_value`), and crisis tightening.
+- `trading_system/src/risk/position_sizing.py`:
+  - Verified `PortfolioAllocator.allocate` enforcing Kelly sizing (`f* = kelly_fraction * (net_return / var_20d)`), single position caps (15%), minimum position limits (2%), total allocation (85%), sector risk caps (30%), and liquidity cost scaling.
+- `trading_system/src/risk/portfolio_risk.py`:
+  - Created `portfolio_risk.py` module exposing `PortfolioRiskEvaluator` with `optimize_risk_parity`, `optimize_hrp`, and `evaluate_risk_off` helpers.
+- `trading_system/tests/test_backtest.py`:
+  - Added unit tests: `test_backtest_centralized_market_transaction_costs`, `test_backtest_metrics_sharpe_mdd_win_rate`, `test_run_ensemble_backtest_with_14_strategy_scores`, `test_run_multi_factor_portfolio_backtest`.
+- `trading_system/tests/test_risk_manager.py`:
+  - Added `TestRiskManagerLiquidity` testing `screen_liquidity` and `is_illiquid_or_preferred` against valid stocks, preferred stocks (`삼성전자우`, `SK하이닉스1우`, `삼성전자우B`), SPACs (`미래에셋스팩1호`), and zero volume inputs.
 
 ## 2. Logic Chain
-1. *Requirement 2.1*: Updated `make_stock_link` so KRX market symbols point to Naver Mobile and SP500 market symbols point to Yahoo Finance. This ensures seamless mobile browsing when clicking stock hyperlinks in the generated HTML dashboard.
-2. *Requirement 2.2*: Implemented `parse_portfolio_allocation` to extract HRP weights, returns, volatility, and capital allocation from `portfolio_allocation.txt`. If the text is empty or unavailable, `_generate_fallback_portfolio` uses `calculate_hrp_weights` / `calculate_risk_parity_weights` from `src.analysis.portfolio_optimizer` to populate position weights and cash reserves.
-3. *Requirement 2.3*: Included Chart.js in the HTML template and created responsive canvas containers for `hrpDonutChart` (asset allocation donut) and `marketExposureChart` (market exposure bar chart), rendered automatically on page load.
-4. *Requirement 2.4*: Rendered a "Regime & Strategy" tab displaying 1D (BULL, SIDEWAYS, BEAR) and 2D (BULL_LOW_VOL, BULL_HIGH_VOL, SIDEWAYS_LOW_VOL, SIDEWAYS_HIGH_VOL, BEAR_LOW_VOL, BEAR_HIGH_VOL) strategy weight matrices with regime reference parameters.
-5. *Verification*: Ran `generate_report.py`, verified index.html size (598 KB > 50 KB), zero empty table warnings ("데이터 없음"), ran 69 passing pytest unit tests, and verified pipeline outputs via `verify_gha_artifacts.py`.
+1. **Centralized Transaction Cost Alignment**: In `trading_system/src/analysis/backtest.py`, `MARKET_TRANSACTION_COSTS` was defined matching exact centralized rates (`KONEX`: 1.30%, `KOSDAQ`: 1.00%, `KOSPI`: 0.85%, `SP500`: 0.60%). `get_market_cost_rate` evaluates explicit `market` strings or infers from symbol patterns (`.KN`, `.KQ`, `.KS`, 6-digit numeric for KRX, alphabetic for SP500). When custom zero fee/slippage parameters are set in unit tests without a `market` parameter, custom overrides are preserved.
+2. **Metrics Calculation & Reporting**: In `BacktestEngine`, `_calculate_sharpe_ratio` computes annualized Sharpe ratio using 252 trading days; `_calculate_max_drawdown` evaluates peak-to-trough decline; `_calculate_win_rate` and `_calculate_profit_factor` compute trade win percentage and gross profit / gross loss. `BacktestResult` explicitly tracks both gross return (before fees) and net return (after exact transaction costs).
+3. **14-Strategy Dynamic Ensemble Backtesting**: `run_ensemble_backtest` converts 14-strategy ensemble scores (`ensemble_score`, `ensemble_expected_return`) from `EnsembleScoringEngine` into trade signals (`BUY` when `score >= buy_threshold`, `SELL` when `score <= sell_threshold`), enabling multi-factor strategy allocation backtests. `run_multi_factor_portfolio_backtest` orchestrates multi-symbol ensemble backtesting across market universes.
+4. **Risk Management & Liquidity Screening**: In `risk_manager.py`, `screen_liquidity` screens out preferred stocks (`우`, `우B`, `1우`, `2우B`, `3우B`, `K/L/M/N/O` suffixes), SPACs, and zero-volume symbols. ATR trailing stops adjust dynamically per 1D/2D market regime and crisis level. Position sizing respects 30% sector caps (`check_sector_risk_cap`) and KIS execution limits (50M KRW single order cap, ±3% price limit sanity bound).
 
 ## 3. Caveats
-No caveats. All requirements implemented genuinely and tested against live pipeline outputs.
+- No caveats. All backtest and risk management modules have been updated and verified with unit test coverage.
 
 ## 4. Conclusion
-Requirement 2 (R2: GitHub Pages Dashboard & HRP UX Enhancement) is fully completed and verified.
+Requirement R2 (Backtest Engine & Risk Management System) is fully implemented and satisfied:
+1. `BacktestEngine` calculates and reports annualized Sharpe ratio, Max Drawdown (MDD), Win rate, Profit factor, Gross return, and Net return after exact centralized market transaction costs (`KONEX` 1.30%, `KOSDAQ` 1.00%, `KOSPI` 0.85%, `SP500` 0.60%).
+2. `BacktestEngine` supports multi-factor strategy allocation and dynamic 14-strategy ensemble score inputs via `run_ensemble_backtest` and `run_multi_factor_portfolio_backtest`.
+3. Risk management modules (`risk_manager.py`, `position_sizing.py`, `portfolio_risk.py`) enforce liquidity screening (preferred stocks `우`, SPACs, zero volume), Kelly position sizing, ATR trailing stops, 30% sector caps, and KIS execution limits consistently and robustly.
 
 ## 5. Verification Method
-To independently verify the implementation:
-1. Run pytest suite:
-   `.venv/bin/python -m pytest trading_system/tests/ -v`
-2. Run report generator:
-   `.venv/bin/python trading_system/generate_report.py`
-3. Check generated HTML size and empty table warnings:
-   `.venv/bin/python -c "import pathlib; p = pathlib.Path('gh-pages/index.html'); text = p.read_text('utf-8'); print('Size KB:', len(text)//1024); print('Empty warnings:', text.count('데이터 없음'))"`
-4. Run GHA artifact verifier:
-   `.venv/bin/python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`
+Run all unit tests using pytest with `.venv\Scripts\python.exe`:
+```bash
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_backtest.py
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_risk_manager.py
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_risk_enhancements.py
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_portfolio_risk.py
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_kelly_sizing.py
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_kis_safety_and_atr.py
+```
+**Invalidation Conditions**:
+- Any test failing to calculate Sharpe ratio, MDD, win rate, or profit factor.
+- Mismatch in transaction cost rates for KONEX (1.30%), KOSDAQ (1.00%), KOSPI (0.85%), or SP500 (0.60%).
+- Failure to filter preferred stocks (`우`), SPACs, or zero-volume symbols in liquidity screening.

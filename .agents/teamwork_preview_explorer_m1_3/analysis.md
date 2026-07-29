@@ -1,175 +1,211 @@
-# Requirement 3 (R3) & Verification Pipeline Codebase Audit Report
+# Strategy Data Coverage & Automated Test Suite (R3) Audit Report
 
-**Author:** Explorer 3 (`teamwork_preview_explorer`)  
-**Directory:** `.agents/teamwork_preview_explorer_m1_3/`  
-**Date:** 2026-07-25  
+**Author**: Explorer 3 (Milestone 1)  
+**Date**: 2026-07-29  
+**Target Scope**: R3 Strategy Data Coverage & Automated Test Suite  
+**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3`  
 
 ---
 
 ## 1. Executive Summary
 
-This report presents a thorough codebase audit of **Requirement 3 (R3)** — *KIS Automated Trading Safety & ATR Trailing Stop* — and the **Verification Pipeline**. The audit examined KIS broker execution, risk management, ATR trailing stop mechanics, portfolio exposure limits, order safety checks, and existing test suites.
+This audit examined the **Strategy Data Coverage & Missingness Analyzer** (`trading_system/src/analysis/coverage_analyzer.py`), the main orchestration pipeline (`trading_system/run_pipeline.py`), the dynamic ensemble scorer (`trading_system/src/ai/ensemble_scorer.py`), output files (`strategy_data_coverage_report.txt`, `ensemble_predictions.txt`), and the automated pytest test suite (`trading_system/tests/`).
 
-### Core Audit Summary
-1. **Verification Harness Baseline Status**:
-   - `verify_gha_artifacts.py`: **✅ PASSED** (All 4 markets — SP500, KOSPI, KOSDAQ, KONEX — valid across Surge, VCP ML, Reg, VCP, Lead-Lag strategies; 80 ensemble recommendations; valid GitHub Pages HTML dashboard).
-   - Pytest suite (`pytest trading_system/tests/ -v`): Executed across 497 test cases covering risk management, position sizing, regime detection, and E2E pipelines.
-2. **Key Implementation Findings**:
-   - **ATR Trailing Stop**: Robust logic implemented in `RiskManager.check_trailing_stop_signal()` and `TradingAgent._manage_existing_positions()` with adaptive regime/ADX multipliers and crisis/drawdown scaling.
-   - **Portfolio Exposure Limits**: Total allocation cap (85%) and single stock caps (15% in `PortfolioAllocator`, 25% default in `RiskManager`, VIX risk-off caps) are implemented. **CRITICAL GAP**: Sector risk cap is **completely missing**.
-   - **KIS Execution & Safety**: KIS OAuth authentication, token caching, live quote, and order placement are present. **GAPS**: Real API order cancellation (`cancel_order`) and order status checking (`get_order_status`) are non-functional stubs (`return True` / `return {}`). Pre-order price bound/fat-finger checks are missing.
+### Key Discoveries:
+1. **Critical Defect in Coverage Metrics**: `StrategyCoverageAnalyzer` consistently reports **100.0% coverage across all 14 strategies** (with 0 missing symbols), even when strategies fail or lack data. This is caused by `EnsembleScoringEngine.calculate_ensemble_score()` mutating all missing NaN strategy scores to `0.0` (for output report formatting) *before* `run_pipeline.py` passes `ensemble_df` to `coverage_analyzer.py`. Because `0.0` is non-null and finite, the analyzer counts missing strategy outputs as valid predictions.
+2. **Fundamental Missingness Scope Flaw**: In `coverage_analyzer.py`, `has_fund` checks whether the global `features_df` DataFrame contains fundamental columns as a whole, rather than checking if an individual symbol `sym` actually has non-NaN fundamental data. Consequently, `NO_FUNDAMENTAL_DATA` is never reported when `features_df` exists.
+3. **Macro Indicator Formatting Anomalies**: In `ensemble_predictions.txt`, global macro indicator fields (e.g. `VIX Index`, `US 10Y Yield`, `USD/KRW FX`) frequently output `nan` or fallback values (`0.18 KRW`) due to column name mismatches in `indicator_infer` (`vix` vs `vix_change`, etc.).
+4. **Test Suite Status & Gaps**: The project contains over 550 test cases across `trading_system/tests/`. Cache inspection (`.pytest_cache/v/cache/lastfailed`) identified existing failures in E2E tests (`test_e2e.py`) and macro stress tests (`test_macro_stress.py`). Crucially, no integration tests exist for testing coverage analysis on real `ensemble_df` outputs, nor are there tests auditing coverage across all 3,379 universe symbols.
 
 ---
 
-## 2. Verification Harness Baseline Status
+## 2. Core Audit Findings & Evidence Chains
 
-### 2.1 GitHub Actions Artifact Verification (`verify_gha_artifacts.py`)
-- **Execution Command**: `& ".venv\Scripts\python.exe" trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages`
-- **Result Summary**:
-  - **Overall Status**: `✅ PASSED`
-  - **Markets Verified**: SP500, KOSPI, KOSDAQ, KONEX
-  - **Strategies Verified**: Surge, VCP ML, Regression, VCP Rule-based, Lead-Lag
-  - **Merged Ensemble Output**: 80 recommendations generated cleanly
-  - **GitHub Pages Dashboard**: Valid HTML output generated with 4 markets
+### Finding 1: Premature NaN Mutation Masking Data Coverage Defect
 
-### 2.2 Test Suite Status (`trading_system/tests/`)
-- **Execution Command**: `& ".venv\Scripts\python.exe" -m pytest trading_system/tests/ -v`
-- **Coverage Summary**:
-  - Total collected items: 497 tests across 39 test modules.
-  - Phase 3, Phase 4, Phase 6 unit tests, and risk manager tests (`test_risk_manager.py`, `test_risk_enhancements.py`) pass cleanly.
-  - **Coverage Gaps Identified**: Zero unit test coverage for `KoreaInvestmentBroker` / `KoreaInvestmentConnector`, zero tests for sector risk caps, zero tests for order price sanity bounds.
+#### Observation:
+- `trading_system/result/strategy_data_coverage_report.txt` shows 100.0% coverage across all 14 strategies for all evaluated symbols:
+```text
+=== 14-Strategy Data Coverage & Missingness Report ===
+Date: 2026-07-27 17:21 KST
+Total Evaluated Symbols: 898
 
----
+Strategy              Valid Count    Missing Count  Coverage %     Primary Missing Reason        
+-------------------------------------------------------------------------------------------------
+regression            898            0               100.0%          None (100% Valid)             
+surge                 898            0               100.0%          None (100% Valid)             
+lead_lag              898            0               100.0%          None (100% Valid)             
+...
+```
 
-## 3. Detailed Audit Findings by Subsystem
-
-### 3.1 Subsystem 1: KIS Automated Trading Execution & Broker Safety
-- **Source Files**:
-  - `trading_system/src/broker/korea_investment.py` (`KoreaInvestmentConnector`)
-  - `trading_system/src/broker/real_broker.py` (`KoreaInvestmentBroker`, `BrokerBase`)
-  - `trading_system/src/broker/protocol.py`
-
-- **Observed Functionality**:
-  - **OAuth 2.0 Token Management**: `_issue_token()` handles POST `/oauth2/tokenP` with `KIS_APP_KEY` and `KIS_APP_SECRET`. Caches token with expiration `time.time() + expires_in - 300` (5-minute buffer).
-  - **Environment & Simulation Fallback**: Automatically activates simulation mode when API credentials are unset or `use_mock=True`. Uses mock domain `https://openapivts.koreainvestment.com:29443` for VTS.
-  - **Order Placement**: `place_order()` / `submit_order()` uses TR IDs `VTTC0802U` (buy) and `VTTC0801U` (sell) for mock trading; `TTTC0802U`/`TTTC0801U` for production trading.
-
-- **Gaps & Risk Points**:
-  - **Incomplete Order Cancellation**: `KoreaInvestmentConnector.cancel_order()` lines 278–279 contains `self.logger.warning("Actual API order cancellation not fully implemented yet.")` and returns `True` without calling TR ID `VTTC0803U`/`TTTC0803U`.
-  - **Incomplete Order Status Inquiry**: `KoreaInvestmentConnector.get_order_status()` lines 297–298 returns `{}` for real API.
-  - **Incomplete Holdings Parsing**: `get_account_info()` parses `output2` (cash balance), but does not parse `output1` position array to update `self.positions`.
-  - **Test Coverage**: No unit tests in `trading_system/tests/` instantiate or test `KoreaInvestmentConnector` or `KoreaInvestmentBroker`.
-
----
-
-### 3.2 Subsystem 2: ATR Trailing Stop & Position Management
-- **Source Files**:
-  - `trading_system/src/ai/trading_agent.py`
-  - `trading_system/src/risk/risk_manager.py`
-  - `trading_system/src/ai/feature_engineering.py`
-
-- **Observed Functionality**:
-  - **ATR Calculation**: `TradingAgent._calculate_atr()` calculates 14-day True Range mean from OHLC price history in `stock_prices.db`.
-  - **ATR Stop & Target Boundaries**: `RiskManager.calculate_atr_based_stop()` and `calculate_atr_based_target()` apply multipliers (`atr_multiplier_stop` default 2.0, `atr_multiplier_target` default 3.0) with double-stop floors/ceilings.
-  - **Adaptive Regimes & ADX**: `RiskManager.get_adaptive_atr_multipliers()` adjusts ATR multipliers by market regime (`strong_bull` 3.0/5.0, `weak_bull` 2.5/4.0, `weak_bear` 1.5/2.5, `strong_bear` 1.0/2.0) and scales by ADX (>30 -> +20%, <20 -> -20%).
-  - **Dynamic Trailing Stop Check**: `RiskManager.check_trailing_stop_signal()` triggers when `highest_price - current_price >= atr * stop_multiplier * crisis_mult * drawdown_scaler`.
-  - **Execution in Trading Cycle**: `TradingAgent._manage_existing_positions()` evaluates positions each cycle, checking take-profit first, then ATR trailing stop, falling back to static stop loss if ATR is unavailable.
-
-- **Gaps & Risk Points**:
-  - **High Watermark Tracking**: `_get_highest_price_since_entry()` in `TradingAgent` relies on daily close/high in DB, which may lag intraday peak price spikes.
-  - **OrderManagementSystem Integration Gap**: `OrderManagementSystem` tracks static `trigger_price` on `STOP_LOSS` orders (`create_stop_loss_order()`). The dynamic ATR trailing stop computed in `TradingAgent` does not automatically update pending `OrderManagementSystem` `STOP_LOSS` trigger prices.
+#### Code Evidence & Logic Chain:
+1. In `trading_system/src/ai/ensemble_scorer.py`, lines 699-709:
+```python
+# Fill raw NaNs with 0.0 for report formatting after ensemble score calculation
+fill_cols = [
+    'reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score',
+    'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
+    'sector_score', 'rim_score', 'event_score', 'mq_score',
+    'iv_skew_score', 'order_flow_score', 'reversal_score'
+]
+for col in fill_cols:
+    if col in merged.columns:
+        merged[col] = merged[col].fillna(0.0)
+```
+2. In `trading_system/run_pipeline.py`, line 2109, `ensemble_df` is computed by calling `scorer.calculate_ensemble_score(...)`.
+3. In `run_pipeline.py`, lines 2201-2202, `ensemble_df` is passed to `cov_analyzer.analyze_coverage(ensemble_df, prices_dict=infer_data_dict)`.
+4. In `trading_system/src/analysis/coverage_analyzer.py`, lines 62-67:
+```python
+series = ensemble_df[c_col]
+# Valid if non-null and finite
+valid_mask = series.notna() & np.isfinite(series)
+valid_cnt = int(valid_mask.sum())
+```
+5. Because `fillna(0.0)` was applied inside `calculate_ensemble_score()`, `series.notna()` evaluates to `True` for every single cell in `ensemble_df`, even for symbols where a strategy was not evaluated or failed. Thus `valid_cnt == total_symbols` (100.0% coverage).
 
 ---
 
-### 3.3 Subsystem 3: Portfolio Exposure Limits
-- **Source Files**:
-  - `trading_system/src/risk/position_sizing.py` (`PortfolioAllocator`)
-  - `trading_system/src/risk/risk_manager.py` (`RiskManager`, `CrisisDetector`)
-  - `trading_system/src/ai/trading_agent.py`
+### Finding 2: Per-Symbol Fundamental Missingness Check Flaw
 
-- **Observed Functionality**:
-  - **Total Portfolio Exposure Cap**:
-    - `PortfolioAllocator.max_total_allocation` default 0.85 (85%). Downscales candidate position weights if total exceeds 85%.
-    - `RiskManager.get_crisis_cash_target()` requires cash buffer of 10% (NONE), 30% (WATCH), 60% (ACTIVE), 85% (SEVERE).
-    - `RiskManager.get_drawdown_exposure_limit()` scales total allowed exposure down when drawdown exceeds 5% (75%), 10% (50%), 15% (25%), 20% (0%).
-  - **Single Stock Exposure Cap**:
-    - `PortfolioAllocator.max_single_position` default 0.15 (15%). Clips any single position weight to 15%.
-    - `RiskManager.max_position_size_pct` default 0.25 (25%).
-    - `RiskManager.get_vix_position_cap()` caps position size to 15% (VIX > 30), 30% (VIX > 25), 50% (VIX > 20).
-    - `TradingAgent.CRISIS_RISK_CAP` limits single trade risk to 2.0% (NONE), 1.5% (WATCH), 1.0% (ACTIVE), 0.0% (SEVERE).
+#### Observation:
+In `trading_system/src/analysis/coverage_analyzer.py`, lines 83-93:
+```python
+fund_cols = ['bps', 'roe', 'operating_margin', 'net_profit_margin']
+has_fund = (features_df is not None and not features_df.empty and any(c in features_df.columns for c in fund_cols))
 
-- **Gaps & Risk Points**:
-  - **CRITICAL GAP — Sector Risk Cap is MISSING**:
-    - Neither `RiskManager`, `PortfolioAllocator`, nor `TradingAgent` contains logic or parameters for **sector exposure limits** (e.g., capping total allocation to semiconductors or tech at 30%).
-    - Correlation check in `TradingAgent._check_portfolio_correlation()` checks pair-wise return correlation (Pearson >= 0.85 blocks, >= 0.70 halves), but does NOT enforce sector allocation ceilings based on industry classification.
+for sym in missing_syms:
+    p_df = prices_dict.get(sym) if prices_dict else None
+    if p_df is None or len(p_df) < 200:
+        no_price_cnt += 1
+    elif strat in ['rim_valuation', 'mq_factor'] and not has_fund:
+        no_fund_cnt += 1
+    else:
+        other_cnt += 1
+```
 
----
-
-### 3.4 Subsystem 4: Order Execution Safety Checks
-- **Source Files**:
-  - `trading_system/src/core/order_management.py` (`OrderManagementSystem`)
-  - `trading_system/src/ai/trading_agent.py`
-  - `trading_system/src/risk/risk_manager.py`
-
-- **Observed Functionality**:
-  - **Pre-order Validation**:
-    - Available cash balance check (`qty * curr_price <= cash`).
-    - Maximum position size validation via Kelly criterion and risk limit (`_validate_risk_limit`).
-    - VIX threshold block (VIX > 30.0 blocks new buys).
-    - Sentiment score block (sentiment < -0.2 blocks new buys).
-    - Statistical edge check (win rate >= 55%, edge > 0).
-  - **Emergency Circuit Breaker**:
-    - `TradingAgent._emergency_protocol()` checks intraday change of market indices (^KS11, ^KQ11, ^GSPC, etc.). If change >= 5%, cancels all open orders and liquidates all positions.
-    - `RiskManager.crisis_detector` SEVERE level triggers `_liquidate_all_positions` after 3 consecutive days in severe crisis.
-
-- **Gaps & Risk Points**:
-  - **Missing Price Bounds & Fat-Finger Sanity Checks**:
-    - No validation ensuring limit order price is within a reasonable percentage (e.g. ±3%) of current market price prior to order submission.
-    - No absolute single-order value limit in KRW (e.g. max 50,000,000 KRW per single order) to prevent catastrophic execution due to quantity calculation bugs.
-  - **Slippage Enforcement at Execution Time**:
-    - Trade journal estimates slippage (`BUY_EFFECTIVE_RATE`), but pre-order validation does not reject orders where bid/ask spread or market volatility indicates excessive slippage risk.
+#### Logic Chain:
+- `has_fund` evaluates whether the *DataFrame table* `features_df` has columns named `bps`, `roe`, etc.
+- If `features_df` is passed to `analyze_coverage()` with these columns present, `has_fund` evaluates to `True` for every symbol.
+- If symbol `A` is missing BPS/ROE data (e.g. `NaN` in `features_df.loc['A', 'bps']`), `has_fund` remains `True`. Therefore, `not has_fund` evaluates to `False`, and missingness for fundamental-dependent strategies (`rim_valuation`, `mq_factor`) is incorrectly classified as `STRATEGY_SIGNAL_NEUTRAL` instead of `NO_FUNDAMENTAL_DATA`.
 
 ---
 
-## 4. Gap Matrix & Summary Table
+### Finding 3: Formatting & Data Integrity of Report Artifacts
 
-| Requirement Area | Feature | Current Implementation Status | Gap / Missing Component | Impact Level |
+#### Output Files Inspected:
+1. `trading_system/result/strategy_data_coverage_report.txt`
+2. `trading_system/ensemble_predictions.txt`
+
+#### Key Formatting Observations:
+- **`strategy_data_coverage_report.txt`**:
+  - Contains overall header and single summary table.
+  - Lacks market-segmented breakdown (KOSPI, KOSDAQ, KONEX, SP500) within the report file.
+  - Reports only the single `Primary Missing Reason` string per strategy instead of showing a frequency distribution (e.g. `INSUFFICIENT_PRICE_HISTORY: 45, NO_FUNDAMENTAL_DATA: 12`).
+- **`ensemble_predictions.txt`**:
+  - Global Macro section contains `nan` or erroneous default values when price DB queries fall back.
+  - Recent pipeline updates in `run_pipeline.py` (lines 2264-2279) format all 14 strategy score columns in the Top 100 picks table. However, older generated output files on disk had only 4 strategy columns (`Reg`, `Surge`, `L-L`, `VCP`).
+
+---
+
+## 3. Automated Test Suite Audit (Pytest)
+
+### Current Suite Architecture:
+- Test files located in `trading_system/tests/` (55+ test files, 550+ test functions).
+- Categories:
+  - Unit tests for indicators, risk management, regime detection, HPO, portfolio sizing.
+  - Core strategy tests (`test_new_5_strategies.py`, `test_rim_strategy.py`, `test_lead_lag_index.py`, `test_vcp_ml_predictor.py`, etc.).
+  - Coverage & Report tests (`test_kst_and_coverage_reasoning.py`).
+
+### Recorded Test Failures (`.pytest_cache/v/cache/lastfailed`):
+Inspection of pytest's cache file `.pytest_cache/v/cache/lastfailed` revealed failures in the following suites from prior runs:
+1. `tests/phase3/e2e/test_e2e.py::TestSentimentAnalysis`
+2. `tests/phase3/e2e/test_e2e.py::TestRLTradingModel`
+3. `tests/phase3/e2e/test_e2e.py::TestAssetAllocation`
+4. `tests/phase3/e2e/test_e2e.py::TestPDFReport`
+5. `tests/phase3/e2e/test_e2e.py::TestBrokerAPI`
+6. `tests/phase3/e2e/test_e2e.py::TestSentimentAnalysisNegative`
+7. `tests/phase3/e2e/test_e2e.py::TestRLTradingModelNegative`
+8. `tests/phase3/e2e/test_e2e.py::TestAssetAllocationNegative`
+9. `tests/phase3/e2e/test_e2e.py::TestPDFReportNegative`
+10. `tests/phase3/e2e/test_e2e.py::TestBrokerAPINegative`
+11. `tests/phase3/e2e/test_e2e.py::TestPairwiseInteraction`
+12. `tests/phase3/e2e/test_e2e.py::TestRealWorldScenarios`
+13. `tests/test_macro_stress.py::TestMacroStress::test_screener_predictions_identical`
+
+### Coverage Gaps Relative to Requirement R3:
+1. **No Pipeline-Ensemble Integration Coverage Test**: `test_strategy_coverage_analyzer` in `test_kst_and_coverage_reasoning.py` tests `analyze_coverage` using a mock DataFrame with literal `np.nan` values. Because it bypasses `EnsembleScoringEngine`, it fails to catch the `fillna(0.0)` bug.
+2. **No Full Universe Data Coverage Test**: No automated test validates coverage ratios across all 3,379 symbols (KOSPI 898, KOSDAQ 1,684, KONEX 127, S&P 500 503).
+3. **No Granular Missingness Reason Validation**: No test asserts the correctness of per-symbol missingness categorization (insufficient price history vs missing fundamental data vs missing option chain).
+
+---
+
+## 4. Proposed Code Fixes & Improvements
+
+### Fix 1: Preserve Unfilled NaNs in `EnsembleScoringEngine` or Conduct Coverage Analysis Prior to `fillna(0.0)`
+
+In `trading_system/src/ai/ensemble_scorer.py`:
+Keep a clean copy of `merged` before applying `fillna(0.0)`, or return raw scores with NaNs when requested:
+
+```python
+# In calculate_ensemble_score:
+merged['ensemble_score'] = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+
+# Store raw score copy before fillna for coverage analyzer
+self.last_raw_merged_scores = merged.copy()
+```
+
+Alternatively, in `trading_system/run_pipeline.py`:
+Pass raw strategy DataFrames or raw un-filled ensemble scores to `StrategyCoverageAnalyzer`:
+
+```python
+cov_data = cov_analyzer.analyze_coverage(
+    ensemble_df,
+    prices_dict=infer_data_dict,
+    features_df=df_rim_input if 'df_rim_input' in locals() else None,
+    treat_zero_as_missing_for_strats=['surge', 'vcp_rule', 'stat_arb'] # or use raw NaNs
+)
+```
+
+### Fix 2: Enhance `StrategyCoverageAnalyzer` Per-Symbol Missingness Attribution
+
+In `trading_system/src/analysis/coverage_analyzer.py`:
+Check per-symbol fundamental missingness in `features_df`:
+
+```python
+# In analyze_coverage:
+for sym in missing_syms:
+    p_df = prices_dict.get(sym) if prices_dict else None
+    if p_df is None or len(p_df) < 200:
+        no_price_cnt += 1
+    elif strat in ['rim_valuation', 'mq_factor']:
+        # Check per-symbol fundamental validity
+        if features_df is not None and sym in features_df.index:
+            sym_fund = features_df.loc[sym]
+            if sym_fund[['bps', 'roe']].isna().any():
+                no_fund_cnt += 1
+            else:
+                other_cnt += 1
+        else:
+            no_fund_cnt += 1
+    else:
+        other_cnt += 1
+```
+
+### Fix 3: Add Comprehensive Integration Tests for R3
+
+Create `trading_system/tests/test_r3_coverage_and_universe.py`:
+1. `test_coverage_analyzer_with_ensemble_scorer_output()`: Runs `EnsembleScoringEngine.calculate_ensemble_score()` with partial strategy DataFrames and verifies `StrategyCoverageAnalyzer` correctly detects missing strategies (non-100% coverage).
+2. `test_per_symbol_fundamental_missingness_reasons()`: Verifies that missing fundamental data for a specific symbol produces `NO_FUNDAMENTAL_DATA` reason.
+3. `test_full_universe_symbol_coverage_report_generation()`: Verifies report generation across mock KOSPI/KOSDAQ/KONEX/SP500 symbols.
+
+---
+
+## 5. Summary Table of Audit Findings
+
+| ID | Component | Issue Description | Severity | Impact |
 |---|---|---|---|---|
-| **KIS Trading Safety** | OAuth Token Management | Implemented with 5-min expiration buffer | None | Low |
-| **KIS Trading Safety** | Real API Order Submission | Implemented (`VTTC0802U`/`TTTC0802U`) | None | Low |
-| **KIS Trading Safety** | Real API Order Cancellation | Stubbed (`return True`, no HTTP call) | Real API order cancel unsupported | **HIGH** |
-| **KIS Trading Safety** | Real API Order Status Inquiry | Stubbed (`return {}`) | Cannot track live fill status | **HIGH** |
-| **KIS Trading Safety** | KIS Unit Tests | None | 0 tests for KIS broker module | **MEDIUM** |
-| **ATR Trailing Stop** | ATR Calculation & Multipliers | Implemented (14d ATR, Regime/ADX adaptive) | None | Low |
-| **ATR Trailing Stop** | Dynamic Trailing Check | Implemented in `RiskManager` & `TradingAgent` | Intraday high watermark precision | **MEDIUM** |
-| **ATR Trailing Stop** | OMS Synchronization | Static trigger price in `OrderManagementSystem` | OMS `STOP_LOSS` orders not updated dynamically | **MEDIUM** |
-| **Exposure Limits** | Max Total Allocation % | Implemented (85% default, drawdown scaled) | None | Low |
-| **Exposure Limits** | Single Stock Cap % | Implemented (15% allocator / 25% RM / VIX caps) | None | Low |
-| **Exposure Limits** | **Sector Risk Cap** | **Not Implemented** | **No sector cap logic or limits** | **HIGH** |
-| **Order Safety Checks** | Pre-Order Balance & VIX Check | Implemented in `TradingAgent` | None | Low |
-| **Order Safety Checks** | Emergency Circuit Breaker | Implemented (5% index drop & crisis liquidations) | None | Low |
-| **Order Safety Checks** | Order Price Bounds & Fat-Finger | **Not Implemented** | No price bounds / max order value limit | **HIGH** |
-
----
-
-## 5. Actionable Recommendations for Implementation Phase (Phase 3)
-
-1. **Implement Sector Exposure Risk Capping**:
-   - Add `max_sector_allocation: float = 0.30` (30%) to `PortfolioAllocator` and `RiskManager`.
-   - Aggregate current holdings + candidate order by sector and block or scale down order if sector allocation would exceed 30%.
-2. **Add Order Price Bounds & Fat-Finger Protection**:
-   - Create `PreOrderSanityCheck` helper in `OrderManagementSystem` or `BrokerBase`.
-   - Validate: `abs(order_price - current_market_price) / current_market_price <= 0.03` (max 3% deviation).
-   - Validate: `order_quantity * order_price <= max_single_order_value_krw` (e.g. 50,000,000 KRW).
-3. **Complete Real KIS API Implementation**:
-   - Implement `KoreaInvestmentConnector.cancel_order()` using TR ID `VTTC0803U` (mock) / `TTTC0803U` (real).
-   - Implement `KoreaInvestmentConnector.get_order_status()` using TR ID `VTTC8036R` / `TTTC8036R`.
-   - Parse `output1` array from `inquire-balance` for real holdings position dict.
-4. **Synchronize ATR Trailing Stop with OrderManagementSystem**:
-   - In `TradingAgent._manage_existing_positions()`, call `OrderManagementSystem.create_stop_loss_order()` or update `trigger_price` when high watermark rises.
-5. **Expand Unit Test Coverage**:
-   - Create `trading_system/tests/test_kis_broker.py` to test `KoreaInvestmentBroker` and `KoreaInvestmentConnector` with mocked HTTP responses (`unittest.mock`).
-   - Create `trading_system/tests/test_order_safety.py` to verify fat-finger protection, price bounds, and sector cap enforcement.
-
----
-*Report completed by Explorer 3 (`teamwork_preview_explorer`).*
+| **BUG-01** | `ensemble_scorer.py` / `coverage_analyzer.py` | `calculate_ensemble_score()` converts NaNs to `0.0` before passing `ensemble_df` to `coverage_analyzer.py`, masking all missing data as 100% coverage. | **HIGH** | False coverage metrics in pipeline reports |
+| **BUG-02** | `coverage_analyzer.py` | `has_fund` checks column existence in table rather than per-symbol values, failing to report missing fundamental data. | **MEDIUM** | Misclassified missingness reasons |
+| **BUG-03** | `coverage_analyzer.py` | `generate_coverage_report()` only prints top primary reason string rather than reason counts/ratios. | **LOW** | Missing granular insight in text report |
+| **GAP-01** | `tests/` | Unit tests for `coverage_analyzer` pass NaN DataFrames directly, missing the integration defect with `ensemble_scorer`. | **HIGH** | Test suite false positive |
+| **GAP-02** | `tests/` | E2E tests in `test_e2e.py` and `test_macro_stress.py` have recorded failures in `.pytest_cache/v/cache/lastfailed`. | **MEDIUM** | Incomplete test suite pass |

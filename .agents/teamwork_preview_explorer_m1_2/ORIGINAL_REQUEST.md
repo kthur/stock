@@ -1,28 +1,17 @@
-## 2026-06-13T04:47:18Z
-You are teamwork_preview_explorer_m1_2, an exploration subagent.
-Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2
-Your mission is to audit `trading_system/src/strategy/asset_allocation.py` and target position sizing inside `trading_system/src/core/strategy_engine.py` (or other core strategy engine files).
+## 2026-07-29T14:20:38+09:00
+You are Explorer 2 for Milestone 1 of the Stock Trading System project.
+Your Working Directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2
+Project Root: d:\Finance\code\stock
+Scope Document: d:\Finance\code\stock\.agents\orchestrator_r8\PROJECT.md
+
+Task:
+Perform a comprehensive audit of the Backtest Engine & Risk Management System (R2).
 Specifically:
-1. Identify how position sizes are currently determined (e.g. equal weighting, fixed sizes, model predictions).
-2. Detail how asset allocation classes operate and how the strategy engine interacts with risk_manager or allocator.
-3. Recommend how to implement dynamic position sizing (e.g. Risk Parity or Volatility Sizing using ATR/historical volatility) that adjusts target trade sizes based on asset risk.
-9: Write your analysis to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2\analysis.md` and then send a handoff message to the parent orchestrator (conv ID: 7635347b-53a9-4ba1-9cb3-cafe65efe2dc).
+1. Examine backtesting modules (e.g., `src/backtest/` or `trading_system/` backtest scripts).
+2. Inspect portfolio performance tracking metrics: Sharpe ratio, MDD (Max Drawdown), win rate, and net return after transaction costs.
+3. Inspect risk management implementation: liquidity filtering, volatility-based position sizing, dynamic risk limits (e.g., ATR trailing stops, portfolio exposure limits).
+4. Run backtest unit/integration tests using `.venv\Scripts\python.exe` to check current behavior.
+5. Identify any gaps, bugs, or missing features relative to Requirement R2.
 
-## 2026-07-25T01:17:00Z
-You are Explorer 2 (`teamwork_preview_explorer`) working in `.agents/teamwork_preview_explorer_m1_2/`.
-Your mission is to perform a thorough codebase audit for Requirement 2 (R2):
-- GitHub Pages Dashboard & HRP UX Enhancement (`gh-pages/index.html`, `generate_report.py`).
-- HRP (Hierarchical Risk Parity) allocation weight chart.
-- Regime performance trends chart/table.
-- Mobile hyperlinks to Naver Finance (KRX symbols: KOSPI, KOSDAQ, KONEX) and foreign stock viewer (SP500 symbols, e.g. Yahoo Finance/Finviz).
-
-Your tasks:
-1. Create your directory `.agents/teamwork_preview_explorer_m1_2/` if it doesn't exist.
-2. Examine `generate_report.py`, `trading_system/generate_report.py`, `gh-pages/index.html`, and any HRP / portfolio allocation scripts in `src/portfolio/` or `src/ai/`.
-3. Inspect how charts and tables are generated for `gh-pages/index.html`.
-4. Check how symbol links are currently formatted and how Naver Finance (`https://m.stock.naver.com/item/main.nhn?code=...`) / foreign stock viewers should be integrated.
-5. Check how HRP allocation weights and regime performance trends can be calculated and rendered as interactive/responsive charts in the dashboard.
-6. Identify gaps and design the HTML/JS/Python updates needed for `generate_report.py`.
-7. Do NOT modify source code files.
-8. Write your detailed analysis report to `.agents/teamwork_preview_explorer_m1_2/analysis.md` and `handoff.md`.
-9. Send a message to parent (Recipient: "parent") when completed with the summary of findings and file path.
+Write your complete analysis and findings to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2\analysis.md` and `handoff.md`.
+Then send a summary message back to parent orchestrator.

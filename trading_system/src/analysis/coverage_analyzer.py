@@ -22,11 +22,43 @@ class StrategyCoverageAnalyzer:
         'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal'
     ]
 
+    def _has_symbol_fundamental_data(self, features_df: Optional[pd.DataFrame], sym: str) -> bool:
+        """
+        Checks per-symbol non-NaN fundamental data in features_df.
+        """
+        if features_df is None or features_df.empty:
+            return False
+        fund_cols = ['bps', 'roe', 'operating_margin', 'net_profit_margin']
+        present_cols = [c for c in fund_cols if c in features_df.columns]
+        if not present_cols:
+            return False
+
+        try:
+            if 'symbol' in features_df.columns:
+                sub = features_df[features_df['symbol'] == sym]
+                if sub.empty:
+                    return False
+                vals = sub[present_cols].values
+                return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
+            elif sym in features_df.index:
+                row_or_sub = features_df.loc[sym]
+                if isinstance(row_or_sub, pd.DataFrame):
+                    vals = row_or_sub[present_cols].values
+                    return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
+                elif isinstance(row_or_sub, pd.Series):
+                    vals = row_or_sub[present_cols].values
+                    return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
+        except Exception as e:
+            logger.debug(f"Error checking fundamental data for {sym}: {e}")
+
+        return False
+
     def analyze_coverage(
         self,
         ensemble_df: pd.DataFrame,
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
-        features_df: Optional[pd.DataFrame] = None
+        features_df: Optional[pd.DataFrame] = None,
+        raw_scores: Optional[pd.DataFrame] = None
     ) -> Dict[str, Any]:
         """
         Calculates per-strategy coverage stats and categorizes missing reasons.
@@ -34,6 +66,12 @@ class StrategyCoverageAnalyzer:
         """
         if ensemble_df is None or ensemble_df.empty:
             return {'total_symbols': 0, 'strategies': {}}
+
+        target_df = raw_scores
+        if target_df is None and hasattr(ensemble_df, 'attrs') and isinstance(ensemble_df.attrs, dict) and 'raw_scores' in ensemble_df.attrs:
+            target_df = ensemble_df.attrs['raw_scores']
+        if target_df is None:
+            target_df = ensemble_df
 
         total_symbols = len(ensemble_df)
 
@@ -58,14 +96,15 @@ class StrategyCoverageAnalyzer:
 
         for strat in self.STRATEGIES:
             c_col = col_map.get(strat)
-            if c_col and c_col in ensemble_df.columns:
-                series = ensemble_df[c_col]
+            if c_col and c_col in target_df.columns:
+                series = target_df[c_col]
                 # Valid if non-null and finite
                 valid_mask = series.notna() & np.isfinite(series)
                 valid_cnt = int(valid_mask.sum())
                 missing_cnt = total_symbols - valid_cnt
                 cov_pct = (valid_cnt / total_symbols * 100.0) if total_symbols > 0 else 0.0
             else:
+                valid_mask = pd.Series(False, index=target_df.index)
                 valid_cnt = 0
                 missing_cnt = total_symbols
                 cov_pct = 0.0
@@ -74,20 +113,25 @@ class StrategyCoverageAnalyzer:
             reasons = {}
             if missing_cnt > 0:
                 missing_mask = ~valid_mask
-                missing_syms = set(ensemble_df.loc[missing_mask, 'symbol']) if 'symbol' in ensemble_df.columns else set()
+                if 'symbol' in target_df.columns:
+                    missing_syms = set(target_df.loc[missing_mask, 'symbol'])
+                elif 'symbol' in ensemble_df.columns:
+                    missing_syms = set(ensemble_df.loc[missing_mask, 'symbol'])
+                else:
+                    missing_syms = set(ensemble_df.index[missing_mask])
 
                 no_price_cnt = 0
                 no_fund_cnt = 0
                 other_cnt = 0
 
-                fund_cols = ['bps', 'roe', 'operating_margin', 'net_profit_margin']
-                has_fund = (features_df is not None and not features_df.empty and any(c in features_df.columns for c in fund_cols))
-
                 for sym in missing_syms:
-                    p_df = prices_dict.get(sym) if prices_dict else None
-                    if p_df is None or len(p_df) < 200:
+                    sym_str = str(sym)
+                    p_df = prices_dict.get(sym_str) if prices_dict else None
+                    has_price = (p_df is not None and len(p_df) >= 200)
+
+                    if not has_price:
                         no_price_cnt += 1
-                    elif strat in ['rim_valuation', 'mq_factor'] and not has_fund:
+                    elif strat in ['rim_valuation', 'mq_factor'] and not self._has_symbol_fundamental_data(features_df, sym_str):
                         no_fund_cnt += 1
                     else:
                         other_cnt += 1
