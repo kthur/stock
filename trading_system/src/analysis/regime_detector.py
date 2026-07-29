@@ -176,13 +176,14 @@ class MarketRegimeDetector:
                 return 2  # default to BULL
 
             sp500 = indicator_df['sp500_change']
-            recent_ret = float(sp500.tail(20).mean())
+            cum_ret_20d = float(sp500.tail(20).sum()) if len(sp500) >= 20 else float(sp500.sum())
             recent_vol = float(sp500.tail(20).std()) if len(sp500) >= 2 else 1.0
 
-            if recent_ret < -0.05:
+            if cum_ret_20d < -2.0:
                 return 0  # BEAR
-            elif recent_ret > 0.05:
+            elif cum_ret_20d > 2.0:
                 return 2  # BULL
+            return 1  # SIDEWAYS
 
             sharpe = recent_ret / (recent_vol + 1e-5)
             if sharpe < -0.02:

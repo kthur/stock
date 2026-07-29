@@ -158,12 +158,13 @@ class PortfolioAllocator:
                 df_candidates['raw_score'] = 1.0
                 df_candidates['weight'] = self.max_total_allocation
         elif use_kelly:
-            # Kelly formula: f* = kelly_fraction * (predicted_return / variance)
+            # Kelly formula with matched 20-day variance horizon: f* = kelly_fraction * (net_return / var_20d)
             vol_floor = 0.005
             vols = np.where(df_candidates['volatility'] < vol_floor, vol_floor, df_candidates['volatility'])
-            df_candidates['raw_score'] = kelly_fraction * (df_candidates['predicted_return'] / (vols ** 2))
+            var_20d = 20.0 * (vols ** 2)  # Scale daily variance to 20-day horizon to match 20-day net_return
+            df_candidates['raw_score'] = kelly_fraction * (df_candidates['net_return'] / var_20d)
         else:
-            df_candidates['raw_score'] = df_candidates['predicted_return'] / df_candidates['volatility']
+            df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
 
 
         # Select top candidates (up to 15)

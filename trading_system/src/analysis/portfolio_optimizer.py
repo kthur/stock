@@ -234,11 +234,15 @@ def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
         from scipy.cluster.hierarchy import linkage
         from scipy.spatial.distance import squareform
 
+        # Ensure covariance matrix is finite and non-NaN
+        cov_matrix = np.nan_to_num(cov_matrix, nan=1e-8, posinf=1e-2, neginf=-1e-2)
+
         # Standard deviation & correlation matrix
         vols = np.sqrt(np.diag(cov_matrix))
         vols = np.where(np.isnan(vols) | (vols < 1e-8), 1e-8, vols)
         outer_vols = np.outer(vols, vols)
         corr = cov_matrix / outer_vols
+        corr = np.nan_to_num(corr, nan=0.0)
         corr = np.clip(corr, -1.0, 1.0)
         np.fill_diagonal(corr, 1.0)
 

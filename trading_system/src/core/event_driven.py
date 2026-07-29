@@ -94,21 +94,29 @@ class EventDrivenEngine:
                 report_nm = item.get('report_nm', '')
                 pblntf_ty = item.get('pblntf_ty', '')
 
-                # Match corp_code/stock_code with symbol list
+                # Match stock_code or corp_code with symbol list
                 for sym in symbols:
                     sym_clean = sym.split('.')[0].zfill(6)
-                    matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code == sym))
+                    matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code.endswith(sym_clean) or corp_code == sym))
                     if matched:
                         weight = self.EVENT_WEIGHTS.get(pblntf_ty, 0.5)
-                        # Text keyword adjustments
-                        if '유상증자' in report_nm or '전환사채' in report_nm:
-                            weight = 0.25
+                        # Text keyword adjustments with clear directionality
+                        if '유상증자' in report_nm or '전환사채' in report_nm or '신주인수권' in report_nm:
+                            weight = 0.20  # Bearish (Dilution risk)
                         elif '자기주식' in report_nm or '자사주' in report_nm:
-                            weight = 0.85
+                            if '처분' in report_nm or '매각' in report_nm:
+                                weight = 0.20  # Bearish (Disposal / Supply pressure)
+                            elif '취득' in report_nm or '매입' in report_nm or '소각' in report_nm:
+                                weight = 0.85  # Bullish (Acquisition / Cancellation)
+                            else:
+                                weight = 0.60  # Neutral / Informational
                         elif '무상증자' in report_nm or '주식분할' in report_nm:
-                            weight = 0.90
+                            weight = 0.90  # Bullish
                         elif '영업이익' in report_nm or '실적' in report_nm:
-                            weight = 0.75
+                            if '적자' in report_nm or '감소' in report_nm:
+                                weight = 0.30
+                            else:
+                                weight = 0.75
 
                         scores_map[sym] = max(scores_map[sym], weight)
 

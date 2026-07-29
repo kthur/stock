@@ -748,8 +748,9 @@ def format_telegram_alert_summary(ensemble: EnsembleData, regime_2d: str = "SIDE
 
 def make_stock_link(symbol: str, market: str) -> str:
     clean_sym = symbol.strip()
+    raw_code = clean_sym.split('.')[0]
     if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
-        return f'<a href="https://m.stock.naver.com/item/main.nhn?code={clean_sym}" target="_blank" class="stock-link">{clean_sym}</a>'
+        return f'<a href="https://m.stock.naver.com/domestic/stock/{raw_code}/total" target="_blank" class="stock-link">{clean_sym}</a>'
     else:
         return f'<a href="https://finance.yahoo.com/quote/{clean_sym}" target="_blank" class="stock-link">{clean_sym}</a>'
 

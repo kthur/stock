@@ -173,27 +173,33 @@ class StatisticalArbitrageEngine:
                     if np.isnan(corr) or abs(corr) < min_correlation:
                         continue
 
-                    slope, intercept, _, _, _ = linregress(s2_prices, s1_prices)
-                    spread = s1_prices - (slope * s2_prices + intercept)
+                    # Fit hedge ratio on historical window up to t-1 to prevent look-ahead bias
+                    s1_hist, s2_hist = s1_prices[:-1], s2_prices[:-1]
+                    slope, intercept, _, _, _ = linregress(s2_hist, s1_hist)
+                    spread_hist = s1_hist - (slope * s2_hist + intercept)
 
                     eff_max_pvalue = max(0.60, max_pvalue) if len(symbols) <= 10 else max_pvalue
-                    adf_stat, pvalue = _estimate_adf_pvalue(spread)
+                    adf_stat, pvalue = _estimate_adf_pvalue(spread_hist)
                     if pvalue > eff_max_pvalue:
                         continue
 
-                    half_life = _estimate_half_life(spread)
+                    half_life = _estimate_half_life(spread_hist)
                     if half_life <= 0 or half_life > max_half_life:
                         continue
 
-                    spread_mean = np.mean(spread)
-                    spread_std = np.std(spread)
+                    spread_mean = np.mean(spread_hist)
+                    spread_std = np.std(spread_hist)
                     if spread_std <= 1e-8:
                         continue
 
-                    z_score = (spread[-1] - spread_mean) / spread_std
+                    # Calculate z-score at current time t (index -1) out-of-sample
+                    current_spread = s1_prices[-1] - (slope * s2_prices[-1] + intercept)
+                    z_score = (current_spread - spread_mean) / spread_std
 
                     signal = "NEUTRAL"
-                    if z_score >= min_zscore:
+                    if abs(z_score) > 3.2 or half_life > 60.0:
+                        signal = "STOP_LOSS_NEUTRAL"
+                    elif z_score >= min_zscore:
                         signal = f"SHORT_{s1}_LONG_{s2}"
                     elif z_score <= -min_zscore:
                         signal = f"LONG_{s1}_SHORT_{s2}"
@@ -214,6 +220,21 @@ class StatisticalArbitrageEngine:
                     continue
 
         found_pairs.sort(key=lambda x: abs(x.get("z_score", 0.0)), reverse=True)
+        
+        # Benjamini-Hochberg FDR p-value correction to control false discovery rate
+        if found_pairs:
+            pvals = [p['adf_pvalue'] for p in found_pairs]
+            n_tests = len(pvals)
+            sorted_indices = np.argsort(pvals)
+            fdr_passed = []
+            for rank, idx in enumerate(sorted_indices, 1):
+                q_val = pvals[idx] * n_tests / rank
+                if q_val <= max_pvalue * 2:
+                    p = found_pairs[idx]
+                    p['q_value'] = round(float(min(1.0, q_val)), 4)
+                    fdr_passed.append(p)
+            found_pairs = fdr_passed if fdr_passed else found_pairs[:50]
+
         found_pairs = found_pairs[:500]
 
         if found_pairs:

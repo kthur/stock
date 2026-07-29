@@ -1255,13 +1255,14 @@ class OnDevicePredictionModel:
             df['symbol'] = sym
             df_feat = self._create_features(df, indicator_df, storage)
             df_feat = self._create_targets(df_feat)
-            # Drop rows where non-fundamental features or targets are missing
+            # Drop rows where non-fundamental features are missing (exclude targets & fundamentals)
             fundamental_cols = [
                 'operating_margin', 'revenue_to_market_cap', 'dividend_yield',
                 'net_profit_margin', 'eps_yield', 'eps_growth_1y', 'revenue_growth_1y',
                 'revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share'
             ]
-            drop_subset = [c for c in df_feat.columns if c not in fundamental_cols and c != 'symbol']
+            target_cols = [c for c in df_feat.columns if c.startswith(('target_', 'surge_', 'raw_surge_target_', 'future_'))]
+            drop_subset = [c for c in df_feat.columns if c not in fundamental_cols and c not in target_cols and c != 'symbol']
             df_clean = df_feat.dropna(subset=drop_subset)
             if not df_clean.empty:
                 df_clean = df_clean.drop(columns=['date', 'Date', 'index'], errors='ignore')
@@ -1399,22 +1400,31 @@ class OnDevicePredictionModel:
         for h in self.horizons:
             logger.info(f"Training {market} model (XGB/LGB/Cat) for {h}d horizon...")
 
-            # ── Scaler (fit on full training data once) ─────────────────────
+            target_col = f'target_{h}d'
+            if target_col not in df_train.columns:
+                continue
+
+            # Drop missing targets for this specific horizon (preserves recent data for short horizons)
+            df_h = df_train.dropna(subset=[target_col]).reset_index(drop=True)
+            if df_h.empty:
+                logger.warning(f"No valid target rows for {market} {h}d horizon, skipping")
+                continue
+
             from src.ai.feature_engineering import fit_scaler, apply_scaler
-            scaler = fit_scaler(df_train, features, str(self.model_dir), market, h)
-            df_scaled = apply_scaler(df_train, features, scaler)
-            X_all = df_scaled[features]
-
-            # ── Sharpe-aware target transform ───────────────────────────────
             from src.ai.target_transform import transform_sharpe
-            y_all = transform_sharpe(df_train[f'target_{h}d'])
 
-            # ── Walk-Forward cross-validation (or skip if data too small) ─────
+            # ── Walk-Forward cross-validation (with strict in-fold scaler fitting) ─────
             fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
-            if use_wf:
-                for fold_idx, (tr_idx, va_idx) in enumerate(tscv.split(X_all)):
-                    X_tr, y_tr = X_all.iloc[tr_idx], y_all.iloc[tr_idx]
-                    X_va, y_va = X_all.iloc[va_idx], y_all.iloc[va_idx]
+            if use_wf and len(df_h) >= 100:
+                for fold_idx, (tr_idx, va_idx) in enumerate(tscv.split(df_h)):
+                    df_tr = df_h.iloc[tr_idx]
+                    df_va = df_h.iloc[va_idx]
+
+                    scaler_fold = fit_scaler(df_tr, features, str(self.model_dir), f"{market}_fold{fold_idx}", h)
+                    X_tr = apply_scaler(df_tr, features, scaler_fold)[features]
+                    X_va = apply_scaler(df_va, features, scaler_fold)[features]
+                    y_tr = transform_sharpe(df_tr[target_col])
+                    y_va = transform_sharpe(df_va[target_col])
 
                     # XGBoost fold
                     kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
@@ -1471,6 +1481,11 @@ class OnDevicePredictionModel:
                 avg_mse_xgb = avg_mse_lgb = avg_mse_cat = 1.0
 
             # ── Final model: retrain on ALL data ────────────────────────────
+            scaler = fit_scaler(df_h, features, str(self.model_dir), market, h)
+            df_scaled = apply_scaler(df_h, features, scaler)
+            X_all = df_scaled[features]
+            y_all = transform_sharpe(df_h[target_col])
+
             kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
             model_xgb = xgb.XGBRegressor(**kw_no_es)
             model_xgb.fit(X_all, y_all)

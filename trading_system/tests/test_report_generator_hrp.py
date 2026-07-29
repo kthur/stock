@@ -41,14 +41,14 @@ except ModuleNotFoundError:
 
 def test_make_stock_link_krx():
     link_kospi = make_stock_link("005930", "KOSPI")
-    assert "https://m.stock.naver.com/item/main.nhn?code=005930" in link_kospi
+    assert "https://m.stock.naver.com/domestic/stock/005930/total" in link_kospi
     assert 'class="stock-link"' in link_kospi
 
     link_kosdaq = make_stock_link("035420", "KOSDAQ")
-    assert "https://m.stock.naver.com/item/main.nhn?code=035420" in link_kosdaq
+    assert "https://m.stock.naver.com/domestic/stock/035420/total" in link_kosdaq
 
     link_konex = make_stock_link("123450", "KONEX")
-    assert "https://m.stock.naver.com/item/main.nhn?code=123450" in link_konex
+    assert "https://m.stock.naver.com/domestic/stock/123450/total" in link_konex
 
 
 def test_make_stock_link_sp500():
@@ -170,7 +170,7 @@ def test_build_html_contains_hrp_and_regime_tabs():
 
     assert "Portfolio (HRP)" in html
     assert "Regime &amp; Strategy" in html or "Regime & Strategy" in html
-    assert "https://m.stock.naver.com/item/main.nhn?code=005930" in html
+    assert "https://m.stock.naver.com/domestic/stock/005930/total" in html
     assert "https://finance.yahoo.com/quote/AAPL" in html
     assert "hrpDonutChart" in html
     assert "marketExposureChart" in html

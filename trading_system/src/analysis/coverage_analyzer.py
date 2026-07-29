@@ -70,17 +70,39 @@ class StrategyCoverageAnalyzer:
                 missing_cnt = total_symbols
                 cov_pct = 0.0
 
-            # Missingness reason estimation
+            # Dynamic missingness reason calculation by inspecting underlying data
             reasons = {}
             if missing_cnt > 0:
-                if strat in ['rim_valuation', 'mq_factor']:
-                    reasons['NO_FUNDAMENTAL'] = missing_cnt
-                elif strat == 'iv_skew':
-                    reasons['NO_OPTIONS_DATA'] = missing_cnt
-                elif strat in ['stat_arb']:
-                    reasons['UNCOINTEGRATED_OR_SNR_LOW'] = missing_cnt
-                else:
-                    reasons['INSUFFICIENT_PRICE_HISTORY'] = missing_cnt
+                missing_mask = ~valid_mask
+                missing_syms = set(ensemble_df.loc[missing_mask, 'symbol']) if 'symbol' in ensemble_df.columns else set()
+
+                no_price_cnt = 0
+                no_fund_cnt = 0
+                other_cnt = 0
+
+                fund_cols = ['bps', 'roe', 'operating_margin', 'net_profit_margin']
+                has_fund = (features_df is not None and not features_df.empty and any(c in features_df.columns for c in fund_cols))
+
+                for sym in missing_syms:
+                    p_df = prices_dict.get(sym) if prices_dict else None
+                    if p_df is None or len(p_df) < 200:
+                        no_price_cnt += 1
+                    elif strat in ['rim_valuation', 'mq_factor'] and not has_fund:
+                        no_fund_cnt += 1
+                    else:
+                        other_cnt += 1
+
+                if no_price_cnt > 0:
+                    reasons['INSUFFICIENT_PRICE_HISTORY'] = no_price_cnt
+                if no_fund_cnt > 0:
+                    reasons['NO_FUNDAMENTAL_DATA'] = no_fund_cnt
+                if other_cnt > 0:
+                    if strat == 'iv_skew':
+                        reasons['NO_OPTIONS_CHAIN'] = other_cnt
+                    elif strat == 'stat_arb':
+                        reasons['NO_COINTEGRATED_PAIR'] = other_cnt
+                    else:
+                        reasons['STRATEGY_SIGNAL_NEUTRAL'] = other_cnt
 
             strat_stats[strat] = {
                 'valid_count': valid_cnt,

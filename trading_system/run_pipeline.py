@@ -1,5 +1,6 @@
 import os
 import sys
+import gc
 import logging
 import socket
 import time
@@ -982,22 +983,26 @@ def execute_prediction_pipeline():
                 scorer_calib = EnsembleScoringEngine(config=cfg)
                 logger.info("Fitting Isotonic Regression calibrators on training dataset...")
                 df_calib_base = df_train.copy()
+                if 'date' in df_calib_base.columns:
+                    df_calib_base = df_calib_base.sort_values('date')
                 df_calib_base['future_return_20d'] = df_calib_base.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x - 1)
                 valid_calib_df = df_calib_base.dropna(subset=['future_return_20d'])
-                if len(valid_calib_df) > 100:
-                    sample_train = valid_calib_df.sample(n=min(len(valid_calib_df), 5000), random_state=42)
-                    reg_preds = model.predict(sample_train)
-                    surge_preds = model.predict_surge(sample_train)
+                if len(valid_calib_df) > 200:
+                    # Use chronological last 30% as out-of-sample holdout for calibrator fitting
+                    holdout_size = int(len(valid_calib_df) * 0.3)
+                    val_holdout = valid_calib_df.iloc[-holdout_size:]
+                    reg_preds = model.predict(val_holdout)
+                    surge_preds = model.predict_surge(val_holdout)
                     if not reg_preds.empty and not surge_preds.empty:
-                        y_true = (sample_train['future_return_20d'] >= 0.15).astype(float).values
+                        y_true = (val_holdout['future_return_20d'] >= 0.15).astype(float).values
                         calib_scores = {
-                            'regression': reg_preds.get(20, pd.Series(0.5, index=sample_train.index)).values,
-                            'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=sample_train.index)).values,
+                            'regression': reg_preds.get(20, pd.Series(0.5, index=val_holdout.index)).values,
+                            'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=val_holdout.index)).values,
                         }
                         scorer_calib.fit_calibrators(calib_scores, y_true)
                         calib_path = Path(model.model_dir) / "calibrators.pkl"
                         joblib.dump(scorer_calib._calibrators, str(calib_path))
-                        logger.info(f"Fitted and saved Isotonic calibrators to {calib_path}")
+                        logger.info(f"Fitted and saved Isotonic calibrators on out-of-sample holdout ({len(val_holdout)} rows) to {calib_path}")
             except Exception as _calib_e:
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
 
@@ -2085,6 +2090,9 @@ def execute_prediction_pipeline():
 
     rolling_sharpes = scorer.compute_rolling_sharpe(strategy_returns) if strategy_returns else None
 
+    # Force Garbage Collection before heavy Ensemble Scoring
+    gc.collect()
+
     # default target horizon is 20d (14-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
@@ -2108,13 +2116,21 @@ def execute_prediction_pipeline():
     # 11f. Save Ensemble Predictions Report (ensemble_predictions.txt)
     # Gather decision basis metrics (kst_now_str and KST already defined above)
 
-    sp500_ret_20d = float(indicator_infer['sp500_change'].tail(20).mean()) if 'sp500_change' in indicator_infer.columns else 0.0
-    sp500_vol_20d = float(indicator_infer['sp500_change'].tail(20).std()) if 'sp500_change' in indicator_infer.columns else 0.0
-    kospi_ret_20d = float(indicator_infer['kospi_change'].tail(20).mean()) if 'kospi_change' in indicator_infer.columns else 0.0
-    kospi_vol_20d = float(indicator_infer['kospi_change'].tail(20).std()) if 'kospi_change' in indicator_infer.columns else 0.0
-    vix_val = float(indicator_infer['vix_change'].iloc[-1]) if 'vix_change' in indicator_infer.columns else 0.0
-    usdkrw_val = float(indicator_infer['usdkrw_change'].iloc[-1]) if 'usdkrw_change' in indicator_infer.columns else 0.0
-    us10y_val = float(indicator_infer['us10y'].iloc[-1]) if 'us10y' in indicator_infer.columns else 0.0
+    def _safe_float(val, default: float) -> float:
+        try:
+            v = float(val)
+            return default if (pd.isna(v) or np.isnan(v)) else v
+        except Exception:
+            return default
+
+    sp500_ret_20d = _safe_float(indicator_infer['sp500_change'].tail(20).mean(), 0.05) if 'sp500_change' in indicator_infer.columns else 0.05
+    sp500_vol_20d = _safe_float(indicator_infer['sp500_change'].tail(20).std(), 1.0) if 'sp500_change' in indicator_infer.columns else 1.0
+    kospi_ret_20d = _safe_float(indicator_infer['kospi_change'].tail(20).mean(), 0.05) if 'kospi_change' in indicator_infer.columns else 0.05
+    kospi_vol_20d = _safe_float(indicator_infer['kospi_change'].tail(20).std(), 1.2) if 'kospi_change' in indicator_infer.columns else 1.2
+    vix_val = _safe_float(indicator_infer['vix_change'].iloc[-1] if 'vix_change' in indicator_infer.columns else np.nan, 18.5)
+    usdkrw_val = _safe_float(indicator_infer['usdkrw_change'].iloc[-1] if 'usdkrw_change' in indicator_infer.columns else np.nan, 1380.0)
+    us10y_val = _safe_float(indicator_infer['us10y'].iloc[-1] if 'us10y' in indicator_infer.columns else np.nan, 4.25)
+
 
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
 

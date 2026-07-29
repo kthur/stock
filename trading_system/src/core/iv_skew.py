@@ -33,7 +33,13 @@ class IVSkewEngine:
             if not expirations:
                 return 0.5
 
-            # Pick nearest expiration date (> 3 days out)
+            # Get current stock price to filter near-the-money (ATM) options
+            hist = t.history(period='5d')
+            if hist.empty:
+                return 0.5
+            underlying_price = float(hist['Close'].iloc[-1])
+
+            # Pick nearest expiration date
             exp = expirations[0]
             chain = t.option_chain(exp)
             calls, puts = chain.calls, chain.puts
@@ -41,8 +47,15 @@ class IVSkewEngine:
             if calls.empty or puts.empty:
                 return 0.5
 
-            call_iv = calls['impliedVolatility'].median()
-            put_iv = puts['impliedVolatility'].median()
+            # Filter ATM options (strike within ±8% of underlying price)
+            atm_calls = calls[abs(calls['strike'] - underlying_price) / underlying_price <= 0.08]
+            atm_puts = puts[abs(puts['strike'] - underlying_price) / underlying_price <= 0.08]
+
+            eff_calls = atm_calls if not atm_calls.empty else calls
+            eff_puts = atm_puts if not atm_puts.empty else puts
+
+            call_iv = eff_calls['impliedVolatility'].median()
+            put_iv = eff_puts['impliedVolatility'].median()
 
             if call_iv <= 0 or np.isnan(call_iv):
                 return 0.5
@@ -76,26 +89,36 @@ class IVSkewEngine:
 
         def _evaluate_one(sym: str):
             score = 0.5
+            # Try options chain via yfinance for US tickers (non-numeric symbols without dot)
             if not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym:
-                score = self.compute_skew_for_ticker(sym)
-            elif prices_dict and sym in prices_dict:
+                try:
+                    score = self.compute_skew_for_ticker(sym)
+                except Exception:
+                    score = 0.5
+
+            # Fallback for KRX or non-optionable stocks: calculate downside vs upside vol skew from price history
+            if (score == 0.5 or sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9'))) and prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 20:
                     try:
                         c = df['Close']
                         if isinstance(c, pd.DataFrame):
                             c = c.iloc[:, 0]
-                        ret = c.pct_change().dropna()
-                        down_ret = ret[ret < 0]
-                        up_ret = ret[ret > 0]
-                        down_vol = float(down_ret.iloc[-20:].std()) if len(down_ret) >= 2 else 0.01
-                        up_vol = float(up_ret.iloc[-20:].std()) if len(up_ret) >= 2 else 0.01
-                        if np.isnan(down_vol):
-                            down_vol = 0.01
-                        if np.isnan(up_vol) or up_vol <= 0:
-                            up_vol = 0.01
-                        skew_ratio = down_vol / up_vol
-                        score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.3, 0.0, 1.0))
+                        c = c.dropna()
+                        if len(c) >= 20:
+                            ret = c.pct_change().dropna()
+                            down_ret = ret[ret < 0]
+                            up_ret = ret[ret > 0]
+                            down_vol = float(down_ret.iloc[-20:].std()) if len(down_ret) >= 2 else 0.01
+                            up_vol = float(up_ret.iloc[-20:].std()) if len(up_ret) >= 2 else 0.01
+                            if np.isnan(down_vol) or down_vol <= 0:
+                                down_vol = 0.01
+                            if np.isnan(up_vol) or up_vol <= 0:
+                                up_vol = 0.01
+                            skew_ratio = down_vol / up_vol
+                            # Extreme downside volatility relative to upside volatility signals fear -> contrarian score
+                            realized_score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.35, 0.0, 1.0))
+                            score = realized_score if score == 0.5 else score
                     except Exception:
                         score = 0.5
             return sym, score

@@ -21,7 +21,7 @@ _DEFAULT_STOCK_PRICES_DB = _TRADING_SYSTEM_ROOT / "stock_prices.db"
 
 
 class _DBConnection:
-    """재사용 가능한 aiosqlite 연결 관리자"""
+    """재사용 가능한 aiosqlite 연결 관리자 (Lock 기반 트랜잭션 보호)"""
 
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -38,6 +38,14 @@ class _DBConnection:
                 except Exception:
                     self._conn = await aiosqlite.connect(self.db_path)
             return self._conn
+
+    async def execute_write(self, sql: str, params: tuple = ()):
+        """Locks connection during write and commit to ensure transaction isolation."""
+        async with self._lock:
+            if self._conn is None:
+                self._conn = await aiosqlite.connect(self.db_path)
+            await self._conn.execute(sql, params)
+            await self._conn.commit()
 
     async def close(self):
         async with self._lock:
@@ -106,43 +114,35 @@ class TradeLogger:
     async def log_order(self, order: Any) -> None:
         """주문 로그"""
         await self._init_database()
-        conn = await self._get_conn()
-        await conn.execute(
-            """
+        sql = """
             INSERT OR REPLACE INTO orders
             (order_id, symbol, order_type, quantity, price, status, filled_quantity, created_at, executed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                order.order_id,
-                order.symbol,
-                order.order_type.value,
-                order.quantity,
-                order.price,
-                order.status.value,
-                order.filled_quantity,
-                order.created_at.isoformat(),
-                order.executed_at.isoformat() if order.executed_at else None,
-            ),
+        """
+        params = (
+            order.order_id,
+            order.symbol,
+            order.order_type.value,
+            order.quantity,
+            order.price,
+            order.status.value,
+            order.filled_quantity,
+            order.created_at.isoformat(),
+            order.executed_at.isoformat() if order.executed_at else None,
         )
-        await conn.commit()
-
+        await self._conn_mgr.execute_write(sql, params)
         self.logger.debug(f"Order logged: {order.order_id}")
 
     async def log_execution(self, order_id: str, symbol: str, quantity: int, price: float):
         """체결 기록"""
         await self._init_database()
-        conn = await self._get_conn()
-        await conn.execute(
-            """
+        sql = """
             INSERT INTO executions
             (order_id, symbol, quantity, price, executed_at)
             VALUES (?, ?, ?, ?, ?)
-        """,
-            (order_id, symbol, quantity, price, datetime.now().isoformat()),
-        )
-        await conn.commit()
-
+        """
+        params = (order_id, symbol, quantity, price, datetime.now().isoformat())
+        await self._conn_mgr.execute_write(sql, params)
         self.logger.info(f"Execution logged: {symbol} x{quantity} @ {price}")
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> List[Dict]:
@@ -206,17 +206,13 @@ class AssetHistoryDB:
     async def save_snapshot(self, cash: float, total_value: float, holdings: Dict[str, int]):
         """자산 스냅샷 저장"""
         await self._init_database()
-        conn = await self._get_conn()
         holdings_json = json.dumps(holdings)
-        await conn.execute(
-            """
+        sql = """
             INSERT INTO asset_snapshots (cash, total_value, holdings, timestamp)
             VALUES (?, ?, ?, ?)
-        """,
-            (cash, total_value, holdings_json, datetime.now().isoformat()),
-        )
-        await conn.commit()
-
+        """
+        params = (cash, total_value, holdings_json, datetime.now().isoformat())
+        await self._conn_mgr.execute_write(sql, params)
         self.logger.info(f"Asset snapshot saved: cash={cash}, total={total_value}")
 
     async def get_history(self, limit: int = 100) -> List[Dict]:
@@ -282,25 +278,22 @@ class AIPredictionDB:
 
     async def log_prediction(self, opinion: Any, current_price: float) -> None:
         await self._init_database()
-        conn = await self._get_conn()
-        await conn.execute(
-            """
+        sql = """
             INSERT INTO predictions
             (symbol, recommendation, sentiment, confidence, target_price, current_price, reasoning, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                opinion.symbol,
-                opinion.recommendation,
-                opinion.sentiment.value if hasattr(opinion.sentiment, "value") else str(opinion.sentiment),
-                opinion.confidence,
-                opinion.target_price,
-                current_price,
-                opinion.reasoning,
-                opinion.timestamp.isoformat() if opinion.timestamp else datetime.now().isoformat(),
-            ),
+        """
+        params = (
+            opinion.symbol,
+            opinion.recommendation,
+            opinion.sentiment.value if hasattr(opinion.sentiment, "value") else str(opinion.sentiment),
+            opinion.confidence,
+            opinion.target_price,
+            current_price,
+            opinion.reasoning,
+            opinion.timestamp.isoformat() if opinion.timestamp else datetime.now().isoformat(),
         )
-        await conn.commit()
+        await self._conn_mgr.execute_write(sql, params)
         self.logger.debug(f"AI prediction logged for {opinion.symbol}")
 
     async def evaluate_pending_predictions(self, get_current_price_func: Callable[[str], float]) -> None:

@@ -687,7 +687,7 @@ class EnsembleScoringEngine:
         for strat_name, score_col in strategy_cols:
             w = weights.get(strat_name, 0.10)
             if score_col in merged.columns:
-                valid_mask = merged[score_col].notna()
+                valid_mask = merged[score_col].notna() & (merged[score_col] > 0.0)
                 total_score_series += merged[score_col].fillna(0.0) * w * valid_mask.astype(float)
                 total_weight_series += w * valid_mask.astype(float)
 
@@ -708,8 +708,10 @@ class EnsembleScoringEngine:
             else:
                 merged[col] = 0.0
 
-        # Scale Ensemble Score to Return Proxy (%)
-        raw_exp_ret = merged['ensemble_score'] * self._return_multiplier
+        # Scale Ensemble Score to Calibrated Realistic Expected Return Proxy (%) [e.g. 0% ~ 50% max]
+        # ensemble_score is [0, 1]. For a 20d horizon, score 1.0 represents ~25% expected gain max.
+        mult = self._return_multiplier if self._return_multiplier <= 1.0 else (self._return_multiplier / 100.0)
+        raw_exp_ret = merged['ensemble_score'] * mult * 100.0
 
         # Apply Market-specific Transaction Cost & Slippage Deductions
         slippage = getattr(self.config, 'slippage_krx_market_order', 0.005) if self.config is not None else 0.005
@@ -724,7 +726,7 @@ class EnsembleScoringEngine:
             return 0.0010
 
         cost_series = merged['symbol'].apply(_get_cost_pct)
-        merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0)
+        merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0, upper=50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:
@@ -735,7 +737,31 @@ class EnsembleScoringEngine:
                 merged.loc[mask, 'ensemble_expected_return'] = 0.0
                 logger.info(f"[ENSEMBLE SENTIMENT FILTER] Zero-weighted {mask.sum()} blacklisted symbols.")
 
+        # ─── Liquidity Gate & Preferred Stock / SPAC Filter ──────────────────────
+        # Filter out preferred stocks (e.g., symbols ending in '우', '1우', '2우B', or symbol pattern for preferreds) and SPACs
+        def _is_illiquid_or_preferred(row: pd.Series) -> bool:
+            sym = str(row.get('symbol', ''))
+            name = str(row.get('name', ''))
+            # Preferred stock check
+            if name.endswith('우') or name.endswith('우B') or name.endswith('1우') or name.endswith('2우B') or name.endswith('3우B'):
+                return True
+            if len(sym) == 6 and sym[-1] in ['K', 'L', 'M', 'N', 'O']:
+                return True
+            # SPAC check
+            if '스팩' in name or 'SPAC' in name.upper():
+                return True
+            return False
+
+        # Apply illiquid/preferred tag (zero-weight or filter out for top recommendations)
+        illiquid_mask = merged.apply(_is_illiquid_or_preferred, axis=1)
+        if illiquid_mask.any():
+            logger.info(f"[LIQUIDITY GATE] Flagged {illiquid_mask.sum()} preferred/SPAC/illiquid stocks.")
+            # Zero-out ensemble score for preferred/SPACs so they do not populate Top 20 recommendations
+            merged.loc[illiquid_mask, 'ensemble_score'] = 0.0
+            merged.loc[illiquid_mask, 'ensemble_expected_return'] = 0.0
+
         # Sort by ensemble score descending
         merged = merged.sort_values(by='ensemble_score', ascending=False).reset_index(drop=True)
         return merged
+
 

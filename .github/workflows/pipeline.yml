@@ -223,14 +223,15 @@ jobs:
 
       - name: Merge and reconstruct outputs
         run: |
-          # Run python merging script to generate unified result files
-          python3 trading_system/merge_predictions.py
-          
-          # Keep suffix-named files for release assets download (which creation step relies on)
+          mkdir -p trading_system/result
+          # Copy market-split files into result directory before running merge script
           cp trading_system/result_SP500/*_SP500.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSPI/*_KOSPI.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSDAQ/*_KOSDAQ.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KONEX/*_KONEX.txt trading_system/result/ 2>/dev/null || true
+          
+          # Run python merging script to generate unified result files
+          python3 trading_system/merge_predictions.py
 
       - name: Upload merged results as artifact
         if: always()
@@ -293,6 +294,7 @@ jobs:
 
       - name: Generate HTML dashboard
         run: |
+          mkdir -p gh-pages
           uv python install 3.12
           uv venv --python 3.12 .venv
           # Install minimal deps required by generate_report.py

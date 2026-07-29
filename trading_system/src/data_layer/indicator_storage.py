@@ -280,13 +280,13 @@ class MarketIndicatorStorage:
         if market:
             query += " WHERE market = ?"
             params = (market,)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             return pd.read_sql(query, conn, params=params)
 
     def get_sector_map(self) -> Dict[str, str]:
         """Returns mapping of symbol -> sector string from stock_universe table."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 df = pd.read_sql("SELECT symbol, sector FROM stock_universe", conn)
                 if not df.empty and 'sector' in df.columns:
                     return dict(zip(df['symbol'], df['sector'].fillna('General')))
@@ -308,7 +308,7 @@ class MarketIndicatorStorage:
 
     def get_predictions(self, date_str: Optional[str] = None) -> pd.DataFrame:
         """Get AI predictions. If date_str is None, returns the latest predictions."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             if date_str:
                 query = "SELECT * FROM ai_predictions WHERE date = ?"
                 return pd.read_sql(query, conn, params=(date_str,))
@@ -409,7 +409,7 @@ class MarketIndicatorStorage:
         chunk_size = 900
         chunks = [symbols[i:i + chunk_size] for i in range(0, len(symbols), chunk_size)]
         dfs = []
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             for chunk in chunks:
                 placeholders = ",".join(["?"] * len(chunk))
                 query = f"SELECT * FROM stock_fundamentals WHERE symbol IN ({placeholders}) ORDER BY symbol, date ASC"  # nosec B608
@@ -420,7 +420,7 @@ class MarketIndicatorStorage:
     def get_daily_global_market_baselines(self, market_type: str) -> pd.DataFrame:
         """Get standard normalizer reference values for daily sum of cap, float and volume for a market type."""
         query = "SELECT date, market_cap_sum, floating_value_sum, volume_sum FROM market_baselines WHERE market_type = ? ORDER BY date ASC"
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             df = pd.read_sql(query, conn, params=(market_type,))
         if not df.empty:
             df.set_index("date", inplace=True)

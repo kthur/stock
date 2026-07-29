@@ -53,12 +53,24 @@ class OrderFlowEngine:
                 ret = close.pct_change().dropna()
                 vol_sub = volume.iloc[-len(ret):]
 
-                # Directional Money Flow Volume
+                # Directional Money Flow Volume (MFI)
                 positive_flow = np.where(ret > 0, ret * vol_sub, 0.0).sum()
                 negative_flow = np.where(ret < 0, abs(ret) * vol_sub, 0.0).sum()
                 total_flow = positive_flow + negative_flow + 1e-12
 
                 mfi_ratio = positive_flow / total_flow
+
+                # OBV (On-Balance Volume) 10-day slope trend
+                obv = (np.sign(ret) * vol_sub).cumsum()
+                obv_trend = float((obv.iloc[-1] - obv.iloc[0]) / (abs(obv.iloc[0]) + 1e-6)) if len(obv) >= 10 else 0.0
+
+                # Volume Acceleration Ratio (5d avg volume / 20d avg volume)
+                vol_5d = float(volume.iloc[-5:].mean()) if len(volume) >= 5 else float(volume.iloc[-1])
+                vol_20d = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else vol_5d
+                vol_accel = (vol_5d / (vol_20d + 1e-6)) if vol_20d > 0 else 1.0
+
+                # Composite order flow indicator
+                composite_flow = 0.60 * mfi_ratio + 0.25 * np.clip(0.5 + obv_trend * 0.1, 0.0, 1.0) + 0.15 * np.clip(vol_accel / 2.0, 0.0, 1.0)
 
                 # Check if detailed foreign/institutional flow data is available
                 inst_boost = 0.0
@@ -75,7 +87,7 @@ class OrderFlowEngine:
 
                 records.append({
                     'symbol': sym,
-                    'mfi_ratio': mfi_ratio + inst_boost
+                    'mfi_ratio': composite_flow + inst_boost
                 })
             except Exception as e:
                 logger.debug(f"Order flow score failed for {sym}: {e}")

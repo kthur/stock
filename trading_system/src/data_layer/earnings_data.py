@@ -279,7 +279,7 @@ def fetch_and_store_fundamentals_batch(
         if not to_fetch:
             return 0
 
-        results = {}
+        stored = 0
         success = 0
         sem = asyncio.Semaphore(10)
 
@@ -299,34 +299,26 @@ def fetch_and_store_fundamentals_batch(
 
             for f in asyncio.as_completed(tasks):
                 sym, df_fun = await f
-                # Save fundamental meta ONLY when data fetch returned valid non-empty results
                 if df_fun is not None and not df_fun.empty:
                     try:
+                        # Stream save fundamental data immediately to DB to save RAM
+                        df_fun_copy = df_fun.copy()
+                        df_fun_copy['symbol'] = sym
+                        df_fun_copy['date'] = df_fun_copy.index.strftime('%Y-%m-%d')
+                        df_fun_copy = df_fun_copy.reset_index(drop=True)
+                        storage.save_fundamentals(df_fun_copy)
+                        stored += 1
+
                         if hasattr(storage, 'save_fundamental_meta'):
                             storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))
+                        success += 1
                     except Exception as e:
-                        logger.warning(f"Failed to save metadata for {sym}: {e}")
-                    results[sym] = df_fun
-                    success += 1
+                        logger.warning(f"Failed to store fundamentals for {sym}: {e}")
                 done_count += 1
                 if done_count % 500 == 0 or done_count == total_fetch:
                     logger.info(f"Fundamentals progress: {done_count}/{total_fetch} ({success} fetched, {skipped} skipped)")
 
-        logger.info(f"Fetched fundamentals for {success}/{total_fetch} symbols ({skipped} skipped)")
-
-        stored = 0
-        for sym, df_fun in results.items():
-            try:
-                df_fun = df_fun.copy()
-                df_fun['symbol'] = sym
-                df_fun['date'] = df_fun.index.strftime('%Y-%m-%d')
-                df_fun = df_fun.reset_index(drop=True)
-                storage.save_fundamentals(df_fun)
-                stored += 1
-            except Exception as e:
-                logger.warning(f"Failed to store fundamentals for {sym}: {e}")
-
-        logger.info(f"Stored fundamentals for {stored}/{success} symbols in DB")
+        logger.info(f"Streamed and stored fundamentals for {stored}/{total_fetch} symbols in DB")
         return stored
 
     # Run execution with thread safety for event loop context
