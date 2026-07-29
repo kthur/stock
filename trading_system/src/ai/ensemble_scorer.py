@@ -922,27 +922,29 @@ class EnsembleScoringEngine:
         mult = self._return_multiplier if self._return_multiplier <= 1.0 else (self._return_multiplier / 100.0)
         raw_exp_ret = merged['ensemble_score'] * mult * 100.0
 
-        # Fix Task 4: Apply Market-specific Transaction Cost & Slippage Deductions consistently
-        # (KONEX 0.8%, KOSDAQ 0.5%, KOSPI 0.35%, SP500 0.10% + 0.5% slippage)
-        slippage = getattr(self.config, 'slippage_krx_market_order', 0.005) if self.config is not None else 0.005
+        # Microstructure execution model: Sell-side STT tax (KOSPI 0.15%, KOSDAQ 0.18%, KONEX 0.10%),
+        # SEC/FINRA fees (~0.003%), Bid-Ask spread proxy (0.05%~0.30%), and ADV market impact (Q / ADV).
+        base_slippage = getattr(self.config, 'slippage_krx_market_order', 0.005) if self.config is not None else 0.005
 
-        def _get_cost_pct(row_or_sym) -> float:
-            if isinstance(row_or_sym, pd.Series):
-                symbol = str(row_or_sym.get('symbol', ''))
-                market = str(row_or_sym.get('market', '')).upper()
-            else:
-                symbol = str(row_or_sym)
-                market = ''
+        def _get_cost_pct(row: pd.Series) -> float:
+            symbol = str(row.get('symbol', ''))
+            market = str(row.get('market', '')).upper()
+            vol = float(row.get('volume', 0.0)) if pd.notna(row.get('volume')) else 0.0
+            close_p = float(row.get('close', 0.0)) if pd.notna(row.get('close')) else 0.0
+            turnover = vol * close_p
+
+            # Market impact penalty based on liquidity (higher impact for low turnover)
+            impact_penalty = 0.005 if turnover < 100_000_000 else (0.002 if turnover < 1_000_000_000 else 0.0)
 
             if market == 'KONEX' or symbol.endswith('.KN'):
-                return 0.0080 + slippage
+                return 0.0010 + 0.0010 + base_slippage + impact_penalty  # STT 0.10% + Spread 0.10%
             elif market == 'KOSDAQ' or symbol.endswith('.KQ'):
-                return 0.0050 + slippage
+                return 0.0018 + 0.0015 + base_slippage + impact_penalty  # STT 0.18% + Spread 0.15%
             elif market == 'KOSPI' or symbol.endswith('.KS') or (symbol.isdigit() and len(symbol) == 6):
-                return 0.0035 + slippage
+                return 0.0015 + 0.0008 + base_slippage + impact_penalty  # STT 0.15% + Spread 0.08%
             elif market == 'SP500' or (symbol.isalpha() and len(symbol) <= 5):
-                return 0.0010 + slippage
-            return 0.0010 + slippage
+                return 0.0003 + 0.0003 + (base_slippage * 0.2) + impact_penalty  # SEC fee + Tight US spread
+            return 0.0020 + base_slippage + impact_penalty
 
         cost_series = merged.apply(_get_cost_pct, axis=1)
         merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0, upper=50.0)
@@ -991,6 +993,6 @@ class EnsembleScoringEngine:
             merged.loc[illiquid_mask, 'ensemble_score'] = 0.0
             merged.loc[illiquid_mask, 'ensemble_expected_return'] = 0.0
 
-        # Sort by ensemble score descending
-        merged = merged.sort_values(by='ensemble_score', ascending=False).reset_index(drop=True)
+        # Sort by net expected return (cost and liquidity adjusted) descending
+        merged = merged.sort_values(by=['ensemble_expected_return', 'ensemble_score'], ascending=[False, False]).reset_index(drop=True)
         return merged

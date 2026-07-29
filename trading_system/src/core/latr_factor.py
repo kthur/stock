@@ -48,8 +48,9 @@ class LATRFactorEngine:
                 daily_rets = close.pct_change().tail(window).dropna()
                 tail_risk = float(np.percentile(daily_rets, 5)) if len(daily_rets) >= 20 else -0.03
 
-                # LATR raw score: Moderate drawdown (20~40%) + high volume surge + low tail risk
-                latr_score = (dd_pct * 0.4) + (min(vol_surge, 3.0) * 0.4) + (abs(tail_risk) * 0.2)
+                # LATR raw score: High price stability (1 - drawdown) + high volume surge - tail risk penalty
+                # Moderate/low drawdown is preferred over 90% crashing distress assets.
+                latr_score = ((1.0 - dd_pct) * 0.4) + (min(vol_surge, 3.0) * 0.4) - (abs(tail_risk) * 0.2)
                 scores[sym] = float(latr_score)
             except Exception:
                 scores[sym] = 0.5

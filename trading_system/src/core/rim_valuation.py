@@ -81,12 +81,13 @@ class RIMValuationEngine:
                 net_income = current_bps * current_roe
                 excess_income = current_bps * (current_roe - r_e)
                 pv_excess += excess_income / ((1.0 + r_e) ** t)
-                # BPS grows by retained net income (유보금)
-                current_bps += net_income * self.retention_ratio
+                # BPS grows by retained positive net income (or decreases by net losses)
+                retention = self.retention_ratio if net_income > 0 else 1.0
+                current_bps += net_income * retention
                 current_roe = r_e + (current_roe - r_e) * (1.0 - self.decay_rate)
-            # Terminal value: BPS at end of horizon (ROE ≈ r_e so excess ≈ 0)
-            pv_terminal = (current_bps - bps) / ((1.0 + r_e) ** years)
-            return bps + pv_excess + pv_terminal
+            # Standard RIM intrinsic value V0 = BPS0 + Sum(PV of Excess Income).
+            # Terminal value beyond horizon N assumes ROE = r_e (excess income = 0).
+            return bps + pv_excess
 
     def compute_rim_scores(
         self,

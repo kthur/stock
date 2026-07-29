@@ -875,10 +875,20 @@ class OnDevicePredictionModel:
                         date_col = col
                         break
                 if date_col:
+                    # Apply 60-day conservative filing lag to fundamental dates (eliminate lookahead bias)
+                    df_fun_shifted = df_fun.copy()
+                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
                     df['date_align'] = pd.to_datetime(df[date_col])
-                    df = pd.merge(df, df_fun, left_on='date_align', right_on='date',
-                                  how='left', suffixes=('', '_fund'))
-                    df = df.drop(columns=['date_align', 'date_fund'], errors='ignore')
+                    # Merge on date_available so Q4/FY fundamentals become visible only 60 days after fiscal end
+                    df = pd.merge_asof(
+                        df.sort_values('date_align'),
+                        df_fun_shifted.sort_values('date_available'),
+                        left_on='date_align',
+                        right_on='date_available',
+                        direction='backward',
+                        suffixes=('', '_fund')
+                    )
+                    df = df.drop(columns=['date_align', 'date_available', 'date_fund'], errors='ignore')
                     df = df.set_index(date_col)
                 else:
                     try:
@@ -2444,9 +2454,13 @@ class OnDevicePredictionModel:
             ind_df.index.name = 'date'
 
             # Map index change (%) to fractional returns (/ 100.0)
+            us_etfs = {'XLK', 'XLF', 'XLV', 'XLE'}
             for src_col, target_sym in index_sector_mapping.items():
                 if src_col in ind_df.columns:
                     ret_series = ind_df[src_col] / 100.0
+                    # Shift US ETFs by 1 day because US market closes next morning KST
+                    if target_sym in us_etfs:
+                        ret_series = ret_series.shift(1)
                     ret_pivot[target_sym] = ret_series
                     forced_leaders.append(target_sym)
 

@@ -169,12 +169,16 @@ class StatisticalArbitrageEngine:
                     if len(s1_prices) < 30:
                         continue
 
-                    corr = np.corrcoef(s1_prices, s2_prices)[0, 1]
+                    # Transform prices to log prices to ensure scale-invariant stationary cointegration
+                    s1_log = np.log(np.maximum(s1_prices, 1e-5))
+                    s2_log = np.log(np.maximum(s2_prices, 1e-5))
+
+                    corr = np.corrcoef(s1_log, s2_log)[0, 1]
                     if np.isnan(corr) or abs(corr) < min_correlation:
                         continue
 
                     # Fit hedge ratio on historical window up to t-1 to prevent look-ahead bias
-                    s1_hist, s2_hist = s1_prices[:-1], s2_prices[:-1]
+                    s1_hist, s2_hist = s1_log[:-1], s2_log[:-1]
                     slope, intercept, _, _, _ = linregress(s2_hist, s1_hist)
                     spread_hist = s1_hist - (slope * s2_hist + intercept)
 
@@ -192,8 +196,8 @@ class StatisticalArbitrageEngine:
                     if spread_std <= 1e-8:
                         continue
 
-                    # Calculate z-score at current time t (index -1) out-of-sample
-                    current_spread = s1_prices[-1] - (slope * s2_prices[-1] + intercept)
+                    # Calculate z-score at current time t (index -1) out-of-sample using log prices
+                    current_spread = s1_log[-1] - (slope * s2_log[-1] + intercept)
                     z_score = (current_spread - spread_mean) / spread_std
 
                     signal = "NEUTRAL"

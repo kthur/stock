@@ -312,25 +312,30 @@ class OptunaStrategyTuner:
 
         def vcp_rule_objective(trial):
             c_ratio = trial.suggest_float('contraction_ratio', 0.80, 1.20)
-            trial.suggest_float('near_high_cutoff', 0.50, 0.85)
+            near_high = trial.suggest_float('near_high_cutoff', 0.50, 0.85)
             trial.suggest_float('vol_declining_threshold', 0.70, 0.95)
             trial.suggest_float('min_vcp_score', 30.0, 70.0)
-            w_dec = trial.suggest_float('decreasing_weight', 15.0, 35.0)
-            w_vol = trial.suggest_float('volume_weight', 10.0, 25.0)
+            trial.suggest_float('decreasing_weight', 15.0, 35.0)
+            trial.suggest_float('volume_weight', 10.0, 25.0)
 
-            scores = []
-            for sym, df in list(prices_dict.items())[:20]:
-                if df is not None and len(df) >= 60:
+            forward_returns = []
+            for sym, df in list(prices_dict.items())[:30]:
+                if df is not None and len(df) >= 70:
                     high = df['High'].iloc[:, 0] if isinstance(df['High'], pd.DataFrame) else df['High']
                     low = df['Low'].iloc[:, 0] if isinstance(df['Low'], pd.DataFrame) else df['Low']
                     close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
                     r_pct = (high - low) / (close + 1e-8) * 100
-                    r1 = float(r_pct.iloc[-5:].max())
-                    r2 = float(r_pct.iloc[-15:-5].max())
+                    r1 = float(r_pct.iloc[-10:-5].max())
+                    r2 = float(r_pct.iloc[-20:-10].max())
                     decreasing = (r1 <= r2 * c_ratio)
-                    s = (w_dec if decreasing else 0.0) + w_vol
-                    scores.append(s)
-            return float(np.mean(scores)) if scores else 0.0
+                    high_52w = float(high.iloc[-70:-5].max())
+                    curr_p = float(close.iloc[-5])
+                    near_pivot = (curr_p / (high_52w + 1e-8)) >= near_high
+                    if decreasing and near_pivot:
+                        # Compute actual 5-day forward return after pattern detection
+                        fwd_ret = (float(close.iloc[-1]) - curr_p) / curr_p
+                        forward_returns.append(fwd_ret)
+            return float(np.mean(forward_returns)) if forward_returns else 0.0
 
         study_vcp_r = optuna.create_study(direction='maximize')
         study_vcp_r.optimize(vcp_rule_objective, n_trials=n_trials)

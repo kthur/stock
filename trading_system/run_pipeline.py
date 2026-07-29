@@ -1637,6 +1637,9 @@ def execute_prediction_pipeline():
                 _mf.write("\n")
             logger.info(f"Saved lead-lag predictions for {_m} to {_mkt_path}")
 
+    # Intermediate Garbage Collection after Step 10 ML Inferencing to release memory heap
+    gc.collect()
+
     # Save VCP pattern detection results
     vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
     vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
