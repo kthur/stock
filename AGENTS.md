@@ -49,9 +49,9 @@
     c. Lead-Lag 2-tier inference
     d. Stat-Arb pair cointegration scanning
     e. Sector Rotation relative momentum scoring
-    f. RIM Valuation / Event-Driven / MQ Factor / IV Skew / Order Flow / Short-Term Reversal scoring
-    g. 14-Strategy Dynamic Weighted Ensemble Scoring (Transaction costs & Liquidity filtered)
-11. Save predictions to DB & 14-Strategy Ensemble Output + Strategy Data Coverage Report
+    f. RIM Valuation / Event-Driven / MQ Factor / IV Skew / Order Flow / Short-Term Reversal / ARM / CARD / LATR scoring
+    g. 17-Strategy Dynamic Weighted Ensemble Scoring (Microstructure costs & RiskManager Crisis Gating)
+11. Save predictions to DB & 17-Strategy Ensemble Output + Strategy Data Coverage Report
 12. Save output files & Update GitHub Pages HTML Report (KST Timezone)
 ```
 
@@ -62,22 +62,26 @@
 | Path | 목적 |
 |------|------|
 | `trading_system/run_pipeline.py` | 통합 파이프라인 오케스트레이션 |
-| `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + memory optimization |
-| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 14대 전략 앙상블 + 2D 레짐 + Decision Rationale + 거래비용 차감 |
-| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 14대 전략 커버리지 및 데이터 결측(Missingness) 정밀 분석 |
+| `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + 60d filing lag + memory optimization |
+| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 17대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
+| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 17대 전략 커버리지 및 데이터 결측(Missingness) 정밀 분석 |
 | `src/core/event_driven.py` | EventDrivenEngine: 공시/실적 깜짝실적/자사주 촉매 수치화 |
 | `src/core/mq_factor.py` | MQFactorEngine: 12M-1M 모멘텀 - 1M 반전 노이즈 제거 + 펀더멘탈 퀄리티 |
 | `src/core/iv_skew.py` | IVSkewEngine: 옵션 풋/콜 IV Skew & 비율 역발상 점수 |
 | `src/core/order_flow.py` | OrderFlowEngine: 외인/기관 순매수 수급 가속도 (MFI) |
 | `src/core/short_term_reversal.py` | ShortTermReversalEngine: 3~5일 연속 과매도/볼린저 하단 이탈 반등 |
+| `src/core/arm_factor.py` | ARMFactorEngine: 컨센서스 EPS/목표주가 수정 모멘텀 |
+| `src/core/card_factor.py` | CARDFactorEngine: 크로스에셋(주식-환율-유가-금리) 괴리율 매수 점수 |
+| `src/core/latr_factor.py` | LATRFactorEngine: 52주 낙폭 + 유동성 서지 - 꼬리위험 |
+| `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 앙상블 점수 자동 제어 |
 | `src/core/sector_rotation.py` | SectorRotationEngine: 업종 모멘텀 및 순환매 스코어링 |
-| `src/core/stat_arb.py` | StatisticalArbitrageEngine: 공적분 잔차 평균회귀 |
+| `src/core/stat_arb.py` | StatisticalArbitrageEngine: Log 가격 공적분 잔차 평균회귀 |
 | `src/ai/vcp_detector.py` | 규칙 기반 VCP 패턴 검출 |
 | `src/ai/vcp_ml_predictor.py` | 시장별 VCP XGBoost surge 분류기 |
-| `src/ai/optuna_tuner.py` | OptunaStrategyTuner: 전략 및 2D 레짐 가중치 HPO 최적화 |
-| `src/data_layer/indicator_storage.py` | MarketIndicatorStorage: 지표/펀더멘탈 DB |
+| `src/ai/optuna_tuner.py` | OptunaStrategyTuner: 5일 전방 수익률 기반 HPO 최적화 |
+| `src/data_layer/indicator_storage.py` | MarketIndicatorStorage: SQLite WAL 매니저 & 지표/펀더멘탈 DB |
 | `src/data_layer/earnings_data.py` | Rate-limit retry + progress logging fundamental fetch |
-| `src/persistence/database.py` | StockPriceDB: OHLCV 캐시 |
+| `src/persistence/database.py` | StockPriceDB: OHLCV 캐시 + 쓰기 뮤텍스 lock |
 | `src/config.py` | TradingConfig (.env 기반 설정, 거래비용/유동성 파라미터) |
 
 ### Markets
@@ -90,14 +94,14 @@ market 컬럼 값: `SP500`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본
 
 | 파일 | 전략 | 내용 |
 |------|------|------|
-| `ensemble_predictions.txt` | 14대 앙상블 | 14대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | 결측 분석 | 14대 전략별 데이터 커버리지 및 결측 사유 비율 |
+| `ensemble_predictions.txt` | 17대 앙상블 | 17대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 결측 분석 | 17대 전략별 데이터 커버리지 및 결측 사유 비율 |
 | `pipeline_result.txt` | 회귀 | 종목별 horizon별 예상수익률 |
 | `surge_predictions.txt` | Surge | Horizon별 20%↑ 확률 TOP20 (scale_pos_weight 캡 적용) |
 | `lead_lag_predictions.txt` | Lead-Lag | 업종 지수/대형주 Leader 움직임 기반 follower 점수 |
 | `vcp_patterns.txt` | VCP 규칙 | 변동성 수축 패턴 발견 종목 |
 | `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 기반 surge 확률 TOP10 |
-| `stat_arb_predictions.txt` | Stat-Arb | 공적분 잔차 Z-score 차익거래 페어 및 신호 |
+| `stat_arb_predictions.txt` | Stat-Arb | Log 가격 공적분 잔차 Z-score 차익거래 페어 및 신호 |
 
 ---
 
@@ -124,3 +128,4 @@ market 컬럼 값: `SP500`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본
 | R6 | 2026-07-25 | 통합 파이프라인 + 4전략 + VCP ML |
 | R7 | 2026-07-26 | 금융전문가 리뷰 기반 8대 다변화 앙상블 (Strict Causal LSTM + Stat-Arb + Sector Rotation + 거래비용 차감 + Isotonic Calibration) |
 | R8 | 2026-07-26 | 14대 다변화 앙상블 시스템 구축 (Event-Driven + MQ Factor + IV Skew + Order Flow + Short-Term Reversal) + KST 표준화 + Decision Rationale + 데이터 결측 정밀 분석 |
+| R9 | 2026-07-30 | 금융전문가 집단 종합 진단 (Phase 1-4): 17대 전략 앙상블 완결 (ARM, CARD, LATR 추가), 재무 60일 Filing Lag, Lead-Lag US Lag Shift, Stat-Arb Log 공적분, RIM/LATR/Optuna 수식 보정, STT/Spread/Market Impact 비용 모델, RiskManager 파이프라인 연동 |

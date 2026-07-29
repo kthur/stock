@@ -1,13 +1,13 @@
 # 주식 자동매매 시스템 전체 구조 및 알고리즘 명세서
 
-> **Version**: 4.0  
-> **Last Updated**: 2026-07-27 (KST)  
+> **Version**: 4.1  
+> **Last Updated**: 2026-07-30 (KST)  
 > **Python**: 3.10+  
-> **Database**: SQLite
+> **Database**: SQLite (WAL & Write Mutex)
 
 > [!IMPORTANT]
 > 이 문서는 현재 운영 중인 아키텍처를 설명합니다:
-> - **14대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 14대 ML/규칙/수급/옵션/이벤트 전략 앙상블 배치 예측 시스템 (현재 주력)
+> - **17대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 17대 ML/규칙/수급/옵션/이벤트/크로스에셋/유동성 팩터 전략 앙상블 및 RiskManager 파이프라인 (현재 주력)
 > - **이벤트 기반 아키텍처** (`trading_system.py`): 실시간 자동매매 시스템 (레거시/보조)
 
 ---

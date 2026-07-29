@@ -205,8 +205,7 @@ class EnsembleScoringEngine:
             'short_term_reversal': 0.03,
             'arm_factor': 0.07,
             'card_factor': 0.07,
-            'latr_factor': 0.06,
-            'short_term_reversal': 0.04
+            'latr_factor': 0.06
         }
     }
 
