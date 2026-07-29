@@ -372,11 +372,12 @@ class StockPriceDB:
         self.db_path = Path(db_path)
         self.logger = logger
         self._local = threading.local()
+        self._write_lock = threading.Lock()
         self._init_db()
 
     def close(self):
         """현재 스레드의 sqlite3 커넥션 명시적 닫기"""
-        if hasattr(self._local, "conn") and self._local.conn is None:
+        if hasattr(self._local, "conn") and self._local.conn is not None:
             try:
                 self._local.conn.close()
             except Exception:
@@ -389,7 +390,7 @@ class StockPriceDB:
                 str(self.db_path), timeout=30, check_same_thread=False
             )
             self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA synchronous=OFF")
+            self._local.conn.execute("PRAGMA busy_timeout=5000")
             self._local.conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
             self._local.conn.execute("PRAGMA temp_store=MEMORY")
             self._local.conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
@@ -398,7 +399,7 @@ class StockPriceDB:
     def _init_db(self):
         conn = sqlite3.connect(str(self.db_path), timeout=30)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("PRAGMA cache_size=-500000")
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA mmap_size=2000000000")
@@ -437,13 +438,14 @@ class StockPriceDB:
                 float(row["Close"]),
                 int(row["Volume"]),
             ))
-        conn = self._get_conn()
-        conn.executemany("""
-            INSERT OR REPLACE INTO stock_prices
-            (symbol, date, open, high, low, close, volume, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, records)
-        conn.commit()
+        with self._write_lock:
+            conn = self._get_conn()
+            conn.executemany("""
+                INSERT OR REPLACE INTO stock_prices
+                (symbol, date, open, high, low, close, volume, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, records)
+            conn.commit()
         count = len(records)
         self.logger.info(f"Upserted {count} price rows for {symbol}")
         return count

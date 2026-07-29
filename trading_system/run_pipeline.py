@@ -2308,6 +2308,27 @@ def execute_prediction_pipeline():
 
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
 
+    # ── RiskManager & CrisisDetector Integration ──
+    try:
+        from src.risk.risk_manager import RiskManager, CrisisDetector, CrisisLevel
+        risk_mgr = RiskManager()
+        crisis_detector = CrisisDetector(risk_mgr)
+        crisis_lvl = crisis_detector.evaluate(
+            vix=vix_val,
+            usdkrw=usdkrw_val,
+            oil=wti_val,
+            tnx=us10y_val
+        )
+        logger.info(f"[RISK MANAGER] Current Market Crisis Level evaluated: {crisis_lvl.value}")
+        if crisis_lvl in [CrisisLevel.SEVERE, CrisisLevel.ACTIVE]:
+            logger.warning(f"[RISK MANAGER] Crisis Level {crisis_lvl.value} active! Scaling down ensemble expected returns.")
+            scale_factor = 0.5 if crisis_lvl == CrisisLevel.ACTIVE else 0.0
+            ensemble_df['ensemble_expected_return'] = ensemble_df['ensemble_expected_return'] * scale_factor
+            if crisis_lvl == CrisisLevel.SEVERE:
+                ensemble_df['ensemble_score'] = 0.0
+    except Exception as _rm_e:
+        logger.warning(f"RiskManager evaluation skipped: {_rm_e}")
+
     # Generate Decision Rationale Summary
     decision_rationale_text = scorer.get_regime_reasoning_summary(current_2d_regime, rolling_sharpes)
 

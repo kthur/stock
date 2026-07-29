@@ -90,7 +90,10 @@ class StrategyCoverageAnalyzer:
             'mq_factor': 'mq_score',
             'iv_skew': 'iv_skew_score',
             'order_flow': 'order_flow_score',
-            'short_term_reversal': 'reversal_score'
+            'short_term_reversal': 'reversal_score',
+            'arm_factor': 'arm_score',
+            'card_factor': 'card_score',
+            'latr_factor': 'latr_score'
         }
 
         strat_stats = {}

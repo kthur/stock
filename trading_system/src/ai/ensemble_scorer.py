@@ -205,8 +205,7 @@ class EnsembleScoringEngine:
             'short_term_reversal': 0.03,
             'arm_factor': 0.07,
             'card_factor': 0.07,
-            'latr_factor': 0.06
-        }
+            'latr_factor': 0.06,
             'short_term_reversal': 0.04
         }
     }
@@ -431,8 +430,11 @@ class EnsembleScoringEngine:
             'event_driven': w.get('event_driven', 0.07),
             'mq_factor': w.get('mq_factor', 0.08),
             'iv_skew': w.get('iv_skew', 0.04),
-            'order_flow': w.get('order_flow', 0.06),
-            'short_term_reversal': w.get('short_term_reversal', 0.06),
+            'order_flow': w.get('order_flow', 0.05),
+            'short_term_reversal': w.get('short_term_reversal', 0.05),
+            'arm_factor': w.get('arm_factor', 0.07),
+            'card_factor': w.get('card_factor', 0.07),
+            'latr_factor': w.get('latr_factor', 0.06),
         }
 
         # Apply VIX Fast Override if active
@@ -783,8 +785,38 @@ class EnsembleScoringEngine:
         else:
             rev_df = pd.DataFrame(columns=['symbol', 'reversal_score'])
 
-        # Combine all 14 strategy DataFrames efficiently while preserving metadata
-        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df]
+        # 15. Strategy 15: Analyst Revision Momentum (ARM)
+        if arm_df is not None and not arm_df.empty:
+            a_df = arm_df.copy()
+            num_cols = [c for c in a_df.columns if c != 'symbol' and c not in META_COLS]
+            a_col = 'arm_score' if 'arm_score' in a_df.columns else (num_cols[-1] if num_cols else a_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in a_df.columns]
+            a_df = a_df[['symbol'] + meta_cols + [a_col]].rename(columns={a_col: 'arm_score'})
+        else:
+            a_df = pd.DataFrame(columns=['symbol', 'arm_score'])
+
+        # 16. Strategy 16: Cross-Asset Regime Divergence (CARD)
+        if card_df is not None and not card_df.empty:
+            c_df = card_df.copy()
+            num_cols = [c for c in c_df.columns if c != 'symbol' and c not in META_COLS]
+            c_col = 'card_score' if 'card_score' in c_df.columns else (num_cols[-1] if num_cols else c_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in c_df.columns]
+            c_df = c_df[['symbol'] + meta_cols + [c_col]].rename(columns={c_col: 'card_score'})
+        else:
+            c_df = pd.DataFrame(columns=['symbol', 'card_score'])
+
+        # 17. Strategy 17: Liquidity-Adjusted Tail Risk (LATR)
+        if latr_df is not None and not latr_df.empty:
+            la_df = latr_df.copy()
+            num_cols = [c for c in la_df.columns if c != 'symbol' and c not in META_COLS]
+            la_col = 'latr_score' if 'latr_score' in la_df.columns else (num_cols[-1] if num_cols else la_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in la_df.columns]
+            la_df = la_df[['symbol'] + meta_cols + [la_col]].rename(columns={la_col: 'latr_score'})
+        else:
+            la_df = pd.DataFrame(columns=['symbol', 'latr_score'])
+
+        # Combine all 17 strategy DataFrames efficiently while preserving metadata
+        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df]
         merged = pd.DataFrame(columns=['symbol'])
         for d in dfs:
             if d is not None and not d.empty:
@@ -818,6 +850,9 @@ class EnsembleScoringEngine:
             ('iv_skew', 'iv_skew_score'),
             ('order_flow', 'order_flow_score'),
             ('short_term_reversal', 'reversal_score'),
+            ('arm_factor', 'arm_score'),
+            ('card_factor', 'card_score'),
+            ('latr_factor', 'latr_score'),
         ]
 
         # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
@@ -933,8 +968,19 @@ class EnsembleScoringEngine:
             # SPAC check
             if '스팩' in name or 'SPAC' in name.upper():
                 return True
-            if 'volume' in row and pd.notna(row['volume']) and float(row['volume']) <= 0:
-                return True
+            if 'volume' in row and pd.notna(row['volume']):
+                vol = float(row['volume'])
+                close_p = float(row.get('close', 0.0)) if pd.notna(row.get('close')) else 0.0
+                turnover = vol * close_p
+                mkt = str(row.get('market', '')).upper()
+                min_krx_turnover = getattr(self.config, 'min_daily_volume_krx', 5_000_000_000.0) if self.config else 5_000_000_000.0
+                min_sp_vol = getattr(self.config, 'min_daily_volume_sp500', 1_000_000.0) if self.config else 1_000_000.0
+                if vol <= 0:
+                    return True
+                if mkt in ['KOSPI', 'KOSDAQ', 'KONEX'] and turnover > 0 and turnover < (min_krx_turnover * 0.1): # 10% threshold for daily turnover
+                    return True
+                if mkt == 'SP500' and vol < (min_sp_vol * 0.1):
+                    return True
             return False
 
         # Apply illiquid/preferred tag (zero-weight or filter out for top recommendations)

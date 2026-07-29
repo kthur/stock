@@ -363,7 +363,7 @@ class MarketIndicatorStorage:
         """
         Retrieve daily post-market rankings. If date_str is None, retrieve the latest available date's rankings.
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             if date_str:
                 query = "SELECT * FROM post_market_rankings WHERE date = ? ORDER BY rank ASC"
                 return pd.read_sql(query, conn, params=(date_str,))
@@ -413,7 +413,7 @@ class MarketIndicatorStorage:
         and your work WILL be rejected.
         """
         query = "SELECT * FROM stock_fundamentals WHERE symbol = ? ORDER BY date ASC"
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             return pd.read_sql(query, conn, params=(symbol,))
 
     def get_all_fundamentals(self, symbols: list[str]) -> pd.DataFrame:
@@ -465,7 +465,7 @@ class MarketIndicatorStorage:
 
     def fundamentals_exist(self, symbol: str) -> bool:
         """Check if fundamentals data already exists in DB for a symbol."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute(
                 "SELECT COUNT(*) FROM stock_fundamentals WHERE symbol = ?", (symbol,)
             )
@@ -474,14 +474,14 @@ class MarketIndicatorStorage:
 
     def get_all_fundamentals_symbols(self) -> set:
         """Batch query: return set of all symbols that have fundamentals data."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("SELECT DISTINCT symbol FROM stock_fundamentals")
             return {row[0] for row in cursor.fetchall()}
 
     def get_fundamental_meta(self) -> Dict[str, str]:
         """Retrieve dictionary mapping symbol -> last_fetched date."""
         query = "SELECT symbol, last_fetched FROM fundamental_cache_meta"
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute(query)
             return {row[0]: row[1] for row in cursor.fetchall()}
 
