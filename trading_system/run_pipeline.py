@@ -452,6 +452,7 @@ _INDICATOR_TICKERS = {
 }
 
 
+
 @retry(
     stop=stop_after_attempt(2),
     wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -560,9 +561,18 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
             elif col_name == 'put_call_ratio':
                 return (col_name, df['Close'].ffill().fillna(0.6))
+            elif col_name in ('us10y', 'us3m_yield'):
+                # ^TNX and ^IRX: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5)
+                # Divide by 10 to restore actual yield percentage.
+                raw_yield = df['Close'].ffill()
+                scaled = raw_yield / 10.0
+                # If scaled value still looks like ×10 (> 20%), it may already be correct; keep it
+                scaled = scaled.where(raw_yield < 200, raw_yield)  # safety guard
+                return (col_name, scaled.fillna(float('nan')))
             else:
-                return (col_name, df['Close'].ffill().fillna(0.0))
+                return (col_name, df['Close'].ffill().fillna(float('nan')))
         return (col_name, pd.Series(dtype=float))
+
 
     combined = {}
     with ThreadPoolExecutor(max_workers=len(_INDICATOR_TICKERS)) as pool:
@@ -2123,13 +2133,33 @@ def execute_prediction_pipeline():
         except Exception:
             return default
 
+    def _safe_yield(val, default: float) -> float:
+        """Like _safe_float but treats 0.0 as invalid (yields are never truly 0)."""
+        try:
+            v = float(val)
+            if pd.isna(v) or np.isnan(v) or abs(v) < 0.001:
+                return default
+            return v
+        except Exception:
+            return default
+
     sp500_ret_20d = _safe_float(indicator_infer['sp500_change'].tail(20).mean(), 0.05) if 'sp500_change' in indicator_infer.columns else 0.05
     sp500_vol_20d = _safe_float(indicator_infer['sp500_change'].tail(20).std(), 1.0) if 'sp500_change' in indicator_infer.columns else 1.0
     kospi_ret_20d = _safe_float(indicator_infer['kospi_change'].tail(20).mean(), 0.05) if 'kospi_change' in indicator_infer.columns else 0.05
     kospi_vol_20d = _safe_float(indicator_infer['kospi_change'].tail(20).std(), 1.2) if 'kospi_change' in indicator_infer.columns else 1.2
     vix_val = _safe_float(indicator_infer['vix_change'].iloc[-1] if 'vix_change' in indicator_infer.columns else np.nan, 18.5)
-    usdkrw_val = _safe_float(indicator_infer['usdkrw_change'].iloc[-1] if 'usdkrw_change' in indicator_infer.columns else np.nan, 1380.0)
-    us10y_val = _safe_float(indicator_infer['us10y'].iloc[-1] if 'us10y' in indicator_infer.columns else np.nan, 4.25)
+    # Fetch absolute USD/KRW level from price DB (USDKRW=X raw Close)
+    usdkrw_val = 1380.0
+    try:
+        if price_db is not None:
+            _usdkrw_df = price_db.get_prices('USDKRW=X', start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'))
+            if _usdkrw_df is not None and not _usdkrw_df.empty and 'Close' in _usdkrw_df.columns:
+                _last_usdkrw = _usdkrw_df['Close'].dropna().iloc[-1]
+                if _last_usdkrw > 100:  # sanity check: USDKRW should be ~1300-1500
+                    usdkrw_val = float(_last_usdkrw)
+    except Exception:
+        pass
+    us10y_val = _safe_yield(indicator_infer['us10y'].iloc[-1] if 'us10y' in indicator_infer.columns else float('nan'), 4.25)
 
 
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)

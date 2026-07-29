@@ -59,6 +59,7 @@ class EnsembleData:
     sp500_return: str = ""
     vix: str = ""
     us10y: str = ""
+    usdkrw: str = ""
     weights: dict = field(default_factory=dict)
     markets: list[EnsembleMarket] = field(default_factory=list)
     decision_rationale: str = ""
@@ -204,6 +205,12 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"VIX Index.*:\s*(.+)", line)
         if m:
             data.vix = m.group(1).strip()
+        m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
+        if m:
+            data.us10y = m.group(1).strip()
+        m = re.match(r"USD/KRW FX Rate.*:\s*(.+)", line)
+        if m:
+            data.usdkrw = m.group(1).strip()
     # Parse weights block
     in_weights_block = False
     for line in text.splitlines():
@@ -844,7 +851,8 @@ def build_html(
     <div class="macro-grid">
       <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv {ret_class(ensemble.sp500_return or '0%')}">{ensemble.sp500_return or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">VIX 변화</span><span class="mv">{ensemble.vix or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">US 10Y</span><span class="mv">{ensemble.us10y or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">US 10Y 국채</span><span class="mv">{ensemble.us10y or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">USD/KRW</span><span class="mv">{ensemble.usdkrw or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">{ensemble.max_allocation or 'N/A'}</span></div>
     </div>"""
 
