@@ -240,13 +240,15 @@ def parse_ensemble(text: str) -> EnsembleData:
                 data.weights[k_str] = v_str
 
     # Extract Decision Rationale Block
-    if "[2D Market Regime & Strategy Decision Rationale]" in text:
-        idx1 = text.find("[2D Market Regime & Strategy Decision Rationale]")
-        idx2 = text.find("--- Applied Ensemble Strategy Weights", idx1)
-        if idx2 != -1:
-            data.decision_rationale = text[idx1:idx2].strip()
-        else:
-            data.decision_rationale = text[idx1:idx1+800].strip()
+    for header in ["[2D Market Regime & Strategy Decision Rationale]", "[Dual Market Regime & Strategy Decision Rationale]"]:
+        if header in text:
+            idx1 = text.find(header)
+            idx2 = text.find("--- Applied Ensemble Strategy Weights", idx1)
+            if idx2 != -1:
+                data.decision_rationale = text[idx1:idx2].strip()
+            else:
+                data.decision_rationale = text[idx1:idx1+800].strip()
+            break
 
     # Parse market sections
     current_market = None

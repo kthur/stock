@@ -450,7 +450,7 @@ class EnsembleScoringEngine:
         """
         reg_str = str(regime)
         lines = []
-        lines.append("[Dual Market Regime & Strategy Decision Rationale]")
+        lines.append("[2D Market Regime & Strategy Decision Rationale]")
         lines.append(f"• Selected Main Regime State: {reg_str}")
 
         if decoupling_info:
