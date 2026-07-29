@@ -30,7 +30,14 @@ class MarketRegimeDetector:
         self.cluster_to_regime: dict[int, int] = {}
 
     def _prepare_features(self, indicator_df: pd.DataFrame) -> pd.DataFrame:
-        """Computes multi-variable macro feature matrix (S&P500 return/vol, VIX, US10Y, USD/KRW, Yield Curve)."""
+        """Computes multi-variable macro feature matrix.
+
+        10-Feature Set (확장):
+          Core:         sp500 수익률/변동성
+          공포/유동성: VIX, USD/KRW
+          금리:         US10Y 레벨, US10Y-US5Y 스프레드(장단기 역전), 한/미 금리차, 한국채 수익률 곡선
+          원자재:       WTI 유가 변화율, 인플레이션 충격 복합 지표(유가+환율 동시 상승)
+        """
         df = indicator_df.copy()
 
         # Check for sp500_change column (global indicator)
@@ -38,29 +45,70 @@ class MarketRegimeDetector:
             raise ValueError("Indicator DataFrame must contain 'sp500_change' column.")
 
         features = pd.DataFrame(index=df.index)
+        # ── Core: S&P500 모멘텀 & 변동성 ──────────────────────────────────────
         features['sp500_ret_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).mean()
         features['sp500_vol_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
 
-        # Macro extensions if available
+        # ── 공포/위험선호 지표: VIX ────────────────────────────────────────────
         if 'vix_change' in df.columns:
             features['vix_level'] = df['vix_change'].fillna(0.0) / 100.0
         else:
             features['vix_level'] = 0.20
 
+        # ── 미국채 10년물 금리 레벨 ────────────────────────────────────────────
         if 'us10y' in df.columns:
             features['us10y_level'] = df['us10y'].fillna(4.0) / 10.0
         else:
             features['us10y_level'] = 0.40
 
+        # ── ① 표준 장단기 금리 스프레드: US10Y - US2Y (경기침체 선행 신호) ──────────
+        # 1순위: US10Y - US2Y (표준 10Y-2Y Spread), 2순위: US10Y - US5Y (Fallback)
+        # 음수(역전) 구간 진입 → 6~18개월 선행하여 BEAR 레짐 전환 예고
+        if 'us10y_us2y_spread' in df.columns:
+            features['us_yield_spread'] = df['us10y_us2y_spread'].fillna(0.5) / 3.0
+        elif 'us10y' in df.columns and 'us2y' in df.columns:
+            features['us_yield_spread'] = (df['us10y'] - df['us2y']).fillna(0.5) / 3.0
+        elif 'yield_curve_10y3m' in df.columns:
+            features['us_yield_spread'] = df['yield_curve_10y3m'].fillna(0.0) / 5.0
+        else:
+            features['us_yield_spread'] = 0.0
+
+        # ── USD/KRW 환율 변동 (외국인 수급 이탈 지표) ─────────────────────────
         if 'usdkrw_change' in df.columns:
             features['usdkrw_ret_roll'] = df['usdkrw_change'].rolling(self.rolling_window, min_periods=1).mean().fillna(0.0)
         else:
             features['usdkrw_ret_roll'] = 0.0
 
-        if 'yield_curve_10y3m' in df.columns:
-            features['yield_curve'] = df['yield_curve_10y3m'].fillna(0.0) / 5.0
+        # ── ① 한/미 국채 10년물 금리차 (외국인 자금 이탈 리스크) ────────────────
+        # kr_us_10y_spread = kr10y - us10y: 음수 → 미국 대비 한국 금리 낮음 → 자금 이탈 압력
+        if 'kr_us_10y_spread' in df.columns:
+            features['kr_us_spread'] = df['kr_us_10y_spread'].fillna(0.0) / 3.0
+        elif 'kr10y' in df.columns and 'us10y' in df.columns:
+            features['kr_us_spread'] = (df['kr10y'] - df['us10y']).fillna(0.0) / 3.0
         else:
-            features['yield_curve'] = 0.0
+            features['kr_us_spread'] = 0.0
+
+        # ── 한국 채권 수익률 곡선 (kr10y - kr3y): 국내 경기 선행 지수 ───────────
+        if 'kr_yield_curve' in df.columns:
+            features['kr_yield_curve'] = df['kr_yield_curve'].fillna(0.0) / 3.0
+        elif 'kr10y' in df.columns:
+            features['kr_yield_curve'] = 0.0
+        else:
+            features['kr_yield_curve'] = 0.0
+
+        # ── WTI 유가 변화율 롤링 평균 ─────────────────────────────────────────
+        if 'wti_change' in df.columns:
+            features['wti_ret_roll'] = df['wti_change'].rolling(self.rolling_window, min_periods=1).mean().fillna(0.0) / 100.0
+        else:
+            features['wti_ret_roll'] = 0.0
+
+        # ── ② 인플레이션 충격 복합 지표 (유가+환율 동시 상승: 수입물가 이중 충격) ─
+        # 값이 클수록 국내 제조업 원가 압박 심화 → Defensive 전략 가중치 상향 신호
+        if 'inflation_shock_index' in df.columns:
+            features['inflation_shock'] = df['inflation_shock_index'].fillna(0.0).rolling(
+                self.rolling_window, min_periods=1).mean() / 10.0
+        else:
+            features['inflation_shock'] = 0.0
 
         return features
 
@@ -243,13 +291,15 @@ class MarketRegimeDetector:
     def predict_3d_macro_regime(self, indicator_df: pd.DataFrame) -> dict:
         """
         Predicts 3D Macro Regime: 2D Regime (Direction + Volatility) + Macro Condition.
-        Macro Conditions:
-          - HIGH_YIELD_BULL: Bull market with elevated yields / USD strength
-          - HIGH_YIELD_BEAR: Bear market with high yields / rate pressure
-          - LIQUIDITY_SQUEEZE: High volatility with spike in VIX / yield curve spread
-          - NEUTRAL_EXPANSION: Normal expansionary environment
+        Macro Conditions (우선순위 순):
+          1. LIQUIDITY_SQUEEZE  : VIX 급등 + 고금리 동시 발생 → 유동성 긴축
+          2. INFLATION_SHOCK    : WTI 유가 + USD/KRW 환율 동시 상승 → 수입물가 이중 충격
+          3. YIELD_INVERSION    : US10Y < US5Y 장단기 금리 역전 → 경기침체 선행 신호
+          4. HIGH_YIELD_BULL    : 상승장 + 고금리 → 고평가 모멘텀 종목 부담
+          5. HIGH_YIELD_BEAR    : 하락장 + 고금리 → 디레버리지 가속 위험
+          6. NEUTRAL_EXPANSION  : 정상 확장기 환경
 
-        Returns dict with 3D classification details.
+        Returns dict with 3D classification details including 'macro_label'.
         """
         res_2d = self.predict_2d_regime(indicator_df)
         macro_label = "NEUTRAL_EXPANSION"
@@ -260,11 +310,36 @@ class MarketRegimeDetector:
                 tnx_val = float(indicator_df['us10y'].iloc[-1]) if 'us10y' in indicator_df.columns else 4.0
                 ktb_spread = float(indicator_df['ktb_spread'].iloc[-1]) if 'ktb_spread' in indicator_df.columns else 0.0
 
+                # ── US10Y-US2Y 표준 장단기 금리 스프레드 (역전 감지) ─────────────────
+                # 1순위: US2Y, 2순위: US5Y Fallback
+                us2y_val = float(indicator_df['us2y'].iloc[-1]) if ('us2y' in indicator_df.columns and not indicator_df['us2y'].dropna().empty) \
+                    else (float(indicator_df['us5y'].iloc[-1]) if 'us5y' in indicator_df.columns else (tnx_val - 0.5))
+                us_spread = tnx_val - us2y_val
+                is_yield_inverted = us_spread < 0.0
+
+                # ── 인플레이션 충격: 유가 + 환율 동시 상승 ──────────────────────
+                inflation_shock = float(indicator_df['inflation_shock_index'].rolling(5, min_periods=1).mean().iloc[-1]) \
+                    if 'inflation_shock_index' in indicator_df.columns else 0.0
+                # 최근 5일 평균 유가+환율 동시 상승분 > 2.0% → 인플레이션 충격 감지
+                is_inflation_shock = inflation_shock > 2.0
+
                 is_high_yield = tnx_val > 4.2 or ktb_spread > 0.3
                 is_squeeze = vix_val > 5.0 or (res_2d['volatility_label'] == 'HIGH_VOL' and is_high_yield)
 
+                # 우선순위 결정 (높은 위험도 우선)
                 if is_squeeze:
                     macro_label = "LIQUIDITY_SQUEEZE"
+                elif is_inflation_shock:
+                    macro_label = "INFLATION_SHOCK"
+                    logger.info(
+                        f"[3D Macro] INFLATION_SHOCK 감지: 유가+환율 동시상승 5일 평균={inflation_shock:.2f}%"
+                    )
+                elif is_yield_inverted:
+                    macro_label = "YIELD_INVERSION"
+                    logger.info(
+                        f"[3D Macro] YIELD_INVERSION 감지: US10Y({tnx_val:.2f}%) - US5Y({us5y_val:.2f}%) "
+                        f"= {us_spread:.2f}% (역전)"
+                    )
                 elif is_high_yield and res_2d['direction_label'] == 'BULL':
                     macro_label = "HIGH_YIELD_BULL"
                 elif is_high_yield and res_2d['direction_label'] == 'BEAR':
@@ -282,4 +357,6 @@ class MarketRegimeDetector:
             'macro_label': macro_label,
             'combo_3d_label': f"{res_2d['combo_label']}_{macro_label}"
         }
+
+
 

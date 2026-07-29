@@ -428,8 +428,10 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
 # Global indicator & Sector ETF tickers → feature column names
 _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
-    '^TNX': 'us10y',
-    '^IRX': 'us3m_yield',
+    '^TNX': 'us10y',         # US 10Y Treasury Yield (10년물)
+    '2YY=X': 'us2y',         # US 2Y Treasury Yield (2년물 표준 기준)
+    '^FVX': 'us5y',          # US 5Y Treasury Yield (5년물 프록시)
+    '^IRX': 'us3m_yield',    # US 13-Week T-Bill (3개월물)
     'USDKRW=X': 'usdkrw_change',
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
@@ -437,6 +439,7 @@ _INDICATOR_TICKERS = {
     '^CPC': 'put_call_ratio',
     # Korean macro
     'KR10YT=RR': 'kr10y',           # Korean 10Y Gov Bond Yield (Reuters code via yfinance)
+    'KR3YT=RR': 'kr3y',             # Korean 3Y Gov Bond Yield — 한국채 3년물 (금통위 기준금리 벤치마크)
     # Sector ETFs
     '091160.KS': 'kodex_semicon_change',
     '305720.KS': 'kodex_battery_change',
@@ -559,7 +562,11 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
 
         if df is not None and not df.empty:
             df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
-            if col_name.endswith('_change'):
+            if col_name == 'vix_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'vix_raw', df['Close'].ffill())
+            elif col_name == 'usdkrw_change':
+                return (col_name, df['Close'].pct_change().fillna(0.0) * 100, 'usdkrw_raw', df['Close'].ffill())
+            elif col_name.endswith('_change'):
                 return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
             elif col_name == 'put_call_ratio':
                 return (col_name, df['Close'].ffill().fillna(0.6))
@@ -581,8 +588,12 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
         futures = {pool.submit(_fetch_one, t, c): c for t, c in _INDICATOR_TICKERS.items()}
         for f in as_completed(futures):
             try:
-                col_name, series = f.result()
-                combined[col_name] = series
+                res = f.result()
+                if len(res) == 4:
+                    combined[res[0]] = res[1]
+                    combined[res[2]] = res[3]
+                else:
+                    combined[res[0]] = res[1]
             except Exception as e:
                 logger.debug(f"Indicator fetch failed for {futures[f]}: {e}")
 
@@ -599,6 +610,43 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
         result['yield_curve_10y3m'] = result['us10y'] - result['us3m_yield']
     elif 'us10y' in result.columns:
         result['yield_curve_10y3m'] = 0.0
+
+    # ① US10Y - US2Y 표준 장단기 금리차 (1순위: US2Y, 2순위: US5Y Fallback)
+    # 연준 기준금리와 시장 기대치가 집중되는 2년물 금리와의 스프레드를 표준으로 사용
+    # 역전(spread < 0) → 6~18개월 내 경기 침체 및 BEAR 레짐 전환 선행 신호
+    if 'us10y' in result.columns and 'us2y' in result.columns and not result['us2y'].dropna().empty:
+        result['us10y_us2y_spread'] = result['us10y'] - result['us2y']
+    elif 'us10y' in result.columns and 'us5y' in result.columns:
+        result['us10y_us2y_spread'] = result['us10y'] - result['us5y']
+    elif 'us10y' in result.columns:
+        result['us10y_us2y_spread'] = 0.0
+
+    # ② 한/미 국채 10년물 금리차 (외국인 수급 자금 이탈 리스크 지표)
+    # 금리차 확대(음수 방향, 미국 > 한국) 시 외국인 순매도 압력 증가
+    if 'us10y' in result.columns and 'kr10y' in result.columns:
+        result['kr_us_10y_spread'] = result['kr10y'] - result['us10y']
+    elif 'kr10y' in result.columns:
+        result['kr_us_10y_spread'] = 0.0
+
+    # ③ 한국 채권 수익률 곡선 (kr10y - kr3y): 국내 경기 선행 지수
+    if 'kr10y' in result.columns and 'kr3y' in result.columns:
+        result['kr_yield_curve'] = result['kr10y'] - result['kr3y']
+    elif 'kr10y' in result.columns:
+        result['kr_yield_curve'] = 0.0
+
+    # ④ 인플레이션 충격 복합 지표 (유가 + 환율 동시 상승 = 수입물가 이중 충격)
+    # wti_change > 0 & usdkrw_change > 0: 국내 원자재 수입 비용 급증 → MQ Factor 가중치 하향 신호
+    if 'wti_change' in result.columns and 'usdkrw_change' in result.columns:
+        wti_pos = (result['wti_change'] > 0).astype(float)
+        krw_pos = (result['usdkrw_change'] > 0).astype(float)
+        result['inflation_shock_index'] = (
+            result['wti_change'].clip(lower=0.0) * wti_pos
+            + result['usdkrw_change'].clip(lower=0.0) * krw_pos
+        )
+    elif 'wti_change' in result.columns:
+        result['inflation_shock_index'] = result['wti_change'].clip(lower=0.0)
+    else:
+        result['inflation_shock_index'] = 0.0
 
     if 'hyg_change' in result.columns and 'tlt_change' in result.columns:
         result['credit_spread_proxy'] = result['hyg_change'] - result['tlt_change']
@@ -2145,23 +2193,60 @@ def execute_prediction_pipeline():
         except Exception:
             return default
 
+    db_macro = storage.get_latest_global_indicators() if storage is not None else {}
+
     sp500_ret_20d = _safe_float(indicator_infer['sp500_change'].tail(20).mean(), 0.05) if 'sp500_change' in indicator_infer.columns else 0.05
     sp500_vol_20d = _safe_float(indicator_infer['sp500_change'].tail(20).std(), 1.0) if 'sp500_change' in indicator_infer.columns else 1.0
     kospi_ret_20d = _safe_float(indicator_infer['kospi_change'].tail(20).mean(), 0.05) if 'kospi_change' in indicator_infer.columns else 0.05
     kospi_vol_20d = _safe_float(indicator_infer['kospi_change'].tail(20).std(), 1.2) if 'kospi_change' in indicator_infer.columns else 1.2
-    vix_val = _safe_float(indicator_infer['vix_change'].iloc[-1] if 'vix_change' in indicator_infer.columns else np.nan, 18.5)
-    # Fetch absolute USD/KRW level from price DB (USDKRW=X raw Close)
-    usdkrw_val = 1380.0
-    try:
-        if price_db is not None:
-            _usdkrw_df = price_db.get_prices('USDKRW=X', start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'))
+
+    # 1. VIX Index level: check vix_raw, price_db ^VIX, db_macro ^VIX, default 18.5
+    vix_val = np.nan
+    if 'vix_raw' in indicator_infer.columns and not indicator_infer['vix_raw'].dropna().empty:
+        vix_val = float(indicator_infer['vix_raw'].dropna().iloc[-1])
+    if (pd.isna(vix_val) or vix_val <= 0 or vix_val > 150) and price_db is not None:
+        try:
+            _vix_df = price_db.get_prices('^VIX', start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
+            if _vix_df is not None and not _vix_df.empty and 'Close' in _vix_df.columns:
+                vix_val = float(_vix_df['Close'].dropna().iloc[-1])
+        except Exception:
+            pass
+    if (pd.isna(vix_val) or vix_val <= 0 or vix_val > 150) and '^VIX' in db_macro:
+        vix_val = float(db_macro['^VIX'])
+    vix_val = _safe_float(vix_val, 18.5)
+
+    # 2. USD/KRW FX level: check usdkrw_raw, price_db USDKRW=X, db_macro USDKRW=X, default 1380.0
+    usdkrw_val = np.nan
+    if 'usdkrw_raw' in indicator_infer.columns and not indicator_infer['usdkrw_raw'].dropna().empty:
+        usdkrw_val = float(indicator_infer['usdkrw_raw'].dropna().iloc[-1])
+    if (pd.isna(usdkrw_val) or usdkrw_val < 500) and price_db is not None:
+        try:
+            _usdkrw_df = price_db.get_prices('USDKRW=X', start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
             if _usdkrw_df is not None and not _usdkrw_df.empty and 'Close' in _usdkrw_df.columns:
-                _last_usdkrw = _usdkrw_df['Close'].dropna().iloc[-1]
-                if _last_usdkrw > 100:  # sanity check: USDKRW should be ~1300-1500
-                    usdkrw_val = float(_last_usdkrw)
-    except Exception:
-        pass
-    us10y_val = _safe_yield(indicator_infer['us10y'].iloc[-1] if 'us10y' in indicator_infer.columns else float('nan'), 4.25)
+                usdkrw_val = float(_usdkrw_df['Close'].dropna().iloc[-1])
+        except Exception:
+            pass
+    if (pd.isna(usdkrw_val) or usdkrw_val < 500) and 'USDKRW=X' in db_macro:
+        usdkrw_val = float(db_macro['USDKRW=X'])
+    usdkrw_val = _safe_float(usdkrw_val, 1380.0)
+
+    # 3. US 10Y Yield level: check us10y, price_db ^TNX, db_macro ^TNX, default 4.25
+    us10y_val = np.nan
+    if 'us10y' in indicator_infer.columns and not indicator_infer['us10y'].dropna().empty:
+        us10y_val = float(indicator_infer['us10y'].dropna().iloc[-1])
+    if (pd.isna(us10y_val) or us10y_val <= 0 or us10y_val > 25) and price_db is not None:
+        try:
+            _tnx_df = price_db.get_prices('^TNX', start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
+            if _tnx_df is not None and not _tnx_df.empty and 'Close' in _tnx_df.columns:
+                _raw_tnx = float(_tnx_df['Close'].dropna().iloc[-1])
+                us10y_val = _raw_tnx / 10.0 if _raw_tnx > 20 else _raw_tnx
+        except Exception:
+            pass
+    if (pd.isna(us10y_val) or us10y_val <= 0 or us10y_val > 25) and '^TNX' in db_macro:
+        _raw_tnx = float(db_macro['^TNX'])
+        us10y_val = _raw_tnx / 10.0 if _raw_tnx > 20 else _raw_tnx
+    us10y_val = _safe_yield(us10y_val, 4.25)
+
     # Korean 10Y Bond Yield
     kr10y_val = _safe_yield(indicator_infer['kr10y'].iloc[-1] if 'kr10y' in indicator_infer.columns else float('nan'), 3.50)
     # WTI Crude Oil level (CL=F absolute Close price)
@@ -2188,7 +2273,6 @@ def execute_prediction_pipeline():
         pass
 
 
-
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
 
     # Generate Decision Rationale Summary
@@ -2198,7 +2282,12 @@ def execute_prediction_pipeline():
     try:
         from src.analysis.coverage_analyzer import StrategyCoverageAnalyzer
         cov_analyzer = StrategyCoverageAnalyzer()
-        cov_data = cov_analyzer.analyze_coverage(ensemble_df, prices_dict=infer_data_dict)
+        cov_data = cov_analyzer.analyze_coverage(
+            ensemble_df,
+            prices_dict=infer_data_dict,
+            features_df=df_rim_input if 'df_rim_input' in locals() else None,
+            raw_scores=getattr(scorer, 'raw_scores', None)
+        )
         cov_report_text = cov_analyzer.generate_coverage_report(cov_data, date_str=kst_now_str)
 
         cov_output_path = os.path.join(result_dir, "strategy_data_coverage_report.txt")
