@@ -217,6 +217,59 @@ class MarketRegimeDetector:
         regime = self.predict_regime(indicator_df)
         return ["BEAR", "SIDEWAYS", "BULL"][regime]
 
+    def predict_regime_transition_probabilities(self, indicator_df: pd.DataFrame) -> dict[str, float]:
+        """
+        Computes Markov Regime Switching (MRS) transition probabilities for BEAR, SIDEWAYS, and BULL.
+        Returns:
+            dict with 'p_bear', 'p_sideways', 'p_bull', 'bear_shock_risk'
+        """
+        default_res = {'p_bear': 0.10, 'p_sideways': 0.20, 'p_bull': 0.70, 'bear_shock_risk': False}
+        if indicator_df.empty:
+            return default_res
+
+        try:
+            # Check fast VIX shock
+            if 'vix_change' in indicator_df.columns:
+                latest_vix = float(indicator_df['vix_change'].dropna().iloc[-1]) if not indicator_df['vix_change'].dropna().empty else 0.0
+                if latest_vix > 30.0:
+                    return {'p_bear': 0.85, 'p_sideways': 0.10, 'p_bull': 0.05, 'bear_shock_risk': True}
+
+            if not self.is_trained or not self.cluster_to_regime:
+                r = self._predict_rule_based_fallback(indicator_df)
+                if r == 0:
+                    return {'p_bear': 0.70, 'p_sideways': 0.20, 'p_bull': 0.10, 'bear_shock_risk': True}
+                elif r == 1:
+                    return {'p_bear': 0.20, 'p_sideways': 0.60, 'p_bull': 0.20, 'bear_shock_risk': False}
+                else:
+                    return {'p_bear': 0.05, 'p_sideways': 0.15, 'p_bull': 0.80, 'bear_shock_risk': False}
+
+            features_df = self._prepare_features(indicator_df)
+            latest_feat = features_df.iloc[-1].values.reshape(1, -1)
+
+            if not np.isfinite(latest_feat).all():
+                return default_res
+
+            cluster_probs = self.gmm.predict_proba(latest_feat)[0]
+            regime_probs = {0: 0.0, 1: 0.0, 2: 0.0}
+            for cluster_idx, prob in enumerate(cluster_probs):
+                reg = self.cluster_to_regime.get(cluster_idx, 2)
+                regime_probs[reg] += float(prob)
+
+            p_bear = regime_probs[0]
+            p_sideways = regime_probs[1]
+            p_bull = regime_probs[2]
+            bear_shock_risk = bool(p_bear >= 0.35)
+
+            return {
+                'p_bear': float(p_bear),
+                'p_sideways': float(p_sideways),
+                'p_bull': float(p_bull),
+                'bear_shock_risk': bear_shock_risk
+            }
+        except Exception as e:
+            logger.error(f"Error computing regime transition probabilities: {e}")
+            return default_res
+
     def _predict_rule_based_fallback(self, indicator_df: pd.DataFrame) -> int:
         """Rule-based fallback detector when GMM is not fitted or fails."""
         try:

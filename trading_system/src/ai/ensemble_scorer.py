@@ -6,9 +6,12 @@ from typing import Dict, Any, Optional, Union, Set, List
 
 try:
     from sklearn.isotonic import IsotonicRegression
+    from sklearn.linear_model import LogisticRegression
     _HAS_SKLEARN = True
 except ImportError:
     _HAS_SKLEARN = False
+
+from .meta_ensemble_learner import MetaEnsembleLearner
 
 
 logger = logging.getLogger(__name__)
@@ -287,7 +290,7 @@ class EnsembleScoringEngine:
             logger.warning(f"Could not load tuned_params.json: {e}")
 
     # ------------------------------------------------------------------
-    # Phase 4-A: Isotonic Regression Probability Calibration
+    # Phase 4-A: Hybrid Probability Calibration (Isotonic + Platt Scaling)
     # ------------------------------------------------------------------
 
     def fit_calibrators(
@@ -295,11 +298,10 @@ class EnsembleScoringEngine:
         strategy_scores: Dict[str, np.ndarray],
         true_labels: np.ndarray,
     ) -> None:
-        """Fit per-strategy Isotonic Regression calibrators.
+        """Fit per-strategy hybrid calibrators (Isotonic for N>=50, Platt Scaling for 20<=N<50).
 
         Args:
             strategy_scores: dict of {strategy_name: 1-D score array (N,)}
-                Keys must be subset of: 'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml'.
             true_labels: binary outcome array (1 = >20% gain, 0 = not), shape (N,).
         """
         if not _HAS_SKLEARN:
@@ -310,13 +312,21 @@ class EnsembleScoringEngine:
                 s = np.asarray(scores, dtype=float)
                 y = np.asarray(true_labels, dtype=float)
                 mask = np.isfinite(s) & np.isfinite(y)
-                if mask.sum() < 20:
-                    logger.warning(f"Calibrator for '{strategy}': too few samples ({mask.sum()}), skipping.")
+                n_samples = mask.sum()
+                if n_samples < 20:
+                    logger.warning(f"Calibrator for '{strategy}': too few samples ({n_samples}), skipping.")
                     continue
-                cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
-                cal.fit(s[mask], y[mask])
-                self._calibrators[strategy] = cal
-                logger.info(f"Fitted Isotonic calibrator for strategy '{strategy}' on {mask.sum()} samples.")
+                
+                if n_samples >= 50:
+                    cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
+                    cal.fit(s[mask], y[mask])
+                    self._calibrators[strategy] = ('isotonic', cal)
+                    logger.info(f"Fitted Isotonic calibrator for strategy '{strategy}' on {n_samples} samples.")
+                else:
+                    cal = LogisticRegression(C=1.0, max_iter=100)
+                    cal.fit(s[mask].reshape(-1, 1), y[mask])
+                    self._calibrators[strategy] = ('platt', cal)
+                    logger.info(f"Fitted Platt Scaling (Logistic) calibrator for strategy '{strategy}' on {n_samples} samples.")
             except Exception as e:
                 logger.warning(f"Calibrator fitting failed for '{strategy}': {e}")
 
@@ -326,12 +336,17 @@ class EnsembleScoringEngine:
         scores: np.ndarray,
     ) -> np.ndarray:
         """Apply per-strategy calibrator if available; otherwise return scores unchanged."""
-        cal = self._calibrators.get(strategy)
-        if cal is None:
+        cal_tuple = self._calibrators.get(strategy)
+        if cal_tuple is None:
             return scores
+        cal_type, cal = cal_tuple
         try:
             s = np.asarray(scores, dtype=float)
-            out = cal.predict(np.where(np.isfinite(s), s, 0.0))
+            clean_s = np.where(np.isfinite(s), s, 0.0)
+            if cal_type == 'isotonic':
+                out = cal.predict(clean_s)
+            else:
+                out = cal.predict_proba(clean_s.reshape(-1, 1))[:, 1]
             return np.asarray(np.clip(out, 0.0, 1.0))
         except Exception as e:
             logger.warning(f"Calibration predict failed for '{strategy}': {e}")
@@ -552,7 +567,8 @@ class EnsembleScoringEngine:
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
-                                 gamma: float = 1.0) -> pd.DataFrame:
+                                 gamma: float = 1.0,
+                                 held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
         Calculates 17-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         """
@@ -578,7 +594,8 @@ class EnsembleScoringEngine:
             latr_df=latr_df,
             weights=weights,
             target_horizon=target_horizon,
-            sentiment_blacklist=sentiment_blacklist
+            sentiment_blacklist=sentiment_blacklist,
+            held_symbols=held_symbols
         )
 
     def combine_predictions(self,
@@ -596,9 +613,13 @@ class EnsembleScoringEngine:
                             iv_skew_df: Optional[pd.DataFrame] = None,
                             order_flow_df: Optional[pd.DataFrame] = None,
                             reversal_df: Optional[pd.DataFrame] = None,
+                            arm_df: Optional[pd.DataFrame] = None,
+                            card_df: Optional[pd.DataFrame] = None,
+                            latr_df: Optional[pd.DataFrame] = None,
                             weights: Dict[str, float] = None,
                             target_horizon: int = 20,
-                            sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None) -> pd.DataFrame:
+                            sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
+                            held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
         Merges 14 strategy prediction DataFrames and computes weighted ensemble score.
         """
@@ -821,7 +842,26 @@ class EnsembleScoringEngine:
 
         # Avoid division by zero: if no strategy scores exist, score is 0.0
         safe_weight_series = total_weight_series.replace(0.0, np.nan)
-        merged['ensemble_score'] = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+        linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+
+        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50)
+        try:
+            meta_learner = MetaEnsembleLearner()
+            meta_score = meta_learner.predict(merged)
+            blended_score = (0.5 * linear_score + 0.5 * meta_score).clip(0.0, 1.0)
+        except Exception as e:
+            logger.warning(f"MetaEnsembleLearner prediction fallback to linear score: {e}")
+            blended_score = linear_score
+
+        # Phase 3: Turnover Hysteresis Buffer for currently held portfolio symbols (+0.05 bonus)
+        if held_symbols:
+            h_set = set(held_symbols)
+            held_mask = merged['symbol'].isin(h_set)
+            if held_mask.any():
+                blended_score.loc[held_mask] = (blended_score.loc[held_mask] + 0.05).clip(upper=1.0)
+                logger.info(f"[TURNOVER HYSTERESIS] Applied +0.05 hold buffer to {held_mask.sum()} held symbols.")
+
+        merged['ensemble_score'] = blended_score
 
         # Fix Task 2: Preserve raw un-mutated strategy scores with actual NaNs for StrategyCoverageAnalyzer
         self.raw_scores = merged.copy()

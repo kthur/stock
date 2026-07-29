@@ -2330,6 +2330,41 @@ def execute_prediction_pipeline():
     except Exception as _cov_e:
         logger.warning(f"Strategy Coverage analysis skipped: {_cov_e}")
 
+    # ── Task 2 & 4: Meta-Learner Auto Rolling Retrain & Strategy Attribution Analysis ──
+    try:
+        from src.ai.meta_ensemble_learner import MetaEnsembleLearner
+        meta_retrainer = MetaEnsembleLearner()
+        if 'hist_df' in locals() and hist_df is not None and not hist_df.empty:
+            meta_retrainer.auto_rolling_retrain(hist_df)
+    except Exception as _mr_e:
+        logger.warning(f"Meta-Learner auto rolling retrain skipped: {_mr_e}")
+
+    try:
+        from src.analysis.attribution_analyzer import StrategyAttributionAnalyzer
+        attr_analyzer = StrategyAttributionAnalyzer(output_dir=result_dir)
+        attr_analyzer.analyze_attribution(ensemble_df, weights=ensemble_weights if 'ensemble_weights' in locals() else None)
+    except Exception as _attr_e:
+        logger.warning(f"Strategy Attribution analysis skipped: {_attr_e}")
+
+    # ── Task 3: Black-Litterman Portfolio Allocation Output ──
+    try:
+        from src.risk.position_sizing import PortfolioAllocator
+        allocator = PortfolioAllocator()
+        top_preds = ensemble_df.head(20).set_index('symbol')['ensemble_expected_return'].to_dict()
+        bl_alloc_df = allocator.allocate_black_litterman(prices_dict=infer_data_dict, predicted_returns=top_preds)
+        if not bl_alloc_df.empty:
+            bl_path = os.path.join(result_dir, "portfolio_allocation_black_litterman.txt")
+            with open(bl_path, "w", encoding="utf-8") as f_bl:
+                f_bl.write("=== Black-Litterman Optimal Asset Allocation ===\n")
+                f_bl.write(f"Date: {kst_now_str}\n\n")
+                f_bl.write(f"{'Rank':<5}{'Symbol':<10}{'Weight (%)':<15}{'Allocation (KRW)':<20}\n")
+                f_bl.write("-" * 50 + "\n")
+                for rank, (_, row) in enumerate(bl_alloc_df.iterrows(), 1):
+                    f_bl.write(f"{rank:<5}{row['symbol']:<10}{row['weight']*100:>12.2f}%   {row['allocation_amount']:>18,.0f}\n")
+            logger.info(f"Saved Black-Litterman portfolio allocation to {bl_path}")
+    except Exception as _bl_e:
+        logger.warning(f"Black-Litterman portfolio allocation output skipped: {_bl_e}")
+
     ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
     ensemble_df_merged = ensemble_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 

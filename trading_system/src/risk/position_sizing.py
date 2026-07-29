@@ -341,4 +341,55 @@ class PortfolioAllocator:
 
         return df_candidates.sort_values('weight', ascending=False).reset_index(drop=True)
 
+    def allocate_black_litterman(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        predicted_returns: Dict[str, float],
+        total_portfolio_value: float = 100_000_000,
+        tau: float = 0.05,
+        risk_aversion: float = 2.5
+    ) -> pd.DataFrame:
+        """
+        Calculates Black-Litterman optimal asset allocation weights.
+        """
+        from src.analysis.portfolio_optimizer import calculate_black_litterman_weights
+        symbols = [s for s in predicted_returns.keys() if s in prices_dict]
+        if len(symbols) < 2:
+            return pd.DataFrame()
+
+        returns_list = []
+        valid_symbols = []
+        preds = []
+        for s in symbols:
+            df_p = prices_dict[s]
+            c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
+            r = c.pct_change().tail(60).dropna()
+            if len(r) >= 20:
+                returns_list.append(r)
+                valid_symbols.append(s)
+                preds.append(predicted_returns[s])
+
+        if len(valid_symbols) < 2:
+            return pd.DataFrame()
+
+        ret_df = pd.concat(returns_list, axis=1).fillna(0.0)
+        cov_matrix = ret_df.cov().values
+        prior_weights = np.full(len(valid_symbols), 1.0 / len(valid_symbols))
+
+        bl_weights = calculate_black_litterman_weights(
+            cov_matrix=cov_matrix,
+            predicted_returns=np.array(preds),
+            prior_weights=prior_weights,
+            risk_aversion=risk_aversion,
+            tau=tau
+        )
+
+        res_df = pd.DataFrame({
+            'symbol': valid_symbols,
+            'weight': bl_weights,
+            'allocation_amount': bl_weights * total_portfolio_value
+        }).sort_values(by='weight', ascending=False).reset_index(drop=True)
+
+        return res_df
+
 
