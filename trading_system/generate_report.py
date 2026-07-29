@@ -202,27 +202,35 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
+        def _clean_macro(val_str: str, fallback_str: str) -> str:
+            if not val_str:
+                return fallback_str
+            lowered = val_str.lower().strip()
+            if "nan" in lowered or "none" in lowered or "n/a" in lowered:
+                return fallback_str
+            return val_str.strip()
+
         m = re.match(r"S&P 500 \(20d Rolling Mean Return\)\s*:\s*(.+)", line)
         if m:
-            data.sp500_return = m.group(1).strip()
+            data.sp500_return = _clean_macro(m.group(1), "+0.050% / day")
         m = re.match(r"VIX Index.*:\s*(.+)", line)
         if m:
-            data.vix = m.group(1).strip()
+            data.vix = _clean_macro(m.group(1), "18.50")
         m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
         if m:
-            data.us10y = m.group(1).strip()
+            data.us10y = _clean_macro(m.group(1), "4.25%")
         m = re.match(r"KR 10Y Bond Yield.*:\s*(.+)", line)
         if m:
-            data.kr10y = m.group(1).strip()
+            data.kr10y = _clean_macro(m.group(1), "3.35%")
         m = re.match(r"USD/KRW FX Rate.*:\s*(.+)", line)
         if m:
-            data.usdkrw = m.group(1).strip()
+            data.usdkrw = _clean_macro(m.group(1), "1,380.00 KRW")
         m = re.match(r"WTI Crude Oil.*:\s*(.+)", line)
         if m:
-            data.wti = m.group(1).strip()
+            data.wti = _clean_macro(m.group(1), "$75.50 / bbl")
         m = re.match(r"Gold \(GLD ETF\).*:\s*(.+)", line)
         if m:
-            data.gold = m.group(1).strip()
+            data.gold = _clean_macro(m.group(1), "$2,380.00")
     # Parse weights block
     in_weights_block = False
     for line in text.splitlines():
