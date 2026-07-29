@@ -19,7 +19,8 @@ class StrategyCoverageAnalyzer:
     STRATEGIES = [
         'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
         'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
-        'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal'
+        'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
+        'arm_factor', 'card_factor', 'latr_factor'
     ]
 
     def _has_symbol_fundamental_data(self, features_df: Optional[pd.DataFrame], sym: str) -> bool:

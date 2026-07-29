@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 **14대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
+통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 **17대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -20,6 +20,9 @@
 | **12** | Options IV Skew | yfinance 풋/콜 IV Skew 및 공포 역발상 매수 점수 | 앙상블 피처 결합 |
 | **13** | Order Flow Imbalance | 외인/기관 순매수 수급 가속도 (MFI) | 앙상블 피처 결합 |
 | **14** | Short-Term Reversal | 3~5일 연속 과매도/볼린저 하단 이탈 평균회귀 | 앙상블 피처 결합 |
+| **15** | Analyst Revision Momentum (ARM) | 컨센서스 EPS/목표주가 추정치 상향 조정 및 실적 서프라이즈 | 앙상블 피처 결합 |
+| **16** | Cross-Asset Regime Divergence (CARD) | 주식-원자재-환율 이탈 괴리율 역발상 매수 스코어링 | 앙상블 피처 결합 |
+| **17** | Liquidity-Adjusted Tail Risk (LATR) | 52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 프리미엄 | 앙상블 피처 결합 |
 
 ## Pipeline
 

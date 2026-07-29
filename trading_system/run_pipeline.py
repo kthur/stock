@@ -2153,7 +2153,37 @@ def execute_prediction_pipeline():
     # Force Garbage Collection before heavy Ensemble Scoring
     gc.collect()
 
-    # default target horizon is 20d (14-Strategy Ensemble)
+    # Strategy 15: Analyst Revision Momentum (ARM) Factor
+    try:
+        from src.core.arm_factor import ARMFactorEngine
+        arm_engine = ARMFactorEngine()
+        arm_scores = arm_engine.compute_scores(symbols_fundamentals, prices_dict)
+        arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
+    except Exception as _arm_e:
+        logger.warning(f"ARM factor computation failed: {_arm_e}")
+        arm_df = pd.DataFrame()
+
+    # Strategy 16: Cross-Asset Regime Divergence (CARD) Factor
+    try:
+        from src.core.card_factor import CARDFactorEngine
+        card_engine = CARDFactorEngine()
+        card_scores = card_engine.compute_scores(indicator_df, prices_dict)
+        card_df = pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in card_scores.items()])
+    except Exception as _card_e:
+        logger.warning(f"CARD factor computation failed: {_card_e}")
+        card_df = pd.DataFrame()
+
+    # Strategy 17: Liquidity-Adjusted Tail Risk (LATR) Factor
+    try:
+        from src.core.latr_factor import LATRFactorEngine
+        latr_engine = LATRFactorEngine()
+        latr_scores = latr_engine.compute_scores(prices_dict)
+        latr_df = pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in latr_scores.items()])
+    except Exception as _latr_e:
+        logger.warning(f"LATR factor computation failed: {_latr_e}")
+        latr_df = pd.DataFrame()
+
+    # default target horizon is 20d (17-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -2169,6 +2199,9 @@ def execute_prediction_pipeline():
         iv_skew_df=iv_skew_df,
         order_flow_df=order_flow_df,
         reversal_df=reversal_df,
+        arm_df=arm_df,
+        card_df=card_df,
+        latr_df=latr_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )
