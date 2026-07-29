@@ -1,7 +1,7 @@
 # 🧠 핵심 알고리즘 및 전략 명세서
 
-> **Version**: 4.0 — 2026-06-27 기준 실제 코드 및 자율 매매 에이전트 반영  
-> **Source**: `src/ai/prediction_model.py`, `src/ai/vcp_detector.py`, `src/ai/vcp_ml_predictor.py`, `src/ai/trading_agent.py`
+> **Version**: 4.1 — 2026-07-30 기준 17대 전략 다변화 앙상블 및 리스크 제어 시스템 반영  
+> **Source**: `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/core/*.py`, `src/risk/risk_manager.py`
 
 ---
 
@@ -9,12 +9,23 @@
 
 1. [전략 1: XGBoost 회귀 (수익률 예측)](#1-전략-1-xgboost-회귀-수익률-예측)
 2. [전략 2: Surge 분류기 (급등 확률)](#2-전략-2-surge-분류기-급등-확률)
-3. [전략 3: Lead-Lag 분석](#3-전략-3-lead-lag-분석)
+3. [전략 3: Lead-Lag 분석 (1일 Lag Shift 보정)](#3-전략-3-lead-lag-분석)
 4. [전략 4: VCP 규칙 기반 패턴](#4-전략-4-vcp-규칙-기반-패턴)
 5. [전략 5: VCP ML 분류기](#5-전략-5-vcp-ml-분류기)
-6. [피처 명세](#6-피처-명세)
-7. [모델 학습 및 저장](#7-모델-학습-및-저장)
-8. [자율 매매 에이전트 & 퀀트 고도화 규칙](#8-자율-매매-에이전트--퀀트-고도화-규칙)
+6. [전략 6: Strict Causal LSTM](#6-전략-6-strict-causal-lstm)
+7. [전략 7: Stat-Arb Log 공적분 차익거래](#7-전략-7-stat-arb-log-공적분-차익거래)
+8. [전략 8: Sector Rotation 상대모멘텀](#8-전략-8-sector-rotation-상대모멘텀)
+9. [전략 9: RIM Valuation (Terminal Value 중복 할인 보정)](#9-전략-9-rim-valuation)
+10. [전략 10: Event-Driven 공시 촉매](#10-전략-10-event-driven-공시-촉매)
+11. [전략 11: Momentum Quality (MQ)](#11-전략-11-momentum-quality-mq)
+12. [전략 12: Options IV Skew](#12-전략-12-options-iv-skew)
+13. [전략 13: Order Flow Imbalance (MFI)](#13-전략-13-order-flow-imbalance-mfi)
+14. [전략 14: Short-Term Reversal](#14-전략-14-short-term-reversal)
+15. [전략 15: Analyst Revision Momentum (ARM)](#15-전략-15-analyst-revision-momentum-arm)
+16. [전략 16: Cross-Asset Regime Divergence (CARD)](#16-전략-16-cross-asset-regime-divergence-card)
+17. [전략 17: Liquidity-Adjusted Tail Risk (LATR - 부호 보정)](#17-전략-17-liquidity-adjusted-tail-risk-latr)
+18. [17대 전략 2D 레짐 앙상블 & 실전 미시구조 거래비용 모델](#18-17대-전략-2d-레짐-앙상블--실전-미시구조-거래비용-모델)
+19. [자율 매매 에이전트 & RiskManager 위기 제어 규칙](#19-자율-매매-에이전트--riskmanager-위기-제어-규칙)
 
 ---
 

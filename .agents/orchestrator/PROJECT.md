@@ -1,26 +1,31 @@
-# Project: Stock Trading System Autonomous Enhancement
+# Quantitative Review Project: Stock Trading System
 
-## Architecture
-- `trading_system/`: Core python package & scripts.
-- `trading_system/run_pipeline.py`: Main orchestration pipeline.
-- `trading_system/merge_predictions.py`: Ensemble merger & dynamic weighting.
-- `trading_system/generate_report.py`: GitHub Pages report generator.
-- `trading_system/scripts/verify_gha_artifacts.py`: GHA pipeline artifact verifier.
-- `src/ai/`: Prediction models (Regression, Surge, Lead-Lag, VCP, Optuna, Ensemble).
-- `src/trading/`: KIS trading API execution, ATR trailing stop, risk limits.
-- `src/portfolio/`: HRP asset allocation & regime trend calculators.
+## Architecture & Scope
+A full-system financial engineering & quantitative systems audit of the Stock Trading System (3,379 symbols: KOSPI, KOSDAQ, KONEX, SP500).
+
+```
+Stock Trading System Architecture
+├── Strategies (src/ai/, src/core/): 17 Multi-Factor & Multi-Model Strategies
+├── Ensemble & HPO (src/ai/ensemble_scorer.py, src/ai/optuna_tuner.py): 2D Regime Ensemble & Optuna Tuning
+├── Data Layer (trading_system/run_pipeline.py, src/data_layer/, src/persistence/): 3,379 symbols OHLCV + Fundamental Data Pipeline
+├── Risk & Execution (src/ai/ensemble_scorer.py, src/config.py): Slippage, Transaction Costs, Risk Controls
+└── Technical Core: Multithreading, Float32 Memory Downcasting, SQLite Caching
+```
 
 ## Milestones
-| # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| 1 | Exploration & Gap Analysis | Baseline test run, code audit for R1, R2, R3 | none | DONE |
-| 2 | R1 AI Model Precision & Dynamic Ensemble | Optuna HPO for 5 strategies + 2D regime Sharpe weighting | M1 | IN_PROGRESS |
-| 3 | R2 GitHub Pages & HRP UX Enhancement | HRP allocation chart, regime trends, Naver/Foreign links | M1 | PLANNED |
-| 4 | R3 KIS Trading Safety & ATR Trailing Stop | ATR trailing stop, portfolio exposure limits, order safety | M1 | PLANNED |
-| 5 | Verification & Forensic Audit | Pytest 100%, verify_gha_artifacts PASSED, Auditor verdict CLEAN | M2, M3, M4 | PLANNED |
+| # | Name | Scope / Target Files | Dependencies | Status |
+|---|------|----------------------|-------------|--------|
+| 1 | M1: Quant & Financial Validation of 17 Strategies | `src/ai/`, `src/core/` (all 17 strategy engines) | none | DONE |
+| 2 | M2: Ensemble Engine & 2D Regime Optimization | `src/ai/ensemble_scorer.py`, `src/ai/optuna_tuner.py` | none | DONE |
+| 3 | M3: Data Pipeline, Missingness & Lookahead Bias | `trading_system/run_pipeline.py`, `src/analysis/coverage_analyzer.py`, `src/data_layer/earnings_data.py`, `src/persistence/database.py` | none | DONE |
+| 4 | M4: Microstructure, Slippage & Risk Management | `src/ai/ensemble_scorer.py`, `src/config.py` | none | DONE |
+| 5 | M5: Technical Architecture & Performance Audit | `trading_system/run_pipeline.py`, `src/ai/prediction_model.py`, `src/persistence/database.py` | none | DONE |
+| 6 | M6: Audit Synthesis & Comprehensive Final Report | `.agents/orchestrator/audit_report.md` | M1-M5 | DONE |
 
-## Interface Contracts
-- Optuna HPO: Output tuned hyperparameters to `models/tuned_params.json` or dynamic load during training.
-- Dynamic Ensemble Weighting: `merge_predictions.py`, `prediction_model.py`, `ensemble_scorer.py` calculate weights using 2D regime + rolling Sharpe.
-- Report Generator (`generate_report.py`): HTML dashboard includes HRP weights chart, regime trends, Naver (`https://m.stock.naver.com/item/main.nhn?code=`) & Foreign (`https://finance.yahoo.com/quote/`) hyperlinks.
-- KIS Execution Engine: `src/trading/` receives target positions with ATR dynamic stops and exposure cap checks before sending orders to KIS API.
+## Audit Requirements Mapping
+- **R1 (17 Strategies)** -> M1 (DONE - 17 Strategies Audited)
+- **R2 (2D Ensemble & Optuna)** -> M2 (DONE - Ensemble & HPO Audited)
+- **R3 (Data Pipeline & Lookahead Bias)** -> M3 (DONE - Pipeline & Lookahead Audited)
+- **R4 (Microstructure & Risk)** -> M4 (DONE - Costs & Risk Controls Audited)
+- **R5 (Performance & Concurrency)** -> M5 (DONE - Perf & Concurrency Audited)
+- **Deliverables (Final Audit Report & Victory Signal)** -> M6 (DONE - Master Audit Report Generated)

@@ -1,13 +1,24 @@
 # ⚠️ Known Issues & 개선 로드맵
 
-> **Last Updated**: 2026-06-27  
-> **분석 기준**: 자율 매매 에이전트(Autonomous Trading Agent) 연동 및 4대 퀀트 고도화(ATR 트레일링 스탑, 상관관계 분산, 위기 리스크 캡, 실효 비용 내재화) 적용 완료
+> **Last Updated**: 2026-07-30  
+> **분석 기준**: 금융공학 및 퀀트 시스템 정밀 감사(Phase 1~4) 완료 및 17대 다변화 전략 앙상블 적용
 
 ---
 
-## 🟢 Resolved Issues (2026-06-27 완료)
+## 🟢 Resolved Issues (2026-07-30 완료)
 
 다음의 핵심 에이전트 연동, 퀀트 고도화, 안정성 이슈 및 아키텍처 개선 사항들이 모두 반영되어 수정 및 구현이 완료되었습니다.
+
+**Full System Audit Fixes (Phase 1 ~ Phase 4 - 2026-07-30 완료)**
+- [x] AUD-1. **17대 전략 앙상블 완결**: 누락된 3대 전략(`arm_factor`, `card_factor`, `latr_factor`) 복원 및 2D 레짐 가중치 테이블 구문 오류 수정
+- [x] AUD-2. **데이터 무결성 & 시점이탈 제거**: 재무제표 60일 Filing Lag 적용으로 Lookahead Bias 원천 제거, Lead-Lag US ETF 1일 Lag Shift 적용
+- [x] AUD-3. **Stat-Arb Cointegration Log 변환**: raw price $P$ 대신 $\ln P$ 사용으로 스케일 불변 공적분 수식 정상화
+- [x] AUD-4. **RIM Terminal Value 보정**: $N$년 후 BPS 중복 할인 수식 오류 제거 및 음수 이익 유보율 정상화
+- [x] AUD-5. **LATR 팩터 부호 역전 수정**: 90% 폭락 주식 우대 부호 오작동을 주가 안정성 - 꼬리위험 페널티 수식으로 정상화
+- [x] AUD-6. **Optuna HPO 목적함수 보정**: trial 가중치 합 대신 패턴 검출 후 실제 5일 전방 수익률(Forward Return) 기반으로 최적화 재설계
+- [x] AUD-7. **거래 미시구조 모델링**: 증권거래세(STT), US SEC 수수료, 호가 갭(Spread), ADV 거래대금 충격 비용(Market Impact) 산출식 구현 및 순예상수익률(`ensemble_expected_return`) 기준 포트폴리오 정렬
+- [x] AUD-8. **SQLite WAL & Mutex Lock**: `indicator_storage.py` `_connect()` 컨텍스트 매니저 통일 및 `StockPriceDB` `_write_lock` 적용으로 동시성 DB Lock 예외 제거
+- [x] AUD-9. **RiskManager 파이프라인 연동**: `run_pipeline.py` 실행 시 VIX, 환율, 유가, 금리 기반 `CrisisDetector` 구동 및 위기 단계별 앙상블 기대수익률 스케일링 제어
 
 **Autonomous Trading Agent & Quant (완료)**
 - [x] A1. SQLite 기반 거래 영속 및 통계 산출을 위한 `TradeJournal` 구현 (`trade_logs.db`)

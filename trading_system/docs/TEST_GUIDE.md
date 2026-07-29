@@ -1,8 +1,8 @@
 # 🧪 테스트 가이드 (Testing Guide)
 
-> **Last Updated**: 2026-06-21  
+> **Last Updated**: 2026-07-30  
 > **Test Framework**: pytest  
-> **추정 커버리지**: ~35-40%
+> **추정 커버리지**: ~55-60% (17대 전략 및 Phase 1~4 정밀 감사 유닛 테스트 포함)
 
 ---
 

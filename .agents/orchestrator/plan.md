@@ -1,49 +1,22 @@
-# Project Plan: Stock Trading System Autonomous Enhancement
+# Orchestration Plan — Quantitative Review of Stock Trading System
 
-## Architecture & Goals
-Target: 3,379 symbols (SP500, KOSPI, KOSDAQ, KONEX) across 5 strategies:
-1. Regression
-2. Surge Classifier
-3. Lead-Lag Matrix
-4. VCP Rule Pattern Detector
-5. VCP ML Predictor
+## Executive Summary
+Audit of the 17-strategy quantitative stock trading system across 3,379 symbols (KOSPI/KOSDAQ/KONEX/SP500).
 
-Enhancement Scope:
-- **R1: AI Model Precision & Auto-tuning**
-  - Optuna HPO framework integration for all 5 strategies.
-  - 2D regime + rolling Sharpe dynamic ensemble weighting.
-- **R2: GitHub Pages Dashboard & HRP UX Enhancement**
-  - HRP (Hierarchical Risk Parity) asset allocation weight visualizer in `gh-pages/index.html`.
-  - Regime performance trends chart.
-  - Mobile-friendly hyperlinks to Naver Finance (KRX symbols) and Yahoo Finance / Finviz (SP500 symbols).
-- **R3: KIS Automated Trading Safety & ATR Trailing Stop**
-  - ATR (Average True Range) dynamic trailing stop mechanism for order execution.
-  - Portfolio exposure limit controls (max allocation %, sector cap, risk budget).
-  - Pre-order validation and execution safety guards.
+## Execution Milestones
+1. **Phase 1: Environment & Codebase Mapping (Step 0)**
+   - Setup project workspace, BRIEFING.md, PROJECT.md, plan.md, progress.md.
+   - Start heartbeat timer.
 
-## Milestones & Execution Plan
+2. **Phase 2: Milestone Execution via Specialized Explorers (Steps 1-5)**
+   - **M1 (R1)**: Dispatch `teamwork_preview_explorer` (Worker-Quant-1) to audit all 17 strategies for mathematical soundness, theoretical validity, signal formulation, edge cases.
+   - **M2 (R2)**: Dispatch `teamwork_preview_explorer` (Worker-Quant-2) to audit the 2D regime scoring matrix, Optuna hyperparameter optimization objective, search space, and decision rationales.
+   - **M3 (R3)**: Dispatch `teamwork_preview_explorer` (Worker-Data-1) to audit data pipeline integrity, earnings announcement timing, lookahead bias in indicators/scaling, coverage analyzer missingness reporting.
+   - **M4 (R4)**: Dispatch `teamwork_preview_explorer` (Worker-Risk-1) to audit market microstructure modeling, slippage, transaction costs (taxes, exchange fees, bid-ask spreads), liquidity filters, position limits, and tail risk controls.
+   - **M5 (R5)**: Dispatch `teamwork_preview_explorer` (Worker-Perf-1) to audit Python memory downcasting, multithreading bottlenecks, SQLite database locks/concurrency, and execution scalability for 3,379 symbols.
 
-### Milestone 1: Exploration & Gap Analysis
-- **Goal**: Audit existing codebase, identify missing pieces for R1, R2, R3, run baseline tests (`pytest trading_system/tests/ -v` and `verify_gha_artifacts.py`).
-- **Agents**: 3 Explorers (teamwork_preview_explorer).
-- **Deliverables**: Detailed gap reports and architecture blueprints for M2, M3, M4.
-
-### Milestone 2: R1 - AI Model Precision & Dynamic Ensemble
-- **Goal**: Implement Optuna HPO tuning for 5 strategies and 2D regime + rolling Sharpe dynamic ensemble weighting.
-- **Agents**: Worker -> Reviewer -> Challenger.
-- **Deliverables**: Optuna integration scripts/modules, regime Sharpe ensemble logic, updated model training/inference scripts.
-
-### Milestone 3: R2 - GitHub Pages & HRP UX Enhancement
-- **Goal**: Add HRP allocation chart, regime trend visualizations, and symbol hyperlinks (Naver/Foreign) to `generate_report.py` and `gh-pages/index.html`.
-- **Agents**: Worker -> Reviewer -> Challenger.
-- **Deliverables**: Updated `generate_report.py`, HRP visualizer, mobile links.
-
-### Milestone 4: R3 - KIS Automated Trading Safety & ATR Trailing Stop
-- **Goal**: Implement ATR dynamic trailing stop, portfolio exposure limits, order safety checks in KIS execution module.
-- **Agents**: Worker -> Reviewer -> Challenger.
-- **Deliverables**: KIS execution engine updates, ATR trailing stop module, risk limit rules, test suite.
-
-### Milestone 5: E2E Verification & Forensic Integrity Audit
-- **Goal**: Run complete verification: `pytest trading_system/tests/ -v` (100% pass), `verify_gha_artifacts.py` (✅ PASSED), 0% NaN/Null, clean audit from Forensic Auditor.
-- **Agents**: Challenger -> Forensic Auditor (`teamwork_preview_auditor`).
-- **Deliverables**: Verification logs, Auditor CLEAN verdict.
+3. **Phase 3: Synthesis & Final Deliverable (Step 6)**
+   - Aggregate subagent findings into `d:\Finance\code\stock\.agents\orchestrator\audit_report.md`.
+   - Formulate Vulnerability Matrix (Risk Severity, Exploitability/Impact, Module).
+   - Formulate Actionable Recommendations with priority ratings.
+   - Report Victory / Completion back to parent/user.
