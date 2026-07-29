@@ -2389,6 +2389,18 @@ def execute_prediction_pipeline():
     except Exception as _bl_e:
         logger.warning(f"Black-Litterman portfolio allocation output skipped: {_bl_e}")
 
+    # ── Execution OMS Order Plan Generation & DB Logging ──
+    try:
+        from src.execution.oms_engine import ExecutionOMSEngine
+        oms_engine = ExecutionOMSEngine(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"))
+        top_picks_dicts = ensemble_df_merged.head(20).to_dict(orient="records")
+        weight_dict = dict(zip(ensemble_df_merged['symbol'], ensemble_df_merged.get('portfolio_weight', 0.05)))
+        order_plans = oms_engine.generate_order_plan(top_picks_dicts, weight_dict, total_capital=100_000_000.0)
+        logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db")
+    except Exception as _oms_e:
+        logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
+
+
     ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
     ensemble_df_merged = ensemble_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 

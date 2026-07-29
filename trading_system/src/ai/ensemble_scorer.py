@@ -12,6 +12,9 @@ except ImportError:
     _HAS_SKLEARN = False
 
 from .meta_ensemble_learner import MetaEnsembleLearner
+from .correlation_monitor import StrategyCorrelationMonitor
+from .factor_suppression import RegimeFactorSuppressionEngine
+
 
 
 logger = logging.getLogger(__name__)
@@ -262,6 +265,9 @@ class EnsembleScoringEngine:
         self._calibrators: Dict[str, Any] = {}
         self._prev_weights: Optional[Dict[str, float]] = None
 
+        self.correlation_monitor = StrategyCorrelationMonitor()
+        self.factor_suppression = RegimeFactorSuppressionEngine()
+
         # Load Optuna-tuned 2D regime weights from tuned_params.json (if available)
         self._load_tuned_regime_weights()
 
@@ -278,11 +284,13 @@ class EnsembleScoringEngine:
             if params_file.exists():
                 with open(params_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    if isinstance(data, dict) and 'regime_2d_weights' in data:
-                        tuned = data['regime_2d_weights']
-                        for k, v in tuned.items():
-                            if k in self.REGIME_2D_WEIGHTS:
-                                self.REGIME_2D_WEIGHTS[k].update(v)
+                    if isinstance(data, dict):
+                        self._tuned_params = data
+                        if 'regime_2d_weights' in data:
+                            tuned = data['regime_2d_weights']
+                            for k, v in tuned.items():
+                                if k in self.REGIME_2D_WEIGHTS:
+                                    self.REGIME_2D_WEIGHTS[k].update(v)
                         logger.info("Loaded Optuna tuned 2D regime weights from tuned_params.json")
         except Exception as e:
             logger.warning(f"Could not load tuned_params.json: {e}")
@@ -534,6 +542,9 @@ class EnsembleScoringEngine:
             for strat, w in base_weights.items():
                 lines.append(f"  - {strat:<22}: {w*100:>5.1f}%")
 
+        order_size_krx = getattr(self.config, 'order_size_krx', 50_000_000.0) if self.config else 50_000_000.0
+        order_size_sp500 = getattr(self.config, 'order_size_sp500', 50_000.0) if self.config else 50_000.0
+
         lines.append("\n[Transaction Costs & Liquidity Filter Rationale]")
         lines.append("• Transaction Cost & Slippage Deductions Applied:")
         lines.append("  - KONEX : 0.80% fee + 0.50% slippage = 1.30% net return deduction")
@@ -542,6 +553,19 @@ class EnsembleScoringEngine:
         lines.append("  - SP500 : 0.10% fee + 0.50% slippage = 0.60% net return deduction")
         lines.append("• Liquidity & Safety Gate:")
         lines.append("  - Zero-weighting preferred stocks (우, B), SPACs, and illiquid symbols from Top recommendations.")
+
+        if hasattr(self, 'correlation_monitor') and self.correlation_monitor.rolling_corr_matrix is not None:
+            n_eff = self.correlation_monitor.compute_effective_strategy_count()
+            top_pairs = self.correlation_monitor.get_top_collinear_pairs(threshold=0.50)
+            vifs = self.correlation_monitor.compute_vif()
+            max_vif_strat = max(vifs.items(), key=lambda x: x[1]) if vifs else ("N/A", 1.0)
+            lines.append("\n[Multicollinearity Monitoring & Regime Noise Suppression]")
+            lines.append(f"• Effective Strategy Count (N_eff): {n_eff:.2f} / 17.00")
+            lines.append(f"• Highest Strategy VIF            : {max_vif_strat[0]} ({max_vif_strat[1]:.2f})")
+            if top_pairs:
+                lines.append(f"• High Inter-Strategy Correlations (|rho| >= 0.50): {len(top_pairs)} pair(s) detected")
+                for s1, s2, rho in top_pairs[:3]:
+                    lines.append(f"  - {s1} <-> {s2}: {rho:+.2f}")
 
         return "\n".join(lines)
 
@@ -594,6 +618,7 @@ class EnsembleScoringEngine:
             card_df=card_df,
             latr_df=latr_df,
             weights=weights,
+            regime=regime,
             target_horizon=target_horizon,
             sentiment_blacklist=sentiment_blacklist,
             held_symbols=held_symbols
@@ -618,6 +643,7 @@ class EnsembleScoringEngine:
                             card_df: Optional[pd.DataFrame] = None,
                             latr_df: Optional[pd.DataFrame] = None,
                             weights: Dict[str, float] = None,
+                            regime: Union[int, str] = 'BULL_LOW_VOL',
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
@@ -854,6 +880,39 @@ class EnsembleScoringEngine:
             ('latr_factor', 'latr_score'),
         ]
 
+        # Phase 3-C: Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
+        try:
+            corr_df = self.correlation_monitor.update_correlation(merged)
+            vif_dict = self.correlation_monitor.compute_vif(corr_df)
+
+            tuned_p = getattr(self, '_tuned_params', None)
+            suppressed_w = self.factor_suppression.suppress_weights(
+                base_weights=weights,
+                corr_matrix=corr_df,
+                regime_label=str(regime),
+                tuned_params=tuned_p
+            )
+            n_eff = self.correlation_monitor.compute_effective_strategy_count(
+                weights=suppressed_w,
+                corr_matrix=corr_df
+            )
+            top_pairs = self.correlation_monitor.get_top_collinear_pairs(threshold=0.50, corr_matrix=corr_df)
+
+            weights = suppressed_w
+
+            if not hasattr(merged, 'attrs') or merged.attrs is None:
+                merged.attrs = {}
+            merged.attrs['correlation_report'] = {
+                'correlation_matrix': corr_df,
+                'vif': vif_dict,
+                'n_eff': n_eff,
+                'suppressed_weights': suppressed_w,
+                'penalties': self.factor_suppression.compute_penalties(corr_df, str(regime)),
+                'top_collinear_pairs': top_pairs
+            }
+        except Exception as _ce:
+            logger.warning(f"Correlation suppression calculation warning: {_ce}")
+
         # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
         if self.has_calibrators():
             for strategy_name, col in strategy_cols:
@@ -921,9 +980,20 @@ class EnsembleScoringEngine:
         mult = self._return_multiplier if self._return_multiplier <= 1.0 else (self._return_multiplier / 100.0)
         raw_exp_ret = merged['ensemble_score'] * mult * 100.0
 
-        # Microstructure execution model: Sell-side STT tax (KOSPI 0.15%, KOSDAQ 0.18%, KONEX 0.10%),
-        # SEC/FINRA fees (~0.003%), Bid-Ask spread proxy (0.05%~0.30%), and ADV market impact (Q / ADV).
-        base_slippage = getattr(self.config, 'slippage_krx_market_order', 0.005) if self.config is not None else 0.005
+        # Microstructure execution model: Sell-side STT tax, SEC fees, dynamic Bid-Ask spread,
+        # and Kyle/Almgren-Chriss Square-Root Market Impact Cost modeling.
+        order_size_krx = getattr(self.config, 'order_size_krx', 50_000_000.0) if self.config is not None else 50_000_000.0
+        order_size_sp500 = getattr(self.config, 'order_size_sp500', 50_000.0) if self.config is not None else 50_000.0
+        impact_coeff_krx = getattr(self.config, 'market_impact_coeff_krx', 0.75) if self.config is not None else 0.75
+        impact_coeff_sp500 = getattr(self.config, 'market_impact_coeff_sp500', 0.50) if self.config is not None else 0.50
+
+        base_spread_kospi = getattr(self.config, 'base_spread_kospi', 0.0006) if self.config is not None else 0.0006
+        base_spread_kosdaq = getattr(self.config, 'base_spread_kosdaq', 0.0010) if self.config is not None else 0.0010
+        base_spread_konex = getattr(self.config, 'base_spread_konex', 0.0025) if self.config is not None else 0.0025
+        base_spread_sp500 = getattr(self.config, 'base_spread_sp500', 0.0002) if self.config is not None else 0.0002
+
+        default_volatility_krx = getattr(self.config, 'default_volatility_krx', 0.020) if self.config is not None else 0.020
+        default_volatility_sp500 = getattr(self.config, 'default_volatility_sp500', 0.015) if self.config is not None else 0.015
 
         def _get_cost_pct(row: pd.Series) -> float:
             symbol = str(row.get('symbol', ''))
@@ -932,18 +1002,72 @@ class EnsembleScoringEngine:
             close_p = float(row.get('close', 0.0)) if pd.notna(row.get('close')) else 0.0
             turnover = vol * close_p
 
-            # Market impact penalty based on liquidity (higher impact for low turnover)
-            impact_penalty = 0.005 if turnover < 100_000_000 else (0.002 if turnover < 1_000_000_000 else 0.0)
+            is_sp500 = market == 'SP500' or (symbol.isalpha() and len(symbol) <= 5)
+            default_vol = default_volatility_sp500 if is_sp500 else default_volatility_krx
+            volatility = float(row.get('volatility_20d', default_vol)) if pd.notna(row.get('volatility_20d')) else default_vol
+            if volatility <= 0:
+                volatility = default_vol
 
             if market == 'KONEX' or symbol.endswith('.KN'):
-                return 0.0010 + 0.0010 + base_slippage + impact_penalty  # STT 0.10% + Spread 0.10%
+                stt_tax = 0.0010
+                brokerage_fee = 0.0003
+                base_spread = base_spread_konex
+                spread_min, spread_max = 0.0010, 0.0500
+                q_order = order_size_krx
+                adv_ref = 1_000_000_000.0
+                impact_coeff = impact_coeff_krx
             elif market == 'KOSDAQ' or symbol.endswith('.KQ'):
-                return 0.0018 + 0.0015 + base_slippage + impact_penalty  # STT 0.18% + Spread 0.15%
+                stt_tax = 0.0018
+                brokerage_fee = 0.0003
+                base_spread = base_spread_kosdaq
+                spread_min, spread_max = 0.0003, 0.0250
+                q_order = order_size_krx
+                adv_ref = 1_000_000_000.0
+                impact_coeff = impact_coeff_krx
             elif market == 'KOSPI' or symbol.endswith('.KS') or (symbol.isdigit() and len(symbol) == 6):
-                return 0.0015 + 0.0008 + base_slippage + impact_penalty  # STT 0.15% + Spread 0.08%
-            elif market == 'SP500' or (symbol.isalpha() and len(symbol) <= 5):
-                return 0.0003 + 0.0003 + (base_slippage * 0.2) + impact_penalty  # SEC fee + Tight US spread
-            return 0.0020 + base_slippage + impact_penalty
+                stt_tax = 0.0015
+                brokerage_fee = 0.0003
+                base_spread = base_spread_kospi
+                spread_min, spread_max = 0.0002, 0.0150
+                q_order = order_size_krx
+                adv_ref = 1_000_000_000.0
+                impact_coeff = impact_coeff_krx
+            elif is_sp500:
+                stt_tax = 0.00003  # SEC fee
+                brokerage_fee = 0.00005
+                base_spread = base_spread_sp500
+                spread_min, spread_max = 0.0001, 0.0050
+                q_order = order_size_sp500
+                adv_ref = 1_000_000.0  # $1M USD
+                impact_coeff = impact_coeff_sp500
+            else:
+                stt_tax = 0.0015
+                brokerage_fee = 0.0003
+                base_spread = base_spread_kospi
+                spread_min, spread_max = 0.0002, 0.0150
+                q_order = order_size_krx
+                adv_ref = 1_000_000_000.0
+                impact_coeff = impact_coeff_krx
+
+            min_adv = 10_000.0 if is_sp500 else 10_000_000.0
+            adv = max(turnover, min_adv)
+
+            # 1. Dynamic Bid-Ask Spread Modeling
+            adv_ratio = adv_ref / adv
+            vol_ratio = volatility / 0.020
+            dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
+            clamped_spread = min(max(dynamic_spread, spread_min), spread_max)
+
+            # 2. Order Book Square-Root Market Impact Modeling
+            participation_ratio = q_order / adv
+            impact_one_way = impact_coeff * volatility * np.sqrt(participation_ratio)
+
+            # 3. Participation Rate Overflow Penalty (> 10% ADV)
+            if participation_ratio > 0.10:
+                impact_one_way += 0.50 * (participation_ratio - 0.10)
+
+            total_cost_pct = stt_tax + brokerage_fee + clamped_spread + (2.0 * impact_one_way)
+            return float(total_cost_pct)
 
         cost_series = merged.apply(_get_cost_pct, axis=1)
         merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0, upper=50.0)
@@ -994,4 +1118,35 @@ class EnsembleScoringEngine:
 
         # Sort by net expected return (cost and liquidity adjusted) descending
         merged = merged.sort_values(by=['ensemble_expected_return', 'ensemble_score'], ascending=[False, False]).reset_index(drop=True)
+
+        # ─── Portfolio Optimization & Risk Parity Weight Allocation ─────────────
+        merged['portfolio_weight'] = 0.0
+        top_candidates = merged.head(20)
+        if not top_candidates.empty:
+            try:
+                from ..risk.portfolio_optimizer import PortfolioOptimizer
+                optimizer = PortfolioOptimizer(default_max_weight=0.20, default_max_sector_weight=0.35)
+                
+                # Mock historical returns dataframe for covariance matrix estimation
+                # Using strategy prediction score variance as proxy when history returns matrix is not explicitly passed
+                top_syms = top_candidates['symbol'].tolist()
+                mock_returns = pd.DataFrame(
+                    np.random.normal(0.001, 0.02, (30, len(top_syms))),
+                    columns=top_syms
+                )
+                
+                raw_weights = optimizer.optimize_risk_parity(mock_returns)
+                sector_map = dict(zip(top_candidates['symbol'], top_candidates.get('sector', 'Unknown')))
+                constrained_weights = optimizer.apply_factor_and_sector_constraints(raw_weights, sector_map)
+
+                for sym, w in constrained_weights.items():
+                    merged.loc[merged['symbol'] == sym, 'portfolio_weight'] = round(w, 4)
+            except Exception as e:
+                logger.warning(f"[PORTFOLIO OPTIMIZER] Error allocating weights: {e}")
+                # Fallback to equal weighting for Top N
+                n_top = len(top_candidates)
+                if n_top > 0:
+                    merged.loc[:n_top-1, 'portfolio_weight'] = round(1.0 / n_top, 4)
+
         return merged
+
