@@ -661,7 +661,7 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
     symbols = []
     if ensemble and ensemble.markets:
         for emkt in ensemble.markets:
-            for r in emkt.rows[:3]:
+            for r in emkt.rows[:5]:
                 symbols.append((r.symbol, r.name, emkt.market, r.expected_return))
 
     if not symbols:
@@ -670,7 +670,12 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
             ("000660", "SK하이닉스", "KOSPI", "4.8%"),
             ("035420", "NAVER", "KOSPI", "3.5%"),
             ("035720", "카카오", "KOSPI", "3.1%"),
+            ("005380", "현대차", "KOSPI", "4.0%"),
+            ("000270", "기아", "KOSPI", "3.8%"),
+            ("068270", "셀트리온", "KOSPI", "3.3%"),
+            ("005490", "POSCO홀딩스", "KOSPI", "3.0%"),
             ("AAPL", "Apple Inc.", "SP500", "4.2%"),
+            ("NVDA", "NVIDIA Corp.", "SP500", "5.5%"),
         ]
 
     n = len(symbols)
@@ -678,7 +683,18 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
     try:
         import numpy as np
         from src.analysis.portfolio_optimizer import calculate_hrp_weights, calculate_risk_parity_weights
-        cov = np.eye(n) * 0.04
+        
+        # Build synthetic covariance matrix based on market tiers & position order
+        volatilities = np.array([0.18 + (i % 5) * 0.04 for i in range(n)])
+        corr_matrix = np.eye(n)
+        for i in range(n):
+            for j in range(i + 1, n):
+                same_market = symbols[i][2] == symbols[j][2]
+                c_val = 0.45 if same_market else 0.15
+                corr_matrix[i, j] = c_val
+                corr_matrix[j, i] = c_val
+        cov = np.outer(volatilities, volatilities) * corr_matrix
+
         w_arr = calculate_hrp_weights(cov)
         if len(w_arr) != n or not np.any(w_arr):
             w_arr = calculate_risk_parity_weights(cov)
@@ -693,13 +709,14 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
     for i, (sym, name, mkt_str, ret) in enumerate(symbols):
         w_pct = sub_weights[i] * 100.0
         amt = int(total_cap_num * sub_weights[i])
+        vol_est = 18.0 + (i % 5) * 4.0
         data.rows.append(PortfolioRow(
             rank=i + 1,
             symbol=sym,
             name=name,
             market=mkt_str,
             expected_return=ret,
-            volatility=f"{0.30 + 0.05 * i:.2f}%",
+            volatility=f"{vol_est:.2f}%",
             weight=f"{w_pct:.2f}%",
             amount=f"{amt:,}"
         ))
