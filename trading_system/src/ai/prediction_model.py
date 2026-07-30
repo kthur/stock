@@ -1709,57 +1709,57 @@ class OnDevicePredictionModel:
             fold_auc_xgb, fold_auc_lgb, fold_auc_cat = [], [], []
             if tscv_surge is not None:
                 for fold_idx, (tr_idx, va_idx) in enumerate(tscv_surge.split(X)):
-                X_tr, y_tr = X.iloc[tr_idx], target.iloc[tr_idx]
-                X_va, y_va = X.iloc[va_idx], target.iloc[va_idx]
-                if y_tr.sum() == 0 or y_va.sum() == 0:
-                    logger.debug(f"{market} {h}d fold {fold_idx+1}: no positive samples in split, skipping.")
-                    continue
+                    X_tr, y_tr = X.iloc[tr_idx], target.iloc[tr_idx]
+                    X_va, y_va = X.iloc[va_idx], target.iloc[va_idx]
+                    if y_tr.sum() == 0 or y_va.sum() == 0:
+                        logger.debug(f"{market} {h}d fold {fold_idx+1}: no positive samples in split, skipping.")
+                        continue
 
-                kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
-                _m_xgb = xgb.XGBClassifier(**kw_xgb)
-                try:
-                    _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
-                except Exception:
-                    _m_xgb = xgb.XGBClassifier(**kw_no_es)
-                    _m_xgb.fit(X_tr, y_tr)
-                try:
-                    fold_auc_xgb.append(float(roc_auc_score(y_va, _m_xgb.predict_proba(X_va)[:, 1])))
-                except Exception:
-                    fold_auc_xgb.append(0.5)
+                    kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+                    _m_xgb = xgb.XGBClassifier(**kw_xgb)
+                    try:
+                        _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                    except Exception:
+                        _m_xgb = xgb.XGBClassifier(**kw_no_es)
+                        _m_xgb.fit(X_tr, y_tr)
+                    try:
+                        fold_auc_xgb.append(float(roc_auc_score(y_va, _m_xgb.predict_proba(X_va)[:, 1])))
+                    except Exception:
+                        fold_auc_xgb.append(0.5)
 
-                _m_lgb = lgb.LGBMClassifier(**kw_lgb)
-                try:
-                    _m_lgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)],
-                               eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
-                except Exception as ex:
-                    if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
-                        kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
-                        _m_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
-                    _m_lgb.fit(X_tr, y_tr)
-                try:
-                    fold_auc_lgb.append(float(roc_auc_score(y_va, _m_lgb.predict_proba(X_va)[:, 1])))  # type: ignore[call-overload]
-                except Exception:
-                    fold_auc_lgb.append(0.5)
+                    _m_lgb = lgb.LGBMClassifier(**kw_lgb)
+                    try:
+                        _m_lgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)],
+                                   eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
+                    except Exception as ex:
+                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                            kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                            _m_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
+                        _m_lgb.fit(X_tr, y_tr)
+                    try:
+                        fold_auc_lgb.append(float(roc_auc_score(y_va, _m_lgb.predict_proba(X_va)[:, 1])))  # type: ignore[call-overload]
+                    except Exception:
+                        fold_auc_lgb.append(0.5)
 
-                try:
-                    _m_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
-                    _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
-                except Exception as ex:
-                    if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
-                        kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
-                        _m_cat = cb.CatBoostClassifier(**kw_cat_cpu)
-                    else:
-                        _m_cat = cb.CatBoostClassifier(**kw_cat)
-                    _m_cat.fit(X_tr, y_tr, verbose=False)
-                try:
-                    fold_auc_cat.append(float(roc_auc_score(y_va, _m_cat.predict_proba(X_va)[:, 1])))
-                except Exception:
-                    fold_auc_cat.append(0.5)
+                    try:
+                        _m_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
+                        _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                    except Exception as ex:
+                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                            kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
+                            _m_cat = cb.CatBoostClassifier(**kw_cat_cpu)
+                        else:
+                            _m_cat = cb.CatBoostClassifier(**kw_cat)
+                        _m_cat.fit(X_tr, y_tr, verbose=False)
+                    try:
+                        fold_auc_cat.append(float(roc_auc_score(y_va, _m_cat.predict_proba(X_va)[:, 1])))
+                    except Exception:
+                        fold_auc_cat.append(0.5)
 
-                logger.debug(
-                    f"{market} {h}d surge fold {fold_idx+1}/{n_splits}: "
-                    f"XGB={fold_auc_xgb[-1]:.4f} LGB={fold_auc_lgb[-1]:.4f} Cat={fold_auc_cat[-1]:.4f}"
-                )
+                    logger.debug(
+                        f"{market} {h}d surge fold {fold_idx+1}/{n_splits}: "
+                        f"XGB={fold_auc_xgb[-1]:.4f} LGB={fold_auc_lgb[-1]:.4f} Cat={fold_auc_cat[-1]:.4f}"
+                    )
 
             avg_auc_xgb = float(np.mean(fold_auc_xgb)) if fold_auc_xgb else 0.5
             avg_auc_lgb = float(np.mean(fold_auc_lgb)) if fold_auc_lgb else 0.5

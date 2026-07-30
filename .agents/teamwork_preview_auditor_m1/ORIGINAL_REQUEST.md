@@ -1,12 +1,19 @@
-## 2026-06-11T22:15:14Z
-You are the Forensic Auditor for Milestone 1 (PyTorch & Config Fixes).
-Your mission is to perform a forensic integrity audit on the changes made in:
-- `trading_system/src/__init__.py`
-- `trading_system/src/config.py`
-- `trading_system/tests/phase6/unit/test_mock_trading.py`
+## 2026-07-30T14:26:42Z
 
-Check for any integrity violations, hardcoded test results, facade implementations, or circumvented requirements.
-Run the unit test command to verify:
-`python -m pytest tests/phase6/unit/test_mock_trading.py`
-And ensure that everything is clean and correct.
-Write your audit findings and verdict to `d:\Finance\code\stock\.agents\teamwork_preview_auditor_m1\handoff.md`.
+<USER_REQUEST>
+You are Forensic Auditor M1 for Milestone 1.
+Working directory: d:\Finance\code\stock\.agents\teamwork_preview_auditor_m1
+Scope document: d:\Finance\code\stock\PROJECT.md
+
+Task:
+1. Conduct a comprehensive forensic integrity audit of all code added or modified for Milestone 1:
+   - trading_system/dag_pipeline.py
+   - trading_system/src/data_layer/hybrid_storage.py
+   - trading_system/src/data_layer/indicator_storage.py
+   - trading_system/src/persistence/database.py
+   - trading_system/src/ai/ensemble_scorer.py
+   - trading_system/src/analysis/coverage_analyzer.py
+2. Verify that there are NO hardcoded test results, facade implementations, mock overrides in production paths, or cheating of any kind.
+3. Run tests via .venv\Scripts\python.exe -m unittest to verify authentic execution.
+4. Render an explicit, non-negotiable verdict (CLEAN or INTEGRITY VIOLATION) with full evidence chain in d:\Finance\code\stock\.agents\teamwork_preview_auditor_m1\handoff.md and send message to parent.
+</USER_REQUEST>

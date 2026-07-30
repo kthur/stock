@@ -1,49 +1,44 @@
-# BRIEFING — 2026-07-29T14:22:15+09:00
+# BRIEFING — 2026-07-30T23:21:01+09:00
 
 ## Mission
-Comprehensive audit of the Backtest Engine & Risk Management System (R2) for Milestone 1.
+Investigate SQLite write-lock bottlenecks in data persistence (`indicator_storage.py`, `database.py`, `config.py`) and design a hybrid Parquet/TimescaleDB or SQLite+Parquet WAL storage layer solution for high-concurrency multi-asset streaming writes.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Read-only investigator & analysis author
+- Archetype: Explorer M1-2
+- Roles: Read-only investigator & storage architecture designer
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2
-- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Milestone: Milestone 1 - Backtest Engine & Risk Management Audit
+- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
+- Milestone: Milestone 1 (R1) - Architecture Modularization & Data Engine Upgrade
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement code changes in project source code.
 - Write analysis and handoff files only within working directory (`d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2`).
 
 ## Current Parent
-- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Updated: 2026-07-29T14:22:15+09:00
+- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
+- Updated: 2026-07-30T23:21:01+09:00
 
 ## Investigation State
 - **Explored paths**:
-  - `trading_system/src/analysis/backtest.py`
-  - `trading_system/src/analysis/backtest_summary.py`
-  - `trading_system/src/risk/risk_manager.py`
-  - `trading_system/src/risk/position_sizing.py`
-  - `trading_system/src/analysis/portfolio_optimizer.py`
-  - `trading_system/tests/test_backtest.py`
-  - `trading_system/tests/test_risk_manager.py`
-  - `trading_system/tests/test_risk_enhancements.py`
-  - `trading_system/tests/test_portfolio_risk.py`
-  - `trading_system/tests/test_kelly_sizing.py`
-  - `trading_system/tests/test_kis_safety_and_atr.py`
+  - `trading_system/src/data_layer/indicator_storage.py` (`MarketIndicatorStorage`)
+  - `trading_system/src/persistence/database.py` (`StockPriceDB`, `TradeLogger`, `AssetHistoryDB`, `AIPredictionDB`)
+  - `trading_system/src/config.py` (`TradingConfig`)
+  - `trading_system/run_pipeline.py` (Concurrency & execution flow)
+  - `trading_system/tests/test_database.py` (Concurrency & persistence unit tests)
 - **Key findings**:
-  - `BacktestEngine` implements non-lookahead bar-by-bar backtesting with fees/slippage/market impact, real-time SL/TP/ATR trailing stop exits, scale-in, shorting, standard metrics (Sharpe, MDD, win rate, profit factor), and recency-weighted scoring.
-  - `RiskManager` & `CrisisDetector` feature 4-level crisis detection with cash target escalation (10%-85%), position scaling (1.0x-0.15x), emergency liquidation, Regime-Adaptive Kelly Criterion with loss cooldown, ATR trailing stops with ADX/drawdown scaling, 30% sector caps, and KIS 50M KRW / 3% limit price execution safety guards.
-  - Gaps identified: `BacktestEngine` operates symbol-by-symbol rather than multi-asset portfolio level; 14-strategy ensemble scorer is not directly hooked into `BacktestEngine.get_strategy_func()`; slight variance in transaction cost parameters across modules.
-- **Unexplored areas**: None for scope R2.
+  - SQLite write-lock bottleneck stems from SQLite single-writer file architecture combined with multithreaded `ThreadPoolExecutor` workers attempting simultaneous writes across `stock_prices.db` and `market_indicators.db`.
+  - Python `threading.Lock()` serializes thread writes within a single process, bottlenecking parallel downloads into single-threaded write queues, while multi-process access (pipeline + background fundamentals + web dashboard) breaches process isolation and triggers `OperationalError: database is locked`.
+  - Storage engine upgrade needs a lock-free staging write path (Parquet WAL) and background batch compaction engine.
+- **Unexplored areas**: None.
 
 ## Key Decisions Made
-- Audited backtest engine, portfolio performance metrics, risk management, and unit tests.
-- Completed structured report `analysis.md` and 5-component handoff `handoff.md`.
+- Investigated `indicator_storage.py`, `database.py`, `config.py`, and multi-threaded pipeline execution.
+- Designed two detailed solution architectures: Option A (Parquet + TimescaleDB) and Option B (SQLite + Parquet WAL Zero-Dependency Hybrid Engine).
+- Selected Option B (SQLite + Parquet WAL) as optimal for embedded Python environment while providing upgrade path to Option A (TimescaleDB).
 
 ## Artifact Index
-- ORIGINAL_REQUEST.md — Task request
+- ORIGINAL_REQUEST.md — Task requests history
 - BRIEFING.md — Memory index
-- progress.md — Audit execution log
-- analysis.md — Full audit report
+- progress.md — Heartbeat progress log
+- analysis.md — Full SQLite write-lock analysis & hybrid storage design report
 - handoff.md — 5-component handoff report

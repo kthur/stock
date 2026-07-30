@@ -1,53 +1,42 @@
-# BRIEFING — 2026-07-29T14:30:00+09:00
+# BRIEFING — 2026-07-31T00:30:50Z
 
 ## Mission
-Empirically verify transaction cost subtraction, liquidity screening, and macro header rendering in EnsembleScoringEngine across 4 markets (SP500, KOSPI, KOSDAQ, KONEX).
+Empirically challenge and benchmark StatisticalArbitrageEngine cointegration scanner across 3,379 synthetic symbols (120 bars each) for <30.0s SLA timing compliance.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: Empirical Challenger
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_2
-- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
+- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
 - Milestone: Milestone 2
-- Instance: 2 of 2 (Challenger 2)
+- Instance: M2-2
 
 ## 🔒 Key Constraints
-- Empirically run tests using .venv\Scripts\python.exe — do NOT trust claims or unverified assumptions.
-- Do NOT modify implementation code directly (critic/challenger role).
-- Test all 4 markets: SP500, KOSPI, KOSDAQ, KONEX.
-- Check transaction cost exact rates per market rule, liquidity parameters, SPAC names, preferred stocks ('우'), zero volume, macro header rendering.
+- Review-only — do NOT modify implementation code
+- Run verification code empirically (write and execute benchmark scripts/tests)
+- All Python execution using .venv\Scripts\python.exe
 
 ## Current Parent
-- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Updated: 2026-07-29T14:30:00+09:00
+- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
+- Updated: 2026-07-31T00:30:50Z
 
 ## Review Scope
-- **Files to review**: `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/config.py`, `trading_system/run_pipeline.py`, `.agents/orchestrator_r8/PROJECT.md`
-- **Interface contracts**: PROJECT.md / AGENTS.md
-- **Review criteria**: Exact transaction cost subtraction matching market rules, liquidity screening filtering (SPAC, preferred stocks, zero volume/min volume/min price), macro header rendering in rationale / output.
+- **Files to review**: `trading_system/src/core/stat_arb.py`, `tests/test_fast_cointegration.py`, `trading_system/tests/test_stat_arb_execution.py`
+- **Interface contracts**: `PROJECT.md` / `AGENTS.md`
+- **Review criteria**: Empirical correctness, performance/SLA (<30.0s for 3,379 symbols x 120 bars), failure modes, mathematical/statistical assumptions.
 
 ## Key Decisions Made
-- Analyzed `EnsembleScoringEngine` (`trading_system/src/ai/ensemble_scorer.py`) and `run_pipeline.py`.
-- Discovered 2 major failure modes in `combine_predictions()`:
-  1. Metadata columns (`market`, `name`, `volume`) are dropped during strategy DataFrame column selection.
-  2. 6-digit KOSDAQ/KONEX tickers without explicit `.KQ`/`.KN` suffixes default to KOSPI cost (0.85%) instead of KOSDAQ (1.00%) or KONEX (1.30%).
-  3. Preferred stocks with numeric tickers (e.g. `005935`), SPACs (e.g. `475150`), and zero-volume stocks bypass liquidity screening because `name` and `volume` columns are missing from `merged`.
-- Macro header rendering and decision rationale text formatting are verified as correct and complete.
-- Issued verdict: **FAIL**.
+- Discovered empirical SLA failure mode: `test_benchmark_3379_symbols_under_30s` failed with **38.98s** (>30.0s SLA) under concurrent process/memory load due to ~4 GB temporary matrix allocations.
+- Identified root cause: Unbatched 2D index array allocation (`Y = log_mat[i_arr]`) across ~986k candidate pairs causing cache thrashing.
+- Recommended batch candidate slicing (100k chunks) or matrix dot product optimization.
+- Updated `handoff.md` and sent updated report to parent.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_2\ORIGINAL_REQUEST.md` — Original request prompt
-- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_2\verify_m2_2.py` — Verification script
-
-## Attack Surface
-- **Hypotheses tested**:
-  - H1: Transaction cost subtraction matches exact rates across all 4 markets for all symbol formats (PASS for explicit suffixes, FAIL for 6-digit numeric tickers without suffix).
-  - H2: Preferred stock, SPAC, and zero volume screening filters out invalid instruments (FAIL due to metadata column dropping in `combine_predictions`).
-  - H3: Macro header rendering and decision rationale output are complete and valid (PASS).
-- **Vulnerabilities found**:
-  - V1: `market` column drop in `combine_predictions` line 548 causes incorrect transaction cost calculations for KOSDAQ/KONEX 6-digit tickers.
-  - V2: `name` and `volume` column drop in `combine_predictions` line 548 disables preferred stock name checks, SPAC name checks, and volume checks in `_is_illiquid_or_preferred`.
-- **Untested angles**: None.
-
-## Loaded Skills
-- None
+- `ORIGINAL_REQUEST.md` — Initial task prompt
+- `BRIEFING.md` — Persistent working memory index
+- `progress.md` — Execution step log
+- `benchmark_stat_arb.py` — Benchmark harness for SLA validation
+- `stress_test_stat_arb.py` — Failure mode and edge case harness
+- `profile_variations.py` — Multi-seed profiling harness
+- `test_clustering_miss_scenario.py` — Pre-clustering isolation test
+- `handoff.md` — 5-component handoff report

@@ -1,15 +1,34 @@
-## 2026-07-15T15:35:08Z
-You are Explorer 1 for Milestone 1.
-Working Directory: d:\Finance\code\stock\.agents\explorer_m1_1
-Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
-Original request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+## 2026-07-30T04:27:29Z
+You are Explorer M1-1 (Quant & Financial Engineering Specialist).
+Working directory: d:\Finance\code\stock\.agents\explorer_m1_1
+Project Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
 
-Task:
-Investigate data fetching in `trading_system/run_pipeline.py`.
-Specifically analyze:
-1. All calls to `yfinance`, `FinanceDataReader`, and any network fetching for global indicators, indicators history, and inference price data.
-2. How exceptions and rate limits are currently handled in `run_pipeline.py`.
-3. How yfinance -> FinanceDataReader -> `stock_prices.db` offline cache fallback can be cleanly implemented when download fails or is rate limited, so warnings are logged instead of crashing the pipeline.
-4. Document exact line numbers, code structures, and propose concrete fix strategies.
+Your task is to conduct an exhaustive line-by-line quantitative and financial engineering audit of all 17 alpha strategies, return metrics, risk-adjusted scoring, and transaction cost modeling in the Stock Trading System codebase.
 
-Save your analysis and handoff report to `d:\Finance\code\stock\.agents\explorer_m1_1\analysis.md` and `handoff.md`. Communicate findings via message when complete.
+Codebase targets to inspect:
+- `src/ai/prediction_model.py` (XGBoost Regression, Surge Classifier, Lead-Lag 2-Tier Matrix)
+- `src/ai/vcp_detector.py` & `src/ai/vcp_ml_predictor.py` (VCP Rule & ML)
+- `src/ai/lstm_predictor.py` (Strict Causal LSTM)
+- `src/core/stat_arb.py` (Stat-Arb Cointegration)
+- `src/core/sector_rotation.py` (Sector Rotation)
+- `src/core/rim_valuation.py` (RIM Valuation)
+- `src/core/event_driven.py` (Event-Driven)
+- `src/core/mq_factor.py` (MQ Factor)
+- `src/core/iv_skew.py` (Options IV Skew)
+- `src/core/order_flow.py` (Order Flow Imbalance)
+- `src/core/short_term_reversal.py` (Short-Term Reversal)
+- `src/core/arm_factor.py` (Analyst Revision Momentum)
+- `src/core/card_factor.py` (Cross-Asset Regime Divergence)
+- `src/core/latr_factor.py` (Liquidity-Adjusted Tail Risk)
+- `src/config.py` & `src/ai/ensemble_scorer.py` (Transaction cost models: fixed fees, STT tax, bid-ask spread, ADV market impact)
+
+Analyze:
+1. Alpha validity & mathematical correctness of formulas for all 17 strategies.
+2. Data overfitting and lookahead bias (e.g., 60-day filing lag, timezone mismatches, unshifted intraday technical indicators, global scaler leaks).
+3. Risk-adjusted return calculation formulas (Sharpe/Sortino vs raw returns, scale alignment across horizons).
+4. Transaction cost and microstructure modeling (bid-ask spread, STT sell-side taxes vs buy deductions, order size hypothesis & ADV market impact $Q / ADV$).
+
+Output requirements:
+- Document all findings line-by-line with exact code paths, file lines, root cause analysis, severity (High/Medium/Low), and impact on trading performance.
+- Write your complete audit report to `d:\Finance\code\stock\.agents\explorer_m1_1\handoff.md`.
+- Send a summary message back to the orchestrator when completed.

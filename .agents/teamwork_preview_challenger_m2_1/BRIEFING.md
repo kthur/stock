@@ -1,53 +1,40 @@
-# BRIEFING — 2026-07-29T14:30:20Z
+# BRIEFING — 2026-07-31T00:28:43Z
 
 ## Mission
-Empirically test and stress-test Worker 1's R1 implementation in `EnsembleScoringEngine.calculate_ensemble_score()` with edge cases: 0.0 scores, NaNs, infinities, all-NaN strategies, extreme VIX (>50), negative yield spreads, zero-volume symbols, verifying valid 0.0 contribution, NaN denominator exclusion, and raw NaN preservation.
+Empirically challenge and stress-test FactorOrthogonalizerEngine under degenerate cases (perfectly collinear strategy columns, singular covariance matrices, zero variance features, random uniform scores).
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: critic / specialist
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1
-- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Milestone: Milestone 2 (Ensemble & 2D Regime Enhancement)
+- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
+- Milestone: Milestone 2
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (report findings as PASS/FAIL)
-- Must run empirical tests with `.venv\Scripts\python.exe`
-- Must produce evidence chain of observations and logical inferences
-- Must write handoff report to `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\handoff.md` and send message to parent orchestrator
+- Review-only — do NOT modify implementation code (report findings as findings)
+- Rely on empirical test code execution
+- Perform 5-component handoff report
 
 ## Current Parent
-- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Updated: 2026-07-29T14:30:20Z
+- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
+- Updated: 2026-07-31T00:28:43Z
 
 ## Review Scope
-- **Files to review**: `trading_system/src/ai/ensemble_scorer.py`, `trading_system/tests/test_hpo_and_2d_ensemble.py`
-- **Interface contracts**: `PROJECT.md`
-- **Review criteria**: Empirical correctness, edge-case resilience, raw score NaN preservation, denominator normalization with NaNs/zeros.
+- **Files to review**: FactorOrthogonalizerEngine (`trading_system/src/ai/factor_orthogonalizer.py`) and test suites (`tests/test_factor_orthogonalization.py`, `tests/test_factor_ortho_empirical_stress.py`).
+- **Interface contracts**: PROJECT.md
+- **Review criteria**: Robustness, degenerate matrices handling, Gram-Schmidt & PCA ZCA decorrelation numerical stability, execution speed (<50 ms).
 
 ## Key Decisions Made
-- Audited `trading_system/src/ai/ensemble_scorer.py` implementation line-by-line.
-- Created empirical test suite `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\test_m2_r1_edge_cases.py`.
-- Tested all 8 edge-case scenarios (0.0 scores, NaNs, infinities, all-NaN strategies, extreme VIX >50, macro yield spread modifiers, zero-volume symbols, raw NaN preservation).
-- Confirmed VERDICT: PASS.
-- Produced full handoff report at `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\handoff.md`.
-
-## Attack Surface
-- **Hypotheses tested**:
-  1. Valid 0.0 scores should contribute to denominator (PASS - SYM_ZERO score = 0.60 vs SYM_NAN score = 0.80).
-  2. Missing NaN scores should be excluded from denominator (PASS).
-  3. Infinities (+inf, -inf) should be masked out cleanly (PASS).
-  4. All-NaN strategies produce 0.0 without division by zero (PASS).
-  5. Extreme VIX (>50) zero-weights momentum/surge and re-normalizes weights (PASS).
-  6. Negative yield spread / HIGH_YIELD_BEAR macro override adjusts weights and normalizes (PASS).
-  7. Zero-volume symbols zero-weighted by liquidity gate (PASS).
-  8. Raw scores retain true NaNs in `attrs['raw_scores']` and `self.raw_scores` while output DataFrame fills 0.0 (PASS).
-- **Vulnerabilities found**: None. All edge cases handled robustly.
-- **Untested angles**: None.
+- Executed existing unit tests (`test_factor_orthogonalization.py`: 6/6 passed).
+- Developed and executed empirical stress test suite (`test_factor_ortho_empirical_stress.py`: 9/9 passed).
+- Developed and executed forensic benchmark script (`test_factor_ortho_forensics.py`).
+- Confirmed zero-variance fallback and ridge regularization ($\epsilon = 10^{-6}$) prevent NaNs/Infs/singular matrix crashes.
+- Documented findings and logic chain in `handoff.md`.
 
 ## Artifact Index
-- `ORIGINAL_REQUEST.md` — Original task prompt
-- `BRIEFING.md` — Agent working memory
-- `test_m2_r1_edge_cases.py` — Empirical test script
-- `handoff.md` — Handoff report
+- ORIGINAL_REQUEST.md — Original request record
+- progress.md — Task execution progress log
+- handoff.md — 5-component handoff report
+- tests/test_factor_ortho_empirical_stress.py — Stress test suite for degenerate cases
+- tests/test_factor_ortho_forensics.py — Forensic benchmark script

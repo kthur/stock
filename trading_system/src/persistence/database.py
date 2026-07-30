@@ -425,7 +425,7 @@ class StockPriceDB:
         self.logger.info(f"StockPriceDB initialized at {self.db_path}")
 
     def update_prices(self, symbol: str, df: pd.DataFrame) -> int:
-        """OHLCV DataFrame을 DB에 batch upsert. 반환: 저장된 행 수"""
+        """OHLCV DataFrame을 DB에 batch upsert. 반환: 저장된 행 수 (Retry Lock 포함)"""
         records = []
         for idx, row in df.iterrows():
             date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
@@ -438,14 +438,25 @@ class StockPriceDB:
                 float(row["Close"]),
                 int(row["Volume"]),
             ))
-        with self._write_lock:
-            conn = self._get_conn()
-            conn.executemany("""
-                INSERT OR REPLACE INTO stock_prices
-                (symbol, date, open, high, low, close, volume, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            """, records)
-            conn.commit()
+        if not records:
+            return 0
+
+        def _do_update():
+            with self._write_lock:
+                conn = self._get_conn()
+                conn.executemany("""
+                    INSERT OR REPLACE INTO stock_prices
+                    (symbol, date, open, high, low, close, volume, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, records)
+                conn.commit()
+
+        try:
+            from src.data_layer.hybrid_storage import execute_sqlite_with_retry
+            execute_sqlite_with_retry(_do_update)
+        except Exception:
+            _do_update()
+
         count = len(records)
         self.logger.info(f"Upserted {count} price rows for {symbol}")
         return count

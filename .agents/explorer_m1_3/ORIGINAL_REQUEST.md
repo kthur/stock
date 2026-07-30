@@ -1,26 +1,22 @@
-## 2026-06-11T22:02:03Z
-You are Explorer 3 for Milestone 1 (PyTorch & Config Fixes).
-Your mission is to investigate:
-1. The PyTorch DLL loading issue (`OSError: [WinError 1114]` and access violation crash) on the Windows environment. This occurs when `import torch` is run (e.g. in `src/analysis/macro_predictor.py` or through tests). Find where `import torch` is executed in the codebase, and suggest a strategy to resolve or safely mock/bypass the torch dependency so that tests and callbacks do not crash the interpreter.
-2. The failing unit test `TestMockTradingConfig.test_kis_mock_keys_default_empty` in `trading_system/tests/phase6/unit/test_mock_trading.py`. Look at `src/config.py` and suggest how to make the test pass regardless of what is set in the local `.env` file.
+## 2026-07-30T04:27:30Z
+You are Explorer M1-3 (Risk Management & Portfolio Construction Specialist).
+Working directory: d:\Finance\code\stock\.agents\explorer_m1_3
+Project Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
 
-Read PROJECT.md and relevant code files. Write your analysis and recommendations to d:\Finance\code\stock\.agents\explorer_m1_3\analysis.md and handoff.md. Do NOT write or modify any source code files.
+Your task is to audit risk management, portfolio optimization, regime ensemble engine, and hyperparameter tuning in the Stock Trading System.
 
-## 2026-07-16T00:35:08Z
-You are Explorer 3 for Milestone 1.
-Working Directory: d:\Finance\code\stock\.agents\explorer_m1_3
-Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
-Original request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Codebase targets to inspect:
+- `src/risk/risk_manager.py` (CrisisDetector, RiskManager, ATR stop-loss, tail risk controls)
+- `src/ai/ensemble_scorer.py` (2D Regime Ensemble Scoring, REGIME_2D_WEIGHTS table, decision rationale state mutation, un-cost-adjusted sorting)
+- `src/ai/optuna_tuner.py` (OptunaStrategyTuner, HPO objective functions, selection bias, multi-model study coverage)
 
-Task:
-Investigate global HTTP request header / User-Agent configuration and test suite architecture.
-Specifically analyze:
-1. How yfinance and FinanceDataReader initialize HTTP sessions and request headers.
-2. How custom browser-like User-Agent headers (and connection sessions) can be configured globally or per-session for both yfinance and FinanceDataReader across the system.
-3. Review existing pytest files (specifically `tests/test_tuning_and_retry.py`, `tests/test_system.py`, and other relevant tests in `tests/`).
-4. Identify how network calls are currently tested/mocked and what tests need to be updated or added to verify offline and online fallback behavior.
+Analyze:
+1. Pipeline disconnection of `RiskManager`: Pipeline integration gaps, crisis gating execution, tail risk stop-loss enforcement.
+2. 2D Regime Ensemble Engine: Syntax errors/dict structure in regime tables, state mutation side-effects in rationale generators, strategy truncation (omitted strategies).
+3. HPO & Optuna Tuning: Objective function gaming (e.g. VCP rule HPO maximizing weight inputs), selection bias in correlation thresholding, temporal CV split absence, single-model (XGBoost only) HPO.
+4. Portfolio Construction & Asset Allocation: Equal/weighted scoring vs portfolio risk parity and covariance shrinkage optimization.
 
-Save your analysis and handoff report to `d:\Finance\code\stock\.agents\explorer_m1_3\analysis.md` and `handoff.md`. Communicate findings via message when complete.
-
-
-Read PROJECT.md and relevant code files. Write your analysis and recommendations to d:\Finance\code\stock\.agents\explorer_m1_3\analysis.md and handoff.md. Do NOT write or modify any source code files.
+Output requirements:
+- Document all findings line-by-line with exact code paths, file lines, root cause analysis, severity (High/Medium/Low), and portfolio impact.
+- Write your complete audit report to `d:\Finance\code\stock\.agents\explorer_m1_3\handoff.md`.
+- Send a summary message back to the orchestrator when completed.

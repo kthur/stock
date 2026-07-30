@@ -23,26 +23,52 @@ class StrategyCoverageAnalyzer:
         'arm_factor', 'card_factor', 'latr_factor'
     ]
 
-    def _has_symbol_fundamental_data(self, features_df: Optional[pd.DataFrame], sym: str) -> bool:
+    def _has_symbol_fundamental_data(self, features_df: Optional[Any], sym: str) -> bool:
         """
-        Checks per-symbol non-NaN fundamental data in features_df.
+        Checks per-symbol non-NaN fundamental data in features_df (DataFrame or Dict).
         """
-        if features_df is None or features_df.empty:
+        if features_df is None:
             return False
-        fund_cols = ['bps', 'roe', 'operating_margin', 'net_profit_margin']
+
+        fund_cols = [
+            'bps', 'roe', 'operating_margin', 'net_profit_margin',
+            'revenue', 'operating_income', 'net_income', 'eps',
+            'book_value', 'dividend_per_share'
+        ]
+
+        sym_str = str(sym)
+
+        # Handle Dict of DataFrames per symbol
+        if isinstance(features_df, dict):
+            val = features_df.get(sym_str)
+            if val is None:
+                val = features_df.get(sym)
+            if val is not None and isinstance(val, pd.DataFrame) and not val.empty:
+                present_cols = [c for c in fund_cols if c in val.columns]
+                if present_cols:
+                    arr = val[present_cols].values
+                    return bool(np.any(pd.notna(arr) & np.isfinite(arr)))
+            return False
+
+        if not isinstance(features_df, pd.DataFrame) or features_df.empty:
+            return False
+
         present_cols = [c for c in fund_cols if c in features_df.columns]
         if not present_cols:
             return False
 
         try:
             if 'symbol' in features_df.columns:
-                sub = features_df[features_df['symbol'] == sym]
+                sub = features_df[features_df['symbol'].astype(str) == sym_str]
+                if sub.empty and sym_str.isdigit():
+                    sub = features_df[features_df['symbol'].astype(str) == sym_str.zfill(6)]
                 if sub.empty:
                     return False
                 vals = sub[present_cols].values
                 return bool(np.any(pd.notna(vals) & np.isfinite(vals)))
-            elif sym in features_df.index:
-                row_or_sub = features_df.loc[sym]
+            elif sym in features_df.index or sym_str in features_df.index:
+                key = sym if sym in features_df.index else sym_str
+                row_or_sub = features_df.loc[key]
                 if isinstance(row_or_sub, pd.DataFrame):
                     vals = row_or_sub[present_cols].values
                     return bool(np.any(pd.notna(vals) & np.isfinite(vals)))

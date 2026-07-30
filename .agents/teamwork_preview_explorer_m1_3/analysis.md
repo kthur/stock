@@ -1,211 +1,224 @@
-# Strategy Data Coverage & Automated Test Suite (R3) Audit Report
+# Comprehensive Analysis & Testing Strategy for Milestone 1 (R1)
 
-**Author**: Explorer 3 (Milestone 1)  
-**Date**: 2026-07-29  
-**Target Scope**: R3 Strategy Data Coverage & Automated Test Suite  
-**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3`  
-
----
-
-## 1. Executive Summary
-
-This audit examined the **Strategy Data Coverage & Missingness Analyzer** (`trading_system/src/analysis/coverage_analyzer.py`), the main orchestration pipeline (`trading_system/run_pipeline.py`), the dynamic ensemble scorer (`trading_system/src/ai/ensemble_scorer.py`), output files (`strategy_data_coverage_report.txt`, `ensemble_predictions.txt`), and the automated pytest test suite (`trading_system/tests/`).
-
-### Key Discoveries:
-1. **Critical Defect in Coverage Metrics**: `StrategyCoverageAnalyzer` consistently reports **100.0% coverage across all 14 strategies** (with 0 missing symbols), even when strategies fail or lack data. This is caused by `EnsembleScoringEngine.calculate_ensemble_score()` mutating all missing NaN strategy scores to `0.0` (for output report formatting) *before* `run_pipeline.py` passes `ensemble_df` to `coverage_analyzer.py`. Because `0.0` is non-null and finite, the analyzer counts missing strategy outputs as valid predictions.
-2. **Fundamental Missingness Scope Flaw**: In `coverage_analyzer.py`, `has_fund` checks whether the global `features_df` DataFrame contains fundamental columns as a whole, rather than checking if an individual symbol `sym` actually has non-NaN fundamental data. Consequently, `NO_FUNDAMENTAL_DATA` is never reported when `features_df` exists.
-3. **Macro Indicator Formatting Anomalies**: In `ensemble_predictions.txt`, global macro indicator fields (e.g. `VIX Index`, `US 10Y Yield`, `USD/KRW FX`) frequently output `nan` or fallback values (`0.18 KRW`) due to column name mismatches in `indicator_infer` (`vix` vs `vix_change`, etc.).
-4. **Test Suite Status & Gaps**: The project contains over 550 test cases across `trading_system/tests/`. Cache inspection (`.pytest_cache/v/cache/lastfailed`) identified existing failures in E2E tests (`test_e2e.py`) and macro stress tests (`test_macro_stress.py`). Crucially, no integration tests exist for testing coverage analysis on real `ensemble_df` outputs, nor are there tests auditing coverage across all 3,379 universe symbols.
+**Author**: Explorer M1-3  
+**Date**: 2026-07-30  
+**Scope**: Architecture Modularization & Data Engine Upgrade (DAG Pipeline, Task Checkpointing & Resumability, Hybrid Data Engine Zero Write-Lock Concurrency)  
+**Target Files & Modules**:
+- `trading_system/dag_pipeline.py` (DAG Execution Engine, Task Interface, Pipeline Context, Checkpoint Manager)
+- `src/data_layer/hybrid_storage.py` & `src/data_layer/parquet_wal_engine.py` (Hybrid SQLite/Parquet Engine, Parquet WAL Append-Log)
+- `tests/` & `trading_system/tests/` (Pytest test suite & fixture infrastructure)
 
 ---
 
-## 2. Core Audit Findings & Evidence Chains
+## 1. Executive Summary & Existing Test Suite Audit
 
-### Finding 1: Premature NaN Mutation Masking Data Coverage Defect
+### 1.1 Architecture & Test Suite Overview
+The stock trading system codebase contains **69 test files** in `tests/` (with mirrored files in `trading_system/tests/`). The current test suite relies on two primary testing patterns:
+1. **`unittest.TestCase` Framework**: Used across legacy core components (`test_database.py`, `test_orchestrator.py`, `test_event_bus.py`, `test_async_helper.py`).
+2. **`pytest` Functions & Markers**: Used in feature/strategy test files (`test_pipeline_data_filter.py`, `test_hpo_and_2d_ensemble.py`, `test_phase3_pipeline_data_filter.py`).
 
-#### Observation:
-- `trading_system/result/strategy_data_coverage_report.txt` shows 100.0% coverage across all 14 strategies for all evaluated symbols:
-```text
-=== 14-Strategy Data Coverage & Missingness Report ===
-Date: 2026-07-27 17:21 KST
-Total Evaluated Symbols: 898
+Configuration and entry points:
+- `tests/conftest.py`: Dynamically inserts project root and `trading_system/` into `sys.path`.
+- Environment isolation: Tests instantiate SQLite databases in temporary files (`tempfile.NamedTemporaryFile`) and set `TradingConfig.db_path` or `os.environ["DB_PATH"]`.
 
-Strategy              Valid Count    Missing Count  Coverage %     Primary Missing Reason        
--------------------------------------------------------------------------------------------------
-regression            898            0               100.0%          None (100% Valid)             
-surge                 898            0               100.0%          None (100% Valid)             
-lead_lag              898            0               100.0%          None (100% Valid)             
-...
-```
+### 1.2 Audit of Current Concurrency & Storage Tests
+1. **`TestMarketIndicatorStorageConcurrency` (`trading_system/tests/test_database.py`)**:
+   - Tests multi-threaded writes using 5 threads doing 20 writes each (`save_indicators()`).
+   - Uses `threading.Thread` and a `queue.Queue` to trap exceptions.
+   - Evaluates basic SQLite table insertion under modest thread counts.
+2. **`TestStockPriceDBConcurrency` (`trading_system/tests/test_database.py`)**:
+   - Tests 5 concurrent threads updating price history (`update_prices()`).
+   - Relies on internal mutex locks inside `StockPriceDB`.
+3. **`TestEventBus` (`trading_system/tests/test_event_bus.py`)**:
+   - Tests multi-threaded event registration and dispatch (`10 subscriber threads` + `10 publisher threads`).
 
-#### Code Evidence & Logic Chain:
-1. In `trading_system/src/ai/ensemble_scorer.py`, lines 699-709:
+### 1.3 Critical Deficiencies & Gaps for Milestone 1 (R1)
+While legacy database tests verify simple SQLite mutexes, they **fail to cover the M1 architecture requirements**:
+- **Zero DAG Pipeline Coverage**: No existing test file tests task graph definition, topological execution order, cycle detection, or task context propagation.
+- **Zero Checkpoint & Resumability Coverage**: No tests exist for `.checkpoints/pipeline_state.json`, parquet checkpoint state dumps, or resuming failed pipeline runs without re-executing successful tasks.
+- **Insufficient Concurrency Scale & Storage Isolation**: Current SQLite tests only use 5 threads with tiny payloads. They do NOT test multi-asset streaming across 3,379 symbols, nor do they test Parquet append-log / Timescale WAL engine hybrid reads/writes under zero-lock constraints.
+
+### 1.4 Pytest Collection & Module Resolution Anomaly
+During empirical verification running `.venv\Scripts\python.exe -m pytest tests/ --collect-only`, 59 test files in root `tests/` raised:
+`ModuleNotFoundError: No module named 'trading_system.tests'`
+- **Root Cause**: The 59 root test files consist of wrapper statements like `from trading_system.tests.test_X import *`. When running `pytest tests/`, Pytest loads `tests` from the root directory into `sys.modules['tests']`, which shadows `trading_system/tests`.
+- **Resolution**:
+  1. Tests must be executed pointing directly to `trading_system/tests/`: `.venv\Scripts\python.exe -m pytest trading_system/tests/`.
+  2. For M1 test files (`test_dag_pipeline.py`, `test_checkpoint_manager.py`, `test_hybrid_data_engine.py`), co-locate tests under `tests/` and `trading_system/tests/` with explicit package namespace handling in `conftest.py`.
+
+---
+
+
+## 2. Testing Strategy for DAG Pipeline Execution
+
+The DAG Pipeline (`trading_system/dag_pipeline.py`) replaces sequential execution in `run_pipeline.py` with a task-graph execution engine.
+
+### 2.1 Task Interface Contract Verification
+All tasks executed in the pipeline MUST adhere strictly to the `Task` interface:
 ```python
-# Fill raw NaNs with 0.0 for report formatting after ensemble score calculation
-fill_cols = [
-    'reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score',
-    'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
-    'sector_score', 'rim_score', 'event_score', 'mq_score',
-    'iv_skew_score', 'order_flow_score', 'reversal_score'
-]
-for col in fill_cols:
-    if col in merged.columns:
-        merged[col] = merged[col].fillna(0.0)
+from abc import ABC, abstractmethod
+from typing import Dict, Any, List
+
+class Task(ABC):
+    name: str
+    dependencies: List[str]
+
+    @abstractmethod
+    def execute(self, context: PipelineContext) -> TaskResult:
+        pass
+
+    @abstractmethod
+    def checkpoint(self) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def restore(self, state: Dict[str, Any]) -> None:
+        pass
 ```
-2. In `trading_system/run_pipeline.py`, line 2109, `ensemble_df` is computed by calling `scorer.calculate_ensemble_score(...)`.
-3. In `run_pipeline.py`, lines 2201-2202, `ensemble_df` is passed to `cov_analyzer.analyze_coverage(ensemble_df, prices_dict=infer_data_dict)`.
-4. In `trading_system/src/analysis/coverage_analyzer.py`, lines 62-67:
-```python
-series = ensemble_df[c_col]
-# Valid if non-null and finite
-valid_mask = series.notna() & np.isfinite(series)
-valid_cnt = int(valid_mask.sum())
-```
-5. Because `fillna(0.0)` was applied inside `calculate_ensemble_score()`, `series.notna()` evaluates to `True` for every single cell in `ensemble_df`, even for symbols where a strategy was not evaluated or failed. Thus `valid_cnt == total_symbols` (100.0% coverage).
+
+**Testing Approach**:
+- **Interface Compliance Test**: A meta-test iterating over all concrete `Task` subclasses to ensure all required properties and methods are implemented with correct type signatures.
+- **Execution Isolation**: Verify that tasks interact only via `PipelineContext` and do not rely on global side effects.
+
+### 2.2 Toposort & Graph Invariants
+The DAG engine must construct an execution graph and sort nodes topologically.
+
+**Test Scenarios**:
+1. **Diamond Graph Execution**:
+   - Graph: `A -> B`, `A -> C`, `B -> D`, `C -> D`.
+   - Verification: `A` executes first; `B` and `C` can execute in parallel; `D` executes ONLY after both `B` and `C` report `SUCCESS`.
+2. **Deep Linear Chain**:
+   - Graph: 100 sequential tasks (`T0 -> T1 -> ... -> T99`).
+   - Verification: Strict sequential ordering preserved, zero recursion depth limit errors during topological sort.
+3. **Disconnected Components**:
+   - Subgraph 1: `A -> B`; Subgraph 2: `X -> Y`.
+   - Verification: Both subgraphs execute to completion without blocking each other.
+
+### 2.3 Cycle Detection & Fault Rejection
+Before running any tasks, `DAGPipeline.validate_dag()` must detect circular dependencies and throw `CyclicDependencyError`.
+
+**Test Scenarios**:
+1. **Direct Cycle**: `A -> B -> A`.
+2. **Indirect Cycle**: `A -> B -> C -> D -> A`.
+3. **Self Loop**: `A -> A`.
+
+### 2.4 Parallel Task Graph Execution & Context Safety
+Independent nodes at the same DAG level should execute concurrently using `ThreadPoolExecutor` or `asyncio.gather`.
+
+**Test Scenarios**:
+1. **Concurrency Verification**: Tasks `B1, B2, B3` depending on `A` must run concurrently in separate threads.
+2. **Context Thread-Safety**: `PipelineContext` must use explicit thread locks or copy-on-write dictionaries when tasks read/write intermediate artifacts.
 
 ---
 
-### Finding 2: Per-Symbol Fundamental Missingness Check Flaw
+## 3. Testing Strategy for Task Checkpointing & Resumability
 
-#### Observation:
-In `trading_system/src/analysis/coverage_analyzer.py`, lines 83-93:
-```python
-fund_cols = ['bps', 'roe', 'operating_margin', 'net_profit_margin']
-has_fund = (features_df is not None and not features_df.empty and any(c in features_df.columns for c in fund_cols))
+Pipeline state serialization and resuming from partial failures are critical for production reliability across 3,379 symbols.
 
-for sym in missing_syms:
-    p_df = prices_dict.get(sym) if prices_dict else None
-    if p_df is None or len(p_df) < 200:
-        no_price_cnt += 1
-    elif strat in ['rim_valuation', 'mq_factor'] and not has_fund:
-        no_fund_cnt += 1
-    else:
-        other_cnt += 1
-```
+### 3.1 Dual-Tier Serialization Architecture
+Checkpointing uses a two-tier approach:
+1. **Metadata Tier**: Lightweight JSON (`.checkpoints/pipeline_state.json`) recording node status (`SUCCESS`, `FAILED`, `SKIPPED`), execution start/end timestamps, task parameters, and execution signatures.
+2. **Data Tier**: Heavy DataFrames serialized to Parquet files (`.checkpoints/{task_name}_output.parquet`).
 
-#### Logic Chain:
-- `has_fund` evaluates whether the *DataFrame table* `features_df` has columns named `bps`, `roe`, etc.
-- If `features_df` is passed to `analyze_coverage()` with these columns present, `has_fund` evaluates to `True` for every symbol.
-- If symbol `A` is missing BPS/ROE data (e.g. `NaN` in `features_df.loc['A', 'bps']`), `has_fund` remains `True`. Therefore, `not has_fund` evaluates to `False`, and missingness for fundamental-dependent strategies (`rim_valuation`, `mq_factor`) is incorrectly classified as `STRATEGY_SIGNAL_NEUTRAL` instead of `NO_FUNDAMENTAL_DATA`.
+### 3.2 Resumability & Partial Failure Recovery Testing
+**Test Scenario**:
+1. Construct 5-task DAG: `T1 (Ingest) -> T2 (Features) -> T3 (Train) -> T4 (Predict) -> T5 (Report)`.
+2. Run pipeline. `T1` and `T2` succeed. `T3` raises a simulated exception (`RuntimeError("CUDA OOM")`).
+3. Assert pipeline halts gracefully. Verify `.checkpoints/pipeline_state.json` records:
+   - `T1`: `SUCCESS`
+   - `T2`: `SUCCESS`
+   - `T3`: `FAILED`
+   - `T4`: `PENDING` / `SKIPPED`
+   - `T5`: `PENDING` / `SKIPPED`
+4. Re-instantiate `DAGPipeline` with `resume=True` and fixed `T3`.
+5. Run pipeline. Verify:
+   - `T1` and `T2` `execute()` methods are **NEVER CALLED** (their outputs are loaded directly from `.checkpoints/`).
+   - `T3` executes successfully.
+   - `T4` and `T5` execute to completion.
 
----
+### 3.3 Idempotency & Hash Verification
+To prevent using outdated checkpoints:
+- Compute SHA-256 hash of task inputs (configuration parameters + dependency output hashes).
+- If hash changes, invalidate checkpoint automatically and force re-execution.
 
-### Finding 3: Formatting & Data Integrity of Report Artifacts
-
-#### Output Files Inspected:
-1. `trading_system/result/strategy_data_coverage_report.txt`
-2. `trading_system/ensemble_predictions.txt`
-
-#### Key Formatting Observations:
-- **`strategy_data_coverage_report.txt`**:
-  - Contains overall header and single summary table.
-  - Lacks market-segmented breakdown (KOSPI, KOSDAQ, KONEX, SP500) within the report file.
-  - Reports only the single `Primary Missing Reason` string per strategy instead of showing a frequency distribution (e.g. `INSUFFICIENT_PRICE_HISTORY: 45, NO_FUNDAMENTAL_DATA: 12`).
-- **`ensemble_predictions.txt`**:
-  - Global Macro section contains `nan` or erroneous default values when price DB queries fall back.
-  - Recent pipeline updates in `run_pipeline.py` (lines 2264-2279) format all 14 strategy score columns in the Top 100 picks table. However, older generated output files on disk had only 4 strategy columns (`Reg`, `Surge`, `L-L`, `VCP`).
+### 3.4 Atomic Write & Crash Recovery
+- Checkpoints must be written to `.checkpoints/{name}.tmp` and atomically renamed to `.checkpoints/{name}.json` (using `os.replace`).
+- Test spec: Simulate abrupt process death during checkpoint write; ensure pipeline state is not corrupted.
 
 ---
 
-## 3. Automated Test Suite Audit (Pytest)
+## 4. Multi-Asset Streaming Concurrency Strategy (Zero Write-Locks)
 
-### Current Suite Architecture:
-- Test files located in `trading_system/tests/` (55+ test files, 550+ test functions).
-- Categories:
-  - Unit tests for indicators, risk management, regime detection, HPO, portfolio sizing.
-  - Core strategy tests (`test_new_5_strategies.py`, `test_rim_strategy.py`, `test_lead_lag_index.py`, `test_vcp_ml_predictor.py`, etc.).
-  - Coverage & Report tests (`test_kst_and_coverage_reasoning.py`).
+To handle real-time streaming data for 3,379 symbols without SQLite `database is locked` operational errors, M1 introduces a Hybrid Data Engine (`HybridDataEngine`) with a Parquet Append-Log / Timescale WAL engine.
 
-### Recorded Test Failures (`.pytest_cache/v/cache/lastfailed`):
-Inspection of pytest's cache file `.pytest_cache/v/cache/lastfailed` revealed failures in the following suites from prior runs:
-1. `tests/phase3/e2e/test_e2e.py::TestSentimentAnalysis`
-2. `tests/phase3/e2e/test_e2e.py::TestRLTradingModel`
-3. `tests/phase3/e2e/test_e2e.py::TestAssetAllocation`
-4. `tests/phase3/e2e/test_e2e.py::TestPDFReport`
-5. `tests/phase3/e2e/test_e2e.py::TestBrokerAPI`
-6. `tests/phase3/e2e/test_e2e.py::TestSentimentAnalysisNegative`
-7. `tests/phase3/e2e/test_e2e.py::TestRLTradingModelNegative`
-8. `tests/phase3/e2e/test_e2e.py::TestAssetAllocationNegative`
-9. `tests/phase3/e2e/test_e2e.py::TestPDFReportNegative`
-10. `tests/phase3/e2e/test_e2e.py::TestBrokerAPINegative`
-11. `tests/phase3/e2e/test_e2e.py::TestPairwiseInteraction`
-12. `tests/phase3/e2e/test_e2e.py::TestRealWorldScenarios`
-13. `tests/test_macro_stress.py::TestMacroStress::test_screener_predictions_identical`
+```
+[3,379 Asset Streamers] ---> [Parquet WAL Engine (Append-Log)] ---> [RAM Micro-Buffer]
+                                                                            |
+                                  [Zero Write-Lock]                         v
+[Concurrent Query Readers] <--------------------------------- [SQLite WAL / Parquet Storage]
+```
 
-### Coverage Gaps Relative to Requirement R3:
-1. **No Pipeline-Ensemble Integration Coverage Test**: `test_strategy_coverage_analyzer` in `test_kst_and_coverage_reasoning.py` tests `analyze_coverage` using a mock DataFrame with literal `np.nan` values. Because it bypasses `EnsembleScoringEngine`, it fails to catch the `fillna(0.0)` bug.
-2. **No Full Universe Data Coverage Test**: No automated test validates coverage ratios across all 3,379 symbols (KOSPI 898, KOSDAQ 1,684, KONEX 127, S&P 500 503).
-3. **No Granular Missingness Reason Validation**: No test asserts the correctness of per-symbol missingness categorization (insufficient price history vs missing fundamental data vs missing option chain).
+### 4.1 Hybrid Parquet / SQLite WAL Concurrency Model
+1. **Streaming Writers**: High-frequency tick/bar ingestion writes directly to partitioned Parquet append logs (`data/wal/{date}/{symbol}.parquet`) or in-memory ring buffers.
+2. **Background Flush Engine**: Periodically batches Parquet logs and writes to SQLite with WAL mode (`PRAGMA journal_mode=WAL`) or atomic Parquet partitioning.
+3. **Query Readers**: Readers query SQLite/Parquet snapshot views without acquiring write locks.
+
+### 4.2 Zero Write-Lock Load Testing Specification
+**Test Setup**:
+- **Stress Parameters**: 50 concurrent writer threads/processes.
+- **Payload**: Streaming bar updates for 500 symbols per thread (total 25,000 symbol updates per iteration) for 100 iterations.
+- **Simultaneous Readers**: 10 reader threads running heavy aggregate queries (`SELECT symbol, AVG(Close), MAX(High) GROUP BY symbol`).
+
+**Assertion Rules**:
+1. Zero `sqlite3.OperationalError: database is locked` raised across all 50 writer threads and 10 reader threads.
+2. Writer throughput must exceed 5,000 records/sec.
+3. Reader query latency P99 must remain < 50ms during active writes.
+
+### 4.3 Buffer Flush & Atomic Swap Mechanics
+**Test Scenarios**:
+1. **Buffer Overflow Flush**: Fill memory buffer to capacity (`max_buffer_size=10,000`). Verify background worker flushes buffer to storage asynchronously without blocking incoming stream.
+2. **Atomic Swap Verification**: When swapping buffer to persistent Parquet partitions, active read queries must return complete data without experiencing partial read anomalies.
 
 ---
 
-## 4. Proposed Code Fixes & Improvements
+## 5. Detailed Specifications for New Unit Test Modules
 
-### Fix 1: Preserve Unfilled NaNs in `EnsembleScoringEngine` or Conduct Coverage Analysis Prior to `fillna(0.0)`
+Below are the exact unit test specifications to be implemented by Implementer agents for Milestone 1.
 
-In `trading_system/src/ai/ensemble_scorer.py`:
-Keep a clean copy of `merged` before applying `fillna(0.0)`, or return raw scores with NaNs when requested:
+### 5.1 `tests/test_dag_pipeline.py`
+| Test Function | Description & Assertion |
+|---------------|-------------------------|
+| `test_task_contract_compliance()` | Inspects all concrete task classes, asserting inheritance from `Task` ABC and presence of required methods. |
+| `test_dag_topological_sort_diamond()` | Validates execution order of diamond DAG (`A -> B/C -> D`). |
+| `test_dag_cycle_detection_raises_error()` | Ensures cyclic graph throws `CyclicDependencyError`. |
+| `test_dag_parallel_execution_order()` | Measures thread execution timestamps to verify independent nodes run in parallel. |
+| `test_pipeline_context_thread_safety()` | Tests concurrent reads/writes to `PipelineContext` under 20 threads. |
+| `test_failed_task_skips_downstream()` | Asserts that when node `B` fails in `A -> B -> C`, `C` is marked `SKIPPED` and not executed. |
 
-```python
-# In calculate_ensemble_score:
-merged['ensemble_score'] = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+### 5.2 `tests/test_checkpoint_manager.py`
+| Test Function | Description & Assertion |
+|---------------|-------------------------|
+| `test_checkpoint_state_serialization_json()` | Tests metadata serialization and deserialization in `.checkpoints/pipeline_state.json`. |
+| `test_checkpoint_parquet_data_dump_and_restore()` | Serializes DataFrame state to `.checkpoints/{task}.parquet` and verifies byte-for-byte restoration. |
+| `test_resumability_skip_completed_tasks()` | Mocks a pipeline restart after failure; asserts completed tasks are skipped. |
+| `test_checkpoint_input_hash_invalidation()` | Changes input parameters for a completed task; verifies checkpoint is invalidated and task re-runs. |
+| `test_atomic_checkpoint_write_on_crash()` | Simulates write interruption; verifies existing checkpoint remains valid without corruption. |
 
-# Store raw score copy before fillna for coverage analyzer
-self.last_raw_merged_scores = merged.copy()
-```
-
-Alternatively, in `trading_system/run_pipeline.py`:
-Pass raw strategy DataFrames or raw un-filled ensemble scores to `StrategyCoverageAnalyzer`:
-
-```python
-cov_data = cov_analyzer.analyze_coverage(
-    ensemble_df,
-    prices_dict=infer_data_dict,
-    features_df=df_rim_input if 'df_rim_input' in locals() else None,
-    treat_zero_as_missing_for_strats=['surge', 'vcp_rule', 'stat_arb'] # or use raw NaNs
-)
-```
-
-### Fix 2: Enhance `StrategyCoverageAnalyzer` Per-Symbol Missingness Attribution
-
-In `trading_system/src/analysis/coverage_analyzer.py`:
-Check per-symbol fundamental missingness in `features_df`:
-
-```python
-# In analyze_coverage:
-for sym in missing_syms:
-    p_df = prices_dict.get(sym) if prices_dict else None
-    if p_df is None or len(p_df) < 200:
-        no_price_cnt += 1
-    elif strat in ['rim_valuation', 'mq_factor']:
-        # Check per-symbol fundamental validity
-        if features_df is not None and sym in features_df.index:
-            sym_fund = features_df.loc[sym]
-            if sym_fund[['bps', 'roe']].isna().any():
-                no_fund_cnt += 1
-            else:
-                other_cnt += 1
-        else:
-            no_fund_cnt += 1
-    else:
-        other_cnt += 1
-```
-
-### Fix 3: Add Comprehensive Integration Tests for R3
-
-Create `trading_system/tests/test_r3_coverage_and_universe.py`:
-1. `test_coverage_analyzer_with_ensemble_scorer_output()`: Runs `EnsembleScoringEngine.calculate_ensemble_score()` with partial strategy DataFrames and verifies `StrategyCoverageAnalyzer` correctly detects missing strategies (non-100% coverage).
-2. `test_per_symbol_fundamental_missingness_reasons()`: Verifies that missing fundamental data for a specific symbol produces `NO_FUNDAMENTAL_DATA` reason.
-3. `test_full_universe_symbol_coverage_report_generation()`: Verifies report generation across mock KOSPI/KOSDAQ/KONEX/SP500 symbols.
+### 5.3 `tests/test_hybrid_data_engine.py`
+| Test Function | Description & Assertion |
+|---------------|-------------------------|
+| `test_parquet_wal_append_stream()` | Tests rapid streaming appends to Parquet WAL files across 100 tickers. |
+| `test_zero_sqlite_write_lock_under_50_threads()` | Runs 50 concurrent writer threads against SQLite/Parquet hybrid engine; asserts 0 lock errors. |
+| `test_concurrent_readers_and_writers_no_blocking()` | Runs 10 reader queries during 50-thread streaming write; asserts zero query blocking. |
+| `test_buffer_flush_and_atomic_swap()` | Fills buffer, triggers async flush, and verifies data integrity in final storage. |
+| `test_multi_asset_3379_symbols_partitioning()` | Validates symbol-based directory partitioning (`data/market=KOSPI/symbol=005930/`). |
 
 ---
 
-## 5. Summary Table of Audit Findings
+## 6. Synthesis & Recommendations for Next Steps
 
-| ID | Component | Issue Description | Severity | Impact |
-|---|---|---|---|---|
-| **BUG-01** | `ensemble_scorer.py` / `coverage_analyzer.py` | `calculate_ensemble_score()` converts NaNs to `0.0` before passing `ensemble_df` to `coverage_analyzer.py`, masking all missing data as 100% coverage. | **HIGH** | False coverage metrics in pipeline reports |
-| **BUG-02** | `coverage_analyzer.py` | `has_fund` checks column existence in table rather than per-symbol values, failing to report missing fundamental data. | **MEDIUM** | Misclassified missingness reasons |
-| **BUG-03** | `coverage_analyzer.py` | `generate_coverage_report()` only prints top primary reason string rather than reason counts/ratios. | **LOW** | Missing granular insight in text report |
-| **GAP-01** | `tests/` | Unit tests for `coverage_analyzer` pass NaN DataFrames directly, missing the integration defect with `ensemble_scorer`. | **HIGH** | Test suite false positive |
-| **GAP-02** | `tests/` | E2E tests in `test_e2e.py` and `test_macro_stress.py` have recorded failures in `.pytest_cache/v/cache/lastfailed`. | **MEDIUM** | Incomplete test suite pass |
+1. **Test Helper Expansion**: Upgrade `tests/conftest.py` with custom fixtures:
+   - `@pytest.fixture` `temp_checkpoint_dir`: Provides isolated temporary checkpoint directory.
+   - `@pytest.fixture` `hybrid_db`: Sets up a clean temporary `HybridDataEngine` instance in SQLite WAL mode.
+2. **Stress Test Integration**: Mark heavy concurrency tests with `@pytest.mark.stress` so they can be run selectively during CI/CD.
+3. **Coverage Enforcement**: Set minimum test coverage threshold to 90% for `trading_system/dag_pipeline.py` and `src/data_layer/hybrid_storage.py`.

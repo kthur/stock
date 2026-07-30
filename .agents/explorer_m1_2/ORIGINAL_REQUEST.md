@@ -1,15 +1,24 @@
-## 2026-07-16T00:35:08Z
-You are Explorer 2 for Milestone 1.
-Working Directory: d:\Finance\code\stock\.agents\explorer_m1_2
-Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
-Original request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+## 2026-07-30T04:27:30Z
+You are Explorer M1-2 (System Architecture & Concurrency Specialist).
+Working directory: d:\Finance\code\stock\.agents\explorer_m1_2
+Project Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
 
-Task:
-Investigate fundamental fetching and retry logic in `src/data_layer/earnings_data.py` (and related data layer modules).
-Specifically analyze:
-1. How fundamental data and earnings data are fetched, including yfinance and FinanceDataReader usage.
-2. Existing rate-limiting, retry logic, and error handling in `earnings_data.py`.
-3. How yfinance -> FinanceDataReader -> `stock_prices.db` fallback (or offline cache fallback) can be implemented when network calls fail or hit rate limits.
-4. Document exact line numbers, code structures, and propose concrete fix strategies.
+Your task is to conduct a detailed system architecture, database I/O, concurrency, memory footprint, data missingness, and pipeline stability audit of the Stock Trading System (3,379 symbols).
 
-Save your analysis and handoff report to `d:\Finance\code\stock\.agents\explorer_m1_2\analysis.md` and `handoff.md`. Communicate findings via message when complete.
+Codebase targets to inspect:
+- `trading_system/run_pipeline.py` (Pipeline orchestration, step execution, memory management, OOM risks)
+- `src/data_layer/indicator_storage.py` (SQLite WAL manager, connection leaks, bare sqlite3.connect calls, lock contention)
+- `src/persistence/database.py` (StockPriceDB, thread-safety, synchronous=OFF, commit collisions)
+- `src/analysis/coverage_analyzer.py` (StrategyCoverageAnalyzer, missing strategy column mapping, coverage reporting)
+- `src/ai/ensemble_scorer.py` (Dynamic weight rescaling, missingness handling bias, strategy truncation)
+
+Analyze:
+1. SQLite DB I/O performance: Lock contention, missing busy timeouts, bare sqlite3 connections bypassing WAL manager.
+2. Concurrency & Memory: Python GIL thread-pool serialization on CPU-bound feature extraction, float32 precision loss for mega-cap figures, memory accumulation across 3,379 symbols without intermediate GC.
+3. Data missingness handling: Missing strategy column mapping in Coverage Analyzer, selection bias in dynamic weight normalization.
+4. Pipeline orchestration & stability: Error recovery, backtest universe survivorship bias, logging integrity.
+
+Output requirements:
+- Document all vulnerabilities line-by-line with exact code paths, file lines, root cause analysis, severity (High/Medium/Low), and system performance impact.
+- Write your complete audit report to `d:\Finance\code\stock\.agents\explorer_m1_2\handoff.md`.
+- Send a summary message back to the orchestrator when completed.

@@ -89,3 +89,43 @@ Integrity mode: development
 ### 출력 파일
 - [ ] `pipeline_result.txt`의 수익률 컬럼에 `0.0`만 있는 경우 파이프라인 로그에 경고가 출력됨
 - [ ] 출력 파일이 존재하고 비어있지 않음
+
+---
+
+## Follow-up — 2026-07-30T14:19:58Z
+
+<USER_REQUEST>
+Full-scale System Architecture & Quantitative Financial Engineering Optimization for 3,379 Stock Trading System.
+
+Working directory: d:\Finance\code\stock
+
+## Requirements
+
+### R1. Architecture Modularization & Data Engine Upgrade
+- Refactor monolithic `run_pipeline.py` into a DAG-based modular pipeline architecture with checkpointing & resumability.
+- Upgrade SQLite database layer to Parquet/TimescaleDB hybrid schema to eliminate write-lock bottlenecks during multi-asset streaming.
+
+### R2. Quantitative Alpha & Ensemble Orthogonalization
+- Implement Gram-Schmidt / PCA Factor Orthogonalization in `EnsembleScoringEngine` to remove multicollinearity and alpha overlap across 17 strategies.
+- Add K-Means/OPTICS pre-clustering to `StatisticalArbitrageEngine` to cut cointegration scanning from $O(N^2)$ to $O(N \log N)$.
+
+### R3. Risk Management & Portfolio Optimization Enhancement
+- Integrate Extreme Value Theory (EVT) CVaR constraints into `PortfolioAllocator`.
+- Implement dynamic band-based rebalancing to minimize STT and transaction cost drag.
+
+### R4. Execution Engine & MLOps Monitoring
+- Add TWAP/VWAP Order Slicing to the OMS Engine for low-liquidity stocks.
+- Implement real-time slippage feedback loop to dynamic ensemble weights and MLflow drift triggers for continuous retraining.
+
+## Acceptance Criteria
+
+### Architecture & Pipeline Integrity
+- [ ] All unit tests in `tests/` pass cleanly via `.venv\Scripts\python.exe -m pytest`.
+- [ ] Pipeline execution allows resuming from checkpointed tasks upon failure.
+
+### Quantitative & Execution Quality
+- [ ] Cointegration pair scanning runs in under 30 seconds for 3,379 symbols.
+- [ ] Portfolio backtest demonstrates reduced turnover and zero write-lock concurrency errors.
+
+</USER_REQUEST>
+

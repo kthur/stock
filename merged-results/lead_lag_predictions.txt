@@ -1,0 +1,121 @@
+=== Lead-Lag Surge Predictions ===
+Date: 2026-07-29 09:35
+Based on today's top 24 leader stock movements
+Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
+        (Higher = stronger historical co-movement with market leaders)
+
+--- SP500 Top 100 ---
+  1. [SP500] VEEV (Veeva Systems): 19.82%
+  2. [SP500] OMC (Omnicom Group): 19.81%
+  3. [SP500] COF (Capital One): 19.79%
+  4. [SP500] FOX (Fox Corporation (Class B)): 19.75%
+  5. [SP500] GIS (General Mills): 19.74%
+  6. [SP500] FOXA (Fox Corporation (Class A)): 19.73%
+  7. [SP500] BNY (BNY Mellon): 19.72%
+  8. [SP500] AWK (American Water Works): 19.72%
+  9. [SP500] DHR (Danaher Corporation): 16.23%
+  10. [SP500] TSN (Tyson Foods): 16.23%
+  11. [SP500] SRE (Sempra): 15.13%
+  12. [SP500] JKHY (Jack Henry & Associates): 15.13%
+  13. [SP500] VTR (Ventas): 15.13%
+  14. [SP500] WFC (Wells Fargo): 15.13%
+  15. [SP500] NTRS (Northern Trust): 15.12%
+  16. [SP500] DUK (Duke Energy): 15.12%
+  17. [SP500] COR (Cencora): 15.11%
+  18. [SP500] AJG (Arthur J. Gallagher & Co.): 15.11%
+  19. [SP500] APD (Air Products): 15.10%
+  20. [SP500] CVX (Chevron Corporation): 15.10%
+  21. [SP500] EW (Edwards Lifesciences): 15.10%
+  22. [SP500] FIS (Fidelity National Information Services): 15.10%
+  23. [SP500] ACGL (Arch Capital Group): 15.10%
+  24. [SP500] PNC (PNC Financial Services): 15.10%
+  25. [SP500] EXC (Exelon): 15.10%
+  26. [SP500] MA (Mastercard): 15.09%
+  27. [SP500] AMP (Ameriprise Financial): 15.09%
+  28. [SP500] EXE (Expand Energy): 15.07%
+  29. [SP500] BR (Broadridge Financial Solutions): 15.07%
+  30. [SP500] O (Realty Income): 15.04%
+  31. [SP500] PYPL (PayPal): 15.02%
+  32. [SP500] MO (Altria): 15.01%
+  33. [SP500] UHS (Universal Health Services): 14.35%
+  34. [SP500] AEP (American Electric Power): 14.26%
+  35. [SP500] MET (MetLife): 14.25%
+  36. [SP500] IBM (IBM): 14.24%
+  37. [SP500] VTRS (Viatris): 14.24%
+  38. [SP500] SCHW (Charles Schwab Corporation): 14.23%
+  39. [SP500] BAC (Bank of America): 12.91%
+  40. [SP500] USB (U.S. Bancorp): 11.14%
+  41. [SP500] CVNA (Carvana): 8.56%
+  42. [SP500] DOC (Healthpeak Properties): 6.87%
+  43. [SP500] FICO (Fair Isaac): 5.59%
+  44. [SP500] ACN (Accenture): 5.58%
+  45. [SP500] XEL (Xcel Energy): 5.58%
+  46. [SP500] CTVA (Corteva): 5.57%
+  47. [SP500] CB (Chubb Limited): 5.56%
+  48. [SP500] ADP (Automatic Data Processing): 5.35%
+  49. [SP500] FTV (Fortive): 5.03%
+  50. [SP500] J (Jacobs Solutions): 5.03%
+  51. [SP500] ES (Eversource Energy): 5.03%
+  52. [SP500] DLTR (Dollar Tree): 5.03%
+  53. [SP500] HPQ (HP Inc.): 5.03%
+  54. [SP500] CDW (CDW Corporation): 5.03%
+  55. [SP500] TYL (Tyler Technologies): 5.03%
+  56. [SP500] LITE (Lumentum): 5.03%
+  57. [SP500] ALGN (Align Technology): 5.03%
+  58. [SP500] HUBB (Hubbell Incorporated): 5.03%
+  59. [SP500] BSX (Boston Scientific): 5.03%
+  60. [SP500] CPAY (Corpay): 5.03%
+  61. [SP500] AMCR (Amcor): 5.03%
+  62. [SP500] DELL (Dell Technologies): 5.03%
+  63. [SP500] CRH (CRH plc): 5.02%
+  64. [SP500] EFX (Equifax): 5.02%
+  65. [SP500] CTSH (Cognizant): 5.02%
+  66. [SP500] YUM (Yum! Brands): 5.02%
+  67. [SP500] ZBRA (Zebra Technologies): 5.02%
+  68. [SP500] AOS (A. O. Smith): 5.02%
+  69. [SP500] VICI (Vici Properties): 4.71%
+  70. [SP500] PNW (Pinnacle West Capital): 4.71%
+  71. [SP500] PAYX (Paychex): 4.24%
+  72. [SP500] WRB (W. R. Berkley Corporation): 4.24%
+  73. [SP500] LH (Labcorp): 4.24%
+  74. [SP500] MDLZ (Mondelez International): 4.24%
+  75. [SP500] KVUE (Kenvue): 4.24%
+  76. [SP500] DVA (DaVita): 4.24%
+  77. [SP500] TRV (Travelers Companies (The)): 4.24%
+  78. [SP500] DGX (Quest Diagnostics): 4.24%
+  79. [SP500] KO (Coca-Cola Company (The)): 4.24%
+  80. [SP500] PRU (Prudential Financial): 4.24%
+  81. [SP500] PG (Procter & Gamble): 4.24%
+  82. [SP500] V (Visa Inc.): 4.24%
+  83. [SP500] VRSN (Verisign): 4.24%
+  84. [SP500] KMB (Kimberly-Clark): 4.23%
+  85. [SP500] GE (GE Aerospace): 4.22%
+  86. [SP500] HIG (Hartford (The)): 4.22%
+  87. [SP500] NCLH (Norwegian Cruise Line Holdings): 4.21%
+  88. [SP500] PEP (PepsiCo): 4.21%
+  89. [SP500] CL (Colgate-Palmolive): 4.20%
+  90. [SP500] TAP (Molson Coors Beverage Company): 4.19%
+  91. [SP500] TFC (Truist Financial): 3.60%
+  92. [SP500] CHD (Church & Dwight): 3.59%
+  93. [SP500] AFL (Aflac): 3.39%
+  94. [SP500] JPM (JPMorgan Chase): 3.39%
+  95. [SP500] DRI (Darden Restaurants): 3.39%
+  96. [SP500] AIG (American International Group): 3.39%
+  97. [SP500] ADM (Archer Daniels Midland): 3.39%
+  98. [SP500] MOS (Mosaic Company (The)): 3.39%
+  99. [SP500] PSX (Phillips 66): 3.39%
+  100. [SP500] BX (Blackstone Inc.): 3.39%
+
+--- Leaders with highest today return ---
+(Outliers >±30% excluded as potential data errors)
+  1. TEL (TE Connectivity): +3.23%
+  2. INTU (Intuit): +2.99%
+  3. COR (Cencora): +2.71%
+  4. DIS (Walt Disney Company (The)): +2.32%
+  5. GOOGL (Alphabet Inc. (Class A)): +2.19%
+  6. GOOG (Alphabet Inc. (Class C)): +1.85%
+  7. TDG (TransDigm Group): +1.69%
+  8. EMR (Emerson Electric): +1.68%
+  9. V (Visa Inc.): +1.12%
+  10. MSFT (Microsoft): +1.09%
+

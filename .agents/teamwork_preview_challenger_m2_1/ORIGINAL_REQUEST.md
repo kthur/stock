@@ -1,16 +1,11 @@
-## 2026-07-29T05:28:19Z
+## 2026-07-31T00:25:25Z
 
-You are Challenger 1 for Milestone 2 of the Stock Trading System project.
-Your Working Directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1
-Project Root: d:\Finance\code\stock
-Scope Document: d:\Finance\code\stock\.agents\orchestrator_r8\PROJECT.md
+You are Challenger M2-1 for Milestone 2.
+Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1
+Scope document: d:\Finance\code\stock\PROJECT.md
 
 Task:
-Empirically test and stress-test Worker 1's R1 implementation:
-1. Create edge-case input DataFrames with 0.0 scores, NaNs, infinities, all-NaN strategies, extreme VIX (>50), negative yield spreads, and zero-volume symbols.
-2. Run `EnsembleScoringEngine.calculate_ensemble_score()` with `.venv\Scripts\python.exe` on these edge cases.
-3. Verify that valid 0.0 scores receive non-zero weight contribution, NaN scores are correctly ignored in the denominator, and raw_scores retain true NaNs.
-4. Report your findings and verdict (PASS/FAIL) with empirical test code and outputs.
-
-Write your report to `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\handoff.md`.
-Then send a summary message back to parent orchestrator.
+1. Empirically challenge and stress-test FactorOrthogonalizerEngine.
+2. Test degenerate cases: perfectly collinear strategy columns, singular covariance matrices, zero variance features, and random uniform scores.
+3. Run test suite using .venv\Scripts\python.exe -m pytest.
+4. Write challenge findings and test results to d:\Finance\code\stock\.agents\teamwork_preview_challenger_m2_1\handoff.md and send message to parent.

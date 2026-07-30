@@ -1,107 +1,90 @@
-# Handoff Report — Independent Review of Requirement R1 (Milestone 2)
-
-**Reviewer**: Reviewer 1 (Archetype: reviewer & critic)  
-**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m2_1`  
-**Verdict**: **PASS** (APPROVE)  
-
----
+# Handoff Report - Reviewer M2-1 (Factor Orthogonalization)
 
 ## 1. Observation
 
-Direct code examination was conducted across the target files for Requirement R1 implementation:
+### Codebase Inspection
+- **File 1**: `trading_system/src/ai/factor_orthogonalizer.py` (149 lines)
+  - `FactorOrthogonalizerEngine` implements decorrelation for multi-strategy score matrices.
+  - `orthogonalize(...)` (lines 26–79): Extracts raw numeric score matrix $X \in \mathbb{R}^{N \times K}$, imputes NaNs with column means, rescales, delegates to either Gram-Schmidt or Loewdin PCA ZCA whitening, restores original NaNs, and clips scores to $[0.0, 1.0]$.
+  - `_gram_schmidt(...)` (lines 81–117): Standard Gram-Schmidt orthogonalization sorted by strategy weights. Projects out collinear components sequentially, standardizes vectors, and rescales back to original column means and standard deviations.
+  - `_pca_zca_symmetric(...)` (lines 119–147): Loewdin symmetric PCA ZCA whitening operator $C^{-1/2} = V \Lambda^{-1/2} V^T$ via `np.linalg.eigh(C)`, regularized with `ridge_epsilon=1e-6` on eigenvalues to ensure positive definiteness. Rescales decorrelated features back to original means and standard deviations.
+- **File 2**: `trading_system/src/ai/ensemble_scorer.py` (1171 lines)
+  - `EnsembleScoringEngine.__init__` (line 271): Instantiates `self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')`.
+  - `combine_predictions` (lines 887–898): Executes `self.orthogonalizer.orthogonalize(...)` on merged 17-strategy score columns prior to correlation monitoring, factor suppression, isotonic calibration, and dynamic weighting.
+- **File 3**: `tests/test_factor_orthogonalization.py` (147 lines)
+  - Test suite covering:
+    - `test_gram_schmidt_orthogonality`: Verifies Gram-Schmidt mean off-diagonal correlation < 0.30.
+    - `test_pca_variance_preservation`: Verifies ZCA output score bounds $[0.0, 1.0]$ and matrix shape $(500, 17)$.
+    - `test_cross_strategy_correlation_reduction`: Primary SLA test verifying reduction of mean off-diagonal correlation from $>0.65$ down to $<0.30$.
+    - `test_score_range_and_rank_preservation`: Verifies score bounds $[0.0, 1.0]$ and Spearman rank correlation $\ge 0.70$.
+    - `test_orthogonalization_edge_cases`: Verifies robustness to NaNs, constant columns, small $N=5$, and duplicate columns (rank deficiency).
+    - `test_benchmark_orthogonalization_latency`: Verifies execution time for 3,379 symbols $\times$ 17 strategies is $< 50\text{ ms}$.
 
-1. **`trading_system/src/ai/ensemble_scorer.py`**:
-   - **`valid_mask` fix for `0.0` scores** (lines 712-714):
-     ```python
-     valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
-     total_score_series += merged[score_col].fillna(0.0) * w * valid_mask.astype(float)
-     total_weight_series += w * valid_mask.astype(float)
-     ```
-     `notna() & np.isfinite()` correctly evaluates to `True` for valid `0.0` score predictions.
-   - **Preservation of `raw_scores`** (lines 721-725):
-     ```python
-     self.raw_scores = merged.copy()
-     if not hasattr(merged, 'attrs'):
-         merged.attrs = {}
-     merged.attrs['raw_scores'] = self.raw_scores
-     ```
-     `self.raw_scores` and `merged.attrs['raw_scores']` retain un-mutated NaN values for missing strategies prior to `merged[col].fillna(0.0)` for report formatting.
-   - **Transaction cost & liquidity gate** (lines 744-800):
-     Applies Market-specific cost deductions (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%) and zero-weights preferred stocks, SPACs, and illiquid symbols.
+### Test Execution Results
+- Command: `.venv\Scripts\python.exe -u -m pytest tests/test_factor_orthogonalization.py -v`
+- Execution Log Output:
+```text
+tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_benchmark_orthogonalization_latency PASSED [ 16%]
+tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_cross_strategy_correlation_reduction PASSED [ 33%]
+tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_gram_schmidt_orthogonality PASSED [ 50%]
+tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_orthogonalization_edge_cases PASSED [ 66%]
+tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_pca_variance_preservation PASSED [ 83%]
+tests/test_factor_orthogonalization.py::TestFactorOrthogonalization::test_score_range_and_rank_preservation PASSED [100%]
 
-2. **`trading_system/src/analysis/coverage_analyzer.py`**:
-   - **Coverage Analysis using `raw_scores`** (lines 39-44 & 68-74):
-     ```python
-     target_df = raw_scores
-     if target_df is None and hasattr(ensemble_df, 'attrs') and isinstance(ensemble_df.attrs, dict) and 'raw_scores' in ensemble_df.attrs:
-         target_df = ensemble_df.attrs['raw_scores']
-     ...
-     valid_mask = series.notna() & np.isfinite(series)
-     ```
-     Uses `raw_scores` DataFrame when provided or attached to `ensemble_df.attrs`, computing true strategy coverage and missingness ratios.
+============================= 6 passed in 33.75s ==============================
+```
 
-3. **`trading_system/run_pipeline.py` & `trading_system/src/data_layer/indicator_storage.py`**:
-   - Macro indicator retrieval (VIX, US10Y-US2Y, USD/KRW) uses multi-tier fallbacks: live `indicator_infer` -> `StockPriceDB` -> `MarketIndicatorStorage.get_latest_global_indicators()` -> fallback default values.
-   - `fetch_indicator_history` in `run_pipeline.py` (lines 570-577) correctly handles yfinance yield scaling (`raw_yield / 10.0` for `^TNX`).
-
-4. **`trading_system/tests/test_r1_ensemble_regime_fixes.py`**:
-   - Contains 6 dedicated unit test cases:
-     - `test_valid_zero_scores_not_discarded`
-     - `test_raw_scores_preserves_nans_for_coverage_analyzer`
-     - `test_transaction_costs_and_slippage_all_markets`
-     - `test_liquidity_and_preferred_stock_filter`
-     - `test_decision_rationale_includes_costs_and_regime`
-     - `test_indicator_storage_latest_macro`
+### Integrity Check
+- Checked for hardcoded test outputs, facade/dummy implementations, bypasses, or self-certifying shortcuts.
+- Finding: **No integrity violations detected**. Implementations are genuine, mathematically correct, and perform actual matrix operations.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Requirement R1.1 (`valid_mask` fix)**:
-   - *Premise*: Prediction scores of `0.0` represent valid model output (e.g. neutral signal or 0% gain probability). Previous code treating `score == 0.0` or `score > 0.0` as missing data improperly excluded valid predictions and corrupted weight normalization.
-   - *Evidence*: Line 712 of `ensemble_scorer.py` evaluates `merged[score_col].notna() & np.isfinite(merged[score_col])`. For `0.0`, `notna()` is `True` and `isfinite()` is `True`.
-   - *Deduction*: Valid `0.0` scores contribute `0.0 * w` to `total_score_series` and `w` to `total_weight_series`. Dynamic weight normalization functions as intended.
+1. **Orthogonalization Correctness & Decorrelation Capability**:
+   - The Loewdin ZCA transformation matrix $C^{-1/2} = V \text{diag}(\lambda_i^{-1/2}) V^T$ produces decorrelated features $X_{\text{decorr}} = \bar{X} C^{-1/2}$ such that the covariance matrix of $X_{\text{decorr}}$ is the identity matrix $I_K$.
+   - When raw strategy scores exhibit high collinearity (e.g., mean pairwise correlation $> 0.65 - 0.80$), ZCA decorrelation reduces off-diagonal pairwise correlations to approximately 0.0, well below the target requirement of $< 0.30$.
 
-2. **Requirement R1.2 (`raw_scores` preservation)**:
-   - *Premise*: Displaying ensemble reports requires replacing NaNs with `0.0`, but computing coverage statistics requires un-mutated NaNs.
-   - *Evidence*: `self.raw_scores` is copied on line 721 *before* `fillna(0.0)` is called on line 735. `StrategyCoverageAnalyzer` receives or extracts `raw_scores` and accurately identifies missing strategy values.
-   - *Deduction*: Separating display formatting from raw statistical reporting prevents false 100% coverage reporting while maintaining clean display output.
+2. **Rank Order & Structure Preservation**:
+   - Loewdin ZCA whitening is uniquely optimal among all whitening transformations in minimizing the total sum of squared distances $\sum_{k=1}^K \|x_k - x_{\text{ortho}, k}\|^2$ to original features.
+   - Rescaling by original column means and standard deviations followed by score clipping $[0.0, 1.0]$ preserves relative symbol rankings (Spearman rank correlation $\ge 0.70$ with un-orthogonalized raw score sums).
 
-3. **Requirement R1.3 (Macro Indicator Retrieval & Robustness)**:
-   - *Premise*: Macro indicators (VIX, US 10Y Yield, USD/KRW FX) are required for 2D regime weighting and decision rationale summaries.
-   - *Evidence*: `indicator_storage.py` implements `get_latest_global_indicators()`. `run_pipeline.py` provides 3-tier cascade fallback preventing NaN/None propagation into downstream scoring.
-
-4. **Integrity Violation Audit**:
-   - *Check*: Code was examined for hardcoded test outputs, dummy implementations, or shortcuts.
-   - *Result*: All logic is genuine, parameterized, and mathematically sound. No integrity violations detected.
+3. **Numerical Stability & Edge Cases**:
+   - Eigenvalue thresholding (`ridge_epsilon = 1e-6`) prevents division by zero or ill-conditioned matrix inversion under collinearity or duplicate columns.
+   - Column-mean NaN imputation preserves missing value masks for downstream NaN-aware weighting in `EnsembleScoringEngine`.
 
 ---
 
 ## 3. Caveats
 
-- Sandbox environment execution of shell commands (`run_command`) encountered a host container mount configuration error (`sandbox configuration error: readwrite stock: non-absolute file path`).
-- Static code inspection and logic tracing confirmed that the test implementation in `test_r1_ensemble_regime_fixes.py` matches pytest expectations cleanly.
+- **Score Range Clipping**: Decorrelation rescales features based on normal distribution assumptions. Extremely high-variance tail outliers may be clipped at upper bound $1.0$ or lower bound $0.0$. This is intentional and necessary to maintain valid probability inputs $[0.0, 1.0]$ for the ensemble scorer.
+- No other caveats.
 
 ---
 
 ## 4. Conclusion
 
-Worker 1's implementation of Requirement R1 in Milestone 2 fully satisfies all specifications set forth in `PROJECT.md` and `AGENTS.md`:
-- `valid_mask` properly includes valid `0.0` predictions.
-- `raw_scores` are preserved and passed to `StrategyCoverageAnalyzer` without mutating the output DataFrame.
-- Macro indicator retrieval is fully integrated with 3-tier fallbacks.
-- Unit test suite comprehensively covers all R1 functionality.
+**Verdict**: **APPROVE**
 
-**Final Verdict**: **PASS** (APPROVE).
+The Factor Orthogonalization engine (`FactorOrthogonalizerEngine`) in `factor_orthogonalizer.py` and its integration in `ensemble_scorer.py` fully satisfy all requirements for Milestone 2:
+- Gram-Schmidt & Loewdin PCA ZCA Whitening decorrelation methods correctly implemented.
+- Mean off-diagonal pairwise strategy correlation reduced from $>0.65$ to $<0.30$.
+- Rank ordering preserved (Spearman $\rho \ge 0.70$).
+- Output scores strictly bounded within $[0.0, 1.0]$.
+- Robust handling of NaNs, zero-variance columns, small sample sizes, and duplicate strategy features.
+- Zero integrity violations detected.
 
 ---
 
 ## 5. Verification Method
 
-To re-verify this assessment:
-1. Inspect `trading_system/src/ai/ensemble_scorer.py` lines 708-725 to confirm `valid_mask` and `raw_scores` preservation logic.
-2. Inspect `trading_system/src/analysis/coverage_analyzer.py` lines 39-44 to confirm extraction of `raw_scores`.
-3. When shell execution is available, run pytest:
-   ```bash
-   .venv\Scripts\python.exe -m pytest trading_system/tests/test_r1_ensemble_regime_fixes.py
+To independently re-verify this assessment:
+1. Run pytest suite:
+   ```powershell
+   .venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py -v
    ```
+2. Inspect source code files:
+   - `trading_system/src/ai/factor_orthogonalizer.py`
+   - `trading_system/src/ai/ensemble_scorer.py`
+3. Verify test cases pass with 0 failures and off-diagonal correlation metrics strictly below 0.30.

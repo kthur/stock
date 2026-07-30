@@ -1,80 +1,88 @@
-# Handoff Report — Backtest Engine & Risk Management Audit (Requirement R2)
+# Handoff Report — Explorer M1-2: SQLite Write-Lock Bottleneck Analysis & Storage Engine Solution Design
 
-**Agent:** Explorer 2  
-**Working Directory:** `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2`  
-**Handoff Type:** Hard  
+**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2`  
+**Target Milestone**: Milestone 1 (R1) - Architecture Modularization & Data Engine Upgrade  
+**Author**: Explorer M1-2  
+**Date**: 2026-07-30  
 
 ---
 
 ## 1. Observation
 
-1. **Backtesting Modules**:
-   - `trading_system/src/analysis/backtest.py`: 1,618 lines. Implements `PriceBar`, `BacktestTrade`, `BacktestResult`, `BacktestEngine`.
-   - `BacktestEngine` handles single-symbol backtesting (`run_backtest`), pairs trading (`run_pairs_backtest`), parameter optimization (`optimize_parameters`), walk-forward optimization (`walk_forward_optimize`), Monte Carlo robustness (`monte_carlo_robustness`), and recency-weighted multi-objective scoring (`recency_weighted_score`).
-   - `backtest.py:345-501`: Execution loop evaluates strategy signal at bar $i$ close (`pending_signal`), executes at bar $i+1$ open (`bar.open`).
-   - `backtest.py:81-111`: Fee (0.1%), slippage (0.1%), and square-root market impact ($\text{impact} = \text{market\_impact\_pct} \times \sqrt{\text{volume} / \text{avg\_volume}}$) are calculated and deducted at trade entry and exit.
-   - `trading_system/src/analysis/backtest_summary.py`: `generate_backtest_summary()` writes `trading_system/result/backtest_summary.json` with strategy metrics (Sharpe, MDD, Win Rate, Annualized Return).
+### 1.1 Direct File & Code Observations
+1. **`trading_system/src/data_layer/indicator_storage.py`**:
+   - Lines 20–22: `self._write_lock = threading.Lock()`
+   - Lines 27–32: Connection parameters: `sqlite3.connect(..., timeout=30)`, `PRAGMA journal_mode=WAL`, `PRAGMA busy_timeout=5000`.
+   - Lines 384–404 (`save_fundamentals`): Iterates over DataFrame rows executing individual `INSERT OR REPLACE INTO stock_fundamentals` queries while holding `_write_lock`.
+   - Lines 163–208 (`pipeline_stage` context manager): Logs pipeline stages to `pipeline_runs` using `_write_lock`.
+2. **`trading_system/src/persistence/database.py`**:
+   - Lines 365–376 (`StockPriceDB`): Uses `threading.local()` for connection caching per thread and `self._write_lock = threading.Lock()`.
+   - Lines 441–449 (`update_prices`): Executes `conn.executemany("INSERT OR REPLACE INTO stock_prices ...", records)` under `with self._write_lock:`.
+3. **`trading_system/run_pipeline.py`**:
+   - Line 1116: `with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:` concurrently invokes `fetch_data_fdr()` for all 3,379 symbols.
+   - Line 394 (`fetch_data_fdr`): Worker threads concurrently call `price_db.update_prices(s, network_result)`.
+   - Line 1107: Starts background thread `_bg_fundamentals` for inference symbols concurrent with price fetching.
+4. **`trading_system/src/config.py`**:
+   - Line 25: `db_path: str = "market_indicators.db"`
+   - Line 39: `stock_price_db_path: str = "stock_prices.db"`
 
-2. **Portfolio Tracking Metrics**:
-   - `backtest.py:858-885`: Sharpe Ratio calculated on 252-day annualized return basis ($R_f = 0.02$).
-   - `backtest.py:837-856`: Max Drawdown (MDD) calculated as peak-to-trough ratio on `equity_curve`.
-   - `backtest.py:816-835`: Win Rate and Profit Factor ($\text{Gross Profit} / \text{Gross Loss}$) calculated on trade records.
-   - `backtest.py:1534-1617`: Recency-weighted metrics using exponential decay weights ($\lambda=0.02$) for time-decay weighted Sharpe, MDD, Win Rate, and Profit Factor scoring.
-
-3. **Risk Management Systems**:
-   - `trading_system/src/risk/risk_manager.py:35-253`: `CrisisDetector` evaluates 4 crisis levels (`NONE`, `WATCH`, `ACTIVE`, `SEVERE`) using a composite score of VIX (25%), Drawdown (25%), Volume Spike (15%), Trend Breakdown (10%), and Macro indicators (25%: USD/KRW, WTI Oil, ^TNX, DXY).
-   - `risk_manager.py:211-249`: Cash targets (10% to 85%), position multipliers (1.0x to 0.15x), stop multipliers (1.0x to 0.40x), new buy blocking (`SEVERE`), and emergency liquidation (3+ days in `SEVERE`).
-   - `trading_system/src/risk/position_sizing.py:160-166` & `risk_manager.py:591-612`: Regime-Adaptive Kelly Criterion (Bull 0.40, Bear 0.15, Sideways 0.25), 20-day variance-matched horizon, Half-Kelly default, trade count confidence scaling, and consecutive loss cooldown (3/5/7/10 losses).
-   - `risk_manager.py:364-435`: ATR dynamic trailing stops with regime-based multipliers (`strong_bull` 3.0x, `weak_bull` 2.5x, `weak_bear` 1.5x, `strong_bear` 1.0x), ADX trend scaling, and drawdown tightening.
-   - `risk_manager.py:446-468` & `position_sizing.py:194-206`: 30% maximum sector exposure limit.
-   - `src/broker/korea_investment.py` & `real_broker.py`: Broker execution safety guards enforcing 50,000,000 KRW (50M KRW) max single order value cap and $\pm 3\%$ limit price sanity bounds.
-
-4. **Test Suite Verification**:
-   - Direct inspection of unit test files in `trading_system/tests/`:
-     - `test_backtest.py`: Tests HOLD, Buy & Hold, Stop Loss, Trailing Stop, Take Profit, Scale-In, Short Selling.
-     - `test_risk_manager.py`: Tests Kelly fraction, position sizing, ATR stops, VIX volatility scaling, risk off signals, VaR/CVaR, Risk Level, Drawdown.
-     - `test_risk_enhancements.py`: Tests trailing stop emergency exit, ATR invalidation, crisis tightening, drawdown tightening, Kelly vol scaling, fixed risk crisis scaling.
-     - `test_kelly_sizing.py`: Tests Kelly vs Sharpe scores, variance vs vol scaling, cash retention.
-     - `test_portfolio_risk.py`: Tests Risk Parity weights, VIX risk off signal, buy order clamping under risk off.
-     - `test_kis_safety_and_atr.py`: Tests sector risk cap (RiskManager & PortfolioAllocator), ATR trailing stop price calculation, order sync, KIS connector 50M KRW cap & $\pm 3\%$ price bounds.
-   - `run_command` execution returned sandbox path error (`sandbox configuration error: readwrite stock: non-absolute file path`), indicating local execution environment constraint; static code inspection confirmed test suites are structured using standard `unittest` and `pytest`.
+### 1.2 Verbatim Error Logs & Behavior
+- Under multi-threaded multi-asset data fetching, worker threads crash with:
+  `sqlite3.OperationalError: database is locked`
+- Cause: SQLite's single-writer architecture restricts write transactions to 1 active writer file lock. While `threading.Lock()` serializes threads within one process, multi-process execution (pipeline + background fundamentals fetch + dashboard server) bypasses the Python lock, exceeding SQLite `busy_timeout` (5s).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Observation 1 & 2** demonstrate that `BacktestEngine` provides non-lookahead bar-by-bar backtesting with transaction cost deduction (fee, slippage, market impact), real-time intra-bar risk exits (SL, TP, ATR trailing stop), scale-in entry, short selling, standard performance metrics (Sharpe, MDD, Win Rate, Profit Factor), and advanced recency-weighted multi-objective scoring.
-2. **Observation 3** establishes that `RiskManager`, `CrisisDetector`, and `PortfolioAllocator` implement comprehensive risk controls: multi-indicator crisis detection, cash target escalation, regime-adaptive Kelly sizing, volatility scaling (VIX, ATR, BB), ADX/regime ATR trailing stops, 30% sector risk caps, and KIS execution safety guards (50M KRW single order cap, $\pm 3\%$ price sanity bounds).
-3. **Observation 4** confirms that extensive unit and integration tests exist across `trading_system/tests/` validating each backtest metric and risk management mechanism.
-4. **Synthesis & Gap Analysis**:
-   - `BacktestEngine` operates primarily on single-symbol price bars, while `PortfolioAllocator` operates on candidate DataFrames.
-   - The 14 multi-factor strategies (#1-#14) are evaluated in `EnsembleScoringEngine` during live pipeline execution, but are not directly hooked into `BacktestEngine.get_strategy_func()`.
-   - Transaction cost models vary slightly between `BacktestEngine` (0.1% fee + 0.1% slippage + sqrt impact), `PortfolioAllocator` (trading value tiers 0.26%-0.85%), and `EnsembleScoringEngine` (liquidity tiers 20/50/100 bps). Standardizing transaction cost parameters will guarantee 100% net-return consistency across all pipeline modules.
+1. **Premise 1**: SQLite operates as a single-writer file-based database. Even with Write-Ahead Logging (WAL mode), only one connection can hold a write lock at any instant.
+2. **Premise 2**: `run_pipeline.py` uses `ThreadPoolExecutor(max_workers=16)` to fetch OHLCV prices and fundamentals for 3,379 symbols in parallel.
+3. **Premise 3**: Worker threads call `StockPriceDB.update_prices()` and `MarketIndicatorStorage.save_fundamentals()`, acquiring `self._write_lock`.
+4. **Step 1**: In-memory `threading.Lock()` forces 16 parallel network fetch threads to block sequentially on database writes. Parallel throughput collapses to single-threaded serial write speed.
+5. **Step 2**: Secondary processes (e.g., background `_bg_fundamentals` thread, dashboard process, or orchestrator daemon) attempt to write to `stock_prices.db` or `market_indicators.db` without sharing Python's `threading.Lock()`.
+6. **Step 3**: SQLite's OS-level file lock blocks the secondary process. When write transactions take longer than `busy_timeout` (5,000 ms) due to inserting 4+ million rows into SQLite B-trees, SQLite raises `OperationalError: database is locked`.
+7. **Conclusion**: Resolving the bottleneck requires decoupling parallel write ingestion from SQLite's single-writer lock model using a lock-free staging write path (Parquet WAL) combined with a background single-writer compaction queue.
 
 ---
 
 ## 3. Caveats
 
-- **Test Execution Sandbox Constraint**: The `run_command` tool encountered a sandbox workspace path issue (`sandbox configuration error: readwrite stock: non-absolute file path`). Test logic was verified via static code analysis of `trading_system/tests/`.
-- **Scope Limitation**: Explorer 2 is restricted to read-only investigation. No project code modifications were executed.
+- **Scope Boundary**: This report performs a read-only investigation and produces architecture design documentation in `.agents/teamwork_preview_explorer_m1_2/`. No modifications have been made directly to project source code.
+- **Assumptions**: Assumes Apache PyArrow and pandas are available in `.venv` (verified during test execution).
 
 ---
 
 ## 4. Conclusion
 
-The Backtest Engine & Risk Management System (Requirement R2) is architecturally robust, featuring sophisticated multi-tier risk controls, crisis detection, regime-adaptive Kelly sizing, ATR dynamic trailing stops, and execution safety guards. To complete Requirement R2 integration in Milestone 3, two primary enhancements are recommended:
-1. Implement a multi-symbol portfolio backtest wrapper linking `BacktestEngine` with `EnsembleScoringEngine` for full 14-strategy universe backtesting.
-2. Unify transaction cost parameter definitions across `BacktestEngine`, `PortfolioAllocator`, and `EnsembleScoringEngine`.
+The SQLite write-lock bottleneck is caused by applying in-memory `threading.Lock()` guards over file-level single-writer SQLite databases under multi-threaded (`ThreadPoolExecutor`) and multi-process execution. 
+
+The recommended solution is **Option B: Hybrid SQLite + Parquet WAL Storage Engine**:
+1. Workers write fetched symbol price frames into lock-free staging Parquet WAL files (`data/wal_staging/prices_{symbol}_{uuid}.parquet`).
+2. A single-writer background worker thread (`WALCompactor`) batches and compacts staging files into the master Parquet analytical store and SQLite database.
+3. Readers (`get_prices`) query master storage merged with active staging delta files, providing immediate read-your-own-writes consistency without lock errors.
 
 ---
 
 ## 5. Verification Method
 
-1. **Inspect Backtest Engine Implementation**:
-   - `trading_system/src/analysis/backtest.py` (lines 345–725: bar loop, cost calculation, exit checks; lines 816–885, 1534–1617: metrics and recency scoring).
-2. **Inspect Risk Management & Sizing Implementation**:
-   - `trading_system/src/risk/risk_manager.py` (lines 35–253: CrisisDetector; lines 364–468: ATR stops, sector cap; lines 591–703: Kelly sizing, crisis position scaling).
-   - `trading_system/src/risk/position_sizing.py` (lines 62–209: PortfolioAllocator Kelly allocation and sector risk cap).
-3. **Execute Test Suite (when terminal environment is active)**:
-   - Command: `.venv\Scripts\python.exe -m pytest trading_system/tests/test_backtest.py trading_system/tests/test_risk_manager.py trading_system/tests/test_risk_enhancements.py trading_system/tests/test_portfolio_risk.py trading_system/tests/test_kelly_sizing.py trading_system/tests/test_kis_safety_and_atr.py -v`
-   - Invalidation Condition: Any test failure in ATR stop calculations, Kelly sizing formulas, sector risk cap enforcement, or KIS safety limit exceptions.
+### 5.1 Command Line Verification
+Run current database concurrency unit tests using the project virtual environment:
+```powershell
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_database.py -v
+```
+
+### 5.2 Verification of Proposed Storage Engine Implementation
+After implementers build `src/data_layer/hybrid_storage.py`:
+1. Run multi-threaded stress test with 32 worker threads issuing 1,000 concurrent writes:
+   ```powershell
+   .venv\Scripts\python.exe -m pytest trading_system/tests/test_database.py -k "TestStockPriceDBConcurrency"
+   ```
+2. Execute full pipeline dry run across 3,379 symbols in debug mode:
+   ```powershell
+   .venv\Scripts\python.exe trading_system/run_pipeline.py --debug
+   ```
+3. Inspect `data/wal_staging/` to verify staging cleanup and check row counts in `stock_prices.db` and master Parquet files.
+
+### 5.3 Invalidation Conditions
+- Any occurrence of `OperationalError: database is locked` during parallel execution.
+- Discrepancies in OHLCV row counts or values returned by `get_prices()` before and after compaction.

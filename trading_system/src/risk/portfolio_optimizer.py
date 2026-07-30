@@ -1,19 +1,24 @@
 """
 Portfolio Optimizer Module:
 - Risk Parity (Equal Risk Contribution) Allocation
-- Mean-Variance / Sharpe Optimization with Covariance Matrix
+- Mean-Variance / Sharpe Optimization with Covariance Matrix & EVT-CVaR Loss Budget Constraints
 - Dynamic Factor & Sector Exposure Control (Neutralization & Constraint)
+- Dynamic Band Rebalancing Signal Trigger Evaluation
 """
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
+import logging
+from typing import Dict, List, Optional, Tuple, Any
 from scipy.optimize import minimize
+
+logger = logging.getLogger(__name__)
+
 
 class PortfolioOptimizer:
     """
     Portfolio Optimization Engine implementing Risk Parity, Mean-Variance,
-    and Factor/Sector Exposure Constraints.
+    EVT-CVaR Tail Loss Constraints, and Factor/Sector Exposure Constraints.
     """
     def __init__(self, default_max_weight: float = 0.20, default_max_sector_weight: float = 0.35):
         self.default_max_weight = default_max_weight
@@ -90,10 +95,13 @@ class PortfolioOptimizer:
         expected_returns: pd.Series,
         returns_df: pd.DataFrame,
         risk_aversion: float = 1.0,
-        max_weight: Optional[float] = None
+        max_weight: Optional[float] = None,
+        max_cvar_limit: Optional[float] = None,
+        cvar_confidence: float = 0.95
     ) -> Dict[str, float]:
         """
-        Mean-Variance Optimization balancing expected net return vs portfolio variance.
+        Mean-Variance Optimization balancing expected net return vs portfolio variance,
+        optionally constrained by EVT-CVaR loss budget limit (EVT_CVaR(w) <= max_cvar_limit).
         """
         if max_weight is None:
             max_weight = self.default_max_weight
@@ -117,7 +125,18 @@ class PortfolioOptimizer:
 
         init_weights = np.ones(n_assets) / n_assets
         bounds = tuple((0.0, max_weight) for _ in range(n_assets))
-        constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0})
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0}]
+
+        if max_cvar_limit is not None and not returns_sub.empty and len(returns_sub) >= 5:
+            from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
+            allocator = PortfolioAllocator()
+            returns_matrix = returns_sub.values
+
+            def cvar_constraint(w):
+                evt_cvar = allocator.estimate_portfolio_evt_cvar(w, returns_matrix, confidence=cvar_confidence)
+                return max_cvar_limit - evt_cvar
+
+            constraints.append({'type': 'ineq', 'fun': cvar_constraint})
 
         res = minimize(
             mvo_objective,
@@ -171,3 +190,20 @@ class PortfolioOptimizer:
             adjusted_weights = {sym: w / total_sum for sym, w in adjusted_weights.items()}
 
         return adjusted_weights
+
+    def check_rebalance_trigger(
+        self,
+        current_weights: Dict[str, float],
+        target_weights: Dict[str, float],
+        buffer_band: float = 0.03
+    ) -> bool:
+        """
+        Emits rebalance signal only when allocation drift breaches no-trade buffer bands.
+        """
+        all_keys = set(current_weights.keys()).union(set(target_weights.keys()))
+        max_drift = 0.0
+        for k in all_keys:
+            w_curr = current_weights.get(k, 0.0)
+            w_targ = target_weights.get(k, 0.0)
+            max_drift = max(max_drift, abs(w_curr - w_targ))
+        return max_drift > buffer_band

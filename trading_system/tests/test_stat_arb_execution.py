@@ -27,8 +27,8 @@ class TestStatArbExecution(unittest.TestCase):
         # s2: s1 + stationary noise
         p2 = p1 + np.random.normal(0, 0.1, steps)
 
-        # At the very end, force a large spread divergence to trigger a signal
-        p1[-1] = p1[-1] + 5.0  # s1 spikes up relative to s2 (z-score should be high, SHORT_s1_LONG_s2)
+        # At the very end, force a spread divergence to trigger a signal below stop-loss threshold
+        p1[-1] = p1[-1] + 0.15  # s1 spikes up relative to s2 (z-score = 2.88 in [1.5, 3.2], SHORT_s1_LONG_s2)
 
         prices_dict = {
             "AAPL": list(p1),

@@ -1,75 +1,44 @@
-# Handoff Report — Strategy Data Coverage & Automated Test Suite Audit (R3)
-
-**Author**: Explorer 3 (Milestone 1)  
-**Date**: 2026-07-29  
-**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3`  
-
----
+# Handoff Report — Explorer M1-3
 
 ## 1. Observation
-
-- **Premature NaN Mutation to 0.0**: In `trading_system/src/ai/ensemble_scorer.py` (lines 705-709), `calculate_ensemble_score()` executes:
-  ```python
-  fill_cols = [
-      'reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score',
-      'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
-      'sector_score', 'rim_score', 'event_score', 'mq_score',
-      'iv_skew_score', 'order_flow_score', 'reversal_score'
-  ]
-  for col in fill_cols:
-      if col in merged.columns:
-          merged[col] = merged[col].fillna(0.0)
-  ```
-- **False 100% Coverage Output**: In `trading_system/src/analysis/coverage_analyzer.py` (lines 62-67), `analyze_coverage()` calculates validity via:
-  ```python
-  series = ensemble_df[c_col]
-  valid_mask = series.notna() & np.isfinite(series)
-  valid_cnt = int(valid_mask.sum())
-  ```
-  Because all NaNs were converted to `0.0`, `series.notna()` returns `True` for every symbol. Thus `strategy_data_coverage_report.txt` records 100.0% coverage across all 14 strategies regardless of missing data.
-- **Global Table Missingness Check Flaw**: In `coverage_analyzer.py` (line 84), `has_fund = (features_df is not None and not features_df.empty and any(c in features_df.columns for c in fund_cols))` checks table columns rather than checking per-symbol missing values (`features_df.loc[sym]`), causing missing fundamental data reasons to be misclassified.
-- **Pytest Suite Failures**: `.pytest_cache/v/cache/lastfailed` contains 13 failing test node IDs from prior executions, including E2E phase 3 tests (`tests/phase3/e2e/test_e2e.py`) and macro stress test (`tests/test_macro_stress.py::TestMacroStress::test_screener_predictions_identical`).
-- **Test Suite Integration Gap**: Existing unit test `test_strategy_coverage_analyzer()` in `trading_system/tests/test_kst_and_coverage_reasoning.py` feeds raw mock DataFrames with NaNs directly to `analyze_coverage()`, missing the integration bug caused by `ensemble_scorer.py`.
-
----
+- **Existing Test Architecture**:
+  - `tests/` directory contains 69 test files (and mirrored files in `trading_system/tests/`).
+  - `tests/conftest.py` configures `sys.path` for module resolution.
+  - Legacy tests (`tests/test_database.py:172-224`, `tests/test_event_bus.py:82-110`) test basic SQLite multi-threading and thread-safety using 5 threads and small memory objects.
+- **Identified Gaps & Anomalies for Milestone 1 (R1)**:
+  - `trading_system/dag_pipeline.py` and DAG pipeline execution engine do not yet exist in the test suite (0 test files).
+  - No task checkpointing or state serialization test fixtures (`.checkpoints/pipeline_state.json` / parquet frames) exist.
+  - Multi-asset streaming concurrency across 3,379 symbols under hybrid Parquet/SQLite WAL engine is unverified by existing unit tests.
+  - Running `.venv\Scripts\python.exe -m pytest tests/` fails collection on 59 forwarder files with `ModuleNotFoundError: No module named 'trading_system.tests'`. Tests must be executed directly against `trading_system/tests/`.
 
 ## 2. Logic Chain
-
-1. `run_pipeline.py` calls `EnsembleScoringEngine.calculate_ensemble_score()` to compute `ensemble_df`.
-2. `calculate_ensemble_score()` merges outputs from all 14 strategies via outer join. Where a strategy lacks predictions for a symbol, the resulting merged column is `NaN`.
-3. Before returning `merged` as `ensemble_df`, `calculate_ensemble_score()` applies `fillna(0.0)` to all strategy score columns to prepare for downstream string formatting.
-4. `run_pipeline.py` then passes this mutated `ensemble_df` to `StrategyCoverageAnalyzer.analyze_coverage()`.
-5. `analyze_coverage()` checks `series.notna() & np.isfinite(series)`. Since `0.0` is non-null and finite, it marks every symbol as having a valid score.
-6. The analyzer outputs 100.0% coverage across all strategies, rendering the coverage report blind to missing data and strategy evaluation failures.
-7. Furthermore, when analyzing missingness reasons for fundamental strategies (`rim_valuation`, `mq_factor`), checking `features_df.columns` instead of `features_df.loc[sym]` prevents `NO_FUNDAMENTAL_DATA` from being reported when `features_df` exists.
-
----
+1. **Requirement Analysis**:
+   - Milestone 1 (R1) specifies:
+     - DAG execution pipeline with task graph execution, dependency ordering, cycle detection, state serialization, and resume capability (`trading_system/dag_pipeline.py`).
+     - Task interface contract: `name`, `dependencies`, `execute(context)`, `checkpoint()`, `restore()`.
+     - Hybrid SQLite/Parquet engine for multi-asset streaming concurrency with zero SQLite `database is locked` OperationalErrors.
+2. **Strategy Formulation**:
+   - **DAG Pipeline**: Designed topological sort tests (diamond, linear chain, disconnected subgraphs), cycle detection tests (`CyclicDependencyError`), parallel execution order tests, and context thread-safety tests.
+   - **Checkpoint & Resumability**: Designed dual-tier serialization tests (JSON metadata + Parquet data state), partial failure recovery tests (skipping completed tasks upon resume), input hash invalidation tests, and atomic write crash-safety tests.
+   - **Multi-Asset Streaming Concurrency**: Designed a 50-thread load test specification writing tick/bar data across 3,379 symbols while 10 reader threads query historical aggregates under zero lock errors.
+3. **Unit Test Blueprint**:
+   - Detailed test functions and assertions for `tests/test_dag_pipeline.py`, `tests/test_checkpoint_manager.py`, and `tests/test_hybrid_data_engine.py`.
 
 ## 3. Caveats
-
-- **Sandbox Execution Limit**: Direct invocation of pytest via `run_command` returned a host sandbox environment error (`sandbox configuration error: readwrite stock: non-absolute file path`). Test failure node IDs were extracted directly from pytest's cache file (`.pytest_cache/v/cache/lastfailed`).
-- **Read-Only Scope**: In accordance with Explorer role instructions, no source files outside the working directory `.agents/teamwork_preview_explorer_m1_3/` were edited.
-
----
+- No implementation code was written or modified in core source paths (`trading_system/`, `src/`) per read-only investigation rules.
+- Hardware-dependent performance metrics (e.g. 5,000 records/sec throughput and <50ms query P99) depend on execution environment disk I/O (SSD vs HDD) and CPU core count.
 
 ## 4. Conclusion
-
-The Strategy Data Coverage system suffers from a critical integration defect where `EnsembleScoringEngine` mutates missing strategy scores (NaN) to `0.0` prior to calling `StrategyCoverageAnalyzer`. This results in false 100.0% coverage figures. In addition, `coverage_analyzer.py` misclassifies per-symbol fundamental missingness reasons, and the pytest test suite lacks integration tests connecting `ensemble_scorer` outputs with `coverage_analyzer`.
-
-Implementing the recommended fixes (preserving raw score NaNs for coverage analysis and checking per-symbol fundamental missingness) will restore full accuracy to the strategy data coverage report for all 3,379 universe symbols.
-
----
+The testing strategy and unit test specifications for Milestone 1 (R1) are fully designed, documented, and ready for implementation. Implementation agents can directly build the new modules (`trading_system/dag_pipeline.py`, `src/data_layer/hybrid_storage.py`, `src/data_layer/parquet_wal_engine.py`) and write their corresponding test suites following the detailed specifications in `analysis.md`.
 
 ## 5. Verification Method
+- **Analysis Artifact Verification**:
+  - Inspect `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\analysis.md` to review the detailed testing strategies and unit test functions.
+- **Execution Command for Future Tests**:
+  - Run pytest pointing to `trading_system/tests/`:
+    ```bash
+    .venv/bin/pytest trading_system/tests/test_dag_pipeline.py trading_system/tests/test_checkpoint_manager.py trading_system/tests/test_hybrid_data_engine.py -v
+    ```
+- **Invalidation Conditions**:
+  - The strategy is invalidated if the `Task` interface definition changes or if SQLite WAL mode is replaced by a non-file database engine.
 
-To verify these findings independently:
-1. **Inspect NaN Mutation in Ensemble Scorer**:
-   View `trading_system/src/ai/ensemble_scorer.py` lines 705-709 to confirm `merged[col] = merged[col].fillna(0.0)`.
-2. **Inspect Coverage Analyzer Logic**:
-   View `trading_system/src/analysis/coverage_analyzer.py` lines 62-67 to confirm validity check `series.notna() & np.isfinite(series)`.
-3. **Inspect Saved Report Artifacts**:
-   View `trading_system/result/strategy_data_coverage_report.txt` and `scratch/run_30272907164/merged-results/strategy_data_coverage_report_KOSPI.txt` to confirm that reported coverage is 100.0% for all strategies despite missing underlying predictions.
-4. **Inspect Test Cache for Failures**:
-   View `trading_system/.pytest_cache/v/cache/lastfailed` to observe recorded failures in `test_e2e.py` and `test_macro_stress.py`.
-5. **Verify Fix**:
-   Pass a DataFrame containing `np.nan` values from `calculate_ensemble_score()` (without `fillna(0.0)`) into `analyze_coverage()` to confirm that valid count and coverage percentages accurately reflect missing values.

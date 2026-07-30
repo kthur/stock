@@ -14,6 +14,7 @@ except ImportError:
 from .meta_ensemble_learner import MetaEnsembleLearner
 from .correlation_monitor import StrategyCorrelationMonitor
 from .factor_suppression import RegimeFactorSuppressionEngine
+from .factor_orthogonalizer import FactorOrthogonalizerEngine
 
 
 
@@ -267,6 +268,8 @@ class EnsembleScoringEngine:
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
+        self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
+        self.orthogonalizer_enabled = True
 
         # Load Optuna-tuned 2D regime weights from tuned_params.json (if available)
         self._load_tuned_regime_weights()
@@ -880,6 +883,20 @@ class EnsembleScoringEngine:
             ('latr_factor', 'latr_score'),
         ]
 
+        # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
+        if getattr(self, 'orthogonalizer_enabled', True):
+            try:
+                strategy_score_cols = [col for _, col in strategy_cols if col in merged.columns]
+                strat_weights = {col: weights.get(strat_name, 0.10) for strat_name, col in strategy_cols if col in merged.columns}
+                merged = self.orthogonalizer.orthogonalize(
+                    score_df=merged,
+                    strategy_cols=strategy_score_cols,
+                    weights=strat_weights,
+                    method='pca_symmetric'
+                )
+            except Exception as _oe:
+                logger.warning(f"Factor orthogonalization warning: {_oe}")
+
         # Phase 3-C: Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
         try:
             corr_df = self.correlation_monitor.update_correlation(merged)
@@ -967,7 +984,8 @@ class EnsembleScoringEngine:
             'reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score',
             'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
             'sector_score', 'rim_score', 'event_score', 'mq_score',
-            'iv_skew_score', 'order_flow_score', 'reversal_score'
+            'iv_skew_score', 'order_flow_score', 'reversal_score',
+            'arm_score', 'card_score', 'latr_score'
         ]
         for col in fill_cols:
             if col in merged.columns:

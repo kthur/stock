@@ -1,19 +1,12 @@
-## 2026-07-29T05:20:38Z
-You are Explorer 1 for Milestone 1 of the Stock Trading System project.
-Your Working Directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1
-Project Root: d:\Finance\code\stock
-Scope Document: d:\Finance\code\stock\.agents\orchestrator_r8\PROJECT.md
+## 2026-07-30T14:21:01Z
+<USER_REQUEST>
+You are Explorer M1-1 for Milestone 1 (R1).
+Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1
+Scope document: d:\Finance\code\stock\PROJECT.md
 
 Task:
-Perform a comprehensive audit of the 14-Strategy Dynamic Weighted Ensemble & 2D Market Regime Engine (R1).
-Specifically:
-1. Examine `src/ai/ensemble_scorer.py` and `src/ai/prediction_model.py`.
-2. Inspect how the 14 strategies (Regression, Surge, Lead-Lag, VCP, VCP ML, Strict Causal LSTM, Stat-Arb, Sector Rotation, RIM Valuation, Event-Driven, MQ Factor, IV Skew, Order Flow, Short-Term Reversal) are weighted, normalized, and combined.
-3. Inspect the 2D Market Regime GMM engine (VIX, US10Y-US2Y, USD/KRW) and regime-based dynamic weight calculations.
-4. Inspect how transaction costs (fees, tax, slippage) and liquidity filtering are applied to calculate net returns.
-5. Check how the net-return decision rationale is formatted and outputted in `ensemble_predictions.txt`.
-6. Run `pytest tests/` or `pytest trading_system/tests/` using `.venv\Scripts\python.exe` to see if current ensemble tests pass or fail.
-7. Identify any gaps, bugs, or missing features relative to Requirement R1.
-
-Write your complete analysis and findings to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\analysis.md` and `handoff.md`.
-Then send a summary message back to parent orchestrator.
+1. Investigate d:\Finance\code\stock\trading_system\run_pipeline.py and current pipeline structure.
+2. Formulate a comprehensive modular DAG (Directed Acyclic Graph) architecture design for the pipeline, allowing task breakdown into independent modular stages with dependency graphs.
+3. Design checkpointing and resumability mechanism (e.g. saving state to JSON/Parquet checkpoint files after each successful node so failed pipeline runs can resume without re-running completed steps).
+4. Write your detailed analysis to d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\analysis.md and summarize key findings & implementation recommendation in handoff.md. Send a message to parent when done.
+</USER_REQUEST>

@@ -1,0 +1,426 @@
+=== Pipeline Inference Summary (TOP100 per Market) ===
+Date: 2026-07-29 09:35
+Total symbols analyzed: 497
+Showing: Top 100 per market | Horizons: 1d, 5d, 20d, 60d
+Full data: pipeline_result.csv / pipeline_result.jsonl
+
+============================================================
+Horizon: 1d
+
+--- S&P 500 TOP 100 ---
+  1. ACN (Accenture): +3.01%
+  2. IQV (IQVIA): +2.98%
+  3. CTSH (Cognizant): +2.71%
+  4. IP (International Paper): +2.59%
+  5. WDAY (Workday, Inc.): +2.48%
+  6. HPQ (HP Inc.): +2.37%
+  7. FDS (FactSet): +2.30%
+  8. ALLE (Allegion): +2.25%
+  9. IT (Gartner): +2.17%
+  10. ADSK (Autodesk): +2.08%
+  11. WAB (Wabtec): +2.06%
+  12. SW (Smurfit Westrock): +2.06%
+  13. CBOE (Cboe Global Markets): +2.02%
+  14. LMT (Lockheed Martin): +2.01%
+  15. ICE (Intercontinental Exchange): +1.99%
+  16. NUE (Nucor): +1.98%
+  17. GM (General Motors): +1.96%
+  18. GDDY (GoDaddy): +1.95%
+  19. LDOS (Leidos): +1.94%
+  20. RTX (RTX Corporation): +1.90%
+  21. CTAS (Cintas): +1.86%
+  22. GPN (Global Payments): +1.85%
+  23. PYPL (PayPal): +1.80%
+  24. TRMB (Trimble Inc.): +1.80%
+  25. ADBE (Adobe Inc.): +1.79%
+  26. ROP (Roper Technologies): +1.79%
+  27. DGX (Quest Diagnostics): +1.77%
+  28. WTW (Willis Towers Watson): +1.74%
+  29. CME (CME Group): +1.70%
+  30. NDAQ (Nasdaq, Inc.): +1.68%
+  31. LH (Labcorp): +1.67%
+  32. TYL (Tyler Technologies): +1.66%
+  33. BRO (Brown & Brown): +1.62%
+  34. T (AT&T): +1.61%
+  35. VRSK (Verisk Analytics): +1.60%
+  36. CPRT (Copart): +1.57%
+  37. BR (Broadridge Financial Solutions): +1.56%
+  38. UHS (Universal Health Services): +1.56%
+  39. EXPE (Expedia Group): +1.56%
+  40. INCY (Incyte): +1.55%
+  41. TRV (Travelers Companies (The)): +1.55%
+  42. PCAR (Paccar): +1.54%
+  43. OMC (Omnicom Group): +1.53%
+  44. EFX (Equifax): +1.53%
+  45. TMO (Thermo Fisher Scientific): +1.52%
+  46. DPZ (Domino's): +1.52%
+  47. INTU (Intuit): +1.52%
+  48. MCK (McKesson Corporation): +1.50%
+  49. STLD (Steel Dynamics): +1.50%
+  50. ROST (Ross Stores): +1.48%
+  51. BX (Blackstone Inc.): +1.44%
+  52. FIS (Fidelity National Information Services): +1.43%
+  53. ADP (Automatic Data Processing): +1.43%
+  54. BKNG (Booking Holdings): +1.41%
+  55. PAYX (Paychex): +1.41%
+  56. HII (Huntington Ingalls Industries): +1.40%
+  57. VZ (Verizon): +1.40%
+  58. FICO (Fair Isaac): +1.40%
+  59. HAS (Hasbro): +1.39%
+  60. ABT (Abbott Laboratories): +1.38%
+  61. HCA (HCA Healthcare): +1.38%
+  62. ARES (Ares Management): +1.37%
+  63. AJG (Arthur J. Gallagher & Co.): +1.37%
+  64. J (Jacobs Solutions): +1.36%
+  65. RJF (Raymond James Financial): +1.35%
+  66. BAX (Baxter International): +1.35%
+  67. VLTO (Veralto): +1.34%
+  68. SOLV (Solventum): +1.31%
+  69. ALL (Allstate): +1.31%
+  70. AMP (Ameriprise Financial): +1.31%
+  71. SCHW (Charles Schwab Corporation): +1.30%
+  72. AON (Aon plc): +1.28%
+  73. PKG (Packaging Corporation of America): +1.27%
+  74. GPC (Genuine Parts Company): +1.27%
+  75. CRM (Salesforce): +1.27%
+  76. AAPL (Apple Inc.): +1.26%
+  77. ITW (Illinois Tool Works): +1.25%
+  78. ZBRA (Zebra Technologies): +1.25%
+  79. NOW (ServiceNow): +1.23%
+  80. ERIE (Erie Indemnity): +1.22%
+  81. GD (General Dynamics): +1.22%
+  82. MRSH (Marsh McLennan): +1.21%
+  83. BLK (BlackRock): +1.20%
+  84. KKR (KKR & Co.): +1.20%
+  85. VEEV (Veeva Systems): +1.20%
+  86. JKHY (Jack Henry & Associates): +1.19%
+  87. MMM (3M): +1.17%
+  88. CRL (Charles River Laboratories): +1.15%
+  89. DHR (Danaher Corporation): +1.15%
+  90. STE (Steris): +1.14%
+  91. SYK (Stryker Corporation): +1.14%
+  92. SHW (Sherwin-Williams): +1.14%
+  93. LHX (L3Harris): +1.13%
+  94. FISV (Fiserv): +1.13%
+  95. BBY (Best Buy): +1.13%
+  96. NOC (Northrop Grumman): +1.12%
+  97. CDW (CDW Corporation): +1.12%
+  98. KHC (Kraft Heinz): +1.10%
+  99. CPAY (Corpay): +1.10%
+  100. RCL (Royal Caribbean Group): +1.09%
+
+============================================================
+Horizon: 5d
+
+--- S&P 500 TOP 100 ---
+  1. ACN (Accenture): +6.74%
+  2. IQV (IQVIA): +6.67%
+  3. CTSH (Cognizant): +6.05%
+  4. IP (International Paper): +5.79%
+  5. WDAY (Workday, Inc.): +5.55%
+  6. HPQ (HP Inc.): +5.30%
+  7. FDS (FactSet): +5.14%
+  8. ALLE (Allegion): +5.03%
+  9. IT (Gartner): +4.86%
+  10. ADSK (Autodesk): +4.64%
+  11. WAB (Wabtec): +4.60%
+  12. SW (Smurfit Westrock): +4.60%
+  13. CBOE (Cboe Global Markets): +4.52%
+  14. LMT (Lockheed Martin): +4.51%
+  15. ICE (Intercontinental Exchange): +4.45%
+  16. NUE (Nucor): +4.43%
+  17. GM (General Motors): +4.39%
+  18. GDDY (GoDaddy): +4.37%
+  19. LDOS (Leidos): +4.35%
+  20. RTX (RTX Corporation): +4.24%
+  21. CTAS (Cintas): +4.16%
+  22. GPN (Global Payments): +4.14%
+  23. PYPL (PayPal): +4.03%
+  24. TRMB (Trimble Inc.): +4.02%
+  25. ADBE (Adobe Inc.): +4.01%
+  26. ROP (Roper Technologies): +4.00%
+  27. DGX (Quest Diagnostics): +3.95%
+  28. WTW (Willis Towers Watson): +3.88%
+  29. CME (CME Group): +3.80%
+  30. NDAQ (Nasdaq, Inc.): +3.75%
+  31. LH (Labcorp): +3.73%
+  32. TYL (Tyler Technologies): +3.71%
+  33. BRO (Brown & Brown): +3.62%
+  34. T (AT&T): +3.61%
+  35. VRSK (Verisk Analytics): +3.59%
+  36. CPRT (Copart): +3.51%
+  37. BR (Broadridge Financial Solutions): +3.50%
+  38. UHS (Universal Health Services): +3.48%
+  39. EXPE (Expedia Group): +3.48%
+  40. INCY (Incyte): +3.47%
+  41. TRV (Travelers Companies (The)): +3.46%
+  42. PCAR (Paccar): +3.45%
+  43. OMC (Omnicom Group): +3.43%
+  44. EFX (Equifax): +3.41%
+  45. TMO (Thermo Fisher Scientific): +3.41%
+  46. DPZ (Domino's): +3.40%
+  47. INTU (Intuit): +3.39%
+  48. MCK (McKesson Corporation): +3.36%
+  49. STLD (Steel Dynamics): +3.36%
+  50. ROST (Ross Stores): +3.31%
+  51. BX (Blackstone Inc.): +3.23%
+  52. FIS (Fidelity National Information Services): +3.21%
+  53. ADP (Automatic Data Processing): +3.20%
+  54. BKNG (Booking Holdings): +3.15%
+  55. PAYX (Paychex): +3.14%
+  56. HII (Huntington Ingalls Industries): +3.13%
+  57. VZ (Verizon): +3.13%
+  58. FICO (Fair Isaac): +3.12%
+  59. HAS (Hasbro): +3.11%
+  60. ABT (Abbott Laboratories): +3.10%
+  61. HCA (HCA Healthcare): +3.08%
+  62. ARES (Ares Management): +3.07%
+  63. AJG (Arthur J. Gallagher & Co.): +3.06%
+  64. J (Jacobs Solutions): +3.05%
+  65. RJF (Raymond James Financial): +3.03%
+  66. BAX (Baxter International): +3.01%
+  67. VLTO (Veralto): +3.00%
+  68. SOLV (Solventum): +2.94%
+  69. ALL (Allstate): +2.93%
+  70. AMP (Ameriprise Financial): +2.93%
+  71. SCHW (Charles Schwab Corporation): +2.91%
+  72. AON (Aon plc): +2.86%
+  73. PKG (Packaging Corporation of America): +2.85%
+  74. GPC (Genuine Parts Company): +2.85%
+  75. CRM (Salesforce): +2.84%
+  76. AAPL (Apple Inc.): +2.82%
+  77. ITW (Illinois Tool Works): +2.81%
+  78. ZBRA (Zebra Technologies): +2.79%
+  79. NOW (ServiceNow): +2.74%
+  80. ERIE (Erie Indemnity): +2.73%
+  81. GD (General Dynamics): +2.73%
+  82. MRSH (Marsh McLennan): +2.70%
+  83. BLK (BlackRock): +2.69%
+  84. KKR (KKR & Co.): +2.69%
+  85. VEEV (Veeva Systems): +2.68%
+  86. JKHY (Jack Henry & Associates): +2.66%
+  87. MMM (3M): +2.61%
+  88. CRL (Charles River Laboratories): +2.58%
+  89. DHR (Danaher Corporation): +2.56%
+  90. STE (Steris): +2.56%
+  91. SYK (Stryker Corporation): +2.55%
+  92. SHW (Sherwin-Williams): +2.54%
+  93. LHX (L3Harris): +2.53%
+  94. FISV (Fiserv): +2.52%
+  95. BBY (Best Buy): +2.52%
+  96. NOC (Northrop Grumman): +2.51%
+  97. CDW (CDW Corporation): +2.51%
+  98. KHC (Kraft Heinz): +2.46%
+  99. CPAY (Corpay): +2.45%
+  100. RCL (Royal Caribbean Group): +2.44%
+
+============================================================
+Horizon: 20d
+
+--- S&P 500 TOP 100 ---
+  1. ACN (Accenture): +13.48%
+  2. IQV (IQVIA): +13.34%
+  3. CTSH (Cognizant): +12.10%
+  4. IP (International Paper): +11.58%
+  5. WDAY (Workday, Inc.): +11.09%
+  6. HPQ (HP Inc.): +10.60%
+  7. FDS (FactSet): +10.28%
+  8. ALLE (Allegion): +10.06%
+  9. IT (Gartner): +9.73%
+  10. ADSK (Autodesk): +9.29%
+  11. WAB (Wabtec): +9.21%
+  12. SW (Smurfit Westrock): +9.20%
+  13. CBOE (Cboe Global Markets): +9.04%
+  14. LMT (Lockheed Martin): +9.01%
+  15. ICE (Intercontinental Exchange): +8.90%
+  16. NUE (Nucor): +8.86%
+  17. GM (General Motors): +8.77%
+  18. GDDY (GoDaddy): +8.74%
+  19. LDOS (Leidos): +8.69%
+  20. RTX (RTX Corporation): +8.48%
+  21. CTAS (Cintas): +8.31%
+  22. GPN (Global Payments): +8.29%
+  23. PYPL (PayPal): +8.05%
+  24. TRMB (Trimble Inc.): +8.04%
+  25. ADBE (Adobe Inc.): +8.02%
+  26. ROP (Roper Technologies): +8.00%
+  27. DGX (Quest Diagnostics): +7.91%
+  28. WTW (Willis Towers Watson): +7.76%
+  29. CME (CME Group): +7.60%
+  30. NDAQ (Nasdaq, Inc.): +7.51%
+  31. LH (Labcorp): +7.47%
+  32. TYL (Tyler Technologies): +7.42%
+  33. BRO (Brown & Brown): +7.24%
+  34. T (AT&T): +7.22%
+  35. VRSK (Verisk Analytics): +7.17%
+  36. CPRT (Copart): +7.03%
+  37. BR (Broadridge Financial Solutions): +6.99%
+  38. UHS (Universal Health Services): +6.96%
+  39. EXPE (Expedia Group): +6.96%
+  40. INCY (Incyte): +6.94%
+  41. TRV (Travelers Companies (The)): +6.92%
+  42. PCAR (Paccar): +6.90%
+  43. OMC (Omnicom Group): +6.86%
+  44. EFX (Equifax): +6.83%
+  45. TMO (Thermo Fisher Scientific): +6.81%
+  46. DPZ (Domino's): +6.80%
+  47. INTU (Intuit): +6.78%
+  48. MCK (McKesson Corporation): +6.73%
+  49. STLD (Steel Dynamics): +6.72%
+  50. ROST (Ross Stores): +6.62%
+  51. BX (Blackstone Inc.): +6.45%
+  52. FIS (Fidelity National Information Services): +6.42%
+  53. ADP (Automatic Data Processing): +6.40%
+  54. BKNG (Booking Holdings): +6.29%
+  55. PAYX (Paychex): +6.29%
+  56. HII (Huntington Ingalls Industries): +6.26%
+  57. VZ (Verizon): +6.26%
+  58. FICO (Fair Isaac): +6.24%
+  59. HAS (Hasbro): +6.22%
+  60. ABT (Abbott Laboratories): +6.19%
+  61. HCA (HCA Healthcare): +6.15%
+  62. ARES (Ares Management): +6.13%
+  63. AJG (Arthur J. Gallagher & Co.): +6.12%
+  64. J (Jacobs Solutions): +6.10%
+  65. RJF (Raymond James Financial): +6.06%
+  66. BAX (Baxter International): +6.02%
+  67. VLTO (Veralto): +6.01%
+  68. SOLV (Solventum): +5.88%
+  69. ALL (Allstate): +5.86%
+  70. AMP (Ameriprise Financial): +5.85%
+  71. SCHW (Charles Schwab Corporation): +5.81%
+  72. AON (Aon plc): +5.71%
+  73. PKG (Packaging Corporation of America): +5.70%
+  74. GPC (Genuine Parts Company): +5.69%
+  75. CRM (Salesforce): +5.68%
+  76. AAPL (Apple Inc.): +5.65%
+  77. ITW (Illinois Tool Works): +5.61%
+  78. ZBRA (Zebra Technologies): +5.59%
+  79. NOW (ServiceNow): +5.49%
+  80. ERIE (Erie Indemnity): +5.46%
+  81. GD (General Dynamics): +5.46%
+  82. MRSH (Marsh McLennan): +5.39%
+  83. BLK (BlackRock): +5.39%
+  84. KKR (KKR & Co.): +5.37%
+  85. VEEV (Veeva Systems): +5.36%
+  86. JKHY (Jack Henry & Associates): +5.32%
+  87. MMM (3M): +5.21%
+  88. CRL (Charles River Laboratories): +5.15%
+  89. DHR (Danaher Corporation): +5.13%
+  90. STE (Steris): +5.12%
+  91. SYK (Stryker Corporation): +5.10%
+  92. SHW (Sherwin-Williams): +5.08%
+  93. LHX (L3Harris): +5.05%
+  94. FISV (Fiserv): +5.05%
+  95. BBY (Best Buy): +5.04%
+  96. NOC (Northrop Grumman): +5.03%
+  97. CDW (CDW Corporation): +5.01%
+  98. KHC (Kraft Heinz): +4.91%
+  99. CPAY (Corpay): +4.91%
+  100. RCL (Royal Caribbean Group): +4.87%
+
+============================================================
+Horizon: 60d
+
+--- S&P 500 TOP 100 ---
+  1. ACN (Accenture): +23.34%
+  2. IQV (IQVIA): +23.10%
+  3. CTSH (Cognizant): +20.95%
+  4. IP (International Paper): +20.06%
+  5. WDAY (Workday, Inc.): +19.21%
+  6. HPQ (HP Inc.): +18.36%
+  7. FDS (FactSet): +17.81%
+  8. ALLE (Allegion): +17.43%
+  9. IT (Gartner): +16.84%
+  10. ADSK (Autodesk): +16.08%
+  11. WAB (Wabtec): +15.95%
+  12. SW (Smurfit Westrock): +15.93%
+  13. CBOE (Cboe Global Markets): +15.66%
+  14. LMT (Lockheed Martin): +15.61%
+  15. ICE (Intercontinental Exchange): +15.42%
+  16. NUE (Nucor): +15.34%
+  17. GM (General Motors): +15.20%
+  18. GDDY (GoDaddy): +15.14%
+  19. LDOS (Leidos): +15.06%
+  20. RTX (RTX Corporation): +14.69%
+  21. CTAS (Cintas): +14.40%
+  22. GPN (Global Payments): +14.35%
+  23. PYPL (PayPal): +13.94%
+  24. TRMB (Trimble Inc.): +13.92%
+  25. ADBE (Adobe Inc.): +13.89%
+  26. ROP (Roper Technologies): +13.86%
+  27. DGX (Quest Diagnostics): +13.70%
+  28. WTW (Willis Towers Watson): +13.44%
+  29. CME (CME Group): +13.17%
+  30. NDAQ (Nasdaq, Inc.): +13.01%
+  31. LH (Labcorp): +12.93%
+  32. TYL (Tyler Technologies): +12.84%
+  33. BRO (Brown & Brown): +12.54%
+  34. T (AT&T): +12.50%
+  35. VRSK (Verisk Analytics): +12.42%
+  36. CPRT (Copart): +12.17%
+  37. BR (Broadridge Financial Solutions): +12.11%
+  38. UHS (Universal Health Services): +12.06%
+  39. EXPE (Expedia Group): +12.05%
+  40. INCY (Incyte): +12.01%
+  41. TRV (Travelers Companies (The)): +11.99%
+  42. PCAR (Paccar): +11.95%
+  43. OMC (Omnicom Group): +11.89%
+  44. EFX (Equifax): +11.83%
+  45. TMO (Thermo Fisher Scientific): +11.80%
+  46. DPZ (Domino's): +11.77%
+  47. INTU (Intuit): +11.75%
+  48. MCK (McKesson Corporation): +11.65%
+  49. STLD (Steel Dynamics): +11.64%
+  50. ROST (Ross Stores): +11.47%
+  51. BX (Blackstone Inc.): +11.18%
+  52. FIS (Fidelity National Information Services): +11.11%
+  53. ADP (Automatic Data Processing): +11.09%
+  54. BKNG (Booking Holdings): +10.90%
+  55. PAYX (Paychex): +10.89%
+  56. HII (Huntington Ingalls Industries): +10.84%
+  57. VZ (Verizon): +10.84%
+  58. FICO (Fair Isaac): +10.81%
+  59. HAS (Hasbro): +10.78%
+  60. ABT (Abbott Laboratories): +10.72%
+  61. HCA (HCA Healthcare): +10.66%
+  62. ARES (Ares Management): +10.62%
+  63. AJG (Arthur J. Gallagher & Co.): +10.59%
+  64. J (Jacobs Solutions): +10.56%
+  65. RJF (Raymond James Financial): +10.49%
+  66. BAX (Baxter International): +10.43%
+  67. VLTO (Veralto): +10.41%
+  68. SOLV (Solventum): +10.18%
+  69. ALL (Allstate): +10.15%
+  70. AMP (Ameriprise Financial): +10.13%
+  71. SCHW (Charles Schwab Corporation): +10.06%
+  72. AON (Aon plc): +9.89%
+  73. PKG (Packaging Corporation of America): +9.87%
+  74. GPC (Genuine Parts Company): +9.86%
+  75. CRM (Salesforce): +9.83%
+  76. AAPL (Apple Inc.): +9.78%
+  77. ITW (Illinois Tool Works): +9.72%
+  78. ZBRA (Zebra Technologies): +9.68%
+  79. NOW (ServiceNow): +9.50%
+  80. ERIE (Erie Indemnity): +9.46%
+  81. GD (General Dynamics): +9.46%
+  82. MRSH (Marsh McLennan): +9.34%
+  83. BLK (BlackRock): +9.33%
+  84. KKR (KKR & Co.): +9.30%
+  85. VEEV (Veeva Systems): +9.29%
+  86. JKHY (Jack Henry & Associates): +9.21%
+  87. MMM (3M): +9.03%
+  88. CRL (Charles River Laboratories): +8.92%
+  89. DHR (Danaher Corporation): +8.88%
+  90. STE (Steris): +8.86%
+  91. SYK (Stryker Corporation): +8.83%
+  92. SHW (Sherwin-Williams): +8.79%
+  93. LHX (L3Harris): +8.75%
+  94. FISV (Fiserv): +8.74%
+  95. BBY (Best Buy): +8.73%
+  96. NOC (Northrop Grumman): +8.71%
+  97. CDW (CDW Corporation): +8.69%
+  98. KHC (Kraft Heinz): +8.51%
+  99. CPAY (Corpay): +8.50%
+  100. RCL (Royal Caribbean Group): +8.44%
+

@@ -1,0 +1,106 @@
+=== Strategy 10: Event-Driven Disclosure Catalyst Predictions ===
+Date: 2026-07-29 09:36 KST
+Total symbols evaluated: 497
+
+Rank Symbol    Name              Market    Event Score   
+------------------------------------------------------------
+1    INCY      Incyte            SP500             66.0%
+2    GLW       Corning Inc.      SP500             64.2%
+3    IQV       IQVIA             SP500             63.9%
+4    SOLV      Solventum         SP500             61.9%
+5    TXT       Textron           SP500             61.6%
+6    UPS       United Parcel Se  SP500             60.0%
+7    LII       Lennox Internati  SP500             59.9%
+8    MDT       Medtronic         SP500             58.7%
+9    HUBB      Hubbell Incorpor  SP500             58.5%
+10   ABNB      Airbnb            SP500             57.7%
+11   CNC       Centene Corporat  SP500             57.6%
+12   MAS       Masco             SP500             57.3%
+13   ZBH       Zimmer Biomet     SP500             57.0%
+14   KO        Coca-Cola Compan  SP500             56.9%
+15   HPQ       HP Inc.           SP500             56.8%
+16   CARR      Carrier Global    SP500             56.7%
+17   ZBRA      Zebra Technologi  SP500             56.6%
+18   TECH      Bio-Techne        SP500             56.6%
+19   CIEN      Ciena             SP500             56.6%
+20   CTSH      Cognizant         SP500             56.5%
+21   VICI      Vici Properties   SP500             56.4%
+22   V         Visa Inc.         SP500             56.4%
+23   XYL       Xylem Inc.        SP500             56.2%
+24   VRSK      Verisk Analytics  SP500             56.2%
+25   HII       Huntington Ingal  SP500             56.2%
+26   HUM       Humana            SP500             56.1%
+27   TYL       Tyler Technologi  SP500             55.8%
+28   NUE       Nucor             SP500             55.6%
+29   AWK       American Water W  SP500             55.5%
+30   CINF      Cincinnati Finan  SP500             55.3%
+31   UHS       Universal Health  SP500             55.3%
+32   BIIB      Biogen            SP500             55.2%
+33   ADP       Automatic Data P  SP500             55.1%
+34   HLT       Hilton Worldwide  SP500             55.1%
+35   INTU      Intuit            SP500             55.0%
+36   ITW       Illinois Tool Wo  SP500             55.0%
+37   VRT       Vertiv            SP500             55.0%
+38   FFIV      F5, Inc.          SP500             55.0%
+39   BKNG      Booking Holdings  SP500             54.9%
+40   FICO      Fair Isaac        SP500             54.9%
+41   ADBE      Adobe Inc.        SP500             54.8%
+42   MCK       McKesson Corpora  SP500             54.7%
+43   BA        Boeing            SP500             54.7%
+44   HAS       Hasbro            SP500             54.7%
+45   WDAY      Workday, Inc.     SP500             54.6%
+46   FDS       FactSet           SP500             54.6%
+47   J         Jacobs Solutions  SP500             54.5%
+48   ARE       Alexandria Real   SP500             54.2%
+49   CDNS      Cadence Design S  SP500             54.1%
+50   BR        Broadridge Finan  SP500             54.1%
+51   GNRC      Generac           SP500             54.1%
+52   UDR       UDR, Inc.         SP500             54.0%
+53   WTW       Willis Towers Wa  SP500             54.0%
+54   PNR       Pentair           SP500             54.0%
+55   SPGI      S&P Global        SP500             53.9%
+56   BG        Bunge Global      SP500             53.9%
+57   JCI       Johnson Controls  SP500             53.9%
+58   CSCO      Cisco             SP500             53.8%
+59   SWK       Stanley Black &   SP500             53.7%
+60   BRO       Brown & Brown     SP500             53.7%
+61   GDDY      GoDaddy           SP500             53.7%
+62   SWKS      Skyworks Solutio  SP500             53.6%
+63   NTAP      NetApp            SP500             53.6%
+64   NCLH      Norwegian Cruise  SP500             53.6%
+65   PYPL      PayPal            SP500             53.6%
+66   PAYX      Paychex           SP500             53.6%
+67   BLK       BlackRock         SP500             53.5%
+68   HCA       HCA Healthcare    SP500             53.5%
+69   PPG       PPG Industries    SP500             53.5%
+70   SPG       Simon Property G  SP500             53.4%
+71   TER       Teradyne          SP500             53.4%
+72   TROW      T. Rowe Price     SP500             53.3%
+73   BDX       Becton Dickinson  SP500             53.3%
+74   VLTO      Veralto           SP500             53.3%
+75   SHW       Sherwin-Williams  SP500             53.2%
+76   AXON      Axon Enterprise   SP500             53.2%
+77   IVZ       Invesco           SP500             53.2%
+78   CAH       Cardinal Health   SP500             53.2%
+79   CTVA      Corteva           SP500             53.1%
+80   CRL       Charles River La  SP500             53.1%
+81   ROST      Ross Stores       SP500             53.1%
+82   NXPI      NXP Semiconducto  SP500             53.1%
+83   CTAS      Cintas            SP500             53.0%
+84   CMI       Cummins           SP500             53.0%
+85   ECL       Ecolab            SP500             53.0%
+86   COHR      Coherent Corp.    SP500             53.0%
+87   ACN       Accenture         SP500             53.0%
+88   ADSK      Autodesk          SP500             53.0%
+89   BAX       Baxter Internati  SP500             53.0%
+90   KHC       Kraft Heinz       SP500             53.0%
+91   TGT       Target Corporati  SP500             52.9%
+92   PWR       Quanta Services   SP500             52.8%
+93   PEP       PepsiCo           SP500             52.8%
+94   OMC       Omnicom Group     SP500             52.8%
+95   ORLY      O’Reilly Automot  SP500             52.8%
+96   PFE       Pfizer            SP500             52.7%
+97   ERIE      Erie Indemnity    SP500             52.7%
+98   VEEV      Veeva Systems     SP500             52.6%
+99   SW        Smurfit Westrock  SP500             52.6%
+100  KMB       Kimberly-Clark    SP500             52.6%

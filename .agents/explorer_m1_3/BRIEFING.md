@@ -1,49 +1,34 @@
-# BRIEFING — 2026-07-16T00:35:08Z
+# BRIEFING — 2026-07-30T04:31:15Z
 
 ## Mission
-Investigate global HTTP request header / User-Agent configuration for yfinance & FinanceDataReader, and analyze test suite architecture for network calls & fallback testing.
+Audit risk management, portfolio optimization, 2D regime ensemble engine, and hyperparameter tuning in the Stock Trading System.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Investigator, Synthesizer
+- Archetype: explorer
+- Roles: Risk Management & Portfolio Construction Specialist
 - Working directory: d:\Finance\code\stock\.agents\explorer_m1_3
-- Original parent: d23ffd42-28b4-4f15-a6ee-33b72c3197cf
-- Milestone: Milestone 1 (HTTP Headers & Test Architecture Analysis)
+- Original parent: 3f39566b-21e1-4a55-97f6-005b5c8f9946
+- Milestone: M1-3
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Analyze PyTorch DLL loading issue and suggest strategy to resolve/bypass
-- Analyze failing test TestMockTradingConfig.test_kis_mock_keys_default_empty in trading_system/tests/phase6/unit/test_mock_trading.py and src/config.py
-- Do not modify source code files
+- Read-only investigation — do NOT implement code fixes
+- Focus on risk management, portfolio construction, 2D regime ensemble, HPO/Optuna
 
 ## Current Parent
-- Conversation ID: 51bfa322-32fe-4558-8bf8-8bb6240118c5
-- Updated: 2026-07-16T00:35:08Z
+- Conversation ID: 3f39566b-21e1-4a55-97f6-005b5c8f9946
+- Updated: 2026-07-30T04:31:15Z
 
 ## Investigation State
-- **Explored paths**:
-  - `trading_system/run_pipeline.py`
-  - `trading_system/src/data_layer/earnings_data.py`
-  - `trading_system/src/data_layer/indicator_storage.py`
-  - `trading_system/src/data_layer/market_data_handler.py`
-  - `trading_system/src/data_layer/global_market.py`
-  - `trading_system/tests/test_tuning_and_retry.py`
-  - `trading_system/tests/test_system.py`
-  - `trading_system/tests/test_e2e_consolidated.py`
+- **Explored paths**: `src/risk/risk_manager.py`, `src/ai/ensemble_scorer.py`, `src/ai/optuna_tuner.py`, `src/risk/position_sizing.py`, `src/risk/portfolio_optimizer.py`, `src/analysis/portfolio_optimizer.py`, `trading_system/run_pipeline.py`.
 - **Key findings**:
-  - `yfinance` and `FinanceDataReader` calls do not currently receive custom User-Agent headers or shared session objects.
-  - Formulated dual strategy: centralized HTTP session manager (`src/utils/http_session.py`) + application-startup patching of `requests.Session` default headers for `FinanceDataReader`.
-  - Identified 4 essential offline fallback and header assertion tests to add to `test_tuning_and_retry.py`.
-- **Unexplored areas**: None.
+  1. `RiskManager` pipeline disconnection: Re-instantiated fresh in `run_pipeline.py` without state persistence, drawdown permanently 0.0%, 25% of CrisisDetector score neutralized, crisis gating & ATR stops uninvoked.
+  2. 2D Regime Engine flaws: `REGIME_2D_WEIGHTS` unnormalized sum errors, `get_regime_reasoning_summary()` state mutation side-effects on `self._prev_weights`, report sorting by un-cost-adjusted `ensemble_score` vs Allocator sorting by net expected return.
+  3. Optuna HPO flaws: Objective function gaming & unused params in VCP Rule HPO, threshold selection bias in Lead-Lag HPO, absence of temporal CV in Strategies 3 & 4, single-model (XGBoost only) HPO with pseudo-copying to LightGBM/CatBoost.
+  4. Portfolio Construction flaws: `ensemble_scorer.py` feeds `np.random.normal` white noise as dummy returns to Risk Parity; HRP weights multiplied by ad-hoc market budgets breaking tree optimality.
+- **Unexplored areas**: None (Full audit completed).
 
 ## Key Decisions Made
-- Produced structured analysis report (`analysis.md`) and 5-component handoff report (`handoff.md`).
+- Audit complete. All findings line-by-line documented with exact code paths, file lines, root cause analysis, severity, and portfolio impact in `handoff.md`.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\explorer_m1_3\ORIGINAL_REQUEST.md — Original request
-- d:\Finance\code\stock\.agents\explorer_m1_3\BRIEFING.md — Briefing file
-- d:\Finance\code\stock\.agents\explorer_m1_3\progress.md — Progress tracking
-- d:\Finance\code\stock\.agents\explorer_m1_3\analysis.md — Analysis output
-- d:\Finance\code\stock\.agents\explorer_m1_3\handoff.md — Handoff report
-
-
+- `d:\Finance\code\stock\.agents\explorer_m1_3\handoff.md` — Final Handoff Audit Report

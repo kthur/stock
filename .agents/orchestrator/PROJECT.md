@@ -1,49 +1,44 @@
-# Project: Stock Trading System Algorithm Optimization
+# Project: Stock Trading System Quantitative Review, Diagnosis & Advanced Roadmap
 
-## Architecture
-Integrated Stock Trading System running 17 dynamic factor strategies:
-1. XGBoost Regression
-2. Surge Classifier
-3. Lead-Lag
-4. VCP Rule-based
-5. VCP ML
-6. Strict Causal LSTM
-7. Stat-Arb Cointegration
-8. Sector Rotation
-9. RIM Valuation
-10. Event-Driven
-11. Momentum Quality (MQ)
-12. Options IV Skew
-13. Order Flow Imbalance
-14. Short-Term Reversal
-15. Analyst Revision Momentum (ARM)
-16. Cross-Asset Regime Divergence (CARD)
-17. Liquidity-Adjusted Tail Risk (LATR)
+## System Architecture Overview
+Integrated Stock Trading System managing 3,379 symbols (SP500, KOSPI, KOSDAQ, KONEX) with 17 multi-factor / multi-model strategies:
+1. XGBoost Regression (`src/ai/prediction_model.py`)
+2. Surge Classifier (`src/ai/prediction_model.py`)
+3. Lead-Lag Matrix (`src/ai/prediction_model.py`)
+4. VCP Rule-based (`src/ai/vcp_detector.py`)
+5. VCP ML (`src/ai/vcp_ml_predictor.py`)
+6. Strict Causal LSTM (`src/ai/lstm_predictor.py`)
+7. Stat-Arb Cointegration (`src/core/stat_arb.py`)
+8. Sector Rotation (`src/core/sector_rotation.py`)
+9. RIM Valuation (`src/core/rim_valuation.py`)
+10. Event-Driven (`src/core/event_driven.py`)
+11. Momentum Quality (MQ) (`src/core/mq_factor.py`)
+12. Options IV Skew (`src/core/iv_skew.py`)
+13. Order Flow Imbalance (`src/core/order_flow.py`)
+14. Short-Term Reversal (`src/core/short_term_reversal.py`)
+15. Analyst Revision Momentum (ARM) (`src/core/arm_factor.py`)
+16. Cross-Asset Regime Divergence (CARD) (`src/core/card_factor.py`)
+17. Liquidity-Adjusted Tail Risk (LATR) (`src/core/latr_factor.py`)
 
-All combined via 2D Market Regime Ensemble Scoring Engine (`src/ai/ensemble_scorer.py`), Risk Manager (`src/risk/risk_manager.py`), and Config (`src/config.py`).
-
-## Code Layout
-- `trading_system/run_pipeline.py`: Main orchestration script
-- `src/config.py`: System configuration, cost parameters, risk limits
-- `src/ai/ensemble_scorer.py`: 17-strategy dynamic weighted ensemble scoring engine
-- `src/ai/optuna_tuner.py`: HPO hyperparameter tuning
-- `src/analysis/coverage_analyzer.py`: Strategy coverage and missingness analyzer
-- `src/risk/risk_manager.py`: Macro risk crisis detection and dynamic scoring gating
-- `tests/`: Pytest test suite
+Infrastructure & Engine Layer:
+- `trading_system/run_pipeline.py`: Pipeline Orchestration
+- `src/ai/ensemble_scorer.py`: Dynamic 2D Regime Ensemble Engine & Dynamic Re-weighting
+- `src/analysis/coverage_analyzer.py`: Strategy Coverage & Missingness Analyzer
+- `src/risk/risk_manager.py`: Macro Crisis Detector & Gating
+- `src/config.py`: Cost Models & Risk Limits
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Dynamic Re-weighting Scoring (R1) | Normalize weights to 100% when strategy data missing (`src/ai/ensemble_scorer.py`) | None | IN_PROGRESS |
-| 2 | Precision Order Book Impact Modeling (R2) | Liquidity-based order book impact & bid-ask spread modeling (`src/config.py`, `src/ai/ensemble_scorer.py`) | M1 | PLANNED |
-| 3 | Multicollinearity & Regime Ensemble (R3) | Signal correlation monitoring, factor noise suppression, Optuna integration (`src/ai/ensemble_scorer.py`, `src/ai/optuna_tuner.py`) | M2 | PLANNED |
-| 4 | Integration & E2E Pipeline Verification | Full pipeline execution generating `ensemble_predictions.txt` with top 20 recommendations | M1, M2, M3 | PLANNED |
+| 1 | Financial & System Architecture Diagnosis (R1) | Quant alpha validity, lookahead bias, risk-adjusted returns, transaction costs, DB I/O, multi-threading, missingness handling | None | DONE |
+| 2 | Core Improvements & Code Architecture Proposals (R2) | Financial & system defect fixes, RiskManager / Crisis Gating, Portfolio Optimization (Risk Parity & Covariance Shrinkage), OMS execution scheduler | M1 | DONE |
+| 3 | Additional Alpha Strategies & Phase 1-4 Roadmap (R3) | Next-Gen Alpha Strategies (LLM Sentiment, Real-Time Orderbook Imbalance, Macro HMM) & Phase 1-4 Roadmap | M2 | DONE |
+| 4 | Review, Synthesis, Final Report & Forensic Audit | Comprehensive report synthesis, multi-agent review, verification & forensic audit | M1, M2, M3 | IN_PROGRESS |
 
-## Interface Contracts
-### Dynamic Weights Rescaling (`ensemble_scorer.py`)
-- Input: `strategy_scores: Dict[str, float]`, `base_weights: Dict[str, float]`
-- Output: `rescaled_weights: Dict[str, float]` summing to 1.0 for valid (non-NaN/non-missing) strategies.
-
-### Market Impact Cost Modeling (`config.py` & `ensemble_scorer.py`)
-- Input: stock liquidity metrics (turnover, market cap, volatility), order size hypothesis, bid-ask spread parameters.
-- Output: market impact cost deduction applied to raw return predictions.
+## Code Layout
+- `trading_system/run_pipeline.py`: Pipeline Orchestration
+- `src/ai/ensemble_scorer.py`: 17-strategy dynamic ensemble scoring engine
+- `src/analysis/coverage_analyzer.py`: Strategy missingness & coverage analysis
+- `src/risk/risk_manager.py`: Risk management & crisis gating
+- `src/data_layer/indicator_storage.py`: SQLite WAL database storage
+- `src/persistence/database.py`: Stock price database engine
