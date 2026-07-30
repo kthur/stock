@@ -1,0 +1,106 @@
+=== Strategy 11: Momentum Quality (MQ) Factor Predictions ===
+Date: 2026-07-29 09:36 KST
+Total symbols evaluated: 497
+
+Rank Symbol    Name              Market    MQ Score      
+------------------------------------------------------------
+1    GLW       Corning Inc.      SP500             88.1%
+2    INTC      Intel             SP500             87.9%
+3    AMD       Advanced Micro D  SP500             87.1%
+4    CIEN      Ciena             SP500             86.7%
+5    VRT       Vertiv            SP500             86.5%
+6    FIX       Comfort Systems   SP500             86.3%
+7    WBD       Warner Bros. Dis  SP500             85.9%
+8    GEV       GE Vernova        SP500             84.6%
+9    KEYS      Keysight Technol  SP500             84.2%
+10   ALB       Albemarle Corpor  SP500             83.8%
+11   APA       APA Corporation   SP500             83.0%
+12   GOOGL     Alphabet Inc. (C  SP500             82.6%
+13   GOOG      Alphabet Inc. (C  SP500             82.5%
+14   MRNA      Moderna           SP500             82.4%
+15   DAL       Delta Air Lines   SP500             82.4%
+16   CHRW      C.H. Robinson     SP500             82.1%
+17   LLY       Lilly (Eli)       SP500             81.9%
+18   ADI       Analog Devices    SP500             81.8%
+19   TRGP      Targa Resources   SP500             81.3%
+20   APH       Amphenol          SP500             81.1%
+21   JNJ       Johnson & Johnso  SP500             81.1%
+22   EIX       Edison Internati  SP500             80.8%
+23   INCY      Incyte            SP500             80.5%
+24   NEM       Newmont           SP500             80.0%
+25   TER       Teradyne          SP500             79.7%
+26   JBHT      J.B. Hunt         SP500             79.5%
+27   PWR       Quanta Services   SP500             78.2%
+28   AMAT      Applied Material  SP500             78.1%
+29   MPC       Marathon Petrole  SP500             78.1%
+30   MS        Morgan Stanley    SP500             77.9%
+31   SNDK      Sandisk           SP500             77.9%
+32   MU        Micron Technolog  SP500             77.8%
+33   CASY      Casey's           SP500             77.8%
+34   MNST      Monster Beverage  SP500             77.7%
+35   WDC       Western Digital   SP500             77.7%
+36   LITE      Lumentum          SP500             77.5%
+37   STX       Seagate Technolo  SP500             77.3%
+38   PSX       Phillips 66       SP500             77.2%
+39   SPG       Simon Property G  SP500             77.0%
+40   LRCX      Lam Research      SP500             76.9%
+41   C         Citigroup         SP500             76.8%
+42   COHR      Coherent Corp.    SP500             76.6%
+43   MRVL      Marvell Technolo  SP500             76.5%
+44   DELL      Dell Technologie  SP500             76.2%
+45   STT       State Street Cor  SP500             76.1%
+46   KLAC      KLA Corporation   SP500             76.1%
+47   SWK       Stanley Black &   SP500             76.1%
+48   CFG       Citizens Financi  SP500             76.1%
+49   HST       Host Hotels & Re  SP500             76.0%
+50   APP       AppLovin          SP500             76.0%
+51   HWM       Howmet Aerospace  SP500             75.6%
+52   CSCO      Cisco             SP500             75.6%
+53   BNY       BNY Mellon        SP500             75.4%
+54   MRK       Merck & Co.       SP500             75.2%
+55   VTR       Ventas            SP500             75.2%
+56   JCI       Johnson Controls  SP500             75.1%
+57   LUV       Southwest Airlin  SP500             74.7%
+58   GE        GE Aerospace      SP500             74.6%
+59   GS        Goldman Sachs     SP500             74.6%
+60   EQIX      Equinix           SP500             74.4%
+61   AIZ       Assurant          SP500             74.1%
+62   NTAP      NetApp            SP500             73.7%
+63   FCX       Freeport-McMoRan  SP500             73.7%
+64   KEY       KeyCorp           SP500             73.6%
+65   FDX       FedEx             SP500             73.3%
+66   ETR       Entergy           SP500             73.3%
+67   FRT       Federal Realty I  SP500             73.1%
+68   TXN       Texas Instrument  SP500             73.1%
+69   ANET      Arista Networks   SP500             73.0%
+70   MCHP      Microchip Techno  SP500             73.0%
+71   UAL       United Airlines   SP500             72.7%
+72   BMY       Bristol Myers Sq  SP500             72.3%
+73   FTNT      Fortinet          SP500             72.3%
+74   FFIV      F5, Inc.          SP500             72.2%
+75   EXPE      Expedia Group     SP500             72.1%
+76   TKO       TKO Group Holdin  SP500             72.0%
+77   CAT       Caterpillar Inc.  SP500             72.0%
+78   EBAY      eBay Inc.         SP500             71.9%
+79   USB       U.S. Bancorp      SP500             71.8%
+80   JBL       Jabil             SP500             71.6%
+81   IBKR      Interactive Brok  SP500             71.6%
+82   WAB       Wabtec            SP500             71.4%
+83   VLO       Valero Energy     SP500             71.3%
+84   CRWD      CrowdStrike       SP500             71.3%
+85   MAR       Marriott Interna  SP500             71.0%
+86   HUM       Humana            SP500             70.8%
+87   RL        Ralph Lauren Cor  SP500             70.8%
+88   AVGO      Broadcom          SP500             70.6%
+89   ALL       Allstate          SP500             70.6%
+90   AAPL      Apple Inc.        SP500             70.3%
+91   STLD      Steel Dynamics    SP500             70.2%
+92   BEN       Franklin Resourc  SP500             70.2%
+93   CAH       Cardinal Health   SP500             70.2%
+94   CMI       Cummins           SP500             70.0%
+95   EXPD      Expeditors Inter  SP500             69.9%
+96   ROST      Ross Stores       SP500             69.8%
+97   FITB      Fifth Third Banc  SP500             69.3%
+98   TRV       Travelers Compan  SP500             69.2%
+99   NUE       Nucor             SP500             68.8%
+100  NDSN      Nordson Corporat  SP500             68.8%

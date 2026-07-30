@@ -19,9 +19,6 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.data_layer.indicator_storage import MarketIndicatorStorage
-from scripts.post_market_scoring import main
-
 
 class TestPostMarketScoring(unittest.TestCase):
     """
@@ -36,8 +33,14 @@ class TestPostMarketScoring(unittest.TestCase):
         self.original_env = dict(os.environ)
         os.environ["DB_PATH"] = TEST_DB_PATH
 
+        # Deferred imports: ensure env vars are set before module-level init
+        from src.data_layer.indicator_storage import MarketIndicatorStorage
+        from scripts.post_market_scoring import main
+        self._storage_cls = MarketIndicatorStorage
+        self._main = main
+
         self.db_path = TEST_DB_PATH
-        self.storage = MarketIndicatorStorage(db_path=self.db_path)
+        self.storage = self._storage_cls(db_path=self.db_path)
 
         # Override TradingConfig.db_path to use the test database
         from src.config import TradingConfig

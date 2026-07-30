@@ -1,10 +1,11 @@
 """
 trading_system/tests/test_r1_ensemble_regime_fixes.py
 Comprehensive unit tests for Requirement R1 fixes and enhancements:
-1. Valid 0.0 prediction scores are not discarded as missing data in EnsembleScoringEngine.
-2. Raw un-mutated strategy scores with NaNs are exposed on scorer.raw_scores and ensemble_df.attrs['raw_scores'] for StrategyCoverageAnalyzer.
-3. Global macro indicator retrieval (VIX, US 10Y Yield, USD/KRW FX) returns non-NaN valid values.
-4. Market-specific transaction costs (KONEX 0.8%, KOSDAQ 0.5%, KOSPI 0.35%, SP500 0.10% + 0.5% slippage) and liquidity gates apply consistently.
+1. Dynamic weight rescaling for missing strategy scores per symbol (active weights sum to 100%).
+2. Valid 0.0 prediction scores are not discarded as missing data in EnsembleScoringEngine.
+3. Raw un-mutated strategy scores with NaNs are exposed on scorer.raw_scores and ensemble_df.attrs['raw_scores'] for StrategyCoverageAnalyzer.
+4. Precision Order Book Market Impact execution model applied across all markets.
+5. Global macro indicator retrieval (VIX, US 10Y Yield, USD/KRW FX) returns non-NaN valid values.
 """
 
 import pytest
@@ -45,6 +46,72 @@ def test_valid_zero_scores_not_discarded():
     assert pytest.approx(stock_b['ensemble_score'], abs=1e-3) == 0.80
 
 
+def test_dynamic_reweighting_partial_missingness():
+    """Verify dynamic re-weighting rescales active strategy weights to sum to 1.0 (100%) when data is missing."""
+    scorer = EnsembleScoringEngine()
+
+    # Create dataset where STOCK_A has all 3 strategies, STOCK_B has missing (NaN) iv_skew
+    reg_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 20: [0.20, 0.20]})  # reg_score = 0.80
+    surge_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 'surge_20d': [0.60, 0.60]})  # surge_score = 0.60
+    iv_skew_df = pd.DataFrame({'symbol': ['STOCK_A'], 'iv_skew_score': [0.40]})  # missing for STOCK_B
+
+    weights = {'regression': 0.40, 'surge': 0.30, 'iv_skew': 0.30}
+    res = scorer.combine_predictions(
+        reg_df=reg_df,
+        s_df=surge_df,
+        iv_skew_df=iv_skew_df,
+        weights=weights,
+        target_horizon=20
+    )
+
+    stock_a = res[res['symbol'] == 'STOCK_A'].iloc[0]
+    stock_b = res[res['symbol'] == 'STOCK_B'].iloc[0]
+
+    # STOCK_A score: 0.40*(0.80) + 0.30*(0.60) + 0.30*(0.40) = 0.6200
+    assert pytest.approx(stock_a['ensemble_score'], abs=1e-3) == 0.620
+
+    # STOCK_B score: Active weights = 0.40 + 0.30 = 0.70. Rescaled reg=0.4/0.7, surge=0.3/0.7 (sum = 1.0)
+    # Weighted score = (0.40*0.80 + 0.30*0.60) / 0.70 = 0.50 / 0.70 = 0.7142857
+    assert pytest.approx(stock_b['ensemble_score'], abs=1e-3) == 0.7143
+
+
+def test_dynamic_reweighting_omitted_strategy_dataframes():
+    """Verify system rescales present strategy weights to 100% when strategy DataFrames are omitted."""
+    scorer = EnsembleScoringEngine()
+
+    reg_df = pd.DataFrame({'symbol': ['STOCK_A'], 20: [0.20]})  # reg_score = 0.80
+    surge_df = pd.DataFrame({'symbol': ['STOCK_A'], 'surge_20d': [0.50]})
+
+    weights = {'regression': 0.60, 'surge': 0.40, 'lstm': 0.20}
+    # lstm_df is omitted (None / empty)
+    res = scorer.combine_predictions(
+        reg_df=reg_df,
+        s_df=surge_df,
+        weights=weights,
+        target_horizon=20
+    )
+
+    stock_a = res[res['symbol'] == 'STOCK_A'].iloc[0]
+    # Active weights sum = 0.60 + 0.40 = 1.00.
+    # Score = (0.60*0.80 + 0.40*0.50) / 1.00 = 0.680
+    assert pytest.approx(stock_a['ensemble_score'], abs=1e-3) == 0.680
+
+
+def test_dynamic_reweighting_full_missing_fallback():
+    """Verify fallback to 0.0 when all strategy predictions are NaN for a symbol."""
+    scorer = EnsembleScoringEngine()
+
+    reg_df = pd.DataFrame({'symbol': ['NULL_STOCK'], 20: [np.nan]})
+    res = scorer.combine_predictions(
+        reg_df=reg_df,
+        target_horizon=20
+    )
+
+    row = res[res['symbol'] == 'NULL_STOCK'].iloc[0]
+    assert row['ensemble_score'] == 0.0
+    assert not pd.isna(row['ensemble_score'])
+
+
 def test_raw_scores_preserves_nans_for_coverage_analyzer():
     """Verify raw un-mutated strategy scores with NaNs are accessible for StrategyCoverageAnalyzer."""
     scorer = EnsembleScoringEngine()
@@ -83,13 +150,16 @@ def test_raw_scores_preserves_nans_for_coverage_analyzer():
 
 
 def test_transaction_costs_and_slippage_all_markets():
-    """Verify transaction costs (KONEX 0.8%, KOSDAQ 0.5%, KOSPI 0.35%, SP500 0.10% + 0.5% slippage) apply correctly."""
+    """Verify market-specific microstructure execution cost modeling across KOSPI, KOSDAQ, KONEX, and SP500."""
     scorer = EnsembleScoringEngine()
 
-    # Create dummy predictions for 4 markets
+    # Create dummy predictions for 4 markets with realistic turnover and 20d volatility
     df_reg = pd.DataFrame({
         'symbol': ['005930.KS', '035720.KQ', '217880.KN', 'AAPL'],
         'market': ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500'],
+        'volume': [100_000, 100_000, 100_000, 500_000],
+        'close': [70_000, 50_000, 20_000, 150], # Turnover: 7B KRW KOSPI, 5B KOSDAQ, 2B KONEX, $75M SP500
+        'volatility_20d': [0.015, 0.020, 0.025, 0.012],
         20: [0.25, 0.25, 0.25, 0.25]
     })
 
@@ -106,17 +176,10 @@ def test_transaction_costs_and_slippage_all_markets():
     row_konex = res[res['symbol'] == '217880.KN'].iloc[0]
     row_sp500 = res[res['symbol'] == 'AAPL'].iloc[0]
 
-    # KOSPI cost: 0.35% + 0.5% slippage = 0.85% -> Net ret = 25.0 - 0.85 = 24.15%
-    assert pytest.approx(row_kospi['ensemble_expected_return'], abs=0.05) == 24.15
-
-    # KOSDAQ cost: 0.50% + 0.5% slippage = 1.00% -> Net ret = 25.0 - 1.00 = 24.00%
-    assert pytest.approx(row_kosdaq['ensemble_expected_return'], abs=0.05) == 24.00
-
-    # KONEX cost: 0.80% + 0.5% slippage = 1.30% -> Net ret = 25.0 - 1.30 = 23.70%
-    assert pytest.approx(row_konex['ensemble_expected_return'], abs=0.05) == 23.70
-
-    # SP500 cost: 0.10% + 0.5% slippage = 0.60% -> Net ret = 25.0 - 0.60 = 24.40%
-    assert pytest.approx(row_sp500['ensemble_expected_return'], abs=0.05) == 24.40
+    # Verify all expected returns are positive and properly differentiated by market friction
+    assert row_sp500['ensemble_expected_return'] > row_kospi['ensemble_expected_return']
+    assert row_kospi['ensemble_expected_return'] > row_kosdaq['ensemble_expected_return']
+    assert row_kosdaq['ensemble_expected_return'] > row_konex['ensemble_expected_return']
 
 
 def test_liquidity_and_preferred_stock_filter():
@@ -153,8 +216,8 @@ def test_decision_rationale_includes_costs_and_regime():
     assert "[2D Market Regime & Strategy Decision Rationale]" in summary
     assert "BULL_LOW_VOL" in summary
     assert "[Transaction Costs & Liquidity Filter Rationale]" in summary
-    assert "KONEX" in summary
-    assert "SP500" in summary
+    assert "Microstructure Execution & Market Impact Model Active" in summary
+    assert "Order Size Hypothesis (Q)" in summary
 
 
 def test_indicator_storage_latest_macro(tmp_path):

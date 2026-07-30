@@ -1,28 +1,15 @@
 === Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===
-Date: 2026-07-05 13:39
+Date: 2026-07-29 09:36
 Total Capital: 1,000,000,000 KRW/USD
 Target Horizon: 20d
 
-Current Market Regime Detected: SIDEWAYS (Code: 1)
-Maximum Total Allocation Allowed: 50.0%
+Current Market Regime Detected: BULL (Code: 2)
+Maximum Total Allocation Allowed: 85.0%
 
 No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
 --------------------------------------------------------------------------------------------
-1   AES       AES Corporation     SP500         6.82%       0.24%     3.33%    33,333,333
-2   EA        Electronic Arts     SP500         2.79%       0.25%     3.33%    33,333,333
-3   EVRG      Evergy              SP500        11.82%       1.07%     3.33%    33,333,333
-4   GL        Globe Life          SP500         6.34%       1.04%     3.33%    33,333,333
-5   FRT       Federal Realty Inv  SP500         5.97%       1.17%     3.33%    33,333,333
-6   WEC       WEC Energy Group    SP500         5.39%       1.16%     3.33%    33,333,333
-7   REG       Regency Centers     SP500         6.64%       1.30%     3.33%    33,333,333
-8   MNST      Monster Beverage    SP500         4.16%       1.03%     3.33%    33,333,333
-9   KEY       KeyCorp             SP500         5.56%       1.20%     3.33%    33,333,333
-10  CNP       CenterPoint Energy  SP500         5.19%       1.18%     3.33%    33,333,333
-11  PNW       Pinnacle West Capi  SP500         5.75%       1.24%     3.33%    33,333,333
-12  AIZ       Assurant            SP500         5.72%       1.24%     3.33%    33,333,333
-13  KMI       Kinder Morgan       SP500         5.88%       1.28%     3.33%    33,333,333
-14  CPT       Camden Property Tr  SP500         6.66%       1.43%     3.33%    33,333,333
-15  UDR       UDR, Inc.           SP500         6.75%       1.44%     3.33%    33,333,333
+1   EA        Electronic Arts     SP500         7.83%       0.25%    10.59%   105,919,676
+2   AES       AES Corporation     SP500         7.75%       0.24%     5.35%    53,518,670
 --------------------------------------------------------------------------------------------
-Allocated Capital: 50.00% (   500,000,000)
-Remaining Cash   : 50.00% (   500,000,000)
+Allocated Capital: 15.94% (   159,438,345)
+Remaining Cash   : 84.06% (   840,561,655)

@@ -2143,7 +2143,10 @@ def execute_prediction_pipeline():
                 ('vcp_rule', 'vcp_rule_score'), ('vcp_ml', 'vcp_ml_score'), ('stat_arb', 'stat_arb_score'),
                 ('sector_rotation', 'sector_score'), ('rim_valuation', 'rim_score'), ('event_driven', 'event_score'),
                 ('mq_factor', 'mq_score'), ('iv_skew', 'iv_skew_score'), ('order_flow', 'order_flow_score'),
-                ('short_term_reversal', 'reversal_score')
+                ('short_term_reversal', 'reversal_score'),
+                ('arm_factor', 'arm_score'),
+                ('card_factor', 'card_score'),
+                ('latr_factor', 'latr_score')
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
                     strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean())
@@ -2162,6 +2165,31 @@ def execute_prediction_pipeline():
         arm_engine = ARMFactorEngine()
         arm_scores = arm_engine.compute_scores(symbols_fundamentals, prices_dict)
         arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
+        arm_output_path = os.path.join(result_dir, "arm_factor_predictions.txt")
+        if not arm_df.empty:
+            arm_merged = arm_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='arm_score', ascending=False)
+            with open(arm_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 15: Analyst Revision Momentum (ARM) Factor Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(arm_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'ARM Score':<12}\n")
+                f.write("-" * 58 + "\n")
+                for rank, (_, row) in enumerate(arm_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['arm_score']*100:>10.1f}%\n")
+            logger.info(f"Saved ARM factor predictions ({len(arm_merged)} symbols) to {arm_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = arm_merged[arm_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"arm_factor_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== ARM Factor Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'ARM Score':<12}\n")
+                    _mf.write("-" * 48 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['arm_score']*100:>10.1f}%\n")
     except Exception as _arm_e:
         logger.warning(f"ARM factor computation failed: {_arm_e}")
         arm_df = pd.DataFrame()
@@ -2172,6 +2200,31 @@ def execute_prediction_pipeline():
         card_engine = CARDFactorEngine()
         card_scores = card_engine.compute_scores(indicator_df, prices_dict)
         card_df = pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in card_scores.items()])
+        card_output_path = os.path.join(result_dir, "card_factor_predictions.txt")
+        if not card_df.empty:
+            card_merged = card_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='card_score', ascending=False)
+            with open(card_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 16: Cross-Asset Regime Divergence (CARD) Factor Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(card_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'CARD Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(card_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['card_score']*100:>12.1f}%\n")
+            logger.info(f"Saved CARD factor predictions ({len(card_merged)} symbols) to {card_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = card_merged[card_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"card_factor_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== CARD Factor Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'CARD Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['card_score']*100:>12.1f}%\n")
     except Exception as _card_e:
         logger.warning(f"CARD factor computation failed: {_card_e}")
         card_df = pd.DataFrame()
@@ -2182,6 +2235,31 @@ def execute_prediction_pipeline():
         latr_engine = LATRFactorEngine()
         latr_scores = latr_engine.compute_scores(prices_dict)
         latr_df = pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in latr_scores.items()])
+        latr_output_path = os.path.join(result_dir, "latr_factor_predictions.txt")
+        if not latr_df.empty:
+            latr_merged = latr_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='latr_score', ascending=False)
+            with open(latr_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 17: Liquidity-Adjusted Tail Risk (LATR) Factor Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(latr_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'LATR Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(latr_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['latr_score']*100:>12.1f}%\n")
+            logger.info(f"Saved LATR factor predictions ({len(latr_merged)} symbols) to {latr_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = latr_merged[latr_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"latr_factor_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== LATR Factor Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'LATR Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['latr_score']*100:>12.1f}%\n")
     except Exception as _latr_e:
         logger.warning(f"LATR factor computation failed: {_latr_e}")
         latr_df = pd.DataFrame()
@@ -2428,7 +2506,7 @@ def execute_prediction_pipeline():
 
         f.write(f"{decision_rationale_text}\n\n")
 
-        f.write("--- Applied Ensemble Strategy Weights (14 Strategies) ---\n")
+        f.write("--- Applied Ensemble Strategy Weights (17 Strategies) ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
         f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
@@ -2442,7 +2520,10 @@ def execute_prediction_pipeline():
         f.write(f"  Momentum Quality (MQ) Factor      : {ensemble_weights.get('mq_factor', 0.0)*100:.1f}%\n")
         f.write(f"  Options Put/Call IV Skew          : {ensemble_weights.get('iv_skew', 0.0)*100:.1f}%\n")
         f.write(f"  Order Flow Imbalance (MFI)        : {ensemble_weights.get('order_flow', 0.0)*100:.1f}%\n")
-        f.write(f"  Short-Term Mean Reversal          : {ensemble_weights.get('short_term_reversal', 0.0)*100:.1f}%\n\n")
+        f.write(f"  Short-Term Mean Reversal          : {ensemble_weights.get('short_term_reversal', 0.0)*100:.1f}%\n")
+        f.write(f"  Analyst Revision Momentum (ARM)   : {ensemble_weights.get('arm_factor', 0.0)*100:.1f}%\n")
+        f.write(f"  Cross-Asset Regime Divergence(CARD): {ensemble_weights.get('card_factor', 0.0)*100:.1f}%\n")
+        f.write(f"  Liq-Adj Tail Risk (LATR)          : {ensemble_weights.get('latr_factor', 0.0)*100:.1f}%\n\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
@@ -2454,8 +2535,8 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 100 Ensemble Picks\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}\n")
-            f.write("-" * 155 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n")
+            f.write("-" * 171 + "\n")
             for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                 name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
@@ -2468,8 +2549,11 @@ def execute_prediction_pipeline():
                 iv_val = row.get('iv_skew_score', 0.0)
                 of_val = row.get('order_flow_score', 0.0)
                 rev_val = row.get('reversal_score', 0.0)
+                arm_val = row.get('arm_score', 0.0)
+                card_val = row.get('card_score', 0.0)
+                latr_val = row.get('latr_score', 0.0)
 
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%\n")
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%\n")
             f.write("\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
@@ -2480,13 +2564,13 @@ def execute_prediction_pipeline():
             continue
         _mkt_ens_path = os.path.join(result_dir, f"ensemble_predictions_{_m}.txt")
         with open(_mkt_ens_path, "w", encoding="utf-8") as _mf:
-            _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\n")
+            _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (17 Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
             _mf.write(f"\n=========================================\n")
             _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")
             _mf.write("=========================================\n")
-            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}\n")
-            _mf.write("-" * 155 + "\n")
+            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n")
+            _mf.write("-" * 171 + "\n")
             for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
                 _mf.write(
@@ -2498,7 +2582,8 @@ def execute_prediction_pipeline():
                     f"{_row.get('sector_score', 0.0)*100:>5.0f}%{_row.get('rim_score', 0.0)*100:>4.0f}%"
                     f"{_row.get('event_score', 0.0)*100:>5.0f}%{_row.get('mq_score', 0.0)*100:>4.0f}%"
                     f"{_row.get('iv_skew_score', 0.0)*100:>5.0f}%{_row.get('order_flow_score', 0.0)*100:>4.0f}%"
-                    f"{_row.get('reversal_score', 0.0)*100:>4.0f}%\n"
+                    f"{_row.get('reversal_score', 0.0)*100:>4.0f}%"
+                    f"{_row.get('arm_score', 0.0)*100:>4.0f}%{_row.get('card_score', 0.0)*100:>5.0f}%{_row.get('latr_score', 0.0)*100:>4.0f}%\n"
                 )
         logger.info(f"Saved ensemble predictions for {_m} to {_mkt_ens_path}")
 
@@ -2603,6 +2688,9 @@ def execute_prediction_pipeline():
         "stat_arb_predictions.txt",
         "sector_predictions.txt",
         "rim_predictions.txt",
+        "arm_factor_predictions.txt",
+        "card_factor_predictions.txt",
+        "latr_factor_predictions.txt",
         "ensemble_predictions.txt",
     ]
     for filename in verification_files:

@@ -469,6 +469,77 @@ class OptunaStrategyTuner:
         self.tuned_params['regime_2d_weights'] = best_weights
         return best_weights
 
+    def tune_correlation_suppression_params(
+        self,
+        strategy_returns_by_regime: Optional[Dict[str, Dict[str, pd.Series]]] = None,
+        n_trials: int = 20
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Optuna hyperparameter optimization for regime-specific correlation cutoff thresholds theta(R)
+        and penalty intensity lambda(R) across the 6 2D regime combo states.
+        """
+        logger.info("Tuning Regime Correlation Suppression parameters (theta & lambda) using Optuna...")
+        regime_combos = [
+            'BEAR_LOW_VOL', 'BEAR_HIGH_VOL',
+            'SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL',
+            'BULL_LOW_VOL', 'BULL_HIGH_VOL'
+        ]
+
+        from src.ai.factor_suppression import RegimeFactorSuppressionEngine
+
+        supp_engine = RegimeFactorSuppressionEngine()
+
+        if not strategy_returns_by_regime:
+            logger.warning("No strategy returns by regime provided; returning default correlation suppression params")
+            defaults = supp_engine.DEFAULT_REGIME_PARAMS
+            self.tuned_params['correlation_suppression'] = defaults
+            return dict(defaults)
+
+        best_suppression = {}
+        for combo in regime_combos:
+            combo_returns = strategy_returns_by_regime.get(combo, {})
+            valid_strats = [s for s in supp_engine.STRATEGY_TO_CLUSTER if s in combo_returns and len(combo_returns[s].dropna()) >= 10]
+            if not valid_strats:
+                best_suppression[combo] = supp_engine.DEFAULT_REGIME_PARAMS.get(combo, {'theta': 0.65, 'lambda': 1.0})
+                continue
+
+            returns_df = pd.DataFrame({s: combo_returns[s] for s in valid_strats}).dropna()
+            if len(returns_df) < 10:
+                best_suppression[combo] = supp_engine.DEFAULT_REGIME_PARAMS.get(combo, {'theta': 0.65, 'lambda': 1.0})
+                continue
+
+            corr_mat = returns_df.corr(method='spearman')
+            base_w = {s: 1.0 / len(valid_strats) for s in valid_strats}
+
+            def suppression_objective(trial):
+                th = trial.suggest_float('theta', 0.40, 0.80)
+                lam = trial.suggest_float('lambda', 0.20, 2.50)
+
+                supp_w = supp_engine.suppress_weights(
+                    base_weights=base_w,
+                    corr_matrix=corr_mat,
+                    regime_label=combo,
+                    theta=th,
+                    lambda_penalty=lam
+                )
+
+                portfolio_series = sum(returns_df[s] * supp_w[s] for s in valid_strats)
+                if portfolio_series.std() < 1e-8:
+                    return 0.0
+                sharpe = float(portfolio_series.mean() / portfolio_series.std() * np.sqrt(252))
+                return sharpe
+
+            study = optuna.create_study(direction='maximize')
+            study.optimize(suppression_objective, n_trials=n_trials)
+            best_p = study.best_params
+            best_suppression[combo] = {
+                'theta': round(best_p['theta'], 4),
+                'lambda': round(best_p['lambda'], 4)
+            }
+
+        self.tuned_params['correlation_suppression'] = best_suppression
+        return best_suppression
+
     def tune_all(self, df_train: Optional[pd.DataFrame] = None,
                  prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
                  indicator_df: Optional[pd.DataFrame] = None,
@@ -476,15 +547,17 @@ class OptunaStrategyTuner:
                  n_trials: int = 10,
                  save_path: Optional[str] = None,
                  X_reg=None, y_reg=None, X_surge=None, y_surge=None, X_vcp=None, y_vcp=None) -> Dict[str, Any]:
-        """Tune all 5 strategies and 2D regime weights, saving parameters to tuned_params.json."""
-        logger.info("Executing Optuna HPO tuning across all 5 strategies and 2D regime weights...")
+        """Tune all 5 strategies, 2D regime weights, and correlation suppression parameters."""
+        logger.info("Executing Optuna HPO tuning across all strategies, regime weights, and correlation suppression...")
         self.tune_regression(df_train=df_train, X=X_reg, y=y_reg, n_trials=n_trials)
         self.tune_surge(df_train=df_train, X=X_surge, y=y_surge, n_trials=n_trials)
         self.tune_lead_lag(prices_dict=prices_dict, indicator_df=indicator_df, n_trials=n_trials)
         self.tune_vcp_detector(prices_dict=prices_dict, n_trials=n_trials)
         self.tune_vcp_ml(df_train=df_train, X=X_vcp, y=y_vcp, n_trials=n_trials)
         self.tune_regime_2d_weights(strategy_returns_by_regime=strategy_returns_by_regime, n_trials=n_trials)
+        self.tune_correlation_suppression_params(strategy_returns_by_regime=strategy_returns_by_regime, n_trials=n_trials)
 
         save_target = save_path if save_path else str(self.params_file)
         self.save_tuned_params(filepath=save_target)
         return self.tuned_params
+

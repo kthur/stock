@@ -66,6 +66,18 @@ class TradingConfig:
     min_daily_volume_sp500: float = 1_000_000.0   # SP500 최소 일평균 거래량 (100만 주)
     slippage_krx_market_order: float = 0.005      # KRX 시가 슬리피지 (0.5%)
 
+    # Order Book Market Impact & Bid-Ask Spread Cost Parameters (R2)
+    order_size_krx: float = 50_000_000.0        # KRX 기본 주문 금액 가설 (5천만원)
+    order_size_sp500: float = 50_000.0          # SP500 기본 주문 금액 가설 ($50,000)
+    market_impact_coeff_krx: float = 0.75       # KRX 시장 충격 Square-Root 계수 Y
+    market_impact_coeff_sp500: float = 0.50     # SP500 시장 충격 Square-Root 계수 Y
+    base_spread_kospi: float = 0.0006           # KOSPI 기준 스프레드 (0.06%)
+    base_spread_kosdaq: float = 0.0010          # KOSDAQ 기준 스프레드 (0.10%)
+    base_spread_konex: float = 0.0025           # KONEX 기준 스프레드 (0.25%)
+    base_spread_sp500: float = 0.0002           # SP500 기준 스프레드 (0.02%)
+    default_volatility_krx: float = 0.020       # KRX 기본 일일 변동성 (2.0%)
+    default_volatility_sp500: float = 0.015     # SP500 기본 일일 변동성 (1.5%)
+
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
 
@@ -144,6 +156,56 @@ class TradingConfig:
         if "ENSEMBLE_RETURN_MULTIPLIER" in os.environ:
             try:
                 self.ensemble_return_multiplier = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
+            except ValueError:
+                pass
+        if "ORDER_SIZE_KRX" in os.environ:
+            try:
+                self.order_size_krx = float(os.environ["ORDER_SIZE_KRX"])
+            except ValueError:
+                pass
+        if "ORDER_SIZE_SP500" in os.environ:
+            try:
+                self.order_size_sp500 = float(os.environ["ORDER_SIZE_SP500"])
+            except ValueError:
+                pass
+        if "MARKET_IMPACT_COEFF_KRX" in os.environ:
+            try:
+                self.market_impact_coeff_krx = float(os.environ["MARKET_IMPACT_COEFF_KRX"])
+            except ValueError:
+                pass
+        if "MARKET_IMPACT_COEFF_SP500" in os.environ:
+            try:
+                self.market_impact_coeff_sp500 = float(os.environ["MARKET_IMPACT_COEFF_SP500"])
+            except ValueError:
+                pass
+        if "BASE_SPREAD_KOSPI" in os.environ:
+            try:
+                self.base_spread_kospi = float(os.environ["BASE_SPREAD_KOSPI"])
+            except ValueError:
+                pass
+        if "BASE_SPREAD_KOSDAQ" in os.environ:
+            try:
+                self.base_spread_kosdaq = float(os.environ["BASE_SPREAD_KOSDAQ"])
+            except ValueError:
+                pass
+        if "BASE_SPREAD_KONEX" in os.environ:
+            try:
+                self.base_spread_konex = float(os.environ["BASE_SPREAD_KONEX"])
+            except ValueError:
+                pass
+        if "BASE_SPREAD_SP500" in os.environ:
+            try:
+                self.base_spread_sp500 = float(os.environ["BASE_SPREAD_SP500"])
+            except ValueError:
+                pass
+        if "DEFAULT_VOLATILITY_KRX" in os.environ:
+            try:
+                self.default_volatility_krx = float(os.environ["DEFAULT_VOLATILITY_KRX"])
+            except ValueError:
+                pass
+        if "DEFAULT_VOLATILITY_SP500" in os.environ:
+            try:
+                self.default_volatility_sp500 = float(os.environ["DEFAULT_VOLATILITY_SP500"])
             except ValueError:
                 pass
 

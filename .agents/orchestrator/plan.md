@@ -1,22 +1,33 @@
-# Orchestration Plan — Quantitative Review of Stock Trading System
+# Execution Plan — Stock Trading System Algorithm Optimization
 
-## Executive Summary
-Audit of the 17-strategy quantitative stock trading system across 3,379 symbols (KOSPI/KOSDAQ/KONEX/SP500).
+## Overview
+Enhance the Stock Trading System's ensemble scoring engine, cost modeling, dynamic re-weighting, and correlation handling.
 
-## Execution Milestones
-1. **Phase 1: Environment & Codebase Mapping (Step 0)**
-   - Setup project workspace, BRIEFING.md, PROJECT.md, plan.md, progress.md.
-   - Start heartbeat timer.
+## Milestones & Strategy
 
-2. **Phase 2: Milestone Execution via Specialized Explorers (Steps 1-5)**
-   - **M1 (R1)**: Dispatch `teamwork_preview_explorer` (Worker-Quant-1) to audit all 17 strategies for mathematical soundness, theoretical validity, signal formulation, edge cases.
-   - **M2 (R2)**: Dispatch `teamwork_preview_explorer` (Worker-Quant-2) to audit the 2D regime scoring matrix, Optuna hyperparameter optimization objective, search space, and decision rationales.
-   - **M3 (R3)**: Dispatch `teamwork_preview_explorer` (Worker-Data-1) to audit data pipeline integrity, earnings announcement timing, lookahead bias in indicators/scaling, coverage analyzer missingness reporting.
-   - **M4 (R4)**: Dispatch `teamwork_preview_explorer` (Worker-Risk-1) to audit market microstructure modeling, slippage, transaction costs (taxes, exchange fees, bid-ask spreads), liquidity filters, position limits, and tail risk controls.
-   - **M5 (R5)**: Dispatch `teamwork_preview_explorer` (Worker-Perf-1) to audit Python memory downcasting, multithreading bottlenecks, SQLite database locks/concurrency, and execution scalability for 3,379 symbols.
+### Milestone 1: Dynamic Re-weighting Scoring for Missing Data (R1)
+- Target file: `src/ai/ensemble_scorer.py`
+- Objective: Rescale valid strategy weights when specific strategy outputs are missing (e.g. Options IV Skew, DART filings, ARM) so that remaining active strategy weights sum to 1.0 (100%).
+- Verification: Unit tests in `tests/test_ensemble_scorer.py` verifying dynamic re-weighting behavior with missing data.
 
-3. **Phase 3: Synthesis & Final Deliverable (Step 6)**
-   - Aggregate subagent findings into `d:\Finance\code\stock\.agents\orchestrator\audit_report.md`.
-   - Formulate Vulnerability Matrix (Risk Severity, Exploitability/Impact, Module).
-   - Formulate Actionable Recommendations with priority ratings.
-   - Report Victory / Completion back to parent/user.
+### Milestone 2: Precision Order Book Market Impact Cost Modeling (R2)
+- Target files: `src/config.py`, `src/ai/ensemble_scorer.py`
+- Objective: Implement order book market impact cost and bid-ask spread modeling considering stock liquidity (turnover, market cap, volatility) and order size hypothesis.
+- Verification: pytest for Order Book Market Impact cost calculations (`tests/test_market_impact.py` or updated test suite).
+
+### Milestone 3: Multicollinearity Suppression & Regime Dynamic Ensemble (R3)
+- Target files: `src/ai/ensemble_scorer.py`, `src/ai/optuna_tuner.py`, `src/risk/risk_manager.py` (and related regime components)
+- Objective: Monitor inter-strategy signal correlations, suppress redundant factor noise under specific 2D market regimes (sideways, trending, high volatility), and optimize predicted returns by integrating Optuna tuner and Regime Scorer.
+- Verification: Pytest suite verifying correlation matrix computation, noise suppression, and regime dynamic weighting.
+
+### Milestone 4: End-to-End Pipeline & Integration Verification
+- Objective: Execute full pipeline/backtest run cleanly, generating `ensemble_predictions.txt` with top 20 recommendations and decision rationales. Verify all 17 strategies and dynamic re-weighting/cost modeling in full execution.
+- Verification: Pipeline execution producing clean logs, output files, and valid predictions. Forensic Audit verification.
+
+## Execution Topology & Iteration Loop
+Per milestone:
+1. **Explorer**: Analyze codebase, current implementation, missing features, and write technical design proposal.
+2. **Worker**: Implement code changes and new unit tests, run build/pytest.
+3. **Reviewer & Challenger**: Review implementation, test coverage, edge cases, and run empirical checks.
+4. **Forensic Auditor**: Run integrity checks to ensure authentic implementation without dummy facades or hardcoding.
+5. **Gate Verification**: Confirm all pass criteria.

@@ -427,7 +427,7 @@ def main():
     merge_vcp_patterns(result_dir, target_dirs)
     merge_lead_lag_predictions(result_dir, target_dirs)
 
-    # Merge remaining 14 strategy individual outputs
+    # Merge remaining 17 strategy individual outputs
     merge_generic_strategy_files(result_dir, target_dirs, "lstm_predictions.txt", "Strict Causal LSTM Time-Series Deep Learning Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "sector_predictions.txt", "Sector Rotation Momentum & Macro Sensitivity Report")
     merge_generic_strategy_files(result_dir, target_dirs, "rim_predictions.txt", "RIM Intrinsic Valuation Predictions")
@@ -437,6 +437,9 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "order_flow_predictions.txt", "Order Flow Imbalance (MFI) Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "short_term_reversal_predictions.txt", "Short-Term Mean Reversal Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "stat_arb_predictions.txt", "Statistical Arbitrage Cointegration Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "arm_factor_predictions.txt", "Analyst Revision Momentum (ARM) Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "card_factor_predictions.txt", "Cross-Asset Regime Divergence (CARD) Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "latr_factor_predictions.txt", "Liquidity-Adjusted Tail Risk (LATR) Predictions")
 
     print("All prediction files successfully merged.")
 

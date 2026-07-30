@@ -1,17 +1,405 @@
 === VCP (Volatility Contraction Pattern) Results ===
-Date: 2026-07-03 13:27
-Total VCP patterns found: 3
+Date: 2026-07-29 09:57
+Total symbols evaluated: 1573
 
---- KOSDAQ ---
-  1. [KOSDAQ] 092730 (네오팜)
-       Score: 100/100 | Current range: 5.3% | Contraction: 5.3% > 5.5% > 7.7% > 8.5% > 9.8%
+--- KOSDAQ Top 100 ---
+  1. [KOSDAQ] 215200 (메가스터디교육)
+       Score: 100/100 | Current range: 5.5% | Contraction: 5.5% > 9.2% > 10.9% > 10.6%
        Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
 
-  2. [KOSDAQ] 094860 (네오리진)
-       Score: 100/100 | Current range: 8.2% | Contraction: 8.2% > 8.2% > 8.3% > 11.7% > 25.9%
-       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
-
-  3. [KOSDAQ] 197140 (디지캡)
-       Score: 97/100 | Current range: 5.7% | Contraction: 5.7% > 10.3% > 13.6% > 13.7% > 16.4%
+  2. [KOSDAQ] 079940 (가비아)
+       Score: 100/100 | Current range: 0.9% | Contraction: 0.9% > 6.9% > 7.9% > 8.3%
        Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  3. [KOSDAQ] 048550 (SM C&C)
+       Score: 100/100 | Current range: 5.9% | Contraction: 5.9% > 15.9% > 25.7% > 24.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  4. [KOSDAQ] 004650 (창해에탄올)
+       Score: 100/100 | Current range: 2.9% | Contraction: 2.9% > 6.3% > 9.9% > 5.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  5. [KOSDAQ] 017650 (대림제지)
+       Score: 100/100 | Current range: 2.8% | Contraction: 2.8% > 5.0% > 5.7% > 8.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  6. [KOSDAQ] 061250 (화일약품)
+       Score: 100/100 | Current range: 3.9% | Contraction: 3.9% > 9.3% > 11.5% > 11.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  7. [KOSDAQ] 224110 (에이텍모빌리티)
+       Score: 100/100 | Current range: 3.1% | Contraction: 3.1% > 3.9% > 8.2% > 6.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  8. [KOSDAQ] 348030 (모비릭스)
+       Score: 100/100 | Current range: 7.4% | Contraction: 7.4% > 9.2% > 16.7% > 17.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  9. [KOSDAQ] 477380 (미래에셋비전스팩4호)
+       Score: 100/100 | Current range: 1.0% | Contraction: 1.0% > 1.0% > 1.5% > 1.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  10. [KOSDAQ] 473050 (유안타제15호스팩)
+       Score: 100/100 | Current range: 0.2% | Contraction: 0.2% > 0.5% > 0.7% > 0.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  11. [KOSDAQ] 474660 (신한제12호스팩)
+       Score: 100/100 | Current range: 0.2% | Contraction: 0.2% > 0.5% > 1.2% > 0.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  12. [KOSDAQ] 473000 (에스케이증권제12호스팩)
+       Score: 100/100 | Current range: 0.5% | Contraction: 0.5% > 0.7% > 2.2% > 1.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  13. [KOSDAQ] 474930 (신한제13호스팩)
+       Score: 100/100 | Current range: 1.4% | Contraction: 1.4% > 3.3% > 3.8% > 3.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  14. [KOSDAQ] 475240 (하나32호스팩)
+       Score: 100/100 | Current range: 1.2% | Contraction: 1.2% > 1.2% > 1.7% > 2.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  15. [KOSDAQ] 005710 (대원산업)
+       Score: 97/100 | Current range: 4.0% | Contraction: 4.0% > 5.4% > 10.3% > 11.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  16. [KOSDAQ] 042420 (네오위즈홀딩스)
+       Score: 97/100 | Current range: 5.7% | Contraction: 5.7% > 6.9% > 11.4% > 17.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  17. [KOSDAQ] 950190 (고스트스튜디오)
+       Score: 97/100 | Current range: 5.3% | Contraction: 5.3% > 5.8% > 6.8% > 15.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  18. [KOSDAQ] 035080 (그래디언트)
+       Score: 97/100 | Current range: 4.1% | Contraction: 4.1% > 6.8% > 15.4% > 11.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  19. [KOSDAQ] 120240 (대정화금)
+       Score: 97/100 | Current range: 4.6% | Contraction: 4.6% > 4.7% > 6.9% > 6.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  20. [KOSDAQ] 298540 (더네이쳐홀딩스)
+       Score: 97/100 | Current range: 5.7% | Contraction: 5.7% > 5.8% > 7.3% > 8.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  21. [KOSDAQ] 042500 (링네트)
+       Score: 97/100 | Current range: 5.1% | Contraction: 5.1% > 8.0% > 8.1% > 18.0%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  22. [KOSDAQ] 032540 (TJ미디어)
+       Score: 97/100 | Current range: 4.6% | Contraction: 4.6% > 5.9% > 9.4% > 11.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  23. [KOSDAQ] 222110 (팬젠)
+       Score: 97/100 | Current range: 5.8% | Contraction: 5.8% > 11.0% > 11.5% > 14.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  24. [KOSDAQ] 032750 (삼진)
+       Score: 97/100 | Current range: 4.6% | Contraction: 4.6% > 6.2% > 7.8% > 9.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  25. [KOSDAQ] 222980 (한국맥널티)
+       Score: 97/100 | Current range: 6.2% | Contraction: 6.2% > 9.0% > 16.2% > 12.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  26. [KOSDAQ] 044780 (에이치케이)
+       Score: 97/100 | Current range: 4.9% | Contraction: 4.9% > 5.9% > 10.2% > 17.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  27. [KOSDAQ] 054090 (삼진엘앤디)
+       Score: 97/100 | Current range: 6.1% | Contraction: 6.1% > 12.1% > 14.4% > 15.1%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  28. [KOSDAQ] 032280 (삼일)
+       Score: 97/100 | Current range: 5.7% | Contraction: 5.7% > 9.7% > 14.5% > 9.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  29. [KOSDAQ] 065690 (파커스)
+       Score: 97/100 | Current range: 6.6% | Contraction: 6.6% > 21.4% > 32.6% > 13.9%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  30. [KOSDAQ] 226400 (오스테오닉)
+       Score: 91/100 | Current range: 7.5% | Contraction: 7.5% > 7.8% > 12.6% > 11.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  31. [KOSDAQ] 192410 (오늘이엔엠)
+       Score: 91/100 | Current range: 9.8% | Contraction: 9.7% > 21.1% > 47.4% > 34.8%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  32. [KOSDAQ] 067370 (선바이오)
+       Score: 91/100 | Current range: 9.6% | Contraction: 9.6% > 12.8% > 19.8% > 16.4%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  33. [KOSDAQ] 036000 (예림당)
+       Score: 91/100 | Current range: 9.3% | Contraction: 9.3% > 9.9% > 14.8% > 10.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  34. [KOSDAQ] 050960 (수산아이앤티)
+       Score: 91/100 | Current range: 7.7% | Contraction: 7.7% > 8.6% > 8.7% > 8.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  35. [KOSDAQ] 138070 (신진에스엠)
+       Score: 91/100 | Current range: 8.3% | Contraction: 8.3% > 10.9% > 21.6% > 10.3%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  36. [KOSDAQ] 331520 (밸로프)
+       Score: 91/100 | Current range: 7.3% | Contraction: 7.3% > 9.2% > 18.4% > 14.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  37. [KOSDAQ] 009620 (삼보산업)
+       Score: 91/100 | Current range: 9.7% | Contraction: 9.7% > 20.1% > 30.6% > 28.6%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  38. [KOSDAQ] 121440 (골프존홀딩스)
+       Score: 90/100 | Current range: 0.5% | Contraction: 0.5% > 1.1% > 10.1% > 12.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  39. [KOSDAQ] 204610 (티쓰리)
+       Score: 90/100 | Current range: 3.7% | Contraction: 3.7% > 6.0% > 10.0% > 12.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  40. [KOSDAQ] 049960 (쎌바이오텍)
+       Score: 90/100 | Current range: 3.5% | Contraction: 3.5% > 6.6% > 12.2% > 9.6%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  41. [KOSDAQ] 040420 (정상제이엘에스)
+       Score: 90/100 | Current range: 2.2% | Contraction: 2.3% > 2.7% > 2.9% > 4.3%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  42. [KOSDAQ] 067920 (이글루)
+       Score: 90/100 | Current range: 3.7% | Contraction: 3.7% > 3.9% > 7.8% > 7.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  43. [KOSDAQ] 086060 (진바이오텍)
+       Score: 90/100 | Current range: 3.8% | Contraction: 3.8% > 10.9% > 12.2% > 10.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  44. [KOSDAQ] 131090 (시큐브)
+       Score: 90/100 | Current range: 3.8% | Contraction: 3.8% > 4.5% > 10.1% > 10.1%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  45. [KOSDAQ] 093380 (풍강)
+       Score: 90/100 | Current range: 3.0% | Contraction: 3.0% > 6.2% > 15.3% > 13.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  46. [KOSDAQ] 482690 (대신밸런스제19호스팩)
+       Score: 90/100 | Current range: 1.0% | Contraction: 1.0% > 1.5% > 4.4% > 7.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  47. [KOSDAQ] 493790 (유안타제17호스팩)
+       Score: 90/100 | Current range: 0.5% | Contraction: 0.5% > 0.7% > 1.5% > 1.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  48. [KOSDAQ] 488060 (유진스팩11호)
+       Score: 90/100 | Current range: 0.5% | Contraction: 0.5% > 1.0% > 2.2% > 2.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  49. [KOSDAQ] 950170 (JTC)
+       Score: 87/100 | Current range: 5.2% | Contraction: 5.2% > 2.9% > 7.2% > 11.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  50. [KOSDAQ] 054800 (아이디스홀딩스)
+       Score: 87/100 | Current range: 6.7% | Contraction: 6.7% > 5.4% > 6.9% > 8.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  51. [KOSDAQ] 005990 (매일홀딩스)
+       Score: 87/100 | Current range: 6.1% | Contraction: 6.1% > 5.5% > 6.5% > 11.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  52. [KOSDAQ] 090850 (현대이지웰)
+       Score: 87/100 | Current range: 6.5% | Contraction: 6.5% > 6.4% > 6.0% > 11.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  53. [KOSDAQ] 051160 (지어소프트)
+       Score: 87/100 | Current range: 6.9% | Contraction: 6.9% > 4.7% > 11.4% > 14.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  54. [KOSDAQ] 080010 (이상네트웍스)
+       Score: 87/100 | Current range: 5.8% | Contraction: 5.9% > 5.5% > 7.3% > 9.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  55. [KOSDAQ] 290720 (푸드나무)
+       Score: 85/100 | Current range: 13.0% | Contraction: 13.0% > 13.7% > 39.5% > 26.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  56. [KOSDAQ] 420570 (제이투케이바이오)
+       Score: 85/100 | Current range: 13.3% | Contraction: 13.3% > 14.7% > 22.4% > 29.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  57. [KOSDAQ] 317240 (TS트릴리온)
+       Score: 85/100 | Current range: 25.2% | Contraction: 25.2% > 29.5% > 37.8% > 26.0%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  58. [KOSDAQ] 377330 (이지트로닉스)
+       Score: 85/100 | Current range: 11.9% | Contraction: 11.9% > 16.1% > 28.2% > 25.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  59. [KOSDAQ] 101160 (월덱스)
+       Score: 82/100 | Current range: 6.7% | Contraction: 6.7% > 8.7% > 14.4% > 18.6%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  60. [KOSDAQ] 035890 (서희건설)
+       Score: 82/100 | Current range: 5.9% | Contraction: 5.9% > 8.5% > 17.3% > 41.8%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  61. [KOSDAQ] 095660 (네오위즈)
+       Score: 82/100 | Current range: 5.5% | Contraction: 5.5% > 6.8% > 11.8% > 11.7%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  62. [KOSDAQ] 236200 (슈프리마)
+       Score: 82/100 | Current range: 4.6% | Contraction: 4.6% > 7.7% > 10.4% > 13.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  63. [KOSDAQ] 472850 (폰드그룹)
+       Score: 82/100 | Current range: 4.7% | Contraction: 4.7% > 8.3% > 12.0% > 9.6%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  64. [KOSDAQ] 143240 (사람인)
+       Score: 82/100 | Current range: 4.3% | Contraction: 4.3% > 5.1% > 5.6% > 5.8%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  65. [KOSDAQ] 080160 (모두투어)
+       Score: 82/100 | Current range: 6.1% | Contraction: 6.1% > 7.6% > 11.0% > 6.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  66. [KOSDAQ] 115310 (인포바인)
+       Score: 82/100 | Current range: 6.2% | Contraction: 6.2% > 11.6% > 12.7% > 28.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  67. [KOSDAQ] 263860 (지니언스)
+       Score: 82/100 | Current range: 5.3% | Contraction: 5.3% > 10.1% > 11.4% > 18.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  68. [KOSDAQ] 095700 (제넥신)
+       Score: 82/100 | Current range: 6.0% | Contraction: 6.0% > 9.0% > 15.5% > 16.7%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  69. [KOSDAQ] 217270 (넵튠)
+       Score: 82/100 | Current range: 4.7% | Contraction: 4.7% > 10.4% > 13.9% > 8.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  70. [KOSDAQ] 074430 (아미노로직스)
+       Score: 82/100 | Current range: 6.0% | Contraction: 6.0% > 7.3% > 12.9% > 14.1%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  71. [KOSDAQ] 036220 (오상헬스케어)
+       Score: 82/100 | Current range: 6.3% | Contraction: 6.3% > 9.1% > 15.2% > 21.8%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  72. [KOSDAQ] 303810 (동국생명과학)
+       Score: 82/100 | Current range: 4.7% | Contraction: 4.7% > 6.5% > 10.7% > 7.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  73. [KOSDAQ] 017480 (삼현철강)
+       Score: 82/100 | Current range: 5.2% | Contraction: 5.2% > 5.3% > 12.8% > 6.8%
+       Above MA50: ✗ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  74. [KOSDAQ] 011320 (유니크)
+       Score: 82/100 | Current range: 4.5% | Contraction: 4.5% > 7.2% > 7.9% > 17.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  75. [KOSDAQ] 347890 (엠엑스온)
+       Score: 82/100 | Current range: 6.2% | Contraction: 6.2% > 11.7% > 21.5% > 10.2%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  76. [KOSDAQ] 049550 (잉크테크)
+       Score: 82/100 | Current range: 6.9% | Contraction: 6.9% > 8.2% > 11.6% > 11.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  77. [KOSDAQ] 162300 (신스틸)
+       Score: 82/100 | Current range: 6.5% | Contraction: 6.5% > 17.3% > 21.3% > 11.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  78. [KOSDAQ] 053160 (프리엠스)
+       Score: 82/100 | Current range: 5.8% | Contraction: 5.8% > 8.5% > 21.2% > 12.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  79. [KOSDAQ] 123570 (이엠넷)
+       Score: 82/100 | Current range: 4.1% | Contraction: 4.1% > 4.3% > 7.4% > 9.0%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  80. [KOSDAQ] 105760 (포스뱅크)
+       Score: 82/100 | Current range: 5.6% | Contraction: 5.6% > 6.8% > 10.7% > 8.9%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  81. [KOSDAQ] 097780 (에코볼트)
+       Score: 82/100 | Current range: 6.5% | Contraction: 6.5% > 17.8% > 22.9% > 28.1%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  82. [KOSDAQ] 134060 (이퓨쳐)
+       Score: 82/100 | Current range: 5.2% | Contraction: 5.2% > 10.2% > 17.2% > 10.4%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✓
+
+  83. [KOSDAQ] 076080 (웰크론한텍)
+       Score: 82/100 | Current range: 5.6% | Contraction: 5.6% > 9.7% > 21.6% > 22.4%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  84. [KOSDAQ] 352940 (인바이오)
+       Score: 82/100 | Current range: 4.9% | Contraction: 4.9% > 6.5% > 9.0% > 9.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  85. [KOSDAQ] 353190 (휴럼)
+       Score: 82/100 | Current range: 6.6% | Contraction: 6.6% > 9.0% > 9.5% > 15.5%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  86. [KOSDAQ] 054410 (케이피티유)
+       Score: 82/100 | Current range: 5.0% | Contraction: 5.0% > 19.0% > 22.6% > 11.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  87. [KOSDAQ] 096870 (엘디티)
+       Score: 82/100 | Current range: 5.0% | Contraction: 5.0% > 10.1% > 26.1% > 26.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  88. [KOSDAQ] 033050 (제이엠아이)
+       Score: 81/100 | Current range: 9.6% | Contraction: 9.6% > 8.2% > 13.0% > 12.3%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✓
+
+  89. [KOSDAQ] 477340 (에이치엠씨제7호스팩)
+       Score: 80/100 | Current range: 0.7% | Contraction: 0.7% > 0.5% > 0.7% > 0.7%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  90. [KOSDAQ] 482520 (교보16호스팩)
+       Score: 80/100 | Current range: 0.5% | Contraction: 0.5% > 0.7% > 0.5% > 0.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  91. [KOSDAQ] 474490 (유안타제16호스팩)
+       Score: 80/100 | Current range: 0.5% | Contraction: 0.5% > 0.5% > 0.7% > 2.0%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✓ | Volume declining: ✗
+
+  92. [KOSDAQ] 0041J0 (엘에스스팩1호)
+       Score: 80/100 | Current range: 0.8% | Contraction: 0.8% > 1.1% > 0.8% > 1.7%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  93. [KOSDAQ] 481070 (에이유브랜즈)
+       Score: 76/100 | Current range: 9.1% | Contraction: 9.0% > 14.2% > 21.6% > 20.9%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✓
+
+  94. [KOSDAQ] 194480 (데브시스터즈)
+       Score: 76/100 | Current range: 8.6% | Contraction: 8.6% > 8.9% > 22.6% > 9.2%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  95. [KOSDAQ] 068790 (DMS)
+       Score: 76/100 | Current range: 9.9% | Contraction: 9.9% > 11.1% > 20.3% > 10.2%
+       Above MA50: ✓ | Above MA200: ✓ | Near high: ✗ | Volume declining: ✗
+
+  96. [KOSDAQ] 054920 (한컴위드)
+       Score: 76/100 | Current range: 9.2% | Contraction: 9.2% > 11.3% > 12.5% > 28.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  97. [KOSDAQ] 302550 (리메드)
+       Score: 76/100 | Current range: 7.0% | Contraction: 7.0% > 10.9% > 12.4% > 11.3%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  98. [KOSDAQ] 104040 (디에스엠)
+       Score: 76/100 | Current range: 8.7% | Contraction: 8.7% > 21.3% > 23.8% > 20.8%
+       Above MA50: ✓ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✗
+
+  99. [KOSDAQ] 007820 (엠엑스로보틱스)
+       Score: 76/100 | Current range: 8.2% | Contraction: 8.2% > 11.8% > 11.9% > 20.5%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
+
+  100. [KOSDAQ] 351330 (이삭엔지니어링)
+       Score: 76/100 | Current range: 7.0% | Contraction: 7.0% > 17.4% > 17.7% > 13.7%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✓ | Volume declining: ✓
 
