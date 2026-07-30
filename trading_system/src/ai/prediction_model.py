@@ -646,11 +646,11 @@ class OnDevicePredictionModel:
                 df_copy.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df_copy.columns]
 
                 if 'Close' not in df_copy.columns:
-                    logger.warning(f"Missing 'Close' column in DataFrame for {sym}.")
-                    raise KeyError(f"Missing 'Close' column in DataFrame for {sym}")
+                    logger.warning(f"Missing 'Close' column in DataFrame for {sym}. Gracefully skipping.")
+                    continue
                 if 'Volume' not in df_copy.columns:
-                    logger.warning(f"Missing 'Volume' column in DataFrame for {sym}.")
-                    raise KeyError(f"Missing 'Volume' column in DataFrame for {sym}")
+                    logger.warning(f"Missing 'Volume' column in DataFrame for {sym}. Gracefully skipping.")
+                    continue
 
                 close = df_copy['Close']
                 volume = df_copy['Volume']
@@ -1423,10 +1423,12 @@ class OnDevicePredictionModel:
             from src.ai.feature_engineering import fit_scaler, apply_scaler
             from src.ai.target_transform import transform_sharpe
 
-            # ── Walk-Forward cross-validation (with strict in-fold scaler fitting) ─────
+            # ── Walk-Forward cross-validation (with strict in-fold scaler fitting & embargo gap >= h) ─────
             fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
             if use_wf and len(df_h) >= 100:
-                for fold_idx, (tr_idx, va_idx) in enumerate(tscv.split(df_h)):
+                embargo_gap = max(gap, h)
+                tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
+                for fold_idx, (tr_idx, va_idx) in enumerate(tscv_h.split(df_h)):
                     df_tr = df_h.iloc[tr_idx]
                     df_va = df_h.iloc[va_idx]
 
@@ -1665,6 +1667,8 @@ class OnDevicePredictionModel:
 
         horizon_thresholds = {1: 0.03, 3: 0.05, 5: 0.08, 20: 0.15}
         for h in self.surge_horizons:
+            embargo_gap = max(gap, h)
+            tscv_surge = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap) if use_wf else None
             raw_target_col = f'raw_surge_target_{h}d'
             if raw_target_col not in df_train.columns:
                 if 'Close' in df_train.columns and 'symbol' in df_train.columns:
@@ -1701,9 +1705,10 @@ class OnDevicePredictionModel:
             kw_cat['scale_pos_weight'] = scale_pos_weight
             logger.info(f"Surge {market} {h}d: {pos_count} positive / {neg_count} negative (scale={scale_pos_weight:.1f})")
 
-            # Walk-Forward cross-validation
+            # Walk-Forward cross-validation (with embargo gap >= h)
             fold_auc_xgb, fold_auc_lgb, fold_auc_cat = [], [], []
-            for fold_idx, (tr_idx, va_idx) in enumerate(tscv.split(X)):
+            if tscv_surge is not None:
+                for fold_idx, (tr_idx, va_idx) in enumerate(tscv_surge.split(X)):
                 X_tr, y_tr = X.iloc[tr_idx], target.iloc[tr_idx]
                 X_va, y_va = X.iloc[va_idx], target.iloc[va_idx]
                 if y_tr.sum() == 0 or y_va.sum() == 0:
@@ -1806,9 +1811,13 @@ class OnDevicePredictionModel:
             w_cat_s /= sum_w
 
             # Calibration & threshold on last fold's val set
-            last_tr_idx, last_va_idx = list(tscv.split(X))[-1]
-            X_calib_eval = X.iloc[last_va_idx]
-            y_calib_eval = target.iloc[last_va_idx]
+            if tscv_surge is not None:
+                last_tr_idx, last_va_idx = list(tscv_surge.split(X))[-1]
+                X_calib_eval = X.iloc[last_va_idx]
+                y_calib_eval = target.iloc[last_va_idx]
+            else:
+                X_calib_eval = X
+                y_calib_eval = target
 
             if market not in self.validation_metrics["surge"]:
                 self.validation_metrics["surge"][market] = {}
@@ -1827,26 +1836,28 @@ class OnDevicePredictionModel:
                 "xgb": w_xgb_s, "lgb": w_lgb_s, "cat": w_cat_s
             }
 
-            # Platt Scaling Calibration & threshold tuning on last fold's val set
-            probs_xgb = model_xgb.predict_proba(X_calib_eval)[:, 1]
-            probs_lgb = model_lgb.predict_proba(X_calib_eval)[:, 1]  # type: ignore[call-overload]
-            probs_cat = model_cat.predict_proba(X_calib_eval)[:, 1]
-            blend_probs = w_xgb_s * probs_xgb + w_lgb_s * probs_lgb + w_cat_s * probs_cat
+            # Platt Scaling Calibration & threshold tuning on last fold's val set (Nested Split to prevent double-dipping)
+            n_eval = len(X_calib_eval)
+            half_eval = n_eval // 2
+            if half_eval >= 20 and len(np.unique(y_calib_eval.iloc[:half_eval])) > 1 and len(np.unique(y_calib_eval.iloc[half_eval:])) > 1:
+                X_fit_th, y_fit_th = X_calib_eval.iloc[:half_eval], y_calib_eval.iloc[:half_eval]
+                X_tune_th, y_tune_th = X_calib_eval.iloc[half_eval:], y_calib_eval.iloc[half_eval:]
+            else:
+                X_fit_th, y_fit_th = X_calib_eval, y_calib_eval
+                X_tune_th, y_tune_th = X_calib_eval, y_calib_eval
+
+            probs_xgb_fit = model_xgb.predict_proba(X_fit_th)[:, 1]
+            probs_lgb_fit = model_lgb.predict_proba(X_fit_th)[:, 1]  # type: ignore[call-overload]
+            probs_cat_fit = model_cat.predict_proba(X_fit_th)[:, 1]
+            blend_probs_fit = w_xgb_s * probs_xgb_fit + w_lgb_s * probs_lgb_fit + w_cat_s * probs_cat_fit
 
             from sklearn.linear_model import LogisticRegression
             calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
             try:
-                calibration_model.fit(blend_probs.reshape(-1, 1), y_calib_eval)
-                calibrated_probs = calibration_model.predict_proba(
-                    blend_probs.reshape(-1, 1)
-                )[:, 1]
-                logger.info(
-                    f"Platt calibration for {market} {h}d. Prob range: "
-                    f"{calibrated_probs.min():.4f} - {calibrated_probs.max():.4f}"
-                )
+                calibration_model.fit(blend_probs_fit.reshape(-1, 1), y_fit_th)
+                logger.info(f"Platt calibration fitted for {market} {h}d.")
             except Exception as calib_err:
                 logger.warning(f"Calibration fitting failed: {calib_err}. Using uncalibrated probs.")
-                calibrated_probs = blend_probs
                 calibration_model = None
 
             if calibration_model is not None:
@@ -1859,10 +1870,19 @@ class OnDevicePredictionModel:
                     "intercept": float(calibration_model.intercept_[0])
                 }
 
+            probs_xgb_tune = model_xgb.predict_proba(X_tune_th)[:, 1]
+            probs_lgb_tune = model_lgb.predict_proba(X_tune_th)[:, 1]  # type: ignore[call-overload]
+            probs_cat_tune = model_cat.predict_proba(X_tune_th)[:, 1]
+            blend_probs_tune = w_xgb_s * probs_xgb_tune + w_lgb_s * probs_lgb_tune + w_cat_s * probs_cat_tune
+            if calibration_model is not None:
+                calibrated_probs_tune = calibration_model.predict_proba(blend_probs_tune.reshape(-1, 1))[:, 1]
+            else:
+                calibrated_probs_tune = blend_probs_tune
+
             best_th = 0.20
             best_f1 = -1.0
             for th in [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]:
-                pred_binary = (calibrated_probs >= th).astype(int)
+                pred_binary = (calibrated_probs_tune >= th).astype(int)
                 score_f1 = f1_score(y_calib_eval, pred_binary, zero_division=0)
                 if score_f1 > best_f1:
                     best_f1 = score_f1
