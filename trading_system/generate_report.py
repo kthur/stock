@@ -1671,6 +1671,7 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'arm')">📈 ARM</button>
   <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
   <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
+  <button class="tab" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
@@ -2129,6 +2130,107 @@ def build_html(
     </div>
   </div>
 
+  <!-- ══ Scenario Simulator Tab ══ -->
+  <div class="tab-panel" id="panel-scenario">
+    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+      <h3 style="color: #60a5fa; margin-top:0; font-size: 1.25rem;"><i class="fas fa-sliders-h"></i> 대화형 거시경제 & 섹터 경기 시나리오 시뮬레이터</h3>
+      <p style="color: #94a3b8; font-size: 0.9rem;">섹터 경기 전망 및 거시 지표 슬라이더를 조작하면 시나리오 조건부 수혜/타격 예측 종목이 실시간 계산됩니다.</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 15px;">
+        <!-- Sector Outlook Sliders -->
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 8px;">
+          <h4 style="color: #38bdf8; margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">🏢 섹터별 경기 전망</h4>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>반도체 / IT</span><span id="val-semi" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-semi" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>자동차 / 이차전지</span><span id="val-auto" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-auto" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>에너지 / 화학 / 철강</span><span id="val-energy" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-energy" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>금융 / 은행 / 증권</span><span id="val-fin" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-fin" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>식음료 / 필수소비재</span><span id="val-staples" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-staples" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+        </div>
+
+        <!-- Macro Indicator Sliders -->
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 8px;">
+          <h4 style="color: #f43f5e; margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">🌐 거시경제(Macro) 지표 변동</h4>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>원/달러 환율 변동 (%)</span><span id="val-fx" style="color:#f43f5e; font-weight:bold;">0.0%</span>
+            </label>
+            <input type="range" id="scen-fx" min="-15" max="15" step="0.5" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>유가 WTI 변동 (%)</span><span id="val-wti" style="color:#f43f5e; font-weight:bold;">0.0%</span>
+            </label>
+            <input type="range" id="scen-wti" min="-30" max="30" step="1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>미국 10년물 국채 금리 (%)</span><span id="val-rate" style="color:#f43f5e; font-weight:bold;">4.0%</span>
+            </label>
+            <input type="range" id="scen-rate" min="2.0" max="6.0" step="0.1" value="4.0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>VIX 공포지수 변동 (%)</span><span id="val-vix" style="color:#f43f5e; font-weight:bold;">0.0%</span>
+            </label>
+            <input type="range" id="scen-vix" min="-40" max="60" step="2" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+
+          <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button onclick="applyPresetScenario('semicon_boom')" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🚀 반도체 호황</button>
+            <button onclick="applyPresetScenario('stagflation')" style="background:#e11d48; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">⚠️ 스태그플레이션</button>
+            <button onclick="resetScenarioSliders()" style="background:#475569; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🔄 초기화</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scenario Output Results Table -->
+    <div class="table-wrap">
+      <table class="data-table" id="table-scenario-results">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th>종목코드</th>
+            <th>종목명</th>
+            <th>섹터</th>
+            <th>기본 점수</th>
+            <th>시뮬레이션 점수</th>
+            <th>변동폭</th>
+            <th>수혜 / 타격 판단 근거 (Impact Rationale)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-scenario-sim">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- ══ VCP ML Tab ══ -->
   <div class="tab-panel" id="panel-vcpml">
     <div class="hz-tabs">{vcp_ml_tabs_nav}</div>
@@ -2247,6 +2349,122 @@ document.addEventListener('DOMContentLoaded', function() {{
       }}
     }});
   }}
+  // Scenario Simulator Client Logic
+  window.updateScenarioSim = function() {{
+    const sSemi = parseFloat(document.getElementById('scen-semi').value);
+    const sAuto = parseFloat(document.getElementById('scen-auto').value);
+    const sEnergy = parseFloat(document.getElementById('scen-energy').value);
+    const sFin = parseFloat(document.getElementById('scen-fin').value);
+    const sStaples = parseFloat(document.getElementById('scen-staples').value);
+
+    const mFx = parseFloat(document.getElementById('scen-fx').value);
+    const mWti = parseFloat(document.getElementById('scen-wti').value);
+    const mRate = parseFloat(document.getElementById('scen-rate').value);
+    const mVix = parseFloat(document.getElementById('scen-vix').value);
+
+    document.getElementById('val-semi').innerText = sSemi.toFixed(1);
+    document.getElementById('val-auto').innerText = sAuto.toFixed(1);
+    document.getElementById('val-energy').innerText = sEnergy.toFixed(1);
+    document.getElementById('val-fin').innerText = sFin.toFixed(1);
+    document.getElementById('val-staples').innerText = sStaples.toFixed(1);
+
+    document.getElementById('val-fx').innerText = (mFx >= 0 ? '+' : '') + mFx.toFixed(1) + '%';
+    document.getElementById('val-wti').innerText = (mWti >= 0 ? '+' : '') + mWti.toFixed(0) + '%';
+    document.getElementById('val-rate').innerText = mRate.toFixed(1) + '%';
+    document.getElementById('val-vix').innerText = (mVix >= 0 ? '+' : '') + mVix.toFixed(0) + '%';
+
+    // Stock Universe for Simulation
+    const universe = [
+      {{ sym: '005930.KS', name: '삼성전자', sec: 'Information Technology', base: 0.68, key: 'semi', elas: {{ fx: 0.6, wti: -0.2, rate: -0.4, vix: -0.3 }} }},
+      {{ sym: '000660.KS', name: 'SK하이닉스', sec: 'Information Technology', base: 0.72, key: 'semi', elas: {{ fx: 0.6, wti: -0.2, rate: -0.4, vix: -0.3 }} }},
+      {{ sym: '005380.KS', name: '현대차', sec: 'Consumer Discretionary', base: 0.65, key: 'auto', elas: {{ fx: 0.4, wti: -0.3, rate: -0.3, vix: -0.4 }} }},
+      {{ sym: '051910.KS', name: 'LG화학', sec: 'Materials', base: 0.62, key: 'energy', elas: {{ fx: 0.2, wti: 0.6, rate: 0.1, vix: -0.3 }} }},
+      {{ sym: '105560.KS', name: 'KB금융', sec: 'Financials', base: 0.58, key: 'fin', elas: {{ fx: -0.2, wti: 0.1, rate: 0.7, vix: -0.2 }} }},
+      {{ sym: '011780.KS', name: 'S-Oil', sec: 'Energy', base: 0.50, key: 'energy', elas: {{ fx: -0.1, wti: 0.9, rate: 0.2, vix: -0.1 }} }},
+      {{ sym: '097950.KS', name: 'CJ제일제당', sec: 'Consumer Staples', base: 0.52, key: 'staples', elas: {{ fx: -0.4, wti: -0.5, rate: 0.1, vix: 0.3 }} }},
+      {{ sym: '005490.KS', name: 'POSCO홀딩스', sec: 'Materials', base: 0.54, key: 'energy', elas: {{ fx: 0.2, wti: 0.6, rate: 0.1, vix: -0.3 }} }}
+    ];
+
+    const secValues = {{ semi: sSemi, auto: sAuto, energy: sEnergy, fin: sFin, staples: sStaples }};
+    const results = [];
+
+    universe.forEach(item => {{
+      const macroShock = ((mFx / 10.0) * item.elas.fx) + ((mWti / 10.0) * item.elas.wti) + (((mRate - 4.0) / 2.0) * item.elas.rate) + ((mVix / 20.0) * item.elas.vix);
+      const secOutlook = secValues[item.key] || 0.0;
+      const secShock = secOutlook * 0.25;
+      const totalShock = macroShock * 0.15 + secShock;
+      const simScore = Math.min(1.0, Math.max(0.0, item.base + totalShock));
+      const delta = simScore - item.base;
+
+      let reasons = [];
+      if (secOutlook > 0.2) reasons.push("섹터 업황 호조 (+" + secOutlook.toFixed(1) + ")");
+      else if (secOutlook < -0.2) reasons.push("섹터 업황 둔화 (" + secOutlook.toFixed(1) + ")");
+      if (mFx !== 0 && item.elas.fx !== 0) reasons.push((mFx * item.elas.fx > 0) ? ("환율변동(" + (mFx > 0 ? '+' : '') + mFx + "%) 수혜") : ("환율변동(" + (mFx > 0 ? '+' : '') + mFx + "%) 부담"));
+      if (mWti !== 0 && item.elas.wti !== 0) reasons.push((mWti * item.elas.wti > 0) ? ("유가변동(" + (mWti > 0 ? '+' : '') + mWti + "%) 수혜") : ("유가변동(" + (mWti > 0 ? '+' : '') + mWti + "%) 원가부담"));
+      if (mRate >= 4.3 && item.elas.rate > 0) reasons.push("고금리(" + mRate + "%) 마진 확대");
+      else if (mRate >= 4.3 && item.elas.rate < -0.3) reasons.push("고금리(" + mRate + "%) 할인율 부담");
+
+      results.push({{
+        sym: item.sym,
+        name: item.name,
+        sec: item.sec,
+        base: item.base.toFixed(4),
+        sim: simScore.toFixed(4),
+        delta: (delta >= 0 ? '+' : '') + delta.toFixed(4),
+        rationale: reasons.length > 0 ? reasons.join(', ') : '중립 시나리오 유지'
+      }});
+    }});
+
+    results.sort((a, b) => parseFloat(b.sim) - parseFloat(a.sim));
+
+    let html = '';
+    results.forEach((r, idx) => {{
+      const deltaColor = parseFloat(r.delta) > 0 ? '#38a169' : (parseFloat(r.delta) < 0 ? '#f43f5e' : '#cbd5e1');
+      const badgeBg = parseFloat(r.delta) > 0 ? 'rgba(46, 160, 67, 0.2)' : (parseFloat(r.delta) < 0 ? 'rgba(244, 63, 94, 0.2)' : 'transparent');
+      html += '<tr>' +
+        '<td style="text-align:center; font-weight:bold;">' + (idx + 1) + '</td>' +
+        '<td><code>' + r.sym + '</code></td>' +
+        '<td style="font-weight:600; color:#f8fafc;">' + r.name + '</td>' +
+        '<td><span class="badge" style="background:#334155; color:#cbd5e1;">' + r.sec + '</span></td>' +
+        '<td>' + r.base + '</td>' +
+        '<td style="font-weight:bold; color:#60a5fa;">' + r.sim + '</td>' +
+        '<td><span style="background:' + badgeBg + '; color:' + deltaColor + '; padding:2px 6px; border-radius:4px; font-weight:bold;">' + r.delta + '</span></td>' +
+        '<td style="font-size:0.85rem; color:#cbd5e1;">' + r.rationale + '</td>' +
+      '</tr>';
+    }});
+
+    document.getElementById('tbody-scenario-sim').innerHTML = html;
+  }};
+
+  window.applyPresetScenario = function(type) {{
+    resetScenarioSliders();
+    if (type === 'semicon_boom') {{
+      document.getElementById('scen-semi').value = 0.8;
+      document.getElementById('scen-staples').value = -0.2;
+      document.getElementById('scen-fx').value = 5.0;
+    }} else if (type === 'stagflation') {{
+      document.getElementById('scen-energy').value = 0.7;
+      document.getElementById('scen-fin').value = 0.5;
+      document.getElementById('scen-semi').value = -0.3;
+      document.getElementById('scen-staples').value = -0.5;
+      document.getElementById('scen-fx').value = 8.0;
+      document.getElementById('scen-wti').value = 20;
+      document.getElementById('scen-rate').value = 4.8;
+      document.getElementById('scen-vix').value = 25;
+    }}
+    updateScenarioSim();
+  }};
+
+  window.resetScenarioSliders = function() {{
+    ['scen-semi', 'scen-auto', 'scen-energy', 'scen-fin', 'scen-staples', 'scen-fx', 'scen-wti', 'scen-vix'].forEach(id => {{
+      document.getElementById(id).value = 0;
+    }});
+    document.getElementById('scen-rate').value = 4.0;
+    updateScenarioSim();
+  }};
+
+  // Initial trigger
+  updateScenarioSim();
 }});
 </script>
 </body>
