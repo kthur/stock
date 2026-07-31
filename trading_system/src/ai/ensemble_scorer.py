@@ -882,6 +882,9 @@ class EnsembleScoringEngine:
         merged = pd.DataFrame(columns=['symbol'])
         for d in dfs:
             if d is not None and not d.empty:
+                if 'symbol' in d.columns:
+                    d = d.copy()
+                    d['symbol'] = d['symbol'].astype(str)
                 if merged.empty:
                     merged = d.copy()
                 else:
