@@ -2264,6 +2264,41 @@ def execute_prediction_pipeline():
         logger.warning(f"LATR factor computation failed: {_latr_e}")
         latr_df = pd.DataFrame()
 
+    # Strategy 18: Inst & Foreign 2-Month Accumulation & Sector Correlation (Lead-Lag Follow Through)
+    try:
+        from src.core.inst_foreign_sector import InstForeignSectorEngine
+        ifs_engine = InstForeignSectorEngine(accumulation_days=40)
+        sector_mapping = dict(zip(universe['symbol'], universe.get('sector', universe.get('industry', 'DEFAULT')))) if 'symbol' in universe.columns else {}
+        inst_foreign_sector_df = ifs_engine.compute_scores(prices_dict, flow_data_dict=None, sector_mapping=sector_mapping)
+        ifs_output_path = os.path.join(result_dir, "inst_foreign_sector_predictions.txt")
+        if not inst_foreign_sector_df.empty:
+            ifs_merged = inst_foreign_sector_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='inst_foreign_sector_score', ascending=False)
+            with open(ifs_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 18: Inst & Foreign 2-Month Accumulation & Sector Correlation Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(ifs_merged)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'IFS Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(ifs_merged.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['inst_foreign_sector_score']*100:>12.1f}%\n")
+            logger.info(f"Saved Inst & Foreign Sector predictions ({len(ifs_merged)} symbols) to {ifs_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+                _m_df = ifs_merged[ifs_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"inst_foreign_sector_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Inst & Foreign Sector Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'IFS Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['inst_foreign_sector_score']*100:>12.1f}%\n")
+    except Exception as _ifs_e:
+        logger.warning(f"Inst & Foreign sector strategy computation failed: {_ifs_e}")
+        inst_foreign_sector_df = pd.DataFrame()
+
     # default target horizon is 20d (17-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
@@ -2283,6 +2318,7 @@ def execute_prediction_pipeline():
         arm_df=arm_df,
         card_df=card_df,
         latr_df=latr_df,
+        inst_foreign_sector_df=inst_foreign_sector_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )

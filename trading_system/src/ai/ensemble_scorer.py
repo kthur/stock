@@ -37,61 +37,64 @@ class EnsembleScoringEngine:
     # Dynamic Weight Configuration per 1D Market Regime (17 Strategies)
     REGIME_WEIGHTS = {
         0: {  # BEAR (Defensive)
-            'regression': 0.17,
+            'regression': 0.16,
             'surge': 0.02,
             'lead_lag': 0.02,
             'vcp_rule': 0.02,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.10,
+            'stat_arb': 0.09,
             'sector_rotation': 0.05,
-            'rim_valuation': 0.12,
+            'rim_valuation': 0.11,
             'event_driven': 0.04,
-            'mq_factor': 0.08,
+            'mq_factor': 0.07,
             'iv_skew': 0.04,
             'order_flow': 0.03,
             'short_term_reversal': 0.05,
             'arm_factor': 0.06,
-            'card_factor': 0.08,
-            'latr_factor': 0.07
+            'card_factor': 0.07,
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.06
         },
         1: {  # SIDEWAYS (Rotation)
-            'regression': 0.08,
+            'regression': 0.07,
             'surge': 0.03,
             'lead_lag': 0.05,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.06,
-            'lstm': 0.08,
-            'stat_arb': 0.10,
-            'sector_rotation': 0.07,
-            'rim_valuation': 0.08,
+            'vcp_ml': 0.05,
+            'lstm': 0.07,
+            'stat_arb': 0.09,
+            'sector_rotation': 0.06,
+            'rim_valuation': 0.07,
             'event_driven': 0.06,
-            'mq_factor': 0.07,
+            'mq_factor': 0.06,
             'iv_skew': 0.03,
             'order_flow': 0.04,
             'short_term_reversal': 0.04,
             'arm_factor': 0.06,
             'card_factor': 0.06,
-            'latr_factor': 0.06
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.07
         },
         2: {  # BULL (Aggressive)
             'regression': 0.04,
-            'surge': 0.12,
+            'surge': 0.11,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.10,
-            'lstm': 0.08,
+            'vcp_ml': 0.09,
+            'lstm': 0.07,
             'stat_arb': 0.03,
-            'sector_rotation': 0.08,
+            'sector_rotation': 0.07,
             'rim_valuation': 0.05,
-            'event_driven': 0.08,
-            'mq_factor': 0.08,
+            'event_driven': 0.07,
+            'mq_factor': 0.07,
             'iv_skew': 0.02,
             'order_flow': 0.04,
             'short_term_reversal': 0.02,
-            'arm_factor': 0.08,
+            'arm_factor': 0.07,
             'card_factor': 0.05,
-            'latr_factor': 0.07
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.08
         }
     }
 
@@ -645,13 +648,14 @@ class EnsembleScoringEngine:
                             arm_df: Optional[pd.DataFrame] = None,
                             card_df: Optional[pd.DataFrame] = None,
                             latr_df: Optional[pd.DataFrame] = None,
+                            inst_foreign_sector_df: Optional[pd.DataFrame] = None,
                             weights: Dict[str, float] = None,
                             regime: Union[int, str] = 'BULL_LOW_VOL',
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Merges 14 strategy prediction DataFrames and computes weighted ensemble score.
+        Merges 18 strategy prediction DataFrames and computes weighted ensemble score.
         """
         if weights is None:
             weights = self.REGIME_2D_WEIGHTS['BULL_LOW_VOL']
@@ -843,8 +847,18 @@ class EnsembleScoringEngine:
         else:
             la_df = pd.DataFrame(columns=['symbol', 'latr_score'])
 
-        # Combine all 17 strategy DataFrames efficiently while preserving metadata
-        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df]
+        # 18. Strategy 18: Inst & Foreign 2-Month Accumulation & Sector Correlation
+        if inst_foreign_sector_df is not None and not inst_foreign_sector_df.empty:
+            ifs_df = inst_foreign_sector_df.copy()
+            num_cols = [c for c in ifs_df.columns if c != 'symbol' and c not in META_COLS]
+            ifs_col = 'inst_foreign_sector_score' if 'inst_foreign_sector_score' in ifs_df.columns else (num_cols[-1] if num_cols else ifs_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in ifs_df.columns]
+            ifs_df = ifs_df[['symbol'] + meta_cols + [ifs_col]].rename(columns={ifs_col: 'inst_foreign_sector_score'})
+        else:
+            ifs_df = pd.DataFrame(columns=['symbol', 'inst_foreign_sector_score'])
+
+        # Combine all 18 strategy DataFrames efficiently while preserving metadata
+        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df]
         merged = pd.DataFrame(columns=['symbol'])
         for d in dfs:
             if d is not None and not d.empty:
@@ -881,6 +895,7 @@ class EnsembleScoringEngine:
             ('arm_factor', 'arm_score'),
             ('card_factor', 'card_score'),
             ('latr_factor', 'latr_score'),
+            ('inst_foreign_sector', 'inst_foreign_sector_score'),
         ]
 
         # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
@@ -938,9 +953,11 @@ class EnsembleScoringEngine:
                     if valid_mask.any():
                         merged.loc[valid_mask, col] = self.calibrate_scores(strategy_name, merged.loc[valid_mask, col].values)
 
-        # Dynamic Weight Renormalization for missing/NaN strategy scores per symbol
+        # Dynamic Weight Renormalization & Missingness-Aware Coverage Penalization
         total_score_series = pd.Series(0.0, index=merged.index)
         total_weight_series = pd.Series(0.0, index=merged.index)
+        valid_count_series = pd.Series(0.0, index=merged.index)
+        total_strategies = float(len(strategy_cols))
 
         for strat_name, score_col in strategy_cols:
             w = weights.get(strat_name, 0.10)
@@ -949,10 +966,16 @@ class EnsembleScoringEngine:
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
                 total_score_series += merged[score_col].fillna(0.0) * w * valid_mask.astype(float)
                 total_weight_series += w * valid_mask.astype(float)
+                valid_count_series += valid_mask.astype(float)
 
         # Avoid division by zero: if no strategy scores exist, score is 0.0
         safe_weight_series = total_weight_series.replace(0.0, np.nan)
         linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+
+        # Apply coverage factor: If factor coverage < 40%, scale down score to prevent missingness distortion
+        coverage_ratio = valid_count_series / total_strategies
+        coverage_penalty = np.where(coverage_ratio < 0.40, 0.5 + 0.5 * (coverage_ratio / 0.40), 1.0)
+        linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
 
         # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50)
         try:

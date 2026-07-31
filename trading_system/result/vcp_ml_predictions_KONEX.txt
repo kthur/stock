@@ -1,35 +1,15 @@
-=== VCP ML Surge Predictions ===
-Date: 2026-07-29 09:22
+=== VCP ML Surge Predictions (KONEX) ===
+Date: 2026-07-31 12:17
 
-[1일] KOSPI - (no symbols) 0.0%
+[1일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 0.7%
 
-[1일] KOSDAQ - (no symbols) 0.0%
+[3일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 1.5%
 
-[1일] KONEX - (no symbols) 0.0%
+[5일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 9.5%
 
-[1일] SP500 - (no symbols) 0.0%
-
-[3일] KOSPI - (no symbols) 0.0%
-
-[3일] KOSDAQ - (no symbols) 0.0%
-
-[3일] KONEX - (no symbols) 0.0%
-
-[3일] SP500 - (no symbols) 0.0%
-
-[5일] KOSPI - (no symbols) 0.0%
-
-[5일] KOSDAQ - (no symbols) 0.0%
-
-[5일] KONEX - (no symbols) 0.0%
-
-[5일] SP500 - (no symbols) 0.0%
-
-[20일] KOSPI - (no symbols) 0.0%
-
-[20일] KOSDAQ - (no symbols) 0.0%
-
-[20일] KONEX - (no symbols) 0.0%
-
-[20일] SP500 - (no symbols) 0.0%
+[20일] KONEX TOP 1
+  1. [KONEX] 207940 (Samsung BioLogics): 1.8%
 

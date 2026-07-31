@@ -1,5 +1,28 @@
 === VCP (Volatility Contraction Pattern) Results ===
-Date: 2026-07-29 09:35
-Total VCP patterns found: 0
+Date: 2026-07-31 12:17
+Total symbols evaluated: 5
 
-데이터 없음
+--- KOSPI Top 1 ---
+  1. [KOSPI] 005930 (Samsung Electronics)
+       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+--- KOSDAQ Top 1 ---
+  1. [KOSDAQ] 068270 (Celltrion)
+       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+--- KONEX Top 1 ---
+  1. [KONEX] 207940 (Samsung BioLogics)
+       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+--- SP500 Top 2 ---
+  1. [SP500] MSFT (Microsoft Corp.)
+       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+
+  2. [SP500] AAPL (Apple Inc.)
+       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
+       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
+

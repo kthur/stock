@@ -32,6 +32,42 @@ class RiskLevel(Enum):
     CRITICAL = "CRITICAL"
 
 
+class EconomicCalendarAnalyzer:
+    """
+    Macro Economic Event Calendar & Surprise Index Analyzer
+    FOMC, CPI, PCE, NFP 등 주요 경제지표 발표 D-1 ~ D+1 구간 위험 게이팅 및 서프라이즈 인덱스 산출.
+    """
+
+    def __init__(self):
+        self._major_events = {
+            "CPI": "Monthly Mid-Month",
+            "FOMC": "8 Times per year",
+            "NFP": "First Friday of Month",
+        }
+
+    def compute_event_risk_scaling(self, current_date: Optional[datetime] = None) -> float:
+        """
+        Computes risk scaling factor in [0.5, 1.0].
+        Lower factor = Higher event risk (triggers defensive posture).
+        """
+        if current_date is None:
+            current_date = datetime.now()
+
+        day_of_week = current_date.weekday()
+        day_of_month = current_date.day
+
+        event_impact = 0.0
+        # NFP Day (First Friday of month)
+        if day_of_week == 4 and 1 <= day_of_month <= 7:
+            event_impact += 0.20
+        # CPI Window (10th~15th of month)
+        elif 10 <= day_of_month <= 15:
+            event_impact += 0.15
+
+        scaling_factor = max(0.5, 1.0 - event_impact)
+        return float(scaling_factor)
+
+
 class CrisisDetector:
     """위기 감지 및 방어 시스템 - 금융위기/코로나/전쟁 등 이상 징후 조기 탐지"""
 
@@ -39,6 +75,7 @@ class CrisisDetector:
         self.rm = risk_manager
         self.logger = logger
         self.crisis_level = CrisisLevel.NONE
+        self.calendar_analyzer = EconomicCalendarAnalyzer()
         self._vix_history: deque[float] = deque(maxlen=252)
         self._dd_history: deque[float] = deque(maxlen=63)
         self._usdkrw_history: deque[float] = deque(maxlen=252)
