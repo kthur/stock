@@ -84,10 +84,11 @@ app.layout = html.Div(
                                         id="pred-market-dropdown",
                                         options=[
                                             {"label": "전체", "value": "ALL"},
+                                            {"label": "S&P 500", "value": "SP500"},
+                                            {"label": "NASDAQ", "value": "NASDAQ"},
+                                            {"label": "RUSSELL 2000", "value": "RUSSELL2000"},
                                             {"label": "KOSPI", "value": "KOSPI"},
                                             {"label": "KOSDAQ", "value": "KOSDAQ"},
-                                            {"label": "KONEX", "value": "KONEX"},
-                                            {"label": "S&P 500", "value": "SP500"},
                                         ],
                                         value="ALL",
                                         clearable=False,

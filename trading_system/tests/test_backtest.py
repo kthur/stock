@@ -187,17 +187,17 @@ class TestBacktestEngine(unittest.TestCase):
 
 
     def test_backtest_centralized_market_transaction_costs(self):
-        """Test exact centralized rates: KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%"""
+        """Test exact centralized rates: NASDAQ 0.65%, RUSSELL2000 0.80%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%"""
         engine = BacktestEngine(initial_capital=100000.0)
 
         # Check market cost rates
-        self.assertAlmostEqual(engine.get_market_cost_rate(market="KONEX"), 0.0130, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(market="NASDAQ"), 0.0065, places=6)
+        self.assertAlmostEqual(engine.get_market_cost_rate(market="RUSSELL2000"), 0.0080, places=6)
         self.assertAlmostEqual(engine.get_market_cost_rate(market="KOSDAQ"), 0.0100, places=6)
         self.assertAlmostEqual(engine.get_market_cost_rate(market="KOSPI"), 0.0085, places=6)
         self.assertAlmostEqual(engine.get_market_cost_rate(market="SP500"), 0.0060, places=6)
 
         # Symbol inference
-        self.assertAlmostEqual(engine.get_market_cost_rate(symbol="300000.KN"), 0.0130, places=6)
         self.assertAlmostEqual(engine.get_market_cost_rate(symbol="035720.KQ"), 0.0100, places=6)
         self.assertAlmostEqual(engine.get_market_cost_rate(symbol="005930.KS"), 0.0085, places=6)
         self.assertAlmostEqual(engine.get_market_cost_rate(symbol="AAPL"), 0.0060, places=6)

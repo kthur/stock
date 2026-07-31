@@ -150,17 +150,17 @@ def test_raw_scores_preserves_nans_for_coverage_analyzer():
 
 
 def test_transaction_costs_and_slippage_all_markets():
-    """Verify market-specific microstructure execution cost modeling across KOSPI, KOSDAQ, KONEX, and SP500."""
+    """Verify market-specific microstructure execution cost modeling across KOSPI, KOSDAQ, SP500, NASDAQ, and RUSSELL2000."""
     scorer = EnsembleScoringEngine()
 
-    # Create dummy predictions for 4 markets with realistic turnover and 20d volatility
+    # Create dummy predictions for 5 markets with equal turnover & volatility to isolate base spread friction
     df_reg = pd.DataFrame({
-        'symbol': ['005930.KS', '035720.KQ', '217880.KN', 'AAPL'],
-        'market': ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500'],
-        'volume': [100_000, 100_000, 100_000, 500_000],
-        'close': [70_000, 50_000, 20_000, 150], # Turnover: 7B KRW KOSPI, 5B KOSDAQ, 2B KONEX, $75M SP500
-        'volatility_20d': [0.015, 0.020, 0.025, 0.012],
-        20: [0.25, 0.25, 0.25, 0.25]
+        'symbol': ['005930.KS', '035720.KQ', 'AAPL', 'MSFT', 'IWM'],
+        'market': ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000'],
+        'volume': [100_000, 100_000, 100_000, 100_000, 100_000],
+        'close': [70_000, 50_000, 100, 100, 100],
+        'volatility_20d': [0.015, 0.020, 0.015, 0.015, 0.015],
+        20: [0.25, 0.25, 0.25, 0.25, 0.25]
     })
 
     # High return score: ensemble_score = 1.0 -> raw expected return = 25.0%
@@ -173,13 +173,15 @@ def test_transaction_costs_and_slippage_all_markets():
 
     row_kospi = res[res['symbol'] == '005930.KS'].iloc[0]
     row_kosdaq = res[res['symbol'] == '035720.KQ'].iloc[0]
-    row_konex = res[res['symbol'] == '217880.KN'].iloc[0]
     row_sp500 = res[res['symbol'] == 'AAPL'].iloc[0]
+    row_nasdaq = res[res['symbol'] == 'MSFT'].iloc[0]
+    row_russell = res[res['symbol'] == 'IWM'].iloc[0]
 
     # Verify all expected returns are positive and properly differentiated by market friction
+    assert row_sp500['ensemble_expected_return'] > row_nasdaq['ensemble_expected_return']
+    assert row_nasdaq['ensemble_expected_return'] > row_russell['ensemble_expected_return']
     assert row_sp500['ensemble_expected_return'] > row_kospi['ensemble_expected_return']
     assert row_kospi['ensemble_expected_return'] > row_kosdaq['ensemble_expected_return']
-    assert row_kosdaq['ensemble_expected_return'] > row_konex['ensemble_expected_return']
 
 
 def test_liquidity_and_preferred_stock_filter():

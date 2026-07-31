@@ -72,7 +72,8 @@ class TestE2EConsolidated(unittest.TestCase):
             conn.execute("INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)", ("MSFT", "Microsoft Corp.", "SP500"))
             conn.execute("INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)", ("005930", "Samsung Electronics", "KOSPI"))
             conn.execute("INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)", ("068270", "Celltrion", "KOSDAQ"))
-            conn.execute("INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)", ("207940", "Samsung BioLogics", "KONEX"))
+            conn.execute("INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)", ("NVDA", "NVIDIA Corp.", "NASDAQ"))
+            conn.execute("INSERT OR REPLACE INTO stock_universe (symbol, name, market) VALUES (?, ?, ?)", ("IWM", "iShares Russell 2000 ETF", "RUSSELL2000"))
             conn.commit()
 
     @classmethod
@@ -906,16 +907,18 @@ class TestE2EConsolidated(unittest.TestCase):
     def test_t4_multi_market_segment_sweep(self, mock_vcp_train):
         # Run pipeline with multiple markets active
         prices_dict = {
-            "AAPL": self.generate_vcp_data(500), # SP500
+            "AAPL": self.generate_vcp_data(500),   # SP500
+            "NVDA": self.generate_vcp_data(500),   # NASDAQ
+            "IWM": self.generate_vcp_data(500),    # RUSSELL2000
             "005930": self.generate_vcp_data(500), # KOSPI
             "068270": self.generate_vcp_data(500), # KOSDAQ
-            "207940": self.generate_vcp_data(500)  # KONEX
         }
         symbol_market = {
             "AAPL": "SP500",
+            "NVDA": "NASDAQ",
+            "IWM": "RUSSELL2000",
             "005930": "KOSPI",
             "068270": "KOSDAQ",
-            "207940": "KONEX"
         }
 
         predictor = VCPSurgePredictor(model_dir=self.tmp_model_dir)
@@ -923,8 +926,8 @@ class TestE2EConsolidated(unittest.TestCase):
         indicator_df = self.generate_mock_indicators(500)
         universe = pd.DataFrame([{"symbol": s, "market": m} for s, m in symbol_market.items()])
         predictor.train(prices_dict, indicator_df, universe)
-        # Should train 4 separate models or proceed without crash
-        self.assertTrue(mock_vcp_train.called or len(prices_dict) == 4)
+        # Should train 5 separate models or proceed without crash
+        self.assertTrue(mock_vcp_train.called or len(prices_dict) == 5)
 
     def test_t4_extreme_volatility_contraction_sweep(self):
         # Start with extreme swings, then tight contraction

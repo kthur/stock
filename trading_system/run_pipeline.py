@@ -142,7 +142,6 @@ def is_empty_result(result):
 _KR_MARKET_SUFFIX = {
     'KOSPI': '.KS',
     'KOSDAQ': '.KQ',
-    'KONEX': '.KQ',
     'KRX': '.KS',
 }
 
@@ -669,7 +668,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
 def _market_symbols(universe: pd.DataFrame) -> dict:
     """Return dict of {market: set(symbols)} for all known markets."""
     markets = {}
-    for m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+    for m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
         markets[m] = set(universe[universe['market'] == m]['symbol'])
     return markets
 
@@ -695,7 +694,8 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
         f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
         "=" * 30,
     ]
-    krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+    krx_markets = ['KOSPI', 'KOSDAQ']
+    us_markets = ['SP500', 'NASDAQ', 'RUSSELL2000']
     for h in horizons:
         if h not in res_df.columns:
             continue
@@ -707,10 +707,11 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
                 lines.append(f"\n*{h}일 예상 — {m} TOP 10*")
                 lines.extend(_fmt_top(m_df, h, symbol_to_name, symbol_to_market, 10))
 
-        sp500_df = sorted_df[sorted_df['symbol'].isin(market_syms.get('SP500', set()))]
-        if not sp500_df.empty:
-            lines.append(f"\n*{h}일 예상 — S&P 500 TOP 10*")
-            lines.extend(_fmt_top(sp500_df, h, symbol_to_name, symbol_to_market, 10))
+        for m in us_markets:
+            m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
+            if not m_df.empty:
+                lines.append(f"\n*{h}일 예상 — {m} TOP 10*")
+                lines.extend(_fmt_top(m_df, h, symbol_to_name, symbol_to_market, 10))
 
     return "\n".join(lines)
 
@@ -844,9 +845,10 @@ def execute_prediction_pipeline():
     # 6. Prepare Training Data (On-device) — split by market
     kospi_symbols = universe[universe['market'] == 'KOSPI']['symbol'].tolist()
     kosdaq_symbols = universe[universe['market'] == 'KOSDAQ']['symbol'].tolist()
-    konex_symbols = universe[universe['market'] == 'KONEX']['symbol'].tolist()
     sp500_symbols = universe[universe['market'] == 'SP500']['symbol'].tolist()
-    krx_symbols = kospi_symbols + kosdaq_symbols + konex_symbols
+    nasdaq_symbols = universe[universe['market'] == 'NASDAQ']['symbol'].tolist()
+    russell_symbols = universe[universe['market'] == 'RUSSELL2000']['symbol'].tolist()
+    krx_symbols = kospi_symbols + kosdaq_symbols
 
     if should_skip:
         logger.info("Fetching global indicator history for inference only...")
@@ -871,29 +873,36 @@ def execute_prediction_pipeline():
             random.seed(seed)
 
         # Filter training sampling based on allowed INFERENCE_TARGET (OOM Fix)
-        target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
+        target_env = os.environ.get("INFERENCE_TARGET", "SP500,NASDAQ,RUSSELL2000,KRX").strip().upper()
         targets = [t.strip() for t in target_env.split(",") if t.strip()]
 
         sp500_active = "SP500" in targets or not targets
+        nasdaq_active = "NASDAQ" in targets or not targets
+        russell_active = "RUSSELL2000" in targets or "RUSSELL" in targets or not targets
         kospi_active = "KOSPI" in targets or "KRX" in targets or not targets
         kosdaq_active = "KOSDAQ" in targets or "KRX" in targets or not targets
-        konex_active = "KONEX" in targets or "KRX" in targets or not targets
 
         active_krx_symbols = []
         if kospi_active:
             active_krx_symbols.extend(kospi_symbols)
         if kosdaq_active:
             active_krx_symbols.extend(kosdaq_symbols)
-        if konex_active:
-            active_krx_symbols.extend(konex_symbols)
 
-        sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(sp500_symbols)) if sp500_active else 0
+        active_us_symbols = []
+        if sp500_active:
+            active_us_symbols.extend(sp500_symbols)
+        if nasdaq_active:
+            active_us_symbols.extend(nasdaq_symbols)
+        if russell_active:
+            active_us_symbols.extend(russell_symbols)
+
+        sp500_sample = cfg.resolve_sample_size(cfg.train_sample_sp500, len(active_us_symbols)) if active_us_symbols else 0
         krx_sample = cfg.resolve_sample_size(cfg.train_sample_krx, len(active_krx_symbols)) if active_krx_symbols else 0
 
         if cfg.debug_mode:
-            sp500_sample = min(5, sp500_sample) if sp500_active else 0
+            sp500_sample = min(5, sp500_sample) if active_us_symbols else 0
             krx_sample = min(5, krx_sample) if active_krx_symbols else 0
-            logger.info(f"[DEBUG MODE] Overriding training samples: SP500={sp500_sample}, KRX={krx_sample}")
+            logger.info(f"[DEBUG MODE] Overriding training samples: US={sp500_sample}, KRX={krx_sample}")
 
         def _safe_sample(population, k):
             if k >= len(population):
@@ -902,13 +911,15 @@ def execute_prediction_pipeline():
 
         train_krx_overall = _safe_sample(active_krx_symbols, krx_sample) if active_krx_symbols else []
         train_krx_set = set(train_krx_overall)
-        train_symbols = (_safe_sample(sp500_symbols, sp500_sample) if sp500_active else []) + train_krx_overall
+        train_us_overall = _safe_sample(active_us_symbols, sp500_sample) if active_us_symbols else []
+        train_symbols = train_us_overall + train_krx_overall
 
         # Per-market breakdown for training (preserve market proportions)
         train_sp500 = [s for s in train_symbols if s in sp500_symbols]
+        train_nasdaq = [s for s in train_symbols if s in nasdaq_symbols]
+        train_russell = [s for s in train_symbols if s in russell_symbols]
         train_kospi = [s for s in train_krx_set if s in kospi_symbols]
         train_kosdaq = [s for s in train_krx_set if s in kosdaq_symbols]
-        train_konex = [s for s in train_krx_set if s in konex_symbols]
 
         # 6. Fetch corporate fundamentals in background (non-blocking)
         if train_symbols:
@@ -982,14 +993,15 @@ def execute_prediction_pipeline():
 
         df_train = model.prepare_training_data(train_data_dict, indicator_train, storage=storage)
 
-        # 7. Train XGBoost models per market (KOSPI/KOSDAQ/KONEX/SP500)
+        # 7. Train XGBoost models per market (KOSPI/KOSDAQ/SP500/NASDAQ/RUSSELL2000)
         if not df_train.empty and 'symbol' in df_train.columns:
             df_train['symbol'] = df_train['symbol'].astype(str)
             train_symbol_set = set(df_train['symbol'])
             # Build per-market train DataFrames from the merged df_train
             market_dfs = {}
-            for m_name, m_symbols in [('sp500', train_sp500), ('kospi', train_kospi),
-                                       ('kosdaq', train_kosdaq), ('konex', train_konex)]:
+            for m_name, m_symbols in [('sp500', train_sp500), ('nasdaq', train_nasdaq),
+                                       ('russell2000', train_russell), ('kospi', train_kospi),
+                                       ('kosdaq', train_kosdaq)]:
                 m_sym_strs = [str(s) for s in m_symbols]
                 active = [s for s in m_sym_strs if s in train_symbol_set]
                 m_df = df_train[df_train['symbol'].isin(active)] if active else pd.DataFrame()
@@ -997,7 +1009,7 @@ def execute_prediction_pipeline():
                     logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
                 market_dfs[m_name] = m_df
         else:
-            market_dfs = {m: pd.DataFrame() for m in ['sp500', 'kospi', 'kosdaq', 'konex']}
+            market_dfs = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
 
         # S8 fix: ThreadPoolExecutor avoids pickle serialization overhead of ProcessPool.
         # XGBoost/LightGBM release the GIL during training, so threads are efficient here.
@@ -1067,23 +1079,25 @@ def execute_prediction_pipeline():
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
 
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
-    target_env = os.environ.get("INFERENCE_TARGET", "SP500,KRX").strip().upper()
+    target_env = os.environ.get("INFERENCE_TARGET", "SP500,NASDAQ,RUSSELL2000,KRX").strip().upper()
     targets = [t.strip() for t in target_env.split(",") if t.strip()]
 
     selected_symbols = []
     if "SP500" in targets:
         selected_symbols.extend(sp500_symbols)
+    if "NASDAQ" in targets:
+        selected_symbols.extend(nasdaq_symbols)
+    if "RUSSELL2000" in targets or "RUSSELL" in targets:
+        selected_symbols.extend(russell_symbols)
     if "KRX" in targets:
         selected_symbols.extend(krx_symbols)
-    elif any(k in targets for k in ["KOSPI", "KOSDAQ", "KONEX"]):
+    elif any(k in targets for k in ["KOSPI", "KOSDAQ"]):
         if "KOSPI" in targets:
             selected_symbols.extend(kospi_symbols)
         if "KOSDAQ" in targets:
             selected_symbols.extend(kosdaq_symbols)
-        if "KONEX" in targets:
-            selected_symbols.extend(konex_symbols)
 
-    all_symbols = selected_symbols if selected_symbols else (sp500_symbols + krx_symbols)
+    all_symbols = selected_symbols if selected_symbols else (sp500_symbols + nasdaq_symbols + russell_symbols + krx_symbols)
 
     # Exclude halted (거래정지) and administrative (관리종목) KRX stocks from all predictions
     excluded_krx = _get_excluded_krx_symbols()
@@ -1094,7 +1108,7 @@ def execute_prediction_pipeline():
 
     if cfg.debug_mode:
         debug_symbols = []
-        for m_syms in [sp500_symbols, kospi_symbols, kosdaq_symbols, konex_symbols]:
+        for m_syms in [sp500_symbols, nasdaq_symbols, russell_symbols, kospi_symbols, kosdaq_symbols]:
             active_m = [s for s in m_syms if s in all_symbols]
             debug_symbols.extend(active_m[:3])
         all_symbols = debug_symbols
@@ -1358,7 +1372,7 @@ def execute_prediction_pipeline():
             _write_stat_arb_file(f, top_stat_arb_pairs)
 
         # Per-market suffix files
-        for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
             _m_pairs = [p for p in top_stat_arb_pairs if p.get('market') == _m or p['pair'][0] in set(universe[universe['market'] == _m]['symbol'])]
             if not _m_pairs:
                 _m_pairs = top_stat_arb_pairs[:20]
@@ -1422,7 +1436,7 @@ def execute_prediction_pipeline():
         f.write("Full data: pipeline_result.csv / pipeline_result.jsonl\n\n")
         if res_df.empty:
             f.write("데이터 없음\n")
-        krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+        krx_markets = ['KOSPI', 'KOSDAQ']
         for h in _SUMMARY_HORIZONS:
             sorted_df = res_df.sort_values(by=h, ascending=False)
             f.write(f"{'='*60}\n")
@@ -1437,18 +1451,20 @@ def execute_prediction_pipeline():
                     name = symbol_to_name.get(row['symbol'], "Unknown")
                     f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
                 f.write("\n")
-            sp500_set = market_syms.get('SP500', set())
-            sp500_df = sorted_df[sorted_df['symbol'].isin(sp500_set)].head(_TOP_N)
-            if not sp500_df.empty:
-                f.write(f"--- S&P 500 TOP {_TOP_N} ---\n")
-                for rank, (_, row) in enumerate(sp500_df.iterrows(), 1):
-                    name = symbol_to_name.get(row['symbol'], "Unknown")
-                    f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
-                f.write("\n")
+            us_markets = ['SP500', 'NASDAQ', 'RUSSELL2000']
+            for m in us_markets:
+                m_set = market_syms.get(m, set())
+                m_df = sorted_df[sorted_df['symbol'].isin(m_set)].head(_TOP_N)
+                if not m_df.empty:
+                    f.write(f"--- {m} TOP {_TOP_N} ---\n")
+                    for rank, (_, row) in enumerate(m_df.iterrows(), 1):
+                        name = symbol_to_name.get(row['symbol'], "Unknown")
+                        f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+                    f.write("\n")
     logger.info(f"Saved summarized pipeline result (TOP{_TOP_N}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
     # Per-market suffix files for pipeline_result (Strategy 1 / Regression)
-    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
         _m_set = market_syms.get(_m, set())
         _m_path = os.path.join(result_dir, f"pipeline_result_{_m}.txt")
         _m_sorted = res_df[res_df['symbol'].isin(_m_set)].sort_values(by=20 if 20 in res_df.columns else res_df.columns[-1], ascending=False)
@@ -1495,12 +1511,12 @@ def execute_prediction_pipeline():
             # Merge name/market info
             surge_df = surge_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 
-            krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+            krx_markets = ['KOSPI', 'KOSDAQ']
             for h in model.surge_horizons:
                 col = f'surge_{h}d'
                 if col not in surge_df.columns:
                     continue
-                for m in krx_markets + ['SP500']:
+                for m in krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']:
                     m_df = surge_df[surge_df['market'] == m].sort_values(by=col, ascending=False)
                     if m_df.empty:
                         continue
@@ -1516,7 +1532,7 @@ def execute_prediction_pipeline():
 
     # Also save per-market suffix files for surge predictions
     if not surge_df.empty:
-        for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
             _m_df_surge = surge_df[surge_df['market'] == _m]
             if _m_df_surge.empty:
                 continue
@@ -1571,8 +1587,8 @@ def execute_prediction_pipeline():
             # P1: clip correlation index to [0, 1] — values >1.0 indicate scaling issues
             lead_lag_df = lead_lag_df.copy()
             lead_lag_df['lead_lag_score'] = lead_lag_df['lead_lag_score'].clip(0.0, 1.0)
-            krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
-            for m in krx_markets + ['SP500']:
+            krx_markets = ['KOSPI', 'KOSDAQ']
+            for m in krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']:
                 m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
                 if m_df.empty:
                     continue
@@ -1618,7 +1634,7 @@ def execute_prediction_pipeline():
         # Also ensure name column is available
         if 'name' not in _ll_merged.columns:
             _ll_merged = _ll_merged.merge(universe[['symbol', 'name']], on='symbol', how='left')
-        for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
             _m_df = _ll_merged[_ll_merged['market'] == _m]
             if _m_df.empty:
                 continue
@@ -1644,13 +1660,13 @@ def execute_prediction_pipeline():
     vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
     vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
                         universe['name'], universe['market'])}
-    krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
+    krx_markets = ['KOSPI', 'KOSDAQ']
     def _write_vcp_file(f_out, res_list, target_mkt=None):
         f_out.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
         f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f_out.write(f"Total symbols evaluated: {len(res_list)}\n\n")
 
-        mkts = [target_mkt] if target_mkt else (krx_markets + ['SP500'])
+        mkts = [target_mkt] if target_mkt else (krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000'])
         for m in mkts:
             m_results = [r for r in res_list if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
             if not m_results:
@@ -1673,7 +1689,7 @@ def execute_prediction_pipeline():
         _write_vcp_file(f, vcp_results)
 
     # Per-market suffix files
-    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
         _m_path = os.path.join(result_dir, f"vcp_patterns_{_m}.txt")
         _m_res = [r for r in vcp_results if vcp_universe_map.get(r['symbol'], ('', ''))[1] == _m]
         if _m_res:
@@ -1692,7 +1708,7 @@ def execute_prediction_pipeline():
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
 
         for h in SURGE_HORIZONS:
-            for market in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for market in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 if not vcp_ml_df.empty and 'market' in vcp_ml_df.columns and f'vcp_{h}d' in vcp_ml_df.columns:
                     m_df = vcp_ml_df[vcp_ml_df['market'] == market].sort_values(by=f'vcp_{h}d', ascending=False)
                 else:
@@ -1711,7 +1727,7 @@ def execute_prediction_pipeline():
     logger.info(f"Saved VCP ML predictions to {vcp_ml_output_path}")
 
     # Per-market suffix files for VCP ML (Strategy 5)
-    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
         _m_path = os.path.join(result_dir, f"vcp_ml_predictions_{_m}.txt")
         if vcp_ml_df.empty:
             with open(_m_path, "w", encoding="utf-8") as _mf:
@@ -1783,7 +1799,7 @@ def execute_prediction_pipeline():
         # Evaluate top-100 KRX candidates from ensemble preview (by reg_score)
         _krx_universe_syms = [
             row['symbol'] for _, row in universe.iterrows()
-            if row.get('market', '') in ('KOSPI', 'KOSDAQ', 'KONEX')
+            if row.get('market', '') in ('KOSPI', 'KOSDAQ')
             and str(row['symbol']).isdigit()
         ]
         # Prioritise by regression score if available, else use order
@@ -1872,7 +1888,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved sector rotation predictions ({len(sector_df_merged)} symbols) to {sector_output_path}")
 
             # Per-market suffix files for GHA artifact merge
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = sector_df_merged[sector_df_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -1938,7 +1954,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved RIM valuation predictions ({len(rim_merged)} symbols) to {rim_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = rim_merged[rim_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -1979,7 +1995,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved event-driven predictions ({len(ev_merged)} symbols) to {event_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = ev_merged[ev_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2015,7 +2031,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved MQ factor predictions ({len(mq_merged)} symbols) to {mq_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = mq_merged[mq_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2051,7 +2067,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved IV skew predictions ({len(iv_merged)} symbols) to {iv_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = iv_merged[iv_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2087,7 +2103,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved order flow predictions ({len(of_merged)} symbols) to {of_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = of_merged[of_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2123,7 +2139,7 @@ def execute_prediction_pipeline():
             logger.info(f"Saved short-term reversal predictions ({len(rev_merged)} symbols) to {rev_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = rev_merged[rev_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2163,7 +2179,7 @@ def execute_prediction_pipeline():
     try:
         from src.core.arm_factor import ARMFactorEngine
         arm_engine = ARMFactorEngine()
-        arm_scores = arm_engine.compute_scores(symbols_fundamentals, prices_dict)
+        arm_scores = arm_engine.compute_scores(infer_fundamentals if 'infer_fundamentals' in locals() else {}, infer_data_dict)
         arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
         arm_output_path = os.path.join(result_dir, "arm_factor_predictions.txt")
         if not arm_df.empty:
@@ -2178,7 +2194,7 @@ def execute_prediction_pipeline():
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['arm_score']*100:>10.1f}%\n")
             logger.info(f"Saved ARM factor predictions ({len(arm_merged)} symbols) to {arm_output_path}")
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = arm_merged[arm_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2198,7 +2214,7 @@ def execute_prediction_pipeline():
     try:
         from src.core.card_factor import CARDFactorEngine
         card_engine = CARDFactorEngine()
-        card_scores = card_engine.compute_scores(indicator_df, prices_dict)
+        card_scores = card_engine.compute_scores(indicator_infer if 'indicator_infer' in locals() else pd.DataFrame(), infer_data_dict)
         card_df = pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in card_scores.items()])
         card_output_path = os.path.join(result_dir, "card_factor_predictions.txt")
         if not card_df.empty:
@@ -2213,7 +2229,7 @@ def execute_prediction_pipeline():
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['card_score']*100:>12.1f}%\n")
             logger.info(f"Saved CARD factor predictions ({len(card_merged)} symbols) to {card_output_path}")
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = card_merged[card_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2233,7 +2249,7 @@ def execute_prediction_pipeline():
     try:
         from src.core.latr_factor import LATRFactorEngine
         latr_engine = LATRFactorEngine()
-        latr_scores = latr_engine.compute_scores(prices_dict)
+        latr_scores = latr_engine.compute_scores(infer_data_dict)
         latr_df = pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in latr_scores.items()])
         latr_output_path = os.path.join(result_dir, "latr_factor_predictions.txt")
         if not latr_df.empty:
@@ -2248,7 +2264,7 @@ def execute_prediction_pipeline():
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['latr_score']*100:>12.1f}%\n")
             logger.info(f"Saved LATR factor predictions ({len(latr_merged)} symbols) to {latr_output_path}")
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = latr_merged[latr_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2269,7 +2285,7 @@ def execute_prediction_pipeline():
         from src.core.inst_foreign_sector import InstForeignSectorEngine
         ifs_engine = InstForeignSectorEngine(accumulation_days=40)
         sector_mapping = dict(zip(universe['symbol'], universe.get('sector', universe.get('industry', 'DEFAULT')))) if 'symbol' in universe.columns else {}
-        inst_foreign_sector_df = ifs_engine.compute_scores(prices_dict, flow_data_dict=None, sector_mapping=sector_mapping)
+        inst_foreign_sector_df = ifs_engine.compute_scores(infer_data_dict, flow_data_dict=None, sector_mapping=sector_mapping)
         ifs_output_path = os.path.join(result_dir, "inst_foreign_sector_predictions.txt")
         if not inst_foreign_sector_df.empty:
             ifs_merged = inst_foreign_sector_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='inst_foreign_sector_score', ascending=False)
@@ -2283,7 +2299,7 @@ def execute_prediction_pipeline():
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['inst_foreign_sector_score']*100:>12.1f}%\n")
             logger.info(f"Saved Inst & Foreign Sector predictions ({len(ifs_merged)} symbols) to {ifs_output_path}")
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = ifs_merged[ifs_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2571,8 +2587,8 @@ def execute_prediction_pipeline():
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
-        krx_markets = ['KOSPI', 'KOSDAQ', 'KONEX']
-        for market in krx_markets + ['SP500']:
+        krx_markets = ['KOSPI', 'KOSDAQ']
+        for market in krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']:
             m_df = ensemble_df_merged[ensemble_df_merged['market'] == market].sort_values(by='ensemble_score', ascending=False)
             if m_df.empty:
                 continue
@@ -2602,7 +2618,7 @@ def execute_prediction_pipeline():
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
     # Per-market suffix files for GHA artifact merge (merge_ensemble_predictions reads ensemble_predictions_{MARKET}.txt)
-    for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
         _m_df = ensemble_df_merged[ensemble_df_merged['market'] == _m].sort_values(by='ensemble_score', ascending=False)
         if _m_df.empty:
             continue
@@ -2650,7 +2666,7 @@ def execute_prediction_pipeline():
                 _write_lstm_file(f, lstm_merged)
             logger.info(f"Saved LSTM deep learning predictions ({len(lstm_merged)} symbols) to {lstm_output_path}")
 
-            for _m in ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']:
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = lstm_merged[lstm_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2783,10 +2799,10 @@ Examples:
     )
     parser.add_argument(
         "--target",
-        choices=["SP500", "KOSPI", "KOSDAQ", "KONEX", "KRX"],
+        choices=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KRX"],
         default=None,
         metavar="MARKET",
-        help="Market to run inference on: SP500 / KOSPI / KOSDAQ / KONEX / KRX "
+        help="Market to run inference on: SP500 / NASDAQ / RUSSELL2000 / KOSPI / KOSDAQ / KRX "
              "(default: reads INFERENCE_TARGET env var, or all markets)",
     )
     parser.add_argument(

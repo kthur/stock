@@ -96,6 +96,6 @@ def test_generate_report_14_strategies():
     )
 
     assert "2D Regime &amp; Strategy Decision Rationale" in html
-    assert "전략 가중치 (14 Strategies)" in html
+    assert "17 Strategies" in html
     assert "AAPL" in html
     assert "KST" in html

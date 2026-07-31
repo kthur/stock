@@ -47,8 +47,11 @@ def test_make_stock_link_krx():
     link_kosdaq = make_stock_link("035420", "KOSDAQ")
     assert "https://m.stock.naver.com/domestic/stock/035420/total" in link_kosdaq
 
-    link_konex = make_stock_link("123450", "KONEX")
-    assert "https://m.stock.naver.com/domestic/stock/123450/total" in link_konex
+    link_nasdaq = make_stock_link("MSFT", "NASDAQ")
+    assert "https://finance.yahoo.com/quote/MSFT" in link_nasdaq
+
+    link_russell = make_stock_link("IWM", "RUSSELL2000")
+    assert "https://finance.yahoo.com/quote/IWM" in link_russell
 
 
 def test_make_stock_link_sp500():

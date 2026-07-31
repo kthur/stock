@@ -27,7 +27,7 @@ from src.ai.feature_engineering import VCP_FEATURES  # single source of truth
 SURGE_HORIZONS = [1, 3, 5, 20]
 SURGE_THRESHOLD = 0.20
 
-MARKETS = ['KOSPI', 'KOSDAQ', 'KONEX', 'SP500']
+MARKETS = ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']
 
 
 def _safe_series(val):
@@ -523,15 +523,15 @@ class VCPSurgePredictor:
                         X_mkt = df_all.iloc[idx][feat_cols]
 
                         xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
-                        if xgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                        if xgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ']:
                             xgb_m = case_insensitive_get(self.models, 'KRX', {}).get(h)
 
                         lgb_m = case_insensitive_get(self.lgb_models, mkt, {}).get(h)
-                        if lgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                        if lgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ']:
                             lgb_m = case_insensitive_get(self.lgb_models, 'KRX', {}).get(h)
 
                         cat_m = case_insensitive_get(self.cat_models, mkt, {}).get(h)
-                        if cat_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                        if cat_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ']:
                             cat_m = case_insensitive_get(self.cat_models, 'KRX', {}).get(h)
 
                         preds = []
@@ -545,7 +545,7 @@ class VCPSurgePredictor:
                             vcp_weights = case_insensitive_get(self._ft.ensemble_weights, "surge", {})
 
                         w_mkt_dict = case_insensitive_get(vcp_weights, mkt, {})
-                        if not w_mkt_dict and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                        if not w_mkt_dict and mkt.upper() in ['KOSPI', 'KOSDAQ']:
                             w_mkt_dict = case_insensitive_get(vcp_weights, 'KRX', {})
                         w_dict = w_mkt_dict.get(str(h))
                         if w_dict is None:
@@ -591,7 +591,7 @@ class VCPSurgePredictor:
 
                             # Apply Platt Scaling calibration if coefficient metadata is present from prediction model weights
                             calib_mkt = case_insensitive_get(self._ft.ensemble_weights.get("calibration", {}), mkt, {})
-                            if not calib_mkt and mkt.upper() in ['KOSPI', 'KOSDAQ', 'KONEX']:
+                            if not calib_mkt and mkt.upper() in ['KOSPI', 'KOSDAQ']:
                                 calib_mkt = case_insensitive_get(self._ft.ensemble_weights.get("calibration", {}), 'KRX', {})
                             calib_dict = calib_mkt.get(str(h))
                             if calib_dict is None:

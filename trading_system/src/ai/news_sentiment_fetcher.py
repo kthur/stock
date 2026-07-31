@@ -37,7 +37,7 @@ class NewsSentimentFetcher:
 
         # 검색 쿼리 결정 (이름 우선, 없으면 심볼)
         query = name if name else symbol
-        is_korean = market in ["KOSPI", "KOSDAQ", "KONEX"]
+        is_korean = market in ["KOSPI", "KOSDAQ"]
         url = self._get_rss_url(query, is_korean=is_korean)
 
         try:

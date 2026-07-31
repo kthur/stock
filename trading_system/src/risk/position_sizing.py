@@ -21,10 +21,11 @@ class PortfolioAllocator:
     # Layer 1: 시장별 기본 속성 (변동성·유동성·거래비용 기반 예산 비율)
     # 기준: 글로벌 시장 시가총액 + 일평균거래량 비중 + 비용 조정
     MARKET_BASE_BUDGETS = {
-        'SP500':  {'vol_proxy': 0.14, 'liquidity': 0.80, 'cost': 0.006},   # 저변동·고유동·저비용
-        'KOSPI':  {'vol_proxy': 0.18, 'liquidity': 0.60, 'cost': 0.0085},  # 중변동·중유동·중비용
-        'KOSDAQ': {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.010},   # 고변동·저유동·고비용
-        'KONEX':  {'vol_proxy': 0.38, 'liquidity': 0.08, 'cost': 0.013},   # 최고변동·최저유동·최고비용
+        'SP500':       {'vol_proxy': 0.14, 'liquidity': 0.80, 'cost': 0.006},   # 저변동·고유동·저비용
+        'NASDAQ':      {'vol_proxy': 0.18, 'liquidity': 0.70, 'cost': 0.0065},  # 중변동·고유동·저비용
+        'RUSSELL2000': {'vol_proxy': 0.24, 'liquidity': 0.45, 'cost': 0.008},   # 중고변동·중유동·중비용
+        'KOSPI':       {'vol_proxy': 0.18, 'liquidity': 0.60, 'cost': 0.0085},  # 중변동·중유동·중비용
+        'KOSDAQ':      {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.010},   # 고변동·저유동·고비용
     }
 
     def __init__(self,
@@ -54,10 +55,10 @@ class PortfolioAllocator:
         정규화 후 합산 = 1.0
 
         레짐/디커플링 Overlay(Layer 2):
-            - YIELD_INVERSION: 한국 시장 예산 추가 축소 (경기침체 선행)
-            - INFLATION_SHOCK: KONEX 예산 최소화 (고비용·저유동성 위험 극대화)
-            - DECOUPLING_US_BULL_KR_BEAR: SP500 예산 확대, KR 시장 예산 축소
-            - DECOUPLING_KR_BULL_US_BEAR: KR 시장 예산 확대, SP500 예산 축소
+            - YIELD_INVERSION: 한국 소형주 예산 추가 축소 (경기침체 선행)
+            - INFLATION_SHOCK: 중소형주 (RUSSELL2000, KOSDAQ) 예산 축소
+            - DECOUPLING_US_BULL_KR_BEAR: US 시장 예산 확대, KR 시장 예산 축소
+            - DECOUPLING_KR_BULL_US_BEAR: KR 시장 예산 확대, US 시장 예산 축소
         """
         # Layer 1: 기본 예산 계산
         raw = {}
@@ -68,21 +69,21 @@ class PortfolioAllocator:
         regime_str = str(regime).upper() if regime is not None else ""
 
         if "YIELD_INVERSION" in regime_str:
-            # 장단기 금리 역전 → 한국 소형주 예산 축소
+            # 장단기 금리 역전 → 소형주 예산 축소
             raw['KOSDAQ'] *= 0.60
-            raw['KONEX']  *= 0.40
-            logger.info("[Market Budget] YIELD_INVERSION: KR small-cap budget reduced.")
+            raw['RUSSELL2000'] *= 0.70
+            logger.info("[Market Budget] YIELD_INVERSION: Small-cap budget reduced.")
 
         if "INFLATION_SHOCK" in regime_str:
-            # 인플레이션 충격 → 고비용·저유동성 KONEX 최소화
-            raw['KONEX']  *= 0.30
+            # 인플레이션 충격 → 중소형주 예산 축소
+            raw['RUSSELL2000'] *= 0.60
             raw['KOSDAQ'] *= 0.75
-            logger.info("[Market Budget] INFLATION_SHOCK: KONEX budget minimized.")
+            logger.info("[Market Budget] INFLATION_SHOCK: Small-cap budget reduced.")
 
         if "LIQUIDITY_SQUEEZE" in regime_str or "BEAR" in regime_str:
-            # 유동성 위기·약세장 → 전체 KR 시장 축소, SP500 방어 집중
+            # 유동성 위기·약세장 → 고변동 시장 축소, SP500/NASDAQ 방어 집중
             raw['KOSDAQ'] *= 0.50
-            raw['KONEX']  *= 0.25
+            raw['RUSSELL2000'] *= 0.60
             raw['KOSPI']  *= 0.75
 
         if decoupling_info:
@@ -93,20 +94,21 @@ class PortfolioAllocator:
 
             if status == 'DECOUPLING_US_BULL_KR_BEAR':
                 raw['SP500']  *= (1.0 + decoupling_strength)
+                raw['NASDAQ'] *= (1.0 + decoupling_strength)
                 raw['KOSPI']  *= (1.0 - decoupling_strength)
                 raw['KOSDAQ'] *= (1.0 - decoupling_strength)
-                raw['KONEX']  *= (1.0 - decoupling_strength * 1.5)
-                logger.info(f"[Market Budget] DECOUPLING_US_BULL_KR_BEAR: SP500 boosted, KR reduced (strength={decoupling_strength:.2f})")
+                logger.info(f"[Market Budget] DECOUPLING_US_BULL_KR_BEAR: US boosted, KR reduced (strength={decoupling_strength:.2f})")
             elif status == 'DECOUPLING_KR_BULL_US_BEAR':
                 raw['SP500']  *= (1.0 - decoupling_strength)
+                raw['NASDAQ'] *= (1.0 - decoupling_strength)
                 raw['KOSPI']  *= (1.0 + decoupling_strength)
                 raw['KOSDAQ'] *= (1.0 + decoupling_strength * 0.7)
-                logger.info(f"[Market Budget] DECOUPLING_KR_BULL_US_BEAR: KR boosted, SP500 reduced (strength={decoupling_strength:.2f})")
+                logger.info(f"[Market Budget] DECOUPLING_KR_BULL_US_BEAR: KR boosted, US reduced (strength={decoupling_strength:.2f})")
 
         # 정규화: 합산 = 1.0
         total = sum(raw.values())
         budgets = {k: v / total for k, v in raw.items()} if total > 0 else \
-                  {k: 0.25 for k in raw}
+                  {k: 0.20 for k in raw}
 
         logger.info(f"[Market Budget] Layer1+2 Final Budgets: { {k: f'{v:.1%}' for k, v in budgets.items()} }")
         return budgets

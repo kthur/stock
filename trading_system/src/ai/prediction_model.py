@@ -442,7 +442,7 @@ class OnDevicePredictionModel:
 
             # Fallback check for missing models (compatibility block)
             if not self.models:
-                for market in ['sp500', 'kospi', 'kosdaq', 'konex']:
+                for market in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']:
                     for h in self.horizons:
                         model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
                         if model_path.exists():
@@ -576,7 +576,7 @@ class OnDevicePredictionModel:
 
             # Fallback checks
             if not self.surge_models:
-                for market in ['sp500', 'kospi', 'kosdaq', 'konex']:
+                for market in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']:
                     for h in self.surge_horizons:
                         model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
                         if model_path.exists():
@@ -2071,7 +2071,7 @@ class OnDevicePredictionModel:
                         # Apply feature scaling
                         from src.ai.feature_engineering import load_scaler, apply_scaler
                         scaler_mkt = mkt
-                        if mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if mkt.lower() in ['kospi', 'kosdaq']:
                             import os
                             specific_exists = False
                             for test_mkt in [mkt, mkt.lower(), mkt.upper()]:
@@ -2086,19 +2086,19 @@ class OnDevicePredictionModel:
                         X_mkt = apply_scaler(X_mkt_raw, self.ALL_FEATURES, scaler)[self.ALL_FEATURES]
 
                         xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
-                        if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             xgb_m = case_insensitive_get(self.models, 'krx', {}).get(h)
 
                         lgb_m = case_insensitive_get(self.lgb_models, mkt, {}).get(h)
-                        if lgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if lgb_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             lgb_m = case_insensitive_get(self.lgb_models, 'krx', {}).get(h)
 
                         cat_m = case_insensitive_get(self.cat_models, mkt, {}).get(h)
-                        if cat_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if cat_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             cat_m = case_insensitive_get(self.cat_models, 'krx', {}).get(h)
 
                         lstm_m = case_insensitive_get(self.lstm_models, mkt, {}).get(h)
-                        if lstm_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if lstm_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             lstm_m = case_insensitive_get(self.lstm_models, 'krx', {}).get(h)
 
                         preds = []
@@ -2106,7 +2106,7 @@ class OnDevicePredictionModel:
 
                         # Get dynamic weights or fallback to default
                         reg_weights = case_insensitive_get(self.ensemble_weights.get("regression", {}), mkt, {})
-                        if not reg_weights and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if not reg_weights and mkt.lower() in ['kospi', 'kosdaq']:
                             reg_weights = case_insensitive_get(self.ensemble_weights.get("regression", {}), 'krx', {})
                         w_dict = reg_weights.get(str(h))
                         if w_dict is None:
@@ -2237,15 +2237,15 @@ class OnDevicePredictionModel:
                         X_mkt = X_mkt.replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
                         xgb_m = case_insensitive_get(self.surge_models, mkt, {}).get(h)
-                        if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if xgb_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             xgb_m = case_insensitive_get(self.surge_models, 'krx', {}).get(h)
 
                         lgb_m = case_insensitive_get(self.surge_lgb_models, mkt, {}).get(h)
-                        if lgb_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if lgb_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             lgb_m = case_insensitive_get(self.surge_lgb_models, 'krx', {}).get(h)
 
                         cat_m = case_insensitive_get(self.surge_cat_models, mkt, {}).get(h)
-                        if cat_m is None and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if cat_m is None and mkt.lower() in ['kospi', 'kosdaq']:
                             cat_m = case_insensitive_get(self.surge_cat_models, 'krx', {}).get(h)
 
                         preds = []
@@ -2253,7 +2253,7 @@ class OnDevicePredictionModel:
 
                         # Get dynamic weights or fallback to default
                         surge_weights = case_insensitive_get(self.ensemble_weights.get("surge", {}), mkt, {})
-                        if not surge_weights and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                        if not surge_weights and mkt.lower() in ['kospi', 'kosdaq']:
                             surge_weights = case_insensitive_get(self.ensemble_weights.get("surge", {}), 'krx', {})
                         w_dict = surge_weights.get(str(h))
                         if w_dict is None:
@@ -2307,7 +2307,7 @@ class OnDevicePredictionModel:
 
                             # Apply Platt Scaling calibration if coefficient metadata is present
                             calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), mkt, {})
-                            if not calib_mkt and mkt.lower() in ['kospi', 'kosdaq', 'konex']:
+                            if not calib_mkt and mkt.lower() in ['kospi', 'kosdaq']:
                                 calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), 'krx', {})
                             calib_dict = calib_mkt.get(str(h))
                             if calib_dict is None:
@@ -2412,13 +2412,14 @@ class OnDevicePredictionModel:
         avg_caps = df_train.groupby('symbol')[cap_col].mean()
 
         if symbol_to_market:
-            logger.info("Selecting leaders per market segment (SP500: 20, KOSPI: 20, KOSDAQ: 20, KONEX: 5)...")
+            logger.info("Selecting leaders per market segment (SP500: 20, NASDAQ: 20, RUSSELL2000: 20, KOSPI: 20, KOSDAQ: 20)...")
             sym_to_mkt_upper = {str(k).upper(): str(v).upper() for k, v in symbol_to_market.items()}
             market_limits = {
                 'SP500': 20,
+                'NASDAQ': 20,
+                'RUSSELL2000': 20,
                 'KOSPI': 20,
-                'KOSDAQ': 20,
-                'KONEX': 5
+                'KOSDAQ': 20
             }
             market_symbols: Dict[str, list] = {mkt: [] for mkt in market_limits}
             for sym, cap in avg_caps.items():

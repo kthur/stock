@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 _KR_MARKET_SUFFIX = {
     'KOSPI': '.KS',
     'KOSDAQ': '.KQ',
-    'KONEX': '.KQ',
     'KRX': '.KS',
 }
 

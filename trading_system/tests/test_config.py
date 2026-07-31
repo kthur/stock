@@ -115,6 +115,19 @@ class TestTradingConfig(unittest.TestCase):
         # Should execute without errors but trigger warnings
         cfg.validate()
 
+    def test_nasdaq_russell2000_config(self):
+        """Test NASDAQ and RUSSELL2000 spread defaults and env overrides"""
+        cfg = TradingConfig()
+        self.assertEqual(cfg.base_spread_nasdaq, 0.0003)
+        self.assertEqual(cfg.base_spread_russell2000, 0.0008)
+        self.assertFalse(hasattr(cfg, "base_spread_konex"))
+
+        os.environ["BASE_SPREAD_NASDAQ"] = "0.0005"
+        os.environ["BASE_SPREAD_RUSSELL2000"] = "0.0012"
+        cfg_env = TradingConfig()
+        self.assertEqual(cfg_env.base_spread_nasdaq, 0.0005)
+        self.assertEqual(cfg_env.base_spread_russell2000, 0.0012)
+
 
 if __name__ == "__main__":
     unittest.main()

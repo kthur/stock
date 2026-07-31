@@ -602,13 +602,14 @@ class EnsembleScoringEngine:
                                  arm_df: Optional[pd.DataFrame] = None,
                                  card_df: Optional[pd.DataFrame] = None,
                                  latr_df: Optional[pd.DataFrame] = None,
+                                 inst_foreign_sector_df: Optional[pd.DataFrame] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
                                  gamma: float = 1.0,
                                  held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Calculates 17-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 18-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
         weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
@@ -630,6 +631,7 @@ class EnsembleScoringEngine:
             arm_df=arm_df,
             card_df=card_df,
             latr_df=latr_df,
+            inst_foreign_sector_df=inst_foreign_sector_df,
             weights=weights,
             regime=regime,
             target_horizon=target_horizon,
@@ -1053,7 +1055,8 @@ class EnsembleScoringEngine:
 
         base_spread_kospi = getattr(self.config, 'base_spread_kospi', 0.0006) if self.config is not None else 0.0006
         base_spread_kosdaq = getattr(self.config, 'base_spread_kosdaq', 0.0010) if self.config is not None else 0.0010
-        base_spread_konex = getattr(self.config, 'base_spread_konex', 0.0025) if self.config is not None else 0.0025
+        base_spread_nasdaq = getattr(self.config, 'base_spread_nasdaq', 0.0003) if self.config is not None else 0.0003
+        base_spread_russell2000 = getattr(self.config, 'base_spread_russell2000', 0.0008) if self.config is not None else 0.0008
         base_spread_sp500 = getattr(self.config, 'base_spread_sp500', 0.0002) if self.config is not None else 0.0002
 
         default_volatility_krx = getattr(self.config, 'default_volatility_krx', 0.020) if self.config is not None else 0.020
@@ -1066,20 +1069,28 @@ class EnsembleScoringEngine:
             close_p = float(row.get('close', 0.0)) if pd.notna(row.get('close')) else 0.0
             turnover = vol * close_p
 
-            is_sp500 = market == 'SP500' or (symbol.isalpha() and len(symbol) <= 5)
-            default_vol = default_volatility_sp500 if is_sp500 else default_volatility_krx
+            is_us_stock = market in ('SP500', 'NASDAQ', 'RUSSELL2000') or (symbol.isalpha() and len(symbol) <= 5)
+            default_vol = default_volatility_sp500 if is_us_stock else default_volatility_krx
             volatility = float(row.get('volatility_20d', default_vol)) if pd.notna(row.get('volatility_20d')) else default_vol
             if volatility <= 0:
                 volatility = default_vol
 
-            if market == 'KONEX' or symbol.endswith('.KN'):
-                stt_tax = 0.0010
-                brokerage_fee = 0.0003
-                base_spread = base_spread_konex
-                spread_min, spread_max = 0.0010, 0.0500
-                q_order = order_size_krx
-                adv_ref = 1_000_000_000.0
-                impact_coeff = impact_coeff_krx
+            if market == 'NASDAQ':
+                stt_tax = 0.00003  # SEC fee
+                brokerage_fee = 0.00005
+                base_spread = base_spread_nasdaq
+                spread_min, spread_max = 0.0001, 0.0080
+                q_order = order_size_sp500
+                adv_ref = 1_000_000.0
+                impact_coeff = impact_coeff_sp500
+            elif market == 'RUSSELL2000':
+                stt_tax = 0.00003
+                brokerage_fee = 0.00005
+                base_spread = base_spread_russell2000
+                spread_min, spread_max = 0.0002, 0.0150
+                q_order = order_size_sp500
+                adv_ref = 500_000.0
+                impact_coeff = impact_coeff_sp500
             elif market == 'KOSDAQ' or symbol.endswith('.KQ'):
                 stt_tax = 0.0018
                 brokerage_fee = 0.0003
@@ -1096,7 +1107,7 @@ class EnsembleScoringEngine:
                 q_order = order_size_krx
                 adv_ref = 1_000_000_000.0
                 impact_coeff = impact_coeff_krx
-            elif is_sp500:
+            elif is_us_stock:
                 stt_tax = 0.00003  # SEC fee
                 brokerage_fee = 0.00005
                 base_spread = base_spread_sp500
@@ -1113,7 +1124,7 @@ class EnsembleScoringEngine:
                 adv_ref = 1_000_000_000.0
                 impact_coeff = impact_coeff_krx
 
-            min_adv = 10_000.0 if is_sp500 else 10_000_000.0
+            min_adv = 10_000.0 if is_us_stock else 10_000_000.0
             adv = max(turnover, min_adv)
 
             # 1. Dynamic Bid-Ask Spread Modeling
@@ -1166,9 +1177,9 @@ class EnsembleScoringEngine:
                 min_sp_vol = getattr(self.config, 'min_daily_volume_sp500', 1_000_000.0) if self.config else 1_000_000.0
                 if vol <= 0:
                     return True
-                if mkt in ['KOSPI', 'KOSDAQ', 'KONEX'] and turnover > 0 and turnover < (min_krx_turnover * 0.1): # 10% threshold for daily turnover
+                if mkt in ['KOSPI', 'KOSDAQ'] and turnover > 0 and turnover < (min_krx_turnover * 0.1): # 10% threshold for daily turnover
                     return True
-                if mkt == 'SP500' and vol < (min_sp_vol * 0.1):
+                if mkt in ['SP500', 'NASDAQ', 'RUSSELL2000'] and vol < (min_sp_vol * 0.1):
                     return True
             return False
 
