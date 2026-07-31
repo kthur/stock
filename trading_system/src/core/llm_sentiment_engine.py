@@ -22,7 +22,6 @@ class FilingSentimentResult:
 
 # Alias for backwards compatibility
 FilingSentimentMetrics = FilingSentimentResult
-LLMSentimentEngine = DARTSECSentimentEngine
 
 
 class DARTSECSentimentEngine:
@@ -87,3 +86,7 @@ class DARTSECSentimentEngine:
             negative_keywords_count=neg_count,
             summary_tone=summary,
         )
+
+
+# Alias for backwards compatibility
+LLMSentimentEngine = DARTSECSentimentEngine

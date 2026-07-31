@@ -135,3 +135,10 @@ class HistoricalStressTester:
             )
 
         return results
+
+
+def run_historical_stress_test(weights: Dict[str, float], asset_volatilities: Optional[Dict[str, float]] = None) -> List[StressScenarioResult]:
+    if asset_volatilities is None:
+        asset_volatilities = {s: 0.20 for s in weights.keys()}
+    tester = HistoricalStressTester()
+    return tester.run_stress_tests(weights, asset_volatilities)
