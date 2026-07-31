@@ -99,10 +99,10 @@ class ScenarioSimulationEngine:
 
             # 1. Macro Impact Calculation
             macro_shock = (
-                (float(getattr(macro_scenario, 'usdkrw_change_pct', 0.0)) / 10.0) * float(elas['usdkrw']) +
-                (float(getattr(macro_scenario, 'wti_change_pct', 0.0)) / 10.0) * float(elas['wti']) +
-                ((float(getattr(macro_scenario, 'us10y_rate', 4.0)) - 4.0) / 2.0) * float(elas['us10y']) +
-                (float(getattr(macro_scenario, 'vix_change_pct', 0.0)) / 20.0) * float(elas['vix'])
+                (float(str(getattr(macro_scenario, 'usdkrw_change_pct', 0.0))) / 10.0) * float(elas['usdkrw']) +
+                (float(str(getattr(macro_scenario, 'wti_change_pct', 0.0))) / 10.0) * float(elas['wti']) +
+                ((float(str(getattr(macro_scenario, 'us10y_rate', 4.0))) - 4.0) / 2.0) * float(elas['us10y']) +
+                (float(str(getattr(macro_scenario, 'vix_change_pct', 0.0))) / 20.0) * float(elas['vix'])
             )
 
             # 2. Direct Sector Outlook Impact Calculation

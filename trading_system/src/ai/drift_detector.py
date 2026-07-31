@@ -113,4 +113,5 @@ class FeatureDriftDetector:
         except Exception as e:
             logger.error(f"[DriftDetector] Failed to save drift report: {e}")
 
-        return results
+        from typing import cast
+        return cast(Dict[str, Dict[str, Union[float, str, bool]]], results)

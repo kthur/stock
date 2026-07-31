@@ -12,10 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
-try:
-    from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
-except ImportError:
-    from trading_system.src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
+from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
 
 logger = logging.getLogger(__name__)
 
