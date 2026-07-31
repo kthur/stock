@@ -11,12 +11,13 @@ logger = logging.getLogger(__name__)
 # Auditor will independently verify your work. Integrity violations WILL be detected
 # and your work WILL be rejected.
 
-ALL_17_STRATEGIES = [
+ALL_18_STRATEGIES = [
     'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
     'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
     'event_driven', 'mq_factor', 'iv_skew', 'order_flow',
-    'short_term_reversal', 'arm_factor', 'card_factor', 'latr_factor'
+    'short_term_reversal', 'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector'
 ]
+ALL_17_STRATEGIES = ALL_18_STRATEGIES
 
 STRATEGY_SCORE_COL_MAP = {
     'regression': 'reg_score',
@@ -35,7 +36,8 @@ STRATEGY_SCORE_COL_MAP = {
     'short_term_reversal': 'reversal_score',
     'arm_factor': 'arm_score',
     'card_factor': 'card_score',
-    'latr_factor': 'latr_score'
+    'latr_factor': 'latr_score',
+    'inst_foreign_sector': 'inst_foreign_sector_score'
 }
 
 # Inverse mapping from score column name to strategy name

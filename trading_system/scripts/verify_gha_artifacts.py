@@ -38,7 +38,8 @@ MARKETS = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
 STRATEGIES = [
     "surge", "vcp_ml", "regression", "vcp", "lead_lag", "lstm",
     "stat_arb", "sector", "rim", "event_driven", "mq_factor",
-    "iv_skew", "order_flow", "short_term_reversal"
+    "iv_skew", "order_flow", "short_term_reversal", "arm_factor",
+    "card_factor", "latr_factor", "inst_foreign_sector"
 ]
 
 

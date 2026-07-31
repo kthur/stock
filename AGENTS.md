@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 **17대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
+통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 **18대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -23,6 +23,7 @@
 | **15** | Analyst Revision Momentum (ARM) | 컨센서스 EPS/목표주가 추정치 상향 조정 및 실적 서프라이즈 | 앙상블 피처 결합 |
 | **16** | Cross-Asset Regime Divergence (CARD) | 주식-원자재-환율 이탈 괴리율 역발상 매수 스코어링 | 앙상블 피처 결합 |
 | **17** | Liquidity-Adjusted Tail Risk (LATR) | 52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 프리미엄 | 앙상블 피처 결합 |
+| **18** | Inst & Foreign Sector | 외인/투신 2개월 수급 누적 & 업종 주도주 상관성 | `inst_foreign_sector_predictions.txt` |
 
 ## Pipeline
 
@@ -94,14 +95,15 @@ market 컬럼 값: `SP500`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본
 
 | 파일 | 전략 | 내용 |
 |------|------|------|
-| `ensemble_predictions.txt` | 17대 앙상블 | 17대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | 결측 분석 | 17대 전략별 데이터 커버리지 및 결측 사유 비율 |
+| `ensemble_predictions.txt` | 18대 앙상블 | 18대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 결측 분석 | 18대 전략별 데이터 커버리지 및 결측 사유 비율 |
 | `pipeline_result.txt` | 회귀 | 종목별 horizon별 예상수익률 |
 | `surge_predictions.txt` | Surge | Horizon별 20%↑ 확률 TOP20 (scale_pos_weight 캡 적용) |
 | `lead_lag_predictions.txt` | Lead-Lag | 업종 지수/대형주 Leader 움직임 기반 follower 점수 |
 | `vcp_patterns.txt` | VCP 규칙 | 변동성 수축 패턴 발견 종목 |
 | `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 기반 surge 확률 TOP10 |
 | `stat_arb_predictions.txt` | Stat-Arb | Log 가격 공적분 잔차 Z-score 차익거래 페어 및 신호 |
+| `inst_foreign_sector_predictions.txt` | Inst & Foreign | 외인/투신 2개월 누적 수급 & 업종 상관성 스코어 |
 
 ---
 

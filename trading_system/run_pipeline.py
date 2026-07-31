@@ -2727,6 +2727,7 @@ def execute_prediction_pipeline():
         "arm_factor_predictions.txt",
         "card_factor_predictions.txt",
         "latr_factor_predictions.txt",
+        "inst_foreign_sector_predictions.txt",
         "ensemble_predictions.txt",
     ]
     for filename in verification_files:

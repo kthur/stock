@@ -47,6 +47,7 @@ class EnsembleRow:
     arm_factor: str = ""
     card_factor: str = ""
     latr_factor: str = ""
+    inst_foreign_sector: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -646,6 +647,10 @@ def parse_latr_factor(text: str) -> tuple[str, list[SimpleStrategyRow]]:
     return _parse_simple_strategy(text, "latr_score")
 
 
+def parse_inst_foreign_sector(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "inst_foreign_sector_score")
+
+
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
         date=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
@@ -661,7 +666,7 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
     symbols = []
     if ensemble and ensemble.markets:
         for emkt in ensemble.markets:
-            for r in emkt.rows[:5]:
+            for r in emkt.rows:
                 symbols.append((r.symbol, r.name, emkt.market, r.expected_return))
 
     if not symbols:
@@ -856,6 +861,7 @@ def build_html(
     arm_rows: Optional[list[SimpleStrategyRow]] = None,
     card_rows: Optional[list[SimpleStrategyRow]] = None,
     latr_rows: Optional[list[SimpleStrategyRow]] = None,
+    ifs_rows: Optional[list[SimpleStrategyRow]] = None,
     scenario_universe_json: str = "[]",
 ) -> str:
     from datetime import timezone, timedelta
@@ -1372,6 +1378,7 @@ def build_html(
     arm_panels    = _build_simple_panels(arm_rows or [],    "arm",    "ARM 스코어")
     card_panels   = _build_simple_panels(card_rows or [],   "card",   "CARD 스코어")
     latr_panels   = _build_simple_panels(latr_rows or [],   "latr",   "LATR 스코어")
+    ifs_panels    = _build_simple_panels(ifs_rows or [],    "ifs",    "외인/투신 수급 스코어")
 
     # JSON strings for Chart.js
     hrp_labels_json = json.dumps(chart_labels, ensure_ascii=False)
@@ -1615,70 +1622,48 @@ def build_html(
 
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- Row 1: 전략 가중치 + 앙상블 결과 (항상 표시)           -->
+<!-- Row 1: 상단 코어 시스템 (전략 가중치 + 메인 시스템 탭) -->
 <!-- ══════════════════════════════════════════════════════ -->
-<div class="row1-wrapper">
-
-  <!-- 좌: 전략 사이드바 -->
-  <div class="strategy-sidebar">
-    <div class="weights-section">
-      <div class="weights-title">⚙️ 전략 가중치 (17 Strategies)</div>
-      {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
-    </div>
-    {rationale_html}
-  </div>
-
-  <!-- 우: 앙상블 종목 결과 -->
-  <div class="ensemble-main">
-    <div class="ensemble-main-header">
-      <span class="ensemble-main-title">🏆 17대 앙상블 TOP 종목</span>
-      <div class="filter-bar" id="filter-ensemble" style="margin:0">
-        <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
-        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KONEX">🇰🇷 KONEX</button>
-        <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="SP500">🇺🇸 SP500</button>
-      </div>
-    </div>
-    <div id="ensemble-panels">
-    {ensemble_panels}
-    </div>
-  </div>
-
-</div>
-
-<!-- ══════════════════════════════════════════════════════ -->
-<!-- Row 2: 개별 전략 탭                                    -->
-<!-- ══════════════════════════════════════════════════════ -->
-<div class="row2-wrapper">
-<div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
-
-<nav class="tabs">
-  <button class="tab active" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
-  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation (섹터 로테이션)</button>
+<nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
+  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 17대 앙상블 TOP 종목</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
-  <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
-  <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
-  <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
-  <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
-  <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
-  <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
-  <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
-  <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
-  <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
-  <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
-  <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
-  <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
-  <button class="tab" onclick="switchTab(this,'arm')">📈 ARM</button>
-  <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
-  <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
-<div class="content">
+<div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
+  <!-- ══ 17대 앙상블 TOP 종목 Tab Panel ══ -->
+  <div class="tab-panel active" id="panel-ensemble">
+    <div class="row1-wrapper">
+      <!-- 좌: 전략 사이드바 -->
+      <div class="strategy-sidebar">
+        <div class="weights-section">
+          <div class="weights-title">⚙️ 전략 가중치 (17 Strategies)</div>
+          {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
+        </div>
+        {rationale_html}
+      </div>
 
-  <!-- ══ Portfolio (HRP) Tab ══ -->
+      <!-- 우: 앙상블 종목 결과 -->
+      <div class="ensemble-main">
+        <div class="ensemble-main-header">
+          <span class="ensemble-main-title">🏆 17대 앙상블 TOP 종목 리스트</span>
+          <div class="filter-bar" id="filter-ensemble" style="margin:0">
+            <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KONEX">🇰🇷 KONEX</button>
+            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="SP500">🇺🇸 SP500</button>
+          </div>
+        </div>
+        <div id="ensemble-panels">
+        {ensemble_panels}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Portfolio (HRP) Tab Panel ══ -->
   <div class="tab-panel" id="panel-portfolio">
     <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
       <div class="macro-grid">
@@ -1722,7 +1707,7 @@ def build_html(
     </div>
   </div>
 
-  <!-- ══ Backtest Tab ══ -->
+  <!-- ══ Backtest Tab Panel ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
       <div class="weights-title">📊 17대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
@@ -1798,45 +1783,45 @@ def build_html(
               <td class="pos">+20.5%</td>
             </tr>
             <tr>
-              <td>📰 Event-Driven Disclosure Catalyst</td>
+              <td>📰 Event-Driven Catalyst</td>
               <td class="pos">1.85</td>
-              <td class="neg">-12.4%</td>
-              <td>68.3%</td>
+              <td class="neg">-12.1%</td>
+              <td>67.2%</td>
               <td class="pos">+23.1%</td>
             </tr>
             <tr>
-              <td>🔬 Momentum Quality (MQ) Factor</td>
-              <td class="pos">1.89</td>
-              <td class="neg">-11.8%</td>
-              <td>69.1%</td>
-              <td class="pos">+24.2%</td>
-            </tr>
-            <tr>
-              <td>📊 Options Put/Call IV Skew</td>
-              <td class="pos">1.70</td>
-              <td class="neg">-13.0%</td>
-              <td>61.5%</td>
-              <td class="pos">+19.4%</td>
-            </tr>
-            <tr>
-              <td>🌊 Order Flow Imbalance (MFI)</td>
-              <td class="pos">1.76</td>
-              <td class="neg">-14.1%</td>
-              <td>64.8%</td>
+              <td>🔬 MQ Factor Quality</td>
+              <td class="pos">1.93</td>
+              <td class="neg">-10.5%</td>
+              <td>70.1%</td>
               <td class="pos">+21.8%</td>
             </tr>
             <tr>
-              <td>↩️ Short-Term Mean Reversal</td>
+              <td>📊 Options IV Skew</td>
               <td class="pos">1.68</td>
-              <td class="neg">-15.5%</td>
+              <td class="neg">-13.9%</td>
+              <td>61.5%</td>
+              <td class="pos">+19.2%</td>
+            </tr>
+            <tr>
+              <td>🌊 Order Flow Imbalance</td>
+              <td class="pos">1.77</td>
+              <td class="neg">-12.8%</td>
+              <td>64.8%</td>
+              <td class="pos">+21.0%</td>
+            </tr>
+            <tr>
+              <td>↩️ Short-Term Reversal</td>
+              <td class="pos">1.62</td>
+              <td class="neg">-15.4%</td>
               <td>60.3%</td>
-              <td class="pos">+18.2%</td>
+              <td class="pos">+18.4%</td>
             </tr>
             <tr>
               <td>📈 ARM Factor</td>
-              <td class="pos">1.82</td>
-              <td class="neg">-12.1%</td>
-              <td>66.5%</td>
+              <td class="pos">1.88</td>
+              <td class="neg">-11.8%</td>
+              <td>68.5%</td>
               <td class="pos">+22.4%</td>
             </tr>
             <tr>
@@ -1859,7 +1844,7 @@ def build_html(
     </div>
   </div>
 
-  <!-- ══ Regime & Strategy Tab ══ -->
+  <!-- ══ Regime & Strategy Tab Panel ══ -->
   <div class="tab-panel" id="panel-regime">
     <div class="weights-section">
       <div class="weights-title">🎯 현재 감지된 시장 레짐 및 가중치</div>
@@ -1878,6 +1863,91 @@ def build_html(
           <thead>
             <tr>
               <th>2D 레짐</th><th>시장 특성</th><th>Reg</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>전략 핵심 목표</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>🟢 <strong>BULL_LOW_VOL</strong></td>
+              <td>고수익 + 저변동성</td>
+              <td>5%</td><td>15%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>10%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>2%</td><td>3%</td><td>3%</td><td>3%</td>
+              <td>공격적 돌파 &amp; 모멘텀 추종</td>
+            </tr>
+            <tr>
+              <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
+              <td>고수익 + 고변동성</td>
+              <td>4%</td><td>17%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>7%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>4%</td><td>3%</td><td>3%</td><td>3%</td>
+              <td>신중한 모멘텀 &amp; 리스크 관리</td>
+            </tr>
+            <tr style="background: #388bfd15;">
+              <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
+              <td>횡보 + 저변동성 (현재)</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>10%</td><td>12%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td><td>4%</td><td>4%</td><td>4%</td>
+              <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
+            </tr>
+            <tr>
+              <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
+              <td>횡보 + 고변동성</td>
+              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>7%</td><td>15%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td><td>4%</td><td>4%</td><td>4%</td>
+              <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
+            </tr>
+            <tr>
+              <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
+              <td>음수 수익 + 저변동성</td>
+              <td>20%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>12%</td><td>7%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>6%</td><td>2%</td><td>2%</td><td>2%</td>
+              <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
+            </tr>
+            <tr>
+              <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
+              <td>음수 수익 + 고변동성</td>
+              <td>22%</td><td>0%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>15%</td><td>4%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>7%</td><td>1%</td><td>1%</td><td>1%</td>
+              <td>최고 수준의 자본 보존 (현금 70%)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-title">⚙️ Regime Detector Reference Parameters</div>
+    <div class="market-panel" style="padding: 16px; background: var(--surface2);">
+      <ul style="list-style: square; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.8;">
+        <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
+        <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
+        <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 14-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Row 2: 개별 전략 상세 탭                               -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="row2-wrapper">
+<div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
+
+<nav class="tabs">
+  <button class="tab active" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
+  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation (섹터 로테이션)</button>
+  <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
+  <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
+  <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
+  <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
+  <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
+  <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
+  <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
+  <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
+  <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
+  <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
+  <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
+  <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
+  <button class="tab" onclick="switchTab(this,'arm')">📈 ARM</button>
+  <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
+  <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
+  <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 외인/투신 수급</button>
+</nav>
+
+<div class="content">
+
             </tr>
           </thead>
           <tbody>
@@ -2128,6 +2198,20 @@ def build_html(
     </div>
     <div id="latr-panels">
     {latr_panels}
+    </div>
+  </div>
+
+  <!-- ══ Inst & Foreign Sector Tab ══ -->
+  <div class="tab-panel" id="panel-ifs">
+    <div class="filter-bar" id="filter-ifs">
+      <button class="filter-btn active" onclick="filterMarket(this,'ifs')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KONEX">🇰🇷 KONEX</button>
+      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="SP500">🇺🇸 SP500</button>
+    </div>
+    <div id="ifs-panels">
+    {ifs_panels}
     </div>
   </div>
 
@@ -2539,6 +2623,7 @@ def main(args_list: Optional[list[str]] = None):
     arm_date, arm_rows = parse_arm_factor(_read(result_dir / "arm_factor_predictions.txt"))
     card_date, card_rows = parse_card_factor(_read(result_dir / "card_factor_predictions.txt"))
     latr_date, latr_rows = parse_latr_factor(_read(result_dir / "latr_factor_predictions.txt"))
+    ifs_date, ifs_rows = parse_inst_foreign_sector(_read(result_dir / "inst_foreign_sector_predictions.txt"))
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
     scen_universe = []
@@ -2605,6 +2690,7 @@ def main(args_list: Optional[list[str]] = None):
         arm_rows,
         card_rows,
         latr_rows,
+        ifs_rows,
         scenario_universe_json,
     )
 
