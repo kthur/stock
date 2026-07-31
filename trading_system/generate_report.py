@@ -203,10 +203,14 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"Date:\s*(.+)", line)
         if m:
             data.date = m.group(1).strip()
-        m = re.match(r"Current Market Regime Detected:\s*(\w+)\s*\(Code:\s*(\d+)\)", line)
+        m = re.search(r"Current Market Regime Detected:\s*([A-Za-z0-9_]+)", line)
         if m:
-            data.regime = m.group(1)
-            data.regime_code = int(m.group(2))
+            reg_val = m.group(1).strip().upper()
+            m_2d = re.search(r"2D State:\s*([A-Za-z0-9_]+)", line)
+            if m_2d:
+                data.regime = m_2d.group(1).strip().upper()
+            else:
+                data.regime = reg_val
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
@@ -793,9 +797,15 @@ MARKET_FLAGS = {
 }
 
 REGIME_INFO = {
-    "BULL":  ("🟢 BULL",  "#2ea043"),
-    "BEAR":  ("🔴 BEAR",  "#f85149"),
-    "SIDEWAYS": ("🟡 SIDEWAYS", "#d29922"),
+    "BULL":              ("🟢 BULL",              "#2ea043"),
+    "BEAR":              ("🔴 BEAR",              "#f85149"),
+    "SIDEWAYS":          ("🟡 SIDEWAYS",          "#d29922"),
+    "BULL_LOW_VOL":      ("🟢 BULL (Low Vol)",    "#2ea043"),
+    "BULL_HIGH_VOL":     ("🟢 BULL (High Vol)",   "#3fb950"),
+    "BEAR_LOW_VOL":      ("🔴 BEAR (Low Vol)",    "#f85149"),
+    "BEAR_HIGH_VOL":     ("🔴 BEAR (High Vol)",   "#da3633"),
+    "SIDEWAYS_LOW_VOL":  ("🟡 SIDEWAYS (Low Vol)", "#d29922"),
+    "SIDEWAYS_HIGH_VOL": ("🟡 SIDEWAYS (High Vol)","#e3b341"),
 }
 
 def safe_float(val: str) -> float:
@@ -867,7 +877,17 @@ def build_html(
     from datetime import timezone, timedelta
     KST = timezone(timedelta(hours=9))
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
-    regime_label, regime_color = REGIME_INFO.get(ensemble.regime, (ensemble.regime, "#8b949e"))
+    cur_reg = (ensemble.regime or "").strip().upper()
+    if cur_reg in REGIME_INFO:
+        regime_label, regime_color = REGIME_INFO[cur_reg]
+    elif "BULL" in cur_reg:
+        regime_label, regime_color = f"🟢 {cur_reg}", "#2ea043"
+    elif "BEAR" in cur_reg:
+        regime_label, regime_color = f"🔴 {cur_reg}", "#f85149"
+    elif "SIDEWAYS" in cur_reg:
+        regime_label, regime_color = f"🟡 {cur_reg}", "#d29922"
+    else:
+        regime_label, regime_color = "🟢 BULL", "#2ea043"
     report_date = ensemble.date or surge_date or vcp_date or lag_date or "N/A"
 
     # ── Tab: Ensemble ──
