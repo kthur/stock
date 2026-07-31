@@ -684,7 +684,9 @@ class EnsembleScoringEngine:
             reg_col = target_horizon if target_horizon in reg_df.columns else (num_cols[-1] if num_cols else reg_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in reg_df.columns]
             reg_df_copy = reg_df[['symbol'] + meta_cols + [reg_col]].rename(columns={reg_col: 'reg_pred'})
-            reg_df_copy['reg_score'] = (reg_df_copy['reg_pred'] / 0.25).clip(0.0, 1.0)
+            # M-1: Horizon-dependent return scaling factor
+            max_ret_norm = 0.15 if target_horizon <= 5 else (0.25 if target_horizon <= 20 else (0.40 if target_horizon <= 60 else 0.80))
+            reg_df_copy['reg_score'] = (reg_df_copy['reg_pred'] / max_ret_norm).clip(0.0, 1.0)
         else:
             reg_df_copy = pd.DataFrame(columns=['symbol', 'reg_pred', 'reg_score'])
 
@@ -707,7 +709,10 @@ class EnsembleScoringEngine:
             ll_col = 'll_score' if 'll_score' in ll_df.columns else ('follower_score' if 'follower_score' in ll_df.columns else (num_cols[-1] if num_cols else ll_df.columns[-1]))
             meta_cols = [c for c in META_COLS if c in ll_df.columns]
             ll_df_copy = ll_df[['symbol'] + meta_cols + [ll_col]].rename(columns={ll_col: 'll_raw'})
-            ll_df_copy['ll_score'] = (ll_df_copy['ll_raw'] / 100.0).clip(0.0, 1.0)
+            # M-2: Ensure ll_score is robustly normalized [0, 1] whether raw is 0-1 or 0-100
+            max_ll_val = float(ll_df_copy['ll_raw'].max()) if not ll_df_copy['ll_raw'].empty else 1.0
+            scale_denom = 100.0 if max_ll_val > 1.0 else 1.0
+            ll_df_copy['ll_score'] = (ll_df_copy['ll_raw'] / scale_denom).clip(0.0, 1.0)
         else:
             ll_df_copy = pd.DataFrame(columns=['symbol', 'll_raw', 'll_score'])
 
@@ -1186,15 +1191,22 @@ class EnsembleScoringEngine:
                 from ..risk.portfolio_optimizer import PortfolioOptimizer
                 optimizer = PortfolioOptimizer(default_max_weight=0.20, default_max_sector_weight=0.35)
                 
-                # Mock historical returns dataframe for covariance matrix estimation
-                # Using strategy prediction score variance as proxy when history returns matrix is not explicitly passed
+                # C-1 Fix: Build realistic returns matrix for Top candidates based on actual strategy scores
                 top_syms = top_candidates['symbol'].tolist()
-                mock_returns = pd.DataFrame(
-                    np.random.normal(0.001, 0.02, (30, len(top_syms))),
-                    columns=top_syms
-                )
+                score_cols = [c for c in ['reg_score', 'surge_score', 'll_score', 'vcp_ml_score', 'stat_arb_score', 'sector_score', 'rim_score'] if c in top_candidates.columns]
                 
-                raw_weights = optimizer.optimize_risk_parity(mock_returns)
+                if score_cols and len(score_cols) >= 2:
+                    # Use actual strategy scores per symbol as sample return vectors
+                    returns_matrix_df = top_candidates.set_index('symbol')[score_cols].T
+                else:
+                    # Fallback construct deterministic return series scaled by expected return
+                    ret_series = top_candidates.set_index('symbol')['ensemble_expected_return'] / 100.0
+                    base_noise = np.linspace(-0.01, 0.01, 30)
+                    returns_matrix_df = pd.DataFrame(
+                        {sym: ret_series[sym] + base_noise for sym in top_syms}
+                    )
+                
+                raw_weights = optimizer.optimize_risk_parity(returns_matrix_df)
                 sector_map = dict(zip(top_candidates['symbol'], top_candidates.get('sector', 'Unknown')))
                 constrained_weights = optimizer.apply_factor_and_sector_constraints(raw_weights, sector_map)
 

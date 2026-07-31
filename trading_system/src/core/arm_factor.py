@@ -23,11 +23,21 @@ class ARMFactorEngine:
         scores = {}
         for sym, fund in fundamentals_dict.items():
             try:
-                # Extract EPS estimate revision proxies
-                eps_growth = float(fund.get('eps_growth', 0.0) or 0.0)
-                rev_growth = float(fund.get('revenue_growth', 0.0) or 0.0)
-                per = float(fund.get('per', 15.0) or 15.0)
-                pbr = float(fund.get('pbr', 1.5) or 1.5)
+                # Extract EPS estimate revision proxies or actual analyst consensus revisions
+                eps_rev = fund.get('eps_revision_pct')
+                tp_rev = fund.get('tp_revision_pct')
+
+                if eps_rev is not None or tp_rev is not None:
+                    # True Analyst Revision Momentum (ARM)
+                    e_rev = float(eps_rev or 0.0)
+                    t_rev = float(tp_rev or 0.0)
+                    arm_raw = (e_rev * 0.5) + (t_rev * 0.5)
+                else:
+                    # Fallback Fundamental Growth Momentum
+                    eps_growth = float(fund.get('eps_growth', 0.0) or 0.0)
+                    rev_growth = float(fund.get('revenue_growth', 0.0) or 0.0)
+                    per = float(fund.get('per', 15.0) or 15.0)
+                    arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - (per * 0.01)
 
                 # Price momentum overlay
                 price_mom = 0.0
@@ -37,8 +47,7 @@ class ARMFactorEngine:
                     if len(close) >= 20:
                         price_mom = float((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20] * 100)
 
-                # Composite ARM raw score
-                arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) + (price_mom * 0.2) - (per * 0.01)
+                arm_raw += (price_mom * 0.2)
                 scores[sym] = arm_raw
             except Exception as e:
                 scores[sym] = 0.0

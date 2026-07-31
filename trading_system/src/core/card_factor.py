@@ -22,13 +22,32 @@ class CARDFactorEngine:
         if indicator_df.empty or not prices_dict:
             return {}
 
-        # Extract latest macro indicators
+        # Extract latest macro indicators with safe scaling
         usdkrw_chg = float(indicator_df['usdkrw_change'].iloc[-1]) if 'usdkrw_change' in indicator_df.columns else 0.0
         wti_chg = float(indicator_df['wti_change'].iloc[-1]) if 'wti_change' in indicator_df.columns else 0.0
         vix_val = float(indicator_df['vix_change'].iloc[-1]) if 'vix_change' in indicator_df.columns else 0.0
+        
+        # M-3 Fix: If vix_val is an absolute index level (e.g. > 5.0), scale to percentage change proxy
+        if abs(vix_val) > 5.0:
+            vix_val = (vix_val - 20.0) / 20.0
 
         scores = {}
         sector_map = sector_map or {}
+
+        # Basic Sector Beta sensitivity factors to macro shock
+        sector_beta = {
+            'Information Technology': 1.2,
+            'Financials': 0.8,
+            'Health Care': 0.6,
+            'Consumer Discretionary': 1.1,
+            'Industrials': 1.0,
+            'Materials': 1.1,
+            'Energy': 1.2,
+            'Communication Services': 0.9,
+            'Consumer Staples': 0.5,
+            'Utilities': 0.4,
+            'Real Estate': 0.7,
+        }
 
         for sym, df in prices_dict.items():
             try:
@@ -43,13 +62,13 @@ class CARDFactorEngine:
 
                 stock_ret = float((close.iloc[-1] - close.iloc[-5]) / close.iloc[-5] * 100)
                 sec = sector_map.get(sym, 'Market')
+                beta = sector_beta.get(sec, 1.0)
 
-                # Divergence calculation: Stock return vs Macro shock
-                # If macro is crashing (USDKRW up, WTI up, VIX up) but stock was oversold beyond macro impact
-                macro_impact = (usdkrw_chg * 0.3) + (wti_chg * 0.3) + (vix_val * 0.4)
+                # Divergence calculation: Stock return vs Sector-Beta weighted Macro shock
+                macro_impact = ((usdkrw_chg * 0.3) + (wti_chg * 0.3) + (vix_val * 0.4)) * beta * 10.0
                 divergence = stock_ret - macro_impact
 
-                # Mean reversion opportunity score (lower divergence = higher opportunity)
+                # Mean reversion opportunity score
                 card_score = 1.0 / (1.0 + np.exp(divergence * 0.1))
                 scores[sym] = float(card_score)
             except Exception:

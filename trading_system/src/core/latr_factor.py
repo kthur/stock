@@ -48,9 +48,12 @@ class LATRFactorEngine:
                 daily_rets = close.pct_change().tail(window).dropna()
                 tail_risk = float(np.percentile(daily_rets, 5)) if len(daily_rets) >= 20 else -0.03
 
-                # LATR raw score: High price stability (1 - drawdown) + high volume surge - tail risk penalty
-                # Moderate/low drawdown is preferred over 90% crashing distress assets.
-                latr_score = ((1.0 - dd_pct) * 0.4) + (min(vol_surge, 3.0) * 0.4) - (abs(tail_risk) * 0.2)
+                # H-2 Fix: Gaussian scoring centered at optimal 35% drawdown for panic bounce opportunity
+                # Extreme 90% distress crash is penalized, while zero drawdown receives neutral score.
+                dd_score = float(np.exp(-((dd_pct - 0.35) ** 2) / (2.0 * (0.15 ** 2))))
+
+                # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty
+                latr_score = (dd_score * 0.4) + (min(vol_surge, 3.0) * 0.4) - (abs(tail_risk) * 0.2)
                 scores[sym] = float(latr_score)
             except Exception:
                 scores[sym] = 0.5

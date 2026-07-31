@@ -57,8 +57,12 @@ class EconomicCalendarAnalyzer:
         day_of_month = current_date.day
 
         event_impact = 0.0
+        # FOMC Months (Jan, Mar, May, Jun, Jul, Sep, Oct/Nov, Dec) mid/late-month window
+        fomc_months = {1, 3, 5, 6, 7, 9, 11, 12}
+        if current_date.month in fomc_months and 14 <= day_of_month <= 22 and day_of_week in (1, 2, 3):
+            event_impact += 0.25
         # NFP Day (First Friday of month)
-        if day_of_week == 4 and 1 <= day_of_month <= 7:
+        elif day_of_week == 4 and 1 <= day_of_month <= 7:
             event_impact += 0.20
         # CPI Window (10th~15th of month)
         elif 10 <= day_of_month <= 15:

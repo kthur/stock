@@ -88,7 +88,11 @@ class MQFactorEngine:
 
         if quality_terms:
             res_df['quality_score'] = res_df[quality_terms].mean(axis=1)
-            res_df['mq_score'] = 0.60 * res_df['price_mom_rank'] + 0.40 * res_df['quality_score']
+            # M-4 Fix: Adaptively weight momentum vs quality based on how many fundamental terms are valid
+            valid_qual_ratio = len(quality_terms) / 3.0
+            w_qual = 0.40 * valid_qual_ratio
+            w_mom = 1.0 - w_qual
+            res_df['mq_score'] = w_mom * res_df['price_mom_rank'] + w_qual * res_df['quality_score']
         else:
             res_df['mq_score'] = res_df['price_mom_rank']
 

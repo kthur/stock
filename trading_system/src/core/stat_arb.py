@@ -126,6 +126,10 @@ def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
         p_val = 0.05
     elif t_stat < -2.57:
         p_val = 0.09
+    elif t_stat < -2.31:
+        p_val = 0.15
+    elif t_stat < -1.95:
+        p_val = 0.25
     else:
         p_val = 0.50
 
@@ -389,7 +393,7 @@ class StatisticalArbitrageEngine:
             s_err = np.where(s_err < 1e-12, 1e-6, s_err)
             t_stats = beta / s_err
 
-            p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, 0.50))))
+            p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
             half_lives = np.where(beta < 0, -np.log(2.0) / beta, 999.0)
 
             pass_mask = (p_vals <= eff_max_pvalue) & (half_lives > 0) & (half_lives <= max_half_life)

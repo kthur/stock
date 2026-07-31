@@ -116,8 +116,12 @@ class IVSkewEngine:
                             if np.isnan(up_vol) or up_vol <= 0:
                                 up_vol = 0.01
                             skew_ratio = down_vol / up_vol
-                            # Extreme downside volatility relative to upside volatility signals fear -> contrarian score
-                            realized_score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.35, 0.0, 1.0))
+                            # H-4 Fix: Combine realized volatility asymmetry with 20-day return skewness
+                            # to decouple IV Skew proxy from pure Short-Term Reversal
+                            ret_skew = float(ret.tail(20).skew()) if len(ret) >= 20 else 0.0
+                            if np.isnan(ret_skew):
+                                ret_skew = 0.0
+                            realized_score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15, 0.0, 1.0))
                             score = realized_score if score == 0.5 else score
                     except Exception:
                         score = 0.5
