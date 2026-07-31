@@ -432,9 +432,7 @@ class RiskManager:
             prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values
             cur_price = float(prices[-1])
 
-        from src.risk.intraday_stop_loss import IntradayTick
-        tick = IntradayTick(symbol=symbol, price=cur_price, volume=1000.0)
-        signal = self.intraday_stop_loss_engine.evaluate_tick(tick)
+        signal = self.intraday_stop_loss_engine.evaluate(symbol, intraday_data)
         
         result = StopLossResult(
             symbol=symbol,
