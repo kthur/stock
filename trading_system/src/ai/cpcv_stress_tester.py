@@ -5,8 +5,9 @@ Combinatorial Purged Cross-Validation (CPCV) and Historical Scenario Stress Test
 
 import itertools
 import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Dict, List, Tuple, Optional, Any
+import pandas as pd
 
 import numpy as np
 
@@ -35,6 +36,9 @@ class StressTestReport:
     stress_recovery_time: int
     pass_flag: bool
     details: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 class CPCVCombinatorialSplitter:
@@ -110,21 +114,21 @@ class CPCVCombinatorialSplitter:
         folds = self.generate_purged_folds(np.zeros((n_samples, 1)))
         return [(f[0], f[1]) for f in folds]
 
-    def compute_pbo(self, oof_returns_matrix: np.ndarray) -> Dict[str, float]:
+    def compute_pbo(self, oof_returns_matrix: np.ndarray) -> Dict[str, Any]:
         """Computes Probability of Backtest Overfitting (PBO)."""
         if oof_returns_matrix is None or len(oof_returns_matrix) == 0:
-            return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "n_combinations": 0}
+            return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "ranks": np.array([]), "n_combinations": 0}
 
         oof = np.nan_to_num(np.asarray(oof_returns_matrix), nan=0.0, posinf=0.0, neginf=0.0)
         n_samples = len(oof)
         n_strats = oof.shape[1] if oof.ndim > 1 else 1
 
         if n_samples < 4 or n_strats < 1:
-            return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "n_combinations": 0}
+            return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "ranks": np.array([]), "n_combinations": 0}
 
         folds = self.generate_purged_folds(oof)
         if not folds:
-            return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "n_combinations": 0}
+            return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "ranks": np.array([]), "n_combinations": 0}
 
         is_underperforming_count = 0
         for train_idx, test_idx, _ in folds:
@@ -144,10 +148,11 @@ class CPCVCombinatorialSplitter:
             "is_overfitted": bool(pbo > 0.5),
             "logits": np.array([pbo]),
             "logits_std": float(np.std([pbo])),
+            "ranks": np.array([0]),
             "n_combinations": len(folds),
         }
 
-    def run_historical_stress_test(self, data, scenario: str = "2008_CRISIS", mdd_threshold: float = 0.35, **kwargs) -> StressTestReport:
+    def run_historical_stress_test(self, data, scenario: str = "2008_CRISIS", mdd_threshold: float = 0.35, **kwargs) -> Any:
         return run_historical_stress_test(data, scenario=scenario, mdd_threshold=mdd_threshold, **kwargs)
 
 
@@ -212,7 +217,13 @@ class HistoricalStressTester:
         return results
 
 
-def run_historical_stress_test(data, scenario: str = "2008_CRISIS", mdd_threshold: float = 0.35, **kwargs) -> StressTestReport:
+def run_historical_stress_test(data, scenario: str = "2008_CRISIS", mdd_threshold: float = 0.35, **kwargs) -> Any:
+    if isinstance(data, pd.DataFrame):
+        res_dict = {}
+        for col in data.columns:
+            res_dict[col] = run_historical_stress_test(data[col], scenario=scenario, mdd_threshold=mdd_threshold, **kwargs)
+        return res_dict
+
     if isinstance(data, dict):
         asset_volatilities = kwargs.get("asset_volatilities", {s: 0.20 for s in data.keys()})
         tester = HistoricalStressTester()
@@ -239,23 +250,18 @@ def run_historical_stress_test(data, scenario: str = "2008_CRISIS", mdd_threshol
         vals = np.asarray(data)
     vals = np.nan_to_num(vals, nan=0.0, posinf=0.0, neginf=0.0)
 
-    if vals.ndim > 1:
-        ret_series = np.mean(vals, axis=1)
-    else:
-        ret_series = vals
-
-    cum_ret = np.cumsum(ret_series)
+    cum_ret = np.cumsum(vals)
     peak = np.maximum.accumulate(cum_ret) if len(cum_ret) > 0 else np.array([0.0])
     drawdown = (cum_ret - peak) if len(cum_ret) > 0 else np.array([0.0])
     mdd = float(np.abs(np.min(drawdown))) if len(drawdown) > 0 else 0.0
 
-    var_95 = float(np.percentile(ret_series, 5)) if len(ret_series) > 0 else 0.0
-    var_99 = float(np.percentile(ret_series, 1)) if len(ret_series) > 0 else 0.0
-    cvar_95 = float(np.mean(ret_series[ret_series <= var_95])) if np.sum(ret_series <= var_95) > 0 else var_95
-    cvar_99 = float(np.mean(ret_series[ret_series <= var_99])) if np.sum(ret_series <= var_99) > 0 else var_99
+    var_95 = float(np.percentile(vals, 5)) if len(vals) > 0 else 0.0
+    var_99 = float(np.percentile(vals, 1)) if len(vals) > 0 else 0.0
+    cvar_95 = float(np.mean(vals[vals <= var_95])) if np.sum(vals <= var_95) > 0 else var_95
+    cvar_99 = float(np.mean(vals[vals <= var_99])) if np.sum(vals <= var_99) > 0 else var_99
 
-    std = float(np.std(ret_series))
-    sharpe = float(np.mean(ret_series) / (std + 1e-8)) if std > 0 else 0.0
+    std = float(np.std(vals))
+    sharpe = float(np.mean(vals) / (std + 1e-8)) if std > 0 else 0.0
     pass_flag = mdd <= mdd_threshold
 
     return StressTestReport(
