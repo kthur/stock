@@ -1422,10 +1422,21 @@ class OnDevicePredictionModel:
 
             # ── Walk-Forward cross-validation (with strict in-fold scaler fitting & embargo gap >= h) ─────
             fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
+            splits = []
             if use_wf and len(df_h) >= 100:
                 embargo_gap = max(gap, h)
-                tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
-                for fold_idx, (tr_idx, va_idx) in enumerate(tscv_h.split(df_h)):
+                n_samples = len(df_h)
+                n_folds = n_splits + 1
+                test_size = n_samples // n_folds
+                if n_samples - embargo_gap - (test_size * n_splits) > 0:
+                    try:
+                        tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
+                        splits = list(tscv_h.split(df_h))
+                    except ValueError:
+                        splits = []
+
+            if splits:
+                for fold_idx, (tr_idx, va_idx) in enumerate(splits):
                     df_tr = df_h.iloc[tr_idx]
                     df_va = df_h.iloc[va_idx]
 
@@ -1483,9 +1494,9 @@ class OnDevicePredictionModel:
                         f"XGB={fold_mse_xgb[-1]:.4f} LGB={fold_mse_lgb[-1]:.4f} Cat={fold_mse_cat[-1]:.4f}"
                     )
 
-                avg_mse_xgb = float(np.mean(fold_mse_xgb))
-                avg_mse_lgb = float(np.mean(fold_mse_lgb))
-                avg_mse_cat = float(np.mean(fold_mse_cat))
+                avg_mse_xgb = float(np.mean(fold_mse_xgb)) if fold_mse_xgb else 1.0
+                avg_mse_lgb = float(np.mean(fold_mse_lgb)) if fold_mse_lgb else 1.0
+                avg_mse_cat = float(np.mean(fold_mse_cat)) if fold_mse_cat else 1.0
                 logger.info(
                     f"{market} {h}d WF avg MSE: XGB={avg_mse_xgb:.4f} LGB={avg_mse_lgb:.4f} Cat={avg_mse_cat:.4f}"
                 )
