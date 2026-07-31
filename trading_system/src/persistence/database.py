@@ -37,7 +37,7 @@ class _DBConnection:
                     await self._conn.execute("SELECT 1")
                 except Exception:
                     self._conn = await aiosqlite.connect(self.db_path)
-            return cast(aiosqlite.Connection, self._conn)
+            return self._conn
 
     async def execute_write(self, sql: str, params: tuple = ()):
         """Locks connection during write and commit to ensure transaction isolation."""

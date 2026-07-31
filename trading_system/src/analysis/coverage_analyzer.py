@@ -304,8 +304,8 @@ class StrategyCoverageAnalyzer:
         mean_composite = float(np.mean(composites)) if composites else 0.5
         mean_conf = float(np.mean(confidences)) if confidences else 0.7
 
-        top_pos_sorted = sorted(top_positive, key=lambda x: x['composite'], reverse=True)[:5]
-        top_neg_sorted = sorted(top_negative, key=lambda x: x['composite'])[:5]
+        top_pos_sorted = sorted(top_positive, key=lambda x: float(x.get('composite', 0.0)), reverse=True)[:5]
+        top_neg_sorted = sorted(top_negative, key=lambda x: float(x.get('composite', 0.0)))[:5]
 
         lines = [
             "================================================================================",

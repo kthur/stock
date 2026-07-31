@@ -161,7 +161,7 @@ class StatisticalArbitrageEngine:
     """다중 자산 통계적 차익거래 (Statistical Arbitrage / Pairs Trading) 모듈 (R2 Fast Cointegration Scanner)"""
 
     def __init__(self, use_clustering: bool = True, n_clusters: int = 40, clustering_method: str = "kmeans"):
-        self.pairs = []
+        self.pairs: List[Any] = []
         self.use_clustering = use_clustering
         self.n_clusters = n_clusters
         self.clustering_method = clustering_method.lower()

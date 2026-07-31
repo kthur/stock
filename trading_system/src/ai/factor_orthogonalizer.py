@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 logger = logging.getLogger(__name__)
 
@@ -132,5 +132,5 @@ class FactorOrthogonalizerEngine:
 
         # Variance-preserving rescaling back to original mean and standard deviation
         X_ortho = means + X_decorr * stds
-        return X_ortho
+        return cast(np.ndarray, X_ortho)
 

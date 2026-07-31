@@ -317,6 +317,7 @@ class PortfolioAllocator:
         else:
             tax_fee = 0.5 * stt_tax + brokerage_fee
 
+        is_sp500 = (market_upper == 'SP500')
         min_adv = 10_000.0 if is_sp500 else 10_000_000.0
         adv_clean = max(adv, min_adv)
         base_vol = 0.015 if is_sp500 else 0.020

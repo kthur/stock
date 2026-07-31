@@ -77,6 +77,7 @@ class CPCVCombinatorialSplitter:
 
 # Alias for backwards compatibility
 CPCVStressTester = CPCVCombinatorialSplitter
+StressTestReport = StressScenarioResult
 
 
 class HistoricalStressTester:
@@ -100,7 +101,7 @@ class HistoricalStressTester:
         self, weights: Dict[str, float], asset_volatilities: Dict[str, float]
     ) -> List[StressScenarioResult]:
         """Runs stress tests for all historical scenarios on current portfolio allocation."""
-        results = []
+        results: List[StressScenarioResult] = []
         symbols = list(weights.keys())
         w_vec = np.array([weights[s] for s in symbols])
 

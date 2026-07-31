@@ -284,7 +284,7 @@ class PortfolioOptimizer:
         Returns:
             Dict[str, float]: Optimized asset weights.
         """
-        from src.strategy.quad_factor_optimizer import QuadFactorOptimizer
+        from src.strategy.quad_factor_optimizer import QuadFactorNeutralOptimizer as QuadFactorOptimizer
 
         symbols = list(expected_returns.index)
         if isinstance(cov_matrix, np.ndarray):
@@ -299,7 +299,7 @@ class PortfolioOptimizer:
             default_max_sector_weight=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight
         )
 
-        return optimizer.optimize(
+        res = optimizer.optimize(
             expected_returns=expected_returns,
             cov_matrix=cov_df,
             factor_df=factor_df,
@@ -309,3 +309,4 @@ class PortfolioOptimizer:
             max_sector_weight=max_sector_weight,
             factor_tolerances=factor_tolerances
         )
+        return cast(Dict[str, float], res)

@@ -3,7 +3,7 @@ import json
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, cast
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -120,13 +120,13 @@ class MetaEnsembleLearner:
         if self.is_fitted and self.weights is not None and len(self.weights) == len(available_cols):
             raw_pred = np.dot(X, self.weights) + self.intercept
             meta_score = np.clip(raw_pred, 0.0, 1.0)
-            return meta_score
+            return cast(np.ndarray, meta_score)
         else:
             # Fallback: Dynamic average of non-zero strategy scores
             non_zero_counts = (X > 0).sum(axis=1)
             row_sums = X.sum(axis=1)
             fallback = np.where(non_zero_counts > 0, row_sums / np.maximum(non_zero_counts, 1), 0.0)
-            return np.clip(fallback, 0.0, 1.0)
+            return cast(np.ndarray, np.clip(fallback, 0.0, 1.0))
 
     def auto_rolling_retrain(self, historical_predictions_df: pd.DataFrame, target_col: str = 'outcome_label') -> bool:
         """

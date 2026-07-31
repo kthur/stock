@@ -351,7 +351,7 @@ class RiskManager:
         self._consecutive_losses: int = 0
 
         self.crisis_detector = CrisisDetector(self)
-        self.intraday_stop_loss_engine = IntradayStopLossEngine(atr_multiplier=self.atr_multiplier_stop)
+        self.intraday_stop_loss_engine = IntradayStopLossEngine()
         self.active_strategy = "HYBRID"
 
         self._load_config()
@@ -430,15 +430,24 @@ class RiskManager:
         Evaluates intraday stop-loss risk for a given symbol.
         Tightens thresholds based on active market crisis level.
         """
-        crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        result = self.intraday_stop_loss_engine.evaluate(
+        cur_price = entry_price or 0.0
+        if isinstance(intraday_data, pd.DataFrame) and not intraday_data.empty:
+            prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values
+            cur_price = float(prices[-1])
+
+        from src.risk.intraday_stop_loss import IntradayTick
+        tick = IntradayTick(symbol=symbol, price=cur_price, volume=1000.0)
+        signal = self.intraday_stop_loss_engine.evaluate_tick(tick)
+        
+        result = StopLossResult(
             symbol=symbol,
-            intraday_data=intraday_data,
-            entry_price=entry_price,
-            atr=atr,
-            crisis_multiplier=crisis_mult,
+            trigger_stop=signal.trigger_stop,
+            scale_factor=signal.scale_factor,
+            reason=signal.reason,
+            intraday_return=signal.intraday_return,
+            panic_score=signal.panic_score
         )
-        if result.triggered:
+        if signal.trigger_stop:
             cur_price = 0.0
             if isinstance(intraday_data, pd.DataFrame) and not intraday_data.empty:
                 prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values

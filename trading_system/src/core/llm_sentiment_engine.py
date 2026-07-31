@@ -22,6 +22,7 @@ class FilingSentimentResult:
 
 # Alias for backwards compatibility
 FilingSentimentMetrics = FilingSentimentResult
+LLMSentimentEngine = DARTSECSentimentEngine
 
 
 class DARTSECSentimentEngine:

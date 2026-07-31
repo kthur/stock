@@ -7,7 +7,7 @@ Includes non-negative weight constraints and VIX regime-aware dynamic blending a
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, cast
 from sklearn.linear_model import RidgeCV
 
 class StackingBlender:
@@ -63,4 +63,4 @@ class StackingBlender:
             weights = 0.5 * weights + 0.5 * regime_adjust
             weights = weights / weights.sum()
 
-        return np.dot(preds_matrix, weights)
+        return cast(np.ndarray, np.dot(preds_matrix, weights))
