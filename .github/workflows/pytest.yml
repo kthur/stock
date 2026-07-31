@@ -34,7 +34,7 @@ jobs:
     - name: Run type checking
       working-directory: trading_system
       run: |
-        python -m mypy src --ignore-missing-imports --warn-unused-configs --warn-redundant-casts --warn-return-any
+        python -m mypy src --explicit-package-bases --ignore-missing-imports --warn-unused-configs --warn-redundant-casts --warn-return-any
 
     - name: Lint (ruff)
       run: |
