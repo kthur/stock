@@ -131,24 +131,35 @@ class CPCVCombinatorialSplitter:
             return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "ranks": np.array([]), "n_combinations": 0}
 
         is_underperforming_count = 0
+        logits_list = []
+        ranks_list = []
         for train_idx, test_idx, _ in folds:
             if len(train_idx) == 0 or len(test_idx) == 0:
+                logits_list.append(0.0)
+                ranks_list.append(0)
                 continue
             if oof.ndim > 1:
                 train_sharpes = np.mean(oof[train_idx], axis=0) / (np.std(oof[train_idx], axis=0) + 1e-8)
                 best_strat_idx = np.argmax(train_sharpes)
                 test_sharpes = np.mean(oof[test_idx], axis=0) / (np.std(oof[test_idx], axis=0) + 1e-8)
                 median_test_sharpe = np.median(test_sharpes)
+                diff = float(test_sharpes[best_strat_idx] - median_test_sharpe)
+                logits_list.append(diff)
+                rank = int(np.sum(test_sharpes > test_sharpes[best_strat_idx]))
+                ranks_list.append(rank)
                 if test_sharpes[best_strat_idx] < median_test_sharpe:
                     is_underperforming_count += 1
+            else:
+                logits_list.append(0.0)
+                ranks_list.append(0)
 
         pbo = float(is_underperforming_count / max(1, len(folds)))
         return {
             "pbo": float(pbo),
             "is_overfitted": bool(pbo > 0.5),
-            "logits": np.array([pbo]),
-            "logits_std": float(np.std([pbo])),
-            "ranks": np.array([0]),
+            "logits": np.array(logits_list),
+            "logits_std": float(np.std(logits_list)) if logits_list else 0.0,
+            "ranks": np.array(ranks_list),
             "n_combinations": len(folds),
         }
 
