@@ -324,24 +324,28 @@ class OnDevicePredictionModel:
 
                 # XGBoost
                 for market, models in self.models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        model_path = self.model_dir / f"xgb_model_{market}_{h}d.json"
-                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_regression"})
+                        model_path = self.model_dir / f"xgb_model_{mkt}_{h}d.json"
+                        save_model(model, str(model_path), {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "xgb_regression"})
                 # LightGBM
                 for market, models in self.lgb_models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        model_path = self.model_dir / f"lgb_model_{market}_{h}d.txt"
-                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_regression"})
+                        model_path = self.model_dir / f"lgb_model_{mkt}_{h}d.txt"
+                        save_model(model, str(model_path), {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "lgb_regression"})
                 # CatBoost
                 for market, models in self.cat_models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        model_path = self.model_dir / f"cat_model_{market}_{h}d.bin"
-                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_regression"})
+                        model_path = self.model_dir / f"cat_model_{mkt}_{h}d.bin"
+                        save_model(model, str(model_path), {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "cat_regression"})
                 # LSTM
                 for market, models in self.lstm_models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        if model.is_trained:
-                            model_path = self.model_dir / f"lstm_model_{market}_{h}d.pt"
+                        if hasattr(model, 'is_trained') and model.is_trained:
+                            model_path = self.model_dir / f"lstm_model_{mkt}_{h}d.pt"
                             model.save_model(str(model_path))
                 logger.info(f"All models saved to {self.model_dir}")
         except Exception as e:
