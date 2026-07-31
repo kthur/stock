@@ -69,6 +69,8 @@ jobs:
             ai-models-
 
       - name: Run preseed to update caches (cache-only)
+        env:
+          TRAIN_START_DATE: '2006-01-01'
         run: |
           source .venv/bin/activate
           python trading_system/run_pipeline.py --skip-training --skip-inference
