@@ -1,13 +1,36 @@
-## 2026-06-11T22:26:16Z
+## 2026-07-31T09:55:16Z
+Your working directory is: d:\Finance\code\stock\.agents\explorer_m2_1
+Your identity: explorer_m2_1 (teamwork_preview_explorer)
 
-You are Explorer 1 for Milestone 2 (Post-Market Stock Scoring Backend).
-Your mission is to investigate and design the scoring engine. Specifically:
-1. Find the `HybridStrategyEngine` class in the codebase, see how it calculates technical indicators/scores, and what API or method it exposes to get a technical score for a stock.
-2. Find the XGBoost expected returns model or `prediction_model.py` / `ml_engine.py` and see how to generate/retrieve expected returns predictions for all stocks.
-3. Find `NLPEngine` / `SentimentAnalyzer` in the codebase and see how to get the sentiment score for each stock.
-4. Locate the SQLite databases (e.g. `market_indicators.db` or check if there is an existing database and table structure used for storing indicators/signals). Identify where database access and schema definitions are.
-5. Propose a design for the daily scoring script that computes the composite score:
-   `Composite = 0.40 * Technical + 0.40 * AI + 0.20 * Sentiment`
-   And stores these scores and daily ranks (Rank 1 to N, sorted by composite score descending) in a dedicated SQLite table (e.g., `post_market_rankings` or similar).
+Objective:
+Detail technical implementation specifications and unit test design for Milestone 2 (R2): Quad-Factor Neutral QP Portfolio Risk Optimizer.
 
-Write your analysis and recommendations to d:\Finance\code\stock\.agents\explorer_m2_1\analysis.md and handoff.md. Do NOT write or modify any source code files.
+Requirements to analyze:
+1. `src/strategy/quad_factor_optimizer.py`:
+   - Class `QuadFactorOptimizer`.
+   - Implement Quadratic Programming (QP) optimization formulation using `scipy.optimize.minimize` (SLSQP solver) or `cvxpy` (if available, with fallback to SLSQP):
+     $$\min_w \frac{1}{2} w^T \Sigma w - \lambda \mu^T w + \gamma \|w - w_0\|_2^2$$
+   - Constraints:
+     - Sum of weights constraint: $\sum_{i=1}^N w_i = 1.0$ (or target gross exposure $W_{target}$).
+     - Long-only non-negativity constraint: $w_i \ge 0.0$ (or bounds $[0, w_{max}]$ e.g. max single asset weight 10%).
+     - Quad-Factor Neutrality Constraints:
+       - Market Beta exposure: $|\beta^T w| \le \epsilon_{beta}$ (e.g. $\le 0.05$).
+       - Size factor exposure (Log Market Cap): $|S^T w| \le \epsilon_{size}$ (e.g. $\le 0.05$).
+       - Volatility factor exposure (Historical Volatility): $|V^T w| \le \epsilon_{vol}$ (e.g. $\le 0.05$).
+       - Momentum factor exposure (12M-1M Momentum): $|M^T w| \le \epsilon_{mom}$ (e.g. $\le 0.05$).
+     - Sector Caps: $\sum_{i \in Sector_k} w_i \le 0.25$ (max 25% exposure per sector across all sectors).
+   - Bridge file at `trading_system/src/strategy/quad_factor_optimizer.py` if needed.
+2. Integration into Portfolio Allocation:
+   - Inspect `trading_system/src/risk/portfolio_optimizer.py` and `portfolio_allocator.py`.
+   - Add integration method `optimize_quad_factor_portfolio(expected_returns, cov_matrix, factor_df, sector_map)` to `PortfolioOptimizer`.
+3. Unit Test Spec for `trading_system/tests/test_quad_factor_optimizer.py`:
+   - Test weight sum equality constraint ($\sum w_i = 1$).
+   - Test Quad-Factor neutrality bounds ($\le 0.05$ for Beta, Size, Volatility, Momentum).
+   - Test sector cap constraint ($\le 25\%$ per sector).
+   - Test fallback to equal weight / mean-variance if solver fails or returns infeasible.
+   - Test integration with `PortfolioOptimizer`.
+
+Deliverables:
+1. Write detailed design to `d:\Finance\code\stock\.agents\explorer_m2_1\analysis.md`.
+2. Write self-contained handoff report to `d:\Finance\code\stock\.agents\explorer_m2_1\handoff.md`.
+3. Notify parent via `send_message`.

@@ -1754,11 +1754,18 @@ def execute_prediction_pipeline():
 
     # 11d. Run Ensemble Scoring
     logger.info("Running Dynamic Multi-Strategy Ensemble scoring...")
-    from src.ai.ensemble_scorer import EnsembleScoringEngine
-    from pathlib import Path
-    import joblib
-
     scorer = EnsembleScoringEngine(config=cfg)
+
+    # ── Milestone 4: Closed-Loop Realized Slippage Execution Feedback ─────────
+    try:
+        from src.execution.slippage_feedback import SlippageFeedbackEngine
+        db_path_trade = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db")
+        slippage_engine = SlippageFeedbackEngine(db_path=db_path_trade, window_days=30, default_slippage_bps=5.0)
+        slippage_metrics = slippage_engine.calculate_realized_slippage()
+        scorer.update_microstructure_costs(slippage_metrics)
+    except Exception as _m4_e:
+        logger.warning(f"[MILESTONE 4] Slippage feedback integration skipped: {_m4_e}")
+        slippage_metrics = None
 
     # ── Phase 5-B: Isotonic Calibrator load / fit ───────────────────────────
     _calibrator_path = Path(model.model_dir) / "calibrators.pkl"
@@ -1971,11 +1978,24 @@ def execute_prediction_pipeline():
     kst_now_str = datetime.now(KST).strftime('%Y-%m-%d %H:%M KST')
 
     # 10g. Strategy 10: Event-Driven Momentum Engine
+    m5_sentiment_metrics_list = []
     try:
         from src.core.event_driven import EventDrivenEngine
-        logger.info("Computing Strategy 10: Event-Driven Momentum Scores...")
+        from src.core.llm_sentiment_engine import LLMSentimentEngine
+        logger.info("Computing Strategy 10: Event-Driven Momentum Scores with LLM/NLP Filing Sentiment...")
         event_engine = EventDrivenEngine(dart_api_key=getattr(cfg, 'dart_api_key', ''))
-        event_df = event_engine.compute_event_scores(symbols=list(infer_data_dict.keys()), prices_dict=infer_data_dict)
+        sentiment_engine = LLMSentimentEngine(config=cfg, db_storage=indicator_storage)
+        eff_filings = event_engine.fetch_recent_dart_filings()
+        sentiment_map = {}
+        if eff_filings:
+            sentiment_map = sentiment_engine.batch_analyze_filings(eff_filings)
+            m5_sentiment_metrics_list = list(sentiment_map.values())
+        event_df = event_engine.compute_event_scores(
+            symbols=list(infer_data_dict.keys()),
+            prices_dict=infer_data_dict,
+            filings=eff_filings,
+            sentiment_map=sentiment_map
+        )
         logger.info(f"Event-driven scores computed: {len(event_df)} symbols, empty={event_df.empty}")
         event_output_path = os.path.join(result_dir, "event_driven_predictions.txt")
         if not event_df.empty:
@@ -2460,8 +2480,85 @@ def execute_prediction_pipeline():
             ensemble_df['ensemble_expected_return'] = ensemble_df['ensemble_expected_return'] * scale_factor
             if crisis_lvl == CrisisLevel.SEVERE:
                 ensemble_df['ensemble_score'] = 0.0
+
+        # Intraday Microstructure Risk Evaluation
+        if 'infer_data_dict' in locals() and infer_data_dict:
+            intraday_results = risk_mgr.check_intraday_risk(infer_data_dict)
+            triggered_symbols = [sym for sym, res in intraday_results.items() if res.triggered]
+            if triggered_symbols:
+                logger.warning(f"[INTRADAY RISK] Intraday stop-loss triggered for {len(triggered_symbols)} symbols: {triggered_symbols}")
+                ensemble_df.loc[ensemble_df['symbol'].isin(triggered_symbols), 'ensemble_expected_return'] = -0.99
+                ensemble_df.loc[ensemble_df['symbol'].isin(triggered_symbols), 'ensemble_score'] = 0.0
     except Exception as _rm_e:
         logger.warning(f"RiskManager evaluation skipped: {_rm_e}")
+
+    # Milestone 3: CPCV & Historical Stress Testing Engine
+    m3_report_str = ""
+    try:
+        from src.ai.cpcv_stress_tester import CPCVStressTester
+        cpcv_tester = CPCVStressTester(n_splits=6, n_test_splits=2, purge_window=5, embargo_window=10, mdd_threshold=0.30)
+
+        # Strategy matrix for PBO
+        raw_scores_df = getattr(scorer, 'raw_scores', None)
+        if raw_scores_df is not None and isinstance(raw_scores_df, pd.DataFrame) and not raw_scores_df.empty:
+            pbo_res = cpcv_tester.compute_pbo(raw_scores_df)
+        else:
+            score_cols = [c for c in ensemble_df.columns if c.endswith('_score') or c.endswith('_return')]
+            if len(score_cols) >= 2:
+                pbo_res = cpcv_tester.compute_pbo(ensemble_df[score_cols])
+            else:
+                pbo_res = cpcv_tester.compute_pbo(ensemble_df[['ensemble_expected_return']])
+
+        # Historical stress test scenarios
+        ens_returns = ensemble_df['ensemble_expected_return'].values
+        scenarios = ["2008_CRISIS", "2020_COVID", "2022_FED_HIKE"]
+        stress_reports = {}
+        for sc in scenarios:
+            stress_reports[sc] = cpcv_tester.run_historical_stress_test(ens_returns, scenario=sc)
+
+        # Update RiskManager
+        if 'risk_mgr' in locals() and risk_mgr is not None:
+            risk_mgr.update_stress_test_results(stress_reports)
+
+        # Build report section
+        m3_text_lines = [
+            "================================================================================",
+            "[MILESTONE 3: CPCV & HISTORICAL STRESS TEST REPORT]",
+            "================================================================================",
+            f"Evaluation Time (KST): {kst_now_str}",
+            f"CPCV Combinatorial Folds: {pbo_res.get('n_combinations', 15)} (N=6, k=2)",
+            "Purge Window: 5 bars | Embargo Window: 10 bars",
+            f"Probability of Backtest Overfitting (PBO): {pbo_res.get('pbo', 0.0):.4f} ({pbo_res.get('pbo', 0.0)*100:.2f}%) -> Overfitted: {pbo_res.get('is_overfitted', False)}",
+            "",
+            "--- Historical Macro Crisis Stress Test Scenarios ---"
+        ]
+
+        overall_passed = True
+        for sc in scenarios:
+            rep = stress_reports[sc]
+            if not rep.pass_flag:
+                overall_passed = False
+            m3_text_lines.extend([
+                f"Scenario: {sc}",
+                f"  - Stressed MDD: {rep.mdd*100:.2f}% (Threshold: {rep.details.get('mdd_threshold', 0.30)*100:.2f}%)",
+                f"  - Stressed Sharpe Ratio: {rep.stress_sharpe:.2f}",
+                f"  - 95% VaR / CVaR: {rep.var_95*100:.2f}% / {rep.cvar_95*100:.2f}%",
+                f"  - 99% VaR / CVaR: {rep.var_99*100:.2f}% / {rep.cvar_99*100:.2f}%",
+                f"  - Stress Recovery Time: {rep.stress_recovery_time} bars",
+                f"  - Stress Test Pass Flag: {'PASS' if rep.pass_flag else 'FAIL'}",
+                ""
+            ])
+
+        adj_fact = getattr(risk_mgr, 'stress_test_adjustment_factor', 1.0) if 'risk_mgr' in locals() and risk_mgr is not None else 1.0
+        status_str = f"PASSED (Position Capacity: {adj_fact:.2f}x)" if overall_passed else f"FAILED (Position Capacity Capped: {adj_fact:.2f}x)"
+        m3_text_lines.extend([
+            f"Overall Stress Test Status: {status_str}",
+            "================================================================================\n"
+        ])
+        m3_report_str = "\n".join(m3_text_lines)
+
+    except Exception as _m3_e:
+        logger.warning(f"Milestone 3 CPCV & Stress Test calculation skipped: {_m3_e}")
 
     # Generate Decision Rationale Summary
     decision_rationale_text = scorer.get_regime_reasoning_summary(current_2d_regime, rolling_sharpes)
@@ -2478,9 +2575,51 @@ def execute_prediction_pipeline():
         )
         cov_report_text = cov_analyzer.generate_coverage_report(cov_data, date_str=kst_now_str)
 
+        # Build Milestone 4 Report Block
+        m4_report_str = ""
+        if 'slippage_metrics' in locals() and slippage_metrics is not None:
+            m4_map = slippage_metrics.market_slippage_map
+            m4_text_lines = [
+                "================================================================================",
+                "[MILESTONE 4: CLOSED-LOOP REALIZED SLIPPAGE REPORT]",
+                "================================================================================",
+                f"Evaluation Time (KST): {kst_now_str}",
+                "Database Path: trade_logs.db",
+                "Analysis Window: 30 days",
+                f"Total Execution Samples Analyzed: {slippage_metrics.sample_count}",
+                f"Overall Realized Average Slippage: {slippage_metrics.avg_slippage_bps:.2f} bps",
+                f"Empirical Market Impact Alpha: {slippage_metrics.market_impact_alpha:.4f}",
+                f"Dynamic Cost Scaling Factor: {slippage_metrics.cost_scaling_factor:.2f}x",
+                "",
+                "--- Realized Slippage Map by Market ---",
+                f"  - KOSPI      : {m4_map.get('KOSPI', 5.0):.2f} bps",
+                f"  - KOSDAQ     : {m4_map.get('KOSDAQ', 5.0):.2f} bps",
+                f"  - SP500      : {m4_map.get('SP500', 5.0):.2f} bps",
+                f"  - NASDAQ     : {m4_map.get('NASDAQ', 5.0):.2f} bps",
+                f"  - RUSSELL2000: {m4_map.get('RUSSELL2000', 5.0):.2f} bps",
+                f"  - KONEX      : {m4_map.get('KONEX', 5.0):.2f} bps",
+                "================================================================================\n"
+            ]
+            m4_report_str = "\n".join(m4_text_lines)
+
+        m5_report_str = ""
+        try:
+            m5_metrics = m5_sentiment_metrics_list if 'm5_sentiment_metrics_list' in locals() else []
+            m5_report_str = coverage_analyzer.generate_m5_sentiment_report(m5_metrics, kst_now_str=kst_now_str)
+        except Exception as _m5_e:
+            logger.warning(f"Milestone 5 sentiment report formatting skipped: {_m5_e}")
+
         cov_output_path = os.path.join(result_dir, "strategy_data_coverage_report.txt")
+        report_sections = [cov_report_text]
+        if 'm3_report_str' in locals() and m3_report_str:
+            report_sections.append(m3_report_str)
+        if m4_report_str:
+            report_sections.append(m4_report_str)
+        if m5_report_str:
+            report_sections.append(m5_report_str)
+
         with open(cov_output_path, "w", encoding="utf-8") as f_cov:
-            f_cov.write(cov_report_text + "\n")
+            f_cov.write("\n\n".join(report_sections))
         logger.info(f"Saved Strategy Data Coverage report to {cov_output_path}")
     except Exception as _cov_e:
         logger.warning(f"Strategy Coverage analysis skipped: {_cov_e}")

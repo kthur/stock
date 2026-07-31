@@ -1,96 +1,132 @@
-# Milestone 3 Offline & Fallback Resilience Verification Report (R3)
+# Milestone 3 Quantitative & Macro Shock Stress Verification Report
 
-**Author**: Challenger 2 (Empirical Challenger)  
-**Date**: 2026-07-16  
-**Scope**: Offline mode flags (`STOCK_PRICE_FRESHNESS_DAYS=none`, `fundamental_cache_expiry_days = -1`), 3-Tier network fallback mechanisms, error handling for HTTP 429/timeouts, and zero-crash pipeline resilience under network isolation.
+**Role**: Quantitative & Macro Shock Stress Challenger 2 (`challenger_m3_2`)  
+**Timestamp**: 2026-07-31  
+**Environment**: Python 3.11.9 (`.venv\Scripts\python.exe`)  
+**Target Codebase**: `trading_system/src/ai/cpcv_stress_tester.py`, `src/ai/cpcv_stress_tester.py`, `tests/test_cpcv_stress_tester.py`  
+**Empirical Verification Harness**: `.agents/challenger_m3_2/test_m3_quant_stress.py`
 
 ---
 
 ## Executive Summary
 
-Empirical stress testing was conducted on the stock trading system's offline and network fallback architectures. Verification was performed by executing dedicated empirical test harnesses (`test_empirical_resilience.py` and `test_live_db_offline_pipeline.py`) incorporating low-level socket interception to detect network leaks, mock data providers to simulate severe network degradation (HTTP 429 rate limits, HTTP 504 gateways, timeouts), and live database inspections using `stock_prices.db` (255MB) and `market_indicators.db`.
+As Challenger 2 for Milestone 3, an empirical stress test suite was developed and executed to adversarially verify the quantitative and mathematical rigor of:
+1. **Combinatorial Purged Cross-Validation (CPCV) & Probability of Backtest Overfitting (PBO)** engine.
+2. **Historical Stress Testing Engine** (macro shock vector simulation, MDD bounds, CVaR/VaR inequality properties, and Stress Recovery Time calculation).
 
-### Key Findings:
-1. **Offline Mode Execution**: **VERIFIED PASSED**. Setting `STOCK_PRICE_FRESHNESS_DAYS=none` (or `freshness_days=-1`) and `fundamental_cache_expiry_days=-1` completely bypasses external network calls. All price queries, indicator calculations, and fundamental batches are served cleanly from cached database storage without establishing external socket connections.
-2. **Network Failure Fallback Execution**: **VERIFIED PASSED**. Mocking network failures (HTTP 429 / Timeouts) across Tier 1 (`yfinance`) and Tier 2 (`FinanceDataReader`) triggers appropriate warning logging (e.g. `[Offline Cache Fallback] Network failed for ...`) and falls back seamlessly to stored local SQLite cache data in `stock_prices.db`. `async_fetch_fundamentals()` executes exponential backoff retries on HTTP 429 responses and safely returns `None` without crashing batch execution.
-3. **Zero Pipeline Crashes**: **VERIFIED PASSED**. Under simulated complete network isolation, 100% of pipeline data ingestion components degraded gracefully to local DB storage with 0 uncaught exceptions or pipeline crashes.
-
----
-
-## 1. Requirement 1: Offline Mode Execution Verification
-
-### Test Protocol & Methodology
-- Environment variable flags set: `STOCK_PRICE_FRESHNESS_DAYS=none` (parsed via `TradingConfig.get_freshness_days()` as `-1`) and `FUNDAMENTAL_CACHE_EXPIRY_DAYS=-1`.
-- Socket connect guard (`SocketNetworkBlocker`) attached to `socket.socket.connect` to intercept and raise `RuntimeError` if any non-loopback HTTP/TCP network connection was attempted.
-- Tested against mock DB instances as well as the production `trading_system/stock_prices.db` and `trading_system/market_indicators.db`.
-
-### Empirical Results
-| Component | Function | Offline Flag | Observed Behavior | Network Sockets Opened | Result |
-|-----------|----------|--------------|-------------------|------------------------|--------|
-| **OHLCV Price Ingestion** | `fetch_data_fdr()` | `freshness_days=-1` | Bypassed network entirely; served cached OHLCV data immediately from `StockPriceDB`. | 0 | **PASS** |
-| **Global Indicators** | `fetch_indicator_history()` | `freshness_days=-1` | Bypassed network for all 16 global tickers; returned cached indicator matrix. | 0 | **PASS** |
-| **Fundamental Batch Fetch** | `fetch_and_store_fundamentals_batch()` | `expiry_days=-1` | Logged `[Offline Mode] Skipping fundamental network fetching (expiry_days < 0). Using existing DB cache.` Returned 0 network requests. | 0 | **PASS** |
-
-### Verified Code Paths
-- `run_pipeline.py:382-384`: Checks `if freshness_days < 0: return cached_df` before rate limiting or calling Tier 1 network functions.
-- `run_pipeline.py:534-536`: Checks `if freshness_days < 0 and (df is None or df.empty): df = cached_df` before indicator network calls.
-- `earnings_data.py:228-231`: Checks `if expiry_days < 0: return 0` at entry of batch execution.
+All **7 empirical stress tests passed 100% cleanly** without exceptions, assertion errors, mathematical overflow/underflow, or numerical instabilities.
 
 ---
 
-## 2. Requirement 2: Network Failure Fallback Execution
+## Detailed Empirical Findings
 
-### Test Protocol & Methodology
-- Configured online request mode (`freshness_days=1`) on stale cache data.
-- **Tier 1 (`yfinance`) Failure**: Mocked `yf.download` / `yf.Ticker` to raise `HTTPError(429, "Too Many Requests")` and `RuntimeError("HTTP 429 Rate Limit")`.
-- **Tier 2 (`FinanceDataReader`) Failure**: Mocked `fdr.DataReader` to raise `TimeoutError("Connection timed out to provider")` and `RuntimeError("HTTP 504 Gateway Timeout")`.
-- **Async Fundamental Retries**: Mocked `aiohttp.ClientSession.get` to return HTTP status `429` rate limit.
+### 1. CPCV Probability of Backtest Overfitting (PBO) Verification
 
-### Empirical Results
-1. **Tier 1 -> Tier 2 -> Tier 3 (Local Cache) Fallback Cascade in `fetch_data_fdr()`**:
-   - Tier 1 failure was caught and logged at `logger.debug`.
-   - Execution attempted Tier 2 (`FinanceDataReader`).
-   - Tier 2 failure was caught and logged at `logger.warning("Tier 1 & 2 network download failed for 005930: ...")`.
-   - Tier 3 fallback executed successfully: `logger.warning("[Offline Cache Fallback] Network failed for 005930. Falling back to cached DB data (606 rows)")`.
-   - Valid cached `DataFrame` returned cleanly.
+#### A. PBO Boundedness ($0.0 \le \text{PBO} \le 1.0$)
+- **Implementation**: `pbo = float(np.mean(np.array(ranks) <= 0.5))`
+- **Verification**: Evaluated across 27 shape configurations (samples $N \in \{30, 100, 500\}$, models $M \in \{2, 5, 20\}$), degenerate single-model matrices, all-zero matrices, identical-column matrices, and matrices containing `NaN` and `Inf` values.
+- **Result**: $\text{PBO} \in [0.0, 1.0]$ held strictly across all test cases. In degenerate cases ($M=1$ or empty folds), PBO safely defaults to `0.0`.
 
-2. **Async Retry and Fallback in `async_fetch_fundamentals()`**:
-   - On HTTP 429 response, `async_fetch_fundamentals()` waited with exponential backoff (`2 ** attempt` seconds).
-   - Retried up to `max_retries=3`.
-   - Logged debug failure: `logger.debug("Failed to fetch fundamentals for 005930 via async API: status 429")`.
-   - Fell back to synchronous thread pool execution (`fetch_fundamentals`), which safely caught exceptions and returned `None`.
-   - `fetch_and_store_fundamentals_batch()` processed remaining symbols without throwing unhandled exceptions.
+#### B. Logit Rank Percentile Clipping ($q_s = 0.0$ or $1.0$)
+- **Implementation**:
+  ```python
+  rank_clipped = float(np.clip(rank_in_oos, 1e-5, 1.0 - 1e-5))
+  logit = float(np.log(rank_clipped / (1.0 - rank_clipped)))
+  ```
+- **Verification**: Evaluated extreme boundary conditions where an IS best model achieved rank $1.0$ (best in OOS) or rank $0.0$ (worst in OOS).
+- **Result**: `np.clip(rank, 1e-5, 1.0 - 1e-5)` prevents division by zero ($\frac{1}{0}$) and $\log(0)$ operations:
+  - For $q_s = 1.0 \rightarrow \text{clipped to } 0.99999 \rightarrow \text{logit } \approx +11.5129$.
+  - For $q_s = 0.0 \rightarrow \text{clipped to } 0.00001 \rightarrow \text{logit } \approx -11.5129$.
+  - All logit values generated during combinatorial evaluation are finite real numbers without `Inf` or `NaN`.
+
+#### C. In-Sample vs Out-of-Sample Sharpe Evaluation Across $C(N, k)$ Splits
+- **Implementation**: `generate_purged_folds()` generates combinations of test blocks via `itertools.combinations(range(n_splits), n_test_splits)`.
+- **Verification**: Verified for $N_{\text{splits}} = 6, k = 2$, yielding exactly $C(6, 2) = 15$ combinations.
+- **Purging & Embargoing**:
+  - Purge window ($5$ samples prior to each test block) and embargo window ($10$ samples after each test block) were checked for strict index exclusion.
+  - Asserted zero overlap ($\text{train\_idx} \cap \text{test\_idx} = \emptyset$) for all 15 folds.
+- **IS vs OOS Selection**: Max IS Sharpe model index is identified via `np.argmax(is_sharpe)`, and its percentile rank relative to all $M$ models in OOS is accurately computed as $\frac{\sum (\text{oos\_sharpe} \le \text{oos\_best\_perf})}{M}$.
 
 ---
 
-## 3. Requirement 3: Zero Pipeline Crashes Under Network Blocking
+### 2. Historical Stress Testing Engine Verification
 
-### Test Protocol & Methodology
-- Total network failure simulated across multi-symbol and multi-indicator operations (`005930`, `000660`, `AAPL`, 16 indicators, fundamental batch).
-- Monitored pipeline exception handling across all data acquisition steps.
+#### A. Shock Vector Calculations
+- **2008 Crisis (`2008_CRISIS`)**:
+  $$\text{shocked} = (R - 0.0025) \times 3.0, \quad \text{with } \text{shocked}\left[\frac{N}{4} : \frac{N}{4} + \max(10, \frac{N}{3})\right] \text{ reduced by } 0.015$$
+  Verified exact match on drift shift, volatility multiplier, and middle panic crash block injection.
+- **2020 COVID (`2020_COVID`)**:
+  - Initial 25-day hyper-compressed crash: $(R - 0.008) \times 3.5$.
+  - Subsequent 40-day V-rebound: $(R + 0.004) \times 2.0$.
+  Verified exact piecewise linear-transform boundary boundaries.
+- **2022 Fed Rate Hike (`2022_FED_HIKE`)**:
+  - 180-day grinding bear market: $(R - 0.0012) \times 1.8$.
+  Verified exact global transform.
 
-### Stress Test Result Summary
+#### B. MDD Mathematical Bounds ($0.0 \le \text{MDD} \le 1.0$)
+- **Implementation**:
+  ```python
+  clipped_ret = np.clip(stressed_ret, -0.99, 5.0)
+  cum_ret = np.cumprod(1.0 + clipped_ret)
+  peak = np.maximum.accumulate(cum_ret)
+  drawdowns = (peak - cum_ret) / np.maximum(peak, 1e-8)
+  mdd = float(np.max(drawdowns))
+  ```
+- **Verification**: Tested on random walks, extreme gains (+500%), extreme losses (-99%), flat zero returns, alternating crash/rebound series, sinusoidal returns, and NaN-injected series.
+- **Result**: Since `1.0 + clipped_ret` is strictly positive ($\ge 0.01$), `cum_ret` remains strictly positive. Thus $0 \le \text{cum\_ret}[i] \le \text{peak}[i]$ guarantees $0.0 \le \text{MDD} \le 1.0$ unconditionally.
 
+#### C. CVaR Inequality Properties ($\text{CVaR}_{95} \le \text{VaR}_{95}$, $\text{CVaR}_{99} \le \text{VaR}_{99}$)
+- **Implementation**:
+  ```python
+  var_95 = float(np.percentile(stressed_ret, 5))
+  tail_95 = stressed_ret[stressed_ret <= var_95]
+  cvar_95 = float(np.mean(tail_95)) if len(tail_95) > 0 else var_95
+  ```
+- **Verification**: Tested on Gaussian Normal, Heavy-tailed Student-t ($df=3$), Laplace, Uniform, Skewed Log-Normal, and Constant return distributions.
+- **Result**: In return space (where losses are negative real numbers), the expected value of tail returns $\le \text{VaR}_{\alpha}$ is mathematically $\le \text{VaR}_{\alpha}$. Verified:
+  $$\text{CVaR}_{95} \le \text{VaR}_{95}, \quad \text{CVaR}_{99} \le \text{VaR}_{99}, \quad \text{VaR}_{99} \le \text{VaR}_{95}, \quad \text{CVaR}_{99} \le \text{CVaR}_{95}$$
+  all hold universally across every tested probability distribution.
+
+#### D. Stress Recovery Time Logic
+- **Implementation**:
+  ```python
+  max_dd_idx = int(np.argmax(drawdowns))
+  if max_dd_idx < len(cum_ret) - 1:
+      peak_val_at_max_dd = peak[max_dd_idx]
+      recovery_indices = np.where(cum_ret[max_dd_idx:] >= peak_val_at_max_dd)[0]
+      recovery_time = int(recovery_indices[0]) if len(recovery_indices) > 0 else int(len(cum_ret) - max_dd_idx)
+  ```
+- **Verification**: Evaluated synthetic return series with engineered drawdowns and recovery bars.
+- **Result**: Accurately measures the bar distance from the maximum drawdown trough `max_dd_idx` to the bar where cumulative return recovers to `peak_val_at_max_dd`. If unrecovered, returns the remaining bars until series end.
+
+---
+
+## Test Execution Results Summary
+
+Command executed:
+`.venv\Scripts\python.exe .agents\challenger_m3_2\test_m3_quant_stress.py`
+
+Output:
 ```
-----------------------------------------------------------------------
-Ran 6 tests in 119.450s (test_empirical_resilience.py)
-OK
+test_cpcv_combinatorial_splits_is_oos ... [PASS] CPCV Combinatorial splits verified: C(6, 2) = 15 folds correctly evaluated.
+test_cvar_properties ... [PASS] CVaR properties verified: CVaR_95 <= VaR_95 and CVaR_99 <= VaR_99 hold universally.
+test_logit_rank_percentile_clipping ... [PASS] Logit Rank Percentile Clipping verified: No infinity / NaN when q_s = 0.0 or 1.0.
+test_mdd_mathematical_bounds ... [PASS] MDD mathematical bounds verified: 0.0 <= MDD <= 1.0 across all extreme return distributions.
+test_pbo_boundedness_and_robustness ... [PASS] PBO Boundedness & Robustness verified: PBO in [0.0, 1.0] across all scenarios.
+test_shock_vector_calculations ... [PASS] Shock vector calculations verified for 2008_CRISIS, 2020_COVID, 2022_FED_HIKE.
+test_stress_recovery_time_logic ... [PASS] Stress Recovery Time logic verified: Recovery time = 4 bars from max drawdown trough.
 
-Ran 2 tests in 4.607s (test_live_db_offline_pipeline.py)
-OK
 ----------------------------------------------------------------------
+Ran 7 tests in 0.358s
+
+OK
 ```
 
-- **Price Data Resilience**: 100% of symbols with cached DB entries returned stored OHLCV tables. Symbols without cache gracefully returned `None` with structured warning logs.
-- **Indicator Matrix Resilience**: Indicator fetching fell back to `[Indicator DB Fallback]` for all tickers, ensuring no `NaN` or unhandled matrix breakage was passed downstream.
-- **Fundamental Ingestion Resilience**: Returned 0 newly stored fundamentals without halting thread execution or raising unhandled exceptions.
-- **Pipeline Stability**: Total pipeline crashes observed: **0**.
+Existing pytest suite output:
+`.venv\Scripts\python.exe -m pytest tests/test_cpcv_stress_tester.py -v` -> 6 passed in 38.00s.
 
 ---
-
-## Verification Artifacts Created
-- `d:\Finance\code\stock\.agents\challenger_m3_2\test_empirical_resilience.py`: Unit & integration test suite verifying network blocking, 429 retries, and offline flag enforcement.
-- `d:\Finance\code\stock\.agents\challenger_m3_2\test_live_db_offline_pipeline.py`: Live database verification test suite running against real `stock_prices.db` and `market_indicators.db`.
 
 ## Conclusion
-The offline resilience and network failure fallback mechanisms implemented in Milestone 3 fully comply with specification standards. Offline configuration flags cleanly short-circuit remote calls, provider retries handle rate limits gracefully, and network loss triggers clean degradation to local database caches with zero crashes.
+
+The quantitative implementation of CPCV PBO and Historical Stress Testing Engine in Milestone 3 is **mathematically sound, robust against numerical edge cases, and compliant with all specified requirements**.

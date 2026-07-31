@@ -280,8 +280,29 @@ class EnsembleScoringEngine:
         self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
         self.orthogonalizer_enabled = True
 
+        # Milestone 4: Slippage execution feedback attributes
+        self.slippage_metrics: Optional[Any] = None
+        self.cost_scaling_factor: float = 1.0
+        self.realized_market_impact_alpha: float = 0.50
+        self.market_slippage_bps_map: Dict[str, float] = {}
+
         # Load Optuna-tuned 2D regime weights from tuned_params.json (if available)
         self._load_tuned_regime_weights()
+
+    def update_microstructure_costs(self, slippage_metrics: Any) -> None:
+        """
+        Dynamically updates microstructure cost parameters based on realized execution logs.
+        """
+        self.slippage_metrics = slippage_metrics
+        if slippage_metrics is not None:
+            self.cost_scaling_factor = max(0.50, min(3.00, float(getattr(slippage_metrics, 'cost_scaling_factor', 1.0))))
+            self.realized_market_impact_alpha = float(getattr(slippage_metrics, 'market_impact_alpha', 0.50))
+            self.market_slippage_bps_map = dict(getattr(slippage_metrics, 'market_slippage_map', {}))
+            logger.info(
+                f"[SLIPPAGE FEEDBACK] Updated microstructure costs: cost_scaling_factor={self.cost_scaling_factor:.2f}x, "
+                f"impact_alpha={self.realized_market_impact_alpha:.4f}, avg_slippage={getattr(slippage_metrics, 'avg_slippage_bps', 5.0):.2f}bps "
+                f"(sample_count={getattr(slippage_metrics, 'sample_count', 0)})"
+            )
 
     def has_calibrators(self) -> bool:
         """Return True if calibrators dictionary is non-empty."""
@@ -1136,15 +1157,21 @@ class EnsembleScoringEngine:
             dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
             clamped_spread = min(max(dynamic_spread, spread_min), spread_max)
 
-            # 2. Order Book Square-Root Market Impact Modeling
+            # 2. Order Book Market Impact Modeling (using empirical realized_market_impact_alpha)
             participation_ratio = q_order / adv
-            impact_one_way = impact_coeff * volatility * np.sqrt(participation_ratio)
+            impact_alpha = getattr(self, 'realized_market_impact_alpha', 0.50)
+            if impact_alpha == 0.50:
+                impact_one_way = impact_coeff * volatility * np.sqrt(participation_ratio)
+            else:
+                impact_one_way = impact_coeff * volatility * (participation_ratio ** impact_alpha)
 
             # 3. Participation Rate Overflow Penalty (> 10% ADV)
             if participation_ratio > 0.10:
                 impact_one_way += 0.50 * (participation_ratio - 0.10)
 
-            total_cost_pct = stt_tax + brokerage_fee + clamped_spread + (2.0 * impact_one_way)
+            raw_total_cost = stt_tax + brokerage_fee + clamped_spread + (2.0 * impact_one_way)
+            cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
+            total_cost_pct = raw_total_cost * cost_scaling
             return float(total_cost_pct)
 
         cost_series = merged.apply(_get_cost_pct, axis=1)

@@ -7,9 +7,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+import pandas as pd
+
+try:
+    from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
+except ImportError:
+    from trading_system.src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
 
 logger = logging.getLogger(__name__)
 
@@ -345,12 +351,50 @@ class RiskManager:
         self._consecutive_losses: int = 0
 
         self.crisis_detector = CrisisDetector(self)
+        self.intraday_stop_loss_engine = IntradayStopLossEngine(atr_multiplier=self.atr_multiplier_stop)
         self.active_strategy = "HYBRID"
 
         self._load_config()
 
         self.metrics_history: List[RiskMetrics] = []
         self.alerts: List[Dict] = []
+        self.stress_test_passed: bool = True
+        self.stress_test_adjustment_factor: float = 1.0
+        self.stress_test_reports: Dict[str, Any] = {}
+
+    def update_stress_test_results(
+        self,
+        stress_reports: Union[Dict[str, Any], Any],
+        fail_adjustment_factor: float = 0.75,
+    ) -> None:
+        """
+        Updates RiskManager state with historical stress test results.
+        If pass_flag is False for any evaluated scenario,
+        applies dynamic stress adjustment factor (default 0.75) to position sizes.
+        """
+        all_passed = True
+        if isinstance(stress_reports, dict):
+            self.stress_test_reports = stress_reports
+            for key, rep in stress_reports.items():
+                if hasattr(rep, "pass_flag"):
+                    if not rep.pass_flag:
+                        all_passed = False
+                elif isinstance(rep, dict) and "pass_flag" in rep:
+                    if not rep["pass_flag"]:
+                        all_passed = False
+        elif hasattr(stress_reports, "pass_flag"):
+            all_passed = bool(stress_reports.pass_flag)
+            self.stress_test_reports = {"report": stress_reports}
+
+        self.stress_test_passed = all_passed
+        if not all_passed:
+            self.stress_test_adjustment_factor = fail_adjustment_factor
+            self.logger.warning(
+                f"[RISK MANAGER] Stress test failed! Position size scaling factor set to {fail_adjustment_factor:.2f}"
+            )
+        else:
+            self.stress_test_adjustment_factor = 1.0
+            self.logger.info("[RISK MANAGER] Stress test passed. Full position capacity maintained.")
 
     def evaluate_crisis(
         self,
@@ -374,6 +418,75 @@ class RiskManager:
             tnx=tnx,
             dxy=dxy,
         )
+
+    def evaluate_intraday_stop_loss(
+        self,
+        symbol: str,
+        intraday_data: Union[pd.DataFrame, dict],
+        entry_price: Optional[float] = None,
+        atr: Optional[float] = None,
+    ) -> StopLossResult:
+        """
+        Evaluates intraday stop-loss risk for a given symbol.
+        Tightens thresholds based on active market crisis level.
+        """
+        crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
+        result = self.intraday_stop_loss_engine.evaluate(
+            symbol=symbol,
+            intraday_data=intraday_data,
+            entry_price=entry_price,
+            atr=atr,
+            crisis_multiplier=crisis_mult,
+        )
+        if result.triggered:
+            cur_price = 0.0
+            if isinstance(intraday_data, pd.DataFrame) and not intraday_data.empty:
+                prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values
+                cur_price = float(prices[-1])
+            elif isinstance(intraday_data, dict):
+                cur_price = float(intraday_data.get('current_price', 0.0))
+
+            eff_entry = entry_price if (entry_price is not None and entry_price > 0) else cur_price
+            self._create_alert(
+                alert_type=f"INTRADAY_STOP_LOSS_{result.reason}",
+                symbol=symbol,
+                current_price=cur_price,
+                entry_price=eff_entry,
+            )
+            self.logger.warning(
+                f"[INTRADAY STOP LOSS TRIGGERED] Symbol: {symbol} | Reason: {result.reason} | "
+                f"Drop: {result.drop_pct:.2%} | Vol Ratio: {result.panic_volume_ratio:.2f}x | Action: {result.recommended_action}"
+            )
+        return result
+
+    def check_intraday_risk(
+        self,
+        portfolio_intraday_data: Dict[str, Union[pd.DataFrame, dict]],
+        positions: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, StopLossResult]:
+        """
+        Evaluates intraday stop-loss status across portfolio holdings or watchlist.
+        Returns dictionary mapping symbol -> StopLossResult.
+        """
+        results = {}
+        for symbol, data in portfolio_intraday_data.items():
+            try:
+                entry_price = positions.get(symbol) if positions else None
+                res = self.evaluate_intraday_stop_loss(symbol, data, entry_price=entry_price)
+                results[symbol] = res
+            except Exception as e:
+                self.logger.warning(
+                    f"Error evaluating intraday stop loss for symbol {symbol}: {e}"
+                )
+                results[symbol] = StopLossResult(
+                    triggered=False,
+                    symbol=symbol,
+                    drop_pct=0.0,
+                    panic_volume_ratio=1.0,
+                    reason="EVALUATION_ERROR",
+                    recommended_action="NO_ACTION",
+                )
+        return results
 
     def calculate_atr_based_stop(self, entry_price: float, atr: float) -> float:
         stop_distance = atr * self.atr_multiplier_stop
@@ -620,7 +733,7 @@ class RiskManager:
 
     def calculate_max_position_size(self, current_price: float) -> int:
         """최대 포지션 크기 계산"""
-        max_value = self.portfolio_value * self.max_position_size_pct
+        max_value = self.portfolio_value * self.max_position_size_pct * self.stress_test_adjustment_factor
         max_quantity = int(max_value / current_price)
         return max_quantity
 
@@ -745,8 +858,8 @@ class RiskManager:
             self.logger.info(f"VIX Risk-Off: {symbol} capped at {vix_cap:.0%} of portfolio (VIX={vix:.1f})")
 
         position_quantity = max(1, int(max_value / entry_price))
-        max_position = self.calculate_max_position_size(entry_price)
-        position_quantity = min(position_quantity, max_position)
+        unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price)
+        position_quantity = min(position_quantity, unpenalized_max_position)
 
         # 위기 시 포지션 크기 감축
         crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
@@ -756,6 +869,14 @@ class RiskManager:
             self.logger.info(
                 f"Crisis position sizing: {symbol} qty {old_qty} -> {position_quantity} "
                 f"(crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
+            )
+
+        if self.stress_test_adjustment_factor < 1.0:
+            old_qty = position_quantity
+            position_quantity = max(1, int(position_quantity * self.stress_test_adjustment_factor))
+            self.logger.info(
+                f"Stress test position sizing: {symbol} qty {old_qty} -> {position_quantity} "
+                f"(stress_factor={self.stress_test_adjustment_factor:.2f})"
             )
 
         if symbol in self.position_limits:
@@ -883,7 +1004,7 @@ class RiskManager:
         """위험 수준 기반 포지션 크기 조정"""
         adjustments = {RiskLevel.LOW: 1.0, RiskLevel.MEDIUM: 0.75, RiskLevel.HIGH: 0.5, RiskLevel.CRITICAL: 0.25}
 
-        multiplier = adjustments.get(risk_level, 0.5)
+        multiplier = adjustments.get(risk_level, 0.5) * self.stress_test_adjustment_factor
         adjusted_quantity = int(base_quantity * multiplier)
 
         self.logger.info(
@@ -937,7 +1058,7 @@ class RiskManager:
         metrics = RiskMetrics(
             current_value=total_value,
             max_loss_limit=self.portfolio_value * self.max_portfolio_loss_pct,
-            max_position_size=self.portfolio_value * self.max_position_size_pct * self._volatility_scalar(),
+            max_position_size=self.portfolio_value * self.max_position_size_pct * self._volatility_scalar() * self.stress_test_adjustment_factor,
             stop_loss_pct=self.default_stop_loss_pct,
             take_profit_pct=self.default_take_profit_pct,
             current_drawdown=current_drawdown,
@@ -953,12 +1074,13 @@ class RiskManager:
 
     def _create_alert(self, alert_type: str, symbol: str, current_price: float, entry_price: float):
         """경고 생성"""
+        pnl_pct = ((current_price - entry_price) / entry_price * 100) if (entry_price and entry_price > 0) else 0.0
         alert = {
             "type": alert_type,
             "symbol": symbol,
             "current_price": current_price,
             "entry_price": entry_price,
-            "pnl_pct": (current_price - entry_price) / entry_price * 100,
+            "pnl_pct": pnl_pct,
             "timestamp": datetime.now(),
         }
 

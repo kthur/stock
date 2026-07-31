@@ -4,7 +4,7 @@ Strategy Data Coverage & Missingness Analyzer.
 Analyzes coverage rates, valid predictions, and data missingness reasons across all 14 strategies.
 """
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
 import numpy as np
 
@@ -214,3 +214,125 @@ class StrategyCoverageAnalyzer:
             lines.append(f"{s_name:<22}{v_cnt:<15}{m_cnt:<15}{cov:>6.1f}%          {top_reason:<30}")
 
         return "\n".join(lines)
+
+    def generate_m5_sentiment_report(
+        self,
+        sentiment_metrics_list: List[Any],
+        kst_now_str: str = ""
+    ) -> str:
+        """
+        Formats [MILESTONE 5: LLM/NLP DART & SEC FILING SENTIMENT REPORT] section.
+        """
+        total_filings = len(sentiment_metrics_list)
+        if total_filings == 0:
+            lines = [
+                "================================================================================",
+                "[MILESTONE 5: LLM/NLP DART & SEC FILING SENTIMENT REPORT]",
+                "================================================================================",
+                f"Evaluation Time (KST): {kst_now_str}",
+                "Total Corporate Filings Analyzed: 0",
+                "Processing Source Distribution:",
+                "  - Primary LLM / FinBERT Pipeline: 0 (0.0%)",
+                "  - Offline Lexicon Fallback      : 0 (0.0%)",
+                "  - SQLite Cache Hits             : 0 (0.0%)",
+                "Average Sentiment Metrics:",
+                "  - Mean Filing Tone Score        : 0.50",
+                "  - Mean Catalyst Surprise Score  : 0.50",
+                "  - Mean Composite Sentiment Score: 0.50",
+                "  - Mean Model Confidence Score   : 0.70",
+                "================================================================================\n"
+            ]
+            return "\n".join(lines)
+
+        dart_cnt = 0
+        sec_cnt = 0
+        llm_cnt = 0
+        lexicon_cnt = 0
+        cache_cnt = 0
+
+        tones = []
+        surprises = []
+        composites = []
+        confidences = []
+
+        top_positive = []
+        top_negative = []
+
+        for m in sentiment_metrics_list:
+            sym = str(getattr(m, 'symbol', ''))
+            tone = float(getattr(m, 'filing_tone_score', 0.5))
+            surprise = float(getattr(m, 'catalyst_surprise_score', 0.5))
+            composite = float(getattr(m, 'composite_sentiment_score', 0.5))
+            conf = float(getattr(m, 'confidence_score', 0.7))
+            src = str(getattr(m, 'source_type', 'OFFLINE_LEXICON'))
+
+            if any(sym.endswith(suffix) for suffix in ['.US', '.N', '.O', 'SP500']) or (sym.isupper() and not sym.isdigit()):
+                sec_cnt += 1
+            else:
+                dart_cnt += 1
+
+            if src == 'LLM_FINBERT':
+                llm_cnt += 1
+            elif src == 'CACHE':
+                cache_cnt += 1
+            else:
+                lexicon_cnt += 1
+
+            tones.append(tone)
+            surprises.append(surprise)
+            composites.append(composite)
+            confidences.append(conf)
+
+            intensity_delta = (composite - 0.5) * 2.0 * conf
+            mult = 1.0 + float(np.clip(intensity_delta * 0.5, -0.5, 0.5))
+
+            item_info = {
+                'symbol': sym,
+                'composite': composite,
+                'multiplier': mult,
+                'source': src
+            }
+            top_positive.append(item_info)
+            top_negative.append(item_info)
+
+        llm_pct = (llm_cnt / total_filings * 100.0)
+        lexicon_pct = (lexicon_cnt / total_filings * 100.0)
+        cache_pct = (cache_cnt / total_filings * 100.0)
+
+        mean_tone = float(np.mean(tones)) if tones else 0.5
+        mean_surprise = float(np.mean(surprises)) if surprises else 0.5
+        mean_composite = float(np.mean(composites)) if composites else 0.5
+        mean_conf = float(np.mean(confidences)) if confidences else 0.7
+
+        top_pos_sorted = sorted(top_positive, key=lambda x: x['composite'], reverse=True)[:5]
+        top_neg_sorted = sorted(top_negative, key=lambda x: x['composite'])[:5]
+
+        lines = [
+            "================================================================================",
+            "[MILESTONE 5: LLM/NLP DART & SEC FILING SENTIMENT REPORT]",
+            "================================================================================",
+            f"Evaluation Time (KST): {kst_now_str}",
+            f"Total Corporate Filings Analyzed: {total_filings} (DART: {dart_cnt}, SEC: {sec_cnt})",
+            "Processing Source Distribution:",
+            f"  - Primary LLM / FinBERT Pipeline: {llm_cnt} ({llm_pct:.1f}%)",
+            f"  - Offline Lexicon Fallback      : {lexicon_cnt} ({lexicon_pct:.1f}%)",
+            f"  - SQLite Cache Hits             : {cache_cnt} ({cache_pct:.1f}%)",
+            "Average Sentiment Metrics:",
+            f"  - Mean Filing Tone Score        : {mean_tone:.2f}",
+            f"  - Mean Catalyst Surprise Score  : {mean_surprise:.2f}",
+            f"  - Mean Composite Sentiment Score: {mean_composite:.2f}",
+            f"  - Mean Model Confidence Score   : {mean_conf:.2f}",
+            "",
+            "--- Top Positive Sentiment Catalysts (Multiplier ~1.5x) ---"
+        ]
+
+        for i, item in enumerate(top_pos_sorted, 1):
+            lines.append(f"  {i}. {item['symbol']}: Composite {item['composite']:.2f} | Multiplier {item['multiplier']:.2f}x | Source: {item['source']}")
+
+        lines.append("--- Top Negative Sentiment Catalysts (Multiplier ~0.5x) ---")
+        for i, item in enumerate(top_neg_sorted, 1):
+            lines.append(f"  {i}. {item['symbol']}: Composite {item['composite']:.2f} | Multiplier {item['multiplier']:.2f}x | Source: {item['source']}")
+
+        lines.append("================================================================================")
+        return "\n".join(lines)
+

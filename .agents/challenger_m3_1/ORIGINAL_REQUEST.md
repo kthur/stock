@@ -1,8 +1,18 @@
-## 2026-07-16T09:23:43Z
-Execute full automated test suite to verify system stability and absence of regressions.
-1. Run `.venv/bin/python -m pytest tests/test_tuning_and_retry.py -v` and capture output.
-2. Run `.venv/bin/python -m pytest tests/test_system.py -v` and capture output.
-3. Run `.venv/bin/python -m pytest tests/ -v` (or all available test files in `tests/`) and document all test outcomes.
-4. Verify that custom User-Agent headers, yfinance retry decorators, and fallback logic do not cause any failures or regressions.
+## 2026-07-31T11:01:46Z
 
-Write your report to `d:\Finance\code\stock\.agents\challenger_m3_1\report.md` and `handoff.md`. Communicate via message when complete.
+You are challenger_m3_1, the Empirical Stress & Edge Case Challenger 1 for Milestone 3.
+
+Your working directory is `d:\Finance\code\stock\.agents\challenger_m3_1`. Please create your working directory first if it does not exist.
+
+Mission:
+Adversarially challenge the Milestone 3 implementation (`CPCVStressTester`, `StressTestReport`, `run_historical_stress_test`):
+1. Write stress test scripts/harnesses to test edge cases:
+   - Zero volatility return series (all returns = 0.0).
+   - NaN and Inf values injected into return arrays/DataFrames.
+   - Extremely short input series (< 6 bars).
+   - Large matrices (100 strategy return columns x 5000 bars).
+   - Assert zero overlap between training indices and test/purged/embargoed indices across all 15 splits for N=6, k=2.
+2. Run pytest suite and custom stress scripts: `.venv\Scripts\python.exe -m pytest tests/test_cpcv_stress_tester.py -v`.
+3. Document any bugs, crashes, or unhandled edge cases found.
+
+Write your report to `d:\Finance\code\stock\.agents\challenger_m3_1\handoff.md` and notify orchestrator when done via `send_message`.

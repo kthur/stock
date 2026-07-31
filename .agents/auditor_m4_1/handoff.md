@@ -1,56 +1,109 @@
-# Handoff Report — Forensic Auditor 1 (Milestone 4 Audit)
+# Milestone 4 Forensic Integrity Audit Report
+
+**Target Work Product**: Milestone 4 (Closed-Loop Realized Slippage Execution Feedback)
+**Auditor**: `auditor_m4_1`
+**Date**: 2026-07-31
+**BINARY VERDICT**: **`CLEAN`**
+
+---
 
 ## 1. Observation
 
-Direct file observations across target files:
-- `trading_system/src/utils/http_session.py`:
-  - Line 7-11: `DEFAULT_USER_AGENT` defined as Chrome 124 desktop UA string.
-  - Line 17-41: `get_configured_session()` creates `requests.Session()`, configures default headers (`User-Agent`, `Accept`, `Accept-Language`, `Connection`), mounts `HTTPAdapter` with `urllib3.util.Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 500, 502, 503, 504])`.
-  - Line 44-63: `setup_global_http_headers()` monkey-patches `requests.Session.__init__` to auto-inject custom headers for all third-party session initializations.
-- `trading_system/run_pipeline.py`:
-  - Line 56: Calls `setup_global_http_headers()` on module load.
-  - Line 155-191: `_fetch_data_fdr_network` defines Tier 1 (`yfinance`) with fallback to Tier 2 (`FinanceDataReader`).
-  - Line 354-432: `fetch_data_fdr` checks DB cache first (Tier 3), rate limits via `_rate_lock`, executes `_fetch_data_fdr_network` (Tiers 1 & 2), and on complete network failure falls back to DB cache (Tier 3) with warning log.
-  - Line 478-498 & 500-580: `_download_indicator_network` and `fetch_indicator_history` implement 3-tier fallback for global indicators.
-  - Line 149, 457: `@retry` tenacity decorators configured with `wait_exponential(multiplier=1, min=2, max=10)`.
-- `trading_system/src/data_layer/earnings_data.py`:
-  - Line 39-44: `@retry` decorator on `_fetch_fundamentals_network` with `stop_after_attempt(3)` and `wait_exponential`.
-  - Line 119-198: `async_fetch_fundamentals` implements `for attempt in range(1, max_retries + 1)` with `await asyncio.sleep(2 ** attempt)` for 429/5xx status codes.
-  - Line 275: `if df_fun is not None and not df_fun.empty:` guards `storage.save_fundamental_meta(sym, current_time.strftime("%Y-%m-%d"))` (Metadata Sanitization).
-- `trading_system/tests/test_tuning_and_retry.py`:
-  - Line 64-120: Unit tests use `unittest.mock.patch` for `yfinance.download`, `FinanceDataReader.DataReader`, and `yfinance.Ticker`. Tests assert call counts (e.g. `mock_fdr.call_count == 3`) and verify recovery/failure behavior.
-  - Line 122-150: `test_global_rate_limiter_coordination` verifies multi-threaded delay intervals.
+Direct observations and evidence collected during forensic inspection:
+
+1. **Target Files & AST Inspection**:
+   - `trading_system/src/execution/slippage_feedback.py` (228 lines, AST parsed with 12 top-level nodes)
+   - `src/execution/slippage_feedback.py` (25 lines, AST parsed with 5 top-level nodes, re-export forwarder)
+   - `trading_system/src/ai/ensemble_scorer.py` (1265 lines, AST parsed with 12 top-level nodes)
+   - `trading_system/run_pipeline.py` (3021 lines, AST parsed with 61 top-level nodes)
+   - `trading_system/tests/test_slippage_feedback.py` (235 lines, AST parsed with 16 top-level nodes)
+   - `tests/test_slippage_feedback.py` (24 lines, AST parsed with 3 top-level nodes, test runner forwarder)
+
+2. **Source Code Implementation (Authenticity Check)**:
+   - `trading_system/src/execution/slippage_feedback.py`:
+     - Line 45–48: `SlippageFeedbackEngine.__init__(db_path="trade_logs.db", window_days=30, default_slippage_bps=5.0)`
+     - Line 99–115: Executes SQLite query joining `execution_logs e` and `order_plans p` where `e.executed_at >= ?` (30-day cutoff).
+     - Line 146: Realized slippage calculation: `realized_slip = (abs(exec_p - target_p) / target_p) * 10000.0` (in basis points).
+     - Line 171–178: Dynamically aggregates realized slippage by market (`KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`, `KONEX`).
+     - Line 181: Dynamic cost scaling factor: `cost_scaling_factor = max(0.50, min(3.00, avg_slippage / self.default_slippage_bps))`.
+     - Line 184–204: Empirical market impact exponent estimation: Log-log regression ratio (`math.log(avg_slip_large / avg_slip_small) / math.log(avg_size_large / avg_size_small)`) clamped to `[0.30, 1.00]`.
+     - Line 82–90, 120–127, 219–227: Defensive graceful fallback returning default `SlippageMetrics` if DB is missing, empty, or unreadable.
+   - `trading_system/src/ai/ensemble_scorer.py`:
+     - Line 292–305: `update_microstructure_costs(slippage_metrics)` updates `self.cost_scaling_factor`, `self.realized_market_impact_alpha`, and `self.market_slippage_bps_map`.
+     - Line 1162–1166: `impact_one_way = impact_coeff * volatility * (participation_ratio ** impact_alpha)` uses the empirical market impact alpha.
+     - Line 1173–1174: `cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)` and `total_cost_pct = raw_total_cost * cost_scaling`, scaling microstructural cost penalties on expected returns.
+   - `trading_system/run_pipeline.py`:
+     - Line 1760–1765: Instantiates `SlippageFeedbackEngine`, calculates realized slippage from `trade_logs.db`, and calls `scorer.update_microstructure_costs(slippage_metrics)`.
+     - Line 2567–2590: Formats and logs `[MILESTONE 4: CLOSED-LOOP REALIZED SLIPPAGE REPORT]` containing sample counts, realized average slippage, impact alpha, cost scaling factor, and market-by-market slippage map into `strategy_data_coverage_report.txt`.
+
+3. **Runtime Test Verification**:
+   - Command executed: `.venv\Scripts\python.exe -m pytest trading_system/tests/test_slippage_feedback.py tests/test_slippage_feedback.py -v`
+   - Output:
+     ```
+     ============================= test session starts =============================
+     platform win32 -- Python 3.11.9, pytest-9.1.1
+     collected 14 items
+
+     trading_system\tests\test_slippage_feedback.py::test_slippage_metrics_defaults PASSED
+     trading_system\tests\test_slippage_feedback.py::test_empty_or_missing_db_graceful_fallback PASSED
+     trading_system\tests\test_slippage_feedback.py::test_realized_slippage_calculation_single_and_multi_orders PASSED
+     trading_system\tests\test_slippage_feedback.py::test_market_grouping_and_alpha_tiering PASSED
+     trading_system\tests\test_slippage_feedback.py::test_empirical_impact_alpha_calculation PASSED
+     trading_system\tests\test_slippage_feedback.py::test_ensemble_scorer_cost_update_integration PASSED
+     trading_system\tests\test_slippage_feedback.py::test_forwarder_imports PASSED
+     tests\test_slippage_feedback.py::test_slippage_metrics_defaults PASSED
+     tests\test_slippage_feedback.py::test_empty_or_missing_db_graceful_fallback PASSED
+     tests\test_slippage_feedback.py::test_realized_slippage_calculation_single_and_multi_orders PASSED
+     tests\test_slippage_feedback.py::test_market_grouping_and_alpha_tiering PASSED
+     tests\test_slippage_feedback.py::test_empirical_impact_alpha_calculation PASSED
+     tests\test_slippage_feedback.py::test_ensemble_scorer_cost_update_integration PASSED
+     tests\test_slippage_feedback.py::test_forwarder_imports PASSED
+
+     ============================= 14 passed in 1.79s ==============================
+     ```
+
+---
 
 ## 2. Logic Chain
 
-1. **Static Code Verification**:
-   - The implementations of `get_configured_session()`, `setup_global_http_headers()`, `fetch_data_fdr()`, `fetch_indicator_history()`, and `async_fetch_fundamentals()` contain real network requests, connection adapters, monkey-patching, retry loops, and local DB queries.
-   - None of the target functions contain static pre-computed returns, dummy facades, or shortcuts designed to simulate success without performing real operations.
-2. **Metadata Sanitization Verification**:
-   - `earnings_data.py` only updates the fundamental metadata cache table when `df_fun` is non-empty and non-None, guaranteeing that network failures or missing data do not pollute the metadata cache.
-3. **Test Authenticity Verification**:
-   - Unit tests in `test_tuning_and_retry.py` mock network exceptions and verify retry attempts. The assertions check expected call counts and error handling paths directly against module code.
+1. **AST & Static Analysis Verification**:
+   - *Observation*: AST parsing confirmed all 6 target files compile cleanly without syntax errors or missing imports.
+   - *Deduction*: Code structure is sound and standard.
+
+2. **Prohibited Patterns Check**:
+   - *Observation*: Verified code logic in `slippage_feedback.py` line 146 (`realized_slip = (abs(exec_p - target_p) / target_p) * 10000.0`), `ensemble_scorer.py` line 1174 (`total_cost_pct = raw_total_cost * cost_scaling`), and `run_pipeline.py` line 1765 (`scorer.update_microstructure_costs(slippage_metrics)`).
+   - *Deduction*: No hardcoded outputs, fake cost scaling factors, or feedback loop bypasses exist. The execution feedback loop dynamically calculates metrics from database execution records and updates transaction costs in the scoring engine.
+
+3. **Behavioral & Runtime Verification**:
+   - *Observation*: 14 unit and integration test cases across `trading_system/tests/test_slippage_feedback.py` and `tests/test_slippage_feedback.py` executed successfully in 1.79 seconds.
+   - *Deduction*: Fallback handling, market grouping, empirical alpha estimation, cost scaling integration, and forwarder imports operate correctly under runtime conditions.
+
+---
 
 ## 3. Caveats
 
-- Audit was performed under **Development** integrity mode (checking for hardcoded test results, facade implementations, and pre-populated result artifacts).
-- Network tests rely on mocked library calls in `test_tuning_and_retry.py` to prevent CI rate-limiting during test runs; actual live network responses depend on upstream API availability.
+- **Live Database State**: The audit verified behavior with mock SQLite databases (`tmp_path`) and empty `trade_logs.db` fallback state. Live trading database accumulation relies on OMS trade execution logging (`execution_logs` table).
+
+---
 
 ## 4. Conclusion
 
-The work product across Milestone 4 scope is **CLEAN**. No integrity violations, fake return values, facade functions, or test cheating mechanisms were detected.
+**BINARY VERDICT: `CLEAN`**
+
+Milestone 4 (Closed-Loop Realized Slippage Execution Feedback) satisfies all forensic integrity criteria:
+- Authentic closed-loop feedback mechanism connecting OMS execution logs (`trade_logs.db`) to `EnsembleScoringEngine` cost penalty parameters.
+- Empirical market impact alpha estimation and market-wise slippage mapping implemented without hardcoded shortcuts.
+- Fully passing test suite (14/14 tests passed).
+
+---
 
 ## 5. Verification Method
 
-To re-verify the audit findings independently:
-1. Inspect target source files:
-   - `trading_system/src/utils/http_session.py`
-   - `trading_system/run_pipeline.py`
-   - `trading_system/src/data_layer/earnings_data.py`
-   - `trading_system/tests/test_tuning_and_retry.py`
-2. Run unit test suite:
+To independently re-verify this verdict:
+
+1. Run the test suite:
    ```bash
-   .venv/Scripts/pytest trading_system/tests/test_tuning_and_retry.py trading_system/tests/test_system.py -v
+   .venv\Scripts\python.exe -m pytest trading_system/tests/test_slippage_feedback.py tests/test_slippage_feedback.py -v
    ```
-3. Check audit output report:
-   `d:\Finance\code\stock\.agents\auditor_m4_1\audit.md`
+2. Inspect `trading_system/src/execution/slippage_feedback.py` lines 99–205 to confirm SQL query execution and realized slippage math.
+3. Inspect `trading_system/src/ai/ensemble_scorer.py` lines 292–305 and 1160–1175 to confirm cost scaling factor application.

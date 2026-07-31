@@ -4,7 +4,7 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 import pandas as pd
 import FinanceDataReader as fdr
 
@@ -138,6 +138,21 @@ class MarketIndicatorStorage:
                     end_time TEXT,
                     status TEXT NOT NULL,
                     error_message TEXT
+                )
+            ''')
+            # Create table for filing sentiment cache (Milestone 5)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS filing_sentiment_cache (
+                    symbol TEXT,
+                    filing_date TEXT,
+                    filing_id TEXT,
+                    filing_tone_score REAL,
+                    catalyst_surprise_score REAL,
+                    composite_sentiment_score REAL,
+                    confidence_score REAL,
+                    source_type TEXT,
+                    created_at TEXT,
+                    PRIMARY KEY (symbol, filing_date, filing_id)
                 )
             ''')
             # Migration: add new columns to stock_fundamentals and stock_universe if missing
@@ -582,6 +597,72 @@ class MarketIndicatorStorage:
                         float(row['ll_score']),
                         float(row['vcp_ml_score'])
                     ))
+                conn.commit()
+
+    def get_filing_sentiment(
+        self,
+        symbol: str,
+        filing_date: str = "",
+        filing_id: str = ""
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve cached filing sentiment metrics from SQLite DB."""
+        query = """
+            SELECT symbol, filing_date, filing_id, filing_tone_score, catalyst_surprise_score,
+                   composite_sentiment_score, confidence_score, source_type
+            FROM filing_sentiment_cache
+            WHERE symbol = ?
+        """
+        params: List[Any] = [symbol]
+        if filing_date:
+            query += " AND filing_date = ?"
+            params.append(filing_date)
+        if filing_id:
+            query += " AND filing_id = ?"
+            params.append(filing_id)
+        query += " ORDER BY created_at DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.execute(query, tuple(params))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "symbol": row[0],
+                    "filing_date": row[1],
+                    "filing_id": row[2],
+                    "filing_tone_score": float(row[3]),
+                    "catalyst_surprise_score": float(row[4]),
+                    "composite_sentiment_score": float(row[5]),
+                    "confidence_score": float(row[6]),
+                    "source_type": row[7]
+                }
+        return None
+
+    def save_filing_sentiment(
+        self,
+        metrics: Any,
+        filing_id: str = ""
+    ) -> None:
+        """Save or replace FilingSentimentMetrics in SQLite DB."""
+        if metrics is None:
+            return
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sym = getattr(metrics, 'symbol', '')
+        f_date = getattr(metrics, 'filing_date', '')
+        tone = float(getattr(metrics, 'filing_tone_score', 0.5))
+        surprise = float(getattr(metrics, 'catalyst_surprise_score', 0.5))
+        composite = float(getattr(metrics, 'composite_sentiment_score', 0.5))
+        conf = float(getattr(metrics, 'confidence_score', 0.7))
+        src = getattr(metrics, 'source_type', 'OFFLINE_LEXICON')
+
+        sql = """
+            INSERT OR REPLACE INTO filing_sentiment_cache
+            (symbol, filing_date, filing_id, filing_tone_score, catalyst_surprise_score,
+             composite_sentiment_score, confidence_score, source_type, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with self._write_lock:
+            with self._connect() as conn:
+                conn.execute(sql, (sym, f_date, filing_id, tone, surprise, composite, conf, src, now_str))
                 conn.commit()
 
 

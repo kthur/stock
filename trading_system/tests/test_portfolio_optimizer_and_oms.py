@@ -26,8 +26,8 @@ def test_portfolio_optimizer_risk_parity():
 
 def test_factor_and_sector_constraints():
     optimizer = PortfolioOptimizer(default_max_sector_weight=0.40)
-    raw_weights = {"005930": 0.35, "000660": 0.35, "AAPL": 0.30}
-    sector_map = {"005930": "Semiconductors", "000660": "Semiconductors", "AAPL": "Tech"}
+    raw_weights = {"005930": 0.35, "000660": 0.35, "AAPL": 0.15, "MSFT": 0.15}
+    sector_map = {"005930": "Semiconductors", "000660": "Semiconductors", "AAPL": "Tech", "MSFT": "Software"}
 
     adj_weights = optimizer.apply_factor_and_sector_constraints(raw_weights, sector_map)
 

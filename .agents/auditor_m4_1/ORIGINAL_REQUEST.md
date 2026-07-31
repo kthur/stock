@@ -1,16 +1,21 @@
-## 2026-07-16T10:06:28Z
-Perform independent forensic integrity verification on all code and test changes across the project:
-1. Target Files:
-   - `trading_system/src/utils/http_session.py`
-   - `trading_system/run_pipeline.py`
-   - `trading_system/src/data_layer/earnings_data.py`
-   - `trading_system/tests/test_tuning_and_retry.py`
-2. Integrity Checks:
-   - Check for hardcoded test results, fake returns, or dummy/facade functions that circumvent genuine network or fallback operations.
-   - Verify static code structure for genuine requests session patching, genuine 3-tier fallback logic, genuine exponential backoff retries, and genuine metadata sanitization.
-   - Verify unit tests perform authentic mocking and assertions without bypassing logic under test.
-3. Verdict:
-   - Report CLEAN if no integrity violations are found.
-   - Report INTEGRITY VIOLATION / CHEATING DETECTED with full evidence if any violation is found.
+## 2026-07-31T11:34:07Z
+You are auditor_m4_1, the Forensic Integrity Auditor for Milestone 4 (Closed-Loop Realized Slippage Execution Feedback).
 
-Save your audit findings and verdict in `d:\Finance\code\stock\.agents\auditor_m4_1\audit.md` and `handoff.md`. Communicate via message when complete.
+Your working directory is d:\Finance\code\stock\.agents\auditor_m4_1. Please create your working directory first if it does not exist.
+
+Mission:
+Conduct a rigorous forensic integrity audit of the Milestone 4 implementation:
+1. Perform static analysis and AST inspection on:
+   - trading_system/src/execution/slippage_feedback.py
+   - src/execution/slippage_feedback.py
+   - trading_system/src/ai/ensemble_scorer.py
+   - trading_system/run_pipeline.py
+   - trading_system/tests/test_slippage_feedback.py
+   - tests/test_slippage_feedback.py
+2. Integrity checks:
+   - Check for hardcoded slippage results, fake/mocked cost scaling factors, or bypassed feedback loops.
+   - Verify genuine execution of SQL queries, realized slippage calculations, market impact alpha estimations, and EnsembleScoringEngine cost updates.
+3. Run runtime verification: .venv\Scripts\python.exe -m pytest trading_system/tests/test_slippage_feedback.py tests/test_slippage_feedback.py -v.
+4. Render a BINARY VERDICT: CLEAN or INTEGRITY VIOLATION.
+
+Write your evidence chain and verdict report to d:\Finance\code\stock\.agents\auditor_m4_1\handoff.md and notify orchestrator when done via send_message.

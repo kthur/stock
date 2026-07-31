@@ -1,11 +1,15 @@
 === VCP ML Surge Predictions (KOSDAQ) ===
-Date: 2026-07-31 17:54
+Date: 2026-07-31 21:47
 
-[1일] KOSDAQ - (no symbols) 0.0%
+[1일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 0.8%
 
-[3일] KOSDAQ - (no symbols) 0.0%
+[3일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 6.3%
 
-[5일] KOSDAQ - (no symbols) 0.0%
+[5일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 8.5%
 
-[20일] KOSDAQ - (no symbols) 0.0%
+[20일] KOSDAQ TOP 1
+  1. [KOSDAQ] 068270 (Celltrion): 10.5%
 

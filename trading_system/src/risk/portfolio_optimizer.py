@@ -9,7 +9,7 @@ Portfolio Optimizer Module:
 import numpy as np
 import pandas as pd
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Union, Any
 from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
@@ -162,6 +162,8 @@ class PortfolioOptimizer:
     ) -> Dict[str, float]:
         """
         Applies sector exposure capping to avoid over-concentration in a single industry.
+        Overloaded sectors exceeding max_sector_weight are capped without inflating
+        under-loaded sectors past max_sector_weight. Total sum is maintained <= 1.0.
         """
         if max_sector_weight is None:
             max_sector_weight = self.default_max_sector_weight
@@ -169,27 +171,70 @@ class PortfolioOptimizer:
         if not weights:
             return {}
 
-        adjusted_weights = dict(weights)
-        sector_exposure: Dict[str, float] = {}
+        total_w = sum(weights.values())
+        if total_w < 1e-8:
+            return dict(weights)
 
-        for sym, w in adjusted_weights.items():
-            sec = sector_map.get(sym, "Unknown")
-            sector_exposure[sec] = sector_exposure.get(sec, 0.0) + w
+        symbols = list(weights.keys())
+        w_arr = np.array([weights[s] for s in symbols], dtype=np.float64)
+        if total_w > 1.0 + 1e-8:
+            w_arr /= total_w
 
-        # Cap overloaded sectors
-        for sec, total_w in sector_exposure.items():
-            if total_w > max_sector_weight:
-                scale_down = max_sector_weight / total_w
-                for sym, w in adjusted_weights.items():
-                    if sector_map.get(sym, "Unknown") == sec:
-                        adjusted_weights[sym] = w * scale_down
+        sectors = sorted(list(set(sector_map.get(s, "Unknown") for s in symbols)))
 
-        # Normalize remaining weights to sum to 1.0
-        total_sum = sum(adjusted_weights.values())
-        if total_sum > 0:
-            adjusted_weights = {sym: w / total_sum for sym, w in adjusted_weights.items()}
+        for _ in range(10):
+            # 1. Cap sector weights at max_sector_weight
+            for sec in sectors:
+                idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") == sec]
+                if idx:
+                    s_sum = np.sum(w_arr[idx])
+                    if s_sum > max_sector_weight + 1e-8:
+                        w_arr[idx] *= (max_sector_weight / s_sum)
 
-        return adjusted_weights
+            # 2. Check total sum
+            w_tot = np.sum(w_arr)
+            if abs(w_tot - 1.0) < 1e-6 or w_tot <= 0:
+                break
+
+            if w_tot > 1.0:
+                w_arr /= w_tot
+            else:
+                # w_tot < 1.0: scale up only sectors that have s_sum < max_sector_weight - 1e-8
+                eligible_secs = []
+                for sec in sectors:
+                    idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") == sec]
+                    if idx:
+                        s_sum = np.sum(w_arr[idx])
+                        if s_sum < max_sector_weight - 1e-8:
+                            eligible_secs.append(sec)
+
+                if not eligible_secs:
+                    break
+
+                needed = 1.0 - w_tot
+                eligible_idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") in eligible_secs]
+                el_sum = np.sum(w_arr[eligible_idx])
+
+                if el_sum > 1e-8:
+                    scale = 1.0 + (needed / el_sum)
+                    w_arr[eligible_idx] *= scale
+                else:
+                    add_w = needed / len(eligible_idx)
+                    w_arr[eligible_idx] += add_w
+
+        # Final pass: strictly cap sectors at max_sector_weight
+        for sec in sectors:
+            idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") == sec]
+            if idx:
+                s_sum = np.sum(w_arr[idx])
+                if s_sum > max_sector_weight + 1e-8:
+                    w_arr[idx] *= (max_sector_weight / s_sum)
+
+        w_tot = np.sum(w_arr)
+        if w_tot > 1.0 + 1e-8:
+            w_arr /= w_tot
+
+        return {sym: float(w) for sym, w in zip(symbols, w_arr)}
 
     def check_rebalance_trigger(
         self,
@@ -207,3 +252,60 @@ class PortfolioOptimizer:
             w_targ = target_weights.get(k, 0.0)
             max_drift = max(max_drift, abs(w_curr - w_targ))
         return max_drift > buffer_band
+
+    def optimize_quad_factor_portfolio(
+        self,
+        expected_returns: pd.Series,
+        cov_matrix: Union[pd.DataFrame, np.ndarray],
+        factor_df: pd.DataFrame,
+        sector_map: Dict[str, str],
+        w_initial: Optional[Dict[str, float]] = None,
+        risk_aversion: float = 1.0,
+        turnover_penalty: float = 0.01,
+        max_weight: Optional[float] = None,
+        max_sector_weight: Optional[float] = None,
+        factor_tolerances: Optional[Union[Dict[str, float], float]] = None
+    ) -> Dict[str, float]:
+        """
+        Quad-Factor Neutral QP Portfolio Risk Optimization integration method.
+
+        Parameters:
+            expected_returns: Expected net returns per asset (Series indexed by symbol).
+            cov_matrix: Asset covariance matrix (DataFrame or 2D array).
+            factor_df: Factor DataFrame with columns 'beta', 'size', 'volatility', 'momentum'.
+            sector_map: Mapping of symbol -> sector name.
+            w_initial: Optional dictionary of current asset weights.
+            risk_aversion: Risk aversion parameter lambda.
+            turnover_penalty: Turnover penalty gamma.
+            max_weight: Single asset weight cap.
+            max_sector_weight: Sector weight cap.
+            factor_tolerances: Dict of tolerance thresholds per factor or single float threshold.
+
+        Returns:
+            Dict[str, float]: Optimized asset weights.
+        """
+        from src.strategy.quad_factor_optimizer import QuadFactorOptimizer
+
+        symbols = list(expected_returns.index)
+        if isinstance(cov_matrix, np.ndarray):
+            cov_df = pd.DataFrame(cov_matrix, index=symbols, columns=symbols)
+        else:
+            cov_df = cov_matrix
+
+        optimizer = QuadFactorOptimizer(
+            risk_aversion=risk_aversion,
+            turnover_penalty=turnover_penalty,
+            default_max_weight=max_weight if max_weight is not None else self.default_max_weight,
+            default_max_sector_weight=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight
+        )
+
+        return optimizer.optimize(
+            expected_returns=expected_returns,
+            cov_matrix=cov_df,
+            factor_df=factor_df,
+            sector_map=sector_map,
+            w_initial=w_initial,
+            max_weight=max_weight,
+            max_sector_weight=max_sector_weight,
+            factor_tolerances=factor_tolerances
+        )

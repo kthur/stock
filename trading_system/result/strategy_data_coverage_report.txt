@@ -1,24 +1,24 @@
 === 14-Strategy Data Coverage & Missingness Report ===
-Date: 2026-07-31 17:54 KST
-Total Evaluated Symbols: 999
+Date: 2026-07-31 19:37 KST
+Total Evaluated Symbols: 8
 
 Strategy              Valid Count    Missing Count  Coverage %     Primary Missing Reason        
 -------------------------------------------------------------------------------------------------
-regression            499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-surge                 499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-lead_lag              2              997               0.2%          INSUFFICIENT_PRICE_HISTORY    
-vcp_rule              499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-vcp_ml                499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-lstm                  0              999               0.0%          INSUFFICIENT_PRICE_HISTORY    
-stat_arb              91             908               9.1%          INSUFFICIENT_PRICE_HISTORY    
-sector_rotation       499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-rim_valuation         499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-event_driven          499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-mq_factor             499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-iv_skew               499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-order_flow            499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-short_term_reversal   499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-arm_factor            0              999               0.0%          INSUFFICIENT_PRICE_HISTORY    
-card_factor           0              999               0.0%          INSUFFICIENT_PRICE_HISTORY    
-latr_factor           499            500              49.9%          INSUFFICIENT_PRICE_HISTORY    
-inst_foreign_sector   0              999               0.0%          INSUFFICIENT_PRICE_HISTORY    
+regression            4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+surge                 4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+lead_lag              2              6                25.0%          INSUFFICIENT_PRICE_HISTORY    
+vcp_rule              4              4                50.0%          STRATEGY_SIGNAL_NEUTRAL       
+vcp_ml                4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+lstm                  0              8                 0.0%          INSUFFICIENT_PRICE_HISTORY    
+stat_arb              0              8                 0.0%          INSUFFICIENT_PRICE_HISTORY    
+sector_rotation       4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+rim_valuation         4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+event_driven          4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+mq_factor             4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+iv_skew               4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+order_flow            4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+short_term_reversal   4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+arm_factor            0              8                 0.0%          INSUFFICIENT_PRICE_HISTORY    
+card_factor           0              8                 0.0%          INSUFFICIENT_PRICE_HISTORY    
+latr_factor           4              4                50.0%          INSUFFICIENT_PRICE_HISTORY    
+inst_foreign_sector   0              8                 0.0%          INSUFFICIENT_PRICE_HISTORY    

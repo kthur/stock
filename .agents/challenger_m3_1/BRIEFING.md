@@ -1,42 +1,50 @@
-# BRIEFING — 2026-07-16T09:23:43Z
+# BRIEFING — 2026-07-31T11:07:00Z
 
 ## Mission
-Execute full automated test suite to verify system stability, run regression tests, and evaluate custom User-Agent headers, yfinance retry decorators, and fallback logic for Milestone 3 Verification (R3).
+Adversarially stress-test Milestone 3 implementation (CPCVStressTester, StressTestReport, run_historical_stress_test) with edge cases, data corruptions, performance scale tests, and index overlap verifications.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: Empirical Challenger
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\challenger_m3_1
-- Original parent: 51bfa322-32fe-4558-8bf8-8bb6240118c5
-- Milestone: Milestone 3 Verification (R3)
+- Original parent: 1fe0721e-b4fd-439c-bbd3-fbdc36359790
+- Milestone: Milestone 3
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Empirically run all verification tests using pytest.
-- Do NOT trust claims without running tests.
-- Write report to report.md and handoff report to handoff.md.
+- Review-only — do NOT modify implementation code (report findings/bugs, write test scripts in workspace)
+- Empirically verify all claims by running code
 
 ## Current Parent
-- Conversation ID: 51bfa322-32fe-4558-8bf8-8bb6240118c5
-- Updated: 2026-07-16T09:23:43Z
+- Conversation ID: 1fe0721e-b4fd-439c-bbd3-fbdc36359790
+- Updated: 2026-07-31T11:07:00Z
 
 ## Review Scope
-- **Files to review**: `tests/test_tuning_and_retry.py`, `tests/test_system.py`, all files in `tests/`
-- **Interface contracts**: `d:\Finance\code\stock\.agents\orchestrator\PROJECT.md`
-- **Review criteria**: Full test passing, stability, zero regressions on retry/UA/fallback logic.
-
-## Attack Surface
-- **Hypotheses tested**: [TBD]
-- **Vulnerabilities found**: [TBD]
-- **Untested angles**: [TBD]
-
-## Loaded Skills
-None loaded yet.
+- **Files to review**: `src/ai/cpcv_stress_tester.py`, `trading_system/src/ai/cpcv_stress_tester.py`, `tests/test_cpcv_stress_tester.py`
+- **Interface contracts**: `CPCVStressTester`, `StressTestReport`, `run_historical_stress_test`
+- **Review criteria**: Edge case handling (zero vol, NaN/Inf, short series, large scale, zero overlap across 15 splits)
 
 ## Key Decisions Made
-- Executing tests via `.venv\Scripts\python.exe -m pytest tests/ -v`
+- Executed Pytest suite `tests/test_cpcv_stress_tester.py` (6/6 passed in 50.40s).
+- Created empirical stress test harness `.agents/challenger_m3_1/stress_test_harness.py`.
+- Empirically verified all 5 edge case challenge scenarios.
+- Identified 4 edge case vulnerabilities (Inf conversion overflow, Inf leakage in stress test, unhandled ValueError for N<4 in PBO, NaN Sharpe ratio for N=1).
 
 ## Artifact Index
-- `ORIGINAL_REQUEST.md` — Original request details
-- `report.md` — Detailed test execution report
-- `handoff.md` — 5-component handoff report
+- `d:\Finance\code\stock\.agents\challenger_m3_1\ORIGINAL_REQUEST.md` — Original request
+- `d:\Finance\code\stock\.agents\challenger_m3_1\BRIEFING.md` — Working memory
+- `d:\Finance\code\stock\.agents\challenger_m3_1\stress_test_harness.py` — Empirical stress test script
+- `d:\Finance\code\stock\.agents\challenger_m3_1\handoff.md` — Final Handoff Report
+
+## Attack Surface
+- **Hypotheses tested**:
+  1. Zero volatility returns will not crash PBO or historical stress test -> VERIFIED.
+  2. Injected NaN/Inf will not corrupt math or overflow -> VULNERABILITY FOUND (Inf causes RuntimeWarning/NaN Sharpe).
+  3. Short input series (<6 bars) will handled gracefully -> VULNERABILITY FOUND (N<4 raises uncaught ValueError in PBO, N=1 produces NaN Sharpe in stress test).
+  4. Large matrix (100x5000) performance is fast -> VERIFIED (PBO < 0.07s, Stress < 0.13s).
+  5. Zero overlap between train and test/purged/embargoed indices across all 15 splits -> VERIFIED (15/15 disjoint).
+- **Vulnerabilities found**: 4 specific edge case issues documented.
+- **Untested angles**: Extreme negative infinity returns (e.g. total portfolio wipeout shock), extreme multi-year dataset bounds (N>100,000 bars).
+
+## Loaded Skills
+None

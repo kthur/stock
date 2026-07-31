@@ -1,106 +1,14 @@
 === Strategy 6: Strict Causal LSTM Time-Series Predictions ===
-Date: 2026-07-31 17:54 KST
-Total symbols evaluated: 999
+Date: 2026-07-31 19:37 KST
+Total symbols evaluated: 8
 
 Rank Symbol    Name              Market    LSTM Score    
 ------------------------------------------------------------
-1    {'is_vcp': False, 'vcp_score': 0.0, 'pivot_price': 262.7, 'contraction_peaks': [14.572531769838351, 5.335581026112985, 6.364281412304121, 11.03072919795851], 'current_range_pct': 14.57, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': 'ERIE'}Unknown           nan                0.0%
-2    ESS       Essex Property T  SP500              0.0%
-3    AMZN      Amazon            SP500              0.0%
-4    XYZ       Block, Inc.       SP500              0.0%
-5    CF        CF Industries     SP500              0.0%
-6    VRSK      Verisk Analytics  SP500              0.0%
-7    STE       Steris            SP500              0.0%
-8    MET       MetLife           SP500              0.0%
-9    QCOM      Qualcomm          SP500              0.0%
-10   SATS      EchoStar          SP500              0.0%
-11   MGM       MGM Resorts       SP500              0.0%
-12   CRM       Salesforce        SP500              0.0%
-13   IBKR      Interactive Brok  SP500              0.0%
-14   WTW       Willis Towers Wa  SP500              0.0%
-15   GOOGL     Alphabet Inc. (C  SP500              0.0%
-16   VMC       Vulcan Materials  SP500              0.0%
-17   FRT       Federal Realty I  SP500              0.0%
-18   AMCR      Amcor             SP500              0.0%
-19   HD        Home Depot (The)  SP500              0.0%
-20   BRO       Brown & Brown     SP500              0.0%
-21   NCLH      Norwegian Cruise  SP500              0.0%
-22   VRTX      Vertex Pharmaceu  SP500              0.0%
-23   DASH      DoorDash          SP500              0.0%
-24   APH       Amphenol          SP500              0.0%
-25   ABBV      AbbVie            SP500              0.0%
-26   SW        Smurfit Westrock  SP500              0.0%
-27   GPC       Genuine Parts Co  SP500              0.0%
-28   EG        Everest Group     SP500              0.0%
-29   LEN       Lennar            SP500              0.0%
-30   CINF      Cincinnati Finan  SP500              0.0%
-31   HRL       Hormel Foods      SP500              0.0%
-32   ROP       Roper Technologi  SP500              0.0%
-33   PFG       Principal Financ  SP500              0.0%
-34   HAS       Hasbro            SP500              0.0%
-35   CRH       CRH plc           SP500              0.0%
-36   WST       West Pharmaceuti  SP500              0.0%
-37   DECK      Deckers Brands    SP500              0.0%
-38   NDSN      Nordson Corporat  SP500              0.0%
-39   CTAS      Cintas            SP500              0.0%
-40   GM        General Motors    SP500              0.0%
-41   LOW       Lowe's            SP500              0.0%
-42   ALLE      Allegion          SP500              0.0%
-43   AXP       American Express  SP500              0.0%
-44   WDAY      Workday, Inc.     SP500              0.0%
-45   AMD       Advanced Micro D  SP500              0.0%
-46   GEN       Gen Digital       SP500              0.0%
-47   IEX       IDEX Corporation  SP500              0.0%
-48   STX       Seagate Technolo  SP500              0.0%
-49   KLAC      KLA Corporation   SP500              0.0%
-50   APA       APA Corporation   SP500              0.0%
-51   CSX       CSX Corporation   SP500              0.0%
-52   BKNG      Booking Holdings  SP500              0.0%
-53   MSFT      Microsoft         SP500              0.0%
-54   DGX       Quest Diagnostic  SP500              0.0%
-55   KDP       Keurig Dr Pepper  SP500              0.0%
-56   SJM       J.M. Smucker Com  SP500              0.0%
-57   UNP       Union Pacific Co  SP500              0.0%
-58   MOS       Mosaic Company (  SP500              0.0%
-59   ADM       Archer Daniels M  SP500              0.0%
-60   AMGN      Amgen             SP500              0.0%
-61   MTD       Mettler Toledo    SP500              0.0%
-62   IDXX      Idexx Laboratori  SP500              0.0%
-63   GILD      Gilead Sciences   SP500              0.0%
-64   AVY       Avery Dennison    SP500              0.0%
-65   APP       AppLovin          SP500              0.0%
-66   AMP       Ameriprise Finan  SP500              0.0%
-67   LRCX      Lam Research      SP500              0.0%
-68   ACGL      Arch Capital Gro  SP500              0.0%
-69   ODFL      Old Dominion      SP500              0.0%
-70   EXC       Exelon            SP500              0.0%
-71   BLDR      Builders FirstSo  SP500              0.0%
-72   CPAY      Corpay            SP500              0.0%
-73   BR        Broadridge Finan  SP500              0.0%
-74   NWSA      News Corp (Class  SP500              0.0%
-75   WDC       Western Digital   SP500              0.0%
-76   CI        Cigna             SP500              0.0%
-77   ABNB      Airbnb            SP500              0.0%
-78   ARE       Alexandria Real   SP500              0.0%
-79   IVZ       Invesco           SP500              0.0%
-80   DPZ       Domino's          SP500              0.0%
-81   TRGP      Targa Resources   SP500              0.0%
-82   AXON      Axon Enterprise   SP500              0.0%
-83   COO       Cooper Companies  SP500              0.0%
-84   CASY      Casey's           SP500              0.0%
-85   LULU      Lululemon Athlet  SP500              0.0%
-86   LH        Labcorp           SP500              0.0%
-87   AEP       American Electri  SP500              0.0%
-88   TKO       TKO Group Holdin  SP500              0.0%
-89   EL        Estée Lauder Com  SP500              0.0%
-90   KO        Coca-Cola Compan  SP500              0.0%
-91   EFX       Equifax           SP500              0.0%
-92   MDT       Medtronic         SP500              0.0%
-93   CTVA      Corteva           SP500              0.0%
-94   AKAM      Akamai Technolog  SP500              0.0%
-95   AFL       Aflac             SP500              0.0%
-96   AON       Aon plc           SP500              0.0%
-97   FFIV      F5, Inc.          SP500              0.0%
-98   TFC       Truist Financial  SP500              0.0%
-99   KHC       Kraft Heinz       SP500              0.0%
-100  MKC       McCormick & Comp  SP500              0.0%
+1    {'is_vcp': False, 'vcp_score': 20.0, 'pivot_price': 109.21, 'contraction_peaks': [3.379348925174212, 3.26780081370072, 3.5342827184571304, 3.3918244251009644], 'current_range_pct': 3.38, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': '005930'}Unknown           nan                0.0%
+2    {'is_vcp': False, 'vcp_score': 20.0, 'pivot_price': 109.21, 'contraction_peaks': [3.379348925174212, 3.26780081370072, 3.5342827184571304, 3.3918244251009644], 'current_range_pct': 3.38, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': '068270'}Unknown           nan                0.0%
+3    {'is_vcp': False, 'vcp_score': 20.0, 'pivot_price': 109.21, 'contraction_peaks': [3.379348925174212, 3.26780081370072, 3.5342827184571304, 3.3918244251009644], 'current_range_pct': 3.38, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': 'AAPL'}Unknown           nan                0.0%
+4    {'is_vcp': False, 'vcp_score': 20.0, 'pivot_price': 109.21, 'contraction_peaks': [3.379348925174212, 3.26780081370072, 3.5342827184571304, 3.3918244251009644], 'current_range_pct': 3.38, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': 'MSFT'}Unknown           nan                0.0%
+5    068270    Celltrion         KOSDAQ             0.0%
+6    005930    Samsung Electron  KOSPI              0.0%
+7    AAPL      Apple Inc.        SP500              0.0%
+8    MSFT      Microsoft Corp.   SP500              0.0%

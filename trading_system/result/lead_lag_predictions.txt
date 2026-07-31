@@ -1,15 +1,16 @@
 === Lead-Lag Surge Predictions ===
-Date: 2026-07-31 17:52
+Date: 2026-07-31 21:47
 Based on today's top 7 leader stock movements
 Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
         (Higher = stronger historical co-movement with market leaders)
 
---- KOSPI Top 100 ---
-  1. [KOSPI] 068270 (셀트리온): 0.00%
+--- KOSDAQ Top 100 ---
+  1. [KOSDAQ] 068270 (Celltrion): 0.00%
 
 --- SP500 Top 100 ---
-  1. [SP500] MSFT (Microsoft): 0.00%
+  1. [SP500] MSFT (Microsoft Corp.): 0.00%
 
 --- Leaders with highest today return ---
 (Outliers >±30% excluded as potential data errors)
-  1. AAPL (Apple Inc.): -1.41%
+  1. AAPL (Apple Inc.): -1.37%
+  2. 005930 (Samsung Electronics): -1.37%

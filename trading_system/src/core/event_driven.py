@@ -68,12 +68,38 @@ class EventDrivenEngine:
 
         return []
 
+    def incorporate_filing_sentiment(
+        self,
+        symbol: str,
+        base_catalyst_score: float,
+        sentiment_metrics: Optional[Any] = None
+    ) -> float:
+        """
+        Adjusts base event score using filing sentiment intensity multiplier (0.5x to 1.5x).
+
+        Multiplier formula:
+          intensity_delta = (composite_sentiment_score - 0.5) * 2.0 * confidence_score  # [-1.0, +1.0]
+          multiplier = 1.0 + np.clip(intensity_delta * 0.5, -0.5, 0.5)                   # [0.5, 1.5]
+          adjusted_score = np.clip(base_catalyst_score * multiplier, 0.0, 1.0)
+        """
+        if sentiment_metrics is None:
+            return float(base_catalyst_score)
+
+        comp_score = float(getattr(sentiment_metrics, 'composite_sentiment_score', 0.5))
+        conf_score = float(getattr(sentiment_metrics, 'confidence_score', 1.0))
+
+        intensity_delta = (comp_score - 0.5) * 2.0 * conf_score
+        multiplier = 1.0 + float(np.clip(intensity_delta * 0.5, -0.5, 0.5))
+
+        return float(np.clip(base_catalyst_score * multiplier, 0.0, 1.0))
+
     def compute_event_scores(
         self,
         symbols: List[str],
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
         filings: Optional[List[Dict[str, Any]]] = None,
-        price_db=None
+        price_db=None,
+        sentiment_map: Optional[Dict[str, Any]] = None
     ) -> pd.DataFrame:
         """
         Computes Event-Driven momentum scores per symbol.
@@ -144,5 +170,14 @@ class EventDrivenEngine:
                 except Exception:
                     pass
 
+        # Incorporate filing sentiment intensity multiplier if sentiment_map is provided
+        if sentiment_map:
+            for sym in symbols:
+                if sym in scores_map:
+                    sent_metric = sentiment_map.get(sym)
+                    if sent_metric:
+                        scores_map[sym] = self.incorporate_filing_sentiment(sym, scores_map[sym], sent_metric)
+
         res_df = pd.DataFrame([{'symbol': k, 'event_score': float(v)} for k, v in scores_map.items()])
         return res_df
+

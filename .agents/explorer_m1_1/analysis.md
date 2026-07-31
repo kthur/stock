@@ -1,287 +1,455 @@
-# Deep-Dive Analysis: Data Fetching, Exception Handling, and Fallback Strategy in `run_pipeline.py`
+# Technical Specification: Intraday Microstructure & Dynamic Stop-Loss Engine (Milestone 1 / R1)
 
-**Explorer**: Explorer 1 (Milestone 1)  
-**Target File**: `trading_system/run_pipeline.py` (and related data modules in `src/data_layer/`)  
-**Scope**: Complete investigation of data fetching endpoints, rate-limiting, exception handling, and offline DB fallback cascade.
+## 1. Overview & Architecture
 
----
-
-## 1. Inventory of Data Fetching & Network Endpoints
-
-Below is the complete inventory of network calls to `yfinance`, `FinanceDataReader`, and custom endpoints in `run_pipeline.py` and supporting modules.
-
-| Function / Entry Point | Location | Network Call | Target Asset Class | Current Fallback Mechanism |
-|---|---|---|---|---|
-| `_fetch_data_fdr_network()` | `run_pipeline.py:151-189` | `fdr.DataReader` (US)<br>`yf.download` -> `fdr.DataReader` (KRX) | Single Stock OHLCV (US & KRX) | KRX falls back from yfinance to FDR. US stocks have **no** yfinance fallback or Tier 2 retry. Re-raises exception after 3 retries. |
-| `prefetch_prices_batch()` | `run_pipeline.py:192-350` | `yf.download(tickers, ...)` | Batch Stock OHLCV | Binary split recursion `_download_with_recovery`. Excludes bad tickers on failure; **no** FDR fallback. |
-| `fetch_data_fdr()` / `_fetch_fallback()` | `run_pipeline.py:352-440` | `_fetch_data_fdr_network()` | Cached / Incremental / Full OHLCV | Checks TTL `technical_cache` and `price_db`. If stale and network fetch fails, returns `None` and **discards** stale DB cache. |
-| `_download_indicator_network()` | `run_pipeline.py:465-484` | `yf.download(ticker, ...)` | 16 Macro & Sector Indicators (`^VIX`, `^TNX`, `USDKRW=X`, etc.) | Retries 3 times via `@retry`. Raises `ValueError` or exception on failure; **no** FDR fallback. |
-| `fetch_indicator_history()` | `run_pipeline.py:486-563` | `_download_indicator_network()` | 16 Macro Indicators History | If network fails, returns empty `pd.Series`. Does **not** fallback to stale DB cache if stale. |
-| `_get_excluded_krx_symbols()` | `run_pipeline.py:614-645` | `fdr.StockListing('KRX')`<br>`fdr.StockListing('KRX-ADMINISTRATIVE')` | Halted / Caution Stock Lists | Caught in try-except; returns empty `set()` if network fails. |
-| `GlobalMarketClient.get_summary()` | `global_market.py:56-143`<br>(called at `run_pipeline.py:666`) | `yf.Ticker(symbol).history(period=period)` | Real-time Global Indices & FX snapshot | Catches exceptions, returns `None`/default dict. **No** FDR or DB fallback. |
-| `MarketIndicatorStorage.update_stock_universe()` | `indicator_storage.py:202-239`<br>(called at `run_pipeline.py:679`) | `fdr.StockListing('S&P500')`<br>`fdr.StockListing('KRX')`<br>`fdr.StockListing('KRX-ADMINISTRATIVE')` | Stock Universe Metadata (3379 symbols) | If `KRX-ADMINISTRATIVE` fails, logs warning. If main listing calls fail, exception propagates. |
-| `fetch_and_store_fundamentals_batch()` | `earnings_data.py:45-100`<br>(called at `run_pipeline.py:689, 969`) | `yf.Ticker(yf_sym).financials`<br>`yf.Ticker(yf_sym).info` | Annual Corporate Fundamentals | Retries 3 times via `@retry(reraise=False)`. Logs debug on failure and returns `None`. |
-
----
-
-## 2. Analysis of Current Exception Handling & Rate Limiting
-
-### 2.1 Rate Limiting Architecture
-- **Global Rate Limiter**: `get_global_rate_limiter().wait()` is invoked inside network helper functions (`_fetch_data_fdr_network` at line 153, `_download_indicator_network` at line 467, `_fetch_fundamentals_network` at line 47).
-- **Per-symbol Throttle**: `_fetch_fallback()` in `run_pipeline.py` (lines 388-396, 409-417) acquires `_rate_lock` and enforces `update_interval` pauses using `time.sleep()`.
-
-### 2.2 Critical Flaws & Vulnerabilities Identified
-
-#### Flaw 1: Discarding Stale DB Cache on Network Failure (`run_pipeline.py:376-425`)
-In `fetch_data_fdr()`'s helper `_fetch_fallback()`:
-```python
-# Lines 376-406
-if stale:
-    cached_df = price_db.get_prices(s, start_date=d)
-    if cached_df is not None and not cached_df.empty:
-        ...
-        try:
-            new_df = _fetch_data_fdr_network(s, market, latest_date_str)
-            ...
-        except Exception as e:
-            logger.warning(f"Failed to fetch incremental data for {s}, falling back to full fetch: {e}")
-
-# Lines 420-424
-try:
-    result = _fetch_data_fdr_network(s, market, d)
-except Exception as e:
-    logger.warning(f"Failed to fetch data for {s} after retries: {e}")
-    result = None
-```
-**Mechanism Breakdown**:
-1. When `stale` is `True` (e.g. data in `stock_prices.db` is older than `freshness_days`), `cached_df` is retrieved from SQLite.
-2. Incremental network fetch is attempted. If it fails, execution falls through to full network fetch `_fetch_data_fdr_network(s, market, d)`.
-3. If full network fetch **also** fails (due to HTTP 429 rate limit, 500 error, network disconnection, timeout, or offline run), `result` is assigned `None`.
-4. **Vulnerability**: The function returns `None`, completely **discarding** `cached_df`! This causes the symbol to be skipped entirely during training or inference (lines 833, 1001), crashing or degrading predictions even though valid historical OHLCV data exists in `stock_prices.db`.
-
-#### Flaw 2: Asymmetric & Incomplete Endpoint Cascade for US Stocks (`run_pipeline.py:156-184`)
-```python
-# Lines 156-160
-if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
-    try:
-        result = fdr.DataReader(symbol, start=start_date)
-    except Exception as e:
-        logger.debug(f"Network fetch failed for {symbol} via fdr: {e}")
-        raise e
-```
-**Mechanism Breakdown**:
-- US stock downloads (`SP500`, `NYSE`, `NASDAQ`) in `_fetch_data_fdr_network` **only** call `fdr.DataReader`. If `fdr.DataReader` raises an error or times out, it directly re-raises `e` without ever trying `yfinance`.
-- In contrast, Korean stocks (`KOSPI`, `KOSDAQ`, `KONEX`) call `yfinance` first, then fall back to `fdr.DataReader`.
-- Furthermore, `prefetch_prices_batch` (line 233) uses `yfinance` for US stock prefetching, causing a code path divergence where prefetching uses `yfinance` while individual fetching uses `fdr.DataReader`.
-
-#### Flaw 3: Batch Prefetching Recovery Ignores Tier 2 (FinanceDataReader) Fallback (`run_pipeline.py:297-350`)
-- `prefetch_prices_batch` invokes `_download_with_recovery(tickers, start_dt)` using `yf.download`.
-- When batch downloading fails (e.g., rate limit hit or bad ticker), binary splitting divides the ticker list recursively down to size 1.
-- If a single ticker fails in `yf.download`, line 307 logs `Excluding bad ticker from batch: {tickers[0]}` and returns `pd.DataFrame()`.
-- **Vulnerability**: Failed tickers in prefetching are immediately discarded without trying `fdr.DataReader` or fallback caching, forcing downstream single-symbol calls to repeat network requests.
-
-#### Flaw 4: Macro Indicator Fetching Drops Columns on Error (`run_pipeline.py:486-563`)
-- `fetch_indicator_history()` calls `_download_indicator_network()` for 16 macro tickers (`^VIX`, `^TNX`, `USDKRW=X`, etc.).
-- If network download fails for an indicator and DB cache is stale, `_fetch_one()` returns `(col_name, pd.Series(dtype=float))`.
-- Returning an empty `Series` causes missing macro feature columns in `df_train` and `infer_data_dict`, leading to `NaN` propagation across regression and surge models.
-
----
-
-## 3. Concrete Fix Strategy: Unified 3-Tier Fallback Cascade
-
-To achieve complete pipeline resilience without crashing or data loss, all data fetching routines (`fetch_data_fdr`, `fetch_indicator_history`, `prefetch_prices_batch`, `GlobalMarketClient`, `earnings_data`) must strictly adhere to a **Unified 3-Tier Fallback Cascade**:
+Milestone 1 (R1) establishes real-time intraday risk management by introducing an order book and price/volume momentum monitoring engine (`IntradayStopLossEngine`). This engine detects sudden market dislocations, volume-driven panic selling, peak-to-trough price decay, and dynamic ATR trailing breaches before broad daily close execution.
 
 ```
-┌────────────────────────────────────────────────────────┐
-│               Tier 1: yfinance Download                │
-│ (Primary: adjusted prices / auto_adjust / custom headers)│
-└──────────────────────────┬─────────────────────────────┘
-                           │ Failure / Rate-limit / Exception
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│           Tier 2: FinanceDataReader Download           │
-│      (Secondary: alternative data provider API)        │
-└──────────────────────────┬─────────────────────────────┘
-                           │ Failure / Rate-limit / Offline
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│             Tier 3: SQLite DB Cache Fallback           │
-│   (Offline Cache: return stock_prices.db cached DF)    │
-└──────────────────────────┬─────────────────────────────┘
-                           │ DB cache empty / missing
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│          Graceful Warning Log & Skip Symbol            │
-│  (Log WARNING badge, return None cleanly, don't crash)  │
-└────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------------------------+
+|                            Intraday Market Data Input                             |
+|        (OHLCV 1m/5m Candles / Real-Time Order Book / Streaming Price & Vol)        |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+|                             IntradayStopLossEngine                                |
+|  - Real-time Peak-to-Trough Tracking (Default -4.0%, Configurable)               |
+|  - Volume Acceleration Panic Detection (>3.0x 20-min SMA + Negative Return)      |
+|  - Dynamic Trailing ATR / Volatility Adjusted Stop Level                         |
+|  - Crisis-Level Dynamic Tightening (CrisisDetector Scaling)                       |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+|                        Output: StopLossResult Dataclass                           |
+|  (triggered, symbol, drop_pct, panic_volume_ratio, reason, recommended_action)    |
++-----------------------------------------------------------------------------------+
+                                         |
+                     +-------------------+-------------------+
+                     |                                       |
+                     v                                       v
++------------------------------------------+  +-------------------------------------+
+| RiskManager Integration                  |  | Pipeline Execution Integration      |
+| - evaluate_intraday_stop_loss(symbol)    |  | (run_pipeline.py Risk Phase)        |
+| - check_intraday_risk(portfolio_data)    |  | - Suppress buy signals / zero score |
+| - Alert Generation                       |  | - Immediate liquidation flags       |
++------------------------------------------+  +-------------------------------------+
 ```
 
 ---
 
-## 4. Proposed Code Structures & Line-by-Line Changes
+## 2. File Location & Module Structure
 
-### Fix 1: Refactoring `_fetch_data_fdr_network` (Tier 1 -> Tier 2 Unified Fetcher)
-**File**: `trading_system/run_pipeline.py` (Lines 151–189)
+- **Core Module Path**: `trading_system/src/risk/intraday_stop_loss.py` (with compatibility bridge / alias in `src/risk/intraday_stop_loss.py`)
+- **Integration Target 1**: `trading_system/src/risk/risk_manager.py`
+- **Integration Target 2**: `trading_system/run_pipeline.py`
+- **Unit Test Suite**: `trading_system/tests/test_intraday_stop_loss.py`
+
+---
+
+## 3. Class Specifications
+
+### 3.1 Dataclass: `StopLossResult`
 
 ```python
-def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.DataFrame:
-    """Unified network fetcher implementing Tier 1 (yfinance) -> Tier 2 (FinanceDataReader)."""
-    get_global_rate_limiter().wait()
-    result = None
+from dataclasses import dataclass
 
-    # Determine yfinance ticker symbol
-    if market in ('SP500', 'NYSE', 'NASDAQ') or not market.isdigit():
-        yf_symbol = symbol
-    else:
-        suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
-        yf_symbol = f"{symbol}{suffix}"
-
-    # Tier 1: Try yfinance primary download
-    try:
-        df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
-        if df is not None and not df.empty:
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.droplevel(1)
-            result = df
-    except Exception as e:
-        logger.warning(f"Tier 1 (yfinance) network fetch failed for {yf_symbol}: {e}")
-
-    # Tier 2: Fallback to FinanceDataReader
-    if result is None or result.empty:
-        try:
-            logger.info(f"Attempting Tier 2 (FinanceDataReader) download for {symbol}...")
-            result = fdr.DataReader(symbol, start=start_date)
-            if result is not None and not result.empty:
-                logger.warning(f"Successfully retrieved Tier 2 (FinanceDataReader) data for {symbol}")
-        except Exception as e:
-            logger.warning(f"Tier 2 (FinanceDataReader) network fetch failed for {symbol}: {e}")
-            raise e
-
-    if result is None or result.empty:
-        raise ValueError(f"Fetched network data for {symbol} is empty or None across all providers")
-
-    return result
+@dataclass
+class StopLossResult:
+    """Dataclass holding evaluation output for intraday stop-loss checks."""
+    triggered: bool
+    symbol: str
+    drop_pct: float            # Peak-to-trough price change ratio (e.g., -0.045 for -4.5%)
+    panic_volume_ratio: float  # Current volume / 20-min rolling volume SMA (e.g., 3.5x)
+    reason: str                # "NONE", "PEAK_TO_TROUGH_DROP", "PANIC_VOLUME_SPIKE", "DYNAMIC_ATR_TRAILING_BREACH"
+    recommended_action: str    # "NO_ACTION", "FULL_LIQUIDATION", "PARTIAL_REDUCTION_50", "BLOCK_BUY"
 ```
 
-### Fix 2: Refactoring `fetch_data_fdr` for Tier 3 Offline DB Cache Recovery
-**File**: `trading_system/run_pipeline.py` (Lines 352–440)
+### 3.2 Core Class: `IntradayStopLossEngine`
 
 ```python
-def fetch_data_fdr(symbol: str, market: str, start_date: str,
-                   price_db: Optional[StockPriceDB] = None, freshness_days: int = 7,
-                   update_interval: int = 0) -> pd.DataFrame:
-    """Fetch OHLCV data with 3-tier fallback (yfinance -> FDR -> stock_prices.db cache)."""
+import logging
+from collections import deque
+from typing import Dict, Optional, Union
+import numpy as np
+import pandas as pd
 
-    def _fetch_fallback(s: str, d: str) -> pd.DataFrame:
-        global _last_request_time
-        cached_df = None
+logger = logging.getLogger(__name__)
 
-        # Step 0: Check DB cache existence
-        if price_db is not None:
-            cached_df = price_db.get_prices(s, start_date=d)
-            stale = price_db.needs_update(s, max_age_days=freshness_days, start_date=d) if freshness_days >= 0 else False
+class IntradayStopLossEngine:
+    """
+    Intraday Microstructure & Dynamic Stop-Loss Engine
+    Tracks intraday peak prices, volume acceleration, and dynamic ATR trailing boundaries.
+    """
 
-            # If cache is fresh, return immediately
-            if not stale and cached_df is not None and not cached_df.empty:
-                logger.debug(f"Using fresh StockPriceDB cache for {s}")
-                return cached_df
+    def __init__(
+        self,
+        peak_drop_threshold: float = -0.04,  # -4% peak-to-trough default drop threshold
+        volume_spike_threshold: float = 3.0, # 3.0x 20-min rolling SMA volume surge
+        atr_multiplier: float = 2.0,        # ATR trailing distance multiplier
+        window_size: int = 20,              # 20-period window for rolling statistics
+    ):
+        self.peak_drop_threshold = peak_drop_threshold
+        self.volume_spike_threshold = volume_spike_threshold
+        self.atr_multiplier = atr_multiplier
+        self.window_size = window_size
 
-            # If cache is up to date relative to today, return immediately
-            if cached_df is not None and not cached_df.empty:
-                latest_date_str = cached_df.index.max().strftime("%Y-%m-%d")
-                if latest_date_str >= datetime.now().strftime("%Y-%m-%d"):
-                    logger.debug(f"Cache for {s} is up to date ({latest_date_str}). Skipping network fetch.")
-                    return cached_df
+        # Symbol state tracking (using deque with maxlen=window_size for O(1) streaming updates)
+        self._symbol_peaks: Dict[str, float] = {}
+        self._price_history: Dict[str, deque] = {}
+        self._volume_history: Dict[str, deque] = {}
 
-        # Rate limiter pause before network request
-        if update_interval > 0:
-            now = time.time()
-            with _rate_lock:
-                scheduled = max(_last_request_time + update_interval, now)
-                sleep_sec = scheduled - now
-                _last_request_time = scheduled
-            if sleep_sec > 0:
-                time.sleep(sleep_sec)
+    def update_intraday_candle(
+        self,
+        symbol: str,
+        price: float,
+        volume: float,
+        high: Optional[float] = None,
+        low: Optional[float] = None,
+    ) -> None:
+        """Update streaming price and volume history for a symbol."""
+        if symbol not in self._price_history:
+            self._price_history[symbol] = deque(maxlen=self.window_size)
+            self._volume_history[symbol] = deque(maxlen=self.window_size)
+            self._symbol_peaks[symbol] = max(price, high if high is not None else price)
 
-        # Attempt Tier 1 & Tier 2 network fetch
-        network_result = None
-        fetch_start = cached_df.index.max().strftime("%Y-%m-%d") if (cached_df is not None and not cached_df.empty) else d
-        try:
-            network_result = _fetch_data_fdr_network(s, market, fetch_start)
-        except Exception as e:
-            logger.warning(f"Tier 1 & 2 network download failed for {s}: {e}")
+        self._price_history[symbol].append(price)
+        self._volume_history[symbol].append(volume)
 
-        # Process network result if successful
-        if network_result is not None and not network_result.empty:
-            if price_db is not None:
-                try:
-                    price_db.update_prices(s, network_result)
-                except Exception as ex:
-                    logger.debug(f"Failed to cache prices for {s}: {ex}")
+        current_peak = self._symbol_peaks.get(symbol, price)
+        cand_peak = max(price, high if high is not None else price)
+        if cand_peak > current_peak:
+            self._symbol_peaks[symbol] = cand_peak
 
-            if cached_df is not None and not cached_df.empty:
-                merged_df = pd.concat([cached_df, network_result])
-                merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
-                return merged_df
-            return network_result
+    def reset_symbol(self, symbol: str) -> None:
+        """Reset intraday state for a specific symbol."""
+        self._symbol_peaks.pop(symbol, None)
+        self._price_history.pop(symbol, None)
+        self._volume_history.pop(symbol, None)
 
-        # Tier 3 Fallback: If network failed completely, fall back to stale DB cache if available
-        if cached_df is not None and not cached_df.empty:
-            logger.warning(f"[Offline Cache Fallback] Network failed for {s}. Falling back to stale DB cache ({len(cached_df)} rows)")
-            return cached_df
+    def evaluate(
+        self,
+        symbol: str,
+        intraday_data: Union[pd.DataFrame, dict],
+        entry_price: Optional[float] = None,
+        atr: Optional[float] = None,
+        crisis_multiplier: float = 1.0,
+    ) -> StopLossResult:
+        """
+        Evaluates intraday market data against dynamic stop-loss rules.
 
-        logger.warning(f"No network data or DB cache available for {s}. Returning empty DataFrame.")
-        return None
+        Args:
+            symbol: Ticker symbol string.
+            intraday_data: DataFrame with OHLCV columns OR dict with current price/volume metrics.
+            entry_price: Purchase price of the position (if held).
+            atr: Average True Range value (if available).
+            crisis_multiplier: Tightening scalar from RiskManager/CrisisDetector (<= 1.0).
 
-    return technical_cache.get_or_compute(symbol, start_date, _fetch_fallback)
-```
-
-### Fix 3: Refactoring `fetch_indicator_history` for DB Fallback Protection
-**File**: `trading_system/run_pipeline.py` (Lines 486–563)
-
-```python
-def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
-                            freshness_days: int = 7) -> pd.DataFrame:
-    """Fetch global macro indicators with DB cache fallback on network failure."""
-    def _fetch_one(ticker: str, col_name: str):
-        cached_df = None
-        if price_db is not None:
-            cached_df = price_db.get_prices(ticker, start_date=start_date)
-            stale = price_db.needs_update(ticker, max_age_days=freshness_days, start_date=start_date) if freshness_days >= 0 else False
-            if not stale and cached_df is not None and not cached_df.empty:
-                df = cached_df
+        Returns:
+            StopLossResult dataclass instance.
+        """
+        # 1. Standardize Data Extraction
+        if isinstance(intraday_data, pd.DataFrame):
+            if intraday_data.empty:
+                return StopLossResult(False, symbol, 0.0, 1.0, "NONE", "NO_ACTION")
+            
+            prices = intraday_data['close'].values if 'close' in intraday_data.columns else intraday_data['Close'].values
+            volumes = intraday_data['volume'].values if 'volume' in intraday_data.columns else intraday_data['Volume'].values
+            highs = intraday_data['high'].values if 'high' in intraday_data.columns else (intraday_data['High'].values if 'High' in intraday_data.columns else prices)
+            
+            current_price = float(prices[-1])
+            current_volume = float(volumes[-1])
+            peak_price = float(np.max(highs))
+            if entry_price is not None and entry_price > peak_price:
+                peak_price = entry_price
+            
+            # Compute 20-period rolling average volume
+            if len(volumes) >= 2:
+                vol_window = volumes[-min(len(volumes), self.window_size):-1]
+                vol_sma = float(np.mean(vol_window)) if len(vol_window) > 0 and np.mean(vol_window) > 0 else current_volume
             else:
-                df = None
+                vol_sma = current_volume
+                
+            prev_price = float(prices[-2]) if len(prices) >= 2 else current_price
+
+        elif isinstance(intraday_data, dict):
+            current_price = float(intraday_data.get('current_price', 0.0))
+            current_volume = float(intraday_data.get('volume', 0.0))
+            peak_price = float(intraday_data.get('peak_price', current_price))
+            if entry_price is not None and entry_price > peak_price:
+                peak_price = entry_price
+            vol_sma = float(intraday_data.get('volume_ma_20', current_volume))
+            prev_price = float(intraday_data.get('prev_price', current_price))
+            if atr is None and 'atr' in intraday_data:
+                atr = float(intraday_data['atr'])
         else:
-            df = None
+            raise ValueError(f"Unsupported intraday_data type: {type(intraday_data)}")
 
-        if df is None or df.empty:
-            try:
-                df = _download_indicator_network(ticker, start_date)
-                if df is not None and not df.empty and price_db is not None:
-                    price_db.update_prices(ticker, df)
-            except Exception as e:
-                logger.warning(f"Indicator network fetch failed for {ticker}: {e}")
-                # Fallback to stale DB cache if available
-                if cached_df is not None and not cached_df.empty:
-                    logger.warning(f"[Indicator DB Fallback] Using cached indicator data for {ticker}")
-                    df = cached_df
+        if current_price <= 0.0:
+            return StopLossResult(False, symbol, 0.0, 1.0, "INVALID_PRICE", "NO_ACTION")
 
-        if df is not None and not df.empty:
-            if col_name.endswith('_change'):
-                return (col_name, df['Close'].pct_change().fillna(0.0) * 100)
-            elif col_name == 'put_call_ratio':
-                return (col_name, df['Close'].ffill().fillna(0.6))
-            else:
-                return (col_name, df['Close'].ffill().fillna(0.0))
-        return (col_name, pd.Series(dtype=float))
-    ...
+        # 2. Update Internal State
+        self.update_intraday_candle(symbol, current_price, current_volume, high=peak_price)
+        tracked_peak = max(self._symbol_peaks.get(symbol, current_price), peak_price)
+
+        # 3. Calculate Core Metrics
+        drop_pct = (current_price - tracked_peak) / tracked_peak
+        panic_volume_ratio = current_volume / max(vol_sma, 1e-6)
+        instant_return = (current_price - prev_price) / max(prev_price, 1e-6)
+
+        # Apply Crisis Multiplier to Drop Threshold (e.g. -4% * 0.8 = -3.2% when crisis active)
+        effective_drop_threshold = self.peak_drop_threshold * crisis_multiplier
+
+        # 4. Evaluate Stop Loss Rules
+        reasons = []
+        
+        # Rule A: Peak-to-Trough Drop Detection (-4% default)
+        is_peak_drop = drop_pct <= effective_drop_threshold
+
+        # Rule B: Volume Spike Panic Detection (Volume surge > 3.0x with negative price return)
+        is_panic_volume = (panic_volume_ratio >= self.volume_spike_threshold) and (instant_return < 0.0 or drop_pct < -0.01)
+
+        # Rule C: Dynamic Trailing ATR / Volatility Adjusted Stop Breach
+        is_atr_breach = False
+        if atr is not None and atr > 0.0:
+            effective_atr_mult = self.atr_multiplier * crisis_multiplier
+            atr_stop_price = tracked_peak - (atr * effective_atr_mult)
+            if current_price <= atr_stop_price:
+                is_atr_breach = True
+
+        # Synthesize Trigger Status
+        triggered = is_peak_drop or is_panic_volume or is_atr_breach
+
+        if is_peak_drop:
+            reasons.append("PEAK_TO_TROUGH_DROP")
+        if is_panic_volume:
+            reasons.append("PANIC_VOLUME_SPIKE")
+        if is_atr_breach:
+            reasons.append("DYNAMIC_ATR_TRAILING_BREACH")
+
+        if triggered:
+            reason_str = " & ".join(reasons)
+            rec_action = "FULL_LIQUIDATION" if (is_peak_drop or is_atr_breach) else "PARTIAL_REDUCTION_50"
+        else:
+            reason_str = "NONE"
+            rec_action = "NO_ACTION"
+
+        return StopLossResult(
+            triggered=triggered,
+            symbol=symbol,
+            drop_pct=float(drop_pct),
+            panic_volume_ratio=float(panic_volume_ratio),
+            reason=reason_str,
+            recommended_action=rec_action,
+        )
 ```
 
 ---
 
-## 5. Summary & Verification Plan
+## 4. RiskManager Integration Design
 
-1. **Safety Assurance**: The proposed fixes ensure that every network call degrades gracefully to Tier 2 (FDR) and Tier 3 (`stock_prices.db` cache), preventing pipeline crashes when offline or rate-limited.
-2. **Logging**: All fallback events log `WARNING` messages detailing the failing tier and target ticker.
-3. **Verification**: Can be independently verified by disconnecting network or mocking `yfinance` and `fdr.DataReader` to raise exceptions, confirming `run_pipeline.py` loads cached data from `stock_prices.db` and completes without error.
+### 4.1 Integration into `trading_system/src/risk/risk_manager.py`
+
+1. **Initialization**: Instantiates `IntradayStopLossEngine` inside `RiskManager.__init__()`.
+2. **New Method: `evaluate_intraday_stop_loss()`**:
+   ```python
+   def evaluate_intraday_stop_loss(
+       self,
+       symbol: str,
+       intraday_data: Union[pd.DataFrame, dict],
+       entry_price: Optional[float] = None,
+       atr: Optional[float] = None,
+   ) -> StopLossResult:
+       """
+       Evaluates intraday stop-loss risk for a given symbol.
+       Tightens thresholds based on active market crisis level.
+       """
+       crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
+       result = self.intraday_stop_loss_engine.evaluate(
+           symbol=symbol,
+           intraday_data=intraday_data,
+           entry_price=entry_price,
+           atr=atr,
+           crisis_multiplier=crisis_mult,
+       )
+       if result.triggered:
+           self._create_alert(
+               alert_type=f"INTRADAY_STOP_LOSS_{result.reason}",
+               symbol=symbol,
+               current_price=getattr(result, 'current_price', 0.0),
+               entry_price=entry_price or 0.0,
+           )
+           self.logger.warning(
+               f"[INTRADAY STOP LOSS TRIGGERED] Symbol: {symbol} | Reason: {result.reason} | "
+               f"Drop: {result.drop_pct:.2%} | Vol Ratio: {result.panic_volume_ratio:.2f}x | Action: {result.recommended_action}"
+           )
+       return result
+   ```
+3. **New Method: `check_intraday_risk()`**:
+   ```python
+   def check_intraday_risk(
+       self,
+       portfolio_intraday_data: Dict[str, Union[pd.DataFrame, dict]],
+       positions: Optional[Dict[str, float]] = None,
+   ) -> Dict[str, StopLossResult]:
+       """
+       Evaluates intraday stop-loss status across portfolio holdings or watchlist.
+       Returns dictionary mapping symbol -> StopLossResult.
+       """
+       results = {}
+       for symbol, data in portfolio_intraday_data.items():
+           entry_price = positions.get(symbol) if positions else None
+           res = self.evaluate_intraday_stop_loss(symbol, data, entry_price=entry_price)
+           results[symbol] = res
+       return results
+   ```
+
+---
+
+## 5. Pipeline Execution Integration (`run_pipeline.py`)
+
+In `trading_system/run_pipeline.py`, during Step 10 (Risk Management & Position Sizing phase around line 2445):
+
+```python
+# ── RiskManager & Intraday Stop-Loss Monitoring Phase ──
+try:
+    from src.risk.risk_manager import RiskManager, CrisisDetector, CrisisLevel
+    risk_mgr = RiskManager()
+    
+    # 1. Macro Crisis Evaluation
+    crisis_lvl = risk_mgr.evaluate_crisis(
+        vix=vix_val,
+        usdkrw=usdkrw_val,
+        oil=wti_val,
+        tnx=us10y_val
+    )
+    logger.info(f"[RISK MANAGER] Market Crisis Level: {crisis_lvl.value}")
+    
+    # 2. Intraday Microstructure Stop-Loss Evaluation
+    if 'infer_data_dict' in locals() and infer_data_dict:
+        intraday_results = risk_mgr.check_intraday_risk(infer_data_dict)
+        triggered_symbols = [sym for sym, res in intraday_results.items() if res.triggered]
+        if triggered_symbols:
+            logger.warning(f"[INTRADAY RISK] Intraday stop-loss triggered for {len(triggered_symbols)} symbols: {triggered_symbols}")
+            # Zero out expected return / ensemble score for triggered symbols to block buy execution
+            ensemble_df.loc[ensemble_df['symbol'].isin(triggered_symbols), 'ensemble_expected_return'] = -0.99
+            ensemble_df.loc[ensemble_df['symbol'].isin(triggered_symbols), 'ensemble_score'] = 0.0
+
+except Exception as _rm_e:
+    logger.warning(f"RiskManager evaluation skipped: {_rm_e}")
+```
+
+---
+
+## 6. Unit Test Specification (`test_intraday_stop_loss.py`)
+
+The test suite in `trading_system/tests/test_intraday_stop_loss.py` validates all core behaviors:
+
+```python
+import unittest
+import pandas as pd
+import numpy as np
+
+from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
+from src.risk.risk_manager import RiskManager
+
+class TestIntradayStopLossEngine(unittest.TestCase):
+
+    def setUp(self):
+        self.engine = IntradayStopLossEngine(
+            peak_drop_threshold=-0.04,
+            volume_spike_threshold=3.0,
+            atr_multiplier=2.0,
+        )
+
+    def test_peak_to_trough_4pct_drop_triggers_stop_loss(self):
+        """Test -4.5% drop from peak triggers PEAK_TO_TROUGH_DROP stop-loss."""
+        data = {
+            'current_price': 95.5,
+            'peak_price': 100.0,
+            'volume': 1000,
+            'volume_ma_20': 1000,
+        }
+        res = self.engine.evaluate("005930", data)
+        self.assertTrue(res.triggered)
+        self.assertIn("PEAK_TO_TROUGH_DROP", res.reason)
+        self.assertEqual(res.recommended_action, "FULL_LIQUIDATION")
+        self.assertAlmostEqual(res.drop_pct, -0.045, places=3)
+
+    def test_volume_spike_panic_detection_triggers_stop_loss(self):
+        """Test 3.5x volume acceleration with negative price return triggers PANIC_VOLUME_SPIKE."""
+        data = {
+            'current_price': 98.5,
+            'prev_price': 100.0,
+            'peak_price': 100.0,
+            'volume': 3500,
+            'volume_ma_20': 1000,
+        }
+        res = self.engine.evaluate("005930", data)
+        self.assertTrue(res.triggered)
+        self.assertIn("PANIC_VOLUME_SPIKE", res.reason)
+        self.assertGreaterEqual(res.panic_volume_ratio, 3.0)
+
+    def test_normal_market_movement_no_trigger(self):
+        """Test normal price movement (-1% drop, 1.2x volume) passes without trigger."""
+        data = {
+            'current_price': 99.0,
+            'prev_price': 99.5,
+            'peak_price': 100.0,
+            'volume': 1200,
+            'volume_ma_20': 1000,
+        }
+        res = self.engine.evaluate("005930", data)
+        self.assertFalse(res.triggered)
+        self.assertEqual(res.reason, "NONE")
+        self.assertEqual(res.recommended_action, "NO_ACTION")
+
+    def test_dynamic_atr_trailing_stop_breach(self):
+        """Test dynamic ATR trailing stop breach triggers DYNAMIC_ATR_TRAILING_BREACH."""
+        # Peak = 100.0, ATR = 2.0, Multiplier = 2.0 -> Stop level = 96.0
+        data = {
+            'current_price': 95.8,
+            'peak_price': 100.0,
+            'volume': 1000,
+            'volume_ma_20': 1000,
+            'atr': 2.0,
+        }
+        res = self.engine.evaluate("AAPL", data)
+        self.assertTrue(res.triggered)
+        self.assertIn("DYNAMIC_ATR_TRAILING_BREACH", res.reason)
+
+    def test_dataframe_input_format(self):
+        """Test evaluation using pandas DataFrame input."""
+        dates = pd.date_range("2026-07-31 09:00", periods=20, freq="1min")
+        df = pd.DataFrame({
+            'open': np.linspace(100, 95, 20),
+            'high': np.linspace(101, 95.5, 20),
+            'low': np.linspace(99.5, 94.5, 20),
+            'close': np.linspace(100, 95, 20),
+            'volume': [1000] * 19 + [3500],
+        }, index=dates)
+        
+        res = self.engine.evaluate("NVDA", df)
+        self.assertTrue(res.triggered)
+
+    def test_risk_manager_integration(self):
+        """Test RiskManager's evaluate_intraday_stop_loss and check_intraday_risk methods."""
+        rm = RiskManager(portfolio_value=1_000_000)
+        data = {'current_price': 95.0, 'peak_price': 100.0, 'volume': 1000, 'volume_ma_20': 1000}
+        
+        res = rm.evaluate_intraday_stop_loss("005930", data)
+        self.assertTrue(res.triggered)
+        self.assertGreater(len(rm.alerts), 0)
+
+        portfolio_data = {
+            '005930': {'current_price': 95.0, 'peak_price': 100.0, 'volume': 1000, 'volume_ma_20': 1000},
+            '000660': {'current_price': 99.5, 'peak_price': 100.0, 'volume': 1000, 'volume_ma_20': 1000},
+        }
+        batch_res = rm.check_intraday_risk(portfolio_data)
+        self.assertEqual(len(batch_res), 2)
+        self.assertTrue(batch_res['005930'].triggered)
+        self.assertFalse(batch_res['000660'].triggered)
+
+if __name__ == '__main__':
+    unittest.main()
+```

@@ -1,22 +1,30 @@
-## 2026-07-16T00:52:10Z
+## 2026-07-31T19:03:38Z
 
-You are Worker 2 for Milestone 2 Remediation.
-Working Directory: d:\Finance\code\stock\.agents\worker_m2_2
-Scope document: d:\Finance\code\stock\.agents\orchestrator\PROJECT.md
-Original request: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Reviewer 1 Feedback: d:\Finance\code\stock\.agents\reviewer_m2_1\review.md
+Task: Remediate normalization flaws and test suite setup for Milestone 2 (R2): Quad-Factor Neutral QP Portfolio Risk Optimizer based on Reviewer findings.
 
-MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+Files to update:
+- `src/strategy/quad_factor_optimizer.py`
+- `trading_system/src/strategy/quad_factor_optimizer.py`
+- `trading_system/src/risk/portfolio_optimizer.py`
+- `trading_system/tests/test_quad_factor_optimizer.py`
+- `tests/test_quad_factor_optimizer.py`
 
-Tasks:
-1. Fix `_download_indicator_network()` in `trading_system/run_pipeline.py`:
-   - Fix exception handling so that Tenacity's `@retry` decorator on `_download_indicator_network` retries Tier 1 (`yf.download`) upon transient failures before cascading to Tier 2 (`fdr.DataReader`). Or apply `@retry` directly to `yf.download` attempt inside Tier 1.
-   - Ensure `test_fetch_indicator_history_retry` in `tests/test_tuning_and_retry.py` passes (`mock_yf.call_count == 2`).
-2. Fix `_fetch_data_fdr_network()` in `trading_system/run_pipeline.py` and unit tests in `tests/test_tuning_and_retry.py`:
-   - `fetch_data_fdr()` is primarily a FinanceDataReader fetching routine for stock symbols (with fallbacks). Ensure that when `fetch_data_fdr()` runs, it correctly routes/falls back between primary and secondary providers without leaking unmocked live network requests during tests.
-   - Update `tests/test_tuning_and_retry.py` (e.g. `test_fetch_data_fdr_retry_success`, `test_fetch_data_fdr_max_retries_fail`) so that test cases appropriately mock both network endpoints or test fallback chains explicitly.
-3. Verify test suite execution:
-   - Run `.venv/bin/python -m pytest tests/test_tuning_and_retry.py` and confirm ALL tests pass with 0 failures.
-4. Save implementation changes in `d:\Finance\code\stock\.agents\worker_m2_2\changes.md` and `handoff.md`.
-Communicate completion via message when complete.
+Fix Directives:
+1. **Fix Post-Scaling Re-Normalization in `_fallback_equal_weight()` and `apply_factor_and_sector_constraints()`**:
+   - Issue: When sector weights are capped to `max_sector_weight` (or weights clipped), $w_{sum}$ drops below 1.0. Dividing by $w_{sum} < 1.0$ multiplies capped sector weights by $1/w_{sum} > 1.0$, breaching sector caps (e.g. 25% sector cap inflates to 47.06%).
+   - Fix: Implement iterative water-filling / bounded normalization:
+     Ensure no sector weight sum EVER exceeds `max_sector_weight + 1e-5` and no asset weight EVER exceeds `max_asset_weight + 1e-5`.
+
+2. **Fix `QuadFactorOptimizer.optimize()` Post-Processing**:
+   - Ensure post-processing normalization strictly maintains inequality constraints: $w_i \le max\_w$ and $\sum_{i \in Sector_k} w_i \le max\_sec\_w$.
+
+3. **Fix Test Fixture Setup in `test_quad_factor_optimizer.py`**:
+   - In `test_quad_factor_optimizer.py`, `self.symbols` previously had 8 assets across 3 sectors (`Tech`: 5, `Consumer`: 2, `Financials`: 1) with `max_sector_weight = 0.25`. Max possible sum across 3 sectors was $3 \times 0.25 = 0.75 < 1.0$, which is mathematically impossible for $\sum w_i = 1.0$.
+   - Update `self.sector_map` to include 5 sectors (e.g. `Tech`, `Consumer`, `Financials`, `Healthcare`, `Industrial`) so that $\sum \text{sec\_cap} = 5 \times 0.25 = 1.25 \ge 1.0$, making the test problem FEASIBLE for the primary SLSQP / CVXPY solver!
+   - Add a separate test case `test_overconstrained_infeasible_sector_caps()` that explicitly tests infeasible setup where total sector capacity $< 1.0$, verifying that fallback triggers cleanly and sector caps are NEVER violated.
+
+4. **Verify Test Suite**:
+   - Run `.venv\Scripts\python.exe -m pytest trading_system/tests/test_quad_factor_optimizer.py -v`.
+   - Run `.venv\Scripts\python.exe -m pytest tests/test_quad_factor_optimizer.py -v`.
+   - Run `.venv\Scripts\python.exe -m pytest trading_system/tests/ -v`.
+   - Confirm 100% pass rate with zero failures.

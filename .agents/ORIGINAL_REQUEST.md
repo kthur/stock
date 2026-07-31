@@ -1,38 +1,39 @@
 # Original User Request
 
-## Initial Request — 2026-07-30T23:20:24+09:00
+## 2026-07-31T18:38:57+09:00
 
-You are the Project Orchestrator for the Stock Trading System Full-scale Optimization project.
+You are the Project Orchestrator for the 5 Key Institutional-Grade Quantitative Enhancements project for the Stock Trading System.
 
 Working directory: d:\Finance\code\stock\.agents\orchestrator
 Original request file: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
 
-Please create your workspace directory at `d:\Finance\code\stock\.agents\orchestrator`, create your `BRIEFING.md` and `plan.md`, and orchestrate subagent specialists to execute the full-scale system architecture & quantitative financial engineering optimization across all requirements (R1-R4):
+Please create your workspace directory at `d:\Finance\code\stock\.agents\orchestrator`, create your `BRIEFING.md` and `plan.md`, and orchestrate subagent specialists to execute the quantitative financial engineering enhancements across all requirements (R1-R5):
 
-### R1. Architecture Modularization & Data Engine Upgrade
-- Refactor monolithic `run_pipeline.py` into a DAG-based modular pipeline architecture with checkpointing & resumability.
-- Upgrade SQLite database layer to Parquet/TimescaleDB hybrid schema to eliminate write-lock bottlenecks during multi-asset streaming.
+### R1. Intraday Microstructure & Dynamic Stop-Loss Engine
+- Implement intraday order book / price momentum tracking and dynamic stop-loss gating (-4% drop or volume spike panic detection) in `src/risk/intraday_stop_loss.py`.
+- Integrate into `RiskManager` and `run_pipeline.py`.
 
-### R2. Quantitative Alpha & Ensemble Orthogonalization
-- Implement Gram-Schmidt / PCA Factor Orthogonalization in `EnsembleScoringEngine` to remove multicollinearity and alpha overlap across 17 strategies.
-- Add K-Means/OPTICS pre-clustering to `StatisticalArbitrageEngine` to cut cointegration scanning from O(N^2) to O(N log N).
+### R2. Quad-Factor Neutral QP Portfolio Risk Optimizer
+- Implement Quadratic Programming (QP) optimization in `src/strategy/quad_factor_optimizer.py` balancing Sharpe ratio while constraining Market Beta, Size, Volatility, and Momentum factor exposures close to zero, along with max 25% sector caps.
 
-### R3. Risk Management & Portfolio Optimization Enhancement
-- Integrate Extreme Value Theory (EVT) CVaR constraints into `PortfolioAllocator`.
-- Implement dynamic band-based rebalancing to minimize STT and transaction cost drag.
+### R3. CPCV & Historical Stress Testing Engine
+- Implement Combinatorial Purged Cross-Validation (CPCV) in `src/ai/cpcv_stress_tester.py` to eliminate time-series data leakage/embargo issues.
+- Add historical stress testing simulating 2008 Financial Crisis, 2020 COVID panic, and 2022 Fed rate hike scenarios.
 
-### R4. Execution Engine & MLOps Monitoring
-- Add TWAP/VWAP Order Slicing to the OMS Engine for low-liquidity stocks.
-- Implement real-time slippage feedback loop to dynamic ensemble weights and MLflow drift triggers for continuous retraining.
+### R4. Closed-Loop Realized Slippage Execution Feedback
+- Link execution logs (`trade_logs.db`) in `src/execution/slippage_feedback.py` to calculate real vs theoretical slippage.
+- Dynamically update microstructure cost parameters in `src/ai/ensemble_scorer.py`.
+
+### R5. LLM/NLP DART & SEC Filing Sentiment Engine
+- Extract sentiment/tone scores from DART/SEC filings in `src/core/llm_sentiment_engine.py` using LLM/FinBERT tone analysis.
+- Incorporate sentiment metrics into Event-Driven alpha factor scores in `src/core/event_driven.py`.
 
 ### Acceptance Criteria
-- [ ] All unit tests in `tests/` pass cleanly via `.venv\Scripts\python.exe -m pytest`.
-- [ ] Pipeline execution allows resuming from checkpointed tasks upon failure.
-- [ ] Cointegration pair scanning runs in under 30 seconds for 3,379 symbols.
-- [ ] Portfolio backtest demonstrates reduced turnover and zero write-lock concurrency errors.
+- [ ] Pytest test suite covering all 5 new modules passes cleanly with zero failures (`.venv/bin/pytest tests/ -v`).
+- [ ] Integration verification script executing `run_pipeline.py` or synthetic test runs successfully end-to-end without breaking existing 18-strategy pipeline outputs.
 
 Instructions:
 1. Break down work into clear milestones with verification steps.
-2. Delegate tasks to specialized subagents or execute them carefully, ensuring tests are updated and passing.
+2. Delegate tasks to specialized subagents or execute them carefully, ensuring unit and integration tests pass cleanly.
 3. Update `progress.md` continuously as milestones progress.
-4. When ALL milestones are complete and verified by unit tests, notify Sentinel with a completion report.
+4. When ALL milestones are complete and verified by pytest and integration tests, notify Sentinel with a completion report.

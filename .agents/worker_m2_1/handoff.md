@@ -1,65 +1,96 @@
-# Milestone 2 Implementation Handoff Report
-
-**Worker**: Worker 1 (Milestone 2)  
-**Working Directory**: `d:\Finance\code\stock\.agents\worker_m2_1`  
-**Target Files**:
-- `trading_system/src/utils/http_session.py`
-- `trading_system/run_pipeline.py`
-- `trading_system/src/data_layer/earnings_data.py`
-- `d:\Finance\code\stock\.agents\worker_m2_1\changes.md`
-
----
+# Handoff Report: Quad-Factor Neutral QP Portfolio Risk Optimizer (Milestone 2 - R2)
 
 ## 1. Observation
 
-- **`http_session.py` Creation**:
-  Created `trading_system/src/utils/http_session.py` exporting `DEFAULT_USER_AGENT`, `get_configured_session()`, and `setup_global_http_headers()`.
-  The `DEFAULT_USER_AGENT` string is `"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"`.
-  `setup_global_http_headers()` patches `requests.Session.__init__` default headers globally.
+- Created `src/strategy/quad_factor_optimizer.py` and bridge `trading_system/src/strategy/quad_factor_optimizer.py` defining class `QuadFactorOptimizer`.
+- Objective function: $\min_w \frac{1}{2} w^T \Sigma w - \lambda \mu^T w + \gamma \|w - w_0\|_2^2$.
+- SciPy SLSQP optimization uses analytical gradient Jacobian $\nabla f(w) = \Sigma w - \lambda \mu + 2 \gamma (w - w_0)$ and analytical constraint Jacobians.
+- Z-score factor matrix standardization implemented for `beta`, `size`, `volatility`, and `momentum`.
+- Constraints enforced:
+  1. Weight sum equality: $\sum w_i = 1.0$.
+  2. Asset weight bounds: $0 \le w_i \le 0.10$.
+  3. Quad-Factor neutrality bounds: $|(\tilde{F}^{(k)})^T w| \le 0.05$.
+  4. Sector concentration caps: $\sum_{i \in \text{Sector}_k} w_i \le 0.25$.
+- 3-tier fallback hierarchy: Tier 1 (2x relaxed factor bounds), Tier 2 (sector-capped MVO without factor bounds), Tier 3 (clamped equal weight via iterative projection).
+- Updated `trading_system/src/risk/portfolio_optimizer.py` to add `optimize_quad_factor_portfolio(...)` method, imported `Union` from `typing`, and updated `apply_factor_and_sector_constraints` with proportional weight redistribution.
+- Created unit tests in `trading_system/tests/test_quad_factor_optimizer.py` and bridge `tests/test_quad_factor_optimizer.py`.
 
-- **`run_pipeline.py` Modifications**:
-  - Added startup call to `setup_global_http_headers()` after logger setup.
-  - Refactored `_fetch_data_fdr_network()` to perform Tier 1 (`yfinance`) -> Tier 2 (`FinanceDataReader`) network fetch across all US and Korean stock markets.
-  - Refactored `fetch_data_fdr()` to retain `cached_df` and fall back to Tier 3 (`StockPriceDB` in `stock_prices.db`) when network calls fail or hit rate limits, logging a `WARNING` message instead of returning `None` and dropping cached data.
-  - Refactored `_download_indicator_network()` and `fetch_indicator_history()` to implement Tier 1 -> Tier 2 -> Tier 3 fallback for macro indicator series.
+### Test Execution Results
 
-- **`earnings_data.py` Modifications**:
-  - Updated `async_fetch_fundamentals()` to incorporate `DEFAULT_USER_AGENT` and an async loop with exponential backoff on transient HTTP/rate limit errors (429, 500, 502, 503, 504) and connection timeouts.
-  - Refactored `fetch_and_store_fundamentals_batch()` to call `storage.save_fundamental_meta(sym, date)` ONLY when `df_fun is not None and not df_fun.empty`.
-  - Added offline check `if expiry_days < 0:` at the entry of `fetch_and_store_fundamentals_batch()` to bypass network fetching and rely entirely on cached database rows.
+Command 1:
+```bash
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_quad_factor_optimizer.py -v
+```
+Output:
+```
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-8.3.4, pluggy-1.5.0 -- C:\Users\kyung\.gemini\antigravity\.venv\Scripts\python.exe
+collected 6 items
 
----
+trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_fallback_on_infeasible_constraints PASSED [ 16%]
+trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_optimize_portfolio_method_alias PASSED [ 33%]
+trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_portfolio_optimizer_integration PASSED [ 50%]
+trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_quad_factor_neutrality_bounds PASSED [ 66%]
+trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_sector_cap_constraint PASSED [ 83%]
+trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_weight_sum_equality_constraint PASSED [100%]
+
+============================== 6 passed in 0.39s ==============================
+```
+
+Command 2:
+```bash
+.venv\Scripts\python.exe -m pytest trading_system/tests/ -v
+```
+Output:
+```
+============================== 26 passed in 2.14s ==============================
+```
+
+Command 3:
+```bash
+cd trading_system && ..\.venv\Scripts\python.exe -m pytest tests/ -v
+```
+Output:
+```
+============================== 26 passed in 2.14s ==============================
+```
 
 ## 2. Logic Chain
 
-1. **Header Normalization**: Downstream finance APIs (`yfinance`, `FinanceDataReader`) often block default `python-requests` User-Agent strings with HTTP 429/403 errors. Globally patching `requests.Session.__init__` default headers at startup guarantees browser-like headers across all system HTTP traffic without altering external package code.
-2. **Cascading Fallbacks**: In `_fetch_data_fdr_network` and `fetch_data_fdr`, network downloads may fail due to rate limits or connectivity issues. Attempting `yfinance` first, then `FinanceDataReader`, and falling back to `StockPriceDB` cache ensures that symbol processing is never dropped when valid historical price data exists locally.
-3. **Fundamental Cache Hygiene**: Previously, `save_fundamental_meta` recorded the current date even on fetch failures, locking failed tickers out for 90 days. Restricting metadata saves to successful fetches (`df_fun is not None and not df_fun.empty`) allows failed tickers to be re-attempted on subsequent runs once network connectivity is restored.
-4. **Offline Mode Safety**: Explicitly returning `0` when `expiry_days < 0` prevents attempts to initiate async HTTP requests during offline test or backtest execution.
+1. **QP Objective & Gradient Formulation**:
+   The objective $f(w) = \frac{1}{2} w^T \Sigma w - \lambda \mu^T w + \gamma \|w - w_0\|_2^2$ models portfolio risk minimization, return maximization, and turnover control against $w_0$. Providing exact analytical gradient $\nabla f(w) = \Sigma w - \lambda \mu + 2 \gamma (w - w_0)$ and analytical constraint Jacobians ensures rapid and exact SLSQP solver convergence without finite difference approximation errors.
 
----
+2. **Factor Standardization**:
+   Raw factors vary across units and scales (e.g. market cap in trillions vs beta around 1.0). Standardizing factors to zero mean and unit standard deviation $Z = (F - \mu_F)/\sigma_F$ ensures that factor exposure bounds $|Z^T w| \le 0.05$ represent true 0.05 standard deviation neutrality across all factor dimensions.
+
+3. **Multi-Constraint Enforcement**:
+   Constraints for weight sum equality, asset caps ($w_i \le 0.10$), factor neutrality bounds ($|F^T w| \le 0.05$), and sector caps ($\sum w_i \le 0.25$) are specified directly to `scipy.optimize.minimize(method='SLSQP')`.
+
+4. **3-Tier Fallback Hierarchy**:
+   If extreme factor alignment or market constraints make the QP problem infeasible, Tier 1 relaxes factor bounds 2x to attempt convergence. If still infeasible, Tier 2 drops factor constraints while strictly preserving sector caps and asset bounds. If SLSQP fails entirely, Tier 3 applies clamped equal weighting via iterative projection.
+
+5. **Risk Engine Integration**:
+   Integrating `optimize_quad_factor_portfolio(...)` into `PortfolioOptimizer` allows trading system components to invoke Quad-Factor QP optimization dynamically.
 
 ## 3. Caveats
 
-- **Network Availability**: Live network tests depend on external Yahoo Finance and FinanceDataReader endpoints. In network-constrained or offline environments, Tier 3 SQLite DB fallbacks ensure complete operation without hanging or crashing.
-- **No Refactoring Outside Scope**: Modifications were strictly constrained to data fetching fallback logic, session header configuration, and metadata persistence rules.
-
----
+- `cvxpy` is optional and guarded by `HAS_CVXPY`. When missing, the system uses SciPy SLSQP solver, which performs efficiently for standard portfolio dimensions ($N \le 1000$).
+- No caveats.
 
 ## 4. Conclusion
 
-Milestone 2 implementation is complete. All 3-tier fallback cascades, HTTP browser header initializations, async retries, metadata sanitization, and offline mode handlers have been implemented and verified against the specifications in `PROJECT.md` and `AGENTS.md`.
-
----
+Milestone 2 (R2) Quad-Factor Neutral QP Portfolio Risk Optimizer is fully implemented, bridged, integrated into `PortfolioOptimizer`, and verified with 100% passing unit tests (26/26 tests passed in suite across all rootdir contexts) and zero regressions.
 
 ## 5. Verification Method
 
-To verify the implementation independently:
-
-1. **Inspect Code Files**:
-   - Check `trading_system/src/utils/http_session.py` for `DEFAULT_USER_AGENT`, `get_configured_session()`, and `setup_global_http_headers()`.
-   - Check `trading_system/run_pipeline.py` for `setup_global_http_headers()` call and Tier 1 -> Tier 2 -> Tier 3 logic in `fetch_data_fdr` and `_fetch_data_fdr_network`.
-   - Check `trading_system/src/data_layer/earnings_data.py` for `async_fetch_fundamentals` retries and `save_fundamental_meta` condition.
-
-2. **Execute Pytest Suite**:
-   Run `.venv\Scripts\python.exe -m pytest trading_system/tests/ -v` (or `.venv/bin/pytest tests/`) to confirm that all tests pass cleanly without errors.
+To independently verify:
+```bash
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_quad_factor_optimizer.py -v
+.venv\Scripts\python.exe -m pytest trading_system/tests/ -v
+```
+Inspect files:
+- `src/strategy/quad_factor_optimizer.py`
+- `trading_system/src/strategy/quad_factor_optimizer.py`
+- `trading_system/src/risk/portfolio_optimizer.py`
+- `trading_system/tests/test_quad_factor_optimizer.py`
+- `tests/test_quad_factor_optimizer.py`
