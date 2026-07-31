@@ -42,7 +42,7 @@ STOCK_PRICE_FRESHNESS_DAYS=none
 | 변수명 | 기본값 | 타입 | 설명 |
 |--------|--------|------|------|
 | `TRAIN_SAMPLE_SP500` | `50` | 정수/`%`/`all` | SP500 학습 종목 수. `all` = 전량, `50%` = 절반 |
-| `TRAIN_SAMPLE_KRX` | `50` | 정수/`%`/`all` | KRX(KOSPI+KOSDAQ+KONEX) 학습 종목 수 |
+| `TRAIN_SAMPLE_KRX` | `50` | 정수/`%`/`all` | KRX(KOSPI+KOSDAQ) 학습 종목 수 |
 | `TRAIN_START_DATE` | `2023-01-01` | 날짜 | 학습 데이터 시작일 (YYYY-MM-DD) |
 | `TRAIN_SEED` | `42` | 정수/`none` | 학습 데이터 샘플링 시드. `none` = 무작위 |
 | `SKIP_TRAINING` | `False` | bool | `True` 시 기존 모델 파일 재사용 (학습 건너뛰기) |

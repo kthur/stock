@@ -2,17 +2,8 @@
 """
 verify_gha_artifacts.py — GHA Artifact & Pipeline Result Verification Utility
 
-Verifies prediction pipeline outputs for 4 markets (SP500, KOSPI, KOSDAQ, KONEX)
-across 5 key strategies:
-1. Surge Classifier
-2. VCP ML Predictor
-3. XGBoost Regression
-4. VCP Rule Pattern Detector
-5. Lead-Lag Matrix
-
-Also verifies:
-- Merged Ensemble Predictions (`ensemble_predictions.txt`)
-- GitHub Pages HTML Dashboard (`index.html`)
+Verifies prediction pipeline outputs for 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)
+across 18 multi-factor strategies.
 
 Usage:
     python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
@@ -34,7 +25,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-MARKETS = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
+MARKETS = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
 STRATEGIES = [
     "surge", "vcp_ml", "regression", "vcp", "lead_lag", "lstm",
     "stat_arb", "sector", "rim", "event_driven", "mq_factor",

@@ -35,7 +35,7 @@
 
 ### 1.1 개요
 
-시장별(SP500/KOSPI/KOSDAQ/KONEX) XGBoost + LightGBM + CatBoost **앙상블 회귀** 모델을 학습하여, 각 종목의 **8개 시간 horizon별 예상 수익률**을 예측합니다.
+시장별(SP500/NASDAQ/RUSSELL2000/KOSPI/KOSDAQ) XGBoost + LightGBM + CatBoost **앙상블 회귀** 모델을 학습하여, 각 종목의 **8개 시간 horizon별 예상 수익률**을 예측합니다.
 
 ### 1.2 예측 Horizon
 
@@ -216,7 +216,7 @@ VCP 패턴 관련 11개 피처를 사용하여, **4개 시장 × 4개 horizon = 
 ### 5.3 학습 구조
 
 ```
-4 시장 (SP500, KOSPI, KOSDAQ, KONEX)
+5 시장 (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)
   × 4 horizon (1, 3, 5, 20일)
   = 16개 독립 XGBClassifier
 ```

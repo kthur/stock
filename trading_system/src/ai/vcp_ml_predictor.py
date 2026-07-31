@@ -242,7 +242,7 @@ class VCPSurgePredictor:
     def train(self, prices_dict: Dict[str, pd.DataFrame],
               indicator_df: pd.DataFrame = None,
               universe: pd.DataFrame = None):
-        """Train VCP surge models per market (KOSPI/KOSDAQ/KONEX/SP500)."""
+        """Train VCP surge models per market (SP500/NASDAQ/RUSSELL2000/KOSPI/KOSDAQ)."""
         logger.info("Computing VCP ML features for training...")
 
         universe_map = {}

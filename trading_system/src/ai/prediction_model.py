@@ -1227,7 +1227,7 @@ class OnDevicePredictionModel:
         target_{h}d = raw_return / vol_20d  (Sharpe-scaled)
 
         A per-symbol, horizon-independent volatility scaling is applied so that
-        KONEX small-caps and SP500 mega-caps contribute equally to model loss.
+        RUSSELL2000 small-caps and SP500 mega-caps contribute equally to model loss.
         The raw 20-day realised volatility is stored in '_vol_scale' for use at
         inference time when inverse-transforming predictions back to raw returns.
         """
@@ -2005,7 +2005,7 @@ class OnDevicePredictionModel:
         """Compute latest features for all symbols once. Shared by regression + surge.
 
         If symbol_to_market is provided, uses it to assign market tags
-        (kospi/kosdaq/konex/sp500) instead of the _is_krx_symbol heuristic.
+        (kospi/kosdaq/sp500/nasdaq/russell2000) instead of the _is_krx_symbol heuristic.
         """
         prices_dict = self.apply_market_normalization(prices_dict, storage)
         features = self.ALL_FEATURES
@@ -2343,7 +2343,7 @@ class OnDevicePredictionModel:
         """One-shot: compute features once, return (regression_df, surge_df).
 
         If symbol_to_market is provided, uses per-symbol market tags
-        (e.g. kospi/kosdaq/konex/sp500) instead of the _is_krx_symbol heuristic.
+        (e.g. kospi/kosdaq/sp500/nasdaq/russell2000) instead of the _is_krx_symbol heuristic.
         """
         syms, markets, feats = self._batch_compute_inference_features(
             prices_dict, indicator_df, symbol_to_market, storage, fundamentals_cache)

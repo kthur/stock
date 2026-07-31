@@ -2597,7 +2597,6 @@ def execute_prediction_pipeline():
                 f"  - SP500      : {m4_map.get('SP500', 5.0):.2f} bps",
                 f"  - NASDAQ     : {m4_map.get('NASDAQ', 5.0):.2f} bps",
                 f"  - RUSSELL2000: {m4_map.get('RUSSELL2000', 5.0):.2f} bps",
-                f"  - KONEX      : {m4_map.get('KONEX', 5.0):.2f} bps",
                 "================================================================================\n"
             ]
             m4_report_str = "\n".join(m4_text_lines)

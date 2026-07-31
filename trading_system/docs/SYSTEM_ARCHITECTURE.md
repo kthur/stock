@@ -95,7 +95,7 @@ python-telegram-bot, aiosqlite, python-dotenv
                          │
     ┌────────────────────▼───────────────────┐
     │  4. 종목 유니버스 로드                  │
-    │     3,379 종목 (KOSPI/KOSDAQ/KONEX/     │
+    │     3,379 종목 (KOSPI/KOSDAQ/SP500/NASDAQ/RUSSELL2000) │
     │     SP500)                             │
     └────────────────────┬───────────────────┘
                          │

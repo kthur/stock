@@ -11,7 +11,7 @@ class PortfolioAllocator:
 
     Layer 1 — 시장별 기본 예산 (Market Budget):
         변동성 역비례 × 유동성(시장규모) × 거래비용 조정으로 시장별 최대 투자 비중 확정
-        (KONEX 고위험·저유동성 → 낮은 예산, SP500 저위험·고유동성 → 높은 예산)
+        (RUSSELL2000 고변동·소형주 → 보수적 예산, SP500 저위험·고유동성 → 높은 예산)
     Layer 2 — 레짐/디커플링 조정 (Regime Overlay):
         YIELD_INVERSION / INFLATION_SHOCK / 디커플링 발생 시 시장별 예산 동적 조정
     Layer 3 — 종목별 Kelly/HRP 미세 배분:

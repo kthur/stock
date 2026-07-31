@@ -58,7 +58,7 @@ copy .env.example .env
 
 | 옵션 | 설명 | 예시 |
 |------|------|------|
-| `--target {KOSPI,KOSDAQ,KONEX,KRX,SP500}` | 특정 시장만 추론 (학습은 전 유니버스) | `--target KOSPI` |
+| `--target {KOSPI,KOSDAQ,NASDAQ,RUSSELL2000,KRX,SP500}` | 특정 시장만 추론 (학습은 전 유니버스) | `--target KOSPI` |
 | `--skip-training` | 기존 저장 모델 재사용 (학습 건너뛰기) | `--skip-training` |
 | `--debug` | 시장별 3종목만 샘플 — 동작 빠른 검증 | `--debug` |
 

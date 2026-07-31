@@ -334,7 +334,7 @@ class BacktestEngine:
             symbol: 종목
             price_bars: 가격 바 데이터
             strategy_func: 전략 함수 (가격->신호)
-            market: 시장 구분 ('KONEX', 'KOSDAQ', 'KOSPI', 'SP500')
+            market: 시장 구분 ('SP500', 'NASDAQ', 'RUSSELL2000', 'KOSPI', 'KOSDAQ')
             target_period_bars: 성능 측정 대상 기간 바 수 (과거 데이터는 warm-up 용)
             allow_short: 공매도(Short Selling) 허용 여부
             trailing_stop_pct: 트레일링 스톱 비율 (0이면 비활성, 예: 0.05 = 5%)
