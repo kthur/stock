@@ -2,6 +2,8 @@ import os
 import zipfile
 import io
 import urllib.request
+import urllib.error
+import urllib.parse
 import json
 import logging
 from pathlib import Path
@@ -65,19 +67,51 @@ def download_github_databases():
         artifact_id = latest_artifact["id"]
         logger.info(f"Found artifact ID: {artifact_id} created at {latest_artifact['created_at']}.")
 
-        # 2. Download the artifact ZIP
+        # 2. Get the redirect URL first.
+        #    GitHub API redirects to Azure Blob Storage for the actual ZIP.
+        #    urllib's default handler forwards the Authorization header on redirect,
+        #    which Azure rejects with 401. Fix: intercept the redirect, extract the
+        #    Location URL, then download from the blob URL *without* Authorization.
         download_url = f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip"
+
+        class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+            """Capture the redirect Location header and do NOT follow it."""
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None  # abort redirect chain
+
+        no_redirect_opener = urllib.request.build_opener(_NoRedirectHandler)
         download_req = urllib.request.Request(download_url)
         download_req.add_header("Authorization", f"Bearer {token}")
         download_req.add_header("Accept", "application/vnd.github+json")
         download_req.add_header("X-GitHub-Api-Version", "2022-11-28")
         download_req.add_header("User-Agent", "Python-urllib")
 
+        logger.info("Resolving artifact download URL...")
+        blob_url = None
+        try:
+            with no_redirect_opener.open(download_req) as response:
+                # No redirect occurred — use final URL as-is
+                blob_url = response.url
+        except urllib.error.HTTPError as e:
+            if e.code in (301, 302, 303, 307, 308) and "Location" in e.headers:
+                blob_url = e.headers["Location"]
+                parsed = urllib.parse.urlparse(blob_url)
+                logger.info(f"Redirect captured → blob host: {parsed.netloc}")
+            else:
+                raise
+
+        if not blob_url:
+            raise RuntimeError("Could not resolve artifact blob URL.")
+
+        # 3. Download the actual ZIP from the blob URL.
+        #    No Authorization header — Azure Blob Storage rejects it with 401.
         logger.info("Downloading database artifact ZIP (this might take a few moments)...")
-        with urllib.request.urlopen(download_req) as response:
+        blob_req = urllib.request.Request(blob_url)
+        blob_req.add_header("User-Agent", "Python-urllib")
+        with urllib.request.urlopen(blob_req) as response:
             zip_data = response.read()
 
-        # 3. Unzip the databases
+        # 4. Unzip the databases
         logger.info("Extracting database files...")
         with zipfile.ZipFile(io.BytesIO(zip_data)) as z:
             namelist = z.namelist()

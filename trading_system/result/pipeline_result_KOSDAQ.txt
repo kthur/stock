@@ -1,16 +1,16 @@
 === Pipeline Inference Summary (KOSDAQ) ===
-Date: 2026-07-31 21:47
+Date: 2026-08-01 02:21
 Total symbols analyzed: 1
 
 --- KOSDAQ TOP 1 (Horizon: 1d) ---
-  1. 068270 (Celltrion): +0.10%
+  1. 068270 (Celltrion): +0.11%
 
 --- KOSDAQ TOP 1 (Horizon: 5d) ---
-  1. 068270 (Celltrion): +0.03%
+  1. 068270 (Celltrion): +0.25%
 
 --- KOSDAQ TOP 1 (Horizon: 20d) ---
-  1. 068270 (Celltrion): +0.08%
+  1. 068270 (Celltrion): +0.19%
 
 --- KOSDAQ TOP 1 (Horizon: 60d) ---
-  1. 068270 (Celltrion): +0.06%
+  1. 068270 (Celltrion): -0.06%
 

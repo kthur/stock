@@ -1,5 +1,5 @@
 === Surge Detection Results (Classifier Probabilities) ===
-Date: 2026-07-31 21:47
+Date: 2026-08-01 02:21
 Horizon Target Thresholds: 1d (>=3%), 3d (>=5%), 5d (>=8%), 20d (>=15%)
 Total symbols: 1
 
@@ -16,7 +16,7 @@ Total symbols: 1
 ============================================================
 [5일] KOSPI Top 100 Surge Candidates
 ============================================================
-  1. [KOSPI] 005930 (Samsung Electronics): 7.6%
+  1. [KOSPI] 005930 (Samsung Electronics): 7.7%
 
 ============================================================
 [20일] KOSPI Top 100 Surge Candidates

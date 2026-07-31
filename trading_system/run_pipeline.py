@@ -302,17 +302,26 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
             def _download_with_recovery(tickers: list, start_dt: str) -> pd.DataFrame:
                 if not tickers:
                     return pd.DataFrame()
+
+                # Single-ticker fast path: no binary split needed
+                if len(tickers) == 1:
+                    try:
+                        df_res = yf.download(tickers, start=start_dt, progress=False, auto_adjust=True, group_by='ticker')
+                        if df_res is not None and not df_res.empty:
+                            return df_res
+                    except Exception as ex:
+                        logger.warning(f"Excluding bad ticker from batch: {tickers[0]} due to: {ex}")
+                    # Empty result (delisted / no data) — skip silently
+                    return pd.DataFrame()
+
                 try:
                     df_res = yf.download(tickers, start=start_dt, progress=False, auto_adjust=True, group_by='ticker')
                     if df_res is not None and not df_res.empty:
                         return df_res
-                except Exception as ex:
-                    # If batch is size 1, it's the failing ticker
-                    if len(tickers) == 1:
-                        logger.warning(f"Excluding bad ticker from batch: {tickers[0]} due to: {ex}")
-                        return pd.DataFrame()
+                except Exception:
+                    pass  # Fall through to binary split
 
-                # Binary split
+                # Binary split to isolate bad tickers
                 mid = len(tickers) // 2
                 left_tickers = tickers[:mid]
                 right_tickers = tickers[mid:]
@@ -429,17 +438,15 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
 _INDICATOR_TICKERS = {
     '^VIX': 'vix_change',
     '^TNX': 'us10y',         # US 10Y Treasury Yield (10년물)
-    '2YY=X': 'us2y',         # US 2Y Treasury Yield (2년물 표준 기준)
-    '^FVX': 'us5y',          # US 5Y Treasury Yield (5년물 프록시)
+    '^FVX': 'us5y',          # US 5Y Treasury Yield (5년물)
     '^IRX': 'us3m_yield',    # US 13-Week T-Bill (3개월물)
+    # NOTE: '2YY=X' (US2Y), 'KR3YT=RR' (KR3Y), 'KR10YT=RR' (KR10Y), '^CPC' (Put/Call Ratio)
+    #       are no longer available via yfinance (404 / YFTzMissingError).
+    #       Removed to prevent repeated retry noise. Cached DB values will be used as fallback.
     'USDKRW=X': 'usdkrw_change',
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
-    '^CPC': 'put_call_ratio',
-    # Korean macro
-    'KR10YT=RR': 'kr10y',           # Korean 10Y Gov Bond Yield (Reuters code via yfinance)
-    'KR3YT=RR': 'kr3y',             # Korean 3Y Gov Bond Yield — 한국채 3년물 (금통위 기준금리 벤치마크)
     # Sector ETFs
     '091160.KS': 'kodex_semicon_change',
     '305720.KS': 'kodex_battery_change',

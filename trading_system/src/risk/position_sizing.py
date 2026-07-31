@@ -245,8 +245,16 @@ class PortfolioAllocator:
         else:
             df_candidates['market'] = 'KOSPI'  # 기본값
 
+        present_markets = set(df_candidates['market'].str.upper())
+        raw_present = {m: market_budgets.get(m, 0.25) for m in present_markets}
+        tot_present = sum(raw_present.values())
+        if tot_present > 0:
+            norm_market_budgets = {m: b / tot_present for m, b in raw_present.items()}
+        else:
+            norm_market_budgets = market_budgets
+
         df_candidates['market_budget'] = df_candidates['market'].map(
-            lambda m: market_budgets.get(m.upper(), market_budgets.get('KOSPI', 0.25))
+            lambda m: norm_market_budgets.get(m.upper(), 1.0 / max(len(present_markets), 1))
         )
 
         # HRP Allocation Path
@@ -303,7 +311,7 @@ class PortfolioAllocator:
             # 시장별로 그룹화하여 Market Budget 내에서 종목 가중치 합산
             market_weights = []
             for mkt, grp in df_candidates.groupby('market'):
-                budget = market_budgets.get(mkt.upper(), 0.25)
+                budget = norm_market_budgets.get(mkt.upper(), 1.0 / max(len(present_markets), 1))
                 total_score = grp['raw_score'].sum()
                 if total_score > 0:
                     grp = grp.copy()
