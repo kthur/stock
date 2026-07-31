@@ -877,17 +877,23 @@ def build_html(
     from datetime import timezone, timedelta
     KST = timezone(timedelta(hours=9))
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
-    cur_reg = (ensemble.regime or "").strip().upper()
-    if cur_reg in REGIME_INFO:
-        regime_label, regime_color = REGIME_INFO[cur_reg]
-    elif "BULL" in cur_reg:
-        regime_label, regime_color = f"🟢 {cur_reg}", "#2ea043"
-    elif "BEAR" in cur_reg:
-        regime_label, regime_color = f"🔴 {cur_reg}", "#f85149"
-    elif "SIDEWAYS" in cur_reg:
-        regime_label, regime_color = f"🟡 {cur_reg}", "#d29922"
-    else:
-        regime_label, regime_color = "🟢 BULL", "#2ea043"
+    def resolve_regime_info(reg_name: str, fallback_label: str) -> tuple[str, str]:
+        r = (reg_name or "").strip().upper()
+        if r in REGIME_INFO:
+            return REGIME_INFO[r]
+        elif "BULL" in r:
+            return f"🟢 {r}", "#2ea043"
+        elif "BEAR" in r:
+            return f"🔴 {r}", "#f85149"
+        elif "SIDEWAYS" in r:
+            return f"🟡 {r}", "#d29922"
+        return REGIME_INFO.get(fallback_label, ("🟢 BULL", "#2ea043"))
+
+    us_regime_raw = ensemble.us_regime or ensemble.regime or "BULL_LOW_VOL"
+    kr_regime_raw = ensemble.kr_regime or ensemble.regime or "SIDEWAYS_LOW_VOL"
+
+    us_label, us_color = resolve_regime_info(us_regime_raw, "BULL_LOW_VOL")
+    kr_label, kr_color = resolve_regime_info(kr_regime_raw, "SIDEWAYS_LOW_VOL")
     report_date = ensemble.date or surge_date or vcp_date or lag_date or "N/A"
 
     # ── Tab: Ensemble ──
@@ -1439,7 +1445,6 @@ def build_html(
   .header h1 {{ font-size: 24px; font-weight: 700; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
   .header-meta {{ display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; align-items: center; }}
   .badge {{ display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid; }}
-  .badge-regime {{ color: {regime_color}; border-color: {regime_color}; background: {regime_color}20; }}
   .badge-date {{ color: var(--muted); border-color: var(--border); }}
   .badge-updated {{ color: var(--muted); border-color: var(--border); font-size: 11px; }}
 
@@ -1597,7 +1602,8 @@ def build_html(
 <div class="header">
   <h1>📈 Stock Prediction Dashboard</h1>
   <div class="header-meta">
-    <span class="badge badge-regime">{regime_label}</span>
+    <span class="badge" style="color: {us_color}; border-color: {us_color}; background: {us_color}20;">🇺🇸 US: {us_label}</span>
+    <span class="badge" style="color: {kr_color}; border-color: {kr_color}; background: {kr_color}20;">🇰🇷 KR: {kr_label}</span>
     <span class="badge badge-date">📅 {report_date}</span>
     <span class="badge badge-updated">🔄 생성: {now_kst}</span>
   </div>
@@ -1869,8 +1875,8 @@ def build_html(
     <div class="weights-section">
       <div class="weights-title">🎯 현재 감지된 시장 레짐 및 가중치</div>
       <div class="macro-grid" style="margin-bottom: 12px;">
-        <div class="macro-item"><span class="ml">1D 레짐</span><span class="mv badge badge-regime">{regime_label}</span></div>
-        <div class="macro-item"><span class="ml">2D Combo</span><span class="mv badge" style="color:var(--accent);border-color:var(--accent);">SIDEWAYS_LOW_VOL</span></div>
+        <div class="macro-item"><span class="ml">US 레짐</span><span class="mv badge" style="color:{us_color};border-color:{us_color};background:{us_color}20;">🇺🇸 {us_label}</span></div>
+        <div class="macro-item"><span class="ml">KR 레짐</span><span class="mv badge" style="color:{kr_color};border-color:{kr_color};background:{kr_color}20;">🇰🇷 {kr_label}</span></div>
         <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">{ensemble.max_allocation or '50.0%'}</span></div>
       </div>
       {weights_html}

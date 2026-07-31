@@ -30,7 +30,6 @@
   .header h1 { font-size: 24px; font-weight: 700; background: linear-gradient(90deg, #58a6ff, #3fb950); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
   .header-meta { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid; }
-  .badge-regime { color: #2ea043; border-color: #2ea043; background: #2ea04320; }
   .badge-date { color: var(--muted); border-color: var(--border); }
   .badge-updated { color: var(--muted); border-color: var(--border); font-size: 11px; }
 
@@ -188,9 +187,10 @@
 <div class="header">
   <h1>📈 Stock Prediction Dashboard</h1>
   <div class="header-meta">
-    <span class="badge badge-regime">🟢 BULL (Low Vol)</span>
+    <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL (Low Vol)</span>
+    <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇰🇷 KR: 🟢 BULL (Low Vol)</span>
     <span class="badge badge-date">📅 2026-07-29 09:36 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-07-31 15:46 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-07-31 15:52 KST</span>
   </div>
 </div>
 
@@ -2517,8 +2517,8 @@
     <div class="weights-section">
       <div class="weights-title">🎯 현재 감지된 시장 레짐 및 가중치</div>
       <div class="macro-grid" style="margin-bottom: 12px;">
-        <div class="macro-item"><span class="ml">1D 레짐</span><span class="mv badge badge-regime">🟢 BULL (Low Vol)</span></div>
-        <div class="macro-item"><span class="ml">2D Combo</span><span class="mv badge" style="color:var(--accent);border-color:var(--accent);">SIDEWAYS_LOW_VOL</span></div>
+        <div class="macro-item"><span class="ml">US 레짐</span><span class="mv badge" style="color:#2ea043;border-color:#2ea043;background:#2ea04320;">🇺🇸 🟢 BULL (Low Vol)</span></div>
+        <div class="macro-item"><span class="ml">KR 레짐</span><span class="mv badge" style="color:#2ea043;border-color:#2ea043;background:#2ea04320;">🇰🇷 🟢 BULL (Low Vol)</span></div>
         <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">85.0%</span></div>
       </div>
       <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">15.0%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">12.0%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">6.0%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">10.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">2.0%</span></div>

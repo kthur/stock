@@ -2523,8 +2523,16 @@ def execute_prediction_pipeline():
         f.write(f"Date: {kst_now_str}\n\n")
 
         # 1. Executive Summary & Basis
+        vol_state = "HIGH_VOL" if (vix_val >= 20.0 or sp500_vol_20d >= 2.0) else "LOW_VOL"
+        us_trend = "BULL" if sp500_ret_20d > 0.0 else ("BEAR" if sp500_ret_20d < -0.05 else "SIDEWAYS")
+        kr_trend = "BULL" if kospi_ret_20d > 0.0 else ("BEAR" if kospi_ret_20d < -0.05 else "SIDEWAYS")
+        us_2d_regime = f"{us_trend}_{vol_state}"
+        kr_2d_regime = f"{kr_trend}_{vol_state}"
+
         f.write("--- Executive Market Summary ---\n")
         f.write(f"Current Market Regime Detected: {current_regime_label} (2D State: {current_2d_regime})\n")
+        f.write(f"US Market Regime (S&P500): {us_2d_regime}\n")
+        f.write(f"KR Market Regime (KOSPI) : {kr_2d_regime}\n")
         f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
 
         f.write("--- Judgment Basis (Global Macro Indicators) ---\n")
