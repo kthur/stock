@@ -32,7 +32,7 @@ class FactorOrthogonalizerEngine:
     ) -> pd.DataFrame:
         eff_method = method or self.default_method
         valid_cols = [c for c in strategy_cols if c in score_df.columns]
-        if len(valid_cols) < 2 or len(score_df) < 2:
+        if len(valid_cols) < 2 or len(score_df) < 3:
             return score_df.copy()
 
         # Extract numeric matrix X (N, K) efficiently

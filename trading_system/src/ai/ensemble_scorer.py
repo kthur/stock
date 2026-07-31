@@ -98,121 +98,127 @@ class EnsembleScoringEngine:
         }
     }
 
-    # 2D Market Regime Matrix Weights (6 Combo States across 17 Strategies)
+    # 2D Market Regime Matrix Weights (6 Combo States across 18 Strategies)
     REGIME_2D_WEIGHTS = {
         'BEAR_LOW_VOL': {
-            'regression': 0.17,
+            'regression': 0.16,
             'surge': 0.02,
             'lead_lag': 0.02,
             'vcp_rule': 0.02,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.10,
+            'stat_arb': 0.09,
             'sector_rotation': 0.05,
-            'rim_valuation': 0.12,
+            'rim_valuation': 0.11,
             'event_driven': 0.04,
-            'mq_factor': 0.08,
+            'mq_factor': 0.07,
             'iv_skew': 0.04,
             'order_flow': 0.03,
             'short_term_reversal': 0.05,
             'arm_factor': 0.06,
-            'card_factor': 0.08,
-            'latr_factor': 0.07
+            'card_factor': 0.07,
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.06
         },
         'BEAR_HIGH_VOL': {
-            'regression': 0.18,
+            'regression': 0.17,
             'surge': 0.00,
             'lead_lag': 0.02,
             'vcp_rule': 0.02,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.12,
+            'stat_arb': 0.11,
             'sector_rotation': 0.03,
-            'rim_valuation': 0.12,
+            'rim_valuation': 0.11,
             'event_driven': 0.04,
-            'mq_factor': 0.08,
+            'mq_factor': 0.07,
             'iv_skew': 0.04,
             'order_flow': 0.03,
             'short_term_reversal': 0.06,
             'arm_factor': 0.05,
-            'card_factor': 0.09,
-            'latr_factor': 0.07
+            'card_factor': 0.08,
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.05
         },
         'SIDEWAYS_LOW_VOL': {
-            'regression': 0.08,
+            'regression': 0.07,
             'surge': 0.03,
             'lead_lag': 0.05,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.06,
-            'lstm': 0.08,
-            'stat_arb': 0.10,
-            'sector_rotation': 0.07,
-            'rim_valuation': 0.08,
+            'vcp_ml': 0.05,
+            'lstm': 0.07,
+            'stat_arb': 0.09,
+            'sector_rotation': 0.06,
+            'rim_valuation': 0.07,
             'event_driven': 0.06,
-            'mq_factor': 0.07,
+            'mq_factor': 0.06,
             'iv_skew': 0.03,
             'order_flow': 0.04,
             'short_term_reversal': 0.04,
             'arm_factor': 0.06,
             'card_factor': 0.06,
-            'latr_factor': 0.06
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.07
         },
         'SIDEWAYS_HIGH_VOL': {
-            'regression': 0.08,
+            'regression': 0.07,
             'surge': 0.03,
             'lead_lag': 0.05,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.06,
+            'vcp_ml': 0.05,
             'lstm': 0.05,
-            'stat_arb': 0.12,
-            'sector_rotation': 0.07,
-            'rim_valuation': 0.08,
+            'stat_arb': 0.11,
+            'sector_rotation': 0.06,
+            'rim_valuation': 0.07,
             'event_driven': 0.06,
-            'mq_factor': 0.07,
+            'mq_factor': 0.06,
             'iv_skew': 0.03,
             'order_flow': 0.04,
             'short_term_reversal': 0.04,
             'arm_factor': 0.05,
-            'card_factor': 0.08,
-            'latr_factor': 0.06
+            'card_factor': 0.07,
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.07
         },
         'BULL_LOW_VOL': {
             'regression': 0.04,
-            'surge': 0.12,
+            'surge': 0.11,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.10,
-            'lstm': 0.08,
+            'vcp_ml': 0.09,
+            'lstm': 0.07,
             'stat_arb': 0.03,
-            'sector_rotation': 0.08,
+            'sector_rotation': 0.07,
             'rim_valuation': 0.05,
-            'event_driven': 0.08,
-            'mq_factor': 0.08,
+            'event_driven': 0.07,
+            'mq_factor': 0.07,
             'iv_skew': 0.02,
             'order_flow': 0.04,
             'short_term_reversal': 0.02,
-            'arm_factor': 0.08,
+            'arm_factor': 0.07,
             'card_factor': 0.05,
-            'latr_factor': 0.06
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.08
         },
         'BULL_HIGH_VOL': {
             'regression': 0.03,
-            'surge': 0.14,
+            'surge': 0.13,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.10,
-            'lstm': 0.08,
+            'vcp_ml': 0.09,
+            'lstm': 0.07,
             'stat_arb': 0.03,
-            'sector_rotation': 0.06,
+            'sector_rotation': 0.05,
             'rim_valuation': 0.05,
-            'event_driven': 0.08,
-            'mq_factor': 0.08,
+            'event_driven': 0.07,
+            'mq_factor': 0.07,
             'iv_skew': 0.02,
             'order_flow': 0.04,
             'short_term_reversal': 0.03,
-            'arm_factor': 0.07,
-            'card_factor': 0.07,
-            'latr_factor': 0.06
+            'arm_factor': 0.06,
+            'card_factor': 0.06,
+            'latr_factor': 0.06,
+            'inst_foreign_sector': 0.08
         }
     }
 
@@ -552,6 +558,7 @@ class EnsembleScoringEngine:
         order_size_sp500 = getattr(self.config, 'order_size_sp500', 50_000.0) if self.config else 50_000.0
 
         lines.append("\n[Transaction Costs & Liquidity Filter Rationale]")
+        lines.append("• Microstructure Execution & Market Impact Model Active (Almgren-Chriss Order Size Hypothesis (Q): KRX 50M KRW / SP500 50k USD)")
         lines.append("• Transaction Cost & Slippage Deductions Applied:")
         lines.append("  - KONEX : 0.80% fee + 0.50% slippage = 1.30% net return deduction")
         lines.append("  - KOSDAQ: 0.50% fee + 0.50% slippage = 1.00% net return deduction")
@@ -631,11 +638,11 @@ class EnsembleScoringEngine:
         )
 
     def combine_predictions(self,
-                            reg_df: pd.DataFrame,
-                            s_df: pd.DataFrame,
-                            ll_df: pd.DataFrame,
+                            reg_df: Optional[pd.DataFrame] = None,
+                            s_df: Optional[pd.DataFrame] = None,
+                            ll_df: Optional[pd.DataFrame] = None,
                             v_rule_df: Optional[Union[pd.DataFrame, list]] = None,
-                            vcp_ml_df: pd.DataFrame = None,
+                            vcp_ml_df: Optional[pd.DataFrame] = None,
                             lstm_df: Optional[pd.DataFrame] = None,
                             stat_arb_df: Optional[pd.DataFrame] = None,
                             sector_df: Optional[pd.DataFrame] = None,
@@ -657,6 +664,12 @@ class EnsembleScoringEngine:
         """
         Merges 18 strategy prediction DataFrames and computes weighted ensemble score.
         """
+        if reg_df is None:
+            reg_df = pd.DataFrame()
+        if s_df is None:
+            s_df = pd.DataFrame()
+        if ll_df is None:
+            ll_df = pd.DataFrame()
         if weights is None:
             weights = self.REGIME_2D_WEIGHTS['BULL_LOW_VOL']
 
@@ -957,7 +970,9 @@ class EnsembleScoringEngine:
         total_score_series = pd.Series(0.0, index=merged.index)
         total_weight_series = pd.Series(0.0, index=merged.index)
         valid_count_series = pd.Series(0.0, index=merged.index)
-        total_strategies = float(len(strategy_cols))
+
+        present_strategy_cols = [score_col for _, score_col in strategy_cols if score_col in merged.columns and merged[score_col].notna().any()]
+        num_present_strats = max(float(len(present_strategy_cols)), 1.0)
 
         for strat_name, score_col in strategy_cols:
             w = weights.get(strat_name, 0.10)
@@ -972,16 +987,19 @@ class EnsembleScoringEngine:
         safe_weight_series = total_weight_series.replace(0.0, np.nan)
         linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
 
-        # Apply coverage factor: If factor coverage < 40%, scale down score to prevent missingness distortion
-        coverage_ratio = valid_count_series / total_strategies
+        # Apply coverage factor relative to present strategy DataFrames
+        coverage_ratio = valid_count_series / num_present_strats
         coverage_penalty = np.where(coverage_ratio < 0.40, 0.5 + 0.5 * (coverage_ratio / 0.40), 1.0)
         linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
 
-        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50)
+        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50 if fitted)
         try:
             meta_learner = MetaEnsembleLearner()
-            meta_score = meta_learner.predict(merged)
-            blended_score = (0.5 * linear_score + 0.5 * meta_score).clip(0.0, 1.0)
+            if meta_learner.is_fitted:
+                meta_score = meta_learner.predict(merged)
+                blended_score = pd.Series(0.5 * linear_score + 0.5 * meta_score, index=merged.index).clip(0.0, 1.0)
+            else:
+                blended_score = linear_score
         except Exception as e:
             logger.warning(f"MetaEnsembleLearner prediction fallback to linear score: {e}")
             blended_score = linear_score
