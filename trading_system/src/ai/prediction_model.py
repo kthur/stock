@@ -1443,7 +1443,9 @@ class OnDevicePredictionModel:
                     except Exception:
                         _m_xgb = xgb.XGBRegressor(**kw_no_es)
                         _m_xgb.fit(X_tr, y_tr)
-                    fold_mse_xgb.append(float(mean_squared_error(y_va, _m_xgb.predict(X_va))))
+                    y_va_clean = np.nan_to_num(y_va, nan=0.0, posinf=0.0, neginf=0.0)
+                    pred_xgb_clean = np.nan_to_num(_m_xgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
+                    fold_mse_xgb.append(float(mean_squared_error(y_va_clean, pred_xgb_clean)))
 
                     # LightGBM fold
                     _m_lgb = lgb.LGBMRegressor(**kw_lgb)
@@ -1458,7 +1460,8 @@ class OnDevicePredictionModel:
                             _m_lgb.fit(X_tr, y_tr)
                         else:
                             _m_lgb.fit(X_tr, y_tr)
-                    fold_mse_lgb.append(float(mean_squared_error(y_va, _m_lgb.predict(X_va))))
+                    pred_lgb_clean = np.nan_to_num(_m_lgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
+                    fold_mse_lgb.append(float(mean_squared_error(y_va_clean, pred_lgb_clean)))
 
                     # CatBoost fold
                     try:
@@ -1472,7 +1475,8 @@ class OnDevicePredictionModel:
                         else:
                             _m_cat = cb.CatBoostRegressor(**kw_cat)
                             _m_cat.fit(X_tr, y_tr, verbose=False)
-                    fold_mse_cat.append(float(mean_squared_error(y_va, _m_cat.predict(X_va))))
+                    pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
+                    fold_mse_cat.append(float(mean_squared_error(y_va_clean, pred_cat_clean)))
 
                     logger.debug(
                         f"{market} {h}d fold {fold_idx+1}/{n_splits}: "
@@ -1541,8 +1545,10 @@ class OnDevicePredictionModel:
                 lstm_predictor.train_model(X_lstm_all, y_lstm_all)
                 self.lstm_models[market][h] = lstm_predictor
                 pred_lstm = lstm_predictor.predict(X_lstm_all)
-                mse_lstm = float(mean_squared_error(y_lstm_all, pred_lstm))
-                mae_lstm = float(mean_absolute_error(y_lstm_all, pred_lstm))
+                y_lstm_clean = np.nan_to_num(y_lstm_all, nan=0.0, posinf=0.0, neginf=0.0)
+                pred_lstm_clean = np.nan_to_num(pred_lstm, nan=0.0, posinf=0.0, neginf=0.0)
+                mse_lstm = float(mean_squared_error(y_lstm_clean, pred_lstm_clean))
+                mae_lstm = float(mean_absolute_error(y_lstm_clean, pred_lstm_clean))
 
             # ── Ensemble weights from walk-forward averaged MSE ─────────────
             use_lstm = mse_lstm < 1e5
