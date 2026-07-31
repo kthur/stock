@@ -75,6 +75,10 @@ class CPCVCombinatorialSplitter:
         return splits
 
 
+# Alias for backwards compatibility
+CPCVStressTester = CPCVCombinatorialSplitter
+
+
 class HistoricalStressTester:
     """
     Simulates portfolio behavior under severe market historical shocks:

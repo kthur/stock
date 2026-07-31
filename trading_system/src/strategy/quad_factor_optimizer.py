@@ -127,3 +127,7 @@ class QuadFactorNeutralOptimizer:
             w_opt /= w_sum
 
         return {symbols[i]: float(w_opt[i]) for i in range(n)}
+
+
+# Alias for backwards compatibility
+QuadFactorOptimizer = QuadFactorNeutralOptimizer
