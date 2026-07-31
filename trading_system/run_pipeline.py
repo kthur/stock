@@ -2521,12 +2521,11 @@ def execute_prediction_pipeline():
         logger.warning(f"Black-Litterman portfolio allocation output skipped: {_bl_e}")
 
     ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
-    univ_cols = ['symbol']
-    if 'name' in universe.columns:
-        univ_cols.append('name')
-    if 'market' in universe.columns and 'market' not in ensemble_df.columns:
-        univ_cols.append('market')
-    ensemble_df_merged = ensemble_df.merge(universe[univ_cols], on='symbol', how='left')
+    target_cols = [c for c in ['name', 'market'] if c in universe.columns]
+    cols_to_drop = [c for c in target_cols if c in ensemble_df.columns]
+    ensemble_clean = ensemble_df.drop(columns=cols_to_drop) if cols_to_drop else ensemble_df
+    univ_cols = ['symbol'] + target_cols
+    ensemble_df_merged = ensemble_clean.merge(universe[univ_cols], on='symbol', how='left')
 
     # ── Execution OMS Order Plan Generation & DB Logging ──
     try:
@@ -2603,7 +2602,8 @@ def execute_prediction_pipeline():
             f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n")
             f.write("-" * 171 + "\n")
             for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
-                name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                name_val = row.get('name', 'Unknown')
+                name_str = str(name_val)[:16] if pd.notna(name_val) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
                 lstm_val = row.get('lstm_score', 0.0)
                 sa_val = row.get('stat_arb_score', 0.0)
