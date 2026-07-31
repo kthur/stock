@@ -1653,7 +1653,9 @@ def build_html(
 <div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
 
 <nav class="tabs">
-  <button class="tab active" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
+  <button class="tab active" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
+  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation (섹터 로테이션)</button>
+  <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
@@ -1661,7 +1663,6 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
   <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
   <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
-  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
   <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
   <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
   <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
@@ -1671,14 +1672,13 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'arm')">📈 ARM</button>
   <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
   <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
-  <button class="tab" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
 <div class="content">
 
   <!-- ══ Portfolio (HRP) Tab ══ -->
-  <div class="tab-panel active" id="panel-portfolio">
+  <div class="tab-panel" id="panel-portfolio">
     <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
       <div class="macro-grid">
         <div class="macro-item"><span class="ml">총 자본금</span><span class="mv">{portfolio_data.total_capital or '1,000,000,000 KRW/USD'}</span></div>
@@ -2131,7 +2131,7 @@ def build_html(
   </div>
 
   <!-- ══ Scenario Simulator Tab ══ -->
-  <div class="tab-panel" id="panel-scenario">
+  <div class="tab-panel active" id="panel-scenario">
     <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
       <h3 style="color: #60a5fa; margin-top:0; font-size: 1.25rem;"><i class="fas fa-sliders-h"></i> 대화형 거시경제 & 섹터 경기 시나리오 시뮬레이터</h3>
       <p style="color: #94a3b8; font-size: 0.9rem;">섹터 경기 전망 및 거시 지표 슬라이더를 조작하면 시나리오 조건부 수혜/타격 예측 종목이 실시간 계산됩니다.</p>
