@@ -284,29 +284,29 @@ class PortfolioOptimizer:
         Returns:
             Dict[str, float]: Optimized asset weights.
         """
-        from src.strategy.quad_factor_optimizer import QuadFactorNeutralOptimizer as QuadFactorOptimizer
+        from typing import cast
+        from src.strategy.quad_factor_optimizer import QuadFactorNeutralOptimizer, FactorExposures
 
         symbols = list(expected_returns.index)
-        if isinstance(cov_matrix, np.ndarray):
-            cov_df = pd.DataFrame(cov_matrix, index=symbols, columns=symbols)
-        else:
-            cov_df = cov_matrix
+        cov_arr = cov_matrix.values if isinstance(cov_matrix, pd.DataFrame) else cov_matrix
 
-        optimizer = QuadFactorOptimizer(
-            risk_aversion=risk_aversion,
-            turnover_penalty=turnover_penalty,
-            default_max_weight=max_weight if max_weight is not None else self.default_max_weight,
-            default_max_sector_weight=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight
+        optimizer = QuadFactorNeutralOptimizer(
+            max_sector_exposure=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight,
+            max_single_weight=max_weight if max_weight is not None else self.default_max_weight
         )
 
+        ret_dict = expected_returns.to_dict()
+        exp_dict: Dict[str, FactorExposures] = {}
+        sec_dict: Dict[str, str] = sector_df.to_dict() if isinstance(sector_df, pd.Series) else (sector_map or {})
+
+        for sym in symbols:
+            exp_dict[sym] = FactorExposures()
+
         res = optimizer.optimize(
-            expected_returns=expected_returns,
-            cov_matrix=cov_df,
-            factor_df=factor_df,
-            sector_map=sector_map,
-            w_initial=w_initial,
-            max_weight=max_weight,
-            max_sector_weight=max_sector_weight,
-            factor_tolerances=factor_tolerances
+            expected_returns=ret_dict,
+            cov_matrix=cov_arr,
+            factor_exposures=exp_dict,
+            sector_mapping=sec_dict,
+            risk_aversion=risk_aversion
         )
         return cast(Dict[str, float], res)
