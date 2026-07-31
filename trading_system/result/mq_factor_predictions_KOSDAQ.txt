@@ -1,7 +1,7 @@
 === Strategy 11: Momentum Quality (MQ) Factor Predictions ===
-Date: 2026-07-31 12:17 KST
+Date: 2026-07-31 12:48 KST
 Total symbols evaluated: 1
 
 Rank Symbol    Name              Market    MQ Score      
 ------------------------------------------------------------
-1    068270    Celltrion         KOSDAQ            44.0%
+1    068270    Celltrion         KOSDAQ            49.3%

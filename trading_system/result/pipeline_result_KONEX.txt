@@ -1,16 +1,16 @@
 === Pipeline Inference Summary (KONEX) ===
-Date: 2026-07-31 12:17
+Date: 2026-07-31 12:48
 Total symbols analyzed: 1
 
 --- KONEX TOP 1 (Horizon: 1d) ---
   1. 207940 (Samsung BioLogics): +0.35%
 
 --- KONEX TOP 1 (Horizon: 5d) ---
-  1. 207940 (Samsung BioLogics): -0.58%
+  1. 207940 (Samsung BioLogics): -0.53%
 
 --- KONEX TOP 1 (Horizon: 20d) ---
-  1. 207940 (Samsung BioLogics): +0.44%
+  1. 207940 (Samsung BioLogics): +0.48%
 
 --- KONEX TOP 1 (Horizon: 60d) ---
-  1. 207940 (Samsung BioLogics): -0.37%
+  1. 207940 (Samsung BioLogics): -0.15%
 

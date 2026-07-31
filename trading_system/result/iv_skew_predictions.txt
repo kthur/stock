@@ -1,11 +1,11 @@
 === Strategy 12: Options Put/Call IV Skew Predictions ===
-Date: 2026-07-31 12:17 KST
+Date: 2026-07-31 12:48 KST
 Total symbols evaluated: 5
 
 Rank Symbol    Name              Market    IV Skew Score 
 ------------------------------------------------------------
 1    MSFT      Microsoft Corp.   SP500             44.5%
 2    AAPL      Apple Inc.        SP500             42.6%
-3    005930    Samsung Electron  KOSPI             41.7%
-4    068270    Celltrion         KOSDAQ            41.7%
-5    207940    Samsung BioLogic  KONEX             41.7%
+3    005930    Samsung Electron  KOSPI             34.6%
+4    068270    Celltrion         KOSDAQ            34.6%
+5    207940    Samsung BioLogic  KONEX             34.6%

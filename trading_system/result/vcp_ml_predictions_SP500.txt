@@ -1,9 +1,9 @@
 === VCP ML Surge Predictions (SP500) ===
-Date: 2026-07-31 12:17
+Date: 2026-07-31 12:48
 
 [1일] SP500 TOP 2
-  1. [SP500] MSFT (Microsoft Corp.): 1.3%
-  2. [SP500] AAPL (Apple Inc.): 1.3%
+  1. [SP500] AAPL (Apple Inc.): 1.3%
+  2. [SP500] MSFT (Microsoft Corp.): 1.3%
 
 [3일] SP500 TOP 2
   1. [SP500] MSFT (Microsoft Corp.): 0.4%

@@ -1,5 +1,5 @@
 === VCP (Volatility Contraction Pattern) Results ===
-Date: 2026-07-31 12:17
+Date: 2026-07-31 12:48
 Total symbols evaluated: 5
 
 --- KOSPI Top 1 ---
@@ -18,11 +18,11 @@ Total symbols evaluated: 5
        Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
 
 --- SP500 Top 2 ---
-  1. [SP500] MSFT (Microsoft Corp.)
+  1. [SP500] AAPL (Apple Inc.)
        Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
        Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
 
-  2. [SP500] AAPL (Apple Inc.)
+  2. [SP500] MSFT (Microsoft Corp.)
        Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
        Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
 

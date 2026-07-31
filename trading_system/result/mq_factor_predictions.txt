@@ -1,11 +1,11 @@
 === Strategy 11: Momentum Quality (MQ) Factor Predictions ===
-Date: 2026-07-31 12:17 KST
+Date: 2026-07-31 12:48 KST
 Total symbols evaluated: 5
 
 Rank Symbol    Name              Market    MQ Score      
 ------------------------------------------------------------
-1    AAPL      Apple Inc.        SP500             68.0%
-2    207940    Samsung BioLogic  KONEX             68.0%
+1    AAPL      Apple Inc.        SP500             65.3%
+2    207940    Samsung BioLogic  KONEX             65.3%
 3    MSFT      Microsoft Corp.   SP500             60.0%
 4    005930    Samsung Electron  KOSPI             60.0%
-5    068270    Celltrion         KOSDAQ            44.0%
+5    068270    Celltrion         KOSDAQ            49.3%

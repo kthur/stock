@@ -1,5 +1,5 @@
 === Statistical Arbitrage Pairs & Signals ===
-Date: 2026-07-31 12:17
+Date: 2026-07-31 12:48
 Total cointegrated pairs found: 1
 
 Pair                     Z-Score   Correlation    Beta/Hedge  Signal              

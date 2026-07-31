@@ -1,8 +1,8 @@
 === Strategy 11: Momentum Quality (MQ) Factor Predictions ===
-Date: 2026-07-31 12:17 KST
+Date: 2026-07-31 12:48 KST
 Total symbols evaluated: 2
 
 Rank Symbol    Name              Market    MQ Score      
 ------------------------------------------------------------
-1    AAPL      Apple Inc.        SP500             68.0%
+1    AAPL      Apple Inc.        SP500             65.3%
 2    MSFT      Microsoft Corp.   SP500             60.0%
