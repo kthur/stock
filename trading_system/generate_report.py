@@ -856,6 +856,7 @@ def build_html(
     arm_rows: Optional[list[SimpleStrategyRow]] = None,
     card_rows: Optional[list[SimpleStrategyRow]] = None,
     latr_rows: Optional[list[SimpleStrategyRow]] = None,
+    scenario_universe_json: str = "[]",
 ) -> str:
     from datetime import timezone, timedelta
     KST = timezone(timedelta(hours=9))
@@ -870,7 +871,7 @@ def build_html(
         flag = MARKET_FLAGS.get(mkt, "")
         rows_html = ""
         if mkt_data and mkt_data.rows:
-            for r in mkt_data.rows:
+            for r in mkt_data.rows[:20]:
                 rc = ret_class(r.expected_return)
                 symbol_link = make_stock_link(r.symbol, mkt)
                 rows_html += f"""
@@ -2200,7 +2201,7 @@ def build_html(
             <input type="range" id="scen-vix" min="-40" max="60" step="2" value="0" style="width:100%" oninput="updateScenarioSim()">
           </div>
 
-          <div style="margin-top: 15px; display: flex; gap: 10px;">
+          <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
             <button onclick="applyPresetScenario('semicon_boom')" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🚀 반도체 호황</button>
             <button onclick="applyPresetScenario('stagflation')" style="background:#e11d48; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">⚠️ 스태그플레이션</button>
             <button onclick="resetScenarioSliders()" style="background:#475569; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🔄 초기화</button>
@@ -2209,12 +2210,20 @@ def build_html(
       </div>
     </div>
 
-    <!-- Scenario Output Results Table -->
+    <!-- Scenario Market Filter Bar & Table -->
+    <div class="filter-bar" id="filter-scenario" style="margin-bottom: 15px;">
+      <button class="filter-btn active" onclick="filterScenarioMarket(this,'all')">전체 (TOP 30)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSPI')">🇰🇷 KOSPI (TOP 20)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSDAQ')">🇰🇷 KOSDAQ (TOP 20)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'SP500')">🇺🇸 SP500 (TOP 20)</button>
+    </div>
+
     <div class="table-wrap">
       <table class="data-table" id="table-scenario-results">
         <thead>
           <tr>
             <th>순위</th>
+            <th>시장</th>
             <th>종목코드</th>
             <th>종목명</th>
             <th>섹터</th>
@@ -2349,7 +2358,17 @@ document.addEventListener('DOMContentLoaded', function() {{
       }}
     }});
   }}
-  // Scenario Simulator Client Logic
+  // Scenario Simulator Client Logic & Market Filtering
+  let currentScenarioMarket = 'all';
+  const scenarioUniverse = {scenario_universe_json};
+
+  window.filterScenarioMarket = function(btn, mkt) {{
+    document.querySelectorAll('#filter-scenario .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentScenarioMarket = mkt;
+    updateScenarioSim();
+  }};
+
   window.updateScenarioSim = function() {{
     const sSemi = parseFloat(document.getElementById('scen-semi').value);
     const sAuto = parseFloat(document.getElementById('scen-auto').value);
@@ -2373,22 +2392,15 @@ document.addEventListener('DOMContentLoaded', function() {{
     document.getElementById('val-rate').innerText = mRate.toFixed(1) + '%';
     document.getElementById('val-vix').innerText = (mVix >= 0 ? '+' : '') + mVix.toFixed(0) + '%';
 
-    // Stock Universe for Simulation
-    const universe = [
-      {{ sym: '005930.KS', name: '삼성전자', sec: 'Information Technology', base: 0.68, key: 'semi', elas: {{ fx: 0.6, wti: -0.2, rate: -0.4, vix: -0.3 }} }},
-      {{ sym: '000660.KS', name: 'SK하이닉스', sec: 'Information Technology', base: 0.72, key: 'semi', elas: {{ fx: 0.6, wti: -0.2, rate: -0.4, vix: -0.3 }} }},
-      {{ sym: '005380.KS', name: '현대차', sec: 'Consumer Discretionary', base: 0.65, key: 'auto', elas: {{ fx: 0.4, wti: -0.3, rate: -0.3, vix: -0.4 }} }},
-      {{ sym: '051910.KS', name: 'LG화학', sec: 'Materials', base: 0.62, key: 'energy', elas: {{ fx: 0.2, wti: 0.6, rate: 0.1, vix: -0.3 }} }},
-      {{ sym: '105560.KS', name: 'KB금융', sec: 'Financials', base: 0.58, key: 'fin', elas: {{ fx: -0.2, wti: 0.1, rate: 0.7, vix: -0.2 }} }},
-      {{ sym: '011780.KS', name: 'S-Oil', sec: 'Energy', base: 0.50, key: 'energy', elas: {{ fx: -0.1, wti: 0.9, rate: 0.2, vix: -0.1 }} }},
-      {{ sym: '097950.KS', name: 'CJ제일제당', sec: 'Consumer Staples', base: 0.52, key: 'staples', elas: {{ fx: -0.4, wti: -0.5, rate: 0.1, vix: 0.3 }} }},
-      {{ sym: '005490.KS', name: 'POSCO홀딩스', sec: 'Materials', base: 0.54, key: 'energy', elas: {{ fx: 0.2, wti: 0.6, rate: 0.1, vix: -0.3 }} }}
-    ];
-
     const secValues = {{ semi: sSemi, auto: sAuto, energy: sEnergy, fin: sFin, staples: sStaples }};
     const results = [];
 
-    universe.forEach(item => {{
+    // Filter universe by active market tab if specified
+    const activeUniverse = (currentScenarioMarket === 'all')
+      ? scenarioUniverse
+      : scenarioUniverse.filter(item => item.mkt === currentScenarioMarket);
+
+    activeUniverse.forEach(item => {{
       const macroShock = ((mFx / 10.0) * item.elas.fx) + ((mWti / 10.0) * item.elas.wti) + (((mRate - 4.0) / 2.0) * item.elas.rate) + ((mVix / 20.0) * item.elas.vix);
       const secOutlook = secValues[item.key] || 0.0;
       const secShock = secOutlook * 0.25;
@@ -2407,6 +2419,7 @@ document.addEventListener('DOMContentLoaded', function() {{
       results.push({{
         sym: item.sym,
         name: item.name,
+        mkt: item.mkt,
         sec: item.sec,
         base: item.base.toFixed(4),
         sim: simScore.toFixed(4),
@@ -2415,23 +2428,46 @@ document.addEventListener('DOMContentLoaded', function() {{
       }});
     }});
 
+    // Sort by simulated score descending
     results.sort((a, b) => parseFloat(b.sim) - parseFloat(a.sim));
 
+    // Limit output: 30 for overall ('all'), 20 per individual market
+    const limit = (currentScenarioMarket === 'all') ? 30 : 20;
+    const finalResults = results.slice(0, limit);
+
+    const mktFlags = {{ KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', KONEX: '🇰🇷', SP500: '🇺🇸' }};
+
     let html = '';
-    results.forEach((r, idx) => {{
-      const deltaColor = parseFloat(r.delta) > 0 ? '#38a169' : (parseFloat(r.delta) < 0 ? '#f43f5e' : '#cbd5e1');
-      const badgeBg = parseFloat(r.delta) > 0 ? 'rgba(46, 160, 67, 0.2)' : (parseFloat(r.delta) < 0 ? 'rgba(244, 63, 94, 0.2)' : 'transparent');
-      html += '<tr>' +
-        '<td style="text-align:center; font-weight:bold;">' + (idx + 1) + '</td>' +
-        '<td><code>' + r.sym + '</code></td>' +
-        '<td style="font-weight:600; color:#f8fafc;">' + r.name + '</td>' +
-        '<td><span class="badge" style="background:#334155; color:#cbd5e1;">' + r.sec + '</span></td>' +
-        '<td>' + r.base + '</td>' +
-        '<td style="font-weight:bold; color:#60a5fa;">' + r.sim + '</td>' +
-        '<td><span style="background:' + badgeBg + '; color:' + deltaColor + '; padding:2px 6px; border-radius:4px; font-weight:bold;">' + r.delta + '</span></td>' +
-        '<td style="font-size:0.85rem; color:#cbd5e1;">' + r.rationale + '</td>' +
-      '</tr>';
-    }});
+    if (finalResults.length === 0) {{
+      html = '<tr><td colspan="9" class="empty">시나리오 조건에 해당하는 종목 데이터가 없습니다.</td></tr>';
+    }} else {{
+      finalResults.forEach((r, idx) => {{
+        const deltaColor = parseFloat(r.delta) > 0 ? '#38a169' : (parseFloat(r.delta) < 0 ? '#f43f5e' : '#cbd5e1');
+        const badgeBg = parseFloat(r.delta) > 0 ? 'rgba(46, 160, 67, 0.2)' : (parseFloat(r.delta) < 0 ? 'rgba(244, 63, 94, 0.2)' : 'transparent');
+        const flag = mktFlags[r.mkt] || '';
+
+        // Make clickable link based on market
+        let symLink = r.sym;
+        const cleanCode = r.sym.split('.')[0];
+        if (['KOSPI', 'KOSDAQ', 'KONEX'].includes(r.mkt)) {{
+          symLink = '<a href="https://m.stock.naver.com/domestic/stock/' + cleanCode + '/total" target="_blank" class="stock-link">' + r.sym + '</a>';
+        }} else {{
+          symLink = '<a href="https://finance.yahoo.com/quote/' + r.sym + '" target="_blank" class="stock-link">' + r.sym + '</a>';
+        }}
+
+        html += '<tr>' +
+          '<td style="text-align:center; font-weight:bold;">#' + (idx + 1) + '</td>' +
+          '<td>' + flag + ' ' + r.mkt + '</td>' +
+          '<td>' + symLink + '</td>' +
+          '<td style="font-weight:600; color:#f8fafc;">' + r.name + '</td>' +
+          '<td><span class="badge" style="background:#334155; color:#cbd5e1;">' + r.sec + '</span></td>' +
+          '<td>' + r.base + '</td>' +
+          '<td style="font-weight:bold; color:#60a5fa;">' + r.sim + '</td>' +
+          '<td><span style="background:' + badgeBg + '; color:' + deltaColor + '; padding:2px 6px; border-radius:4px; font-weight:bold;">' + r.delta + '</span></td>' +
+          '<td style="font-size:0.85rem; color:#cbd5e1;">' + r.rationale + '</td>' +
+        '</tr>';
+      }});
+    }}
 
     document.getElementById('tbody-scenario-sim').innerHTML = html;
   }};
@@ -2485,8 +2521,6 @@ def main(args_list: Optional[list[str]] = None):
     result_dir = Path(args.result_dir)
     out_path = Path(args.out)
 
-    print(f"[generate_report] Reading from: {result_dir.resolve()}")
-
     ensemble = parse_ensemble(_read(result_dir / "ensemble_predictions.txt"))
     surge_date, surge_sections = parse_surge(_read(result_dir / "surge_predictions.txt"))
     vcp_date, vcp_rows = parse_vcp(_read(result_dir / "vcp_patterns.txt"))
@@ -2506,6 +2540,53 @@ def main(args_list: Optional[list[str]] = None):
     card_date, card_rows = parse_card_factor(_read(result_dir / "card_factor_predictions.txt"))
     latr_date, latr_rows = parse_latr_factor(_read(result_dir / "latr_factor_predictions.txt"))
 
+    # Build stock universe for Scenario Simulator (TOP stocks per market)
+    scen_universe = []
+    for m in ensemble.markets:
+        mkt = m.market
+        for r in m.rows[:50]:
+            # Determine sector elasticity key and GICS normalized name
+            raw_sec = getattr(r, 'sector_rotation', 'General')
+            gics = "Consumer Staples"
+            key = "staples"
+            elas = {"fx": -0.4, "wti": -0.5, "rate": 0.1, "vix": 0.3}
+
+            name_lower = r.name.lower()
+            if any(k in name_lower for k in ["전자", "하이닉스", "반도체", "samsung", "sk", "nvda", "amd", "apple", "msft", "it"]):
+                gics = "Information Technology"
+                key = "semi"
+                elas = {"fx": 0.6, "wti": -0.2, "rate": -0.4, "vix": -0.3}
+            elif any(k in name_lower for k in ["자동차", "현대", "기아", "모비스", "이차전지", "에코프로", "lg에너지", "tsla"]):
+                gics = "Consumer Discretionary"
+                key = "auto"
+                elas = {"fx": 0.4, "wti": -0.3, "rate": -0.3, "vix": -0.4}
+            elif any(k in name_lower for k in ["화학", "s-oil", "oil", "에너지", "포스코", "posco", "철강", "xom", "cvx"]):
+                gics = "Energy/Materials"
+                key = "energy"
+                elas = {"fx": 0.2, "wti": 0.7, "rate": 0.1, "vix": -0.2}
+            elif any(k in name_lower for k in ["금융", "은행", "증권", "보험", "kb", "신한", "하나", "jpm", "bac"]):
+                gics = "Financials"
+                key = "fin"
+                elas = {"fx": -0.2, "wti": 0.1, "rate": 0.7, "vix": -0.2}
+
+            # Parse score string (e.g. "68.5%") to float [0, 1]
+            try:
+                score_num = float(r.score.replace("%", "").strip()) / 100.0
+            except Exception:
+                score_num = 0.5
+
+            scen_universe.append({
+                "sym": r.symbol,
+                "name": r.name,
+                "mkt": mkt,
+                "sec": gics,
+                "base": score_num,
+                "key": key,
+                "elas": elas
+            })
+
+    scenario_universe_json = json.dumps(scen_universe, ensure_ascii=False)
+
     html = build_html(
         ensemble,
         surge_date, surge_sections,
@@ -2524,6 +2605,7 @@ def main(args_list: Optional[list[str]] = None):
         arm_rows,
         card_rows,
         latr_rows,
+        scenario_universe_json,
     )
 
 
