@@ -71,7 +71,7 @@ class SlippageFeedbackEngine:
             tables = [r[0] for r in cursor.fetchall()]
 
             slippages = []
-            mkt_slippage = {
+            mkt_slippage: dict[str, list[float]] = {
                 "KOSPI": [],
                 "KOSDAQ": [],
                 "SP500": [],
