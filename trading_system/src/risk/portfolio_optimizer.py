@@ -290,23 +290,17 @@ class PortfolioOptimizer:
         symbols = list(expected_returns.index)
         cov_arr = cov_matrix.values if isinstance(cov_matrix, pd.DataFrame) else cov_matrix
 
-        optimizer = QuadFactorNeutralOptimizer(
-            max_sector_exposure=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight,
-            max_single_weight=max_weight if max_weight is not None else self.default_max_weight
+        from src.strategy.quad_factor_optimizer import QuadFactorOptimizer
+        optimizer = QuadFactorOptimizer(
+            default_max_weight=max_weight if max_weight is not None else self.default_max_weight,
+            default_max_sector_weight=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight
         )
-
-        ret_dict = expected_returns.to_dict()
-        exp_dict: Dict[str, FactorExposures] = {}
-        sec_dict: Dict[str, str] = sector_df.to_dict() if isinstance(sector_df, pd.Series) else (sector_map or {})
-
-        for sym in symbols:
-            exp_dict[sym] = FactorExposures()
-
-        res = optimizer.optimize(
-            expected_returns=ret_dict,
-            cov_matrix=cov_arr,
-            factor_exposures=exp_dict,
-            sector_mapping=sec_dict,
+        return optimizer.optimize(
+            expected_returns=expected_returns,
+            cov_matrix=cov_matrix,
+            factor_df=factor_df,
+            sector_mapping=sector_map,
+            max_weight=max_weight,
+            max_sector_weight=max_sector_weight,
             risk_aversion=risk_aversion
         )
-        return cast(Dict[str, float], res)
