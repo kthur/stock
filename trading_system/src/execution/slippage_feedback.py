@@ -91,3 +91,7 @@ class RealizedSlippageFeedback:
         except Exception as e:
             logger.error(f"Error querying trade_logs.db for slippage: {e}")
             return SlippageMetrics(0, 5.0, 15.0, 1.0)
+
+
+# Alias for backwards compatibility
+SlippageFeedbackEngine = RealizedSlippageFeedback

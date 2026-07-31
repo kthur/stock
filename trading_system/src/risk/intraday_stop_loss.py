@@ -32,6 +32,9 @@ class StopLossSignal:
     intraday_return: float
     panic_score: float
 
+# Alias for backwards compatibility
+StopLossResult = StopLossSignal
+
 
 class IntradayStopLossEngine:
     """
