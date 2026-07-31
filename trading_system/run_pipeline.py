@@ -2520,6 +2520,14 @@ def execute_prediction_pipeline():
     except Exception as _bl_e:
         logger.warning(f"Black-Litterman portfolio allocation output skipped: {_bl_e}")
 
+    ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
+    univ_cols = ['symbol']
+    if 'name' in universe.columns:
+        univ_cols.append('name')
+    if 'market' in universe.columns and 'market' not in ensemble_df.columns:
+        univ_cols.append('market')
+    ensemble_df_merged = ensemble_df.merge(universe[univ_cols], on='symbol', how='left')
+
     # ── Execution OMS Order Plan Generation & DB Logging ──
     try:
         from src.execution.oms_engine import ExecutionOMSEngine
@@ -2530,10 +2538,6 @@ def execute_prediction_pipeline():
         logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db")
     except Exception as _oms_e:
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
-
-
-    ensemble_output_path = os.path.join(result_dir, "ensemble_predictions.txt")
-    ensemble_df_merged = ensemble_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
         f.write("=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\n")
