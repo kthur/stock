@@ -126,6 +126,10 @@ class IntradayStopLossEngine:
                 if data.empty or "close" not in data.columns:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
+                raw_last = data["close"].values[-1]
+                if pd.isna(raw_last) or math.isinf(float(raw_last)) if not pd.isna(raw_last) else True:
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
                 closes = data["close"].dropna().values
                 if len(closes) == 0:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
@@ -160,7 +164,11 @@ class IntradayStopLossEngine:
                         atr = float(atrs[-1])
 
             elif isinstance(data, dict):
-                current_price = float(data.get("current_price", 0.0))
+                raw_cp = data.get("current_price", 0.0)
+                if pd.isna(raw_cp) or math.isinf(float(raw_cp)) if not pd.isna(raw_cp) else True:
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                current_price = float(raw_cp)
                 peak_price = float(data.get("peak_price", 0.0))
                 volume = float(data.get("volume", 0.0))
                 volume_ma_20 = float(data.get("volume_ma_20", 0.0))
@@ -175,14 +183,17 @@ class IntradayStopLossEngine:
 
             self._evict_lru_if_needed(symbol)
 
-            # Flash spike guard (>1.5x previous peak)
-            last_peak = self._symbol_peaks.get(symbol, current_price)
-            if peak_price <= 0 or peak_price > last_peak * 1.5:
-                peak_price = max(last_peak, current_price)
-            else:
-                peak_price = max(last_peak, peak_price, current_price)
+            # Retrieve existing peak or default
+            last_peak = self._symbol_peaks.get(symbol, peak_price if peak_price > 0 else current_price)
 
-            self._symbol_peaks[symbol] = peak_price
+            # Flash spike outlier check: if price spikes > 1.5x of previous peak, ignore peak update
+            if last_peak > 0 and current_price > 1.5 * last_peak:
+                effective_peak = last_peak
+            else:
+                effective_peak = max(last_peak, peak_price, current_price)
+
+            self._symbol_peaks[symbol] = effective_peak
+            peak_price = effective_peak
 
             if symbol not in self._price_history:
                 self._price_history[symbol] = []
