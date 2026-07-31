@@ -7,11 +7,11 @@ Includes non-negative weight constraints and VIX regime-aware dynamic blending a
 
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from sklearn.linear_model import RidgeCV
 
 class StackingBlender:
-    def __init__(self, alphas: List[float] = None):
+    def __init__(self, alphas: Optional[List[float]] = None):
         if alphas is None:
             alphas = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
         self.alphas = alphas

@@ -99,15 +99,15 @@ class ScenarioSimulationEngine:
 
             # 1. Macro Impact Calculation
             macro_shock = (
-                (macro_scenario.usdkrw_change_pct / 10.0) * elas['usdkrw'] +
-                (macro_scenario.wti_change_pct / 10.0) * elas['wti'] +
-                ((macro_scenario.us10y_rate - 4.0) / 2.0) * elas['us10y'] +
-                (macro_scenario.vix_change_pct / 20.0) * elas['vix']
+                (float(macro_scenario.usdkrw_change_pct) / 10.0) * float(elas['usdkrw']) +
+                (float(macro_scenario.wti_change_pct) / 10.0) * float(elas['wti']) +
+                ((float(macro_scenario.us10y_rate) - 4.0) / 2.0) * float(elas['us10y']) +
+                (float(macro_scenario.vix_change_pct) / 20.0) * float(elas['vix'])
             )
 
             # 2. Direct Sector Outlook Impact Calculation
-            sec_key = elas.get('sector_key', 'consumer_staples')
-            sector_outlook = sector_outlook_dict.get(sec_key, 0.0)
+            sec_key = str(elas.get('sector_key', 'consumer_staples'))
+            sector_outlook = float(sector_outlook_dict.get(sec_key, 0.0))
             sector_shock = sector_outlook * 0.25  # 최대 ±25% 충격 가중치
 
             # 3. Total Combined Scenario Shock & Simulated Score

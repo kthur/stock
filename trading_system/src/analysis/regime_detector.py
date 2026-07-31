@@ -285,13 +285,6 @@ class MarketRegimeDetector:
             elif cum_ret_20d > 2.0:
                 return 2  # BULL
             return 1  # SIDEWAYS
-
-            sharpe = recent_ret / (recent_vol + 1e-5)
-            if sharpe < -0.02:
-                return 0  # BEAR
-            elif sharpe > 0.02:
-                return 2  # BULL
-            return 1  # SIDEWAYS
         except Exception:
             return 2  # Default to BULL
 
@@ -390,7 +383,7 @@ class MarketRegimeDetector:
                 elif is_yield_inverted:
                     macro_label = "YIELD_INVERSION"
                     logger.info(
-                        f"[3D Macro] YIELD_INVERSION 감지: US10Y({tnx_val:.2f}%) - US5Y({us5y_val:.2f}%) "
+                        f"[3D Macro] YIELD_INVERSION 감지: US10Y({tnx_val:.2f}%) - US2Y({us2y_val:.2f}%) "
                         f"= {us_spread:.2f}% (역전)"
                     )
                 elif is_high_yield and res_2d['direction_label'] == 'BULL':

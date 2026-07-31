@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class CARDFactorEngine:
     def __init__(self):
         pass
 
-    def compute_scores(self, indicator_df: pd.DataFrame, prices_dict: Dict[str, pd.DataFrame], sector_map: Dict[str, str] = None) -> Dict[str, float]:
+    def compute_scores(self, indicator_df: pd.DataFrame, prices_dict: Dict[str, pd.DataFrame], sector_map: Optional[Dict[str, str]] = None) -> Dict[str, float]:
         """
         Computes CARD factor scores in [0.0, 1.0] for all symbols.
         """

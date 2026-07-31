@@ -9,6 +9,7 @@ import traceback
 from datetime import datetime
 from typing import Optional
 import pandas as pd
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import FinanceDataReader as fdr

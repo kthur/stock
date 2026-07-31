@@ -658,7 +658,7 @@ class EnsembleScoringEngine:
                             card_df: Optional[pd.DataFrame] = None,
                             latr_df: Optional[pd.DataFrame] = None,
                             inst_foreign_sector_df: Optional[pd.DataFrame] = None,
-                            weights: Dict[str, float] = None,
+                            weights: Optional[Dict[str, float]] = None,
                             regime: Union[int, str] = 'BULL_LOW_VOL',
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,

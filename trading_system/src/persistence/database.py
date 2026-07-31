@@ -25,10 +25,10 @@ class _DBConnection:
 
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
-        self._conn = None
+        self._conn: Optional[aiosqlite.Connection] = None
         self._lock = asyncio.Lock()
 
-    async def get(self):
+    async def get(self) -> aiosqlite.Connection:
         async with self._lock:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
@@ -37,15 +37,13 @@ class _DBConnection:
                     await self._conn.execute("SELECT 1")
                 except Exception:
                     self._conn = await aiosqlite.connect(self.db_path)
-            return self._conn
+            return cast(aiosqlite.Connection, self._conn)
 
     async def execute_write(self, sql: str, params: tuple = ()):
         """Locks connection during write and commit to ensure transaction isolation."""
-        async with self._lock:
-            if self._conn is None:
-                self._conn = await aiosqlite.connect(self.db_path)
-            await self._conn.execute(sql, params)
-            await self._conn.commit()
+        conn = await self.get()
+        await conn.execute(sql, params)
+        await conn.commit()
 
     async def close(self):
         async with self._lock:
