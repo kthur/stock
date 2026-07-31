@@ -1,11 +1,106 @@
 === Strategy 10: Event-Driven Disclosure Catalyst Predictions ===
-Date: 2026-07-31 12:48 KST
-Total symbols evaluated: 5
+Date: 2026-07-31 17:54 KST
+Total symbols evaluated: 499
 
 Rank Symbol    Name              Market    Event Score   
 ------------------------------------------------------------
-1    AAPL      Apple Inc.        SP500             46.3%
-2    MSFT      Microsoft Corp.   SP500             46.3%
-3    005930    Samsung Electron  KOSPI             46.3%
-4    068270    Celltrion         KOSDAQ            46.3%
-5    207940    Samsung BioLogic  KONEX             46.3%
+1    MSFT      Microsoft         SP500             63.0%
+2    AMZN      Amazon            SP500             55.0%
+3    GOOGL     Alphabet Inc. (C  SP500             50.5%
+4    AAPL      Apple Inc.        SP500             50.4%
+5    DPZ       Domino's          SP500             50.2%
+6    HAS       Hasbro            SP500             48.8%
+7    TSLA      Tesla, Inc.       SP500             48.8%
+8    PYPL      PayPal            SP500             47.6%
+9    HAL       Halliburton       SP500             47.2%
+10   ABT       Abbott Laborator  SP500             47.2%
+11   BA        Boeing            SP500             47.1%
+12   DOC       Healthpeak Prope  SP500             47.0%
+13   LITE      Lumentum          SP500             46.9%
+14   GPN       Global Payments   SP500             46.9%
+15   MLM       Martin Marietta   SP500             46.9%
+16   EFX       Equifax           SP500             46.9%
+17   PM        Philip Morris In  SP500             46.9%
+18   UPS       United Parcel Se  SP500             46.9%
+19   TRV       Travelers Compan  SP500             46.8%
+20   TXT       Textron           SP500             46.8%
+21   FOXA      Fox Corporation   SP500             46.8%
+22   DHR       Danaher Corporat  SP500             46.7%
+23   SATS      EchoStar          SP500             46.7%
+24   MMM       3M                SP500             46.6%
+25   DHI       D. R. Horton      SP500             46.6%
+26   CF        CF Industries     SP500             46.6%
+27   USB       U.S. Bancorp      SP500             46.6%
+28   OTIS      Otis Worldwide    SP500             46.6%
+29   BMY       Bristol Myers Sq  SP500             46.5%
+30   DD        DuPont            SP500             46.5%
+31   ADM       Archer Daniels M  SP500             46.5%
+32   SYF       Synchrony Financ  SP500             46.5%
+33   GEV       GE Vernova        SP500             46.5%
+34   NWS       News Corp (Class  SP500             46.5%
+35   ROST      Ross Stores       SP500             46.5%
+36   DIS       Walt Disney Comp  SP500             46.4%
+37   RF        Regions Financia  SP500             46.4%
+38   TGT       Target Corporati  SP500             46.4%
+39   FANG      Diamondback Ener  SP500             46.4%
+40   FOX       Fox Corporation   SP500             46.4%
+41   ADBE      Adobe Inc.        SP500             46.4%
+42   NCLH      Norwegian Cruise  SP500             46.4%
+43   EQT       EQT Corporation   SP500             46.4%
+44   ARES      Ares Management   SP500             46.3%
+45   AKAM      Akamai Technolog  SP500             46.3%
+46   TAP       Molson Coors Bev  SP500             46.3%
+47   TMUS      T-Mobile US       SP500             46.3%
+48   CVX       Chevron Corporat  SP500             46.3%
+49   CTAS      Cintas            SP500             46.3%
+50   MO        Altria            SP500             46.3%
+51   KEY       KeyCorp           SP500             46.3%
+52   T         AT&T              SP500             46.3%
+53   REG       Regency Centers   SP500             46.3%
+54   LULU      Lululemon Athlet  SP500             46.2%
+55   CTVA      Corteva           SP500             46.2%
+56   NOW       ServiceNow        SP500             46.2%
+57   VLO       Valero Energy     SP500             46.2%
+58   PODD      Insulet Corporat  SP500             46.2%
+59   COP       ConocoPhillips    SP500             46.2%
+60   TJX       TJX Companies     SP500             46.2%
+61   ZTS       Zoetis            SP500             46.2%
+62   VRSN      Verisign          SP500             46.2%
+63   TFC       Truist Financial  SP500             46.2%
+64   UBER      Uber              SP500             46.2%
+65   GM        General Motors    SP500             46.2%
+66   LLY       Lilly (Eli)       SP500             46.2%
+67   CHTR      Charter Communic  SP500             46.2%
+68   MSCI      MSCI Inc.         SP500             46.2%
+69   APA       APA Corporation   SP500             46.2%
+70   ADSK      Autodesk          SP500             46.1%
+71   DE        Deere & Company   SP500             46.1%
+72   ALGN      Align Technology  SP500             46.1%
+73   FDX       FedEx             SP500             46.1%
+74   KHC       Kraft Heinz       SP500             46.1%
+75   TEL       TE Connectivity   SP500             46.1%
+76   WELL      Welltower         SP500             46.1%
+77   LMT       Lockheed Martin   SP500             46.1%
+78   DRI       Darden Restauran  SP500             46.1%
+79   SO        Southern Company  SP500             46.1%
+80   ARE       Alexandria Real   SP500             46.1%
+81   VTRS      Viatris           SP500             46.1%
+82   MDT       Medtronic         SP500             46.1%
+83   DUK       Duke Energy       SP500             46.1%
+84   VZ        Verizon           SP500             46.1%
+85   BG        Bunge Global      SP500             46.1%
+86   EOG       EOG Resources     SP500             46.1%
+87   TYL       Tyler Technologi  SP500             46.1%
+88   IVZ       Invesco           SP500             46.1%
+89   SLB       Schlumberger      SP500             46.1%
+90   TDY       Teledyne Technol  SP500             46.1%
+91   CL        Colgate-Palmoliv  SP500             46.1%
+92   ULTA      Ulta Beauty       SP500             46.1%
+93   ICE       Intercontinental  SP500             46.1%
+94   AMD       Advanced Micro D  SP500             46.1%
+95   PLTR      Palantir Technol  SP500             46.0%
+96   FICO      Fair Isaac        SP500             46.0%
+97   OKE       Oneok             SP500             46.0%
+98   ED        Consolidated Edi  SP500             46.0%
+99   BSX       Boston Scientifi  SP500             46.0%
+100  STLD      Steel Dynamics    SP500             46.0%

@@ -63,8 +63,9 @@ jobs:
           restore-keys: |
             ai-models-KOSPI-
             ai-models-KOSDAQ-
-            ai-models-KONEX-
             ai-models-SP500-
+            ai-models-NASDAQ-
+            ai-models-RUSSELL2000-
             ai-models-
 
       - name: Run preseed to update caches (cache-only)

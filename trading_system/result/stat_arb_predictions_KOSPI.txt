@@ -1,7 +1,26 @@
 === Statistical Arbitrage Pairs & Signals ===
-Date: 2026-07-31 12:48
-Total cointegrated pairs found: 1
+Date: 2026-07-31 17:52
+Total cointegrated pairs found: 20
 
 Pair                     Z-Score   Correlation    Beta/Hedge  Signal              
 --------------------------------------------------------------------------------
-005930-BENCHMARK         -0.97     0.85           1.0         NEUTRAL             
+EXPD-WAT                 3.43      0.8474         0.6113      STOP_LOSS_NEUTRAL   
+AFL-IEX                  2.95      0.8518         0.5427      SHORT_AFL_LONG_IEX  
+ISRG-PNR                 -2.94     0.9181         0.5742      LONG_ISRG_SHORT_PNR 
+EXE-HLT                  -2.82     -0.8687        -1.4097     LONG_EXE_SHORT_HLT  
+AFL-MS                   2.66      0.8036         0.2529      SHORT_AFL_LONG_MS   
+ALL-PFE                  2.65      -0.7865        -1.1179     SHORT_ALL_LONG_PFE  
+EXPD-RVTY                2.64      0.8199         0.6102      SHORT_EXPD_LONG_RVTY
+SATS-ORCL                -2.58     0.773          0.4102      LONG_SATS_SHORT_ORCL
+O-TDY                    2.52      0.7726         0.7085      SHORT_O_LONG_TDY    
+AFL-IBKR                 2.44      0.826          0.2468      SHORT_AFL_LONG_IBKR 
+EXE-MAR                  -2.43     -0.8998        -1.0604     LONG_EXE_SHORT_MAR  
+CVX-RF                   2.41      -0.7323        -0.6454     SHORT_CVX_LONG_RF   
+AFL-GS                   2.38      0.8004         0.3048      SHORT_AFL_LONG_GS   
+AFL-PFE                  2.31      -0.7115        -0.5879     SHORT_AFL_LONG_PFE  
+DVN-TDG                  -2.29     -0.9004        -1.097      LONG_DVN_SHORT_TDG  
+AFL-EQR                  2.28      0.8693         0.6386      SHORT_AFL_LONG_EQR  
+EQT-ROK                  -2.28     -0.8967        -0.7386     LONG_EQT_SHORT_ROK  
+AFL-KEY                  2.27      0.8302         0.5236      SHORT_AFL_LONG_KEY  
+AFL-AVB                  2.26      0.838          0.6055      SHORT_AFL_LONG_AVB  
+NSC-VTRS                 2.21      0.8469         0.4252      SHORT_NSC_LONG_VTRS 

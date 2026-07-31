@@ -1,15 +1,11 @@
 === VCP ML Surge Predictions (KOSPI) ===
-Date: 2026-07-31 12:48
+Date: 2026-07-31 17:54
 
-[1일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 0.7%
+[1일] KOSPI - (no symbols) 0.0%
 
-[3일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 1.5%
+[3일] KOSPI - (no symbols) 0.0%
 
-[5일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 8.6%
+[5일] KOSPI - (no symbols) 0.0%
 
-[20일] KOSPI TOP 1
-  1. [KOSPI] 005930 (Samsung Electronics): 4.2%
+[20일] KOSPI - (no symbols) 0.0%
 

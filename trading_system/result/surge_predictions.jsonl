@@ -1,5 +1,499 @@
-{"symbol":"AAPL","surge_1d":0.0127327999,"surge_3d":0.0028826294,"surge_5d":0.0355470051,"surge_20d":0.002247331,"name":"Apple Inc.","market":"SP500"}
-{"symbol":"005930","surge_1d":0.0067479854,"surge_3d":0.0096101843,"surge_5d":0.0741980196,"surge_20d":0.0226992024,"name":"Samsung Electronics","market":"KOSPI"}
-{"symbol":"MSFT","surge_1d":0.0127328123,"surge_3d":0.0028829745,"surge_5d":0.0345047644,"surge_20d":0.0022566578,"name":"Microsoft Corp.","market":"SP500"}
-{"symbol":"207940","surge_1d":0.006747715,"surge_3d":0.0065790441,"surge_5d":0.070176162,"surge_20d":0.0178243635,"name":"Samsung BioLogics","market":"KONEX"}
-{"symbol":"068270","surge_1d":0.0339825535,"surge_3d":0.0387566583,"surge_5d":0.0390984652,"surge_20d":0.7299660079,"name":"Celltrion","market":"KOSDAQ"}
+{"symbol":"ABBV","surge_1d":0.0130101528,"surge_3d":0.0028044181,"surge_5d":0.0266028365,"surge_20d":0.0021873942,"name":"AbbVie","market":"SP500"}
+{"symbol":"MMM","surge_1d":0.0127452447,"surge_3d":0.0028521959,"surge_5d":0.0265176573,"surge_20d":0.0021951915,"name":"3M","market":"SP500"}
+{"symbol":"AMD","surge_1d":0.0127568675,"surge_3d":0.0035826043,"surge_5d":0.0268191101,"surge_20d":0.0022291112,"name":"Advanced Micro Devices","market":"SP500"}
+{"symbol":"ADBE","surge_1d":0.0127615126,"surge_3d":0.0027564058,"surge_5d":0.0279366623,"surge_20d":0.0021624859,"name":"Adobe Inc.","market":"SP500"}
+{"symbol":"ABT","surge_1d":0.0127698249,"surge_3d":0.0031085153,"surge_5d":0.0265806096,"surge_20d":0.0022737178,"name":"Abbott Laboratories","market":"SP500"}
+{"symbol":"ACN","surge_1d":0.0131984752,"surge_3d":0.0027601889,"surge_5d":0.0299754869,"surge_20d":0.0021769751,"name":"Accenture","market":"SP500"}
+{"symbol":"APD","surge_1d":0.0128757285,"surge_3d":0.0027842734,"surge_5d":0.0275030213,"surge_20d":0.0021896238,"name":"Air Products","market":"SP500"}
+{"symbol":"AFL","surge_1d":0.0130605092,"surge_3d":0.0029849889,"surge_5d":0.0265639694,"surge_20d":0.0021641235,"name":"Aflac","market":"SP500"}
+{"symbol":"AOS","surge_1d":0.0127480127,"surge_3d":0.0027642792,"surge_5d":0.0266618056,"surge_20d":0.0022354656,"name":"A. O. Smith","market":"SP500"}
+{"symbol":"AES","surge_1d":0.0148945221,"surge_3d":0.0035547667,"surge_5d":0.0401724636,"surge_20d":0.0066606365,"name":"AES Corporation","market":"SP500"}
+{"symbol":"ABNB","surge_1d":0.012752274,"surge_3d":0.0027979547,"surge_5d":0.02656092,"surge_20d":0.0021782675,"name":"Airbnb","market":"SP500"}
+{"symbol":"A","surge_1d":0.0127337613,"surge_3d":0.0034133212,"surge_5d":0.0268074238,"surge_20d":0.0022370104,"name":"Agilent Technologies","market":"SP500"}
+{"symbol":"ALGN","surge_1d":0.0127650916,"surge_3d":0.0030010277,"surge_5d":0.026819468,"surge_20d":0.0021725502,"name":"Align Technology","market":"SP500"}
+{"symbol":"ALB","surge_1d":0.0129226964,"surge_3d":0.0028573393,"surge_5d":0.1051380016,"surge_20d":0.0021639007,"name":"Albemarle Corporation","market":"SP500"}
+{"symbol":"ALL","surge_1d":0.0127700664,"surge_3d":0.0028022493,"surge_5d":0.0271684146,"surge_20d":0.0021713335,"name":"Allstate","market":"SP500"}
+{"symbol":"ALLE","surge_1d":0.012732288,"surge_3d":0.0027399822,"surge_5d":0.0267086817,"surge_20d":0.0021946836,"name":"Allegion","market":"SP500"}
+{"symbol":"AKAM","surge_1d":0.0128735871,"surge_3d":0.0053218265,"surge_5d":0.039626181,"surge_20d":0.0021690063,"name":"Akamai Technologies","market":"SP500"}
+{"symbol":"ARE","surge_1d":0.0128211745,"surge_3d":0.0036239919,"surge_5d":0.0265634173,"surge_20d":0.0021951577,"name":"Alexandria Real Estate Equities","market":"SP500"}
+{"symbol":"LNT","surge_1d":0.0127889929,"surge_3d":0.0028652025,"surge_5d":0.0266081198,"surge_20d":0.0047261676,"name":"Alliant Energy","market":"SP500"}
+{"symbol":"AMZN","surge_1d":0.0128200084,"surge_3d":0.0028635293,"surge_5d":0.0348962691,"surge_20d":0.0021682733,"name":"Amazon","market":"SP500"}
+{"symbol":"MO","surge_1d":0.0129293706,"surge_3d":0.0040151777,"surge_5d":0.0265197004,"surge_20d":0.0021894701,"name":"Altria","market":"SP500"}
+{"symbol":"GOOGL","surge_1d":0.0128830264,"surge_3d":0.0031217552,"surge_5d":0.0291965627,"surge_20d":0.0022086329,"name":"Alphabet Inc. (Class A)","market":"SP500"}
+{"symbol":"GOOG","surge_1d":0.0127873842,"surge_3d":0.0062919238,"surge_5d":0.0301792067,"surge_20d":0.0021660682,"name":"Alphabet Inc. (Class C)","market":"SP500"}
+{"symbol":"AMCR","surge_1d":0.0127424644,"surge_3d":0.0030144857,"surge_5d":0.0265931862,"surge_20d":0.002386779,"name":"Amcor","market":"SP500"}
+{"symbol":"AXP","surge_1d":0.0127960817,"surge_3d":0.0028537375,"surge_5d":0.0265395886,"surge_20d":0.0022512798,"name":"American Express","market":"SP500"}
+{"symbol":"AEE","surge_1d":0.0127326942,"surge_3d":0.0027517557,"surge_5d":0.0291179889,"surge_20d":0.0023127507,"name":"Ameren","market":"SP500"}
+{"symbol":"AMT","surge_1d":0.012823772,"surge_3d":0.0029007993,"surge_5d":0.0367987364,"surge_20d":0.0021526508,"name":"American Tower","market":"SP500"}
+{"symbol":"AEP","surge_1d":0.0127678507,"surge_3d":0.0027546517,"surge_5d":0.0267205988,"surge_20d":0.0023606404,"name":"American Electric Power","market":"SP500"}
+{"symbol":"AMP","surge_1d":0.0127762981,"surge_3d":0.0028288043,"surge_5d":0.0266219211,"surge_20d":0.0022394076,"name":"Ameriprise Financial","market":"SP500"}
+{"symbol":"AIG","surge_1d":0.0127475119,"surge_3d":0.0028769916,"surge_5d":0.0265395395,"surge_20d":0.0021785846,"name":"American International Group","market":"SP500"}
+{"symbol":"AWK","surge_1d":0.0128549664,"surge_3d":0.00276657,"surge_5d":0.0266861827,"surge_20d":0.0021718186,"name":"American Water Works","market":"SP500"}
+{"symbol":"AON","surge_1d":0.0127580257,"surge_3d":0.0028276581,"surge_5d":0.0269426155,"surge_20d":0.0021970305,"name":"Aon plc","market":"SP500"}
+{"symbol":"ADI","surge_1d":0.012823396,"surge_3d":0.0028699303,"surge_5d":0.0421395089,"surge_20d":0.0021651192,"name":"Analog Devices","market":"SP500"}
+{"symbol":"AME","surge_1d":0.012729935,"surge_3d":0.0027649457,"surge_5d":0.0265386816,"surge_20d":0.0021639996,"name":"Ametek","market":"SP500"}
+{"symbol":"APH","surge_1d":0.0128128768,"surge_3d":0.0029406151,"surge_5d":0.0270014215,"surge_20d":0.002259852,"name":"Amphenol","market":"SP500"}
+{"symbol":"AMGN","surge_1d":0.0127365149,"surge_3d":0.0027811716,"surge_5d":0.0265325269,"surge_20d":0.0021671067,"name":"Amgen","market":"SP500"}
+{"symbol":"APA","surge_1d":0.0127383539,"surge_3d":0.002775157,"surge_5d":0.0265323468,"surge_20d":0.0021660817,"name":"APA Corporation","market":"SP500"}
+{"symbol":"AMAT","surge_1d":0.0129004861,"surge_3d":0.0034950499,"surge_5d":0.0284094907,"surge_20d":0.0028741847,"name":"Applied Materials","market":"SP500"}
+{"symbol":"APO","surge_1d":0.0131835768,"surge_3d":0.0028714259,"surge_5d":0.0495144231,"surge_20d":0.0021736492,"name":"Apollo Global Management","market":"SP500"}
+{"symbol":"ACGL","surge_1d":0.0130556399,"surge_3d":0.0028069494,"surge_5d":0.0267147232,"surge_20d":0.0021667496,"name":"Arch Capital Group","market":"SP500"}
+{"symbol":"AAPL","surge_1d":0.0127439441,"surge_3d":0.0027848257,"surge_5d":0.0265790385,"surge_20d":0.0021730374,"name":"Apple Inc.","market":"SP500"}
+{"symbol":"APTV","surge_1d":0.0128770729,"surge_3d":0.0030987299,"surge_5d":0.0364869559,"surge_20d":0.0021977118,"name":"Aptiv","market":"SP500"}
+{"symbol":"APP","surge_1d":0.0128449063,"surge_3d":0.0031167817,"surge_5d":0.0662355689,"surge_20d":0.0021947127,"name":"AppLovin","market":"SP500"}
+{"symbol":"ADM","surge_1d":0.0130377617,"surge_3d":0.0031481429,"surge_5d":0.0267644016,"surge_20d":0.0021735816,"name":"Archer Daniels Midland","market":"SP500"}
+{"symbol":"ARES","surge_1d":0.0127796766,"surge_3d":0.0030516621,"surge_5d":0.0277733739,"surge_20d":0.0021742433,"name":"Ares Management","market":"SP500"}
+{"symbol":"ANET","surge_1d":0.0127337358,"surge_3d":0.002761696,"surge_5d":0.0265882463,"surge_20d":0.0021722952,"name":"Arista Networks","market":"SP500"}
+{"symbol":"AJG","surge_1d":0.0128445305,"surge_3d":0.0030947168,"surge_5d":0.0272738684,"surge_20d":0.0022106345,"name":"Arthur J. Gallagher & Co.","market":"SP500"}
+{"symbol":"AIZ","surge_1d":0.012923232,"surge_3d":0.0028345037,"surge_5d":0.0274326698,"surge_20d":0.002163825,"name":"Assurant","market":"SP500"}
+{"symbol":"ATO","surge_1d":0.0128201422,"surge_3d":0.0027888621,"surge_5d":0.0271628819,"surge_20d":0.0021633201,"name":"Atmos Energy","market":"SP500"}
+{"symbol":"T","surge_1d":0.012968445,"surge_3d":0.0027552272,"surge_5d":0.0285932454,"surge_20d":0.002173414,"name":"AT&T","market":"SP500"}
+{"symbol":"ADSK","surge_1d":0.0127442334,"surge_3d":0.0027457025,"surge_5d":0.0271691724,"surge_20d":0.0021622741,"name":"Autodesk","market":"SP500"}
+{"symbol":"AVY","surge_1d":0.012734053,"surge_3d":0.0027460293,"surge_5d":0.0267886105,"surge_20d":0.0023934009,"name":"Avery Dennison","market":"SP500"}
+{"symbol":"AXON","surge_1d":0.0127710914,"surge_3d":0.0029396432,"surge_5d":0.0276375732,"surge_20d":0.0023458316,"name":"Axon Enterprise","market":"SP500"}
+{"symbol":"AZO","surge_1d":0.0128844441,"surge_3d":0.002763189,"surge_5d":0.04265894,"surge_20d":0.0021729072,"name":"AutoZone","market":"SP500"}
+{"symbol":"BKR","surge_1d":0.012802089,"surge_3d":0.0029160746,"surge_5d":0.0374115102,"surge_20d":0.0021708636,"name":"Baker Hughes","market":"SP500"}
+{"symbol":"ADP","surge_1d":0.0127432857,"surge_3d":0.0029192218,"surge_5d":0.0267448737,"surge_20d":0.0022031383,"name":"Automatic Data Processing","market":"SP500"}
+{"symbol":"AVB","surge_1d":0.0127760167,"surge_3d":0.0028263048,"surge_5d":0.0266307156,"surge_20d":0.0021580336,"name":"AvalonBay Communities","market":"SP500"}
+{"symbol":"BALL","surge_1d":0.0127965157,"surge_3d":0.0027968493,"surge_5d":0.0266508735,"surge_20d":0.0022152055,"name":"Ball Corporation","market":"SP500"}
+{"symbol":"BAC","surge_1d":0.0127444059,"surge_3d":0.0028604492,"surge_5d":0.0267875264,"surge_20d":0.0021882628,"name":"Bank of America","market":"SP500"}
+{"symbol":"BAX","surge_1d":0.0127568317,"surge_3d":0.0031124063,"surge_5d":0.0265712614,"surge_20d":0.0022958205,"name":"Baxter International","market":"SP500"}
+{"symbol":"BDX","surge_1d":0.012755829,"surge_3d":0.0027712968,"surge_5d":0.0267075517,"surge_20d":0.0023206193,"name":"Becton Dickinson","market":"SP500"}
+{"symbol":"BBY","surge_1d":0.0127372099,"surge_3d":0.0028436233,"surge_5d":0.0265221938,"surge_20d":0.0022111155,"name":"Best Buy","market":"SP500"}
+{"symbol":"BX","surge_1d":0.0127366822,"surge_3d":0.0027822151,"surge_5d":0.0266574008,"surge_20d":0.0022255073,"name":"Blackstone Inc.","market":"SP500"}
+{"symbol":"BIIB","surge_1d":0.0128692429,"surge_3d":0.0027935434,"surge_5d":0.0265573205,"surge_20d":0.0024166224,"name":"Biogen","market":"SP500"}
+{"symbol":"BNY","surge_1d":0.0128257051,"surge_3d":0.0028033999,"surge_5d":0.0265670583,"surge_20d":0.002204262,"name":"BNY Mellon","market":"SP500"}
+{"symbol":"BLK","surge_1d":0.0127555879,"surge_3d":0.0027445471,"surge_5d":0.0266214521,"surge_20d":0.002224458,"name":"BlackRock","market":"SP500"}
+{"symbol":"TECH","surge_1d":0.0132433947,"surge_3d":0.0029942451,"surge_5d":0.0266798623,"surge_20d":0.0022160958,"name":"Bio-Techne","market":"SP500"}
+{"symbol":"BA","surge_1d":0.0127977186,"surge_3d":0.0030822766,"surge_5d":0.0355598469,"surge_20d":0.0021902303,"name":"Boeing","market":"SP500"}
+{"symbol":"BKNG","surge_1d":0.0127458581,"surge_3d":0.0028007465,"surge_5d":0.0267946119,"surge_20d":0.002375522,"name":"Booking Holdings","market":"SP500"}
+{"symbol":"BSX","surge_1d":0.0128145274,"surge_3d":0.0029602044,"surge_5d":0.0305058926,"surge_20d":0.0021755945,"name":"Boston Scientific","market":"SP500"}
+{"symbol":"XYZ","surge_1d":0.0127338829,"surge_3d":0.0028271599,"surge_5d":0.0266279905,"surge_20d":0.002278507,"name":"Block, Inc.","market":"SP500"}
+{"symbol":"BMY","surge_1d":0.0128181462,"surge_3d":0.0027939853,"surge_5d":0.0265214512,"surge_20d":0.0021898523,"name":"Bristol Myers Squibb","market":"SP500"}
+{"symbol":"CHRW","surge_1d":0.0129803909,"surge_3d":0.0029769792,"surge_5d":0.0267167772,"surge_20d":0.0021817417,"name":"C.H. Robinson","market":"SP500"}
+{"symbol":"AVGO","surge_1d":0.0127903036,"surge_3d":0.0028933666,"surge_5d":0.0445427501,"surge_20d":0.002226282,"name":"Broadcom","market":"SP500"}
+{"symbol":"BLDR","surge_1d":0.012795998,"surge_3d":0.0029419114,"surge_5d":0.0288778782,"surge_20d":0.0022101869,"name":"Builders FirstSource","market":"SP500"}
+{"symbol":"BRO","surge_1d":0.012815384,"surge_3d":0.0027947035,"surge_5d":0.0269818641,"surge_20d":0.0022109984,"name":"Brown & Brown","market":"SP500"}
+{"symbol":"BXP","surge_1d":0.0127507979,"surge_3d":0.0030169164,"surge_5d":0.0265949714,"surge_20d":0.0022388302,"name":"BXP, Inc.","market":"SP500"}
+{"symbol":"BR","surge_1d":0.0127868179,"surge_3d":0.0027917684,"surge_5d":0.0281716516,"surge_20d":0.0021786241,"name":"Broadridge Financial Solutions","market":"SP500"}
+{"symbol":"CPT","surge_1d":0.0128263354,"surge_3d":0.0030578874,"surge_5d":0.0266166932,"surge_20d":0.0021809353,"name":"Camden Property Trust","market":"SP500"}
+{"symbol":"CDNS","surge_1d":0.0128098173,"surge_3d":0.0028792562,"surge_5d":0.02914256,"surge_20d":0.0021890417,"name":"Cadence Design Systems","market":"SP500"}
+{"symbol":"CPB","surge_1d":0.0127430561,"surge_3d":0.0028409725,"surge_5d":0.0267320089,"surge_20d":0.0025145755,"name":"Campbell's Company (The)","market":"SP500"}
+{"symbol":"BG","surge_1d":0.0129636772,"surge_3d":0.0028372553,"surge_5d":0.0268314302,"surge_20d":0.0021578026,"name":"Bunge Global","market":"SP500"}
+{"symbol":"COF","surge_1d":0.0127355315,"surge_3d":0.0027812291,"surge_5d":0.0265820821,"surge_20d":0.0022206577,"name":"Capital One","market":"SP500"}
+{"symbol":"CAH","surge_1d":0.0127502415,"surge_3d":0.0027966668,"surge_5d":0.0265326249,"surge_20d":0.0022095619,"name":"Cardinal Health","market":"SP500"}
+{"symbol":"CAT","surge_1d":0.0128629323,"surge_3d":0.0032075489,"surge_5d":0.0382794135,"surge_20d":0.002194089,"name":"Caterpillar Inc.","market":"SP500"}
+{"symbol":"CARR","surge_1d":0.0127623208,"surge_3d":0.0065638615,"surge_5d":0.0265708502,"surge_20d":0.0022219582,"name":"Carrier Global","market":"SP500"}
+{"symbol":"CCL","surge_1d":0.0128409453,"surge_3d":0.003116996,"surge_5d":0.031747085,"surge_20d":0.002212925,"name":"Carnival Corporation","market":"SP500"}
+{"symbol":"CVNA","surge_1d":0.0127845065,"surge_3d":0.0028694889,"surge_5d":0.0289962704,"surge_20d":0.0021958582,"name":"Carvana","market":"SP500"}
+{"symbol":"CASY","surge_1d":0.0127860396,"surge_3d":0.0029126978,"surge_5d":0.0268209886,"surge_20d":0.0021851181,"name":"Casey's","market":"SP500"}
+{"symbol":"CBOE","surge_1d":0.0128195836,"surge_3d":0.0027946292,"surge_5d":0.0315065817,"surge_20d":0.0021664843,"name":"Cboe Global Markets","market":"SP500"}
+{"symbol":"CBRE","surge_1d":0.0127333936,"surge_3d":0.0027672206,"surge_5d":0.0266850195,"surge_20d":0.0022234377,"name":"CBRE Group","market":"SP500"}
+{"symbol":"CDW","surge_1d":0.0127475695,"surge_3d":0.0027651937,"surge_5d":0.0268055497,"surge_20d":0.0022225429,"name":"CDW Corporation","market":"SP500"}
+{"symbol":"CNP","surge_1d":0.012810234,"surge_3d":0.0028147366,"surge_5d":0.0267921627,"surge_20d":0.0187886459,"name":"CenterPoint Energy","market":"SP500"}
+{"symbol":"CNC","surge_1d":0.012755416,"surge_3d":0.0028820012,"surge_5d":0.026696582,"surge_20d":0.0023975932,"name":"Centene Corporation","market":"SP500"}
+{"symbol":"COR","surge_1d":0.0127615351,"surge_3d":0.0027710599,"surge_5d":0.0270355926,"surge_20d":0.0021881095,"name":"Cencora","market":"SP500"}
+{"symbol":"CF","surge_1d":0.0128521402,"surge_3d":0.0028239101,"surge_5d":0.0266769103,"surge_20d":0.0021727438,"name":"CF Industries","market":"SP500"}
+{"symbol":"CRL","surge_1d":0.0127835386,"surge_3d":0.0028119958,"surge_5d":0.0273386093,"surge_20d":0.0021988279,"name":"Charles River Laboratories","market":"SP500"}
+{"symbol":"CVX","surge_1d":0.0128019448,"surge_3d":0.002846383,"surge_5d":0.0289771552,"surge_20d":0.0021581047,"name":"Chevron Corporation","market":"SP500"}
+{"symbol":"CHTR","surge_1d":0.012899098,"surge_3d":0.0028003421,"surge_5d":0.0292658379,"surge_20d":0.0022002495,"name":"Charter Communications","market":"SP500"}
+{"symbol":"SCHW","surge_1d":0.0127541804,"surge_3d":0.0028450953,"surge_5d":0.0271473686,"surge_20d":0.0021928026,"name":"Charles Schwab Corporation","market":"SP500"}
+{"symbol":"CMG","surge_1d":0.0127469102,"surge_3d":0.0027483231,"surge_5d":0.0267390858,"surge_20d":0.002308204,"name":"Chipotle Mexican Grill","market":"SP500"}
+{"symbol":"CHD","surge_1d":0.0127322483,"surge_3d":0.0030459293,"surge_5d":0.0268529504,"surge_20d":0.0024015143,"name":"Church & Dwight","market":"SP500"}
+{"symbol":"CB","surge_1d":0.0127686654,"surge_3d":0.0027778625,"surge_5d":0.0268009141,"surge_20d":0.0021595118,"name":"Chubb Limited","market":"SP500"}
+{"symbol":"CIEN","surge_1d":0.0128061488,"surge_3d":0.0028501986,"surge_5d":0.0517400336,"surge_20d":0.0022086974,"name":"Ciena","market":"SP500"}
+{"symbol":"CI","surge_1d":0.0127306479,"surge_3d":0.0027538377,"surge_5d":0.0266482712,"surge_20d":0.0023127121,"name":"Cigna","market":"SP500"}
+{"symbol":"CINF","surge_1d":0.0129939359,"surge_3d":0.0027740344,"surge_5d":0.0266564456,"surge_20d":0.0022725861,"name":"Cincinnati Financial","market":"SP500"}
+{"symbol":"CTAS","surge_1d":0.0127393266,"surge_3d":0.0028811648,"surge_5d":0.0266507164,"surge_20d":0.0021984468,"name":"Cintas","market":"SP500"}
+{"symbol":"CSCO","surge_1d":0.0128214748,"surge_3d":0.0033762587,"surge_5d":0.0293112806,"surge_20d":0.002192227,"name":"Cisco","market":"SP500"}
+{"symbol":"CME","surge_1d":0.0128216887,"surge_3d":0.0027684554,"surge_5d":0.0328836569,"surge_20d":0.002161242,"name":"CME Group","market":"SP500"}
+{"symbol":"C","surge_1d":0.0127802221,"surge_3d":0.0028512401,"surge_5d":0.0286442753,"surge_20d":0.0023557168,"name":"Citigroup","market":"SP500"}
+{"symbol":"CFG","surge_1d":0.0127404561,"surge_3d":0.0028098152,"surge_5d":0.0265891874,"surge_20d":0.0023059923,"name":"Citizens Financial Group","market":"SP500"}
+{"symbol":"CLX","surge_1d":0.0127335125,"surge_3d":0.0027625599,"surge_5d":0.0266687263,"surge_20d":0.0023296716,"name":"Clorox","market":"SP500"}
+{"symbol":"KO","surge_1d":0.0127400602,"surge_3d":0.0028379855,"surge_5d":0.0265660749,"surge_20d":0.0022248029,"name":"Coca-Cola Company (The)","market":"SP500"}
+{"symbol":"CMS","surge_1d":0.0127547512,"surge_3d":0.0027486044,"surge_5d":0.0266378388,"surge_20d":0.0021968857,"name":"CMS Energy","market":"SP500"}
+{"symbol":"COIN","surge_1d":0.0131135893,"surge_3d":0.0034116539,"surge_5d":0.0348517137,"surge_20d":0.0021876662,"name":"Coinbase","market":"SP500"}
+{"symbol":"CTSH","surge_1d":0.0128279366,"surge_3d":0.0027872504,"surge_5d":0.0295376338,"surge_20d":0.0021824067,"name":"Cognizant","market":"SP500"}
+{"symbol":"COHR","surge_1d":0.0128497533,"surge_3d":0.0028732435,"surge_5d":0.0635963129,"surge_20d":0.0021671099,"name":"Coherent Corp.","market":"SP500"}
+{"symbol":"CL","surge_1d":0.0127426744,"surge_3d":0.0028325015,"surge_5d":0.0265948692,"surge_20d":0.0024428444,"name":"Colgate-Palmolive","market":"SP500"}
+{"symbol":"CMCSA","surge_1d":0.0127786734,"surge_3d":0.0028146738,"surge_5d":0.0270744504,"surge_20d":0.0022416373,"name":"Comcast","market":"SP500"}
+{"symbol":"FIX","surge_1d":0.012854333,"surge_3d":0.002849517,"surge_5d":0.0569245607,"surge_20d":0.0022048887,"name":"Comfort Systems USA","market":"SP500"}
+{"symbol":"CAG","surge_1d":0.0127808767,"surge_3d":0.0027872072,"surge_5d":0.0272401129,"surge_20d":0.0023935815,"name":"Conagra Brands","market":"SP500"}
+{"symbol":"CEG","surge_1d":0.0129531461,"surge_3d":0.0030388274,"surge_5d":0.0305032265,"surge_20d":0.0021593225,"name":"Constellation Energy","market":"SP500"}
+{"symbol":"STZ","surge_1d":0.0129819365,"surge_3d":0.0029613832,"surge_5d":0.0410654414,"surge_20d":0.0022625752,"name":"Constellation Brands","market":"SP500"}
+{"symbol":"ED","surge_1d":0.0127459018,"surge_3d":0.0027598529,"surge_5d":0.0278614264,"surge_20d":0.0021987395,"name":"Consolidated Edison","market":"SP500"}
+{"symbol":"COP","surge_1d":0.0127649509,"surge_3d":0.0027884803,"surge_5d":0.0270674297,"surge_20d":0.0021587609,"name":"ConocoPhillips","market":"SP500"}
+{"symbol":"COO","surge_1d":0.0127498565,"surge_3d":0.0031521902,"surge_5d":0.0266759901,"surge_20d":0.0023928131,"name":"Cooper Companies (The)","market":"SP500"}
+{"symbol":"CPRT","surge_1d":0.0128480269,"surge_3d":0.002926942,"surge_5d":0.0289147928,"surge_20d":0.0022155856,"name":"Copart","market":"SP500"}
+{"symbol":"CPAY","surge_1d":0.0127906245,"surge_3d":0.002829102,"surge_5d":0.0265362322,"surge_20d":0.0022910646,"name":"Corpay","market":"SP500"}
+{"symbol":"GLW","surge_1d":0.0128858267,"surge_3d":0.0029452139,"surge_5d":0.0439049109,"surge_20d":0.0021858505,"name":"Corning Inc.","market":"SP500"}
+{"symbol":"CTVA","surge_1d":0.0127567221,"surge_3d":0.0028455762,"surge_5d":0.0265568325,"surge_20d":0.0021998214,"name":"Corteva","market":"SP500"}
+{"symbol":"CSGP","surge_1d":0.0127579279,"surge_3d":0.0029968999,"surge_5d":0.0273857268,"surge_20d":0.0021853684,"name":"CoStar Group","market":"SP500"}
+{"symbol":"COST","surge_1d":0.0130634151,"surge_3d":0.0027653945,"surge_5d":0.0285814516,"surge_20d":0.0021542552,"name":"Costco","market":"SP500"}
+{"symbol":"CRH","surge_1d":0.0127989751,"surge_3d":0.0029205722,"surge_5d":0.0352694293,"surge_20d":0.0022551623,"name":"CRH plc","market":"SP500"}
+{"symbol":"CRWD","surge_1d":0.0132573152,"surge_3d":0.0028169218,"surge_5d":0.0326825437,"surge_20d":0.0022098431,"name":"CrowdStrike","market":"SP500"}
+{"symbol":"CCI","surge_1d":0.0128272043,"surge_3d":0.0029367181,"surge_5d":0.0303298347,"surge_20d":0.0021702638,"name":"Crown Castle","market":"SP500"}
+{"symbol":"CMI","surge_1d":0.0127957774,"surge_3d":0.0028058291,"surge_5d":0.0275416756,"surge_20d":0.0021616242,"name":"Cummins","market":"SP500"}
+{"symbol":"DHR","surge_1d":0.0127659029,"surge_3d":0.0031443114,"surge_5d":0.0268453938,"surge_20d":0.0022286589,"name":"Danaher Corporation","market":"SP500"}
+{"symbol":"CSX","surge_1d":0.0127443575,"surge_3d":0.0028405956,"surge_5d":0.0266890006,"surge_20d":0.0021955687,"name":"CSX Corporation","market":"SP500"}
+{"symbol":"DRI","surge_1d":0.0130030298,"surge_3d":0.0029586096,"surge_5d":0.0271513163,"surge_20d":0.0022092182,"name":"Darden Restaurants","market":"SP500"}
+{"symbol":"CVS","surge_1d":0.0128668187,"surge_3d":0.0028584884,"surge_5d":0.0265253905,"surge_20d":0.0021663459,"name":"CVS Health","market":"SP500"}
+{"symbol":"DDOG","surge_1d":0.012740283,"surge_3d":0.0028226554,"surge_5d":0.0265321921,"surge_20d":0.0022047396,"name":"Datadog","market":"SP500"}
+{"symbol":"DVA","surge_1d":0.0128482544,"surge_3d":0.0028301651,"surge_5d":0.0266349648,"surge_20d":0.0021890154,"name":"DaVita","market":"SP500"}
+{"symbol":"DECK","surge_1d":0.0127394591,"surge_3d":0.0028135943,"surge_5d":0.0279353772,"surge_20d":0.0021635044,"name":"Deckers Brands","market":"SP500"}
+{"symbol":"DE","surge_1d":0.0127385457,"surge_3d":0.0027716336,"surge_5d":0.0265307517,"surge_20d":0.0022345221,"name":"Deere & Company","market":"SP500"}
+{"symbol":"DAL","surge_1d":0.0128921001,"surge_3d":0.0029417885,"surge_5d":0.0267214389,"surge_20d":0.002301946,"name":"Delta Air Lines","market":"SP500"}
+{"symbol":"DELL","surge_1d":0.0127741733,"surge_3d":0.0071162447,"surge_5d":0.026861606,"surge_20d":0.0025701798,"name":"Dell Technologies","market":"SP500"}
+{"symbol":"DVN","surge_1d":0.0127740502,"surge_3d":0.0027885145,"surge_5d":0.0265305139,"surge_20d":0.0021770782,"name":"Devon Energy","market":"SP500"}
+{"symbol":"FANG","surge_1d":0.0127918429,"surge_3d":0.0028411868,"surge_5d":0.0268924427,"surge_20d":0.0021657431,"name":"Diamondback Energy","market":"SP500"}
+{"symbol":"DXCM","surge_1d":0.0127362007,"surge_3d":0.0028377802,"surge_5d":0.026523288,"surge_20d":0.0022379647,"name":"Dexcom","market":"SP500"}
+{"symbol":"DLR","surge_1d":0.0130992033,"surge_3d":0.0029260013,"surge_5d":0.0799361325,"surge_20d":0.0022036774,"name":"Digital Realty","market":"SP500"}
+{"symbol":"DG","surge_1d":0.0127407485,"surge_3d":0.0027644359,"surge_5d":0.0266269,"surge_20d":0.002208405,"name":"Dollar General","market":"SP500"}
+{"symbol":"DLTR","surge_1d":0.0127645115,"surge_3d":0.002944758,"surge_5d":0.0268057988,"surge_20d":0.0021874094,"name":"Dollar Tree","market":"SP500"}
+{"symbol":"D","surge_1d":0.0128470963,"surge_3d":0.0030460661,"surge_5d":0.0267944877,"surge_20d":0.0022034251,"name":"Dominion Energy","market":"SP500"}
+{"symbol":"DPZ","surge_1d":0.012741493,"surge_3d":0.0027654381,"surge_5d":0.0270009292,"surge_20d":0.0021887298,"name":"Domino's","market":"SP500"}
+{"symbol":"DASH","surge_1d":0.0128038561,"surge_3d":0.00284448,"surge_5d":0.028242513,"surge_20d":0.0022547196,"name":"DoorDash","market":"SP500"}
+{"symbol":"DOW","surge_1d":0.0132024188,"surge_3d":0.0033896174,"surge_5d":0.0271656906,"surge_20d":0.0021604337,"name":"Dow Inc.","market":"SP500"}
+{"symbol":"DOV","surge_1d":0.0127603548,"surge_3d":0.0028591573,"surge_5d":0.0272505768,"surge_20d":0.0021670145,"name":"Dover Corporation","market":"SP500"}
+{"symbol":"DTE","surge_1d":0.0127733589,"surge_3d":0.0027653713,"surge_5d":0.0265947814,"surge_20d":0.0028834713,"name":"DTE Energy","market":"SP500"}
+{"symbol":"DHI","surge_1d":0.0127542064,"surge_3d":0.0028095045,"surge_5d":0.0271788632,"surge_20d":0.0021786492,"name":"D. R. Horton","market":"SP500"}
+{"symbol":"DUK","surge_1d":0.0127326319,"surge_3d":0.0027931296,"surge_5d":0.0372822599,"surge_20d":0.0061357407,"name":"Duke Energy","market":"SP500"}
+{"symbol":"EBAY","surge_1d":0.0127821855,"surge_3d":0.0028697978,"surge_5d":0.0266652399,"surge_20d":0.002192789,"name":"eBay Inc.","market":"SP500"}
+{"symbol":"DD","surge_1d":0.0130820016,"surge_3d":0.0044982529,"surge_5d":0.0266631901,"surge_20d":0.0022395618,"name":"DuPont","market":"SP500"}
+{"symbol":"ETN","surge_1d":0.0127477679,"surge_3d":0.0030919257,"surge_5d":0.0266470525,"surge_20d":0.0021642896,"name":"Eaton Corporation","market":"SP500"}
+{"symbol":"SATS","surge_1d":0.0130644099,"surge_3d":0.0028627938,"surge_5d":0.0354307532,"surge_20d":0.0022225574,"name":"EchoStar","market":"SP500"}
+{"symbol":"EIX","surge_1d":0.0128658958,"surge_3d":0.0030334997,"surge_5d":0.026527241,"surge_20d":0.0021878776,"name":"Edison International","market":"SP500"}
+{"symbol":"ECL","surge_1d":0.0127431769,"surge_3d":0.0027620729,"surge_5d":0.0265717909,"surge_20d":0.0022289043,"name":"Ecolab","market":"SP500"}
+{"symbol":"EW","surge_1d":0.0127446659,"surge_3d":0.0027643893,"surge_5d":0.0265819029,"surge_20d":0.0028290736,"name":"Edwards Lifesciences","market":"SP500"}
+{"symbol":"ELV","surge_1d":0.0127785273,"surge_3d":0.0029039134,"surge_5d":0.0282711455,"surge_20d":0.002205097,"name":"Elevance Health","market":"SP500"}
+{"symbol":"ETR","surge_1d":0.0127394338,"surge_3d":0.0027945534,"surge_5d":0.0269505116,"surge_20d":0.0042082343,"name":"Entergy","market":"SP500"}
+{"symbol":"EA","surge_1d":0.0128372227,"surge_3d":0.0029730713,"surge_5d":0.0606520182,"surge_20d":0.0042140911,"name":"Electronic Arts","market":"SP500"}
+{"symbol":"EME","surge_1d":0.0130358144,"surge_3d":0.002830191,"surge_5d":0.1073734044,"surge_20d":0.0022051166,"name":"Emcor","market":"SP500"}
+{"symbol":"EMR","surge_1d":0.0127596135,"surge_3d":0.0029035658,"surge_5d":0.026896556,"surge_20d":0.0021627166,"name":"Emerson Electric","market":"SP500"}
+{"symbol":"EOG","surge_1d":0.0127485373,"surge_3d":0.0028417423,"surge_5d":0.0266592727,"surge_20d":0.0021740243,"name":"EOG Resources","market":"SP500"}
+{"symbol":"EQT","surge_1d":0.0127781027,"surge_3d":0.0029283223,"surge_5d":0.0288041602,"surge_20d":0.002206607,"name":"EQT Corporation","market":"SP500"}
+{"symbol":"EQIX","surge_1d":0.0128178787,"surge_3d":0.0028300591,"surge_5d":0.0274329821,"surge_20d":0.0021826362,"name":"Equinix","market":"SP500"}
+{"symbol":"EFX","surge_1d":0.0127474367,"surge_3d":0.0027867681,"surge_5d":0.0266037783,"surge_20d":0.0022297431,"name":"Equifax","market":"SP500"}
+{"symbol":"EQR","surge_1d":0.0128059471,"surge_3d":0.0028940776,"surge_5d":0.0266451915,"surge_20d":0.0021651977,"name":"Equity Residential","market":"SP500"}
+{"symbol":"ERIE","surge_1d":0.0128046011,"surge_3d":0.0027386962,"surge_5d":0.0272858224,"surge_20d":0.002237263,"name":"Erie Indemnity","market":"SP500"}
+{"symbol":"ESS","surge_1d":0.0129298849,"surge_3d":0.0028233657,"surge_5d":0.0265860231,"surge_20d":0.0021709426,"name":"Essex Property Trust","market":"SP500"}
+{"symbol":"ES","surge_1d":0.0127581419,"surge_3d":0.0029228341,"surge_5d":0.0270116007,"surge_20d":0.0021681849,"name":"Eversource Energy","market":"SP500"}
+{"symbol":"EL","surge_1d":0.0127970513,"surge_3d":0.0034724829,"surge_5d":0.0270290904,"surge_20d":0.0021699764,"name":"Est\u00e9e Lauder Companies (The)","market":"SP500"}
+{"symbol":"EXC","surge_1d":0.0127696542,"surge_3d":0.0028033366,"surge_5d":0.0268102091,"surge_20d":0.0349719528,"name":"Exelon","market":"SP500"}
+{"symbol":"EG","surge_1d":0.0129680849,"surge_3d":0.0028807089,"surge_5d":0.0268027525,"surge_20d":0.0021630243,"name":"Everest Group","market":"SP500"}
+{"symbol":"EVRG","surge_1d":0.0127360568,"surge_3d":0.0028511788,"surge_5d":0.0267046303,"surge_20d":0.0022623447,"name":"Evergy","market":"SP500"}
+{"symbol":"EXPE","surge_1d":0.0127351732,"surge_3d":0.0027743045,"surge_5d":0.0265819277,"surge_20d":0.0021814252,"name":"Expedia Group","market":"SP500"}
+{"symbol":"EXE","surge_1d":0.0128452784,"surge_3d":0.0027753542,"surge_5d":0.0266967558,"surge_20d":0.0067155391,"name":"Expand Energy","market":"SP500"}
+{"symbol":"EXPD","surge_1d":0.0128929232,"surge_3d":0.0028916857,"surge_5d":0.0267143995,"surge_20d":0.0021622012,"name":"Expeditors International","market":"SP500"}
+{"symbol":"EXR","surge_1d":0.0127234395,"surge_3d":0.0027528792,"surge_5d":0.0268261446,"surge_20d":0.0023546073,"name":"Extra Space Storage","market":"SP500"}
+{"symbol":"FFIV","surge_1d":0.0127449233,"surge_3d":0.002812867,"surge_5d":0.0266163997,"surge_20d":0.0021782637,"name":"F5, Inc.","market":"SP500"}
+{"symbol":"XOM","surge_1d":0.0130628002,"surge_3d":0.002904051,"surge_5d":0.0281473131,"surge_20d":0.0021573303,"name":"ExxonMobil","market":"SP500"}
+{"symbol":"FDS","surge_1d":0.0127415148,"surge_3d":0.0027678247,"surge_5d":0.0269178791,"surge_20d":0.0022468213,"name":"FactSet","market":"SP500"}
+{"symbol":"FAST","surge_1d":0.0127787661,"surge_3d":0.0027497759,"surge_5d":0.0265776466,"surge_20d":0.0052437627,"name":"Fastenal","market":"SP500"}
+{"symbol":"FRT","surge_1d":0.0127554174,"surge_3d":0.0030611071,"surge_5d":0.0266337041,"surge_20d":0.0021670341,"name":"Federal Realty Investment Trust","market":"SP500"}
+{"symbol":"FICO","surge_1d":0.0127569161,"surge_3d":0.0029409003,"surge_5d":0.0269309624,"surge_20d":0.0021983353,"name":"Fair Isaac","market":"SP500"}
+{"symbol":"FIS","surge_1d":0.0127287148,"surge_3d":0.0027645601,"surge_5d":0.0269288631,"surge_20d":0.0022031777,"name":"Fidelity National Information Services","market":"SP500"}
+{"symbol":"FDX","surge_1d":0.0128125675,"surge_3d":0.0029588488,"surge_5d":0.0280748041,"surge_20d":0.002177703,"name":"FedEx","market":"SP500"}
+{"symbol":"FITB","surge_1d":0.0127337092,"surge_3d":0.002807354,"surge_5d":0.0265670006,"surge_20d":0.0022852023,"name":"Fifth Third Bancorp","market":"SP500"}
+{"symbol":"FSLR","surge_1d":0.0128911812,"surge_3d":0.0036262978,"surge_5d":0.0445545517,"surge_20d":0.0021919236,"name":"First Solar","market":"SP500"}
+{"symbol":"FE","surge_1d":0.0127778404,"surge_3d":0.0028601931,"surge_5d":0.027005181,"surge_20d":0.0024090634,"name":"FirstEnergy","market":"SP500"}
+{"symbol":"FISV","surge_1d":0.0127462515,"surge_3d":0.0027531882,"surge_5d":0.0275154372,"surge_20d":0.0021754074,"name":"Fiserv","market":"SP500"}
+{"symbol":"F","surge_1d":0.012790229,"surge_3d":0.0056318264,"surge_5d":0.0266812508,"surge_20d":0.0021846466,"name":"Ford Motor Company","market":"SP500"}
+{"symbol":"FTNT","surge_1d":0.0127574327,"surge_3d":0.0028201327,"surge_5d":0.0266377554,"surge_20d":0.0021915569,"name":"Fortinet","market":"SP500"}
+{"symbol":"FTV","surge_1d":0.0127358119,"surge_3d":0.0027797635,"surge_5d":0.0265811729,"surge_20d":0.0021636392,"name":"Fortive","market":"SP500"}
+{"symbol":"FOX","surge_1d":0.0130987953,"surge_3d":0.0028253583,"surge_5d":0.0269376649,"surge_20d":0.002179788,"name":"Fox Corporation (Class B)","market":"SP500"}
+{"symbol":"FOXA","surge_1d":0.0132439205,"surge_3d":0.0028212031,"surge_5d":0.0268767554,"surge_20d":0.0021797328,"name":"Fox Corporation (Class A)","market":"SP500"}
+{"symbol":"BEN","surge_1d":0.0127806716,"surge_3d":0.0029986002,"surge_5d":0.0265255671,"surge_20d":0.002241177,"name":"Franklin Resources","market":"SP500"}
+{"symbol":"IT","surge_1d":0.0127656174,"surge_3d":0.0027512254,"surge_5d":0.0306950124,"surge_20d":0.0021780534,"name":"Gartner","market":"SP500"}
+{"symbol":"FCX","surge_1d":0.0128103482,"surge_3d":0.0028898896,"surge_5d":0.0397845381,"surge_20d":0.002169474,"name":"Freeport-McMoRan","market":"SP500"}
+{"symbol":"GE","surge_1d":0.0127721245,"surge_3d":0.0029521075,"surge_5d":0.0268101508,"surge_20d":0.0036885073,"name":"GE Aerospace","market":"SP500"}
+{"symbol":"GRMN","surge_1d":0.0127301242,"surge_3d":0.0027469329,"surge_5d":0.0265908116,"surge_20d":0.0021714556,"name":"Garmin","market":"SP500"}
+{"symbol":"GEV","surge_1d":0.0127439023,"surge_3d":0.0028492839,"surge_5d":0.0266092237,"surge_20d":0.0021895602,"name":"GE Vernova","market":"SP500"}
+{"symbol":"GEHC","surge_1d":0.0127581493,"surge_3d":0.002775537,"surge_5d":0.027982316,"surge_20d":0.0022953328,"name":"GE HealthCare","market":"SP500"}
+{"symbol":"GEN","surge_1d":0.012811699,"surge_3d":0.0035129251,"surge_5d":0.02655638,"surge_20d":0.0022662138,"name":"Gen Digital","market":"SP500"}
+{"symbol":"GNRC","surge_1d":0.012799295,"surge_3d":0.0028698973,"surge_5d":0.0481289541,"surge_20d":0.0021693195,"name":"Generac","market":"SP500"}
+{"symbol":"GD","surge_1d":0.0127671916,"surge_3d":0.0028198631,"surge_5d":0.0276355338,"surge_20d":0.0021564021,"name":"General Dynamics","market":"SP500"}
+{"symbol":"GM","surge_1d":0.012807229,"surge_3d":0.0029689511,"surge_5d":0.0267139253,"surge_20d":0.0021630541,"name":"General Motors","market":"SP500"}
+{"symbol":"GIS","surge_1d":0.0127856491,"surge_3d":0.0029856635,"surge_5d":0.0267900022,"surge_20d":0.0118337659,"name":"General Mills","market":"SP500"}
+{"symbol":"GILD","surge_1d":0.0127250737,"surge_3d":0.0027443319,"surge_5d":0.0274331105,"surge_20d":0.002208793,"name":"Gilead Sciences","market":"SP500"}
+{"symbol":"GPC","surge_1d":0.0129045185,"surge_3d":0.0030282149,"surge_5d":0.0285063831,"surge_20d":0.0022941168,"name":"Genuine Parts Company","market":"SP500"}
+{"symbol":"GPN","surge_1d":0.0127695294,"surge_3d":0.0031730584,"surge_5d":0.0265896445,"surge_20d":0.0022384085,"name":"Global Payments","market":"SP500"}
+{"symbol":"GL","surge_1d":0.0128306189,"surge_3d":0.0028272221,"surge_5d":0.027599065,"surge_20d":0.0021793275,"name":"Globe Life","market":"SP500"}
+{"symbol":"GDDY","surge_1d":0.0128003113,"surge_3d":0.0032516118,"surge_5d":0.0265788918,"surge_20d":0.0023976819,"name":"GoDaddy","market":"SP500"}
+{"symbol":"GS","surge_1d":0.0127334662,"surge_3d":0.0029538239,"surge_5d":0.0266159025,"surge_20d":0.0022698512,"name":"Goldman Sachs","market":"SP500"}
+{"symbol":"HAL","surge_1d":0.0127689895,"surge_3d":0.002812383,"surge_5d":0.0278386582,"surge_20d":0.0021607178,"name":"Halliburton","market":"SP500"}
+{"symbol":"HIG","surge_1d":0.012758707,"surge_3d":0.0027593083,"surge_5d":0.0268482292,"surge_20d":0.0021609379,"name":"Hartford (The)","market":"SP500"}
+{"symbol":"HAS","surge_1d":0.0131348025,"surge_3d":0.0031795435,"surge_5d":0.0266236667,"surge_20d":0.0021675431,"name":"Hasbro","market":"SP500"}
+{"symbol":"HCA","surge_1d":0.0128210997,"surge_3d":0.0027514338,"surge_5d":0.0435323452,"surge_20d":0.0021801274,"name":"HCA Healthcare","market":"SP500"}
+{"symbol":"HSIC","surge_1d":0.0128292307,"surge_3d":0.0030158639,"surge_5d":0.026621992,"surge_20d":0.0022220773,"name":"Henry Schein","market":"SP500"}
+{"symbol":"DOC","surge_1d":0.0129052221,"surge_3d":0.0029388673,"surge_5d":0.0272064263,"surge_20d":0.0021902364,"name":"Healthpeak Properties","market":"SP500"}
+{"symbol":"HSY","surge_1d":0.0128014803,"surge_3d":0.0027595681,"surge_5d":0.0521921473,"surge_20d":0.0021780814,"name":"Hershey Company (The)","market":"SP500"}
+{"symbol":"HPE","surge_1d":0.0127410438,"surge_3d":0.0039436612,"surge_5d":0.0267641612,"surge_20d":0.0021886361,"name":"Hewlett Packard Enterprise","market":"SP500"}
+{"symbol":"HLT","surge_1d":0.0129318014,"surge_3d":0.0029342227,"surge_5d":0.0268133206,"surge_20d":0.0021779288,"name":"Hilton Worldwide","market":"SP500"}
+{"symbol":"HD","surge_1d":0.012733094,"surge_3d":0.002747946,"surge_5d":0.0267054728,"surge_20d":0.0024160657,"name":"Home Depot (The)","market":"SP500"}
+{"symbol":"HON","surge_1d":0.012774613,"surge_3d":0.0027594955,"surge_5d":0.0300586395,"surge_20d":0.0021693164,"name":"Honeywell","market":"SP500"}
+{"symbol":"HRL","surge_1d":0.0127433237,"surge_3d":0.0042457936,"surge_5d":0.0266115586,"surge_20d":0.0023006018,"name":"Hormel Foods","market":"SP500"}
+{"symbol":"HST","surge_1d":0.0128886505,"surge_3d":0.0035283055,"surge_5d":0.0266727021,"surge_20d":0.0021656148,"name":"Host Hotels & Resorts","market":"SP500"}
+{"symbol":"HWM","surge_1d":0.0128580333,"surge_3d":0.0027709134,"surge_5d":0.0266813437,"surge_20d":0.0023327273,"name":"Howmet Aerospace","market":"SP500"}
+{"symbol":"HPQ","surge_1d":0.0127465484,"surge_3d":0.0030519902,"surge_5d":0.0271095918,"surge_20d":0.0021867459,"name":"HP Inc.","market":"SP500"}
+{"symbol":"HUBB","surge_1d":0.0128437322,"surge_3d":0.0029483323,"surge_5d":0.0268602946,"surge_20d":0.002178383,"name":"Hubbell Incorporated","market":"SP500"}
+{"symbol":"HBAN","surge_1d":0.0128305297,"surge_3d":0.0030580265,"surge_5d":0.0265360603,"surge_20d":0.0021974206,"name":"Huntington Bancshares","market":"SP500"}
+{"symbol":"HUM","surge_1d":0.0127765484,"surge_3d":0.0028291883,"surge_5d":0.0267285424,"surge_20d":0.0022213124,"name":"Humana","market":"SP500"}
+{"symbol":"HII","surge_1d":0.0129040792,"surge_3d":0.002968571,"surge_5d":0.0428120821,"surge_20d":0.0021747503,"name":"Huntington Ingalls Industries","market":"SP500"}
+{"symbol":"IBM","surge_1d":0.0129530606,"surge_3d":0.0028092207,"surge_5d":0.0730397608,"surge_20d":0.0021758031,"name":"IBM","market":"SP500"}
+{"symbol":"IDXX","surge_1d":0.0127471625,"surge_3d":0.0027893706,"surge_5d":0.0269299553,"surge_20d":0.0021765018,"name":"Idexx Laboratories","market":"SP500"}
+{"symbol":"ITW","surge_1d":0.0127325383,"surge_3d":0.0027711152,"surge_5d":0.0266855503,"surge_20d":0.0021652616,"name":"Illinois Tool Works","market":"SP500"}
+{"symbol":"IEX","surge_1d":0.0127417382,"surge_3d":0.0029555138,"surge_5d":0.0266245618,"surge_20d":0.0022429308,"name":"IDEX Corporation","market":"SP500"}
+{"symbol":"INCY","surge_1d":0.0127344918,"surge_3d":0.0027724613,"surge_5d":0.0267490468,"surge_20d":0.0021788543,"name":"Incyte","market":"SP500"}
+{"symbol":"IR","surge_1d":0.0127293106,"surge_3d":0.0027602183,"surge_5d":0.026688578,"surge_20d":0.002226641,"name":"Ingersoll Rand","market":"SP500"}
+{"symbol":"PODD","surge_1d":0.0127919602,"surge_3d":0.0028468127,"surge_5d":0.0267786884,"surge_20d":0.0022335043,"name":"Insulet Corporation","market":"SP500"}
+{"symbol":"INTC","surge_1d":0.01298383,"surge_3d":0.0047040394,"surge_5d":0.0338474956,"surge_20d":0.0021891133,"name":"Intel","market":"SP500"}
+{"symbol":"IBKR","surge_1d":0.0128139233,"surge_3d":0.0111852487,"surge_5d":0.0268029822,"surge_20d":0.0023477332,"name":"Interactive Brokers","market":"SP500"}
+{"symbol":"IFF","surge_1d":0.0127774423,"surge_3d":0.0031231512,"surge_5d":0.0265379001,"surge_20d":0.0022923516,"name":"International Flavors & Fragrances","market":"SP500"}
+{"symbol":"IP","surge_1d":0.0127356779,"surge_3d":0.00303856,"surge_5d":0.026685226,"surge_20d":0.0024185825,"name":"International Paper","market":"SP500"}
+{"symbol":"ICE","surge_1d":0.0127795345,"surge_3d":0.0027454148,"surge_5d":0.0289387332,"surge_20d":0.0021738838,"name":"Intercontinental Exchange","market":"SP500"}
+{"symbol":"INVH","surge_1d":0.0128608826,"surge_3d":0.0029165499,"surge_5d":0.0266817749,"surge_20d":0.00226593,"name":"Invitation Homes","market":"SP500"}
+{"symbol":"IVZ","surge_1d":0.0128495398,"surge_3d":0.0029291298,"surge_5d":0.0265794444,"surge_20d":0.0022827656,"name":"Invesco","market":"SP500"}
+{"symbol":"INTU","surge_1d":0.0127682911,"surge_3d":0.0027450952,"surge_5d":0.0326284871,"surge_20d":0.0022258951,"name":"Intuit","market":"SP500"}
+{"symbol":"ISRG","surge_1d":0.013025571,"surge_3d":0.002848937,"surge_5d":0.0597708123,"surge_20d":0.0022257214,"name":"Intuitive Surgical","market":"SP500"}
+{"symbol":"IQV","surge_1d":0.0129024391,"surge_3d":0.0031704641,"surge_5d":0.0279096023,"surge_20d":0.0022254087,"name":"IQVIA","market":"SP500"}
+{"symbol":"IRM","surge_1d":0.0129140297,"surge_3d":0.0030156012,"surge_5d":0.0275190079,"surge_20d":0.0021718995,"name":"Iron Mountain","market":"SP500"}
+{"symbol":"JBHT","surge_1d":0.0128514212,"surge_3d":0.0028056248,"surge_5d":0.0265899573,"surge_20d":0.0022782001,"name":"J.B. Hunt","market":"SP500"}
+{"symbol":"JBL","surge_1d":0.0128774012,"surge_3d":0.0029453882,"surge_5d":0.0615099674,"surge_20d":0.002169648,"name":"Jabil","market":"SP500"}
+{"symbol":"JKHY","surge_1d":0.0127846226,"surge_3d":0.002775899,"surge_5d":0.0271003015,"surge_20d":0.002197875,"name":"Jack Henry & Associates","market":"SP500"}
+{"symbol":"JNJ","surge_1d":0.0127509239,"surge_3d":0.002768383,"surge_5d":0.0270174578,"surge_20d":0.0022258918,"name":"Johnson & Johnson","market":"SP500"}
+{"symbol":"J","surge_1d":0.012755686,"surge_3d":0.0027714386,"surge_5d":0.0268607587,"surge_20d":0.0023050694,"name":"Jacobs Solutions","market":"SP500"}
+{"symbol":"JCI","surge_1d":0.0128555828,"surge_3d":0.0028768287,"surge_5d":0.0311481496,"surge_20d":0.002181487,"name":"Johnson Controls","market":"SP500"}
+{"symbol":"KDP","surge_1d":0.0128635758,"surge_3d":0.0035146161,"surge_5d":0.0265979393,"surge_20d":0.0024401575,"name":"Keurig Dr Pepper","market":"SP500"}
+{"symbol":"JPM","surge_1d":0.0127303363,"surge_3d":0.0027821852,"surge_5d":0.0266001046,"surge_20d":0.0021725455,"name":"JPMorgan Chase","market":"SP500"}
+{"symbol":"KVUE","surge_1d":0.0127986463,"surge_3d":0.0030983063,"surge_5d":0.0267684837,"surge_20d":0.0022170283,"name":"Kenvue","market":"SP500"}
+{"symbol":"KEY","surge_1d":0.0127287108,"surge_3d":0.0028473308,"surge_5d":0.0267217272,"surge_20d":0.0022294864,"name":"KeyCorp","market":"SP500"}
+{"symbol":"KEYS","surge_1d":0.0128093778,"surge_3d":0.0028737967,"surge_5d":0.034587918,"surge_20d":0.0021852607,"name":"Keysight Technologies","market":"SP500"}
+{"symbol":"KMB","surge_1d":0.0127944338,"surge_3d":0.0029581501,"surge_5d":0.0273632087,"surge_20d":0.0023933372,"name":"Kimberly-Clark","market":"SP500"}
+{"symbol":"KIM","surge_1d":0.0127767887,"surge_3d":0.0032734248,"surge_5d":0.026586329,"surge_20d":0.0021848428,"name":"Kimco Realty","market":"SP500"}
+{"symbol":"KMI","surge_1d":0.0128414944,"surge_3d":0.0030936895,"surge_5d":0.0271411568,"surge_20d":0.0022058792,"name":"Kinder Morgan","market":"SP500"}
+{"symbol":"KKR","surge_1d":0.0127372652,"surge_3d":0.0027607378,"surge_5d":0.0268103041,"surge_20d":0.003213401,"name":"KKR & Co.","market":"SP500"}
+{"symbol":"KR","surge_1d":0.0127852433,"surge_3d":0.0027487912,"surge_5d":0.0300445223,"surge_20d":0.0021691709,"name":"Kroger","market":"SP500"}
+{"symbol":"KLAC","surge_1d":0.0128527128,"surge_3d":0.0079366523,"surge_5d":0.028759706,"surge_20d":0.0022440972,"name":"KLA Corporation","market":"SP500"}
+{"symbol":"KHC","surge_1d":0.0127363731,"surge_3d":0.0028423822,"surge_5d":0.0265492238,"surge_20d":0.0022462205,"name":"Kraft Heinz","market":"SP500"}
+{"symbol":"LHX","surge_1d":0.0128480766,"surge_3d":0.0029450555,"surge_5d":0.0939169305,"surge_20d":0.0021609114,"name":"L3Harris","market":"SP500"}
+{"symbol":"LVS","surge_1d":0.0129115387,"surge_3d":0.0031265606,"surge_5d":0.0540446882,"surge_20d":0.0021655364,"name":"Las Vegas Sands","market":"SP500"}
+{"symbol":"LH","surge_1d":0.0127320406,"surge_3d":0.0027497802,"surge_5d":0.0265840304,"surge_20d":0.0021656215,"name":"Labcorp","market":"SP500"}
+{"symbol":"LRCX","surge_1d":0.0129083778,"surge_3d":0.0032210242,"surge_5d":0.0406616181,"surge_20d":0.0024924633,"name":"Lam Research","market":"SP500"}
+{"symbol":"LDOS","surge_1d":0.0128189791,"surge_3d":0.0027546767,"surge_5d":0.0627973768,"surge_20d":0.002160518,"name":"Leidos","market":"SP500"}
+{"symbol":"LEN","surge_1d":0.0127626985,"surge_3d":0.002872447,"surge_5d":0.0290872945,"surge_20d":0.0021791251,"name":"Lennar","market":"SP500"}
+{"symbol":"LII","surge_1d":0.0127374076,"surge_3d":0.0028462328,"surge_5d":0.0269251704,"surge_20d":0.0022208625,"name":"Lennox International","market":"SP500"}
+{"symbol":"LLY","surge_1d":0.0127844293,"surge_3d":0.0028413203,"surge_5d":0.026561832,"surge_20d":0.002202598,"name":"Lilly (Eli)","market":"SP500"}
+{"symbol":"LMT","surge_1d":0.0128035843,"surge_3d":0.0028287713,"surge_5d":0.0272634725,"surge_20d":0.0021678839,"name":"Lockheed Martin","market":"SP500"}
+{"symbol":"LIN","surge_1d":0.01275512,"surge_3d":0.0027537756,"surge_5d":0.0265774052,"surge_20d":0.0022618282,"name":"Linde plc","market":"SP500"}
+{"symbol":"LYV","surge_1d":0.0128983926,"surge_3d":0.0028135063,"surge_5d":0.0268089742,"surge_20d":0.002190794,"name":"Live Nation Entertainment","market":"SP500"}
+{"symbol":"L","surge_1d":0.0128816594,"surge_3d":0.0027715984,"surge_5d":0.0277975904,"surge_20d":0.0021594964,"name":"Loews Corporation","market":"SP500"}
+{"symbol":"LOW","surge_1d":0.0128325517,"surge_3d":0.0031647276,"surge_5d":0.0906627736,"surge_20d":0.002231743,"name":"Lowe's","market":"SP500"}
+{"symbol":"LITE","surge_1d":0.0127907997,"surge_3d":0.0028904808,"surge_5d":0.0314226774,"surge_20d":0.0021671321,"name":"Lumentum","market":"SP500"}
+{"symbol":"LULU","surge_1d":0.0128910012,"surge_3d":0.0027731352,"surge_5d":0.0281003834,"surge_20d":0.0022440424,"name":"Lululemon Athletica","market":"SP500"}
+{"symbol":"LYB","surge_1d":0.0129225964,"surge_3d":0.0028939851,"surge_5d":0.0286795866,"surge_20d":0.0021603015,"name":"LyondellBasell","market":"SP500"}
+{"symbol":"MTB","surge_1d":0.0127376221,"surge_3d":0.0027784007,"surge_5d":0.0273247797,"surge_20d":0.0021700627,"name":"M&T Bank","market":"SP500"}
+{"symbol":"MPC","surge_1d":0.0127781254,"surge_3d":0.0028474236,"surge_5d":0.0266905917,"surge_20d":0.0021870688,"name":"Marathon Petroleum","market":"SP500"}
+{"symbol":"MAR","surge_1d":0.0128103498,"surge_3d":0.0029445682,"surge_5d":0.0283342677,"surge_20d":0.0021815279,"name":"Marriott International","market":"SP500"}
+{"symbol":"MRSH","surge_1d":0.0127496066,"surge_3d":0.0027852643,"surge_5d":0.0274582892,"surge_20d":0.0021940399,"name":"Marsh McLennan","market":"SP500"}
+{"symbol":"MLM","surge_1d":0.0128116503,"surge_3d":0.0028589651,"surge_5d":0.0565872454,"surge_20d":0.0022181944,"name":"Martin Marietta Materials","market":"SP500"}
+{"symbol":"MA","surge_1d":0.0128039147,"surge_3d":0.0028570313,"surge_5d":0.0266317225,"surge_20d":0.0022124287,"name":"Mastercard","market":"SP500"}
+{"symbol":"MAS","surge_1d":0.0127367389,"surge_3d":0.0028672959,"surge_5d":0.0265134686,"surge_20d":0.0023753323,"name":"Masco","market":"SP500"}
+{"symbol":"MKC","surge_1d":0.01272959,"surge_3d":0.00274972,"surge_5d":0.026780338,"surge_20d":0.0024056198,"name":"McCormick & Company","market":"SP500"}
+{"symbol":"MCD","surge_1d":0.0129275555,"surge_3d":0.002860646,"surge_5d":0.0483119519,"surge_20d":0.0021920868,"name":"McDonald's","market":"SP500"}
+{"symbol":"MRK","surge_1d":0.0127298093,"surge_3d":0.0027715319,"surge_5d":0.0265319254,"surge_20d":0.0021744192,"name":"Merck & Co.","market":"SP500"}
+{"symbol":"MDT","surge_1d":0.0127402557,"surge_3d":0.0027681539,"surge_5d":0.0268151256,"surge_20d":0.0023397173,"name":"Medtronic","market":"SP500"}
+{"symbol":"MCK","surge_1d":0.012772097,"surge_3d":0.0027711826,"surge_5d":0.0265940361,"surge_20d":0.0021873864,"name":"McKesson Corporation","market":"SP500"}
+{"symbol":"META","surge_1d":0.0127350583,"surge_3d":0.0027656499,"surge_5d":0.0270711829,"surge_20d":0.0021934476,"name":"Meta Platforms","market":"SP500"}
+{"symbol":"MET","surge_1d":0.0127583102,"surge_3d":0.0029603711,"surge_5d":0.0265530843,"surge_20d":0.0021778339,"name":"MetLife","market":"SP500"}
+{"symbol":"MTD","surge_1d":0.0128424565,"surge_3d":0.0027912973,"surge_5d":0.0272285389,"surge_20d":0.0021773536,"name":"Mettler Toledo","market":"SP500"}
+{"symbol":"MGM","surge_1d":0.0127600539,"surge_3d":0.0029854492,"surge_5d":0.0265477897,"surge_20d":0.0022473084,"name":"MGM Resorts","market":"SP500"}
+{"symbol":"MCHP","surge_1d":0.0128330561,"surge_3d":0.0030261279,"surge_5d":0.0292535484,"surge_20d":0.0021748251,"name":"Microchip Technology","market":"SP500"}
+{"symbol":"MSFT","surge_1d":0.0127422102,"surge_3d":0.0030089324,"surge_5d":0.026652191,"surge_20d":0.0021794778,"name":"Microsoft","market":"SP500"}
+{"symbol":"MU","surge_1d":0.0128057408,"surge_3d":0.0033970032,"surge_5d":0.0280163009,"surge_20d":0.0021861052,"name":"Micron Technology","market":"SP500"}
+{"symbol":"MAA","surge_1d":0.0127642225,"surge_3d":0.0029636334,"surge_5d":0.0271601616,"surge_20d":0.0022164838,"name":"Mid-America Apartment Communities","market":"SP500"}
+{"symbol":"MDLZ","surge_1d":0.0127293925,"surge_3d":0.0028127172,"surge_5d":0.0265336868,"surge_20d":0.0023003386,"name":"Mondelez International","market":"SP500"}
+{"symbol":"MRNA","surge_1d":0.0128421375,"surge_3d":0.0070982882,"surge_5d":0.0271603005,"surge_20d":0.0023223177,"name":"Moderna","market":"SP500"}
+{"symbol":"MPWR","surge_1d":0.012991456,"surge_3d":0.002857009,"surge_5d":0.0375009454,"surge_20d":0.0021563722,"name":"Monolithic Power Systems","market":"SP500"}
+{"symbol":"TAP","surge_1d":0.012755183,"surge_3d":0.0028621818,"surge_5d":0.0266679216,"surge_20d":0.0022464278,"name":"Molson Coors Beverage Company","market":"SP500"}
+{"symbol":"MNST","surge_1d":0.0127350887,"surge_3d":0.002795256,"surge_5d":0.0265657049,"surge_20d":0.002173417,"name":"Monster Beverage","market":"SP500"}
+{"symbol":"MCO","surge_1d":0.0127508474,"surge_3d":0.0028533941,"surge_5d":0.0266330168,"surge_20d":0.0022135634,"name":"Moody's Corporation","market":"SP500"}
+{"symbol":"MS","surge_1d":0.0127512406,"surge_3d":0.0032545458,"surge_5d":0.0269948629,"surge_20d":0.0023210622,"name":"Morgan Stanley","market":"SP500"}
+{"symbol":"MSI","surge_1d":0.0127468808,"surge_3d":0.0027641675,"surge_5d":0.0269963573,"surge_20d":0.0021691009,"name":"Motorola Solutions","market":"SP500"}
+{"symbol":"MOS","surge_1d":0.0127366216,"surge_3d":0.0029003867,"surge_5d":0.02706135,"surge_20d":0.0022109979,"name":"Mosaic Company (The)","market":"SP500"}
+{"symbol":"NDAQ","surge_1d":0.0128916005,"surge_3d":0.0028222255,"surge_5d":0.0265783361,"surge_20d":0.0023577957,"name":"Nasdaq, Inc.","market":"SP500"}
+{"symbol":"NTAP","surge_1d":0.0127323942,"surge_3d":0.0028744519,"surge_5d":0.0265293053,"surge_20d":0.0021737325,"name":"NetApp","market":"SP500"}
+{"symbol":"MSCI","surge_1d":0.0127315092,"surge_3d":0.0027684621,"surge_5d":0.0265734388,"surge_20d":0.0021966893,"name":"MSCI Inc.","market":"SP500"}
+{"symbol":"NFLX","surge_1d":0.0129324587,"surge_3d":0.0028374843,"surge_5d":0.0308949578,"surge_20d":0.0022881936,"name":"Netflix","market":"SP500"}
+{"symbol":"NWSA","surge_1d":0.0128190981,"surge_3d":0.0029421995,"surge_5d":0.0265580481,"surge_20d":0.0022277505,"name":"News Corp (Class A)","market":"SP500"}
+{"symbol":"NEM","surge_1d":0.0129269072,"surge_3d":0.0028803368,"surge_5d":0.22767254,"surge_20d":0.0022360717,"name":"Newmont","market":"SP500"}
+{"symbol":"NWS","surge_1d":0.0127508607,"surge_3d":0.0028790795,"surge_5d":0.026551914,"surge_20d":0.0022500721,"name":"News Corp (Class B)","market":"SP500"}
+{"symbol":"NEE","surge_1d":0.0128367334,"surge_3d":0.002991486,"surge_5d":0.0273192542,"surge_20d":0.0022820519,"name":"NextEra Energy","market":"SP500"}
+{"symbol":"NKE","surge_1d":0.0127997207,"surge_3d":0.0029362879,"surge_5d":0.0272479441,"surge_20d":0.0021952433,"name":"Nike, Inc.","market":"SP500"}
+{"symbol":"NI","surge_1d":0.0128053818,"surge_3d":0.0027716257,"surge_5d":0.0267194993,"surge_20d":0.0024086183,"name":"NiSource","market":"SP500"}
+{"symbol":"NDSN","surge_1d":0.0127328233,"surge_3d":0.0028410737,"surge_5d":0.0265731085,"surge_20d":0.002163791,"name":"Nordson Corporation","market":"SP500"}
+{"symbol":"NSC","surge_1d":0.0127580178,"surge_3d":0.0028173154,"surge_5d":0.026776677,"surge_20d":0.0021629189,"name":"Norfolk Southern","market":"SP500"}
+{"symbol":"NTRS","surge_1d":0.0127303457,"surge_3d":0.0027938173,"surge_5d":0.0266350379,"surge_20d":0.0021582427,"name":"Northern Trust","market":"SP500"}
+{"symbol":"NCLH","surge_1d":0.0127627677,"surge_3d":0.0032285246,"surge_5d":0.0270252091,"surge_20d":0.002425406,"name":"Norwegian Cruise Line Holdings","market":"SP500"}
+{"symbol":"NOC","surge_1d":0.0128416949,"surge_3d":0.0027549798,"surge_5d":0.0350623387,"surge_20d":0.0021740104,"name":"Northrop Grumman","market":"SP500"}
+{"symbol":"NRG","surge_1d":0.0127988741,"surge_3d":0.0029222127,"surge_5d":0.0309580948,"surge_20d":0.0021852095,"name":"NRG Energy","market":"SP500"}
+{"symbol":"NUE","surge_1d":0.0127898363,"surge_3d":0.0057206938,"surge_5d":0.0267403437,"surge_20d":0.0021594069,"name":"Nucor","market":"SP500"}
+{"symbol":"NVDA","surge_1d":0.0127348715,"surge_3d":0.0029048944,"surge_5d":0.028263935,"surge_20d":0.0021567096,"name":"Nvidia","market":"SP500"}
+{"symbol":"NVR","surge_1d":0.0127384339,"surge_3d":0.0027558847,"surge_5d":0.0266762601,"surge_20d":0.0022376385,"name":"NVR, Inc.","market":"SP500"}
+{"symbol":"NXPI","surge_1d":0.0128654011,"surge_3d":0.0036570804,"surge_5d":0.0347928476,"surge_20d":0.002193876,"name":"NXP Semiconductors","market":"SP500"}
+{"symbol":"ORLY","surge_1d":0.0128472016,"surge_3d":0.0027809234,"surge_5d":0.0276017691,"surge_20d":0.0022475709,"name":"O\u2019Reilly Automotive","market":"SP500"}
+{"symbol":"OMC","surge_1d":0.0127296456,"surge_3d":0.0027719692,"surge_5d":0.0265539017,"surge_20d":0.0022183348,"name":"Omnicom Group","market":"SP500"}
+{"symbol":"OXY","surge_1d":0.0127743067,"surge_3d":0.0028580121,"surge_5d":0.0266878926,"surge_20d":0.0021716541,"name":"Occidental Petroleum","market":"SP500"}
+{"symbol":"ODFL","surge_1d":0.0127820964,"surge_3d":0.0028148386,"surge_5d":0.0266209582,"surge_20d":0.002191297,"name":"Old Dominion","market":"SP500"}
+{"symbol":"ON","surge_1d":0.0128218954,"surge_3d":0.0028739446,"surge_5d":0.0314837033,"surge_20d":0.0021651062,"name":"ON Semiconductor","market":"SP500"}
+{"symbol":"ORCL","surge_1d":0.0130846807,"surge_3d":0.0028080729,"surge_5d":0.0667148594,"surge_20d":0.0021700564,"name":"Oracle Corporation","market":"SP500"}
+{"symbol":"OKE","surge_1d":0.0128846593,"surge_3d":0.0030367889,"surge_5d":0.0265259358,"surge_20d":0.0021895615,"name":"Oneok","market":"SP500"}
+{"symbol":"OTIS","surge_1d":0.0127274162,"surge_3d":0.0027880863,"surge_5d":0.0267859426,"surge_20d":0.0021997026,"name":"Otis Worldwide","market":"SP500"}
+{"symbol":"PKG","surge_1d":0.0127398776,"surge_3d":0.0027844465,"surge_5d":0.0265286137,"surge_20d":0.002295497,"name":"Packaging Corporation of America","market":"SP500"}
+{"symbol":"PCAR","surge_1d":0.0127871285,"surge_3d":0.0028105549,"surge_5d":0.0265730788,"surge_20d":0.0021738647,"name":"Paccar","market":"SP500"}
+{"symbol":"PLTR","surge_1d":0.012731885,"surge_3d":0.0027424869,"surge_5d":0.0275152262,"surge_20d":0.0021900821,"name":"Palantir Technologies","market":"SP500"}
+{"symbol":"PANW","surge_1d":0.0127596307,"surge_3d":0.0027871271,"surge_5d":0.0265597207,"surge_20d":0.0021746513,"name":"Palo Alto Networks","market":"SP500"}
+{"symbol":"PSKY","surge_1d":0.0127843434,"surge_3d":0.002873503,"surge_5d":0.0296334253,"surge_20d":0.0022113701,"name":"Paramount Skydance Corporation","market":"SP500"}
+{"symbol":"PAYX","surge_1d":0.0127361567,"surge_3d":0.0028871313,"surge_5d":0.0265816128,"surge_20d":0.0022005341,"name":"Paychex","market":"SP500"}
+{"symbol":"PH","surge_1d":0.0127258062,"surge_3d":0.0027456176,"surge_5d":0.0265331326,"surge_20d":0.002323476,"name":"Parker Hannifin","market":"SP500"}
+{"symbol":"PYPL","surge_1d":0.0128284977,"surge_3d":0.0030184534,"surge_5d":0.0267270069,"surge_20d":0.0023356831,"name":"PayPal","market":"SP500"}
+{"symbol":"PNR","surge_1d":0.0128632204,"surge_3d":0.0028377391,"surge_5d":0.0295776769,"surge_20d":0.00232209,"name":"Pentair","market":"SP500"}
+{"symbol":"PFE","surge_1d":0.0129046857,"surge_3d":0.0028041614,"surge_5d":0.0276415611,"surge_20d":0.0021607339,"name":"Pfizer","market":"SP500"}
+{"symbol":"PEP","surge_1d":0.0129329518,"surge_3d":0.00280885,"surge_5d":0.0457995671,"surge_20d":0.0023249008,"name":"PepsiCo","market":"SP500"}
+{"symbol":"PCG","surge_1d":0.0127915522,"surge_3d":0.0028556483,"surge_5d":0.0269114117,"surge_20d":0.0021688814,"name":"PG&E Corporation","market":"SP500"}
+{"symbol":"PM","surge_1d":0.0128325849,"surge_3d":0.002829853,"surge_5d":0.0265778331,"surge_20d":0.0022649571,"name":"Philip Morris International","market":"SP500"}
+{"symbol":"PSX","surge_1d":0.0129256303,"surge_3d":0.0028862853,"surge_5d":0.026874755,"surge_20d":0.0021822611,"name":"Phillips 66","market":"SP500"}
+{"symbol":"PNW","surge_1d":0.0127521657,"surge_3d":0.00279751,"surge_5d":0.0279717874,"surge_20d":0.0021627226,"name":"Pinnacle West Capital","market":"SP500"}
+{"symbol":"PNC","surge_1d":0.0127522715,"surge_3d":0.0027735935,"surge_5d":0.027352445,"surge_20d":0.0021650089,"name":"PNC Financial Services","market":"SP500"}
+{"symbol":"POOL","surge_1d":0.012768459,"surge_3d":0.0027657063,"surge_5d":0.0280795474,"surge_20d":0.0022733229,"name":"Pool Corporation","market":"SP500"}
+{"symbol":"PPL","surge_1d":0.0127614306,"surge_3d":0.0028805773,"surge_5d":0.0268535069,"surge_20d":0.0022217276,"name":"PPL Corporation","market":"SP500"}
+{"symbol":"PPG","surge_1d":0.0127315977,"surge_3d":0.0027405726,"surge_5d":0.0266544447,"surge_20d":0.0022440942,"name":"PPG Industries","market":"SP500"}
+{"symbol":"PFG","surge_1d":0.0127852484,"surge_3d":0.0030023024,"surge_5d":0.0270180722,"surge_20d":0.0021876717,"name":"Principal Financial Group","market":"SP500"}
+{"symbol":"PG","surge_1d":0.0127261073,"surge_3d":0.0027661398,"surge_5d":0.0309397109,"surge_20d":0.0047021844,"name":"Procter & Gamble","market":"SP500"}
+{"symbol":"PGR","surge_1d":0.0129221303,"surge_3d":0.0027388807,"surge_5d":0.028661167,"surge_20d":0.0023281107,"name":"Progressive Corporation","market":"SP500"}
+{"symbol":"PLD","surge_1d":0.0127412727,"surge_3d":0.0027624206,"surge_5d":0.0266663889,"surge_20d":0.002167178,"name":"Prologis","market":"SP500"}
+{"symbol":"PRU","surge_1d":0.0128943791,"surge_3d":0.0028570048,"surge_5d":0.0265612468,"surge_20d":0.0021628231,"name":"Prudential Financial","market":"SP500"}
+{"symbol":"PSA","surge_1d":0.0127462726,"surge_3d":0.0027835292,"surge_5d":0.0271738318,"surge_20d":0.0021695123,"name":"Public Storage","market":"SP500"}
+{"symbol":"PEG","surge_1d":0.0127645942,"surge_3d":0.0027480972,"surge_5d":0.0275000854,"surge_20d":0.0028508667,"name":"Public Service Enterprise Group","market":"SP500"}
+{"symbol":"PTC","surge_1d":0.0127649257,"surge_3d":0.0027500125,"surge_5d":0.0426276107,"surge_20d":0.0021711835,"name":"PTC Inc.","market":"SP500"}
+{"symbol":"PHM","surge_1d":0.012749977,"surge_3d":0.0028397943,"surge_5d":0.0266435181,"surge_20d":0.0022241137,"name":"PulteGroup","market":"SP500"}
+{"symbol":"PWR","surge_1d":0.0128485216,"surge_3d":0.0028634074,"surge_5d":0.0618215942,"surge_20d":0.0021784297,"name":"Quanta Services","market":"SP500"}
+{"symbol":"DGX","surge_1d":0.0127675386,"surge_3d":0.0027576739,"surge_5d":0.0266091236,"surge_20d":0.0021580771,"name":"Quest Diagnostics","market":"SP500"}
+{"symbol":"RL","surge_1d":0.0127918693,"surge_3d":0.0028616055,"surge_5d":0.0269529835,"surge_20d":0.0021932089,"name":"Ralph Lauren Corporation","market":"SP500"}
+{"symbol":"QCOM","surge_1d":0.0132558074,"surge_3d":0.0069591103,"surge_5d":0.0339092357,"surge_20d":0.0022090038,"name":"Qualcomm","market":"SP500"}
+{"symbol":"RJF","surge_1d":0.0127384867,"surge_3d":0.0028211713,"surge_5d":0.0266124309,"surge_20d":0.0021754029,"name":"Raymond James Financial","market":"SP500"}
+{"symbol":"O","surge_1d":0.0127779366,"surge_3d":0.0028222439,"surge_5d":0.0267663877,"surge_20d":0.0021656282,"name":"Realty Income","market":"SP500"}
+{"symbol":"RTX","surge_1d":0.0127649381,"surge_3d":0.0028188011,"surge_5d":0.0268853238,"surge_20d":0.0021667199,"name":"RTX Corporation","market":"SP500"}
+{"symbol":"REG","surge_1d":0.0127318946,"surge_3d":0.0027861139,"surge_5d":0.0265703255,"surge_20d":0.0021701825,"name":"Regency Centers","market":"SP500"}
+{"symbol":"REGN","surge_1d":0.0128322882,"surge_3d":0.0027885884,"surge_5d":0.0269235675,"surge_20d":0.0021887293,"name":"Regeneron Pharmaceuticals","market":"SP500"}
+{"symbol":"RF","surge_1d":0.0127812491,"surge_3d":0.0028615261,"surge_5d":0.0266577441,"surge_20d":0.0022061529,"name":"Regions Financial Corporation","market":"SP500"}
+{"symbol":"RSG","surge_1d":0.012753403,"surge_3d":0.0027902328,"surge_5d":0.0266945746,"surge_20d":0.0021828378,"name":"Republic Services","market":"SP500"}
+{"symbol":"RMD","surge_1d":0.0127337187,"surge_3d":0.0027383819,"surge_5d":0.0270341916,"surge_20d":0.0022577561,"name":"ResMed","market":"SP500"}
+{"symbol":"RVTY","surge_1d":0.0128095716,"surge_3d":0.0028841968,"surge_5d":0.026797436,"surge_20d":0.0022590265,"name":"Revvity","market":"SP500"}
+{"symbol":"ROK","surge_1d":0.0128002825,"surge_3d":0.0028128906,"surge_5d":0.0267666997,"surge_20d":0.0023425101,"name":"Rockwell Automation","market":"SP500"}
+{"symbol":"HOOD","surge_1d":0.0127677943,"surge_3d":0.0038949322,"surge_5d":0.0267913268,"surge_20d":0.0022828301,"name":"Robinhood Markets","market":"SP500"}
+{"symbol":"ROL","surge_1d":0.0127564785,"surge_3d":0.0027542227,"surge_5d":0.0279528707,"surge_20d":0.0021720392,"name":"Rollins, Inc.","market":"SP500"}
+{"symbol":"ROP","surge_1d":0.0127699178,"surge_3d":0.0027675147,"surge_5d":0.0266397051,"surge_20d":0.0021930086,"name":"Roper Technologies","market":"SP500"}
+{"symbol":"ROST","surge_1d":0.0127849469,"surge_3d":0.0028026581,"surge_5d":0.0270098951,"surge_20d":0.0021576351,"name":"Ross Stores","market":"SP500"}
+{"symbol":"RCL","surge_1d":0.0127812964,"surge_3d":0.0049398713,"surge_5d":0.0266977036,"surge_20d":0.0022818618,"name":"Royal Caribbean Group","market":"SP500"}
+{"symbol":"SPGI","surge_1d":0.0127464536,"surge_3d":0.0027645905,"surge_5d":0.0266708814,"surge_20d":0.002367891,"name":"S&P Global","market":"SP500"}
+{"symbol":"CRM","surge_1d":0.0127485562,"surge_3d":0.0027526324,"surge_5d":0.0267789865,"surge_20d":0.0022299079,"name":"Salesforce","market":"SP500"}
+{"symbol":"SLB","surge_1d":0.0127606631,"surge_3d":0.0028449023,"surge_5d":0.0406164427,"surge_20d":0.0021530393,"name":"Schlumberger","market":"SP500"}
+{"symbol":"SNDK","surge_1d":0.0128629594,"surge_3d":0.0034834282,"surge_5d":0.0336477734,"surge_20d":0.0022419902,"name":"Sandisk","market":"SP500"}
+{"symbol":"SBAC","surge_1d":0.0127741464,"surge_3d":0.0027582088,"surge_5d":0.0609660784,"surge_20d":0.0021544736,"name":"SBA Communications","market":"SP500"}
+{"symbol":"STX","surge_1d":0.0129678585,"surge_3d":0.0034135796,"surge_5d":0.06260022,"surge_20d":0.0022313113,"name":"Seagate Technology","market":"SP500"}
+{"symbol":"SRE","surge_1d":0.0127307758,"surge_3d":0.0027545501,"surge_5d":0.0268046229,"surge_20d":0.0481978731,"name":"Sempra","market":"SP500"}
+{"symbol":"NOW","surge_1d":0.0127695602,"surge_3d":0.0027748609,"surge_5d":0.0267800539,"surge_20d":0.0022952265,"name":"ServiceNow","market":"SP500"}
+{"symbol":"SHW","surge_1d":0.0127437002,"surge_3d":0.0027523904,"surge_5d":0.0268668192,"surge_20d":0.0022031621,"name":"Sherwin-Williams","market":"SP500"}
+{"symbol":"SPG","surge_1d":0.0129422327,"surge_3d":0.0030766447,"surge_5d":0.0266476371,"surge_20d":0.0021796099,"name":"Simon Property Group","market":"SP500"}
+{"symbol":"SJM","surge_1d":0.0127432357,"surge_3d":0.0029837719,"surge_5d":0.0265578534,"surge_20d":0.0021903158,"name":"J.M. Smucker Company (The)","market":"SP500"}
+{"symbol":"SWKS","surge_1d":0.0129315294,"surge_3d":0.0029224283,"surge_5d":0.0304884433,"surge_20d":0.0021812052,"name":"Skyworks Solutions","market":"SP500"}
+{"symbol":"SNA","surge_1d":0.0127626426,"surge_3d":0.0028165195,"surge_5d":0.0266876816,"surge_20d":0.0021671514,"name":"Snap-on","market":"SP500"}
+{"symbol":"SW","surge_1d":0.0127506468,"surge_3d":0.0030908677,"surge_5d":0.0266952453,"surge_20d":0.0022117717,"name":"Smurfit Westrock","market":"SP500"}
+{"symbol":"SOLV","surge_1d":0.0127766536,"surge_3d":0.0028942496,"surge_5d":0.0265286596,"surge_20d":0.0024212812,"name":"Solventum","market":"SP500"}
+{"symbol":"SO","surge_1d":0.0127348774,"surge_3d":0.0027659347,"surge_5d":0.027475316,"surge_20d":0.0352108393,"name":"Southern Company","market":"SP500"}
+{"symbol":"LUV","surge_1d":0.0127766287,"surge_3d":0.0030459977,"surge_5d":0.0267238269,"surge_20d":0.002259737,"name":"Southwest Airlines","market":"SP500"}
+{"symbol":"SWK","surge_1d":0.0127603615,"surge_3d":0.0028790412,"surge_5d":0.0265101915,"surge_20d":0.0024430768,"name":"Stanley Black & Decker","market":"SP500"}
+{"symbol":"SBUX","surge_1d":0.0128385742,"surge_3d":0.002816378,"surge_5d":0.0266502057,"surge_20d":0.0022483915,"name":"Starbucks","market":"SP500"}
+{"symbol":"STT","surge_1d":0.0128070366,"surge_3d":0.0027770634,"surge_5d":0.0266484161,"surge_20d":0.0021967082,"name":"State Street Corporation","market":"SP500"}
+{"symbol":"STE","surge_1d":0.0127646442,"surge_3d":0.0028550734,"surge_5d":0.0267230793,"surge_20d":0.0022492207,"name":"Steris","market":"SP500"}
+{"symbol":"STLD","surge_1d":0.0127951537,"surge_3d":0.0029381727,"surge_5d":0.041002397,"surge_20d":0.0021662149,"name":"Steel Dynamics","market":"SP500"}
+{"symbol":"SYK","surge_1d":0.0127438062,"surge_3d":0.0027943128,"surge_5d":0.026970936,"surge_20d":0.002322286,"name":"Stryker Corporation","market":"SP500"}
+{"symbol":"SMCI","surge_1d":0.0128459843,"surge_3d":0.0029692991,"surge_5d":0.0374311524,"surge_20d":0.0021823824,"name":"Supermicro","market":"SP500"}
+{"symbol":"SNPS","surge_1d":0.0127897016,"surge_3d":0.0028829125,"surge_5d":0.0849936995,"surge_20d":0.0021798577,"name":"Synopsys","market":"SP500"}
+{"symbol":"SYY","surge_1d":0.0127437798,"surge_3d":0.0029868264,"surge_5d":0.0267825519,"surge_20d":0.0022174904,"name":"Sysco","market":"SP500"}
+{"symbol":"SYF","surge_1d":0.0127946253,"surge_3d":0.0027933761,"surge_5d":0.0271021232,"surge_20d":0.0021961288,"name":"Synchrony Financial","market":"SP500"}
+{"symbol":"TMUS","surge_1d":0.0127639476,"surge_3d":0.0028421208,"surge_5d":0.0266825096,"surge_20d":0.0022240885,"name":"T-Mobile US","market":"SP500"}
+{"symbol":"TROW","surge_1d":0.012752338,"surge_3d":0.0028160314,"surge_5d":0.0266279679,"surge_20d":0.0021951877,"name":"T. Rowe Price","market":"SP500"}
+{"symbol":"TTWO","surge_1d":0.0127743025,"surge_3d":0.0028523498,"surge_5d":0.0274383128,"surge_20d":0.0023286103,"name":"Take-Two Interactive","market":"SP500"}
+{"symbol":"TRGP","surge_1d":0.0129645037,"surge_3d":0.0030014417,"surge_5d":0.0265768075,"surge_20d":0.0021916751,"name":"Targa Resources","market":"SP500"}
+{"symbol":"TPR","surge_1d":0.0127886927,"surge_3d":0.0027534733,"surge_5d":0.0267251682,"surge_20d":0.0021548983,"name":"Tapestry, Inc.","market":"SP500"}
+{"symbol":"TGT","surge_1d":0.0127633296,"surge_3d":0.0030994661,"surge_5d":0.0265255787,"surge_20d":0.0022160418,"name":"Target Corporation","market":"SP500"}
+{"symbol":"TEL","surge_1d":0.0128159713,"surge_3d":0.0029442057,"surge_5d":0.0267972552,"surge_20d":0.0021598118,"name":"TE Connectivity","market":"SP500"}
+{"symbol":"TDY","surge_1d":0.0127323755,"surge_3d":0.0027383642,"surge_5d":0.0265792469,"surge_20d":0.002176373,"name":"Teledyne Technologies","market":"SP500"}
+{"symbol":"TER","surge_1d":0.0128192155,"surge_3d":0.002934766,"surge_5d":0.0372693063,"surge_20d":0.0021840434,"name":"Teradyne","market":"SP500"}
+{"symbol":"TPL","surge_1d":0.0128330926,"surge_3d":0.0027966966,"surge_5d":0.0265472835,"surge_20d":0.0021654978,"name":"Texas Pacific Land Corporation","market":"SP500"}
+{"symbol":"TXN","surge_1d":0.0128521334,"surge_3d":0.0103868327,"surge_5d":0.0364667368,"surge_20d":0.002230124,"name":"Texas Instruments","market":"SP500"}
+{"symbol":"TXT","surge_1d":0.0127564721,"surge_3d":0.0027721732,"surge_5d":0.0266394784,"surge_20d":0.0021797651,"name":"Textron","market":"SP500"}
+{"symbol":"TSLA","surge_1d":0.0129269209,"surge_3d":0.0029664605,"surge_5d":0.1055312478,"surge_20d":0.0022121004,"name":"Tesla, Inc.","market":"SP500"}
+{"symbol":"TMO","surge_1d":0.0127456718,"surge_3d":0.0027814806,"surge_5d":0.0273998115,"surge_20d":0.0022118423,"name":"Thermo Fisher Scientific","market":"SP500"}
+{"symbol":"TJX","surge_1d":0.0129312975,"surge_3d":0.0029605931,"surge_5d":0.0270122616,"surge_20d":0.0021543679,"name":"TJX Companies","market":"SP500"}
+{"symbol":"TKO","surge_1d":0.0128828119,"surge_3d":0.002920783,"surge_5d":0.0274771683,"surge_20d":0.0021726961,"name":"TKO Group Holdings","market":"SP500"}
+{"symbol":"TTD","surge_1d":0.0128487129,"surge_3d":0.002954891,"surge_5d":0.0330206342,"surge_20d":0.0021695482,"name":"Trade Desk (The)","market":"SP500"}
+{"symbol":"TT","surge_1d":0.0127555606,"surge_3d":0.0029102095,"surge_5d":0.0266589811,"surge_20d":0.0022374504,"name":"Trane Technologies","market":"SP500"}
+{"symbol":"TSCO","surge_1d":0.0127293005,"surge_3d":0.0028196039,"surge_5d":0.0266704374,"surge_20d":0.0021954038,"name":"Tractor Supply","market":"SP500"}
+{"symbol":"TDG","surge_1d":0.012843116,"surge_3d":0.0029105443,"surge_5d":0.0280393437,"surge_20d":0.0023569686,"name":"TransDigm Group","market":"SP500"}
+{"symbol":"TRMB","surge_1d":0.0127396075,"surge_3d":0.0027679805,"surge_5d":0.0267516087,"surge_20d":0.0021766882,"name":"Trimble Inc.","market":"SP500"}
+{"symbol":"TRV","surge_1d":0.0128501078,"surge_3d":0.002791454,"surge_5d":0.0268243027,"surge_20d":0.0022070046,"name":"Travelers Companies (The)","market":"SP500"}
+{"symbol":"TYL","surge_1d":0.0128330482,"surge_3d":0.0027701782,"surge_5d":0.026795088,"surge_20d":0.0021750398,"name":"Tyler Technologies","market":"SP500"}
+{"symbol":"TFC","surge_1d":0.012726242,"surge_3d":0.0027537509,"surge_5d":0.0265476389,"surge_20d":0.0022223259,"name":"Truist Financial","market":"SP500"}
+{"symbol":"TSN","surge_1d":0.0128054214,"surge_3d":0.0028722155,"surge_5d":0.026893096,"surge_20d":0.0021578994,"name":"Tyson Foods","market":"SP500"}
+{"symbol":"USB","surge_1d":0.0127593903,"surge_3d":0.002831379,"surge_5d":0.0270322711,"surge_20d":0.0021867798,"name":"U.S. Bancorp","market":"SP500"}
+{"symbol":"UBER","surge_1d":0.0127493507,"surge_3d":0.0027723103,"surge_5d":0.0267430718,"surge_20d":0.0022917301,"name":"Uber","market":"SP500"}
+{"symbol":"UDR","surge_1d":0.0127610735,"surge_3d":0.0028892527,"surge_5d":0.0266553979,"surge_20d":0.0022567992,"name":"UDR, Inc.","market":"SP500"}
+{"symbol":"ULTA","surge_1d":0.0128124547,"surge_3d":0.0029759665,"surge_5d":0.0266686501,"surge_20d":0.0021651999,"name":"Ulta Beauty","market":"SP500"}
+{"symbol":"UAL","surge_1d":0.0127853226,"surge_3d":0.0029421282,"surge_5d":0.0271906465,"surge_20d":0.0022180425,"name":"United Airlines Holdings","market":"SP500"}
+{"symbol":"UNP","surge_1d":0.012872586,"surge_3d":0.0028396939,"surge_5d":0.0267613728,"surge_20d":0.0021633165,"name":"Union Pacific Corporation","market":"SP500"}
+{"symbol":"UPS","surge_1d":0.0127637228,"surge_3d":0.0028264245,"surge_5d":0.0265519374,"surge_20d":0.0021982946,"name":"United Parcel Service","market":"SP500"}
+{"symbol":"URI","surge_1d":0.0127474303,"surge_3d":0.0029571093,"surge_5d":0.0265762687,"surge_20d":0.0023286466,"name":"United Rentals","market":"SP500"}
+{"symbol":"UNH","surge_1d":0.0127383867,"surge_3d":0.002788029,"surge_5d":0.0265744454,"surge_20d":0.0022620332,"name":"UnitedHealth Group","market":"SP500"}
+{"symbol":"VLO","surge_1d":0.0127984542,"surge_3d":0.0028304306,"surge_5d":0.0268621903,"surge_20d":0.0021878766,"name":"Valero Energy","market":"SP500"}
+{"symbol":"UHS","surge_1d":0.0128052357,"surge_3d":0.0027955581,"surge_5d":0.0276760789,"surge_20d":0.0021786443,"name":"Universal Health Services","market":"SP500"}
+{"symbol":"VEEV","surge_1d":0.0127868043,"surge_3d":0.0031446462,"surge_5d":0.0269161972,"surge_20d":0.0022456388,"name":"Veeva Systems","market":"SP500"}
+{"symbol":"VTR","surge_1d":0.0128154113,"surge_3d":0.0028696552,"surge_5d":0.0266894915,"surge_20d":0.0021692615,"name":"Ventas","market":"SP500"}
+{"symbol":"VLTO","surge_1d":0.0127406894,"surge_3d":0.0027605126,"surge_5d":0.0271822616,"surge_20d":0.00222977,"name":"Veralto","market":"SP500"}
+{"symbol":"VRSN","surge_1d":0.0129243805,"surge_3d":0.002826324,"surge_5d":0.0273402963,"surge_20d":0.0021541701,"name":"Verisign","market":"SP500"}
+{"symbol":"VZ","surge_1d":0.0129529348,"surge_3d":0.0029503357,"surge_5d":0.0275787756,"surge_20d":0.0021825528,"name":"Verizon","market":"SP500"}
+{"symbol":"VRTX","surge_1d":0.0129113609,"surge_3d":0.0028098402,"surge_5d":0.0265846552,"surge_20d":0.0022984191,"name":"Vertex Pharmaceuticals","market":"SP500"}
+{"symbol":"VRSK","surge_1d":0.0128201043,"surge_3d":0.0030584224,"surge_5d":0.0267399434,"surge_20d":0.0022424435,"name":"Verisk Analytics","market":"SP500"}
+{"symbol":"VRT","surge_1d":0.0129090735,"surge_3d":0.0030789516,"surge_5d":0.0528112955,"surge_20d":0.0021669863,"name":"Vertiv","market":"SP500"}
+{"symbol":"VTRS","surge_1d":0.012744017,"surge_3d":0.0031700688,"surge_5d":0.02653606,"surge_20d":0.0023065749,"name":"Viatris","market":"SP500"}
+{"symbol":"VICI","surge_1d":0.0127697954,"surge_3d":0.0027531391,"surge_5d":0.0265795505,"surge_20d":0.0021669681,"name":"Vici Properties","market":"SP500"}
+{"symbol":"VST","surge_1d":0.0127689858,"surge_3d":0.0029648528,"surge_5d":0.0274753319,"surge_20d":0.0027008716,"name":"Vistra Corp.","market":"SP500"}
+{"symbol":"V","surge_1d":0.0127798561,"surge_3d":0.0028274602,"surge_5d":0.0266565152,"surge_20d":0.0022167283,"name":"Visa Inc.","market":"SP500"}
+{"symbol":"VMC","surge_1d":0.0127435038,"surge_3d":0.0028346896,"surge_5d":0.026755563,"surge_20d":0.0025011468,"name":"Vulcan Materials Company","market":"SP500"}
+{"symbol":"WRB","surge_1d":0.0127683283,"surge_3d":0.0028894789,"surge_5d":0.026917381,"surge_20d":0.0021865208,"name":"W. R. Berkley Corporation","market":"SP500"}
+{"symbol":"GWW","surge_1d":0.0128060999,"surge_3d":0.0028274602,"surge_5d":0.0277597556,"surge_20d":0.002173685,"name":"W. W. Grainger","market":"SP500"}
+{"symbol":"WAB","surge_1d":0.0127351216,"surge_3d":0.0028365368,"surge_5d":0.026587505,"surge_20d":0.0021583039,"name":"Wabtec","market":"SP500"}
+{"symbol":"DIS","surge_1d":0.0127518481,"surge_3d":0.0028212522,"surge_5d":0.0293669229,"surge_20d":0.0021743001,"name":"Walt Disney Company (The)","market":"SP500"}
+{"symbol":"WBD","surge_1d":0.0127356819,"surge_3d":0.002836884,"surge_5d":0.0273746758,"surge_20d":0.0022964314,"name":"Warner Bros. Discovery","market":"SP500"}
+{"symbol":"WMT","surge_1d":0.0127613283,"surge_3d":0.0028145416,"surge_5d":0.0458551335,"surge_20d":0.0021594406,"name":"Walmart","market":"SP500"}
+{"symbol":"WM","surge_1d":0.0127621679,"surge_3d":0.0027946014,"surge_5d":0.0266103924,"surge_20d":0.0021666822,"name":"Waste Management","market":"SP500"}
+{"symbol":"WAT","surge_1d":0.0127628648,"surge_3d":0.0030185414,"surge_5d":0.0266351511,"surge_20d":0.0035156551,"name":"Waters Corporation","market":"SP500"}
+{"symbol":"WFC","surge_1d":0.0127345673,"surge_3d":0.0029234639,"surge_5d":0.0265826432,"surge_20d":0.0023682534,"name":"Wells Fargo","market":"SP500"}
+{"symbol":"WEC","surge_1d":0.0127486018,"surge_3d":0.0027474746,"surge_5d":0.0266329238,"surge_20d":0.0079518852,"name":"WEC Energy Group","market":"SP500"}
+{"symbol":"WELL","surge_1d":0.0127982057,"surge_3d":0.0028596242,"surge_5d":0.026748764,"surge_20d":0.0021603936,"name":"Welltower","market":"SP500"}
+{"symbol":"WST","surge_1d":0.0128033509,"surge_3d":0.0028220482,"surge_5d":0.0268252781,"surge_20d":0.0021705928,"name":"West Pharmaceutical Services","market":"SP500"}
+{"symbol":"WDC","surge_1d":0.0129634524,"surge_3d":0.0034139101,"surge_5d":0.0565490725,"surge_20d":0.0022207783,"name":"Western Digital","market":"SP500"}
+{"symbol":"WY","surge_1d":0.0127295803,"surge_3d":0.0027541352,"surge_5d":0.0265257589,"surge_20d":0.0021844983,"name":"Weyerhaeuser","market":"SP500"}
+{"symbol":"WSM","surge_1d":0.0127355611,"surge_3d":0.0027917344,"surge_5d":0.0265103961,"surge_20d":0.0021730811,"name":"Williams-Sonoma, Inc.","market":"SP500"}
+{"symbol":"WTW","surge_1d":0.0128463944,"surge_3d":0.0028195657,"surge_5d":0.0273235568,"surge_20d":0.0022361516,"name":"Willis Towers Watson","market":"SP500"}
+{"symbol":"WDAY","surge_1d":0.0127427051,"surge_3d":0.0029525786,"surge_5d":0.0266586424,"surge_20d":0.0022626433,"name":"Workday, Inc.","market":"SP500"}
+{"symbol":"WMB","surge_1d":0.0127495225,"surge_3d":0.0029402278,"surge_5d":0.0265154342,"surge_20d":0.0023196612,"name":"Williams Companies","market":"SP500"}
+{"symbol":"WYNN","surge_1d":0.0128508103,"surge_3d":0.0030110095,"surge_5d":0.0451988037,"surge_20d":0.0021738977,"name":"Wynn Resorts","market":"SP500"}
+{"symbol":"XEL","surge_1d":0.0127481958,"surge_3d":0.0028167182,"surge_5d":0.0281336412,"surge_20d":0.033981387,"name":"Xcel Energy","market":"SP500"}
+{"symbol":"XYL","surge_1d":0.0127784051,"surge_3d":0.0027772545,"surge_5d":0.0269214398,"surge_20d":0.002184987,"name":"Xylem Inc.","market":"SP500"}
+{"symbol":"YUM","surge_1d":0.0128829924,"surge_3d":0.0028096255,"surge_5d":0.0274522656,"surge_20d":0.0022617662,"name":"Yum! Brands","market":"SP500"}
+{"symbol":"ZBRA","surge_1d":0.0127596755,"surge_3d":0.0028924836,"surge_5d":0.0277640733,"surge_20d":0.0021757553,"name":"Zebra Technologies","market":"SP500"}
+{"symbol":"ZBH","surge_1d":0.0127671622,"surge_3d":0.0029624507,"surge_5d":0.0268640005,"surge_20d":0.0022813319,"name":"Zimmer Biomet","market":"SP500"}
+{"symbol":"ZTS","surge_1d":0.012818668,"surge_3d":0.0031192872,"surge_5d":0.0267049828,"surge_20d":0.0022160432,"name":"Zoetis","market":"SP500"}

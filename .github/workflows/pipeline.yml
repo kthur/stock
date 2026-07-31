@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [SP500, KOSPI, KOSDAQ, KONEX]
+        target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
     timeout-minutes: 360
 
     steps:
@@ -214,11 +214,18 @@ jobs:
           path: trading_system/result_KOSDAQ
         continue-on-error: true
 
-      - name: Download KONEX results
+      - name: Download NASDAQ results
         uses: actions/download-artifact@v4
         with:
-          name: result-KONEX
-          path: trading_system/result_KONEX
+          name: result-NASDAQ
+          path: trading_system/result_NASDAQ
+        continue-on-error: true
+
+      - name: Download RUSSELL2000 results
+        uses: actions/download-artifact@v4
+        with:
+          name: result-RUSSELL2000
+          path: trading_system/result_RUSSELL2000
         continue-on-error: true
 
       - name: Merge and reconstruct outputs
@@ -226,9 +233,10 @@ jobs:
           mkdir -p trading_system/result
           # Copy market-split files into result directory before running merge script
           cp trading_system/result_SP500/*_SP500.txt trading_system/result/ 2>/dev/null || true
+          cp trading_system/result_NASDAQ/*_NASDAQ.txt trading_system/result/ 2>/dev/null || true
+          cp trading_system/result_RUSSELL2000/*_RUSSELL2000.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSPI/*_KOSPI.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSDAQ/*_KOSDAQ.txt trading_system/result/ 2>/dev/null || true
-          cp trading_system/result_KONEX/*_KONEX.txt trading_system/result/ 2>/dev/null || true
           
           # Run python merging script to generate unified result files
           python3 trading_system/merge_predictions.py
@@ -251,7 +259,7 @@ jobs:
             TAG_NAME="v${{ steps.date.outputs.date }}"
             gh release create "$TAG_NAME" \
               --title "Daily Predictions $TAG_NAME" \
-              --notes "Daily prediction results for $TAG_NAME (Merged SP500, KOSPI, KOSDAQ, KONEX)." \
+              --notes "Daily prediction results for $TAG_NAME (Merged SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)." \
               || echo "Release $TAG_NAME already exists"
             
             # Upload all 17 strategy files and report outputs

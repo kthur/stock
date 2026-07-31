@@ -1,16 +1,4 @@
 === Pipeline Inference Summary (KOSPI) ===
-Date: 2026-07-31 12:48
-Total symbols analyzed: 1
+Date: 2026-07-31 17:52
 
---- KOSPI TOP 1 (Horizon: 1d) ---
-  1. 005930 (Samsung Electronics): +0.19%
-
---- KOSPI TOP 1 (Horizon: 5d) ---
-  1. 005930 (Samsung Electronics): -0.61%
-
---- KOSPI TOP 1 (Horizon: 20d) ---
-  1. 005930 (Samsung Electronics): +0.37%
-
---- KOSPI TOP 1 (Horizon: 60d) ---
-  1. 005930 (Samsung Electronics): -0.00%
-
+데이터 없음

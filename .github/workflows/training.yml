@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [SP500, KOSPI, KOSDAQ, KONEX]
+        target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
     timeout-minutes: 180
 
     steps:

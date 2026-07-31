@@ -1,9 +1,46 @@
 # Project: Stock Trading System Full-scale Optimization
 
+## System Block Architecture
+
+```mermaid
+flowchart LR
+    subgraph CoreEngine ["DAG Pipeline & Data Layer"]
+        DAG["DAG Pipeline\n(dag_pipeline.py)"]
+        HybridDB[("Hybrid Data Storage\nSQLite WAL + Parquet")]
+        DAG --> HybridDB
+    end
+
+    subgraph AlphaModule ["18-Factor Alpha Engine & Orthogonalizer"]
+        FactorMat["18 Strategy Raw Signals\nMatrix X (N x 18)"]
+        Orthogon["Gram-Schmidt / PCA\nFactor Orthogonalization"]
+        FactorMat --> Orthogon
+    end
+
+    subgraph RiskAlloc ["Risk & Portfolio Management"]
+        RegimeRisk["2D Regime & Crisis Detector"]
+        PortAlloc["Portfolio Allocator\n(EVT-CVaR & HRP Risk Budget)"]
+        RegimeRisk --> PortAlloc
+    end
+
+    subgraph ExecutionMLOps ["Execution & MLOps"]
+        OMS["OMS Slicer (TWAP/VWAP)"]
+        SlippageFB["Real-Time Slippage Feedback"]
+        MLOps["MLOps Monitor & Drift Detector"]
+        
+        OMS --> SlippageFB
+    end
+
+    HybridDB --> FactorMat
+    Orthogon --> PortAlloc
+    PortAlloc --> OMS
+    SlippageFB --> FactorMat
+    OMS --> MLOps
+```
+
 ## Architecture
 - **DAG Pipeline**: Task graph execution with state serialization & resume capability (`trading_system/dag_pipeline.py`).
 - **Hybrid Data Engine**: SQLite/Parquet hybrid storage for high-concurrency multi-asset streaming (`src/data_layer/`).
-- **Ensemble Engine**: Gram-Schmidt & PCA factor orthogonalization across 17 strategies (`src/ai/ensemble_scorer.py`).
+- **Ensemble Engine**: Gram-Schmidt & PCA factor orthogonalization across 18 strategies (`src/ai/ensemble_scorer.py`).
 - **Stat-Arb Engine**: Cluster-accelerated cointegration scanner (K-Means / OPTICS) (`src/core/stat_arb.py`).
 - **Portfolio Allocator**: EVT-CVaR risk budget constraints & dynamic band-based rebalancing (`src/risk/portfolio_allocator.py`).
 - **OMS Engine**: TWAP/VWAP order slicing & real-time slippage feedback loop (`src/execution/oms_engine.py`).
@@ -28,8 +65,8 @@
 - Zero SQLite `database is locked` OperationalErrors under multi-threading.
 
 ### Factor Orthogonalizer ↔ Ensemble Scorer
-- Input: matrix of 17 raw strategy signal scores per ticker $X \in \mathbb{R}^{N \times 17}$.
-- Output: orthogonalized score matrix $X_{ortho} \in \mathbb{R}^{N \times 17}$ preserving relative variance explaining power.
+- Input: matrix of 18 raw strategy signal scores per ticker $X \in \mathbb{R}^{N \times 18}$.
+- Output: orthogonalized score matrix $X_{ortho} \in \mathbb{R}^{N \times 18}$ preserving relative variance explaining power.
 
 ### Stat-Arb Scanner ↔ Cointegration Engine
 - Pre-clustering partitions 3,379 symbols into $K$ feature clusters (K-Means/OPTICS).
@@ -53,3 +90,4 @@
 - `src/execution/`: OMS engine, order slicing, trade log persistence.
 - `src/monitoring/`: MLOps drift triggers, metrics reporting.
 - `tests/`: Pytest suite.
+

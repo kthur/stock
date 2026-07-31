@@ -73,7 +73,8 @@ class TradingConfig:
     market_impact_coeff_sp500: float = 0.50     # SP500 시장 충격 Square-Root 계수 Y
     base_spread_kospi: float = 0.0006           # KOSPI 기준 스프레드 (0.06%)
     base_spread_kosdaq: float = 0.0010          # KOSDAQ 기준 스프레드 (0.10%)
-    base_spread_konex: float = 0.0025           # KONEX 기준 스프레드 (0.25%)
+    base_spread_nasdaq: float = 0.0003          # NASDAQ 기준 스프레드 (0.03%)
+    base_spread_russell2000: float = 0.0008     # RUSSELL2000 기준 스프레드 (0.08%)
     base_spread_sp500: float = 0.0002           # SP500 기준 스프레드 (0.02%)
     default_volatility_krx: float = 0.020       # KRX 기본 일일 변동성 (2.0%)
     default_volatility_sp500: float = 0.015     # SP500 기본 일일 변동성 (1.5%)
@@ -188,9 +189,14 @@ class TradingConfig:
                 self.base_spread_kosdaq = float(os.environ["BASE_SPREAD_KOSDAQ"])
             except ValueError:
                 pass
-        if "BASE_SPREAD_KONEX" in os.environ:
+        if "BASE_SPREAD_NASDAQ" in os.environ:
             try:
-                self.base_spread_konex = float(os.environ["BASE_SPREAD_KONEX"])
+                self.base_spread_nasdaq = float(os.environ["BASE_SPREAD_NASDAQ"])
+            except ValueError:
+                pass
+        if "BASE_SPREAD_RUSSELL2000" in os.environ:
+            try:
+                self.base_spread_russell2000 = float(os.environ["BASE_SPREAD_RUSSELL2000"])
             except ValueError:
                 pass
         if "BASE_SPREAD_SP500" in os.environ:

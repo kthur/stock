@@ -1,7 +1,9 @@
 === Lead-Lag Surge Predictions ===
-Date: 2026-07-29 09:36
-Based on today's top 0 leader stock movements
+Date: 2026-07-31 17:52
+Based on today's top 7 leader stock movements
 Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
         (Higher = stronger historical co-movement with market leaders)
 
-데이터 없음
+--- KOSPI Top 100 ---
+  1. [KOSPI] 068270 (셀트리온): 0.00%
+

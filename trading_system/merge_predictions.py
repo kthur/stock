@@ -84,7 +84,7 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
-        for market in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        for market in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
             mkt_dir = target_dirs.get(market)
             if mkt_dir is None:
                 continue
@@ -135,7 +135,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
         header = f"=== Surge Detection Results (>= 20% return) ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
     horizons = ["1", "3", "5", "20"]
-    markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
+    markets = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
 
     sections_written = 0
     buffer = [header]
@@ -203,7 +203,7 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict) -> None:
         header = f"=== VCP ML Surge Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
     horizons = ["1", "3", "5", "20"]
-    markets = ["KOSPI", "KOSDAQ", "KONEX", "SP500"]
+    markets = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
 
     sections_written = 0
     buffer = [header]
@@ -256,7 +256,7 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict) -> None:
 
     # Pre-read contents to avoid open('w') truncation bug
     contents_cache = {}
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
         path = target_dirs.get(mkt)
         if not path:
             continue
@@ -266,7 +266,7 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict) -> None:
         if file_path.exists():
             contents_cache[mkt] = get_file_content(file_path)
 
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
         content = contents_cache.get(mkt, "")
         if not content or "데이터 없음" in content or "No data" in content:
             continue
@@ -318,7 +318,7 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict) -> None:
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
-        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        for mkt in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
             mkt_dir = target_dirs.get(mkt)
             if mkt_dir is None:
                 continue
@@ -398,7 +398,7 @@ def main():
     result_dir = base_dir / "result"
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    markets = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
+    markets = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
     target_dirs: dict[str, Path] = {}
     for m in markets:
         # Prefer market-specific split directory; fall back to unified result dir

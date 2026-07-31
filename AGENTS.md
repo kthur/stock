@@ -33,11 +33,11 @@
 1. Load config (TradingConfig)
 2. Fetch global indicators (VIX, TNX, USDKRW, etc.)
 3. Store market indicators
-4. Load/update stock universe (3379 symbols)
+4. Load/update stock universe (3379 symbols: KOSPI, KOSDAQ, SP500)
 5. Fetch indicator history (train + inference)
 6. Prepare training data (ThreadPoolExecutor + fundamental fetch + float32 memory downcast)
 7. Train:
-   a. Regression (per market: sp500/kospi/kosdaq/konex)
+   a. Regression (per market: sp500/kospi/kosdaq)
    b. Surge classifier (per market, capped scale weight)
    c. Lead-Lag 2-tier matrix
    d. VCP ML (per market)
@@ -50,13 +50,73 @@
     c. Lead-Lag 2-tier inference
     d. Stat-Arb pair cointegration scanning
     e. Sector Rotation relative momentum scoring
-    f. RIM Valuation / Event-Driven / MQ Factor / IV Skew / Order Flow / Short-Term Reversal / ARM / CARD / LATR scoring
-    g. 17-Strategy Dynamic Weighted Ensemble Scoring (Microstructure costs & RiskManager Crisis Gating)
-11. Save predictions to DB & 17-Strategy Ensemble Output + Strategy Data Coverage Report
+    f. RIM Valuation / Event-Driven / MQ Factor / IV Skew / Order Flow / Short-Term Reversal / ARM / CARD / LATR / Inst & Foreign Sector scoring
+    g. 18-Strategy Dynamic Weighted Ensemble Scoring (Microstructure costs & RiskManager Crisis Gating)
+11. Save predictions to DB & 18-Strategy Ensemble Output + Strategy Data Coverage Report
 12. Save output files & Update GitHub Pages HTML Report (KST Timezone)
 ```
 
 ## Architecture
+
+### Overall Block Diagram
+
+```mermaid
+flowchart TB
+    subgraph Data ["Data Storage & Orchestration Layer"]
+        DB[("StockPriceDB / MarketIndicatorStorage\n(SQLite WAL, Write Lock Mutex)")]
+        EData["Earnings & Fundamental Fetcher\n(Rate-limit Retry, 60d Filing Lag)"]
+    end
+
+    subgraph Strategies ["18-Strategy Multi-Factor Engine"]
+        Reg["1. XGBoost Regression"]
+        Surge["2. Surge Classifier"]
+        LL["3. Lead-Lag Shift"]
+        VCP_Rule["4. VCP Rule Pattern"]
+        VCP_ML["5. VCP ML Predictor"]
+        LSTM["6. Strict Causal LSTM"]
+        StatArb["7. Stat-Arb Cointegration"]
+        Sector["8. Sector Rotation"]
+        RIM["9. RIM Valuation"]
+        Event["10. Event-Driven"]
+        MQ["11. Momentum Quality"]
+        IV["12. Options IV Skew"]
+        OrderFlow["13. Order Flow Imbalance"]
+        Reversal["14. Short-Term Reversal"]
+        ARM["15. Analyst Revision"]
+        CARD["16. Cross-Asset Divergence"]
+        LATR["17. Liquidity Tail Risk"]
+        InstFor["18. Inst & Foreign Sector"]
+    end
+
+    subgraph Control ["Regime & Risk Control Layer"]
+        RegimeEngine["2D Market Regime Detector\n(6-Regime Matrix)"]
+        RiskEngine["RiskManager & CrisisDetector\n(VIX/USDKRW Threshold Gating)"]
+    end
+
+    subgraph DynamicEnsemble ["Ensemble & Optimization Engine"]
+        Calibrator["Isotonic Calibrator"]
+        EnsembleEng["EnsembleScoringEngine\n(Dynamic Weights, Gram-Schmidt Orthogonalization)"]
+        MicroCost["Microstructure Cost Model\n(STT, SEC, Spread, Market Impact)"]
+        PortfolioOpt["PortfolioAllocator & Risk Parity\n(Covariance Shrinkage, HRP Allocation)"]
+    end
+
+    subgraph Execution ["Execution & Output Layer"]
+        ReportGen["GitHub Pages Generator (index.html)"]
+        TxtOutputs["Pipeline Text & Coverage Reports"]
+        OMS["Execution OMS Engine (trade_logs.db)"]
+    end
+
+    Data --> Strategies
+    Strategies --> Calibrator
+    Calibrator --> EnsembleEng
+    RegimeEngine --> EnsembleEng
+    RiskEngine --> EnsembleEng
+    EnsembleEng --> MicroCost
+    MicroCost --> PortfolioOpt
+    PortfolioOpt --> ReportGen
+    PortfolioOpt --> TxtOutputs
+    PortfolioOpt --> OMS
+```
 
 ### Key Files
 

@@ -70,8 +70,9 @@ class LSTMPredictor:
                 y_train = np.expand_dims(y_train, axis=-1)
 
             # Convert to PyTorch Tensors
-            X_tensor = torch.tensor(X_train, dtype=torch.float32).to(self.device)
-            y_tensor = torch.tensor(y_train, dtype=torch.float32).to(self.device)
+            float_dtype = getattr(torch, 'float32', getattr(torch, 'float', None))
+            X_tensor = torch.tensor(X_train, dtype=float_dtype).to(self.device)
+            y_tensor = torch.tensor(y_train, dtype=float_dtype).to(self.device)
 
             criterion = nn.MSELoss()
             optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
@@ -124,7 +125,8 @@ class LSTMPredictor:
 
             self.model.eval()
             with torch.no_grad():
-                X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+                float_dtype = getattr(torch, 'float32', getattr(torch, 'float', None))
+                X_tensor = torch.tensor(X, dtype=float_dtype).to(self.device)
                 preds = self.model(X_tensor)
                 # Convert back to numpy
                 return cast(np.ndarray, preds.cpu().numpy().flatten())

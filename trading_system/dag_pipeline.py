@@ -600,7 +600,7 @@ def build_default_pipeline_tasks() -> List[Task]:
 
 def main():
     parser = argparse.ArgumentParser(description="DAG Modular Pipeline & Checkpointing Orchestrator")
-    parser.add_argument("--target", type=str, default="ALL", help="Target equity market (SP500, KOSPI, KOSDAQ, KONEX, ALL)")
+    parser.add_argument("--target", type=str, default="ALL", help="Target equity market (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ, ALL)")
     parser.add_argument("--skip-training", action="store_true", help="Skip ML model re-training phase")
     parser.add_argument("--force-rerun", action="store_true", help="Force complete re-execution, ignoring checkpoints")
     parser.add_argument("--rerun-node", type=str, default=None, help="Force re-execution of a specific node and downstream nodes")

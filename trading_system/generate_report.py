@@ -608,7 +608,7 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
             date = m.group(1).strip()
             continue
         # Matches: rank  symbol  name (anything)  market  score%
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500)\s+([-+]?[\d.]+)%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-+]?[\d.]+)%$", line)
         if m:
             rows.append(SimpleStrategyRow(
                 rank=int(m.group(1)),
@@ -765,7 +765,7 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
             data.remaining_cash = m.group(2).strip()
 
         m = re.match(
-            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
+            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
             line
         )
         if m:
@@ -792,8 +792,9 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
 MARKET_FLAGS = {
     "KOSPI": "🇰🇷",
     "KOSDAQ": "🇰🇷",
-    "KONEX": "🇰🇷",
     "SP500": "🇺🇸",
+    "NASDAQ": "🇺🇸",
+    "RUSSELL2000": "🇺🇸",
 }
 
 REGIME_INFO = {
@@ -846,7 +847,7 @@ def format_telegram_alert_summary(ensemble: EnsembleData, regime_2d: str = "SIDE
 def make_stock_link(symbol: str, market: str) -> str:
     clean_sym = symbol.strip()
     raw_code = clean_sym.split('.')[0]
-    if market in ['KOSPI', 'KOSDAQ', 'KONEX']:
+    if market in ['KOSPI', 'KOSDAQ']:
         return f'<a href="https://m.stock.naver.com/domestic/stock/{raw_code}/total" target="_blank" class="stock-link">{clean_sym}</a>'
     else:
         return f'<a href="https://finance.yahoo.com/quote/{clean_sym}" target="_blank" class="stock-link">{clean_sym}</a>'
@@ -898,7 +899,7 @@ def build_html(
 
     # ── Tab: Ensemble ──
     ensemble_panels = ""
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         mkt_data = next((m for m in ensemble.markets if m.market == mkt), None)
         flag = MARKET_FLAGS.get(mkt, "")
         rows_html = ""
@@ -983,7 +984,7 @@ def build_html(
     portfolio_rows_html = ""
     chart_labels = []
     chart_weights = []
-    market_weights = {"KOSPI": 0.0, "KOSDAQ": 0.0, "KONEX": 0.0, "SP500": 0.0, "CASH": 0.0}
+    market_weights = {"KOSPI": 0.0, "KOSDAQ": 0.0, "SP500": 0.0, "NASDAQ": 0.0, "RUSSELL2000": 0.0, "CASH": 0.0}
 
     if portfolio_data and portfolio_data.rows:
         for port_r in portfolio_data.rows:
@@ -1025,7 +1026,7 @@ def build_html(
         surge_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
         hz_sections = [s for s in surge_sections if s.horizon == hz]
         panels = ""
-        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
             s = next((sec for sec in hz_sections if sec.market == mkt), None)
             flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
@@ -1068,7 +1069,7 @@ def build_html(
         vcp_by_market.setdefault(vr.market, []).append(vr)
 
     vcp_panels = ""
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         flag = MARKET_FLAGS.get(mkt, "")
         rows_vcp = vcp_by_market.get(mkt, [])
         rows_html = ""
@@ -1114,7 +1115,7 @@ def build_html(
         lag_by_market.setdefault(lr.market, []).append(lr)
 
     lag_panels = ""
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         flag = MARKET_FLAGS.get(mkt, "")
         rows_ll = lag_by_market.get(mkt, [])
         rows_html = ""
@@ -1164,7 +1165,7 @@ def build_html(
         vcp_ml_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
         hz_sections = [s for s in vcp_ml_sections if s.horizon == hz]
         panels = ""
-        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
             s = next((sec for sec in hz_sections if sec.market == mkt), None)
             flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
@@ -1206,8 +1207,9 @@ def build_html(
         <button class="filter-btn active" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="all">전체</button>
         <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
         <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="KONEX">🇰🇷 KONEX</button>
         <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="SP500">🇺🇸 SP500</button>
+        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+        <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-{hz}')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
       </div>
       <div id="vcp_ml-hz-{hz}-panels">
         {panels}
@@ -1224,7 +1226,7 @@ def build_html(
         reg_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
         hz_sections_reg = [s for s in reg_sections if s.horizon == hz]
         panels = ""
-        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
             s_reg = next((sec for sec in hz_sections_reg if sec.market in [mkt, "S&P " + mkt, mkt.replace("SP", "S&P")]), None)
             flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
@@ -1259,8 +1261,9 @@ def build_html(
         <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="all">전체</button>
         <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
         <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="KONEX">🇰🇷 KONEX</button>
         <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="SP500">🇺🇸 SP500</button>
+        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+        <button class="filter-btn" onclick="filterMarket(this,'reg-hz-{hz}')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
       </div>
       <div id="reg-hz-{hz}-panels">
         {panels}
@@ -1286,7 +1289,7 @@ def build_html(
 
     # ── Tab: Sector Rotation ──
     sector_panels = ""
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         flag = MARKET_FLAGS.get(mkt, "")
         rows_html = ""
         mkt_sector_rows = [sec_r for sec_r in (sector_rows or []) if sec_r.market == mkt]
@@ -1320,7 +1323,7 @@ def build_html(
 
     # ── Tab: RIM Valuation ──
     rim_panels = ""
-    for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+    for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
         flag = MARKET_FLAGS.get(mkt, "")
         rows_html = ""
         mkt_rim_rows = [rim_r for rim_r in (rim_rows or []) if rim_r.market == mkt]
@@ -1363,7 +1366,7 @@ def build_html(
         score_class: str = "pos",
     ) -> str:
         panels_html = ""
-        for mkt in ["KOSPI", "KOSDAQ", "KONEX", "SP500"]:
+        for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
             flag = MARKET_FLAGS.get(mkt, "")
             mkt_rows = [r for r in (rows_list or []) if r.market == mkt]
             rows_html = ""
@@ -1678,8 +1681,9 @@ def build_html(
             <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KONEX">🇰🇷 KONEX</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
           </div>
         </div>
         <div id="ensemble-panels">
@@ -2041,8 +2045,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'vcp')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="vcp-panels">
     {vcp_panels}
@@ -2055,8 +2060,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'leadlag')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="leadlag-panels">
     {lag_panels}
@@ -2093,8 +2099,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'sector')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="sector-panels">
     {sector_panels}
@@ -2107,8 +2114,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'rim')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="rim-panels">
     {rim_panels}
@@ -2121,8 +2129,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'event')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="event-panels">
     {event_panels}
@@ -2135,8 +2144,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'mq')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="mq-panels">
     {mq_panels}
@@ -2149,8 +2159,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'iv')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="iv-panels">
     {iv_panels}
@@ -2163,8 +2174,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'flow')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="flow-panels">
     {flow_panels}
@@ -2177,8 +2189,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'reversal')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="reversal-panels">
     {reversal_panels}
@@ -2191,8 +2204,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'arm')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="arm-panels">
     {arm_panels}
@@ -2205,8 +2219,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'card')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="card-panels">
     {card_panels}
@@ -2219,8 +2234,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'latr')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="latr-panels">
     {latr_panels}
@@ -2233,8 +2249,9 @@ def build_html(
       <button class="filter-btn active" onclick="filterMarket(this,'ifs')" data-mkt="all">전체</button>
       <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
       <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KONEX">🇰🇷 KONEX</button>
       <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
     </div>
     <div id="ifs-panels">
     {ifs_panels}
@@ -2545,7 +2562,7 @@ document.addEventListener('DOMContentLoaded', function() {{
     const limit = (currentScenarioMarket === 'all') ? 30 : 20;
     const finalResults = results.slice(0, limit);
 
-    const mktFlags = {{ KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', KONEX: '🇰🇷', SP500: '🇺🇸' }};
+    const mktFlags = {{ KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸' }};
 
     let html = '';
     if (finalResults.length === 0) {{
@@ -2559,7 +2576,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         // Make clickable link based on market
         let symLink = r.sym;
         const cleanCode = r.sym.split('.')[0];
-        if (['KOSPI', 'KOSDAQ', 'KONEX'].includes(r.mkt)) {{
+        if (['KOSPI', 'KOSDAQ'].includes(r.mkt)) {{
           symLink = '<a href="https://m.stock.naver.com/domestic/stock/' + cleanCode + '/total" target="_blank" class="stock-link">' + r.sym + '</a>';
         }} else {{
           symLink = '<a href="https://finance.yahoo.com/quote/' + r.sym + '" target="_blank" class="stock-link">' + r.sym + '</a>';

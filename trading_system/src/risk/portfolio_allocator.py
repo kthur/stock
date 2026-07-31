@@ -266,11 +266,12 @@ class PortfolioAllocator:
         Specific Rules:
         - KOSPI: Sell STT tax = 0.15% (0.0015), Brokerage fee = 0.03% (0.0003). Base spread = 0.06%.
         - KOSDAQ: Sell STT tax = 0.18% (0.0018), Brokerage fee = 0.03% (0.0003). Base spread = 0.10%.
-        - KONEX: Sell STT tax = 0.10% (0.0010), Brokerage fee = 0.03% (0.0003). Base spread = 0.25%.
+        - NASDAQ: SEC fee = 0.003% (0.00003), Brokerage fee = 0.005% (0.00005). Base spread = 0.03%.
+        - RUSSELL2000: SEC fee = 0.003% (0.00003), Brokerage fee = 0.005% (0.00005). Base spread = 0.08%.
         - SP500: SEC fee = 0.003% (0.00003), Brokerage fee = 0.005% (0.00005). Base spread = 0.02%.
         """
         market_upper = str(market).upper()
-        is_sp500 = market_upper == 'SP500' or (symbol.isalpha() and len(symbol) <= 5)
+        is_us_stock = market_upper in ('SP500', 'NASDAQ', 'RUSSELL2000') or (symbol.isalpha() and len(symbol) <= 5)
 
         if market_upper in ['KOSDAQ', 'KQ'] or symbol.endswith('.KQ'):
             stt_tax = 0.0018
@@ -279,14 +280,21 @@ class PortfolioAllocator:
             spread_min, spread_max = 0.0003, 0.0250
             adv_ref = 1_000_000_000.0
             impact_coeff = getattr(self.config, 'market_impact_coeff_krx', 0.75) if self.config else 0.75
-        elif market_upper in ['KONEX', 'KN'] or symbol.endswith('.KN'):
-            stt_tax = 0.0010
-            brokerage_fee = 0.0003
-            base_spread = getattr(self.config, 'base_spread_konex', 0.0025) if self.config else 0.0025
-            spread_min, spread_max = 0.0010, 0.0500
-            adv_ref = 1_000_000_000.0
-            impact_coeff = getattr(self.config, 'market_impact_coeff_krx', 0.75) if self.config else 0.75
-        elif is_sp500:
+        elif market_upper == 'NASDAQ':
+            stt_tax = 0.00003
+            brokerage_fee = 0.00005
+            base_spread = getattr(self.config, 'base_spread_nasdaq', 0.0003) if self.config else 0.0003
+            spread_min, spread_max = 0.0001, 0.0080
+            adv_ref = 1_000_000.0
+            impact_coeff = getattr(self.config, 'market_impact_coeff_sp500', 0.50) if self.config else 0.50
+        elif market_upper == 'RUSSELL2000':
+            stt_tax = 0.00003
+            brokerage_fee = 0.00005
+            base_spread = getattr(self.config, 'base_spread_russell2000', 0.0008) if self.config else 0.0008
+            spread_min, spread_max = 0.0002, 0.0150
+            adv_ref = 500_000.0
+            impact_coeff = getattr(self.config, 'market_impact_coeff_sp500', 0.50) if self.config else 0.50
+        elif is_us_stock:
             stt_tax = 0.00003
             brokerage_fee = 0.00005
             base_spread = getattr(self.config, 'base_spread_sp500', 0.0002) if self.config else 0.0002

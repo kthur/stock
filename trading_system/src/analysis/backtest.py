@@ -77,12 +77,13 @@ class BacktestResult:
 class BacktestEngine:
     POSITION_SIZE_FRACTION = 0.95
 
-    # Centralized Market Transaction Cost Rates (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%)
+    # Centralized Market Transaction Cost Rates (NASDAQ 0.65%, RUSSELL2000 0.80%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%)
     MARKET_TRANSACTION_COSTS = {
-        "KONEX": 0.0130,   # 1.30%
-        "KOSDAQ": 0.0100,  # 1.00%
-        "KOSPI": 0.0085,   # 0.85%
-        "SP500": 0.0060,   # 0.60%
+        "NASDAQ": 0.0065,       # 0.65%
+        "RUSSELL2000": 0.0080,  # 0.80%
+        "KOSDAQ": 0.0100,       # 1.00%
+        "KOSPI": 0.0085,        # 0.85%
+        "SP500": 0.0060,        # 0.60%
     }
 
     def __init__(
@@ -101,13 +102,11 @@ class BacktestEngine:
         self.ml_trained_symbol: Optional[str] = None
 
     def get_market_cost_rate(self, market: Optional[str] = None, symbol: Optional[str] = None) -> float:
-        """Centralized transaction cost rates: KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%."""
+        """Centralized transaction cost rates: NASDAQ 0.65%, RUSSELL2000 0.80%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%."""
         if market and market.upper() in self.MARKET_TRANSACTION_COSTS:
             return self.MARKET_TRANSACTION_COSTS[market.upper()]
         if symbol:
             sym_upper = symbol.upper()
-            if sym_upper.endswith(".KN") or "KONEX" in sym_upper:
-                return 0.0130
             if sym_upper.endswith(".KQ") or "KOSDAQ" in sym_upper:
                 return 0.0100
             if sym_upper.endswith(".KS") or "KOSPI" in sym_upper:
