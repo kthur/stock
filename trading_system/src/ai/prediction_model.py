@@ -364,23 +364,20 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                booster = xgb.Booster()
-                booster.load_model(str(fpath))
-                booster.set_param('predictor', 'auto')
-                model = xgb.XGBRegressor(**self._xgb_kwargs)
-                model._Booster = booster
-                model._estimator_type = 'regressor'
-
                 try:
-                    fn = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else self.ALL_FEATURES
-                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = model.predict(val_df)
-                    if market not in self.models:
-                        self.models[market] = {}
-                    self.models[market][h] = model
+                    booster = xgb.Booster()
+                    booster.load_model(str(fpath))
+                    booster.set_param('predictor', 'auto')
+                    model = xgb.XGBRegressor(**self._xgb_kwargs)
+                    model._Booster = booster
+                    model._estimator_type = 'regressor'
+                    for m_key in set([market, market.lower(), market.upper()]):
+                        if m_key not in self.models:
+                            self.models[m_key] = {}
+                        self.models[m_key][h] = model
                     logger.debug(f"Loaded XGB model for {market} {h}d from {fpath}")
                 except Exception as e:
-                    logger.warning(f"XGB model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+                    logger.warning(f"XGB model {market} {h}d load failed: {e}. Skipping.")
 
             # Load LightGBM models
             for fpath in self.model_dir.glob("lgb_model_*_*d.txt"):
@@ -392,15 +389,13 @@ class OnDevicePredictionModel:
                 h = int(h_str)
                 try:
                     booster = lgb.Booster(model_file=str(fpath))
-                    fn = booster.feature_name() if hasattr(booster, "feature_name") and booster.feature_name() else self.ALL_FEATURES
-                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = booster.predict(val_df)
-                    if market not in self.lgb_models:
-                        self.lgb_models[market] = {}
-                    self.lgb_models[market][h] = booster
+                    for m_key in set([market, market.lower(), market.upper()]):
+                        if m_key not in self.lgb_models:
+                            self.lgb_models[m_key] = {}
+                        self.lgb_models[m_key][h] = booster
                     logger.debug(f"Loaded LGB model for {market} {h}d from {fpath}")
                 except Exception as e:
-                    logger.warning(f"LGB model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+                    logger.warning(f"LGB model {market} {h}d load failed: {e}. Skipping.")
 
             # Load CatBoost models
             for fpath in self.model_dir.glob("cat_model_*_*d.bin"):
@@ -410,19 +405,16 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                model = cb.CatBoostRegressor()
-                model.load_model(str(fpath))
-
                 try:
-                    fn = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else self.ALL_FEATURES
-                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = model.predict(val_df)
-                    if market not in self.cat_models:
-                        self.cat_models[market] = {}
-                    self.cat_models[market][h] = model
+                    model = cb.CatBoostRegressor()
+                    model.load_model(str(fpath))
+                    for m_key in set([market, market.lower(), market.upper()]):
+                        if m_key not in self.cat_models:
+                            self.cat_models[m_key] = {}
+                        self.cat_models[m_key][h] = model
                     logger.debug(f"Loaded CatBoost model for {market} {h}d from {fpath}")
                 except Exception as e:
-                    logger.warning(f"CatBoost model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+                    logger.warning(f"CatBoost model {market} {h}d load failed: {e}. Skipping.")
 
             # Load PyTorch LSTM models
             for fpath in self.model_dir.glob("lstm_model_*_*d.pt"):
@@ -437,9 +429,10 @@ class OnDevicePredictionModel:
                     model = LSTMPredictor(sequence_length=20)
                     model.load_model(str(fpath))
                     if model.is_trained:
-                        if market not in self.lstm_models:
-                            self.lstm_models[market] = {}
-                        self.lstm_models[market][h] = model
+                        for m_key in set([market, market.lower(), market.upper()]):
+                            if m_key not in self.lstm_models:
+                                self.lstm_models[m_key] = {}
+                            self.lstm_models[m_key][h] = model
                         logger.debug(f"Loaded LSTM model for {market} {h}d from {fpath}")
                 except Exception as e:
                     logger.warning(f"LSTM model {market} {h}d load failed: {e}. Skipping.")
