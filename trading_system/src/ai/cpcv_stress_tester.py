@@ -6,7 +6,7 @@ Combinatorial Purged Cross-Validation (CPCV) and Historical Scenario Stress Test
 import itertools
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 

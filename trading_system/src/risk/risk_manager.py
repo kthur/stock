@@ -464,7 +464,7 @@ class RiskManager:
             )
             self.logger.warning(
                 f"[INTRADAY STOP LOSS TRIGGERED] Symbol: {symbol} | Reason: {result.reason} | "
-                f"Drop: {result.drop_pct:.2%} | Vol Ratio: {result.panic_volume_ratio:.2f}x | Action: {result.recommended_action}"
+                f"Panic Score: {result.panic_score:.2f} | Scale Factor: {result.scale_factor:.2f}"
             )
         return result
 
@@ -488,12 +488,12 @@ class RiskManager:
                     f"Error evaluating intraday stop loss for symbol {symbol}: {e}"
                 )
                 results[symbol] = StopLossResult(
-                    triggered=False,
                     symbol=symbol,
-                    drop_pct=0.0,
-                    panic_volume_ratio=1.0,
+                    trigger_stop=False,
+                    scale_factor=1.0,
                     reason="EVALUATION_ERROR",
-                    recommended_action="NO_ACTION",
+                    intraday_return=0.0,
+                    panic_score=0.0,
                 )
         return results
 

@@ -20,9 +20,6 @@ class FilingSentimentResult:
     negative_keywords_count: int
     summary_tone: str
 
-# Alias for backwards compatibility
-FilingSentimentMetrics = FilingSentimentResult
-
 
 class DARTSECSentimentEngine:
     """
@@ -88,5 +85,6 @@ class DARTSECSentimentEngine:
         )
 
 
-# Alias for backwards compatibility
+# Aliases for backwards compatibility
 LLMSentimentEngine = DARTSECSentimentEngine
+FilingSentimentMetrics = FilingSentimentResult
