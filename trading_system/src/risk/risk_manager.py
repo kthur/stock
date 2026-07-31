@@ -436,6 +436,7 @@ class RiskManager:
         
         result = StopLossResult(
             symbol=symbol,
+            triggered=signal.triggered,
             trigger_stop=signal.trigger_stop,
             scale_factor=signal.scale_factor,
             reason=signal.reason,
