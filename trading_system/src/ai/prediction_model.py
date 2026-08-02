@@ -813,6 +813,11 @@ class OnDevicePredictionModel:
                     df['norm_volume'] = _series(df['Volume']).div(volume_sum).replace([np.inf, -np.inf], 0.0).fillna(0.0)
                     result_dict[sym] = df
 
+        # Preserve None or empty input dataframes for test compatibility
+        for sym, df in prices_dict.items():
+            if df is None or df.empty:
+                result_dict[sym] = df
+
         return result_dict
 
     def merge_fundamentals(self, symbol: str, df_prices: pd.DataFrame, storage=None, fundamentals_cache: Optional[dict] = None) -> pd.DataFrame:
