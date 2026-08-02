@@ -2569,7 +2569,10 @@ def execute_prediction_pipeline():
                 pbo_res = cpcv_tester.compute_pbo(ensemble_df[['ensemble_expected_return']])
 
         # Historical stress test scenarios
-        ens_returns = ensemble_df['ensemble_expected_return'].values
+        _ens_ret_series = ensemble_df['ensemble_expected_return']
+        if _ens_ret_series.dtype == object:
+            _ens_ret_series = pd.to_numeric(_ens_ret_series, errors='coerce').fillna(0.0)
+        ens_returns = _ens_ret_series.values
         scenarios = ["2008_CRISIS", "2020_COVID", "2022_FED_HIKE"]
         stress_reports = {}
         for sc in scenarios:

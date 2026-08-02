@@ -256,9 +256,13 @@ def run_historical_stress_test(data, scenario: str = "2008_CRISIS", mdd_threshol
         return StressTestReport(scenario, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, True, {})
 
     if hasattr(data, "values"):
-        vals = np.asarray(data.values)
+        arr_raw = np.asarray(data.values)
     else:
-        vals = np.asarray(data)
+        arr_raw = np.asarray(data)
+    if arr_raw.ndim > 1:
+        arr_raw = arr_raw.ravel()
+    # Coerce mixed/object dtype (e.g. strings leaked into the return series) to numeric
+    vals = np.asarray(pd.to_numeric(pd.Series(arr_raw), errors="coerce").fillna(0.0), dtype=float)
     vals = np.nan_to_num(vals, nan=0.0, posinf=0.0, neginf=0.0)
 
     cum_ret = np.cumsum(vals)
