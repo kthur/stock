@@ -1410,9 +1410,6 @@ class OnDevicePredictionModel:
         _n = len(df_train)
         if _n >= 500:
             n_splits, gap = 5, 20
-        elif _n >= 200:
-            gap = max(1, min(20, _n // 10))
-            n_splits = 2
         else:
             n_splits, gap = 0, 0
 
@@ -1682,9 +1679,6 @@ class OnDevicePredictionModel:
         _n = len(df_train)
         if _n >= 500:
             n_splits, gap = 5, 20
-        elif _n >= 200:
-            gap = max(1, min(20, _n // 10))
-            n_splits = 2
         else:
             n_splits, gap = 0, 0
 
