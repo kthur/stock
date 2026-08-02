@@ -117,7 +117,7 @@ class DARTSECSentimentEngine:
     def analyze_filing_text(self, symbol: str, text: str) -> FilingSentimentResult:
         """Analyzes text from DART or SEC filings and outputs sentiment score in [-1.0, 1.0]."""
         if not text:
-            return FilingSentimentResult(symbol, 0.0, 0.0, 0, 0, "NEUTRAL")
+            return FilingSentimentResult(symbol=symbol, sentiment_score=0.0, tone_confidence=0.0, positive_keywords_count=0, negative_keywords_count=0, summary_tone="NEUTRAL")
 
         text_lower = text.lower()
         pos_count = 0
@@ -141,7 +141,7 @@ class DARTSECSentimentEngine:
 
         total_matches = pos_count + neg_count
         if total_matches == 0:
-            return FilingSentimentResult(symbol, 0.0, 0.5, 0, 0, "NEUTRAL")
+            return FilingSentimentResult(symbol=symbol, sentiment_score=0.0, tone_confidence=0.5, positive_keywords_count=0, negative_keywords_count=0, summary_tone="NEUTRAL")
 
         raw_score = (pos_count - neg_count) / float(total_matches)
         confidence = min(1.0, total_matches / 5.0)
