@@ -40,7 +40,7 @@ class ScenarioSimulationEngine:
     """
 
     # GICS 11 & KRX 주 섹터 민감도 (Beta Matrix)
-    SECTOR_MACRO_ELASTICITY = {
+    SECTOR_MACRO_ELASTICITY: Dict[str, Dict[str, Any]] = {
         'Information Technology': {'usdkrw': 0.6, 'wti': -0.2, 'us10y': -0.4, 'vix': -0.3, 'sector_key': 'semiconductor'},
         'Consumer Discretionary': {'usdkrw': 0.4, 'wti': -0.3, 'us10y': -0.3, 'vix': -0.4, 'sector_key': 'battery_auto'},
         'Health Care': {'usdkrw': 0.1, 'wti': -0.1, 'us10y': -0.5, 'vix': 0.2, 'sector_key': 'bio_pharma'},
@@ -98,15 +98,19 @@ class ScenarioSimulationEngine:
             })
 
             # 1. Macro Impact Calculation
-            _usdkrw: float = float(str(getattr(macro_scenario, 'usdkrw_change_pct', 0.0)))
-            _wti: float = float(str(getattr(macro_scenario, 'wti_change_pct', 0.0)))
-            _us10y: float = float(str(getattr(macro_scenario, 'us10y_rate', 4.0)))
-            _vix: float = float(str(getattr(macro_scenario, 'vix_change_pct', 0.0)))
+            _usdkrw: float = float(macro_scenario.usdkrw_change_pct)
+            _wti: float = float(macro_scenario.wti_change_pct)
+            _us10y: float = float(macro_scenario.us10y_rate)
+            _vix: float = float(macro_scenario.vix_change_pct)
+            _elas_usdkrw: float = float(elas.get('usdkrw', 0.0))
+            _elas_wti: float = float(elas.get('wti', 0.0))
+            _elas_us10y: float = float(elas.get('us10y', 0.0))
+            _elas_vix: float = float(elas.get('vix', 0.0))
             macro_shock = (
-                (_usdkrw / 10.0) * float(elas.get('usdkrw', 0.0)) +
-                (_wti / 10.0) * float(elas.get('wti', 0.0)) +
-                ((_us10y - 4.0) / 2.0) * float(elas.get('us10y', 0.0)) +
-                (_vix / 20.0) * float(elas.get('vix', 0.0))
+                (_usdkrw / 10.0) * _elas_usdkrw +
+                (_wti / 10.0) * _elas_wti +
+                ((_us10y - 4.0) / 2.0) * _elas_us10y +
+                (_vix / 20.0) * _elas_vix
             )
 
             # 2. Direct Sector Outlook Impact Calculation
