@@ -58,12 +58,11 @@ class TestFeatureNormalizationStress(unittest.TestCase):
         prices_dict_no_close = {"AAPL": df_no_close}
         prices_dict_no_volume = {"MSFT": df_no_volume}
 
-        # We expect a KeyError for 'Close' or 'Volume'
-        with self.assertRaises(KeyError):
-            self.model.apply_market_normalization(prices_dict_no_close)
-
-        with self.assertRaises(KeyError):
-            self.model.apply_market_normalization(prices_dict_no_volume)
+        # Verify missing Close or Volume columns are gracefully skipped (empty result returned)
+        res_no_close = self.model.apply_market_normalization(prices_dict_no_close)
+        res_no_volume = self.model.apply_market_normalization(prices_dict_no_volume)
+        self.assertNotIn("AAPL", res_no_close)
+        self.assertNotIn("MSFT", res_no_volume)
 
     def test_apply_market_normalization_extreme_values(self):
         """Test normalization with extremely large/small values, NaN, and Inf."""

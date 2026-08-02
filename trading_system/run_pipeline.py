@@ -15,6 +15,7 @@ from tqdm import tqdm
 import FinanceDataReader as fdr
 import yfinance as yf
 import warnings
+from pathlib import Path
 
 cpu_count = os.cpu_count()
 _CPU_WORKERS: int = max(1, cpu_count if cpu_count is not None else 4)

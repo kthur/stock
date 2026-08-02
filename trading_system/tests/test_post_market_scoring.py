@@ -161,6 +161,7 @@ class TestPostMarketScoring(unittest.TestCase):
         mock_sentiment.side_effect = mock_sentiment_score
 
         # Run scoring script main with arguments
+        from scripts.post_market_scoring import main
         test_date = "2026-06-12"
         with patch('sys.argv', ['post_market_scoring.py', '--date', test_date]):
             main()
