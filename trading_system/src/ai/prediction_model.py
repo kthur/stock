@@ -1749,8 +1749,14 @@ class OnDevicePredictionModel:
 
             # Walk-Forward cross-validation (with embargo gap >= h)
             fold_auc_xgb, fold_auc_lgb, fold_auc_cat = [], [], []
+            surge_splits = []
             if tscv_surge is not None:
-                for fold_idx, (tr_idx, va_idx) in enumerate(tscv_surge.split(X)):
+                try:
+                    surge_splits = list(tscv_surge.split(X))
+                except (ValueError, Exception):
+                    surge_splits = []
+            if surge_splits:
+                for fold_idx, (tr_idx, va_idx) in enumerate(surge_splits):
                     X_tr, y_tr = X.iloc[tr_idx], target.iloc[tr_idx]
                     X_va, y_va = X.iloc[va_idx], target.iloc[va_idx]
                     if y_tr.sum() == 0 or y_va.sum() == 0:
