@@ -1,6 +1,5 @@
 """Tests for ensemble prediction history + outcome backfill (P0-2 fix)."""
 
-import tempfile
 from pathlib import Path
 
 import pandas as pd

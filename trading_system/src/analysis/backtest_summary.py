@@ -11,7 +11,7 @@ import logging
 import math
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 import numpy as np
 import pandas as pd

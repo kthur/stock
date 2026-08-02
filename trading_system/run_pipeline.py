@@ -45,7 +45,6 @@ from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
-from src.risk.position_sizing import PortfolioAllocator
 from src.analysis.regime_detector import MarketRegimeDetector
 from src.utils.rate_limiter import get_global_rate_limiter
 from src.utils.technical_cache import DataFrameCache
@@ -1072,8 +1071,13 @@ def execute_prediction_pipeline():
                     # Use chronological last 30% as out-of-sample holdout for calibrator fitting
                     holdout_size = int(len(valid_calib_df) * 0.3)
                     val_holdout = valid_calib_df.iloc[-holdout_size:]
-                    reg_preds = model.predict(val_holdout)
-                    surge_preds = model.predict_surge(val_holdout)
+                    _val_dict = {sym: grp for sym, grp in val_holdout.groupby('symbol')} if 'symbol' in val_holdout.columns else {}
+                    if _val_dict:
+                        reg_preds, surge_preds = model.predict_all(
+                            _val_dict, indicator_train, symbol_market,
+                            storage=storage, fundamentals_cache=train_fund_cache if 'train_fund_cache' in locals() else None)
+                    else:
+                        reg_preds, surge_preds = pd.DataFrame(), pd.DataFrame()
                     if not reg_preds.empty and not surge_preds.empty:
                         y_true = (val_holdout['future_return_20d'] >= 0.15).astype(float).values
                         calib_scores = {
@@ -1768,7 +1772,7 @@ def execute_prediction_pipeline():
     try:
         from src.execution.slippage_feedback import SlippageFeedbackEngine
         db_path_trade = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db")
-        slippage_engine = SlippageFeedbackEngine(db_path=db_path_trade, window_days=30, default_slippage_bps=5.0)
+        slippage_engine = SlippageFeedbackEngine(db_path=db_path_trade, default_slippage_bps=5.0)
         slippage_metrics = slippage_engine.calculate_realized_slippage()
         scorer.update_microstructure_costs(slippage_metrics)
     except Exception as _m4_e:
@@ -1992,7 +1996,7 @@ def execute_prediction_pipeline():
         from src.core.llm_sentiment_engine import LLMSentimentEngine
         logger.info("Computing Strategy 10: Event-Driven Momentum Scores with LLM/NLP Filing Sentiment...")
         event_engine = EventDrivenEngine(dart_api_key=getattr(cfg, 'dart_api_key', ''))
-        sentiment_engine = LLMSentimentEngine(config=cfg, db_storage=indicator_storage)
+        sentiment_engine = LLMSentimentEngine(db_storage=storage)
         eff_filings = event_engine.fetch_recent_dart_filings()
         sentiment_map = {}
         if eff_filings:
@@ -2219,7 +2223,34 @@ def execute_prediction_pipeline():
     try:
         from src.core.arm_factor import ARMFactorEngine
         arm_engine = ARMFactorEngine()
-        arm_scores = arm_engine.compute_scores(infer_fundamentals if 'infer_fundamentals' in locals() else {}, infer_data_dict)
+        _arm_fund = {}
+        if 'infer_fund_cache' in locals() and infer_fund_cache:
+            for _sym, _fd in infer_fund_cache.items():
+                if _fd is None or len(_fd) == 0:
+                    continue
+                _fd_sorted = _fd.sort_values('date') if 'date' in _fd.columns else _fd
+                _last = _fd_sorted.iloc[-1]
+                _eps_g = 0.0
+                _rev_g = 0.0
+                if len(_fd_sorted) >= 2:
+                    _prev = _fd_sorted.iloc[-2]
+                    _pe = float(_prev.get('eps') or 0.0)
+                    _pr = float(_prev.get('revenue') or 0.0)
+                    if _pe != 0:
+                        _eps_g = float((float(_last.get('eps') or 0.0) - _pe) / abs(_pe))
+                    if _pr != 0:
+                        _rev_g = float((float(_last.get('revenue') or 0.0) - _pr) / abs(_pr))
+                elif isinstance(_last, pd.Series):
+                    _eps_g = float(_last.get('eps_growth_1y') or 0.0)
+                    _rev_g = float(_last.get('revenue_growth_1y') or 0.0)
+                _arm_fund[_sym] = {
+                    'eps_revision_pct': None,
+                    'tp_revision_pct': None,
+                    'eps_growth': _eps_g,
+                    'revenue_growth': _rev_g,
+                    'per': None,
+                }
+        arm_scores = arm_engine.compute_scores(_arm_fund, infer_data_dict)
         arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
         arm_output_path = os.path.join(result_dir, "arm_factor_predictions.txt")
         if not arm_df.empty:
@@ -2524,7 +2555,7 @@ def execute_prediction_pipeline():
     m3_report_str = ""
     try:
         from src.ai.cpcv_stress_tester import CPCVStressTester
-        cpcv_tester = CPCVStressTester(n_splits=6, n_test_splits=2, purge_window=5, embargo_window=10, mdd_threshold=0.30)
+        cpcv_tester = CPCVStressTester(n_splits=6, n_test_splits=2, purge_window=5, embargo_window=10)
 
         # Strategy matrix for PBO
         raw_scores_df = getattr(scorer, 'raw_scores', None)
@@ -2632,7 +2663,7 @@ def execute_prediction_pipeline():
         m5_report_str = ""
         try:
             m5_metrics = m5_sentiment_metrics_list if 'm5_sentiment_metrics_list' in locals() else []
-            m5_report_str = coverage_analyzer.generate_m5_sentiment_report(m5_metrics, kst_now_str=kst_now_str)
+            m5_report_str = cov_analyzer.generate_m5_sentiment_report(m5_metrics, kst_now_str=kst_now_str)
         except Exception as _m5_e:
             logger.warning(f"Milestone 5 sentiment report formatting skipped: {_m5_e}")
 
@@ -2797,7 +2828,7 @@ def execute_prediction_pipeline():
         with open(_mkt_ens_path, "w", encoding="utf-8") as _mf:
             _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (17 Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
-            _mf.write(f"\n=========================================\n")
+            _mf.write("\n=========================================\n")
             _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")
             _mf.write("=========================================\n")
             _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n")
