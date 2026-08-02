@@ -1,35 +1,8 @@
 {
-  "updated_at": "2026-07-25",
-  "strategies": {
-    "Dynamic Ensemble": {
-      "sharpe_ratio": 2.15,
-      "max_drawdown_pct": -12.4,
-      "win_rate_pct": 68.5,
-      "annualized_return_pct": 28.4
-    },
-    "XGBoost Regression": {
-      "sharpe_ratio": 1.72,
-      "max_drawdown_pct": -16.8,
-      "win_rate_pct": 62.1,
-      "annualized_return_pct": 21.3
-    },
-    "Surge Classifier": {
-      "sharpe_ratio": 1.88,
-      "max_drawdown_pct": -14.2,
-      "win_rate_pct": 65.0,
-      "annualized_return_pct": 24.6
-    },
-    "VCP Pattern ML": {
-      "sharpe_ratio": 1.95,
-      "max_drawdown_pct": -13.5,
-      "win_rate_pct": 66.8,
-      "annualized_return_pct": 26.1
-    },
-    "Lead-Lag Alpha": {
-      "sharpe_ratio": 1.45,
-      "max_drawdown_pct": -18.5,
-      "win_rate_pct": 58.2,
-      "annualized_return_pct": 17.8
-    }
-  }
+  "updated_at": "2026-08-02 21:37 KST",
+  "source": "realized_predictions",
+  "horizon_days": 20,
+  "top_n": 10,
+  "note": "Not enough matured predictions yet (need >= 10 dated observations with realized outcomes). First usable metrics appear after 20 trading days of daily runs.",
+  "insufficient_data": true
 }

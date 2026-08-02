@@ -2178,6 +2178,17 @@ def execute_prediction_pipeline():
         logger.warning(f"Short-term reversal score calculation skipped: {_rev_e}")
         reversal_df = pd.DataFrame()
 
+    # Backfill realized outcomes for previously stored ensemble predictions so that
+    # rolling Sharpe weighting & calibrator fitting operate on real realized returns.
+    try:
+        _outcome_updated = storage.update_ensemble_outcomes(
+            prices_getter=price_db.get_prices, horizon=20, days=90
+        )
+        if _outcome_updated > 0:
+            logger.info(f"[OUTCOME] Backfilled realized returns for {_outcome_updated} ensemble predictions.")
+    except Exception as _oc_e:
+        logger.warning(f"[OUTCOME] Outcome backfill skipped: {_oc_e}")
+
     # Calculate rolling Sharpes for all strategies if strategy_returns exists
     strategy_returns = {}
     try:
@@ -2194,7 +2205,7 @@ def execute_prediction_pipeline():
                 ('latr_factor', 'latr_score')
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
-                    strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean())
+                    strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean(), include_groups=False)
                     strategy_returns[strat] = strat_series
     except Exception as _sr_e:
         logger.debug(f"Strategy returns computation for Sharpe weighting: {_sr_e}")
@@ -2367,6 +2378,15 @@ def execute_prediction_pipeline():
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )
+
+    # Persist today's ensemble predictions (all strategy scores) for future
+    # rolling Sharpe weighting, calibrator fitting and coverage analysis.
+    try:
+        if ensemble_df is not None and not ensemble_df.empty and storage is not None:
+            storage.save_ensemble_predictions(ensemble_df, date_str)
+            logger.info(f"[ENSEMBLE DB] Saved {len(ensemble_df)} ensemble prediction rows for {date_str}.")
+    except Exception as _ens_save_e:
+        logger.warning(f"[ENSEMBLE DB] Save skipped: {_ens_save_e}")
 
     # 11f. Save Ensemble Predictions Report (ensemble_predictions.txt)
     # Gather decision basis metrics (kst_now_str and KST already defined above)
@@ -2863,7 +2883,7 @@ def execute_prediction_pipeline():
     # ── Phase 6-A: Generate Backtest Summary for GitHub Pages ────────────────
     try:
         from src.analysis.backtest_summary import generate_backtest_summary
-        generate_backtest_summary(result_dir=result_dir)
+        generate_backtest_summary(result_dir=result_dir, storage=storage)
         logger.info("[6-A] Generated backtest_summary.json for GitHub Pages dashboard")
     except Exception as _bt_summary_e:
         logger.warning(f"[6-A] Backtest summary generation skipped: {_bt_summary_e}")

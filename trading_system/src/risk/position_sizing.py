@@ -258,6 +258,9 @@ class PortfolioAllocator:
         )
 
         # HRP Allocation Path
+        # NOTE: HRP weights are a risk-parity allocation tool, NOT a signal score.
+        # raw_score must stay the expected-return based ranking metric so that
+        # Top-N selection is driven by the ensemble signal; HRP only sizes positions.
         if use_hrp:
             from src.analysis.portfolio_optimizer import calculate_hrp_weights
             symbols = df_candidates['symbol'].tolist()
@@ -267,15 +270,16 @@ class PortfolioAllocator:
                 c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
                 r = c.pct_change().tail(60).dropna()
                 returns_matrix.append(r)
+            df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
             if len(returns_matrix) > 1:
                 ret_df = pd.concat(returns_matrix, axis=1).fillna(0.0)
                 cov_mat = ret_df.cov().values
                 hrp_w = calculate_hrp_weights(cov_mat)
-                df_candidates['raw_score'] = hrp_w
+                df_candidates['hrp_weight'] = hrp_w
                 # ── Layer 3: Market Budget × HRP weight ──
                 df_candidates['weight'] = hrp_w * df_candidates['market_budget'] * self.max_total_allocation
             else:
-                df_candidates['raw_score'] = 1.0
+                df_candidates['hrp_weight'] = 1.0
                 df_candidates['weight'] = df_candidates['market_budget'] * self.max_total_allocation
         elif use_kelly:
             # Kelly formula: f* = kelly_fraction × (net_return / var_20d)

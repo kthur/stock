@@ -92,10 +92,40 @@ class MarketIndicatorStorage:
                     reg_score REAL,
                     surge_score REAL,
                     ll_score REAL,
+                    vcp_rule_score REAL,
                     vcp_ml_score REAL,
+                    lstm_score REAL,
+                    stat_arb_score REAL,
+                    sector_score REAL,
+                    rim_score REAL,
+                    event_score REAL,
+                    mq_score REAL,
+                    iv_skew_score REAL,
+                    order_flow_score REAL,
+                    reversal_score REAL,
+                    arm_score REAL,
+                    card_score REAL,
+                    latr_score REAL,
+                    inst_foreign_sector_score REAL,
+                    outcome_return REAL,
+                    outcome_label INTEGER,
                     PRIMARY KEY (date, symbol)
                 )
             ''')
+            # Migrate legacy ensemble_predictions tables (add missing strategy score & outcome columns)
+            legacy_ens_cols = [
+                'vcp_rule_score', 'lstm_score', 'stat_arb_score', 'sector_score',
+                'rim_score', 'event_score', 'mq_score', 'iv_skew_score',
+                'order_flow_score', 'reversal_score', 'arm_score', 'card_score',
+                'latr_score', 'inst_foreign_sector_score', 'outcome_return', 'outcome_label'
+            ]
+            _ens_existing = {r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()}
+            for _ec in legacy_ens_cols:
+                if _ec not in _ens_existing:
+                    try:
+                        conn.execute(f"ALTER TABLE ensemble_predictions ADD COLUMN {_ec} REAL")
+                    except Exception:
+                        pass
             # Create table for stock fundamentals
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS stock_fundamentals (
@@ -576,28 +606,122 @@ class MarketIndicatorStorage:
                 conn.commit()
 
     def save_ensemble_predictions(self, ensemble_df: pd.DataFrame, date_str: str):
-        """Save the calculated ensemble predictions to DB."""
-        if ensemble_df.empty:
+        """Save the calculated ensemble predictions to DB.
+
+        Persists all available 18-strategy score columns plus the ensemble aggregate.
+        Columns that are absent from the incoming DataFrame are stored as NULL.
+        """
+        if ensemble_df is None or ensemble_df.empty:
             return
-        sql = """
+        _score_cols = [
+            'ensemble_score', 'ensemble_expected_return',
+            'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score',
+            'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score', 'event_score',
+            'mq_score', 'iv_skew_score', 'order_flow_score', 'reversal_score',
+            'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score'
+        ]
+        _cols_sql = ", ".join(_score_cols)
+        _placeholders = ", ".join(["?"] * len(_score_cols))
+        sql = f"""
             INSERT OR REPLACE INTO ensemble_predictions
-            (date, symbol, ensemble_score, ensemble_expected_return, reg_score, surge_score, ll_score, vcp_ml_score)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (date, symbol, {_cols_sql})
+            VALUES (?, ?, {_placeholders})
         """
         with self._write_lock:
             with self._connect() as conn:
                 for _, row in ensemble_df.iterrows():
-                    conn.execute(sql, (
-                        date_str,
-                        row['symbol'],
-                        float(row['ensemble_score']),
-                        float(row['ensemble_expected_return']),
-                        float(row['reg_score']),
-                        float(row['surge_score']),
-                        float(row['ll_score']),
-                        float(row['vcp_ml_score'])
-                    ))
+                    sym = row.get('symbol')
+                    if pd.isna(sym) or str(sym) == 'nan' or sym == '':
+                        continue
+                    vals = []
+                    for c in _score_cols:
+                        v = row.get(c, None)
+                        try:
+                            vals.append(float(v) if v is not None and not pd.isna(v) else None)
+                        except (TypeError, ValueError):
+                            vals.append(None)
+                    conn.execute(sql, (date_str, str(sym), *vals))
                 conn.commit()
+
+    def get_ensemble_predictions_history(self, days: int = 60,
+                                         min_date: Optional[str] = None) -> Optional[pd.DataFrame]:
+        """Retrieve ensemble predictions history from the last `days` days (inclusive of today).
+
+        Returns a DataFrame sorted by (date, symbol) with all stored strategy score
+        columns plus outcome_return/outcome_label when available; None when empty.
+        """
+        with self._connect() as conn:
+            _cols = [r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()]
+            if not _cols:
+                return None
+            sql = f"SELECT {', '.join(_cols)} FROM ensemble_predictions"
+            params: List[Any] = []
+            if min_date:
+                sql += " WHERE date >= ?"
+                params.append(min_date)
+            elif days and days > 0:
+                _cutoff = (datetime.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+                sql += " WHERE date >= ?"
+                params.append(_cutoff)
+            sql += " ORDER BY date ASC, symbol ASC"
+            df = pd.read_sql_query(sql, conn, params=tuple(params))
+        if df is None or df.empty:
+            return None
+        return df
+
+    def update_ensemble_outcomes(self, prices_getter, horizon: int = 20,
+                                 days: int = 60, min_date: Optional[str] = None,
+                                 label_threshold: float = 0.0) -> int:
+        """Backfill realized forward returns for stored ensemble predictions.
+
+        For each (date, symbol) row whose outcome_return is NULL, looks up the close
+        price on the prediction date and `horizon` trading days later via
+        ``prices_getter(symbol, start_date, end_date)`` (e.g. StockPriceDB.get_prices)
+        and stores the realized return as ``outcome_return`` and a binary
+        ``outcome_label`` (1 if return > label_threshold).
+
+        Returns the number of rows updated.
+        """
+        history = self.get_ensemble_predictions_history(days=days, min_date=min_date)
+        if history is None or history.empty:
+            return 0
+        pending = history[history['outcome_return'].isna()].copy()
+        if pending.empty:
+            return 0
+        _pending_dates = sorted(pending['date'].unique().tolist())
+        updated = 0
+        with self._write_lock:
+            with self._connect() as conn:
+                for d in _pending_dates:
+                    day_rows = pending[pending['date'] == d]
+                    syms = day_rows['symbol'].unique().tolist()
+                    for sym in syms:
+                        try:
+                            px = prices_getter(sym, start_date=d)
+                        except Exception:
+                            continue
+                        if px is None or px.empty:
+                            continue
+                        closes = px['Close']
+                        if isinstance(closes, pd.DataFrame):
+                            closes = closes.iloc[:, 0]
+                        closes = closes.dropna()
+                        if len(closes) < horizon + 1:
+                            continue
+                        entry = float(closes.iloc[0])
+                        exit_px = float(closes.iloc[horizon])
+                        if entry is None or entry <= 0 or exit_px is None or exit_px <= 0:
+                            continue
+                        outcome_return = exit_px / entry - 1.0
+                        outcome_label = 1 if outcome_return > label_threshold else 0
+                        conn.execute(
+                            "UPDATE ensemble_predictions SET outcome_return = ?, outcome_label = ? "
+                            "WHERE date = ? AND symbol = ?",
+                            (float(outcome_return), int(outcome_label), d, str(sym))
+                        )
+                        updated += 1
+                conn.commit()
+        return updated
 
     def get_filing_sentiment(
         self,

@@ -13,11 +13,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
 # Data models
@@ -874,6 +877,8 @@ def build_html(
     latr_rows: Optional[list[SimpleStrategyRow]] = None,
     ifs_rows: Optional[list[SimpleStrategyRow]] = None,
     scenario_universe_json: str = "[]",
+    backtest_rows_html: str = "",
+    backtest_note_html: str = "",
 ) -> str:
     from datetime import timezone, timedelta
     KST = timezone(timedelta(hours=9))
@@ -1742,8 +1747,8 @@ def build_html(
     <div class="weights-section">
       <div class="weights-title">📊 17대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5;">
-        📌 <strong>검증 기간</strong>: 2016년 1월 ~ 2026년 6월 (최근 10년 Out-of-Sample 롤링 백테스트)<br>
-        📌 <strong>보유 기간 (Holding Horizon)</strong>: 20일 (20d Rolling Rebalance)<br>
+        📌 <strong>검증 방식</strong>: 매일 저장된 앙상블 예측의 실현 수익률(outcome) 기반 실적 측정 (20d Holding)<br>
+        {backtest_note_html}
         📌 <strong>미시구조 거래비용 반영</strong>: 거래세 (STT 0.18%), SEC fee, 호가 슬리피지 및 마켓 임팩트 차감 후 순수익률 기준
       </div>
       <div class="table-wrap">
@@ -1754,125 +1759,7 @@ def build_html(
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>🏆 <strong>Dynamic Ensemble (17 Strategies)</strong></td>
-              <td class="pos">2.48</td>
-              <td class="neg">-8.8%</td>
-              <td>74.2%</td>
-              <td class="pos">+35.6%</td>
-            </tr>
-            <tr>
-              <td>📈 XGBoost Regression</td>
-              <td class="pos">1.72</td>
-              <td class="neg">-16.8%</td>
-              <td>62.1%</td>
-              <td class="pos">+21.3%</td>
-            </tr>
-            <tr>
-              <td>⚡ Surge Classifier</td>
-              <td class="pos">1.88</td>
-              <td class="neg">-14.2%</td>
-              <td>65.0%</td>
-              <td class="pos">+24.6%</td>
-            </tr>
-            <tr>
-              <td>🤖 VCP Pattern ML</td>
-              <td class="pos">1.95</td>
-              <td class="neg">-13.5%</td>
-              <td>66.8%</td>
-              <td class="pos">+26.1%</td>
-            </tr>
-            <tr>
-              <td>🔗 Lead-Lag Alpha</td>
-              <td class="pos">1.45</td>
-              <td class="neg">-18.5%</td>
-              <td>58.2%</td>
-              <td class="pos">+17.8%</td>
-            </tr>
-            <tr>
-              <td>🧠 Strict Causal LSTM</td>
-              <td class="pos">1.82</td>
-              <td class="neg">-15.1%</td>
-              <td>64.1%</td>
-              <td class="pos">+23.5%</td>
-            </tr>
-            <tr>
-              <td>⚖️ Stat-Arb Cointegration</td>
-              <td class="pos">1.65</td>
-              <td class="neg">-11.2%</td>
-              <td>71.4%</td>
-              <td class="pos">+18.9%</td>
-            </tr>
-            <tr>
-              <td>🔄 Sector Rotation Momentum</td>
-              <td class="pos">1.79</td>
-              <td class="neg">-14.8%</td>
-              <td>63.7%</td>
-              <td class="pos">+22.8%</td>
-            </tr>
-            <tr>
-              <td>💎 RIM Intrinsic Valuation</td>
-              <td class="pos">1.91</td>
-              <td class="neg">-9.8%</td>
-              <td>72.5%</td>
-              <td class="pos">+20.5%</td>
-            </tr>
-            <tr>
-              <td>📰 Event-Driven Catalyst</td>
-              <td class="pos">1.85</td>
-              <td class="neg">-12.1%</td>
-              <td>67.2%</td>
-              <td class="pos">+23.1%</td>
-            </tr>
-            <tr>
-              <td>🔬 MQ Factor Quality</td>
-              <td class="pos">1.93</td>
-              <td class="neg">-10.5%</td>
-              <td>70.1%</td>
-              <td class="pos">+21.8%</td>
-            </tr>
-            <tr>
-              <td>📊 Options IV Skew</td>
-              <td class="pos">1.68</td>
-              <td class="neg">-13.9%</td>
-              <td>61.5%</td>
-              <td class="pos">+19.2%</td>
-            </tr>
-            <tr>
-              <td>🌊 Order Flow Imbalance</td>
-              <td class="pos">1.77</td>
-              <td class="neg">-12.8%</td>
-              <td>64.8%</td>
-              <td class="pos">+21.0%</td>
-            </tr>
-            <tr>
-              <td>↩️ Short-Term Reversal</td>
-              <td class="pos">1.62</td>
-              <td class="neg">-15.4%</td>
-              <td>60.3%</td>
-              <td class="pos">+18.4%</td>
-            </tr>
-            <tr>
-              <td>📈 ARM Factor</td>
-              <td class="pos">1.88</td>
-              <td class="neg">-11.8%</td>
-              <td>68.5%</td>
-              <td class="pos">+22.4%</td>
-            </tr>
-            <tr>
-              <td>🌐 CARD Factor</td>
-              <td class="pos">1.74</td>
-              <td class="neg">-13.8%</td>
-              <td>64.0%</td>
-              <td class="pos">+20.1%</td>
-            </tr>
-            <tr>
-              <td>⚡ LATR Factor</td>
-              <td class="pos">1.70</td>
-              <td class="neg">-14.5%</td>
-              <td>62.8%</td>
-              <td class="pos">+19.5%</td>
-            </tr>
+            {backtest_rows_html}
           </tbody>
         </table>
       </div>
@@ -2720,6 +2607,54 @@ def main(args_list: Optional[list[str]] = None):
 
     scenario_universe_json = json.dumps(scen_universe, ensure_ascii=False)
 
+    # ── Backtest summary: dynamic table rows from backtest_summary.json ──
+    backtest_rows_html = ""
+    backtest_note_html = ""
+    bt_path = result_dir / "backtest_summary.json"
+    if bt_path.exists():
+        try:
+            bt_data = json.loads(bt_path.read_text(encoding="utf-8"))
+            if bt_data.get("insufficient_data"):
+                backtest_note_html = (f"📌 <strong>실제 성과 데이터 축적 중</strong>: "
+                                      f"실현 수익률이 아직 충분하지 않습니다. "
+                                      f"({bt_data.get('note', '')})<br>")
+                backtest_rows_html = ('<tr><td colspan="5" style="text-align:center; '
+                                      'color:var(--muted);">실측 기반 백테스트 수치가 쌓이는 중입니다 '
+                                      '(예측 저장 후 20 거래일 경과 시 산출).</td></tr>')
+            else:
+                bt_strats = bt_data.get("strategies", {})
+                bt_rows = []
+                for strat_name, m in bt_strats.items():
+                    sharpe = m.get("sharpe_ratio", 0.0)
+                    mdd = m.get("max_drawdown_pct", 0.0)
+                    win = m.get("win_rate_pct", 0.0)
+                    cagr = m.get("annualized_return_pct", 0.0)
+                    sharpe_cls = "pos" if sharpe > 0 else "neg"
+                    mdd_cls = "neg" if mdd < 0 else "pos"
+                    cagr_cls = "pos" if cagr > 0 else "neg"
+                    bt_rows.append(
+                        f"<tr><td>{strat_name}</td>"
+                        f"<td class=\"{sharpe_cls}\">{sharpe:.2f}</td>"
+                        f"<td class=\"{mdd_cls}\">{mdd:+.1f}%</td>"
+                        f"<td>{win:.1f}%</td>"
+                        f"<td class=\"{cagr_cls}\">{cagr:+.1f}%</td></tr>"
+                    )
+                if bt_rows:
+                    backtest_rows_html = "\n".join(bt_rows)
+                    backtest_note_html = (
+                        f"📌 <strong>검증 기간</strong>: 실현 수익률 기반 {bt_data.get('dates_used', '?')} 거래일, "
+                        f"종목 {bt_data.get('symbols_used', '?')}개, 관측 {bt_data.get('outcome_rows', '?')}건 "
+                        f"(Top {bt_data.get('top_n', 10)} 등가중, {bt_data.get('horizon_days', 20)}일 보유)<br>"
+                    )
+                else:
+                    backtest_rows_html = ('<tr><td colspan="5" style="text-align:center; '
+                                          'color:var(--muted);">측정 가능한 전략이 아직 없습니다.</td></tr>')
+        except Exception as _bt_e:
+            logger.warning(f"[generate_report] backtest_summary.json parse failed: {_bt_e}")
+    if not backtest_rows_html:
+        backtest_rows_html = ('<tr><td colspan="5" style="text-align:center; '
+                              'color:var(--muted);">백테스트 데이터 없음</td></tr>')
+
     html = build_html(
         ensemble,
         surge_date, surge_sections,
@@ -2740,6 +2675,8 @@ def main(args_list: Optional[list[str]] = None):
         latr_rows,
         ifs_rows,
         scenario_universe_json,
+        backtest_rows_html,
+        backtest_note_html,
     )
 
 
