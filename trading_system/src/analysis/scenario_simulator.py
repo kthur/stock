@@ -103,10 +103,10 @@ class ScenarioSimulationEngine:
             _us10y: float = float(str(getattr(macro_scenario, 'us10y_rate', 4.0)))
             _vix: float = float(str(getattr(macro_scenario, 'vix_change_pct', 0.0)))
             macro_shock = (
-                (_usdkrw / 10.0) * float(elas['usdkrw']) +
-                (_wti / 10.0) * float(elas['wti']) +
-                ((_us10y - 4.0) / 2.0) * float(elas['us10y']) +
-                (_vix / 20.0) * float(elas['vix'])
+                (_usdkrw / 10.0) * float(elas.get('usdkrw', 0.0)) +
+                (_wti / 10.0) * float(elas.get('wti', 0.0)) +
+                ((_us10y - 4.0) / 2.0) * float(elas.get('us10y', 0.0)) +
+                (_vix / 20.0) * float(elas.get('vix', 0.0))
             )
 
             # 2. Direct Sector Outlook Impact Calculation
