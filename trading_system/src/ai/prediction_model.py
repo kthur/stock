@@ -1504,18 +1504,22 @@ class OnDevicePredictionModel:
 
                     # CatBoost fold
                     try:
-                        _m_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
-                        _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                        if len(np.unique(y_tr)) > 1:
+                            _m_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
+                            _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                            pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
+                            fold_mse_cat.append(float(mean_squared_error(y_va_clean, pred_cat_clean)))
+                        else:
+                            fold_mse_cat.append(1.0)
                     except Exception as ex:
                         if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
                             kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
                             _m_cat = cb.CatBoostRegressor(**kw_cat_cpu)
                             _m_cat.fit(X_tr, y_tr, verbose=False)
+                            pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
+                            fold_mse_cat.append(float(mean_squared_error(y_va_clean, pred_cat_clean)))
                         else:
-                            _m_cat = cb.CatBoostRegressor(**kw_cat)
-                            _m_cat.fit(X_tr, y_tr, verbose=False)
-                    pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
-                    fold_mse_cat.append(float(mean_squared_error(y_va_clean, pred_cat_clean)))
+                            fold_mse_cat.append(1.0)
 
                     logger.debug(
                         f"{market} {h}d fold {fold_idx+1}/{n_splits}: "

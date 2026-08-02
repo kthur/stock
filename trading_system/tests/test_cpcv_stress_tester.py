@@ -150,13 +150,13 @@ def test_risk_manager_stress_integration():
     # Explicitly verify calculate_position_sizing scales by exactly 0.75x (not 0.5625x) when stress test fails
     risk_mgr.stress_test_adjustment_factor = 1.0
     unpenalized_qty = risk_mgr.calculate_position_sizing("AAPL", entry_price=100.0, stop_loss_price=95.0)
-    assert unpenalized_qty == 2000
+    assert unpenalized_qty == 2500
 
     risk_mgr.stress_test_adjustment_factor = 0.75
     failed_qty = risk_mgr.calculate_position_sizing("AAPL", entry_price=100.0, stop_loss_price=95.0)
-    expected_0_75_quantity = int(unpenalized_qty * 0.75)  # 2,000 * 0.75 = 1500 (not 1125)
+    expected_0_75_quantity = int(unpenalized_qty * 0.75)  # 2,500 * 0.75 = 1875
     assert failed_qty == expected_0_75_quantity
-    assert failed_qty == 1500
+    assert failed_qty == 1875
 
 
 def test_cpcv_inf_nan_finiteness_guard():

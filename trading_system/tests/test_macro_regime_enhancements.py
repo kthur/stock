@@ -92,11 +92,9 @@ def test_sector_rotation_macro_adjustments():
 
 def test_yield_inversion_3d_regime():
     detector = MarketRegimeDetector(n_regimes=3, rolling_window=10)
-    df = make_dummy_indicator_df(rows=40, vix_val=15.0, sp500_ret=0.1)
-    df['us10y'] = 3.8
-    df['us5y'] = 4.2
-    df['us10y_us5y_spread'] = -0.4
-
+    df = make_dummy_indicator_df(rows=50, us10y_val=2.5, vix_val=0.0)
+    df['us2y'] = 3.0
+    
     detector.train(df)
     res = detector.predict_3d_macro_regime(df)
     assert res['macro_label'] == 'YIELD_INVERSION'
@@ -104,7 +102,7 @@ def test_yield_inversion_3d_regime():
 
 def test_inflation_shock_3d_regime():
     detector = MarketRegimeDetector(n_regimes=3, rolling_window=10)
-    df = make_dummy_indicator_df(rows=40, vix_val=15.0, sp500_ret=0.1)
+    df = make_dummy_indicator_df(rows=50, us10y_val=3.5, vix_val=0.0)
     df['wti_change'] = 3.0
     df['usdkrw_change'] = 2.0
     df['inflation_shock_index'] = 5.0
@@ -112,4 +110,3 @@ def test_inflation_shock_3d_regime():
     detector.train(df)
     res = detector.predict_3d_macro_regime(df)
     assert res['macro_label'] == 'INFLATION_SHOCK'
-
