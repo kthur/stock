@@ -1410,8 +1410,8 @@ class OnDevicePredictionModel:
         _n = len(df_train)
         if _n >= 500:
             n_splits, gap = 5, 20
-        elif _n >= 100:
-            # With 2 folds, test_size ≈ n//3, need n - gap - 2*(n//3) > 0
+        elif _n >= 150:
+            # With 2 folds and gap up to 20, test_size ≈ n//3, need n - gap - 2*(n//3) > 0 (requires n >= 120+)
             gap = max(1, min(20, _n // 10))
             n_splits = 2
         else:
