@@ -243,7 +243,7 @@ class MarketIndicatorStorage:
             import urllib.request
             url = 'https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund'
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 r_lines = resp.read().decode('utf-8', errors='ignore').splitlines()
                 start_idx = 0
                 for i, line in enumerate(r_lines):
