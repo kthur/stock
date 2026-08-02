@@ -1741,6 +1741,11 @@ def build_html(
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
       <div class="weights-title">📊 17대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5;">
+        📌 <strong>검증 기간</strong>: 2016년 1월 ~ 2026년 6월 (최근 10년 Out-of-Sample 롤링 백테스트)<br>
+        📌 <strong>보유 기간 (Holding Horizon)</strong>: 20일 (20d Rolling Rebalance)<br>
+        📌 <strong>미시구조 거래비용 반영</strong>: 거래세 (STT 0.18%), SEC fee, 호가 슬리피지 및 마켓 임팩트 차감 후 순수익률 기준
+      </div>
       <div class="table-wrap">
         <table>
           <thead>

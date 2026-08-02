@@ -51,7 +51,6 @@ jobs:
           key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
             stock-prices-db-${{ matrix.target }}-
-            stock-prices-db-
 
       - name: Cache market_indicators.db
         uses: actions/cache@v4
@@ -61,7 +60,6 @@ jobs:
           key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
             market-indicators-db-${{ matrix.target }}-
-            market-indicators-db-
 
       - name: Cache AI models (Restore only)
         uses: actions/cache/restore@v4
