@@ -1453,15 +1453,11 @@ class OnDevicePredictionModel:
             splits = []
             if use_wf and len(df_h) >= 150:
                 embargo_gap = max(gap, h)
-                n_samples = len(df_h)
-                n_folds = n_splits + 1
-                test_size = n_samples // n_folds
-                if n_samples - embargo_gap - (test_size * n_splits) > 0 and (n_samples - embargo_gap) > n_splits:
-                    try:
-                        tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
-                        splits = list(tscv_h.split(df_h))
-                    except ValueError:
-                        splits = []
+                try:
+                    tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
+                    splits = list(tscv_h.split(df_h))
+                except (ValueError, Exception):
+                    splits = []
 
             if splits:
                 for fold_idx, (tr_idx, va_idx) in enumerate(splits):
