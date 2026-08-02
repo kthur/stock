@@ -654,7 +654,7 @@ class MarketIndicatorStorage:
             _cols = [r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()]
             if not _cols:
                 return None
-            sql = f"SELECT {', '.join(_cols)} FROM ensemble_predictions"
+            sql = f"SELECT {', '.join(_cols)} FROM ensemble_predictions"  # nosec B608
             params: List[Any] = []
             if min_date:
                 sql += " WHERE date >= ?"
