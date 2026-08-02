@@ -1,14 +1,14 @@
 import logging
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 class CARDFactorEngine:
     """
     16. Cross-Asset Regime Divergence (CARD) Strategy Engine
-    
+
     주식 - 원자재(유가/금) - 환율(USD/KRW) - 금리 간 괴리율 역발상 매수 점수 산출.
     - 거시 지표 대비 과도하게 하락한 수혜 섹터/종목 역발상 스코어링
     """
@@ -26,7 +26,7 @@ class CARDFactorEngine:
         usdkrw_chg = float(indicator_df['usdkrw_change'].iloc[-1]) if 'usdkrw_change' in indicator_df.columns else 0.0
         wti_chg = float(indicator_df['wti_change'].iloc[-1]) if 'wti_change' in indicator_df.columns else 0.0
         vix_val = float(indicator_df['vix_change'].iloc[-1]) if 'vix_change' in indicator_df.columns else 0.0
-        
+
         # M-3 Fix: If vix_val is an absolute index level (e.g. > 5.0), scale to percentage change proxy
         if abs(vix_val) > 5.0:
             vix_val = (vix_val - 20.0) / 20.0

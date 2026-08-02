@@ -1,5 +1,4 @@
 import logging
-import typing
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Optional, Union, Set, List
@@ -355,7 +354,7 @@ class EnsembleScoringEngine:
                 if n_samples < 20:
                     logger.warning(f"Calibrator for '{strategy}': too few samples ({n_samples}), skipping.")
                     continue
-                
+
                 if n_samples >= 50:
                     cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
                     cal.fit(s[mask], y[mask])
@@ -575,8 +574,8 @@ class EnsembleScoringEngine:
             for strat, w in base_weights.items():
                 lines.append(f"  - {strat:<22}: {w*100:>5.1f}%")
 
-        order_size_krx = getattr(self.config, 'order_size_krx', 50_000_000.0) if self.config else 50_000_000.0
-        order_size_sp500 = getattr(self.config, 'order_size_sp500', 50_000.0) if self.config else 50_000.0
+        getattr(self.config, 'order_size_krx', 50_000_000.0) if self.config else 50_000_000.0
+        getattr(self.config, 'order_size_sp500', 50_000.0) if self.config else 50_000.0
 
         lines.append("\n[Transaction Costs & Liquidity Filter Rationale]")
         lines.append("• Microstructure Execution & Market Impact Model Active (Almgren-Chriss Order Size Hypothesis (Q): KRX 50M KRW / SP500 50k USD)")
@@ -1232,11 +1231,11 @@ class EnsembleScoringEngine:
             try:
                 from ..risk.portfolio_optimizer import PortfolioOptimizer
                 optimizer = PortfolioOptimizer(default_max_weight=0.20, default_max_sector_weight=0.35)
-                
+
                 # C-1 Fix: Build realistic returns matrix for Top candidates based on actual strategy scores
                 top_syms = top_candidates['symbol'].tolist()
                 score_cols = [c for c in ['reg_score', 'surge_score', 'll_score', 'vcp_ml_score', 'stat_arb_score', 'sector_score', 'rim_score'] if c in top_candidates.columns]
-                
+
                 if score_cols and len(score_cols) >= 2:
                     # Use actual strategy scores per symbol as sample return vectors
                     returns_matrix_df = top_candidates.set_index('symbol')[score_cols].T
@@ -1247,7 +1246,7 @@ class EnsembleScoringEngine:
                     returns_matrix_df = pd.DataFrame(
                         {sym: ret_series[sym] + base_noise for sym in top_syms}
                     )
-                
+
                 raw_weights = optimizer.optimize_risk_parity(returns_matrix_df)
                 sector_map = dict(zip(top_candidates['symbol'], top_candidates.get('sector', 'Unknown')))
                 constrained_weights = optimizer.apply_factor_and_sector_constraints(raw_weights, sector_map)

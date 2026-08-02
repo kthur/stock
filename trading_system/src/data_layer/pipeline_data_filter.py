@@ -7,7 +7,6 @@ and insufficient history stocks before feature engineering and training.
 
 import numpy as np
 import pandas as pd
-from typing import Tuple, List
 
 def filter_training_data(
     df_train: pd.DataFrame,

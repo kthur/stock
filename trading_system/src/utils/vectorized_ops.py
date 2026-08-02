@@ -5,7 +5,7 @@ Provides optimized NumPy vectorization for technical indicators and feature engi
 to reduce inference latency across 3,379 symbols.
 """
 
-from typing import Tuple, Union
+from typing import Tuple
 import numpy as np
 import pandas as pd
 

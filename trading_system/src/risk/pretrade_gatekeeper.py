@@ -10,7 +10,7 @@ Enforces pre-trade risk controls and circuit breakers before orders reach the ex
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class PreTradeRiskGatekeeper:
                 max_shares = int(order.avg_daily_volume_20d * self.max_order_adv_pct)
                 reason = f"Order volume ({order.order_size_shares}) exceeds {self.max_order_adv_pct*100}% of 20d ADV ({max_shares} max shares allowed)"
                 logger.warning(f"[PreTradeRisk] ORDER REJECTED/RESIZED for {order.symbol}: {reason}")
-                
+
                 # Recalculate adjusted weight based on max shares
                 max_allowed_value = max_shares * order.current_price
                 adjusted_w = min(clamped_weight, max_allowed_value / max(1.0, portfolio_value))

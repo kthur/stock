@@ -6,7 +6,7 @@ Market Beta, Size, Volatility, and Momentum factor exposures close to zero, with
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
 import numpy as np
 import pandas as pd

@@ -6,8 +6,7 @@ Includes non-negative weight constraints and VIX regime-aware dynamic blending a
 """
 
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Tuple, Optional, cast
+from typing import Dict, List, Optional, cast
 from sklearn.linear_model import RidgeCV
 
 class StackingBlender:
@@ -34,7 +33,7 @@ class StackingBlender:
 
         blender = RidgeCV(alphas=self.alphas, fit_intercept=False)
         blender.fit(preds_matrix, y_true)
-        
+
         # Enforce non-negative weights and normalize
         coefs = np.maximum(blender.coef_, 0.0)
         if coefs.sum() > 1e-8:

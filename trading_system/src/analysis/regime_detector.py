@@ -278,7 +278,7 @@ class MarketRegimeDetector:
 
             sp500 = indicator_df['sp500_change']
             cum_ret_20d = float(sp500.tail(20).sum()) if len(sp500) >= 20 else float(sp500.sum())
-            recent_vol = float(sp500.tail(20).std()) if len(sp500) >= 2 else 1.0
+            float(sp500.tail(20).std()) if len(sp500) >= 2 else 1.0
 
             if cum_ret_20d < -2.0:
                 return 0  # BEAR

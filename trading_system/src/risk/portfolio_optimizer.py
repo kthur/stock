@@ -9,7 +9,7 @@ Portfolio Optimizer Module:
 import numpy as np
 import pandas as pd
 import logging
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, Optional, Union
 from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class PortfolioOptimizer:
             n_assets = len(returns_df.columns) if not returns_df.empty else 1
             cols = returns_df.columns if not returns_df.empty else ["ASSET"]
             return pd.DataFrame(np.eye(n_assets) * 0.0004, index=cols, columns=cols)
-        
+
         cov_sample = returns_df.cov().fillna(0.0)
         n_assets = cov_sample.shape[0]
         prior = np.eye(n_assets) * np.trace(cov_sample.values) / max(n_assets, 1)
@@ -284,11 +284,9 @@ class PortfolioOptimizer:
         Returns:
             Dict[str, float]: Optimized asset weights.
         """
-        from typing import cast
-        from src.strategy.quad_factor_optimizer import QuadFactorNeutralOptimizer, FactorExposures
 
-        symbols = list(expected_returns.index)
-        cov_arr = cov_matrix.values if isinstance(cov_matrix, pd.DataFrame) else cov_matrix
+        list(expected_returns.index)
+        cov_matrix.values if isinstance(cov_matrix, pd.DataFrame) else cov_matrix
 
         from src.strategy.quad_factor_optimizer import QuadFactorOptimizer
         optimizer = QuadFactorOptimizer(

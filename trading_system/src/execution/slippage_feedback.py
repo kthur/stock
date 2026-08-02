@@ -8,7 +8,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional
 
 import numpy as np
 

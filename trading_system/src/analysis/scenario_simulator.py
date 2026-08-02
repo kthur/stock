@@ -1,6 +1,6 @@
 import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from typing import Dict, Any
 import numpy as np
 import pandas as pd
 
@@ -33,9 +33,9 @@ class MacroIndicatorScenario:
 class ScenarioSimulationEngine:
     """
     섹터 및 거시경제(Macro) 시나리오 기반 주가 상승 수혜/타격 종목 예측 시뮬레이션 엔진.
-    
+
     17대 다변화 앙상블 시스템의 CARD(Cross-Asset Regime Divergence) & Sector Rotation 팩터와 연동하여,
-    사용자 지정 경기/매크로 변동 시나리오 하에서 3,379개 전 종목의 수혜 탄력성(Elasticity Score) 및 
+    사용자 지정 경기/매크로 변동 시나리오 하에서 3,379개 전 종목의 수혜 탄력성(Elasticity Score) 및
     조건부 앙상블 상승 예측 점수를 산출합니다.
     """
 
@@ -65,7 +65,7 @@ class ScenarioSimulationEngine:
         macro_scenario: MacroIndicatorScenario
     ) -> pd.DataFrame:
         """
-        기존 앙상블 예측 점수에 시나리오 충격(Macro + Sector Shock)을 가산하여 
+        기존 앙상블 예측 점수에 시나리오 충격(Macro + Sector Shock)을 가산하여
         시나리오 조건부 예측 점수(Simulated Score) 및 상승 확률 변화량을 계산합니다.
 
         :param base_ensemble_scores: {symbol: base_score} (0.0 ~ 1.0)
@@ -92,7 +92,7 @@ class ScenarioSimulationEngine:
         for sym, base_score in base_ensemble_scores.items():
             raw_sec = sector_map.get(sym, 'General')
             gics_sec = self._normalize_gics(raw_sec)
-            
+
             elas = self.SECTOR_MACRO_ELASTICITY.get(gics_sec, {
                 'usdkrw': 0.0, 'wti': 0.0, 'us10y': 0.0, 'vix': 0.0, 'sector_key': 'consumer_staples'
             })

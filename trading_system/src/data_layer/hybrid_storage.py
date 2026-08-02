@@ -10,7 +10,6 @@ and your work WILL be rejected.
 """
 
 import logging
-import os
 import random
 import sqlite3
 import threading
@@ -18,7 +17,7 @@ import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import pandas as pd
 

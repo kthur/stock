@@ -4,10 +4,9 @@ Execution & OMS Module:
 - Slippage Tracking & Tracking Error Logging to SQLite DB (trade_logs.db)
 """
 
-import os
 import sqlite3
 import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 class ExecutionOMSEngine:
     """
@@ -71,7 +70,7 @@ class ExecutionOMSEngine:
             sym = pred.get("symbol")
             if not sym:
                 continue
-            
+
             weight = portfolio_weights.get(sym, 0.0)
             if weight <= 0.0:
                 continue
@@ -101,7 +100,7 @@ class ExecutionOMSEngine:
             order_plans.append(plan_entry)
 
             cursor.execute("""
-                INSERT OR REPLACE INTO order_plans 
+                INSERT OR REPLACE INTO order_plans
                 (order_id, symbol, name, market, action, target_weight, target_amount, target_price, status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), "PENDING", now_str))
@@ -132,7 +131,7 @@ class ExecutionOMSEngine:
         cursor = conn.cursor()
 
         cursor.execute("""
-            INSERT INTO execution_logs 
+            INSERT INTO execution_logs
             (order_id, symbol, target_price, executed_price, slippage_bps, executed_volume, executed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (order_id, symbol, target_price, executed_price, round(slippage_bps, 2), executed_volume, now_str))

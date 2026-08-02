@@ -1,7 +1,6 @@
 import logging
-import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -64,7 +63,7 @@ class StrategyAttributionAnalyzer:
             avg_score = float(df[col].mean()) if col in df.columns else 0.0
             non_zero_count = int((df[col] > 0.0).sum())
             coverage_pct = (non_zero_count / len(df)) * 100.0 if len(df) > 0 else 0.0
-            
+
             # Linear attribution proxy
             alpha_contrib = avg_score * (total_exp_ret / 100.0) * (coverage_pct / 100.0)
 
@@ -77,7 +76,7 @@ class StrategyAttributionAnalyzer:
             })
 
         summary_df = pd.DataFrame(strat_summaries).sort_values(by='alpha_contrib', ascending=False).reset_index(drop=True)
-        
+
         report_text = self._generate_report_text(summary_df, total_exp_ret, len(df))
         report_path = self.output_dir / "strategy_attribution_report.txt"
         try:

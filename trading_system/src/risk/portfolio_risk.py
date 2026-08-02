@@ -1,8 +1,8 @@
 """Portfolio Risk Module - Portfolio Risk Parity & Risk Evaluation"""
 
 import numpy as np
-from typing import Dict, List, Optional
-from .risk_manager import RiskManager, RiskLevel, RiskMetrics
+from typing import Optional
+from .risk_manager import RiskManager
 from ..analysis.portfolio_optimizer import calculate_risk_parity_weights, calculate_hrp_weights
 
 

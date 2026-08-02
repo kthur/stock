@@ -1,10 +1,10 @@
 import logging
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from scipy.stats import linregress
 
 try:
-    from sklearn.cluster import MiniBatchKMeans, KMeans, OPTICS
+    from sklearn.cluster import MiniBatchKMeans, OPTICS
     _HAS_SKLEARN_CLUSTER = True
 except ImportError:
     _HAS_SKLEARN_CLUSTER = False
@@ -194,9 +194,9 @@ class StatisticalArbitrageEngine:
                 try:
                     optics = OPTICS(min_samples=5, metric='euclidean')
                     labels = optics.fit_predict(X_scaled)
-                    unique_labels = [l for l in np.unique(labels) if l != -1]
+                    unique_labels = [label_id for label_id in np.unique(labels) if label_id != -1]
                     if unique_labels:
-                        centroids = np.array([X_scaled[labels == l].mean(axis=0) for l in unique_labels])
+                        centroids = np.array([X_scaled[labels == label_id].mean(axis=0) for label_id in unique_labels])
                         noise_mask = (labels == -1)
                         if noise_mask.any():
                             dists = np.linalg.norm(X_scaled[noise_mask][:, None, :] - centroids[None, :, :], axis=2)
@@ -252,7 +252,6 @@ class StatisticalArbitrageEngine:
         3. Engle-Granger ADF cointegration & OU half-life validation.
         4. Benjamini-Hochberg FDR p-value correction.
         """
-        import pandas as pd
 
         all_symbols = list(prices_dict.keys())
         if not all_symbols:

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class ARMFactorEngine:
     """
     15. Analyst Revision Momentum (ARM) Strategy Engine
-    
+
     증권사 컨센서스(EPS, 목표주가) 상향 조정 및 실적 서프라이즈 모멘텀 수치화.
     - EPS / Target Price 추정치 변경 모멘텀
     - PBR / PER 대비 펀더멘탈 추정 개선율
@@ -49,7 +49,7 @@ class ARMFactorEngine:
 
                 arm_raw += (price_mom * 0.2)
                 scores[sym] = arm_raw
-            except Exception as e:
+            except Exception:
                 scores[sym] = 0.0
 
         if not scores:

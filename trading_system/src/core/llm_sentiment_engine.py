@@ -4,9 +4,7 @@ Extracts sentiment and tone scores from DART/SEC filings using LLM/FinBERT-style
 """
 
 import logging
-import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

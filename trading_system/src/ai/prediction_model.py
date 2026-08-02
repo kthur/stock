@@ -475,19 +475,22 @@ class OnDevicePredictionModel:
 
                 # XGBoost
                 for market, models in self.surge_models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        model_path = self.model_dir / f"xgb_surge_model_{market}_{h}d.json"
-                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "xgb_surge"})
+                        model_path = self.model_dir / f"xgb_surge_model_{mkt}_{h}d.json"
+                        save_model(model, str(model_path), {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "xgb_surge"})
                 # LightGBM
                 for market, models in self.surge_lgb_models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        model_path = self.model_dir / f"lgb_surge_model_{market}_{h}d.txt"
-                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "lgb_surge"})
+                        model_path = self.model_dir / f"lgb_surge_model_{mkt}_{h}d.txt"
+                        save_model(model, str(model_path), {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "lgb_surge"})
                 # CatBoost
                 for market, models in self.surge_cat_models.items():
+                    mkt = market.lower()
                     for h, model in models.items():
-                        model_path = self.model_dir / f"cat_surge_model_{market}_{h}d.bin"
-                        save_model(model, str(model_path), {"market": market, "horizon": h, "train_date": current_date, "model_type": "cat_surge"})
+                        model_path = self.model_dir / f"cat_surge_model_{mkt}_{h}d.bin"
+                        save_model(model, str(model_path), {"market": mkt, "horizon": h, "train_date": current_date, "model_type": "cat_surge"})
                 logger.info(f"Surge models saved to {self.model_dir}")
         except Exception as e:
             logger.error(f"Failed to save surge models: {e}")
@@ -503,31 +506,29 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                booster = xgb.Booster()
-                booster.load_model(str(fpath))
-                booster.set_param('predictor', 'auto')
-                model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
-                model._Booster = booster
-                model._estimator_type = 'classifier'
                 try:
-                    model.n_classes_ = 2
-                except (AttributeError, TypeError):
-                    model._n_classes = 2
-                try:
-                    model.classes_ = np.array([0, 1])
-                except (AttributeError, TypeError):
-                    model._classes = np.array([0, 1])
+                    booster = xgb.Booster()
+                    booster.load_model(str(fpath))
+                    booster.set_param('predictor', 'auto')
+                    model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
+                    model._Booster = booster
+                    model._estimator_type = 'classifier'
+                    try:
+                        model.n_classes_ = 2
+                    except (AttributeError, TypeError):
+                        model._n_classes = 2
+                    try:
+                        model.classes_ = np.array([0, 1])
+                    except (AttributeError, TypeError):
+                        model._classes = np.array([0, 1])
 
-                try:
-                    fn = booster.feature_names if hasattr(booster, "feature_names") and booster.feature_names else self.ALL_FEATURES
-                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = model.predict_proba(val_df)
-                    if market not in self.surge_models:
-                        self.surge_models[market] = {}
-                    self.surge_models[market][h] = model
+                    for m_key in set([market, market.lower(), market.upper()]):
+                        if m_key not in self.surge_models:
+                            self.surge_models[m_key] = {}
+                        self.surge_models[m_key][h] = model
                     logger.debug(f"Loaded XGB surge model for {market} {h}d from {fpath}")
                 except Exception as e:
-                    logger.warning(f"XGB surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+                    logger.warning(f"XGB surge model {market} {h}d load failed: {e}. Skipping.")
 
             # LightGBM
             for fpath in self.model_dir.glob("lgb_surge_model_*_*d.txt"):
@@ -538,6 +539,33 @@ class OnDevicePredictionModel:
                     continue
                 h = int(h_str)
                 try:
+                    booster = lgb.Booster(model_file=str(fpath))
+                    for m_key in set([market, market.lower(), market.upper()]):
+                        if m_key not in self.surge_lgb_models:
+                            self.surge_lgb_models[m_key] = {}
+                        self.surge_lgb_models[m_key][h] = booster
+                    logger.debug(f"Loaded LGB surge model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"LGB surge model {market} {h}d load failed: {e}. Skipping.")
+
+            # CatBoost
+            for fpath in self.model_dir.glob("cat_surge_model_*_*d.bin"):
+                parts = fpath.stem.replace("cat_surge_model_", "").split("_")
+                h_str = parts[-1].replace("d", "")
+                market = "_".join(parts[:-1])
+                if not h_str.isdigit():
+                    continue
+                h = int(h_str)
+                try:
+                    model = cb.CatBoostClassifier()
+                    model.load_model(str(fpath))
+                    for m_key in set([market, market.lower(), market.upper()]):
+                        if m_key not in self.surge_cat_models:
+                            self.surge_cat_models[m_key] = {}
+                        self.surge_cat_models[m_key][h] = model
+                    logger.debug(f"Loaded CatBoost surge model for {market} {h}d from {fpath}")
+                except Exception as e:
+                    logger.warning(f"CatBoost surge model {market} {h}d load failed: {e}. Skipping.")
                     booster = lgb.Booster(model_file=str(fpath))
                     fn = booster.feature_name() if hasattr(booster, "feature_name") and booster.feature_name() else self.ALL_FEATURES
                     val_df = pd.DataFrame(0.0, index=[0], columns=fn)
@@ -1664,7 +1692,7 @@ class OnDevicePredictionModel:
 
         use_wf = n_splits >= 2
         if use_wf:
-            tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+            TimeSeriesSplit(n_splits=n_splits, gap=gap)
             logger.info(f"{market} surge: Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
         else:
             logger.info(f"{market} surge: Dataset too small for walk-forward ({_n} rows). Training on full data.")
@@ -1897,7 +1925,7 @@ class OnDevicePredictionModel:
             best_f1 = -1.0
             for th in [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]:
                 pred_binary = (calibrated_probs_tune >= th).astype(int)
-                score_f1 = f1_score(y_calib_eval, pred_binary, zero_division=0)
+                score_f1 = f1_score(y_tune_th, pred_binary, zero_division=0)
                 if score_f1 > best_f1:
                     best_f1 = score_f1
                     best_th = th

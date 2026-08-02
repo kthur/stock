@@ -433,7 +433,7 @@ class RiskManager:
             cur_price = float(prices[-1])
 
         signal = self.intraday_stop_loss_engine.evaluate(symbol, intraday_data)
-        
+
         result = StopLossResult(
             symbol=symbol,
             triggered=signal.triggered,

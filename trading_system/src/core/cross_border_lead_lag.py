@@ -6,7 +6,7 @@ S&P 500 빅테크 (NVDA, TSLA, MSFT, AAPL, AMZN 등)의 미국 장 마감 수익
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class CrossBorderLeadLagEngine:
                 leaders = self.SECTOR_LEADER_MAP.get(sec, self.SECTOR_LEADER_MAP['General'])
 
                 # Measure US leader shock vs KR stock recent momentum
-                leader_rets = [us_returns.get(l, avg_us_tech_ret) for l in leaders]
+                leader_rets = [us_returns.get(leader_sym, avg_us_tech_ret) for leader_sym in leaders]
                 mean_leader_ret = float(np.mean(leader_rets))
 
                 # Lag divergence: US leader rose but KR stock hasn't caught up yet -> Buying Opportunity
