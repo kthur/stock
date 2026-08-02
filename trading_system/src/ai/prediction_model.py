@@ -1451,12 +1451,12 @@ class OnDevicePredictionModel:
             # ── Walk-Forward cross-validation (with strict in-fold scaler fitting & embargo gap >= h) ─────
             fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
             splits = []
-            if use_wf and len(df_h) >= 100:
+            if use_wf and len(df_h) >= 150:
                 embargo_gap = max(gap, h)
                 n_samples = len(df_h)
                 n_folds = n_splits + 1
                 test_size = n_samples // n_folds
-                if n_samples - embargo_gap - (test_size * n_splits) > 0:
+                if n_samples - embargo_gap - (test_size * n_splits) > 0 and (n_samples - embargo_gap) > n_splits:
                     try:
                         tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
                         splits = list(tscv_h.split(df_h))
