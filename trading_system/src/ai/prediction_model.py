@@ -1449,7 +1449,7 @@ class OnDevicePredictionModel:
             # ── Walk-Forward cross-validation (with strict in-fold scaler fitting & embargo gap >= h) ─────
             fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
             splits = []
-            if use_wf and len(df_h) >= 150:
+            if use_wf and len(df_h) >= 200:
                 embargo_gap = max(gap, h)
                 try:
                     tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
@@ -1708,7 +1708,7 @@ class OnDevicePredictionModel:
         horizon_thresholds = {1: 0.03, 3: 0.05, 5: 0.08, 20: 0.15}
         for h in self.surge_horizons:
             embargo_gap = max(gap, h)
-            tscv_surge = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap) if use_wf else None
+            tscv_surge = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap) if (use_wf and len(df_train) >= 200) else None
             raw_target_col = f'raw_surge_target_{h}d'
             if raw_target_col not in df_train.columns:
                 if 'Close' in df_train.columns and 'symbol' in df_train.columns:
