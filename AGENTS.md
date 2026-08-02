@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500)을 대상으로 **18대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
+통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500/NASDAQ/RUSSELL2000)을 대상으로 **18대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -10,7 +10,7 @@
 | **2** | Surge 분류기 | 4개 horizon(1/3/5/20d) 급등 확률 (scale_pos_weight ≤ 20.0) | `surge_predictions.txt` |
 | **3** | Lead-Lag | 2-Tier 업종 지수/대형주 시차 상관성 기반 후행 종목 | `lead_lag_predictions.txt` |
 | **4** | VCP 패턴 | 변동성 수축 + 거래량 감소 + 고점 근접 규칙 | `vcp_patterns.txt` |
-| **5** | VCP ML | KOSPI/KOSDAQ/KONEX/SP500 시장별 XGBClassifier | `vcp_ml_predictions.txt` |
+| **5** | VCP ML | 시장별 XGBClassifier | `vcp_ml_predictions.txt` |
 | **6** | Strict Causal LSTM | 시점 분리 롤링 정규화 기반 시계열 딥러닝 | 앙상블 피처 결합 |
 | **7** | Stat-Arb Cointegration | 잔차 평균회귀 Z-score 기반 횡보장 차익거래 | `stat_arb_predictions.txt` |
 | **8** | Sector Rotation | KRX/GICS 업종 1M/3M 상대모멘텀 & 순환매 수급 | 앙상블 피처 결합 |
@@ -33,11 +33,11 @@
 1. Load config (TradingConfig)
 2. Fetch global indicators (VIX, TNX, USDKRW, etc.)
 3. Store market indicators
-4. Load/update stock universe (3379 symbols: KOSPI, KOSDAQ, SP500)
+4. Load/update stock universe (3379 symbols: KOSPI, KOSDAQ, KONEX, SP500; GHA adds NASDAQ, RUSSELL2000)
 5. Fetch indicator history (train + inference)
 6. Prepare training data (ThreadPoolExecutor + fundamental fetch + float32 memory downcast)
 7. Train:
-   a. Regression (per market: sp500/kospi/kosdaq)
+   a. Regression (per market: sp500/nasdaq/russell2000/kospi/kosdaq)
    b. Surge classifier (per market, capped scale weight)
    c. Lead-Lag 2-tier matrix
    d. VCP ML (per market)
@@ -147,7 +147,7 @@ flowchart TB
 
 ### Markets
 
-market 컬럼 값: `SP500`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본 그대로 저장)
+market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본 그대로 저장)
 
 ### Pipeline 출력 파일
 

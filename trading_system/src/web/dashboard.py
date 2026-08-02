@@ -453,17 +453,18 @@ def update_backtest_chart(symbol: Optional[str], strategy: Optional[str]) -> Dic
         except Exception as e:
             logger.error(f"Error running backtest for dashboard: {e}", exc_info=True)
 
-    # Fallback/Dummy logic if no active dashboard or error occurs / offline test environment
-    if symbol == "AAPL":
-        y_data = [100.0, 102.5, 101.2, 105.0, 107.3]
-    elif symbol == "MSFT":
-        y_data = [200.0, 198.5, 202.1, 201.0, 206.8]
-    else:
-        y_data = [10.0 + len(symbol), 12.0 + len(symbol), 11.0 + len(symbol), 15.0 + len(symbol)]
-
+    # No fabricated placeholder curves: explicitly indicate missing live engine data
     return {
-        "data": [{"x": list(range(len(y_data))), "y": y_data, "type": "scatter", "name": f"{symbol} ({strategy})"}],
-        "layout": {"title": f"Backtest for {symbol} ({strategy})"},
+        "data": [],
+        "layout": {
+            "title": f"백테스트 실행 불가: 실시간 엔진 데이터 없음 ({symbol})",
+            "annotations": [{
+                "text": "TradingSystem 연결 후 실제 백테스트 결과가 표시됩니다",
+                "xref": "paper", "yref": "paper",
+                "x": 0.5, "y": 0.5, "showarrow": False,
+                "font": {"color": "#888"}
+            }]
+        },
     }
 
 
