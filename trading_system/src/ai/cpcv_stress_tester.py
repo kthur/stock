@@ -119,7 +119,17 @@ class CPCVCombinatorialSplitter:
         if oof_returns_matrix is None or len(oof_returns_matrix) == 0:
             return {"pbo": 0.0, "is_overfitted": False, "logits": np.array([]), "logits_std": 0.0, "ranks": np.array([]), "n_combinations": 0}
 
-        oof = np.nan_to_num(np.asarray(oof_returns_matrix), nan=0.0, posinf=0.0, neginf=0.0)
+        def _to_numeric_array(arr0: np.ndarray) -> np.ndarray:
+            if arr0.dtype != object:
+                return np.asarray(arr0, dtype=float, order="C")
+            if arr0.ndim == 1:
+                return np.asarray(pd.to_numeric(pd.Series(arr0), errors="coerce").fillna(0.0), dtype=float)
+            cols = [pd.to_numeric(pd.Series(arr0[:, i]), errors="coerce").fillna(0.0).values for i in range(arr0.shape[1])]
+            return np.column_stack(cols)
+
+        oof = np.nan_to_num(
+            _to_numeric_array(np.asarray(oof_returns_matrix)),
+            nan=0.0, posinf=0.0, neginf=0.0)
         n_samples = len(oof)
         n_strats = oof.shape[1] if oof.ndim > 1 else 1
 
