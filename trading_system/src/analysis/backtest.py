@@ -1620,29 +1620,48 @@ class BacktestEngine:
             self.logger.warning(f"Unknown strategy: {name}. Falling back to MA.")
             return lambda bars: self._simple_ma_strategy(bars, {})
 
-    def monte_carlo_robustness(self, trades: List[BacktestTrade], n_simulations: int = 1000) -> Dict:
-        """Monte Carlo 시뮬레이션으로 전략 로버스트니스 검증 (영역 7-3)"""
+    def monte_carlo_robustness(self, trades: List[BacktestTrade], n_simulations: int = 1000, initial_capital: Optional[float] = None) -> Dict:
+        """Monte Carlo 시뮬레이션으로 전략 로버스트니스 검증 및 하방 꼬리위험(VaR, CVaR) 측정"""
         if not trades:
             return {"error": "No trades provided"}
-        initial_capital = 1_000_000.0  # 모의 초기 자본
-        trade_pnls = [t.pnl for t in trades]
+        cap = initial_capital if initial_capital is not None else self.initial_capital
+        trade_pcts = [t.pnl_pct for t in trades]
         equity_endpoints = []
+        max_drawdowns = []
+
         for _ in range(n_simulations):
-            shuffled = random.sample(trade_pnls, len(trade_pnls))
-            equity = initial_capital
-            for pnl in shuffled:
-                equity += pnl
-            equity_endpoints.append(equity)
+            shuffled = random.sample(trade_pcts, len(trade_pcts))
+            equity_curve = [cap]
+            curr = cap
+            for p_pct in shuffled:
+                curr *= (1.0 + p_pct)
+                equity_curve.append(curr)
+            equity_endpoints.append(curr)
+            
+            eq_arr = np.array(equity_curve)
+            peak = np.maximum.accumulate(eq_arr)
+            dd = (eq_arr - peak) / peak
+            max_drawdowns.append(float(np.min(dd)))
+
         endpoints = np.array(equity_endpoints)
+        returns = (endpoints - cap) / cap
+        var_95 = float(np.percentile(returns, 5))
+        cvar_95 = float(np.mean(returns[returns <= var_95])) if np.any(returns <= var_95) else var_95
+
         return {
             "n_simulations": n_simulations,
             "n_trades": len(trades),
+            "initial_capital": cap,
             "median_equity": float(np.median(endpoints)),
             "mean_equity": float(np.mean(endpoints)),
             "std_equity": float(np.std(endpoints)),
             "p5_equity": float(np.percentile(endpoints, 5)),
             "p95_equity": float(np.percentile(endpoints, 95)),
-            "probability_of_loss": float(np.mean(endpoints < initial_capital)),
+            "var_95_pct": round(var_95 * 100.0, 2),
+            "cvar_95_pct": round(cvar_95 * 100.0, 2),
+            "avg_max_drawdown_pct": round(float(np.mean(max_drawdowns)) * 100.0, 2),
+            "worst_max_drawdown_pct": round(float(np.min(max_drawdowns)) * 100.0, 2),
+            "probability_of_loss": float(np.mean(endpoints < cap)),
         }
 
     def grid_search(
