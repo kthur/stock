@@ -3018,7 +3018,7 @@ def execute_prediction_pipeline():
 
             allocated_weight = alloc_df['weight'].sum()
             cash_weight = 1.0 - allocated_weight
-            cash_amount = cash_weight * 1000000000.0
+            cash_amount = cash_weight * cfg.portfolio_capital_krw
             f.write("-" * 92 + "\n")
             f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
             f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
