@@ -217,35 +217,57 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
-        def _clean_macro(val_str: str, fallback_str: str) -> str:
+        _MACRO_BOUNDS = {
+            "vix": (8.0, 55.0),
+            "us10y": (0.5, 15.0),
+            "kr10y": (0.5, 15.0),
+            "usdkrw": (950.0, 2200.0),
+            "wti": (25.0, 180.0),
+            "gold": (100.0, 800.0),
+            "sp500": (0.0, 100.0),
+        }
+
+        def _clean_macro(val_str: str, fallback_str: str, kind: str) -> str:
             if not val_str:
                 return fallback_str
             lowered = val_str.lower().strip()
             if "nan" in lowered or "none" in lowered or "n/a" in lowered:
                 return fallback_str
+            # Defense-in-depth: numeric sanity bounds for each indicator so a
+            # contaminated shared-series value (e.g. 103.478 everywhere) can never
+            # reach the dashboard even if the pipeline-side gate was bypassed.
+            _m_num = re.search(r"[-+]?\d+(?:\.\d+)?", lowered)
+            if _m_num:
+                try:
+                    _num = float(_m_num.group(0))
+                    _lo, _hi = _MACRO_BOUNDS.get(kind, (0.0, 1e9))
+                    if not (_lo <= _num <= _hi):
+                        return fallback_str
+                except ValueError:
+                    return fallback_str
             return val_str.strip()
 
         m = re.match(r"S&P 500 \(20d Rolling Mean Return\)\s*:\s*(.+)", line)
         if m:
-            data.sp500_return = _clean_macro(m.group(1), "+0.050% / day")
+            data.sp500_return = _clean_macro(m.group(1), "+0.050% / day", "sp500")
         m = re.match(r"VIX Index.*:\s*(.+)", line)
         if m:
-            data.vix = _clean_macro(m.group(1), "18.50")
+            data.vix = _clean_macro(m.group(1), "18.50", "vix")
         m = re.match(r"US 10Y Bond Yield.*:\s*(.+)", line)
         if m:
-            data.us10y = _clean_macro(m.group(1), "4.25%")
+            data.us10y = _clean_macro(m.group(1), "4.25%", "us10y")
         m = re.match(r"KR 10Y Bond Yield.*:\s*(.+)", line)
         if m:
-            data.kr10y = _clean_macro(m.group(1), "3.35%")
+            data.kr10y = _clean_macro(m.group(1), "3.35%", "kr10y")
         m = re.match(r"USD/KRW FX Rate.*:\s*(.+)", line)
         if m:
-            data.usdkrw = _clean_macro(m.group(1), "1,380.00 KRW")
+            data.usdkrw = _clean_macro(m.group(1), "1,380.00 KRW", "usdkrw")
         m = re.match(r"WTI Crude Oil.*:\s*(.+)", line)
         if m:
-            data.wti = _clean_macro(m.group(1), "$75.50 / bbl")
+            data.wti = _clean_macro(m.group(1), "$75.50 / bbl", "wti")
         m = re.match(r"Gold \(GLD ETF\).*:\s*(.+)", line)
         if m:
-            data.gold = _clean_macro(m.group(1), "$2,380.00")
+            data.gold = _clean_macro(m.group(1), "$2,380.00", "gold")
     # Parse weights block
     in_weights_block = False
     for line in text.splitlines():
@@ -768,7 +790,7 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
             data.remaining_cash = m.group(2).strip()
 
         m = re.match(
-            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
+            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
             line
         )
         if m:
@@ -1868,6 +1890,7 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 외인/투신 수급</button>
 </nav>
 
+<div class="content row2-content" style="padding: 24px 32px;">
   <!-- ══ Surge Tab ══ -->
   <div class="tab-panel" id="panel-surge">
     <div class="hz-tabs">{surge_tabs_nav}</div>
@@ -2231,12 +2254,16 @@ function toggleStratGuide() {{
 }}
 
 function switchTab(btn, id) {{
-  // Scope to the parent nav to support multiple tab navs on the page
   const nav = btn.closest('nav');
-  const content = nav ? nav.nextElementSibling : null;
   if (nav) nav.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  if (content) content.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
+
+  // Determine container (main-system-content or row2-content or document)
+  let container = nav ? nav.nextElementSibling : null;
+  if (!container || !container.classList.contains('content')) {{
+    container = document;
+  }}
+  container.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('panel-' + id);
   if (panel) panel.classList.add('active');
 }}
