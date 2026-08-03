@@ -94,6 +94,7 @@ class BacktestEngine:
         self.fee_pct = 0.001
         self.slippage_pct = slippage_pct
         self.market_impact_pct = market_impact_pct
+        self._active_cost_rate: Optional[float] = None
         self._indicator_cache: dict = {}
         self._current_price_bars: Optional[List[PriceBar]] = None
         self._closes_cache: Optional[List[float]] = None
@@ -136,6 +137,15 @@ class BacktestEngine:
         if is_buy:
             return self._cost_to_sell(price, volume, avg_volume)
         return self._cost_to_buy(price, volume, avg_volume)
+
+    def _trade_cost(self, position: int, price: float, volume: int) -> float:
+        impact = 0.0
+        if volume > 0:
+            impact = self.market_impact_pct * math.sqrt(abs(position) / max(volume, 1))
+        rate = getattr(self, "_active_cost_rate", None)
+        if rate is None:
+            rate = self.fee_pct + self.slippage_pct
+        return rate + impact
 
     # ──────────────────────────────────────────────────────
     # 기술적 지표 유틸리티
@@ -364,6 +374,8 @@ class BacktestEngine:
             active_fee = self.fee_pct
             active_slippage = self.slippage_pct
 
+        self._active_cost_rate = active_fee + active_slippage
+
         capital = self.initial_capital
         position = 0  # 양수: 롱 포지션 수량, 음수: 숏 포지션 수량
         entry_price = 0.0
@@ -408,7 +420,7 @@ class BacktestEngine:
 
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
-                    capital -= position * bar.open * (1 + active_fee + active_slippage)
+                    capital -= position * bar.open * (1 + self._trade_cost(position, bar.open, bar.volume))
                     trailing_peak = bar.open
                     scale_in_done = False
                     first_entry_qty = position
@@ -420,7 +432,7 @@ class BacktestEngine:
                 exit_price = bar.open
                 pnl = (exit_price - entry_price) * position
                 fees = position * exit_price * active_fee
-                capital += position * exit_price * (1 - active_fee - active_slippage)
+                capital += position * exit_price * (1 - self._trade_cost(position, exit_price, bar.volume))
 
                 trade = BacktestTrade(
                     entry_date=entry_timestamp or bar.timestamp,
@@ -456,7 +468,7 @@ class BacktestEngine:
                     position = -qty
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
-                    capital += qty * bar.open * (1 - active_fee - active_slippage)
+                    capital += qty * bar.open * (1 - self._trade_cost(qty, bar.open, bar.volume))
                     trailing_trough = bar.open
                     scale_in_done = False
                     first_entry_qty = qty
@@ -472,7 +484,7 @@ class BacktestEngine:
                 qty = abs(position)
                 pnl = (entry_price - exit_price) * qty
                 fees = qty * exit_price * active_fee
-                capital -= qty * exit_price * (1 + active_fee + active_slippage)
+                capital -= qty * exit_price * (1 + self._trade_cost(qty, exit_price, bar.volume))
 
                 trade = BacktestTrade(
                     entry_date=entry_timestamp or bar.timestamp,
@@ -507,7 +519,7 @@ class BacktestEngine:
 
                     entry_price = bar.open
                     entry_timestamp = bar.timestamp
-                    capital -= position * bar.open * (1 + active_fee + active_slippage)
+                    capital -= position * bar.open * (1 + self._trade_cost(position, bar.open, bar.volume))
                     trailing_peak = bar.open
                     scale_in_done = False
                     first_entry_qty = position
@@ -536,7 +548,7 @@ class BacktestEngine:
                 position = -qty
                 entry_price = bar.open
                 entry_timestamp = bar.timestamp
-                capital += qty * bar.open * (1 - active_fee - active_slippage)
+                capital += qty * bar.open * (1 - self._trade_cost(qty, bar.open, bar.volume))
                 trailing_trough = bar.open
                 scale_in_done = False
                 first_entry_qty = qty
@@ -556,7 +568,7 @@ class BacktestEngine:
                                 exit_price = max(bar.open, tp_trigger)
                                 pnl = (exit_price - entry_price) * tp_qty
                                 fees = tp_qty * exit_price * active_fee
-                                capital += tp_qty * exit_price * (1 - active_fee - active_slippage)
+                                capital += tp_qty * exit_price * (1 - self._trade_cost(tp_qty, exit_price, bar.volume))
 
                                 trade = BacktestTrade(
                                     entry_date=entry_timestamp or bar.timestamp,
@@ -582,7 +594,7 @@ class BacktestEngine:
                                 exit_price = min(bar.open, tp_trigger)
                                 pnl = (entry_price - exit_price) * tp_qty
                                 fees = tp_qty * exit_price * active_fee
-                                capital -= tp_qty * exit_price * (1 + active_fee + active_slippage)
+                                capital -= tp_qty * exit_price * (1 + self._trade_cost(tp_qty, exit_price, bar.volume))
 
                                 trade = BacktestTrade(
                                     entry_date=entry_timestamp or bar.timestamp,
@@ -616,7 +628,7 @@ class BacktestEngine:
                         exit_price = min(bar.open, trigger_price)
                         pnl = (exit_price - entry_price) * position
                         fees = position * exit_price * active_fee
-                        capital += position * exit_price * (1 - active_fee - active_slippage)
+                        capital += position * exit_price * (1 - self._trade_cost(position, exit_price, bar.volume))
 
                         reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
@@ -659,7 +671,7 @@ class BacktestEngine:
                         qty = abs(position)
                         pnl = (entry_price - exit_price) * qty
                         fees = qty * exit_price * active_fee
-                        capital -= qty * exit_price * (1 + active_fee + active_slippage)
+                        capital -= qty * exit_price * (1 + self._trade_cost(qty, exit_price, bar.volume))
 
                         reason = "STOP_LOSS" if trigger_price == sl_trigger else "TRAILING_STOP"
                         trade = BacktestTrade(
@@ -693,7 +705,7 @@ class BacktestEngine:
                         total_cost = entry_price * first_entry_qty + bar.close * add_qty
                         position += add_qty
                         entry_price = total_cost / position
-                        capital -= add_qty * bar.close * (1 + active_fee + active_slippage)
+                        capital -= add_qty * bar.close * (1 + self._trade_cost(add_qty, bar.close, bar.volume))
                         scale_in_done = True
                         self.logger.debug(
                             f"{bar.timestamp}: SCALE-IN (Long) +{add_qty} @ {bar.close}, avg={entry_price:.2f}"
@@ -707,7 +719,7 @@ class BacktestEngine:
                         total_cost = entry_price * old_qty + bar.close * add_qty
                         position -= add_qty
                         entry_price = total_cost / abs(position)
-                        capital += add_qty * bar.close * (1 - active_fee - active_slippage)
+                        capital += add_qty * bar.close * (1 - self._trade_cost(add_qty, bar.close, bar.volume))
                         scale_in_done = True
                         self.logger.debug(
                             f"{bar.timestamp}: SCALE-IN (Short) +{add_qty} @ {bar.close}, avg={entry_price:.2f}"
@@ -733,7 +745,7 @@ class BacktestEngine:
             final_price = price_bars[-1].close
             pnl = (final_price - entry_price) * position
             fees = position * final_price * active_fee
-            capital += position * final_price * (1 - active_fee - active_slippage)
+            capital += position * final_price * (1 - self._trade_cost(position, final_price, bar.volume))
 
             trade = BacktestTrade(
                 entry_date=entry_timestamp or price_bars[-1].timestamp,
@@ -752,7 +764,7 @@ class BacktestEngine:
             qty = abs(position)
             pnl = (entry_price - final_price) * qty
             fees = qty * final_price * active_fee
-            capital -= qty * final_price * (1 + active_fee + active_slippage)
+            capital -= qty * final_price * (1 + self._trade_cost(qty, final_price, bar.volume))
 
             trade = BacktestTrade(
                 entry_date=entry_timestamp or price_bars[-1].timestamp,
@@ -825,8 +837,8 @@ class BacktestEngine:
 
             total_fees = sum(
                 (
-                    abs(trade.quantity) * trade.entry_price * (active_fee + active_slippage)
-                    + abs(trade.quantity) * trade.exit_price * (active_fee + active_slippage)
+                    abs(trade.quantity) * trade.entry_price * self._trade_cost(trade.quantity, trade.entry_price, 0)
+                    + abs(trade.quantity) * trade.exit_price * self._trade_cost(trade.quantity, trade.exit_price, 0)
                 )
                 for trade in trades
             )
@@ -1001,7 +1013,7 @@ class BacktestEngine:
             return 0
 
         avg_return = sum(returns) / len(returns)
-        variance = sum((r - avg_return) ** 2 for r in returns) / len(returns)
+        variance = sum((r - avg_return) ** 2 for r in returns) / max(len(returns) - 1, 1)
         std_dev = variance**0.5
 
         if std_dev == 0:

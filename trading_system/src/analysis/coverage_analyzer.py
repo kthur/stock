@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class StrategyCoverageAnalyzer:
     """
-    Analyzes coverage, valid scores, NaNs, and missingness reasons across 14 strategies.
+    Analyzes coverage, valid scores, NaNs, and missingness reasons across 18 strategies.
     """
 
     STRATEGIES = [
@@ -197,7 +197,7 @@ class StrategyCoverageAnalyzer:
     ) -> str:
         """Generates text report for strategy data coverage and missingness."""
         lines = []
-        lines.append("=== 14-Strategy Data Coverage & Missingness Report ===")
+        lines.append("=== 18-Strategy Data Coverage & Missingness Report ===")
         lines.append(f"Date: {date_str}")
         lines.append(f"Total Evaluated Symbols: {coverage_data.get('total_symbols', 0)}")
         lines.append("")

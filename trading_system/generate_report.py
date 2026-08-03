@@ -1622,12 +1622,12 @@ def build_html(
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- 17대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
+<!-- 18대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
     <div class="strat-guide-header" onclick="toggleStratGuide()">
-      <div class="strat-guide-title">📖 17대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
+      <div class="strat-guide-title">📖 18대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
       <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold;">▼ 보기</span>
     </div>
     <div id="strat-guide-body" style="display: none;">
@@ -1659,20 +1659,20 @@ def build_html(
 <!-- Row 1: 상단 코어 시스템 (전략 가중치 + 메인 시스템 탭) -->
 <!-- ══════════════════════════════════════════════════════ -->
 <nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
-  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 17대 앙상블 TOP 종목</button>
+  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 18대 앙상블 TOP 종목</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
-  <!-- ══ 17대 앙상블 TOP 종목 Tab Panel ══ -->
+  <!-- ══ 18대 앙상블 TOP 종목 Tab Panel ══ -->
   <div class="tab-panel active" id="panel-ensemble">
     <div class="row1-wrapper">
       <!-- 좌: 전략 사이드바 -->
       <div class="strategy-sidebar">
         <div class="weights-section">
-          <div class="weights-title">⚙️ 전략 가중치 (17 Strategies)</div>
+          <div class="weights-title">⚙️ 전략 가중치 (18 Strategies)</div>
           {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
         </div>
         {rationale_html}
@@ -1681,7 +1681,7 @@ def build_html(
       <!-- 우: 앙상블 종목 결과 -->
       <div class="ensemble-main">
         <div class="ensemble-main-header">
-          <span class="ensemble-main-title">🏆 17대 앙상블 TOP 종목 리스트</span>
+          <span class="ensemble-main-title">🏆 18대 앙상블 TOP 종목 리스트</span>
           <div class="filter-bar" id="filter-ensemble" style="margin:0">
             <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
@@ -1745,7 +1745,7 @@ def build_html(
   <!-- ══ Backtest Tab Panel ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 17대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 18대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5;">
         📌 <strong>검증 방식</strong>: 매일 저장된 앙상블 예측의 실현 수익률(outcome) 기반 실적 측정 (20d Holding)<br>
         {backtest_note_html}
@@ -1778,13 +1778,13 @@ def build_html(
       {weights_html}
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 17 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 18 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>2D 레짐</th><th>시장 특성</th><th>Reg</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>전략 핵심 목표</th>
+              <th>2D 레짐</th><th>시장 특성</th><th>Reg</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>InstFor</th><th>전략 핵심 목표</th>
             </tr>
           </thead>
           <tbody>
@@ -1835,7 +1835,7 @@ def build_html(
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 14-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 18-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -1867,63 +1867,6 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
   <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 외인/투신 수급</button>
 </nav>
-
-<div class="content">
-
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>🟢 <strong>BULL_LOW_VOL</strong></td>
-              <td>고수익 + 저변동성</td>
-              <td>5%</td><td>15%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>10%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>2%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>공격적 돌파 &amp; 모멘텀 추종</td>
-            </tr>
-            <tr>
-              <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
-              <td>고수익 + 고변동성</td>
-              <td>4%</td><td>17%</td><td>4%</td><td>4%</td><td>12%</td><td>10%</td><td>4%</td><td>7%</td><td>6%</td><td>10%</td><td>10%</td><td>3%</td><td>5%</td><td>4%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>신중한 모멘텀 &amp; 리스크 관리</td>
-            </tr>
-            <tr style="background: #388bfd15;">
-              <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
-              <td>횡보 + 저변동성 (현재)</td>
-              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>10%</td><td>12%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td><td>4%</td><td>4%</td><td>4%</td>
-              <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
-            </tr>
-            <tr>
-              <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
-              <td>횡보 + 고변동성</td>
-              <td>10%</td><td>4%</td><td>6%</td><td>4%</td><td>7%</td><td>7%</td><td>15%</td><td>8%</td><td>10%</td><td>7%</td><td>8%</td><td>4%</td><td>5%</td><td>5%</td><td>4%</td><td>4%</td><td>4%</td>
-              <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
-            </tr>
-            <tr>
-              <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
-              <td>음수 수익 + 저변동성</td>
-              <td>20%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>12%</td><td>7%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>6%</td><td>2%</td><td>2%</td><td>2%</td>
-              <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
-            </tr>
-            <tr>
-              <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
-              <td>음수 수익 + 고변동성</td>
-              <td>22%</td><td>0%</td><td>3%</td><td>3%</td><td>3%</td><td>4%</td><td>15%</td><td>4%</td><td>15%</td><td>5%</td><td>10%</td><td>5%</td><td>4%</td><td>7%</td><td>1%</td><td>1%</td><td>1%</td>
-              <td>최고 수준의 자본 보존 (현금 70%)</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section-title">⚙️ Regime Detector Reference Parameters</div>
-    <div class="market-panel" style="padding: 16px; background: var(--surface2);">
-      <ul style="list-style: square; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.8;">
-        <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
-        <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
-        <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 14-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
-      </ul>
-    </div>
-  </div>
 
   <!-- ══ Surge Tab ══ -->
   <div class="tab-panel" id="panel-surge">

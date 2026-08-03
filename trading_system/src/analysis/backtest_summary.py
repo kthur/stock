@@ -61,7 +61,7 @@ def _compute_strategy_metrics(daily_returns: pd.Series, horizon: int) -> Dict[st
     periods_per_year = _TRADING_DAYS_PER_YEAR / max(horizon, 1)
 
     mean_period = float(s.mean())
-    std_period = float(s.std(ddof=0))
+    std_period = float(s.std(ddof=1))
 
     # Annualized return (geometric compounding of average period return)
     annualized_return = ((1.0 + mean_period) ** periods_per_year - 1.0) * 100.0
@@ -182,8 +182,11 @@ def generate_backtest_summary(
         "source": "realized_predictions",
         "horizon_days": horizon,
         "top_n": top_n,
-        "note": ("Metrics computed from realized forward returns of stored ensemble predictions. "
-                 "Metrics accumulate over time as outcomes mature."),
+"note": ("Metrics computed from realized forward returns of stored ensemble predictions. "
+                  "Metrics accumulate over time as outcomes mature. "
+                  "WARNING: Survivorship bias — only currently listed stocks are in the universe; "
+                  "delisted stocks (bankruptcies, mergers, de-listings) are excluded from training "
+                  "and backtesting, which may overstate historical returns."),
     }
 
     history = None

@@ -177,11 +177,12 @@ jobs:
         with:
           name: result-${{ matrix.target }}
           path: trading_system/result_split/
-          retention-days: 1
+          retention-days: 7
 
   merge-and-release:
     runs-on: ubuntu-latest
     needs: run-pipeline
+    if: always()
     permissions:
       contents: write
     steps:

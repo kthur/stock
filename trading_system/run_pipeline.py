@@ -2518,6 +2518,46 @@ def execute_prediction_pipeline():
     except Exception:
         pass
 
+    # ══ P0: Macro Indicator Data-Integrity Gate ══════════════════════════════
+    # Protect the report AND the crisis/regime gating against corrupted/duplicated
+    # indicator series (e.g. VIX/WTI/Gold/US10Y all resolving to one shared value).
+    # Verified values survive; out-of-band or mutually-identical values are replaced
+    # with documented conservative defaults and a visible data-quality warning.
+    macro_warnings: list[str] = []
+
+    def _plausible_bounds(name: str, val: float, lo: float, hi: float, default: float) -> float:
+        nonlocal macro_warnings
+        try:
+            v = float(val)
+            ok = pd.notna(v) and lo <= v <= hi
+        except Exception:
+            v = default
+            ok = False
+        if not ok:
+            macro_warnings.append(f"{name}={'%s' % (val if pd.notna(val) else 'missing')} invalid (plausible range [{lo},{hi}]) -> default {default}")
+            return default
+        return v
+
+    vix_report = _plausible_bounds("VIX Index", vix_val, 8.0, 55.0, 18.5)
+    us10y_report = _plausible_bounds("US 10Y Yield", us10y_val, 0.5, 15.0, 4.25)
+    kr10y_report = _plausible_bounds("KR 10Y Yield", kr10y_val, 0.5, 15.0, 3.35)
+    usdkrw_report = _plausible_bounds("USD/KRW", usdkrw_val, 950.0, 2200.0, 1380.0)
+    wti_report = _plausible_bounds("WTI Crude", wti_val, 25.0, 180.0, 75.0)
+    gold_report = _plausible_bounds("Gold (GLD)", gold_val, 100.0, 800.0, 220.0)
+
+    # Cross-asset distinctness check: identical values across unrelated tickers
+    # indicates a shared-series / DB cache contamination (not a real market state).
+    fin_macros = [float(x) for x in (vix_report, wti_report, gold_report)
+                  if pd.notna(x) and x != 0.0]
+    if len(fin_macros) >= 2 and max(fin_macros) - min(fin_macros) < 1.0:
+        macro_warnings.append("VIX/WTI/Gold are nearly identical -> shared-series cache corruption detected; using defaults")
+        vix_report = 18.5
+        wti_report = 75.0
+        gold_report = 220.0
+
+    if macro_warnings:
+        logger.warning(f"[PIN] Macro data-issue warnings detected ({len(macro_warnings)}): {{}}".format("; ".join(macro_warnings)))
+
 
     ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
 
@@ -2527,10 +2567,10 @@ def execute_prediction_pipeline():
         risk_mgr = RiskManager()
         crisis_detector = CrisisDetector(risk_mgr)
         crisis_lvl = crisis_detector.evaluate(
-            vix=vix_val,
-            usdkrw=usdkrw_val,
-            oil=wti_val,
-            tnx=us10y_val
+            vix=vix_report,
+            usdkrw=usdkrw_report,
+            oil=wti_report,
+            tnx=us10y_report
         )
         logger.info(f"[RISK MANAGER] Current Market Crisis Level evaluated: {crisis_lvl.value}")
         if crisis_lvl in [CrisisLevel.SEVERE, CrisisLevel.ACTIVE]:
@@ -2739,11 +2779,11 @@ def execute_prediction_pipeline():
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
 
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
-        f.write("=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\n")
+        f.write("=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===\n")
         f.write(f"Date: {kst_now_str}\n\n")
 
         # 1. Executive Summary & Basis
-        vol_state = "HIGH_VOL" if (vix_val >= 20.0 or sp500_vol_20d >= 2.0) else "LOW_VOL"
+        vol_state = "HIGH_VOL" if (vix_report >= 20.0 or sp500_vol_20d >= 2.0) else "LOW_VOL"
         us_trend = "BULL" if sp500_ret_20d > 0.0 else ("BEAR" if sp500_ret_20d < -0.05 else "SIDEWAYS")
         kr_trend = "BULL" if kospi_ret_20d > 0.0 else ("BEAR" if kospi_ret_20d < -0.05 else "SIDEWAYS")
         us_2d_regime = f"{us_trend}_{vol_state}"
@@ -2760,17 +2800,20 @@ def execute_prediction_pipeline():
         f.write(f"  S&P 500 (20d Rolling Volatility)  : {sp500_vol_20d:.3f}%\n")
         f.write(f"  KOSPI (20d Rolling Mean Return)   : {kospi_ret_20d:+.3f}% / day\n")
         f.write(f"  KOSPI (20d Rolling Volatility)    : {kospi_vol_20d:.3f}%\n")
-        f.write(f"  VIX Index (Fear Gauge)            : {vix_val:.2f}\n")
-        f.write(f"  USD/KRW FX Rate                   : {usdkrw_val:,.2f} KRW\n")
-        f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_val:.2f}%\n")
-        f.write(f"  KR 10Y Bond Yield                 : {kr10y_val:.2f}%\n")
-        f.write(f"  WTI Crude Oil                     : ${wti_val:.2f} / bbl\n")
-        f.write(f"  Gold (GLD ETF)                    : ${gold_val:.2f}\n\n")
+        f.write(f"  VIX Index (Fear Gauge)            : {vix_report:.2f}\n")
+        f.write(f"  USD/KRW FX Rate                   : {usdkrw_report:,.2f} KRW\n")
+        f.write(f"  US 10Y Bond Yield (TNX)           : {us10y_report:.2f}%\n")
+        f.write(f"  KR 10Y Bond Yield                 : {kr10y_report:.2f}%\n")
+        f.write(f"  WTI Crude Oil                     : ${wti_report:.2f} / bbl\n")
+        f.write(f"  Gold (GLD ETF)                    : ${gold_report:.2f}\n")
+        if macro_warnings:
+            f.write("  Data-Quality Warnings (see footer) : {} issue(s)\n".format(len(macro_warnings)))
+        f.write("\n")
 
 
         f.write(f"{decision_rationale_text}\n\n")
 
-        f.write("--- Applied Ensemble Strategy Weights (17 Strategies) ---\n")
+        f.write("--- Applied Ensemble Strategy Weights (18 Strategies) ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
         f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
@@ -2787,7 +2830,8 @@ def execute_prediction_pipeline():
         f.write(f"  Short-Term Mean Reversal          : {ensemble_weights.get('short_term_reversal', 0.0)*100:.1f}%\n")
         f.write(f"  Analyst Revision Momentum (ARM)   : {ensemble_weights.get('arm_factor', 0.0)*100:.1f}%\n")
         f.write(f"  Cross-Asset Regime Divergence(CARD): {ensemble_weights.get('card_factor', 0.0)*100:.1f}%\n")
-        f.write(f"  Liq-Adj Tail Risk (LATR)          : {ensemble_weights.get('latr_factor', 0.0)*100:.1f}%\n\n")
+        f.write(f"  Liq-Adj Tail Risk (LATR)          : {ensemble_weights.get('latr_factor', 0.0)*100:.1f}%\n")
+        f.write(f"  Inst & Foreign Sector Flow        : {ensemble_weights.get('inst_foreign_sector', 0.0)*100:.1f}%\n\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
@@ -2820,6 +2864,12 @@ def execute_prediction_pipeline():
 
                 f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%\n")
             f.write("\n")
+        if macro_warnings:
+            f.write("--- Data Quality Notes (auto-detected) ---\n")
+            for _dw in macro_warnings:
+                f.write(f"  [WARN] {_dw}\n")
+            f.write("  All sanitized values shown above; raw fallback defaults applied for corrupted series.\n")
+            f.write("  Run: trading_system/validate_macro.py for offline DB cross-check.\n")
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
     # Per-market suffix files for GHA artifact merge (merge_ensemble_predictions reads ensemble_predictions_{MARKET}.txt)
@@ -2829,7 +2879,7 @@ def execute_prediction_pipeline():
             continue
         _mkt_ens_path = os.path.join(result_dir, f"ensemble_predictions_{_m}.txt")
         with open(_mkt_ens_path, "w", encoding="utf-8") as _mf:
-            _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (17 Strategies) ===\n")
+            _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
             _mf.write("\n=========================================\n")
             _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")
@@ -2887,7 +2937,7 @@ def execute_prediction_pipeline():
         columns={'ensemble_expected_return': 20}
     )
     allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)
-    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=1000000000.0, use_hrp=True, regime=current_2d_regime)
+    alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=cfg.portfolio_capital_krw, use_hrp=True, regime=current_2d_regime)
 
     if not alloc_df.empty:
         alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
@@ -2895,7 +2945,7 @@ def execute_prediction_pipeline():
         with open(alloc_output_path, "w", encoding="utf-8") as f:
             f.write("=== Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===\n")
             f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
-            f.write("Total Capital: 1,000,000,000 KRW/USD\n")
+            f.write(f"Total Capital: {cfg.portfolio_capital_krw:,.0f} KRW\n")
             f.write("Target Horizon: 20d\n\n")
             f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
             f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")

@@ -1169,7 +1169,7 @@ class EnsembleScoringEngine:
             if participation_ratio > 0.10:
                 impact_one_way += 0.50 * (participation_ratio - 0.10)
 
-            raw_total_cost = stt_tax + brokerage_fee + clamped_spread + (2.0 * impact_one_way)
+            raw_total_cost = stt_tax + brokerage_fee + (2.0 * clamped_spread) + (2.0 * impact_one_way)
             cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
             total_cost_pct = raw_total_cost * cost_scaling
             return float(total_cost_pct)

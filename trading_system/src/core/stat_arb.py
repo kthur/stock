@@ -241,7 +241,7 @@ class StatisticalArbitrageEngine:
         max_pvalue: float = 0.10,
         min_half_life: float = 2.0,
         max_half_life: float = 40.0,
-        min_zscore: float = 1.5,
+        min_zscore: float = 2.0,
         sector_map: Optional[Dict[str, str]] = None,
         require_same_sector: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -451,7 +451,7 @@ class StatisticalArbitrageEngine:
             fdr_passed = []
             for rank, idx in enumerate(sorted_indices, 1):
                 q_val = pvals[idx] * n_tests / rank
-                if q_val <= max_pvalue * 2:
+                if q_val <= max_pvalue:
                     p = found_pairs[idx]
                     p['q_value'] = round(float(min(1.0, q_val)), 4)
                     fdr_passed.append(p)

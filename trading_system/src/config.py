@@ -79,6 +79,9 @@ class TradingConfig:
     default_volatility_krx: float = 0.020       # KRX 기본 일일 변동성 (2.0%)
     default_volatility_sp500: float = 0.015     # SP500 기본 일일 변동성 (1.5%)
 
+    # 포트폴리오 자본금 단일 소스 (KRW, GHA/OMS/HRP 모두 여기에서 읽음)
+    portfolio_capital_krw: float = 1_000_000_000.0  # 10억 원
+
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
 
@@ -212,6 +215,11 @@ class TradingConfig:
         if "DEFAULT_VOLATILITY_SP500" in os.environ:
             try:
                 self.default_volatility_sp500 = float(os.environ["DEFAULT_VOLATILITY_SP500"])
+            except ValueError:
+                pass
+        if "PORTFOLIO_CAPITAL_KRW" in os.environ:
+            try:
+                self.portfolio_capital_krw = float(os.environ["PORTFOLIO_CAPITAL_KRW"])
             except ValueError:
                 pass
 

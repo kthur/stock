@@ -6,14 +6,13 @@ Unit tests for:
 3. StrategyCoverageAnalyzer coverage & missingness analysis
 4. HTML Dashboard (generate_report.py) 14-strategy integration
 """
-import pytest
 from datetime import datetime, timezone, timedelta
 import pandas as pd
 import numpy as np
 
 from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.analysis.coverage_analyzer import StrategyCoverageAnalyzer
-from generate_report import EnsembleData, EnsembleMarket, EnsembleRow, parse_ensemble, build_html
+from generate_report import EnsembleData, EnsembleMarket, EnsembleRow, build_html
 
 
 def test_kst_timezone_format():
@@ -67,7 +66,7 @@ def test_strategy_coverage_analyzer():
     assert result['strategies']['rim_valuation']['valid_count'] == 2
 
     report_text = analyzer.generate_coverage_report(result, date_str="2026-07-26 22:50 KST")
-    assert "=== 14-Strategy Data Coverage & Missingness Report ===" in report_text
+    assert "=== 18-Strategy Data Coverage & Missingness Report ===" in report_text
     assert "rim_valuation" in report_text
 
 
@@ -96,6 +95,6 @@ def test_generate_report_14_strategies():
     )
 
     assert "2D Regime &amp; Strategy Decision Rationale" in html
-    assert "17 Strategies" in html
+    assert "18 Strategies" in html
     assert "AAPL" in html
     assert "KST" in html
