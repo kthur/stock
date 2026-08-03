@@ -1,4 +1,5 @@
-import logging
+﻿import logging
+import os
 import pandas as pd
 import xgboost as xgb
 import lightgbm as lgb
@@ -10,11 +11,19 @@ from typing import Dict, Any, List, Optional, Tuple
 _HAS_CUDA = False
 try:
     import torch
-    _HAS_CUDA = torch.cuda.is_available()
+    if os.environ.get("FORCE_CPU", "").lower() in ("1", "true", "yes"):
+        _HAS_CUDA = False
+    else:
+        _HAS_CUDA = torch.cuda.is_available()
 except Exception:
     pass
 
 logger = logging.getLogger(__name__)
+
+
+def _is_gpu_error(ex: Exception) -> bool:
+    msg = str(ex).lower()
+    return any(k in msg for k in ('gpu', 'cuda', 'cublas', 'nccl', 'cudnn', 'cuda runtime error'))
 
 
 def case_insensitive_get(d: dict, key: str, default=None):
@@ -1470,9 +1479,14 @@ class OnDevicePredictionModel:
                     _m_xgb = xgb.XGBRegressor(**kw_xgb)
                     try:
                         _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
-                    except Exception:
-                        _m_xgb = xgb.XGBRegressor(**kw_no_es)
-                        _m_xgb.fit(X_tr, y_tr)
+                    except Exception as ex:
+                        if _is_gpu_error(ex):
+                            kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
+                            _m_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
+                            _m_xgb.fit(X_tr, y_tr)
+                        else:
+                            _m_xgb = xgb.XGBRegressor(**kw_no_es)
+                            _m_xgb.fit(X_tr, y_tr)
                     y_va_clean = np.nan_to_num(y_va, nan=0.0, posinf=0.0, neginf=0.0)
                     pred_xgb_clean = np.nan_to_num(_m_xgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_xgb.append(float(mean_squared_error(y_va_clean, pred_xgb_clean)))
@@ -1484,7 +1498,7 @@ class OnDevicePredictionModel:
                                    eval_set=[(X_va, y_va)],
                                    callbacks=[lgb.early_stopping(50, verbose=False)])
                     except Exception as ex:
-                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                        if _is_gpu_error(ex):
                             kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                             _m_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
                             _m_lgb.fit(X_tr, y_tr)
@@ -1503,7 +1517,7 @@ class OnDevicePredictionModel:
                         else:
                             fold_mse_cat.append(1.0)
                     except Exception as ex:
-                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                        if _is_gpu_error(ex):
                             kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
                             _m_cat = cb.CatBoostRegressor(**kw_cat_cpu)
                             _m_cat.fit(X_tr, y_tr, verbose=False)
@@ -1535,7 +1549,15 @@ class OnDevicePredictionModel:
 
             kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
             model_xgb = xgb.XGBRegressor(**kw_no_es)
-            model_xgb.fit(X_all, y_all)
+            try:
+                model_xgb.fit(X_all, y_all)
+            except Exception as ex:
+                if _is_gpu_error(ex):
+                    kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
+                    model_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
+                    model_xgb.fit(X_all, y_all)
+                else:
+                    raise ex
             self.models[market][h] = model_xgb
 
             model_lgb = lgb.LGBMRegressor(
@@ -1545,7 +1567,7 @@ class OnDevicePredictionModel:
             try:
                 model_lgb.fit(X_all, y_all)
             except Exception as ex:
-                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                if _is_gpu_error(ex):
                     kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                     model_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
                     model_lgb.fit(X_all, y_all)
@@ -1557,7 +1579,7 @@ class OnDevicePredictionModel:
                 model_cat = cb.CatBoostRegressor(**kw_cat)
                 model_cat.fit(X_all, y_all, verbose=False)
             except Exception as ex:
-                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                if _is_gpu_error(ex):
                     kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
                     model_cat = cb.CatBoostRegressor(**kw_cat_cpu)
                     model_cat.fit(X_all, y_all, verbose=False)
@@ -1772,7 +1794,7 @@ class OnDevicePredictionModel:
                         _m_lgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)],
                                    eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
                     except Exception as ex:
-                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                        if _is_gpu_error(ex):
                             kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                             _m_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
                         _m_lgb.fit(X_tr, y_tr)
@@ -1785,7 +1807,7 @@ class OnDevicePredictionModel:
                         _m_cat = cb.CatBoostClassifier(**kw_cat, early_stopping_rounds=50)
                         _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
                     except Exception as ex:
-                        if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                        if _is_gpu_error(ex):
                             kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
                             _m_cat = cb.CatBoostClassifier(**kw_cat_cpu)
                         else:
@@ -1811,14 +1833,22 @@ class OnDevicePredictionModel:
             # Final models: retrain on ALL data
             kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
             model_xgb = xgb.XGBClassifier(**kw_no_es)
-            model_xgb.fit(X, target)
+            try:
+                model_xgb.fit(X, target)
+            except Exception as ex:
+                if _is_gpu_error(ex):
+                    kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
+                    model_xgb = xgb.XGBClassifier(**kw_xgb_cpu)
+                    model_xgb.fit(X, target)
+                else:
+                    raise ex
             self.surge_models[market][h] = model_xgb
 
             model_lgb = lgb.LGBMClassifier(**kw_lgb)
             try:
                 model_lgb.fit(X, target)
             except Exception as ex:
-                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                if _is_gpu_error(ex):
                     kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                     model_lgb = lgb.LGBMClassifier(**kw_lgb_cpu)
                     model_lgb.fit(X, target)
@@ -1830,7 +1860,7 @@ class OnDevicePredictionModel:
                 model_cat = cb.CatBoostClassifier(**kw_cat)
                 model_cat.fit(X, target, verbose=False)
             except Exception as ex:
-                if 'gpu' in str(ex).lower() or 'cuda' in str(ex).lower():
+                if _is_gpu_error(ex):
                     kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
                     model_cat = cb.CatBoostClassifier(**kw_cat_cpu)
                     model_cat.fit(X, target, verbose=False)
@@ -2223,6 +2253,12 @@ class OnDevicePredictionModel:
                             blend_pred_inv = inverse_transform_sharpe(
                                 pd.Series(blend_pred), vol_scale
                             ).values
+                            blend_pred_inv = np.nan_to_num(
+                                blend_pred_inv, nan=0.0, posinf=0.0, neginf=0.0
+                            )
+                            blend_pred_inv = np.clip(blend_pred_inv, -0.75, 1.5)
+                            if not np.isfinite(blend_pred_inv).all():
+                                logger.warning(f"Regression prediction for market={mkt}, horizon={h} contained non-finite values; clipped to 0.")
                             res_df.loc[idx, h] = blend_pred_inv
                         else:
                             if 'ret_5d' in X_mkt_raw.columns and 'ret_20d' in X_mkt_raw.columns:

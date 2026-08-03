@@ -562,7 +562,7 @@ class EnsembleScoringEngine:
             lines.append("  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.")
 
         base_weights = self.get_base_weights(regime)
-        lines.append("\n[14-Strategy Dynamic Weight Allocation]")
+        lines.append("\n[18-Strategy Dynamic Weight Allocation]")
         if rolling_sharpes:
             dyn_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime)
             lines.append("• Dynamic Weighting Scheme: Base Regime Weight x Exponential Sharpe Multiplier exp(1.0 x Sharpe_20d) with EMA Smoothing")

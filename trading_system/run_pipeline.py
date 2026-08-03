@@ -57,6 +57,31 @@ logger = logging.getLogger(__name__)
 # Initialize global HTTP session headers for yfinance and FinanceDataReader calls
 setup_global_http_headers()
 
+
+def detect_shared_series_corruption(vix_val, wti_val, gold_val, us10y_val) -> bool:
+    """P0: Detect shared-series / DB cache contamination on RAW indicator values.
+
+    If several unrelated indicators resolve to (nearly) the same value, the DB
+    holds one ticker's Close for every symbol (e.g. 103.478 everywhere). Must be
+    evaluated on raw values BEFORE plausibility bounds replace out-of-range
+    entries, otherwise the VIX gets defaulted first and the spread widens past
+    the detection threshold.
+    """
+    import math
+    candidates = []
+    for v in (vix_val, wti_val, gold_val,
+              us10y_val * 10.0 if us10y_val is not None and not (isinstance(us10y_val, float) and math.isnan(us10y_val)) and us10y_val < 25 else us10y_val):
+        try:
+            fv = float(v)
+            if fv > 0 and not math.isnan(fv):
+                candidates.append(fv)
+        except (TypeError, ValueError):
+            continue
+    if len(candidates) < 3:
+        return False
+    return (max(candidates) - min(candidates)) < 1.0
+
+
 # P3: Rotating file logger — persists logs across terminal sessions and GHA log expiry
 def _setup_rotating_logger() -> None:
     """Attach a RotatingFileHandler to the root logger (10MB × 5 backups)."""
@@ -1022,6 +1047,7 @@ def execute_prediction_pipeline():
         # S8 fix: ThreadPoolExecutor avoids pickle serialization overhead of ProcessPool.
         # XGBoost/LightGBM release the GIL during training, so threads are efficient here.
         with storage.pipeline_stage("train_regression"):
+            _train_failures = []
             with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
                 futures = {}
                 for m_name, m_df in market_dfs.items():
@@ -1033,9 +1059,13 @@ def execute_prediction_pipeline():
                         f.result()
                     except Exception as e:
                         logger.error(f"Regression training failed for {futures[f]}: {e}")
+                        _train_failures.append(f"{futures[f]}: {e}")
+            if _train_failures:
+                _notify_telegram(f"⚠️ 회귀 모델 학습 실패 ({len(_train_failures)}/{len(market_dfs)}): " + " | ".join(_train_failures[:5]))
         model.load_models()
 
         with storage.pipeline_stage("train_surge"):
+            _surge_failures = []
             with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
                 futures = {}
                 for m_name, m_df in market_dfs.items():
@@ -1046,6 +1076,9 @@ def execute_prediction_pipeline():
                         f.result()
                     except Exception as e:
                         logger.error(f"Surge training failed for {futures[f]}: {e}")
+                        _surge_failures.append(f"{futures[f]}: {e}")
+            if _surge_failures:
+                _notify_telegram(f"⚠️ Surge 모델 학습 실패 ({len(_surge_failures)}/{len(market_dfs)}): " + " | ".join(_surge_failures[:5]))
         model.load_surge_models()
 
         # 7c. Compute lead-lag correlation matrix (which stocks follow which)
@@ -1334,7 +1367,7 @@ def execute_prediction_pipeline():
         stat_arb_pairs = stat_arb_engine.find_cointegrated_pairs(stat_arb_prices)
 
         # Ensure result directory exists
-        result_dir = os.path.join(os.path.dirname(__file__), "result")
+        result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
         os.makedirs(result_dir, exist_ok=True)
 
         if not stat_arb_pairs:
@@ -1441,6 +1474,16 @@ def execute_prediction_pipeline():
     symbol_to_name = dict(zip(universe['symbol'], universe['name']))
     _SUMMARY_HORIZONS = [h for h in [1, 5, 20, 60] if h in res_df.columns]  # Key horizons only
     _TOP_N = 100
+
+    def _fmt_pct(row, h) -> str:
+        try:
+            v = float(row[h])
+            if not np.isfinite(v):
+                return "n/a"
+            return f"{v*100:+.2f}%"
+        except Exception:
+            return "n/a"
+
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("=== Pipeline Inference Summary (TOP100 per Market) ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
@@ -1462,7 +1505,7 @@ def execute_prediction_pipeline():
                 f.write(f"--- {m} TOP {_TOP_N} ---\n")
                 for rank, (_, row) in enumerate(m_df.iterrows(), 1):
                     name = symbol_to_name.get(row['symbol'], "Unknown")
-                    f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+                    f.write(f"  {rank}. {row['symbol']} ({name}): {_fmt_pct(row, h)}\n")
                 f.write("\n")
             us_markets = ['SP500', 'NASDAQ', 'RUSSELL2000']
             for m in us_markets:
@@ -1472,7 +1515,7 @@ def execute_prediction_pipeline():
                     f.write(f"--- {m} TOP {_TOP_N} ---\n")
                     for rank, (_, row) in enumerate(m_df.iterrows(), 1):
                         name = symbol_to_name.get(row['symbol'], "Unknown")
-                        f.write(f"  {rank}. {row['symbol']} ({name}): {row[h]*100:+.2f}%\n")
+                        f.write(f"  {rank}. {row['symbol']} ({name}): {_fmt_pct(row, h)}\n")
                     f.write("\n")
     logger.info(f"Saved summarized pipeline result (TOP{_TOP_N}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
@@ -1497,7 +1540,7 @@ def execute_prediction_pipeline():
                 _mf.write(f"--- {_m} TOP {min(_TOP_N, len(_m_h_sorted))} (Horizon: {h}d) ---\n")
                 for _rank, (_, _row) in enumerate(_m_h_sorted.head(_TOP_N).iterrows(), 1):
                     _name = symbol_to_name.get(_row['symbol'], "Unknown")
-                    _mf.write(f"  {_rank}. {_row['symbol']} ({_name}): {_row[h]*100:+.2f}%\n")
+                    _mf.write(f"  {_rank}. {_row['symbol']} ({_name}): {_fmt_pct(_row, h)}\n")
                 _mf.write("\n")
 
     # [NEW] Save CSV and JSON Lines format for pipeline_result
@@ -2525,6 +2568,23 @@ def execute_prediction_pipeline():
     # with documented conservative defaults and a visible data-quality warning.
     macro_warnings: list[str] = []
 
+    # ══ P0: Cross-asset distinctness check on RAW values (pre-replacement) ════
+    # Must run BEFORE plausibility bounds replace out-of-range values, otherwise a
+    # shared-series contamination (e.g. every indicator holding one ticker's Close,
+    # like 103.478) survives: VIX gets defaulted first, then WTI/Gold fall inside
+    # plausible ranges and the max-min spread becomes large. Detect identical raw
+    # values across unrelated tickers to catch DB cache contamination.
+    if detect_shared_series_corruption(vix_val, wti_val, gold_val, us10y_val):
+        macro_warnings.append(
+            "VIX/WTI/Gold/US10Y raw values nearly identical -> shared-series cache corruption detected; using defaults"
+        )
+        vix_val = 18.5
+        wti_val = 75.0
+        gold_val = 220.0
+        us10y_val = 4.25
+        kr10y_val = 3.35
+        usdkrw_val = 1380.0
+
     def _plausible_bounds(name: str, val: float, lo: float, hi: float, default: float) -> float:
         nonlocal macro_warnings
         try:
@@ -3123,7 +3183,7 @@ Examples:
         logger.exception("Pipeline failed with unhandled exception.")
 
         # Check if output files were still successfully written despite the error
-        result_dir = os.path.join(os.path.dirname(__file__), "result")
+        result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
         essential_file = os.path.join(result_dir, "pipeline_result.txt")
         has_results = os.path.exists(essential_file) and os.path.getsize(essential_file) > 0
 

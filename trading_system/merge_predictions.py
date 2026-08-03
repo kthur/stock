@@ -440,6 +440,7 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "arm_factor_predictions.txt", "Analyst Revision Momentum (ARM) Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "card_factor_predictions.txt", "Cross-Asset Regime Divergence (CARD) Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "latr_factor_predictions.txt", "Liquidity-Adjusted Tail Risk (LATR) Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "inst_foreign_sector_predictions.txt", "Institutional & Foreign Sector Flow Predictions")
 
     print("All prediction files successfully merged.")
 

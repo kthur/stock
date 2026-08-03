@@ -110,5 +110,33 @@ class TestGlobalMacro(unittest.TestCase):
             self.assertIn("expected_excess_return", item)
             self.assertIn("correlation_to_exchange_rate", item)
 
+
+class TestSharedSeriesCorruptionGate(unittest.TestCase):
+    """P0: Shared-series / DB cache contamination detection on raw macro values."""
+
+    def _gate(self, vix=None, wti=None, gold=None, us10y=None):
+        from run_pipeline import detect_shared_series_corruption
+        return detect_shared_series_corruption(vix, wti, gold, us10y)
+
+    def test_identical_values_detected(self):
+        """GHA case: all indicators = 103.478 (one ticker's Close everywhere)."""
+        self.assertTrue(self._gate(103.478, 103.478, 103.478, 103.478))
+
+    def test_identical_within_one_point_detected(self):
+        self.assertTrue(self._gate(100.0, 100.4, 100.8, 100.2))
+
+    def test_real_market_values_not_flagged(self):
+        """Real values (VIX 16.2, WTI 81, GLD 106, TNX 4.47) must pass."""
+        self.assertFalse(self._gate(16.2, 81.02, 106.23, 4.469))
+
+    def test_less_than_three_candidates_not_flagged(self):
+        """Fewer than 3 resolvable values cannot indicate shared-series corruption."""
+        self.assertFalse(self._gate(103.478, 103.478, None, None))
+        self.assertFalse(self._gate(None, None, None, None))
+
+    def test_zero_values_ignored(self):
+        self.assertFalse(self._gate(0.0, 0.0, 0.0, 0.0))
+
+
 if __name__ == "__main__":
     unittest.main()

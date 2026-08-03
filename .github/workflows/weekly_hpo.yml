@@ -26,15 +26,29 @@ jobs:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.lock') }}
 
+      - name: Get current date
+        id: date
+        run: echo "date=$(TZ='Asia/Seoul' date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: Restore SQLite Database Cache
         uses: actions/cache@v4
         with:
           path: |
             trading_system/market_indicators.db
             trading_system/stock_prices.db
-          key: stock-db-cache-v1-${{ github.run_id }}
+          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
-            stock-db-cache-v1-
+            stock-prices-db-${{ matrix.target }}-
+            stock-prices-db-
+
+      - name: Restore and Save AI Models Cache (for tuned_params.json handoff)
+        uses: actions/cache@v4
+        with:
+          path: trading_system/models
+          key: ai-models-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          restore-keys: |
+            ai-models-${{ matrix.target }}-
+            ai-models-
 
       - name: Install dependencies
         run: |
@@ -47,8 +61,9 @@ jobs:
           INFERENCE_TARGET: ${{ matrix.target }}
           N_TRIALS: '30'
           LOG_LEVEL: INFO
+          FORCE_CPU: '1'
         run: |
-          .venv/bin/python trading_system/scripts/tune_models.py || true
+          .venv/bin/python trading_system/scripts/tune_models.py
 
       - name: Upload Tuned Parameters Artifact
         uses: actions/upload-artifact@v4

@@ -837,6 +837,9 @@ class TestE2EConsolidated(unittest.TestCase):
         os.environ["TRAIN_SAMPLE_SP500"] = "2"
         os.environ["TRAIN_SAMPLE_KRX"] = "2"
         os.environ["STOCK_PRICE_FRESHNESS_DAYS"] = "none" # Cache-only offline
+        tmp_result_dir = tempfile.mkdtemp(prefix="pipeline_result_")
+        os.environ["OUTPUT_RESULT_DIR"] = tmp_result_dir
+        self.addCleanup(lambda: shutil.rmtree(tmp_result_dir, ignore_errors=True))
 
         # Setup local caches so we don't trigger online fetches
         for sym in ["AAPL", "005930", "^GSPC", "^TNX", "^FVX", "^IRX", "USDKRW=X", "^VIX", "DX-Y.NYB", "CL=F", "^KS11", "^KQ11", "^CPC", "091160.KS", "305720.KS", "273130.KS", "244580.KS", "XLK", "XLF", "XLV", "XLE"]:
@@ -850,8 +853,8 @@ class TestE2EConsolidated(unittest.TestCase):
 
 
 
-        # Check result files exist under result/
-        res_dir = Path(__file__).resolve().parent.parent / "result"
+        # Check result files exist under the isolated output dir
+        res_dir = Path(tmp_result_dir)
         self.assertTrue((res_dir / "pipeline_result.txt").exists())
         self.assertTrue((res_dir / "ensemble_predictions.txt").exists())
 
