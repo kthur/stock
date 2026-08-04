@@ -81,6 +81,8 @@ trading_system/models/*.txt
 trading_system/models/*.cbm
 trading_system/models/*.bin
 trading_system/models/*.pt
+trading_system/models/*.joblib
+*.joblib
 temp_model.json
 
 # Pipeline output files

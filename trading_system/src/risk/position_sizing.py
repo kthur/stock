@@ -36,10 +36,10 @@ class PortfolioAllocator:
                  target_horizon: int = 20,
                  use_kelly: bool = True,
                  kelly_fraction: float = 0.5):
-        self.max_single_position = max_single_position
-        self.min_single_position = min_single_position
-        self.max_total_allocation = max_total_allocation
-        self.max_sector_exposure = max_sector_exposure
+        self.max_single_position = max_single_position / 100.0 if max_single_position > 1.0 else max_single_position
+        self.min_single_position = min_single_position / 100.0 if min_single_position > 1.0 else min_single_position
+        self.max_total_allocation = max_total_allocation / 100.0 if max_total_allocation > 1.0 else max_total_allocation
+        self.max_sector_exposure = max_sector_exposure / 100.0 if max_sector_exposure > 1.0 else max_sector_exposure
         self.target_horizon = target_horizon
         self.use_kelly = use_kelly
         self.kelly_fraction = kelly_fraction

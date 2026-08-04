@@ -2507,8 +2507,15 @@ def main(args_list: Optional[list[str]] = None):
     parser.add_argument("--out", default="gh-pages/index.html", help="Output HTML file path")
     args = parser.parse_args(args_list)
 
-    result_dir = Path(args.result_dir)
-    out_path = Path(args.out)
+    result_dir = Path(args.result_dir).resolve()
+    out_path = Path(args.out).resolve()
+
+    # Prevent path traversal outside repository root
+    project_root = Path(__file__).resolve().parent.parent
+    if not (result_dir.is_relative_to(project_root) or result_dir.is_relative_to(Path.cwd())):
+        logger.warning(f"result_dir {result_dir} is outside working directory.")
+    if not (out_path.is_relative_to(project_root) or out_path.is_relative_to(Path.cwd())):
+        logger.warning(f"out_path {out_path} is outside working directory.")
 
     ensemble = parse_ensemble(_read(result_dir / "ensemble_predictions.txt"))
     surge_date, surge_sections = parse_surge(_read(result_dir / "surge_predictions.txt"))

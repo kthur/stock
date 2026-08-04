@@ -38,7 +38,7 @@ class BacktestTrade:
     exit_price: float
     quantity: int
     pnl: float
-    pnl_pct: float
+    pnl_pct: float = 0.0
     direction: str = "LONG"
     exit_reason: str = "SIGNAL"  # SIGNAL, TRAILING_STOP, FINAL
     duration: timedelta = field(default_factory=lambda: timedelta())
@@ -1620,12 +1620,33 @@ class BacktestEngine:
             self.logger.warning(f"Unknown strategy: {name}. Falling back to MA.")
             return lambda bars: self._simple_ma_strategy(bars, {})
 
-    def monte_carlo_robustness(self, trades: List[BacktestTrade], n_simulations: int = 1000, initial_capital: Optional[float] = None) -> Dict:
+    def monte_carlo_robustness(
+        self,
+        trades: List[BacktestTrade],
+        n_simulations: int = 1000,
+        initial_capital: Optional[float] = None,
+        seed: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """Monte Carlo 시뮬레이션으로 전략 로버스트니스 검증 및 하방 꼬리위험(VaR, CVaR) 측정"""
         if not trades:
             return {"error": "No trades provided"}
-        cap = initial_capital if initial_capital is not None else self.initial_capital
-        trade_pcts = [t.pnl_pct for t in trades]
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
+        cap = initial_capital if initial_capital is not None else getattr(self, "initial_capital", 1_000_000.0)
+        
+        # Safely extract trade percentages, falling back to pnl / cap if pnl_pct is 0.0 or missing
+        trade_pcts: List[float] = []
+        for t in trades:
+            if getattr(t, "pnl_pct", 0.0) != 0.0:
+                trade_pcts.append(t.pnl_pct)
+            elif cap > 0:
+                trade_pcts.append(t.pnl / cap)
+            else:
+                trade_pcts.append(0.0)
+
         equity_endpoints = []
         max_drawdowns = []
 
@@ -1634,7 +1655,7 @@ class BacktestEngine:
             equity_curve = [cap]
             curr = cap
             for p_pct in shuffled:
-                curr *= (1.0 + p_pct)
+                curr *= (1.0 + (p_pct or 0.0))
                 equity_curve.append(curr)
             equity_endpoints.append(curr)
 
@@ -1645,7 +1666,7 @@ class BacktestEngine:
 
         endpoints = np.array(equity_endpoints)
         returns = (endpoints - cap) / cap
-        var_95 = float(np.percentile(returns, 5))
+        var_95 = float(np.percentile(returns, 5, method="linear"))
         cvar_95 = float(np.mean(returns[returns <= var_95])) if np.any(returns <= var_95) else var_95
 
         return {
@@ -1655,23 +1676,24 @@ class BacktestEngine:
             "median_equity": float(np.median(endpoints)),
             "mean_equity": float(np.mean(endpoints)),
             "std_equity": float(np.std(endpoints)),
-            "p5_equity": float(np.percentile(endpoints, 5)),
-            "p95_equity": float(np.percentile(endpoints, 95)),
+            "p5_equity": float(np.percentile(endpoints, 5, method="linear")),
+            "p95_equity": float(np.percentile(endpoints, 95, method="linear")),
             "var_95_pct": round(var_95 * 100.0, 2),
             "cvar_95_pct": round(cvar_95 * 100.0, 2),
-            "avg_max_drawdown_pct": round(float(np.mean(max_drawdowns)) * 100.0, 2),
-            "worst_max_drawdown_pct": round(float(np.min(max_drawdowns)) * 100.0, 2),
+            "avg_max_drawdown_pct": round(abs(float(np.mean(max_drawdowns))) * 100.0, 2),
+            "worst_max_drawdown_pct": round(abs(float(np.min(max_drawdowns))) * 100.0, 2),
             "probability_of_loss": float(np.mean(endpoints < cap)),
         }
 
     def grid_search(
         self, bars: List[Any], param_grid: Dict[str, List[float]], strategy_func: Callable, metric: str = "sharpe_ratio"
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """파라미터 그리드 서치로 최적 조합 탐색 (영역 7-2)"""
         from itertools import product
 
         keys = list(param_grid.keys())
-        values = list(param_grid.values())
+        # Dedup each parameter value list
+        values = [sorted(list(set(param_grid[k]))) for k in keys]
         best_score = -float("inf")
         best_params = None
         for combo in product(*values):
@@ -1684,8 +1706,13 @@ class BacktestEngine:
                 if score > best_score:
                     best_score = score
                     best_params = params
-            except Exception:
+            except Exception as e:
+                log_obj = getattr(self, "logger", logger)
+                log_obj.warning(f"grid_search param {params} failed: {e}")
                 continue
+
+        if best_params is None:
+            return {"best_params": None, "best_score": None, "metric": metric}
         return {"best_params": best_params, "best_score": best_score, "metric": metric}
 
     # ── Phase 1: Recency-Weighted Metrics ──────────────────────────────────
