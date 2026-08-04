@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from src.core.rim_valuation import RIMValuationEngine
 from src.ai.ensemble_scorer import EnsembleScoringEngine
-from generate_report import parse_rim, RimRow, build_html, EnsembleData, EnsembleMarket, EnsembleRow
+from generate_report import parse_rim, build_html, EnsembleData, EnsembleMarket, EnsembleRow
 
 
 def test_rim_valuation_calculation():
@@ -31,6 +31,43 @@ def test_rim_valuation_calculation():
     samsung = res[res['symbol'] == '005930'].iloc[0]
     assert samsung['intrinsic_value'] > 50000.0  # Decaying ROE excess value over BPS
     assert samsung['rim_score'] > 0.5  # Highest discount ratio rank in KOSPI
+
+
+def test_rim_earnings_quality_filter():
+    """영업손실(-)인데 순이익(+)인 종목(일회성 이익 의존)은 RIM 점수가 NaN이어야 한다."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    df = pd.DataFrame([
+        # 정상: 영업이익 ≈ 순이익 → 이익의 질 1.0, RIM 점수 유효
+        {'symbol': '005930', 'market': 'KOSPI', 'Close': 70000.0, 'bps': 50000.0, 'roe': 0.15,
+         'operating_income': 100.0, 'net_income': 110.0},
+        # 일회성 이익 의존: 영업손실(-) + 순이익(+) → RIM 점수 무효화
+        {'symbol': '011170', 'market': 'KOSPI', 'Close': 50000.0, 'bps': 60000.0, 'roe': 0.20,
+         'operating_income': -50.0, 'net_income': 120.0},
+        # 이익의 질 낮음: 영업이익/순이익 = 0.2 < 0.5 → ROE 감쇠(0.15*0.2=0.03), 점수는 유효하나 저평
+        {'symbol': '000270', 'market': 'KOSPI', 'Close': 100000.0, 'bps': 50000.0, 'roe': 0.15,
+         'operating_income': 20.0, 'net_income': 100.0},
+    ])
+
+    res = engine.compute_rim_scores(df)
+    res = res.set_index('symbol')
+
+    assert res.loc['011170', 'rim_filter_reason'] == 'LOW_EARNINGS_QUALITY'
+    assert np.isnan(res.loc['011170', 'rim_score'])
+    assert np.isnan(res.loc['011170', 'discount_ratio'])
+    assert res.loc['011170', 'earnings_quality'] == 0.0
+
+    # 정상 종목은 그대로 유효 (eq_ratio = 100/110)
+    assert res.loc['005930', 'rim_filter_reason'] == ''
+    assert abs(res.loc['005930', 'earnings_quality'] - 100.0 / 110.0) < 1e-9
+    assert not np.isnan(res.loc['005930', 'rim_score'])
+
+    # 이익의 질 0.2 → ROE 0.15*0.2 = 0.03으로 감쇠
+    assert res.loc['000270', 'rim_filter_reason'] == 'QUALITY_ADJUSTED'
+    assert abs(res.loc['000270', 'roe'] - 0.03) < 1e-9
+
+    # 정상 종목의 ROE는 감쇠되지 않음 (net_income > 0, eq_ratio = 1.0)
+    assert abs(res.loc['005930', 'roe'] - 0.15) < 1e-9
 
 
 def test_ensemble_scorer_9_strategies():

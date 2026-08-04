@@ -1376,7 +1376,8 @@ def execute_prediction_pipeline():
                 if df_p is not None and len(df_p) >= 20:
                     try:
                         c = df_p['Close']
-                        if isinstance(c, pd.DataFrame): c = c.iloc[:, 0]
+                        if isinstance(c, pd.DataFrame):
+                            c = c.iloc[:, 0]
                         c = c.dropna()
                         if len(c) >= 20:
                             ma20 = float(c.rolling(20).mean().iloc[-1])
@@ -1989,8 +1990,8 @@ def execute_prediction_pipeline():
                     # Fallback BPS from eps when book_value unavailable
                     no_bps = fund_df['bps'].isna() & fund_df['eps'].notna()
                     fund_df.loc[no_bps, 'bps'] = fund_df.loc[no_bps, 'eps'] / 0.08
-                    # Merge into rim_input
-                    merge_cols = ['symbol', 'bps', 'roe']
+                    # Merge into rim_input (operating_income/net_income for earnings quality filter)
+                    merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income']
                     df_rim_input = df_rim_input.merge(fund_df[merge_cols], on='symbol', how='left')
                     logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
             except Exception as _fund_e:
@@ -2005,12 +2006,14 @@ def execute_prediction_pipeline():
                 f_out.write("=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===\n")
                 f_out.write(f"Date: {date_str}\n")
                 f_out.write(f"Total symbols evaluated: {len(df_rim)}\n\n")
-                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}{'RIM Score':<12}\n")
-                f_out.write("-" * 95 + "\n")
+                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}{'EQ':<7}{'RIM Score':<12}\n")
+                f_out.write("-" * 102 + "\n")
                 for rank, (_, row) in enumerate(df_rim.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
                     disc_pct = row.get('discount_ratio', 0.0) * 100.0
-                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['Close']:<12.2f}{row['intrinsic_value']:<14.2f}{disc_pct:>10.1f}%{row['rim_score']*100:>10.1f}%\n")
+                    eq = row.get('earnings_quality', 1.0)
+                    eq_str = f"{eq*100:.0f}%" if pd.notna(eq) else "N/A"
+                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['Close']:<12.2f}{row['intrinsic_value']:<14.2f}{disc_pct:>10.1f}%{eq_str:>7}{row['rim_score']*100:>10.1f}%\n")
 
             with open(rim_output_path, "w", encoding="utf-8") as f:
                 _write_rim_file(f, rim_merged)

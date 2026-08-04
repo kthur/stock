@@ -152,15 +152,19 @@ class StrategyCoverageAnalyzer:
 
                 no_price_cnt = 0
                 no_fund_cnt = 0
+                low_eq_cnt = 0
                 other_cnt = 0
-
                 for sym in missing_syms:
                     sym_str = str(sym)
                     p_df = prices_dict.get(sym_str) if prices_dict else None
+
                     has_price = (p_df is not None and len(p_df) >= 200)
 
                     if not has_price:
                         no_price_cnt += 1
+                    elif strat == 'rim_valuation' and self._has_symbol_fundamental_data(features_df, sym_str):
+                        # Fundamentals exist but RIM score is NaN → 이익의 질(영업손실+순이익 양수) 필터로 제외됨
+                        low_eq_cnt += 1
                     elif strat in ['rim_valuation', 'mq_factor'] and not self._has_symbol_fundamental_data(features_df, sym_str):
                         no_fund_cnt += 1
                     else:
@@ -170,6 +174,8 @@ class StrategyCoverageAnalyzer:
                     reasons['INSUFFICIENT_PRICE_HISTORY'] = no_price_cnt
                 if no_fund_cnt > 0:
                     reasons['NO_FUNDAMENTAL_DATA'] = no_fund_cnt
+                if low_eq_cnt > 0:
+                    reasons['LOW_EARNINGS_QUALITY'] = low_eq_cnt
                 if other_cnt > 0:
                     if strat == 'iv_skew':
                         reasons['NO_OPTIONS_CHAIN'] = other_cnt
