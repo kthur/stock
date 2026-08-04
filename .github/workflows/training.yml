@@ -48,6 +48,7 @@ jobs:
           key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
             stock-prices-db-${{ matrix.target }}-
+            stock-prices-db-
 
       - name: Cache market_indicators.db (Restore and Save)
         uses: actions/cache@v4
@@ -57,6 +58,7 @@ jobs:
           key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
             market-indicators-db-${{ matrix.target }}-
+            market-indicators-db-
 
       - name: Cache AI models (Save after training)
         uses: actions/cache@v4
@@ -83,6 +85,7 @@ jobs:
           LOG_LEVEL: INFO
           SKIP_TRAINING: 'False'
           SKIP_INFERENCE: 'True'
+          FORCE_CPU: '1'
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |

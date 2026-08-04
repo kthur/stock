@@ -1,10 +1,10 @@
-=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===
-Date: 2026-07-31 19:37 KST
+=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===
+Date: 2026-08-03 21:03 KST
 
 --- Executive Market Summary ---
 Current Market Regime Detected: BULL (2D State: BULL_LOW_VOL)
-US Market Regime (S&P500): BULL_HIGH_VOL
-KR Market Regime (KOSPI) : BEAR_HIGH_VOL
+US Market Regime (S&P500): BULL_LOW_VOL
+KR Market Regime (KOSPI) : BEAR_LOW_VOL
 Maximum Total Allocation Allowed: 85.0%
 
 --- Judgment Basis (Global Macro Indicators) ---
@@ -12,12 +12,13 @@ Maximum Total Allocation Allowed: 85.0%
   S&P 500 (20d Rolling Volatility)  : 1.000%
   KOSPI (20d Rolling Mean Return)   : -0.069% / day
   KOSPI (20d Rolling Volatility)    : 1.017%
-  VIX Index (Fear Gauge)            : 103.48
+  VIX Index (Fear Gauge)            : 18.50
   USD/KRW FX Rate                   : 1,350.00 KRW
   US 10Y Bond Yield (TNX)           : 10.35%
-  KR 10Y Bond Yield                 : 10.35%
+  KR 10Y Bond Yield                 : 3.50%
   WTI Crude Oil                     : $103.48 / bbl
   Gold (GLD ETF)                    : $103.48
+  Data-Quality Warnings (see footer) : 1 issue(s)
 
 [2D Market Regime & Strategy Decision Rationale]
 • Selected Main Regime State: BULL_LOW_VOL
@@ -25,44 +26,45 @@ Maximum Total Allocation Allowed: 85.0%
   - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.
 
 [14-Strategy Dynamic Weight Allocation]
-• Dynamic Weighting Scheme: Baseline 2D Regime Matrix Weights (No historical performance penalty)
-  - regression            :   4.3%
-  - surge                 :  12.0%
-  - lead_lag              :   3.3%
-  - vcp_rule              :   3.3%
-  - vcp_ml                :   9.8%
-  - lstm                  :   7.6%
-  - stat_arb              :   3.3%
-  - sector_rotation       :   7.6%
-  - rim_valuation         :   5.4%
-  - event_driven          :   7.6%
-  - mq_factor             :   7.6%
-  - iv_skew               :   2.2%
-  - order_flow            :   4.3%
-  - short_term_reversal   :   2.2%
-  - arm_factor            :   7.6%
-  - card_factor           :   5.4%
-  - latr_factor           :   6.5%
+• Dynamic Weighting Scheme: Base Regime Weight x Exponential Sharpe Multiplier exp(1.0 x Sharpe_20d) with EMA Smoothing
+  - regression            :   4.3% (Base:  4.3%, Rolling Sharpe: +0.00)
+  - surge                 :  12.0% (Base: 12.0%, Rolling Sharpe: +0.00)
+  - lead_lag              :   3.3% (Base:  3.3%, Rolling Sharpe: +0.00)
+  - vcp_rule              :   3.3% (Base:  3.3%, Rolling Sharpe: +0.00)
+  - vcp_ml                :   9.8% (Base:  9.8%, Rolling Sharpe: +0.00)
+  - lstm                  :   7.6% (Base:  7.6%, Rolling Sharpe: +0.00)
+  - stat_arb              :   3.3% (Base:  3.3%, Rolling Sharpe: +0.00)
+  - sector_rotation       :   7.6% (Base:  7.6%, Rolling Sharpe: +0.00)
+  - rim_valuation         :   5.4% (Base:  5.4%, Rolling Sharpe: +0.00)
+  - event_driven          :   7.6% (Base:  7.6%, Rolling Sharpe: +0.00)
+  - mq_factor             :   7.6% (Base:  7.6%, Rolling Sharpe: +0.00)
+  - iv_skew               :   2.2% (Base:  2.2%, Rolling Sharpe: +0.00)
+  - order_flow            :   4.3% (Base:  4.3%, Rolling Sharpe: +0.00)
+  - short_term_reversal   :   2.2% (Base:  2.2%, Rolling Sharpe: +0.00)
+  - arm_factor            :   7.6% (Base:  7.6%, Rolling Sharpe: +0.00)
+  - card_factor           :   5.4% (Base:  5.4%, Rolling Sharpe: +0.00)
+  - latr_factor           :   6.5% (Base:  6.5%, Rolling Sharpe: +0.00)
 
 [Transaction Costs & Liquidity Filter Rationale]
 • Microstructure Execution & Market Impact Model Active (Almgren-Chriss Order Size Hypothesis (Q): KRX 50M KRW / SP500 50k USD)
 • Transaction Cost & Slippage Deductions Applied:
-  - KONEX : 0.80% fee + 0.50% slippage = 1.30% net return deduction
-  - KOSDAQ: 0.50% fee + 0.50% slippage = 1.00% net return deduction
-  - KOSPI : 0.35% fee + 0.50% slippage = 0.85% net return deduction
-  - SP500 : 0.10% fee + 0.50% slippage = 0.60% net return deduction
+  - RUSSELL2000: 0.08% spread + STT/SEC friction
+  - KOSDAQ     : 0.06% spread + STT friction
+  - KOSPI      : 0.04% spread + STT friction
+  - NASDAQ     : 0.03% spread + SEC friction
+  - SP500      : 0.02% spread + SEC friction
 • Liquidity & Safety Gate:
   - Zero-weighting preferred stocks (우, B), SPACs, and illiquid symbols from Top recommendations.
 
 [Multicollinearity Monitoring & Regime Noise Suppression]
 • Effective Strategy Count (N_eff): 18.00 / 17.00
-• Highest Strategy VIF            : regression (100.00)
-• High Inter-Strategy Correlations (|rho| >= 0.50): 11 pair(s) detected
-  - regression <-> lead_lag: +1.00
+• Highest Strategy VIF            : surge (100.00)
+• High Inter-Strategy Correlations (|rho| >= 0.50): 10 pair(s) detected
   - surge <-> lead_lag: -1.00
-  - lead_lag <-> vcp_ml: -1.00
+  - surge <-> vcp_ml: +1.00
+  - surge <-> iv_skew: -1.00
 
---- Applied Ensemble Strategy Weights (17 Strategies) ---
+--- Applied Ensemble Strategy Weights (18 Strategies) ---
   XGBoost Regression Fundamentals   : 4.3%
   Surge Classifier (XGBoost)        : 12.0%
   Index & Sector Lead-Lag Flow      : 3.3%
@@ -80,6 +82,7 @@ Maximum Total Allocation Allowed: 85.0%
   Analyst Revision Momentum (ARM)   : 7.6%
   Cross-Asset Regime Divergence(CARD): 5.4%
   Liq-Adj Tail Risk (LATR)          : 6.5%
+  Inst & Foreign Sector Flow        : 0.0%
 
 --- Top 20 Recommendations by Market ---
 
@@ -88,7 +91,7 @@ Maximum Total Allocation Allowed: 85.0%
 =========================================
 Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  ARM  CARD  LATR 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-1    005930    Samsung Electron         0.0%       -0.99%   1%   2%   0%    0%    6%   0%    0%   62% 100%   46%  61%   35%  62%  62%   0%    0%   0%
+1    005930    Samsung Electron        36.8%        0.00%   0%   2%   0%    0%    7%   0%    0%   62%  93%   46%  62%   48%  62%  62%   0%    0%   0%
 
 
 =========================================
@@ -96,7 +99,7 @@ Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R 
 =========================================
 Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  ARM  CARD  LATR 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-1    068270    Celltrion                0.0%       -0.99%   1%  16%   0%    0%    7%   0%    0%   62%  90%   46%  62%   45%  62%  62%   0%    0%   0%
+1    068270    Celltrion               43.5%        0.00%   0%   2%   0%    0%    4%   0%    0%   62%  93%   46%  63%   53%  62%  62%  91%    0%   0%
 
 
 =========================================
@@ -104,6 +107,10 @@ Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R 
 =========================================
 Rank Symbol    Name              Ens Score   Expected Ret  Reg  Srg  L-L  VCP-R VCP-M LSTM S-Arb Sec-R RIM  Event MQ   IV-Sk Flow Rev  ARM  CARD  LATR 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-1    AAPL      Apple Inc.               0.0%       -0.99%   1%   3%   0%    0%    1%   0%    0%   62%  89%   46%  65%   33%  62%  62%   0%    0%   0%
-2    MSFT      Microsoft Corp.          0.0%       -0.99%   1%   5%   0%    0%    2%   0%    0%   62%  65%   46%  61%   77%  62%  62%   0%    0%   0%
+1    AAPL      Apple Inc.              39.1%        0.00%   0%   1%   0%    0%    2%   0%    0%   62% 100%   46%  65%   82%  62%  62%  16%    0%   0%
+2    MSFT      Microsoft Corp.         36.0%        0.00%   0%   1%   0%    0%    2%   0%    0%   62%  65%   46%  60%   81%  62%  62%  24%    0%   0%
 
+--- Data Quality Notes (auto-detected) ---
+  [WARN] VIX Index=103.47811684810029 invalid (plausible range [8.0,55.0]) -> default 18.5
+  All sanitized values shown above; raw fallback defaults applied for corrupted series.
+  Run: trading_system/validate_macro.py for offline DB cross-check.

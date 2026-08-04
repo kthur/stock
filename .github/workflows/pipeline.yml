@@ -51,6 +51,7 @@ jobs:
           key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
             stock-prices-db-${{ matrix.target }}-
+            stock-prices-db-
 
       - name: Cache market_indicators.db
         uses: actions/cache@v4
@@ -60,6 +61,7 @@ jobs:
           key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
             market-indicators-db-${{ matrix.target }}-
+            market-indicators-db-
 
       - name: Cache AI models (Restore only)
         uses: actions/cache/restore@v4
@@ -89,6 +91,7 @@ jobs:
           DEBUG_MODE: 'False'
           LOG_LEVEL: INFO
           SKIP_TRAINING: 'True'
+          FORCE_CPU: '1'
           TZ: 'Asia/Seoul'
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -116,7 +119,7 @@ jobs:
           echo "### 📁 17대 전략 출력 파일 현황" >> $GITHUB_STEP_SUMMARY
           echo "| 전략 / 파일명 | 크기 | 줄 수 |" >> $GITHUB_STEP_SUMMARY
           echo "|----------------|------|-------|" >> $GITHUB_STEP_SUMMARY
-          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt pipeline_result.csv; do
+          for f in ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt vcp_patterns.txt vcp_ml_predictions.txt stat_arb_predictions.txt sector_predictions.txt rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt inst_foreign_sector_predictions.txt pipeline_result.csv; do
             FPATH="trading_system/result/$f"
             if [ -f "$FPATH" ]; then
               SIZE=$(du -sh "$FPATH" 2>/dev/null | cut -f1)
@@ -164,7 +167,7 @@ jobs:
         if: always()
         run: |
           mkdir -p trading_system/result_split
-          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions stat_arb_predictions sector_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation arm_factor_predictions card_factor_predictions latr_factor_predictions; do
+          for f in pipeline_result surge_predictions lead_lag_predictions vcp_patterns vcp_ml_predictions stat_arb_predictions sector_predictions rim_predictions event_driven_predictions mq_factor_predictions iv_skew_predictions order_flow_predictions short_term_reversal_predictions ensemble_predictions strategy_data_coverage_report portfolio_allocation arm_factor_predictions card_factor_predictions latr_factor_predictions inst_foreign_sector_predictions; do
             src="trading_system/result/${f}.txt"
             if [ -f "$src" ]; then
               cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
@@ -261,13 +264,14 @@ jobs:
               --notes "Daily prediction results for $TAG_NAME (Merged SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)." \
               || echo "Release $TAG_NAME already exists"
             
-            # Upload all 17 strategy files and report outputs
+            # Upload all 18 strategy files and report outputs
             for f in pipeline_result.txt surge_predictions.txt lead_lag_predictions.txt \
                       vcp_patterns.txt vcp_ml_predictions.txt \
                       stat_arb_predictions.txt sector_predictions.txt \
                       rim_predictions.txt event_driven_predictions.txt mq_factor_predictions.txt \
                       iv_skew_predictions.txt order_flow_predictions.txt short_term_reversal_predictions.txt \
                       arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt \
+                      inst_foreign_sector_predictions.txt \
                       ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt; do
               fpath="trading_system/result/$f"
               [ -f "$fpath" ] && gh release upload "$TAG_NAME" "$fpath" --clobber || true

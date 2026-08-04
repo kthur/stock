@@ -1,5 +1,5 @@
 === Strategy 6: Strict Causal LSTM Time-Series Predictions ===
-Date: 2026-07-31 19:37 KST
+Date: 2026-08-03 21:03 KST
 Total symbols evaluated: 8
 
 Rank Symbol    Name              Market    LSTM Score    
@@ -9,6 +9,6 @@ Rank Symbol    Name              Market    LSTM Score
 3    {'is_vcp': False, 'vcp_score': 20.0, 'pivot_price': 109.21, 'contraction_peaks': [3.379348925174212, 3.26780081370072, 3.5342827184571304, 3.3918244251009644], 'current_range_pct': 3.38, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': 'AAPL'}Unknown           nan                0.0%
 4    {'is_vcp': False, 'vcp_score': 20.0, 'pivot_price': 109.21, 'contraction_peaks': [3.379348925174212, 3.26780081370072, 3.5342827184571304, 3.3918244251009644], 'current_range_pct': 3.38, 'volume_declining': False, 'above_sma50': False, 'above_sma200': False, 'near_high': False, 'symbol': 'MSFT'}Unknown           nan                0.0%
 5    068270    Celltrion         KOSDAQ             0.0%
-6    005930    Samsung Electron  KOSPI              0.0%
-7    AAPL      Apple Inc.        SP500              0.0%
+6    AAPL      Apple Inc.        SP500              0.0%
+7    005930    Samsung Electron  KOSPI              0.0%
 8    MSFT      Microsoft Corp.   SP500              0.0%
