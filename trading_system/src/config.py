@@ -82,6 +82,19 @@ class TradingConfig:
     # 포트폴리오 자본금 단일 소스 (KRW, GHA/OMS/HRP 모두 여기에서 읽음)
     portfolio_capital_krw: float = 1_000_000_000.0  # 10억 원
 
+    # 실시간 장중 모니터링 (realtime_monitor.py)
+    realtime_interval_min: int = 15          # 폴링 간격 (분)
+    realtime_dry_run: bool = True            # 실매매 없이 모의 실행
+    realtime_stop_loss_pct: float = -0.04    # 진입 대비 손절 임계
+    realtime_take_profit_pct: float = 0.08   # 진입 대비 익절 임계
+    realtime_vix_threshold: float = 28.0     # VIX 위기 임계
+    realtime_usdkrw_threshold: float = 1450.0  # USD/KRW 위기 임계
+    realtime_max_order_value_krw: float = 50_000_000.0  # 주문 금액 상한
+    realtime_signal_reversal_threshold: float = -0.03   # 신호 보정 역행 임계 (시가 대비)
+    realtime_trade_enabled: bool = False                # 실매매 활성화 (env: REALTIME_TRADE_ENABLED)
+    kiwoom_account: str = ""                 # 키움 계좌번호 (실매매 시)
+    realtime_state_db: str = "realtime_state.db"  # 장중 상태 DB
+
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
 
@@ -222,6 +235,49 @@ class TradingConfig:
                 self.portfolio_capital_krw = float(os.environ["PORTFOLIO_CAPITAL_KRW"])
             except ValueError:
                 pass
+        if "REALTIME_INTERVAL_MIN" in os.environ:
+            try:
+                self.realtime_interval_min = int(os.environ["REALTIME_INTERVAL_MIN"])
+            except ValueError:
+                pass
+        if "REALTIME_DRY_RUN" in os.environ:
+            self.realtime_dry_run = os.environ["REALTIME_DRY_RUN"].lower() not in ("false", "0", "no")
+        if "REALTIME_STOP_LOSS_PCT" in os.environ:
+            try:
+                self.realtime_stop_loss_pct = float(os.environ["REALTIME_STOP_LOSS_PCT"])
+            except ValueError:
+                pass
+        if "REALTIME_TAKE_PROFIT_PCT" in os.environ:
+            try:
+                self.realtime_take_profit_pct = float(os.environ["REALTIME_TAKE_PROFIT_PCT"])
+            except ValueError:
+                pass
+        if "REALTIME_VIX_THRESHOLD" in os.environ:
+            try:
+                self.realtime_vix_threshold = float(os.environ["REALTIME_VIX_THRESHOLD"])
+            except ValueError:
+                pass
+        if "REALTIME_USDKRW_THRESHOLD" in os.environ:
+            try:
+                self.realtime_usdkrw_threshold = float(os.environ["REALTIME_USDKRW_THRESHOLD"])
+            except ValueError:
+                pass
+        if "REALTIME_MAX_ORDER_VALUE_KRW" in os.environ:
+            try:
+                self.realtime_max_order_value_krw = float(os.environ["REALTIME_MAX_ORDER_VALUE_KRW"])
+            except ValueError:
+                pass
+        if "REALTIME_SIGNAL_REVERSAL_THRESHOLD" in os.environ:
+            try:
+                self.realtime_signal_reversal_threshold = float(os.environ["REALTIME_SIGNAL_REVERSAL_THRESHOLD"])
+            except ValueError:
+                pass
+        if "REALTIME_TRADE_ENABLED" in os.environ:
+            self.realtime_trade_enabled = os.environ["REALTIME_TRADE_ENABLED"].lower() in ("true", "1", "yes")
+        if "KIWOOM_ACCOUNT" in os.environ:
+            self.kiwoom_account = os.environ["KIWOOM_ACCOUNT"]
+        if "REALTIME_STATE_DB" in os.environ:
+            self.realtime_state_db = os.environ["REALTIME_STATE_DB"]
 
         self._resolve_db_paths()
         self._parsed_authorized_user_ids = self._parse_authorized_ids()
