@@ -1,7 +1,0 @@
-=== Strategy 10: Event-Driven Disclosure Catalyst Predictions ===
-Date: 2026-07-31 14:27 KST
-Total symbols evaluated: 1
-
-Rank Symbol    Name              Market    Event Score   
-------------------------------------------------------------
-1    207940    Samsung BioLogic  KONEX             46.3%

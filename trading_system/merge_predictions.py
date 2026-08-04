@@ -5,7 +5,7 @@ Each strategy writes files like: surge_predictions_KOSPI.txt
 This script merges them into: surge_predictions.txt
 """
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -393,6 +393,44 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
         out.writelines(data_lines)
 
 
+def merge_coverage_report(result_dir: Path, target_dirs: dict) -> None:
+    """Merge per-market strategy data coverage reports into the unified report.
+
+    The pipeline only writes the market-suffixed coverage report (e.g.
+    strategy_data_coverage_report_KOSPI.txt) per market, so the main file must
+    be reconstructed from those; otherwise a stale committed file could leak
+    into the release.
+    """
+    merged_path = result_dir / "strategy_data_coverage_report.txt"
+    print(f"Merging strategy_data_coverage_report.txt -> {merged_path}")
+
+    sections: list[str] = []
+    for market, path in target_dirs.items():
+        file_path = path / f"strategy_data_coverage_report_{market}.txt"
+        content = get_file_content(file_path)
+        if not content:
+            continue
+        lines = [
+            ln
+            for ln in content.splitlines()
+            if ln.strip() and not ln.startswith("===")
+        ]
+        if not lines:
+            continue
+        sections.append(f"[{market}]\n" + "\n".join(lines))
+
+    if not sections:
+        if merged_path.exists():
+            print("  No per-market coverage reports found; leaving existing file untouched.")
+            return
+        sections.append("데이터 없음\n")
+
+    with open(merged_path, "w", encoding="utf-8") as out:
+        out.write("=== 18-Strategy Data Coverage & Missingness Report ===\n")
+        out.write(f"Date: {datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')}\n\n")
+        out.write("\n\n".join(sections) + "\n")
+
+
 def main():
     base_dir = Path(__file__).resolve().parent
     result_dir = base_dir / "result"
@@ -426,6 +464,7 @@ def main():
     merge_vcp_ml_predictions(result_dir, target_dirs)
     merge_vcp_patterns(result_dir, target_dirs)
     merge_lead_lag_predictions(result_dir, target_dirs)
+    merge_coverage_report(result_dir, target_dirs)
 
     # Merge remaining 17 strategy individual outputs
     merge_generic_strategy_files(result_dir, target_dirs, "lstm_predictions.txt", "Strict Causal LSTM Time-Series Deep Learning Predictions")

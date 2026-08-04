@@ -1,7 +1,0 @@
-=== Sector Rotation Momentum & Macro Sensitivity Report ===
-Date: 2026-08-03 21:03
-Total symbols evaluated: 1
-
-Rank Symbol    Name                Market    Sector                   Sector Score   
--------------------------------------------------------------------------------------
-1    005930    Samsung Electronic  KOSPI     General                           62.5%

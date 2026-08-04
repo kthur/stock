@@ -1,9 +1,0 @@
-=== Lead-Lag Surge Predictions ===
-Date: 2026-08-03 21:03
-Based on today's top 7 leader stock movements
-Metric: Lead-Lag Pearson Correlation Index [0.0 ~ 1.0]
-        (Higher = stronger historical co-movement with market leaders)
-
---- SP500 Top 100 ---
-  1. [SP500] MSFT (Microsoft Corp.): 0.00%
-

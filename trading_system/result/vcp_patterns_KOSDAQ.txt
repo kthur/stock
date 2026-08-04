@@ -1,9 +1,0 @@
-=== VCP (Volatility Contraction Pattern) Results ===
-Date: 2026-08-03 21:03
-Total symbols evaluated: 4
-
---- KOSDAQ Top 1 ---
-  1. [KOSDAQ] 068270 (Celltrion)
-       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
-       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
-

@@ -1,9 +1,0 @@
-=== VCP (Volatility Contraction Pattern) Results ===
-Date: 2026-07-31 14:27
-Total symbols evaluated: 5
-
---- KONEX Top 1 ---
-  1. [KONEX] 207940 (Samsung BioLogics)
-       Score: 20/100 | Current range: 3.4% | Contraction: 3.4% > 3.3% > 3.5% > 3.4%
-       Above MA50: ✗ | Above MA200: ✗ | Near high: ✗ | Volume declining: ✗
-

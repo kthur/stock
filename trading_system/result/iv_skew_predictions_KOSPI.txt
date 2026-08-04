@@ -1,7 +1,0 @@
-=== Strategy 12: Options Put/Call IV Skew Predictions ===
-Date: 2026-08-03 21:03 KST
-Total symbols evaluated: 1
-
-Rank Symbol    Name              Market    IV Skew Score 
-------------------------------------------------------------
-1    005930    Samsung Electron  KOSPI             34.6%

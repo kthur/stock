@@ -1,8 +1,0 @@
-=== Sector Rotation Momentum & Macro Sensitivity Report ===
-Date: 2026-08-03 21:03
-Total symbols evaluated: 2
-
-Rank Symbol    Name                Market    Sector                   Sector Score   
--------------------------------------------------------------------------------------
-1    AAPL      Apple Inc.          SP500     General                           62.5%
-2    MSFT      Microsoft Corp.     SP500     General                           62.5%

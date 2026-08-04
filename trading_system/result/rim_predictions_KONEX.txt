@@ -1,7 +1,0 @@
-=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===
-Date: 2026-07-31
-Total symbols evaluated: 1
-
-Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score   
------------------------------------------------------------------------------------------------
-1    207940    Samsung BioLogics   KONEX     103.48      652239.15       630216.0%     100.0%

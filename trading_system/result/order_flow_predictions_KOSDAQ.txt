@@ -1,7 +1,0 @@
-=== Strategy 13: Order Flow Imbalance (MFI) Predictions ===
-Date: 2026-08-03 21:03 KST
-Total symbols evaluated: 1
-
-Rank Symbol    Name              Market    Order Flow Score
---------------------------------------------------------------
-1    068270    Celltrion         KOSDAQ              62.5%

@@ -1,7 +1,0 @@
-=== Strategy 10: Event-Driven Disclosure Catalyst Predictions ===
-Date: 2026-08-03 21:03 KST
-Total symbols evaluated: 1
-
-Rank Symbol    Name              Market    Event Score   
-------------------------------------------------------------
-1    068270    Celltrion         KOSDAQ            46.3%

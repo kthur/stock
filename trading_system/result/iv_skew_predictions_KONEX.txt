@@ -1,7 +1,0 @@
-=== Strategy 12: Options Put/Call IV Skew Predictions ===
-Date: 2026-07-31 14:27 KST
-Total symbols evaluated: 1
-
-Rank Symbol    Name              Market    IV Skew Score 
-------------------------------------------------------------
-1    207940    Samsung BioLogic  KONEX             34.6%
