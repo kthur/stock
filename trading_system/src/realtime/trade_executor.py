@@ -6,11 +6,10 @@ REALTIME_TRADE_ENABLED=true 이면 실제 주문을 접수한다.
 모든 실행은 OMS(OrderManagementSystem)에 기록되어 trade_logs / 오더 이력으로 추적된다.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

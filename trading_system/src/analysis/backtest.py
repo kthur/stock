@@ -1637,7 +1637,7 @@ class BacktestEngine:
                 curr *= (1.0 + p_pct)
                 equity_curve.append(curr)
             equity_endpoints.append(curr)
-            
+
             eq_arr = np.array(equity_curve)
             peak = np.maximum.accumulate(eq_arr)
             dd = (eq_arr - peak) / peak
