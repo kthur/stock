@@ -46,6 +46,7 @@ from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
 from src.persistence.database import StockPriceDB
 from src.analysis.regime_detector import MarketRegimeDetector
+from src.data_layer.data_validator import DataValidator
 from src.utils.rate_limiter import get_global_rate_limiter
 from src.utils.technical_cache import DataFrameCache
 from src.utils.http_session import setup_global_http_headers
@@ -59,27 +60,8 @@ setup_global_http_headers()
 
 
 def detect_shared_series_corruption(vix_val, wti_val, gold_val, us10y_val) -> bool:
-    """P0: Detect shared-series / DB cache contamination on RAW indicator values.
-
-    If several unrelated indicators resolve to (nearly) the same value, the DB
-    holds one ticker's Close for every symbol (e.g. 103.478 everywhere). Must be
-    evaluated on raw values BEFORE plausibility bounds replace out-of-range
-    entries, otherwise the VIX gets defaulted first and the spread widens past
-    the detection threshold.
-    """
-    import math
-    candidates = []
-    for v in (vix_val, wti_val, gold_val,
-              us10y_val * 10.0 if us10y_val is not None and not (isinstance(us10y_val, float) and math.isnan(us10y_val)) and us10y_val < 25 else us10y_val):
-        try:
-            fv = float(v)
-            if fv > 0 and not math.isnan(fv):
-                candidates.append(fv)
-        except (TypeError, ValueError):
-            continue
-    if len(candidates) < 3:
-        return False
-    return (max(candidates) - min(candidates)) < 1.0
+    """P0: Detect shared-series / DB cache contamination on RAW indicator values."""
+    return DataValidator.detect_shared_series_corruption(vix_val, wti_val, gold_val, us10y_val)
 
 
 # P3: Rotating file logger — persists logs across terminal sessions and GHA log expiry
@@ -386,7 +368,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                             if isinstance(ticker_df.columns, pd.MultiIndex):
                                 ticker_df.columns = ticker_df.columns.droplevel(1)
                             # P2: Data Quality Gate — reject bad data before DB write
-                            if _validate_price_data(sym, ticker_df):
+                            if DataValidator.validate_price_data(sym, ticker_df):
                                 price_db.update_prices(sym, ticker_df)
                                 prefetched_count += 1
             except Exception as e:

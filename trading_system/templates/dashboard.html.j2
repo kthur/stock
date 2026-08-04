@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Multi-Factor Ensemble Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 16px;
+    }
+    header {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+      padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    h1 { font-size: 1.4rem; font-weight: 600; color: #f0f6fc; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+      border-radius: 12px; font-size: 0.85rem; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    }
+    .macro-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px;
+    }
+    .macro-item {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center;
+    }
+    .ml { font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
+    .mv { font-size: 0.95rem; font-weight: 600; }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+    .tab-btn {
+      background: none; border: none; color: var(--text-muted); padding: 8px 14px; cursor: pointer;
+      font-size: 0.9rem; font-weight: 500; border-radius: 6px 6px 0 0; white-space: nowrap; transition: all 0.2s;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); background: rgba(88, 166, 255, 0.1); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .table-wrap { overflow-x: auto; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+    th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { background: #21262d; color: #f0f6fc; font-weight: 600; }
+    tr:hover { background: rgba(255,255,255,0.02); }
+    .rank { color: var(--text-muted); font-weight: 600; width: 40px; }
+    .symbol a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .symbol a:hover { text-decoration: underline; }
+    .weights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 12px; }
+    .weight-item { background: #21262d; padding: 6px 10px; border-radius: 4px; display: flex; justify-content: space-between; font-size: 0.8rem; }
+    .wk { color: var(--text-muted); }
+    .wv { font-weight: 600; color: var(--accent); }
+    .market-panel { margin-bottom: 20px; }
+    .market-title { font-size: 1.1rem; margin-bottom: 8px; color: #f0f6fc; display: flex; align-items: center; gap: 6px; }
+    .hz-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .hz-tab { background: #21262d; border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .hz-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .prob-bar { position: relative; height: 16px; background: #21262d; border-radius: 8px; overflow: hidden; width: 100px; }
+    .prob-fill { height: 100%; }
+    .prob-label { position: absolute; right: 6px; top: 0; font-size: 0.7rem; line-height: 16px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>📈 Stock Multi-Factor Ensemble Dashboard</h1>
+      <span style="font-size: 0.8rem; color: var(--text-muted);">Generated: {{ now_kst }} (Report Date: {{ report_date }})</span>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <div class="badge" style="border-color: {{ us_color }}">🇺🇸 US: <span style="color: {{ us_color }}">{{ us_label }}</span></div>
+      <div class="badge" style="border-color: {{ kr_color }}">🇰🇷 KR: <span style="color: {{ kr_color }}">{{ kr_label }}</span></div>
+    </div>
+  </header>
+
+  {{ macro_html | safe }}
+  {{ rationale_html | safe }}
+
+  <div style="margin-bottom: 16px;">
+    <h4 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px;">Applied Strategy Weights</h4>
+    <div class="weights-grid">
+      {{ weights_html | safe }}
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab-btn active" onclick="switchTab('ensemble')">🏆 앙상블 TOP 20</button>
+    <button class="tab-btn" onclick="switchTab('portfolio')">💼 HRP 포트폴리오</button>
+    <button class="tab-btn" onclick="switchTab('surge')">⚡ Surge 확률</button>
+    <button class="tab-btn" onclick="switchTab('vcp')">📉 VCP 패턴</button>
+    <button class="tab-btn" onclick="switchTab('leadlag')">🔗 Lead-Lag</button>
+    <button class="tab-btn" onclick="switchTab('statarb')">⚖️ Stat-Arb</button>
+    <button class="tab-btn" onclick="switchTab('sector')">🔄 Sector</button>
+    <button class="tab-btn" onclick="switchTab('rim')">💎 RIM</button>
+    <button class="tab-btn" onclick="switchTab('event')">📰 Event</button>
+    <button class="tab-btn" onclick="switchTab('mq')">🔬 MQ Factor</button>
+    <button class="tab-btn" onclick="switchTab('iv')">📊 IV Skew</button>
+    <button class="tab-btn" onclick="switchTab('flow')">🌊 Order Flow</button>
+    <button class="tab-btn" onclick="switchTab('reversal')">↩️ Reversal</button>
+    <button class="tab-btn" onclick="switchTab('arm')">📈 ARM</button>
+    <button class="tab-btn" onclick="switchTab('card')">🌐 CARD</button>
+    <button class="tab-btn" onclick="switchTab('latr')">⚡ LATR</button>
+    <button class="tab-btn" onclick="switchTab('ifs')">🏛️ Inst & Foreign</button>
+    <button class="tab-btn" onclick="switchTab('backtest')">📊 백테스트</button>
+    <button class="tab-btn" onclick="switchTab('coverage')">📋 커버리지</button>
+  </nav>
+
+  <div id="ensemble" class="tab-content active">{{ ensemble_panels | safe }}</div>
+  <div id="portfolio" class="tab-content">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th>
+            <th>예상수익</th><th>변동성</th><th>비중</th><th>금액</th>
+          </tr>
+        </thead>
+        <tbody>{{ portfolio_rows_html | safe }}</tbody>
+      </table>
+    </div>
+  </div>
+  <div id="surge" class="tab-content">
+    <div class="hz-tabs">{{ surge_tabs_nav | safe }}</div>
+    <div>{{ surge_tabs_content | safe }}</div>
+  </div>
+  <div id="vcp" class="tab-content">{{ vcp_panels | safe }}</div>
+  <div id="leadlag" class="tab-content">{{ leadlag_panels | safe }}</div>
+  <div id="statarb" class="tab-content">{{ statarb_html | safe }}</div>
+  <div id="sector" class="tab-content">{{ sector_html | safe }}</div>
+  <div id="rim" class="tab-content">{{ rim_html | safe }}</div>
+  <div id="event" class="tab-content">{{ event_html | safe }}</div>
+  <div id="mq" class="tab-content">{{ mq_html | safe }}</div>
+  <div id="iv" class="tab-content">{{ iv_html | safe }}</div>
+  <div id="flow" class="tab-content">{{ flow_html | safe }}</div>
+  <div id="reversal" class="tab-content">{{ reversal_html | safe }}</div>
+  <div id="arm" class="tab-content">{{ arm_html | safe }}</div>
+  <div id="card" class="tab-content">{{ card_html | safe }}</div>
+  <div id="latr" class="tab-content">{{ latr_html | safe }}</div>
+  <div id="ifs" class="tab-content">{{ ifs_html | safe }}</div>
+  <div id="backtest" class="tab-content">
+    <div style="margin-bottom: 10px; font-size: 0.85rem;">{{ backtest_note_html | safe }}</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>전략</th><th>Sharpe</th><th>MDD</th><th>승률</th><th>CAGR</th>
+          </tr>
+        </thead>
+        <tbody>{{ backtest_rows_html | safe }}</tbody>
+      </table>
+    </div>
+  </div>
+  <div id="coverage" class="tab-content">{{ coverage_html | safe }}</div>
+
+  <script>
+    function switchTab(id) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(id).classList.add('active');
+    }
+    function switchHz(btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.hz-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const hz = btn.getAttribute('data-hz');
+      const container = parent.nextElementSibling;
+      container.querySelectorAll('.hz-panel').forEach(p => {
+        p.style.display = p.getAttribute('data-hz') === hz ? 'block' : 'none';
+      });
+    }
+  </script>
+</body>
+</html>

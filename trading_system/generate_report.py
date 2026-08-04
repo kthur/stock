@@ -20,6 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from src.data_layer.data_validator import DataValidator, clean_macro_value
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
@@ -217,35 +219,8 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
         if m:
             data.max_allocation = m.group(1).strip()
-        _MACRO_BOUNDS = {
-            "vix": (8.0, 55.0),
-            "us10y": (0.5, 15.0),
-            "kr10y": (0.5, 15.0),
-            "usdkrw": (950.0, 2200.0),
-            "wti": (25.0, 180.0),
-            "gold": (100.0, 800.0),
-            "sp500": (0.0, 100.0),
-        }
-
         def _clean_macro(val_str: str, fallback_str: str, kind: str) -> str:
-            if not val_str:
-                return fallback_str
-            lowered = val_str.lower().strip()
-            if "nan" in lowered or "none" in lowered or "n/a" in lowered:
-                return fallback_str
-            # Defense-in-depth: numeric sanity bounds for each indicator so a
-            # contaminated shared-series value (e.g. 103.478 everywhere) can never
-            # reach the dashboard even if the pipeline-side gate was bypassed.
-            _m_num = re.search(r"[-+]?\d+(?:\.\d+)?", lowered)
-            if _m_num:
-                try:
-                    _num = float(_m_num.group(0))
-                    _lo, _hi = _MACRO_BOUNDS.get(kind, (0.0, 1e9))
-                    if not (_lo <= _num <= _hi):
-                        return fallback_str
-                except ValueError:
-                    return fallback_str
-            return val_str.strip()
+            return DataValidator.clean_macro_value(val_str, fallback_str, kind)
 
         m = re.match(r"S&P 500 \(20d Rolling Mean Return\)\s*:\s*(.+)", line)
         if m:
