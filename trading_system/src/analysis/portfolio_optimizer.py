@@ -213,6 +213,20 @@ def calculate_black_litterman_weights(
     return calculate_risk_parity_weights(cov_matrix)
 
 
+def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: float = 0.15) -> np.ndarray:
+    """Ledoit-Wolf style covariance shrinkage towards diagonal variance target.
+    Stabilizes covariance matrix and mitigates sample noise in portfolio optimization.
+    """
+    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray) or cov_matrix.size == 0:
+        return cov_matrix
+    n = cov_matrix.shape[0]
+    if n <= 1:
+        return cov_matrix
+    diag_target = np.diag(np.diag(cov_matrix))
+    shrunk_cov = (1.0 - shrink_factor) * cov_matrix + shrink_factor * diag_target
+    return shrunk_cov
+
+
 def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
     """
     Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
@@ -233,6 +247,9 @@ def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
     try:
         from scipy.cluster.hierarchy import linkage
         from scipy.spatial.distance import squareform
+
+        # Apply Ledoit-Wolf covariance shrinkage
+        cov_matrix = shrink_covariance_matrix(cov_matrix, shrink_factor=0.15)
 
         # Ensure covariance matrix is finite and non-NaN
         cov_matrix = np.nan_to_num(cov_matrix, nan=1e-8, posinf=1e-2, neginf=-1e-2)

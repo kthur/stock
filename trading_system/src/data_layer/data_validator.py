@@ -23,7 +23,7 @@ MACRO_BOUNDS: Dict[str, Tuple[float, float]] = {
     "kr10y": (0.5, 15.0),
     "usdkrw": (950.0, 2200.0),
     "wti": (25.0, 180.0),
-    "gold": (100.0, 800.0),
+    "gold": (100.0, 5000.0),
     "sp500": (0.0, 100.0),
 }
 
@@ -75,12 +75,22 @@ def clean_macro_value(val_str: str, fallback_str: str, kind: str) -> str:
     if m_num:
         try:
             num = float(m_num.group(0))
+            if kind == "usdkrw":
+                if 0.0001 <= num <= 0.005:
+                    num = 1.0 / num  # Auto-invert KRW/USD to USD/KRW
+                elif abs(num - 1.0) < 1e-3:
+                    logger.warning(
+                        "[DataValidator] USDKRW rate 1.0 is an invalid unit rate. Applying fallback."
+                    )
+                    return fallback_str
             lo, hi = MACRO_BOUNDS.get(kind, (0.0, 1e9))
             if not (lo <= num <= hi):
                 logger.warning(
                     f"[DataValidator] Macro indicator '{kind}' value {num} out of bounds [{lo}, {hi}]. Fallback applied."
                 )
                 return fallback_str
+            if kind == "usdkrw" and 0.0001 <= float(m_num.group(0)) <= 0.005:
+                return f"{num:.1f}"
         except ValueError:
             return fallback_str
     return val_str.strip()
