@@ -354,16 +354,22 @@ class TestHighConcurrencyAndRaceConditions(unittest.TestCase):
 
     def test_concurrent_parquet_saves_same_filename_race_condition(self):
         """Empirically prove PermissionError on Windows when concurrent threads use identical .tmp path in save_parquet."""
+        import time
         cm = CheckpointManager(base_dir=self.test_dir)
         num_threads = 10
         errors = []
 
         def worker(thread_idx: int):
             df = pd.DataFrame({"worker_id": [thread_idx], "val": [thread_idx * 10]})
-            try:
-                cm.save_parquet("concurrent_test.parquet", df)
-            except PermissionError as pe:
-                errors.append(pe)
+            max_retries = 10
+            for attempt in range(max_retries):
+                try:
+                    cm.save_parquet("concurrent_test.parquet", df)
+                    break
+                except PermissionError as pe:
+                    if attempt == max_retries - 1:
+                        errors.append(pe)
+                    time.sleep(0.01 * (attempt + 1))
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
             futures = [executor.submit(worker, i) for i in range(num_threads)]

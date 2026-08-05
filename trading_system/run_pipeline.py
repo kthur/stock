@@ -3178,8 +3178,12 @@ Examples:
 
         # Check if output files were still successfully written despite the error
         result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
-        essential_file = os.path.join(result_dir, "pipeline_result.txt")
-        has_results = os.path.exists(essential_file) and os.path.getsize(essential_file) > 0
+        pipe_res_file = os.path.join(result_dir, "pipeline_result.txt")
+        ens_res_file = os.path.join(result_dir, "ensemble_predictions.txt")
+        has_results = (
+            os.path.exists(pipe_res_file) and os.path.getsize(pipe_res_file) > 0 and
+            os.path.exists(ens_res_file) and os.path.getsize(ens_res_file) > 0
+        )
 
         _buttons = [[{"text": "📋 에러 로그 보기", "url": _gha_url}]] if _gha_url else None
 

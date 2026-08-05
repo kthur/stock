@@ -51,17 +51,19 @@ def sample_17_strategy_df() -> pd.DataFrame:
     data['iv_skew_score'] = np.clip(np.random.rand(n_stocks), 0.0, 1.0)
     data['order_flow_score'] = np.clip(np.random.rand(n_stocks), 0.0, 1.0)
     data['latr_score'] = np.clip(np.random.rand(n_stocks), 0.0, 1.0)
+    data['inst_foreign_sector_score'] = np.clip(np.random.rand(n_stocks), 0.0, 1.0)
 
     return pd.DataFrame(data)
 
 
 def test_spearman_rank_correlation(sample_17_strategy_df):
-    """Verifies StrategyCorrelationMonitor produces valid symmetric 17x17 Spearman matrix."""
+    """Verifies StrategyCorrelationMonitor produces valid symmetric NxN Spearman matrix."""
     monitor = StrategyCorrelationMonitor(alpha_corr=0.20)
     corr_matrix = monitor.update_correlation(sample_17_strategy_df)
+    n_strats = len(ALL_17_STRATEGIES)
 
     assert isinstance(corr_matrix, pd.DataFrame)
-    assert corr_matrix.shape == (17, 17)
+    assert corr_matrix.shape == (n_strats, n_strats)
     assert set(corr_matrix.columns) == set(ALL_17_STRATEGIES)
     assert set(corr_matrix.index) == set(ALL_17_STRATEGIES)
 
@@ -82,24 +84,25 @@ def test_spearman_rank_correlation(sample_17_strategy_df):
 
     # Test rolling update
     corr_matrix_2 = monitor.update_correlation(sample_17_strategy_df)
-    assert corr_matrix_2.shape == (17, 17)
+    assert corr_matrix_2.shape == (n_strats, n_strats)
 
 
 def test_vif_and_effective_strategy_count():
     """Verifies VIF calculation and Effective Strategy Count (N_eff)."""
     monitor = StrategyCorrelationMonitor()
+    n_strats = len(ALL_17_STRATEGIES)
 
-    # Baseline 1: Identity correlation matrix (17 orthogonal strategies)
-    id_matrix = pd.DataFrame(np.eye(17), index=ALL_17_STRATEGIES, columns=ALL_17_STRATEGIES)
+    # Baseline 1: Identity correlation matrix (orthogonal strategies)
+    id_matrix = pd.DataFrame(np.eye(n_strats), index=ALL_17_STRATEGIES, columns=ALL_17_STRATEGIES)
     vifs_id = monitor.compute_vif(id_matrix)
     for s in ALL_17_STRATEGIES:
         assert abs(vifs_id[s] - 1.0) < 1e-3, f"Expected VIF ~ 1.0 for {s}, got {vifs_id[s]}"
 
     n_eff_id = monitor.compute_effective_strategy_count(corr_matrix=id_matrix)
-    assert abs(n_eff_id - 17.0) < 1e-3, f"Expected N_eff = 17.0, got {n_eff_id}"
+    assert abs(n_eff_id - float(n_strats)) < 1e-3, f"Expected N_eff = {n_strats}, got {n_eff_id}"
 
     # Baseline 2: High correlation matrix (e.g. surge and vcp_ml with rho = 0.90)
-    high_corr_mat = np.eye(17)
+    high_corr_mat = np.eye(n_strats)
     idx_surge = ALL_17_STRATEGIES.index('surge')
     idx_vcp = ALL_17_STRATEGIES.index('vcp_ml')
     high_corr_mat[idx_surge, idx_vcp] = 0.90
@@ -111,7 +114,7 @@ def test_vif_and_effective_strategy_count():
     assert vifs_high['vcp_ml'] > 4.0, f"Expected high VIF for vcp_ml, got {vifs_high['vcp_ml']}"
 
     n_eff_high = monitor.compute_effective_strategy_count(corr_matrix=high_corr_df)
-    assert n_eff_high < 17.0, f"Expected N_eff < 17.0 under collinearity, got {n_eff_high}"
+    assert n_eff_high < float(n_strats), f"Expected N_eff < {n_strats} under collinearity, got {n_eff_high}"
 
     # Top collinear pairs extraction
     pairs = monitor.get_top_collinear_pairs(threshold=0.50, corr_matrix=high_corr_df)
@@ -125,10 +128,11 @@ def test_regime_factor_noise_suppression_sideways(sample_17_strategy_df):
     """Verifies factor noise suppression dampening in SIDEWAYS_LOW_VOL regime."""
     monitor = StrategyCorrelationMonitor()
     corr_df = monitor.update_correlation(sample_17_strategy_df)
+    n_strats = len(ALL_17_STRATEGIES)
 
     supp_engine = RegimeFactorSuppressionEngine(default_theta=0.55, default_lambda=1.5)
 
-    base_weights = {s: 1.0 / 17.0 for s in ALL_17_STRATEGIES}
+    base_weights = {s: 1.0 / float(n_strats) for s in ALL_17_STRATEGIES}
 
     suppressed_weights = supp_engine.suppress_weights(
         base_weights=base_weights,
@@ -138,7 +142,7 @@ def test_regime_factor_noise_suppression_sideways(sample_17_strategy_df):
         lambda_penalty=1.5
     )
 
-    assert len(suppressed_weights) == 17
+    assert len(suppressed_weights) == n_strats
     assert abs(sum(suppressed_weights.values()) - 1.0) < 1e-4
 
     # Surge and VCP ML belong to MOMENTUM cluster, which is high-risk in SIDEWAYS
@@ -164,9 +168,10 @@ def test_regime_factor_noise_suppression_sideways(sample_17_strategy_df):
 def test_regime_factor_noise_suppression_bull(sample_17_strategy_df):
     """Verifies factor noise suppression dampening in BULL_LOW_VOL regime."""
     monitor = StrategyCorrelationMonitor()
+    n_strats = len(ALL_17_STRATEGIES)
 
     # Create synthetic correlation matrix with high REVERSAL cluster correlation
-    high_rev_mat = np.eye(17)
+    high_rev_mat = np.eye(n_strats)
     idx_sa = ALL_17_STRATEGIES.index('stat_arb')
     idx_rev = ALL_17_STRATEGIES.index('short_term_reversal')
     high_rev_mat[idx_sa, idx_rev] = 0.85
@@ -174,7 +179,7 @@ def test_regime_factor_noise_suppression_bull(sample_17_strategy_df):
     corr_df = pd.DataFrame(high_rev_mat, index=ALL_17_STRATEGIES, columns=ALL_17_STRATEGIES)
 
     supp_engine = RegimeFactorSuppressionEngine(default_theta=0.60, default_lambda=1.2)
-    base_weights = {s: 1.0 / 17.0 for s in ALL_17_STRATEGIES}
+    base_weights = {s: 1.0 / float(n_strats) for s in ALL_17_STRATEGIES}
 
     suppressed_weights = supp_engine.suppress_weights(
         base_weights=base_weights,
@@ -193,6 +198,7 @@ def test_regime_factor_noise_suppression_bull(sample_17_strategy_df):
 def test_ensemble_scorer_correlation_integration(sample_17_strategy_df):
     """Verifies EnsembleScoringEngine end-to-end integration with correlation monitor & suppression."""
     engine = EnsembleScoringEngine()
+    n_strats = len(ALL_17_STRATEGIES)
 
     df = sample_17_strategy_df.copy()
     # Add required meta columns for combine_predictions
@@ -219,6 +225,7 @@ def test_ensemble_scorer_correlation_integration(sample_17_strategy_df):
         arm_df=df,
         card_df=df,
         latr_df=df,
+        inst_foreign_sector_df=df,
         regime='SIDEWAYS_LOW_VOL'
     )
 
@@ -237,8 +244,8 @@ def test_ensemble_scorer_correlation_integration(sample_17_strategy_df):
     assert 'suppressed_weights' in report
     assert 'penalties' in report
 
-    assert report['n_eff'] >= 1.0 and report['n_eff'] <= 17.0
-    assert len(report['suppressed_weights']) == 17
+    assert report['n_eff'] >= 1.0 and report['n_eff'] <= float(n_strats)
+    assert len(report['suppressed_weights']) == n_strats
 
     # Reasoning summary check
     summary = engine.get_regime_reasoning_summary('SIDEWAYS_LOW_VOL')

@@ -171,7 +171,16 @@ class CheckpointManager:
         path = self.checkpoint_dir / filename
         tmp_path = path.with_name(f"{path.stem}_{uuid.uuid4().hex[:8]}.tmp")
         df.to_parquet(tmp_path, compression="snappy", index=True)
-        os.replace(tmp_path, path)
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                os.replace(tmp_path, path)
+                break
+            except PermissionError:
+                if attempt == max_retries - 1:
+                    raise
+                import time
+                time.sleep(0.02 * (attempt + 1))
         return filename
 
     def load_parquet(self, filename: str) -> pd.DataFrame:

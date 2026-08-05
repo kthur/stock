@@ -281,6 +281,10 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "iv_skew": [f"iv_skew_predictions_{market}.txt", "iv_skew_predictions.txt"],
         "order_flow": [f"order_flow_predictions_{market}.txt", "order_flow_predictions.txt"],
         "short_term_reversal": [f"short_term_reversal_predictions_{market}.txt", "short_term_reversal_predictions.txt"],
+        "arm_factor": [f"arm_factor_predictions_{market}.txt", "arm_factor_predictions.txt"],
+        "card_factor": [f"card_factor_predictions_{market}.txt", "card_factor_predictions.txt"],
+        "latr_factor": [f"latr_factor_predictions_{market}.txt", "latr_factor_predictions.txt"],
+        "inst_foreign_sector": [f"inst_foreign_sector_predictions_{market}.txt", "inst_foreign_sector_predictions.txt"],
     }
 
     check_funcs = {
@@ -298,6 +302,10 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "iv_skew": lambda c, m: check_generic_strategy(c, m, "iv_skew"),
         "order_flow": lambda c, m: check_generic_strategy(c, m, "order_flow"),
         "short_term_reversal": lambda c, m: check_generic_strategy(c, m, "short_term_reversal"),
+        "arm_factor": lambda c, m: check_generic_strategy(c, m, "arm_factor"),
+        "card_factor": lambda c, m: check_generic_strategy(c, m, "card_factor"),
+        "latr_factor": lambda c, m: check_generic_strategy(c, m, "latr_factor"),
+        "inst_foreign_sector": lambda c, m: check_generic_strategy(c, m, "inst_foreign_sector"),
     }
 
     for strat, filenames in files_map.items():
@@ -369,11 +377,13 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
     panels_to_check = [
         "ensemble", "surge", "vcp_ml", "regression", "vcp", "lead_lag",
         "stat_arb", "sector", "rim", "event_driven", "mq_factor",
-        "iv_skew", "order_flow", "short_term_reversal"
+        "iv_skew", "order_flow", "short_term_reversal", "arm_factor",
+        "card_factor", "latr_factor", "inst_foreign_sector"
     ]
 
     for p_id in panels_to_check:
-        panel_regex = rf'id=["\'](?:panel-{p_id}|{p_id}-panels)["\'][\s\S]*?(?=<div class=["\']tab-panel["\']|\Z)'
+        clean_pid = p_id.replace("_", "")
+        panel_regex = rf'id=["\'](?:panel-(?:{p_id}|{clean_pid})|(?:{p_id}|{clean_pid})-panels)["\'][\s\S]*?(?=<div class=["\']tab-panel["\']|\Z)'
         p_match = re.search(panel_regex, content, re.IGNORECASE)
         if p_match:
             p_content = p_match.group(0)
@@ -393,7 +403,7 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
 
     if all_panels_ok and has_min_mkts:
         res.valid = True
-        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all 14 strategy panels populated with data"
+        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all 18 strategy panels populated with data"
     else:
         failed_panels = [p for p, valid in res.strategy_panels_valid.items() if not valid]
         res.valid = False
@@ -425,19 +435,22 @@ def run_verification(result_dir: Path, gh_pages_dir: Path) -> PipelineVerificati
 
 
 def print_report(report: PipelineVerificationReport) -> None:
-    print("\n" + "=" * 110)
-    print(" 🔍 Pipeline GHA Artifact Verification Report (14 Strategies & Dashboard)")
-    print("=" * 110)
+    print("\n" + "=" * 135)
+    print(" 🔍 Pipeline GHA Artifact Verification Report (18 Strategies & Dashboard)")
+    print("=" * 135)
     print(f"Result Directory   : {report.result_dir}")
     print(f"GitHub Pages Dir   : {report.gh_pages_dir}")
     print(f"Overall Status     : {'✅ PASSED' if report.overall_passed else '❌ FAILED'}")
-    print("-" * 110)
+    print("-" * 135)
 
     print("\n📊 Strategy Verification by Market:")
-    headers = ["Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "LSTM", "S-Arb", "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "Status"]
+    headers = [
+        "Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "LSTM", "S-Arb", 
+        "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "ARM", "CARD", "LATR", "InstFor", "Status"
+    ]
     header_str = f"{headers[0]:<8} | " + " | ".join(f"{h:<5}" for h in headers[1:-1]) + f" | {headers[-1]}"
     print(header_str)
-    print("-" * 110)
+    print("-" * 135)
 
     for market in MARKETS:
         m = report.markets.get(market)
@@ -459,7 +472,7 @@ def print_report(report: PipelineVerificationReport) -> None:
     print(f"  Total Recommendations: {report.ensemble.total_recommendations}")
     print(f"  Message        : {report.ensemble.message}")
 
-    print("\n🌐 GitHub Pages HTML Dashboard & 14 Strategy Panels:")
+    print("\n🌐 GitHub Pages HTML Dashboard & 18 Strategy Panels:")
     print(f"  File Found     : {'Yes' if report.gh_pages.file_found else 'No'}")
     print(f"  Valid Status   : {'✅ Valid' if report.gh_pages.valid else '❌ Invalid'}")
     print(f"  Markets in HTML: {', '.join(report.gh_pages.markets_in_html)}")
@@ -470,7 +483,7 @@ def print_report(report: PipelineVerificationReport) -> None:
         print(f"    - {p_id:<20}: {status_icon} ({cnt} rows)")
     print(f"  Summary Message: {report.gh_pages.message}")
 
-    print("\n" + "=" * 110 + "\n")
+    print("\n" + "=" * 135 + "\n")
 
     print("\n" + "=" * 110 + "\n")
 

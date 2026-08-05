@@ -16,7 +16,8 @@ def transform_sharpe(sharpe_series: pd.Series) -> pd.Series:
     so the clip window is expanded vs. raw returns.
     We map via: sign(x) * log1p(|x|) to preserve sign and compress extremes.
     """
-    clipped = np.clip(sharpe_series, -10.0, 10.0)
+    s_clean = pd.Series(sharpe_series).fillna(0.0)
+    clipped = np.clip(s_clean, -10.0, 10.0)
     return np.sign(clipped) * np.log1p(np.abs(clipped))
 
 
