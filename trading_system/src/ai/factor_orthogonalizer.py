@@ -19,9 +19,10 @@ class FactorOrthogonalizerEngine:
     below 0.3 while preserving relative variance explaining power and [0.0, 1.0] score bounds.
     """
 
-    def __init__(self, default_method: str = 'pca_symmetric', ridge_epsilon: float = 1e-6):
+    def __init__(self, default_method: str = 'pca_symmetric', ridge_epsilon: float = 1e-6, shrinkage_alpha: float = 0.01):
         self.default_method = default_method
         self.ridge_epsilon = ridge_epsilon
+        self.shrinkage_alpha = shrinkage_alpha
 
     def orthogonalize(
         self,
@@ -117,8 +118,11 @@ class FactorOrthogonalizerEngine:
         # Covariance / Correlation matrix C (K, K)
         C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
 
+        # Ledoit-Wolf shrinkage matrix regularizer (\hat{C} = (1-\alpha)C + \alpha I, \alpha = 0.01)
+        C_shrunk = (1.0 - self.shrinkage_alpha) * C + self.shrinkage_alpha * np.eye(K)
+
         # Eigen-decomposition of symmetric correlation matrix
-        eigenvalues, eigenvectors = np.linalg.eigh(C)
+        eigenvalues, eigenvectors = np.linalg.eigh(C_shrunk)
 
         # Ridge regularize small/negative eigenvalues for numerical stability
         eigenvalues = np.maximum(eigenvalues, self.ridge_epsilon)

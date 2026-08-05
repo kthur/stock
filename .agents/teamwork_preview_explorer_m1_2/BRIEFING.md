@@ -1,44 +1,42 @@
-# BRIEFING — 2026-07-30T23:21:01+09:00
+# BRIEFING — 2026-08-05T10:45:36+09:00
 
 ## Mission
-Investigate SQLite write-lock bottlenecks in data persistence (`indicator_storage.py`, `database.py`, `config.py`) and design a hybrid Parquet/TimescaleDB or SQLite+Parquet WAL storage layer solution for high-concurrency multi-asset streaming writes.
+Software Architecture & GHA Workflow Audit of the Stock Trading System (Pipeline Automation, SQLite Concurrency, Artifact Aggregation & Deployment Resilience).
 
 ## 🔒 My Identity
-- Archetype: Explorer M1-2
-- Roles: Read-only investigator & storage architecture designer
+- Archetype: explorer
+- Roles: Software Architecture & GHA Workflow Specialist (Explorer 2)
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2
-- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Milestone: Milestone 1 (R1) - Architecture Modularization & Data Engine Upgrade
+- Original parent: 3838e4e4-ce0a-4c83-86b3-96ac6bb1ea30
+- Milestone: m1_2
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code changes in project source code.
-- Write analysis and handoff files only within working directory (`d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2`).
+- Read-only investigation — do NOT implement code changes in production codebase
+- Follow 5-Component Handoff Report format in handoff.md
+- Write findings to architecture_pipeline_audit.md and handoff.md in working directory
+- Send completion message to parent via send_message tool
 
 ## Current Parent
-- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Updated: 2026-07-30T23:21:01+09:00
+- Conversation ID: 3838e4e4-ce0a-4c83-86b3-96ac6bb1ea30
+- Updated: 2026-08-05T10:45:36+09:00
 
 ## Investigation State
-- **Explored paths**:
-  - `trading_system/src/data_layer/indicator_storage.py` (`MarketIndicatorStorage`)
-  - `trading_system/src/persistence/database.py` (`StockPriceDB`, `TradeLogger`, `AssetHistoryDB`, `AIPredictionDB`)
-  - `trading_system/src/config.py` (`TradingConfig`)
-  - `trading_system/run_pipeline.py` (Concurrency & execution flow)
-  - `trading_system/tests/test_database.py` (Concurrency & persistence unit tests)
+- **Explored paths**: `trading_system/run_pipeline.py`, `.github/workflows/pipeline.yml`, `.github/workflows/training.yml`, `.github/workflows/weekly_hpo.yml`, `.github/workflows/pytest.yml`, `trading_system/src/persistence/database.py`, `trading_system/src/data_layer/indicator_storage.py`, `trading_system/merge_predictions.py`, `trading_system/generate_report.py`, `trading_system/scripts/verify_gha_artifacts.py`, `trading_system/src/analysis/coverage_analyzer.py`
 - **Key findings**:
-  - SQLite write-lock bottleneck stems from SQLite single-writer file architecture combined with multithreaded `ThreadPoolExecutor` workers attempting simultaneous writes across `stock_prices.db` and `market_indicators.db`.
-  - Python `threading.Lock()` serializes thread writes within a single process, bottlenecking parallel downloads into single-threaded write queues, while multi-process access (pipeline + background fundamentals + web dashboard) breaches process isolation and triggers `OperationalError: database is locked`.
-  - Storage engine upgrade needs a lock-free staging write path (Parquet WAL) and background batch compaction engine.
-- **Unexplored areas**: None.
+  1. Matrix parallelization across 5 target markets reduces daily GHA run times to ~20-30m and avoids runner OOM errors.
+  2. Weekend training (`training.yml`) cleanly saves model artifacts to GHA cache, restored by daily inference (`pipeline.yml`).
+  3. `run_pipeline.py` partial success logic (exit code 0 when `pipeline_result.txt` exists) is resilient but risks masking partial strategy output failures.
+  4. SQLite WAL mode + `busy_timeout=5000` + `threading.Lock()` write mutex ensures thread-safe database operations under `ThreadPoolExecutor`.
+  5. `merge_predictions.py` pre-reads contents into memory cache to eliminate truncation bugs, deduplicates portfolio recommendations, and outputs standardized KST timestamps.
+  6. Pytest execution baseline: 592 passed, 9 failed (out of 601 total tests).
+- **Unexplored areas**: None. Comprehensive audit complete across all focus areas.
 
 ## Key Decisions Made
-- Investigated `indicator_storage.py`, `database.py`, `config.py`, and multi-threaded pipeline execution.
-- Designed two detailed solution architectures: Option A (Parquet + TimescaleDB) and Option B (SQLite + Parquet WAL Zero-Dependency Hybrid Engine).
-- Selected Option B (SQLite + Parquet WAL) as optimal for embedded Python environment while providing upgrade path to Option A (TimescaleDB).
+- Completed deep software architecture & GHA workflow audit.
+- Published `architecture_pipeline_audit.md` and 5-component `handoff.md`.
 
 ## Artifact Index
-- ORIGINAL_REQUEST.md — Task requests history
-- BRIEFING.md — Memory index
-- progress.md — Heartbeat progress log
-- analysis.md — Full SQLite write-lock analysis & hybrid storage design report
-- handoff.md — 5-component handoff report
+- DISPATCH.md — Recorded dispatch prompt
+- BRIEFING.md — Working context index
+- architecture_pipeline_audit.md — Detailed software architecture & GHA pipeline audit report
+- handoff.md — 5-Component handoff report for parent orchestrator

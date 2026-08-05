@@ -1,53 +1,57 @@
-# BRIEFING — 2026-07-31T09:47:00Z
+# BRIEFING — 2026-08-05T22:05:00+09:00
 
 ## Mission
-Independently review interface compatibility and risk control integration for Milestone 1 (R1: Intraday Microstructure & Dynamic Stop-Loss Engine).
+Review and stress-test code changes made by Worker M1 for Milestone 1: Financial Engineering & Model Optimization.
 
 ## 🔒 My Identity
-- Archetype: reviewer / critic
+- Archetype: teamwork_preview_reviewer
 - Roles: reviewer, critic
 - Working directory: d:\Finance\code\stock\.agents\reviewer_m1_2
-- Original parent: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Milestone: Milestone 1 (R1: Intraday Microstructure & Dynamic Stop-Loss Engine)
-- Instance: 1 of 1
+- Original parent: d6aadc54-a9d7-4418-9e62-2cc487bfb28b
+- Milestone: Milestone 1 - Financial Engineering & Model Optimization
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Perform evidence-based review with adversarial critic mindset
-- Check for integrity violations (hardcoded test outputs, dummy facades, shortcuts, self-certifying work)
+- Evidence-based review and adversarial stress-testing
+- Actively check for integrity violations (hardcoded test results, dummy logic, shortcuts, self-certifying work, bypasses)
+- Verdict MUST be REQUEST_CHANGES if integrity violations or critical bugs are found.
 
 ## Current Parent
-- Conversation ID: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Updated: 2026-07-31T09:47:00Z
+- Conversation ID: d6aadc54-a9d7-4418-9e62-2cc487bfb28b
+- Updated: 2026-08-05T22:05:00+09:00
 
 ## Review Scope
 - **Files to review**:
-  - `trading_system/src/risk/intraday_stop_loss.py`
-  - `trading_system/src/risk/risk_manager.py`
-  - `trading_system/run_pipeline.py`
-  - `trading_system/tests/test_intraday_stop_loss.py`
-- **Verification tasks**:
-  1. Inspect CrisisDetector integration and dynamic threshold scaling during macro crisis. (Verified)
-  2. Verify pipeline Step 10 return suppression logic (`ensemble_expected_return = -0.99`, `ensemble_score = 0.0`). (Verified)
-  3. Execute unit tests using `.venv\Scripts\python.exe -m pytest trading_system/tests/test_intraday_stop_loss.py -v`. (Verified: 8/8 passed)
-  4. Report detailed verdict (PASS/FAIL with rationale) in `handoff.md`. (Completed: PASS)
+  - `trading_system/src/ai/factor_orthogonalizer.py`
+  - `trading_system/src/ai/factor_suppression.py`
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `tests/test_isotonic_sharpe_calibration.py`
+- **Reference context / upstream handoffs**:
+  - `d:\Finance\code\stock\.agents\worker_m1_financial_eng\handoff.md`
+  - `d:\Finance\code\stock\.agents\orchestrator_eval_opt\PROJECT.md`
+  - `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
+- **Review criteria**: correctness, completeness, code quality, integrity, edge cases, risk assessment.
 
 ## Review Checklist
-- **Items reviewed**: IntradayStopLossEngine, RiskManager, run_pipeline.py Step 10, test_intraday_stop_loss.py
-- **Verdict**: PASS / APPROVE
-- **Unverified claims**: None. All core claims verified with evidence.
+- **Items reviewed**: All 4 target code/test files reviewed line-by-line
+- **Verdict**: **APPROVE**
+- **Unverified claims**: None. All claims verified via unit tests and mathematical inspection.
 
 ## Attack Surface
-- **Hypotheses tested**: Dynamic threshold scaling under macro crisis, return suppression in pipeline, unit test suite pass rate.
-- **Vulnerabilities found**: None. Code handles invalid prices, DataFrame/dict data formats, and crisis level scaling cleanly.
-- **Untested angles**: Extreme edge case where `infer_data_dict` is empty (handled by guard `if 'infer_data_dict' in locals() and infer_data_dict:`).
+- **Hypotheses tested**:
+  - Ill-conditioned correlation matrix under panic regime ($\rho \to 1.0$) -> Ledoit-Wolf shrinkage ($\alpha=0.01$) guarantees $\kappa(\hat{C}) \le 1700$.
+  - Single-class target outcomes ($y$ all 0s) in calibration -> `len(np.unique(y[mask])) < 2` guard skips fitting safely.
+  - Lagging EMA dynamic weight updates on regime shift -> `eff_alpha = 1.0` on transition resets EMA instantly.
+- **Vulnerabilities found**: None. No security, integrity, or mathematical flaws found.
+- **Untested angles**: None.
 
 ## Key Decisions Made
-- Confirmed implementation quality and interface compatibility for Milestone 1.
-- Issued verdict: PASS / APPROVE.
+- Issued explicit **APPROVE** verdict.
+- Communicated findings and handoff report to parent orchestrator.
 
 ## Artifact Index
-- `ORIGINAL_REQUEST.md` — Original request
-- `BRIEFING.md` — Agent briefing index
-- `progress.md` — Progress log
-- `handoff.md` — Final 5-component handoff report
+- `d:\Finance\code\stock\.agents\reviewer_m1_2\DISPATCH.md` — Dispatch record
+- `d:\Finance\code\stock\.agents\reviewer_m1_2\BRIEFING.md` — Context index
+- `d:\Finance\code\stock\.agents\reviewer_m1_2\progress.md` — Liveness heartbeat
+- `d:\Finance\code\stock\.agents\reviewer_m1_2\handoff.md` — 5-component Handoff Report

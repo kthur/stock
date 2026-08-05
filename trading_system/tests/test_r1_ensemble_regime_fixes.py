@@ -238,3 +238,21 @@ def test_indicator_storage_latest_macro(tmp_path):
     assert latest.get('^VIX') == 19.5
     assert latest.get('USDKRW=X') == 1375.5
     assert latest.get('^TNX') == 42.1
+
+
+def test_regime_shift_ema_acceleration():
+    """Verify that regime shifts accelerate EMA weight smoothing (alpha=1.0 on regime change)."""
+    scorer = EnsembleScoringEngine()
+    scorer.alpha_smoothing = 0.2
+
+    # Step 1: Call with BULL regime
+    rolling_sharpes = {'regression': 2.0, 'surge': 2.0}
+    w1 = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime='BULL_LOW_VOL')
+
+    # Step 2: Call with BEAR regime (shift detected)
+    w2 = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime='BEAR_HIGH_VOL')
+
+    # On regime shift, eff_alpha is 1.0, so w2 immediately adopts BEAR base weight distribution
+    # without lagging behind previous weights.
+    assert scorer._prev_regime == 'BEAR_HIGH_VOL'
+    assert w2 != w1

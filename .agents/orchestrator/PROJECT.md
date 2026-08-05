@@ -1,58 +1,43 @@
-# Project: 5 Key Institutional-Grade Quantitative Enhancements
+# Project: Stock Trading System Deep Audit & Enhancement
 
 ## Architecture
-- Target project: Integrated stock automated trading & prediction system (3,379 symbols, 18 multi-factor strategies, SQLite DBs).
-- Modules to enhance / create:
-  1. `src/risk/intraday_stop_loss.py`: Intraday order book/price momentum tracking, dynamic stop-loss gating (-4% drop or volume spike panic detection). Integrated with `RiskManager` (`src/risk/risk_manager.py`) and `run_pipeline.py`.
-  2. `src/strategy/quad_factor_optimizer.py`: Quadratic Programming (QP) optimization balancing Sharpe ratio while constraining Market Beta, Size, Volatility, and Momentum factor exposures near zero, with max 25% sector caps. Integrated with portfolio allocation / risk parity.
-  3. `src/ai/cpcv_stress_tester.py`: Combinatorial Purged Cross-Validation (CPCV) to eliminate time-series data leakage/embargo issues + historical stress testing simulating 2008 Financial Crisis, 2020 COVID panic, and 2022 Fed rate hike scenarios.
-  4. `src/execution/slippage_feedback.py`: Closed-loop realized slippage feedback linking execution logs (`trade_logs.db`) to calculate real vs theoretical slippage and dynamically update microstructure cost parameters in `src/ai/ensemble_scorer.py`.
-  5. `src/core/llm_sentiment_engine.py`: Extract sentiment/tone scores from DART/SEC filings using LLM/FinBERT tone analysis, incorporating sentiment metrics into Event-Driven alpha factor scores in `src/core/event_driven.py`.
+- **Core Engine**: 18-Strategy Multi-Factor Model (`src/ai/ensemble_scorer.py`, `src/ai/prediction_model.py`, `src/core/`)
+- **Portfolio Optimization**: Risk Parity, HRP & Black-Litterman (`src/strategy/`, `src/ai/ensemble_scorer.py`)
+- **Microstructure & Costs**: STT (0.18%), bid-ask spreads, Spiess-Kyung market impact model (`src/config.py`, `src/ai/ensemble_scorer.py`)
+- **Pipeline & Storage**: `run_pipeline.py`, SQLite WAL concurrency (`src/persistence/database.py`, `src/data_layer/indicator_storage.py`), GHA workflows (`.github/workflows/`)
+- **Dashboard UI/UX**: `gh-pages/index.html` responsive layout (Mobile 375/414px & Desktop 1920px), sticky column headers, macro indicator badges (VIX, TNX, USDKRW, WTI, Gold)
+- **Artifact Verification**: `verify_gha_artifacts.py` / GHA artifact verifier skill across 14 strategy panels
 
-## Code Layout
-- `src/risk/intraday_stop_loss.py`
-- `src/risk/risk_manager.py` (updated)
-- `src/strategy/quad_factor_optimizer.py`
-- `src/ai/cpcv_stress_tester.py`
-- `src/execution/slippage_feedback.py`
-- `src/ai/ensemble_scorer.py` (updated)
-- `src/core/llm_sentiment_engine.py`
-- `src/core/event_driven.py` (updated)
-- `trading_system/run_pipeline.py` (updated)
-- `tests/test_intraday_stop_loss.py`
-- `tests/test_quad_factor_optimizer.py`
-- `tests/test_cpcv_stress_tester.py`
-- `tests/test_slippage_feedback.py`
-- `tests/test_llm_sentiment_engine.py`
-- `tests/test_integration_pipeline.py`
+## Feature Inventory
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | 18-Strategy Multi-Factor Model Audit | Expected return calibration, signal independence, isotonic calibration, coverage analysis | M1, M2 | R1.1 |
+| 2 | Portfolio Optimization Audit | HRP & Black-Litterman, covariance shrinkage, risk parity stability, sector caps, max position sizing | M1, M2 | R1.2 |
+| 3 | Microstructure Friction Costs Audit | STT 0.18%, bid-ask spread models, Spiess-Kyung market impact for small-caps | M1, M2 | R1.3 |
+| 4 | Pipeline & GHA Workflow Resilience | Automation order, weekend training vs daily split market inference, SQLite WAL concurrency, artifact aggregation | M1, M2 | R2.1 |
+| 5 | Dashboard UI/UX Responsiveness | Mobile (375/414px) and Desktop (1920px) layout, sticky column headers, live macro indicator badges | M1, M2 | R2.2 |
+| 6 | System Improvement Report Generation | Comprehensive `SYSTEM_IMPROVEMENT_REPORT.md` with quantitative equations, diagrams, and concrete actionable code improvements | M2 | R1, R2 |
+| 7 | Pytest Test Suite Verification | Ensure 100% pass rate across core test suite (`.venv\Scripts\python.exe -m pytest tests/ -v`) | M3 | R3.1 |
+| 8 | GHA Artifact Verifier Execution | Run artifact verifier across all 14 strategy panels on `gh-pages/index.html` ensuring non-zero data rendering | M3 | R3.2 |
+| 9 | Forensic Audit & Verification Gate | Independent forensic audit for zero cheating/hardcoding and 100% authentic implementation | M3, M4 | Acceptance |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M0 | Baseline Exploration & Test Infra | Codebase analysis, pytest setup, test baseline | None | DONE |
-| M1 | R1 Intraday Microstructure & Stop-Loss Engine | `src/risk/intraday_stop_loss.py`, `RiskManager`, `run_pipeline.py` integration | M0 | DONE |
-| M2 | R2 Quad-Factor Neutral QP Portfolio Risk Optimizer | `src/strategy/quad_factor_optimizer.py`, Sharpe optimization, factor neutrality, sector caps | M0 | DONE |
-| M3 | R3 CPCV & Historical Stress Testing Engine | `src/ai/cpcv_stress_tester.py`, purging/embargo, historical crisis simulation | M0 | DONE |
-| M4 | R4 Closed-Loop Realized Slippage Execution Feedback | `src/execution/slippage_feedback.py`, `trade_logs.db`, `ensemble_scorer.py` dynamic update | M0 | DONE |
-| M5 | R5 LLM/NLP DART & SEC Filing Sentiment Engine | `src/core/llm_sentiment_engine.py`, FinBERT/LLM, `event_driven.py` integration | M0 | DONE |
-| M6 | Final Integration & E2E Pipeline Verification | Full pytest suite execution, `run_pipeline.py` end-to-end dry run verification | M1, M2, M3, M4, M5 | IN_PROGRESS |
+| M1 | Deep Codebase & System Survey | Map 18 strategies, portfolio optimization, microstructure costs, pipeline/GHA, UI/UX, and test suite | None | DONE |
+| M2 | System Improvement Report Draft | Generate `SYSTEM_IMPROVEMENT_REPORT.md` with equations, architecture diagrams, and improvements | M1 | DONE |
+| M3 | Test Suite & Artifact Verification | Run full pytest suite, execute GHA artifact verifier on gh-pages/index.html, review, challenge, and forensic audit | M2 | DONE |
+| M4 | Final Synthesis & Handover | Validate all gate criteria, synthesize results, update briefings, and report completion | M3 | DONE |
 
-## Interface Contracts
-### Intraday Stop-Loss ↔ RiskManager
-- Function: `IntradayStopLossEngine.evaluate_stop_loss(symbol, intraday_ticks_df, position_entry_price)` -> `StopLossResult(triggered: bool, reason: str, adjusted_position_size: float)`
-- Integration: `RiskManager.check_intraday_risk(...)` incorporates `IntradayStopLossEngine`.
-
-### Quad-Factor Optimizer ↔ Portfolio Allocation
-- Function: `QuadFactorOptimizer.optimize_weights(expected_returns, cov_matrix, factor_matrix, sector_labels)` -> `np.ndarray` (weights satisfying QP constraints: sum=1, w>=0, factor exposures ~= 0, sector sum <= 0.25).
-
-### CPCV & Stress Tester ↔ Model Validation / Backtest
-- Function: `CPCVStressTester.generate_purged_folds(n_splits, n_test_splits, purge_window, embargo_window)` -> generator of train/test indices.
-- Function: `CPCVStressTester.run_historical_stress_test(strategy_returns, scenario='2008_CRISIS'|'2020_COVID'|'2022_FED_HIKE')` -> `StressTestReport`.
-
-### Slippage Feedback ↔ Ensemble Scorer
-- Function: `SlippageFeedbackEngine.calculate_realized_slippage(db_path)` -> `SlippageMetrics(avg_slippage_bps, market_impact_alpha)`
-- Function: `EnsembleScoringEngine.update_microstructure_costs(slippage_metrics)` -> updates transaction cost models dynamically.
-
-### LLM Sentiment Engine ↔ Event Driven Engine
-- Function: `LLMSentimentEngine.analyze_filing_sentiment(filing_text, Market='KOSPI'|'SP500')` -> `SentimentScore(positive, negative, tone_score)`
-- Function: `EventDrivenEngine.calculate_event_score(filing_data, sentiment_score)` -> modified catalyst score.
+## Code Layout
+- `SYSTEM_IMPROVEMENT_REPORT.md` (root directory `d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md`)
+- `.agents/orchestrator/` (metadata, plan, briefing, progress, handoff)
+- `.agents/teamwork_preview_explorer_m1_1/` (Financial Engineering Audit report)
+- `.agents/teamwork_preview_explorer_m1_2/` (Architecture & Pipeline Audit report)
+- `.agents/teamwork_preview_explorer_m1_3/` (Dashboard UI/UX & Verifier Audit report)
+- `.agents/worker_m2_1/` (Worker drafting SYSTEM_IMPROVEMENT_REPORT.md)
+- `.agents/worker_m3_1/` (Worker executing Pytest suite & GHA Verifier)
+- `.agents/worker_m3_remediation/` (Worker executing remediations & code enhancements)
+- `.agents/reviewer_*` (review handoffs)
+- `.agents/challenger_*` (adversarial stress testing handoffs)
+- `.agents/auditor_*` (forensic audit report)

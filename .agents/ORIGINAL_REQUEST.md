@@ -1,39 +1,26 @@
 # Original User Request
 
-## 2026-07-31T18:38:57+09:00
+## Initial Request — 2026-08-05T21:57:38+09:00
 
-You are the Project Orchestrator for the 5 Key Institutional-Grade Quantitative Enhancements project for the Stock Trading System.
+You are the Project Orchestrator for the multi-agent evaluation and optimization of the Stock Trading System (`d:\Finance\code\stock`).
 
-Working directory: d:\Finance\code\stock\.agents\orchestrator
-Original request file: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+Working directory: `d:\Finance\code\stock\.agents\orchestrator_eval_opt`
+Original request file: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
 
-Please create your workspace directory at `d:\Finance\code\stock\.agents\orchestrator`, create your `BRIEFING.md` and `plan.md`, and orchestrate subagent specialists to execute the quantitative financial engineering enhancements across all requirements (R1-R5):
+Your job is to orchestrate specialists (explorer, worker, reviewer, challenger, etc.) to evaluate, optimize, verify, and resolve all requirements specified in `ORIGINAL_REQUEST.md`:
 
-### R1. Intraday Microstructure & Dynamic Stop-Loss Engine
-- Implement intraday order book / price momentum tracking and dynamic stop-loss gating (-4% drop or volume spike panic detection) in `src/risk/intraday_stop_loss.py`.
-- Integrate into `RiskManager` and `run_pipeline.py`.
+### Requirements Summary:
+1. **R1. Financial Engineering & Model Optimization**:
+   - Verify PCA Symmetric ZCA factor orthogonalization and correlation suppression under all 6 market regimes to prevent multi-collinearity.
+   - Ensure Isotonic Regression calibrators and rolling Sharpe weights seamlessly adapt without signal degradation.
+2. **R2. Risk Management & Portfolio Optimization**:
+   - Verify GICS sector-based stress scenarios and crisis level thresholds in `generate_report.py`.
+   - Validate real-time order execution tracking in `trade_logs.db` and tracking error monitoring in OMS engine.
+3. **R3. Pipeline Resilience & UI/UX Presentation**:
+   - Audit SQLite WAL multi-thread write locks and workflow execution timing for GHA pipeline resilience.
+   - Verify mobile (375px/414px) and desktop (1920px) rendering, sticky table headers, and macro badges in GitHub Pages report (`index.html` / `update_dashboard.py`).
 
-### R2. Quad-Factor Neutral QP Portfolio Risk Optimizer
-- Implement Quadratic Programming (QP) optimization in `src/strategy/quad_factor_optimizer.py` balancing Sharpe ratio while constraining Market Beta, Size, Volatility, and Momentum factor exposures close to zero, along with max 25% sector caps.
-
-### R3. CPCV & Historical Stress Testing Engine
-- Implement Combinatorial Purged Cross-Validation (CPCV) in `src/ai/cpcv_stress_tester.py` to eliminate time-series data leakage/embargo issues.
-- Add historical stress testing simulating 2008 Financial Crisis, 2020 COVID panic, and 2022 Fed rate hike scenarios.
-
-### R4. Closed-Loop Realized Slippage Execution Feedback
-- Link execution logs (`trade_logs.db`) in `src/execution/slippage_feedback.py` to calculate real vs theoretical slippage.
-- Dynamically update microstructure cost parameters in `src/ai/ensemble_scorer.py`.
-
-### R5. LLM/NLP DART & SEC Filing Sentiment Engine
-- Extract sentiment/tone scores from DART/SEC filings in `src/core/llm_sentiment_engine.py` using LLM/FinBERT tone analysis.
-- Incorporate sentiment metrics into Event-Driven alpha factor scores in `src/core/event_driven.py`.
-
-### Acceptance Criteria
-- [ ] Pytest test suite covering all 5 new modules passes cleanly with zero failures (`.venv/bin/pytest tests/ -v`).
-- [ ] Integration verification script executing `run_pipeline.py` or synthetic test runs successfully end-to-end without breaking existing 18-strategy pipeline outputs.
-
-Instructions:
-1. Break down work into clear milestones with verification steps.
-2. Delegate tasks to specialized subagents or execute them carefully, ensuring unit and integration tests pass cleanly.
-3. Update `progress.md` continuously as milestones progress.
-4. When ALL milestones are complete and verified by pytest and integration tests, notify Sentinel with a completion report.
+### Acceptance Criteria:
+- [ ] All unit and integration tests pass cleanly (`.venv\Scripts\python.exe -m pytest tests/ -v`).
+- [ ] GHA Artifact Verifier (`verify_gha_artifacts.py`) confirms 100% valid non-zero data across all 18 strategy panels and 5 markets.
+- [ ] No regression in trading logic, position sizing, or risk manager thresholds.

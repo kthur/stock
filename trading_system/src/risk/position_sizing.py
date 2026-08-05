@@ -215,7 +215,11 @@ class PortfolioAllocator:
             else:
                 cost = 0.005
 
-            net_pred_ret = pred_ret - cost
+            # C1 FIX: Adaptively align cost units with pred_ret scale:
+            # If pred_ret <= 1.0 (decimal, e.g. 0.15), use cost directly (0.005).
+            # If pred_ret > 1.0 (percentage, e.g. 15.0), scale cost to percentage (0.5).
+            eff_cost = cost if pred_ret <= 1.0 else (cost * 100.0)
+            net_pred_ret = pred_ret - eff_cost
             if net_pred_ret <= 0:
                 continue
 
@@ -316,7 +320,12 @@ class PortfolioAllocator:
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(max_top_n).copy()
 
         if use_hrp:
-            pass
+            # C2 FIX: After Top-N slicing, HRP weights only sum to a fraction of 1.0
+            # (e.g. 0.40 if 15 of 60 stocks selected). Renormalize UP to max_total_allocation.
+            current_hrp_sum = df_candidates['weight'].sum()
+            if current_hrp_sum > 1e-8 and current_hrp_sum < self.max_total_allocation:
+                df_candidates['weight'] = (df_candidates['weight'] / current_hrp_sum) * self.max_total_allocation
+                logger.info(f"[HRP] Renormalized weights after Top-N slicing: {current_hrp_sum:.3f} -> {self.max_total_allocation:.3f}")
         elif use_kelly:
             # ── Layer 3: Kelly raw_score × Market Budget ──
             df_candidates['weight'] = df_candidates['raw_score'] * df_candidates['market_budget']

@@ -44,6 +44,7 @@ from src.data_layer.indicator_storage import MarketIndicatorStorage
 from src.data_layer.earnings_data import fetch_and_store_fundamentals_batch
 from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_ml_predictor import VCPSurgePredictor, SURGE_HORIZONS
+from src.ai.ensemble_scorer import EnsembleScoringEngine
 from src.persistence.database import StockPriceDB
 from src.analysis.regime_detector import MarketRegimeDetector
 from src.data_layer.data_validator import DataValidator
@@ -1079,7 +1080,6 @@ def execute_prediction_pipeline():
              # 7e. Fit Isotonic Regression calibrators on training data for score alignment
         if not df_train.empty and 'Close' in df_train.columns:
             try:
-                from src.ai.ensemble_scorer import EnsembleScoringEngine
                 import joblib
                 scorer_calib = EnsembleScoringEngine(config=cfg)
                 logger.info("Fitting Isotonic Regression calibrators on training dataset...")
@@ -2240,7 +2240,8 @@ def execute_prediction_pipeline():
                 ('short_term_reversal', 'reversal_score'),
                 ('arm_factor', 'arm_score'),
                 ('card_factor', 'card_score'),
-                ('latr_factor', 'latr_score')
+                ('latr_factor', 'latr_score'),
+                ('inst_foreign_sector', 'inst_foreign_sector_score')
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
                     strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean(), include_groups=False)
@@ -2650,6 +2651,55 @@ def execute_prediction_pipeline():
 
         # Strategy matrix for PBO
         raw_scores_df = getattr(scorer, 'raw_scores', None)
+        
+        # C6 FIX: Use actual historical market returns for stress testing,
+        # NOT the current-point expected return snapshot (which is all positive and
+        # produces MDD=0, VaR=0, CVaR=0 — meaningless stress test results).
+        # Retrieve historical daily returns from market index data for realistic stress simulation.
+        ens_returns = None
+        try:
+            # Try to get historical market index returns (S&P500 proxy) from indicator storage
+            hist_indicators = storage.get_indicator_history(days=252) if 'storage' in locals() else None
+            if hist_indicators is not None and 'sp500_return' in hist_indicators.columns:
+                ens_returns = hist_indicators['sp500_return'].dropna().values
+            elif hist_indicators is not None and 'sp500_close' in hist_indicators.columns:
+                sp500 = hist_indicators['sp500_close'].dropna()
+                if len(sp500) >= 20:
+                    ens_returns = sp500.pct_change().dropna().values
+        except Exception as _hist_e:
+            logger.debug(f"Historical returns retrieval for stress test: {_hist_e}")
+
+        # Fallback: apply scenario-specific synthetic stress shocks
+        scenarios = ["2008_CRISIS", "2020_COVID", "2022_FED_HIKE"]
+        stress_reports = {}
+        if ens_returns is None or len(ens_returns) < 20:
+            logger.warning("[STRESS TEST] No historical returns available. Using synthetic scenario-based stress vectors.")
+            np.random.seed(42)
+            # Generate synthetic crisis return series based on scenario characteristics
+            synthetic_returns = {
+                "2008_CRISIS": np.concatenate([
+                    np.random.normal(-0.02, 0.04, 60),   # 3-month crash phase
+                    np.random.normal(-0.005, 0.03, 120),  # 6-month extended bear
+                    np.random.normal(0.005, 0.02, 72),    # partial recovery
+                ]),
+                "2020_COVID": np.concatenate([
+                    np.random.normal(-0.04, 0.06, 25),    # 1-month sharp crash
+                    np.random.normal(0.01, 0.03, 100),    # V-shaped recovery
+                ]),
+                "2022_FED_HIKE": np.concatenate([
+                    np.random.normal(-0.005, 0.02, 180),  # prolonged grinding bear
+                    np.random.normal(0.002, 0.015, 72),   # slow recovery
+                ]),
+            }
+            for sc in scenarios:
+                stress_reports[sc] = cpcv_tester.run_historical_stress_test(
+                    synthetic_returns.get(sc, np.random.normal(-0.01, 0.03, 252)),
+                    scenario=sc
+                )
+        else:
+            for sc in scenarios:
+                stress_reports[sc] = cpcv_tester.run_historical_stress_test(ens_returns, scenario=sc)
+
         if raw_scores_df is not None and isinstance(raw_scores_df, pd.DataFrame) and not raw_scores_df.empty:
             pbo_res = cpcv_tester.compute_pbo(raw_scores_df)
         else:
@@ -2659,15 +2709,6 @@ def execute_prediction_pipeline():
             else:
                 pbo_res = cpcv_tester.compute_pbo(ensemble_df[['ensemble_expected_return']])
 
-        # Historical stress test scenarios
-        _ens_ret_series = ensemble_df['ensemble_expected_return']
-        if _ens_ret_series.dtype == object:
-            _ens_ret_series = pd.to_numeric(_ens_ret_series, errors='coerce').fillna(0.0)
-        ens_returns = _ens_ret_series.values
-        scenarios = ["2008_CRISIS", "2020_COVID", "2022_FED_HIKE"]
-        stress_reports = {}
-        for sc in scenarios:
-            stress_reports[sc] = cpcv_tester.run_historical_stress_test(ens_returns, scenario=sc)
 
         # Update RiskManager
         if 'risk_mgr' in locals() and risk_mgr is not None:

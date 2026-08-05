@@ -303,7 +303,7 @@ jobs:
   deploy-pages:
     runs-on: ubuntu-latest
     needs: merge-and-release
-    if: always()
+    if: needs.merge-and-release.result == 'success'
     permissions:
       pages: write
       id-token: write

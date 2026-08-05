@@ -273,6 +273,7 @@ class EnsembleScoringEngine:
         # Per-strategy Isotonic Regression calibrators (fitted via fit_calibrators)
         self._calibrators: Dict[str, Any] = {}
         self._prev_weights: Optional[Dict[str, float]] = None
+        self._prev_regime: Optional[Union[int, str]] = None
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
@@ -353,6 +354,10 @@ class EnsembleScoringEngine:
                 n_samples = mask.sum()
                 if n_samples < 20:
                     logger.warning(f"Calibrator for '{strategy}': too few samples ({n_samples}), skipping.")
+                    continue
+
+                if len(np.unique(y[mask])) < 2:
+                    logger.warning(f"Calibrator for '{strategy}': target labels have single-class zero variance, skipping.")
                     continue
 
                 if n_samples >= 50:
@@ -474,6 +479,7 @@ class EnsembleScoringEngine:
             'arm_factor': w.get('arm_factor', 0.07),
             'card_factor': w.get('card_factor', 0.07),
             'latr_factor': w.get('latr_factor', 0.06),
+            'inst_foreign_sector': w.get('inst_foreign_sector', 0.05),
         }
 
         # Apply VIX Fast Override if active
@@ -493,6 +499,41 @@ class EnsembleScoringEngine:
         if not rolling_sharpes:
             return base_weights
 
+        # C4 FIX: Cold-start seed — when all Sharpe values are 0.0 (no realized outcomes yet),
+        # use differentiated seed values based on strategy characteristics so that
+        # dynamic weighting provides meaningful differentiation even before data accumulates.
+        all_zero = all(abs(v) < 1e-8 for v in rolling_sharpes.values())
+        if all_zero:
+            # Seed Sharpe values: momentum/trend strategies get higher seeds in BULL,
+            # mean-reversion strategies get higher seeds in BEAR/SIDEWAYS.
+            regime_str = str(regime).upper() if regime is not None else ""
+            if "BULL" in regime_str:
+                seed_sharpes = {
+                    'regression': 0.3, 'surge': 0.5, 'lead_lag': 0.2, 'vcp_rule': 0.3,
+                    'vcp_ml': 0.4, 'lstm': 0.2, 'stat_arb': -0.1, 'sector_rotation': 0.4,
+                    'rim_valuation': 0.1, 'event_driven': 0.3, 'mq_factor': 0.4,
+                    'iv_skew': 0.0, 'order_flow': 0.3, 'short_term_reversal': -0.1,
+                    'arm_factor': 0.3, 'card_factor': 0.1, 'latr_factor': 0.1,
+                }
+            elif "BEAR" in regime_str:
+                seed_sharpes = {
+                    'regression': 0.1, 'surge': -0.1, 'lead_lag': 0.1, 'vcp_rule': 0.0,
+                    'vcp_ml': -0.1, 'lstm': 0.1, 'stat_arb': 0.4, 'sector_rotation': 0.1,
+                    'rim_valuation': 0.4, 'event_driven': 0.2, 'mq_factor': 0.1,
+                    'iv_skew': 0.3, 'order_flow': 0.2, 'short_term_reversal': 0.4,
+                    'arm_factor': 0.1, 'card_factor': 0.2, 'latr_factor': 0.3,
+                }
+            else:  # SIDEWAYS
+                seed_sharpes = {
+                    'regression': 0.2, 'surge': 0.1, 'lead_lag': 0.2, 'vcp_rule': 0.1,
+                    'vcp_ml': 0.1, 'lstm': 0.1, 'stat_arb': 0.3, 'sector_rotation': 0.2,
+                    'rim_valuation': 0.3, 'event_driven': 0.2, 'mq_factor': 0.2,
+                    'iv_skew': 0.2, 'order_flow': 0.2, 'short_term_reversal': 0.3,
+                    'arm_factor': 0.2, 'card_factor': 0.2, 'latr_factor': 0.2,
+                }
+            rolling_sharpes = {k: seed_sharpes.get(k, 0.0) for k in rolling_sharpes}
+            logger.info(f"[COLD-START] All Rolling Sharpes are 0.0. Applied seed Sharpe values for regime '{regime}'.")
+
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = float(rolling_sharpes.get(strategy, 0.0))
@@ -503,12 +544,19 @@ class EnsembleScoringEngine:
         total_score = sum(scores.values())
         dynamic_weights = {k: v / total_score for k, v in scores.items()}
 
+        # Detect regime transition to accelerate EMA weight smoothing (alpha = 1.0 on shift)
+        current_regime_str = str(regime)
+        is_regime_shift = (self._prev_regime is not None) and (str(self._prev_regime) != current_regime_str)
+        self._prev_regime = regime
+
+        eff_alpha = 1.0 if is_regime_shift else self.alpha_smoothing
+
         # Apply EMA Weight Smoothing to prevent regime transition whipsaws
         if self._prev_weights is not None:
             smoothed = {}
             for k, target_w in dynamic_weights.items():
                 prev_w = self._prev_weights.get(k, target_w)
-                smoothed[k] = self.alpha_smoothing * target_w + (1 - self.alpha_smoothing) * prev_w
+                smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
             tot_s = sum(smoothed.values())
             dynamic_weights = {k: v / tot_s for k, v in smoothed.items()}
 
@@ -1057,7 +1105,7 @@ class EnsembleScoringEngine:
             'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
             'sector_score', 'rim_score', 'event_score', 'mq_score',
             'iv_skew_score', 'order_flow_score', 'reversal_score',
-            'arm_score', 'card_score', 'latr_score'
+            'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score'
         ]
         for col in fill_cols:
             if col in merged.columns:

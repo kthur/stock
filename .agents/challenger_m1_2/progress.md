@@ -1,12 +1,19 @@
-# Progress Log - challenger_m1_2
+# Progress — Challenger M1 Verification
 
-Last visited: 2026-07-31T18:48:45+09:00
+Last visited: 2026-08-05T22:08:45+09:00
 
-- [x] Initialized agent request and briefing.
-- [x] Located and inspected `RiskManager` implementation, `IntradayStopLossEngine`, and `test_intraday_stop_loss.py`.
-- [x] Executed baseline test suite (`.venv\Scripts\python.exe -m pytest trading_system/tests/test_intraday_stop_loss.py -v`) -> PASSED 8/8 tests in 0.59s.
-- [x] Constructed empirical stress test script `stress_test_intraday.py` targeting corrupted data, high-frequency evaluations, memory leaks, concurrency, and pipeline isolation.
-- [x] Executed stress test harness and confirmed 4 empirical bugs / failure modes.
-- [x] Updated BRIEFING.md with findings and attack surface analysis.
-- [ ] Write empirical handoff report (`d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md`).
-- [ ] Send handoff message to parent agent (`450b5560-14d4-4158-80b1-57ec805a6db7`).
+## Status
+Verification Complete — Explicit Verdict: APPROVE.
+
+## Completed Steps
+- Created DISPATCH.md and BRIEFING.md.
+- Examined ORIGINAL_REQUEST.md, worker handoff.md, and master PROJECT.md.
+- Executed Milestone 1 pytest suites (`test_factor_orthogonalization.py`, `test_factor_ortho_empirical_stress.py`, `test_correlation_suppression.py`, `test_hpo_and_2d_ensemble.py`, `test_isotonic_sharpe_calibration.py`): 39 of 39 passed (100%).
+- Executed `test_m1_empirical_challenger.py`: 4 of 4 passed (100%).
+- Constructed independent empirical stress harness `empirical_stress_test.py` to verify:
+  1. Matrix conditioning $\kappa(\hat{C}) < 2000$ and $[0.0, 1.0]$ bounds under 100% collinearity ($\rho = 1.0$).
+  2. Factor noise suppression mappings across all 6 regimes + CRISIS/HIGH_VOL.
+  3. Single-class zero-variance target label skip in Isotonic/Platt calibrators.
+  4. EMA weight smoothing alpha reset (`eff_alpha = 1.0`) on 2D regime transition.
+- Identified test suite runner import mismatch in `test_m1_master_suite.py` (importing `TestCorrelationSuppression` function module as a class), which does not affect core code functionality.
+- Authored handoff.md with verdict APPROVE.

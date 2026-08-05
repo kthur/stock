@@ -23,12 +23,12 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
-        cache-dependency-path: trading_system/requirements.txt
+        cache-dependency-path: trading_system/requirements.lock
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f trading_system/requirements.txt ]; then pip install -r trading_system/requirements.txt; fi
+        if [ -f trading_system/requirements.lock ]; then pip install -r trading_system/requirements.lock; fi
         pip install pytest ruff mypy coverage bandit pip-audit pytest-github-actions-annotate-failures
 
     - name: Run type checking
@@ -47,7 +47,7 @@ jobs:
     - name: Dependency vulnerability audit (pip-audit)
       continue-on-error: true
       run: |
-        pip-audit -r trading_system/requirements.txt
+        pip-audit -r trading_system/requirements.lock
 
     - name: Run unit tests
       working-directory: trading_system
@@ -65,7 +65,7 @@ jobs:
         python -m coverage xml -o coverage.xml
 
     - name: Upload coverage to artifacts
-      if: success() && matrix.python-version == '3.11'
+      if: success() && matrix.python-version == '3.12'
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report

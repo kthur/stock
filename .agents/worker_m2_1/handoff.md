@@ -1,96 +1,31 @@
-# Handoff Report: Quad-Factor Neutral QP Portfolio Risk Optimizer (Milestone 2 - R2)
+# Handoff Report — System Improvement Report Specialist
 
 ## 1. Observation
-
-- Created `src/strategy/quad_factor_optimizer.py` and bridge `trading_system/src/strategy/quad_factor_optimizer.py` defining class `QuadFactorOptimizer`.
-- Objective function: $\min_w \frac{1}{2} w^T \Sigma w - \lambda \mu^T w + \gamma \|w - w_0\|_2^2$.
-- SciPy SLSQP optimization uses analytical gradient Jacobian $\nabla f(w) = \Sigma w - \lambda \mu + 2 \gamma (w - w_0)$ and analytical constraint Jacobians.
-- Z-score factor matrix standardization implemented for `beta`, `size`, `volatility`, and `momentum`.
-- Constraints enforced:
-  1. Weight sum equality: $\sum w_i = 1.0$.
-  2. Asset weight bounds: $0 \le w_i \le 0.10$.
-  3. Quad-Factor neutrality bounds: $|(\tilde{F}^{(k)})^T w| \le 0.05$.
-  4. Sector concentration caps: $\sum_{i \in \text{Sector}_k} w_i \le 0.25$.
-- 3-tier fallback hierarchy: Tier 1 (2x relaxed factor bounds), Tier 2 (sector-capped MVO without factor bounds), Tier 3 (clamped equal weight via iterative projection).
-- Updated `trading_system/src/risk/portfolio_optimizer.py` to add `optimize_quad_factor_portfolio(...)` method, imported `Union` from `typing`, and updated `apply_factor_and_sector_constraints` with proportional weight redistribution.
-- Created unit tests in `trading_system/tests/test_quad_factor_optimizer.py` and bridge `tests/test_quad_factor_optimizer.py`.
-
-### Test Execution Results
-
-Command 1:
-```bash
-.venv\Scripts\python.exe -m pytest trading_system/tests/test_quad_factor_optimizer.py -v
-```
-Output:
-```
-============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-8.3.4, pluggy-1.5.0 -- C:\Users\kyung\.gemini\antigravity\.venv\Scripts\python.exe
-collected 6 items
-
-trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_fallback_on_infeasible_constraints PASSED [ 16%]
-trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_optimize_portfolio_method_alias PASSED [ 33%]
-trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_portfolio_optimizer_integration PASSED [ 50%]
-trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_quad_factor_neutrality_bounds PASSED [ 66%]
-trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_sector_cap_constraint PASSED [ 83%]
-trading_system/tests/test_quad_factor_optimizer.py::TestQuadFactorOptimizer::test_weight_sum_equality_constraint PASSED [100%]
-
-============================== 6 passed in 0.39s ==============================
-```
-
-Command 2:
-```bash
-.venv\Scripts\python.exe -m pytest trading_system/tests/ -v
-```
-Output:
-```
-============================== 26 passed in 2.14s ==============================
-```
-
-Command 3:
-```bash
-cd trading_system && ..\.venv\Scripts\python.exe -m pytest tests/ -v
-```
-Output:
-```
-============================== 26 passed in 2.14s ==============================
-```
+- **Inputs Examined**:
+  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_1\financial_engineering_audit.md`
+  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_2\architecture_pipeline_audit.md`
+  - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\dashboard_verifier_audit.md`
+- **Output Written**:
+  - `d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md` (Size: ~22 KB)
+- **Codebase References Spot-Checked**:
+  - `trading_system/run_pipeline.py` (lines 3180-3197 exit code check)
+  - `trading_system/scripts/verify_gha_artifacts.py` (lines 269-301 `files_map` and lines 437-439 header formatting)
+  - `trading_system/generate_report.py` (line 1487 `thead th` CSS styling)
 
 ## 2. Logic Chain
-
-1. **QP Objective & Gradient Formulation**:
-   The objective $f(w) = \frac{1}{2} w^T \Sigma w - \lambda \mu^T w + \gamma \|w - w_0\|_2^2$ models portfolio risk minimization, return maximization, and turnover control against $w_0$. Providing exact analytical gradient $\nabla f(w) = \Sigma w - \lambda \mu + 2 \gamma (w - w_0)$ and analytical constraint Jacobians ensures rapid and exact SLSQP solver convergence without finite difference approximation errors.
-
-2. **Factor Standardization**:
-   Raw factors vary across units and scales (e.g. market cap in trillions vs beta around 1.0). Standardizing factors to zero mean and unit standard deviation $Z = (F - \mu_F)/\sigma_F$ ensures that factor exposure bounds $|Z^T w| \le 0.05$ represent true 0.05 standard deviation neutrality across all factor dimensions.
-
-3. **Multi-Constraint Enforcement**:
-   Constraints for weight sum equality, asset caps ($w_i \le 0.10$), factor neutrality bounds ($|F^T w| \le 0.05$), and sector caps ($\sum w_i \le 0.25$) are specified directly to `scipy.optimize.minimize(method='SLSQP')`.
-
-4. **3-Tier Fallback Hierarchy**:
-   If extreme factor alignment or market constraints make the QP problem infeasible, Tier 1 relaxes factor bounds 2x to attempt convergence. If still infeasible, Tier 2 drops factor constraints while strictly preserving sector caps and asset bounds. If SLSQP fails entirely, Tier 3 applies clamped equal weighting via iterative projection.
-
-5. **Risk Engine Integration**:
-   Integrating `optimize_quad_factor_portfolio(...)` into `PortfolioOptimizer` allows trading system components to invoke Quad-Factor QP optimization dynamically.
+1. Read and analyzed the three domain-specific audit reports produced by the preview explorers.
+2. Synthesized quantitative mathematical models, including multi-horizon return scaling ($M_h$), PCA-ZCA whitening ($C^{-1/2}$), hybrid probability calibration (Isotonic PAVA vs Platt scaling), coverage penalization, HRP / Black-Litterman / Ledoit-Wolf shrinkage, Quad-Factor Neutral QP optimization, EVT-GPD POT CVaR tail risk control, Leland no-trade buffer bands, and dynamic microstructure friction modeling (STT tax, SEC fees, dynamic spread, Kyle/Almgren-Chriss impact with feedback).
+3. Evaluated software architecture, GHA matrix parallelization across 5 markets, SQLite WAL concurrency with `threading.Lock()` write mutexes, and artifact aggregation resilience (`merge_predictions.py`).
+4. Assessed dashboard UI/UX responsiveness across desktop (1920px) and mobile (375px/414px) viewports, live macro indicator protection via `DataValidator.clean_macro_value()`, and verifier script (`verify_gha_artifacts.py`) mapping defects.
+5. Formulated actionable, production-ready code snippets for `run_pipeline.py`, `verify_gha_artifacts.py`, and `generate_report.py`.
+6. Built an end-to-end Mermaid architectural flowchart depicting the complete pipeline.
 
 ## 3. Caveats
-
-- `cvxpy` is optional and guarded by `HAS_CVXPY`. When missing, the system uses SciPy SLSQP solver, which performs efficiently for standard portfolio dimensions ($N \le 1000$).
-- No caveats.
+- No caveats. The report synthesizes verified observations from all three explorer audits and spot-checked codebase files.
 
 ## 4. Conclusion
-
-Milestone 2 (R2) Quad-Factor Neutral QP Portfolio Risk Optimizer is fully implemented, bridged, integrated into `PortfolioOptimizer`, and verified with 100% passing unit tests (26/26 tests passed in suite across all rootdir contexts) and zero regressions.
+- `SYSTEM_IMPROVEMENT_REPORT.md` is fully generated at the project root (`d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md`) satisfying all structure, quantitative formulation, architectural evaluation, UI/UX responsiveness, code enhancement, and Mermaid diagram requirements.
 
 ## 5. Verification Method
-
-To independently verify:
-```bash
-.venv\Scripts\python.exe -m pytest trading_system/tests/test_quad_factor_optimizer.py -v
-.venv\Scripts\python.exe -m pytest trading_system/tests/ -v
-```
-Inspect files:
-- `src/strategy/quad_factor_optimizer.py`
-- `trading_system/src/strategy/quad_factor_optimizer.py`
-- `trading_system/src/risk/portfolio_optimizer.py`
-- `trading_system/tests/test_quad_factor_optimizer.py`
-- `tests/test_quad_factor_optimizer.py`
+- Confirm existence and size of `d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md`.
+- Verify that all required sections (Executive Summary, 1. Deep Financial Engineering Audit, 2. Software Architecture & Pipeline Audit, 3. Dashboard UI/UX & Verifier Evaluation, 4. Concrete Actionable Code Enhancements, 5. Architectural Mermaid Diagram) are present with exact LaTeX mathematical formulas and code blocks.

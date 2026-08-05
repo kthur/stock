@@ -46,10 +46,12 @@ class RegimeFactorSuppressionEngine:
         'BULL_HIGH_VOL': ['REVERSAL'],
         'BEAR_LOW_VOL': ['MOMENTUM'],
         'BEAR_HIGH_VOL': ['MOMENTUM'],
-        # Fallbacks for 1D Regimes
+        # Fallbacks for 1D Regimes & Special State Aliases
         'SIDEWAYS': ['MOMENTUM'],
         'BULL': ['REVERSAL'],
         'BEAR': ['MOMENTUM'],
+        'CRISIS': ['MOMENTUM', 'FLOW_MICRO', 'REVERSAL'],
+        'HIGH_VOL': ['MOMENTUM', 'FLOW_MICRO'],
         '0': ['MOMENTUM'],
         '1': ['MOMENTUM'],
         '2': ['REVERSAL']
@@ -63,6 +65,8 @@ class RegimeFactorSuppressionEngine:
         'BULL_HIGH_VOL': {'theta': 0.65, 'lambda': 1.00},
         'BEAR_LOW_VOL': {'theta': 0.65, 'lambda': 1.00},
         'BEAR_HIGH_VOL': {'theta': 0.60, 'lambda': 1.40},
+        'CRISIS': {'theta': 0.50, 'lambda': 2.00},
+        'HIGH_VOL': {'theta': 0.55, 'lambda': 1.50},
     }
 
     def __init__(self, default_theta: float = 0.65, default_lambda: float = 1.0):

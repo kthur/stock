@@ -301,12 +301,14 @@ def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
 
                 # Variance of left & right clusters
                 cov_left = cov_matrix[np.ix_(c_left, c_left)]
-                inv_vol_left = 1.0 / np.sqrt(np.diag(cov_left))
+                vols_left = np.maximum(np.sqrt(np.diag(cov_left)), 1e-8)
+                inv_vol_left = 1.0 / vols_left
                 w_left = inv_vol_left / np.sum(inv_vol_left)
                 var_left = float(w_left @ cov_left @ w_left)
 
                 cov_right = cov_matrix[np.ix_(c_right, c_right)]
-                inv_vol_right = 1.0 / np.sqrt(np.diag(cov_right))
+                vols_right = np.maximum(np.sqrt(np.diag(cov_right)), 1e-8)
+                inv_vol_right = 1.0 / vols_right
                 w_right = inv_vol_right / np.sum(inv_vol_right)
                 var_right = float(w_right @ cov_right @ w_right)
 

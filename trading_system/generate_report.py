@@ -332,6 +332,7 @@ def parse_ensemble(text: str) -> EnsembleData:
                         arm_factor=s_vals[14] if len(s_vals) > 14 else "-",
                         card_factor=s_vals[15] if len(s_vals) > 15 else "-",
                         latr_factor=s_vals[16] if len(s_vals) > 16 else "-",
+                        inst_foreign_sector=s_vals[17] if len(s_vals) > 17 else "-",
                     ))
     return data
 
@@ -608,7 +609,7 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
             date = m.group(1).strip()
             continue
         # Matches: rank  symbol  name (anything)  market  score%
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-+]?[\d.]+)%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)\s+([-+]?[\d.]+)%$", line)
         if m:
             rows.append(SimpleStrategyRow(
                 rank=int(m.group(1)),
@@ -933,9 +934,10 @@ def build_html(
               <td>{r.arm_factor}</td>
               <td>{r.card_factor}</td>
               <td>{r.latr_factor}</td>
+              <td>{r.inst_foreign_sector}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="22" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="23" class="empty">데이터 없음</td></tr>'
 
         ensemble_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -945,7 +947,7 @@ def build_html(
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th>
             <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th>
+            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -977,7 +979,7 @@ def build_html(
       <div class="macro-item"><span class="ml">US 10Y 국채금리</span><span class="mv">{ensemble.us10y or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">KR 10Y 국채금리</span><span class="mv">{ensemble.kr10y or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">WTI 국제유가</span><span class="mv">{ensemble.wti or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">금 (GLD ETF)</span><span class="mv">{ensemble.gold or 'N/A'}</span></div>
+      <div class="macro-item"><span class="ml">GLD ETF</span><span class="mv">{ensemble.gold or 'N/A'}</span></div>
       <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">{ensemble.max_allocation or 'N/A'}</span></div>
     </div>"""
 
