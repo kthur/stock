@@ -149,6 +149,8 @@ def test_risk_manager_stress_integration():
 
     # Explicitly verify calculate_position_sizing scales by exactly 0.75x (not 0.5625x) when stress test fails
     risk_mgr.stress_test_adjustment_factor = 1.0
+    # risk_config.json may override max_position_size_pct locally; pin it for deterministic math
+    risk_mgr.max_position_size_pct = 0.25
     unpenalized_qty = risk_mgr.calculate_position_sizing("AAPL", entry_price=100.0, stop_loss_price=95.0)
     assert unpenalized_qty == 2500
 

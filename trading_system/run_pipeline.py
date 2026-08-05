@@ -848,7 +848,13 @@ def execute_prediction_pipeline():
         surge_loaded = any(len(mkt_dict) > 0 for mkt_dict in model.surge_models.values())
         vcp_loaded = any(len(mkt_dict) > 0 for mkt_dict in vcp_ml.models.values()) or any(len(mkt_dict) > 0 for mkt_dict in vcp_ml.lgb_models.values())
 
-        if regression_loaded and surge_loaded and vcp_loaded:
+        # PRESEED_MODE: data-cache-only runs (e.g. preseed.yml) must NEVER trigger
+        # a full training pass when the model cache is empty — that would turn the
+        # daily preseed into a 6-hour training job and blow the timeout.
+        if os.environ.get("PRESEED_MODE", "false").lower() == "true":
+            logger.info("PRESEED_MODE active: forcing skip training (cache-only data run).")
+            should_skip = True
+        elif regression_loaded and surge_loaded and vcp_loaded:
             logger.info("Pre-trained models found and loaded successfully. Skipping model training phase.")
             should_skip = True
         else:
@@ -2977,8 +2983,11 @@ def execute_prediction_pipeline():
 
 
     logger.info("Running Portfolio Position Sizing allocation on Ensemble expectancies...")
-    # Prepare the input DataFrame expected by PortfolioAllocator: ['symbol', 20]
-    ensemble_for_alloc = ensemble_df[['symbol', 'ensemble_expected_return']].rename(
+    # Prepare the input DataFrame expected by PortfolioAllocator: ['symbol', 'market', 20]
+    # NOTE: 'market' must be included so the Layer-1 Market Budget is applied per
+    # market; without it every symbol defaulted to KOSPI and the top-down layer
+    # silently degenerated into a single-market budget.
+    ensemble_for_alloc = ensemble_df[['symbol', 'market', 'ensemble_expected_return']].rename(
         columns={'ensemble_expected_return': 20}
     )
     allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)

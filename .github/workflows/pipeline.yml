@@ -48,9 +48,11 @@ jobs:
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          # NOTE: DB contains ALL markets' history — do NOT scope the key per
+          # matrix target, otherwise 5 identical multi-GB copies compete for the
+          # 10GB repo cache and get evicted (breaking history persistence).
+          key: stock-prices-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            stock-prices-db-${{ matrix.target }}-
             stock-prices-db-
 
       - name: Cache market_indicators.db
@@ -58,9 +60,8 @@ jobs:
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          key: market-indicators-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            market-indicators-db-${{ matrix.target }}-
             market-indicators-db-
 
       - name: Cache AI models (Restore only)
@@ -173,6 +174,11 @@ jobs:
               cp "$src" "trading_system/result_split/${f}_${{ matrix.target }}.txt"
             fi
           done
+          # backtest_summary.json is JSON (not .txt) — carry it per-market so the
+          # merge job can reconstruct the dashboard's real performance table
+          if [ -f "trading_system/result/backtest_summary.json" ]; then
+            cp "trading_system/result/backtest_summary.json" "trading_system/result_split/backtest_summary_${{ matrix.target }}.json"
+          fi
 
       - name: Upload split results as artifacts
         if: always()
@@ -230,6 +236,17 @@ jobs:
           path: trading_system/result_RUSSELL2000
         continue-on-error: true
 
+      - name: Guard - require at least one successful market
+        run: |
+          FOUND=0
+          for m in SP500 NASDAQ RUSSELL2000 KOSPI KOSDAQ; do
+            if ls trading_system/result_${m}/*.txt >/dev/null 2>&1; then FOUND=1; break; fi
+          done
+          if [ "$FOUND" != "1" ]; then
+            echo "::error::All market pipelines failed - no prediction files. Skipping release & deploy."
+            exit 1
+          fi
+
       - name: Merge and reconstruct outputs
         run: |
           mkdir -p trading_system/result
@@ -239,7 +256,8 @@ jobs:
           cp trading_system/result_RUSSELL2000/*_RUSSELL2000.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSPI/*_KOSPI.txt trading_system/result/ 2>/dev/null || true
           cp trading_system/result_KOSDAQ/*_KOSDAQ.txt trading_system/result/ 2>/dev/null || true
-          
+          cp trading_system/result_*/backtest_summary_*.json trading_system/result/ 2>/dev/null || true
+
           # Run python merging script to generate unified result files
           python3 trading_system/merge_predictions.py
 
@@ -276,6 +294,8 @@ jobs:
               fpath="trading_system/result/$f"
               [ -f "$fpath" ] && gh release upload "$TAG_NAME" "$fpath" --clobber || true
             done
+            # JSON metadata (realized backtest summary) for external consumers
+            [ -f "trading_system/result/backtest_summary.json" ] && gh release upload "$TAG_NAME" "trading_system/result/backtest_summary.json" --clobber || true
           else
             echo "No prediction output files found to upload."
           fi
@@ -299,7 +319,14 @@ jobs:
         with:
           name: merged-results
           path: trading_system/result
-        continue-on-error: true
+
+      - name: Verify merged results present (abort stale deploys)
+        run: |
+          if ! ls trading_system/result/*.txt >/dev/null 2>&1; then
+            echo "::error::Merged result files missing - refusing to deploy a stale/fabricated dashboard."
+            exit 1
+          fi
+          ls -la trading_system/result/ | head -40
 
       - name: Install uv and Python 3.12
         uses: astral-sh/setup-uv@v5

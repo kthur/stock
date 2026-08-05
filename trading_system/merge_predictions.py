@@ -4,6 +4,7 @@
 Each strategy writes files like: surge_predictions_KOSPI.txt
 This script merges them into: surge_predictions.txt
 """
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -78,7 +79,7 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     if not header:
         from datetime import timezone, timedelta
         kst_now = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
-        header = f"=== Dynamic Multi-Strategy Ensemble Predictions (14 Strategies) ===\nDate: {kst_now}\n\n"
+        header = f"=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===\nDate: {kst_now}\n\n"
 
     sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
@@ -393,6 +394,144 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
         out.writelines(data_lines)
 
 
+def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
+    """Merge per-market portfolio allocation files into one unified allocation file.
+
+    The daily GHA pipeline runs per-market, so each market job writes its own
+    portfolio_allocation_{MARKET}.txt (each sized against the full portfolio
+    capital). This merge concatenates all market allocations into a single
+    portfolio_allocation.txt so the GitHub Pages HRP section is never empty
+    (previously it fell back to fabricated weights).
+    """
+    merged_path = result_dir / "portfolio_allocation.txt"
+
+    row_re = re.compile(
+        r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)"
+        r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)"
+        r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$"
+    )
+
+    all_rows: list[tuple] = []  # (weight_pct, symbol, name, market, exp_ret, vol, weight, amount)
+    total_capital = "100,000,000"
+    target_horizon = "20d"
+    max_alloc = "85.0%"
+    regime = "SIDEWAYS"
+    date_str = ""
+
+    for market, path in target_dirs.items():
+        file_path = path / f"portfolio_allocation_{market}.txt"
+        if not file_path.exists():
+            continue
+        content = get_file_content(file_path)
+        if not content or "데이터 없음" in content or "No data" in content:
+            continue
+        for line in content.splitlines():
+            m = re.match(r"Total Capital:\s*(.+)", line)
+            if m:
+                total_capital = m.group(1).strip()
+            m = re.match(r"Target Horizon:\s*(.+)", line)
+            if m:
+                target_horizon = m.group(1).strip()
+            m = re.match(r"Date:\s*(.+)", line)
+            if m and not date_str:
+                date_str = m.group(1).strip()
+            m = re.match(r"Current Market Regime Detected:\s*([A-Za-z0-9_]+)", line)
+            if m:
+                regime = m.group(1).strip()
+            m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
+            if m:
+                max_alloc = m.group(1).strip()
+            m = row_re.match(line)
+            if m:
+                w_str = m.group(7).replace("%", "")
+                try:
+                    w_pct = float(w_str)
+                except ValueError:
+                    continue
+                all_rows.append((w_pct, m.group(2), m.group(3).strip(), m.group(4).strip(),
+                                 m.group(5), m.group(6), m.group(7), m.group(8)))
+
+    if not all_rows:
+        print("  No per-market portfolio allocation files found; skipping merge.")
+        return
+
+    # Deduplicate by symbol (keep the highest weight) — a symbol must not appear
+    # twice in the final allocation, e.g. when per-market fallbacks overlap.
+    dedup: dict[str, tuple] = {}
+    for row in all_rows:
+        sym = row[1]
+        if sym not in dedup or row[0] > dedup[sym][0]:
+            dedup[sym] = row
+    all_rows = sorted(dedup.values(), key=lambda r: r[0], reverse=True)
+    allocated_pct = sum(r[0] for r in all_rows)
+    allocated_amount = 0.0
+    for r in all_rows:
+        try:
+            allocated_amount += float(r[7].replace(",", ""))
+        except ValueError:
+            pass
+
+    from datetime import timezone, timedelta
+    kst_now = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M KST")
+    header_date = date_str or kst_now
+
+    with open(merged_path, "w", encoding="utf-8") as out:
+        out.write("=== Portfolio Allocation Recommendations (Ensemble HRP, Merged Across Markets) ===\n")
+        out.write(f"Date: {header_date}\n")
+        out.write(f"Total Capital: {total_capital}\n")
+        out.write(f"Target Horizon: {target_horizon}\n\n")
+        out.write(f"Current Market Regime Detected: {regime}\n")
+        out.write(f"Maximum Total Allocation Allowed: {max_alloc}\n\n")
+        out.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
+        out.write("-" * 92 + "\n")
+        for rank, (w_pct, sym, name, mkt, exp_ret, vol, weight, amount) in enumerate(all_rows, 1):
+            out.write(f"{rank:<4}{sym:<10}{name[:18]:<20}{mkt:<10}{exp_ret:>8}{vol:>11}{weight:>9}{amount:>14}\n")
+        out.write("-" * 92 + "\n")
+        out.write(f"Allocated Capital: {allocated_pct:.2f}% ({allocated_amount:,.0f})\n")
+        out.write("Note: each market job sizes against the same total capital; the merged table is a\n")
+        out.write("      cross-market view, not a single jointly-optimized portfolio.\n")
+    print(f"Merged portfolio allocation -> {merged_path} ({len(all_rows)} rows)")
+
+
+def merge_backtest_summary(result_dir: Path, target_dirs: dict) -> None:
+    """Merge per-market backtest_summary.json into the unified result directory.
+
+    Picks the summary with real realized metrics when available; otherwise keeps
+    the most recent insufficient-data summary so the dashboard never fabricates.
+    """
+    merged_path = result_dir / "backtest_summary.json"
+    candidates = []
+    for market, path in target_dirs.items():
+        fp = path / f"backtest_summary_{market}.json"
+        if not fp.exists():
+            continue
+        try:
+            data = json.loads(fp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        data["market"] = market
+        candidates.append((fp, data))
+
+    if not candidates:
+        print("  No per-market backtest summaries found; skipping merge.")
+        return
+
+    def _score(d):
+        strategies = d.get("strategies") or {}
+        return (1 if strategies else 0, d.get("updated_at", ""))
+
+    candidates.sort(key=lambda c: _score(c[1]), reverse=True)
+    best_path, best_data = candidates[0]
+
+    try:
+        merged_path.write_text(
+            json.dumps(best_data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(f"Merged backtest summary -> {merged_path} (source: {best_path.name})")
+    except Exception as e:
+        print(f"  Warning: failed to write merged backtest summary: {e}")
+
+
 def merge_coverage_report(result_dir: Path, target_dirs: dict) -> None:
     """Merge per-market strategy data coverage reports into the unified report.
 
@@ -465,6 +604,8 @@ def main():
     merge_vcp_patterns(result_dir, target_dirs)
     merge_lead_lag_predictions(result_dir, target_dirs)
     merge_coverage_report(result_dir, target_dirs)
+    merge_portfolio_allocation(result_dir, target_dirs)
+    merge_backtest_summary(result_dir, target_dirs)
 
     # Merge remaining 17 strategy individual outputs
     merge_generic_strategy_files(result_dir, target_dirs, "lstm_predictions.txt", "Strict Causal LSTM Time-Series Deep Learning Predictions")

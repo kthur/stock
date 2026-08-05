@@ -111,6 +111,16 @@ def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
     # Prepare classification target (>= 20% return)
     train_df = train_df.copy()
     val_df = val_df.copy()
+
+    # Drop NaN targets (마지막 N일 전방수익률은 미래 데이터가 없어 NaN)
+    # 실제 훈련 경로(prediction_model)와 동일하게 타깃이 없는 행은 제거한다.
+    n_drop_train = int(train_df[reg_target].isna().sum())
+    n_drop_val = int(val_df[reg_target].isna().sum())
+    train_df = train_df.dropna(subset=[reg_target])
+    val_df = val_df.dropna(subset=[reg_target])
+    if n_drop_train or n_drop_val:
+        logger.info(f"Tuning data: dropped {n_drop_train} train / {n_drop_val} val rows with NaN target")
+
     train_df[surge_target] = (train_df[reg_target] >= 0.20).astype(int)
     val_df[surge_target] = (val_df[reg_target] >= 0.20).astype(int)
 

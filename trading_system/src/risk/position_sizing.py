@@ -272,8 +272,18 @@ class PortfolioAllocator:
                 returns_matrix.append(r)
             df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
             if len(returns_matrix) > 1:
-                ret_df = pd.concat(returns_matrix, axis=1).fillna(0.0)
+                # NaN-safe covariance: pad with per-asset mean (NOT 0.0).
+                # Zero-filling short-history names produces fake zero variance,
+                # which HRP treats as "risk-free" and grossly over-weights them.
+                raw_ret = pd.concat(returns_matrix, axis=1)
+                common = raw_ret.dropna(how='any')
+                if len(common) >= 10:
+                    ret_df = common
+                else:
+                    ret_df = raw_ret.fillna(raw_ret.mean())
                 cov_mat = ret_df.cov().values
+                if np.any(np.isnan(cov_mat)):
+                    np.fill_diagonal(cov_mat, np.nan_to_num(np.diag(cov_mat), nan=1e-4))
                 hrp_w = calculate_hrp_weights(cov_mat)
                 df_candidates['hrp_weight'] = hrp_w
                 # ── Layer 3: Market Budget × HRP weight ──
@@ -386,7 +396,12 @@ class PortfolioAllocator:
         if len(valid_symbols) < 2:
             return pd.DataFrame()
 
-        ret_df = pd.concat(returns_list, axis=1).fillna(0.0)
+        ret_raw = pd.concat(returns_list, axis=1)
+        common = ret_raw.dropna(how='any')
+        if len(common) >= 10:
+            ret_df = common
+        else:
+            ret_df = ret_raw.fillna(ret_raw.mean())
         cov_matrix = ret_df.cov().values
         prior_weights = np.full(len(valid_symbols), 1.0 / len(valid_symbols))
 

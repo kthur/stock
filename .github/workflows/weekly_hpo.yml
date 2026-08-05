@@ -36,9 +36,9 @@ jobs:
           path: |
             trading_system/market_indicators.db
             trading_system/stock_prices.db
-          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          # Shared across matrix targets — DB holds ALL markets' history
+          key: stock-prices-db-${{ steps.date.outputs.date }}
           restore-keys: |
-            stock-prices-db-${{ matrix.target }}-
             stock-prices-db-
 
       - name: Restore and Save AI Models Cache (for tuned_params.json handoff)

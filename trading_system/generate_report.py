@@ -1646,6 +1646,7 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">15. ARM Factor</div><div class="strat-card-desc">증권가 컨센서스(EPS/목표가) 상향 조정 및 실적 서프라이즈</div></div>
         <div class="strat-card-item"><div class="strat-card-name">16. CARD Factor</div><div class="strat-card-desc">주식-원자재-환율 이탈 괴리율 역발상 매수 점수</div></div>
         <div class="strat-card-item"><div class="strat-card-name">17. LATR Factor</div><div class="strat-card-desc">52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 반등</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">18. Inst &amp; Foreign Sector</div><div class="strat-card-desc">외인/투신 2개월 수급 누적 &amp; 업종 주도주 상관성</div></div>
       </div>
     </div>
   </div>
@@ -2567,28 +2568,20 @@ def main(args_list: Optional[list[str]] = None):
         try:
             bt_data = json.loads(bt_path.read_text(encoding="utf-8"))
             if bt_data.get("insufficient_data"):
+                bt_note = bt_data.get("note", "")
                 backtest_note_html = (f"📌 <strong>실측 데이터 축적 단계</strong>: "
-                                      f"실현 수익률이 20거래일 미만으로 축적 진행 중입니다. "
-                                      f"아래 표는 히스토리컬 10년 롤링 벤치마크(기준치)이며, 20거래일 누적 완료 시 실측 성과로 자동 갱신됩니다.<br>")
+                                      f"아직 실현 수익률(outcome)이 충분히 축적되지 않았습니다. "
+                                      f"예측 저장 후 {bt_data.get('horizon_days', 20)} 거래일이 경과한 관측이 "
+                                      f"{bt_data.get('min_days', 10)}일치 이상 쌓이면 실측 성과가 자동 표시됩니다. "
+                                      f"현재까지 실측 성과는 없으며, 아래 수치는 어떤 전략도 기대 수익률을 보증하지 않습니다.<br>")
+                if bt_note:
+                    backtest_note_html += f"<span style='color:var(--muted);'>ℹ️ {bt_note}</span><br>"
                 backtest_rows_html = """
-            <tr><td>🏆 <strong>Dynamic Ensemble (18 Strategies)</strong></td><td class="pos">2.48</td><td class="neg">-8.8%</td><td>74.2%</td><td class="pos">+35.6%</td></tr>
-            <tr><td>📈 XGBoost Regression</td><td class="pos">1.72</td><td class="neg">-16.8%</td><td>62.1%</td><td class="pos">+21.3%</td></tr>
-            <tr><td>⚡ Surge Classifier</td><td class="pos">1.88</td><td class="neg">-14.2%</td><td>65.0%</td><td class="pos">+24.6%</td></tr>
-            <tr><td>🤖 VCP Pattern ML</td><td class="pos">1.95</td><td class="neg">-13.5%</td><td>66.8%</td><td class="pos">+26.1%</td></tr>
-            <tr><td>🔗 Lead-Lag Alpha</td><td class="pos">1.45</td><td class="neg">-18.5%</td><td>58.2%</td><td class="pos">+17.8%</td></tr>
-            <tr><td>🧠 Strict Causal LSTM</td><td class="pos">1.82</td><td class="neg">-15.1%</td><td>64.1%</td><td class="pos">+23.5%</td></tr>
-            <tr><td>⚖️ Stat-Arb Cointegration</td><td class="pos">1.65</td><td class="neg">-11.2%</td><td>71.4%</td><td class="pos">+18.9%</td></tr>
-            <tr><td>🔄 Sector Rotation Momentum</td><td class="pos">1.79</td><td class="neg">-14.8%</td><td>63.7%</td><td class="pos">+22.8%</td></tr>
-            <tr><td>💎 RIM Intrinsic Valuation</td><td class="pos">1.91</td><td class="neg">-9.8%</td><td>72.5%</td><td class="pos">+20.5%</td></tr>
-            <tr><td>📰 Event-Driven Catalyst</td><td class="pos">1.85</td><td class="neg">-12.1%</td><td>67.2%</td><td class="pos">+23.1%</td></tr>
-            <tr><td>🔬 MQ Factor Quality</td><td class="pos">1.93</td><td class="neg">-10.5%</td><td>70.1%</td><td class="pos">+21.8%</td></tr>
-            <tr><td>📊 Options IV Skew</td><td class="pos">1.68</td><td class="neg">-13.9%</td><td>61.5%</td><td class="pos">+19.2%</td></tr>
-            <tr><td>🌊 Order Flow Imbalance</td><td class="pos">1.77</td><td class="neg">-12.8%</td><td>64.8%</td><td class="pos">+21.0%</td></tr>
-            <tr><td>↩️ Short-Term Reversal</td><td class="pos">1.62</td><td class="neg">-15.4%</td><td>60.3%</td><td class="pos">+18.4%</td></tr>
-            <tr><td>📈 ARM Factor</td><td class="pos">1.88</td><td class="neg">-11.8%</td><td>68.5%</td><td class="pos">+22.4%</td></tr>
-            <tr><td>🌐 CARD Factor</td><td class="pos">1.74</td><td class="neg">-13.8%</td><td>64.0%</td><td class="pos">+20.1%</td></tr>
-            <tr><td>⚡ LATR Factor</td><td class="pos">1.70</td><td class="neg">-14.5%</td><td>62.8%</td><td class="pos">+19.5%</td></tr>
-            <tr><td>🏛️ Inst & Foreign Sector Flow</td><td class="pos">1.75</td><td class="neg">-13.2%</td><td>63.5%</td><td class="pos">+20.8%</td></tr>"""
+            <tr><td colspan="5" style="text-align:center; color:var(--muted); padding:24px;">
+              ⏳ <strong>실측 백테스트 성과 축적 중</strong><br>
+              <span style="font-size:12px;">실제 예측 기록 기반 성과가 쌓이기 전까지 어떤 수치도 표시되지 않습니다.
+              (하드코딩된 기대수익률을 표시하지 않습니다)</span>
+            </td></tr>"""
             else:
                 bt_strats = bt_data.get("strategies", {})
                 bt_rows = []
