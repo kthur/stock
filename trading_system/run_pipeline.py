@@ -1970,18 +1970,23 @@ def execute_prediction_pipeline():
             try:
                 fund_df = storage.get_all_fundamentals(df_rim_input['symbol'].tolist())
                 if fund_df is not None and not fund_df.empty:
-                    fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
-                    # Compute BPS = book_value / shares_outstanding; 0 book_value → None (not merged)
-                    fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
-                    # Compute ROE = net_income / book_value; 0 book_value → None
-                    fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
-                    # Fallback BPS from eps when book_value unavailable
-                    no_bps = fund_df['bps'].isna() & fund_df['eps'].notna()
-                    fund_df.loc[no_bps, 'bps'] = fund_df.loc[no_bps, 'eps'] / 0.08
-                    # Merge into rim_input (operating_income/net_income for earnings quality filter)
-                    merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income']
-                    df_rim_input = df_rim_input.merge(fund_df[merge_cols], on='symbol', how='left')
-                    logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
+                    fund_df['date'] = pd.to_datetime(fund_df['date'])
+                    fund_df['date_available'] = fund_df['date'] + pd.Timedelta(days=60)
+                    cutoff_date = pd.to_datetime(date_str)
+                    fund_df = fund_df[fund_df['date_available'] <= cutoff_date]
+                    if not fund_df.empty:
+                        fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
+                        # Compute BPS = book_value / shares_outstanding; 0 book_value → None (not merged)
+                        fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+                        # Compute ROE = net_income / book_value; 0 book_value → None
+                        fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                        # Fallback BPS from eps when book_value unavailable
+                        no_bps = fund_df['bps'].isna() & fund_df['eps'].notna()
+                        fund_df.loc[no_bps, 'bps'] = fund_df.loc[no_bps, 'eps'] / 0.08
+                        # Merge into rim_input (operating_income/net_income for earnings quality filter)
+                        merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income']
+                        df_rim_input = df_rim_input.merge(fund_df[merge_cols], on='symbol', how='left')
+                        logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
             except Exception as _fund_e:
                 logger.warning(f"Fundamental data merge for RIM skipped: {_fund_e}")
         rim_df = rim_engine.compute_rim_scores(df_rim_input, symbol_market_map=symbol_market)
@@ -2234,10 +2239,11 @@ def execute_prediction_pipeline():
         if hist_df is not None and not hist_df.empty:
             for strat, col in [
                 ('regression', 'reg_score'), ('surge', 'surge_score'), ('lead_lag', 'll_score'),
-                ('vcp_rule', 'vcp_rule_score'), ('vcp_ml', 'vcp_ml_score'), ('stat_arb', 'stat_arb_score'),
-                ('sector_rotation', 'sector_score'), ('rim_valuation', 'rim_score'), ('event_driven', 'event_score'),
-                ('mq_factor', 'mq_score'), ('iv_skew', 'iv_skew_score'), ('order_flow', 'order_flow_score'),
-                ('short_term_reversal', 'reversal_score'),
+                ('vcp_rule', 'vcp_rule_score'), ('vcp_ml', 'vcp_ml_score'), ('lstm', 'lstm_score'),
+                ('stat_arb', 'stat_arb_score'), ('sector_rotation', 'sector_score'),
+                ('rim_valuation', 'rim_score'), ('event_driven', 'event_score'),
+                ('mq_factor', 'mq_score'), ('iv_skew', 'iv_skew_score'),
+                ('order_flow', 'order_flow_score'), ('short_term_reversal', 'reversal_score'),
                 ('arm_factor', 'arm_score'),
                 ('card_factor', 'card_score'),
                 ('latr_factor', 'latr_score'),
@@ -2611,7 +2617,7 @@ def execute_prediction_pipeline():
         logger.warning(f"[PIN] Macro data-issue warnings detected ({len(macro_warnings)}): {{}}".format("; ".join(macro_warnings)))
 
 
-    ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime)
+    ensemble_weights = scorer.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, current_2d_regime, vix_val=vix_report)
 
     # ── RiskManager & CrisisDetector Integration ──
     try:
@@ -2641,7 +2647,10 @@ def execute_prediction_pipeline():
                 ensemble_df.loc[ensemble_df['symbol'].isin(triggered_symbols), 'ensemble_expected_return'] = -0.99
                 ensemble_df.loc[ensemble_df['symbol'].isin(triggered_symbols), 'ensemble_score'] = 0.0
     except Exception as _rm_e:
-        logger.warning(f"RiskManager evaluation skipped: {_rm_e}")
+        logger.warning(f"RiskManager evaluation failed: {_rm_e}. Applying conservative VIX crisis fallback (scaling expected returns by 0.50).")
+        if 'ensemble_df' in locals() and ensemble_df is not None and not ensemble_df.empty:
+            if 'ensemble_expected_return' in ensemble_df.columns:
+                ensemble_df['ensemble_expected_return'] = ensemble_df['ensemble_expected_return'] * 0.50
 
     # Milestone 3: CPCV & Historical Stress Testing Engine
     m3_report_str = ""
@@ -2935,26 +2944,41 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 100 Ensemble Picks\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n")
-            f.write("-" * 171 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
+            f.write("-" * 176 + "\n")
             for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                 name_val = row.get('name', 'Unknown')
                 name_str = str(name_val)[:16] if pd.notna(name_val) else "Unknown"
                 vcp_rule_val = row.get('vcp_rule_score', 0.0)
+                vcp_rule_val = 0.0 if pd.isna(vcp_rule_val) else vcp_rule_val
                 lstm_val = row.get('lstm_score', 0.0)
+                lstm_val = 0.0 if pd.isna(lstm_val) else lstm_val
                 sa_val = row.get('stat_arb_score', 0.0)
+                sa_val = 0.0 if pd.isna(sa_val) else sa_val
                 sec_val = row.get('sector_score', 0.0)
+                sec_val = 0.0 if pd.isna(sec_val) else sec_val
                 rim_val = row.get('rim_score', 0.0)
+                rim_val = 0.0 if pd.isna(rim_val) else rim_val
                 ev_val = row.get('event_score', 0.0)
+                ev_val = 0.0 if pd.isna(ev_val) else ev_val
                 mq_val = row.get('mq_score', 0.0)
+                mq_val = 0.0 if pd.isna(mq_val) else mq_val
                 iv_val = row.get('iv_skew_score', 0.0)
+                iv_val = 0.0 if pd.isna(iv_val) else iv_val
                 of_val = row.get('order_flow_score', 0.0)
+                of_val = 0.0 if pd.isna(of_val) else of_val
                 rev_val = row.get('reversal_score', 0.0)
+                rev_val = 0.0 if pd.isna(rev_val) else rev_val
                 arm_val = row.get('arm_score', 0.0)
+                arm_val = 0.0 if pd.isna(arm_val) else arm_val
                 card_val = row.get('card_score', 0.0)
+                card_val = 0.0 if pd.isna(card_val) else card_val
                 latr_val = row.get('latr_score', 0.0)
+                latr_val = 0.0 if pd.isna(latr_val) else latr_val
+                ifs_val = row.get('inst_foreign_sector_score', 0.0)
+                ifs_val = 0.0 if pd.isna(ifs_val) else ifs_val
 
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%\n")
+                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%{ifs_val*100:>4.0f}%\n")
             f.write("\n")
         if macro_warnings:
             f.write("--- Data Quality Notes (auto-detected) ---\n")
@@ -2976,21 +3000,51 @@ def execute_prediction_pipeline():
             _mf.write("\n=========================================\n")
             _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")
             _mf.write("=========================================\n")
-            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n")
-            _mf.write("-" * 171 + "\n")
+            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
+            _mf.write("-" * 176 + "\n")
             for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
+                _vcp_r = _row.get('vcp_rule_score', 0.0)
+                _vcp_r = 0.0 if pd.isna(_vcp_r) else _vcp_r
+                _lstm = _row.get('lstm_score', 0.0)
+                _lstm = 0.0 if pd.isna(_lstm) else _lstm
+                _sa = _row.get('stat_arb_score', 0.0)
+                _sa = 0.0 if pd.isna(_sa) else _sa
+                _sec = _row.get('sector_score', 0.0)
+                _sec = 0.0 if pd.isna(_sec) else _sec
+                _rim = _row.get('rim_score', 0.0)
+                _rim = 0.0 if pd.isna(_rim) else _rim
+                _ev = _row.get('event_score', 0.0)
+                _ev = 0.0 if pd.isna(_ev) else _ev
+                _mq = _row.get('mq_score', 0.0)
+                _mq = 0.0 if pd.isna(_mq) else _mq
+                _iv = _row.get('iv_skew_score', 0.0)
+                _iv = 0.0 if pd.isna(_iv) else _iv
+                _of = _row.get('order_flow_score', 0.0)
+                _of = 0.0 if pd.isna(_of) else _of
+                _rev = _row.get('reversal_score', 0.0)
+                _rev = 0.0 if pd.isna(_rev) else _rev
+                _arm = _row.get('arm_score', 0.0)
+                _arm = 0.0 if pd.isna(_arm) else _arm
+                _card = _row.get('card_score', 0.0)
+                _card = 0.0 if pd.isna(_card) else _card
+                _latr = _row.get('latr_score', 0.0)
+                _latr = 0.0 if pd.isna(_latr) else _latr
+                _ifs = _row.get('inst_foreign_sector_score', 0.0)
+                _ifs = 0.0 if pd.isna(_ifs) else _ifs
+
                 _mf.write(
                     f"{_rank:<5}{_row['symbol']:<10}{_name_str:<18}"
                     f"{_row['ensemble_score']*100:>10.1f}%{_row['ensemble_expected_return']:>12.2f}%"
                     f"{_row['reg_score']*100:>4.0f}%{_row['surge_score']*100:>4.0f}%{_row['ll_score']*100:>4.0f}%"
-                    f"{_row.get('vcp_rule_score', 0.0)*100:>5.0f}%{_row['vcp_ml_score']*100:>5.0f}%"
-                    f"{_row.get('lstm_score', 0.0)*100:>4.0f}%{_row.get('stat_arb_score', 0.0)*100:>5.0f}%"
-                    f"{_row.get('sector_score', 0.0)*100:>5.0f}%{_row.get('rim_score', 0.0)*100:>4.0f}%"
-                    f"{_row.get('event_score', 0.0)*100:>5.0f}%{_row.get('mq_score', 0.0)*100:>4.0f}%"
-                    f"{_row.get('iv_skew_score', 0.0)*100:>5.0f}%{_row.get('order_flow_score', 0.0)*100:>4.0f}%"
-                    f"{_row.get('reversal_score', 0.0)*100:>4.0f}%"
-                    f"{_row.get('arm_score', 0.0)*100:>4.0f}%{_row.get('card_score', 0.0)*100:>5.0f}%{_row.get('latr_score', 0.0)*100:>4.0f}%\n"
+                    f"{_vcp_r*100:>5.0f}%{_row['vcp_ml_score']*100:>5.0f}%"
+                    f"{_lstm*100:>4.0f}%{_sa*100:>5.0f}%"
+                    f"{_sec*100:>5.0f}%{_rim*100:>4.0f}%"
+                    f"{_ev*100:>5.0f}%{_mq*100:>4.0f}%"
+                    f"{_iv*100:>5.0f}%{_of*100:>4.0f}%"
+                    f"{_rev*100:>4.0f}%"
+                    f"{_arm*100:>4.0f}%{_card*100:>5.0f}%{_latr*100:>4.0f}%"
+                    f"{_ifs*100:>4.0f}%\n"
                 )
         logger.info(f"Saved ensemble predictions for {_m} to {_mkt_ens_path}")
 

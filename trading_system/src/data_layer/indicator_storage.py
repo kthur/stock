@@ -14,6 +14,22 @@ logger = logging.getLogger(__name__)
 _TRADING_SYSTEM_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_INDICATORS_DB = _TRADING_SYSTEM_ROOT / "market_indicators.db"
 
+
+def _is_krx_symbol(symbol: str) -> bool:
+    """Return True for KRX-listed symbols (KOSPI/KOSDAQ/KONEX).
+
+    KRX symbols carry a `.KS`/`.KQ`/`.KX` suffix (Yahoo style) or are bare
+    6-digit numeric codes (FinanceDataReader style). Everything else is treated
+    as a US market symbol (SP500/NASDAQ/RUSSELL2000).
+    """
+    s = str(symbol).upper().strip()
+    if s.endswith((".KS", ".KQ", ".KX")):
+        return True
+    if len(s) == 6 and s.isdigit():
+        return True
+    return False
+
+
 class MarketIndicatorStorage:
     def __init__(self, db_path: str = str(_DEFAULT_INDICATORS_DB)):
         self.db_path = db_path
@@ -680,6 +696,13 @@ class MarketIndicatorStorage:
         and stores the realized return as ``outcome_return`` and a binary
         ``outcome_label`` (1 if return > label_threshold).
 
+        US symbols: the prediction is created after the KRX close on KST date ``d``,
+        while the US session dated ``d`` only closes ~KST ``d+1`` 06:00. Using that
+        bar as the entry would leak 24h of future information into rolling Sharpe and
+        the realized backtest summary. For US symbols the entry is therefore the last
+        close strictly BEFORE the ``d``-dated US session (i.e. the most recent bar
+        available when the prediction was made).
+
         Returns the number of rows updated.
         """
         history = self.get_ensemble_predictions_history(days=days, min_date=min_date)
@@ -697,7 +720,14 @@ class MarketIndicatorStorage:
                     syms = day_rows['symbol'].unique().tolist()
                     for sym in syms:
                         try:
-                            px = prices_getter(sym, start_date=d)
+                            is_us = not _is_krx_symbol(str(sym))
+                            # Fetch a window around the prediction date so the last
+                            # pre-`d` US close is available (US bars dated `d` close
+                            # after the prediction is made).
+                            fetch_start = d if not is_us else (
+                                pd.Timestamp(d) - pd.Timedelta(days=14)
+                            ).strftime("%Y-%m-%d")
+                            px = prices_getter(sym, start_date=fetch_start)
                         except Exception:
                             continue
                         if px is None or px.empty:
@@ -706,10 +736,22 @@ class MarketIndicatorStorage:
                         if isinstance(closes, pd.DataFrame):
                             closes = closes.iloc[:, 0]
                         closes = closes.dropna()
-                        if len(closes) < horizon + 1:
-                            continue
-                        entry = float(closes.iloc[0])
-                        exit_px = float(closes.iloc[horizon])
+                        if is_us:
+                            if not isinstance(closes.index, pd.DatetimeIndex):
+                                closes.index = pd.to_datetime(closes.index)
+                            avail = closes[closes.index < pd.Timestamp(d)]
+                            if len(avail) < 1:
+                                continue
+                            rest = closes[closes.index >= avail.index[-1]]
+                            if len(rest) < horizon + 1:
+                                continue
+                            entry = float(avail.iloc[-1])
+                            exit_px = float(rest.iloc[horizon])
+                        else:
+                            if len(closes) < horizon + 1:
+                                continue
+                            entry = float(closes.iloc[0])
+                            exit_px = float(closes.iloc[horizon])
                         if entry is None or entry <= 0 or exit_px is None or exit_px <= 0:
                             continue
                         outcome_return = exit_px / entry - 1.0

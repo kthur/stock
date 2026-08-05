@@ -285,6 +285,12 @@ class PortfolioAllocator:
                     ret_df = common
                 else:
                     ret_df = raw_ret.fillna(raw_ret.mean())
+                    # Mean-filling deflates the variance of short-history columns,
+                    # which HRP would misread as low risk. Add tiny jitter so the
+                    # filled runs keep a realistic scale (never constant columns).
+                    col_std = raw_ret.std().fillna(0.0).values + 1e-6
+                    rng = np.random.default_rng(0)
+                    ret_df = ret_df + rng.normal(0.0, 1e-4 * col_std, size=ret_df.shape)
                 cov_mat = ret_df.cov().values
                 if np.any(np.isnan(cov_mat)):
                     np.fill_diagonal(cov_mat, np.nan_to_num(np.diag(cov_mat), nan=1e-4))

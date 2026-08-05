@@ -139,6 +139,13 @@ class CrisisDetector:
         else:
             self.crisis_level = CrisisLevel.NONE
 
+        # Standalone VIX override check
+        if vix >= 40.0:
+            self.crisis_level = CrisisLevel.SEVERE
+        elif vix >= 30.0:
+            if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
+                self.crisis_level = CrisisLevel.ACTIVE
+
         if self.crisis_level in (CrisisLevel.ACTIVE, CrisisLevel.SEVERE):
             self._days_in_crisis += 1
             self._recovery_mode = False

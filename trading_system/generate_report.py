@@ -76,10 +76,10 @@ class EnsembleData:
     markets: list[EnsembleMarket] = field(default_factory=list)
     decision_rationale: str = ""
     coverage_report: str = ""
-    decoupling_status: str = "COUPLED"
-    decoupling_corr: str = "1.00"
-    us_regime: str = "BULL_LOW_VOL"
-    kr_regime: str = "BULL_LOW_VOL"
+    decoupling_status: str = ""
+    decoupling_corr: str = ""
+    us_regime: str = ""
+    kr_regime: str = ""
 
 @dataclass
 class StatArbRow:
@@ -233,7 +233,7 @@ def parse_ensemble(text: str) -> EnsembleData:
             data.us10y = _clean_macro(m.group(1), "4.25%", "us10y")
         m = re.match(r"KR 10Y Bond Yield.*:\s*(.+)", line)
         if m:
-            data.kr10y = _clean_macro(m.group(1), "3.35%", "kr10y")
+            data.kr10y = _clean_macro(m.group(1), "3.50%", "kr10y")
         m = re.match(r"USD/KRW FX Rate.*:\s*(.+)", line)
         if m:
             data.usdkrw = _clean_macro(m.group(1), "1,380.00 KRW", "usdkrw")
@@ -242,7 +242,7 @@ def parse_ensemble(text: str) -> EnsembleData:
             data.wti = _clean_macro(m.group(1), "$75.50 / bbl", "wti")
         m = re.match(r"Gold \(GLD ETF\).*:\s*(.+)", line)
         if m:
-            data.gold = _clean_macro(m.group(1), "$2,380.00", "gold")
+            data.gold = _clean_macro(m.group(1), "$220.00", "gold")
     # Parse weights block
     in_weights_block = False
     for line in text.splitlines():
@@ -812,22 +812,27 @@ REGIME_INFO = {
 
 def safe_float(val: str) -> float:
     try:
-        val_clean = val.replace("%", "").strip()
-        if val_clean.lower() in ("nan", "none", ""):
+        if val is None:
             return 0.0
-        return float(val_clean)
+        val_clean = str(val).replace("%", "").replace(",", "").strip()
+        if val_clean.lower() in ("nan", "none", "", "n/a"):
+            return 0.0
+        m = re.search(r"[-+]?\d+(?:\.\d+)?", val_clean)
+        if not m:
+            return 0.0
+        return float(m.group(0))
     except Exception:
         return 0.0
 
 def ret_class(val: str) -> str:
     if "nan" in val.lower() or "none" in val.lower():
         return ""
-    try:
-        if safe_float(val) >= 0:
-            return "pos"
+    v = safe_float(val)
+    if v > 0:
+        return "pos"
+    if v < 0:
         return "neg"
-    except Exception:
-        return "neg"
+    return ""
 
 
 def format_telegram_alert_summary(ensemble: EnsembleData, regime_2d: str = "SIDEWAYS_LOW_VOL") -> str:
@@ -966,20 +971,46 @@ def build_html(
       <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: #cbd5e1; margin: 0;">{ensemble.decision_rationale}</pre>
     </div>"""
 
-    dec_status = ensemble.decoupling_status or "COUPLED"
-    dec_corr = ensemble.decoupling_corr or "1.00"
-    dec_class = "neg" if "DECOUPLING" in dec_status else "pos"
+    # Fallback detection: pipeline defaults are shown to users as "기본값" so a
+    # stale/contaminated indicator is never mistaken for live market data.
+    _FALLBACKS = {
+        "sp500": "+0.050% / day",
+        "vix": "18.50",
+        "us10y": "4.25%",
+        "kr10y": "3.50%",
+        "usdkrw": "1,380.00 KRW",
+        "wti": "$75.50 / bbl",
+        "gold": "$220.00",
+    }
+
+    def _macro_cell(label: str, value: str, fallback: str, cls: str = "") -> str:
+        marker = ""
+        if value:
+            try:
+                if abs(safe_float(value) - safe_float(fallback)) < 1e-9 and safe_float(fallback) != 0.0:
+                    marker = '<span class="fallback-badge">기본값</span>'
+            except Exception:
+                marker = ""
+        return f'<div class="macro-item"><span class="ml">{label}</span><span class="mv {cls}">{value or "N/A"}{marker}</span></div>'
+
+    if ensemble.decoupling_status:
+        dec_status = ensemble.decoupling_status
+        dec_corr = ensemble.decoupling_corr or "-"
+        dec_class = "neg" if "DECOUPLING" in dec_status else "pos"
+        dec_cell = f'<div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv {dec_class}">{dec_status} (상관: {dec_corr})</span></div>'
+    else:
+        dec_cell = '<div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv">미분석</span></div>'
 
     macro_html = f"""
     <div class="macro-grid">
-      <div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv {dec_class}">{dec_status} (상관: {dec_corr})</span></div>
-      <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv {ret_class(ensemble.sp500_return or '0%')}">{ensemble.sp500_return or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">VIX 공포지수</span><span class="mv">{ensemble.vix or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">USD/KRW 환율</span><span class="mv">{ensemble.usdkrw or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">US 10Y 국채금리</span><span class="mv">{ensemble.us10y or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">KR 10Y 국채금리</span><span class="mv">{ensemble.kr10y or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">WTI 국제유가</span><span class="mv">{ensemble.wti or 'N/A'}</span></div>
-      <div class="macro-item"><span class="ml">GLD ETF</span><span class="mv">{ensemble.gold or 'N/A'}</span></div>
+      {dec_cell}
+      {_macro_cell("S&amp;P500 20d Ret", ensemble.sp500_return, _FALLBACKS["sp500"], ret_class(ensemble.sp500_return or "0%"))}
+      {_macro_cell("VIX 공포지수", ensemble.vix, _FALLBACKS["vix"])}
+      {_macro_cell("USD/KRW 환율", ensemble.usdkrw, _FALLBACKS["usdkrw"])}
+      {_macro_cell("US 10Y 국채금리", ensemble.us10y, _FALLBACKS["us10y"])}
+      {_macro_cell("KR 10Y 국채금리", ensemble.kr10y, _FALLBACKS["kr10y"])}
+      {_macro_cell("WTI 국제유가", ensemble.wti, _FALLBACKS["wti"])}
+      {_macro_cell("GLD ETF", ensemble.gold, _FALLBACKS["gold"])}
       <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">{ensemble.max_allocation or 'N/A'}</span></div>
     </div>"""
 
@@ -1039,6 +1070,7 @@ def build_html(
                     prob = safe_float(sr.probability)
                     bar_w = min(100, int(prob))
                     color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
+                    prob_label = f"{sr.probability}%" if sr.probability.lower() not in ("nan", "none") else "N/A"
                     symbol_link = make_stock_link(sr.symbol, mkt)
                     rows_html += f"""
               <tr>
@@ -1048,7 +1080,7 @@ def build_html(
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:{bar_w}%;background:{color}"></div>
-                    <span class="prob-label" style="color:{color}">{sr.probability}</span>
+                    <span class="prob-label" style="color:{color}">{prob_label}</span>
                   </div>
                 </td>
               </tr>"""
@@ -1178,6 +1210,7 @@ def build_html(
                     prob = safe_float(vml.probability)
                     bar_w = min(100, int(prob))
                     color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
+                    prob_label = f"{vml.probability}%" if vml.probability.lower() not in ("nan", "none") else "N/A"
                     symbol_link = make_stock_link(vml.symbol, mkt)
                     rows_html += f"""
             <tr>
@@ -1187,7 +1220,7 @@ def build_html(
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:{bar_w}%;background:{color}"></div>
-                  <span class="prob-label" style="color:{color}">{vml.probability}</span>
+                  <span class="prob-label" style="color:{color}">{prob_label}</span>
                 </div>
               </td>
             </tr>"""
@@ -1461,6 +1494,7 @@ def build_html(
   .macro-item {{ display: flex; gap: 8px; align-items: center; }}
   .ml {{ color: var(--muted); font-size: 12px; }}
   .mv {{ font-weight: 600; font-size: 13px; }}
+  .fallback-badge {{ margin-left: 6px; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #d29922; border: 1px solid rgba(210, 153, 34, 0.5); background: rgba(210, 153, 34, 0.12); }}
 
   /* Tabs */
   .tabs {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }}

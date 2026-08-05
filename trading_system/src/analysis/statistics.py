@@ -88,7 +88,7 @@ class AdvancedStatistics:
         downside_returns = [r for r in returns if r < target_return]
 
         if not downside_returns:
-            return float("inf") if avg_return > target_return else 0
+            return 999.0 if avg_return > target_return else 0.0
 
         downside_variance = sum((r - target_return) ** 2 for r in downside_returns) / len(returns)
         downside_std = math.sqrt(downside_variance)
@@ -153,25 +153,25 @@ class AdvancedStatistics:
     def calculate_var(self, returns: List[float], confidence: float = 0.95) -> float:
         """Value at Risk (VaR) 계산"""
         if not returns:
-            return 0
+            return 0.0
 
         sorted_returns = sorted(returns)
-        index = int(len(sorted_returns) * (1 - confidence))
+        index = max(0, min(len(sorted_returns) - 1, int(len(sorted_returns) * (1.0 - confidence))))
 
-        return sorted_returns[index]
+        return float(sorted_returns[index])
 
     def calculate_cvar(self, returns: List[float], confidence: float = 0.95) -> float:
         """Conditional Value at Risk (CVaR) / Expected Shortfall 계산"""
         if not returns:
-            return 0
+            return 0.0
 
         var = self.calculate_var(returns, confidence)
         worse_returns = [r for r in returns if r <= var]
 
         if not worse_returns:
-            return var
+            return float(var)
 
-        return sum(worse_returns) / len(worse_returns)
+        return float(sum(worse_returns) / len(worse_returns))
 
     def calculate_information_ratio(
         self, returns: List[float], benchmark_returns: List[float], periods_per_year: int = 252
@@ -229,7 +229,8 @@ class AdvancedStatistics:
         final_value = equity_curve[-1]
         total_return = (final_value - initial_value) / initial_value
         n = len(equity_curve)
-        annual_return = (1 + total_return) ** (252 / n) - 1 if n > 0 else 0
+        total_ret_clamped = max(1e-6, 1.0 + total_return)
+        annual_return = (total_ret_clamped ** (252.0 / n)) - 1.0 if n > 0 else 0.0
 
         max_dd, _, _ = self.calculate_max_drawdown(equity_curve)
         volatility = self.calculate_volatility(returns)

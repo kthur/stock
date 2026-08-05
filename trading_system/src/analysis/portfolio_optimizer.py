@@ -251,12 +251,23 @@ def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
         # Apply Ledoit-Wolf covariance shrinkage
         cov_matrix = shrink_covariance_matrix(cov_matrix, shrink_factor=0.15)
 
-        # Ensure covariance matrix is finite and non-NaN
-        cov_matrix = np.nan_to_num(cov_matrix, nan=1e-8, posinf=1e-2, neginf=-1e-2)
+        # Replace non-finite entries with column-wise means of the valid entries.
+        # Filling with a tiny constant (e.g. 1e-8) creates fake zero-variance
+        # ("risk-free") assets that HRP then over-allocates to.
+        if not np.all(np.isfinite(cov_matrix)):
+            finite_mask = np.isfinite(cov_matrix)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                col_fill = np.where(
+                    finite_mask.any(axis=0),
+                    np.nanmean(np.where(finite_mask, cov_matrix, np.nan), axis=0),
+                    0.0,
+                )
+            cov_matrix = np.where(finite_mask, cov_matrix, col_fill)
+            np.fill_diagonal(cov_matrix, np.nan_to_num(np.diag(cov_matrix), nan=1e-4))
 
         # Standard deviation & correlation matrix
-        vols = np.sqrt(np.diag(cov_matrix))
-        vols = np.where(np.isnan(vols) | (vols < 1e-8), 1e-8, vols)
+        vols = np.sqrt(np.abs(np.diag(cov_matrix)))
+        vols = np.where((vols < 1e-8) | ~np.isfinite(vols), 1e-4, vols)
         outer_vols = np.outer(vols, vols)
         corr = cov_matrix / outer_vols
         corr = np.nan_to_num(corr, nan=0.0)
@@ -302,13 +313,13 @@ def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
                 # Variance of left & right clusters
                 cov_left = cov_matrix[np.ix_(c_left, c_left)]
                 vols_left = np.maximum(np.sqrt(np.diag(cov_left)), 1e-8)
-                inv_vol_left = 1.0 / vols_left
+                inv_vol_left = 1.0 / (vols_left ** 2)
                 w_left = inv_vol_left / np.sum(inv_vol_left)
                 var_left = float(w_left @ cov_left @ w_left)
 
                 cov_right = cov_matrix[np.ix_(c_right, c_right)]
                 vols_right = np.maximum(np.sqrt(np.diag(cov_right)), 1e-8)
-                inv_vol_right = 1.0 / vols_right
+                inv_vol_right = 1.0 / (vols_right ** 2)
                 w_right = inv_vol_right / np.sum(inv_vol_right)
                 var_right = float(w_right @ cov_right @ w_right)
 

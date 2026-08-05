@@ -61,6 +61,8 @@ def _normalize_date_column(df: pd.DataFrame) -> pd.DataFrame:
     df_copy = df.copy()
 
     if isinstance(df_copy.index, pd.DatetimeIndex) or (df_copy.index.name and str(df_copy.index.name).lower() in ["date", "datetime", "index"]):
+        if not df_copy.index.name or str(df_copy.index.name).lower() == "index":
+            df_copy.index.name = "date"
         df_copy = df_copy.reset_index()
 
     for col in list(df_copy.columns):
@@ -100,8 +102,12 @@ class ParquetWALBuffer:
         file_id = f"{clean_sym}_{uuid.uuid4().hex[:8]}.parquet"
         staging_path = self.staging_dir / file_id
 
-        # Preserve index as date if DatetimeIndex
-        df_copy = _normalize_date_column(df)
+        # Preserve index as date if DatetimeIndex or missing/index named
+        df_copy = df.copy()
+        if isinstance(df_copy.index, pd.DatetimeIndex) or not df_copy.index.name or str(df_copy.index.name).lower() in ["index", "date", "datetime"]:
+            if not df_copy.index.name or str(df_copy.index.name).lower() == "index":
+                df_copy.index.name = "date"
+        df_copy = _normalize_date_column(df_copy)
         df_copy.to_parquet(staging_path, compression="snappy", index=False)
         return staging_path
 
@@ -124,6 +130,9 @@ class ParquetWALBuffer:
         if not dfs:
             return None
         combined = pd.concat(dfs, ignore_index=True)
+
+        if "index" in combined.columns and "date" not in combined.columns:
+            combined.rename(columns={"index": "date"}, inplace=True)
 
         if "date" in combined.columns:
             combined = combined.dropna(subset=["date"])
@@ -153,6 +162,9 @@ class ParquetWALBuffer:
                 dfs = [_normalize_date_column(pd.read_parquet(fp)) for fp in f_list]
                 combined = pd.concat(dfs, ignore_index=True)
 
+                if "index" in combined.columns and "date" not in combined.columns:
+                    combined.rename(columns={"index": "date"}, inplace=True)
+
                 if "date" in combined.columns:
                     combined = combined.dropna(subset=["date"])
                     combined = combined.drop_duplicates(subset=["date"], keep="last").sort_values("date")
@@ -166,6 +178,8 @@ class ParquetWALBuffer:
                         existing_norm = _normalize_date_column(existing)
                         combined_reset = _normalize_date_column(combined)
                         merged = pd.concat([existing_norm, combined_reset], ignore_index=True)
+                        if "index" in merged.columns and "date" not in merged.columns:
+                            merged.rename(columns={"index": "date"}, inplace=True)
                         if "date" in merged.columns:
                             merged = merged.dropna(subset=["date"])
                             merged = merged.drop_duplicates(subset=["date"], keep="last").sort_values("date")

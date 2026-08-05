@@ -64,6 +64,14 @@ class CheckpointManager:
                     if isinstance(data, dict):
                         return data
                     logger.warning(f"Manifest at {self.manifest_path} is not a dict (got {type(data).__name__}). Re-initializing default manifest.")
+                    return {
+                        "run_id": self.run_id,
+                        "created_at": datetime.now().isoformat(),
+                        "updated_at": datetime.now().isoformat(),
+                        "config_hash": "",
+                        "completed_tasks": {},
+                        "failed_tasks": {},
+                    }
             except Exception as e:
                 logger.warning(f"Failed to read existing manifest at {self.manifest_path}: {e}")
         return {
@@ -122,7 +130,7 @@ class CheckpointManager:
         for artifact_name in artifacts:
             art_path = self.checkpoint_dir / artifact_name
             try:
-                if not art_path.exists() or art_path.stat().st_size == 0:
+                if not art_path.exists() or art_path.stat().st_size <= 0:
                     return False
             except OSError:
                 return False
@@ -315,9 +323,12 @@ class DAGRunner:
                 try:
                     result = task.execute(self.context)
                     self.context.set_output(task.name, result)
-                    task.checkpoint(self.context, result)
+                    ckpt_artifacts = task.checkpoint(self.context, result)
                     elapsed = time.time() - t0
-                    self.context.checkpoint_manager.mark_completed(task.name, duration=elapsed, context=self.context)
+                    existing_entry = self.context.checkpoint_manager._manifest.get("completed_tasks", {}).get(task.name)
+                    existing_arts = existing_entry.get("artifacts", []) if isinstance(existing_entry, dict) else []
+                    final_arts = ckpt_artifacts if isinstance(ckpt_artifacts, list) else existing_arts
+                    self.context.checkpoint_manager.mark_completed(task.name, duration=elapsed, artifacts=final_arts, context=self.context)
                     logger.info(f"✅ [SUCCESS] Task '{task.name}' completed in {elapsed:.2f}s")
                 except Exception as e:
                     logger.error(f"❌ [FAILURE] Task node '{task.name}' failed: {e}")

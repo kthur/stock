@@ -11,7 +11,7 @@ Separates monolithic run_pipeline.py execution into structured, reusable stages:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 import pandas as pd
 
@@ -28,17 +28,9 @@ class PipelineContext:
     price_db: Any = None
     universe_df: Optional[pd.DataFrame] = None
     indicators_df: Optional[pd.DataFrame] = None
-    trained_models: Dict[str, Any] = None
-    inference_results: Dict[str, Any] = None
-    ensemble_results: Dict[str, Any] = None
-
-    def __post_init__(self):
-        if self.trained_models is None:
-            self.trained_models = {}
-        if self.inference_results is None:
-            self.inference_results = {}
-        if self.ensemble_results is None:
-            self.ensemble_results = {}
+    trained_models: Dict[str, Any] = field(default_factory=dict)
+    inference_results: Dict[str, Any] = field(default_factory=dict)
+    ensemble_results: Dict[str, Any] = field(default_factory=dict)
 
 
 class BaseStage:

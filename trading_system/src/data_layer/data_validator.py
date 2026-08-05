@@ -71,13 +71,15 @@ def clean_macro_value(val_str: str, fallback_str: str, kind: str) -> str:
     if "nan" in lowered or "none" in lowered or "n/a" in lowered:
         return fallback_str
 
-    m_num = re.search(r"[-+]?\d+(?:\.\d+)?", lowered)
+    m_num = re.search(r"[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?", lowered)
     if m_num:
         try:
-            num = float(m_num.group(0))
+            num = float(m_num.group(0).replace(",", ""))
+            inverted = False
             if kind == "usdkrw":
                 if 0.0001 <= num <= 0.005:
                     num = 1.0 / num  # Auto-invert KRW/USD to USD/KRW
+                    inverted = True
                 elif abs(num - 1.0) < 1e-3:
                     logger.warning(
                         "[DataValidator] USDKRW rate 1.0 is an invalid unit rate. Applying fallback."
@@ -89,8 +91,9 @@ def clean_macro_value(val_str: str, fallback_str: str, kind: str) -> str:
                     f"[DataValidator] Macro indicator '{kind}' value {num} out of bounds [{lo}, {hi}]. Fallback applied."
                 )
                 return fallback_str
-            if kind == "usdkrw" and 0.0001 <= float(m_num.group(0)) <= 0.005:
+            if kind == "usdkrw" and inverted:
                 return f"{num:.1f}"
+            return val_str.strip()
         except ValueError:
             return fallback_str
     return val_str.strip()

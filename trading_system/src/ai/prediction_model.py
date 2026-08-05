@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 import pandas as pd
 import xgboost as xgb
@@ -114,6 +114,7 @@ class FallbackMetadataDict(dict):
             "net_income": np.nan,
             "eps": np.nan,
             "dividend_per_share": np.nan,
+            "book_value": np.nan,
         }
 
 
@@ -857,7 +858,7 @@ class OnDevicePredictionModel:
                 except Exception:
                     df = df.sort_index(ascending=True)
 
-        FUND_COLS = ['revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share']
+        FUND_COLS = ['revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share', 'book_value']
         has_cols = all(col in df.columns for col in FUND_COLS)
         if not has_cols:
             df_fun = None
@@ -904,10 +905,22 @@ class OnDevicePredictionModel:
 
                 df = df.reset_index()
                 date_col = None
-                for col in ['Date', 'date']:
+                for col in ['Date', 'date', 'index', 'level_0']:
                     if col in df.columns:
-                        date_col = col
-                        break
+                        try:
+                            converted = pd.to_datetime(df[col])
+                            if not converted.isna().all():
+                                date_col = col
+                                df[col] = converted
+                                break
+                        except Exception:
+                            pass
+                if not date_col:
+                    for col in df.columns:
+                        if pd.api.types.is_datetime64_any_dtype(df[col]):
+                            date_col = col
+                            break
+
                 if date_col:
                     # Apply 60-day conservative filing lag to fundamental dates (eliminate lookahead bias)
                     df_fun_shifted = df_fun.copy()
@@ -925,13 +938,9 @@ class OnDevicePredictionModel:
                     df = df.drop(columns=['date_align', 'date_available', 'date_fund'], errors='ignore')
                     df = df.set_index(date_col)
                 else:
-                    try:
-                        df['index'] = pd.to_datetime(df['index'])
-                    except Exception:
-                        pass
-                    df = df.set_index('index')
-                    df_fun = df_fun.set_index('date')
-                    df = df.join(df_fun, how='left')
+                    df_fun_shifted = df_fun.copy()
+                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
+                    df = df.join(df_fun_shifted.set_index('date_available'), how='left')
             else:
                 meta = FALLBACK_METADATA[symbol]
                 for col in FUND_COLS:

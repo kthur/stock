@@ -897,6 +897,13 @@ class BacktestEngine:
     ) -> BacktestResult:
         """
         Runs backtest driven by dynamic 14-strategy ensemble score inputs from EnsembleScoringEngine.
+
+        WARNING (look-ahead bias): this method applies a SINGLE snapshot of
+        ensemble scores (today's prediction) to the ENTIRE backtest window. It is
+        only meaningful as a sanity check of today's score levels, NOT as a
+        historical performance estimate. Do NOT use its results as evidence of
+        strategy profitability — a proper walk-forward replay would need a
+        dated score history per (date, symbol).
         """
         def ensemble_strategy_func(bars_sub: List[PriceBar]) -> str:
             if not bars_sub or ensemble_scores is None or ensemble_scores.empty:
@@ -1416,7 +1423,13 @@ class BacktestEngine:
             return "HOLD"
 
     def _ml_ensemble_strategy(self, bars: List[PriceBar], params: Optional[Dict] = None) -> str:
-        """머신러닝 예측 앙상블 전략"""
+        """머신러닝 예측 앙상블 전략
+
+        WARNING (look-ahead bias): trains on the FULL backtest window and then
+        predicts on the same data (in-sample), and the first symbol's model is
+        reused for every other symbol. Results produced through this strategy are
+        optimistically biased and must NOT be presented as historical evidence.
+        """
         # 현재 심볼이 변경되었거나 아직 학습이 안된 경우 학습 수행
         if not self.ml_trained_symbol and self._current_price_bars:
             self.ml_engine.train(self._current_price_bars)

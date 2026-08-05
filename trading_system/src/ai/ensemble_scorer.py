@@ -289,6 +289,36 @@ class EnsembleScoringEngine:
         # Load Optuna-tuned 2D regime weights from tuned_params.json (if available)
         self._load_tuned_regime_weights()
 
+        # Restore EMA weight continuity across pipeline runs (persisted below)
+        self._load_prev_weights()
+
+    def _load_prev_weights(self) -> None:
+        """Load persisted EMA ensemble weights for cross-run continuity.
+
+        The persisted regime is restored together with the weights so that a
+        regime change between pipeline runs is detected as a shift (alpha=1.0)
+        instead of smoothing stale weights from a different regime.
+        """
+        try:
+            from pathlib import Path
+            import json
+            weights_file = Path(__file__).resolve().parent.parent.parent / "models" / "prev_weights.json"
+            if weights_file.exists():
+                with open(weights_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                weights_data = data.get("weights", data) if isinstance(data, dict) else data
+                if isinstance(weights_data, dict) and weights_data:
+                    self._prev_weights = {str(k): float(v) for k, v in weights_data.items()}
+                    loaded_regime = data.get("regime") if isinstance(data, dict) else None
+                    if loaded_regime:
+                        self._prev_regime = loaded_regime
+                    logger.info(
+                        f"[EMA] Loaded previous ensemble weights from prev_weights.json "
+                        f"({len(self._prev_weights)} strategies, regime={loaded_regime})"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not load prev_weights.json: {e}")
+
     def update_microstructure_costs(self, slippage_metrics: Any) -> None:
         """
         Dynamically updates microstructure cost parameters based on realized execution logs.
@@ -396,17 +426,22 @@ class EnsembleScoringEngine:
             return np.asarray(scores)
     def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[List[float], pd.Series]],
                                window: int = 60,
-                               risk_free_rate: float = 0.0) -> Dict[str, float]:
+                               risk_free_rate: float = 0.0,
+                               min_obs: int = 10) -> Dict[str, float]:
         """
         Computes recent rolling Sharpe ratio for each strategy.
         Sharpe_i = (mean(R_i) - r_f/252) / (std(R_i) + 1e-6) * sqrt(252)
+
+        Strategies with fewer than ``min_obs`` observations are reported as 0.0
+        (no evidence yet) so they keep their neutral base weight instead of
+        receiving a noisy Sharpe estimate.
         """
         sharpes = {}
         rf_daily = risk_free_rate / 252.0 if risk_free_rate > 0 else 0.0
         for strategy, ret_data in strategy_returns.items():
             try:
                 s = pd.Series(ret_data).dropna()
-                if len(s) >= 2:
+                if len(s) >= max(2, min_obs):
                     recent = s.tail(window)
                     mean_ret = float(recent.mean())
                     std_ret = float(recent.std())
@@ -490,56 +525,49 @@ class EnsembleScoringEngine:
 
     def compute_dynamic_weights_from_sharpe(self, rolling_sharpes: Dict[str, float],
                                             regime: Union[int, str],
-                                            gamma: float = 1.0) -> Dict[str, float]:
+                                            gamma: float = 1.0,
+                                            vix_val: Optional[float] = None) -> Dict[str, float]:
         """
         Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy.
         Formula: w_i_dynamic = base_w_i * exp(gamma * Sharpe_i) / sum(base_w_j * exp(gamma * Sharpe_j))
+
+        Cold-start behaviour: when no strategy has realized outcomes yet, the regime
+        base weights are returned unchanged. Arbitrary "seed" Sharpes would present
+        fabricated performance evidence as real — the dashboard must not claim dynamic
+        weighting before the evidence exists.
         """
-        base_weights = self.get_base_weights(regime)
+        base_weights = self.get_base_weights(regime, vix_val=vix_val)
         if not rolling_sharpes:
             return base_weights
 
-        # C4 FIX: Cold-start seed — when all Sharpe values are 0.0 (no realized outcomes yet),
-        # use differentiated seed values based on strategy characteristics so that
-        # dynamic weighting provides meaningful differentiation even before data accumulates.
         all_zero = all(abs(v) < 1e-8 for v in rolling_sharpes.values())
         if all_zero:
-            # Seed Sharpe values: momentum/trend strategies get higher seeds in BULL,
-            # mean-reversion strategies get higher seeds in BEAR/SIDEWAYS.
-            regime_str = str(regime).upper() if regime is not None else ""
-            if "BULL" in regime_str:
-                seed_sharpes = {
-                    'regression': 0.3, 'surge': 0.5, 'lead_lag': 0.2, 'vcp_rule': 0.3,
-                    'vcp_ml': 0.4, 'lstm': 0.2, 'stat_arb': -0.1, 'sector_rotation': 0.4,
-                    'rim_valuation': 0.1, 'event_driven': 0.3, 'mq_factor': 0.4,
-                    'iv_skew': 0.0, 'order_flow': 0.3, 'short_term_reversal': -0.1,
-                    'arm_factor': 0.3, 'card_factor': 0.1, 'latr_factor': 0.1,
-                }
-            elif "BEAR" in regime_str:
-                seed_sharpes = {
-                    'regression': 0.1, 'surge': -0.1, 'lead_lag': 0.1, 'vcp_rule': 0.0,
-                    'vcp_ml': -0.1, 'lstm': 0.1, 'stat_arb': 0.4, 'sector_rotation': 0.1,
-                    'rim_valuation': 0.4, 'event_driven': 0.2, 'mq_factor': 0.1,
-                    'iv_skew': 0.3, 'order_flow': 0.2, 'short_term_reversal': 0.4,
-                    'arm_factor': 0.1, 'card_factor': 0.2, 'latr_factor': 0.3,
-                }
-            else:  # SIDEWAYS
-                seed_sharpes = {
-                    'regression': 0.2, 'surge': 0.1, 'lead_lag': 0.2, 'vcp_rule': 0.1,
-                    'vcp_ml': 0.1, 'lstm': 0.1, 'stat_arb': 0.3, 'sector_rotation': 0.2,
-                    'rim_valuation': 0.3, 'event_driven': 0.2, 'mq_factor': 0.2,
-                    'iv_skew': 0.2, 'order_flow': 0.2, 'short_term_reversal': 0.3,
-                    'arm_factor': 0.2, 'card_factor': 0.2, 'latr_factor': 0.2,
-                }
-            rolling_sharpes = {k: seed_sharpes.get(k, 0.0) for k in rolling_sharpes}
-            logger.info(f"[COLD-START] All Rolling Sharpes are 0.0. Applied seed Sharpe values for regime '{regime}'.")
+            logger.info(
+                "[COLD-START] No realized strategy outcomes yet — using regime base weights (dynamic Sharpe weighting inactive)."
+            )
+            return base_weights
 
+        # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
+        # L = ln(sqrt(MAX_MULTIPLIER_RATIO))/gamma keeps the multiplier ratio
+        # <= MAX_MULTIPLIER_RATIO (prevents e^6 ≈ 400:1 single-strategy dominance).
+        max_multiplier_ratio = 5.0
+        sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = float(rolling_sharpes.get(strategy, 0.0))
-            # Exponential Sharpe weighting multiplier: exp(gamma * Sharpe)
-            multiplier = float(np.exp(gamma * np.clip(sharpe, -3.0, 3.0)))
+            multiplier = float(np.exp(gamma * np.clip(sharpe, -sharpe_clip, sharpe_clip)))
             scores[strategy] = base_w * multiplier
+
+        # Additionally bound the TOTAL weight ratio (base regime weights already
+        # differ up to ~5x, so multiplier-only capping is not enough). Damping the
+        # scores with a power < 1 preserves ordering while keeping any single
+        # strategy from dominating the ensemble.
+        max_total_ratio = 20.0
+        _vals = np.array([scores[k] for k in scores], dtype=float)
+        _vmin, _vmax = float(_vals.min()), float(_vals.max())
+        if _vmin > 0.0 and _vmax / _vmin > max_total_ratio:
+            _alpha = float(np.log(max_total_ratio) / np.log(_vmax / _vmin))
+            scores = {k: scores[k] ** _alpha for k in scores}
 
         total_score = sum(scores.values())
         dynamic_weights = {k: v / total_score for k, v in scores.items()}
@@ -562,14 +590,15 @@ class EnsembleScoringEngine:
 
         self._prev_weights = dict(dynamic_weights)
 
-        # Persist EMA weights to disk for continuity across runs
+        # Persist EMA weights to disk for continuity across runs (with the regime
+        # that produced them, so cross-run regime shifts force alpha=1.0).
         try:
             from pathlib import Path
             import json
             models_dir = Path(__file__).resolve().parent.parent.parent / "models"
             models_dir.mkdir(exist_ok=True)
             with open(models_dir / "prev_weights.json", "w", encoding="utf-8") as f:
-                json.dump(self._prev_weights, f, indent=2)
+                json.dump({"regime": str(regime), "weights": self._prev_weights}, f, indent=2)
         except Exception as _se:
             logger.warning(f"Could not persist prev_weights.json: {_se}")
 
@@ -1217,7 +1246,7 @@ class EnsembleScoringEngine:
             if participation_ratio > 0.10:
                 impact_one_way += 0.50 * (participation_ratio - 0.10)
 
-            raw_total_cost = stt_tax + brokerage_fee + (2.0 * clamped_spread) + (2.0 * impact_one_way)
+            raw_total_cost = stt_tax + brokerage_fee + (1.0 * clamped_spread) + (2.0 * impact_one_way)
             cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
             total_cost_pct = raw_total_cost * cost_scaling
             return float(total_cost_pct)

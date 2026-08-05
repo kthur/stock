@@ -455,7 +455,18 @@ class StatisticalArbitrageEngine:
                     p = found_pairs[idx]
                     p['q_value'] = round(float(min(1.0, q_val)), 4)
                     fdr_passed.append(p)
-            found_pairs = fdr_passed if fdr_passed else found_pairs[:50]
+            if fdr_passed:
+                found_pairs = fdr_passed
+            else:
+                # FDR gate failure: no pair survives the multiple-testing
+                # correction. Returning zero pairs is correct — keeping the
+                # top-50 by |z| would feed unvalidated (spurious) pairs into
+                # the ensemble stat_arb_score.
+                logger.warning(
+                    f"StatArb FDR gate: none of {n_tests} candidate pair(s) survived "
+                    f"multiple-testing correction (max_pvalue={max_pvalue}). Returning 0 pairs."
+                )
+                return []
 
         found_pairs = found_pairs[:500]
 
