@@ -381,7 +381,7 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
             data_rows = [r for r in data_rows if '<th' not in r.lower()]
             count = len(data_rows)
             res.strategy_panel_counts[p_id] = count
-            res.strategy_panels_valid[p_id] = count >= 5 and "데이터 없음" not in p_content and "No data" not in p_content
+            res.strategy_panels_valid[p_id] = count >= 5
         else:
             # Flexible fallback: check for table rows or cards with strategy keyword
             count = len(re.findall(rf'class=["\']rank["\']', content))

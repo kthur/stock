@@ -12,7 +12,7 @@ class TestSentimentMetaFilter(unittest.TestCase):
 
     def setUp(self):
         self.fetcher = DARTNewsFetcher()
-        self.meta_filter = SentimentMetaFilter(fetcher=self.fetcher, risk_threshold=0.70)
+        self.meta_filter = SentimentMetaFilter(fetcher=self.fetcher, risk_threshold=0.70, crawl_naver_news=False)
         self.scorer = EnsembleScoringEngine()
         self.risk_mgr = RiskManager(portfolio_value=10000000.0)
 
