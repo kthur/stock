@@ -21,13 +21,16 @@ class MarketRegimeDetector:
       - 2: BULL (Positive return, low/moderate volatility)
     """
 
-    def __init__(self, n_regimes: int = 3, rolling_window: int = 20):
+    def __init__(self, n_regimes: int = 3, rolling_window: int = 20, enable_hysteresis: bool = True):
         self.n_regimes = n_regimes
         self.rolling_window = rolling_window
+        self.enable_hysteresis = enable_hysteresis
         self.gmm = GaussianMixture(n_components=n_regimes, random_state=42, n_init=10)
         self.is_trained = False
         # Map GMM cluster index to regime index (0=BEAR, 1=SIDEWAYS, 2=BULL)
         self.cluster_to_regime: dict[int, int] = {}
+        self._history_deque: list[int] = []
+
 
     def _prepare_features(self, indicator_df: pd.DataFrame) -> pd.DataFrame:
         """Computes multi-variable macro feature matrix.
@@ -208,10 +211,22 @@ class MarketRegimeDetector:
             # Predict cluster index
             cluster_idx = int(self.gmm.predict(latest_feat)[0])
             regime = self.cluster_to_regime.get(cluster_idx, 2)
-            return regime
+            return self._apply_hysteresis(regime)
         except Exception as e:
             logger.error(f"Regime prediction failed: {e}. Falling back to rule-based.")
-            return self._predict_rule_based_fallback(indicator_df)
+            fallback_regime = self._predict_rule_based_fallback(indicator_df)
+            return self._apply_hysteresis(fallback_regime)
+
+    def _apply_hysteresis(self, raw_regime: int) -> int:
+        self._history_deque.append(raw_regime)
+        if len(self._history_deque) > 3:
+            self._history_deque.pop(0)
+        if not self.enable_hysteresis or len(self._history_deque) < 3:
+            return raw_regime
+        if self._history_deque[-1] == self._history_deque[-2]:
+            return self._history_deque[-1]
+        return self._history_deque[0]
+
 
     def predict_regime_label(self, indicator_df: pd.DataFrame) -> str:
         regime = self.predict_regime(indicator_df)

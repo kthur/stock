@@ -13,7 +13,8 @@ from src.analysis.regime_detector import MarketRegimeDetector
 class TestRegimeDetector(unittest.TestCase):
 
     def setUp(self):
-        self.detector = MarketRegimeDetector(n_regimes=3, rolling_window=5)
+        self.detector = MarketRegimeDetector(n_regimes=3, rolling_window=5, enable_hysteresis=False)
+
 
     def test_regime_detector_classification(self):
         """Test training and prediction of GMM market regime detector."""

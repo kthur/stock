@@ -115,11 +115,11 @@ class FactorOrthogonalizerEngine:
         # Standardize matrix to zero mean, unit variance
         X_bar = (X - means) / stds
 
-        # Covariance / Correlation matrix C (K, K)
+        # Compute sample covariance matrix
         C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
 
-        # Ledoit-Wolf shrinkage matrix regularizer (\hat{C} = (1-\alpha)C + \alpha I, \alpha = 0.01)
-        C_shrunk = (1.0 - self.shrinkage_alpha) * C + self.shrinkage_alpha * np.eye(K)
+        # Dynamic Ledoit-Wolf Shrinkage or fallback
+        C_shrunk = self._compute_ledoit_wolf_covariance(X_bar, C)
 
         # Eigen-decomposition of symmetric correlation matrix
         eigenvalues, eigenvectors = np.linalg.eigh(C_shrunk)
@@ -137,4 +137,24 @@ class FactorOrthogonalizerEngine:
         # Variance-preserving rescaling back to original mean and standard deviation
         X_ortho = means + X_decorr * stds
         return cast(np.ndarray, X_ortho)
+
+    def _compute_ledoit_wolf_covariance(self, X_bar: np.ndarray, C_sample: np.ndarray) -> np.ndarray:
+        N, K = X_bar.shape
+        try:
+            from sklearn.covariance import LedoitWolf
+            lw = LedoitWolf(store_precision=False, assume_centered=True)
+            return lw.fit(X_bar).covariance_
+        except Exception:
+            pass
+
+        mu = np.trace(C_sample) / max(K, 1)
+        target = mu * np.eye(K)
+        d2 = float(np.sum((C_sample - target) ** 2))
+        if d2 < 1e-12:
+            return C_sample + self.ridge_epsilon * np.eye(K)
+
+        delta = self.shrinkage_alpha if self.shrinkage_alpha > 0 else 0.01
+        C_shrunk = (1.0 - delta) * C_sample + delta * target
+        return C_shrunk + self.ridge_epsilon * np.eye(K)
+
 

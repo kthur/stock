@@ -44,7 +44,7 @@ def test_save_and_get_ensemble_history(tmp_path):
 def test_update_ensemble_outcomes(tmp_path):
     storage = _make_storage(str(tmp_path))
     df = pd.DataFrame([
-        {"symbol": "AAA", "ensemble_score": 0.9, "ensemble_expected_return": 18.0,
+        {"symbol": "005930", "ensemble_score": 0.9, "ensemble_expected_return": 18.0,
          "reg_score": 0.8, "surge_score": 0.7, "ll_score": 0.6,
          "vcp_rule_score": 0.5, "vcp_ml_score": 0.5, "lstm_score": 0.4,
          "stat_arb_score": 0.4, "sector_score": 0.4, "rim_score": 0.4,
@@ -53,6 +53,7 @@ def test_update_ensemble_outcomes(tmp_path):
          "card_score": 0.4, "latr_score": 0.4, "inst_foreign_sector_score": 0.4},
     ])
     storage.save_ensemble_predictions(df, "2026-06-01")
+
 
     # 25 business days of prices: close 100 -> 110 over 20 trading days
     idx = pd.bdate_range("2026-06-01", periods=25)
@@ -67,7 +68,8 @@ def test_update_ensemble_outcomes(tmp_path):
     assert updated == 1
 
     hist = storage.get_ensemble_predictions_history(days=365)
-    row = hist[hist["symbol"] == "AAA"].iloc[0]
+    row = hist[hist["symbol"] == "005930"].iloc[0]
+
     # entry 100.0, exit 120.0 -> +20%
     assert row["outcome_return"] == pytest.approx(0.20)
     assert row["outcome_label"] == 1

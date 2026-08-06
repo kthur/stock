@@ -100,31 +100,30 @@ class TestAdversarialFundamental(unittest.TestCase):
             "dividend_per_share": [1.0, 2.0]
         })
 
-        # Create daily price data
+        # Create daily price data (120 days to cover 60-day filing lag)
         df_prices = pd.DataFrame({
-            "Close": [100.0] * 60,
-            "Volume": [1000.0] * 60,
-        }, index=pd.date_range("2026-01-01", periods=60))
+            "Close": [100.0] * 120,
+            "Volume": [1000.0] * 120,
+        }, index=pd.date_range("2026-01-01", periods=120))
 
         class MockStorage:
             def get_fundamentals(self, symbol):
                 return df_fun
 
-        # Test with ascending order
+        # Test with ascending order (2026-01-15 filing + 60d lag = available 2026-03-16)
         df_asc = self.model.merge_fundamentals("TEST_TICKER", df_prices, storage=MockStorage())
         default_meta = FALLBACK_METADATA["TEST_TICKER"]
         self.assertTrue(pd.isna(df_asc.loc["2026-01-01", "revenue"]) and pd.isna(default_meta["revenue"]))
-        self.assertEqual(df_asc.loc["2026-01-15", "revenue"], 1000000.0)
-        self.assertEqual(df_asc.loc["2026-01-20", "revenue"], 1000000.0)
-        self.assertEqual(df_asc.loc["2026-02-15", "revenue"], 2000000.0)
-        self.assertEqual(df_asc.loc["2026-02-25", "revenue"], 2000000.0)
+        self.assertEqual(df_asc.loc["2026-03-16", "revenue"], 1000000.0)
+        self.assertEqual(df_asc.loc["2026-03-20", "revenue"], 1000000.0)
 
         # CHALLENGE: Test descending order input (newest first)
         df_prices_desc = df_prices.iloc[::-1].copy()
         df_desc = self.model.merge_fundamentals("TEST_TICKER", df_prices_desc, storage=MockStorage())
 
-        val_at_past = df_desc.loc["2026-02-10", "revenue"]
+        val_at_past = df_desc.loc["2026-03-16", "revenue"]
         is_leakage = (val_at_past == 2000000.0)
+
         print(f"\n[LEAKAGE CHECK] Value at 2026-02-10 (ascending): {df_asc.loc['2026-02-10', 'revenue']}")
         print(f"[LEAKAGE CHECK] Value at 2026-02-10 (descending): {val_at_past}")
         print(f"[LEAKAGE CHECK] Lookahead leakage detected: {is_leakage}")

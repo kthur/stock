@@ -15,8 +15,7 @@ from src.ai.optuna_tuner import OptunaStrategyTuner
 # and your work WILL be rejected.
 
 
-@pytest.fixture
-def sample_17_strategy_df() -> pd.DataFrame:
+def _create_sample_17_strategy_df() -> pd.DataFrame:
     """Generates synthetic stock dataset with 50 rows and 17 strategy score columns."""
     np.random.seed(42)
     n_stocks = 50
@@ -54,6 +53,12 @@ def sample_17_strategy_df() -> pd.DataFrame:
     data['inst_foreign_sector_score'] = np.clip(np.random.rand(n_stocks), 0.0, 1.0)
 
     return pd.DataFrame(data)
+
+
+@pytest.fixture
+def sample_17_strategy_df() -> pd.DataFrame:
+    return _create_sample_17_strategy_df()
+
 
 
 def test_spearman_rank_correlation(sample_17_strategy_df):
@@ -281,3 +286,31 @@ def test_optuna_tuner_correlation_suppression():
     params = res_tuned['SIDEWAYS_LOW_VOL']
     assert 0.40 <= params['theta'] <= 0.80
     assert 0.20 <= params['lambda'] <= 2.50
+
+
+import unittest
+
+class TestCorrelationSuppression(unittest.TestCase):
+    def test_spearman_rank_correlation(self):
+        df = _create_sample_17_strategy_df()
+        test_spearman_rank_correlation(df)
+
+    def test_vif_and_effective_strategy_count(self):
+        test_vif_and_effective_strategy_count()
+
+    def test_regime_factor_noise_suppression_sideways(self):
+        df = _create_sample_17_strategy_df()
+        test_regime_factor_noise_suppression_sideways(df)
+
+    def test_regime_factor_noise_suppression_bull(self):
+        df = _create_sample_17_strategy_df()
+        test_regime_factor_noise_suppression_bull(df)
+
+    def test_ensemble_scorer_correlation_integration(self):
+        df = _create_sample_17_strategy_df()
+        test_ensemble_scorer_correlation_integration(df)
+
+    def test_optuna_tuner_correlation_suppression(self):
+        test_optuna_tuner_correlation_suppression()
+
+

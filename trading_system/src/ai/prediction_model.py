@@ -945,7 +945,7 @@ class OnDevicePredictionModel:
                 meta = FALLBACK_METADATA[symbol]
                 for col in FUND_COLS:
                     if col not in df.columns:
-                        df[col] = meta[col]
+                        df[col] = meta.get(col, np.nan)
                 if 'eps_growth_1y' not in df.columns:
                     df['eps_growth_1y'] = 0.0
 
@@ -953,9 +953,10 @@ class OnDevicePredictionModel:
         meta = FALLBACK_METADATA[symbol]
         for col in FUND_COLS:
             if col not in df.columns:
-                df[col] = meta[col]
+                df[col] = meta.get(col, np.nan)
             else:
-                df[col] = df[col].ffill().fillna(meta[col])
+                df[col] = df[col].ffill().fillna(meta.get(col, np.nan))
+
         for col in ['eps_growth_1y']:
             if col not in df.columns:
                 df[col] = 0.0

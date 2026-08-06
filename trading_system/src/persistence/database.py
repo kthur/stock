@@ -385,19 +385,20 @@ class StockPriceDB:
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = sqlite3.connect(
-                str(self.db_path), timeout=30, check_same_thread=False
+                str(self.db_path), timeout=60.0, check_same_thread=False
             )
             self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA busy_timeout=5000")
+            self._local.conn.execute("PRAGMA busy_timeout=60000")
             self._local.conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
             self._local.conn.execute("PRAGMA temp_store=MEMORY")
             self._local.conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
         return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self):
-        conn = sqlite3.connect(str(self.db_path), timeout=30)
+        conn = sqlite3.connect(str(self.db_path), timeout=60.0)
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA busy_timeout=60000")
+
         conn.execute("PRAGMA cache_size=-500000")
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA mmap_size=2000000000")

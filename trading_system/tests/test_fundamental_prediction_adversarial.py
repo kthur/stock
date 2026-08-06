@@ -113,7 +113,8 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
             "Volume": [1000.0] * length,
         }, index=dates)
 
-        # Mock database fundamentals that only has 1 record
+        # Mock database fundamentals that only has 1 record on dates[10] (2026-06-11)
+        # With 60-day filing lag, available on 2026-08-10 (iloc 70)
         df_fun_sparse = pd.DataFrame({
             "date": [dates[10]],
             "revenue": [500000.0],
@@ -128,13 +129,21 @@ class TestFundamentalPredictionAdversarial(unittest.TestCase):
 
         df_merged = self.model.merge_fundamentals("AAPL", df_prices, storage=MockStorage())
 
-        # Before date[10], values should be filled with FallbackMetadata (e.g. AAPL metadata)
-        # From date[10] onwards, values should be forward-filled with 500000.0, 100000.0, 2.0
+        # Before date[10]+60d (iloc 70), values should be filled with FallbackMetadata (e.g. AAPL metadata)
+        # From date[10]+60d onwards, values should be forward-filled with 500000.0, 100000.0, 2.0
         aapl_meta = FALLBACK_METADATA["AAPL"]
-        self.assertTrue(pd.isna(df_merged["revenue"].iloc[0]) and pd.isna(aapl_meta["revenue"]))
-        self.assertEqual(df_merged["revenue"].iloc[10], 500000.0)
-        self.assertEqual(df_merged["revenue"].iloc[99], 500000.0)
-        self.assertEqual(df_merged["dividend_per_share"].iloc[99], 2.0)
+        pre_val = df_merged.loc["2026-06-01", "revenue"]
+        meta_val = aapl_meta["revenue"]
+        if pd.isna(meta_val):
+            self.assertTrue(pd.isna(pre_val))
+        else:
+            self.assertEqual(pre_val, meta_val)
+        self.assertEqual(df_merged.loc["2026-08-10", "revenue"], 500000.0)
+        self.assertEqual(df_merged.iloc[-1]["revenue"], 500000.0)
+        self.assertEqual(df_merged.iloc[-1]["dividend_per_share"], 2.0)
+
+
+
 
         # B. Duplicate fundamental updates on the same date (Adversarial)
         df_fun_dupes = pd.DataFrame({

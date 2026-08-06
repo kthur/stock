@@ -7,10 +7,30 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Callable, Dict, List
+import numpy as np
 
 from src.utils import EventBus
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_almgren_chriss_impact(
+    order_quantity: int,
+    adv: float,
+    daily_volatility: float,
+    spread: float = 0.001,
+    gamma: float = 0.1
+) -> float:
+    """
+    Computes non-linear Almgren-Chriss market impact cost (pct of price).
+    Formula: Cost = 0.5 * spread + gamma * daily_volatility * sqrt(order_quantity / max(adv, 1.0))
+    """
+    if adv <= 0:
+        return 0.5 * spread + 0.005
+    ratio = order_quantity / max(adv, 1.0)
+    impact = 0.5 * spread + gamma * daily_volatility * float(np.sqrt(ratio))
+    return float(np.clip(impact, 0.0005, 0.05))
+
 
 
 class OrderType(Enum):

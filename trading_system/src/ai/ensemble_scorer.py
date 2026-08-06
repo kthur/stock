@@ -427,7 +427,7 @@ class EnsembleScoringEngine:
     def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[List[float], pd.Series]],
                                window: int = 60,
                                risk_free_rate: float = 0.0,
-                               min_obs: int = 10) -> Dict[str, float]:
+                               min_obs: int = 2) -> Dict[str, float]:
         """
         Computes recent rolling Sharpe ratio for each strategy.
         Sharpe_i = (mean(R_i) - r_f/252) / (std(R_i) + 1e-6) * sqrt(252)
@@ -442,6 +442,7 @@ class EnsembleScoringEngine:
             try:
                 s = pd.Series(ret_data).dropna()
                 if len(s) >= max(2, min_obs):
+
                     recent = s.tail(window)
                     mean_ret = float(recent.mean())
                     std_ret = float(recent.std())

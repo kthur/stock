@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["trading_system/tests"]
+python_files = ["test_*.py"]
+norecursedirs = [".venv", ".git", "build", "dist", "tests"]
