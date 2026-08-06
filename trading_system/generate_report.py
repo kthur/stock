@@ -914,14 +914,27 @@ def build_html(
         if mkt_data and mkt_data.rows:
             for r in mkt_data.rows[:20]:
                 rc = ret_class(r.expected_return)
+                ret_disp = f"▲ {r.expected_return}" if r.expected_return.startswith('+') else (f"▼ {r.expected_return}" if r.expected_return.startswith('-') else r.expected_return)
                 symbol_link = make_stock_link(r.symbol, mkt)
+                factors_dict = {
+                    "Reg Regression": r.reg, "Surge Classifier": r.surge, "Lead-Lag Flow": r.lead_lag,
+                    "VCP Rule": r.vcp_rule, "VCP ML": r.vcp_ml, "Strict LSTM": r.lstm,
+                    "Stat-Arb Z-Score": r.stat_arb, "Sector Rotation": r.sector_rotation,
+                    "RIM Valuation": r.rim_valuation, "Event-Driven": r.event_driven,
+                    "MQ Factor": r.mq_factor, "IV Skew": r.iv_skew, "Order Flow": r.order_flow,
+                    "Short Reversal": r.short_term_reversal, "ARM Factor": r.arm_factor,
+                    "CARD Factor": r.card_factor, "LATR Factor": r.latr_factor
+                }
+                import urllib.parse
+                factors_encoded = urllib.parse.quote(json.dumps(factors_dict, ensure_ascii=False))
+                clean_name = r.name.replace("'", "")
                 rows_html += f"""
-            <tr>
-              <td class="rank">#{r.rank}</td>
-              <td class="symbol">{symbol_link}</td>
-              <td class="name">{r.name}</td>
+            <tr onclick="openStockDrawer('{r.symbol}', '{clean_name}', '{mkt}', '{r.score}', '{ret_disp}', '{factors_encoded}')" style="cursor:pointer;">
+              <td class="rank sticky-col sticky-rank">#{r.rank}</td>
+              <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
+              <td class="name sticky-col sticky-name">{r.name}</td>
               <td class="score">{r.score}</td>
-              <td class="{rc}">{r.expected_return}</td>
+              <td class="{rc}">{ret_disp}</td>
               <td>{r.reg}</td>
               <td>{r.surge}</td>
               <td>{r.lead_lag}</td>
@@ -950,9 +963,29 @@ def build_html(
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th>
-            <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
+            <th title="18대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
+            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
+            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
+            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
+            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
+            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
+            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
+            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
+            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
+            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
+            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
+            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
+            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
+            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
+            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
+            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
+            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
+            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -965,10 +998,25 @@ def build_html(
 
     rationale_html = ""
     if ensemble.decision_rationale:
+        lines = [line.strip() for line in ensemble.decision_rationale.strip().split('\n') if line.strip()]
+        card_content = ""
+        for line in lines:
+            if line.startswith('[') and line.endswith(']'):
+                card_content += f'<div style="font-weight:700; color:var(--accent); font-size:12px; margin:10px 0 4px; border-bottom:1px solid var(--border); padding-bottom:2px;">{line}</div>'
+            elif line.startswith('•'):
+                card_content += f'<div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">{line}</div>'
+            elif ':' in line and ('%' in line or 'Sharpe' in line or 'Base' in line):
+                parts = line.split(':', 1)
+                k = parts[0].strip().replace('-', '').strip()
+                v = parts[1].strip()
+                card_content += f'<div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">{k}</span><span style="font-weight:600; color:var(--accent);">{v}</span></div>'
+            else:
+                card_content += f'<div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">{line}</div>'
+
         rationale_html = f"""
-    <div class="card rationale-card" style="margin-top: 15px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; padding: 15px; border-radius: 8px;">
-      <h3 style="color: #38bdf8; margin-bottom: 8px; font-size: 1.1em;">🧠 [2D Regime &amp; Strategy Decision Rationale]</h3>
-      <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: #cbd5e1; margin: 0;">{ensemble.decision_rationale}</pre>
+    <div class="card rationale-card" style="margin-top: 15px; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
+      <h3 style="color: #38bdf8; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">🧠 <span>2D Regime &amp; Strategy Rationale</span></h3>
+      <div style="max-height:360px; overflow-y:auto; padding-right:4px;">{card_content}</div>
     </div>"""
 
     # Fallback detection: pipeline defaults are shown to users as "기본값" so a
@@ -1532,6 +1580,21 @@ def build_html(
   .neg {{ color: var(--red); font-weight: 600; }}
   .empty {{ color: var(--muted); text-align: center; padding: 24px; font-style: italic; }}
 
+  /* Sticky Table Columns */
+  .table-wrap th.sticky-col, .table-wrap td.sticky-col {{
+    position: sticky;
+    background: var(--surface);
+    z-index: 2;
+  }}
+  .table-wrap th.sticky-col {{
+    z-index: 12;
+    background: var(--surface2);
+  }}
+  .table-wrap .sticky-rank {{ left: 0; min-width: 45px; }}
+  .table-wrap .sticky-symbol {{ left: 45px; min-width: 85px; }}
+  .table-wrap .sticky-name {{ left: 130px; min-width: 130px; max-width: 160px; border-right: 2px solid var(--border); box-shadow: 2px 0 5px rgba(0,0,0,0.3); }}
+  tbody tr:hover td.sticky-col {{ background: #1c2128; }}
+
   /* Prob bar */
   .prob-bar {{ display: flex; align-items: center; gap: 8px; min-width: 140px; }}
   .prob-fill {{ height: 6px; border-radius: 3px; flex-shrink: 0; transition: width .3s; }}
@@ -1692,6 +1755,15 @@ def build_html(
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- Row 1: 상단 코어 시스템 (전략 가중치 + 메인 시스템 탭) -->
 <!-- ══════════════════════════════════════════════════════ -->
+<div class="search-bar-wrap" style="padding: 16px 32px 8px; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <div style="position: relative; flex: 1; max-width: 480px;">
+    <input type="text" id="stock-search-input" oninput="filterStockTables()" placeholder="🔍 종목명 또는 종목코드 실시간 검색... (예: 삼성전자, 005930, AAPL)" 
+           style="width: 100%; padding: 10px 16px 10px 38px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; outline: none; transition: border-color .2s;">
+    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px;">🔍</span>
+  </div>
+  <div id="search-status" style="font-size: 13px; color: var(--accent); font-weight: 600;"></div>
+</div>
+
 <nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
   <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 18대 앙상블 TOP 종목</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
@@ -2502,8 +2574,177 @@ document.addEventListener('DOMContentLoaded', function() {{
 
   // Initial trigger
   updateScenarioSim();
+  initSortableTables();
 }});
+
+function filterStockTables() {{
+  const input = document.getElementById('stock-search-input');
+  if (!input) return;
+  const query = input.value.toLowerCase().trim();
+  const rows = document.querySelectorAll('tbody tr');
+  let matchCount = 0;
+  rows.forEach(row => {{
+    if (!query) {{
+      row.style.display = '';
+      matchCount++;
+    }} else {{
+      const text = row.innerText.toLowerCase();
+      if (text.includes(query)) {{
+        row.style.display = '';
+        matchCount++;
+      }} else {{
+        row.style.display = 'none';
+      }}
+    }}
+  }});
+  const status = document.getElementById('search-status');
+  if (status) {{
+    status.textContent = query ? `🔍 ${{matchCount}}개 종목 검색됨` : '';
+  }}
+}}
+
+function initSortableTables() {{
+  document.querySelectorAll('table').forEach(table => {{
+    const headers = table.querySelectorAll('thead th');
+    headers.forEach((header, colIdx) => {{
+      header.style.cursor = 'pointer';
+      header.addEventListener('click', () => sortTable(table, colIdx));
+    }});
+  }});
+}}
+
+function sortTable(table, colIdx) {{
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (rows.length === 0 || rows[0].querySelector('.empty')) return;
+  
+  let asc = table.getAttribute('data-sort-col') == colIdx && table.getAttribute('data-sort-order') === 'asc';
+  
+  rows.sort((a, b) => {{
+    let cellA = a.children[colIdx] ? a.children[colIdx].innerText.trim() : '';
+    let cellB = b.children[colIdx] ? b.children[colIdx].innerText.trim() : '';
+    
+    let numA = parseFloat(cellA.replace(/[^0-9.-]/g, ''));
+    let numB = parseFloat(cellB.replace(/[^0-9.-]/g, ''));
+    
+    if (!isNaN(numA) && !isNaN(numB)) {{
+      return asc ? numA - numB : numB - numA;
+    }}
+    return asc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+  }});
+  
+  table.setAttribute('data-sort-col', colIdx);
+  table.setAttribute('data-sort-order', asc ? 'desc' : 'asc');
+  
+  table.querySelectorAll('thead th').forEach((th, i) => {{
+    let baseText = th.innerText.replace(/ [▲▼]/g, '');
+    if (i === colIdx) {{
+      th.innerText = baseText + (asc ? ' ▲' : ' ▼');
+      th.style.color = 'var(--accent)';
+    }} else {{
+      th.innerText = baseText;
+      th.style.color = 'var(--muted)';
+    }}
+  }});
+
+  rows.forEach(r => tbody.appendChild(r));
+}}
+
+function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjStr) {{
+  const drawer = document.getElementById('stock-drawer');
+  const overlay = document.getElementById('stock-drawer-overlay');
+  if (!drawer || !overlay) return;
+  
+  document.getElementById('drawer-stock-name').textContent = name || symbol;
+  document.getElementById('drawer-stock-meta').textContent = `${{symbol}} • ${{market}}`;
+  document.getElementById('drawer-score').textContent = score || 'N/A';
+  document.getElementById('drawer-return').textContent = expectedReturn || 'N/A';
+  
+  const naverLink = document.getElementById('drawer-naver-link');
+  if (naverLink) {{
+    if (market === 'KOSPI' || market === 'KOSDAQ' || market === 'KONEX') {{
+      naverLink.href = `https://m.stock.naver.com/domestic/stock/${{symbol}}/total`;
+    }} else {{
+      naverLink.href = `https://finance.yahoo.com/quote/${{symbol}}`;
+    }}
+  }}
+  
+  const factorsContainer = document.getElementById('drawer-factors-grid');
+  if (factorsContainer && factorObjStr) {{
+    try {{
+      const factors = JSON.parse(decodeURIComponent(factorObjStr));
+      let html = '';
+      for (const [key, val] of Object.entries(factors)) {{
+        const numVal = parseFloat(val) || 0;
+        const barW = Math.min(100, Math.max(0, numVal));
+        html += `
+          <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+              <span style="color:var(--text); font-weight:500;">${{key}}</span>
+              <span style="color:var(--accent); font-weight:600;">${{val}}</span>
+            </div>
+            <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
+              <div style="height:100%; width:${{barW}}%; background:var(--accent);"></div>
+            </div>
+          </div>`;
+      }}
+      factorsContainer.innerHTML = html;
+    }} catch(e) {{
+      factorsContainer.innerHTML = '<div style="color:var(--muted); font-size:12px;">팩터 상세 정보 없음</div>';
+    }}
+  }}
+  
+  overlay.style.display = 'block';
+  setTimeout(() => {{
+    drawer.style.right = '0px';
+    overlay.style.opacity = '1';
+  }}, 10);
+}}
+
+function closeStockDrawer() {{
+  const drawer = document.getElementById('stock-drawer');
+  const overlay = document.getElementById('stock-drawer-overlay');
+  if (drawer) drawer.style.right = '-450px';
+  if (overlay) {{
+    overlay.style.opacity = '0';
+    setTimeout(() => {{ overlay.style.display = 'none'; }}, 300);
+  }}
+}}
 </script>
+
+<!-- Stock Detail Drawer -->
+<div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:1000; transition:opacity .3s;"></div>
+<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:420px; max-width:90vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:24px; overflow-y:auto; transition:right .3s ease; box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+    <div>
+      <h2 id="drawer-stock-name" style="font-size:20px; font-weight:700; color:var(--text);">종목 상세</h2>
+      <div id="drawer-stock-meta" style="font-size:13px; color:var(--accent); font-family:monospace; margin-top:2px;">CODE</div>
+    </div>
+    <button onclick="closeStockDrawer()" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer;">&times;</button>
+  </div>
+  
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
+    <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+      <div style="font-size:11px; color:var(--muted);">18대 앙상블 점수</div>
+      <div id="drawer-score" style="font-size:22px; font-weight:700; color:var(--blue); margin-top:4px;">0.0%</div>
+    </div>
+    <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+      <div style="font-size:11px; color:var(--muted);">20d 예상 수익률</div>
+      <div id="drawer-return" style="font-size:22px; font-weight:700; color:var(--green); margin-top:4px;">0.00%</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <h3 style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px;">📊 18-Factor 다변화 스코어 분해</h3>
+    <div id="drawer-factors-grid" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <a id="drawer-naver-link" href="#" target="_blank" class="filter-btn active" style="flex:1; text-align:center; text-decoration:none; padding:10px;">🇳 외부 증권 상세 보기</a>
+  </div>
+</div>
+
 </body>
 </html>
 """
