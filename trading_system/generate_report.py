@@ -1069,13 +1069,31 @@ def build_html(
                 marker = ""
         return f'<div class="macro-item"><span class="ml">{label}</span><span class="mv {cls}">{value or "N/A"}{marker}</span></div>'
 
+    tooltip_text = (
+        '<strong>🇺🇸/🇰🇷 한·미 증시 동조화(Coupling) / 디커플링(Decoupling) 지표</strong><br>'
+        '• <strong>커플링 (Coupling, 상관계수 &ge; 0.40)</strong>: 미국 증시(S&amp;P500)와 한국 증시(KOSPI/KOSDAQ) 간의 시차 상관관계가 높아 미 증시 상/하방 변동이 국내 증시에 직접 전이됩니다.<br>'
+        '• <strong>디커플링 (Decoupling, 상관계수 &lt; 0.40)</strong>: 한·미 증시 상관성이 약화되어 환율/원자재/수급 등 독자적 대내외 변수에 의해 국내 증시가 개별적 방향성을 보입니다.'
+    )
+
     if ensemble.decoupling_status:
         dec_status = ensemble.decoupling_status
         dec_corr = ensemble.decoupling_corr or "-"
         dec_class = "neg" if "DECOUPLING" in dec_status else "pos"
-        dec_cell = f'<div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv {dec_class}">{dec_status} (상관: {dec_corr})</span></div>'
+        dec_cell = (
+            f'<div class="macro-item tooltip-wrapper">'
+            f'<span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태 <span class="info-icon">ℹ️</span></span>'
+            f'<span class="mv {dec_class}">{dec_status} (상관: {dec_corr})</span>'
+            f'<div class="tooltip-content">{tooltip_text}</div>'
+            f'</div>'
+        )
     else:
-        dec_cell = '<div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv">미분석</span></div>'
+        dec_cell = (
+            f'<div class="macro-item tooltip-wrapper">'
+            f'<span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태 <span class="info-icon">ℹ️</span></span>'
+            f'<span class="mv">미분석</span>'
+            f'<div class="tooltip-content">{tooltip_text}</div>'
+            f'</div>'
+        )
 
     macro_html = f"""
     <div class="macro-grid">
@@ -1572,10 +1590,57 @@ def build_html(
   /* Macro strip */
   .macro-strip {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 32px; }}
   .macro-grid {{ display: flex; gap: 24px; flex-wrap: wrap; }}
-  .macro-item {{ display: flex; gap: 8px; align-items: center; }}
+  .macro-item {{ display: flex; gap: 8px; align-items: center; position: relative; }}
   .ml {{ color: var(--muted); font-size: 12px; }}
   .mv {{ font-weight: 600; font-size: 13px; }}
   .fallback-badge {{ margin-left: 6px; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #d29922; border: 1px solid rgba(210, 153, 34, 0.5); background: rgba(210, 153, 34, 0.12); }}
+
+  /* Tooltip Component */
+  .tooltip-wrapper {{
+    position: relative;
+    cursor: pointer;
+  }}
+  .info-icon {{
+    font-size: 11px;
+    margin-left: 2px;
+    opacity: 0.8;
+  }}
+  .tooltip-wrapper .tooltip-content {{
+    visibility: hidden;
+    opacity: 0;
+    width: 340px;
+    background-color: #1f2937;
+    color: #f3f4f6;
+    text-align: left;
+    border-radius: 8px;
+    padding: 12px 14px;
+    position: absolute;
+    z-index: 1000;
+    top: 130%;
+    left: 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+    line-height: 1.55;
+    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
+    transform: translateY(-5px);
+    pointer-events: none;
+    white-space: normal;
+  }}
+  .tooltip-wrapper .tooltip-content::after {{
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 24px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: transparent transparent #1f2937 transparent;
+  }}
+  .tooltip-wrapper:hover .tooltip-content {{
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+  }}
 
   /* Tabs */
   .tabs {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }}
