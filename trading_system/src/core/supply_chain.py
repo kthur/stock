@@ -52,14 +52,31 @@ class SupplyChainEngine:
             DataFrame with columns ['symbol', 'name', 'market', 'supply_chain_score'].
         """
         results: List[Dict[str, Any]] = []
-        if df_prices is None or df_prices.empty or universe is None or universe.empty:
+        if df_prices is None or universe is None or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
-        # Pivot close prices if needed
-        if isinstance(df_prices, pd.DataFrame) and "symbol" in df_prices.columns and "Close" in df_prices.columns:
-            close_pivot = df_prices.pivot(index="Date" if "Date" in df_prices.columns else df_prices.index, columns="symbol", values="Close")
+        if isinstance(df_prices, dict):
+            if not df_prices:
+                return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
+            close_dict = {}
+            for sym, df_p in df_prices.items():
+                if df_p is not None and hasattr(df_p, 'empty') and not df_p.empty and "Close" in df_p.columns:
+                    c = df_p["Close"]
+                    if isinstance(c, pd.DataFrame):
+                        c = c.iloc[:, 0]
+                    close_dict[sym] = c
+            if not close_dict:
+                return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
+            close_pivot = pd.DataFrame(close_dict)
+        elif isinstance(df_prices, pd.DataFrame):
+            if df_prices.empty:
+                return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
+            if "symbol" in df_prices.columns and "Close" in df_prices.columns:
+                close_pivot = df_prices.pivot(index="Date" if "Date" in df_prices.columns else df_prices.index, columns="symbol", values="Close")
+            else:
+                close_pivot = df_prices
         else:
-            close_pivot = df_prices
+            return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
         # Compute 1D and 3D returns for all symbols
         returns_1d = close_pivot.pct_change(1).iloc[-1] if len(close_pivot) >= 2 else pd.Series(dtype=float)

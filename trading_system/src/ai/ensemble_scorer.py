@@ -710,13 +710,18 @@ class EnsembleScoringEngine:
                                  card_df: Optional[pd.DataFrame] = None,
                                  latr_df: Optional[pd.DataFrame] = None,
                                  inst_foreign_sector_df: Optional[pd.DataFrame] = None,
+                                 supply_chain_df: Optional[pd.DataFrame] = None,
+                                 sentiment_df: Optional[pd.DataFrame] = None,
+                                 factor_neutralized_df: Optional[pd.DataFrame] = None,
+                                 vol_target_df: Optional[pd.DataFrame] = None,
+                                 microstructure_df: Optional[pd.DataFrame] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
                                  gamma: float = 1.0,
                                  held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Calculates 18-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 23-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
         weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
@@ -739,6 +744,11 @@ class EnsembleScoringEngine:
             card_df=card_df,
             latr_df=latr_df,
             inst_foreign_sector_df=inst_foreign_sector_df,
+            supply_chain_df=supply_chain_df,
+            sentiment_df=sentiment_df,
+            factor_neutralized_df=factor_neutralized_df,
+            vol_target_df=vol_target_df,
+            microstructure_df=microstructure_df,
             weights=weights,
             regime=regime,
             target_horizon=target_horizon,
@@ -765,13 +775,18 @@ class EnsembleScoringEngine:
                             card_df: Optional[pd.DataFrame] = None,
                             latr_df: Optional[pd.DataFrame] = None,
                             inst_foreign_sector_df: Optional[pd.DataFrame] = None,
+                            supply_chain_df: Optional[pd.DataFrame] = None,
+                            sentiment_df: Optional[pd.DataFrame] = None,
+                            factor_neutralized_df: Optional[pd.DataFrame] = None,
+                            vol_target_df: Optional[pd.DataFrame] = None,
+                            microstructure_df: Optional[pd.DataFrame] = None,
                             weights: Optional[Dict[str, float]] = None,
                             regime: Union[int, str] = 'BULL_LOW_VOL',
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Merges 18 strategy prediction DataFrames and computes weighted ensemble score.
+        Merges 23 strategy prediction DataFrames and computes weighted ensemble score.
         """
         if reg_df is None:
             reg_df = pd.DataFrame()
@@ -984,8 +999,68 @@ class EnsembleScoringEngine:
         else:
             ifs_df = pd.DataFrame(columns=['symbol', 'inst_foreign_sector_score'])
 
-        # Combine all 18 strategy DataFrames efficiently while preserving metadata
-        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df]
+        # 19. Strategy 19: Supply Chain Lead-Lag Momentum
+        if supply_chain_df is not None and not supply_chain_df.empty:
+            sc_df = supply_chain_df.copy()
+            num_cols = [c for c in sc_df.columns if c != 'symbol' and c not in META_COLS]
+            sc_col = 'supply_chain_score' if 'supply_chain_score' in sc_df.columns else (num_cols[-1] if num_cols else sc_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in sc_df.columns]
+            sc_df = sc_df[['symbol'] + meta_cols + [sc_col]].rename(columns={sc_col: 'supply_chain_score'})
+            if sc_df['supply_chain_score'].max() > 1.0:
+                sc_df['supply_chain_score'] = sc_df['supply_chain_score'] / 100.0
+        else:
+            sc_df = pd.DataFrame(columns=['symbol', 'supply_chain_score'])
+
+        # 20. Strategy 20: NLP & FinBERT Sentiment Catalyst
+        if sentiment_df is not None and not sentiment_df.empty:
+            sent_df = sentiment_df.copy()
+            num_cols = [c for c in sent_df.columns if c != 'symbol' and c not in META_COLS]
+            sent_col = 'sentiment_score' if 'sentiment_score' in sent_df.columns else (num_cols[-1] if num_cols else sent_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in sent_df.columns]
+            sent_df = sent_df[['symbol'] + meta_cols + [sent_col]].rename(columns={sent_col: 'sentiment_score'})
+            if sent_df['sentiment_score'].max() > 1.0:
+                sent_df['sentiment_score'] = sent_df['sentiment_score'] / 100.0
+        else:
+            sent_df = pd.DataFrame(columns=['symbol', 'sentiment_score'])
+
+        # 21. Strategy 21: Multi-Factor Style Neutralizer
+        if factor_neutralized_df is not None and not factor_neutralized_df.empty:
+            fn_df = factor_neutralized_df.copy()
+            num_cols = [c for c in fn_df.columns if c != 'symbol' and c not in META_COLS]
+            fn_col = 'neutralized_score' if 'neutralized_score' in fn_df.columns else ('factor_neutralized_score' if 'factor_neutralized_score' in fn_df.columns else (num_cols[-1] if num_cols else fn_df.columns[-1]))
+            meta_cols = [c for c in META_COLS if c in fn_df.columns]
+            fn_df = fn_df[['symbol'] + meta_cols + [fn_col]].rename(columns={fn_col: 'factor_neutralized_score'})
+            if fn_df['factor_neutralized_score'].max() > 1.0:
+                fn_df['factor_neutralized_score'] = fn_df['factor_neutralized_score'] / 100.0
+        else:
+            fn_df = pd.DataFrame(columns=['symbol', 'factor_neutralized_score'])
+
+        # 22. Strategy 22: Dynamic Volatility Targeting
+        if vol_target_df is not None and not vol_target_df.empty:
+            vt_df = vol_target_df.copy()
+            num_cols = [c for c in vt_df.columns if c != 'symbol' and c not in META_COLS]
+            vt_col = 'vol_target_score' if 'vol_target_score' in vt_df.columns else (num_cols[-1] if num_cols else vt_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in vt_df.columns]
+            vt_df = vt_df[['symbol'] + meta_cols + [vt_col]].rename(columns={vt_col: 'vol_target_score'})
+            if vt_df['vol_target_score'].max() > 1.0:
+                vt_df['vol_target_score'] = vt_df['vol_target_score'] / 100.0
+        else:
+            vt_df = pd.DataFrame(columns=['symbol', 'vol_target_score'])
+
+        # 23. Strategy 23: Order Book Microstructure Imbalance
+        if microstructure_df is not None and not microstructure_df.empty:
+            micro_df = microstructure_df.copy()
+            num_cols = [c for c in micro_df.columns if c != 'symbol' and c not in META_COLS]
+            micro_col = 'microstructure_score' if 'microstructure_score' in micro_df.columns else (num_cols[-1] if num_cols else micro_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in micro_df.columns]
+            micro_df = micro_df[['symbol'] + meta_cols + [micro_col]].rename(columns={micro_col: 'microstructure_score'})
+            if micro_df['microstructure_score'].max() > 1.0:
+                micro_df['microstructure_score'] = micro_df['microstructure_score'] / 100.0
+        else:
+            micro_df = pd.DataFrame(columns=['symbol', 'microstructure_score'])
+
+        # Combine all 23 strategy DataFrames efficiently while preserving metadata
+        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df]
         merged = pd.DataFrame(columns=['symbol'])
         for d in dfs:
             if d is not None and not d.empty:
@@ -1026,6 +1101,11 @@ class EnsembleScoringEngine:
             ('card_factor', 'card_score'),
             ('latr_factor', 'latr_score'),
             ('inst_foreign_sector', 'inst_foreign_sector_score'),
+            ('supply_chain', 'supply_chain_score'),
+            ('sentiment', 'sentiment_score'),
+            ('factor_neutralized', 'factor_neutralized_score'),
+            ('vol_target', 'vol_target_score'),
+            ('microstructure', 'microstructure_score'),
         ]
 
         # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
