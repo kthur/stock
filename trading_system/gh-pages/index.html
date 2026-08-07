@@ -39,6 +39,7 @@
   .macro-item { display: flex; gap: 8px; align-items: center; }
   .ml { color: var(--muted); font-size: 12px; }
   .mv { font-weight: 600; font-size: 13px; }
+  .fallback-badge { margin-left: 6px; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; color: #d29922; border: 1px solid rgba(210, 153, 34, 0.5); background: rgba(210, 153, 34, 0.12); }
 
   /* Tabs */
   .tabs { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }
@@ -75,6 +76,21 @@
   .pos { color: var(--green); font-weight: 600; }
   .neg { color: var(--red); font-weight: 600; }
   .empty { color: var(--muted); text-align: center; padding: 24px; font-style: italic; }
+
+  /* Sticky Table Columns */
+  .table-wrap th.sticky-col, .table-wrap td.sticky-col {
+    position: sticky;
+    background: var(--surface);
+    z-index: 2;
+  }
+  .table-wrap th.sticky-col {
+    z-index: 12;
+    background: var(--surface2);
+  }
+  .table-wrap .sticky-rank { left: 0; min-width: 45px; }
+  .table-wrap .sticky-symbol { left: 45px; min-width: 85px; }
+  .table-wrap .sticky-name { left: 130px; min-width: 130px; max-width: 160px; border-right: 2px solid var(--border); box-shadow: 2px 0 5px rgba(0,0,0,0.3); }
+  tbody tr:hover td.sticky-col { background: #1c2128; }
 
   /* Prob bar */
   .prob-bar { display: flex; align-items: center; gap: 8px; min-width: 140px; }
@@ -189,22 +205,22 @@
   <div class="header-meta">
     <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL (Low Vol)</span>
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇰🇷 KR: 🔴 BEAR (Low Vol)</span>
-    <span class="badge badge-date">📅 2026-08-05 22:15 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-05 22:15 KST</span>
+    <span class="badge badge-date">📅 2026-08-07 09:20 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-07 09:20 KST</span>
   </div>
 </div>
 
 <div class="macro-strip">
   
     <div class="macro-grid">
-      <div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv pos">COUPLED (상관: 1.00)</span></div>
-      <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv pos">+0.050% / day</span></div>
-      <div class="macro-item"><span class="ml">VIX 공포지수</span><span class="mv">18.50</span></div>
-      <div class="macro-item"><span class="ml">USD/KRW 환율</span><span class="mv">1,380.00 KRW</span></div>
-      <div class="macro-item"><span class="ml">US 10Y 국채금리</span><span class="mv">4.25%</span></div>
-      <div class="macro-item"><span class="ml">KR 10Y 국채금리</span><span class="mv">3.35%</span></div>
-      <div class="macro-item"><span class="ml">WTI 국제유가</span><span class="mv">$75.00 / bbl</span></div>
-      <div class="macro-item"><span class="ml">GLD ETF</span><span class="mv">$220.00</span></div>
+      <div class="macro-item"><span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태</span><span class="mv">미분석</span></div>
+      <div class="macro-item"><span class="ml">S&amp;P500 20d Ret</span><span class="mv pos">+0.050% / day<span class="fallback-badge">기본값</span></span></div>
+      <div class="macro-item"><span class="ml">VIX 공포지수</span><span class="mv ">18.50<span class="fallback-badge">기본값</span></span></div>
+      <div class="macro-item"><span class="ml">USD/KRW 환율</span><span class="mv ">1,380.00 KRW<span class="fallback-badge">기본값</span></span></div>
+      <div class="macro-item"><span class="ml">US 10Y 국채금리</span><span class="mv ">4.25%<span class="fallback-badge">기본값</span></span></div>
+      <div class="macro-item"><span class="ml">KR 10Y 국채금리</span><span class="mv ">3.35%</span></div>
+      <div class="macro-item"><span class="ml">WTI 국제유가</span><span class="mv ">$75.00 / bbl</span></div>
+      <div class="macro-item"><span class="ml">GLD ETF</span><span class="mv ">$220.00<span class="fallback-badge">기본값</span></span></div>
       <div class="macro-item"><span class="ml">최대허용배분</span><span class="mv">85.0%</span></div>
     </div>
 </div>
@@ -247,6 +263,15 @@
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- Row 1: 상단 코어 시스템 (전략 가중치 + 메인 시스템 탭) -->
 <!-- ══════════════════════════════════════════════════════ -->
+<div class="search-bar-wrap" style="padding: 16px 32px 8px; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <div style="position: relative; flex: 1; max-width: 480px;">
+    <input type="text" id="stock-search-input" oninput="filterStockTables()" placeholder="🔍 종목명 또는 종목코드 실시간 검색... (예: 삼성전자, 005930, AAPL)" 
+           style="width: 100%; padding: 10px 16px 10px 38px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; outline: none; transition: border-color .2s;">
+    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px;">🔍</span>
+  </div>
+  <div id="search-status" style="font-size: 13px; color: var(--accent); font-weight: 600;"></div>
+</div>
+
 <nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
   <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 18대 앙상블 TOP 종목</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
@@ -262,55 +287,12 @@
       <div class="strategy-sidebar">
         <div class="weights-section">
           <div class="weights-title">⚙️ 전략 가중치 (18 Strategies)</div>
-          <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">4.2%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">2.8%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">3.1%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">10.4%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">5.4%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">2.1%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">8.1%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">4.3%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">7.3%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">8.1%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">1.5%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">4.2%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">1.4%</span></div><div class="weight-item"><span class="wk">Analyst Revision Momentum (ARM)</span><span class="wv">7.3%</span></div><div class="weight-item"><span class="wk">Cross-Asset Regime Divergence(CARD)</span><span class="wv">4.3%</span></div><div class="weight-item"><span class="wk">Liq-Adj Tail Risk (LATR)</span><span class="wv">5.1%</span></div><div class="weight-item"><span class="wk">Inst & Foreign Sector Flow</span><span class="wv">6.2%</span></div>
+          <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">11.0%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">9.0%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">2.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">2.0%</span></div><div class="weight-item"><span class="wk">Analyst Revision Momentum (ARM)</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Cross-Asset Regime Divergence(CARD)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Liq-Adj Tail Risk (LATR)</span><span class="wv">6.0%</span></div><div class="weight-item"><span class="wk">Inst & Foreign Sector Flow</span><span class="wv">8.0%</span></div>
         </div>
         
-    <div class="card rationale-card" style="margin-top: 15px; background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; padding: 15px; border-radius: 8px;">
-      <h3 style="color: #38bdf8; margin-bottom: 8px; font-size: 1.1em;">🧠 [2D Regime &amp; Strategy Decision Rationale]</h3>
-      <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.9em; color: #cbd5e1; margin: 0;">[2D Market Regime & Strategy Decision Rationale]
-• Selected Main Regime State: BULL_LOW_VOL
-  - Market Trend Rationale: Upward momentum trend confirmed (20d index return > 0). Momentum & Surge strategies boosted.
-  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.
-
-[18-Strategy Dynamic Weight Allocation]
-• Dynamic Weighting Scheme: Base Regime Weight x Exponential Sharpe Multiplier exp(1.0 x Sharpe_20d) with EMA Smoothing
-  - regression            :   4.2% (Base:  4.0%, Rolling Sharpe: +0.00)
-  - surge                 :  14.1% (Base: 11.0%, Rolling Sharpe: +0.00)
-  - lead_lag              :   2.8% (Base:  3.0%, Rolling Sharpe: +0.00)
-  - vcp_rule              :   3.1% (Base:  3.0%, Rolling Sharpe: +0.00)
-  - vcp_ml                :  10.4% (Base:  9.0%, Rolling Sharpe: +0.00)
-  - lstm                  :   5.4% (Base:  7.0%, Rolling Sharpe: +0.00)
-  - stat_arb              :   2.1% (Base:  3.0%, Rolling Sharpe: +0.00)
-  - sector_rotation       :   8.1% (Base:  7.0%, Rolling Sharpe: +0.00)
-  - rim_valuation         :   4.3% (Base:  5.0%, Rolling Sharpe: +0.00)
-  - event_driven          :   7.3% (Base:  7.0%, Rolling Sharpe: +0.00)
-  - mq_factor             :   8.1% (Base:  7.0%, Rolling Sharpe: +0.00)
-  - iv_skew               :   1.5% (Base:  2.0%, Rolling Sharpe: +0.00)
-  - order_flow            :   4.2% (Base:  4.0%, Rolling Sharpe: +0.00)
-  - short_term_reversal   :   1.4% (Base:  2.0%, Rolling Sharpe: +0.00)
-  - arm_factor            :   7.3% (Base:  7.0%, Rolling Sharpe: +0.00)
-  - card_factor           :   4.3% (Base:  5.0%, Rolling Sharpe: +0.00)
-  - latr_factor           :   5.1% (Base:  6.0%, Rolling Sharpe: +0.00)
-  - inst_foreign_sector   :   6.2% (Base:  8.0%, Rolling Sharpe: +0.00)
-
-[Transaction Costs & Liquidity Filter Rationale]
-• Microstructure Execution & Market Impact Model Active (Almgren-Chriss Order Size Hypothesis (Q): KRX 50M KRW / SP500 50k USD)
-• Transaction Cost & Slippage Deductions Applied:
-  - RUSSELL2000: 0.08% spread + STT/SEC friction
-  - KOSDAQ     : 0.06% spread + STT friction
-  - KOSPI      : 0.04% spread + STT friction
-  - NASDAQ     : 0.03% spread + SEC friction
-  - SP500      : 0.02% spread + SEC friction
-• Liquidity & Safety Gate:
-  - Zero-weighting preferred stocks (우, B), SPACs, and illiquid symbols from Top recommendations.
-
-[Multicollinearity Monitoring & Regime Noise Suppression]
-• Effective Strategy Count (N_eff): 13.50 / 17.00
-• Highest Strategy VIF            : surge (100.00)
-• High Inter-Strategy Correlations (|rho| >= 0.50): 10 pair(s) detected
-  - surge <-> lead_lag: +1.00
-  - surge <-> vcp_ml: +1.00
-  - surge <-> iv_skew: -1.00</pre>
+    <div class="card rationale-card" style="margin-top: 15px; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
+      <h3 style="color: #38bdf8; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">🧠 <span>2D Regime &amp; Strategy Rationale</span></h3>
+      <div style="max-height:360px; overflow-y:auto; padding-right:4px;"><div style="font-weight:700; color:var(--accent); font-size:12px; margin:10px 0 4px; border-bottom:1px solid var(--border); padding-bottom:2px;">[2D Market Regime & Strategy Decision Rationale]</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Selected Main Regime State: BULL_LOW_VOL</div><div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">- Market Trend Rationale: Upward momentum trend confirmed (20d index return > 0). Momentum & Surge strategies boosted.</div><div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">- Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.</div><div style="font-weight:700; color:var(--accent); font-size:12px; margin:10px 0 4px; border-bottom:1px solid var(--border); padding-bottom:2px;">[18-Strategy Dynamic Weight Allocation]</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Dynamic Weighting Scheme: Base Regime Weight x Exponential Sharpe Multiplier exp(1.0 x Sharpe_20d) with EMA Smoothing</div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">regression</span><span style="font-weight:600; color:var(--accent);">4.0% (Base:  4.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">surge</span><span style="font-weight:600; color:var(--accent);">11.0% (Base: 11.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">lead_lag</span><span style="font-weight:600; color:var(--accent);">3.0% (Base:  3.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">vcp_rule</span><span style="font-weight:600; color:var(--accent);">3.0% (Base:  3.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">vcp_ml</span><span style="font-weight:600; color:var(--accent);">9.0% (Base:  9.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">lstm</span><span style="font-weight:600; color:var(--accent);">7.0% (Base:  7.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">stat_arb</span><span style="font-weight:600; color:var(--accent);">3.0% (Base:  3.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">sector_rotation</span><span style="font-weight:600; color:var(--accent);">7.0% (Base:  7.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">rim_valuation</span><span style="font-weight:600; color:var(--accent);">5.0% (Base:  5.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">event_driven</span><span style="font-weight:600; color:var(--accent);">7.0% (Base:  7.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">mq_factor</span><span style="font-weight:600; color:var(--accent);">7.0% (Base:  7.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">iv_skew</span><span style="font-weight:600; color:var(--accent);">2.0% (Base:  2.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">order_flow</span><span style="font-weight:600; color:var(--accent);">4.0% (Base:  4.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">short_term_reversal</span><span style="font-weight:600; color:var(--accent);">2.0% (Base:  2.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">arm_factor</span><span style="font-weight:600; color:var(--accent);">7.0% (Base:  7.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">card_factor</span><span style="font-weight:600; color:var(--accent);">5.0% (Base:  5.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">latr_factor</span><span style="font-weight:600; color:var(--accent);">6.0% (Base:  6.0%, Rolling Sharpe: +0.00)</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">inst_foreign_sector</span><span style="font-weight:600; color:var(--accent);">8.0% (Base:  8.0%, Rolling Sharpe: +0.00)</span></div><div style="font-weight:700; color:var(--accent); font-size:12px; margin:10px 0 4px; border-bottom:1px solid var(--border); padding-bottom:2px;">[Transaction Costs & Liquidity Filter Rationale]</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Microstructure Execution & Market Impact Model Active (Almgren-Chriss Order Size Hypothesis (Q): KRX 50M KRW / SP500 50k USD)</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Transaction Cost & Slippage Deductions Applied:</div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">RUSSELL2000</span><span style="font-weight:600; color:var(--accent);">0.08% spread + STT/SEC friction</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">KOSDAQ</span><span style="font-weight:600; color:var(--accent);">0.06% spread + STT friction</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">KOSPI</span><span style="font-weight:600; color:var(--accent);">0.04% spread + STT friction</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">NASDAQ</span><span style="font-weight:600; color:var(--accent);">0.03% spread + SEC friction</span></div><div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 4px; background:var(--surface2); border-radius:3px; margin-bottom:2px;"><span style="color:var(--muted);">SP500</span><span style="font-weight:600; color:var(--accent);">0.02% spread + SEC friction</span></div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Liquidity & Safety Gate:</div><div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">- Zero-weighting preferred stocks (우, B), SPACs, and illiquid symbols from Top recommendations.</div><div style="font-weight:700; color:var(--accent); font-size:12px; margin:10px 0 4px; border-bottom:1px solid var(--border); padding-bottom:2px;">[Multicollinearity Monitoring & Regime Noise Suppression]</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Effective Strategy Count (N_eff): 18.00 / 17.00</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• Highest Strategy VIF            : surge (100.00)</div><div style="font-size:11px; color:var(--text); margin-bottom:3px; padding-left:6px; border-left:2px solid var(--accent);">• High Inter-Strategy Correlations (|rho| >= 0.50): 56 pair(s) detected</div><div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">- surge <-> iv_skew: +1.00</div><div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">- sector_rotation <-> rim_valuation: -1.00</div><div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">- sector_rotation <-> event_driven: +1.00</div></div>
     </div>
       </div>
 
@@ -334,35 +316,55 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th>
-            <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
+            <th title="18대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
+            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
+            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
+            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
+            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
+            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
+            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
+            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
+            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
+            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
+            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
+            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
+            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
+            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
+            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
+            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
+            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
+            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
           </tr></thead>
           <tbody>
-            <tr>
-              <td class="rank">#1</td>
-              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
-              <td class="name">Samsung Electron</td>
-              <td class="score">32.5%</td>
-              <td class="pos">0.00%</td>
+            <tr onclick="openStockDrawer('005930', 'Samsung Electron', 'KOSPI', '33.9%', '0.00%', '%7B%22Reg%20Regression%22%3A%20%220%25%22%2C%20%22Surge%20Classifier%22%3A%20%222%25%22%2C%20%22Lead-Lag%20Flow%22%3A%20%220%25%22%2C%20%22VCP%20Rule%22%3A%20%220%25%22%2C%20%22VCP%20ML%22%3A%20%228%25%22%2C%20%22Strict%20LSTM%22%3A%20%220%25%22%2C%20%22Stat-Arb%20Z-Score%22%3A%20%220%25%22%2C%20%22Sector%20Rotation%22%3A%20%2258%25%22%2C%20%22RIM%20Valuation%22%3A%20%2292%25%22%2C%20%22Event-Driven%22%3A%20%2247%25%22%2C%20%22MQ%20Factor%22%3A%20%2265%25%22%2C%20%22IV%20Skew%22%3A%20%2235%25%22%2C%20%22Order%20Flow%22%3A%20%2267%25%22%2C%20%22Short%20Reversal%22%3A%20%2267%25%22%2C%20%22ARM%20Factor%22%3A%20%2217%25%22%2C%20%22CARD%20Factor%22%3A%20%2224%25%22%2C%20%22LATR%20Factor%22%3A%20%2217%25%22%7D')" style="cursor:pointer;">
+              <td class="rank sticky-col sticky-rank">#1</td>
+              <td class="symbol sticky-col sticky-symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
+              <td class="name sticky-col sticky-name">Samsung Electron</td>
+              <td class="score">33.9%</td>
+              <td class="">0.00%</td>
               <td>0%</td>
               <td>2%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>7%</td>
+              <td>8%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>62%</td>
-              <td>93%</td>
-              <td>46%</td>
-              <td>62%</td>
-              <td>48%</td>
-              <td>62%</td>
-              <td>62%</td>
-              <td>0%</td>
-              <td>0%</td>
-              <td>0%</td>
-              <td>-</td>
+              <td>58%</td>
+              <td>92%</td>
+              <td>47%</td>
+              <td>65%</td>
+              <td>35%</td>
+              <td>67%</td>
+              <td>67%</td>
+              <td>17%</td>
+              <td>24%</td>
+              <td>17%</td>
+              <td>67%</td>
             </tr></tbody>
         </table>
       </div>
@@ -372,35 +374,55 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th>
-            <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
+            <th title="18대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
+            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
+            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
+            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
+            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
+            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
+            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
+            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
+            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
+            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
+            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
+            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
+            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
+            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
+            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
+            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
+            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
+            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
           </tr></thead>
           <tbody>
-            <tr>
-              <td class="rank">#1</td>
-              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
-              <td class="name">Celltrion</td>
-              <td class="score">39.3%</td>
-              <td class="pos">0.00%</td>
+            <tr onclick="openStockDrawer('068270', 'Celltrion', 'KOSDAQ', '34.4%', '0.00%', '%7B%22Reg%20Regression%22%3A%20%220%25%22%2C%20%22Surge%20Classifier%22%3A%20%223%25%22%2C%20%22Lead-Lag%20Flow%22%3A%20%220%25%22%2C%20%22VCP%20Rule%22%3A%20%220%25%22%2C%20%22VCP%20ML%22%3A%20%226%25%22%2C%20%22Strict%20LSTM%22%3A%20%220%25%22%2C%20%22Stat-Arb%20Z-Score%22%3A%20%220%25%22%2C%20%22Sector%20Rotation%22%3A%20%2258%25%22%2C%20%22RIM%20Valuation%22%3A%20%2292%25%22%2C%20%22Event-Driven%22%3A%20%2247%25%22%2C%20%22MQ%20Factor%22%3A%20%2266%25%22%2C%20%22IV%20Skew%22%3A%20%2237%25%22%2C%20%22Order%20Flow%22%3A%20%2267%25%22%2C%20%22Short%20Reversal%22%3A%20%2267%25%22%2C%20%22ARM%20Factor%22%3A%20%2223%25%22%2C%20%22CARD%20Factor%22%3A%20%2224%25%22%2C%20%22LATR%20Factor%22%3A%20%2216%25%22%7D')" style="cursor:pointer;">
+              <td class="rank sticky-col sticky-rank">#1</td>
+              <td class="symbol sticky-col sticky-symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
+              <td class="name sticky-col sticky-name">Celltrion</td>
+              <td class="score">34.4%</td>
+              <td class="">0.00%</td>
               <td>0%</td>
-              <td>2%</td>
-              <td>0%</td>
-              <td>0%</td>
-              <td>4%</td>
+              <td>3%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>62%</td>
-              <td>93%</td>
-              <td>46%</td>
-              <td>63%</td>
-              <td>53%</td>
-              <td>62%</td>
-              <td>62%</td>
-              <td>91%</td>
+              <td>6%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>-</td>
+              <td>58%</td>
+              <td>92%</td>
+              <td>47%</td>
+              <td>66%</td>
+              <td>37%</td>
+              <td>67%</td>
+              <td>67%</td>
+              <td>23%</td>
+              <td>24%</td>
+              <td>16%</td>
+              <td>67%</td>
             </tr></tbody>
         </table>
       </div>
@@ -410,60 +432,80 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th>
-            <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
+            <th title="18대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
+            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
+            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
+            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
+            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
+            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
+            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
+            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
+            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
+            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
+            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
+            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
+            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
+            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
+            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
+            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
+            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
+            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
           </tr></thead>
           <tbody>
-            <tr>
-              <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
-              <td class="score">34.4%</td>
-              <td class="pos">0.00%</td>
+            <tr onclick="openStockDrawer('MSFT', 'Microsoft Corp.', 'SP500', '36.5%', '0.00%', '%7B%22Reg%20Regression%22%3A%20%220%25%22%2C%20%22Surge%20Classifier%22%3A%20%224%25%22%2C%20%22Lead-Lag%20Flow%22%3A%20%220%25%22%2C%20%22VCP%20Rule%22%3A%20%220%25%22%2C%20%22VCP%20ML%22%3A%20%229%25%22%2C%20%22Strict%20LSTM%22%3A%20%220%25%22%2C%20%22Stat-Arb%20Z-Score%22%3A%20%220%25%22%2C%20%22Sector%20Rotation%22%3A%20%2278%25%22%2C%20%22RIM%20Valuation%22%3A%20%2272%25%22%2C%20%22Event-Driven%22%3A%20%2248%25%22%2C%20%22MQ%20Factor%22%3A%20%2250%25%22%2C%20%22IV%20Skew%22%3A%20%2242%25%22%2C%20%22Order%20Flow%22%3A%20%2247%25%22%2C%20%22Short%20Reversal%22%3A%20%2247%25%22%2C%20%22ARM%20Factor%22%3A%20%2257%25%22%2C%20%22CARD%20Factor%22%3A%20%2218%25%22%2C%20%22LATR%20Factor%22%3A%20%2256%25%22%7D')" style="cursor:pointer;">
+              <td class="rank sticky-col sticky-rank">#1</td>
+              <td class="symbol sticky-col sticky-symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name sticky-col sticky-name">Microsoft Corp.</td>
+              <td class="score">36.5%</td>
+              <td class="">0.00%</td>
               <td>0%</td>
-              <td>1%</td>
-              <td>0%</td>
-              <td>0%</td>
-              <td>2%</td>
+              <td>4%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>62%</td>
-              <td>100%</td>
-              <td>46%</td>
-              <td>65%</td>
-              <td>82%</td>
-              <td>62%</td>
-              <td>62%</td>
-              <td>16%</td>
+              <td>9%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>-</td>
+              <td>78%</td>
+              <td>72%</td>
+              <td>48%</td>
+              <td>50%</td>
+              <td>42%</td>
+              <td>47%</td>
+              <td>47%</td>
+              <td>57%</td>
+              <td>18%</td>
+              <td>56%</td>
+              <td>47%</td>
             </tr>
-            <tr>
-              <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
-              <td class="score">32.1%</td>
-              <td class="pos">0.00%</td>
+            <tr onclick="openStockDrawer('AAPL', 'Apple Inc.', 'SP500', '34.6%', '0.00%', '%7B%22Reg%20Regression%22%3A%20%220%25%22%2C%20%22Surge%20Classifier%22%3A%20%225%25%22%2C%20%22Lead-Lag%20Flow%22%3A%20%220%25%22%2C%20%22VCP%20Rule%22%3A%20%220%25%22%2C%20%22VCP%20ML%22%3A%20%228%25%22%2C%20%22Strict%20LSTM%22%3A%20%220%25%22%2C%20%22Stat-Arb%20Z-Score%22%3A%20%220%25%22%2C%20%22Sector%20Rotation%22%3A%20%2256%25%22%2C%20%22RIM%20Valuation%22%3A%20%2294%25%22%2C%20%22Event-Driven%22%3A%20%2247%25%22%2C%20%22MQ%20Factor%22%3A%20%2270%25%22%2C%20%22IV%20Skew%22%3A%20%2247%25%22%2C%20%22Order%20Flow%22%3A%20%2269%25%22%2C%20%22Short%20Reversal%22%3A%20%2269%25%22%2C%20%22ARM%20Factor%22%3A%20%2212%25%22%2C%20%22CARD%20Factor%22%3A%20%2224%25%22%2C%20%22LATR%20Factor%22%3A%20%2212%25%22%7D')" style="cursor:pointer;">
+              <td class="rank sticky-col sticky-rank">#2</td>
+              <td class="symbol sticky-col sticky-symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name sticky-col sticky-name">Apple Inc.</td>
+              <td class="score">34.6%</td>
+              <td class="">0.00%</td>
               <td>0%</td>
-              <td>1%</td>
-              <td>0%</td>
-              <td>0%</td>
-              <td>2%</td>
+              <td>5%</td>
               <td>0%</td>
               <td>0%</td>
-              <td>62%</td>
-              <td>65%</td>
-              <td>46%</td>
-              <td>60%</td>
-              <td>81%</td>
-              <td>62%</td>
-              <td>62%</td>
+              <td>8%</td>
+              <td>0%</td>
+              <td>0%</td>
+              <td>56%</td>
+              <td>94%</td>
+              <td>47%</td>
+              <td>70%</td>
+              <td>47%</td>
+              <td>69%</td>
+              <td>69%</td>
+              <td>12%</td>
               <td>24%</td>
-              <td>0%</td>
-              <td>0%</td>
-              <td>-</td>
+              <td>12%</td>
+              <td>69%</td>
             </tr></tbody>
         </table>
       </div>
@@ -473,9 +515,29 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th>
-            <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
+            <th title="18대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
+            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
+            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
+            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
+            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
+            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
+            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
+            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
+            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
+            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
+            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
+            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
+            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
+            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
+            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
+            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
+            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
+            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
           </tr></thead>
           <tbody><tr><td colspan="23" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -486,9 +548,29 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th>
-            <th>앙상블</th><th>기대수익</th>
-            <th>회귀</th><th>Surge</th><th>L-L</th><th>VCP-R</th><th>VCP-M</th><th>LSTM</th><th>S-Arb</th><th>Sec-R</th><th>RIM</th><th>Event</th><th>MQ</th><th>IV-Sk</th><th>Flow</th><th>Rev</th><th>ARM</th><th>CARD</th><th>LATR</th><th>I&F</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
+            <th title="18대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
+            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
+            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
+            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
+            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
+            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
+            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
+            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
+            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
+            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
+            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
+            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
+            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
+            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
+            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
+            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
+            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
+            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
           </tr></thead>
           <tbody><tr><td colspan="23" class="empty">데이터 없음</td></tr></tbody>
         </table>
@@ -542,40 +624,40 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">0.00%</td>
+              <td class="">0.00%</td>
               <td>18.00%</td>
-              <td class="pos">21.21%</td>
-              <td>212,112,358</td>
+              <td class="pos">21.24%</td>
+              <td>212,377,651</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">0.00%</td>
+              <td class="">0.00%</td>
               <td>22.00%</td>
-              <td class="pos">14.20%</td>
-              <td>141,992,570</td>
+              <td class="pos">14.22%</td>
+              <td>142,170,163</td>
             </tr>
             <tr>
               <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos">0.00%</td>
-              <td>26.00%</td>
-              <td class="pos">8.33%</td>
-              <td>83,315,713</td>
-            </tr>
-            <tr>
-              <td class="rank">#4</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">0.00%</td>
+              <td class="">0.00%</td>
+              <td>26.00%</td>
+              <td class="pos">8.31%</td>
+              <td>83,062,795</td>
+            </tr>
+            <tr>
+              <td class="rank">#4</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>🇺🇸 SP500</td>
+              <td class="">0.00%</td>
               <td>30.00%</td>
-              <td class="pos">6.26%</td>
-              <td>62,579,357</td>
+              <td class="pos">6.24%</td>
+              <td>62,389,388</td>
             </tr>
           </tbody>
         </table>
@@ -621,7 +703,7 @@
         <div class="macro-item"><span class="ml">KR 레짐</span><span class="mv badge" style="color:#f85149;border-color:#f85149;background:#f8514920;">🇰🇷 🔴 BEAR (Low Vol)</span></div>
         <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">85.0%</span></div>
       </div>
-      <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">4.2%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">14.1%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">2.8%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">3.1%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">10.4%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">5.4%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">2.1%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">8.1%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">4.3%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">7.3%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">8.1%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">1.5%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">4.2%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">1.4%</span></div><div class="weight-item"><span class="wk">Analyst Revision Momentum (ARM)</span><span class="wv">7.3%</span></div><div class="weight-item"><span class="wk">Cross-Asset Regime Divergence(CARD)</span><span class="wv">4.3%</span></div><div class="weight-item"><span class="wk">Liq-Adj Tail Risk (LATR)</span><span class="wv">5.1%</span></div><div class="weight-item"><span class="wk">Inst & Foreign Sector Flow</span><span class="wv">6.2%</span></div>
+      <div class="weight-item"><span class="wk">XGBoost Regression Fundamentals</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Surge Classifier (XGBoost)</span><span class="wv">11.0%</span></div><div class="weight-item"><span class="wk">Index & Sector Lead-Lag Flow</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">VCP Rule Pattern Detector</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">VCP Machine Learning Predictor</span><span class="wv">9.0%</span></div><div class="weight-item"><span class="wk">Strict Causal LSTM Deep Learning</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Stat-Arb Cointegration Mean Rev</span><span class="wv">3.0%</span></div><div class="weight-item"><span class="wk">Sector Rotation Relative Momentum</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">RIM Valuation (Residual Income)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Event-Driven Disclosure Catalyst</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Momentum Quality (MQ) Factor</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Options Put/Call IV Skew</span><span class="wv">2.0%</span></div><div class="weight-item"><span class="wk">Order Flow Imbalance (MFI)</span><span class="wv">4.0%</span></div><div class="weight-item"><span class="wk">Short-Term Mean Reversal</span><span class="wv">2.0%</span></div><div class="weight-item"><span class="wk">Analyst Revision Momentum (ARM)</span><span class="wv">7.0%</span></div><div class="weight-item"><span class="wk">Cross-Asset Regime Divergence(CARD)</span><span class="wv">5.0%</span></div><div class="weight-item"><span class="wk">Liq-Adj Tail Risk (LATR)</span><span class="wv">6.0%</span></div><div class="weight-item"><span class="wk">Inst & Foreign Sector Flow</span><span class="wv">8.0%</span></div>
     </div>
 
     <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 18 Strategies)</div>
@@ -732,7 +814,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.5</span>
+                    <span class="prob-label" style="color:#8b949e">0.5%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -752,7 +834,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.5</span>
+                    <span class="prob-label" style="color:#8b949e">0.5%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -771,8 +853,8 @@
                 <td class="name">Microsoft Corp.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">1.3</span>
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.4%</span>
                   </div>
                 </td>
               </tr>
@@ -782,8 +864,8 @@
                 <td class="name">Apple Inc.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">1.3</span>
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.3%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -821,7 +903,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.6</span>
+                    <span class="prob-label" style="color:#8b949e">0.6%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -841,7 +923,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.6</span>
+                    <span class="prob-label" style="color:#8b949e">0.6%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -860,8 +942,8 @@
                 <td class="name">Microsoft Corp.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.3</span>
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.3%</span>
                   </div>
                 </td>
               </tr>
@@ -871,8 +953,8 @@
                 <td class="name">Apple Inc.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.3</span>
+                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">3.3%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -909,8 +991,8 @@
                 <td class="name">Samsung Electronics</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">3.2</span>
+                    <div class="prob-fill" style="width:4%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">4.1%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -930,7 +1012,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:3%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">3.6</span>
+                    <span class="prob-label" style="color:#8b949e">3.4%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -949,8 +1031,8 @@
                 <td class="name">Apple Inc.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">3.8</span>
+                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">1.9%</span>
                   </div>
                 </td>
               </tr>
@@ -960,8 +1042,8 @@
                 <td class="name">Microsoft Corp.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:3%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">3.7</span>
+                    <div class="prob-fill" style="width:1%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">1.9%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -999,7 +1081,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:2%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">2.1</span>
+                    <span class="prob-label" style="color:#8b949e">2.1%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -1019,7 +1101,7 @@
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:2%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">2.1</span>
+                    <span class="prob-label" style="color:#8b949e">2.1%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -1038,8 +1120,8 @@
                 <td class="name">Microsoft Corp.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.2</span>
+                    <div class="prob-fill" style="width:5%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">5.1%</span>
                   </div>
                 </td>
               </tr>
@@ -1049,8 +1131,8 @@
                 <td class="name">Apple Inc.</td>
                 <td>
                   <div class="prob-bar">
-                    <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                    <span class="prob-label" style="color:#8b949e">0.2</span>
+                    <div class="prob-fill" style="width:5%;background:#8b949e"></div>
+                    <span class="prob-label" style="color:#8b949e">5.0%</span>
                   </div>
                 </td>
               </tr></tbody>
@@ -1142,17 +1224,17 @@
             <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
-              <td><span style="color:#8b949e;font-weight:600">20/100</span></td>
-              <td>3.4%</td>
-              <td class="contraction">3.4% > 3.3% > 3.5% > 3.4%</td>
-              <td><span class="chk no">MA50</span><span class="chk no">MA200</span><span class="chk no">고점근접</span><span class="chk no">거래량↓</span></td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td><span style="color:#d29922;font-weight:600">72/100</span></td>
+              <td>4.1%</td>
+              <td class="contraction">4.1% > 5.8% > 5.7% > 4.0%</td>
+              <td><span class="chk ok">MA50</span><span class="chk ok">MA200</span><span class="chk ok">고점근접</span><span class="chk no">거래량↓</span></td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td><span style="color:#8b949e;font-weight:600">20/100</span></td>
               <td>3.4%</td>
               <td class="contraction">3.4% > 3.3% > 3.5% > 3.4%</td>
@@ -1205,7 +1287,13 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-            <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronics</td>
+              <td class="">0.00%</td>
+            </tr></tbody>
           </table>
         </div>
       </div>
@@ -1219,7 +1307,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
-              <td class="pos">0.00%</td>
+              <td class="">0.00%</td>
             </tr></tbody>
           </table>
         </div>
@@ -1232,9 +1320,15 @@
             <tbody>
             <tr>
               <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td class="">0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
-              <td class="pos">0.00%</td>
+              <td class="">0.00%</td>
             </tr></tbody>
           </table>
         </div>
@@ -1266,14 +1360,26 @@
           <tbody>
         <tr>
           <td class="rank">#1</td>
+          <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+          <td class="name">Microsoft Corp.</td>
+          <td class="pos">+2.54%</td>
+        </tr>
+        <tr>
+          <td class="rank">#2</td>
           <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
           <td class="name">Apple Inc.</td>
           <td class="neg">-1.37%</td>
         </tr>
         <tr>
-          <td class="rank">#2</td>
+          <td class="rank">#3</td>
           <td class="symbol"><a href="https://finance.yahoo.com/quote/005930" target="_blank" class="stock-link">005930</a></td>
           <td class="name">Samsung Electronics</td>
+          <td class="neg">-1.37%</td>
+        </tr>
+        <tr>
+          <td class="rank">#4</td>
+          <td class="symbol"><a href="https://finance.yahoo.com/quote/068270" target="_blank" class="stock-link">068270</a></td>
+          <td class="name">Celltrion</td>
           <td class="neg">-1.37%</td>
         </tr></tbody>
         </table>
@@ -1292,14 +1398,14 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="symbol"><strong>AAPL-BENCHMARK</strong></td>
-              <td class="neg">-0.97</td>
+              <td class="symbol"><strong>MSFT-BENCHMARK</strong></td>
+              <td class="pos">1.88</td>
               <td>0.85</td>
               <td>1.0</td>
-              <td><span class="badge">NEUTRAL</span></td>
+              <td><span class="badge">SHORT_SPREAD</span></td>
             </tr>
             <tr>
-              <td class="symbol"><strong>MSFT-BENCHMARK</strong></td>
+              <td class="symbol"><strong>AAPL-BENCHMARK</strong></td>
               <td class="neg">-0.97</td>
               <td>0.85</td>
               <td>1.0</td>
@@ -1361,7 +1467,7 @@
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
               <td><span class="badge">General</span></td>
-              <td class="pos">62.5%</td>
+              <td class="pos">50.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1376,19 +1482,19 @@
           <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
-              <td>🇺🇸 SP500</td>
-              <td><span class="badge">General</span></td>
-              <td class="pos">62.5%</td>
-            </tr>
-            <tr>
-              <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
               <td><span class="badge">General</span></td>
-              <td class="pos">62.5%</td>
+              <td class="pos">100.0%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>🇺🇸 SP500</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">50.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1546,15 +1652,15 @@
           <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">46.3%</td>
+              <td class="pos">48.9%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
               <td class="pos">46.3%</td>
             </tr></tbody>
@@ -1611,7 +1717,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">71.7%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1629,7 +1735,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">71.7%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1647,14 +1753,14 @@
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">65.8%</td>
+              <td class="pos">75.0%</td>
             </tr>
             <tr>
               <td class="rank">#4</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">59.2%</td>
+              <td class="pos">31.7%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1742,17 +1848,17 @@
           <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
-              <td>🇺🇸 SP500</td>
-              <td class="pos">100.0%</td>
-            </tr>
-            <tr>
-              <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">94.9%</td>
+              <td class="pos">46.6%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">45.9%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1803,11 +1909,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#2</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1821,11 +1927,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1843,14 +1949,14 @@
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr>
             <tr>
-              <td class="rank">#2</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">25.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1901,11 +2007,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#2</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1919,11 +2025,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -1941,14 +2047,14 @@
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr>
             <tr>
-              <td class="rank">#2</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">25.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -2003,7 +2109,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">9.8%</td>
+              <td class="pos">0.8%</td>
             </tr></tbody>
         </table>
       </div>
@@ -2017,11 +2123,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#1</td>
+              <td class="rank">#2</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">100.0%</td>
+              <td class="pos">8.3%</td>
             </tr></tbody>
         </table>
       </div>
@@ -2035,11 +2141,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#2</td>
+              <td class="rank">#1</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">12.1%</td>
+              <td class="pos">100.0%</td>
             </tr>
             <tr>
               <td class="rank">#4</td>
@@ -2095,7 +2201,14 @@
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>CARD 스코어</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electron</td>
+              <td>🇰🇷 KOSPI</td>
+              <td class="pos">26.3%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -2106,7 +2219,14 @@
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>CARD 스코어</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
+              <td class="name">Celltrion</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">26.3%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -2117,7 +2237,21 @@
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>CARD 스코어</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">26.3%</td>
+            </tr>
+            <tr>
+              <td class="rank">#4</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">10.6%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -2204,15 +2338,15 @@
           <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">0.0%</td>
+              <td class="pos">100.0%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
               <td class="pos">0.0%</td>
             </tr></tbody>
@@ -2265,11 +2399,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#2</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -2283,11 +2417,11 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -2305,14 +2439,14 @@
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">75.0%</td>
             </tr>
             <tr>
-              <td class="rank">#2</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">62.5%</td>
+              <td class="pos">25.0%</td>
             </tr></tbody>
         </table>
       </div>
@@ -2479,7 +2613,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.5</span>
+                  <span class="prob-label" style="color:#8b949e">0.5%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2499,7 +2633,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.5</span>
+                  <span class="prob-label" style="color:#8b949e">0.5%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2514,23 +2648,23 @@
               <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">1.3</span>
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.5%</span>
                 </div>
               </td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:1%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">1.3</span>
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.5%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2581,7 +2715,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.8</span>
+                  <span class="prob-label" style="color:#8b949e">0.8%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2601,7 +2735,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:1%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">1.0</span>
+                  <span class="prob-label" style="color:#8b949e">1.0%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2620,8 +2754,8 @@
               <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.4</span>
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.9%</span>
                 </div>
               </td>
             </tr>
@@ -2631,8 +2765,8 @@
               <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.4</span>
+                  <div class="prob-fill" style="width:3%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">3.5%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2683,7 +2817,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:3%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">3.3</span>
+                  <span class="prob-label" style="color:#8b949e">3.3%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2703,7 +2837,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:3%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">3.2</span>
+                  <span class="prob-label" style="color:#8b949e">3.2%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2722,8 +2856,8 @@
               <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:5%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">5.5</span>
+                  <div class="prob-fill" style="width:2%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">2.6%</span>
                 </div>
               </td>
             </tr>
@@ -2733,8 +2867,8 @@
               <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:5%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">5.5</span>
+                  <div class="prob-fill" style="width:2%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">2.1%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2785,7 +2919,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:7%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">7.7</span>
+                  <span class="prob-label" style="color:#8b949e">7.7%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2805,7 +2939,7 @@
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:5%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">5.6</span>
+                  <span class="prob-label" style="color:#8b949e">5.6%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2820,23 +2954,23 @@
               <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.7</span>
+                  <div class="prob-fill" style="width:9%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">9.7%</span>
                 </div>
               </td>
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
-                  <div class="prob-fill" style="width:0%;background:#8b949e"></div>
-                  <span class="prob-label" style="color:#8b949e">0.7</span>
+                  <div class="prob-fill" style="width:7%;background:#8b949e"></div>
+                  <span class="prob-label" style="color:#8b949e">7.8%</span>
                 </div>
               </td>
             </tr></tbody>
@@ -2890,7 +3024,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electronics</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -2905,7 +3039,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -2920,13 +3054,13 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -2972,7 +3106,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electronics</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -2987,7 +3121,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3002,13 +3136,13 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3054,7 +3188,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electronics</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3069,7 +3203,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3084,13 +3218,13 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3136,7 +3270,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electronics</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3151,7 +3285,7 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3166,13 +3300,13 @@
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
-              <td class="pos">+0.00%</td>
+              <td class="">+0.00%</td>
             </tr></tbody>
             </table>
           </div>
@@ -3253,10 +3387,10 @@ function switchHz(btn) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  const hrpLabels = ["Samsung Electron", "Celltrion", "Apple Inc.", "Microsoft Corp.", "Remaining Cash"];
-  const hrpWeights = [21.21, 14.2, 8.33, 6.26, 50.0];
+  const hrpLabels = ["Samsung Electron", "Celltrion", "Microsoft Corp.", "Apple Inc.", "Remaining Cash"];
+  const hrpWeights = [21.24, 14.22, 8.31, 6.24, 50.0];
   const mktLabels = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000", "CASH"];
-  const mktWeights = [21.21, 14.2, 14.59, 0.0, 0.0, 50.0];
+  const mktWeights = [21.24, 14.22, 14.55, 0.0, 0.0, 50.0];
 
   const donutCtx = document.getElementById('hrpDonutChart');
   if (donutCtx && typeof Chart !== 'undefined' && hrpLabels.length > 0) {
@@ -3311,7 +3445,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Scenario Simulator Client Logic & Market Filtering
   let currentScenarioMarket = 'all';
-  const scenarioUniverse = [{"sym": "005930", "name": "Samsung Electron", "mkt": "KOSPI", "sec": "Information Technology", "base": 0.325, "key": "semi", "elas": {"fx": 0.6, "wti": -0.2, "rate": -0.4, "vix": -0.3}}, {"sym": "068270", "name": "Celltrion", "mkt": "KOSDAQ", "sec": "Consumer Staples", "base": 0.39299999999999996, "key": "staples", "elas": {"fx": -0.4, "wti": -0.5, "rate": 0.1, "vix": 0.3}}, {"sym": "AAPL", "name": "Apple Inc.", "mkt": "SP500", "sec": "Information Technology", "base": 0.344, "key": "semi", "elas": {"fx": 0.6, "wti": -0.2, "rate": -0.4, "vix": -0.3}}, {"sym": "MSFT", "name": "Microsoft Corp.", "mkt": "SP500", "sec": "Consumer Staples", "base": 0.321, "key": "staples", "elas": {"fx": -0.4, "wti": -0.5, "rate": 0.1, "vix": 0.3}}];
+  const scenarioUniverse = [{"sym": "005930", "name": "Samsung Electron", "mkt": "KOSPI", "sec": "Information Technology", "base": 0.33899999999999997, "key": "semi", "elas": {"fx": 0.6, "wti": -0.2, "rate": -0.4, "vix": -0.3}}, {"sym": "068270", "name": "Celltrion", "mkt": "KOSDAQ", "sec": "Consumer Staples", "base": 0.344, "key": "staples", "elas": {"fx": -0.4, "wti": -0.5, "rate": 0.1, "vix": 0.3}}, {"sym": "MSFT", "name": "Microsoft Corp.", "mkt": "SP500", "sec": "Consumer Staples", "base": 0.365, "key": "staples", "elas": {"fx": -0.4, "wti": -0.5, "rate": 0.1, "vix": 0.3}}, {"sym": "AAPL", "name": "Apple Inc.", "mkt": "SP500", "sec": "Information Technology", "base": 0.34600000000000003, "key": "semi", "elas": {"fx": 0.6, "wti": -0.2, "rate": -0.4, "vix": -0.3}}];
 
   window.filterScenarioMarket = function(btn, mkt) {
     document.querySelectorAll('#filter-scenario .filter-btn').forEach(b => b.classList.remove('active'));
@@ -3452,7 +3586,176 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initial trigger
   updateScenarioSim();
+  initSortableTables();
 });
+
+function filterStockTables() {
+  const input = document.getElementById('stock-search-input');
+  if (!input) return;
+  const query = input.value.toLowerCase().trim();
+  const rows = document.querySelectorAll('tbody tr');
+  let matchCount = 0;
+  rows.forEach(row => {
+    if (!query) {
+      row.style.display = '';
+      matchCount++;
+    } else {
+      const text = row.innerText.toLowerCase();
+      if (text.includes(query)) {
+        row.style.display = '';
+        matchCount++;
+      } else {
+        row.style.display = 'none';
+      }
+    }
+  });
+  const status = document.getElementById('search-status');
+  if (status) {
+    status.textContent = query ? `🔍 ${matchCount}개 종목 검색됨` : '';
+  }
+}
+
+function initSortableTables() {
+  document.querySelectorAll('table').forEach(table => {
+    const headers = table.querySelectorAll('thead th');
+    headers.forEach((header, colIdx) => {
+      header.style.cursor = 'pointer';
+      header.addEventListener('click', () => sortTable(table, colIdx));
+    });
+  });
+}
+
+function sortTable(table, colIdx) {
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (rows.length === 0 || rows[0].querySelector('.empty')) return;
+  
+  let asc = table.getAttribute('data-sort-col') == colIdx && table.getAttribute('data-sort-order') === 'asc';
+  
+  rows.sort((a, b) => {
+    let cellA = a.children[colIdx] ? a.children[colIdx].innerText.trim() : '';
+    let cellB = b.children[colIdx] ? b.children[colIdx].innerText.trim() : '';
+    
+    let numA = parseFloat(cellA.replace(/[^0-9.-]/g, ''));
+    let numB = parseFloat(cellB.replace(/[^0-9.-]/g, ''));
+    
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return asc ? numA - numB : numB - numA;
+    }
+    return asc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+  });
+  
+  table.setAttribute('data-sort-col', colIdx);
+  table.setAttribute('data-sort-order', asc ? 'desc' : 'asc');
+  
+  table.querySelectorAll('thead th').forEach((th, i) => {
+    let baseText = th.innerText.replace(/ [▲▼]/g, '');
+    if (i === colIdx) {
+      th.innerText = baseText + (asc ? ' ▲' : ' ▼');
+      th.style.color = 'var(--accent)';
+    } else {
+      th.innerText = baseText;
+      th.style.color = 'var(--muted)';
+    }
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjStr) {
+  const drawer = document.getElementById('stock-drawer');
+  const overlay = document.getElementById('stock-drawer-overlay');
+  if (!drawer || !overlay) return;
+  
+  document.getElementById('drawer-stock-name').textContent = name || symbol;
+  document.getElementById('drawer-stock-meta').textContent = `${symbol} • ${market}`;
+  document.getElementById('drawer-score').textContent = score || 'N/A';
+  document.getElementById('drawer-return').textContent = expectedReturn || 'N/A';
+  
+  const naverLink = document.getElementById('drawer-naver-link');
+  if (naverLink) {
+    if (market === 'KOSPI' || market === 'KOSDAQ' || market === 'KONEX') {
+      naverLink.href = `https://m.stock.naver.com/domestic/stock/${symbol}/total`;
+    } else {
+      naverLink.href = `https://finance.yahoo.com/quote/${symbol}`;
+    }
+  }
+  
+  const factorsContainer = document.getElementById('drawer-factors-grid');
+  if (factorsContainer && factorObjStr) {
+    try {
+      const factors = JSON.parse(decodeURIComponent(factorObjStr));
+      let html = '';
+      for (const [key, val] of Object.entries(factors)) {
+        const numVal = parseFloat(val) || 0;
+        const barW = Math.min(100, Math.max(0, numVal));
+        html += `
+          <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+              <span style="color:var(--text); font-weight:500;">${key}</span>
+              <span style="color:var(--accent); font-weight:600;">${val}</span>
+            </div>
+            <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
+              <div style="height:100%; width:${barW}%; background:var(--accent);"></div>
+            </div>
+          </div>`;
+      }
+      factorsContainer.innerHTML = html;
+    } catch(e) {
+      factorsContainer.innerHTML = '<div style="color:var(--muted); font-size:12px;">팩터 상세 정보 없음</div>';
+    }
+  }
+  
+  overlay.style.display = 'block';
+  setTimeout(() => {
+    drawer.style.right = '0px';
+    overlay.style.opacity = '1';
+  }, 10);
+}
+
+function closeStockDrawer() {
+  const drawer = document.getElementById('stock-drawer');
+  const overlay = document.getElementById('stock-drawer-overlay');
+  if (drawer) drawer.style.right = '-450px';
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(() => { overlay.style.display = 'none'; }, 300);
+  }
+}
 </script>
+
+<!-- Stock Detail Drawer -->
+<div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:1000; transition:opacity .3s;"></div>
+<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:420px; max-width:90vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:24px; overflow-y:auto; transition:right .3s ease; box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+    <div>
+      <h2 id="drawer-stock-name" style="font-size:20px; font-weight:700; color:var(--text);">종목 상세</h2>
+      <div id="drawer-stock-meta" style="font-size:13px; color:var(--accent); font-family:monospace; margin-top:2px;">CODE</div>
+    </div>
+    <button onclick="closeStockDrawer()" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer;">&times;</button>
+  </div>
+  
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
+    <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+      <div style="font-size:11px; color:var(--muted);">18대 앙상블 점수</div>
+      <div id="drawer-score" style="font-size:22px; font-weight:700; color:var(--blue); margin-top:4px;">0.0%</div>
+    </div>
+    <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
+      <div style="font-size:11px; color:var(--muted);">20d 예상 수익률</div>
+      <div id="drawer-return" style="font-size:22px; font-weight:700; color:var(--green); margin-top:4px;">0.00%</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <h3 style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px;">📊 18-Factor 다변화 스코어 분해</h3>
+    <div id="drawer-factors-grid" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <a id="drawer-naver-link" href="#" target="_blank" class="filter-btn active" style="flex:1; text-align:center; text-decoration:none; padding:10px;">🇳 외부 증권 상세 보기</a>
+  </div>
+</div>
+
 </body>
 </html>

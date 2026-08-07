@@ -609,14 +609,17 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
             date = m.group(1).strip()
             continue
         # Matches: rank  symbol  name (anything)  market  score%
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)\s+([-+]?[\d.]+)%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)\s+([-+]?(?:[\d.]+|nan|NaN|None))%$", line)
         if m:
+            score_val = m.group(5).strip()
+            if "nan" in score_val.lower() or "none" in score_val.lower():
+                score_val = "0.0"
             rows.append(SimpleStrategyRow(
                 rank=int(m.group(1)),
                 symbol=m.group(2),
                 name=m.group(3).strip(),
                 market=m.group(4),
-                score=m.group(5) + "%",
+                score=score_val + "%",
             ))
     return date, rows
 
