@@ -686,11 +686,15 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
         try:
             raw = fdr.DataReader(ticker, start=start_date)
             if raw is not None and not raw.empty:
-                logger.warning(f"Successfully retrieved indicator data for {ticker} via FDR")
+                logger.info(f"Successfully retrieved indicator data for {ticker} via FDR")
                 raw.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in raw.columns]
                 return raw
         except Exception as e:
-            logger.debug(f"Direct FDR indicator download error for {ticker}: {e}")
+            logger.warning(f"Direct FDR indicator download error for {ticker}: {e}")
+        # FRED symbols are hosted exclusively on FRED and not Yahoo Finance.
+        # Prevent yfinance 404 errors by raising ValueError so @retry handles FDR retry.
+        if ticker.startswith("FRED:"):
+            raise ValueError(f"FRED indicator {ticker} download failed via FDR")
 
     # Tier 1: Primary provider (yfinance) with transient retry
     try:
