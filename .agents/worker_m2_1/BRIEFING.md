@@ -1,30 +1,29 @@
-# BRIEFING — 2026-08-05T10:47:30+09:00
+# BRIEFING — 2026-08-06T01:02:32+09:00
 
 ## Mission
-System Improvement Report Specialist: Synthesize deep financial engineering, software architecture, and dashboard UI/UX verifier audits into `SYSTEM_IMPROVEMENT_REPORT.md`.
+Milestone 2 Implementation: Factor Orthogonalizer Engine, Stat-Arb performance optimization & run_pipeline verification.
 
 ## 🔒 My Identity
 - Archetype: implementer, qa, specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\worker_m2_1
 - Original parent: 3838e4e4-ce0a-4c83-86b3-96ac6bb1ea30
-- Milestone: Audit & Quantitative Synthesis
+- Milestone: Audit & Quantitative Synthesis & Software Architecture / Pipeline Robustness
 
 ## 🔒 Key Constraints
 - Follow project specifications and minimal-change principle.
 - DO NOT CHEAT or hardcode test outputs. Maintain real behavior and fallback logic.
+- Target files: `src/ai/factor_orthogonalizer.py`, `src/ai/ensemble_scorer.py`, `src/core/stat_arb.py`, `trading_system/run_pipeline.py`.
 
 ## Current Parent
-- Conversation ID: 3838e4e4-ce0a-4c83-86b3-96ac6bb1ea30
-- Updated: 2026-08-05T10:47:30+09:00
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-06T01:02:32+09:00
 
 ## Task Summary
-- **What to build**: 
-  Generated `d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md` integrating 3 audit reports:
-  1. Financial Engineering Audit
-  2. Software Architecture & Pipeline Audit
-  3. Dashboard UI/UX & Verifier Evaluation
-  Including concrete code enhancements for `run_pipeline.py`, `verify_gha_artifacts.py`, and `generate_report.py`, plus a complete Mermaid flowchart.
+- **What to build**:
+  1. `FactorOrthogonalizerEngine` in `src/ai/factor_orthogonalizer.py` with PCA ZCA whitening ($C^{-1/2} = V \Lambda^{-1/2} V^T$) & Gram-Schmidt factor decorrelation. Integrate into `EnsembleScoringEngine.combine_predictions()` to decorrelate 18 raw strategy scores (<0.30 correlation, rank & [0,1] bound preserving).
+  2. Multi-feature pre-clustering (MiniBatch K-Means $K=40$) and vectorized Pearson correlation pre-screening ($|r| \ge 0.70$) in `StatisticalArbitrageEngine.find_cointegrated_pairs()`. Remove 300 volume truncation restriction so 100% of 3379 symbols scanned in < 5s.
+  3. Verify strict failure isolation, exception safety, and float32 memory downcasting in `trading_system/run_pipeline.py`.
 - **Success criteria**: Comprehensive, accurate report covering all required sections and mathematical formulations.
 - **Interface contracts**: `ORIGINAL_REQUEST.md`, `DISPATCH.md`
 

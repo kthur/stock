@@ -29,7 +29,8 @@ class TestM1EmpiricalChallenger(unittest.TestCase):
             'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
             'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation', 'event_driven',
             'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
-            'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector'
+            'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
+            'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target', 'microstructure'
         ]
 
     def test_empirical_ledoit_wolf_matrix_conditioning(self):

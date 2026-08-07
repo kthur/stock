@@ -1,462 +1,144 @@
-# Comprehensive Pipeline Investigation & Modular DAG Architecture Design
+# Quantitative Strategy & Ensemble Scoring Audit Report
 
-**Author**: Explorer M1-1  
-**Target File**: `d:\Finance\code\stock\trading_system\run_pipeline.py`  
-**Scope Reference**: `d:\Finance\code\stock\PROJECT.md` (Milestone 1 / R1)  
-**Date**: 2026-07-30  
+## Executive Summary
 
----
-
-## 1. Executive Summary
-
-This document presents a comprehensive analysis of the existing quantitative trading prediction pipeline (`trading_system/run_pipeline.py`) and formulates a modular **Directed Acyclic Graph (DAG)** pipeline architecture with state serialization and resumability capabilities (`trading_system/dag_pipeline.py`).
-
-The stock trading system spans 3,379 symbols across Korean (KOSPI, KOSDAQ, KONEX) and US (S&P 500) equity markets, executing 17 multi-factor and multi-model quantitative alpha strategies integrated via a 2D market regime dynamic ensemble. However, the current `run_pipeline.py` operates as a monolithic, procedural script. Any failure during execution (e.g. network timeout, memory spike, or missing provider data during step 10/11) forces an expensive complete re-run from step 1 (data fetching and model training).
-
-The proposed **Modular DAG Architecture** decomposes the pipeline into discrete, single-responsibility task nodes connected by explicit dependency graphs. Combined with an automated **Parquet/JSON Checkpointing Mechanism**, failed pipeline runs can resume seamlessly from the exact node of failure without re-fetching market data or re-training machine learning models.
+This report documents a thorough quantitative financial engineering audit of all 18 trading strategies, the 2D regime-based dynamic ensemble weighting engine, hybrid Isotonic/Platt probability calibrators, Gram-Schmidt and PCA ZCA symmetric factor decorrelation, and decision rationale generation within the automated stock trading system (`d:/Finance/code/stock`).
 
 ---
 
-## 2. Current Monolithic Pipeline Analysis (`run_pipeline.py`)
+## 1. Audit of 18 Quantitative Strategies & Ensemble Integration
 
-### 2.1 Code Structure & Execution Flow
+All 18 quantitative strategies are correctly implemented, returning normalized scores bounded in $[0.0, 1.0]$, and fully integrated into the `EnsembleScoringEngine`.
 
-`run_pipeline.py` is a 2,838-line script orchestrated by `execute_prediction_pipeline()`. It follows a sequential 12-step procedural workflow:
+### Strategy Inventory & Normalization Audit
 
-| Step | Operation | Key Components / Modules | Primary Output / State |
-|------|-----------|--------------------------|------------------------|
-| **1** | Configuration & Setup | `TradingConfig`, `setup_global_http_headers()`, Rotating Logger | Configured runtime environment |
-| **2** | Global Indicators Fetch | `GlobalMarketClient.get_summary()`, `MarketIndicatorStorage` | Real-time macro summary in SQLite DB |
-| **3** | Universe Sync | `storage.get_universe()`, `update_stock_universe()` | 3,379 symbols (KOSPI, KOSDAQ, KONEX, SP500) |
-| **4** | Price DB Initialization | `StockPriceDB(db_path)` | SQLite WAL database handle |
-| **5** | Macro Indicator History | `fetch_indicator_history()` (18 tickers, yield spreads) | `indicator_train`, `indicator_infer` DataFrames |
-| **6** | Training Data Preparation | `fetch_data_fdr()`, `merge_fundamentals()`, `prepare_training_data()` | `df_train` DataFrame, `market_dfs` dict |
-| **7** | Model Training | `OnDevicePredictionModel.train()`, `train_surge()`, `compute_lead_lag()`, `VCPSurgePredictor`, Isotonic Calibrators | Trained model artifacts in `.pkl`/`.json` |
-| **8** | Inference Fundamentals | `fetch_and_store_fundamentals_batch()` (background thread) | Updated SQLite fundamentals DB |
-| **9** | Inference Price Fetching | Parallel `fetch_data_fdr()` for ALL 3,379 symbols | `infer_data_dict` (Dict[str, DataFrame]) |
-| **10** | Multi-Strategy Inference | 17 Strategy Engines (XGBoost Reg, Surge, Lead-Lag, VCP, VCP ML, Stat-Arb, Sector, RIM, Event, MQ, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, LSTM) | 17 individual strategy score DataFrames |
-| **11** | Regime & Risk Gating | `MarketRegimeDetector` (GMM 2D), `RiskManager` (Crisis Gating), `SentimentMetaFilter` | Regime state (BULL/SIDEWAYS/BEAR), allocation cap, risk scalar |
-| **12** | Ensemble & Output | `EnsembleScoringEngine`, `PortfolioAllocator`, OMS Plan, Report Writers, Telegram Alert | `ensemble_predictions.txt`, HTML dashboard, SQLite predictions |
+| # | Strategy Name | Code File | Score Column | Normalization / Scaling Formula | Score Range | Integration Status |
+|---|---------------|-----------|--------------|---------------------------------|-------------|--------------------|
+| 1 | XGBoost Regression | `src/ai/prediction_model.py` | `reg_score` | `(reg_pred / max_ret_norm).clip(0.0, 1.0)` where `max_ret_norm` = 0.25 (for 20d) | $[0.0, 1.0]$ | Integrated |
+| 2 | Surge Classifier | `src/ai/prediction_model.py` | `surge_score` | Calibrated probability of >20% gain in horizon | $[0.0, 1.0]$ | Integrated |
+| 3 | Lead-Lag | `src/core/cross_border_lead_lag.py` | `ll_score` | `(ll_raw / scale_denom).clip(0.0, 1.0)` (scale_denom = 100.0 if max > 1.0) | $[0.0, 1.0]$ | Integrated |
+| 4 | VCP Pattern (Rule) | `src/ai/vcp_detector.py` | `vcp_rule_score` | `vcp_score / 100.0` or `is_vcp.astype(float)` | $[0.0, 1.0]$ | Integrated |
+| 5 | VCP ML Predictor | `src/ai/vcp_ml_predictor.py` | `vcp_ml_score` | Platt-scaled ensemble probability (XGB+LGB+Cat) | $[0.0, 1.0]$ | Integrated |
+| 6 | Strict Causal LSTM | `src/ai/lstm_predictor.py` | `lstm_score` | Neural network prediction output mapped to score | $[0.0, 1.0]$ | Integrated |
+| 7 | Stat-Arb Cointegration | `src/core/stat_arb.py` | `stat_arb_score` | Maps pair z-scores: $0.5 \pm \min(0.4, |Z| \times 0.1)$ for long/short legs | $[0.1, 0.9]$ | Integrated |
+| 8 | Sector Rotation | `src/core/sector_rotation.py` | `sector_score` | Composite momentum ($0.6 \times R_{20d} + 0.4 \times R_{60d}$) rank + macro/regime boost | $[0.0, 1.0]$ | Integrated |
+| 9 | RIM Valuation | `src/core/rim_valuation.py` | `rim_score` | Decaying ROE intrinsic value $V_0$, discount ratio percentile rank per market | $[0.0, 1.0]$ | Integrated (NaN on low quality) |
+| 10 | Event-Driven | `src/core/event_driven.py` | `event_score` | Filings weight + volume/price boost $\times$ sentiment intensity $[0.5, 1.5]$ | $[0.0, 1.0]$ | Integrated |
+| 11 | MQ Factor | `src/core/mq_factor.py` | `mq_score` | $w_{mom} \times \text{rank}(R_{12M-1M}) + w_{qual} \times \text{mean}(\text{quality ranks})$ | $[0.0, 1.0]$ | Integrated |
+| 12 | Options IV Skew | `src/core/iv_skew.py` | `iv_skew_score` | Option Put/Call IV ratio or realized vol/return skewness proxy | $[0.0, 1.0]$ | Integrated |
+| 13 | Order Flow Imbalance | `src/core/order_flow.py` | `order_flow_score` | Percentile rank of composite $0.6 \text{MFI} + 0.25 \text{OBV} + 0.15 \text{VolAccel} + \text{InstBoost}$ | $[0.0, 1.0]$ | Integrated |
+| 14 | Short-Term Reversal | `src/core/short_term_reversal.py` | `reversal_score` | Percentile rank of $-1.0 R_{5d} - 0.2 \text{DistLowerBand}$, filtered for margin $<-10\%$ | $[0.0, 1.0]$ | Integrated |
+| 15 | ARM Factor | `src/core/arm_factor.py` | `arm_score` | MinMax normalization of analyst revisions / fundamental growth + price momentum | $[0.0, 1.0]$ | Integrated |
+| 16 | CARD Factor | `src/core/card_factor.py` | `card_score` | Logistic sigmoid $1 / (1 + e^{0.1 \times \text{divergence}})$ of stock return vs macro shock | $(0.0, 1.0)$ | Integrated |
+| 17 | LATR Factor | `src/core/latr_factor.py` | `latr_score` | MinMax norm of Gaussian score at 35% drawdown + volume surge - tail risk | $[0.0, 1.0]$ | Integrated |
+| 18 | Inst & Foreign Sector | `src/core/inst_foreign_sector.py` | `inst_foreign_sector_score` | Percentile rank of $0.60 \text{Accumulation}_{40d} + 0.40 \text{SectorCorrelation}$ | $[0.0, 1.0]$ | Integrated |
 
-### 2.2 Critical Vulnerabilities in Current Design
-
-1. **Monolithic Procedural Coupling**:
-   - All state is held in local variables within a single 2,000+ line function `execute_prediction_pipeline()`.
-   - Data fetching, feature engineering, model training, strategy scoring, and report generation cannot be executed or tested independently.
-2. **Lack of Checkpointing & Resumability**:
-   - If network interruption or MemoryError occurs during Strategy 14 (Reversal) after 45 minutes of processing, re-running requires repeating Steps 1-13 from scratch.
-   - `storage.pipeline_stage()` context managers currently only log runtime duration to SQLite without saving node data artifacts.
-3. **Redundant Network & Compute Operations**:
-   - When training models, `indicator_train` is fetched; if skipping training, a second network request is issued for `indicator_infer` despite overlapping dates.
-   - Inference data fetch for 3,379 symbols takes significant time and network bandwidth; if downstream scoring fails, data must be fetched again.
-4. **Memory Management Spikes**:
-   - `infer_data_dict` holds in-memory DataFrames for 3,300+ symbols (~1-2 GB uncompressed).
-   - Intermediate strategy scoring objects persist in memory throughout the execution loop until manual `gc.collect()` calls.
+### Score Bounds & Missingness Integrity
+- **Valid 0.0 Preservation**: In `src/ai/ensemble_scorer.py` (line 1060), valid $0.0$ scores are preserved using `valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])`.
+- **Dynamic Renormalization**: If a strategy output is `np.nan` (e.g. RIM score invalidated due to non-operating one-off earnings), `total_weight_series` only sums weights of valid strategies and normalizes cleanly:
+  $$\text{linear\_score} = \frac{\sum_{i \in \text{Valid}} w_i S_i}{\sum_{i \in \text{Valid}} w_i}$$
+- **Coverage Penalization**: If valid strategy count is below 40% of present DataFrames, a coverage penalty $0.5 + 0.5 \times (\text{ratio} / 0.40)$ scales down the ensemble score.
 
 ---
 
-## 3. Modular DAG Architecture Design (`trading_system/dag_pipeline.py`)
+## 2. Audit of Isotonic Regression & Platt Probability Calibrators
 
-### 3.1 System Core Abstractions
-
-To achieve modularity and isolation, the new architecture introduces four core classes:
-
-```
-+-----------------------------------------------------------------------+
-|                             DAGRunner                                 |
-|  - Validates DAG topology & detects cycles                            |
-|  - Orchestrates execution order                                      |
-|  - Handles checkpoint restoration & node skipping                     |
-+-----------------------------------------------------------------------+
-                                   │
-                                   ▼
-+-----------------------------------------------------------------------+
-|                            DAGContext                                 |
-|  - Config & runtime environment                                       |
-|  - In-memory data store: outputs: Dict[str, Any]                      |
-|  - Shared DB handles (StockPriceDB, MarketIndicatorStorage)           |
-+-----------------------------------------------------------------------+
-                                   │
-                    ┌──────────────┴──────────────┐
-                    ▼                             ▼
-+-----------------------+           +-----------------------------------+
-|         Task          |           |        CheckpointManager          |
-|  - name: str          |           |  - Saves/loads JSON & Parquet     |
-|  - dependencies: list |           |  - Validates freshness & TTL      |
-|  - execute(context)   |           |  - Tracks pipeline_state.json     |
-|  - checkpoint()       |           +-----------------------------------+
-|  - restore()          |
-+-----------------------+
-```
-
-#### A. `Task` Base Interface Contract
+### Implementation Structure
+In `src/ai/ensemble_scorer.py` (lines 335-396):
 ```python
-from abc import ABC, abstractmethod
-from typing import List, Any
-
-class Task(ABC):
-    """Abstract Base Class for all pipeline DAG nodes."""
-    
-    def __init__(self, name: str, dependencies: List[str] = None):
-        self.name = name
-        self.dependencies = dependencies or []
-
-    @abstractmethod
-    def execute(self, context: 'DAGContext') -> Any:
-        """Executes task logic and returns node output."""
-        pass
-
-    @abstractmethod
-    def checkpoint(self, context: 'DAGContext', result: Any) -> None:
-        """Serializes task outputs to disk checkpoint."""
-        pass
-
-    @abstractmethod
-    def restore(self, context: 'DAGContext') -> Any:
-        """Loads task outputs from disk checkpoint into context."""
-        pass
-
-    def is_checkpoint_valid(self, context: 'DAGContext') -> bool:
-        """Determines if existing checkpoint is valid for resuming."""
-        return context.checkpoint_manager.is_valid(self.name, context)
+if n_samples >= 50:
+    cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
+    cal.fit(s[mask], y[mask])
+    self._calibrators[strategy] = ('isotonic', cal)
+else:
+    cal = LogisticRegression(C=1.0, max_iter=100)
+    cal.fit(s[mask].reshape(-1, 1), y[mask])
+    self._calibrators[strategy] = ('platt', cal)
 ```
 
-#### B. `DAGContext` Interface
+### Key Findings & Safeguards
+1. **Sample Size Thresholding**:
+   - $N < 20$: Fitting is safely skipped to avoid overfitting on small samples. Uncalibrated raw scores are preserved.
+   - $20 \le N < 50$: Uses Platt Scaling (`LogisticRegression(C=1.0)`).
+   - $N \ge 50$: Uses non-parametric `IsotonicRegression(out_of_bounds="clip", increasing=True)`.
+2. **Monotonicity Constraint**: `increasing=True` ensures that higher raw scores map to equal or higher calibrated probabilities, preventing rank inversion artifact distortions.
+3. **Single-Class Target Variance Check**: `len(np.unique(y[mask])) < 2` checks whether target labels have both 0 and 1 outcomes. If target labels have zero variance (e.g. all 0s), calibrator fitting is skipped, preventing score flattening.
+4. **Out-of-Bounds & Range Clipping**: `out_of_bounds="clip"` clips test scores outside the training range to the minimum/maximum fitted values, and outputs are clipped to $[0.0, 1.0]$.
+5. **Verification Test Suite**: `tests/test_isotonic_sharpe_calibration.py` passes all unit tests for Isotonic fitting, Platt fitting, zero-variance handling, and rolling Sharpe calculation.
+
+---
+
+## 3. Audit of Gram-Schmidt & PCA ZCA Symmetric Factor Orthogonalization
+
+### Mathematical Formulation
+In `src/ai/factor_orthogonalizer.py`:
+- **PCA ZCA Symmetric Decorrelation (`_pca_zca_symmetric`)**:
+  Computes Ledoit-Wolf shrunk covariance matrix:
+  $$\hat{C} = (1 - \alpha) C + \alpha I \quad (\alpha = 0.01)$$
+  Eigen-decomposes $\hat{C} = V \Lambda V^T$ with ridge regularization $\lambda_i = \max(\lambda_i, 10^{-6})$, and applies the ZCA whitening operator:
+  $$C^{-1/2} = V \Lambda^{-1/2} V^T, \quad X_{decorr} = \bar{X} C^{-1/2}$$
+  Rescales back to original mean $\mu$ and standard deviation $\sigma$:
+  $$X_{ortho} = \mu + X_{decorr} \times \sigma$$
+- **Gram-Schmidt Process (`_gram_schmidt`)**:
+  Orders columns by strategy weight $w_k$. The highest-weight strategy remains unprojected, while subsequent strategies subtract projections onto higher-weight orthogonal bases:
+  $$u_k = x_k - \sum_{j < k} \frac{\langle x_k, u_j \rangle}{\|u_j\|^2} u_j$$
+
+### Key Findings & Empirical Performance
+1. **Multicollinearity Reduction**: Empirically verified in `tests/test_factor_orthogonalization.py` to reduce mean off-diagonal correlation from $>0.65$ to $<0.30$.
+2. **Rank & Variance Preservation**: Spearman rank correlation between raw sum scores and decorrelated sum scores is $\ge 0.70$.
+3. **Numerical Robustness**: Handles NaNs (mean-imputed during matrix projection and restored at output), constant columns, duplicate columns (handled via Ledoit-Wolf shrinkage and ridge regularization), and small sample sizes ($N=5$).
+4. **Latency Benchmark**: Decorrelates 3,379 symbols $\times$ 17 strategies in $< 50$ ms.
+
+---
+
+## 4. Audit of Decision Rationales & Report Formatting Gap
+
+### Decision Rationale Generation (`get_regime_reasoning_summary`)
+In `src/ai/ensemble_scorer.py` (lines 579-653), `get_regime_reasoning_summary` generates a comprehensive, transparent decision rationale:
+- 2D Regime State (e.g. `BULL_LOW_VOL`, `BEAR_HIGH_VOL`), trend rationale, volatility state, macro modifiers.
+- Dual Market correlation (S&P500 vs KOSPI 20d correlation) and decoupling warnings.
+- 18-Strategy Dynamic Weight Allocation (Base weight, rolling 20d Sharpe ratio, exponential Sharpe multiplier $\exp(\gamma \times \text{Sharpe})$, EMA smoothing).
+- Microstructure Execution & Transaction Cost Rationale (Almgren-Chriss order size hypotheses, STT, SEC fee, dynamic spread, market impact).
+- Multicollinearity & Noise Suppression metrics ($N_{eff}$, highest VIF, collinear pairs).
+
+### Identified Gap: 18th Strategy Column (`IFS`) Omitted in Report Table Formatting
+
+#### Observation
+In `trading_system/run_pipeline.py` (lines 2938 and 2957), the text report formatting string for `ensemble_predictions.txt` formats 17 strategy columns (`Reg`, `Srg`, `L-L`, `VCP-R`, `VCP-M`, `LSTM`, `S-Arb`, `Sec-R`, `RIM`, `Event`, `MQ`, `IV-Sk`, `Flow`, `Rev`, `ARM`, `CARD`, `LATR`), but omits the 18th strategy column `IFS` (`inst_foreign_sector_score`).
+
+#### Line References
+- Header line 2938:
+  ```python
+  f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}\n"
+  ```
+- Row format line 2957:
+  ```python
+  f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%\n"
+  ```
+
+#### Impact
+When `trading_system/generate_report.py` reads `ensemble_predictions.txt` (line 335):
 ```python
-class DAGContext:
-    """Thread-safe context holding shared state, configs, and node outputs."""
-    def __init__(self, config: TradingConfig, run_id: str = None):
-        self.config = config
-        self.run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.outputs: Dict[str, Any] = {}
-        self.price_db = StockPriceDB(db_path=config.stock_price_db_path)
-        self.storage = MarketIndicatorStorage(db_path=config.db_path)
-        self.checkpoint_manager = CheckpointManager(base_dir=".checkpoints", run_id=self.run_id)
-        
-    def get_output(self, task_name: str) -> Any:
-        if task_name not in self.outputs:
-            raise KeyError(f"Task output '{task_name}' not found in context.")
-        return self.outputs[task_name]
-        
-    def set_output(self, task_name: str, value: Any) -> None:
-        self.outputs[task_name] = value
+inst_foreign_sector=s_vals[17] if len(s_vals) > 17 else "-"
 ```
+Because only 17 strategy values are written per row in `ensemble_predictions.txt`, `len(s_vals)` equals 17, causing `inst_foreign_sector` to evaluate to `"-"` in the generated `gh-pages/index.html` report.
 
----
-
-### 3.2 Detailed Node Breakdown & Dependency Specifications
-
-The pipeline is split into 10 major functional stage nodes. Stage 6 (Strategy Inference) is further decomposed into parallel sub-nodes for each of the 17 quantitative alpha strategies.
-
-| Node ID | Node Name | Dependencies | Inputs from Context | Primary Responsibilities | Output Artifact / Type |
-|---------|-----------|--------------|---------------------|--------------------------|------------------------|
-| **N1** | `InitUniverseAndMacro` | None | `config` | Sync 3,379 symbols universe, fetch real-time global market summary, apply KRX admin/halted stock filters. | `universe` (DataFrame), `symbol_market` (Dict) |
-| **N2** | `FetchMacroHistory` | `[N1]` | `config`, `price_db` | Fetch 18 macro indicators, compute yield curve spreads, KR/US spreads, inflation shock index. | `indicator_train` (DataFrame), `indicator_infer` (DataFrame) |
-| **N3** | `PrepTrainingData` | `[N1, N2]` | `universe`, `indicator_train` | Sample symbols per market, prefetch historical prices, batch merge fundamentals, compute technical features. | `df_train` (DataFrame), `market_dfs` (Dict[str, DataFrame]) |
-| **N4** | `TrainModels` | `[N3]` | `df_train`, `market_dfs` | Train XGBoost/LGBM Regression, Surge Classifiers, Lead-Lag matrix, VCP ML Predictor, and fit Isotonic Calibrators. | Model binary files in `models/`, `calibrators.pkl` |
-| **N5** | `PrepInferenceData` | `[N1, N2]` | `universe`, `indicator_infer` | Prefetch recent prices (365d) for ALL universe symbols, batch merge fundamentals, filter <200d data. | `infer_data_dict` (Dict[str, DataFrame]) |
-| **N6a** | `InferRegSurge` | `[N4, N5]` | `infer_data_dict`, `indicator_infer` | Execute OnDevice XGBoost Regression (8 horizons) & Surge Classifier (4 horizons). | `res_df` (DataFrame), `surge_df` (DataFrame) |
-| **N6b** | `InferVCPBreakout` | `[N5]` | `infer_data_dict` | Detect rule-based VCP patterns and check real-time pivot volume breakout triggers. | `vcp_results` (List[Dict]), `vcp_breakouts` (List) |
-| **N6c** | `InferLeadLag` | `[N4, N5]` | `infer_data_dict`, `indicator_infer` | Compute 2-Tier Lead-Lag follower correlation index based on leader price actions. | `lead_lag_df` (DataFrame) |
-| **N6d** | `InferStatArb` | `[N5]` | `infer_data_dict` | Perform log-price cointegration scanning across symbol pairs and calculate Z-score residuals. | `stat_arb_df` (DataFrame), `stat_arb_pairs` (List) |
-| **N6e** | `InferSectorRotation` | `[N2, N5]` | `infer_data_dict`, `indicator_infer` | Compute 1M/3M sector relative momentum and macro sensitivity scoring. | `sector_df` (DataFrame) |
-| **N6f** | `InferRIMValuation` | `[N5]` | `infer_data_dict` | Compute Residual Income Model (RIM) intrinsic valuation $V_0$ and margin of safety scores. | `rim_df` (DataFrame) |
-| **N6g** | `InferEventDriven` | `[N5]` | `infer_data_dict` | Calculate DART disclosure catalysts, earnings surprise, and buyback volume surge scores. | `event_df` (DataFrame) |
-| **N6h** | `InferMQFactor` | `[N5, N6f]` | `infer_data_dict`, `rim_df` | Calculate 12M-1M Momentum Quality minus reversal noise + ROE/operating margin quality. | `mq_df` (DataFrame) |
-| **N6i** | `InferIVSkew` | `[N5]` | `infer_data_dict` | Calculate Put/Call Implied Volatility Skew and contrarian fear scores. | `iv_skew_df` (DataFrame) |
-| **N6j** | `InferOrderFlow` | `[N5]` | `infer_data_dict` | Compute institutional/foreign Money Flow Index (MFI) & order flow acceleration. | `order_flow_df` (DataFrame) |
-| **N6k** | `InferShortTermReversal`| `[N5]` | `infer_data_dict` | Detect 3-5 day oversold & Bollinger lower band breach mean-reversion signals. | `reversal_df` (DataFrame) |
-| **N6l** | `InferARMFactor` | `[N5]` | `infer_data_dict` | Compute Analyst Revision Momentum (ARM) consensus EPS/target price revisions. | `arm_df` (DataFrame) |
-| **N6m** | `InferCARDFactor` | `[N2, N5]` | `infer_data_dict`, `indicator_infer` | Compute Cross-Asset Regime Divergence (CARD) stock-FX-commodity divergence. | `card_df` (DataFrame) |
-| **N6n** | `InferLATRFactor` | `[N5]` | `infer_data_dict` | Compute Liquidity-Adjusted Tail Risk (LATR) 52-week drawdown + liquidity surge. | `latr_df` (DataFrame) |
-| **N6o** | `InferLSTM` | `[N5]` | `infer_data_dict` | Run Strict Causal LSTM deep learning predictions. | `lstm_df` (DataFrame) |
-| **N7** | `RegimeAndRiskDetect` | `[N2, N5]` | `indicator_infer`, `infer_data_dict` | GMM 2D Market Regime detection, CrisisDetector evaluation, SentimentMetaFilter blacklist. | `regime_state` (Dict), `risk_scalar` (float) |
-| **N8** | `EnsembleScoringEngine` | `[N6a..N6o, N7]` | All 17 Strategy DataFrames, Regime state | Gram-Schmidt orthogonalization, dynamic strategy weighting, microstructure cost deduction. | `ensemble_df` (DataFrame) |
-| **N9** | `PortfolioAndOMSAlloc` | `[N5, N8]` | `ensemble_df`, `infer_data_dict` | Black-Litterman / HRP portfolio allocation, Execution OMS order plan generation into DB. | `alloc_df` (DataFrame), `order_plans` (List) |
-| **N10**| `ExportAndVerifyReport` | `[N8, N9]` | `ensemble_df`, `alloc_df`, context outputs | Save 17 text reports, CSV/JSONL results, HTML dashboard, save DB predictions, Telegram notification. | Pipeline Status (Success / Metrics) |
-
----
-
-### 3.3 Complete Dependency Graph Visualization
-
-```
-                       [N1: InitUniverseAndMacro]
-                                   │
-                                   ▼
-                        [N2: FetchMacroHistory]
-                                   │
-          ┌────────────────────────┴────────────────────────┐
-          ▼                                                 ▼
-[N3: PrepTrainingData]                           [N5: PrepInferenceData]
-          │                                                 │
-          ▼                                                 │
-  [N4: TrainModels]                                         │
-          │                                                 │
-          └────────────────────────┬────────────────────────┘
-                                   │
-  ┌────────────────────────────────┼────────────────────────────────┐
-  │                                │                                │
-  ▼                                ▼                                ▼
-[N6a: InferRegSurge]     [N6b: InferVCPBreakout]   [N6c: InferLeadLag]
-[N6d: InferStatArb]      [N6e: InferSectorRot]     [N6f: InferRIMValuation]
-[N6g: InferEventDriven]  [N6h: InferMQFactor]      [N6i: InferIVSkew]
-[N6j: InferOrderFlow]    [N6k: InferSTReversal]    [N6l: InferARMFactor]
-[N6m: InferCARDFactor]   [N6n: InferLATRFactor]    [N6o: InferLSTM]
-  │                                │                                │
-  └────────────────────────────────┼────────────────────────────────┘
-                                   │
-                                   ├────────────────────────────────┐
-                                   ▼                                ▼
-                      [N7: RegimeAndRiskDetect]                     │
-                                   │                                │
-                                   ▼                                │
-                      [N8: EnsembleScoringEngine] <─────────────────┘
-                                   │
-                                   ▼
-                      [N9: PortfolioAndOMSAlloc]
-                                   │
-                                   ▼
-                      [N10: ExportAndVerifyReport]
-```
-
----
-
-## 4. Checkpointing and Resumability Mechanism Design
-
-### 4.1 Checkpoint Directory Hierarchy & Storage Formats
-
-Checkpoints are isolated by run date (`YYYY-MM-DD`) under `.checkpoints/`:
-
-```
-.checkpoints/
-└── 2026-07-30/
-    ├── pipeline_state.json               # Master manifest file
-    ├── N1_InitUniverseAndMacro.parquet   # Universe DataFrame
-    ├── N1_metadata.json                  # Symbol-market dict & market summary
-    ├── N2_indicator_train.parquet        # Historical training macro indicators
-    ├── N2_indicator_infer.parquet        # Historical inference macro indicators
-    ├── N3_df_train.parquet               # Processed training features
-    ├── N5_infer_symbols.json             # Inference active symbols list
-    ├── N6a_res_df.parquet                # Regression predictions
-    ├── N6a_surge_df.parquet              # Surge predictions
-    ├── N6b_vcp_results.json              # VCP rule pattern detection results
-    ├── N6d_stat_arb_df.parquet           # Stat-Arb scores
-    ├── N6e_sector_df.parquet             # Sector rotation scores
-    ├── N6f_rim_df.parquet                # RIM valuation scores
-    ├── N6g_event_df.parquet              # Event-driven scores
-    ├── N6h_mq_df.parquet                 # MQ factor scores
-    ├── N6i_iv_skew_df.parquet            # Options IV skew scores
-    ├── N6j_order_flow_df.parquet         # Order flow imbalance scores
-    ├── N6k_reversal_df.parquet           # Short-term reversal scores
-    ├── N6l_arm_df.parquet                # ARM factor scores
-    ├── N6m_card_df.parquet               # CARD factor scores
-    ├── N6n_latr_df.parquet               # LATR factor scores
-    ├── N7_regime_state.json              # GMM regime & crisis status
-    ├── N8_ensemble_df.parquet            # Final 17-strategy ensemble scores
-    └── N9_alloc_df.parquet               # Portfolio allocation results
-```
-
----
-
-### 4.2 Master Manifest Schema (`pipeline_state.json`)
-
-```json
-{
-  "run_id": "20260730_232101",
-  "created_at": "2026-07-30T23:21:01+09:00",
-  "updated_at": "2026-07-30T23:45:12+09:00",
-  "config_hash": "a4f8b92c1e7d3411",
-  "target_market": "ALL",
-  "completed_tasks": {
-    "InitUniverseAndMacro": {
-      "status": "SUCCESS",
-      "timestamp": "2026-07-30T23:21:15+09:00",
-      "duration_sec": 14.2,
-      "artifacts": ["N1_InitUniverseAndMacro.parquet", "N1_metadata.json"]
-    },
-    "FetchMacroHistory": {
-      "status": "SUCCESS",
-      "timestamp": "2026-07-30T23:21:30+09:00",
-      "duration_sec": 15.0,
-      "artifacts": ["N2_indicator_train.parquet", "N2_indicator_infer.parquet"]
-    },
-    "PrepTrainingData": {
-      "status": "SKIPPED",
-      "reason": "skip_training=True and models exist on disk"
-    },
-    "InferRegSurge": {
-      "status": "SUCCESS",
-      "timestamp": "2026-07-30T23:35:40+09:00",
-      "duration_sec": 420.5,
-      "artifacts": ["N6a_res_df.parquet", "N6a_surge_df.parquet"]
-    }
-  }
-}
-```
-
----
-
-### 4.3 Checkpoint Validation & Invalidation Logic
-
+#### Recommended Fix
+Update lines 2938, 2955, and 2957 in `trading_system/run_pipeline.py`:
 ```python
-class CheckpointManager:
-    """Manages disk state serialization, deserialization, and validity checks."""
-    
-    def __init__(self, base_dir: str = ".checkpoints", run_id: str = None):
-        self.date_str = datetime.now().strftime("%Y-%m-%d")
-        self.checkpoint_dir = Path(base_dir) / self.date_str
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        self.manifest_path = self.checkpoint_dir / "pipeline_state.json"
-        self._manifest = self._load_manifest()
+# Extract ifs_val
+ifs_val = row.get('inst_foreign_sector_score', 0.0)
 
-    def is_valid(self, task_name: str, context: DAGContext) -> bool:
-        """Returns True if task checkpoint exists, is valid, and matches current config."""
-        if context.config.force_rerun:
-            return False
+# Header update (add IFS column)
+f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n"
 
-        task_entry = self._manifest.get("completed_tasks", {}).get(task_name)
-        if not task_entry or task_entry.get("status") != "SUCCESS":
-            return False
-
-        # Verify all artifact files exist on disk
-        for artifact_name in task_entry.get("artifacts", []):
-            artifact_path = self.checkpoint_dir / artifact_name
-            if not artifact_path.exists():
-                return False
-
-        # Verify configuration hash compatibility
-        current_hash = self._compute_config_hash(context.config)
-        if self._manifest.get("config_hash") != current_hash:
-            return False
-
-        return True
-
-    def save_parquet(self, filename: str, df: pd.DataFrame) -> str:
-        path = self.checkpoint_dir / filename
-        df.to_parquet(path, compression="snappy", index=True)
-        return filename
-
-    def load_parquet(self, filename: str) -> pd.DataFrame:
-        path = self.checkpoint_dir / filename
-        return pd.read_parquet(path)
-
-    def save_json(self, filename: str, data: Any) -> str:
-        path = self.checkpoint_dir / filename
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return filename
-
-    def load_json(self, filename: str) -> Any:
-        path = self.checkpoint_dir / filename
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+# Row format update
+f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%{ifs_val*100:>4.0f}%\n"
 ```
 
 ---
 
-### 4.4 Resumable Execution Engine (`DAGRunner`)
+## 5. Summary of Recommended Actions
 
-```python
-class DAGRunner:
-    """Executes DAG tasks with topological ordering and automated checkpoint resuming."""
-    
-    def __init__(self, tasks: List[Task], context: DAGContext):
-        self.tasks = {t.name: t for t in tasks}
-        self.context = context
-        self.execution_order = self._topological_sort()
-
-    def _topological_sort(self) -> List[Task]:
-        """Performs Kahn's Algorithm for topological sorting and cycle detection."""
-        in_degree = {name: 0 for name in self.tasks}
-        graph = defaultdict(list)
-
-        for name, task in self.tasks.items():
-            for dep in task.dependencies:
-                if dep not in self.tasks:
-                    raise ValueError(f"Task '{name}' has unknown dependency '{dep}'.")
-                graph[dep].append(name)
-                in_degree[name] += 1
-
-        queue = deque([name for name in self.tasks if in_degree[name] == 0])
-        order = []
-
-        while queue:
-            node = queue.popleft()
-            order.append(self.tasks[node])
-            for neighbor in graph[node]:
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
-
-        if len(order) != len(self.tasks):
-            raise ValueError("Cyclic dependency detected in pipeline DAG!")
-        return order
-
-    def run(self) -> Dict[str, Any]:
-        """Runs the pipeline DAG, skipping completed nodes with valid checkpoints."""
-        logger.info(f"Starting DAG Pipeline Execution ({len(self.execution_order)} nodes)...")
-        
-        for task in self.execution_order:
-            if self.context.checkpoint_manager.is_valid(task.name, self.context):
-                logger.info(f"⏩ [RESUME] Skipping '{task.name}' (valid checkpoint found)")
-                result = task.restore(self.context)
-                self.context.set_output(task.name, result)
-            else:
-                logger.info(f"▶️ [EXECUTE] Running node '{task.name}'...")
-                start_time = time.time()
-                try:
-                    result = task.execute(self.context)
-                    self.context.set_output(task.name, result)
-                    task.checkpoint(self.context, result)
-                    duration = time.time() - start_time
-                    self.context.checkpoint_manager.mark_completed(task.name, duration=duration)
-                    logger.info(f"✅ [SUCCESS] Node '{task.name}' completed in {duration:.2f}s")
-                except Exception as e:
-                    logger.error(f"❌ [FAILURE] Node '{task.name}' failed: {e}")
-                    self.context.checkpoint_manager.mark_failed(task.name, str(e))
-                    raise e
-                    
-        return self.context.outputs
-```
-
----
-
-## 5. Migration & Backwards Compatibility Plan
-
-### 5.1 CLI Overrides Preservation
-The new `trading_system/dag_pipeline.py` will serve as the primary entry point while accepting all existing CLI arguments:
-
-```bash
-# Basic run with automatic checkpoint resume
-python trading_system/dag_pipeline.py
-
-# CLI Market target override
-python trading_system/dag_pipeline.py --target KOSPI
-
-# Skip training using existing models
-python trading_system/dag_pipeline.py --skip-training
-
-# Force full re-execution (ignore checkpoints)
-python trading_system/dag_pipeline.py --force-rerun
-
-# Re-run specific node and downstream nodes only
-python trading_system/dag_pipeline.py --rerun-node InferStatArb
-```
-
-### 5.2 Seamless Transition Strategy
-1. **Phase 1 (M1 - Exploration & Design)**: Define contract interfaces, node specifications, and dependency graph (this report).
-2. **Phase 2 (M1 - Implementation)**: Implement `Task`, `DAGContext`, `CheckpointManager`, and `DAGRunner` in `trading_system/dag_pipeline.py`.
-3. **Phase 3 (M1 - Integration)**: Refactor strategy logic from `run_pipeline.py` into modular `Task` implementations in `trading_system/tasks/`.
-4. **Phase 4 (Verification)**: Run E2E dry runs with simulated node failures to verify state recovery andParquet data integrity.
-
----
-
-## 6. Conclusion & Implementation Recommendation
-
-The proposed DAG Architecture addresses the key fragility of the stock trading pipeline. By decoupling monolithic procedural logic into 10 major tasks and 17 parallel strategy sub-nodes, the system gains:
-1. **Fault Tolerance**: Resumes instantly from the exact point of failure.
-2. **Modular Testability**: Individual strategies can be tested and benchmarked in isolation.
-3. **Parallel Execution**: Strategy inference nodes (N6a..N6o) can run in parallel thread/process pools without memory leaks.
-4. **Zero Performance Overhead**: Snappy-compressed Parquet checkpoints read/write in milliseconds while preventing hours of wasted compute.
-
-**Recommendation**: Proceed with creating `trading_system/dag_pipeline.py` according to the contracts defined in Section 3 and 4.
+1. **Format String Patch**: Apply the recommended fix in `run_pipeline.py` (lines 2938 and 2957) so `inst_foreign_sector_score` (`IFS`) is printed as the 18th column in `ensemble_predictions.txt`, allowing `generate_report.py` to display all 18 strategies cleanly in `gh-pages/index.html`.
+2. **Maintain Verification Standards**: Retain existing unit tests (`test_isotonic_sharpe_calibration.py`, `test_factor_orthogonalization.py`, `test_r1_ensemble_regime_fixes.py`) as mandatory regression benchmarks.

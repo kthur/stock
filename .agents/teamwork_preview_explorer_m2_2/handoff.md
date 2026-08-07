@@ -1,80 +1,130 @@
-# Handoff Report: Fast Stat-Arb Cointegration Scanner via Pre-Clustering (Explorer M2-2)
+# Handoff Report — Software Architecture & Pipeline Robustness Audit (GitHub Actions & Automation)
 
-**Role:** Explorer M2-2  
-**Milestone:** Milestone 2 (Quantitative Alpha & Ensemble Orthogonalization - R2)  
-**Working Directory:** `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2`  
-**Date:** 2026-07-30  
+**Agent**: `teamwork_preview_explorer_m2_2`  
+**Milestone**: Milestone 2 (Software Architecture & Pipeline Robustness Audit)  
+**Working Directory**: `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2`  
+**Handoff Type**: Hard Handoff (Task Complete)
 
 ---
 
 ## 1. Observation
 
-- **Target File**: `trading_system/src/core/stat_arb.py` (`StatisticalArbitrageEngine`).
-- **Existing Truncation Bottleneck (Lines 116–128)**:
-  ```python
-  symbols = list(prices_dict.keys())
-  if len(symbols) > 300:
-      def _avg_vol(s): ...
-      symbols = sorted(symbols, key=_avg_vol, reverse=True)[:300]
+### Observation 1: Parallel Matrix Cache Save Race Condition in `pipeline.yml` & `training.yml`
+- **File**: `.github/workflows/pipeline.yml` (lines 46-65) & `.github/workflows/training.yml` (lines 43-60)
+- **Code Quote**:
+  ```yaml
+  - name: Cache stock_prices.db
+    uses: actions/cache@v4
+    id: db-cache
+    with:
+      path: trading_system/stock_prices.db
+      key: stock-prices-db-${{ steps.date.outputs.date }}
+      restore-keys: |
+        stock-prices-db-
   ```
-  - For $N = 3,379$ total symbols (SP500, KOSPI, KOSDAQ, KONEX), an unclustered brute-force scan requires $\frac{3,379 \times 3,378}{2} = 5,707,131$ pair tests.
-  - At ~20 $\mu\text{s}$ per pair in Python, brute-force scanning takes **~114.14 seconds**.
-  - To prevent pipeline timeouts, the prior code truncates the universe to top 300 symbols by volume, **completely excluding 3,079 symbols (91.1% of universe)** from statistical arbitrage pair screening.
-- **Unit Test Files Verified**:
-  - `trading_system/tests/test_stat_arb_execution.py`: Tests synthetic cointegrated series (`AAP` vs `MSFT`) and z-score signal emission. Passes cleanly in Pytest environment.
-  - `trading_system/tests/test_sector_enhancements.py`: Tests sector constraint filter (`require_same_sector=True`).
+- **Context**: The job `run-pipeline` runs as a matrix across 5 targets (`SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`). `actions/cache@v4` attempts post-job cache save on all 5 parallel matrix runners for key `stock-prices-db-${date}`.
+
+### Observation 2: Intraday Cache Immutability State Loss in `realtime_monitor.yml`
+- **File**: `.github/workflows/realtime_monitor.yml` (lines 41-48, 88-94)
+- **Code Quote**:
+  ```yaml
+  - name: Save realtime state cache
+    if: always()
+    uses: actions/cache/save@v4
+    with:
+      path: trading_system/realtime_state.db
+      key: realtime-state-${{ steps.date.outputs.date }}
+  ```
+- **Context**: `realtime_monitor.yml` runs every 15 minutes during trading hours (28 times/day). GitHub Actions cache keys are immutable. The key `realtime-state-${date}` is saved by the first run at 09:00 KST, causing all 27 subsequent runs that day to fail post-step cache upload with key collision warnings.
+
+### Observation 3: Cron Schedule Misalignment for US Markets in `pipeline.yml`
+- **File**: `.github/workflows/pipeline.yml` (lines 6-7)
+- **Code Quote**:
+  ```yaml
+  schedule:
+    - cron: '30 11 * * 1-5'
+  ```
+- **Context**: 11:30 UTC is 20:30 KST. US equity markets open at 13:30/14:30 UTC (22:30/23:30 KST). Running the pipeline at 11:30 UTC means US target predictions (`SP500`, `NASDAQ`, `RUSSELL2000`) execute before today's US trading session begins, fetching price data from the previous trading day.
+
+### Observation 4: Static `SKIP_TRAINING: 'True'` in `pipeline.yml`
+- **File**: `.github/workflows/pipeline.yml` (line 94)
+- **Code Quote**:
+  ```yaml
+  SKIP_TRAINING: 'True'
+  ```
+- **Context**: Line 94 statically hardcodes `SKIP_TRAINING: 'True'`. If AI model cache restore fails (`cache-hit != 'true'`), `run_pipeline.py` does not automatically retrain missing models.
+
+### Observation 5: Hardcoded `n_trials=5` in `tune_models.py` Ignoring `N_TRIALS` Env Var
+- **File**: `.github/workflows/weekly_hpo.yml` (line 62) & `trading_system/scripts/tune_models.py` (line 304)
+- **Code Quote**:
+  - `weekly_hpo.yml`: `N_TRIALS: '30'`
+  - `tune_models.py`: `tune_hyperparameters(n_trials=5)`
+- **Context**: `weekly_hpo.yml` specifies `N_TRIALS: '30'`, but `tune_models.py` hardcodes `5` when executed as `__main__`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Scalability Problem**:
-   - Scanning $N = 3,379$ symbols without pre-clustering requires $O(N^2)$ ($5,707,131$) pair evaluations.
-   - The current top 300 volume truncation avoids latency (~0.9s execution time) but introduces severe factor bias and discards 91.1% of the universe.
-2. **Feature Space Design**:
-   - Construct a $D = 15$-dimensional feature vector per stock $s_i$ combining:
-     - Return profile moments ($\mu_R, \sigma_R, S_R, K_R$).
-     - Multi-horizon cumulative returns ($R_{5d}, R_{20d}, R_{60d}$).
-     - Price trend dynamics ($\frac{P_T}{\text{SMA}_{20}}, \frac{P_T}{\text{SMA}_{60}}, \frac{\sigma(R_{20d})}{\sigma(R_{60d})}$).
-     - Categorical industry sector and market tier encodings (weighted by $w_{\text{sector}} = 2.0$).
-3. **Pre-Clustering Partitioning**:
-   - Apply `RobustScaler` + PCA ($D \to 12$) + MiniBatch K-Means ($K = 40$ clusters, average size $M = 85$).
-   - Cointegration pair testing is restricted to intra-cluster pairs plus adjacent centroid neighbor clusters.
-   - Candidate pairs reduced from $5,707,131$ down to $\approx 193,800$ pairs (**96.6% reduction in pair evaluations**).
-4. **Vectorized Matrix Correlation Screening**:
-   - Compute vectorized correlation matrix $R^{(k)} = \frac{1}{T-1} Y^{(k)} (Y^{(k)})^T \in \mathbb{R}^{M_k \times M_k}$ using NumPy BLAS per cluster.
-   - Filter pairs by $|R^{(k)}_{i,j}| \ge 0.70$ before initiating Engle-Granger ADF regressions.
-   - ADF regressions reduced from 193,800 to $\approx 19,000$ tests.
-5. **Final Performance Outcome**:
-   - Execution time drops from 114s to **< 3.5 seconds** across the entire 3,379 symbol universe.
-   - Universe coverage increases from 8.9% (300 symbols) to **100.0% (3,379 symbols)**.
+1. **Step 1 (Parallel Matrix Cache Collision)**:
+   - *From Observation 1*: In `pipeline.yml` and `training.yml`, 5 parallel matrix runners execute simultaneously. Each runner restores `stock-prices-db-${date}`, fetches new market prices, updates local `stock_prices.db`, and executes post-job `actions/cache@v4` save.
+   - *Deduction*: Because GHA cache keys are immutable per exact string, whichever matrix runner finishes first (e.g. `SP500`) saves `stock-prices-db-${date}`. The remaining 4 runners fail post-step cache upload. Consequently, price updates fetched by the other 4 matrix targets are dropped and never cached.
+   - *Conclusion*: Matrix workflow steps MUST use `actions/cache/restore@v4` instead of `actions/cache@v4` for shared database files.
+
+2. **Step 2 (Intraday Realtime Monitor State Loss)**:
+   - *From Observation 2*: `realtime_monitor.yml` runs every 15 minutes (28 runs/day) and saves state to key `realtime-state-${date}`.
+   - *Deduction*: The first run at 09:00 KST creates `realtime-state-${date}`. Subsequent runs at 09:15, 09:30, ... fail to save cache because the key already exists. Each subsequent run restores the stale 09:00 KST cache baseline, losing all recorded stop-loss/take-profit triggers and risking duplicate alerts.
+   - *Conclusion*: Save key MUST include `${{ github.run_id }}` and restore-keys MUST prefix match `realtime-state-${date}-`.
+
+3. **Step 3 (Cron Schedule Misalignment)**:
+   - *From Observation 3*: `pipeline.yml` cron is set to `30 11 * * 1-5` (11:30 UTC).
+   - *Deduction*: 11:30 UTC is prior to US market opening (13:30/14:30 UTC). US stock data fetched at 11:30 UTC represents yesterday's close, rendering daily predictions for US markets out-of-date relative to post-market expectations.
+   - *Conclusion*: Adjust cron to `0 22 * * 1-5` (22:00 UTC / 07:00 KST next morning) or `0 0 * * 2-6` (00:00 UTC) so all global markets (KRX and US) have closed.
+
+4. **Step 4 (Model Cache Miss Fallback)**:
+   - *From Observation 4*: `pipeline.yml` sets `SKIP_TRAINING: 'True'`.
+   - *Deduction*: On model cache miss, models are missing from disk. With `SKIP_TRAINING: 'True'`, `run_pipeline.py` skips model training and outputs uncalibrated or zero return predictions.
+   - *Conclusion*: `SKIP_TRAINING` should be conditionally set to `'True'` ONLY when model cache restore succeeds (`cache-hit == 'true'`).
+
+5. **Step 5 (HPO Environment Parameter Bypass)**:
+   - *From Observation 5*: `weekly_hpo.yml` sets `N_TRIALS: '30'`, but `tune_models.py` calls `tune_hyperparameters(n_trials=5)`.
+   - *Deduction*: HPO terminates after 5 trials instead of exploring 30 trials, producing suboptimal hyperparameter configurations.
+   - *Conclusion*: `tune_models.py` must read `os.environ.get("N_TRIALS", 5)`.
 
 ---
 
 ## 3. Caveats
 
-- **Read-Only Explorer Scope**: This report provides the architectural design and mathematical proof. Code implementation into `trading_system/src/core/stat_arb.py` is reserved for the Implementer agent.
-- **Existing Unit Test Z-Score Mismatch**: Running pytest on `trading_system/tests/test_stat_arb_execution.py` revealed that `test_stat_arb_pair_scanning` injects a $+5.0$ spike on synthetic series `p1[-1]`, driving $Z_T > 3.2$ and triggering `STOP_LOSS_NEUTRAL` (line 204 of `stat_arb.py`), whereas line 44 of the test asserts `SHORT_AAPL_LONG_MSFT`. The Implementer should adjust the synthetic test spike to $+1.0$ (or calibrate the z-score stop-loss threshold) to ensure test assertions pass cleanly.
-- **OPTICS Hyperparameter Tuning**: OPTICS requires tuning `min_samples=5` and `xi=0.05` to prevent small illiquid sub-markets (e.g. KONEX) from being classified as pure noise. K-Means is recommended as the default primary cluster engine, with OPTICS available as an optional flag.
-- **Sector Weighting Calibration**: Sector feature weights ($w_{\text{sector}} = 2.0$) ensure high intra-sector cointegration density while still permitting cross-sector cointegration for statistically correlated return profiles.
+- **No Workflow File Modifications Made**: Per the read-only investigation constraint, no modifications were made directly to `.github/workflows/` files or Python scripts.
+- **Assumptions on Runner Concurrency**: GHA free/team tiers run matrix jobs in parallel up to default concurrency limits (5 parallel jobs for Linux runners). If matrix execution is serialized by runner quota limits, the DB cache race condition still occurs because the first completed target creates the cache key for that date.
 
 ---
 
 ## 4. Conclusion
 
-The designed Multi-Feature Pre-Clustering & Vectorized Correlation Screening engine cuts cointegration scan complexity from $O(N^2)$ to $O(N \log N)$. This guarantees:
-1. **Full 100% Universe Scanning**: Eliminates the 300-symbol volume truncation workaround.
-2. **Sub-5-Second Latency**: Processes all 3,379 symbols in $< 3.5$ seconds (well within the $< 30$-second requirement).
-3. **Full System Compatibility**: Preserves exact signal output schemas (`pair`, `z_score`, `adf_pvalue`, `signal`, `half_life`) and downstream `EnsembleScoringEngine` interface.
+The GitHub Actions workflows (`pipeline.yml`, `training.yml`, `preseed.yml`, `pytest.yml`, `realtime_monitor.yml`, `weekly_hpo.yml`) provide a functional CI/CD and automated daily prediction setup, but suffer from **two critical race/immutability bugs** (matrix shared DB cache overwrite & realtime state cache immutability state loss) and **two timing/parameter misalignments** (US market pre-market cron run & ignored HPO `N_TRIALS`).
+
+Fixing these issues requires:
+1. Updating matrix DB cache steps to `actions/cache/restore@v4` in `pipeline.yml` and `training.yml`.
+2. Adding `${{ github.run_id }}` to the cache key in `realtime_monitor.yml`.
+3. Updating cron timing in `pipeline.yml` to `0 22 * * 1-5` (22:00 UTC).
+4. Dynamically evaluating `SKIP_TRAINING` based on `cache-hit`.
+5. Enabling `os.environ.get("N_TRIALS")` in `tune_models.py`.
+
+Full analysis details and code snippets are documented in `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\analysis.md`.
 
 ---
 
 ## 5. Verification Method
 
-1. **Pytest Verification**:
-   ```bash
-   .venv/bin/pytest trading_system/tests/test_stat_arb_execution.py trading_system/tests/test_sector_enhancements.py -v
-   ```
-2. **Technical Document Inspection**:
-   - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\analysis.md`
-   - `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_2\handoff.md`
+To independently verify these findings:
+1. **Matrix Cache Collision Verification**:
+   - Inspect `.github/workflows/pipeline.yml` lines 46-65 and `.github/workflows/training.yml` lines 43-60 using `view_file`. Observe `uses: actions/cache@v4` with identical key `stock-prices-db-${{ steps.date.outputs.date }}` across all matrix targets.
+2. **Realtime Monitor Immutability Verification**:
+   - Inspect `.github/workflows/realtime_monitor.yml` lines 88-94. Observe `uses: actions/cache/save@v4` with static key `realtime-state-${{ steps.date.outputs.date }}` without run ID scoping.
+3. **Cron Schedule Verification**:
+   - Check line 7 of `.github/workflows/pipeline.yml` (`cron: '30 11 * * 1-5'`). Convert 11:30 UTC to EST/EDT and verify US market trading hours (09:30-16:00 EST).
+4. **HPO Parameter Verification**:
+   - Check line 62 of `.github/workflows/weekly_hpo.yml` (`N_TRIALS: '30'`) and line 304 of `trading_system/scripts/tune_models.py` (`tune_hyperparameters(n_trials=5)`).
+
+---
+*Report submitted by `teamwork_preview_explorer_m2_2` for Milestone 2 Audit.*

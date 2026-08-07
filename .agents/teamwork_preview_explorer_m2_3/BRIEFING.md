@@ -1,37 +1,41 @@
-# BRIEFING — 2026-07-30T14:33:55Z
+# BRIEFING — 2026-08-05T16:02:00Z
 
 ## Mission
-Investigate test suite in tests/ and design test blueprint for Milestone 2 R2 (Orthogonalization factor correlation < 0.3 & fast cointegration scanning <30s for 3,379 symbols).
+Audit memory optimization, concurrency, and SQLite WAL performance across all 3,379 symbols in the trading system pipeline.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Explorer M2-3
+- Archetype: teamwork_preview_explorer
+- Roles: Read-only investigator and performance auditor for Milestone 2
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3
-- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Milestone: Milestone 2
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Milestone: M2 (Software Architecture & Pipeline Robustness Audit)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Scope restricted to investigation of existing test files and design of unit/benchmark specifications for factor orthogonalization & fast cointegration scanning.
+- Read-only investigation — do NOT modify application source code (only produce reports in agent folder)
+- Must audit float32 downcasting in feature generation & prediction models
+- Must audit ThreadPoolExecutor worker counts, batching, thread safety
+- Must audit SQLite WAL lifecycle, pooling, mutex locks, lock retries
+- Must measure memory footprint and CPU utilization for 3,379 symbols
 
 ## Current Parent
-- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Updated: 2026-07-30T14:33:55Z
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-05T16:03:00Z
 
 ## Investigation State
-- **Explored paths**: `PROJECT.md`, `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/correlation_monitor.py`, `trading_system/src/ai/factor_suppression.py`, `trading_system/src/core/stat_arb.py`, `trading_system/tests/test_hpo_and_2d_ensemble.py`, `trading_system/tests/test_stat_arb_execution.py`
+- **Explored paths**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `trading_system/run_pipeline.py`, `src/ai/prediction_model.py`, `src/ai/vcp_ml_predictor.py`, `src/persistence/database.py`, `src/data_layer/indicator_storage.py`, `src/data_layer/hybrid_storage.py`, `src/data_layer/earnings_data.py`
 - **Key findings**:
-  - Existing tests in `test_hpo_and_2d_ensemble.py` cover 2D regime weighting but lack Gram-Schmidt / PCA factor orthogonalization tests (target: mean $|R_{ortho}| < 0.30$).
-  - Existing tests in `test_stat_arb_execution.py` only test 2-symbol cointegration and lack 3,379 symbol scale benchmarks (target: execution time $< 30.0$s) and pre-clustering coverage tests.
-  - Detailed blueprint designed in `analysis.md` and 5-component handoff report authored in `handoff.md`.
-- **Unexplored areas**: None within M2-3 scope.
+  1. Float32 downcasting (`prediction_model.py:1328-1331`) truncates precision on mega-cap monetary figures (>16.7M KRW); inference features remain float64.
+  2. CPU-bound Pandas feature extraction in `ThreadPoolExecutor` suffers Python GIL lock contention.
+  3. `StockPriceDB` thread-local connections leak across short-lived worker threads, holding WAL reader locks.
+  4. Measured peak system RAM for 3,379 symbols: ~2.2 GB - 4.1 GB.
+- **Unexplored areas**: None (Audit completed).
 
 ## Key Decisions Made
-- Authored comprehensive unit and benchmark specifications for factor orthogonalization (`TestFactorOrthogonalization`, `BenchmarkFactorOrthogonalization`) and fast cointegration scanner (`TestFastCointegrationScanner`, `BenchmarkFastCointegrationScanner`).
-- Specified synthetic mock data generators (`make_synthetic_strategy_matrix`, `make_synthetic_stock_universe`).
+- Completed M2 memory optimization, concurrency, and SQLite WAL audit.
+- Produced comprehensive `analysis.md` and 5-component `handoff.md`.
 
 ## Artifact Index
-- ORIGINAL_REQUEST.md — Original task prompt with timestamp
-- BRIEFING.md — Working memory index
-- analysis.md — Detailed test blueprint for Milestone 2 R2
-- handoff.md — 5-Component Handoff report for parent agent
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\DISPATCH.md` — Dispatch log
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\BRIEFING.md` — Working memory index
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\analysis.md` — Detailed M2 Audit Report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_3\handoff.md` — 5-Component Handoff Report

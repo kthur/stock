@@ -1,224 +1,200 @@
-# Comprehensive Analysis & Testing Strategy for Milestone 1 (R1)
-
-**Author**: Explorer M1-3  
-**Date**: 2026-07-30  
-**Scope**: Architecture Modularization & Data Engine Upgrade (DAG Pipeline, Task Checkpointing & Resumability, Hybrid Data Engine Zero Write-Lock Concurrency)  
-**Target Files & Modules**:
-- `trading_system/dag_pipeline.py` (DAG Execution Engine, Task Interface, Pipeline Context, Checkpoint Manager)
-- `src/data_layer/hybrid_storage.py` & `src/data_layer/parquet_wal_engine.py` (Hybrid SQLite/Parquet Engine, Parquet WAL Append-Log)
-- `tests/` & `trading_system/tests/` (Pytest test suite & fixture infrastructure)
+# Comprehensive Quantitative & Financial Engineering Audit Report
+**Milestone 1 — Financial Engineering & Quantitative Risk Audit**
 
 ---
 
-## 1. Executive Summary & Existing Test Suite Audit
+## Executive Summary
 
-### 1.1 Architecture & Test Suite Overview
-The stock trading system codebase contains **69 test files** in `tests/` (with mirrored files in `trading_system/tests/`). The current test suite relies on two primary testing patterns:
-1. **`unittest.TestCase` Framework**: Used across legacy core components (`test_database.py`, `test_orchestrator.py`, `test_event_bus.py`, `test_async_helper.py`).
-2. **`pytest` Functions & Markers**: Used in feature/strategy test files (`test_pipeline_data_filter.py`, `test_hpo_and_2d_ensemble.py`, `test_phase3_pipeline_data_filter.py`).
+This audit evaluates the 18-strategy automated stock trading system for quantitative biases, lookahead leakage, filing lag enforcement, survivorship bias, empirical risk metrics, and backtest/real-money deployment realism.
 
-Configuration and entry points:
-- `tests/conftest.py`: Dynamically inserts project root and `trading_system/` into `sys.path`.
-- Environment isolation: Tests instantiate SQLite databases in temporary files (`tempfile.NamedTemporaryFile`) and set `TradingConfig.db_path` or `os.environ["DB_PATH"]`.
-
-### 1.2 Audit of Current Concurrency & Storage Tests
-1. **`TestMarketIndicatorStorageConcurrency` (`trading_system/tests/test_database.py`)**:
-   - Tests multi-threaded writes using 5 threads doing 20 writes each (`save_indicators()`).
-   - Uses `threading.Thread` and a `queue.Queue` to trap exceptions.
-   - Evaluates basic SQLite table insertion under modest thread counts.
-2. **`TestStockPriceDBConcurrency` (`trading_system/tests/test_database.py`)**:
-   - Tests 5 concurrent threads updating price history (`update_prices()`).
-   - Relies on internal mutex locks inside `StockPriceDB`.
-3. **`TestEventBus` (`trading_system/tests/test_event_bus.py`)**:
-   - Tests multi-threaded event registration and dispatch (`10 subscriber threads` + `10 publisher threads`).
-
-### 1.3 Critical Deficiencies & Gaps for Milestone 1 (R1)
-While legacy database tests verify simple SQLite mutexes, they **fail to cover the M1 architecture requirements**:
-- **Zero DAG Pipeline Coverage**: No existing test file tests task graph definition, topological execution order, cycle detection, or task context propagation.
-- **Zero Checkpoint & Resumability Coverage**: No tests exist for `.checkpoints/pipeline_state.json`, parquet checkpoint state dumps, or resuming failed pipeline runs without re-executing successful tasks.
-- **Insufficient Concurrency Scale & Storage Isolation**: Current SQLite tests only use 5 threads with tiny payloads. They do NOT test multi-asset streaming across 3,379 symbols, nor do they test Parquet append-log / Timescale WAL engine hybrid reads/writes under zero-lock constraints.
-
-### 1.4 Pytest Collection & Module Resolution Anomaly
-During empirical verification running `.venv\Scripts\python.exe -m pytest tests/ --collect-only`, 59 test files in root `tests/` raised:
-`ModuleNotFoundError: No module named 'trading_system.tests'`
-- **Root Cause**: The 59 root test files consist of wrapper statements like `from trading_system.tests.test_X import *`. When running `pytest tests/`, Pytest loads `tests` from the root directory into `sys.modules['tests']`, which shadows `trading_system/tests`.
-- **Resolution**:
-  1. Tests must be executed pointing directly to `trading_system/tests/`: `.venv\Scripts\python.exe -m pytest trading_system/tests/`.
-  2. For M1 test files (`test_dag_pipeline.py`, `test_checkpoint_manager.py`, `test_hybrid_data_engine.py`), co-locate tests under `tests/` and `trading_system/tests/` with explicit package namespace handling in `conftest.py`.
+### Core Findings Matrix
+| Audit Area | Critical Vulnerabilities Found | Severity | Primary Files / Lines |
+|---|---|---|---|
+| **1. Lookahead Bias & Filing Lag** | Unnamed `DatetimeIndex` bypasses 60-day filing lag via `join()` fallback; RIM valuation `.last()` fetch lacks temporal cutoff. | **HIGH** | `prediction_model.py`: 912–934<br>`run_pipeline.py`: 1971–1984 |
+| **2. Survivorship Bias & Universe Selection** | Universe defined strictly by current active constituents (3,379 symbols); historical delisted stocks omitted from 5-year feature calculations. | **HIGH** | `indicator_storage.py`: 257–358 |
+| **3. Empirical Risk Metrics** | Annual return calculation produces complex numbers on >100% loss; Sign convention mismatch for CVaR/VaR; `float("inf")` breaks JSON export. | **MEDIUM** | `statistics.py`: 90–91, 163–174, 232<br>`portfolio_allocator.py`: 51–170 |
+| **4. Return Expectations & Deployment Realism** | Linear return scaling multiplier (20.0%) predicts unrealistic +20% 20-day returns; Short borrow fees missing; Hysteresis buffer distorts rankings. | **HIGH** | `ensemble_scorer.py`: 1091, 1118–1126, 1202–1226 |
 
 ---
 
+## 1. Lookahead Bias & Filing Lag Audit
 
-## 2. Testing Strategy for DAG Pipeline Execution
+### 1.1 Observation & Code Evidence
+In `trading_system/src/ai/prediction_model.py`:
+- **Line 912–924**: The 60-day conservative filing lag is defined as:
+  ```python
+  df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
+  df['date_align'] = pd.to_datetime(df[date_col])
+  df = pd.merge_asof(
+      df.sort_values('date_align'),
+      df_fun_shifted.sort_values('date_available'),
+      left_on='date_align',
+      right_on='date_available',
+      direction='backward',
+      suffixes=('', '_fund')
+  )
+  ```
+- **Line 927–934 (CRITICAL BUG)**: If `df` has an unnamed `DatetimeIndex` when entering `merge_fundamentals()`, `df.reset_index()` names the index column `'index'`, rather than `'Date'` or `'date'`.
+  The column detection loop `for col in ['Date', 'date']` fails to match `'index'`, setting `date_col = None`.
+  Execution then falls through to line 927 `else:`:
+  ```python
+  else:
+      try:
+          df['index'] = pd.to_datetime(df['index'])
+      except Exception:
+          pass
+      df = df.set_index('index')
+      df_fun = df_fun.set_index('date')
+      df = df.join(df_fun, how='left')
+  ```
+  `df.join(df_fun, how='left')` joins fundamental records directly on the exact fiscal end date (`date`), **completely bypassing the 60-day filing lag**!
 
-The DAG Pipeline (`trading_system/dag_pipeline.py`) replaces sequential execution in `run_pipeline.py` with a task-graph execution engine.
+- **In `trading_system/run_pipeline.py` (Lines 1971–1984)**:
+  ```python
+  fund_df = storage.get_all_fundamentals(df_rim_input['symbol'].tolist())
+  if fund_df is not None and not fund_df.empty:
+      fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
+  ```
+  `fund_df.sort_values('date').groupby('symbol').last()` fetches the absolute latest filing available in the DB. When evaluating backtests or historical simulation dates, this injects future fiscal statements that were not yet published on the evaluation date.
 
-### 2.1 Task Interface Contract Verification
-All tasks executed in the pipeline MUST adhere strictly to the `Task` interface:
+- **In `prediction_model.py` (Line 860)**:
+  ```python
+  FUND_COLS = ['revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share']
+  ```
+  `book_value` (BPS) was added to `earnings_data.py` (Line 80), but is missing from `prediction_model.py`'s `FUND_COLS`.
+
+### 1.2 Impact Analysis
+- Backtesting on price series with unnamed index silent leaks future corporate earnings (e.g. Q4 earnings released in March are joined directly to January price bars), inflating backtest Sharpe ratios and regression accuracy.
+- Historical RIM evaluations leak future Book Value and Net Income.
+
+### 1.3 Recommended Fixes
+1. **Fix `prediction_model.py` Index Detection**:
+   ```python
+   # Replace lines 905-911 with explicit index/column normalization:
+   if df.index.name is None:
+       df.index.name = 'date'
+   df = df.reset_index()
+   date_col = None
+   for col in ['Date', 'date', 'index']:
+       if col in df.columns:
+           date_col = col
+           break
+   ```
+2. **Fix RIM Fundamental Merge cutoff in `run_pipeline.py`**:
+   Filter `fund_df` by `pd.to_datetime(fund_df['date']) + pd.Timedelta(days=60) <= evaluation_date`.
+3. **Include `book_value` in `FUND_COLS`**:
+   Add `'book_value'` to `FUND_COLS` in `prediction_model.py:860`.
+
+---
+
+## 2. Survivorship Bias & Universe Selection Audit
+
+### 2.1 Observation & Code Evidence
+In `trading_system/src/data_layer/indicator_storage.py` (Lines 257–358):
 ```python
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List
-
-class Task(ABC):
-    name: str
-    dependencies: List[str]
-
-    @abstractmethod
-    def execute(self, context: PipelineContext) -> TaskResult:
-        pass
-
-    @abstractmethod
-    def checkpoint(self) -> Dict[str, Any]:
-        pass
-
-    @abstractmethod
-    def restore(self, state: Dict[str, Any]) -> None:
-        pass
+def update_stock_universe(self):
+    sp500 = fdr.StockListing('S&P500')
+    nasdaq = fdr.StockListing('NASDAQ')
+    russell2000 = ... # iShares IWM CSV holdings
+    krx = fdr.StockListing('KRX')
+    ...
 ```
+- `update_stock_universe()` queries live constituent lists as of the execution date.
+- The 3,379 symbols stored in `stock_universe` represent only surviving companies today.
+- `update_stock_universe()` explicitly excludes `KRX-ADMINISTRATIVE` stocks at present (line 301).
 
-**Testing Approach**:
-- **Interface Compliance Test**: A meta-test iterating over all concrete `Task` subclasses to ensure all required properties and methods are implemented with correct type signatures.
-- **Execution Isolation**: Verify that tasks interact only via `PipelineContext` and do not rely on global side effects.
+### 2.2 Impact Analysis
+- Historical feature calculations (e.g. 5-year rolling correlation, sector relative momentum in `sector_rotation.py`, lead-lag correlation matrices in `prediction_model.py`, and factor quantiles in `mq_factor.py`) are computed exclusively over surviving stocks.
+- Delisted stocks, bankrupt entities, or acquired companies from 2021–2026 are omitted. Because bankrupt/delisted stocks suffer heavy drawdowns before exit, omitting them introduces **Survivorship Bias**, artificially inflating historical backtest returns and underestimating tail risk (CVaR).
 
-### 2.2 Toposort & Graph Invariants
-The DAG engine must construct an execution graph and sort nodes topologically.
-
-**Test Scenarios**:
-1. **Diamond Graph Execution**:
-   - Graph: `A -> B`, `A -> C`, `B -> D`, `C -> D`.
-   - Verification: `A` executes first; `B` and `C` can execute in parallel; `D` executes ONLY after both `B` and `C` report `SUCCESS`.
-2. **Deep Linear Chain**:
-   - Graph: 100 sequential tasks (`T0 -> T1 -> ... -> T99`).
-   - Verification: Strict sequential ordering preserved, zero recursion depth limit errors during topological sort.
-3. **Disconnected Components**:
-   - Subgraph 1: `A -> B`; Subgraph 2: `X -> Y`.
-   - Verification: Both subgraphs execute to completion without blocking each other.
-
-### 2.3 Cycle Detection & Fault Rejection
-Before running any tasks, `DAGPipeline.validate_dag()` must detect circular dependencies and throw `CyclicDependencyError`.
-
-**Test Scenarios**:
-1. **Direct Cycle**: `A -> B -> A`.
-2. **Indirect Cycle**: `A -> B -> C -> D -> A`.
-3. **Self Loop**: `A -> A`.
-
-### 2.4 Parallel Task Graph Execution & Context Safety
-Independent nodes at the same DAG level should execute concurrently using `ThreadPoolExecutor` or `asyncio.gather`.
-
-**Test Scenarios**:
-1. **Concurrency Verification**: Tasks `B1, B2, B3` depending on `A` must run concurrently in separate threads.
-2. **Context Thread-Safety**: `PipelineContext` must use explicit thread locks or copy-on-write dictionaries when tasks read/write intermediate artifacts.
+### 2.3 Recommended Fixes
+1. Maintain point-in-time universe snapshots (`universe_history` table) containing historical index membership and delisting dates.
+2. For historical backtesting, filter universe to assets active as of each historical rebalance date.
 
 ---
 
-## 3. Testing Strategy for Task Checkpointing & Resumability
+## 3. Empirical Risk Metrics Audit
 
-Pipeline state serialization and resuming from partial failures are critical for production reliability across 3,379 symbols.
+### 3.1 Observation & Code Evidence
 
-### 3.1 Dual-Tier Serialization Architecture
-Checkpointing uses a two-tier approach:
-1. **Metadata Tier**: Lightweight JSON (`.checkpoints/pipeline_state.json`) recording node status (`SUCCESS`, `FAILED`, `SKIPPED`), execution start/end timestamps, task parameters, and execution signatures.
-2. **Data Tier**: Heavy DataFrames serialized to Parquet files (`.checkpoints/{task_name}_output.parquet`).
-
-### 3.2 Resumability & Partial Failure Recovery Testing
-**Test Scenario**:
-1. Construct 5-task DAG: `T1 (Ingest) -> T2 (Features) -> T3 (Train) -> T4 (Predict) -> T5 (Report)`.
-2. Run pipeline. `T1` and `T2` succeed. `T3` raises a simulated exception (`RuntimeError("CUDA OOM")`).
-3. Assert pipeline halts gracefully. Verify `.checkpoints/pipeline_state.json` records:
-   - `T1`: `SUCCESS`
-   - `T2`: `SUCCESS`
-   - `T3`: `FAILED`
-   - `T4`: `PENDING` / `SKIPPED`
-   - `T5`: `PENDING` / `SKIPPED`
-4. Re-instantiate `DAGPipeline` with `resume=True` and fixed `T3`.
-5. Run pipeline. Verify:
-   - `T1` and `T2` `execute()` methods are **NEVER CALLED** (their outputs are loaded directly from `.checkpoints/`).
-   - `T3` executes successfully.
-   - `T4` and `T5` execute to completion.
-
-### 3.3 Idempotency & Hash Verification
-To prevent using outdated checkpoints:
-- Compute SHA-256 hash of task inputs (configuration parameters + dependency output hashes).
-- If hash changes, invalidate checkpoint automatically and force re-execution.
-
-### 3.4 Atomic Write & Crash Recovery
-- Checkpoints must be written to `.checkpoints/{name}.tmp` and atomically renamed to `.checkpoints/{name}.json` (using `os.replace`).
-- Test spec: Simulate abrupt process death during checkpoint write; ensure pipeline state is not corrupted.
-
----
-
-## 4. Multi-Asset Streaming Concurrency Strategy (Zero Write-Locks)
-
-To handle real-time streaming data for 3,379 symbols without SQLite `database is locked` operational errors, M1 introduces a Hybrid Data Engine (`HybridDataEngine`) with a Parquet Append-Log / Timescale WAL engine.
-
+#### 3.1.1 Annual Return Complex Number Bug
+In `trading_system/src/analysis/statistics.py` (Line 232):
+```python
+annual_return = (1 + total_return) ** (252 / n) - 1 if n > 0 else 0
 ```
-[3,379 Asset Streamers] ---> [Parquet WAL Engine (Append-Log)] ---> [RAM Micro-Buffer]
-                                                                            |
-                                  [Zero Write-Lock]                         v
-[Concurrent Query Readers] <--------------------------------- [SQLite WAL / Parquet Storage]
+- If a strategy or trade sequence suffers a drawdown > 100% (`total_return < -1.0`), `(1 + total_return)` becomes negative.
+- Exponentiation of negative float to a fractional power `(-0.2) ** (252 / 100)` produces a **complex number** (e.g. `-0.03 + 0.12j`), causing `TypeError` or corrupting downstream calculations and JSON serialization.
+
+#### 3.1.2 Sign Convention Mismatch in VaR / CVaR
+- In `trading_system/src/risk/portfolio_allocator.py` (Lines 51–170):
+  `losses = -returns_arr`. Losses are positive numbers; `estimate_evt_cvar` returns **positive loss percentages** (e.g. `cvar = 0.04` for 4% tail loss).
+- In `trading_system/src/analysis/statistics.py` (Lines 153–175):
+  `calculate_var` and `calculate_cvar` compute empirical quantiles directly on signed returns $R$. They return **negative return values** (e.g. `cvar = -0.04`).
+- Calling modules expecting positive loss numbers will misinterpret negative numbers (e.g., `max_cvar - cvar_val` constraint logic in portfolio optimization).
+
+#### 3.1.3 Sortino Ratio `float("inf")` Serialization Issue
+In `trading_system/src/analysis/statistics.py` (Lines 90–91):
+```python
+if not downside_returns:
+    return float("inf") if avg_return > target_return else 0
 ```
+- Returning `float("inf")` causes standard `json.dumps()` calls to fail with `ValueError: Out of range float values are not JSON compliant`.
 
-### 4.1 Hybrid Parquet / SQLite WAL Concurrency Model
-1. **Streaming Writers**: High-frequency tick/bar ingestion writes directly to partitioned Parquet append logs (`data/wal/{date}/{symbol}.parquet`) or in-memory ring buffers.
-2. **Background Flush Engine**: Periodically batches Parquet logs and writes to SQLite with WAL mode (`PRAGMA journal_mode=WAL`) or atomic Parquet partitioning.
-3. **Query Readers**: Readers query SQLite/Parquet snapshot views without acquiring write locks.
+#### 3.1.4 EVT-CVaR Robustness (`portfolio_allocator.py`)
+In `trading_system/src/risk/portfolio_allocator.py` (Lines 110–128):
+- Tier 1 EVT-GPD implementation clamps `xi_clamped = min(xi, 0.50)` which safely avoids division by zero in `(1.0 - xi_clamped)`.
+- Tier 2 Cornish-Fisher expansion and Tier 3 Empirical fallback provide robust multi-tier fallback.
 
-### 4.2 Zero Write-Lock Load Testing Specification
-**Test Setup**:
-- **Stress Parameters**: 50 concurrent writer threads/processes.
-- **Payload**: Streaming bar updates for 500 symbols per thread (total 25,000 symbol updates per iteration) for 100 iterations.
-- **Simultaneous Readers**: 10 reader threads running heavy aggregate queries (`SELECT symbol, AVG(Close), MAX(High) GROUP BY symbol`).
-
-**Assertion Rules**:
-1. Zero `sqlite3.OperationalError: database is locked` raised across all 50 writer threads and 10 reader threads.
-2. Writer throughput must exceed 5,000 records/sec.
-3. Reader query latency P99 must remain < 50ms during active writes.
-
-### 4.3 Buffer Flush & Atomic Swap Mechanics
-**Test Scenarios**:
-1. **Buffer Overflow Flush**: Fill memory buffer to capacity (`max_buffer_size=10,000`). Verify background worker flushes buffer to storage asynchronously without blocking incoming stream.
-2. **Atomic Swap Verification**: When swapping buffer to persistent Parquet partitions, active read queries must return complete data without experiencing partial read anomalies.
+### 3.2 Recommended Fixes
+1. **Fix `annual_return` in `statistics.py:232`**:
+   ```python
+   annual_return = (max(0.0, 1.0 + total_return)) ** (252 / n) - 1.0 if n > 0 else 0.0
+   ```
+2. **Standardize VaR/CVaR Sign Convention**:
+   Ensure `statistics.py` returns positive loss values (`cvar = float(max(0.0, -mean_worse_return))`).
+3. **Cap Sortino Ratio**:
+   Replace `float("inf")` with a finite maximum float cap (e.g., `100.0`).
 
 ---
 
-## 5. Detailed Specifications for New Unit Test Modules
+## 4. Backtest Calculations & Return Expectations Realism
 
-Below are the exact unit test specifications to be implemented by Implementer agents for Milestone 1.
+### 4.1 Observation & Code Evidence
 
-### 5.1 `tests/test_dag_pipeline.py`
-| Test Function | Description & Assertion |
-|---------------|-------------------------|
-| `test_task_contract_compliance()` | Inspects all concrete task classes, asserting inheritance from `Task` ABC and presence of required methods. |
-| `test_dag_topological_sort_diamond()` | Validates execution order of diamond DAG (`A -> B/C -> D`). |
-| `test_dag_cycle_detection_raises_error()` | Ensures cyclic graph throws `CyclicDependencyError`. |
-| `test_dag_parallel_execution_order()` | Measures thread execution timestamps to verify independent nodes run in parallel. |
-| `test_pipeline_context_thread_safety()` | Tests concurrent reads/writes to `PipelineContext` under 20 threads. |
-| `test_failed_task_skips_downstream()` | Asserts that when node `B` fails in `A -> B -> C`, `C` is marked `SKIPPED` and not executed. |
+#### 4.1.1 Unrealistic Expected Return Scaling
+In `trading_system/src/ai/ensemble_scorer.py` (Lines 1118–1126):
+```python
+mult = self._return_multiplier if self._return_multiplier <= 1.0 else (self._return_multiplier / 100.0)
+raw_exp_ret = merged['ensemble_score'] * mult * 100.0
+```
+- `self._return_multiplier` defaults to `20.0`.
+- For `ensemble_score = 1.0`, `raw_exp_ret = 1.0 * (20.0 / 100.0) * 100.0 = 20.0%` net 20-day expected return (~250% annualized).
+- Subtracting ~0.50% micro-costs yields `19.50%` net expected return per 20-day period.
+- **Unrealistic Assumption**: Real-world quantitative equity factor signals yield net alpha of 0.5% ~ 2.5% per 20-day horizon (6% ~ 30% annualized). Scaling raw scores linearly to +20.0% sets uncalibrated, overly aggressive return expectations.
 
-### 5.2 `tests/test_checkpoint_manager.py`
-| Test Function | Description & Assertion |
-|---------------|-------------------------|
-| `test_checkpoint_state_serialization_json()` | Tests metadata serialization and deserialization in `.checkpoints/pipeline_state.json`. |
-| `test_checkpoint_parquet_data_dump_and_restore()` | Serializes DataFrame state to `.checkpoints/{task}.parquet` and verifies byte-for-byte restoration. |
-| `test_resumability_skip_completed_tasks()` | Mocks a pipeline restart after failure; asserts completed tasks are skipped. |
-| `test_checkpoint_input_hash_invalidation()` | Changes input parameters for a completed task; verifies checkpoint is invalidated and task re-runs. |
-| `test_atomic_checkpoint_write_on_crash()` | Simulates write interruption; verifies existing checkpoint remains valid without corruption. |
+#### 4.1.2 Omission of Short Borrow Fees
+In `trading_system/src/ai/ensemble_scorer.py` (Lines 1137–1224) & `backtest.py` (Lines 105–149):
+- Micro-cost model computes STT tax, SEC fees, brokerage fees, dynamic bid-ask spread, and market impact.
+- **Omission**: For short-side signals (e.g. Stat-Arb pairs short leg, short-term reversal short entry), short borrow fees (which range from 1% to 15%+ p.a. for hard-to-borrow equities) and borrow locate availability constraints are omitted.
 
-### 5.3 `tests/test_hybrid_data_engine.py`
-| Test Function | Description & Assertion |
-|---------------|-------------------------|
-| `test_parquet_wal_append_stream()` | Tests rapid streaming appends to Parquet WAL files across 100 tickers. |
-| `test_zero_sqlite_write_lock_under_50_threads()` | Runs 50 concurrent writer threads against SQLite/Parquet hybrid engine; asserts 0 lock errors. |
-| `test_concurrent_readers_and_writers_no_blocking()` | Runs 10 reader queries during 50-thread streaming write; asserts zero query blocking. |
-| `test_buffer_flush_and_atomic_swap()` | Fills buffer, triggers async flush, and verifies data integrity in final storage. |
-| `test_multi_asset_3379_symbols_partitioning()` | Validates symbol-based directory partitioning (`data/market=KOSPI/symbol=005930/`). |
+#### 4.1.3 Turnover Hysteresis Buffer Distortion
+In `trading_system/src/ai/ensemble_scorer.py` (Line 1091):
+```python
+blended_score.loc[held_mask] = (blended_score.loc[held_mask] + 0.05).clip(upper=1.0)
+```
+- Adding a flat `+0.05` bonus to currently held symbols reduces turnover, but it distorts the calibrated cross-sectional score ranking without accounting for holding period duration or alpha decay.
 
----
+#### 4.1.4 Isotonic Calibration Target Mismatch
+In `ensemble_scorer.py` (Lines 335–350):
+- `fit_calibrators()` fits Isotonic Regression on historical outcomes defined as `>20% gain in 20 days`.
+- Using an extreme tail surge binary target for calibrating mean-reversion, valuation, and sector rotation models miscalibrates probability estimates for non-surge strategies.
 
-## 6. Synthesis & Recommendations for Next Steps
-
-1. **Test Helper Expansion**: Upgrade `tests/conftest.py` with custom fixtures:
-   - `@pytest.fixture` `temp_checkpoint_dir`: Provides isolated temporary checkpoint directory.
-   - `@pytest.fixture` `hybrid_db`: Sets up a clean temporary `HybridDataEngine` instance in SQLite WAL mode.
-2. **Stress Test Integration**: Mark heavy concurrency tests with `@pytest.mark.stress` so they can be run selectively during CI/CD.
-3. **Coverage Enforcement**: Set minimum test coverage threshold to 90% for `trading_system/dag_pipeline.py` and `src/data_layer/hybrid_storage.py`.
+### 4.2 Recommended Fixes
+1. **Calibrate `_return_multiplier`**:
+   Adjust `_return_multiplier` to a realistic quantitative alpha range (e.g. `2.0` ~ `3.0` for 20-day horizon, corresponding to +2.0% ~ +3.0% max expected return).
+2. **Add Short Borrow Fee Model**:
+   Deduct annualized short borrow fee (e.g., 1.5% p.a. default, higher for small-caps) for short positions.
+3. **Refine Hysteresis Buffer**:
+   Scale the hysteresis bonus dynamically based on position age and transaction cost avoidance, rather than a static +0.05 offset.
+4. **Strategy-Specific Calibration Targets**:
+   Use strategy-appropriate target metrics (e.g. positive excess return over benchmark for RIM/Sector Rotation, rather than >20% tail surge).

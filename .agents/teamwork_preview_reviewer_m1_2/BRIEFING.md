@@ -1,46 +1,57 @@
-# BRIEFING — 2026-07-30T14:26:41Z
+# BRIEFING — 2026-08-06T01:02:10Z
 
 ## Mission
-Review Milestone 1 code changes in data layer, persistence, ensemble scoring, and coverage analyzer, run test suite, check for integrity/correctness, and issue verdict.
+Review Milestone 1 (Financial Engineering & Quantitative Risk Audit): risk management, HRP portfolio allocation, covariance matrix handling, position sizing limits, liquidity checks, CrisisDetector gating, and microstructure friction costs across target files.
 
 ## 🔒 My Identity
 - Archetype: reviewer / critic
 - Roles: reviewer, critic
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2
-- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Milestone: Milestone 1
-- Instance: Reviewer M1-2
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Milestone: Milestone 1 - Financial Engineering & Quantitative Risk Audit
+- Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Code-only network mode (no external web calls)
+- Evidence-based verdict (APPROVE or REQUEST_CHANGES)
+- Strict compliance with safety / risk requirements (fail-closed, position caps 15% asset / 30% sector / 5% ADV, microstructure costs)
 
 ## Current Parent
-- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Updated: 2026-07-30T14:26:41Z
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-06T01:02:10Z
 
 ## Review Scope
-- **Files to review**: hybrid_storage.py, indicator_storage.py, database.py, ensemble_scorer.py, coverage_analyzer.py
-- **Interface contracts**: d:\Finance\code\stock\PROJECT.md / AGENTS.md
-- **Review criteria**: Parquet WAL buffer, exponential backoff retry loop, batch executemany, raw score NaN preservation in attrs, per-symbol fundamental data checks, correctness, integrity, test results
-
-## Review Checklist
-- **Items reviewed**: hybrid_storage.py, indicator_storage.py, database.py, ensemble_scorer.py, coverage_analyzer.py, unittest suite
-- **Verdict**: APPROVE
-- **Unverified claims**: None (all 5 items verified and 8 unit tests passed)
-
-## Attack Surface
-- **Hypotheses tested**: Lock contention under 20 threads, raw score NaN preservation, fundamental data check variations.
-- **Vulnerabilities found**: None. No integrity violations or dummy facades found.
-- **Untested angles**: None within Milestone 1 scope.
+- **Files to review**:
+  - `src/analysis/portfolio_optimizer.py` (and `trading_system/src/analysis/portfolio_optimizer.py` & `src/risk/portfolio_optimizer.py`)
+  - `src/risk/portfolio_allocator.py`
+  - `src/risk/position_sizing.py`
+  - `src/risk/pretrade_gatekeeper.py`
+  - `src/risk/risk_manager.py`
+  - `trading_system/run_pipeline.py`
+  - `src/ai/ensemble_scorer.py`
+- **Interface contracts**: `ORIGINAL_REQUEST.md`, `PROJECT.md`
+- **Review criteria**: correctness, logical completeness, quality, stress testing, edge case handling, fail closed behaviour, position sizing caps enforcement, friction cost calculation accuracy.
 
 ## Key Decisions Made
-- Initialized briefing and workspace environment.
-- Verified Parquet WAL buffer, exponential backoff retry loop, batch executemany, raw score NaN preservation, per-symbol fundamental data checks.
-- Executed unit test suite (`test_indicator_storage.py`, `test_database_concurrency.py`, `test_r3_coverage_and_universe.py`): 8/8 passed.
-- Issued APPROVE verdict and generated handoff report.
+- Audited all risk management, HRP portfolio allocation, covariance shrinkage, position limits, liquidity filters, CrisisDetector gating, and microstructure friction cost implementations.
+- Executed pytest test suites (`tests/test_portfolio_allocator.py`, `tests/test_portfolio_risk.py`, `tests/test_hrp_optimizer.py`, `tests/test_kelly_sizing.py`) — 20 out of 20 risk tests PASSED.
+- Issued verdict: APPROVE with 2 minor findings (test master suite import fix, default parameter alignment in PortfolioOptimizer).
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\ORIGINAL_REQUEST.md — Original request log
-- d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\BRIEFING.md — Mission briefing
-- d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\progress.md — Progress log
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\DISPATCH.md` — Received task dispatch
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\BRIEFING.md` — Working memory briefing
+- `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_2\handoff.md` — Final handoff report
+
+## Review Checklist
+- **Items reviewed**: RiskManager, CrisisDetector, PreTradeRiskGatekeeper, PortfolioAllocator, PortfolioOptimizer, EnsembleScoringEngine, run_pipeline.py, pytest suite.
+- **Verdict**: APPROVE
+- **Unverified claims**: None. All core claims verified via file inspection and test execution.
+
+## Attack Surface
+- **Hypotheses tested**:
+  - H1: Risk controls fail closed during crisis or exception? Verified PASS.
+  - H2: Position caps (15% asset, 30% sector, 5% ADV) strictly enforced? Verified PASS.
+  - H3: Microstructure friction costs (STT, SEC, spread, market impact) accurately calculated? Verified PASS.
+  - H4: Covariance matrix & HRP handling handles singular/NaN matrices gracefully? Verified PASS.
+- **Vulnerabilities found**: 2 minor issues (ImportError in test_m1_master_suite.py during full test collection; PortfolioOptimizer default parameter set to 0.20/0.35 instead of 0.15/0.30 before downstream clamping).
+- **Untested angles**: Live trading broker execution API calls (mocked during testing).

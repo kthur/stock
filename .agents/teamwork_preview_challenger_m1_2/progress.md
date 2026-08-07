@@ -1,10 +1,13 @@
-# Progress Tracker — Challenger M1-2
+# Progress — M1-2 Empirical Challenge
 
-Last visited: 2026-07-30T23:39:10+09:00
+Last visited: 2026-08-06T01:02:13+09:00
 
-- [x] Step 1: Initialize request & briefing
-- [x] Step 2: Code base investigation for HybridDataEngine & StockPriceDB
-- [x] Step 3: Develop stress test harness (50+ streaming writer threads, 10 aggregate reader threads, 3,379 symbols)
-- [x] Step 4: Run stress test harness & collect empirical evidence
-- [x] Step 5: Conduct adversarial challenge analysis & report findings
-- [x] Step 6: Generate handoff.md & notify parent
+## Steps Completed
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] Investigate relevant code (`ensemble_scorer.py`, `risk_manager.py`, `run_pipeline.py`)
+- [x] Construct empirical stress tests (`tests/test_challenger_m1_2.py`)
+- [x] Run test suite with `.venv\Scripts\python.exe -m pytest`
+- [x] Evaluate findings (Item 1: micro-cost PASSED, Item 2: score calibration PASSED, Item 3: CrisisDetector gating VULNERABILITY FOUND, Item 4: 18-strategy formatting string DEFECT FOUND)
+- [x] Write `handoff.md` with verdict (REQUEST_CHANGES)
+- [x] Update BRIEFING.md and progress.md
+- [ ] Send summary message to parent

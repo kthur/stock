@@ -1,48 +1,49 @@
-# BRIEFING — 2026-07-30T13:30:26Z
+# BRIEFING — 2026-08-06T22:01:00+09:00
 
 ## Mission
-Formulate comprehensive, highly detailed code improvement proposals and technical specifications addressing all diagnosed financial and system vulnerabilities in requirement R2.
+Milestone 2: Implement Ticker Symbol Normalization, Multi-Tier Fallback Data Fetching, DataValidator Gate, and Contiguous OHLCV Date Alignment (`ffill`).
 
 ## 🔒 My Identity
-- Archetype: Code Architecture Specialist & Quant Fixer
+- Archetype: implementer/qa/specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\worker_m2
-- Original parent: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Milestone: Milestone 2 Technical Specifications & Implementation Proposals
+- Original parent: 2e75046a-9db0-4604-9d56-a55830aecf0f
+- Milestone: Milestone 2 - Ticker Normalization, Fallbacks & Data Quality
 
 ## 🔒 Key Constraints
-- CODE_ONLY mode: No external network calls.
-- Write report to d:\Finance\code\stock\.agents\worker_m2\handoff.md.
-- Send message to parent (3f39566b-21e1-4a55-97f6-005b5c8f9946) upon completion.
-- Integrity Mandate: Genuine logic, no hardcoded cheating, real state & behavior.
+- Minimal change principle.
+- Standardize KRX numeric tickers (6-digit zero padding).
+- Update _KR_MARKET_SUFFIX to include 'KONEX': '.KS'.
+- Standardize US tickers for yfinance query ('.' -> '-') while keeping clean canonical keys in StockPriceDB.
+- Implement multi-tier fallback historical price retrieval for KRX and US.
+- Apply DataValidator gate before price_db.update_prices in single-symbol fetch_data_fdr.
+- Apply ffill() date contiguity on OHLCV DataFrames before passing to strategy feature engines.
+- Do NOT cheat, hardcode test results, or create dummy implementations.
 
 ## Current Parent
-- Conversation ID: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Updated: 2026-07-30T13:30:26Z
+- Conversation ID: 2e75046a-9db0-4604-9d56-a55830aecf0f
+- Updated: 2026-08-06T22:01:00+09:00
 
 ## Task Summary
-- **What to build**: Complete technical specification and code improvement proposal report (`handoff.md`) for 17 strategy/quant fixes, microstructure/transaction cost modeling, system architecture/concurrency, and advanced core architecture.
-- **Success criteria**: Exhaustive, actionable, exact code design specifications with math equations, precise line references, file targets, function signatures, data structures, and step-by-step implementation code snippets.
-- **Interface contracts**: PROJECT.md & current codebase in `src/` and `trading_system/`.
-
-## Key Decisions Made
-- Formulated complete, mathematically rigorous technical specifications for all requirement R2 vulnerabilities across Strategy & Quant Fixes, Microstructure & Costs, System Concurrency & Performance, and Advanced Core Architecture.
+- **What to build**: Ticker normalization, multi-tier fallback, DataValidator gate, ffill date contiguity.
+- **Success criteria**: All tests pass (`trading_system/tests/` and `tests/`).
+- **Interface contracts**: AGENTS.md
 
 ## Change Tracker
-- **Files modified**: `d:\Finance\code\stock\.agents\worker_m2\handoff.md`
-- **Build status**: PASS
-- **Pending issues**: None.
+- **Files modified**:
+  - `trading_system/src/persistence/database.py`: `normalize_symbol` and `StockPriceDB` symbol normalization
+  - `trading_system/src/data_layer/indicator_storage.py`: `_is_krx_symbol` unpadded handling and 6-digit zfill for stock_universe
+  - `trading_system/run_pipeline.py`: KONEX suffix, multi-tier fallback fetchers, `_fetch_data_fdr_network` multi-tier ordering, US dot-to-hyphen conversion, DataValidator gate in `fetch_data_fdr`, ffill on OHLCV
+  - `trading_system/src/data_layer/market_data_handler.py`: multi-tier fallbacks, symbol normalization, ffill on OHLCV in `_df_to_price_bars`
+  - `trading_system/src/ai/prediction_model.py`: ffill on OHLCV in `_create_features`
+  - `trading_system/tests/test_milestone2_m2.py`: Unit test suite for Milestone 2
+- **Build status**: PASS (21/21 targeted unit tests passed cleanly)
+- **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass
+- **Build/test result**: PASS (100%)
 - **Lint status**: Clean
-- **Tests added/modified**: Described in handoff.md
+- **Tests added/modified**: `trading_system/tests/test_milestone2_m2.py`
 
 ## Loaded Skills
-- None explicitly loaded via skill path.
-
-## Artifact Index
-- `d:\Finance\code\stock\.agents\worker_m2\ORIGINAL_REQUEST.md` — Original request text
-- `d:\Finance\code\stock\.agents\worker_m2\BRIEFING.md` — Briefing document
-- `d:\Finance\code\stock\.agents\worker_m2\progress.md` — Progress log
-- `d:\Finance\code\stock\.agents\worker_m2\handoff.md` — Final technical specifications report
+- None

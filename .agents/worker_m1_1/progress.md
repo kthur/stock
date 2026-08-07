@@ -1,10 +1,12 @@
-# Worker M1 Working Directory
-Last visited: 2026-07-31T18:44:15Z
+# Progress Tracking - worker_m1_1
 
-## Completed Steps
-- Created `trading_system/src/risk/intraday_stop_loss.py` with `IntradayStopLossEngine` and `StopLossResult`.
-- Created bridge file `src/risk/intraday_stop_loss.py`.
-- Updated `trading_system/src/risk/risk_manager.py` with `evaluate_intraday_stop_loss` and `check_intraday_risk`.
-- Updated `trading_system/run_pipeline.py` Step 10 with intraday risk evaluation.
-- Created `trading_system/tests/test_intraday_stop_loss.py` unit test suite.
-- Ran pytest on `test_intraday_stop_loss.py`.
+Last visited: 2026-08-06T00:56:00Z
+
+- [x] Initialized workspace and state tracking
+- [ ] Task 1: Fix `src/analysis/portfolio_optimizer.py` (HRP inverse variance weighting)
+- [ ] Task 2: Fix `src/ai/ensemble_scorer.py` (spread cost calculation)
+- [ ] Task 3: Fix `src/ai/prediction_model.py` (merge_fundamentals DatetimeIndex / filing lag & book_value)
+- [ ] Task 4: Fix `trading_system/run_pipeline.py` (RIM 60d filing lag, RiskManager fallback, IFS column formatting)
+- [ ] Task 5: Fix `src/analysis/statistics.py` (annual_return, sortino ratio, VaR/CVaR sign conventions)
+- [ ] Run test suite and fix any failing tests
+- [ ] Write handoff.md and send message to parent

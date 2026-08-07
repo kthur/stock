@@ -1,49 +1,47 @@
-# BRIEFING — 2026-07-30T13:28:42+09:00
+# BRIEFING — 2026-08-06T22:10:05Z
 
 ## Mission
-Propose next-generation quant alpha strategies and construct a comprehensive Phase 1 ~ Phase 4 improvement and construction roadmap per requirement R3.
+Verify full automated test suite pass rate (100%), consolidate test coverage for price data fetching, and verify all 18 multi-factor strategies execute cleanly with non-zero predictions across all target markets.
 
 ## 🔒 My Identity
-- Archetype: specialist
-- Roles: implementer, qa, specialist
+- Archetype: implementer / qa
+- Roles: implementer, qa
 - Working directory: d:\Finance\code\stock\.agents\worker_m3
-- Original parent: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Milestone: Next-Gen Alpha Strategies & Advanced Phase 1-4 Roadmap
+- Original parent: 2e75046a-9db0-4604-9d56-a55830aecf0f
+- Milestone: Milestone 3: Verification & Test Suite Hardening
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: no external HTTP requests.
-- Rigorous quantitative rigor, complete mathematical definitions, feature formulas, data pipeline integration details.
-- Handoff report in `d:\Finance\code\stock\.agents\worker_m3\handoff.md` with 5-component structure.
+- 100% genuine implementations (DO NOT CHEAT, do not hardcode test results).
+- All unit/integration tests must pass cleanly.
+- All 18 strategies must be verified to consume contiguous OHLCV price histories and output non-zero predictions across target markets (KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000).
 
 ## Current Parent
-- Conversation ID: 3f39566b-21e1-4a55-97f6-005b5c8f9946
-- Updated: 2026-07-30T13:28:42+09:00
+- Conversation ID: 2e75046a-9db0-4604-9d56-a55830aecf0f
+- Updated: 2026-08-06T22:10:05Z
 
 ## Task Summary
-- **What to build**: Propose 3 next-gen alpha strategies (LLM Sentiment, Real-Time OBI & Microstructure Flow, Macro Regime Switching HMM) and a comprehensive Phase 1~4 implementation roadmap. Write complete handoff.md report.
-- **Success criteria**: Detailed, mathematically precise proposals for 3 next-gen alpha strategies + comprehensive Phase 1-4 roadmap covering all requirements.
-- **Interface contracts**: `PROJECT.md` & `AGENTS.md`
-- **Code layout**: `PROJECT.md`
+- **What to build/verify**: Run test suites (`trading_system/tests/` and `tests/`), fix any failing tests or gaps, verify all 18 strategies execute with valid non-zero predictions across all 6 markets, generate `changes.md` and `handoff.md`.
+- **Success criteria**: 100% pytest pass rate, non-zero strategy outputs, zero integrity violations.
+- **Interface contracts**: AGENTS.md, run_pipeline.py, ensemble_scorer.py, coverage_analyzer.py.
+- **Code layout**: src/, trading_system/, tests/
 
 ## Key Decisions Made
-- Designed Strategy 1 (LLM Sentiment Engine with FinBERT/Claude API parser, DART/EDGAR text processing, exponential decay scoring, surprise delta).
-- Designed Strategy 2 (Real-Time OBI & Microstructure Flow with L2 depth queues, Lee-Ready aggressor delta, order flow acceleration, tick MFI).
-- Designed Strategy 3 (Macro Regime Switching HMM with 4-state Gaussian HMM on VIX, USDKRW, Yield Curve, WTI Oil).
-- Structured Phase 1 ~ Phase 4 roadmap: Phase 1 Integrity Fixes -> Phase 2 Risk Parity & Portfolio Optimization -> Phase 3 OMS & Vectorized Pipeline -> Phase 4 AI Innovation & Live Trading.
-
-## Artifact Index
-- `d:\Finance\code\stock\.agents\worker_m3\handoff.md` — Final Comprehensive Report & Handoff
-- `d:\Finance\code\stock\.agents\worker_m3\progress.md` — Liveness heartbeat
+- Proceed step by step: run tests first, analyze failures (if any), write test coverage for price data fetching retry/fallback if missing, verify 18 strategies.
 
 ## Change Tracker
-- **Files modified**: `ORIGINAL_REQUEST.md`, `BRIEFING.md`, `progress.md`, `handoff.md`
-- **Build status**: Pass
-- **Pending issues**: None
+- **Files modified**: [TBD]
+- **Build status**: [TBD]
+- **Pending issues**: [TBD]
 
 ## Quality Status
-- **Build/test result**: Pass
-- **Lint status**: Clean
-- **Tests added/modified**: N/A
+- **Build/test result**: [TBD]
+- **Lint status**: [TBD]
+- **Tests added/modified**: [TBD]
 
 ## Loaded Skills
-- None
+- None explicitly loaded.
+
+## Artifact Index
+- d:\Finance\code\stock\.agents\worker_m3\DISPATCH.md — Task Assignment
+- d:\Finance\code\stock\.agents\worker_m3\BRIEFING.md — Working Memory
+- d:\Finance\code\stock\.agents\worker_m3\progress.md — Heartbeat progress

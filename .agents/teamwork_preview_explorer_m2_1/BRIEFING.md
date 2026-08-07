@@ -1,40 +1,35 @@
-# BRIEFING — 2026-07-30T14:35:00Z
+# BRIEFING — 2026-08-05T16:03:30Z
 
 ## Mission
-Investigate EnsembleScoringEngine, analyze multicollinearity across 17 alpha strategies, and design Gram-Schmidt orthogonalization & PCA factor decorrelation algorithms preserving relative variance explaining power.
+Audit end-to-end pipeline execution in `trading_system/run_pipeline.py` for exception safety, step isolation, graceful degradation, multi-market error handling, output file generation, and pipeline state tracking.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: Explorer M2-1 (Quantitative Alpha & Ensemble Orthogonalization - R2)
+- Archetype: teamwork_preview_explorer
+- Roles: Software Architecture & Pipeline Robustness Audit Explorer
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1
-- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Milestone: Milestone 2 (Quantitative Alpha & Ensemble Orthogonalization - R2)
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Milestone: Milestone 2 (Software Architecture & Pipeline Robustness Audit)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Write analysis to analysis.md and handoff report to handoff.md
-- Send message to parent when done
+- Read-only investigation — do NOT implement source code changes directly.
+- Document all findings with line numbers, code snippets, and recommended fixes in `analysis.md` and `handoff.md`.
 
 ## Current Parent
-- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Updated: 2026-07-30T14:35:00Z
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-05T16:03:30Z
 
 ## Investigation State
-- **Explored paths**: `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/ai/correlation_monitor.py`, `trading_system/src/ai/factor_suppression.py`, `tests/test_correlation_suppression.py`, `PROJECT.md`
-- **Key findings**:
-  - `EnsembleScoringEngine` handles 17 strategies across 4 markets.
-  - Multicollinearity is severe in CORE_AI ($\rho \approx 0.65-0.80$) and MOMENTUM ($\rho \approx 0.60-0.85$) clusters.
-  - Scalar weight dampening lowers weights $w_i$, but leaves score matrix $X \in \mathbb{R}^{N \times 17}$ collinear.
-  - Designed Gram-Schmidt (regime-weight ordered) and PCA ZCA Symmetric Decorrelation algorithms preserving $[0, 1]$ bounds and relative variance explaining power.
-- **Unexplored areas**: None (investigation complete).
+- **Explored paths**: `trading_system/run_pipeline.py`, `src/data_layer/indicator_storage.py`, `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/persistence/database.py`
+- **Key findings**: Audited 12 pipeline steps; identified missing `try...except` isolation in Steps 2, 4, 7c, 10a, 10d, 10e, 11b, 11d, and HRP allocation; verified 3-tier data fallback and macro data integrity gate; verified multi-market parallel execution and per-market suffix artifact generation; identified state tracking vs resumability gap.
+- **Unexplored areas**: None for this task.
 
 ## Key Decisions Made
-- Completed technical analysis (`analysis.md`) and 5-component handoff report (`handoff.md`).
-- Recommended dual-mode `FactorOrthogonalizerEngine` design (`trading_system/src/ai/factor_orthogonalizer.py`).
+- Completed read-only architectural audit of `run_pipeline.py`.
+- Formulated proposed code patches in `analysis.md`.
+- Authored 5-component handoff report in `handoff.md`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1\ORIGINAL_REQUEST.md` — Original request & parent messages
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1\BRIEFING.md` — Working context & memory
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1\progress.md` — Liveness heartbeat
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1\analysis.md` — Detailed technical analysis & mathematical design
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m2_1\handoff.md` — 5-component handoff report
+- `.agents/teamwork_preview_explorer_m2_1/DISPATCH.md` — Dispatch log
+- `.agents/teamwork_preview_explorer_m2_1/BRIEFING.md` — Working briefing state
+- `.agents/teamwork_preview_explorer_m2_1/analysis.md` — Comprehensive pipeline audit report & proposed patches
+- `.agents/teamwork_preview_explorer_m2_1/handoff.md` — 5-component handoff report

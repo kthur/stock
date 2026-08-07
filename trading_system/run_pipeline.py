@@ -3452,6 +3452,21 @@ def execute_prediction_pipeline():
         gh_pages_dir.mkdir(parents=True, exist_ok=True)
         generate_html_report(args_list=["--result-dir", str(result_dir), "--out", str(gh_pages_dir / "index.html")])
         logger.info(f"[6-D] Updated GitHub Pages HTML dashboard at {gh_pages_dir / 'index.html'}")
+
+        # ── Phase 6-E: Dispatch Telegram Signal Card Alert ───────────────────
+        try:
+            from src.execution.telegram_notifier import TelegramNotifier
+            notifier = TelegramNotifier()
+            if notifier.is_enabled() and 'ensemble_df' in locals() and ensemble_df is not None and not ensemble_df.empty:
+                sent_ok = notifier.send_top_recommendations_card(
+                    ensemble_df,
+                    regime_name=str(current_2d_regime),
+                    date_str=date_str
+                )
+                if sent_ok:
+                    logger.info("[6-E] Dispatched Telegram Signal Cards for TOP 5 recommendations.")
+        except Exception as _tg_e:
+            logger.warning(f"[6-E] Telegram signal card dispatch skipped: {_tg_e}")
     except Exception as _gh_html_e:
         logger.warning(f"[6-D] GitHub Pages dashboard generation skipped: {_gh_html_e}")
 

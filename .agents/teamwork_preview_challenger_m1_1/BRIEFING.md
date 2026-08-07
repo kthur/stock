@@ -1,48 +1,54 @@
-# BRIEFING — 2026-07-30T14:29:40Z
+# BRIEFING — 2026-08-06T01:03:35Z
 
 ## Mission
-Empirically challenge and stress-test trading_system/dag_pipeline.py through dynamic test cases.
+Empirically stress-test quantitative risk and financial engineering logic for Milestone 1 (HRP weights, merge_fundamentals, AdvancedStatistics, IntradayStopLossEngine).
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: critic, specialist
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1
-- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Milestone: Milestone 1
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Milestone: M1
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- All test/stress code must be executed empirically
-- Write handoff report to d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1\handoff.md
-- Send message to parent upon completion
+- Run all tests using `.venv\Scripts\python.exe`
+- Output handoff.md with verdict APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Updated: 2026-07-30T14:29:40Z
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-06T01:03:35Z
 
 ## Review Scope
-- **Files to review**: `trading_system/dag_pipeline.py`
+- **Files to review**: `portfolio_optimizer.py`, `prediction_model.py`, `statistics.py`, `intraday_stop_loss.py`
 - **Interface contracts**: `PROJECT.md`
-- **Review criteria**: Robustness against pipeline crashes, corrupted checkpoint JSON files, missing parquet frames, deep cyclic graphs, high-concurrency execution.
-
-## Key Decisions Made
-- Created comprehensive dynamic stress test suite in `tests/test_dag_pipeline_stress_m1.py` covering 5 stress dimensions (15 test cases).
-- Empirically reproduced and confirmed 4 major vulnerabilities/bugs in `dag_pipeline.py`.
-- Formulated handoff report in `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_1\handoff.md`.
+- **Review criteria**: Robustness against ill-conditioned/singular matrices, zero lookahead bias, extreme drawdowns/NaN/Inf handling, JSON serializability.
 
 ## Attack Surface
-- **Hypotheses tested**: Pipeline crash recovery, corrupted manifest JSON, missing parquet frames, deep cyclic graph topology, concurrent thread safety.
-- **Vulnerabilities found**: 
-  1. Manifest Artifact Erasure bug (`DAGRunner.run()` overwrites `artifacts` with `[]`).
-  2. Uncaught `AttributeError` on corrupted non-dict manifest JSON.
-  3. `PermissionError` race conditions on Windows concurrent parquet temp saves.
-  4. Shallow `exists()` check ignoring 0-byte corrupted parquet/JSON artifacts.
-- **Untested angles**: Multi-process IPC file locking under cross-machine NFS/SMB mounts.
+- **Hypotheses tested**:
+  1. HRP weights calculation handles singular/ill-conditioned covariance matrices without crashing or NaN weights. -> PASSED
+  2. merge_fundamentals produces 0 lookahead leakage even with unnamed index, duplicate dates, out-of-order timestamps, and missing columns. -> FAILED (`KeyError: 'book_value'` for benchmark tickers)
+  3. AdvancedStatistics handles total_return = -1.5, -2.0, 0.0 without complex numbers or NaN/Inf JSON floats. -> FAILED (complex numbers on `total_return < -1.0`, ZeroDivisionError, `float("inf")` profit_factor)
+  4. IntradayStopLossEngine handles extreme price drops, NaN/Inf inputs, and volume spikes gracefully. -> FAILED (`dropna()` does not filter `np.inf`/`-np.inf`)
+- **Vulnerabilities found**:
+  - `prediction_model.py:956`: `KeyError: 'book_value'` in `merge_fundamentals` when fallback dict benchmark items missing `'book_value'`.
+  - `statistics.py:232`: Complex numbers generated in `annual_return` when `total_return < -1.0`.
+  - `statistics.py:230-234`: `ZeroDivisionError` when equity curve drops to 0.0 (`total_return = -2.0`).
+  - `statistics.py:249`: Non-standard `float("inf")` returned for `profit_factor` when `gross_loss == 0`.
+  - `intraday_stop_loss.py:133`: `data["close"].dropna()` does not filter `np.inf` / `-np.inf`.
+- **Untested angles**: None
+
+## Loaded Skills
+- None
+
+## Key Decisions Made
+- Executed empirical test harness `test_m1_stress.py` via `.venv\Scripts\python.exe`.
+- Verdict: REQUEST_CHANGES based on 5 confirmed empirical failure modes.
 
 ## Artifact Index
-- `ORIGINAL_REQUEST.md` — User request log
-- `BRIEFING.md` — Persistent state tracking
-- `progress.md` — Liveness heartbeat log
-- `tests/test_dag_pipeline_stress_m1.py` — 15-case empirical stress test suite
-- `handoff.md` — Final 5-component handoff report
+- DISPATCH.md — incoming dispatch instructions
+- BRIEFING.md — working briefing
+- progress.md — liveness heartbeat
+- test_m1_stress.py — empirical stress test script
+- handoff.md — final handoff report with verdict REQUEST_CHANGES

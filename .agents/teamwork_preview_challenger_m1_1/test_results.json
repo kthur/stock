@@ -1,0 +1,168 @@
+{
+  "task_1_hrp_weights": [
+    {
+      "scenario": "Singular matrix (all 1s)",
+      "elapsed_sec": 0.174,
+      "output_shape": 5,
+      "sum_weights": 1.0,
+      "has_nan": false,
+      "has_inf": false,
+      "min_w": 0.13164917274485677,
+      "max_w": 0.2465753424660156,
+      "passed": true
+    },
+    {
+      "scenario": "Ill-conditioned matrix (rank 2, dim 10)",
+      "elapsed_sec": 0.004,
+      "output_shape": 10,
+      "sum_weights": 1.0,
+      "has_nan": false,
+      "has_inf": false,
+      "passed": true
+    },
+    {
+      "scenario": "Extreme high volatility (1e8 to 1e-6)",
+      "elapsed_sec": 0.002,
+      "output_shape": 5,
+      "sum_weights": 1.0,
+      "has_nan": false,
+      "has_inf": false,
+      "passed": true
+    },
+    {
+      "scenario": "Covariance with NaNs/Infs",
+      "elapsed_sec": 0.001,
+      "output_shape": 3,
+      "sum_weights": 1.0,
+      "has_nan": false,
+      "has_inf": false,
+      "passed": true
+    }
+  ],
+  "task_2_merge_fundamentals": [
+    {
+      "scenario": "Unnamed DatetimeIndex & 60d Filing Lag Verification",
+      "elapsed_sec": 0.051,
+      "rev_jan15_before_60d": 1000.0,
+      "rev_mar15_after_60d": 1500.0,
+      "lookahead_leakage_free": true,
+      "passed": true
+    },
+    {
+      "scenario": "Benchmark symbol AAPL (KeyError 'book_value' test)",
+      "elapsed_sec": 0.027,
+      "error": "'book_value'",
+      "passed": false
+    },
+    {
+      "scenario": "Out-of-order timestamps & Duplicate dates",
+      "elapsed_sec": 0.033,
+      "output_rows": 3,
+      "index_has_duplicates": false,
+      "is_chronological": true,
+      "passed": true
+    },
+    {
+      "scenario": "Missing price columns (only Close)",
+      "elapsed_sec": 0.032,
+      "columns_present": [
+        "Close",
+        "date",
+        "revenue",
+        "operating_income",
+        "net_income",
+        "eps",
+        "dividend_per_share",
+        "book_value",
+        "eps_growth_1y",
+        "revenue_growth_1y",
+        "has_fundamental"
+      ],
+      "has_revenue": true,
+      "has_has_fundamental": true,
+      "passed": true
+    }
+  ],
+  "task_3_advanced_statistics": [
+    {
+      "scenario": "total_return = -1.5 (Equity curve goes negative)",
+      "elapsed_sec": 0.0,
+      "total_return": -1.5,
+      "annual_return": "-1.0",
+      "annual_return_type": "float",
+      "has_complex": false,
+      "json_serializable": true,
+      "json_error": "None",
+      "passed": true
+    },
+    {
+      "scenario": "total_return = -2.0",
+      "elapsed_sec": 0.0,
+      "error": "float division by zero",
+      "passed": false
+    },
+    {
+      "scenario": "total_return = 0.0",
+      "elapsed_sec": 0.0,
+      "total_return": 0.0,
+      "annual_return": "0.0",
+      "annual_return_type": "float",
+      "has_complex": false,
+      "json_serializable": true,
+      "json_error": "None",
+      "passed": true
+    },
+    {
+      "scenario": "total_return = -1.0",
+      "elapsed_sec": 0.0,
+      "total_return": -1.0,
+      "annual_return": "-1.0",
+      "annual_return_type": "float",
+      "has_complex": false,
+      "json_serializable": true,
+      "json_error": "None",
+      "passed": true
+    },
+    {
+      "scenario": "Trades with 0 losses (profit_factor=inf)",
+      "elapsed_sec": 0.001,
+      "profit_factor": "inf",
+      "json_strict_serializable": false,
+      "json_error": "Out of range float values are not JSON compliant",
+      "passed": false
+    }
+  ],
+  "task_4_intraday_stop_loss": [
+    {
+      "scenario": "Extreme 50% price drop",
+      "elapsed_sec": 0.001,
+      "triggered": true,
+      "reason": "PEAK_TO_TROUGH_DROP",
+      "drop_pct": -0.5,
+      "recommended_action": "FULL_LIQUIDATION",
+      "passed": true
+    },
+    {
+      "scenario": "NaN/Inf inputs in DataFrame",
+      "elapsed_sec": 0.002,
+      "triggered": false,
+      "reason": "NONE",
+      "passed": false
+    },
+    {
+      "scenario": "Volume spike (20x volume with price drop)",
+      "elapsed_sec": 0.001,
+      "triggered": true,
+      "reason": "PANIC_VOLUME_SPIKE",
+      "panic_volume_ratio": 10.256410256410257,
+      "passed": true
+    },
+    {
+      "scenario": "IntradayTick with Inf price",
+      "elapsed_sec": 0.0,
+      "triggered": false,
+      "reason": "INVALID_PRICE",
+      "passed": true
+    }
+  ]
+}

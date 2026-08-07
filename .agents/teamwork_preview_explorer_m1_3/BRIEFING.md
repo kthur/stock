@@ -1,40 +1,38 @@
-# BRIEFING — 2026-08-05T10:45:55+09:00
+# BRIEFING — 2026-08-06T00:55:45Z
 
 ## Mission
-Audit GitHub Pages dashboard UI/UX responsiveness, live macro indicator badges, strategy panel inventory, and GHA artifact verification mechanisms.
+Audit financial engineering for quantitative biases, filing lag, survivorship bias, empirical risk metrics (CVaR, EVT-VaR, M3D, Sharpe, Sortino), and backtest/real-money deployment realism.
 
 ## 🔒 My Identity
-- Archetype: Explorer 3
-- Roles: Dashboard UI/UX & GHA Artifact Verifier Specialist
+- Archetype: teamwork_preview_explorer
+- Roles: Quantitative Analysis & Financial Engineering Audit
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3
-- Original parent: 3838e4e4-ce0a-4c83-86b3-96ac6bb1ea30
-- Milestone: milestone_1
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Milestone: M1 (Financial Engineering & Quantitative Risk Audit)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement code changes
-- Output detailed audit report to dashboard_verifier_audit.md
-- Output handoff report to handoff.md
+- Read-only investigation — do NOT implement code changes to source files (write analysis to analysis.md and handoff.md in your working folder)
+- Document all findings, evidence, line numbers, code snippets, and recommended fixes in analysis.md and handoff.md
+- Use send_message to report completion to parent
 
 ## Current Parent
-- Conversation ID: 3838e4e4-ce0a-4c83-86b3-96ac6bb1ea30
-- Updated: 2026-08-05T10:45:55+09:00
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-06T00:55:45Z
 
 ## Investigation State
-- **Explored paths**: gh-pages/index.html, trading_system/generate_report.py, trading_system/scripts/verify_gha_artifacts.py, gha-artifact-verifier/SKILL.md, trading_system/src/data_layer/data_validator.py
+- **Explored paths**: `prediction_model.py`, `earnings_data.py`, `indicator_storage.py`, `portfolio_allocator.py`, `statistics.py`, `backtest.py`, `ensemble_scorer.py`, `rim_valuation.py`, `mq_factor.py`, `arm_factor.py`, `risk_manager.py`.
 - **Key findings**:
-  1. gh-pages/index.html is fully populated with non-zero data across all 5 target markets and 18 strategy tabs (~2.58MB, 51,550 lines). All 14 verified strategy panels pass populated row count validation (5 to 5,763 rows).
-  2. Mobile responsiveness (375px/414px) vs Desktop (1920px): Grid collapse (@media max-width 1024px), sticky top navigation with frosted glass blur backdrop on mobile (@media max-width 768px), 2-column macro grid on mobile, horizontal pill button scrolling, and touch table scrolling.
-  3. Live Macro Badges (VIX, TNX, USDKRW, WTI, Gold, Regimes, Coupling) bound via EnsembleData and cleaned using DataValidator.clean_macro_value() with MACRO_BOUNDS safety ranges.
-  4. Discrepancies in verify_gha_artifacts.py: STRATEGIES list has 18 strategies, but files_map only maps 14 files (omits arm_factor, card_factor, latr_factor, inst_foreign_sector). CLI table header displays 15 columns for 18 strategies causing shifting.
-- **Unexplored areas**: None (audit fully complete)
+  1. `prediction_model.py:927–934` bypasses 60-day filing lag when price DataFrame has unnamed `DatetimeIndex`, causing lookahead leakage via `join()`.
+  2. `indicator_storage.py:257–358` stock universe contains only current active constituents (survivorship bias).
+  3. `statistics.py:232` produces complex numbers for `annual_return` when drawdown > 100%; VaR/CVaR sign convention mismatch; `float("inf")` Sortino ratio breaks JSON export.
+  4. `ensemble_scorer.py` scales raw score to +20.0% expected return per 20 days (~250% p.a.), which is unrealistically high; short borrow fees are omitted.
+- **Unexplored areas**: None (all 4 task requirements fully audited).
 
 ## Key Decisions Made
-- Performed deep read-only audit of Dashboard UI/UX responsiveness and GHA Artifact Verifier.
-- Generated dashboard_verifier_audit.md and handoff.md.
+- Audit completed. Findings, evidence, line numbers, and recommended fixes documented in `analysis.md` and `handoff.md`.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\DISPATCH.md — Dispatch log
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\BRIEFING.md — Working memory index
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\progress.md — Liveness progress log
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\dashboard_verifier_audit.md — Comprehensive Dashboard & Verifier Audit Report
-- d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md — 5-Component Handoff Report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\DISPATCH.md` — Received task dispatch
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\BRIEFING.md` — Working state index
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\analysis.md` — Comprehensive quantitative analysis report
+- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_m1_3\handoff.md` — 5-component handoff report

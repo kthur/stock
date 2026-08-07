@@ -68,3 +68,16 @@ Report Structure Requirements for `SYSTEM_IMPROVEMENT_REPORT.md`:
 
 ## 5. Architectural Mermaid Diagram
 - Complete Mermaid flowchart summarizing the end-to-end data pipeline, strategy engine, portfolio optimizer, risk gating, friction cost subtraction, and GitHub Pages generator.
+
+## 2026-08-06T01:02:32Z
+You are a teamwork_preview_worker implementing Software Architecture & Pipeline Robustness enhancements for Milestone 2.
+Working directory: d:\Finance\code\stock\.agents\worker_m2_1.
+Target Tasks:
+1. src/ai/factor_orthogonalizer.py & src/ai/ensemble_scorer.py:
+   - Implement FactorOrthogonalizerEngine in src/ai/factor_orthogonalizer.py with PCA ZCA whitening (C^{-1/2} = V \Lambda^{-1/2} V^T) and Gram-Schmidt factor decorrelation.
+   - Integrate into EnsembleScoringEngine.combine_predictions() to decorrelate raw strategy score matrices across the 18 strategies, reducing mean cross-strategy correlation to < 0.30 while preserving rank ordering and [0.0, 1.0] bounds.
+2. src/core/stat_arb.py:
+   - Implement multi-feature pre-clustering (MiniBatch K-Means K=40) and vectorized Pearson correlation pre-screening (|r| >= 0.70) in StatisticalArbitrageEngine.find_cointegrated_pairs().
+   - Remove top 300 volume truncation restriction so the cointegration scanner scans 100% of all 3,379 symbols in < 5 seconds.
+3. trading_system/run_pipeline.py:
+   - Verify strict failure isolation, exception safety, and float32 memory downcasting across all 6 markets.

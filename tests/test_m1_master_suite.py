@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from tests.test_factor_orthogonalization import TestFactorOrthogonalization
 from tests.test_factor_ortho_empirical_stress import TestFactorOrthoEmpiricalStress
 from tests.test_correlation_suppression import TestCorrelationSuppression
-from tests.test_hpo_and_2d_ensemble import TestHPOAnd2DEnsemble
+from tests.test_hpo_and_2d_ensemble import TestOptunaStrategyTuner, Test2DRegimeAndEnsembleScorer
 from tests.test_isotonic_sharpe_calibration import TestIsotonicSharpeCalibration
 from tests.test_m1_empirical_challenger import TestM1EmpiricalChallenger
 
@@ -20,7 +20,8 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestFactorOrthogonalization))
     suite.addTests(loader.loadTestsFromTestCase(TestFactorOrthoEmpiricalStress))
     suite.addTests(loader.loadTestsFromTestCase(TestCorrelationSuppression))
-    suite.addTests(loader.loadTestsFromTestCase(TestHPOAnd2DEnsemble))
+    suite.addTests(loader.loadTestsFromTestCase(TestOptunaStrategyTuner))
+    suite.addTests(loader.loadTestsFromTestCase(Test2DRegimeAndEnsembleScorer))
     suite.addTests(loader.loadTestsFromTestCase(TestIsotonicSharpeCalibration))
     suite.addTests(loader.loadTestsFromTestCase(TestM1EmpiricalChallenger))
     

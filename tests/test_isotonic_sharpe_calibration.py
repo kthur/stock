@@ -24,7 +24,8 @@ class TestIsotonicSharpeCalibration(unittest.TestCase):
             'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
             'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation', 'event_driven',
             'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
-            'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector'
+            'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
+            'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target', 'microstructure'
         ]
 
     def test_isotonic_and_platt_fitting_and_prediction(self):
@@ -129,7 +130,7 @@ class TestIsotonicSharpeCalibration(unittest.TestCase):
             engine = EnsembleScoringEngine()
             weights = engine.compute_dynamic_weights_from_sharpe(empty_sharpes, regime=reg)
 
-            self.assertEqual(len(weights), 18)
+            self.assertEqual(len(weights), 23)
             self.assertAlmostEqual(sum(weights.values()), 1.0, places=5)
 
             # In BULL regimes, surge and vcp_ml should receive boost relative to stat_arb

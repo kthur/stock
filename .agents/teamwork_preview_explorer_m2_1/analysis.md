@@ -1,344 +1,270 @@
-# Technical Analysis: Quantitative Alpha & Ensemble Factor Orthogonalization (Milestone 2 - R2)
+# End-to-End Pipeline Execution & Architecture Robustness Audit
 
-**Author:** Explorer M2-1  
-**Date:** 2026-07-30  
-**Target Module:** `trading_system/src/ai/ensemble_scorer.py` (`EnsembleScoringEngine`)  
-**Scope Document:** `PROJECT.md`  
-
----
-
-## Executive Summary
-
-This report provides a comprehensive technical investigation of `EnsembleScoringEngine` and presents the mathematical and algorithmic design for **Gram-Schmidt Orthogonalization** and **PCA Factor Decorrelation** across all 17 alpha strategies. 
-
-Currently, `EnsembleScoringEngine` handles strategy redundancy by computing Spearman rank correlations and dampening scalar strategy weights ($w_i$). While scalar weight dampening reduces the influence of redundant strategies in the linear combination, it **does not decorrelate the underlying score feature space** $X \in \mathbb{R}^{N \times 17}$. High inter-strategy correlation ($\rho > 0.50$, $\text{VIF} > 4.0$) distorts the ensemble score, inflates variance, and reduces the effective strategy count ($N_{eff}$).
-
-To solve this, we design a dedicated **`FactorOrthogonalizerEngine`** that transforms raw strategy scores into an orthogonal score matrix $X_{ortho} \in \mathbb{R}^{N \times 17}$ while preserving relative variance explaining power and score range $[0, 1]$.
+**Module**: `trading_system/run_pipeline.py`  
+**Milestone**: Milestone 2 (Software Architecture & Pipeline Robustness Audit)  
+**Date**: 2026-08-06  
+**Auditor**: teamwork_preview_explorer_m2_1  
 
 ---
 
-## 1. Investigation of `EnsembleScoringEngine` Architecture
+## 1. Executive Summary
 
-### 1.1 Current Architecture & Pipeline Flow
-`EnsembleScoringEngine` (located at `trading_system/src/ai/ensemble_scorer.py`) orchestrates a 17-strategy multi-factor, multi-model ensemble:
+This report presents an end-to-end audit of `trading_system/run_pipeline.py` and supporting modules (`src/data_layer/indicator_storage.py`, `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/persistence/database.py`). 
 
-| # | Strategy Name | Internal Key | Score Column | Functional Category |
-|---|---------------|--------------|--------------|---------------------|
-| 1 | XGBoost Regression | `regression` | `reg_score` | Core ML / Return Prediction |
-| 2 | Surge Classifier | `surge` | `surge_score` | Short-term Momentum |
-| 3 | Lead-Lag | `lead_lag` | `ll_score` | Cross-sectional Lead-Lag |
-| 4 | VCP Rule Detector | `vcp_rule` | `vcp_rule_score` | Pattern Recognition / Reversal |
-| 5 | VCP ML Predictor | `vcp_ml` | `vcp_ml_score` | Pattern Recognition / Momentum |
-| 6 | Strict Causal LSTM | `lstm` | `lstm_score` | Core AI / Deep Time Series |
-| 7 | Stat-Arb Cointegration | `stat_arb` | `stat_arb_score` | Statistical Arbitrage / Reversal |
-| 8 | Sector Rotation | `sector_rotation` | `sector_score` | Sector Momentum |
-| 9 | RIM Valuation | `rim_valuation` | `rim_score` | Fundamental Valuation |
-| 10 | Event-Driven | `event_driven` | `event_score` | Microstructure / Catalyst |
-| 11 | Momentum Quality | `mq_factor` | `mq_score` | Fundamental Quality & Momentum |
-| 12 | Options IV Skew | `iv_skew` | `iv_skew_score` | Options / Microstructure |
-| 13 | Order Flow Imbalance | `order_flow` | `order_flow_score` | Order Book / Microstructure |
-| 14 | Short-Term Reversal | `short_term_reversal` | `reversal_score` | Mean-Reversion |
-| 15 | Analyst Revision Momentum | `arm_factor` | `arm_score` | Earnings Revision / Momentum |
-| 16 | Cross-Asset Regime Div. | `card_factor` | `card_score` | Cross-Asset / Reversal |
-| 17 | Liquidity Tail Risk | `latr_factor` | `latr_score` | Tail Risk / Microstructure |
+The audit focused on four major areas:
+1. **Exception Safety, Step Isolation, and Failure Recovery** across the 12 pipeline steps.
+2. **Graceful Degradation** when market data providers (yfinance, FinanceDataReader, Open DART) fail, delay, or return empty DataFrames.
+3. **Multi-Market Execution Handling** across 6 target markets (KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000).
+4. **Output File Generation and Pipeline State Tracking / Resumability**.
 
-### 1.2 Current Redundancy & Multicollinearity Management
-Currently, `EnsembleScoringEngine` interacts with two sub-components during `combine_predictions()` (lines 884-913):
-1. **`StrategyCorrelationMonitor`** (`trading_system/src/ai/correlation_monitor.py`):
-   - Computes daily 17x17 Spearman rank correlation matrix $R$ and applies EMA smoothing ($\alpha_{corr} = 0.15$).
-   - Calculates Variance Inflation Factors $\text{VIF}_i = (R^{-1})_{ii}$.
-   - Computes Effective Strategy Count $N_{eff} = \frac{(\sum w_i)^2}{\boldsymbol{w}^T R \boldsymbol{w}}$.
-2. **`RegimeFactorSuppressionEngine`** (`trading_system/src/ai/factor_suppression.py`):
-   - Penalizes weights of strategies with correlation $|\rho_{ij}| > \theta(R)$.
-   - Multiplies dampening factor $P_i(R) = \left(1 + \lambda(R) \sum c_{ij} E_{ij}^2\right)^{-1/2}$.
-
-### 1.3 Limitation of Scalar Weight Suppression
-Weight suppression modifies weights $w_i \to w_i^{supp}$, resulting in the linear score:
-$$S_{linear} = \frac{\sum_{i=1}^{17} w_i^{supp} S_i}{\sum_{i=1}^{17} w_i^{supp}}$$
-However:
-- $S_i$ and $S_j$ remain collinear in feature space ($X$).
-- For instance, in the **MOMENTUM** cluster (`surge`, `vcp_ml`, `sector_rotation`, `arm_factor`), all 4 strategies fire simultaneously during market rallies. Modifying $w_i$ reduces their scalar weights but does **not remove shared variance** from $X$.
-- When passing $X$ to downstream models (e.g., `MetaEnsembleLearner` 50:50 stacking or `PortfolioOptimizer`), collinear features inflate model variance and introduce instability.
+Overall, the pipeline exhibits strong data resiliency (3-tier data architecture, macro data sanitization gate, parallel symbol/market execution, and partial success recovery on exit). However, critical exception handling gaps exist in specific pipeline steps where unhandled exceptions will crash the entire pipeline before subsequent independent strategies or report generators can run.
 
 ---
 
-## 2. Multicollinearity & Strategy Cluster Analysis
+## 2. Audit Findings by Pipeline Step (12 Steps)
 
-Across the 17 strategies, five distinct functional clusters exist:
+### Pipeline Step Overview & Exception Safety Matrix
 
-```
-                  ┌─────────────────────────────────────────────────────────┐
-                  │               17 Alpha Strategy Universe               │
-                  └─────────────────────────────────────────────────────────┘
-                                       │
-     ┌──────────────────┬──────────────┼──────────────┬──────────────────┐
-     ▼                  ▼              ▼              ▼                  ▼
-┌─────────┐       ┌───────────┐  ┌───────────┐  ┌───────────┐      ┌────────────┐
-│ CORE AI │       │ MOMENTUM  │  │ VALUATION │  │ REVERSAL  │      │ FLOW/MICRO │
-└─────────┘       └───────────┘  └───────────┘  └───────────┘      └────────────┘
-• regression      • surge        • rim_val     • stat_arb         • lead_lag
-• lstm            • vcp_ml       • mq_factor   • vcp_rule         • event_driven
-                  • sector_rot                 • reversal         • iv_skew
-                  • arm_factor                 • card_factor      • order_flow
-                                                                  • latr_factor
-```
-
-### Cluster Multicollinearity Breakdown:
-
-1. **CORE_AI Cluster (`regression`, `lstm`)**:
-   - Both models predict continuous future price returns based on historical technical/fundamental features.
-   - Pairwise correlation $\rho \approx 0.65 - 0.80$. High structural redundancy.
-2. **MOMENTUM Cluster (`surge`, `vcp_ml`, `sector_rotation`, `arm_factor`)**:
-   - All capture upward price acceleration and positive earnings revisions.
-   - Pairwise correlation $\rho \approx 0.60 - 0.85$. Under strong bull regimes, all 4 strategies yield near-identical rank orderings.
-3. **VALUATION Cluster (`rim_valuation`, `mq_factor`)**:
-   - Share fundamental financial data (ROE, net income, book value).
-   - Pairwise correlation $\rho \approx 0.50 - 0.70$.
-4. **REVERSAL Cluster (`stat_arb`, `vcp_rule`, `short_term_reversal`, `card_factor`)**:
-   - Trigger when price deviates significantly from historical mean/fair value.
-   - Pairwise correlation $\rho \approx 0.55 - 0.75$.
-5. **FLOW_MICRO Cluster (`lead_lag`, `event_driven`, `iv_skew`, `order_flow`, `latr_factor`)**:
-   - Lower cross-cluster correlation, but intra-cluster correlation between `order_flow` and `lead_lag` reaches $\rho \approx 0.45 - 0.60$.
+| Step | Description | Code Location | Exception Safety & Isolation Status | Issues / Vulnerabilities |
+|------|-------------|---------------|--------------------------------------|--------------------------|
+| **Step 1** | Config Loading & Validation | `run_pipeline.py:781-784` | Top-level unhandled | Exception in `cfg.validate()` halts pipeline. (Acceptable for config validation) |
+| **Step 2** | Global Market Indicators Fetch | `run_pipeline.py:794-797` | **Lacks local try/except** | Failure in `market_client.get_summary()` halts pipeline before offline cache check. |
+| **Step 3** | Global Market Indicators Store | `run_pipeline.py:799-804` | Logged via `pipeline_stage`, re-raises | DB write lock error halts pipeline. |
+| **Step 4** | Stock Universe Load & Sync | `run_pipeline.py:806-816` | **Lacks local try/except** | `storage.update_stock_universe()` network error halts startup. |
+| **Step 5** | Indicator History Fetch (Train/Infer) | `run_pipeline.py:829-874` | **Isolated & Safe** | `fetch_indicator_history` uses 3-tier fallback (yfinance -> FDR -> SQLite DB). Returns empty/partial DF safely. |
+| **Step 6** | Training Data Preparation | `run_pipeline.py:875-1017` | **Isolated & Safe** | ThreadPoolExecutor per symbol with 30s timeout; background thread for fundamentals; batch fundamental merge handles errors per symbol. |
+| **Step 7** | Model Training (Regression, Surge, Lead-Lag, VCP ML, Calibration) | `run_pipeline.py:1018-1114` | **Partially Isolated** | Regression (7a) & Surge (7b) isolated per market. **Lead-Lag (7c) lacks try/except** and halts training if correlation fails. Calibrator (7e) is wrapped in try/except. |
+| **Step 8** | Inference Fundamentals Fetch | `run_pipeline.py:1115-1157` | **Isolated & Safe** | Non-blocking background thread `_bg_fundamentals` logs warning on error. |
+| **Step 9** | Inference Price Data Fetch & Merge | `run_pipeline.py:1158-1241` | **Isolated & Safe** | Parallel symbol fetch with 30s timeout; `<200d` symbol purging; parallel fundamental merge pops failed symbols cleanly. |
+| **Step 10** | Prediction & 18 Strategy Executions | `run_pipeline.py:1243-2427` | **Partially Isolated** | Strategies 7,9,10-18 wrapped in try/except. **Main ML Infer (`predict_all`), Lead-Lag infer, and VCP ML infer lack try/except**. |
+| **Step 11** | Ensemble Scoring, Portfolio Alloc, Output File Generation | `run_pipeline.py:2430-3085` | **Partially Isolated** | **Market Regime GMM, `calculate_ensemble_score`, main output write, and HRP `allocator.allocate` lack try/except**. Coverage/Attribution/OMS/HTML reports are wrapped in try/except. |
+| **Step 12** | Post-pipeline Verification & State Tracking | `run_pipeline.py:3097-3144` | **Isolated & Safe** | Checks file existence and non-zero size. Top-level try/except recovers exit code 0 if output files were created. |
 
 ---
 
-## 3. Mathematical Design of Factor Orthogonalization Algorithms
+## 3. Detailed Findings & Recommended Patch Code
 
-Per `PROJECT.md` (lines 30-32):
-- **Input:** Raw strategy signal score matrix $X \in \mathbb{R}^{N \times 17}$ across $N$ tickers.
-- **Output:** Orthogonalized score matrix $X_{ortho} \in \mathbb{R}^{N \times 17}$ preserving relative variance explaining power.
+### Finding 1: Unhandled Global Indicators & Universe Sync at Startup
+* **File**: `trading_system/run_pipeline.py`
+* **Lines**: 794-816
+* **Issue**:
+  ```python
+  # 2. Fetch current global market indicators
+  logger.info("Fetching global market indicators...")
+  market_client = GlobalMarketClient()
+  market_summary = market_client.get_summary()  # <--- Unhandled exception if network fails!
 
-We present two complementary mathematical algorithms: **Gram-Schmidt Sequential Orthogonalization** and **PCA ZCA Symmetric Decorrelation**.
+  # 3. Store indicators
+  date_str = datetime.now().strftime('%Y-%m-%d')
+  storage = MarketIndicatorStorage(db_path=cfg.db_path)
+  with storage.pipeline_stage("global_indicators"):
+      storage.save_indicators(market_summary, date_str)
 
----
+  # 4. Update stock universe if needed
+  universe = storage.get_universe()
+  if universe.empty:
+      logger.info("Universe is empty. Syncing stock universe...")
+      storage.update_stock_universe()  # <--- Unhandled exception if FDR fails!
+      universe = storage.get_universe()
+  ```
+* **Impact**: If network connection is offline or intermittent at startup, `market_client.get_summary()` or `storage.update_stock_universe()` throws an uncaught exception, immediately crashing the pipeline before it can use cached DB data.
+* **Proposed Patch**:
+  ```python
+  # 2. Fetch current global market indicators with offline fallback
+  logger.info("Fetching global market indicators...")
+  market_summary = {}
+  try:
+      market_client = GlobalMarketClient()
+      market_summary = market_client.get_summary()
+  except Exception as e:
+      logger.warning(f"Failed to fetch real-time global indicators: {e}. Falling back to cached database indicators.")
 
-### 3.1 Algorithm 1: Sequential Gram-Schmidt Orthogonalization (Regime-Weighted Order)
+  date_str = datetime.now().strftime('%Y-%m-%d')
+  storage = MarketIndicatorStorage(db_path=cfg.db_path)
+  if market_summary:
+      try:
+          with storage.pipeline_stage("global_indicators"):
+              storage.save_indicators(market_summary, date_str)
+          logger.info("Saved market indicators to database.")
+      except Exception as e:
+          logger.warning(f"Failed to save market indicators: {e}")
 
-Gram-Schmidt orthogonalizes vectors sequentially according to a predefined priority order. In quantitative portfolio management, the priority order is determined by **Regime Weight / Sharpe Weight** $w_{(1)} \ge w_{(2)} \ge \dots \ge w_{(17)}$.
-
-#### Step 1: Sorting Strategy Vectors by Priority
-Let $\boldsymbol{x}_{(1)}, \boldsymbol{x}_{(2)}, \dots, \boldsymbol{x}_{(17)}$ be the score column vectors in $X$, sorted by decreasing regime weight $w_k$.
-
-#### Step 2: Recursive Projection Subtraction
-1. Set the dominant strategy unmutated:
-   $$\boldsymbol{u}_{(1)} = \boldsymbol{x}_{(1)}$$
-2. For $k = 2, 3, \dots, 17$, subtract projections onto all previously orthogonalized vectors $\boldsymbol{u}_{(1)}, \dots, \boldsymbol{u}_{(k-1)}$:
-   $$\boldsymbol{u}_{(k)} = \boldsymbol{x}_{(k)} - \sum_{j=1}^{k-1} \frac{\langle \boldsymbol{x}_{(k)}, \boldsymbol{u}_{(j)} \rangle}{\langle \boldsymbol{u}_{(j)}, \boldsymbol{u}_{(j)} \rangle + \epsilon} \boldsymbol{u}_{(j)}$$
-   where $\langle \boldsymbol{a}, \boldsymbol{b} \rangle = \sum_{i=1}^N a_i b_i$ is the inner product, and $\epsilon = 10^{-8}$ prevents zero division.
-
-#### Step 3: Variance-Preserving Rescaling & Range Normalization
-Because $\boldsymbol{u}_{(k)}$ contains only the residual component of strategy $k$ independent of higher-priority strategies, its sample variance $\text{Var}(\boldsymbol{u}_{(k)})$ is smaller than $\text{Var}(\boldsymbol{x}_{(k)})$.
-
-To preserve relative variance explaining power and maintain $[0, 1]$ score compatibility:
-$$\boldsymbol{x}_{ortho, (k)} = \text{clip}\left( \mu(\boldsymbol{x}_{(k)}) + \frac{\boldsymbol{u}_{(k)} - \mu(\boldsymbol{u}_{(k)})}{\sigma(\boldsymbol{u}_{(k)}) + \epsilon} \cdot \sigma(\boldsymbol{x}_{(k)}), \, 0.0, \, 1.0 \right)$$
-
----
-
-### 3.2 Algorithm 2: PCA ZCA Symmetric Factor Decorrelation (Loewdin Orthogonalization)
-
-While Gram-Schmidt relies on an explicit hierarchy, **PCA ZCA (Zero-Phase Component Analysis) Symmetric Decorrelation** treats all 17 strategies symmetrically. It finds the unique orthogonal matrix $X_{ortho}$ that minimizes the Frobenius distance to the original matrix $X$:
-$$\min_{X_{ortho}} \| X_{ortho} - X \|_F^2 \quad \text{subject to} \quad X_{ortho}^T X_{ortho} = D \text{ (diagonal)}$$
-
-#### Step 1: Standardize Input Score Matrix
-Let $\bar{X} \in \mathbb{R}^{N \times 17}$ be the mean-centered and unit-variance standardized matrix:
-$$\bar{X}_{i, j} = \frac{X_{i, j} - \mu(X_j)}{\sigma(X_j) + \epsilon}$$
-
-#### Step 2: Eigen-Decomposition of Covariance Matrix
-Compute sample correlation matrix $C = \frac{1}{N-1} \bar{X}^T \bar{X} \in \mathbb{R}^{17 \times 17}$.
-Perform eigen-decomposition:
-$$C = V \Lambda V^T$$
-where $V = [\boldsymbol{v}_1, \dots, \boldsymbol{v}_{17}]$ is the orthonormal eigenvector matrix ($V^T V = I$), and $\Lambda = \text{diag}(\lambda_1, \dots, \lambda_{17})$ contains eigenvalues representing variance explained by principal components.
-
-To handle potential rank deficiency or near-singularity, apply ridge regularization to eigenvalues:
-$$\tilde{\Lambda} = \text{diag}(\max(\lambda_j, \epsilon))$$
-
-#### Step 3: ZCA Whitening Transformation
-The ZCA decorrelation matrix is defined as:
-$$X_{decorr} = \bar{X} C^{-1/2} = \bar{X} V \tilde{\Lambda}^{-1/2} V^T$$
-
-**Mathematical Proof of Zero Covariance:**
-$$\text{Cov}(X_{decorr}) = X_{decorr}^T X_{decorr} = (V \tilde{\Lambda}^{-1/2} V^T \bar{X}^T) (\bar{X} V \tilde{\Lambda}^{-1/2} V^T) = V \tilde{\Lambda}^{-1/2} (V^T C V) \tilde{\Lambda}^{-1/2} V^T$$
-Since $V^T C V = \Lambda$, we get:
-$$\text{Cov}(X_{decorr}) = V \tilde{\Lambda}^{-1/2} \Lambda \tilde{\Lambda}^{-1/2} V^T = V I V^T = I_{17}$$
-Thus, all 17 output columns are **strictly uncorrelated** with unit variance.
-
-#### Step 4: Variance-Preserving Rescaling & Range Clipping
-Rescale each decorrelated column $X_{decorr, j}$ to match the original mean $\mu(X_j)$ and standard deviation $\sigma(X_j)$:
-$$X_{ortho, j} = \text{clip}\left( \mu(X_j) + X_{decorr, j} \cdot \sigma(X_j), \, 0.0, \, 1.0 \right)$$
+  # 4. Update stock universe if needed with offline fallback
+  universe = storage.get_universe()
+  if universe.empty:
+      logger.info("Universe is empty. Syncing stock universe...")
+      try:
+          storage.update_stock_universe()
+          universe = storage.get_universe()
+      except Exception as e:
+          logger.error(f"Failed to sync stock universe: {e}")
+  ```
 
 ---
 
-## 4. Algorithmic Comparison & Selection Guide
-
-| Feature / Property | Gram-Schmidt Orthogonalization | PCA ZCA Symmetric Decorrelation |
-|-------------------|--------------------------------|----------------------------------|
-| **Symmetry** | Asymmetric (order dependent) | Symmetric (order independent) |
-| **Strategy Hierarchy** | Explicitly preserves #1 strategy | Equal treatment across all 17 |
-| **Distance to Original** | Distorts lower-order strategies | Minimizes Frobenius norm distance $\|X_{ortho} - X\|_F$ |
-| **Pairwise Correlation** | Strictly 0.0 for all pairs | Strictly 0.0 for all pairs |
-| **Variance Preservation** | Preserved via std dev rescaling | Preserved via eigenvalue scaling + std dev rescaling |
-| **Optimal Use Case** | Regimes with 1 dominant strategy (e.g. BULL with `surge`) | Balanced multi-factor ensemble regimes |
-
----
-
-## 5. Architectural Design for `FactorOrthogonalizerEngine`
-
-We propose creating `trading_system/src/ai/factor_orthogonalizer.py`:
-
-```python
-import logging
-import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Union
-
-logger = logging.getLogger(__name__)
-
-class FactorOrthogonalizerEngine:
-    """
-    Orthogonalizes 17 raw strategy signal scores per ticker X in R^{N x 17}
-    using Gram-Schmidt or PCA ZCA Symmetric Decorrelation.
-    Preserves relative variance explaining power and [0, 1] score range.
-    """
-
-    def __init__(self, default_method: str = 'pca_symmetric', ridge_epsilon: float = 1e-6):
-        self.default_method = default_method
-        self.ridge_epsilon = ridge_epsilon
-
-    def orthogonalize(
-        self,
-        score_df: pd.DataFrame,
-        strategy_cols: List[str],
-        weights: Optional[Dict[str, float]] = None,
-        method: Optional[str] = None
-    ) -> pd.DataFrame:
-        """
-        Args:
-            score_df: DataFrame containing ticker rows and 17 strategy score columns.
-            strategy_cols: List of 17 score column names.
-            weights: Optional strategy weight dict (used for Gram-Schmidt ordering).
-            method: 'pca_symmetric' or 'gram_schmidt'.
-        Returns:
-            DataFrame with orthogonalized score columns preserving [0, 1] range.
-        """
-        eff_method = method or self.default_method
-        valid_cols = [c for c in strategy_cols if c in score_df.columns]
-        if len(valid_cols) < 2:
-            return score_df.copy()
-
-        # Extract numeric array X (N, K)
-        X_raw = score_df[valid_cols].values.astype(float)
-        N, K = X_raw.shape
-
-        # Handle NaNs: temporarily fill with column mean
-        col_means = np.nanmean(X_raw, axis=0)
-        col_means = np.nan_to_num(col_means, nan=0.5)
-        inds = np.where(np.isnan(X_raw))
-        X_clean = X_raw.copy()
-        X_clean[inds] = np.take(col_means, inds[1])
-
-        col_stds = np.std(X_clean, axis=0)
-        col_stds = np.where(col_stds < 1e-8, 1e-6, col_stds)
-
-        if eff_method == 'gram_schmidt':
-            X_ortho = self._gram_schmidt(X_clean, valid_cols, weights, col_means, col_stds)
-        else:
-            X_ortho = self._pca_zca_symmetric(X_clean, col_means, col_stds)
-
-        # Restore original NaNs
-        X_ortho[inds] = np.nan
-
-        out_df = score_df.copy()
-        out_df[valid_cols] = np.clip(X_ortho, 0.0, 1.0)
-        return out_df
-
-    def _gram_schmidt(
-        self,
-        X: np.ndarray,
-        cols: List[str],
-        weights: Optional[Dict[str, float]],
-        means: np.ndarray,
-        stds: np.ndarray
-    ) -> np.ndarray:
-        N, K = X.shape
-        # Determine ordering by weight
-        if weights:
-            # map column to strategy weight
-            order = sorted(range(K), key=lambda i: weights.get(cols[i], 0.0), reverse=True)
-        else:
-            order = list(range(K))
-
-        U = np.zeros_like(X)
-        X_ortho_ordered = np.zeros_like(X)
-
-        for idx, k in enumerate(order):
-            x_k = X[:, k]
-            u_k = x_k.copy()
-            for prev_idx in range(idx):
-                u_j = U[:, prev_idx]
-                denom = np.dot(u_j, u_j)
-                if denom > 1e-8:
-                    proj = (np.dot(x_k, u_j) / denom) * u_j
-                    u_k -= proj
-            U[:, idx] = u_k
-
-            # Rescale
-            u_std = np.std(u_k)
-            u_mean = np.mean(u_k)
-            if u_std > 1e-8:
-                rescaled = means[k] + ((u_k - u_mean) / u_std) * stds[k]
-            else:
-                rescaled = means[k] * np.ones(N)
-            X_ortho_ordered[:, k] = rescaled
-
-        return X_ortho_ordered
-
-    def _pca_zca_symmetric(
-        self,
-        X: np.ndarray,
-        means: np.ndarray,
-        stds: np.ndarray
-    ) -> np.ndarray:
-        N, K = X.shape
-        # Standardize
-        X_bar = (X - means) / stds
-
-        # Covariance matrix C (K, K)
-        C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
-
-        # Eigen decomposition
-        eigenvalues, eigenvectors = np.linalg.eigh(C)
-
-        # Ridge regularize eigenvalues
-        eigenvalues = np.maximum(eigenvalues, self.ridge_epsilon)
-
-        # Compute C^(-1/2) = V * diag(lambda^(-1/2)) * V^T
-        inv_sqrt_lambda = np.diag(1.0 / np.sqrt(eigenvalues))
-        C_inv_sqrt = np.dot(eigenvectors, np.dot(inv_sqrt_lambda, eigenvectors.T))
-
-        # ZCA Whitening
-        X_decorr = np.dot(X_bar, C_inv_sqrt)
-
-        # Variance-preserving rescaling
-        X_ortho = means + X_decorr * stds
-        return X_ortho
-```
+### Finding 2: Unhandled Exception in Lead-Lag Matrix Training (Step 7c)
+* **File**: `trading_system/run_pipeline.py`
+* **Lines**: 1074-1076
+* **Issue**:
+  ```python
+  # 7c. Compute lead-lag correlation matrix (which stocks follow which)
+  with storage.pipeline_stage("train_lead_lag_vcp"):
+      if not df_train.empty and len(df_train) > 1000:
+          model.compute_lead_lag(df_train, indicator_df=indicator_train, symbol_to_market=symbol_market)
+  ```
+* **Impact**: `model.compute_lead_lag` is called inside `storage.pipeline_stage("train_lead_lag_vcp")`. If pandas indexing or correlation calculation fails, `pipeline_stage` catches the exception, marks the stage as FAILED in SQLite, and re-raises the exception. Because there is no local `try...except`, the entire pipeline training phase crashes.
+* **Proposed Patch**:
+  ```python
+  with storage.pipeline_stage("train_lead_lag_vcp"):
+      if not df_train.empty and len(df_train) > 1000:
+          try:
+              model.compute_lead_lag(df_train, indicator_df=indicator_train, symbol_to_market=symbol_market)
+          except Exception as _ll_e:
+              logger.warning(f"Lead-lag correlation matrix training failed: {_ll_e}")
+  ```
 
 ---
 
-## 6. Integration Contract into `EnsembleScoringEngine`
+### Finding 3: Unhandled ML Inference Calls (`model.predict_all`, `model.predict_lead_lag`, `vcp_ml.predict`)
+* **File**: `trading_system/run_pipeline.py`
+* **Lines**: 1245-1250, 1337, 1749
+* **Issue**:
+  - Line 1246: `res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower, storage=storage, fundamentals_cache=infer_fund_cache)`
+  - Line 1337: `lead_lag_df = model.predict_lead_lag(infer_data_dict, indicator_df=indicator_infer)`
+  - Line 1749: `vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)`
+* **Impact**: If any of these ML prediction methods raises an exception (e.g. missing column in single market run, unexpected dtype mismatch, missing model file), the exception propagates and halts execution before rule-based and quant factor strategies (VCP, Stat-Arb, Sector Rotation, RIM, Event-Driven, MQ, IV Skew, Order Flow, Reversal, ARM, CARD, LATR, Inst-Foreign) can run.
+* **Proposed Patch**:
+  Wrap each ML inference call in a `try...except` block that logs a warning and returns an empty `pd.DataFrame()` on failure:
+  ```python
+  with storage.pipeline_stage("inference_regression_surge"):
+      try:
+          res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower, storage=storage, fundamentals_cache=infer_fund_cache)
+      except Exception as _pred_e:
+          logger.error(f"Main regression/surge inference failed: {_pred_e}")
+          res_df, surge_df = pd.DataFrame(), pd.DataFrame()
 
-In `EnsembleScoringEngine.combine_predictions()` (around line 883, right before `update_correlation`):
+  try:
+      lead_lag_df = model.predict_lead_lag(infer_data_dict, indicator_df=indicator_infer)
+  except Exception as _ll_infer_e:
+      logger.warning(f"Lead-lag inference failed: {_ll_infer_e}")
+      lead_lag_df = pd.DataFrame()
 
-```python
-# Insert Factor Orthogonalization step
-if self.orthogonalizer_enabled:
-    strategy_score_cols = [col for _, col in strategy_cols if col in merged.columns]
-    merged = self.orthogonalizer.orthogonalize(
-        score_df=merged,
-        strategy_cols=strategy_score_cols,
-        weights=weights,
-        method='pca_symmetric'
-    )
-```
+  try:
+      if vcp_ml is not None:
+          vcp_ml_df = vcp_ml.predict(infer_data_dict, indicator_infer, universe)
+  except Exception as _vcp_ml_e:
+      logger.warning(f"VCP ML inference failed: {_vcp_ml_e}")
+      vcp_ml_df = pd.DataFrame()
+  ```
 
-This ensures that the 17-strategy score matrix $X$ passed to downstream dynamic linear combination, meta-ensemble stacking, and risk parity portfolio optimizer consists of **mutually orthogonalized, zero-redundancy alpha signals**.
+---
+
+### Finding 4: Unhandled GMM Market Regime Detection & Ensemble Scoring
+* **File**: `trading_system/run_pipeline.py`
+* **Lines**: 1426-1440, 2430-2451
+* **Issue**:
+  - Lines 1431-1439: `regime_detector.train(...)` and `regime_detector.predict_2d_regime(...)` run without exception guards.
+  - Lines 2430-2451: `ensemble_df = scorer.calculate_ensemble_score(...)` runs without exception guards.
+* **Impact**: If GMM clustering encounters singular matrices or NaN inputs, or if ensemble score computation throws an unexpected KeyError/ValueError, the entire pipeline crashes before creating `ensemble_predictions.txt` and report files.
+* **Proposed Patch**:
+  ```python
+  # 11b. Market Regime Detection with Fallback
+  logger.info("Running GMM Market Regime Detection...")
+  current_2d_regime = 'SIDEWAYS_LOW_VOL'
+  current_regime_label = 'SIDEWAYS'
+  current_regime = 1
+  try:
+      regime_detector = MarketRegimeDetector()
+      if not indicator_train.empty:
+          regime_detector.train(indicator_train)
+      elif not indicator_infer.empty:
+          regime_detector.train(indicator_infer)
+
+      current_regime_label = regime_detector.predict_regime_label(indicator_infer)
+      current_regime = regime_detector.predict_regime(indicator_infer)
+      regime_2d_info = regime_detector.predict_2d_regime(indicator_infer)
+      current_2d_regime = regime_2d_info['combo_label']
+  except Exception as _reg_e:
+      logger.warning(f"Market regime detection failed: {_reg_e}. Using fallback: {current_2d_regime}")
+
+  # 11d. Ensemble Scoring with Fallback
+  try:
+      ensemble_df = scorer.calculate_ensemble_score(
+          regime=current_2d_regime,
+          regression_df=res_df,
+          surge_df=surge_df,
+          lead_lag_df=lead_lag_df,
+          vcp_rule_df=vcp_results,
+          vcp_ml_df=vcp_ml_df,
+          stat_arb_df=stat_arb_df,
+          sector_df=sector_df,
+          rim_df=rim_df,
+          event_df=event_df,
+          mq_df=mq_df,
+          iv_skew_df=iv_skew_df,
+          order_flow_df=order_flow_df,
+          reversal_df=reversal_df,
+          arm_df=arm_df,
+          card_df=card_df,
+          latr_df=latr_df,
+          inst_foreign_sector_df=inst_foreign_sector_df,
+          rolling_sharpes=rolling_sharpes,
+          target_horizon=20
+      )
+  except Exception as _ens_e:
+      logger.error(f"Ensemble scoring failed: {_ens_e}")
+      ensemble_df = pd.DataFrame()
+  ```
+
+---
+
+### Finding 5: Pipeline State Tracking vs Resumability Gap
+* **File**: `trading_system/src/data_layer/indicator_storage.py` (lines 207-256) & `trading_system/run_pipeline.py`
+* **Issue**: `MarketIndicatorStorage.pipeline_stage(stage)` records stage executions into SQLite `pipeline_runs` table (`stage`, `start_time`, `end_time`, `status`, `error_message`). However, `run_pipeline.py` does not check `pipeline_runs` upon startup to skip previously completed stages if a pipeline run is restarted after a failure.
+* **Impact**: On failure recovery, the pipeline must re-run all previous steps from scratch (fetching price data, retraining models) unless manual CLI flags (`--skip-training`, `--skip-inference`) are supplied.
+* **Recommended Feature Proposal**: Add a check in `pipeline_stage` or `run_pipeline.py` to check `storage.is_stage_completed(stage_name, date_str)` when `--resume` flag is passed.
+
+---
+
+## 4. Graceful Degradation & Data Resilience Audit Findings
+
+1. **3-Tier Fallback Data Handler (`fetch_data_fdr` & `fetch_indicator_history`)**:
+   - Tier 1: `yfinance` download (with Tenacity exponential backoff retries).
+   - Tier 2: `FinanceDataReader` download.
+   - Tier 3: Local SQLite DB offline cache (`stock_prices.db` and `market_indicators.db`).
+   - If network fails and DB cache is available, the system proceeds seamlessly with cached data and logs an offline warning.
+
+2. **Binary Split Download Recovery (`_download_with_recovery`)**:
+   - Batch downloads of 100 tickers use a recursive binary split to isolate delisted, suspended, or corrupt tickers without failing the entire batch download.
+
+3. **Data Quality Gate & Macro Integrity Sanitization**:
+   - `DataValidator.validate_price_data`: Rejects tickers with >50% NaN, non-positive close prices, or >90% zero volume (halted stocks).
+   - Macro Data Sanitization (`_plausible_bounds` lines 2585-2617): Detects out-of-bounds or shared-series DB cache contamination (e.g. VIX, WTI, Gold, US10Y taking identical values) and substitutes safe, conservative defaults (`vix=18.5`, `usdkrw=1380.0`, `us10y=4.25%`, `wti=$75.0`, `gold=$220.0`).
+
+4. **Delisted / Halted KRX Stock Filter (`_get_excluded_krx_symbols`)**:
+   - Purges KRX administrative stocks (관리종목) and halted stocks (Volume=0 during active market hours) before running inference.
+
+---
+
+## 5. Multi-Market Execution & Output Verification Findings
+
+1. **Parallel Market Execution & Model Isolation**:
+   - Model training for `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` runs in parallel threads. Failure in one market is captured in `_train_failures` without interrupting training for other markets.
+   - `--target MARKET` CLI flag enables single-market execution for GitHub Actions matrix jobs.
+
+2. **Output File Generation & Matrix Merge Support**:
+   - Generates 23+ prediction and report files in `trading_system/result/`.
+   - Produces per-market suffix files (e.g. `ensemble_predictions_KOSPI.txt`, `pipeline_result_SP500.txt`) for all 18 strategies so matrix GHA jobs can run targets independently and merge outputs.
+
+3. **Post-Pipeline Verification Gate**:
+   - Validates existence and non-zero byte size for 13 core output files.
+   - Parses `pipeline_result.txt` via regex to confirm expected returns are not stuck at `0.0`.
+   - Top-level exception block (`lines 3230-3261`) checks if output files exist even after an unhandled error, logging a partial success warning and exiting with code `0`.
+
+---
+
+## 6. Actionable Recommendations
+
+1. **Apply Exception Isolation Patches**: Wrap Steps 2, 4, 7c, 10a, 10d, 10e, 11b, 11d, and Portfolio Allocation in local `try...except` blocks as specified in Section 3.
+2. **Implement Resumability Checkpoint Engine**: Enhance `pipeline_stage()` in `indicator_storage.py` to allow skipping already-completed stages when a `--resume` flag is passed.
+3. **Add Validation Unit Tests**: Add unit tests in `tests/test_run_pipeline_robustness.py` asserting that pipeline steps degrade gracefully when external APIs return empty data or throw network exceptions.

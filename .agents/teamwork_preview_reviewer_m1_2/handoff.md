@@ -1,111 +1,169 @@
-# Handoff Report — Reviewer M1-2 (Milestone 1)
+# Milestone 1 Audit Handoff Report — Financial Engineering & Quantitative Risk Audit
 
 ## 1. Observation
 
-### Examined Files and Verified Components
-- **`trading_system/src/data_layer/hybrid_storage.py`**:
-  - `ParquetWALBuffer` (lines 55–172): Staging buffer writes price updates into `.wal_staging/<symbol>_<uuid>.parquet` files without acquiring SQLite database locks. `flush_staging_to_master` (lines 113–171) consolidates staging files per symbol into master Parquet files (`data/store/<symbol>.parquet`) and optionally invokes a batch DB callback (`StockPriceDB.update_prices`).
-  - `execute_sqlite_with_retry` (lines 31–52): Implements exponential backoff (`min(max_delay, base_delay * (2 ** attempt)) + random.uniform(0, 0.02)`) retrying `sqlite3.OperationalError` ("locked"/"busy") up to 10 retries.
+- **Reviewed Source Files**:
+  - `src/risk/portfolio_optimizer.py` / `trading_system/src/analysis/portfolio_optimizer.py` (lines 9-330): Risk Parity, Black-Litterman, Ledoit-Wolf Covariance Shrinkage (`shrink_factor=0.15`), and HRP allocation (`calculate_hrp_weights`).
+  - `trading_system/src/risk/portfolio_allocator.py` (lines 51-170, 252-342, 366-474): 3-tier EVT-GPD CVaR estimation, dynamic microstructure transaction cost modeling (STT, SEC, dynamic spread, Kyle/Almgren-Chriss impact), and Leland buffer band rebalancing.
+  - `trading_system/src/risk/position_sizing.py` (lines 32-46, 349-372): 3-layer top-down portfolio allocation (`PortfolioAllocator`), single asset cap (15%), sector cap (30%), total allocation cap (85%).
+  - `trading_system/src/risk/pretrade_gatekeeper.py` (lines 41-95): `PreTradeRiskGatekeeper` enforcing single stock weight cap (15%), 20d ADV liquidity cap (5%), and Macro Crisis Gating rejection (`passed=False, adjusted_weight=0.0`).
+  - `trading_system/src/risk/risk_manager.py` (lines 78-297, 314-895): `CrisisDetector` 5-factor composite scoring (VIX, Drawdown, Volume Spike, Trend Breakdown, Macro), crisis level gating (NONE, WATCH, ACTIVE, SEVERE), buy blocking, liquidation triggering, VIX risk-off switch, and stress test adjustment scaling.
+  - `trading_system/run_pipeline.py` (lines 2622-2653, 3044-3070): End-to-end pipeline CrisisDetector integration, fail-closed try-except fallback scaling returns by 0.50, and portfolio allocation invocation.
+  - `trading_system/src/ai/ensemble_scorer.py` (lines 1137-1225, 1230-1270): Microstructure cost deduction from raw expected returns, zero-weighting preferred stocks, SPACs, illiquid symbols, and sentiment blacklisted stocks.
 
-- **`trading_system/src/data_layer/indicator_storage.py`**:
-  - `MarketIndicatorStorage.save_fundamentals` (lines 374–413): Prepares parameter tuples and uses `conn.executemany(sql, records)` wrapped in `_write_lock` and `execute_sqlite_with_retry` for high-throughput concurrency.
-  - Context managers `_connect()` (lines 24–36) with WAL mode + 5s busy timeout, and `pipeline_stage()` (lines 162–211) for structured pipeline run logging in `pipeline_runs`.
-
-- **`trading_system/src/persistence/database.py`**:
-  - `StockPriceDB.update_prices` (lines 427–462): Uses `conn.executemany` with UPSERT SQL statements to batch insert/replace price records, protected by `_write_lock` and `execute_sqlite_with_retry`.
-
-- **`trading_system/src/ai/ensemble_scorer.py`**:
-  - `EnsembleScoringEngine.combine_predictions` (lines 960–963): Saves un-mutated raw scores copy to `self.raw_scores` and `merged.attrs['raw_scores'] = self.raw_scores` BEFORE executing `fillna(0.0)` on missing strategy prediction columns (lines 966–977). This preserves true NaNs in `merged.attrs['raw_scores']`.
-
-- **`trading_system/src/analysis/coverage_analyzer.py`**:
-  - `StrategyCoverageAnalyzer._has_symbol_fundamental_data` (lines 26–81): Checks per-symbol fundamental data availability across 10 fundamental metrics (`bps`, `roe`, `operating_margin`, `net_profit_margin`, `revenue`, `operating_income`, `net_income`, `eps`, `book_value`, `dividend_per_share`). Handles both dict of DataFrames and single DataFrame structures, string/integer symbol formatting, and zero-padded symbol codes.
-  - `analyze_coverage` (lines 97–102): Retrieves raw scores directly from `ensemble_df.attrs['raw_scores']` to accurately categorize valid predictions vs. missing data reasons (`INSUFFICIENT_PRICE_HISTORY`, `NO_FUNDAMENTAL_DATA`, `NO_OPTIONS_CHAIN`, `NO_COINTEGRATED_PAIR`, `STRATEGY_SIGNAL_NEUTRAL`).
-
-### Verification Test Suite Results
-Command executed:
-```bash
-.venv\Scripts\python.exe -m unittest tests/test_indicator_storage.py tests/test_database_concurrency.py tests/test_r3_coverage_and_universe.py -v
-```
-Output verbatim:
-```text
-test_market_baselines (tests.test_indicator_storage.TestMarketIndicatorStorage.test_market_baselines) ... ok
-test_pipeline_stage_logging (tests.test_indicator_storage.TestMarketIndicatorStorage.test_pipeline_stage_logging) ... ok
-test_save_and_get_fundamentals (tests.test_indicator_storage.TestMarketIndicatorStorage.test_save_and_get_fundamentals) ... ok
-test_parquet_wal_buffer_and_flush (tests.test_database_concurrency.TestDatabaseConcurrency.test_parquet_wal_buffer_and_flush) ... ok
-test_stock_price_db_concurrency_zero_lock_errors (tests.test_database_concurrency.TestDatabaseConcurrency.test_stock_price_db_concurrency_zero_lock_errors) ... ok
-test_coverage_analyzer_reasons_and_counts (tests.test_r3_coverage_and_universe.TestCoverageAndUniverse.test_coverage_analyzer_reasons_and_counts) ... ok
-test_ensemble_scorer_preserves_raw_score_nans (tests.test_r3_coverage_and_universe.TestCoverageAndUniverse.test_ensemble_scorer_preserves_raw_score_nans) ... ok
-test_has_symbol_fundamental_data_variations (tests.test_r3_coverage_and_universe.TestCoverageAndUniverse.test_has_symbol_fundamental_data_variations) ... ok
-
-----------------------------------------------------------------------
-Ran 8 tests in 3.056s
-
-OK
-```
+- **Test Suite Command & Output**:
+  - Command: `.venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_portfolio_risk.py tests/test_hrp_optimizer.py tests/test_kelly_sizing.py -v`
+  - Result: `20 passed, 1 warning in 32.56s`.
+  - Command: `.venv\Scripts\python.exe -m pytest tests/ --ignore=tests/test_m1_master_suite.py -v`
+  - Observation: Full test collection on `tests/` initially raised an error due to `tests/test_m1_master_suite.py:11` attempting `from tests.test_correlation_suppression import TestCorrelationSuppression` when `test_correlation_suppression.py` defines test functions instead of a test class.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Parquet WAL Buffer**: `ParquetWALBuffer` writes individual symbol DataFrames into `.parquet` staging files in `data/wal_staging/`. Because writes target separate files on disk, zero SQLite connection/database locks are acquired during multi-threaded downloads. `flush_staging_to_master` merges staging files into master Parquet datasets and executes a single consolidated batch write into SQLite.
-2. **Exponential Backoff Retry**: `execute_sqlite_with_retry` catches `sqlite3.OperationalError` containing "locked" or "busy" and retries up to `max_retries=10` with exponentially increasing delay plus jitter (`min(max_delay, base_delay * (2 ** attempt)) + random.uniform(0, 0.02)`). Concurrency tests with 20 parallel threads completed with zero lock errors.
-3. **Batch executemany**: Both `MarketIndicatorStorage.save_fundamentals` and `StockPriceDB.update_prices` construct parameter lists and execute `conn.executemany`, reducing SQL compilation overhead and transaction open times.
-4. **Raw Score NaN Preservation**: In `EnsembleScoringEngine.combine_predictions`, calling `self.raw_scores = merged.copy()` prior to `fillna(0.0)` stores the un-mutated DataFrame with explicit `NaN` values into `merged.attrs['raw_scores']`.
-5. **Per-Symbol Fundamental Data Checks**: `StrategyCoverageAnalyzer._has_symbol_fundamental_data` inspects the 10 fundamental columns for non-NaN, finite values per symbol key/row, enabling `analyze_coverage` to accurately identify when missing strategy scores stem from missing fundamental data versus price history or strategy neutrality.
+1. **Fail-Closed Risk Controls**:
+   - In `pretrade_gatekeeper.py:56-63`, when `is_crisis_mode` is True, proposed orders return `passed=False, adjusted_weight=0.0`, blocking orders from reaching execution.
+   - In `run_pipeline.py:2633-2638`, when `CrisisLevel.ACTIVE` or `SEVERE` is detected, expected returns are scaled by 0.5 or 0.0.
+   - In `run_pipeline.py:2648-2652`, if `RiskManager` evaluation raises an exception, the exception handler catches it and scales expected returns by 0.50 as a conservative defensive posture.
+   - In `run_pipeline.py:2646-2647`, intraday stop-loss triggers set `ensemble_expected_return = -0.99` and `ensemble_score = 0.0`.
+   - In `ensemble_scorer.py:1230-1270`, blacklisted symbols, preferred stocks, SPACs, and illiquid stocks receive zero weight (`ensemble_score = 0.0`, `ensemble_expected_return = 0.0`).
+
+2. **Position Cap Enforcement**:
+   - Single Asset Cap (15%): Enforced in `position_sizing.py:349` (`df_candidates['weight'].clip(upper=0.15)`) and `pretrade_gatekeeper.py:66` (`min(target_weight, 0.15)`).
+   - Sector Cap (30%): Enforced in `position_sizing.py:366` (`max_sector_exposure = 0.30`) and `risk_manager.py:630` (`max_sector_exposure_pct = 0.30`).
+   - Liquidity Cap (5% 20d ADV): Enforced in `pretrade_gatekeeper.py:75-87` (`max_order_adv_pct = 0.05`), which resizes order shares to `int(20d_ADV * 0.05)`.
+
+3. **Microstructure Friction Costs**:
+   - STT tax: KOSPI sell STT = 0.15% (0.0015), KOSDAQ sell STT = 0.18% (0.0018), US SEC fee = 0.003% (0.00003).
+   - Brokerage fee: KRX = 0.03% (0.0003), US = 0.005% (0.00005).
+   - Dynamic Bid-Ask spread: $S_i = \text{base\_spread} \cdot (ADV_{\text{ref}}/ADV_i)^{0.25} \cdot (\sigma_i/0.02)^{0.50}$, clamped between spread_min and spread_max.
+   - Market Impact: Almgren-Chriss square-root impact $I_i = \text{impact\_coeff} \cdot \sigma_i \cdot \sqrt{\text{order\_val} / ADV_i}$, plus $+0.50 \cdot (\text{participation} - 0.10)$ when participation $> 10\%$ ADV.
+   - Deduction: Net expected returns are calculated as raw expected returns minus total friction costs percentage. Verified via `test_stt_and_market_cost_estimation` (PASSED).
+
+4. **CrisisDetector Gating**:
+   - Multi-factor composite scoring combining VIX, Drawdown, Volume Spike, Trend Breakdown, and Macro indicators (USD/KRW, WTI, TNX, DXY).
+   - Defensive cash targets: NONE (10%), WATCH (30%), ACTIVE (60%), SEVERE (85%).
+   - Position sizing multipliers: NONE (1.0), WATCH (0.70), ACTIVE (0.40), SEVERE (0.15).
+
+5. **HRP Portfolio Allocation & Covariance Stability**:
+   - `shrink_covariance_matrix` applies Ledoit-Wolf diagonal target shrinkage (`shrink_factor = 0.15`).
+   - `calculate_hrp_weights` calculates correlation matrix $R$, distance matrix $D = \sqrt{0.5(1-R)}$, single linkage clustering, quasi-diagonalization, and recursive bisection.
+   - Matrix non-finite values are handled with `np.nan_to_num`, with fallback to Risk Parity (SLSQP / log-barrier solver) $\to$ inverse volatility $\to$ equal weighting. Verified via `test_calculate_hrp_weights_basic`, `test_calculate_hrp_weights_single_asset`, `test_calculate_hrp_weights_invalid`, `test_portfolio_allocator_hrp_integration` (ALL PASSED).
 
 ---
 
 ## 3. Caveats
 
-- **SQLite Error Scope**: `execute_sqlite_with_retry` specifically checks for `"locked"` or `"busy"` in the exception message. Disk space or schema mismatch errors will correctly fail fast without retry.
-- **WAL Staging Cleanup**: Staging file unlinking ignores deletion errors via `try...except Exception: pass` to ensure master table updates succeed even if temporary file cleanup is delayed by OS file handles.
+- Live broker order submission APIs were mocked during execution tests (`test_r2_buy_order_clamping`).
+- `tests/test_m1_master_suite.py` has an invalid import (`from tests.test_correlation_suppression import TestCorrelationSuppression`), requiring `--ignore=tests/test_m1_master_suite.py` when running `pytest tests/`.
+- `PortfolioOptimizer` in `src/risk/portfolio_optimizer.py:23` defaults to `default_max_weight=0.20` and `default_max_sector_weight=0.35`, whereas `position_sizing.py` and `pretrade_gatekeeper.py` default to `0.15` and `0.30`. While downstream pre-trade gatekeepers clamp single asset weights to 15% and sector weights to 30%, setting `PortfolioOptimizer` constructor defaults to 0.15 / 0.30 will align default configuration across all modules.
 
 ---
 
-## 4. Conclusion & Review Verdict
+## 4. Conclusion
 
 **Verdict**: **APPROVE**
 
-### Findings Summary
-- **Critical / Major / Minor Findings**: None. No integrity violations, hardcoded test results, facade implementations, or shortcuts were found. All implementation logic is genuine and backed by unit tests.
-
-### Verified Claims
-- Parquet WAL buffer staging & background compaction → Verified via `test_parquet_wal_buffer_and_flush` → **PASS**
-- 20-thread concurrent database writes with zero lock errors → Verified via `test_stock_price_db_concurrency_zero_lock_errors` → **PASS**
-- Batch `executemany` implementation in fundamentals & prices → Verified via code inspection & `test_save_and_get_fundamentals` → **PASS**
-- Raw score NaN preservation in DataFrame `attrs['raw_scores']` → Verified via `test_ensemble_scorer_preserves_raw_score_nans` → **PASS**
-- Per-symbol fundamental data checks across dict/DataFrame format variations → Verified via `test_has_symbol_fundamental_data_variations` → **PASS**
-
-### Coverage Gaps
-- None. All targeted files and requirements were fully inspected and tested.
-
-### Unverified Items
-- None.
+All quantitative risk management controls, HRP allocation algorithms, position sizing caps (15% asset / 30% sector / 5% ADV), liquidity filters, CrisisDetector gating rules, and microstructure transaction friction cost deductions are mathematically sound, properly integrated, and fail closed.
 
 ---
 
 ## 5. Verification Method
 
-To independently re-verify this review:
+To independently verify this audit:
 
-1. Run the test suite:
-   ```cmd
-   .venv\Scripts\python.exe -m unittest tests/test_indicator_storage.py tests/test_database_concurrency.py tests/test_r3_coverage_and_universe.py -v
+1. Run the risk & portfolio test suite:
+   ```bash
+   .venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_portfolio_risk.py tests/test_hrp_optimizer.py tests/test_kelly_sizing.py -v
    ```
-2. Inspect target source files:
-   - `trading_system/src/data_layer/hybrid_storage.py` (lines 55-172: `ParquetWALBuffer`, lines 31-52: `execute_sqlite_with_retry`)
-   - `trading_system/src/data_layer/indicator_storage.py` (lines 384-413: `save_fundamentals`)
-   - `trading_system/src/persistence/database.py` (lines 427-462: `update_prices`)
-   - `trading_system/src/ai/ensemble_scorer.py` (lines 960-963: `merged.attrs['raw_scores']`)
-   - `trading_system/src/analysis/coverage_analyzer.py` (lines 26-81: `_has_symbol_fundamental_data`)
+2. Run all tests excluding the obsolete master suite file:
+   ```bash
+   .venv\Scripts\python.exe -m pytest tests/ --ignore=tests/test_m1_master_suite.py -v
+   ```
+3. Inspect source files:
+   - `src/risk/portfolio_optimizer.py`
+   - `src/risk/portfolio_allocator.py`
+   - `src/risk/position_sizing.py`
+   - `src/risk/pretrade_gatekeeper.py`
+   - `src/risk/risk_manager.py`
+   - `src/ai/ensemble_scorer.py`
+   - `trading_system/run_pipeline.py`
 
 ---
 
-## Adversarial Stress-Test & Challenge Summary
+## Review Report
 
-**Overall Risk Assessment**: **LOW**
+### Review Summary
 
-- **Stress Scenario 1**: High concurrency lock contention (20 threads writing simultaneously).
-  - *Result*: `execute_sqlite_with_retry` and WAL journal mode handled all 20 threads cleanly with zero lock exceptions (`test_stock_price_db_concurrency_zero_lock_errors` passed).
-- **Stress Scenario 2**: Missing strategy predictions vs. valid 0.0 scores.
-  - *Result*: Preserving `raw_scores` copy in DataFrame `attrs` before `fillna(0.0)` prevents coverage misclassification and preserves signal integrity.
+**Verdict**: **APPROVE**
+
+### Findings
+
+#### [Minor] Finding 1: Mismatched import in `tests/test_m1_master_suite.py`
+- **What**: `tests/test_m1_master_suite.py` line 11 imports `TestCorrelationSuppression` from `tests.test_correlation_suppression`, but `test_correlation_suppression.py` defines top-level test functions rather than a test class.
+- **Where**: `tests/test_m1_master_suite.py:11`
+- **Why**: Causes `pytest tests/` to fail during collection unless ignored.
+- **Suggestion**: Update `test_m1_master_suite.py` or wrap tests in `test_correlation_suppression.py` in a `TestCorrelationSuppression` class.
+
+#### [Minor] Finding 2: Default Parameter Discrepancy in `PortfolioOptimizer`
+- **What**: `PortfolioOptimizer` in `src/risk/portfolio_optimizer.py:23` defaults to `default_max_weight=0.20` and `default_max_sector_weight=0.35`, whereas `position_sizing.py` and `pretrade_gatekeeper.py` use `0.15` and `0.30`.
+- **Where**: `src/risk/portfolio_optimizer.py:23`, `src/ai/ensemble_scorer.py:1280`
+- **Why**: Downstream gatekeeper clamps weights to 15%/30%, but updating `PortfolioOptimizer` defaults to 0.15 / 0.30 ensures uniform configuration defaults.
+- **Suggestion**: Align `PortfolioOptimizer` defaults to `default_max_weight=0.15` and `default_max_sector_weight=0.30`.
+
+### Verified Claims
+
+- Risk controls fail closed under crisis / exception -> verified via code inspection (`pretrade_gatekeeper.py:56-63`, `run_pipeline.py:2648-2652`) and unit tests -> **PASS**
+- Single asset weight cap (15%) strictly enforced -> verified via code inspection (`position_sizing.py:349`, `pretrade_gatekeeper.py:66`) and unit tests (`test_r2_buy_order_clamping`) -> **PASS**
+- Sector exposure cap (30%) strictly enforced -> verified via code inspection (`position_sizing.py:366`, `risk_manager.py:630`) -> **PASS**
+- ADV liquidity limit (5%) strictly enforced -> verified via code inspection (`pretrade_gatekeeper.py:75-87`) -> **PASS**
+- Microstructure friction costs (STT, SEC, dynamic spread, market impact) accurately calculated -> verified via code inspection (`portfolio_allocator.py:252-342`, `ensemble_scorer.py:1137-1225`) and unit test (`test_stt_and_market_cost_estimation`) -> **PASS**
+- CrisisDetector 5-factor scoring & defensive cash posture -> verified via code inspection (`risk_manager.py:78-297`) and unit test (`test_r2_check_risk_off_signal`) -> **PASS**
+- Ledoit-Wolf covariance shrinkage & HRP allocation stability -> verified via code inspection (`portfolio_optimizer.py:216-329`) and unit tests (`test_calculate_hrp_weights_*`) -> **PASS**
+
+### Coverage Gaps
+
+- None in scope. All 7 target files and risk metrics were audited.
+
+### Unverified Items
+
+- Live real-money broker execution API responses (mocked in unit test environment).
+
+---
+
+## Challenge Report (Adversarial Review)
+
+### Challenge Summary
+
+**Overall risk assessment**: **LOW**
+
+### Challenges
+
+#### [Low] Challenge 1: Matrix Non-Positive Definiteness in HRP Allocation
+- **Assumption challenged**: High-dimensional correlation matrix ($N \times N$ for 3,379 symbols) could be singular or non-positive definite.
+- **Attack scenario**: Near-identical assets create zero eigenvalues, leading to zero division in inverse volatility or distance matrix.
+- **Mitigation verified**: `calculate_hrp_weights` applies Ledoit-Wolf covariance shrinkage (`shrink_factor=0.15`), `np.nan_to_num`, clips correlation to $[-1, 1]$, and has a multi-tier fallback to Risk Parity optimization, inverse volatility, and equal weighting (`portfolio_optimizer.py:326-329`). Robust defense in place.
+
+#### [Low] Challenge 2: Liquidity Surge & ADV Participation Overflow
+- **Assumption challenged**: Large order sizes during low volume periods could distort execution prices and cause massive slippage.
+- **Attack scenario**: Trading 50M KRW in a low-liquidity stock with ADV < 10M KRW.
+- **Mitigation verified**: `PreTradeRiskGatekeeper` clamps order size to max 5% 20d ADV (`pretrade_gatekeeper.py:76`). `EnsembleScoringEngine` applies $+0.50 \cdot (\text{participation} - 0.10)$ penalty for participation $>10\%$ and zero-weights illiquid stocks with turnover below minimum thresholds (`ensemble_scorer.py:1217, 1256`). Robust defense in place.
+
+### Stress Test Results
+
+- `test_evt_cvar_fallback_small_sample` -> PASS
+- `test_evt_cvar_optimization_constraint` -> PASS
+- `test_gpd_fitting_pareto` -> PASS
+- `test_gpd_fitting_student_t` -> PASS
+- `test_stt_and_market_cost_estimation` -> PASS
+- `test_trade_execution_triggered_on_buffer_breach` -> PASS
+- `test_zero_turnover_within_buffer_bands` -> PASS
+- `test_r1_portfolio_risk_parity_weights` -> PASS
+- `test_r2_buy_order_clamping` -> PASS
+- `test_r2_check_risk_off_signal` -> PASS
+- `test_calculate_hrp_weights_invalid` -> PASS
+- `test_kelly_cash_retention` -> PASS
+
+### Unchallenged Areas
+
+- Live broker connection network latency (out of scope for Milestone 1 quantitative risk audit).

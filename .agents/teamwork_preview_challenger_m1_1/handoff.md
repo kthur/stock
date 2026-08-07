@@ -1,161 +1,136 @@
-# Handoff Report — Milestone 1 Empirical Stress-Test of DAG Pipeline
+# Empirical Handoff Report — Quantitative Risk & Financial Engineering Stress Audit
+
+## Verdict: REQUEST_CHANGES
+
+---
 
 ## 1. Observation
 
-### System & Environment Under Test
-- Target module: `trading_system/dag_pipeline.py` (602 lines)
-- Test suite created: `tests/test_dag_pipeline_stress_m1.py` (15 test cases across 5 stress dimensions)
-- Python environment: `.venv\Scripts\python.exe` (Python 3.11.9, pytest 9.1.1)
-
-### Execution Command & Results
-```bash
-.venv\Scripts\python.exe -m pytest tests/test_dag_pipeline_stress_m1.py -v
-```
-Output:
-```
-============================= test session starts =============================
-platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
-cachedir: .pytest_cache
-rootdir: D:\Finance\code\stock
-plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0
-collected 15 items
-
-tests/test_dag_pipeline_stress_m1.py::TestPipelineCrashRecovery::test_pipeline_crash_halts_downstream_tasks PASSED [  6%]
-tests/test_dag_pipeline_stress_m1.py::TestPipelineCrashRecovery::test_pipeline_resumption_after_crash PASSED [ 13%]
-tests/test_dag_pipeline_stress_m1.py::TestCorruptedCheckpointJSON::test_manifest_corrupted_completed_tasks_type PASSED [ 20%]
-tests/test_dag_pipeline_stress_m1.py::TestCorruptedCheckpointJSON::test_manifest_malformed_json_recovery PASSED [ 26%]
-tests/test_dag_pipeline_stress_m1.py::TestCorruptedCheckpointJSON::test_manifest_non_dict_json_vulnerability PASSED [ 33%]
-tests/test_dag_pipeline_stress_m1.py::TestCorruptedCheckpointJSON::test_task_corrupted_json_artifact_during_restore PASSED [ 40%]
-tests/test_dag_pipeline_stress_m1.py::TestMissingAndCorruptedParquetFrames::test_artifact_registry_erased_by_dagrunner PASSED [ 46%]
-tests/test_dag_pipeline_stress_m1.py::TestMissingAndCorruptedParquetFrames::test_parquet_file_corrupted_zero_bytes PASSED [ 53%]
-tests/test_dag_pipeline_stress_m1.py::TestDeepCyclicGraphsAndTopologies::test_deep_50_node_ring_cycle PASSED [ 60%]
-tests/test_dag_pipeline_stress_m1.py::TestDeepCyclicGraphsAndTopologies::test_disconnected_graph_with_internal_cycle PASSED [ 66%]
-tests/test_dag_pipeline_stress_m1.py::TestDeepCyclicGraphsAndTopologies::test_figure_eight_double_cycle PASSED [ 73%]
-tests/test_dag_pipeline_stress_m1.py::TestDeepCyclicGraphsAndTopologies::test_self_loop_cycle PASSED [ 80%]
-tests/test_dag_pipeline_stress_m1.py::TestDeepCyclicGraphsAndTopologies::test_unknown_dependency_raises_value_error PASSED [ 86%]
-tests/test_dag_pipeline_stress_m1.py::TestHighConcurrencyAndRaceConditions::test_concurrent_manifest_updates_stress PASSED [ 93%]
-tests/test_dag_pipeline_stress_m1.py::TestHighConcurrencyAndRaceConditions::test_concurrent_parquet_saves_same_filename_race_condition PASSED [100%]
-
-============================= 15 passed in 44.89s =============================
+### Command Executed
+```powershell
+.venv\Scripts\python.exe .agents\teamwork_preview_challenger_m1_1\test_m1_stress.py
 ```
 
-### Specific Vulnerabilities & Bugs Empirically Isolated
+### Direct Empirical Test Results
 
-#### 1. Manifest Artifact Erasure Bug in DAGRunner (`trading_system/dag_pipeline.py:284-285`)
-- **Location**: `trading_system/dag_pipeline.py:284-285`
-- **Observed Code**:
-  ```python
-  task.checkpoint(self.context, result)
-  elapsed = time.time() - t0
-  self.context.checkpoint_manager.mark_completed(task.name, duration=elapsed, context=self.context)
-  ```
-- **Observed Error / Verbatim Data**: `mark_completed` takes parameter `artifacts: Optional[List[str]] = None`, defaulting to `[]`. When `task.checkpoint()` registers generated artifact filenames (e.g. `['N1_universe.parquet', 'N1_macro_summary.json']`), `DAGRunner.run()` immediately calls `mark_completed()` right after without passing `artifacts`. This overwrites `manifest["completed_tasks"][task_name]["artifacts"]` with `[]`.
-- **Impact**: Manifest on disk records `"artifacts": []` for every task. `CheckpointManager.is_valid()` checks `task_entry.get("artifacts", [])`. Because `artifacts` is empty `[]`, `is_valid()` returns `True` even if parquet files are deleted from disk!
+#### Task 1: `calculate_hrp_weights` in `src/analysis/portfolio_optimizer.py`
+- **Singular Covariance Matrix (all 1s, 5x5)**:
+  `calculate_hrp_weights(np.ones((5, 5)))` -> Returned `len(w) = 5`, `sum_weights = 1.0`, `has_nan = False`, `has_inf = False`. (PASSED)
+- **Ill-Conditioned Matrix (rank 2, 10x10)**:
+  Returned valid normalized weights `sum_weights = 1.0`, `has_nan = False`. (PASSED)
+- **Extreme High Volatility (1e8 to 1e-6)**:
+  Returned valid normalized weights `sum_weights = 1.0`, `has_nan = False`. (PASSED)
+- **Matrix with NaNs / Infs**:
+  `np.nan_to_num` preprocessing cleanly replaces non-finite entries. (PASSED)
 
-#### 2. Uncaught `AttributeError` on Corrupted JSON Manifest (`trading_system/dag_pipeline.py:101`)
-- **Location**: `trading_system/dag_pipeline.py:58-64` & `101`
-- **Observed Code**:
-  ```python
-  def _load_manifest(self) -> Dict[str, Any]:
-      if self.manifest_path.exists():
-          try:
-              with open(self.manifest_path, "r", encoding="utf-8") as f:
-                  return json.load(f)
-          except Exception as e:
-              logger.warning(...)
-  ...
-  task_entry = self._manifest.get("completed_tasks", {}).get(task_name)
-  ```
-- **Observed Verbatim Exception**:
-  ```
-  AttributeError: 'list' object has no attribute 'get'
-  ```
-- **Impact**: If `pipeline_state.json` contains valid JSON that is a list `[1, 2, 3]` (or if `"completed_tasks"` is a list), `_load_manifest` loads it without checking `isinstance(data, dict)`. Calling `.get()` crashes pipeline initialization with an unhandled `AttributeError`.
+#### Task 2: `merge_fundamentals` in `src/ai/prediction_model.py`
+- **Unnamed DatetimeIndex & 60-day Filing Lag Verification**:
+  - Tested with `df_prices` having an index with `name=None`.
+  - Q4 fiscal fundamental report on `2023-12-31`.
+  - On `2024-01-15` (15 days post-fiscal end): revenue = `1000.0` (FY 2022 data).
+  - On `2024-03-15` (75 days post-fiscal end): revenue = `1500.0` (FY 2023 Q4 report).
+  - Verified 0 lookahead data leakage. (PASSED)
+- **Benchmark Symbols Fallback Dict KeyError**:
+  - Executed `model.merge_fundamentals('AAPL', df_prices_unnamed, storage=MockStorage(fun_data))`.
+  - **Verbatim Error**:
+    ```
+    File "d:\Finance\code\stock\trading_system\src\ai\prediction_model.py", line 956, in merge_fundamentals
+        df[col] = meta[col]
+                  ~~~~^^^^^
+    KeyError: 'book_value'
+    ```
+  - Line 861 defines `FUND_COLS = ['revenue', 'operating_income', 'net_income', 'eps', 'dividend_per_share', 'book_value']`.
+  - Lines 50–76 in `FallbackMetadataDict.__init__` populate benchmark symbols (`AAPL`, `MSFT`, `005930`, etc.) with `revenue`, `operating_income`, `net_income`, `eps`, `dividend_per_share`, but omit `book_value`.
+  - When line 956 executes `df[col] = meta[col]`, `meta['book_value']` raises `KeyError: 'book_value'`. (FAILED)
 
-#### 3. Concurrent File Access & Temporary Name Collision on Windows (`trading_system/dag_pipeline.py:146-149`)
-- **Location**: `trading_system/dag_pipeline.py:146-149`
-- **Observed Code**:
-  ```python
-  def save_parquet(self, filename: str, df: pd.DataFrame) -> str:
-      path = self.checkpoint_dir / filename
-      tmp_path = path.with_suffix(".tmp")
-      df.to_parquet(tmp_path, compression="snappy", index=True)
-      os.replace(tmp_path, path)
-      return filename
-  ```
-- **Observed Verbatim Exception**:
-  ```
-  PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: '...concurrent_test.tmp' -> '...concurrent_test.parquet'
-  ```
-- **Impact**: Multi-threaded or parallel tasks writing parquet files with identical names collide on `path.with_suffix(".tmp")` (`<name>.tmp`). On Windows, `os.replace` fails with `PermissionError` when another thread holds an open file handle on the `.tmp` file.
+#### Task 3: `AdvancedStatistics.get_performance_summary()` in `src/analysis/statistics.py`
+- **Extreme Drawdowns (`total_return = -1.5`)**:
+  - Executed `stats.get_performance_summary([100.0, 50.0, -50.0], trades=[])`.
+  - **Verbatim Result**: `annual_return = '(-0.12648873099951662+0.1601614745300438j)'` (`annual_return_type = complex`).
+  - **Verbatim Error on JSON serialization**:
+    ```
+    TypeError: Object of type complex is not JSON serializable
+    ```
+  - Line 232: `annual_return = (1 + total_return) ** (252 / n) - 1`. When `total_return = -1.5`, `1 + total_return = -0.5`, raising a negative number to a fractional power yields a complex number. (FAILED)
+- **Extreme Drawdowns (`total_return = -2.0`)**:
+  - Executed `stats.get_performance_summary([100.0, 0.0, -100.0], trades=[])`.
+  - **Verbatim Error**:
+    ```
+    ZeroDivisionError: float division by zero
+    ```
+  - (FAILED)
+- **Zero Loss Trades (`profit_factor = inf`)**:
+  - Executed `stats.get_performance_summary([100.0, 250.0], trades=[{"pnl": 100.0}])`.
+  - Line 249: `profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")`.
+  - **Verbatim Error on Strict JSON serialization**:
+    ```
+    ValueError: Out of range float values are not JSON compliant
+    ```
+  - (FAILED)
 
-#### 4. Shallow File Existence Check ignores Truncated/Corrupted 0-Byte Artifacts (`trading_system/dag_pipeline.py:106-110`)
-- **Location**: `trading_system/dag_pipeline.py:106-110`
-- **Observed Code**:
-  ```python
-  for artifact_name in task_entry.get("artifacts", []):
-      art_path = self.checkpoint_dir / artifact_name
-      if not art_path.exists():
-          return False
-  ```
-- **Impact**: If a parquet or JSON artifact is 0 bytes (e.g. truncated due to process crash or disk write error), `art_path.exists()` returns `True`. `is_valid()` passes, and `task.restore()` subsequently fails with an unhandled `pyarrow.lib.ArrowInvalid` or `json.JSONDecodeError` during pipeline execution instead of triggering re-execution.
+#### Task 4: `IntradayStopLossEngine` in `src/risk/intraday_stop_loss.py`
+- **Extreme Price Drops (50% drop)**:
+  Triggers `PEAK_TO_TROUGH_DROP` with `recommended_action = "FULL_LIQUIDATION"`. (PASSED)
+- **Volume Spike (20x volume with price drop)**:
+  Triggers `PANIC_VOLUME_SPIKE`. (PASSED)
+- **NaN / Inf Inputs in DataFrame**:
+  - Executed `engine.evaluate('AAPL', pd.DataFrame({'close': [100.0, np.nan, np.inf, 90.0]}))`.
+  - Line 133: `closes = data["close"].dropna().values`.
+  - Pandas `dropna()` drops `NaN` but **does not drop `np.inf` or `-np.inf`**. `np.inf` remains in the close series array, corrupting calculation or passing non-finite values into peak tracking. (FAILED)
 
 ---
 
 ## 2. Logic Chain
 
-1. **Topological Ordering & Cycle Detection**:
-   - Kahn's algorithm in `_topological_sort()` (`dag_pipeline.py:238-264`) correctly tracks in-degrees and detects cycles in deep 50-node rings, figure-eight cycles, self-loops, and disconnected cyclic components by checking `len(order) != len(self.tasks)`. It raises `CyclicDependencyError`. (Verified in tests 9-12).
+1. **Task 1 Logic**:
+   - `calculate_hrp_weights` applies Ledoit-Wolf shrinkage `shrink_covariance_matrix(cov_matrix, 0.15)` and `np.nan_to_num(cov_matrix)`.
+   - Volatility flooring (`np.maximum(vols, 1e-8)`) prevents division by zero.
+   - Distance calculation `dist = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr)))` ensures non-negative arguments to `np.sqrt`.
+   - Thus, ill-conditioned, high-volatility, and singular covariance matrices are handled safely.
 
-2. **Pipeline Execution & Crash Halting**:
-   - In `DAGRunner.run()`, when node `T2` throws `RuntimeError`, execution halts immediately in the loop (`dag_pipeline.py:288-291`), marking `T2` as `FAILED` in `manifest["failed_tasks"]`. Downstream task `T3` is never executed. On resume, `T1` checkpoint is restored without re-execution. (Verified in tests 1-2).
+2. **Task 2 Logic**:
+   - `merge_fundamentals` correctly enforces 60-day filing lag via `pd.Timedelta(days=60)` and `pd.merge_asof(direction='backward')`, guaranteeing 0 lookahead leakage.
+   - However, line 861 was updated to add `'book_value'` to `FUND_COLS`, while `FallbackMetadataDict` initialization (lines 68–76) was not updated to add `'book_value'` to benchmark dictionaries.
+   - Any call to `merge_fundamentals` with a benchmark ticker (e.g. `AAPL`, `MSFT`) crashes with `KeyError: 'book_value'`.
 
-3. **Manifest Artifact Overwrite Vulnerability**:
-   - When `task.checkpoint(context, result)` executes, concrete task implementations register generated artifacts by calling `checkpoint_manager.mark_completed(task.name, artifacts=[...])`.
-   - Immediately after `task.checkpoint()` returns, line 285 calls `self.context.checkpoint_manager.mark_completed(task.name, duration=elapsed, context=self.context)` without passing `artifacts`.
-   - `mark_completed` sets `"artifacts": artifacts or []`, overwriting the list registered during `task.checkpoint()` with `[]`.
-   - Consequently, `is_valid()` checks `for artifact_name in []`, effectively bypassing artifact validation entirely. (Verified in test 7).
+3. **Task 3 Logic**:
+   - In `statistics.py`, `annual_return = (1 + total_return) ** (252 / n) - 1`. If `total_return < -1.0`, `1 + total_return` is negative, causing Python exponentiation `(-x) ** (252 / n)` to generate a complex number.
+   - Python's standard `json.dumps()` cannot serialize `complex` objects.
+   - If equity drops to 0.0 or negative, division by zero occurs in drawdown or return scaling.
+   - In line 249, returning `float("inf")` for `profit_factor` produces an invalid IEEE float token (`Infinity`) that violates standard strict JSON specs.
 
-4. **Manifest Deserialization Type Insecurity**:
-   - `_load_manifest()` assumes `json.load(f)` returns a `dict`.
-   - If `pipeline_state.json` is a JSON array `[...]` or string, or if `completed_tasks` is a `list` or `None`, `_load_manifest()` returns the non-dict object without validation.
-   - When `is_valid()` executes `self._manifest.get("completed_tasks", {}).get(task_name)`, calling `.get()` on a non-dict object raises `AttributeError`, preventing pipeline startup. (Verified in tests 3 & 5).
-
-5. **Concurrency & File Lock Race Conditions**:
-   - `save_parquet()` uses a deterministic temporary filename `path.with_suffix(".tmp")`.
-   - Under concurrent thread execution, two threads saving to the same target filename attempt to write to the same `.tmp` path simultaneously.
-   - On Windows filesystem, opening the same `.tmp` file in parallel prevents `os.replace(tmp_path, path)` from replacing the target file, raising `PermissionError: [WinError 32]`. (Verified in test 15).
+4. **Task 4 Logic**:
+   - `IntradayStopLossEngine` correctly triggers peak-to-trough drops and volume panic spikes.
+   - However, `data["close"].dropna()` assumes `dropna()` removes infinite values. In Pandas, `dropna()` only removes `NaN` / `None`, leaving `np.inf` and `-np.inf` intact in the array. This allows non-finite price data to pollute downstream peak calculations.
 
 ---
 
 ## 3. Caveats
 
-- **Scope Limit**: As an EMPIRICAL CHALLENGER (critic, specialist), I write and run stress tests to surface vulnerabilities. Implementation code (`trading_system/dag_pipeline.py`) was NOT modified by this agent.
-- **Platform Specificity**: `PermissionError: [WinError 32]` on concurrent `.tmp` file replacement is specific to Windows file locking mechanics (Linux permits atomic unlinked file replacement).
-- **Process vs Thread Concurrency**: High-concurrency tests were executed using `ThreadPoolExecutor`. Multi-process execution (`ProcessPoolExecutor` or separate CLI invocations) on un-locked `pipeline_state.json` will additionally cause lost updates on `manifest` writes.
+- Tests were run on synthetic and historical data fixtures using `.venv\Scripts\python.exe`.
+- Real-world production feeds may introduce additional network latency or async streaming ticks, which should be stress-tested separately in live OMS integration (M2/M4).
 
 ---
 
 ## 4. Conclusion
 
-`trading_system/dag_pipeline.py` passes topological sorting, basic cycle detection, and happy-path node resumption. However, empirical stress testing revealed **four (4) critical vulnerabilities and design bugs**:
+Empirical stress testing passed HRP covariance robustness and 60-day filing lag lookahead safety, but revealed **5 critical empirical defects**:
+1. `KeyError: 'book_value'` in `prediction_model.py:956` during `merge_fundamentals` for benchmark symbols.
+2. `complex` number generation in `statistics.py:232` when `total_return < -1.0`.
+3. `ZeroDivisionError` in `statistics.py` when equity curve drops to 0.0 (`total_return = -2.0`).
+4. Non-standard `float("inf")` JSON float in `statistics.py:249` for `profit_factor`.
+5. Failure to filter `np.inf` / `-np.inf` in `intraday_stop_loss.py:133` via `dropna()`.
 
-1. **CRITICAL**: `DAGRunner.run()` erases task artifact registries on completion by calling `mark_completed()` with default `artifacts=None`.
-2. **HIGH**: `CheckpointManager._load_manifest()` lacks type validation for `dict`, crashing with `AttributeError` when `pipeline_state.json` contains corrupted non-dict JSON or invalid `completed_tasks` structures.
-3. **HIGH**: `CheckpointManager.save_parquet()` uses deterministic `.tmp` filenames, causing Windows `PermissionError` file collisions under concurrency.
-4. **MEDIUM**: `CheckpointManager.is_valid()` checks file existence only (`exists()`), ignoring 0-byte or corrupted artifact files.
+Therefore, the verdict is **REQUEST_CHANGES**.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify these findings, run the newly created stress test suite:
+To independently verify these findings, run the test runner using `.venv\Scripts\python.exe`:
 
-```bash
-.venv\Scripts\python.exe -m pytest tests/test_dag_pipeline_stress_m1.py -v
+```powershell
+.venv\Scripts\python.exe .agents\teamwork_preview_challenger_m1_1\test_m1_stress.py
 ```
 
-### Invalidation Conditions
-- If `tests/test_dag_pipeline_stress_m1.py::test_artifact_registry_erased_by_dagrunner` fails (meaning artifacts are preserved), the artifact overwrite bug has been fixed.
-- If `tests/test_dag_pipeline_stress_m1.py::test_manifest_non_dict_json_vulnerability` fails (meaning `is_valid` gracefully handles non-dict JSON), the manifest deserialization bug has been fixed.
-- If `tests/test_dag_pipeline_stress_m1.py::test_concurrent_parquet_saves_same_filename_race_condition` fails without `PermissionError`, thread-safe unique temporary files have been implemented.
+Inspect output or `.agents\teamwork_preview_challenger_m1_1\test_results.json` to confirm all 5 failure modes.

@@ -1,55 +1,53 @@
-# BRIEFING — 2026-07-31T09:44:56Z
+# BRIEFING — 2026-08-06T00:56:00Z
 
 ## Mission
-Implement Milestone 1 (R1): Intraday Microstructure & Dynamic Stop-Loss Engine, integrate into RiskManager and run_pipeline.py, and write comprehensive unit tests.
+Implement financial engineering and quantitative risk fixes for Milestone 1.
 
 ## 🔒 My Identity
-- Archetype: implementer
+- Archetype: implementer/qa/specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\worker_m1_1
-- Original parent: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Milestone: Milestone 1 (R1)
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Milestone: Milestone 1
 
 ## 🔒 Key Constraints
-- CODE_ONLY mode (no external network requests).
-- Genuine implementations only (no hardcoding, facade classes, or cheating).
-- Must create `trading_system/src/risk/intraday_stop_loss.py` and bridge `src/risk/intraday_stop_loss.py`.
-- Must update `trading_system/src/risk/risk_manager.py` and `trading_system/run_pipeline.py`.
-- Must create `trading_system/tests/test_intraday_stop_loss.py` and run tests with zero failures/regressions.
+- Follow minimal change principle
+- No hardcoded test results or dummy/facade implementations
+- All tests must pass
+- Deliver handoff report and notify parent when complete
 
 ## Current Parent
-- Conversation ID: 450b5560-14d4-4158-80b1-57ec805a6db7
-- Updated: 2026-07-31T09:44:56Z
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-06T00:56:00Z
 
 ## Task Summary
-- **What to build**: Intraday Microstructure & Dynamic Stop-Loss Engine (`IntradayStopLossEngine`), `StopLossResult` dataclass, RiskManager integration, run_pipeline.py Step 10 integration, and full test suite.
-- **Success criteria**: All 335 tests pass, zero regressions across `trading_system/tests/`.
-- **Interface contracts**: `analysis.md`
-- **Code layout**: `AGENTS.md` and `PROJECT.md`
+- **What to build**: 6 specific financial engineering and quantitative risk fixes:
+  1. HRP weighting in `src/analysis/portfolio_optimizer.py`
+  2. Microstructure cost calculation in `src/ai/ensemble_scorer.py`
+  3. Fundamental merge & filing lag in `src/ai/prediction_model.py`
+  4. RIM filing lag, RiskManager VIX fallback, and 18-strategy IFS reporting format in `trading_system/run_pipeline.py`
+  5. Annual return clamping, Sortino ratio infinity clamping, VaR/CVaR sign conventions in `src/analysis/statistics.py`
+- **Success criteria**: All core tests pass, code bug-free, proper handoff.md written.
+- **Interface contracts**: PROJECT.md & AGENTS.md
+- **Code layout**: src/ and trading_system/
 
 ## Key Decisions Made
-- Implemented `IntradayStopLossEngine` with peak-to-trough drop detection (-4% default), volume surge panic acceleration (>=3.0x 20-min rolling SMA and instant return < 0.0), dynamic trailing ATR stop, and crisis multiplier scaling.
+- Proceeding with systematically auditing each file and implementing precise minimal fixes.
+
+## Artifact Index
+- d:\Finance\code\stock\.agents\worker_m1_1\DISPATCH.md
+- d:\Finance\code\stock\.agents\worker_m1_1\BRIEFING.md
+- d:\Finance\code\stock\.agents\worker_m1_1\progress.md
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/src/risk/intraday_stop_loss.py` (Created IntradayStopLossEngine & StopLossResult)
-  - `src/risk/intraday_stop_loss.py` (Created bridge module)
-  - `trading_system/src/risk/risk_manager.py` (Added evaluate_intraday_stop_loss & check_intraday_risk)
-  - `trading_system/run_pipeline.py` (Integrated check_intraday_risk in Step 10)
-  - `trading_system/tests/test_intraday_stop_loss.py` (Added 8 unit tests)
-- **Build status**: PASS (8/8 new unit tests, 335/335 total tests passed)
+- **Files modified**: None yet
+- **Build status**: TBD
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (100% test pass rate)
-- **Lint status**: Clean
-- **Tests added/modified**: 8 new unit tests in `test_intraday_stop_loss.py`
+- **Build/test result**: TBD
+- **Lint status**: TBD
+- **Tests added/modified**: TBD
 
 ## Loaded Skills
 - None
-
-## Artifact Index
-- `d:\Finance\code\stock\.agents\worker_m1_1\ORIGINAL_REQUEST.md` — Original prompt log
-- `d:\Finance\code\stock\.agents\worker_m1_1\progress.md` — Liveness heartbeat
-- `d:\Finance\code\stock\.agents\worker_m1_1\changes.md` — Implementation changes report
-- `d:\Finance\code\stock\.agents\worker_m1_1\handoff.md` — Handoff report

@@ -1,50 +1,54 @@
-# BRIEFING — 2026-07-30T14:37:00Z
+# BRIEFING — 2026-08-06T01:02:10Z
 
 ## Mission
-Empirically challenge and stress-test HybridDataEngine and StockPriceDB under high-concurrency conditions (50+ concurrent streaming writer threads across 3,379 symbols + 10 reader threads).
+Empirically stress test microstructure cost calculations (`_get_cost_pct`), raw score calibration to expected return, CrisisDetector gating (VIX > 30 / USD-KRW spike), and 18-strategy formatting in `run_pipeline.py` / `ensemble_predictions.txt`.
 
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_2
-- Original parent: 86ca0d1d-677d-4eea-97b4-312969e1712c
+- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
 - Milestone: Milestone 1
 - Instance: M1-2
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (only write stress test scripts/harness to verify)
-- Run verification code yourself. Do NOT trust worker claims/logs.
-- `.agents/` holds only agent metadata. Test scripts created to run must be located outside `.agents/` (e.g. `tests/stress_test_m1_2.py` or temporary test file).
+- Review-only — do NOT modify implementation code
+- Run verification code yourself. Do NOT trust worker claims/logs. If you cannot reproduce a bug empirically, it does not count.
+- `.agents/` holds only agent metadata. Write test scripts outside `.agents/` (e.g., `tests/test_challenger_m1_2.py`).
 - All Python execution must use `.venv\Scripts\python.exe`.
 
 ## Current Parent
-- Conversation ID: 86ca0d1d-677d-4eea-97b4-312969e1712c
-- Updated: 2026-07-30T14:37:00Z
+- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
+- Updated: 2026-08-06T01:02:10Z
 
 ## Review Scope
-- **Files to review**: `trading_system/src/persistence/database.py` (`StockPriceDB`), `trading_system/src/data_layer/hybrid_storage.py` (`HybridDataEngine`, `ParquetWALBuffer`)
-- **Interface contracts**: PROJECT.md / AGENTS.md
-- **Review criteria**: Zero `sqlite3.OperationalError: database is locked` errors under 50+ writer threads and 10 reader threads across 3,379 symbols, 100% data integrity.
+- **Files to review**: `src/ai/ensemble_scorer.py`, `src/risk/risk_manager.py`, `trading_system/run_pipeline.py`
+- **Interface contracts**: `PROJECT.md` / `AGENTS.md`
+- **Review criteria**: Microstructure cost accuracy/non-negativity under extreme conditions, realistic score calibration, CrisisDetector gating under high VIX / USD-KRW spike, 18-strategy header/row column alignment including `IFS`.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. Concurrency Lock Contention: Direct writes to `StockPriceDB` under 50 writer threads & 10 reader threads across 3,379 symbols. RESULT: 0 `database is locked` errors, 100% data integrity verified.
-  2. Index Naming Vulnerability in `ParquetWALBuffer`: DataFrames with unnamed `DatetimeIndex` cause `reset_index()` to name date column `"index"`. `flush_staging_to_master` fails to match `"date"`, resulting in `NaT` indices and `ValueError: NaTType does not support strftime`, causing silent update loss!
+  1. Microstructure cost calculation non-negativity and accuracy across 5 markets under high vol & low ADV: VERIFIED PASSED.
+  2. Score mapping to expected return realism and score ordering: VERIFIED PASSED (clipped [0, 50%]).
+  3. CrisisDetector gating sensitivity under VIX > 30: VULNERABILITY FOUND (VIX score has only 25% composite weight, VIX > 30 alone fails to trigger WATCH level).
+  4. 18-Strategy formatting in `run_pipeline.py` for `ensemble_predictions.txt`: DEFECT FOUND (Strategy 18 `IFS` column missing from table header and row formatting strings).
 - **Vulnerabilities found**:
-  - `VULN-M1-2-01`: `ParquetWALBuffer` silent data loss on DataFrames with unnamed `DatetimeIndex` due to `"index"` column naming collision in `flush_staging_to_master` (Line 135-169).
+  - `VULN-M1-2-01`: Insensitive single-factor VIX threshold in `CrisisDetector.evaluate()` (composite score = 0.125 < 0.25 WATCH threshold when VIX=35.0 alone).
+  - `VULN-M1-2-02`: Missing 18th strategy column `IFS` (`inst_foreign_sector_score`) in table header and row formatting strings in `trading_system/run_pipeline.py` (lines 2938, 2957, 2979, 2993-2994).
 - **Untested angles**:
-  - Process-level (multi-process IPC) SQLite file locking outside Python ThreadPoolExecutor (out of scope for thread test).
+  - Real-time streaming WebSocket feed latency during live trading.
 
 ## Loaded Skills
 - None loaded.
 
 ## Key Decisions Made
-- Created empirical stress test harness `tests/test_empirical_concurrency_m1_2.py`.
-- Verified SQLite WAL mode concurrency resilience under 50 writers + 10 readers (0 lock errors, 100% row count & value matching).
-- Uncovered and empirically reproduced silent data loss vulnerability in `ParquetWALBuffer`.
+- Executed empirical test suite `tests/test_challenger_m1_2.py` via `.venv\Scripts\python.exe -m pytest`.
+- Verified Item 1 & Item 2 quantitative models are sound.
+- Issued verdict `REQUEST_CHANGES` due to `VULN-M1-2-01` and `VULN-M1-2-02`.
+- Prepared `handoff.md` with complete 5-component report.
 
 ## Artifact Index
-- `.agents/teamwork_preview_challenger_m1_2/ORIGINAL_REQUEST.md` — Original request
-- `.agents/teamwork_preview_challenger_m1_2/BRIEFING.md` — Persistent state tracking
-- `.agents/teamwork_preview_challenger_m1_2/progress.md` — Progress tracker
-- `tests/test_empirical_concurrency_m1_2.py` — Empirical stress test harness
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_2\DISPATCH.md`
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_2\BRIEFING.md`
+- `d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_2\handoff.md`
+- `d:\Finance\code\stock\tests\test_challenger_m1_2.py`
