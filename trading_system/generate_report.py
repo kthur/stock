@@ -565,18 +565,35 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
         if m:
             date = m.group(1).strip()
             continue
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+([-+\d.nanNaN%]+)$", line)
-        if m:
-            val_str = m.group(8).strip()
+        # Match 9-column format: Rank Symbol Name Market Price Intrinsic Discount EQ RIM_Score
+        m9 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+(\S+)\s+([-+\d.nanNaN%]+)$", line)
+        if m9:
+            val_str = m9.group(9).strip()
             score_val = val_str if val_str.endswith("%") else val_str + "%"
             rows.append(RimRow(
-                rank=int(m.group(1)),
-                symbol=m.group(2),
-                name=m.group(3).strip(),
-                market=m.group(4),
-                price=m.group(5),
-                intrinsic_value=m.group(6),
-                discount=m.group(7),
+                rank=int(m9.group(1)),
+                symbol=m9.group(2),
+                name=m9.group(3).strip(),
+                market=m9.group(4),
+                price=m9.group(5),
+                intrinsic_value=m9.group(6),
+                discount=m9.group(7),
+                score=score_val
+            ))
+            continue
+        # Fallback to 8-column format
+        m8 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+([-+\d.nanNaN%]+)$", line)
+        if m8:
+            val_str = m8.group(8).strip()
+            score_val = val_str if val_str.endswith("%") else val_str + "%"
+            rows.append(RimRow(
+                rank=int(m8.group(1)),
+                symbol=m8.group(2),
+                name=m8.group(3).strip(),
+                market=m8.group(4),
+                price=m8.group(5),
+                intrinsic_value=m8.group(6),
+                discount=m8.group(7),
                 score=score_val
             ))
     return date, rows
