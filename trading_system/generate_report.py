@@ -1681,9 +1681,10 @@ def build_html(
   .market-title {{ padding: 12px 16px; font-size: 14px; font-weight: 600; background: var(--surface2); border-bottom: 1px solid var(--border); }}
 
   /* Table */
+  html {{ scroll-padding-top: 60px; }}
   .table-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }}
   table {{ width: 100%; border-collapse: collapse; min-width: 550px; }}
-  thead th {{ position: sticky; top: 44px; background: var(--surface2); z-index: 10; padding: 10px 12px; text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }}
+  thead th {{ position: sticky; top: 48px; background: var(--surface2); z-index: 10; padding: 10px 12px; text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }}
   tbody td {{ padding: 10px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; }}
   tbody tr:last-child td {{ border-bottom: none; }}
   tbody tr:hover {{ background: #1c2128; }}
@@ -1702,6 +1703,8 @@ def build_html(
     z-index: 2;
   }}
   .table-wrap th.sticky-col {{
+    position: sticky;
+    top: 48px;
     z-index: 12;
     background: var(--surface2);
   }}
