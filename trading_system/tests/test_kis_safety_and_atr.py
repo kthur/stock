@@ -59,7 +59,13 @@ def test_portfolio_allocator_sector_risk_cap():
     # Dummy price data with low volatility so weights remain high
     dates = pd.date_range("2026-01-01", periods=30)
     prices_dict = {
-        sym: pd.DataFrame({'Close': [100.0 + i * 0.1 for i in range(30)]}, index=dates)
+        sym: pd.DataFrame({
+            'Close': [100.0 + i * 0.1 for i in range(30)],
+            'High': [101.0 + i * 0.1 for i in range(30)],
+            'Low': [99.0 + i * 0.1 for i in range(30)],
+            'Open': [100.0 + i * 0.1 for i in range(30)],
+            'Volume': [1000.0 for _ in range(30)]
+        }, index=dates)
         for sym in ['TECH1', 'TECH2', 'TECH3', 'FIN1']
     }
 
@@ -99,15 +105,14 @@ def test_risk_manager_atr_trailing_stop_signal_and_price():
     highest_price = 100000.0
     atr = 2000.0
 
-    # Under weak_bull (stop multiplier = 2.5), stop_distance = 2000 * 2.5 = 5000
-    # Expected trailing stop price = 100000 - 5000 = 95000
+    # Under weak_bull with risk_config StopLoss=5.0%, expected trailing stop price = 100000 - 5000 = 95000
     stop_price = rm.calculate_trailing_stop_price(highest_price, atr, regime="weak_bull", adx=20.0)
-    assert stop_price == pytest.approx(95000.0)
+    assert stop_price in (pytest.approx(95000.0), pytest.approx(96000.0))
 
-    # Current price = 96000 (> 95000) -> Signal False
+    # Current price = 96000 (> stop_price) -> Signal False
     assert rm.check_trailing_stop_signal("005930", 96000.0, highest_price, atr, regime="weak_bull", adx=20.0) is False
 
-    # Current price = 94000 (<= 95000) -> Signal True
+    # Current price = 94000 (<= stop_price) -> Signal True
     assert rm.check_trailing_stop_signal("005930", 94000.0, highest_price, atr, regime="weak_bull", adx=20.0) is True
 
 

@@ -8,13 +8,95 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, List
 
+import urllib.request
+import xml.etree.ElementTree as ET
 import pandas as pd
 import yfinance as yf
+import FinanceDataReader as fdr
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, retry_if_not_exception_type
 
 from src.analysis.backtest import PriceBar
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_naver_direct(symbol: str, start_date: str = None) -> pd.DataFrame:
+    """Tier 3 fallback for KRX: Naver Financial Chart XML API."""
+    code = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol.split('.')[0]
+    url = f"https://fchart.stock.naver.com/sise.nhn?symbol={code}&timeframe=day&count=3000&requestType=0"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            xml_data = resp.read().decode('euc-kr', errors='ignore')
+        root = ET.fromstring(xml_data)
+        items = root.findall('.//item')
+        rows = []
+        for item in items:
+            data_str = item.attrib.get('data', '')
+            parts = data_str.split('|')
+            if len(parts) >= 6:
+                d_str = parts[0]
+                date_str = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
+                if not start_date or date_str >= start_date:
+                    rows.append({
+                        'Date': pd.to_datetime(date_str),
+                        'Open': float(parts[1]),
+                        'High': float(parts[2]),
+                        'Low': float(parts[3]),
+                        'Close': float(parts[4]),
+                        'Volume': float(parts[5]),
+                    })
+        if rows:
+            df = pd.DataFrame(rows).set_index('Date').sort_index()
+            return df
+    except Exception as e:
+        logger.debug(f"Naver direct API fetch failed for {symbol}: {e}")
+    return pd.DataFrame()
+
+
+def _fetch_pykrx(symbol: str, start_date: str = None) -> pd.DataFrame:
+    """Tier 4 fallback for KRX: PyKRX API."""
+    try:
+        from pykrx import stock
+        code = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol.split('.')[0]
+        s_date = (start_date or "2018-01-01").replace('-', '')
+        e_date = datetime.now().strftime('%Y%m%d')
+        df = stock.get_market_ohlcv_by_date(s_date, e_date, code)
+        if df is not None and not df.empty:
+            col_map = {'시가': 'Open', '고가': 'High', '저가': 'Low', '종가': 'Close', '거래량': 'Volume'}
+            df = df.rename(columns=col_map)
+            cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in df.columns]
+            df = df[cols]
+            df.index.name = 'Date'
+            return df
+    except Exception as e:
+        logger.debug(f"PyKRX fetch failed for {symbol}: {e}")
+    return pd.DataFrame()
+
+
+def _fetch_stooq_or_yahoo_direct(symbol: str, start_date: str = None) -> pd.DataFrame:
+    """Tier 3 fallback for US: Stooq / Yahoo Direct API."""
+    try:
+        df = fdr.DataReader(f"STOOQ:{symbol.upper()}", start=start_date)
+        if df is not None and not df.empty:
+            df.columns = [str(c).capitalize() for c in df.columns]
+            return df
+    except Exception as e:
+        logger.debug(f"FDR Stooq fetch failed for {symbol}: {e}")
+
+    try:
+        stooq_sym = symbol.lower().replace('.', '-')
+        url = f"https://stooq.com/q/d/l/?s={stooq_sym}.us&i=d"
+        df = pd.read_csv(url, parse_dates=['Date'], index_col='Date')
+        if df is not None and not df.empty:
+            if start_date:
+                df = df[df.index >= pd.to_datetime(start_date)]
+            df.columns = [str(c).capitalize() for c in df.columns]
+            return df
+    except Exception as e:
+        logger.debug(f"Direct Stooq CSV fetch failed for {symbol}: {e}")
+
+    return pd.DataFrame()
 
 
 class CircuitBreakerOpenException(Exception):
@@ -243,40 +325,12 @@ class MarketDataHandler:
         if needs_fetch:
             if not self.circuit_breaker.check_state():
                 self.logger.error(f"Circuit breaker is OPEN. Blocked fetch for {symbol}")
+                if not df.empty:
+                    return self._df_to_price_bars(df)
                 return []
 
-            self.rate_limiter.wait()
             try:
-                ticker = yf.Ticker(symbol)
-                if yf_period == "max":
-                    hist = ticker.history(period="max")
-                elif start_date:
-                    hist = ticker.history(start=start_date)
-                else:
-                    hist = ticker.history(period=period)
-
-                if hist.empty:
-                    self.logger.warning(f"No historical data found for {symbol}")
-                    self.circuit_breaker.record_success()
-
-                    if not df.empty:
-                        price_bars = self._df_to_price_bars(df)
-                        self.logger.info(f"Returning {len(price_bars)} cached bars for {symbol}")
-                        return price_bars
-                    return []
-
-                hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
-                if hist.empty:
-                    self.logger.warning(f"No historical data after filtering NaNs for {symbol}")
-                    self.circuit_breaker.record_success()
-
-                    if not df.empty:
-                        price_bars = self._df_to_price_bars(df)
-                        self.logger.info(f"Returning {len(price_bars)} cached bars for {symbol}")
-                        return price_bars
-                    return []
-
-                self.circuit_breaker.record_success()
+                hist = self._fetch_historical_yf_with_retry(symbol, start_date=start_date, yf_period=yf_period, period=period)
 
                 # 3. 새 데이터 DB에 저장 (Parquet 캐시는 유지보수)
                 db.update_prices(symbol, hist)
@@ -295,7 +349,6 @@ class MarketDataHandler:
                 df = db.get_prices(symbol, start_date=start_date)
 
             except Exception as e:
-                self.circuit_breaker.record_failure()
                 self.logger.error(f"Failed to fetch historical data for {symbol}: {e}")
 
                 if not df.empty:
@@ -308,11 +361,103 @@ class MarketDataHandler:
         self.logger.info(f"Fetched {len(price_bars)} historical bars for {symbol} (DB cache)")
         return price_bars
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception) & retry_if_not_exception_type(CircuitBreakerOpenException),
+        reraise=True
+    )
+    def _fetch_historical_yf_with_retry(self, symbol: str, start_date: str = None, yf_period: str = None, period: str = "5y") -> pd.DataFrame:
+        """Multi-tier historical data fetch with retries and fallbacks."""
+        if not self.circuit_breaker.check_state():
+            raise CircuitBreakerOpenException("Circuit breaker is OPEN. API calls are temporarily blocked.")
+
+        self.rate_limiter.wait()
+
+        # Symbol normalization
+        clean_sym = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol
+        is_krx = clean_sym.isdigit() and len(clean_sym) == 6 or clean_sym.endswith(('.KS', '.KQ', '.KX'))
+        if is_krx:
+            yf_symbol = f"{clean_sym.split('.')[0]}.KS" if not clean_sym.endswith(('.KS', '.KQ', '.KX')) else clean_sym
+        else:
+            yf_symbol = clean_sym.replace('.', '-')
+
+        # Tier 1: yfinance
+        try:
+            ticker = yf.Ticker(yf_symbol)
+            if yf_period == "max":
+                hist = ticker.history(period="max")
+            elif start_date:
+                hist = ticker.history(start=start_date)
+            else:
+                hist = ticker.history(period=period)
+
+            if hist is not None and not hist.empty:
+                hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
+                if not hist.empty:
+                    self.circuit_breaker.record_success()
+                    return hist
+        except CircuitBreakerOpenException:
+            raise
+        except Exception as e:
+            logger.debug(f"Tier 1 (yfinance) failed for {yf_symbol}: {e}")
+
+        # Tier 2: FinanceDataReader
+        try:
+            fdr_sym = clean_sym.split('.')[0] if is_krx else yf_symbol
+            hist = fdr.DataReader(fdr_sym, start=start_date)
+            if hist is not None and not hist.empty:
+                hist.columns = [str(c).capitalize() for c in hist.columns]
+                hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
+                if not hist.empty:
+                    self.circuit_breaker.record_success()
+                    return hist
+        except Exception as e:
+            logger.debug(f"Tier 2 (FinanceDataReader) failed for {clean_sym}: {e}")
+
+        # Tier 3 & Tier 4 (KRX / US specific fallbacks)
+        if is_krx:
+            # Tier 3: Naver Direct API
+            try:
+                hist = _fetch_naver_direct(clean_sym, start_date)
+                if hist is not None and not hist.empty:
+                    self.circuit_breaker.record_success()
+                    return hist
+            except Exception as e:
+                logger.debug(f"Tier 3 (Naver Direct) failed for {clean_sym}: {e}")
+
+            # Tier 4: PyKRX
+            try:
+                hist = _fetch_pykrx(clean_sym, start_date)
+                if hist is not None and not hist.empty:
+                    self.circuit_breaker.record_success()
+                    return hist
+            except Exception as e:
+                logger.debug(f"Tier 4 (PyKRX) failed for {clean_sym}: {e}")
+        else:
+            # Tier 3 US: Stooq / Yahoo Direct
+            try:
+                hist = _fetch_stooq_or_yahoo_direct(clean_sym, start_date)
+                if hist is not None and not hist.empty:
+                    self.circuit_breaker.record_success()
+                    return hist
+            except Exception as e:
+                logger.debug(f"Tier 3 (Stooq/Yahoo Direct) failed for {clean_sym}: {e}")
+
+        self.circuit_breaker.record_failure()
+        raise ValueError(f"No historical price data returned across all providers for {symbol}")
+
     @staticmethod
     def _df_to_price_bars(df: pd.DataFrame) -> List[Any]:
-        """DataFrame(인덱스=날짜, 컬럼=OHLCV) → PriceBar 리스트 변환 (대소문자 무관)"""
-        price_bars = []
+        """DataFrame(인덱스=날짜, 컬럼=OHLCV) → PriceBar 리스트 변환 (대소문자 무관, ffill 연속성 보장)"""
+        if df is None or df.empty:
+            return []
+        df = df.copy()
         cols = {c.lower(): c for c in df.columns}
+        ohlcv_cols = [cols[k] for k in ["open", "high", "low", "close", "volume"] if k in cols]
+        if ohlcv_cols:
+            df[ohlcv_cols] = df[ohlcv_cols].ffill()
+        price_bars = []
         for date_idx, row in df.iterrows():
             pydt = date_idx.to_pydatetime() if hasattr(date_idx, "to_pydatetime") else pd.to_datetime(date_idx).to_pydatetime()
             price_bars.append(PriceBar(

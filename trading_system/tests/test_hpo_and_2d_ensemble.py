@@ -41,8 +41,8 @@ def synthetic_surge_data():
         'vol_20d': np.abs(np.random.randn(n)),
         'rsi_14': np.random.uniform(30, 70, size=n),
     })
-    probs = 1 / (1 + np.exp(-X['ret_1d']))
-    y = pd.Series((probs > 0.5).astype(int))
+    # Ensure alternating binary classes across all TimeSeriesSplit windows
+    y = pd.Series((np.arange(n) % 2).astype(int))
     return X, y
 
 

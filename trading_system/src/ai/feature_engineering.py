@@ -24,15 +24,21 @@ def fit_scaler(df: pd.DataFrame, features: list, model_dir: str, market: str, ho
     scaler.fit(X)
 
     os.makedirs(model_dir, exist_ok=True)
-    scaler_path = get_scaler_path(model_dir, market, horizon)
-    joblib.dump(scaler, scaler_path)
-    logger.info(f"Saved feature scaler for {market} {horizon}d to {scaler_path}")
+    scaler_path = os.path.normpath(get_scaler_path(model_dir, market, horizon))
+    try:
+        joblib.dump(scaler, scaler_path)
+        logger.info(f"Saved feature scaler for {market} {horizon}d to {scaler_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save scaler to {scaler_path}: {e}")
     return scaler
 
 def load_scaler(model_dir: str, market: str, horizon: int) -> StandardScaler:
-    scaler_path = get_scaler_path(model_dir, market, horizon)
+    scaler_path = os.path.normpath(get_scaler_path(model_dir, market, horizon))
     if os.path.exists(scaler_path):
-        return joblib.load(scaler_path)
+        try:
+            return joblib.load(scaler_path)
+        except Exception as e:
+            logger.warning(f"Failed to load scaler from {scaler_path}: {e}")
     logger.warning(f"Scaler not found at {scaler_path}. Returning default StandardScaler.")
     return StandardScaler()
 

@@ -19,13 +19,13 @@ def _is_krx_symbol(symbol: str) -> bool:
     """Return True for KRX-listed symbols (KOSPI/KOSDAQ/KONEX).
 
     KRX symbols carry a `.KS`/`.KQ`/`.KX` suffix (Yahoo style) or are bare
-    6-digit numeric codes (FinanceDataReader style). Everything else is treated
+    numeric codes up to 6 digits (FinanceDataReader style). Everything else is treated
     as a US market symbol (SP500/NASDAQ/RUSSELL2000).
     """
     s = str(symbol).upper().strip()
     if s.endswith((".KS", ".KQ", ".KX")):
         return True
-    if len(s) == 6 and s.isdigit():
+    if s.isdigit() and 1 <= len(s) <= 6:
         return True
     return False
 
@@ -359,7 +359,9 @@ class MarketIndicatorStorage:
 
                 # KRX (filtered: KOSPI, KOSDAQ only; exclude KONEX)
                 for _, row in krx.iterrows():
-                    if row['Code'] in excluded:
+                    code_raw = str(row['Code']).strip()
+                    code_str = code_raw.zfill(6) if code_raw.isdigit() and len(code_raw) <= 6 else code_raw
+                    if code_str in excluded or code_raw in excluded:
                         continue
                     mkt = str(row.get('Market', 'KRX')).upper()
                     if mkt in ('KONEX', 'KN'):
@@ -368,7 +370,7 @@ class MarketIndicatorStorage:
                     ind = str(row.get('Industry') or '')
                     conn.execute(
                         "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                        (row['Code'], row['Name'], mkt, sec, ind)
+                        (code_str, row['Name'], mkt, sec, ind)
                     )
                 conn.commit()
         logger.info("Stock universe updated successfully with sector information.")

@@ -76,9 +76,11 @@ def _extract_15d_features(s_close: Any, val: Any = None) -> np.ndarray:
     ma20_ratio = prices[-1] / (sma20 + 1e-5)
     ma60_ratio = prices[-1] / (sma60 + 1e-5)
 
-    if isinstance(val, pd.DataFrame) and 'High' in val.columns and 'Low' in val.columns:
-        highs = val['High'].tail(120).values
-        lows = val['Low'].tail(120).values
+    high_c = 'High' if isinstance(val, pd.DataFrame) and 'High' in val.columns else ('high' if isinstance(val, pd.DataFrame) and 'high' in val.columns else None)
+    low_c = 'Low' if isinstance(val, pd.DataFrame) and 'Low' in val.columns else ('low' if isinstance(val, pd.DataFrame) and 'low' in val.columns else None)
+    if high_c and low_c:
+        highs = val[high_c].tail(120).values
+        lows = val[low_c].tail(120).values
         hl_spread = float(np.mean((highs - lows) / np.maximum(prices[-len(highs):], 1e-5)))
     else:
         hl_spread = std_r * 2.0

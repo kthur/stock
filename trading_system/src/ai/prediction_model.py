@@ -1031,6 +1031,11 @@ class OnDevicePredictionModel:
             norm_dict = self.apply_market_normalization({'TEMP': df}, storage)
             df = norm_dict['TEMP']
 
+        # Ensure contiguous OHLCV date alignment with ffill()
+        ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in df.columns]
+        if ohlcv_cols:
+            df[ohlcv_cols] = df[ohlcv_cols].ffill()
+
         # Save the latest row identifier to detect if it gets dropped
         df.index[-1] if not df.empty else None
 

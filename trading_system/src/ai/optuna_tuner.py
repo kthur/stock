@@ -67,6 +67,16 @@ class OptunaStrategyTuner:
     def tune_strategy_1_regression(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:
         """Strategy 1: Regression tuning (XGBoost, LightGBM, CatBoost) using TimeSeriesSplit."""
         logger.info("Tuning Strategy 1 (Regression)...")
+        if X is not None:
+            if isinstance(X, pd.Series):
+                X = X.to_frame()
+            elif isinstance(X, np.ndarray) and X.ndim == 1:
+                X = pd.DataFrame(X.reshape(-1, 1))
+            elif isinstance(X, np.ndarray) and X.ndim == 2:
+                X = pd.DataFrame(X)
+        if y is not None and isinstance(y, np.ndarray):
+            y = pd.Series(y)
+
         if X is None or y is None or len(X) < 30:
             logger.warning("Insufficient data for Strategy 1 tuning")
             default_xgb = {"n_estimators": 100, "max_depth": 5, "learning_rate": 0.05}
@@ -147,6 +157,16 @@ class OptunaStrategyTuner:
     def tune_strategy_2_surge(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:
         """Strategy 2: Surge Classifier tuning (XGBoost, LightGBM, CatBoost)."""
         logger.info("Tuning Strategy 2 (Surge Classifier)...")
+        if X is not None:
+            if isinstance(X, pd.Series):
+                X = X.to_frame()
+            elif isinstance(X, np.ndarray) and X.ndim == 1:
+                X = pd.DataFrame(X.reshape(-1, 1))
+            elif isinstance(X, np.ndarray) and X.ndim == 2:
+                X = pd.DataFrame(X)
+        if y is not None and isinstance(y, np.ndarray):
+            y = pd.Series(y)
+
         if X is None or y is None or len(X) < 30:
             logger.warning("Insufficient data for Strategy 2 tuning")
             default_surge_xgb = {"n_estimators": 100, "max_depth": 4, "learning_rate": 0.05, "scale_pos_weight": 5.0}
@@ -321,9 +341,14 @@ class OptunaStrategyTuner:
             forward_returns = []
             for sym, df in list(prices_dict.items())[:30]:
                 if df is not None and len(df) >= 70:
-                    high = df['High'].iloc[:, 0] if isinstance(df['High'], pd.DataFrame) else df['High']
-                    low = df['Low'].iloc[:, 0] if isinstance(df['Low'], pd.DataFrame) else df['Low']
-                    close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
+                    high_col = 'High' if 'High' in df.columns else ('high' if 'high' in df.columns else None)
+                    low_col = 'Low' if 'Low' in df.columns else ('low' if 'low' in df.columns else None)
+                    close_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                    if high_col is None or low_col is None or close_col is None:
+                        continue
+                    high = df[high_col].iloc[:, 0] if isinstance(df[high_col], pd.DataFrame) else df[high_col]
+                    low = df[low_col].iloc[:, 0] if isinstance(df[low_col], pd.DataFrame) else df[low_col]
+                    close = df[close_col].iloc[:, 0] if isinstance(df[close_col], pd.DataFrame) else df[close_col]
                     r_pct = (high - low) / (close + 1e-8) * 100
                     r1 = float(r_pct.iloc[-10:-5].max())
                     r2 = float(r_pct.iloc[-20:-10].max())
@@ -352,6 +377,16 @@ class OptunaStrategyTuner:
     def tune_strategy_5_vcp_ml(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:
         """Strategy 5: VCP ML Predictor tuning (scale_pos_weight, window_step, XGBoost/LGB/CatBoost hyperparams)."""
         logger.info("Tuning Strategy 5 (VCP ML Predictor)...")
+        if X is not None:
+            if isinstance(X, pd.Series):
+                X = X.to_frame()
+            elif isinstance(X, np.ndarray) and X.ndim == 1:
+                X = pd.DataFrame(X.reshape(-1, 1))
+            elif isinstance(X, np.ndarray) and X.ndim == 2:
+                X = pd.DataFrame(X)
+        if y is not None and isinstance(y, np.ndarray):
+            y = pd.Series(y)
+
         if X is None or y is None or len(X) < 30:
             logger.warning("Insufficient data for Strategy 5 tuning")
             default_vcp_ml = {"max_depth": 4, "learning_rate": 0.05, "scale_pos_weight": 5.0, "window_step_size": 1}

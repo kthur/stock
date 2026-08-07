@@ -151,8 +151,90 @@ def is_empty_result(result):
 _KR_MARKET_SUFFIX = {
     'KOSPI': '.KS',
     'KOSDAQ': '.KQ',
+    'KONEX': '.KS',
     'KRX': '.KS',
 }
+
+
+def _fetch_naver_direct(symbol: str, start_date: str) -> pd.DataFrame:
+    """Tier 3 fallback for KRX: Naver Financial Chart XML API."""
+    import urllib.request
+    import xml.etree.ElementTree as ET
+    code = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol.split('.')[0]
+    url = f"https://fchart.stock.naver.com/sise.nhn?symbol={code}&timeframe=day&count=3000&requestType=0"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            xml_data = resp.read().decode('euc-kr', errors='ignore')
+        root = ET.fromstring(xml_data)
+        items = root.findall('.//item')
+        rows = []
+        for item in items:
+            data_str = item.attrib.get('data', '')
+            parts = data_str.split('|')
+            if len(parts) >= 6:
+                d_str = parts[0]
+                date_str = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
+                if not start_date or date_str >= start_date:
+                    rows.append({
+                        'Date': pd.to_datetime(date_str),
+                        'Open': float(parts[1]),
+                        'High': float(parts[2]),
+                        'Low': float(parts[3]),
+                        'Close': float(parts[4]),
+                        'Volume': float(parts[5]),
+                    })
+        if rows:
+            df = pd.DataFrame(rows).set_index('Date').sort_index()
+            return df
+    except Exception as e:
+        logger.debug(f"Naver direct API fetch failed for {symbol}: {e}")
+    return pd.DataFrame()
+
+
+def _fetch_pykrx(symbol: str, start_date: str) -> pd.DataFrame:
+    """Tier 4 fallback for KRX: PyKRX API."""
+    try:
+        from pykrx import stock
+        code = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol.split('.')[0]
+        s_date = (start_date or "2018-01-01").replace('-', '')
+        e_date = datetime.now().strftime('%Y%m%d')
+        df = stock.get_market_ohlcv_by_date(s_date, e_date, code)
+        if df is not None and not df.empty:
+            col_map = {'시가': 'Open', '고가': 'High', '저가': 'Low', '종가': 'Close', '거래량': 'Volume'}
+            df = df.rename(columns=col_map)
+            cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in df.columns]
+            df = df[cols]
+            df.index.name = 'Date'
+            return df
+    except Exception as e:
+        logger.debug(f"PyKRX fetch failed for {symbol}: {e}")
+    return pd.DataFrame()
+
+
+def _fetch_stooq_or_yahoo_direct(symbol: str, start_date: str) -> pd.DataFrame:
+    """Tier 3 fallback for US: Stooq / Yahoo Direct API."""
+    try:
+        df = fdr.DataReader(f"STOOQ:{symbol.upper()}", start=start_date)
+        if df is not None and not df.empty:
+            df.columns = [str(c).capitalize() for c in df.columns]
+            return df
+    except Exception as e:
+        logger.debug(f"FDR Stooq fetch failed for {symbol}: {e}")
+
+    try:
+        stooq_sym = symbol.lower().replace('.', '-')
+        url = f"https://stooq.com/q/d/l/?s={stooq_sym}.us&i=d"
+        df = pd.read_csv(url, parse_dates=['Date'], index_col='Date')
+        if df is not None and not df.empty:
+            if start_date:
+                df = df[df.index >= pd.to_datetime(start_date)]
+            df.columns = [str(c).capitalize() for c in df.columns]
+            return df
+    except Exception as e:
+        logger.debug(f"Direct Stooq CSV fetch failed for {symbol}: {e}")
+
+    return pd.DataFrame()
 
 
 @retry(
@@ -161,38 +243,86 @@ _KR_MARKET_SUFFIX = {
     retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)),
     reraise=True
 )
+def _fetch_yf_primary(yf_symbol: str, start_date: str) -> pd.DataFrame:
+    """Tier 1 yfinance primary fetch with automatic exponential backoff retries."""
+    df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
+    if df is not None and not df.empty:
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        return df
+    return pd.DataFrame()
+
+
 def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.DataFrame:
     # Enforce global rate limit coordination
     get_global_rate_limiter().wait()
 
+    # Symbol normalization
+    is_krx = market in ('KOSPI', 'KOSDAQ', 'KONEX', 'KRX') or (symbol.isdigit() and len(symbol) <= 6)
+    if is_krx:
+        canonical_symbol = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol
+        suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
+        yf_symbol = f"{canonical_symbol}{suffix}"
+    else:
+        canonical_symbol = symbol
+        yf_symbol = symbol.replace('.', '-')
+
     result = None
 
-    if market in ('SP500', 'NYSE', 'NASDAQ') or not symbol.isdigit():
-        yf_symbol = symbol
-    else:
-        suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
-        yf_symbol = f"{symbol}{suffix}"
-
-    # Tier 1: Try yfinance primary download
+    # Tier 1: Try yfinance primary download (with automatic Tenacity retries)
     try:
-        df = yf.download(yf_symbol, start=start_date, progress=False, auto_adjust=True)
+        df = _fetch_yf_primary(yf_symbol, start_date)
         if df is not None and not df.empty:
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.droplevel(1)
             result = df
+            logger.debug(f"Tier 1 (yfinance) succeeded for {yf_symbol}")
     except Exception as e:
         logger.debug(f"Tier 1 (yfinance) network fetch failed for {yf_symbol}: {e}")
 
     # Tier 2: Secondary provider fallback (FinanceDataReader)
     if result is None or result.empty:
         try:
-            logger.debug(f"Attempting Tier 2 (FinanceDataReader) download for {symbol}...")
-            result = fdr.DataReader(symbol, start=start_date)
-            if result is not None and not result.empty:
-                logger.warning(f"Successfully retrieved Tier 2 (FinanceDataReader) data for {symbol}")
+            logger.debug(f"Attempting Tier 2 (FinanceDataReader) download for {canonical_symbol}...")
+            fdr_sym = canonical_symbol if is_krx else yf_symbol
+            df = fdr.DataReader(fdr_sym, start=start_date)
+            if df is not None and not df.empty:
+                result = df
+                logger.warning(f"Successfully retrieved Tier 2 (FinanceDataReader) data for {canonical_symbol}")
         except Exception as e:
-            logger.debug(f"Tier 2 (FinanceDataReader) network fetch failed for {symbol}: {e}")
-            raise e
+            logger.debug(f"Tier 2 (FinanceDataReader) network fetch failed for {canonical_symbol}: {e}")
+
+    # Tier 3 & Tier 4 (KRX / US specific fallbacks)
+    if result is None or result.empty:
+        if is_krx:
+            # Tier 3 KRX: Naver Direct API
+            try:
+                logger.debug(f"Attempting Tier 3 (Naver Direct API) download for {canonical_symbol}...")
+                df = _fetch_naver_direct(canonical_symbol, start_date)
+                if df is not None and not df.empty:
+                    result = df
+                    logger.warning(f"Successfully retrieved Tier 3 (Naver Direct API) data for {canonical_symbol}")
+            except Exception as e:
+                logger.debug(f"Tier 3 (Naver Direct API) fetch failed for {canonical_symbol}: {e}")
+
+            # Tier 4 KRX: PyKRX
+            if result is None or result.empty:
+                try:
+                    logger.debug(f"Attempting Tier 4 (PyKRX) download for {canonical_symbol}...")
+                    df = _fetch_pykrx(canonical_symbol, start_date)
+                    if df is not None and not df.empty:
+                        result = df
+                        logger.warning(f"Successfully retrieved Tier 4 (PyKRX) data for {canonical_symbol}")
+                except Exception as e:
+                    logger.debug(f"Tier 4 (PyKRX) fetch failed for {canonical_symbol}: {e}")
+        else:
+            # Tier 3 US: Stooq / Yahoo Direct API
+            try:
+                logger.debug(f"Attempting Tier 3 (Stooq / Yahoo Direct) download for {canonical_symbol}...")
+                df = _fetch_stooq_or_yahoo_direct(canonical_symbol, start_date)
+                if df is not None and not df.empty:
+                    result = df
+                    logger.warning(f"Successfully retrieved Tier 3 (Stooq / Yahoo Direct) data for {canonical_symbol}")
+            except Exception as e:
+                logger.debug(f"Tier 3 (Stooq / Yahoo Direct) fetch failed for {canonical_symbol}: {e}")
 
     if result is None or result.empty:
         raise ValueError(f"Fetched data for {symbol} is empty or None across all providers")
@@ -242,11 +372,12 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
             yf_tickers = []
             for sym in batch:
                 market = symbol_market.get(sym, 'SP500')
-                if market == 'SP500' or market.startswith('NYSE') or market.startswith('NASDAQ'):
-                    yf_ticker = sym
+                if market in ('SP500', 'NYSE', 'NASDAQ', 'RUSSELL2000') or not (sym.isdigit() and len(sym) <= 6):
+                    yf_ticker = sym.replace('.', '-')
                 else:
+                    clean_sym = sym.zfill(6) if sym.isdigit() and len(sym) <= 6 else sym
                     suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
-                    yf_ticker = f"{sym}{suffix}"
+                    yf_ticker = f"{clean_sym}{suffix}"
                 yf_tickers.append(yf_ticker)
                 ticker_to_sym[yf_ticker] = sym
 
@@ -307,6 +438,37 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 
                 return True
 
+            def _download_yf_batch_with_retry(tickers: list, start_dt: str, max_attempts: int = 3) -> pd.DataFrame:
+                """Download batch of tickers with exponential backoff retry on HTTP 429 rate limits / network errors."""
+                delay = 2.0
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        get_global_rate_limiter().wait()
+                        df_res = yf.download(tickers, start=start_dt, progress=False, auto_adjust=True, group_by='ticker')
+                        if df_res is not None and not df_res.empty:
+                            return df_res
+                        if len(tickers) > 1 and attempt < max_attempts:
+                            logger.warning(
+                                f"Batch yf.download returned empty result for {len(tickers)} tickers "
+                                f"(attempt {attempt}/{max_attempts}), backing off {delay}s..."
+                            )
+                            time.sleep(delay)
+                            delay = min(delay * 2, 10.0)
+                            continue
+                        return pd.DataFrame()
+                    except Exception as ex:
+                        is_429 = "429" in str(ex) or "Too Many Requests" in str(ex)
+                        if attempt < max_attempts:
+                            logger.warning(
+                                f"yf.download failed for batch of {len(tickers)} tickers "
+                                f"(attempt {attempt}/{max_attempts}, HTTP 429={is_429}): {ex}. Backing off {delay}s..."
+                            )
+                            time.sleep(delay)
+                            delay = min(delay * 2, 10.0)
+                        else:
+                            raise ex
+                return pd.DataFrame()
+
             def _download_with_recovery(tickers: list, start_dt: str) -> pd.DataFrame:
                 if not tickers:
                     return pd.DataFrame()
@@ -314,7 +476,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                 # Single-ticker fast path: no binary split needed
                 if len(tickers) == 1:
                     try:
-                        df_res = yf.download(tickers, start=start_dt, progress=False, auto_adjust=True, group_by='ticker')
+                        df_res = _download_yf_batch_with_retry(tickers, start_dt)
                         if df_res is not None and not df_res.empty:
                             return df_res
                     except Exception as ex:
@@ -323,11 +485,11 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                     return pd.DataFrame()
 
                 try:
-                    df_res = yf.download(tickers, start=start_dt, progress=False, auto_adjust=True, group_by='ticker')
+                    df_res = _download_yf_batch_with_retry(tickers, start_dt)
                     if df_res is not None and not df_res.empty:
                         return df_res
-                except Exception:
-                    pass  # Fall through to binary split
+                except Exception as ex:
+                    logger.info(f"Batch download failed after retries for {len(tickers)} tickers: {ex}. Proceeding to binary split.")
 
                 # Binary split to isolate bad tickers
                 mid = len(tickers) // 2
@@ -381,7 +543,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 
 def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional[StockPriceDB] = None,
                    freshness_days: int = 7, update_interval: int = 0) -> Optional[pd.DataFrame]:
-    """Fetch price data for a single symbol using technical_cache + MarketDataHandler (Tier 1 yfinance, Tier 2 FDR, Tier 3 DB)."""
+    """Fetch price data for a single symbol using technical_cache + MarketDataHandler (Multi-tier network & DB cache)."""
     def _fetch_fallback(s: str, d: str) -> Optional[pd.DataFrame]:
         cached_df = None
         stale = True if freshness_days >= 0 else False
@@ -394,6 +556,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
                 cached_df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in cached_df.columns]
 
             if not stale and cached_df is not None and not cached_df.empty:
+                ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in cached_df.columns]
+                if ohlcv_cols:
+                    cached_df[ohlcv_cols] = cached_df[ohlcv_cols].ffill()
                 return cached_df
 
         network_result = None
@@ -403,22 +568,33 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
             if network_result is not None and not network_result.empty:
                 network_result.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in network_result.columns]
         except Exception as e:
-            logger.warning(f"Tier 1 & 2 network download failed for {s}: {e}")
+            logger.warning(f"Multi-tier network download failed for {s}: {e}")
 
         if network_result is not None and not network_result.empty:
-            if price_db is not None:
-                try:
-                    price_db.update_prices(s, network_result)
-                except Exception as ex:
-                    logger.debug(f"Failed to cache prices for {s}: {ex}")
+            # DataValidator Gate: Validate before storing into DB
+            if DataValidator.validate_price_data(s, network_result):
+                if price_db is not None:
+                    try:
+                        price_db.update_prices(s, network_result)
+                    except Exception as ex:
+                        logger.debug(f"Failed to cache prices for {s}: {ex}")
+            else:
+                logger.warning(f"[DataQualityGate] Network payload for {s} failed validation. Skipping price_db update.")
 
             if cached_df is not None and not cached_df.empty:
                 merged_df = pd.concat([cached_df, network_result])
                 merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
+                ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in merged_df.columns]
+                if ohlcv_cols:
+                    merged_df[ohlcv_cols] = merged_df[ohlcv_cols].ffill()
                 return merged_df
+
+            ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in network_result.columns]
+            if ohlcv_cols:
+                network_result[ohlcv_cols] = network_result[ohlcv_cols].ffill()
             return network_result
 
-        # 4. Tier 3 Fallback: Network failed, fall back to DB cache if available
+        # Network failed, fall back to DB cache if available
         if (cached_df is None or cached_df.empty) and price_db is not None:
             cached_df = price_db.get_prices(s, start_date=None)
             if cached_df is not None and not cached_df.empty:
@@ -426,6 +602,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
 
         if cached_df is not None and not cached_df.empty:
             logger.warning(f"[Offline Cache Fallback] Network failed for {s}. Falling back to cached DB data ({len(cached_df)} rows)")
+            ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in cached_df.columns]
+            if ohlcv_cols:
+                cached_df[ohlcv_cols] = cached_df[ohlcv_cols].ffill()
             return cached_df
 
         logger.warning(f"No network data or DB cache available for {s}.")
@@ -439,6 +618,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
     )
     if result is not None and not result.empty:
         result.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in result.columns]
+        ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in result.columns]
+        if ohlcv_cols:
+            result[ohlcv_cols] = result[ohlcv_cols].ffill()
     return result
 
 
@@ -2427,6 +2609,14 @@ def execute_prediction_pipeline():
         logger.warning(f"Inst & Foreign sector strategy computation failed: {_ifs_e}")
         inst_foreign_sector_df = pd.DataFrame()
 
+    # Extract LSTM predictions if present in regression results (20d horizon)
+    lstm_df_for_ens = None
+    if res_df is not None and not res_df.empty:
+        res_20 = res_df[res_df['horizon'] == 20] if 'horizon' in res_df.columns else res_df
+        l_col = 'pred_lstm' if 'pred_lstm' in res_20.columns else ('lstm_score' if 'lstm_score' in res_20.columns else None)
+        if l_col:
+            lstm_df_for_ens = res_20[['symbol', l_col]].rename(columns={l_col: 'lstm_score'})
+
     # default target horizon is 20d (17-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
@@ -2435,6 +2625,7 @@ def execute_prediction_pipeline():
         lead_lag_df=lead_lag_df,
         vcp_rule_df=vcp_results,
         vcp_ml_df=vcp_ml_df,
+        lstm_df=lstm_df_for_ens,
         stat_arb_df=stat_arb_df,
         sector_df=sector_df,
         rim_df=rim_df,
@@ -2450,6 +2641,7 @@ def execute_prediction_pipeline():
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )
+
 
     # Persist today's ensemble predictions (all strategy scores) for future
     # rolling Sharpe weighting, calibrator fitting and coverage analysis.

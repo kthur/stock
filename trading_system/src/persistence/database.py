@@ -360,6 +360,18 @@ class AIPredictionDB:
         await self._conn_mgr.close()
 
 
+def normalize_symbol(symbol: str) -> str:
+    """Standardize ticker symbol canonical keys.
+
+    KRX numeric codes (len <= 6) -> 6-digit zero padded (e.g., '5930' -> '005930').
+    US tickers and non-numeric codes are returned stripped without modification (e.g. 'BRK.B').
+    """
+    s = str(symbol).strip()
+    if s.isdigit() and len(s) <= 6:
+        return s.zfill(6)
+    return s
+
+
 class StockPriceDB:
     """주가 데이터 SQLite 캐시 (OHLCV + 거래량) — 외부 API 재호출 방지
 
@@ -425,6 +437,7 @@ class StockPriceDB:
 
     def update_prices(self, symbol: str, df: pd.DataFrame) -> int:
         """OHLCV DataFrame을 DB에 batch upsert. 반환: 저장된 행 수 (Retry Lock 포함)"""
+        symbol = normalize_symbol(symbol)
         records = []
         for idx, row in df.iterrows():
             date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
@@ -463,6 +476,7 @@ class StockPriceDB:
     def get_prices(self, symbol: str, start_date: Optional[str] = None,
                    end_date: Optional[str] = None) -> pd.DataFrame:
         """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame, 컬럼명 대문자)"""
+        symbol = normalize_symbol(symbol)
         conn = self._get_conn()
         query = "SELECT date, open, high, low, close, volume FROM stock_prices WHERE symbol = ?"
         params: list = [symbol]
@@ -485,6 +499,7 @@ class StockPriceDB:
 
     def get_latest_date(self, symbol: str) -> Optional[str]:
         """해당 종목의 DB 내 최신 날짜 반환"""
+        symbol = normalize_symbol(symbol)
         conn = self._get_conn()
         cursor = conn.execute(
             "SELECT MAX(date) FROM stock_prices WHERE symbol = ?", (symbol,)
@@ -494,6 +509,7 @@ class StockPriceDB:
 
     def _get_earliest_date(self, symbol: str) -> Optional[str]:
         """해당 종목의 DB 내 최초 날짜 반환"""
+        symbol = normalize_symbol(symbol)
         conn = self._get_conn()
         cursor = conn.execute(
             "SELECT MIN(date) FROM stock_prices WHERE symbol = ?", (symbol,)
@@ -504,6 +520,7 @@ class StockPriceDB:
     def needs_update(self, symbol: str, max_age_days: int = 1,
                      start_date: Optional[str] = None) -> bool:
         """DB 데이터가 max_age_days 이상 지났거나, start_date보다 앞 데이터가 부족하면 True"""
+        symbol = normalize_symbol(symbol)
         if max_age_days < 0:
             return False
         latest = self.get_latest_date(symbol)
@@ -533,6 +550,7 @@ class StockPriceDB:
         """저장된 행 수 (선택적 symbol 필터)"""
         conn = self._get_conn()
         if symbol:
+            symbol = normalize_symbol(symbol)
             cursor = conn.execute(
                 "SELECT COUNT(*) FROM stock_prices WHERE symbol = ?", (symbol,)
             )
