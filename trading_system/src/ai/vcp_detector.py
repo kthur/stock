@@ -84,7 +84,7 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
             h_s = _safe_series(df[h_col[0]])
             pivot_price = float(h_s.iloc[-20:].max()) if len(h_s) >= 20 else float(h_s.iloc[-1])
 
-    if df is None or len(df) < 200:
+    if df is None or len(df) < 50:
         return {'is_vcp': False, 'vcp_score': 0.0, 'pivot_price': round(pivot_price, 2), 'contraction_peaks': []}
 
 
