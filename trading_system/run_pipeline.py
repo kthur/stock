@@ -859,8 +859,12 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     if 'us10y' in result.columns:
         result['real_rate_proxy'] = result['us10y'] - 2.5  # Nominal 10Y minus 2.5% inflation anchor
 
+    # Forward-fill / backward-fill to eliminate NaNs from staggered market hours (US vs KRX vs FX)
+    result = result.ffill().bfill()
+
     logger.info(f"Fetched indicator history: {len(result)} rows x {len(result.columns)} cols")
     return result
+
 
 
 def _market_symbols(universe: pd.DataFrame) -> dict:

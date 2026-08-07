@@ -65,17 +65,41 @@ class GlobalMarketClient:
             if now - ts < _CACHE_TTL:
                 return data
 
+        hist = None
+        # Tier 1: yf.Ticker fast path
         try:
             tk = yf.Ticker(symbol)
             hist = tk.history(period=period)
-            if hist.empty:
-                logger.warning("No data returned for %s", symbol)
-            else:
-                self._cache[cache_key] = (hist, now)
-            return hist
         except Exception as e:
-            logger.error("yfinance error for %s: %s", symbol, e)
+            logger.debug("yfinance Ticker error for %s: %s", symbol, e)
+
+        # Tier 2: yf.download batch path
+        if hist is None or hist.empty:
+            try:
+                hist = yf.download(symbol, period=period, progress=False)
+                if isinstance(hist.columns, pd.MultiIndex):
+                    hist.columns = hist.columns.droplevel(1)
+            except Exception as e:
+                logger.debug("yfinance download error for %s: %s", symbol, e)
+
+        # Tier 3: FinanceDataReader fallback
+        if hist is None or hist.empty:
+            try:
+                import FinanceDataReader as fdr
+                fdr_sym = symbol.replace("USDKRW=X", "USD/KRW").replace("EURUSD=X", "EUR/USD")
+                hist = fdr.DataReader(fdr_sym, start=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
+                if hist is not None and not hist.empty:
+                    hist.columns = [str(c).capitalize() for c in hist.columns]
+            except Exception as e:
+                logger.debug("FDR fallback error for %s: %s", symbol, e)
+
+        if hist is not None and not hist.empty:
+            self._cache[cache_key] = (hist, now)
+            return hist
+        else:
+            logger.warning("No data returned for %s across all providers", symbol)
             return None
+
 
     def get_index_current(self, symbol: str) -> Dict[str, Any]:
         """Return latest snapshot for a single index symbol."""
