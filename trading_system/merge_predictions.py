@@ -621,6 +621,11 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "card_factor_predictions.txt", "Cross-Asset Regime Divergence (CARD) Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "latr_factor_predictions.txt", "Liquidity-Adjusted Tail Risk (LATR) Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "inst_foreign_sector_predictions.txt", "Institutional & Foreign Sector Flow Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "supply_chain_predictions.txt", "Supply Chain Lead-Lag Momentum Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "sentiment_predictions.txt", "NLP & FinBERT Sentiment Catalyst Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "factor_neutralized_predictions.txt", "Multi-Factor Style Neutralized Pure Alpha Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "vol_target_predictions.txt", "Dynamic Volatility Targeting Risk Parity Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "microstructure_predictions.txt", "Order Book Microstructure Imbalance Predictions")
 
     print("All prediction files successfully merged.")
 

@@ -2625,6 +2625,106 @@ def execute_prediction_pipeline():
         logger.warning(f"Inst & Foreign sector strategy computation failed: {_ifs_e}")
         inst_foreign_sector_df = pd.DataFrame()
 
+    # Strategy 19: Supply Chain Lead-Lag Momentum Engine
+    try:
+        from src.core.supply_chain import SupplyChainEngine
+        sc_engine = SupplyChainEngine()
+        supply_chain_df = sc_engine.compute_scores(infer_data_dict, universe)
+        sc_output_path = os.path.join(result_dir, "supply_chain_predictions.txt")
+        if not supply_chain_df.empty:
+            with open(sc_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 19: Supply Chain Lead-Lag Momentum Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(supply_chain_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'SC Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(supply_chain_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['supply_chain_score']:>12.1f}%\n")
+    except Exception as _sc_e:
+        logger.warning(f"Supply chain strategy computation failed: {_sc_e}")
+        supply_chain_df = pd.DataFrame()
+
+    # Strategy 20: NLP & FinBERT Sentiment Catalyst Engine
+    try:
+        from src.core.llm_sentiment_engine import DARTSECSentimentEngine
+        sent_engine = DARTSECSentimentEngine()
+        sentiment_df = sent_engine.compute_scores(universe)
+        sent_output_path = os.path.join(result_dir, "sentiment_predictions.txt")
+        if not sentiment_df.empty:
+            with open(sent_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 20: NLP & FinBERT Sentiment Catalyst Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(sentiment_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Sent Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(sentiment_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['sentiment_score']:>12.1f}%\n")
+    except Exception as _sent_e:
+        logger.warning(f"Sentiment strategy computation failed: {_sent_e}")
+        sentiment_df = pd.DataFrame()
+
+    # Strategy 21: Multi-Factor Risk & Style Neutralizer Engine
+    try:
+        from src.core.multi_factor_neutralizer import MultiFactorNeutralizerEngine
+        fn_engine = MultiFactorNeutralizerEngine()
+        factor_neutralized_df = fn_engine.compute_scores(universe)
+        fn_output_path = os.path.join(result_dir, "factor_neutralized_predictions.txt")
+        if not factor_neutralized_df.empty:
+            with open(fn_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 21: Multi-Factor Style Neutralized Pure Alpha Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(factor_neutralized_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'FN Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(factor_neutralized_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['neutralized_score']:>12.1f}%\n")
+    except Exception as _fn_e:
+        logger.warning(f"Multi-factor neutralizer strategy computation failed: {_fn_e}")
+        factor_neutralized_df = pd.DataFrame()
+
+    # Strategy 22: Dynamic Volatility Targeting Engine
+    try:
+        from src.core.vol_target import VolTargetingEngine
+        vt_engine = VolTargetingEngine()
+        vol_target_df = vt_engine.compute_scores(infer_data_dict, universe)
+        vt_output_path = os.path.join(result_dir, "vol_target_predictions.txt")
+        if not vol_target_df.empty:
+            with open(vt_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 22: Dynamic Volatility Targeting Risk Parity Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(vol_target_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'VT Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(vol_target_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['vol_target_score']:>12.1f}%\n")
+    except Exception as _vt_e:
+        logger.warning(f"Volatility targeting strategy computation failed: {_vt_e}")
+        vol_target_df = pd.DataFrame()
+
+    # Strategy 23: Order Book Microstructure Imbalance Engine
+    try:
+        from src.core.hft_engine import MicrostructureImbalanceEngine
+        micro_engine = MicrostructureImbalanceEngine()
+        microstructure_df = micro_engine.compute_scores(infer_data_dict, universe)
+        micro_output_path = os.path.join(result_dir, "microstructure_predictions.txt")
+        if not microstructure_df.empty:
+            with open(micro_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 23: Order Book Microstructure Imbalance Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(microstructure_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Micro Score':<14}\n")
+                f.write("-" * 60 + "\n")
+                for rank, (_, row) in enumerate(microstructure_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['microstructure_score']:>12.1f}%\n")
+    except Exception as _micro_e:
+        logger.warning(f"Microstructure strategy computation failed: {_micro_e}")
+        microstructure_df = pd.DataFrame()
+
     # Extract LSTM predictions if present in regression results (20d horizon)
     lstm_df_for_ens = None
     if res_df is not None and not res_df.empty:
@@ -2633,7 +2733,7 @@ def execute_prediction_pipeline():
         if l_col:
             lstm_df_for_ens = res_20[['symbol', l_col]].rename(columns={l_col: 'lstm_score'})
 
-    # default target horizon is 20d (17-Strategy Ensemble)
+    # default target horizon is 20d (23-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -2654,6 +2754,11 @@ def execute_prediction_pipeline():
         card_df=card_df,
         latr_df=latr_df,
         inst_foreign_sector_df=inst_foreign_sector_df,
+        supply_chain_df=supply_chain_df,
+        sentiment_df=sentiment_df,
+        factor_neutralized_df=factor_neutralized_df,
+        vol_target_df=vol_target_df,
+        microstructure_df=microstructure_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )

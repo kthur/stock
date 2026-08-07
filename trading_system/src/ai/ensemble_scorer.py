@@ -498,25 +498,33 @@ class EnsembleScoringEngine:
                 w = {k: v / total_w for k, v in w.items()}
 
         res = {
-            'regression': w.get('regression', 0.10),
-            'surge': w.get('surge', 0.05),
-            'lead_lag': w.get('lead_lag', 0.05),
-            'vcp_rule': w.get('vcp_rule', 0.05),
-            'vcp_ml': w.get('vcp_ml', 0.08),
-            'lstm': w.get('lstm', 0.08),
-            'stat_arb': w.get('stat_arb', 0.10),
-            'sector_rotation': w.get('sector_rotation', 0.08),
-            'rim_valuation': w.get('rim_valuation', 0.10),
-            'event_driven': w.get('event_driven', 0.07),
-            'mq_factor': w.get('mq_factor', 0.08),
-            'iv_skew': w.get('iv_skew', 0.04),
-            'order_flow': w.get('order_flow', 0.05),
-            'short_term_reversal': w.get('short_term_reversal', 0.05),
-            'arm_factor': w.get('arm_factor', 0.07),
-            'card_factor': w.get('card_factor', 0.07),
-            'latr_factor': w.get('latr_factor', 0.06),
-            'inst_foreign_sector': w.get('inst_foreign_sector', 0.05),
+            'regression': w.get('regression', 0.08),
+            'surge': w.get('surge', 0.04),
+            'lead_lag': w.get('lead_lag', 0.04),
+            'vcp_rule': w.get('vcp_rule', 0.04),
+            'vcp_ml': w.get('vcp_ml', 0.06),
+            'lstm': w.get('lstm', 0.06),
+            'stat_arb': w.get('stat_arb', 0.08),
+            'sector_rotation': w.get('sector_rotation', 0.06),
+            'rim_valuation': w.get('rim_valuation', 0.08),
+            'event_driven': w.get('event_driven', 0.05),
+            'mq_factor': w.get('mq_factor', 0.06),
+            'iv_skew': w.get('iv_skew', 0.03),
+            'order_flow': w.get('order_flow', 0.04),
+            'short_term_reversal': w.get('short_term_reversal', 0.04),
+            'arm_factor': w.get('arm_factor', 0.05),
+            'card_factor': w.get('card_factor', 0.05),
+            'latr_factor': w.get('latr_factor', 0.04),
+            'inst_foreign_sector': w.get('inst_foreign_sector', 0.04),
+            'supply_chain': w.get('supply_chain', 0.03),
+            'sentiment': w.get('sentiment', 0.03),
+            'factor_neutralized': w.get('factor_neutralized', 0.03),
+            'vol_target': w.get('vol_target', 0.04),
+            'microstructure': w.get('microstructure', 0.03),
         }
+        total_base = sum(res.values())
+        if total_base > 0:
+            res = {k: v / total_base for k, v in res.items()}
 
         # Apply VIX Fast Override if active
         res = self.apply_vix_override(res, vix_val=vix_val)

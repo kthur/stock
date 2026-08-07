@@ -206,7 +206,7 @@
     <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL (Low Vol)</span>
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇰🇷 KR: 🔴 BEAR (Low Vol)</span>
     <span class="badge badge-date">📅 2026-08-04 09:44 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-07 22:37 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-07 22:44 KST</span>
   </div>
 </div>
 
@@ -2204,6 +2204,11 @@
   <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
   <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
   <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 외인/투신 수급</button>
+  <button class="tab" onclick="switchTab(this,'supplychain')">🔗 Supply Chain</button>
+  <button class="tab" onclick="switchTab(this,'sentiment')">🧠 NLP Sentiment</button>
+  <button class="tab" onclick="switchTab(this,'neutralized')">🛡️ Factor Neutralized</button>
+  <button class="tab" onclick="switchTab(this,'voltarget')">🎯 Vol Targeting</button>
+  <button class="tab" onclick="switchTab(this,'microstructure')">⚡ Microstructure</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -45744,6 +45749,356 @@
         <table>
           <thead><tr>
             <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>외인/투신 수급 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Supply Chain Tab ══ -->
+  <div class="tab-panel" id="panel-supplychain">
+    <div class="filter-bar" id="filter-supplychain">
+      <button class="filter-btn active" onclick="filterMarket(this,'supplychain')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="supplychain-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>밸류체인 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>밸류체인 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>밸류체인 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="NASDAQ">
+      <h3 class="market-title">🇺🇸 NASDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>밸류체인 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="RUSSELL2000">
+      <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>밸류체인 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ NLP Sentiment Tab ══ -->
+  <div class="tab-panel" id="panel-sentiment">
+    <div class="filter-bar" id="filter-sentiment">
+      <button class="filter-btn active" onclick="filterMarket(this,'sentiment')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="sentiment-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>NLP 감성 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>NLP 감성 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>NLP 감성 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="NASDAQ">
+      <h3 class="market-title">🇺🇸 NASDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>NLP 감성 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="RUSSELL2000">
+      <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>NLP 감성 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Factor Neutralized Tab ══ -->
+  <div class="tab-panel" id="panel-neutralized">
+    <div class="filter-bar" id="filter-neutralized">
+      <button class="filter-btn active" onclick="filterMarket(this,'neutralized')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="neutralized-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>순수 알파 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>순수 알파 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>순수 알파 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="NASDAQ">
+      <h3 class="market-title">🇺🇸 NASDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>순수 알파 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="RUSSELL2000">
+      <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>순수 알파 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Vol Targeting Tab ══ -->
+  <div class="tab-panel" id="panel-voltarget">
+    <div class="filter-bar" id="filter-voltarget">
+      <button class="filter-btn active" onclick="filterMarket(this,'voltarget')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="voltarget-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>변동성 타겟 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>변동성 타겟 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>변동성 타겟 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="NASDAQ">
+      <h3 class="market-title">🇺🇸 NASDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>변동성 타겟 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="RUSSELL2000">
+      <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>변동성 타겟 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ══ Microstructure Tab ══ -->
+  <div class="tab-panel" id="panel-microstructure">
+    <div class="filter-bar" id="filter-microstructure">
+      <button class="filter-btn active" onclick="filterMarket(this,'microstructure')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="microstructure-panels">
+    
+    <div class="market-panel" data-market="KOSPI">
+      <h3 class="market-title">🇰🇷 KOSPI</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>미시구조 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="KOSDAQ">
+      <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>미시구조 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="SP500">
+      <h3 class="market-title">🇺🇸 SP500</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>미시구조 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="NASDAQ">
+      <h3 class="market-title">🇺🇸 NASDAQ</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>미시구조 스코어</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="market-panel" data-market="RUSSELL2000">
+      <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>미시구조 스코어</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
         </table>

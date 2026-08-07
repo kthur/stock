@@ -659,6 +659,26 @@ def parse_inst_foreign_sector(text: str) -> tuple[str, list[SimpleStrategyRow]]:
     return _parse_simple_strategy(text, "inst_foreign_sector_score")
 
 
+def parse_supply_chain(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "supply_chain_score")
+
+
+def parse_sentiment(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "sentiment_score")
+
+
+def parse_factor_neutralized(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "neutralized_score")
+
+
+def parse_vol_target(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "vol_target_score")
+
+
+def parse_microstructure(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "microstructure_score")
+
+
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
         date=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
@@ -882,6 +902,11 @@ def build_html(
     card_rows: Optional[list[SimpleStrategyRow]] = None,
     latr_rows: Optional[list[SimpleStrategyRow]] = None,
     ifs_rows: Optional[list[SimpleStrategyRow]] = None,
+    supply_chain_rows: Optional[list[SimpleStrategyRow]] = None,
+    sentiment_rows: Optional[list[SimpleStrategyRow]] = None,
+    factor_neutralized_rows: Optional[list[SimpleStrategyRow]] = None,
+    vol_target_rows: Optional[list[SimpleStrategyRow]] = None,
+    microstructure_rows: Optional[list[SimpleStrategyRow]] = None,
     scenario_universe_json: str = "[]",
     backtest_rows_html: str = "",
     backtest_note_html: str = "",
@@ -1496,6 +1521,11 @@ def build_html(
     card_panels   = _build_simple_panels(card_rows or [],   "card",   "CARD 스코어")
     latr_panels   = _build_simple_panels(latr_rows or [],   "latr",   "LATR 스코어")
     ifs_panels    = _build_simple_panels(ifs_rows or [],    "ifs",    "외인/투신 수급 스코어")
+    supplychain_panels = _build_simple_panels(supply_chain_rows or [], "supplychain", "밸류체인 스코어")
+    sentiment_panels   = _build_simple_panels(sentiment_rows or [],   "sentiment",   "NLP 감성 스코어")
+    neutralized_panels = _build_simple_panels(factor_neutralized_rows or [], "neutralized", "순수 알파 스코어")
+    voltarget_panels   = _build_simple_panels(vol_target_rows or [],   "voltarget",   "변동성 타겟 스코어")
+    microstructure_panels = _build_simple_panels(microstructure_rows or [], "microstructure", "미시구조 스코어")
 
     # JSON strings for Chart.js
     hrp_labels_json = json.dumps(chart_labels, ensure_ascii=False)
@@ -1975,6 +2005,11 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
   <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
   <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 외인/투신 수급</button>
+  <button class="tab" onclick="switchTab(this,'supplychain')">🔗 Supply Chain</button>
+  <button class="tab" onclick="switchTab(this,'sentiment')">🧠 NLP Sentiment</button>
+  <button class="tab" onclick="switchTab(this,'neutralized')">🛡️ Factor Neutralized</button>
+  <button class="tab" onclick="switchTab(this,'voltarget')">🎯 Vol Targeting</button>
+  <button class="tab" onclick="switchTab(this,'microstructure')">⚡ Microstructure</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -2200,6 +2235,81 @@ def build_html(
     </div>
     <div id="ifs-panels">
     {ifs_panels}
+    </div>
+  </div>
+
+  <!-- ══ Supply Chain Tab ══ -->
+  <div class="tab-panel" id="panel-supplychain">
+    <div class="filter-bar" id="filter-supplychain">
+      <button class="filter-btn active" onclick="filterMarket(this,'supplychain')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="supplychain-panels">
+    {supplychain_panels}
+    </div>
+  </div>
+
+  <!-- ══ NLP Sentiment Tab ══ -->
+  <div class="tab-panel" id="panel-sentiment">
+    <div class="filter-bar" id="filter-sentiment">
+      <button class="filter-btn active" onclick="filterMarket(this,'sentiment')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="sentiment-panels">
+    {sentiment_panels}
+    </div>
+  </div>
+
+  <!-- ══ Factor Neutralized Tab ══ -->
+  <div class="tab-panel" id="panel-neutralized">
+    <div class="filter-bar" id="filter-neutralized">
+      <button class="filter-btn active" onclick="filterMarket(this,'neutralized')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="neutralized-panels">
+    {neutralized_panels}
+    </div>
+  </div>
+
+  <!-- ══ Vol Targeting Tab ══ -->
+  <div class="tab-panel" id="panel-voltarget">
+    <div class="filter-bar" id="filter-voltarget">
+      <button class="filter-btn active" onclick="filterMarket(this,'voltarget')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="voltarget-panels">
+    {voltarget_panels}
+    </div>
+  </div>
+
+  <!-- ══ Microstructure Tab ══ -->
+  <div class="tab-panel" id="panel-microstructure">
+    <div class="filter-bar" id="filter-microstructure">
+      <button class="filter-btn active" onclick="filterMarket(this,'microstructure')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="microstructure-panels">
+    {microstructure_panels}
     </div>
   </div>
 
@@ -2792,6 +2902,11 @@ def main(args_list: Optional[list[str]] = None):
     card_date, card_rows = parse_card_factor(_read(result_dir / "card_factor_predictions.txt"))
     latr_date, latr_rows = parse_latr_factor(_read(result_dir / "latr_factor_predictions.txt"))
     ifs_date, ifs_rows = parse_inst_foreign_sector(_read(result_dir / "inst_foreign_sector_predictions.txt"))
+    sc_date, supply_chain_rows = parse_supply_chain(_read(result_dir / "supply_chain_predictions.txt"))
+    sent_date, sentiment_rows = parse_sentiment(_read(result_dir / "sentiment_predictions.txt"))
+    fn_date, factor_neutralized_rows = parse_factor_neutralized(_read(result_dir / "factor_neutralized_predictions.txt"))
+    vt_date, vol_target_rows = parse_vol_target(_read(result_dir / "vol_target_predictions.txt"))
+    micro_date, microstructure_rows = parse_microstructure(_read(result_dir / "microstructure_predictions.txt"))
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
     scen_universe = []
@@ -2915,6 +3030,11 @@ def main(args_list: Optional[list[str]] = None):
         card_rows,
         latr_rows,
         ifs_rows,
+        supply_chain_rows,
+        sentiment_rows,
+        factor_neutralized_rows,
+        vol_target_rows,
+        microstructure_rows,
         scenario_universe_json,
         backtest_rows_html,
         backtest_note_html,
