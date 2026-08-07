@@ -630,17 +630,17 @@ _INDICATOR_TICKERS = {
     '^TNX': 'us10y',         # US 10Y Treasury Yield (10년물)
     '^FVX': 'us5y',          # US 5Y Treasury Yield (5년물)
     '^IRX': 'us3m_yield',    # US 13-Week T-Bill (3개월물)
-    # NOTE: '2YY=X' (US2Y), 'KR3YT=RR' (KR3Y), 'KR10YT=RR' (KR10Y), '^CPC' (Put/Call Ratio)
-    #       are no longer available via yfinance (404 / YFTzMissingError).
-    #       Removed to prevent repeated retry noise. Cached DB values will be used as fallback.
+    'FRED:IRLTLT01KRM156N': 'kr10y',  # Korea 10Y Government Bond Yield (FRED)
+    'FRED:IRSTCI01KRM156N': 'kr3y',   # Korea 3M/Short-Term Bond Rate (FRED)
     'USDKRW=X': 'usdkrw_change',
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
     '^KQ11': 'kosdaq_change',
-    # Sector ETFs
-    '091160.KS': 'kodex_semicon_change',
-    '305720.KS': 'kodex_battery_change',
-    '244580.KS': 'kodex_bio_change',
+    # Sector & Bond ETFs (KRX Direct Code)
+    '091160': 'kodex_semicon_change',
+    '305720': 'kodex_battery_change',
+    '244580': 'kodex_bio_change',
+    '148070': 'kodex_ktb10y_change',
     'XLK': 'xlk_change',
     'XLF': 'xlf_change',
     'XLV': 'xlv_change',
@@ -681,6 +681,17 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
     # Coordinate indicator fetch rate limiting
     get_global_rate_limiter().wait()
 
+    # Special path for FRED series or 6-digit KRX ETFs via FinanceDataReader
+    if ticker.startswith("FRED:") or (ticker.isdigit() and len(ticker) == 6):
+        try:
+            raw = fdr.DataReader(ticker, start=start_date)
+            if raw is not None and not raw.empty:
+                logger.warning(f"Successfully retrieved indicator data for {ticker} via FDR")
+                raw.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in raw.columns]
+                return raw
+        except Exception as e:
+            logger.debug(f"Direct FDR indicator download error for {ticker}: {e}")
+
     # Tier 1: Primary provider (yfinance) with transient retry
     try:
         return _download_indicator_yf(ticker, start_date)
@@ -698,6 +709,7 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
         logger.debug(f"Tier 2 indicator download error for {ticker}: {e}")
 
     raise ValueError(f"Downloaded indicator {ticker} is empty or None across all providers")
+
 
 
 def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
