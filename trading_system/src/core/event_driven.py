@@ -85,8 +85,12 @@ class EventDrivenEngine:
         if sentiment_metrics is None:
             return float(base_catalyst_score)
 
-        comp_score = float(getattr(sentiment_metrics, 'composite_sentiment_score', 0.5))
-        conf_score = float(getattr(sentiment_metrics, 'confidence_score', 1.0))
+        if isinstance(sentiment_metrics, dict):
+            comp_score = float(sentiment_metrics.get('composite_sentiment_score', 0.5))
+            conf_score = float(sentiment_metrics.get('confidence_score', 1.0))
+        else:
+            comp_score = float(getattr(sentiment_metrics, 'composite_sentiment_score', 0.5))
+            conf_score = float(getattr(sentiment_metrics, 'confidence_score', 1.0))
 
         intensity_delta = (comp_score - 0.5) * 2.0 * conf_score
         multiplier = 1.0 + float(np.clip(intensity_delta * 0.5, -0.5, 0.5))
@@ -122,7 +126,8 @@ class EventDrivenEngine:
 
                 # Match stock_code or corp_code with symbol list
                 for sym in symbols:
-                    sym_clean = sym.split('.')[0].zfill(6)
+                    sym_code = sym.split('.')[0]
+                    sym_clean = sym_code.zfill(6) if sym_code.isdigit() else sym
                     matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code.endswith(sym_clean) or corp_code == sym))
                     if matched:
                         weight = self.EVENT_WEIGHTS.get(pblntf_ty, 0.5)

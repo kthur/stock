@@ -2755,8 +2755,9 @@ def execute_prediction_pipeline():
     # Strategy 24: Accruals Quality Anomaly Engine
     try:
         from src.core.accruals_quality import AccrualsQualityEngine
-        aq_engine = AccrualsQualityEngine(config)
-        accruals_quality_df = aq_engine.calculate_scores([s['symbol'] for s in universe], features_df=fundamentals_dict, prices_dict=infer_data_dict)
+        aq_engine = AccrualsQualityEngine(cfg)
+        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
+        accruals_quality_df = aq_engine.calculate_scores([s['symbol'] for s in universe], features_df=_fund_input, prices_dict=infer_data_dict)
     except Exception as _aq_e:
         logger.warning(f"Accruals quality strategy computation failed: {_aq_e}")
         accruals_quality_df = pd.DataFrame()
@@ -2764,8 +2765,9 @@ def execute_prediction_pipeline():
     # Strategy 25: Short Interest & Squeeze Engine
     try:
         from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
-        sq_engine = ShortInterestSqueezeEngine(config)
-        short_squeeze_df = sq_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=fundamentals_dict)
+        sq_engine = ShortInterestSqueezeEngine(cfg)
+        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
+        short_squeeze_df = sq_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=_fund_input)
     except Exception as _sq_e:
         logger.warning(f"Short squeeze strategy computation failed: {_sq_e}")
         short_squeeze_df = pd.DataFrame()
@@ -2773,8 +2775,9 @@ def execute_prediction_pipeline():
     # Strategy 26: Value-Up & Shareholder Yield Catalyst Engine
     try:
         from src.core.valueup_catalyst import ValueUpCatalystEngine
-        vu_engine = ValueUpCatalystEngine(config)
-        valueup_catalyst_df = vu_engine.calculate_scores([s['symbol'] for s in universe], features_df=fundamentals_dict, prices_dict=infer_data_dict)
+        vu_engine = ValueUpCatalystEngine(cfg)
+        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
+        valueup_catalyst_df = vu_engine.calculate_scores([s['symbol'] for s in universe], features_df=_fund_input, prices_dict=infer_data_dict)
     except Exception as _vu_e:
         logger.warning(f"Value-Up catalyst strategy computation failed: {_vu_e}")
         valueup_catalyst_df = pd.DataFrame()
@@ -2782,8 +2785,9 @@ def execute_prediction_pipeline():
     # Strategy 27: Kaufman Trend Efficiency Engine
     try:
         from src.core.trend_efficiency import TrendEfficiencyEngine
-        te_engine = TrendEfficiencyEngine(config)
-        trend_efficiency_df = te_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=fundamentals_dict)
+        te_engine = TrendEfficiencyEngine(cfg)
+        _fund_input = df_rim_input if 'df_rim_input' in locals() else None
+        trend_efficiency_df = te_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=_fund_input)
     except Exception as _te_e:
         logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
         trend_efficiency_df = pd.DataFrame()

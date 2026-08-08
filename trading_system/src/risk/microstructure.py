@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TransactionCostConfig:
-    krx_stt_rate: float = 0.0018       # 0.18% STT
+    kospi_stt_rate: float = 0.0015     # 0.05% STT + 0.10% Agri Tax = 0.15%
+    kosdaq_stt_rate: float = 0.0015    # 0.15% STT
+    konex_stt_rate: float = 0.0010     # 0.10% STT
     us_sec_rate: float = 0.0000278     # 0.00278% SEC fee
     base_spread_pct: float = 0.0005    # 0.05% default spread
     market_impact_gamma: float = 0.1    # Square-root impact coefficient
@@ -33,11 +35,17 @@ class MicrostructureCostModel:
 
     def get_tax_fee_rate(self, market: str, is_sell: bool = True) -> float:
         """Return statutory tax and regulatory exchange fee rate."""
+        if not is_sell:
+            return 0.0
         mkt = (market or "").upper()
-        if mkt in ("KOSPI", "KOSDAQ", "KONEX"):
-            return self.cfg.krx_stt_rate if is_sell else 0.0
+        if mkt == "KOSPI":
+            return self.cfg.kospi_stt_rate
+        elif mkt == "KOSDAQ":
+            return self.cfg.kosdaq_stt_rate
+        elif mkt == "KONEX":
+            return self.cfg.konex_stt_rate
         elif mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE"):
-            return self.cfg.us_sec_rate if is_sell else 0.0
+            return self.cfg.us_sec_rate
         return 0.0010  # default fallback
 
     def calculate_bid_ask_spread(self, volatility: float, price: float) -> float:
@@ -45,15 +53,17 @@ class MicrostructureCostModel:
         if price <= 0:
             return self.cfg.base_spread_pct
         # Low price stocks generally have higher percentage bid-ask spread
-        spread = max(self.cfg.base_spread_pct, 0.0002 + (volatility * 0.02))
+        price_factor = 1.0 + max(0.0, (10000.0 - price) / 10000.0) if price < 10000.0 else 1.0
+        spread = max(self.cfg.base_spread_pct, (0.0002 + (volatility * 0.02)) * price_factor)
         return float(spread)
 
     def calculate_market_impact(self, order_amount: float, adv: float, volatility: float) -> float:
-        """Square-root market impact cost: Impact = gamma * volatility * sqrt(Order / ADV)."""
+        """Square-root market impact cost using daily volatility: Impact = gamma * daily_vol * sqrt(Order / ADV)."""
         if adv <= 0 or order_amount <= 0:
             return 0.0005  # 5 bps fallback
         participation_rate = min(1.0, order_amount / adv)
-        impact = self.cfg.market_impact_gamma * max(0.10, volatility) * math.sqrt(participation_rate)
+        daily_vol = max(0.005, volatility / math.sqrt(252.0))
+        impact = self.cfg.market_impact_gamma * daily_vol * math.sqrt(participation_rate)
         return float(impact)
 
     def calculate_total_friction(

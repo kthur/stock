@@ -33,14 +33,17 @@ class TradeExecutor:
         oms=None,
         dry_run: bool = True,
         max_order_value_krw: float = 50_000_000.0,  # 5천만 원 상한
-        lot_size_krx: int = 10,                     # KRX 호가 단위 배수 (기본 10주)
+        lot_size_krx: int = 1,                      # KRX 호가 단위 수량 (1주)
+        lot_size_us: int = 1,                       # US 호가 단위 수량 (1주)
     ):
         self.kiwoom = kiwoom
         self.oms = oms
         self.dry_run = dry_run
         self.max_order_value_krw = max_order_value_krw
         self.lot_size_krx = lot_size_krx
+        self.lot_size_us = lot_size_us
         self._executed_today: Dict[str, str] = {}   # symbol -> action (중복 실행 방지)
+        self._last_execution_date: str = datetime.now().strftime('%Y-%m-%d')
 
     @property
     def can_trade_live(self) -> bool:
@@ -48,10 +51,17 @@ class TradeExecutor:
                 and getattr(self.kiwoom, "is_connected", False)
                 and not getattr(self.kiwoom, "simulation_mode", True))
 
-    def _round_lot(self, qty: int) -> int:
+    def _round_lot(self, qty: int, market: str = "KOSPI") -> int:
         if qty <= 0:
             return 0
-        return max(self.lot_size_krx, (qty // self.lot_size_krx) * self.lot_size_krx)
+        lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ", "KONEX") else self.lot_size_us
+        return (qty // lot) * lot
+
+    def _check_and_reset_daily_tracker(self) -> None:
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        if self._last_execution_date != today_str:
+            self._executed_today.clear()
+            self._last_execution_date = today_str
 
     def execute(
         self,
@@ -64,6 +74,8 @@ class TradeExecutor:
         risk_manager: Any = None,
         usdkrw_rate: float = 1380.0,
     ) -> ExecResult:
+        self._check_and_reset_daily_tracker()
+
         if price <= 0 or quantity <= 0:
             return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
                               executed=False, mode="dry_run" if self.dry_run else "live",
@@ -81,20 +93,21 @@ class TradeExecutor:
                                   message="new buys blocked by crisis detector")
 
         if market in ("KOSPI", "KOSDAQ", "KONEX"):
-            quantity = self._round_lot(quantity)
+            quantity = self._round_lot(quantity, market=market)
             if quantity <= 0:
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
                                   executed=False, mode="dry_run" if self.dry_run else "live",
                                   message="below lot size")
             fx_rate = 1.0
         else:
+            quantity = self._round_lot(quantity, market=market)
             fx_rate = usdkrw_rate if usdkrw_rate > 0 else 1380.0
 
         order_value_krw = quantity * price * fx_rate
         if order_value_krw > self.max_order_value_krw:
             max_qty_raw = int(self.max_order_value_krw / (price * fx_rate))
-            quantity = max(self.lot_size_krx, (max_qty_raw // self.lot_size_krx) * self.lot_size_krx) \
-                if market in ("KOSPI", "KOSDAQ", "KONEX") else max_qty_raw
+            lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ", "KONEX") else self.lot_size_us
+            quantity = (max_qty_raw // lot) * lot
             order_value_krw = quantity * price * fx_rate
             if quantity <= 0:
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,

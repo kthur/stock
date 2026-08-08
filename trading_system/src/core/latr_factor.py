@@ -63,6 +63,8 @@ class LATRFactorEngine:
 
         vals = np.array(list(scores.values()))
         min_v, max_v = np.min(vals), np.max(vals)
-        range_v = max_v - min_v if max_v != min_v else 1.0
+        if max_v == min_v:
+            return {k: 0.5 for k in scores.keys()}
+        range_v = max_v - min_v
 
         return {k: float(np.clip((v - min_v) / range_v, 0.0, 1.0)) for k, v in scores.items()}

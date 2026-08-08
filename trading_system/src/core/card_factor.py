@@ -15,17 +15,24 @@ class CARDFactorEngine:
     def __init__(self):
         pass
 
-    def compute_scores(self, indicator_df: pd.DataFrame, prices_dict: Dict[str, pd.DataFrame], sector_map: Optional[Dict[str, str]] = None) -> Dict[str, float]:
+    def compute_scores(self, indicator_df: Any, prices_dict: Dict[str, pd.DataFrame], sector_map: Optional[Dict[str, str]] = None) -> Dict[str, float]:
         """
         Computes CARD factor scores in [0.0, 1.0] for all symbols.
+        Accepts indicator_df as pd.DataFrame or Dict[str, float].
         """
-        if indicator_df.empty or not prices_dict:
+        if indicator_df is None or not prices_dict:
+            return {}
+        if isinstance(indicator_df, pd.DataFrame) and indicator_df.empty:
             return {}
 
         def _safe_macro(col):
-            if col in indicator_df.columns and not indicator_df[col].dropna().empty:
-                v = float(indicator_df[col].dropna().iloc[-1])
+            if isinstance(indicator_df, dict):
+                v = float(indicator_df.get(col, 0.0))
                 return 0.0 if (np.isnan(v) or np.isinf(v)) else v
+            elif isinstance(indicator_df, pd.DataFrame):
+                if col in indicator_df.columns and not indicator_df[col].dropna().empty:
+                    v = float(indicator_df[col].dropna().iloc[-1])
+                    return 0.0 if (np.isnan(v) or np.isinf(v)) else v
             return 0.0
 
         # Extract latest macro indicators with safe scaling

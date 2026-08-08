@@ -39,17 +39,26 @@ class MultiFactorNeutralizerEngine:
 
         df = universe.copy()
 
-        # Generate default synthetic style factor proxies if missing
-        if "market_cap" not in df.columns:
-            df["market_cap"] = np.random.uniform(1e11, 1e14, len(df))
-        if "per" not in df.columns:
-            df["per"] = np.random.uniform(5.0, 50.0, len(df))
-        if "roe" not in df.columns:
-            df["roe"] = np.random.uniform(-0.1, 0.3, len(df))
+        # Check for required style factor columns; deactivate (return NaN) if missing
+        req_cols = ["market_cap", "per", "roe"]
+        if not all(col in df.columns for col in req_cols) or (raw_scores is None or raw_scores.empty or "score" not in raw_scores.columns):
+            logger.info("MultiFactorNeutralizerEngine: missing required factor columns or raw_scores. Deactivating strategy (returning NaNs).")
+            for _, row in df.iterrows():
+                sym = str(row["symbol"]).strip()
+                name = str(row.get("name", sym))
+                mkt = str(row.get("market", "KRX"))
+                results.append({
+                    "symbol": sym,
+                    "name": name,
+                    "market": mkt,
+                    "neutralized_score": np.nan,
+                })
+            res_df = pd.DataFrame(results)
+            return res_df
 
-        # Factor definitions: Size (log Cap), Value (1/PER), Profitability (ROE)
+        # Factor definitions: Size (log Cap), Value (1/abs(PER)), Profitability (ROE)
         size_factor = np.log(df["market_cap"].clip(lower=1e8))
-        value_factor = (1.0 / df["per"].clip(lower=0.1)).fillna(0.0)
+        value_factor = (1.0 / df["per"].abs().clip(lower=0.1)).fillna(0.0)
         prof_factor = df["roe"].fillna(0.0)
 
         # Standardize factor matrix X
@@ -60,11 +69,7 @@ class MultiFactorNeutralizerEngine:
             (prof_factor - prof_factor.mean()) / (prof_factor.std() + 1e-6),
         ])
 
-        # Raw target y: baseline momentum or provided raw scores
-        if raw_scores is not None and not raw_scores.empty and "score" in raw_scores.columns:
-            y = raw_scores["score"].values
-        else:
-            y = np.random.normal(50.0, 15.0, len(df))
+        y = raw_scores["score"].values
 
         # Perform Cross-Sectional OLS Regression: y = X * beta + residual
         try:

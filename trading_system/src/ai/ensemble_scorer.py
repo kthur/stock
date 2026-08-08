@@ -66,6 +66,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.01,
             'insider_buying': 0.02,
             'darkpool': 0.02,
+            'earnings_tone_drift': 0.02,
         },
         1: {  # SIDEWAYS (Rotation) — sum = 1.00
             'regression': 0.05,
@@ -98,6 +99,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.02,
             'insider_buying': 0.03,
             'darkpool': 0.03,
+            'earnings_tone_drift': 0.02,
         },
         2: {  # BULL (Aggressive) — sum = 1.00
             'regression': 0.03,
@@ -130,6 +132,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.04,
             'insider_buying': 0.03,
             'darkpool': 0.03,
+            'earnings_tone_drift': 0.02,
         }
     }
 
@@ -166,6 +169,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.01,
             'insider_buying': 0.02,
             'darkpool': 0.02,
+            'earnings_tone_drift': 0.02,
         },
         'BEAR_HIGH_VOL': {  # sum = 1.00
             'regression': 0.11,
@@ -198,6 +202,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.00,
             'insider_buying': 0.02,
             'darkpool': 0.02,
+            'earnings_tone_drift': 0.02,
         },
         'SIDEWAYS_LOW_VOL': {  # sum = 1.00
             'regression': 0.05,
@@ -230,6 +235,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.02,
             'insider_buying': 0.03,
             'darkpool': 0.03,
+            'earnings_tone_drift': 0.02,
         },
         'SIDEWAYS_HIGH_VOL': {  # sum = 1.00
             'regression': 0.05,
@@ -262,6 +268,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.02,
             'insider_buying': 0.03,
             'darkpool': 0.03,
+            'earnings_tone_drift': 0.02,
         },
         'BULL_LOW_VOL': {  # sum = 1.00
             'regression': 0.03,
@@ -294,6 +301,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.04,
             'insider_buying': 0.03,
             'darkpool': 0.03,
+            'earnings_tone_drift': 0.02,
         },
         'BULL_HIGH_VOL': {  # sum = 1.00
             'regression': 0.02,
@@ -326,6 +334,7 @@ class EnsembleScoringEngine:
             'gamma_squeeze': 0.04,
             'insider_buying': 0.03,
             'darkpool': 0.03,
+            'earnings_tone_drift': 0.02,
         }
     }
 

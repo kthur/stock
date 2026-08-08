@@ -35,7 +35,9 @@ class ShortTermReversalEngine:
             if df is None or len(df) < 20:
                 continue
             try:
-                close = df['Close']
+                # Ensure chronological ascending sort
+                df_sorted = df.sort_index(ascending=True) if hasattr(df.index, 'is_monotonic_increasing') and not df.index.is_monotonic_increasing else df
+                close = df_sorted['Close']
                 if isinstance(close, pd.DataFrame):
                     close = close.iloc[:, 0]
                 close = close.dropna()
@@ -45,6 +47,15 @@ class ShortTermReversalEngine:
                 # 5-day return (Short-term drop magnitude)
                 ret_5d = float(close.iloc[-1] / close.iloc[-6] - 1.0) if len(close) >= 6 else 0.0
 
+                # Count true consecutive down days working backwards from latest day
+                daily_rets = close.pct_change().iloc[-5:]
+                consec_down = 0
+                for r in reversed(daily_rets.values):
+                    if r < 0:
+                        consec_down += 1
+                    else:
+                        break
+
                 # 20-day SMA & Bollinger Lower Band distance
                 sma_20 = float(close.iloc[-20:].mean())
                 std_20 = float(close.iloc[-20:].std())
@@ -53,8 +64,8 @@ class ShortTermReversalEngine:
                 cur_price = float(close.iloc[-1])
                 dist_lower_band = (cur_price - lower_band) / (std_20 + 1e-8)
 
-                # Oversold score: Negative ret_5d and price near/below lower band increase reversal potential
-                oversold_metric = -1.0 * ret_5d - 0.2 * dist_lower_band
+                # Oversold score: Negative ret_5d, consecutive down days, and price near/below lower band increase reversal potential
+                oversold_metric = -1.0 * ret_5d + 0.1 * consec_down - 0.2 * dist_lower_band
 
                 records.append({
                     'symbol': sym,

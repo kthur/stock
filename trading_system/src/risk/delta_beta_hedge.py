@@ -83,8 +83,9 @@ class DeltaBetaHedgeEngine:
             target_beta = 0.0 if crisis_level == "SEVERE" else 0.20
             beta_reduction = port_beta - target_beta
             
-            if beta_reduction > 0.0:
-                hedge_weight = float(np.clip(beta_reduction / abs(inverse_beta), 0.0, 0.35))
+            if beta_reduction > 0.0 and (port_beta - inverse_beta) != 0:
+                raw_hedge_w = (port_beta - target_beta) / (port_beta - inverse_beta)
+                hedge_weight = float(np.clip(raw_hedge_w, 0.0, 0.35))
 
         # 3. Rescale asset weights to make room for Hedge ETF
         scale = 1.0 - hedge_weight
