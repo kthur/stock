@@ -1309,6 +1309,9 @@ class EnsembleScoringEngine:
             ('short_squeeze', 'short_squeeze_score'),
             ('valueup_catalyst', 'valueup_catalyst_score'),
             ('trend_efficiency', 'trend_efficiency_score'),
+            ('gamma_squeeze', 'gamma_squeeze_score'),
+            ('insider_buying', 'insider_buying_score'),
+            ('darkpool', 'darkpool_score'),
         ]
 
         # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
