@@ -1171,6 +1171,12 @@ def execute_prediction_pipeline():
     russell_symbols = universe[universe['market'] == 'RUSSELL2000']['symbol'].tolist()
     krx_symbols = kospi_symbols + kosdaq_symbols
 
+    # Safety: initialise df_train to empty so it is always bound regardless of
+    # which code path is taken below (prevents UnboundLocalError if an exception
+    # occurs inside the else-branch before the assignment at prepare_training_data).
+    df_train = pd.DataFrame()
+    market_dfs: dict = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
+
     if should_skip:
         logger.info("Fetching global indicator history for inference only...")
         indicator_infer = fetch_indicator_history(start_date_infer, price_db, freshness)
@@ -1312,7 +1318,11 @@ def execute_prediction_pipeline():
                 logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
                 train_data_dict.pop(sym, None)
 
-        df_train = model.prepare_training_data(train_data_dict, indicator_train, storage=storage)
+        try:
+            df_train = model.prepare_training_data(train_data_dict, indicator_train, storage=storage)
+        except Exception as _e:
+            logger.error(f"prepare_training_data failed: {_e}. Proceeding with empty df_train.")
+            df_train = pd.DataFrame()
 
         # 7. Train XGBoost models per market (KOSPI/KOSDAQ/SP500/NASDAQ/RUSSELL2000)
         if not df_train.empty and 'symbol' in df_train.columns:

@@ -276,6 +276,15 @@ class OnDevicePredictionModel:
             self._surge_lgb_kwargs['device_type'] = 'gpu'
             self._cat_kwargs['task_type'] = 'GPU'
             self._surge_cat_kwargs['task_type'] = 'GPU'
+        else:
+            # Explicitly force CPU mode to prevent XGBoost 2.x from scanning
+            # for CUDA libraries (libcublasLt.so) on CPU-only runners (e.g. GHA)
+            self._xgb_kwargs['device'] = 'cpu'
+            self._xgb_kwargs['tree_method'] = 'hist'
+            self._surge_xgb_kwargs['device'] = 'cpu'
+            self._surge_xgb_kwargs['tree_method'] = 'hist'
+            self._lgb_kwargs['device_type'] = 'cpu'
+            self._surge_lgb_kwargs['device_type'] = 'cpu'
 
         self.ensemble_weights: Dict[str, Any] = {"regression": {}, "surge": {}}
         self.optimal_thresholds: Dict[str, Any] = {}
