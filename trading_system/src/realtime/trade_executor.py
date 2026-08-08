@@ -9,7 +9,7 @@ REALTIME_TRADE_ENABLED=true 이면 실제 주문을 접수한다.
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 

@@ -1285,6 +1285,18 @@ class EnsembleScoringEngine:
         else:
             vu_df = pd.DataFrame(columns=['symbol', 'valueup_catalyst_score'])
 
+        # 27. Strategy 27: Kaufman Trend Efficiency Engine
+        if trend_efficiency_df is not None and not trend_efficiency_df.empty:
+            te_df = trend_efficiency_df.copy()
+            num_cols = [c for c in te_df.columns if c != 'symbol' and c not in META_COLS]
+            te_col = 'trend_efficiency_score' if 'trend_efficiency_score' in te_df.columns else (num_cols[-1] if num_cols else te_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in te_df.columns]
+            te_df = te_df[['symbol'] + meta_cols + [te_col]].rename(columns={te_col: 'trend_efficiency_score'})
+            if te_df['trend_efficiency_score'].max() > 1.0:
+                te_df['trend_efficiency_score'] = te_df['trend_efficiency_score'] / 100.0
+        else:
+            te_df = pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
+
         # 28. Strategy 28: Options Gamma Squeeze Engine
         if gamma_squeeze_df is not None and not gamma_squeeze_df.empty:
             gs_df = gamma_squeeze_df.copy()
