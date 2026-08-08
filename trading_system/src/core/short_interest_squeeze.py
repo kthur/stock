@@ -45,6 +45,8 @@ class ShortInterestSqueezeEngine:
                 for sym, df_item in features_df.items():
                     if isinstance(df_item, pd.DataFrame) and not df_item.empty:
                         short_map[str(sym)] = df_item.iloc[-1].to_dict()
+                    elif isinstance(df_item, dict):
+                        short_map[str(sym)] = df_item
             elif isinstance(features_df, pd.DataFrame) and not features_df.empty:
                 if 'symbol' in features_df.columns:
                     for sym, group in features_df.groupby('symbol'):
@@ -55,7 +57,7 @@ class ShortInterestSqueezeEngine:
             row = short_map.get(sym_str, short_map.get(sym_str.zfill(6), {}))
             
             # Short interest metrics
-            short_ratio = row.get('short_ratio', row.get('short_pct', row.get('short_float_pct', np.nan)))
+            short_ratio = row.get('short_ratio', row.get('short_pct', row.get('short_float_pct', row.get('short_interest_ratio', np.nan))))
             dtc = row.get('days_to_cover', row.get('dtc', np.nan))
             
             # Compute 5-day return from prices_dict if available

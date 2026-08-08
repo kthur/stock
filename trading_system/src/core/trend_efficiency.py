@@ -93,3 +93,7 @@ class TrendEfficiencyEngine:
         df_out['trend_efficiency_score'] = df_out['trend_efficiency_score'].fillna(0.50).astype(float)
         
         return df_out[['symbol', 'trend_efficiency_score']]
+
+
+# Alias for backward compatibility
+KaufmanTrendEfficiencyEngine = TrendEfficiencyEngine

@@ -1,5 +1,8 @@
 name: Model Training Pipeline
 
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: '30 11 * * 6'

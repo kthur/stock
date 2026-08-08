@@ -1,5 +1,8 @@
 name: Weekly Optuna HPO
 
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: '0 18 * * 0' # Every Sunday 18:00 UTC (Monday 03:00 KST)
