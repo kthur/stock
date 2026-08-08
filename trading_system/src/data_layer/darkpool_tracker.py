@@ -37,7 +37,7 @@ class DarkPoolTrackerEngine:
                 last_close = float(clean['Close'].iloc[-1])
                 prev_close = float(clean['Close'].iloc[-2])
                 ret_last = (last_close / prev_close) - 1.0 if prev_close > 0 else 0.0
-                
+
                 volumes = clean['Volume'].values
                 cur_vol = float(volumes[-1])
                 avg_vol = float(volumes[:-1].mean()) if len(volumes) > 1 else cur_vol
