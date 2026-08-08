@@ -926,7 +926,7 @@ class EnsembleScoringEngine:
         # 1. Regression Strategy
         reg_df_copy = reg_df.copy()
         if not reg_df_copy.empty and 'reg_score' not in reg_df_copy.columns:
-            target_col = None
+            target_col: Any = None
             if f'expected_return_{target_horizon}d' in reg_df_copy.columns:
                 target_col = f'expected_return_{target_horizon}d'
             elif 'expected_return' in reg_df_copy.columns:
@@ -950,25 +950,25 @@ class EnsembleScoringEngine:
         # 2. Surge Strategy
         s_df_copy = s_df.copy()
         if not s_df_copy.empty and 'surge_score' not in s_df_copy.columns:
-            target_col = None
+            target_col_surge: Any = None
             if f'surge_prob_{target_horizon}d' in s_df_copy.columns:
-                target_col = f'surge_prob_{target_horizon}d'
+                target_col_surge = f'surge_prob_{target_horizon}d'
             elif f'surge_{target_horizon}d' in s_df_copy.columns:
-                target_col = f'surge_{target_horizon}d'
+                target_col_surge = f'surge_{target_horizon}d'
             elif 'surge_probability' in s_df_copy.columns:
-                target_col = 'surge_probability'
+                target_col_surge = 'surge_probability'
             elif target_horizon in s_df_copy.columns:
-                target_col = target_horizon
+                target_col_surge = target_horizon
             elif str(target_horizon) in s_df_copy.columns:
-                target_col = str(target_horizon)
+                target_col_surge = str(target_horizon)
             else:
                 prob_cols = [c for c in s_df_copy.columns if isinstance(c, str) and ('prob' in c or 'surge' in c)]
                 if not prob_cols:
                     prob_cols = [c for c in s_df_copy.columns if c != 'symbol' and c not in META_COLS]
-                target_col = prob_cols[0] if prob_cols else None
+                target_col_surge = prob_cols[0] if prob_cols else None
 
-            if target_col is not None and target_col in s_df_copy.columns:
-                s_df_copy['surge_score'] = s_df_copy[target_col].clip(0.0, 1.0)
+            if target_col_surge is not None and target_col_surge in s_df_copy.columns:
+                s_df_copy['surge_score'] = s_df_copy[target_col_surge].clip(0.0, 1.0)
             else:
                 s_df_copy['surge_score'] = 0.5
 

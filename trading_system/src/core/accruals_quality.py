@@ -36,7 +36,7 @@ class AccrualsQualityEngine:
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'accruals_quality_score'])
 
-        results = []
+        results: List[Dict[str, Any]] = []
         
         # Build lookup table from features_df
         fund_map = {}
