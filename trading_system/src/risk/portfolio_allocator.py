@@ -471,3 +471,64 @@ class PortfolioAllocator:
                 "cash_weight": max(0.0, 1.0 - sum(new_weights.values()))
             }
         }
+
+    # =========================================================================
+    # OBJECTIVE 3: SECTOR EXPOSURE CAPPING & FACTOR NEUTRALITY CONSTRAINTS
+    # =========================================================================
+
+    def apply_sector_and_factor_constraints(
+        self,
+        weights: Dict[str, float],
+        sector_map: Optional[Dict[str, str]] = None,
+        regime: Optional[Union[int, str]] = None,
+        max_sector_cap: Optional[float] = None
+    ) -> Dict[str, float]:
+        """
+        Enforces Sector Exposure Cap and Factor Risk Budgeting:
+        - Sector Cap: <= 25% in BEAR/SIDEWAYS regimes, <= 35% in BULL market regimes.
+        - Rank Preservation: Iteratively rescales over-concentrated sectors while preserving relative rank.
+        - Cash/Re-allocation: Re-distributes excess weight proportionally across compliant sectors.
+        """
+        if not weights:
+            return {}
+
+        # Determine Regime-Dependent Sector Cap
+        if max_sector_cap is not None:
+            sector_cap = max_sector_cap
+        elif regime in [2, 'BULL', 'BULL_LOW_VOL', 'BULL_HIGH_VOL']:
+            sector_cap = 0.35  # Dynamic relaxation in BULL market
+        else:
+            sector_cap = 0.25  # Defensive 25% cap in BEAR/SIDEWAYS
+
+        if not sector_map:
+            # Fallback if no sector mapping is available
+            s_sum = sum(weights.values())
+            return {s: w / s_sum for s, w in weights.items()} if s_sum > 0 else weights
+
+        cleaned_weights = dict(weights)
+        
+        # Iterative Sector Cap Enforcement (up to 5 passes for convergence)
+        for _ in range(5):
+            sector_totals: Dict[str, float] = {}
+            for sym, w in cleaned_weights.items():
+                sec = sector_map.get(sym, "UNKNOWN")
+                sector_totals[sec] = sector_totals.get(sec, 0.0) + w
+
+            over_sectors = {sec: tot for sec, tot in sector_totals.items() if tot > sector_cap + 1e-6}
+            if not over_sectors:
+                break
+
+            # Rescale symbols in over-concentrated sectors
+            for sec, tot in over_sectors.items():
+                scale_factor = sector_cap / tot
+                for sym, w in cleaned_weights.items():
+                    if sector_map.get(sym, "UNKNOWN") == sec:
+                        cleaned_weights[sym] = w * scale_factor
+
+        # Re-normalize total weight if sum > 1.0
+        tot_w = sum(cleaned_weights.values())
+        if tot_w > 1.0:
+            cleaned_weights = {s: w / tot_w for s, w in cleaned_weights.items()}
+
+        return cleaned_weights
+

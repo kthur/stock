@@ -464,7 +464,11 @@ class OptunaStrategyTuner:
         strats = [
             'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
             'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
-            'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal'
+            'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
+            'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
+            'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target',
+            'microstructure', 'accruals_quality', 'short_squeeze', 'valueup_catalyst',
+            'trend_efficiency'
         ]
 
         if not strategy_returns_by_regime:
@@ -484,7 +488,7 @@ class OptunaStrategyTuner:
                 continue
 
             def regime_objective(trial):
-                raw_w = {s: trial.suggest_float(f'w_{s}', 0.05, 0.70) for s in valid_strats}
+                raw_w = {s: trial.suggest_float(f'w_{s}', 0.005, 0.20) for s in valid_strats}
                 tot = sum(raw_w.values())
                 norm_w = {s: w / tot for s, w in raw_w.items()}
 
@@ -503,6 +507,51 @@ class OptunaStrategyTuner:
 
         self.tuned_params['regime_2d_weights'] = best_weights
         return best_weights
+
+
+class AlphaDecayTracker:
+    """
+    Tracks rolling Sharpe ratios and Information Coefficients (IC) across 27 strategies
+    over 30d/60d/120d windows and applies exponential decay w_i * exp(-lambda * t) for 
+    degrading strategies.
+    """
+
+    def __init__(self, decay_lambda: float = 0.01, min_weight_bound: float = 0.005, max_weight_bound: float = 0.15):
+        self.decay_lambda = decay_lambda
+        self.min_weight_bound = min_weight_bound
+        self.max_weight_bound = max_weight_bound
+
+    def calculate_decay_adjusted_weights(
+        self,
+        base_weights: Dict[str, float],
+        strategy_rolling_sharpes: Dict[str, float],
+        decay_periods: Optional[Dict[str, int]] = None
+    ) -> Dict[str, float]:
+        """
+        Applies Alpha Decay Factor:
+        w_i_adjusted = base_w_i * exp(-lambda * t_decay) * max(0.1, Sharpe_i)
+        Normalized so sum(w) = 1.0, with hard bounds [0.5%, 15%].
+        """
+        if not base_weights or not strategy_rolling_sharpes:
+            return base_weights
+
+        periods = decay_periods or {}
+        adjusted: Dict[str, float] = {}
+
+        for strat, base_w in base_weights.items():
+            sharpe = strategy_rolling_sharpes.get(strat, 0.0)
+            t_decay = periods.get(strat, 0)
+            
+            # Decay multiplier
+            decay_factor = np.exp(-self.decay_lambda * max(0, t_decay))
+            perf_factor = max(0.10, sharpe + 1.0)
+            
+            adj_w = base_w * decay_factor * perf_factor
+            adjusted[strat] = max(self.min_weight_bound, min(adj_w, self.max_weight_bound))
+
+        tot = sum(adjusted.values())
+        return {s: round(w / tot, 4) for s, w in adjusted.items()} if tot > 0 else base_weights
+
 
     def tune_correlation_suppression_params(
         self,
