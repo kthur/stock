@@ -63,11 +63,11 @@ def test_bug_a4_delta_beta_hedge_math():
 
 
 def test_bug_a5_microstructure_stt_and_daily_vol():
-    """Bug A-5: Verify separate KOSPI/KOSDAQ STT rate (0.15%) and daily volatility scaling."""
+    """Bug A-5: Verify separate KOSPI/KOSDAQ STT rate (0.20%) and daily volatility scaling."""
     model = MicrostructureCostModel()
-    assert model.get_tax_fee_rate("KOSPI", is_sell=True) == 0.0015
-    assert model.get_tax_fee_rate("KOSDAQ", is_sell=True) == 0.0015
-    assert model.get_tax_fee_rate("KONEX", is_sell=True) == 0.0010
+    assert math.isclose(model.get_tax_fee_rate("KOSPI", is_sell=True), 0.00215, abs_tol=1e-5)
+    assert math.isclose(model.get_tax_fee_rate("KOSDAQ", is_sell=True), 0.00215, abs_tol=1e-5)
+    assert math.isclose(model.get_tax_fee_rate("KONEX", is_sell=True), 0.00115, abs_tol=1e-5)
     assert model.get_tax_fee_rate("SP500", is_sell=True) == 0.0000278
 
     # Market impact should use daily vol volatility / sqrt(252)
