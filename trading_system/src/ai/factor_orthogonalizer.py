@@ -92,7 +92,7 @@ class FactorOrthogonalizerEngine:
                 u_j = U[:, prev_idx]
                 denom = np.dot(u_j, u_j)
                 if denom > 1e-8:
-                    proj = (np.dot(x_k, u_j) / denom) * u_j
+                    proj = (np.dot(u_k, u_j) / denom) * u_j  # Modified Gram-Schmidt
                     u_k -= proj
             U[:, idx] = u_k
 

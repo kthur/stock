@@ -979,12 +979,15 @@ class RiskManager:
         """위기 상황에 따른 목표 현금 비중"""
         return self.crisis_detector.get_crisis_cash_target()
 
-    def calculate_drawdown(self) -> float:
-        """현재 Drawdown 계산 (%)"""
+    def calculate_drawdown(self, total_portfolio_value: Optional[float] = None) -> float:
+        """현재 Drawdown 계산 (총 포트폴리오 가치 = 현금 + 오픈 포지션 평가액)"""
+        val = total_portfolio_value if (total_portfolio_value is not None and total_portfolio_value > 0) else self.portfolio_value
+        if val > self.peak_value:
+            self.peak_value = val
         if self.peak_value == 0:
-            return 0
+            return 0.0
 
-        drawdown = (self.peak_value - self.portfolio_value) / self.peak_value
+        drawdown = (self.peak_value - val) / self.peak_value
         return drawdown
 
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:

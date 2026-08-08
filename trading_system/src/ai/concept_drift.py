@@ -50,10 +50,10 @@ class ConceptDriftDetector:
             percentiles = np.linspace(0, 100, self.num_bins + 1)
             bins = np.unique(np.percentile(exp_clean, percentiles))
             if len(bins) < 2:
-                bins = np.array([float(exp_clean.min()) - 1e-5, float(exp_clean.max()) + 1e-5])
+                bins = np.array([-np.inf, np.inf])
             else:
-                bins[0] -= 1e-5
-                bins[-1] += 1e-5
+                bins[0] = -np.inf
+                bins[-1] = np.inf
 
             exp_counts, _ = np.histogram(exp_clean, bins=bins)
             act_counts, _ = np.histogram(act_clean, bins=bins)

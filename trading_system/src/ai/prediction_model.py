@@ -1084,13 +1084,11 @@ class OnDevicePredictionModel:
         # Wilder's EMA uses alpha = 1 / period
         avg_gain14 = gain.ewm(alpha=1/14, adjust=False).mean()
         avg_loss14 = loss.ewm(alpha=1/14, adjust=False).mean()
-        rs14 = avg_gain14 / (avg_loss14 + 1e-9)
-        df['rsi_14'] = 100.0 - (100.0 / (1.0 + rs14))
+        df['rsi_14'] = np.where((avg_gain14 == 0) & (avg_loss14 == 0), 50.0, 100.0 - (100.0 / (1.0 + avg_gain14 / (avg_loss14 + 1e-9))))
 
         avg_gain5 = gain.ewm(alpha=1/5, adjust=False).mean()
         avg_loss5 = loss.ewm(alpha=1/5, adjust=False).mean()
-        rs5 = avg_gain5 / (avg_loss5 + 1e-9)
-        df['rsi_5'] = 100.0 - (100.0 / (1.0 + rs5))
+        df['rsi_5'] = np.where((avg_gain5 == 0) & (avg_loss5 == 0), 50.0, 100.0 - (100.0 / (1.0 + avg_gain5 / (avg_loss5 + 1e-9))))
 
         # 2. MACD (12, 26, 9)
         ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
@@ -1136,9 +1134,10 @@ class OnDevicePredictionModel:
         if 'High' in df.columns and 'Low' in df.columns:
             low_14 = df['Low'].rolling(window=14, min_periods=1).min()
             high_14 = df['High'].rolling(window=14, min_periods=1).max()
-            stoch_k = (df['Close'] - low_14) / (high_14 - low_14 + 1e-9) * 100
+            stoch_range = high_14 - low_14
+            stoch_k = np.where(stoch_range == 0, 50.0, (df['Close'] - low_14) / (stoch_range + 1e-9) * 100)
             df['stoch_k'] = stoch_k
-            df['stoch_d'] = stoch_k.rolling(window=3, min_periods=1).mean()
+            df['stoch_d'] = pd.Series(stoch_k, index=df.index).rolling(window=3, min_periods=1).mean()
         else:
             df['stoch_k'] = 50.0
             df['stoch_d'] = 50.0

@@ -1018,8 +1018,12 @@ def execute_prediction_pipeline():
 
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
-    market_client = GlobalMarketClient()
-    market_summary = market_client.get_summary()
+    try:
+        market_client = GlobalMarketClient()
+        market_summary = market_client.get_summary()
+    except Exception as e:
+        logger.error(f"Failed to fetch global market indicators: {e}. Falling back to DB cache.")
+        market_summary = storage.get_latest_global_indicators()
 
     # 3. Store indicators
     date_str = datetime.now().strftime('%Y-%m-%d')
@@ -1255,6 +1259,8 @@ def execute_prediction_pipeline():
                 if not m_df.empty:
                     logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
                 market_dfs[m_name] = m_df
+            del train_data_dict, df_train
+            gc.collect()
         else:
             market_dfs = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
 
@@ -3258,7 +3264,7 @@ def execute_prediction_pipeline():
         oms_engine = ExecutionOMSEngine(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"))
         top_picks_dicts = ensemble_df_merged.head(20).to_dict(orient="records")
         weight_dict = dict(zip(ensemble_df_merged['symbol'], ensemble_df_merged.get('portfolio_weight', 0.05)))
-        order_plans = oms_engine.generate_order_plan(top_picks_dicts, weight_dict, total_capital=100_000_000.0)
+        order_plans = oms_engine.generate_order_plan(top_picks_dicts, weight_dict, total_capital=cfg.portfolio_capital_krw)
         logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db")
     except Exception as _oms_e:
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")

@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TransactionCostConfig:
-    kospi_stt_rate: float = 0.0015     # 0.05% STT + 0.10% Agri Tax = 0.15%
-    kosdaq_stt_rate: float = 0.0015    # 0.15% STT
+    kospi_stt_rate: float = 0.0020     # 0.20% STT (2026)
+    kosdaq_stt_rate: float = 0.0020    # 0.20% STT (2026)
     konex_stt_rate: float = 0.0010     # 0.10% STT
     us_sec_rate: float = 0.0000278     # 0.00278% SEC fee
     base_spread_pct: float = 0.0005    # 0.05% default spread
@@ -36,24 +36,25 @@ class MicrostructureCostModel:
     def get_tax_fee_rate(self, market: str, is_sell: bool = True) -> float:
         """Return statutory tax and regulatory exchange fee rate."""
         if not is_sell:
-            return 0.0
+            return 0.00015  # Brokerage commission fee fallback (0.015%)
         mkt = (market or "").upper()
         if mkt == "KOSPI":
-            return self.cfg.kospi_stt_rate
+            return self.cfg.kospi_stt_rate + 0.00015
         elif mkt == "KOSDAQ":
-            return self.cfg.kosdaq_stt_rate
+            return self.cfg.kosdaq_stt_rate + 0.00015
         elif mkt == "KONEX":
-            return self.cfg.konex_stt_rate
+            return self.cfg.konex_stt_rate + 0.00015
         elif mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE"):
-            return self.cfg.us_sec_rate
-        return 0.0010  # default fallback
+            return self.cfg.us_sec_rate + 0.00005
+        return 0.0020  # default fallback
 
-    def calculate_bid_ask_spread(self, volatility: float, price: float) -> float:
+    def calculate_bid_ask_spread(self, volatility: float, price: float, market: str = "KOSPI") -> float:
         """Estimate half-spread percentage based on price & volatility."""
         if price <= 0:
             return self.cfg.base_spread_pct
-        # Low price stocks generally have higher percentage bid-ask spread
-        price_factor = 1.0 + max(0.0, (10000.0 - price) / 10000.0) if price < 10000.0 else 1.0
+        mkt = (market or "").upper()
+        threshold = 20.0 if mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE") else 10000.0
+        price_factor = 1.0 + max(0.0, (threshold - price) / threshold) if price < threshold else 1.0
         spread = max(self.cfg.base_spread_pct, (0.0002 + (volatility * 0.02)) * price_factor)
         return float(spread)
 
@@ -78,9 +79,9 @@ class MicrostructureCostModel:
     ) -> float:
         """Calculate total round-trip friction cost percentage."""
         tax = self.get_tax_fee_rate(market, is_sell=is_sell)
-        spread = self.calculate_bid_ask_spread(volatility, price)
+        spread = self.calculate_bid_ask_spread(volatility, price, market=market)
         impact = self.calculate_market_impact(order_amount, adv, volatility)
-        total_cost = tax + spread + impact
+        total_cost = tax + (0.5 * spread) + impact
         return float(total_cost)
 
     def net_expected_return(

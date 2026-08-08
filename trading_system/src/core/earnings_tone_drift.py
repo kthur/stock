@@ -38,14 +38,23 @@ class EarningsToneDriftEngine:
 
         results = []
 
+        def _safe_float(val: Any, default: float) -> float:
+            if val is None or pd.isna(val):
+                return default
+            try:
+                res = float(val)
+                return default if np.isnan(res) else res
+            except (ValueError, TypeError):
+                return default
+
         for sym in symbols:
             score = 0.50  # Base neutral score
 
             if transcript_map and sym in transcript_map:
                 t_data = transcript_map[sym]
-                prev_tone = float(t_data.get('previous_quarter_tone', 0.50))
-                cur_tone = float(t_data.get('current_quarter_tone', 0.50))
-                confidence = float(t_data.get('confidence', 1.0))
+                prev_tone = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
+                cur_tone = _safe_float(t_data.get('current_quarter_tone'), 0.50)
+                confidence = _safe_float(t_data.get('confidence'), 1.0)
 
                 # Tone Drift Delta (Positive = Management Sentiment Upgrade)
                 tone_delta = (cur_tone - prev_tone) * confidence

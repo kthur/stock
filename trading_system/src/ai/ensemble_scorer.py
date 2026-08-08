@@ -664,6 +664,11 @@ class EnsembleScoringEngine:
             'short_squeeze': w.get('short_squeeze', 0.03),
             'valueup_catalyst': w.get('valueup_catalyst', 0.03),
             'trend_efficiency': w.get('trend_efficiency', 0.03),
+            # Phase 5 추가 전략 (#28~#31) 기본값
+            'gamma_squeeze': w.get('gamma_squeeze', 0.02),
+            'insider_buying': w.get('insider_buying', 0.02),
+            'darkpool': w.get('darkpool', 0.02),
+            'earnings_tone_drift': w.get('earnings_tone_drift', 0.02),
         }
         total_base = sum(res.values())
         if total_base > 0:

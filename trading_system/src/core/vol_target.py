@@ -76,14 +76,14 @@ class VolTargetingEngine:
 
             # Target leverage weight = target_vol / asset_vol
             target_weight = self.target_vol_annual / vol
-            # Map target weight (0.2 ~ 2.0) to score (0 ~ 100)
-            score = float(np.clip(target_weight * 50.0, 0.0, 100.0))
+            # Map target weight (0.2 ~ 2.0) to score (0.0 ~ 1.0)
+            score = float(np.clip(target_weight * 0.50, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "vol_target_score": round(score, 2),
+                "vol_target_score": round(score, 4),
             })
 
         res_df = pd.DataFrame(results)

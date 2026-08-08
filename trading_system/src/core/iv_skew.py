@@ -57,7 +57,7 @@ class IVSkewEngine:
             call_iv = eff_calls['impliedVolatility'].median()
             put_iv = eff_puts['impliedVolatility'].median()
 
-            if call_iv <= 0 or np.isnan(call_iv):
+            if call_iv <= 0 or np.isnan(call_iv) or put_iv <= 0 or np.isnan(put_iv):
                 return 0.5
 
             skew_ratio = put_iv / call_iv

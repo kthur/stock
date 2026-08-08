@@ -47,7 +47,8 @@ class TradeExecutor:
 
     @property
     def can_trade_live(self) -> bool:
-        return (not self.dry_run and self.kiwoom is not None
+        env_enabled = os.getenv("REALTIME_TRADE_ENABLED", "false").lower() == "true"
+        return (env_enabled and not self.dry_run and self.kiwoom is not None
                 and getattr(self.kiwoom, "is_connected", False)
                 and not getattr(self.kiwoom, "simulation_mode", True))
 
@@ -121,7 +122,8 @@ class TradeExecutor:
                               message="duplicate action for symbol today")
 
         order_id = ""
-        live = self.can_trade_live
+        is_krx = market in ("KOSPI", "KOSDAQ", "KONEX")
+        live = self.can_trade_live and is_krx
         mode = "live" if live else "dry_run"
 
         if live:
@@ -136,6 +138,8 @@ class TradeExecutor:
                 return ExecResult(symbol=symbol, action=action, quantity=quantity, price=price,
                                   executed=False, mode=mode, message=f"kiwoom error: {e}")
         else:
+            if not is_krx and self.can_trade_live:
+                logger.warning(f"[EXEC] US market ({market}) live API ordering not yet supported. Simulating order.")
             logger.info(f"[EXEC] DRY-RUN {action} {quantity} {symbol} @ {price} (reason={reason})")
 
         self._executed_today[symbol] = action

@@ -90,7 +90,7 @@ class SupplyChainEngine:
             customers = self.customer_map.get(sym, [])
             if not customers:
                 # Assign baseline momentum based on sector/market average return
-                score = 50.0
+                score = 0.50
             else:
                 cust_rets = []
                 for c_sym in customers:
@@ -99,14 +99,14 @@ class SupplyChainEngine:
                     cust_rets.append(0.6 * r1 + 0.4 * r3)
 
                 avg_cust_ret = float(np.mean(cust_rets)) if cust_rets else 0.0
-                # Scale return (-5% ~ +5%) to score (0% ~ 100%)
-                score = float(np.clip(50.0 + avg_cust_ret * 500.0, 0.0, 100.0))
+                # Scale return (-10% ~ +10%) to score (0.0 ~ 1.0)
+                score = float(np.clip(0.50 + avg_cust_ret * 5.0, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "supply_chain_score": round(score, 2),
+                "supply_chain_score": round(score, 4),
             })
 
         res_df = pd.DataFrame(results)

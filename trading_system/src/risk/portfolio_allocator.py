@@ -591,11 +591,12 @@ class PortfolioAllocator:
         current_price: float,
         atr_20d: float,
         is_long: bool = True,
-        multiplier: float = 2.5
+        multiplier: float = 2.5,
+        highest_price: Optional[float] = None
     ) -> Dict[str, float]:
         """
         Calculates intraday dynamic ATR-based trailing stop-loss and take-profit levels:
-        - Stop Loss: current_price - (multiplier * ATR_20d)
+        - Stop Loss: peak_price - (multiplier * ATR_20d)
         - Take Profit: current_price + (1.5 * multiplier * ATR_20d)
         """
         if current_price <= 0.0 or atr_20d <= 0.0:
@@ -609,10 +610,12 @@ class PortfolioAllocator:
         stop_dist = multiplier * atr_clean
 
         if is_long:
-            stop_loss = max(0.0, current_price - stop_dist)
+            ref_price = max(highest_price, current_price) if (highest_price is not None and highest_price > 0) else current_price
+            stop_loss = max(0.0, ref_price - stop_dist)
             take_profit = current_price + (1.5 * stop_dist)
         else:
-            stop_loss = current_price + stop_dist
+            ref_price = min(highest_price, current_price) if (highest_price is not None and highest_price > 0) else current_price
+            stop_loss = ref_price + stop_dist
             take_profit = max(0.0, current_price - (1.5 * stop_dist))
 
         risk_pct = float(abs(current_price - stop_loss) / current_price)

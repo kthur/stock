@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TradingConfig:
-    initial_cash: float = 1000000.0
+    initial_cash: float = 100_000_000.0
     max_retries: int = 3
     debug_mode: bool = False
     mock_trading: bool = True  # 모의투자 API 연동 활성화 여부
@@ -80,7 +80,7 @@ class TradingConfig:
     default_volatility_sp500: float = 0.015     # SP500 기본 일일 변동성 (1.5%)
 
     # 포트폴리오 자본금 단일 소스 (KRW, GHA/OMS/HRP 모두 여기에서 읽음)
-    portfolio_capital_krw: float = 1_000_000_000.0  # 10억 원
+    portfolio_capital_krw: float = 100_000_000.0  # 1억 원
 
     # 실시간 장중 모니터링 (realtime_monitor.py)
     realtime_interval_min: int = 15          # 폴링 간격 (분)

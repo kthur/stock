@@ -687,6 +687,7 @@ class VCPSurgePredictor:
                         booster = lgb.Booster(model_file=str(path))
                         model = lgb.LGBMClassifier(**self._surge_lgb_kwargs)
                         model._Booster = booster
+                        model._booster = booster
                         model.fitted_ = True
 
                         try:

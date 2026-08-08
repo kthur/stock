@@ -738,58 +738,59 @@ class MarketIndicatorStorage:
         if pending.empty:
             return 0
         _pending_dates = sorted(pending['date'].unique().tolist())
-        updated = 0
+        updates = []
+        for d in _pending_dates:
+            day_rows = pending[pending['date'] == d]
+            syms = day_rows['symbol'].unique().tolist()
+            for sym in syms:
+                try:
+                    is_us = not _is_krx_symbol(str(sym))
+                    fetch_start = d if not is_us else (
+                        pd.Timestamp(d) - pd.Timedelta(days=14)
+                    ).strftime("%Y-%m-%d")
+                    px = prices_getter(sym, start_date=fetch_start)
+                except Exception:
+                    continue
+                if px is None or px.empty:
+                    continue
+                closes = px['Close']
+                if isinstance(closes, pd.DataFrame):
+                    closes = closes.iloc[:, 0]
+                closes = closes.dropna()
+                if is_us:
+                    if not isinstance(closes.index, pd.DatetimeIndex):
+                        closes.index = pd.to_datetime(closes.index)
+                    avail = closes[closes.index < pd.Timestamp(d)]
+                    if len(avail) < 1:
+                        continue
+                    rest = closes[closes.index >= avail.index[-1]]
+                    if len(rest) < horizon + 1:
+                        continue
+                    entry = float(avail.iloc[-1])
+                    exit_px = float(rest.iloc[horizon])
+                else:
+                    if len(closes) < horizon + 1:
+                        continue
+                    entry = float(closes.iloc[0])
+                    exit_px = float(closes.iloc[horizon])
+                if entry is None or entry <= 0 or exit_px is None or exit_px <= 0:
+                    continue
+                outcome_return = exit_px / entry - 1.0
+                outcome_label = 1 if outcome_return > label_threshold else 0
+                updates.append((float(outcome_return), int(outcome_label), d, str(sym)))
+
+        if not updates:
+            return 0
+
         with self._write_lock:
             with self._connect() as conn:
-                for d in _pending_dates:
-                    day_rows = pending[pending['date'] == d]
-                    syms = day_rows['symbol'].unique().tolist()
-                    for sym in syms:
-                        try:
-                            is_us = not _is_krx_symbol(str(sym))
-                            # Fetch a window around the prediction date so the last
-                            # pre-`d` US close is available (US bars dated `d` close
-                            # after the prediction is made).
-                            fetch_start = d if not is_us else (
-                                pd.Timestamp(d) - pd.Timedelta(days=14)
-                            ).strftime("%Y-%m-%d")
-                            px = prices_getter(sym, start_date=fetch_start)
-                        except Exception:
-                            continue
-                        if px is None or px.empty:
-                            continue
-                        closes = px['Close']
-                        if isinstance(closes, pd.DataFrame):
-                            closes = closes.iloc[:, 0]
-                        closes = closes.dropna()
-                        if is_us:
-                            if not isinstance(closes.index, pd.DatetimeIndex):
-                                closes.index = pd.to_datetime(closes.index)
-                            avail = closes[closes.index < pd.Timestamp(d)]
-                            if len(avail) < 1:
-                                continue
-                            rest = closes[closes.index >= avail.index[-1]]
-                            if len(rest) < horizon + 1:
-                                continue
-                            entry = float(avail.iloc[-1])
-                            exit_px = float(rest.iloc[horizon])
-                        else:
-                            if len(closes) < horizon + 1:
-                                continue
-                            entry = float(closes.iloc[0])
-                            exit_px = float(closes.iloc[horizon])
-                        if entry is None or entry <= 0 or exit_px is None or exit_px <= 0:
-                            continue
-                        outcome_return = exit_px / entry - 1.0
-                        outcome_label = 1 if outcome_return > label_threshold else 0
-                        conn.execute(
-                            "UPDATE ensemble_predictions SET outcome_return = ?, outcome_label = ? "
-                            "WHERE date = ? AND symbol = ?",
-                            (float(outcome_return), int(outcome_label), d, str(sym))
-                        )
-                        updated += 1
+                conn.executemany(
+                    "UPDATE ensemble_predictions SET outcome_return = ?, outcome_label = ? "
+                    "WHERE date = ? AND symbol = ?",
+                    updates
+                )
                 conn.commit()
-        return updated
+        return len(updates)
 
     def get_filing_sentiment(
         self,

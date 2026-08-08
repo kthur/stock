@@ -32,11 +32,15 @@ class _DBConnection:
         async with self._lock:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
+                await self._conn.execute("PRAGMA journal_mode=WAL")
+                await self._conn.execute("PRAGMA busy_timeout=60000")
             else:
                 try:
                     await self._conn.execute("SELECT 1")
                 except Exception:
                     self._conn = await aiosqlite.connect(self.db_path)
+                    await self._conn.execute("PRAGMA journal_mode=WAL")
+                    await self._conn.execute("PRAGMA busy_timeout=60000")
             return self._conn
 
     async def execute_write(self, sql: str, params: tuple = ()):

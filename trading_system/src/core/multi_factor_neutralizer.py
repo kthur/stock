@@ -56,20 +56,37 @@ class MultiFactorNeutralizerEngine:
             res_df = pd.DataFrame(results)
             return res_df
 
+        # Explicitly align universe df and raw_scores by symbol
+        df_merged = pd.merge(df, raw_scores[['symbol', 'score']], on='symbol', how='inner')
+        if df_merged.empty or len(df_merged) < 2:
+            results = []
+            for _, row in df.iterrows():
+                results.append({
+                    "symbol": str(row["symbol"]).strip(),
+                    "name": str(row.get("name", row["symbol"])),
+                    "market": str(row.get("market", "KRX")),
+                    "neutralized_score": np.nan,
+                })
+            return pd.DataFrame(results)
+
         # Factor definitions: Size (log Cap), Value (1/abs(PER)), Profitability (ROE)
-        size_factor = np.log(df["market_cap"].clip(lower=1e8))
-        value_factor = (1.0 / df["per"].abs().clip(lower=0.1)).fillna(0.0)
-        prof_factor = df["roe"].fillna(0.0)
+        size_factor = np.log(df_merged["market_cap"].clip(lower=1e8))
+        value_factor = (1.0 / df_merged["per"].abs().clip(lower=0.1)).fillna(0.0)
+        prof_factor = df_merged["roe"].fillna(0.0)
+
+        s_std = float(size_factor.std(ddof=0))
+        v_std = float(value_factor.std(ddof=0))
+        p_std = float(prof_factor.std(ddof=0))
 
         # Standardize factor matrix X
         X = np.column_stack([
-            np.ones(len(df)),
-            (size_factor - size_factor.mean()) / (size_factor.std() + 1e-6),
-            (value_factor - value_factor.mean()) / (value_factor.std() + 1e-6),
-            (prof_factor - prof_factor.mean()) / (prof_factor.std() + 1e-6),
+            np.ones(len(df_merged)),
+            (size_factor - size_factor.mean()) / (s_std if s_std > 1e-6 else 1.0),
+            (value_factor - value_factor.mean()) / (v_std if v_std > 1e-6 else 1.0),
+            (prof_factor - prof_factor.mean()) / (p_std if p_std > 1e-6 else 1.0),
         ])
 
-        y = raw_scores["score"].values
+        y = df_merged["score"].values
 
         # Perform Cross-Sectional OLS Regression: y = X * beta + residual
         try:
@@ -79,22 +96,22 @@ class MultiFactorNeutralizerEngine:
             logger.warning(f"OLS regression failed in MultiFactorNeutralizerEngine: {e}")
             residuals = y - np.mean(y)
 
-        # Scale residuals to 0 ~ 100 score
+        # Scale residuals to 0.0 ~ 1.0 score
         res_min, res_max = np.min(residuals), np.max(residuals)
         denom = (res_max - res_min) if (res_max - res_min) > 1e-6 else 1.0
-        norm_scores = 100.0 * (residuals - res_min) / denom
+        norm_scores = (residuals - res_min) / denom
 
-        for idx, (_, row) in enumerate(df.iterrows()):
+        for idx, (_, row) in enumerate(df_merged.iterrows()):
             sym = str(row["symbol"]).strip()
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KRX"))
-            score = float(np.clip(norm_scores[idx], 0.0, 100.0))
+            score = float(np.clip(norm_scores[idx], 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "neutralized_score": round(score, 2),
+                "neutralized_score": round(score, 4),
             })
 
         res_df = pd.DataFrame(results)
