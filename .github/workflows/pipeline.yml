@@ -16,9 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 2   # DB 캐시 충돌 방지: 2개씩 순차 실행으로 stock_prices.db restore 경쟁 완화
       matrix:
         target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
-    timeout-minutes: 360
+    timeout-minutes: 480   # 8시간: RUSSELL2000/NASDAQ/KOSPI 대규모 종목 처리 여유
 
     steps:
       - uses: actions/checkout@v4
