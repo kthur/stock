@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      max-parallel: 3   # 3개 병렬 실행으로 파이프라인 처리 속도 향상
       matrix:
         target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
     timeout-minutes: 480   # 8시간: RUSSELL2000/NASDAQ/KOSPI 대규모 종목 처리 여유
