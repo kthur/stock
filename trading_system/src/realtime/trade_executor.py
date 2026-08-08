@@ -34,7 +34,7 @@ class TradeExecutor:
         oms=None,
         dry_run: bool = True,
         max_order_value_krw: float = 50_000_000.0,  # 5천만 원 상한
-        lot_size_krx: int = 1,                      # KRX 호가 단위 수량 (1주)
+        lot_size_krx: int = 10,                     # KRX 호가 단위 수량 (10주)
         lot_size_us: int = 1,                       # US 호가 단위 수량 (1주)
     ):
         self.kiwoom = kiwoom
@@ -57,7 +57,13 @@ class TradeExecutor:
         if qty <= 0:
             return 0
         lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ", "KONEX") else self.lot_size_us
-        return (qty // lot) * lot
+        if lot <= 1:
+            return qty
+        remainder = qty % lot
+        if remainder >= lot / 2:
+            return ((qty // lot) + 1) * lot
+        else:
+            return (qty // lot) * lot
 
     def _check_and_reset_daily_tracker(self) -> None:
         today_str = datetime.now().strftime('%Y-%m-%d')

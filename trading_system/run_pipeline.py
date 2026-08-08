@@ -1259,7 +1259,7 @@ def execute_prediction_pipeline():
                 if not m_df.empty:
                     logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
                 market_dfs[m_name] = m_df
-            del train_data_dict, df_train
+            del train_data_dict
             gc.collect()
         else:
             market_dfs = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
@@ -1342,6 +1342,8 @@ def execute_prediction_pipeline():
                         logger.info(f"Fitted and saved Isotonic calibrators on out-of-sample holdout ({len(val_holdout)} rows) to {calib_path}")
             except Exception as _calib_e:
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
+        del df_train
+        gc.collect()
 
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
     target_env = os.environ.get("INFERENCE_TARGET", "SP500,NASDAQ,RUSSELL2000,KRX").strip().upper()

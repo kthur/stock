@@ -24,13 +24,42 @@ class DarkPoolTrackerEngine:
     def __init__(self, config=None):
         self.config = config
 
-    def fetch_darkpool_activity(self, symbol: str, *args, **kwargs) -> Dict[str, Any]:
+    def fetch_darkpool_activity(self, symbol: str, df_price: Optional[pd.DataFrame] = None, *args, **kwargs) -> Dict[str, Any]:
         """Fetch dark pool activity metrics for symbol (compatibility method)."""
+        is_accum = False
+        is_dist = False
+        net_usd = 0.0
+        dp_ratio = 0.35
+
+        if df_price is not None and len(df_price) >= 2 and 'Close' in df_price.columns and 'Volume' in df_price.columns:
+            clean = df_price[['Close', 'Volume']].dropna()
+            if len(clean) >= 2:
+                last_close = float(clean['Close'].iloc[-1])
+                prev_close = float(clean['Close'].iloc[-2])
+                ret_last = (last_close / prev_close) - 1.0 if prev_close > 0 else 0.0
+                
+                volumes = clean['Volume'].values
+                cur_vol = float(volumes[-1])
+                avg_vol = float(volumes[:-1].mean()) if len(volumes) > 1 else cur_vol
+                vol_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+
+                if ret_last > 0 and vol_ratio > 1.2:
+                    is_accum = True
+                    net_usd = last_close * cur_vol * 0.2
+                elif ret_last < 0 and vol_ratio > 1.2:
+                    is_dist = True
+                    net_usd = -last_close * cur_vol * 0.2
+
+                dp_ratio = float(np.clip(0.35 * min(2.0, max(0.5, vol_ratio)), 0.1, 0.6))
+
         return {
             'symbol': symbol,
-            'dark_pool_ratio': 0.35,
-            'buy_bias': 0.55,
-            'block_trade_volume': 150000
+            'dark_pool_ratio': dp_ratio,
+            'buy_bias': 0.55 if not is_dist else 0.35,
+            'block_trade_volume': 150000,
+            'block_trade_net_usd': net_usd,
+            'is_accumulation': is_accum,
+            'is_distribution': is_dist
         }
 
     def calculate_scores(self, symbols: List[str], prices_dict: Optional[Dict[str, pd.DataFrame]] = None, darkpool_data_dict: Optional[Dict[str, Any]] = None) -> pd.DataFrame:

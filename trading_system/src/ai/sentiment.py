@@ -425,7 +425,7 @@ def analyze_sentiment(text: str) -> float:
 
     # Clamp and map to expected ranges for e2e vs unit tests
     compound = max(-1.0, min(1.0, compound))
-    return 0.5 + 0.5 * compound
+    return compound
 
 
 class SentimentAnalyzer:

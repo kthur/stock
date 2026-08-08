@@ -23,7 +23,7 @@ class TestTradingConfig(unittest.TestCase):
     def test_default_config(self):
         """Test default config values"""
         cfg = TradingConfig()
-        self.assertEqual(cfg.initial_cash, 1000000.0)
+        self.assertEqual(cfg.initial_cash, 100000000.0)
         self.assertTrue(cfg.mock_trading)
         self.assertEqual(cfg.broker_type, "KIS")
         self.assertFalse(cfg.skip_training)

@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TransactionCostConfig:
-    kospi_stt_rate: float = 0.0020     # 0.20% STT (2026)
-    kosdaq_stt_rate: float = 0.0020    # 0.20% STT (2026)
+    kospi_stt_rate: float = 0.0018     # 0.18% STT
+    kosdaq_stt_rate: float = 0.0018    # 0.18% STT
     konex_stt_rate: float = 0.0010     # 0.10% STT
     us_sec_rate: float = 0.0000278     # 0.00278% SEC fee
     base_spread_pct: float = 0.0005    # 0.05% default spread
@@ -36,17 +36,17 @@ class MicrostructureCostModel:
     def get_tax_fee_rate(self, market: str, is_sell: bool = True) -> float:
         """Return statutory tax and regulatory exchange fee rate."""
         if not is_sell:
-            return 0.00015  # Brokerage commission fee fallback (0.015%)
+            return 0.0
         mkt = (market or "").upper()
         if mkt == "KOSPI":
-            return self.cfg.kospi_stt_rate + 0.00015
+            return self.cfg.kospi_stt_rate
         elif mkt == "KOSDAQ":
-            return self.cfg.kosdaq_stt_rate + 0.00015
+            return self.cfg.kosdaq_stt_rate
         elif mkt == "KONEX":
-            return self.cfg.konex_stt_rate + 0.00015
+            return self.cfg.konex_stt_rate
         elif mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE"):
-            return self.cfg.us_sec_rate + 0.00005
-        return 0.0020  # default fallback
+            return self.cfg.us_sec_rate
+        return 0.0018
 
     def calculate_bid_ask_spread(self, volatility: float, price: float, market: str = "KOSPI") -> float:
         """Estimate half-spread percentage based on price & volatility."""
