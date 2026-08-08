@@ -6,7 +6,7 @@ relative to Total Assets (Sloan 1996 Accrual Anomaly).
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
@@ -36,8 +36,7 @@ class AccrualsQualityEngine:
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'accruals_quality_score'])
 
-        results: List[Dict[str, Any]] = []
-        
+
         # Build lookup table from features_df
         fund_map = {}
         if features_df is not None:
@@ -54,7 +53,7 @@ class AccrualsQualityEngine:
         for sym in symbols:
             sym_str = str(sym)
             row = fund_map.get(sym_str, fund_map.get(sym_str.zfill(6), {}))
-            
+
             net_income = row.get('net_income', row.get('net_profit', np.nan))
             ocf = row.get('operating_cash_flow', row.get('ocf', row.get('cash_flow_operating', np.nan)))
             assets = row.get('total_assets', row.get('assets', row.get('book_value', np.nan)))
@@ -66,10 +65,10 @@ class AccrualsQualityEngine:
             if pd.notna(net_income) and pd.notna(ocf):
                 net_inc_val = float(net_income)
                 ocf_val = float(ocf)
-                
+
                 # Assets scale denominator
                 denom = float(assets) if (pd.notna(assets) and float(assets) > 0) else abs(net_inc_val) * 10.0 + 1e-5
-                
+
                 # Accrual ratio = (Net Income - OCF) / Total Assets
                 # Higher positive = worse accruals (inflated earnings)
                 # Lower / negative = better accruals (high cash conversion)
@@ -81,7 +80,7 @@ class AccrualsQualityEngine:
         # Convert to DataFrame
         df_acc = pd.DataFrame(list(accrual_ratios.items()), columns=['symbol', 'accrual_ratio'])
         valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
-        
+
         if valid_mask.sum() > 0:
             # Rank score: inverted because lower accrual_ratio -> higher earnings quality
             # Percentile rank: 1 - percentile_rank(accrual_ratio)
@@ -91,5 +90,5 @@ class AccrualsQualityEngine:
             df_acc['accruals_quality_score'] = 0.50
 
         df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].fillna(0.50).astype(float)
-        
+
         return df_acc[['symbol', 'accruals_quality_score']]

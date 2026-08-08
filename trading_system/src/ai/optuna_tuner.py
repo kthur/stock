@@ -605,7 +605,7 @@ class OptunaStrategyTuner:
 class AlphaDecayTracker:
     """
     Tracks rolling Sharpe ratios and Information Coefficients (IC) across 30 strategies
-    over 30d/60d/120d windows and applies exponential decay w_i * exp(-lambda * t) for 
+    over 30d/60d/120d windows and applies exponential decay w_i * exp(-lambda * t) for
     degrading strategies.
     """
 
@@ -634,11 +634,11 @@ class AlphaDecayTracker:
         for strat, base_w in base_weights.items():
             sharpe = strategy_rolling_sharpes.get(strat, 0.0)
             t_decay = periods.get(strat, 0)
-            
+
             # Decay multiplier
             decay_factor = np.exp(-self.decay_lambda * max(0, t_decay))
             perf_factor = max(0.10, sharpe + 1.0)
-            
+
             adj_w = base_w * decay_factor * perf_factor
             adjusted[strat] = max(self.min_weight_bound, min(adj_w, self.max_weight_bound))
 

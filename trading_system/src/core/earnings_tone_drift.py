@@ -59,7 +59,7 @@ class EarningsToneDriftEngine:
                 # Tone Drift Delta (Positive = Management Sentiment Upgrade)
                 tone_delta = (cur_tone - prev_tone) * confidence
                 score = float(np.clip(0.50 + 1.0 * tone_delta, 0.0, 1.0))
-                
+
                 if abs(tone_delta) > 0.15:
                     logger.info(f"[EARNINGS TONE DRIFT] Tone Drift acceleration for {sym}: {prev_tone:.2f} -> {cur_tone:.2f} (Delta={tone_delta:+.2f}, Score={score:.2f})")
 

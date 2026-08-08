@@ -57,7 +57,7 @@ class InsiderBuyingEngine:
             for sym in symbols:
                 sym_raw = sym.split('.')[0]
                 sym_clean = sym_raw.zfill(6) if sym_raw.isdigit() else sym_raw
-                
+
                 matching_items = filings_by_code.get(sym_clean)
                 if matching_items is None and sym_raw != sym_clean:
                     matching_items = filings_by_code.get(sym_raw)

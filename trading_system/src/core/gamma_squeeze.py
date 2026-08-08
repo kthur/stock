@@ -53,10 +53,10 @@ class OptionsGammaSqueezeEngine:
                         ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
                         high_20d = float(c.iloc[-20:].max())
                         cur_p = float(c.iloc[-1])
-                        
+
                         # Proximity to 20-day High (Call Wall Proxy)
                         proximity = (cur_p / high_20d) if high_20d > 0 else 0.95
-                        
+
                         vol_surge = 1.0
                         if v is not None and len(v) >= 6:
                             avg_v = float(v.iloc[-6:-1].mean())

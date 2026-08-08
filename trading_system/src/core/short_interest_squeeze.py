@@ -37,7 +37,7 @@ class ShortInterestSqueezeEngine:
             return pd.DataFrame(columns=['symbol', 'short_squeeze_score'])
 
         results = {}
-        
+
         # Build lookup table from features_df or price history
         short_map = {}
         if features_df is not None:
@@ -55,11 +55,11 @@ class ShortInterestSqueezeEngine:
         for sym in symbols:
             sym_str = str(sym)
             row = short_map.get(sym_str, short_map.get(sym_str.zfill(6), {}))
-            
+
             # Short interest metrics
             short_ratio = row.get('short_ratio', row.get('short_pct', row.get('short_float_pct', row.get('short_interest_ratio', np.nan))))
             dtc = row.get('days_to_cover', row.get('dtc', np.nan))
-            
+
             # Compute 5-day return from prices_dict if available
             ret_5d = 0.0
             if prices_dict and (sym_str in prices_dict or sym in prices_dict):
@@ -84,7 +84,7 @@ class ShortInterestSqueezeEngine:
                             c_series = p_df[close_col].dropna()
                             if len(v_series) >= 20 and len(c_series) >= 20:
                                 vol_surge = v_series.iloc[-1] / (v_series.iloc[-20:-1].mean() + 1e-5)
-                                ret_20d = (c_series.iloc[-1] / c_series.iloc[-20]) - 1.0
+                                (c_series.iloc[-1] / c_series.iloc[-20]) - 1.0
                                 # High volume surge + positive recent bounce = squeeze proxy
                                 proxy_score = float(vol_surge * np.clip(1.0 + ret_5d * 3.0, 0.2, 3.0))
                                 results[sym_str] = proxy_score
@@ -98,7 +98,7 @@ class ShortInterestSqueezeEngine:
         # Build output DataFrame and normalize
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
-        
+
         if valid_mask.sum() > 0:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
             df_out.loc[valid_mask, 'short_squeeze_score'] = ranks.clip(0.05, 0.95)
@@ -106,5 +106,5 @@ class ShortInterestSqueezeEngine:
             df_out['short_squeeze_score'] = 0.50
 
         df_out['short_squeeze_score'] = df_out['short_squeeze_score'].fillna(0.50).astype(float)
-        
+
         return df_out[['symbol', 'short_squeeze_score']]

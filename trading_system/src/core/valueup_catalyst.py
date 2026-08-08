@@ -51,13 +51,13 @@ class ValueUpCatalystEngine:
         for sym in symbols:
             sym_str = str(sym)
             row = fund_map.get(sym_str, fund_map.get(sym_str.zfill(6), {}))
-            
+
             pbr = row.get('pbr', row.get('price_to_book', np.nan))
             bps = row.get('bps', np.nan)
             cash = row.get('cash', row.get('cash_and_equivalents', np.nan))
             mcap = row.get('market_cap', row.get('marcap', np.nan))
             div_yield = row.get('dividend_yield', row.get('div_yield', 0.0))
-            
+
             # If PBR is missing, estimate from price / BPS if price is available
             if pd.isna(pbr) and pd.notna(bps) and float(bps) > 0 and prices_dict:
                 p_df = prices_dict.get(sym_str, prices_dict.get(sym))
@@ -94,7 +94,7 @@ class ValueUpCatalystEngine:
 
         df_out = pd.DataFrame(list(scores.items()), columns=['symbol', 'raw_score'])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
-        
+
         if valid_mask.sum() > 0:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = ranks.clip(0.05, 0.95)
@@ -102,5 +102,5 @@ class ValueUpCatalystEngine:
             df_out['valueup_catalyst_score'] = 0.50
 
         df_out['valueup_catalyst_score'] = df_out['valueup_catalyst_score'].fillna(0.50).astype(float)
-        
+
         return df_out[['symbol', 'valueup_catalyst_score']]

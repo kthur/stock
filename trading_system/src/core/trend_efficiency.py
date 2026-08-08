@@ -50,16 +50,16 @@ class TrendEfficiencyEngine:
         for sym in symbols:
             sym_str = str(sym)
             p_df = prices_dict.get(sym_str, prices_dict.get(sym))
-            
+
             if not isinstance(p_df, pd.DataFrame) or len(p_df) < 21:
                 results[sym_str] = np.nan
                 continue
-                
+
             close_col = 'close' if 'close' in p_df.columns else 'Close'
             if close_col not in p_df.columns:
                 results[sym_str] = np.nan
                 continue
-                
+
             c_series = p_df[close_col].dropna()
             if len(c_series) < 21:
                 results[sym_str] = np.nan
@@ -73,7 +73,7 @@ class TrendEfficiencyEngine:
 
             # Directional multiplier (positive trend gets bonus, negative gets penalty)
             ret_20d = (c_series.iloc[-1] / c_series.iloc[-21]) - 1.0
-            
+
             if ret_20d > 0:
                 score = avg_ker * (1.0 + min(1.0, ret_20d * 2.0))
             else:
@@ -83,7 +83,7 @@ class TrendEfficiencyEngine:
 
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
-        
+
         if valid_mask.sum() > 0:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
             df_out.loc[valid_mask, 'trend_efficiency_score'] = ranks.clip(0.05, 0.95)
@@ -91,7 +91,7 @@ class TrendEfficiencyEngine:
             df_out['trend_efficiency_score'] = 0.50
 
         df_out['trend_efficiency_score'] = df_out['trend_efficiency_score'].fillna(0.50).astype(float)
-        
+
         return df_out[['symbol', 'trend_efficiency_score']]
 
 

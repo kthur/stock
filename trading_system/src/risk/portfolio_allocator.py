@@ -509,7 +509,7 @@ class PortfolioAllocator:
             return {s: w / s_sum for s, w in weights.items()} if s_sum > 0 else weights
 
         cleaned_weights = dict(weights)
-        
+
         # Iterative Sector Cap Enforcement (up to 5 passes for convergence)
         for _ in range(5):
             sector_totals: Dict[str, float] = {}
@@ -542,7 +542,7 @@ class PortfolioAllocator:
     def calibrate_slippage_from_trade_logs(self, db_path: Optional[str] = None) -> float:
         """
         Reads realized execution logs from trade_logs.db and calculates empirical
-        realized slippage ratio vs predicted Almgren-Chriss cost, returning a 
+        realized slippage ratio vs predicted Almgren-Chriss cost, returning a
         calibrated cost scaling factor (default = 1.0 if insufficient trades).
         """
         import sqlite3

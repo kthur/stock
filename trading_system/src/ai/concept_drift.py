@@ -12,7 +12,7 @@ Thresholds:
 """
 
 import logging
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Any, Optional
 import numpy as np
 import pandas as pd
 

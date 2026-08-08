@@ -8,9 +8,8 @@ severe or bear market regimes (BEAR_HIGH_VOL / CRISIS_ACTIVE / CRISIS_SEVERE).
 """
 
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, Any
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +81,7 @@ class DeltaBetaHedgeEngine:
         if crisis_level in ["SEVERE", "ACTIVE"] or regime in ["BEAR_HIGH_VOL", "BEAR"]:
             target_beta = 0.0 if crisis_level == "SEVERE" else 0.20
             beta_reduction = port_beta - target_beta
-            
+
             if beta_reduction > 0.0 and (port_beta - inverse_beta) != 0:
                 raw_hedge_w = (port_beta - target_beta) / (port_beta - inverse_beta)
                 hedge_weight = float(np.clip(raw_hedge_w, 0.0, 0.35))
@@ -90,7 +89,7 @@ class DeltaBetaHedgeEngine:
         # 3. Rescale asset weights to make room for Hedge ETF
         scale = 1.0 - hedge_weight
         net_asset_weights = {sym: float(w * scale) for sym, w in norm_weights.items()}
-        
+
         if hedge_weight > 0.0:
             net_asset_weights[hedge_etf] = float(net_asset_weights.get(hedge_etf, 0.0) + hedge_weight)
             logger.info(f"[DYNAMIC HEDGE ENGINE] Active Beta Hedge ({'US' if is_us_portfolio else 'KR'}): Port Beta={port_beta:.2f} -> Target={target_beta:.2f}, Allocated {hedge_weight*100:.1f}% to {hedge_etf}")

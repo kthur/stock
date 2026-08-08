@@ -12,9 +12,8 @@ import os
 import logging
 import concurrent.futures
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Callable, Union
+from typing import Dict, Optional, Tuple, Any, Callable, Union
 import pandas as pd
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

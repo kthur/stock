@@ -212,7 +212,7 @@ class EventDrivenEngine:
             for item in eff_filings:
                 stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
                 report_nm = item.get('report_nm', '')
-                
+
                 if '전환청구권행사' in report_nm or '신주인수권행사' in report_nm or '전환가액' in report_nm:
                     for sym in symbols:
                         sym_clean = sym.split('.')[0].zfill(6)
