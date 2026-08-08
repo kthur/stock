@@ -21,8 +21,9 @@ class ThreeTierLeadLagEngine:
     3-Tier Cross-Asset Lead-Lag Engine calculating lagged momentum transfer scores [0.0, 1.0].
     """
 
-    TIER1_LEADERS = ['NVDA', 'TSMC', 'ASML', 'AAPL', 'AMD']
+    TIER1_LEADERS = ['NVDA', 'TSM', 'ASML', 'AAPL', 'AMD']
     TIER2_LEADERS = ['000660', '005930', '373220', '005935']
+    TICKER_ALIASES = {'TSMC': 'TSM', 'TSM': 'TSMC'}
 
     def __init__(self, config=None):
         self.config = config
@@ -43,9 +44,13 @@ class ThreeTierLeadLagEngine:
         t1_returns = []
         for sym in self.TIER1_LEADERS:
             df = prices_dict.get(sym)
+            if df is None:
+                alias = self.TICKER_ALIASES.get(sym)
+                if alias:
+                    df = prices_dict.get(alias)
             if df is not None and len(df) >= 4 and 'Close' in df.columns:
                 c = df['Close'].dropna()
-                if len(c) >= 4:
+                if len(c) >= 4 and c.iloc[-2] > 0 and c.iloc[-4] > 0:
                     ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
                     ret_3d = float((c.iloc[-1] / c.iloc[-4]) - 1.0)
                     t1_returns.append(0.6 * ret_1d + 0.4 * ret_3d)
@@ -60,14 +65,21 @@ class ThreeTierLeadLagEngine:
                 df = prices_dict.get(f"{sym}.KS")
             if df is not None and len(df) >= 2 and 'Close' in df.columns:
                 c = df['Close'].dropna()
-                if len(c) >= 2:
+                if len(c) >= 2 and c.iloc[-2] > 0:
                     ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
                     t2_returns.append(ret_1d)
 
         t2_score = float(np.mean(t2_returns)) if t2_returns else 0.0
 
-        # 3. Composite Leader Momentum
-        composite_leader_mom = 0.5 * t1_score + 0.5 * t2_score
+        # 3. Composite Leader Momentum (dynamically weighted if missing data)
+        if t1_returns and t2_returns:
+            composite_leader_mom = 0.5 * t1_score + 0.5 * t2_score
+        elif t1_returns:
+            composite_leader_mom = t1_score
+        elif t2_returns:
+            composite_leader_mom = t2_score
+        else:
+            composite_leader_mom = 0.0
 
         # Map to 3-Tier Lead-Lag scores for Tier 3 follower symbols
         results = []
@@ -76,12 +88,17 @@ class ThreeTierLeadLagEngine:
             follower_mom = 0.0
             if df is not None and len(df) >= 2 and 'Close' in df.columns:
                 c = df['Close'].dropna()
-                if len(c) >= 2:
+                if len(c) >= 2 and c.iloc[-2] > 0:
                     follower_mom = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
 
             # Lag transfer bonus: High leader momentum vs delayed follower momentum
-            lag_gap = composite_leader_mom - follower_mom
-            base_score = 0.5 + 5.0 * composite_leader_mom + 3.0 * max(0.0, lag_gap)
+            # Restricted strictly to positive leader momentum (> 0)
+            if composite_leader_mom > 0:
+                lag_gap = max(0.0, composite_leader_mom - follower_mom)
+            else:
+                lag_gap = 0.0
+
+            base_score = 0.5 + 5.0 * composite_leader_mom + 3.0 * lag_gap
             final_score = float(np.clip(base_score, 0.0, 1.0))
             results.append({'symbol': sym, 'tier3_lead_lag_score': final_score})
 

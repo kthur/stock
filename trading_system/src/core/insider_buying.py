@@ -40,24 +40,41 @@ class InsiderBuyingEngine:
         scores_map = {sym: 0.50 for sym in symbols}
 
         if insider_filings:
+            # Pre-index filings by stock code/symbol for O(M) processing
+            filings_by_code: Dict[str, List[Dict[str, Any]]] = {}
             for item in insider_filings:
-                stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
-                report_nm = str(item.get('report_nm', ''))
-                insider_role = str(item.get('insider_role', 'EXECUTIVE'))
-                trans_type = str(item.get('trans_type', 'BUY')).upper()
+                code_raw = str(item.get('stock_code', '')).strip()
+                if code_raw:
+                    code_clean = code_raw.zfill(6) if code_raw.isdigit() else code_raw
+                    filings_by_code.setdefault(code_clean, []).append(item)
+                    if code_clean != code_raw:
+                        filings_by_code.setdefault(code_raw, []).append(item)
 
-                for sym in symbols:
-                    sym_clean = sym.split('.')[0].zfill(6)
-                    matched = (stock_code and stock_code == sym_clean) or (sym in report_nm)
-                    
-                    if matched:
-                        if trans_type in ['BUY', 'PURCHASE', '취득', '매입']:
-                            boost = 0.35 if insider_role in ['CEO', 'CHAIRMAN', '대표이사'] else 0.20
-                            scores_map[sym] = float(np.clip(scores_map[sym] + boost, 0.0, 1.0))
-                            logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {scores_map[sym]:.2f})")
-                        elif trans_type in ['SELL', 'DISPOSAL', '처분', '매각']:
-                            penalty = 0.25
-                            scores_map[sym] = float(np.clip(scores_map[sym] - penalty, 0.0, 1.0))
+            buy_keywords = {'BUY', 'PURCHASE', '취득', '매입', '장내매수', '장외매수', '신규취득', '주식매수'}
+            sell_keywords = {'SELL', 'DISPOSAL', '처분', '매각', '장내매도', '장외매도', '주식매도'}
+            high_level_roles = {'CEO', 'CHAIRMAN', '대표이사', '최대주주', '부회장'}
+
+            for sym in symbols:
+                sym_raw = sym.split('.')[0]
+                sym_clean = sym_raw.zfill(6) if sym_raw.isdigit() else sym_raw
+                
+                matching_items = filings_by_code.get(sym_clean)
+                if matching_items is None and sym_raw != sym_clean:
+                    matching_items = filings_by_code.get(sym_raw)
+                if not matching_items:
+                    continue
+                for item in matching_items:
+                    report_nm = str(item.get('report_nm', ''))
+                    insider_role = str(item.get('insider_role', 'EXECUTIVE')).upper()
+                    trans_type = str(item.get('trans_type', 'BUY')).upper()
+
+                    if trans_type in buy_keywords:
+                        boost = 0.35 if any(role in insider_role for role in high_level_roles) else 0.20
+                        scores_map[sym] = float(np.clip(scores_map[sym] + boost, 0.0, 1.0))
+                        logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {scores_map[sym]:.2f})")
+                    elif trans_type in sell_keywords:
+                        penalty = 0.25
+                        scores_map[sym] = float(np.clip(scores_map[sym] - penalty, 0.0, 1.0))
 
         results = [{'symbol': k, 'insider_buying_score': float(v)} for k, v in scores_map.items()]
         return pd.DataFrame(results)

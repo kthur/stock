@@ -46,19 +46,21 @@ class DarkPoolTrackerEngine:
             if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 10 and 'Close' in df.columns and 'Volume' in df.columns:
-                    c = df['Close'].dropna()
-                    v = df['Volume'].dropna()
+                    clean_df = df[['Close', 'Volume']].dropna()
 
-                    if len(c) >= 10 and len(v) >= 10:
-                        ret_10d = float((c.iloc[-1] / c.iloc[-10]) - 1.0)
-                        avg_vol = float(v.iloc[-10:-1].mean())
-                        cur_vol = float(v.iloc[-1])
-                        vol_spike = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                    if len(clean_df) >= 10:
+                        c = clean_df['Close']
+                        v = clean_df['Volume']
+                        if c.iloc[-10] > 0:
+                            ret_10d = float((c.iloc[-1] / c.iloc[-10]) - 1.0)
+                            avg_vol = float(v.iloc[-10:-1].mean())
+                            cur_vol = float(v.iloc[-1])
+                            vol_spike = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
 
-                        # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x)
-                        if abs(ret_10d) < 0.02 and vol_spike > 2.5:
-                            score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.95))
-                            logger.info(f"[DARK POOL ENGINE] Accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%)")
+                            # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x)
+                            if abs(ret_10d) < 0.02 and vol_spike > 2.5:
+                                score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.95))
+                                logger.info(f"[DARK POOL ENGINE] Accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%)")
 
             # 2. Live Dark Pool / ATS Volume Data override
             if darkpool_data_dict and sym in darkpool_data_dict:

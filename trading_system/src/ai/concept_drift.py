@@ -48,9 +48,12 @@ class ConceptDriftDetector:
 
         try:
             percentiles = np.linspace(0, 100, self.num_bins + 1)
-            bins = np.percentile(exp_clean, percentiles)
-            bins[0] -= 1e-5
-            bins[-1] += 1e-5
+            bins = np.unique(np.percentile(exp_clean, percentiles))
+            if len(bins) < 2:
+                bins = np.array([float(exp_clean.min()) - 1e-5, float(exp_clean.max()) + 1e-5])
+            else:
+                bins[0] -= 1e-5
+                bins[-1] += 1e-5
 
             exp_counts, _ = np.histogram(exp_clean, bins=bins)
             act_counts, _ = np.histogram(act_clean, bins=bins)
@@ -58,13 +61,16 @@ class ConceptDriftDetector:
             exp_pct = exp_counts / float(len(exp_clean))
             act_pct = act_counts / float(len(act_clean))
 
-            # Replace zeros with epsilon to avoid division by zero or log(0)
+            # Replace zeros with epsilon to avoid division by zero or log(0) and renormalize
             eps = 1e-4
             exp_pct = np.where(exp_pct == 0, eps, exp_pct)
             act_pct = np.where(act_pct == 0, eps, act_pct)
+            exp_pct = exp_pct / exp_pct.sum()
+            act_pct = act_pct / act_pct.sum()
 
             psi_val = float(np.sum((act_pct - exp_pct) * np.log(act_pct / exp_pct)))
-            return max(0.0, psi_val)
+            psi_clean = float(np.nan_to_num(psi_val, nan=0.0, posinf=0.0, neginf=0.0))
+            return max(0.0, psi_clean)
         except Exception as e:
             logger.warning(f"PSI calculation failed: {e}")
             return 0.0

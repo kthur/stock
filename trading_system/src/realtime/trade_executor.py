@@ -61,11 +61,24 @@ class TradeExecutor:
         quantity: int,
         price: float,
         reason: str = "",
+        risk_manager: Any = None,
+        usdkrw_rate: float = 1380.0,
     ) -> ExecResult:
         if price <= 0 or quantity <= 0:
             return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
                               executed=False, mode="dry_run" if self.dry_run else "live",
                               message="invalid qty/price")
+
+        # RiskManager Pre-Trade Gate check
+        if risk_manager is not None:
+            if getattr(risk_manager, 'emergency_stop', False):
+                return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
+                                  executed=False, mode="dry_run" if self.dry_run else "live",
+                                  message="blocked by emergency stop")
+            if action == "BUY" and hasattr(risk_manager, 'get_crisis_new_buy_blocked') and risk_manager.get_crisis_new_buy_blocked():
+                return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
+                                  executed=False, mode="dry_run" if self.dry_run else "live",
+                                  message="new buys blocked by crisis detector")
 
         if market in ("KOSPI", "KOSDAQ", "KONEX"):
             quantity = self._round_lot(quantity)
@@ -73,12 +86,16 @@ class TradeExecutor:
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
                                   executed=False, mode="dry_run" if self.dry_run else "live",
                                   message="below lot size")
+            fx_rate = 1.0
+        else:
+            fx_rate = usdkrw_rate if usdkrw_rate > 0 else 1380.0
 
-        order_value = quantity * price
-        if order_value > self.max_order_value_krw:
-            quantity = max(self.lot_size_krx, int(self.max_order_value_krw / price) // self.lot_size_krx * self.lot_size_krx) \
-                if market in ("KOSPI", "KOSDAQ", "KONEX") else int(self.max_order_value_krw / price)
-            order_value = quantity * price
+        order_value_krw = quantity * price * fx_rate
+        if order_value_krw > self.max_order_value_krw:
+            max_qty_raw = int(self.max_order_value_krw / (price * fx_rate))
+            quantity = max(self.lot_size_krx, (max_qty_raw // self.lot_size_krx) * self.lot_size_krx) \
+                if market in ("KOSPI", "KOSDAQ", "KONEX") else max_qty_raw
+            order_value_krw = quantity * price * fx_rate
             if quantity <= 0:
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
                                   executed=False, mode="dry_run" if self.dry_run else "live",
