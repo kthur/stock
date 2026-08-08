@@ -146,9 +146,8 @@ def test_dual_market_decoupling():
     """미국(SP500 BULL) - 한국(KOSPI BEAR) 디커플링 감지 검증"""
     rd = MarketRegimeDetector()
     df = make_base_df(n=60)
-    df['sp500_change'] = 0.3   # 미국 상승 추세
-    df['kospi_change'] = -0.3  # 한국 하락 추세 (디커플링)
-    rd.train(df)
+    df['sp500_change'] = 0.3   # 미국 상승 추세 (20일 누적 +6.0%)
+    df['kospi_change'] = -0.3  # 한국 하락 추세 (20일 누적 -6.0%)
     res = rd.predict_dual_market_regime(df)
     assert res['decoupling_status'] == 'DECOUPLING_US_BULL_KR_BEAR', \
         f"Expected DECOUPLING_US_BULL_KR_BEAR, got {res['decoupling_status']}"
