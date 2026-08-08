@@ -562,7 +562,7 @@ class PortfolioAllocator:
                 return 1.0
 
             tbl = 'trade_logs' if 'trade_logs' in tables else 'orders'
-            df = pd.read_sql_query(f"SELECT * FROM {tbl} WHERE executed_price IS NOT NULL AND order_price IS NOT NULL LIMIT 500;", conn)
+            df = pd.read_sql_query(f"SELECT * FROM {tbl} WHERE executed_price IS NOT NULL AND order_price IS NOT NULL LIMIT 500;", conn)  # nosec B608
             conn.close()
 
             if df.empty or len(df) < 5:
