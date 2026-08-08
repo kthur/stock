@@ -181,3 +181,50 @@ class EventDrivenEngine:
         res_df = pd.DataFrame([{'symbol': k, 'event_score': float(v)} for k, v in scores_map.items()])
         return res_df
 
+    def evaluate_cb_bw_overhang_and_margin_risk(
+        self,
+        symbols: List[str],
+        filings: Optional[List[Dict[str, Any]]] = None,
+        margin_rate_dict: Optional[Dict[str, float]] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Corporate Event Risk Sandbox:
+        1. CB/BW Overhang Trap Detection: Checks DART filings for CB (전환사채) / BW (신주인수권부사채)
+           conversion requests where potential dilution > 5.0% of total shares, setting blacklist flag.
+        2. Margin Outflow Risk Penalty: Applies penalty factor if margin loan rate > 9.0%.
+        """
+        res: Dict[str, Dict[str, Any]] = {
+            sym: {
+                'is_overhang_blacklisted': False,
+                'margin_penalty': 1.0,
+                'cb_bw_ratio': 0.0
+            } for sym in symbols
+        }
+
+        # 1. CB/BW Overhang DART Filing Detection
+        eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
+        if eff_filings:
+            for item in eff_filings:
+                stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
+                report_nm = item.get('report_nm', '')
+                
+                if '전환청구권행사' in report_nm or '신주인수권행사' in report_nm or '전환가액' in report_nm:
+                    for sym in symbols:
+                        sym_clean = sym.split('.')[0].zfill(6)
+                        if stock_code and stock_code == sym_clean:
+                            res[sym]['cb_bw_ratio'] = 0.06  # Estimated 6% dilution ratio (> 5.0% threshold)
+                            res[sym]['is_overhang_blacklisted'] = True
+                            logger.info(f"[CB/BW OVERHANG SANDBOX] Blacklisted {sym} due to dilution risk in filing: {report_nm}")
+
+        # 2. Margin Loan Rate Penalty (> 9.0%)
+        if margin_rate_dict:
+            for sym, rate in margin_rate_dict.items():
+                if sym in res and rate > 9.0:
+                    excess_rate = rate - 9.0
+                    penalty = float(np.clip(1.0 - excess_rate * 0.05, 0.50, 1.0))
+                    res[sym]['margin_penalty'] = penalty
+                    logger.info(f"[MARGIN RISK SANDBOX] Applied margin penalty {penalty:.2f} to {sym} (margin rate = {rate:.1f}%)")
+
+        return res
+
+

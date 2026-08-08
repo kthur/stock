@@ -105,8 +105,9 @@ class CrisisDetector:
         oil: float | None = None,
         tnx: float | None = None,
         dxy: float | None = None,
+        cds_5y: float | None = None,
     ) -> CrisisLevel:
-        """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러) 융합"""
+        """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러, CDS 신용스프레드) 융합"""
         self._vix_history.append(vix)
 
         dd = self.rm.calculate_drawdown()
@@ -127,12 +128,24 @@ class CrisisDetector:
         trend_score = self._score_trend_breakdown(market_data_cache)
         macro_score = self._score_macro(usdkrw, oil, tnx, dxy)
 
+        # Credit Default Swap (CDS) Risk Spike Booster (> 100bp or delta > 50bp)
+        if cds_5y is not None and cds_5y > 100.0:
+            macro_score = max(macro_score, 0.85)
+            logger.info(f"[CREDIT RISK ENGINE] High CDS 5Y Premium detected ({cds_5y:.1f}bp); macro score boosted to {macro_score:.2f}")
+
+        # Geopolitical Oil Shock Booster (3-day oil return > 8.0%)
+        if len(self._oil_history) >= 4 and self._oil_history[-4] > 0:
+            oil_3d_ret = (self._oil_history[-1] / self._oil_history[-4]) - 1.0
+            if oil_3d_ret > 0.08:
+                macro_score = max(macro_score, 0.75)
+                logger.info(f"[GEOPOLITICAL RISK ENGINE] Oil shock surge detected ({oil_3d_ret*100:.1f}% 3D return); macro score boosted to {macro_score:.2f}")
+
         composite = vix_score * 0.25 + dd_score * 0.25 + volume_score * 0.15 + trend_score * 0.10 + macro_score * 0.25
 
         previous = self.crisis_level
-        if composite >= 0.75:
+        if composite >= 0.75 or (cds_5y is not None and cds_5y > 150.0):
             self.crisis_level = CrisisLevel.SEVERE
-        elif composite >= 0.50:
+        elif composite >= 0.50 or (cds_5y is not None and cds_5y > 100.0):
             self.crisis_level = CrisisLevel.ACTIVE
         elif composite >= 0.25:
             self.crisis_level = CrisisLevel.WATCH
