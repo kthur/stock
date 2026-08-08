@@ -93,6 +93,7 @@ class CrisisDetector:
         self._recovery_mode = False
         self._recovery_start_day: int | None = None
         self._days_in_crisis = 0
+        self._days_since_crisis_ended = 0
         self._recovery_days = 0
 
     def evaluate(
@@ -143,9 +144,9 @@ class CrisisDetector:
         composite = vix_score * 0.25 + dd_score * 0.25 + volume_score * 0.15 + trend_score * 0.10 + macro_score * 0.25
 
         previous = self.crisis_level
-        if composite >= 0.75 or (cds_5y is not None and cds_5y > 150.0):
+        if composite >= 0.70:
             self.crisis_level = CrisisLevel.SEVERE
-        elif composite >= 0.50 or (cds_5y is not None and cds_5y > 100.0):
+        elif composite >= 0.45:
             self.crisis_level = CrisisLevel.ACTIVE
         elif composite >= 0.25:
             self.crisis_level = CrisisLevel.WATCH
@@ -159,11 +160,20 @@ class CrisisDetector:
             if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
                 self.crisis_level = CrisisLevel.ACTIVE
 
+        # Standalone CDS credit risk override check
+        if cds_5y is not None:
+            if cds_5y > 150.0:
+                self.crisis_level = CrisisLevel.SEVERE
+            elif cds_5y > 100.0:
+                if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
+                    self.crisis_level = CrisisLevel.ACTIVE
+
         if self.crisis_level in (CrisisLevel.ACTIVE, CrisisLevel.SEVERE):
             self._days_in_crisis += 1
             self._recovery_mode = False
             self._recovery_start_day = None
             self._recovery_days = 0
+            self._days_since_crisis_ended = 0
         else:
             if self._recovery_mode:
                 self._recovery_days += 1
@@ -172,6 +182,7 @@ class CrisisDetector:
                     self._recovery_days = 0
                     self.logger.info("Recovery complete: portfolio exposure fully restored")
             if self._days_in_crisis > 0:
+                self._days_since_crisis_ended += 1
                 self._check_recovery(vix, dd)
 
         if self.crisis_level != previous:
@@ -252,17 +263,18 @@ class CrisisDetector:
     def _check_recovery(self, vix: float, dd: float):
         """위기 종료(회복) 감지"""
         if self._recovery_start_day is not None:
-            days_since = self._days_in_crisis - self._recovery_start_day
+            days_since = self._days_since_crisis_ended - self._recovery_start_day
             if days_since >= 5 and dd < 0.05 and vix < 25:
                 self._recovery_mode = True
                 self._recovery_days = 1
                 self._days_in_crisis = 0
+                self._days_since_crisis_ended = 0
                 self._recovery_start_day = None
                 self.logger.info("Recovery mode activated: crisis passed, gradually increasing exposure")
             return
 
         if vix < 25 and dd < 0.05 and self._days_in_crisis >= 10:
-            self._recovery_start_day = self._days_in_crisis
+            self._recovery_start_day = self._days_since_crisis_ended
 
     @property
     def is_crisis(self) -> bool:
@@ -882,7 +894,7 @@ class RiskManager:
             max_value = min(max_value, self.portfolio_value * vix_cap)
             self.logger.info(f"VIX Risk-Off: {symbol} capped at {vix_cap:.0%} of portfolio (VIX={vix:.1f})")
 
-        position_quantity = max(1, int(max_value / entry_price))
+        position_quantity = max(0, int(max_value / entry_price))
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price)
         position_quantity = min(position_quantity, unpenalized_max_position)
 
@@ -890,7 +902,7 @@ class RiskManager:
         crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
         if crisis_mult < 1.0:
             old_qty = position_quantity
-            position_quantity = max(1, int(position_quantity * crisis_mult))
+            position_quantity = max(0, int(position_quantity * crisis_mult))
             self.logger.info(
                 f"Crisis position sizing: {symbol} qty {old_qty} -> {position_quantity} "
                 f"(crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
@@ -898,7 +910,7 @@ class RiskManager:
 
         if self.stress_test_adjustment_factor < 1.0:
             old_qty = position_quantity
-            position_quantity = max(1, int(position_quantity * self.stress_test_adjustment_factor))
+            position_quantity = max(0, int(position_quantity * self.stress_test_adjustment_factor))
             self.logger.info(
                 f"Stress test position sizing: {symbol} qty {old_qty} -> {position_quantity} "
                 f"(stress_factor={self.stress_test_adjustment_factor:.2f})"
@@ -906,6 +918,9 @@ class RiskManager:
 
         if symbol in self.position_limits:
             position_quantity = int(min(position_quantity, self.position_limits[symbol]))
+
+        if position_quantity <= 0:
+            return 0
 
         if vol_scalar < 1.0:
             self.logger.info(f"Volatility scaling applied: {vol_scalar:.2f}x (VIX={vix})")

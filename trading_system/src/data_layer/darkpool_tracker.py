@@ -73,3 +73,7 @@ class DarkPoolTrackerEngine:
             results.append({'symbol': sym, 'darkpool_score': score})
 
         return pd.DataFrame(results)
+
+
+# Alias for backward compatibility
+DarkPoolTracker = DarkPoolTrackerEngine

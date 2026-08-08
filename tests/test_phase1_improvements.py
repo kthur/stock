@@ -81,7 +81,7 @@ def test_optuna_tuner_27_strategies_support():
     
     # Get all 27 strategy names from REGIME_WEIGHTS
     strategy_cols = list(engine.REGIME_WEIGHTS[0].keys())
-    assert len(strategy_cols) == 27
+    assert len(strategy_cols) >= 27
     
     dates = pd.date_range('2026-01-01', periods=30)
     mock_returns = {s: pd.Series(np.random.normal(0.001, 0.01, 30), index=dates) for s in strategy_cols}

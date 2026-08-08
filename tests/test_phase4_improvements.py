@@ -34,6 +34,7 @@ def test_concept_drift_psi_calculation():
 def test_telegram_bot_emergency_stop_and_override():
     """Verify Telegram bot emergency stop liquidates portfolio and override weight modifies strategy weight."""
     bot = TelegramBotEngine()
+    bot.add_authorized_user(12345)
 
     # 1. Test /emergency_stop command
     msg_stop = bot.process_message(12345, "/emergency_stop")

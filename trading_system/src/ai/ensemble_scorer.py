@@ -33,101 +33,10 @@ class EnsembleScoringEngine:
     """
 
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
-    # Dynamic Weight Configuration per 1D Market Regime (27 Strategies)
+    # Dynamic Weight Configuration per 1D Market Regime (30 Strategies)
     REGIME_WEIGHTS = {
         0: {  # BEAR (Defensive) — sum = 1.00
-            'regression': 0.13,        # 회귀 모델: 방어적 장세에서 수익률 예측 중요
-            'surge': 0.01,             # 급등 분류: 하락장 급등 기회 희소
-            'lead_lag': 0.02,          # Lead-Lag: 업종 선행 효과 약화
-            'vcp_rule': 0.01,          # VCP 규칙: 변동성 수축 드물게 발생
-            'vcp_ml': 0.01,            # VCP ML: 상동
-            'lstm': 0.02,              # LSTM: 시계열 딥러닝 방어적
-            'stat_arb': 0.07,          # Stat-Arb: 시장 중립 차익거래 강화
-            'sector_rotation': 0.03,   # 섹터 로테이션: 방어 섹터 선별적 유효
-            'rim_valuation': 0.10,     # RIM 가치평가: 안전마진 탐색 최우선
-            'event_driven': 0.03,      # 이벤트 드리븐: 제한적 이벤트 발생
-            'mq_factor': 0.05,         # MQ: 수익성/모멘텀 퀄리티 방어
-            'iv_skew': 0.03,           # IV Skew: 풋 프리미엄 역발상
-            'order_flow': 0.02,        # Order Flow: 외국인 수급 관찰
-            'short_term_reversal': 0.04,  # 단기반전: 과매도 반등 탐색
-            'arm_factor': 0.04,        # ARM: 애널리스트 하향조정 역발상
-            'card_factor': 0.05,       # CARD: 크로스에셋 괴리율 역발상
-            'latr_factor': 0.04,       # LATR: 52주 낙폭 + 꼬리위험 방어
-            'inst_foreign_sector': 0.04,  # 기관/외인 수급 주도주 탐색
-            'supply_chain': 0.01,      # 공급망: 하락장 업종 연쇄 약함
-            'sentiment': 0.03,         # 감성: 역발상 공포 매수 유용
-            'factor_neutralized': 0.03,  # 팩터 중립화: 순수 알파 레짐 독립
-            'vol_target': 0.05,        # 변동성 타게팅: 리스크 파리티 방어
-            'microstructure': 0.02,    # 미시구조: 단기 수급 불균형 관찰
-            'accruals_quality': 0.05,  # 회계 품질: 불황기 회계 조작 리스크 필터
-            'short_squeeze': 0.01,     # 숏스퀴즈: 하락장에서 기회 희소
-            'valueup_catalyst': 0.05,  # 가치상승: PBR<1 저평가 방어주
-            'trend_efficiency': 0.01,  # 추세 효율성: 하락장 추세 전략 무효
-        },
-        1: {  # SIDEWAYS (Rotation) — sum = 1.00
-            'regression': 0.06,
-            'surge': 0.02,
-            'lead_lag': 0.04,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.04,
-            'lstm': 0.05,
-            'stat_arb': 0.07,
-            'sector_rotation': 0.04,
-            'rim_valuation': 0.05,
-            'event_driven': 0.05,
-            'mq_factor': 0.05,
-            'iv_skew': 0.02,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.03,
-            'arm_factor': 0.05,
-            'card_factor': 0.05,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.05,
-            'supply_chain': 0.01,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.04,
-            'vol_target': 0.03,
-            'microstructure': 0.03,
-            'accruals_quality': 0.03,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.04,
-            'trend_efficiency': 0.01,
-        },
-        2: {  # BULL (Aggressive) — sum = 1.00
-            'regression': 0.03,
-            'surge': 0.08,
-            'lead_lag': 0.02,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.07,
-            'lstm': 0.05,
-            'stat_arb': 0.02,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.03,
-            'event_driven': 0.06,
-            'mq_factor': 0.05,
-            'iv_skew': 0.02,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.02,
-            'arm_factor': 0.05,
-            'card_factor': 0.03,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.06,
-            'supply_chain': 0.04,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.03,
-            'vol_target': 0.02,
-            'microstructure': 0.03,
-            'accruals_quality': 0.01,
-            'short_squeeze': 0.05,
-            'valueup_catalyst': 0.01,
-            'trend_efficiency': 0.05,
-        }
-    }
-
-    # 2D Market Regime Matrix Weights (6 Combo States across 27 Strategies)
-    REGIME_2D_WEIGHTS = {
-        'BEAR_LOW_VOL': {  # sum = 1.00
-            'regression': 0.13,
+            'regression': 0.12,
             'surge': 0.01,
             'lead_lag': 0.02,
             'vcp_rule': 0.01,
@@ -135,14 +44,14 @@ class EnsembleScoringEngine:
             'lstm': 0.02,
             'stat_arb': 0.07,
             'sector_rotation': 0.03,
-            'rim_valuation': 0.10,
+            'rim_valuation': 0.09,
             'event_driven': 0.03,
             'mq_factor': 0.05,
             'iv_skew': 0.03,
             'order_flow': 0.02,
             'short_term_reversal': 0.04,
             'arm_factor': 0.04,
-            'card_factor': 0.05,
+            'card_factor': 0.04,
             'latr_factor': 0.04,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.01,
@@ -150,155 +59,273 @@ class EnsembleScoringEngine:
             'factor_neutralized': 0.03,
             'vol_target': 0.05,
             'microstructure': 0.02,
-            'accruals_quality': 0.05,
-            'short_squeeze': 0.01,
-            'valueup_catalyst': 0.05,
-            'trend_efficiency': 0.01,
-        },
-        'BEAR_HIGH_VOL': {  # sum = 1.00  고변동+하락: 리스크 파리티·회계필터 최강화, 모멘텀 제거
-            'regression': 0.12,
-            'surge': 0.00,
-            'lead_lag': 0.02,
-            'vcp_rule': 0.01,
-            'vcp_ml': 0.01,
-            'lstm': 0.02,
-            'stat_arb': 0.09,
-            'sector_rotation': 0.02,
-            'rim_valuation': 0.09,
-            'event_driven': 0.03,
-            'mq_factor': 0.05,
-            'iv_skew': 0.04,
-            'order_flow': 0.02,
-            'short_term_reversal': 0.05,
-            'arm_factor': 0.04,
-            'card_factor': 0.06,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.04,
-            'supply_chain': 0.00,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.03,
-            'vol_target': 0.06,
-            'microstructure': 0.02,
-            'accruals_quality': 0.06,
-            'short_squeeze': 0.00,
-            'valueup_catalyst': 0.05,
-            'trend_efficiency': 0.00,
-        },
-        'SIDEWAYS_LOW_VOL': {  # sum = 1.00
-            'regression': 0.06,
-            'surge': 0.02,
-            'lead_lag': 0.04,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.04,
-            'lstm': 0.05,
-            'stat_arb': 0.07,
-            'sector_rotation': 0.04,
-            'rim_valuation': 0.05,
-            'event_driven': 0.05,
-            'mq_factor': 0.05,
-            'iv_skew': 0.02,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.03,
-            'arm_factor': 0.05,
-            'card_factor': 0.05,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.05,
-            'supply_chain': 0.01,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.04,
-            'vol_target': 0.03,
-            'microstructure': 0.03,
-            'accruals_quality': 0.03,
-            'short_squeeze': 0.02,
-            'valueup_catalyst': 0.04,
-            'trend_efficiency': 0.01,
-        },
-        'SIDEWAYS_HIGH_VOL': {  # sum = 1.00  고변동+횡보: Stat-Arb·변동성타게팅 강화
-            'regression': 0.06,
-            'surge': 0.02,
-            'lead_lag': 0.04,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.04,
-            'lstm': 0.04,
-            'stat_arb': 0.08,
-            'sector_rotation': 0.03,
-            'rim_valuation': 0.05,
-            'event_driven': 0.05,
-            'mq_factor': 0.04,
-            'iv_skew': 0.03,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.03,
-            'arm_factor': 0.04,
-            'card_factor': 0.05,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.05,
-            'supply_chain': 0.01,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.04,
-            'vol_target': 0.05,
-            'microstructure': 0.03,
             'accruals_quality': 0.04,
             'short_squeeze': 0.01,
             'valueup_catalyst': 0.04,
             'trend_efficiency': 0.01,
+            'gamma_squeeze': 0.01,
+            'insider_buying': 0.02,
+            'darkpool': 0.02,
         },
-        'BULL_LOW_VOL': {  # sum = 1.00
-            'regression': 0.03,
-            'surge': 0.08,
-            'lead_lag': 0.02,
+        1: {  # SIDEWAYS (Rotation) — sum = 1.00
+            'regression': 0.05,
+            'surge': 0.02,
+            'lead_lag': 0.03,
             'vcp_rule': 0.02,
-            'vcp_ml': 0.07,
-            'lstm': 0.05,
-            'stat_arb': 0.02,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.03,
-            'event_driven': 0.06,
-            'mq_factor': 0.05,
-            'iv_skew': 0.02,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.02,
-            'arm_factor': 0.05,
-            'card_factor': 0.03,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.06,
-            'supply_chain': 0.04,
-            'sentiment': 0.03,
-            'factor_neutralized': 0.03,
-            'vol_target': 0.02,
-            'microstructure': 0.03,
-            'accruals_quality': 0.01,
-            'short_squeeze': 0.05,
-            'valueup_catalyst': 0.01,
-            'trend_efficiency': 0.05,
-        },
-        'BULL_HIGH_VOL': {  # sum = 1.00  고변동+상승: 급등·숏스퀴즈 모멘텀 최강화
-            'regression': 0.02,
-            'surge': 0.09,
-            'lead_lag': 0.02,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.07,
-            'lstm': 0.05,
-            'stat_arb': 0.02,
+            'vcp_ml': 0.03,
+            'lstm': 0.04,
+            'stat_arb': 0.06,
             'sector_rotation': 0.04,
-            'rim_valuation': 0.03,
-            'event_driven': 0.06,
-            'mq_factor': 0.05,
+            'rim_valuation': 0.04,
+            'event_driven': 0.04,
+            'mq_factor': 0.04,
             'iv_skew': 0.02,
             'order_flow': 0.03,
             'short_term_reversal': 0.03,
-            'arm_factor': 0.05,
+            'arm_factor': 0.04,
             'card_factor': 0.04,
-            'latr_factor': 0.04,
-            'inst_foreign_sector': 0.06,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.03,
+            'microstructure': 0.03,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.02,
+            'valueup_catalyst': 0.03,
+            'trend_efficiency': 0.01,
+            'gamma_squeeze': 0.02,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
+        },
+        2: {  # BULL (Aggressive) — sum = 1.00
+            'regression': 0.03,
+            'surge': 0.07,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.06,
+            'lstm': 0.04,
+            'stat_arb': 0.02,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.03,
+            'event_driven': 0.05,
+            'mq_factor': 0.04,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.02,
+            'arm_factor': 0.04,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.05,
             'supply_chain': 0.03,
             'sentiment': 0.03,
             'factor_neutralized': 0.03,
             'vol_target': 0.02,
             'microstructure': 0.03,
             'accruals_quality': 0.01,
-            'short_squeeze': 0.05,
+            'short_squeeze': 0.04,
             'valueup_catalyst': 0.01,
-            'trend_efficiency': 0.05,
+            'trend_efficiency': 0.04,
+            'gamma_squeeze': 0.04,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
+        }
+    }
+
+    # 2D Market Regime Matrix Weights (6 Combo States across 30 Strategies)
+    REGIME_2D_WEIGHTS = {
+        'BEAR_LOW_VOL': {  # sum = 1.00
+            'regression': 0.12,
+            'surge': 0.01,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.01,
+            'vcp_ml': 0.01,
+            'lstm': 0.02,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.09,
+            'event_driven': 0.03,
+            'mq_factor': 0.05,
+            'iv_skew': 0.03,
+            'order_flow': 0.02,
+            'short_term_reversal': 0.04,
+            'arm_factor': 0.04,
+            'card_factor': 0.04,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.05,
+            'microstructure': 0.02,
+            'accruals_quality': 0.04,
+            'short_squeeze': 0.01,
+            'valueup_catalyst': 0.04,
+            'trend_efficiency': 0.01,
+            'gamma_squeeze': 0.01,
+            'insider_buying': 0.02,
+            'darkpool': 0.02,
+        },
+        'BEAR_HIGH_VOL': {  # sum = 1.00
+            'regression': 0.11,
+            'surge': 0.00,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.01,
+            'vcp_ml': 0.01,
+            'lstm': 0.02,
+            'stat_arb': 0.08,
+            'sector_rotation': 0.02,
+            'rim_valuation': 0.08,
+            'event_driven': 0.03,
+            'mq_factor': 0.04,
+            'iv_skew': 0.04,
+            'order_flow': 0.02,
+            'short_term_reversal': 0.05,
+            'arm_factor': 0.04,
+            'card_factor': 0.05,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.00,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.05,
+            'microstructure': 0.02,
+            'accruals_quality': 0.05,
+            'short_squeeze': 0.00,
+            'valueup_catalyst': 0.04,
+            'trend_efficiency': 0.00,
+            'gamma_squeeze': 0.00,
+            'insider_buying': 0.02,
+            'darkpool': 0.02,
+        },
+        'SIDEWAYS_LOW_VOL': {  # sum = 1.00
+            'regression': 0.05,
+            'surge': 0.02,
+            'lead_lag': 0.03,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.03,
+            'lstm': 0.04,
+            'stat_arb': 0.06,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.04,
+            'event_driven': 0.04,
+            'mq_factor': 0.04,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.04,
+            'card_factor': 0.04,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.03,
+            'microstructure': 0.03,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.02,
+            'valueup_catalyst': 0.03,
+            'trend_efficiency': 0.01,
+            'gamma_squeeze': 0.02,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
+        },
+        'SIDEWAYS_HIGH_VOL': {  # sum = 1.00
+            'regression': 0.05,
+            'surge': 0.02,
+            'lead_lag': 0.03,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.03,
+            'lstm': 0.03,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.04,
+            'event_driven': 0.04,
+            'mq_factor': 0.03,
+            'iv_skew': 0.03,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.04,
+            'card_factor': 0.04,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.04,
+            'microstructure': 0.03,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.01,
+            'valueup_catalyst': 0.03,
+            'trend_efficiency': 0.01,
+            'gamma_squeeze': 0.02,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
+        },
+        'BULL_LOW_VOL': {  # sum = 1.00
+            'regression': 0.03,
+            'surge': 0.07,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.06,
+            'lstm': 0.04,
+            'stat_arb': 0.02,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.03,
+            'event_driven': 0.05,
+            'mq_factor': 0.04,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.02,
+            'arm_factor': 0.04,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.05,
+            'supply_chain': 0.03,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.03,
+            'accruals_quality': 0.01,
+            'short_squeeze': 0.04,
+            'valueup_catalyst': 0.01,
+            'trend_efficiency': 0.04,
+            'gamma_squeeze': 0.04,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
+        },
+        'BULL_HIGH_VOL': {  # sum = 1.00
+            'regression': 0.02,
+            'surge': 0.08,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.06,
+            'lstm': 0.04,
+            'stat_arb': 0.02,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.03,
+            'event_driven': 0.05,
+            'mq_factor': 0.04,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.04,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
+            'inst_foreign_sector': 0.05,
+            'supply_chain': 0.03,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.03,
+            'accruals_quality': 0.01,
+            'short_squeeze': 0.04,
+            'valueup_catalyst': 0.01,
+            'trend_efficiency': 0.04,
+            'gamma_squeeze': 0.04,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
         }
     }
 
@@ -826,13 +853,17 @@ class EnsembleScoringEngine:
                                  short_squeeze_df: Optional[pd.DataFrame] = None,
                                  valueup_catalyst_df: Optional[pd.DataFrame] = None,
                                  trend_efficiency_df: Optional[pd.DataFrame] = None,
+                                 gamma_squeeze_df: Optional[pd.DataFrame] = None,
+                                 insider_buying_df: Optional[pd.DataFrame] = None,
+                                 darkpool_df: Optional[pd.DataFrame] = None,
+                                 earnings_tone_drift_df: Optional[pd.DataFrame] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
                                  gamma: float = 1.0,
                                  held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Calculates 27-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 30-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
         weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
@@ -864,6 +895,10 @@ class EnsembleScoringEngine:
             short_squeeze_df=short_squeeze_df,
             valueup_catalyst_df=valueup_catalyst_df,
             trend_efficiency_df=trend_efficiency_df,
+            gamma_squeeze_df=gamma_squeeze_df,
+            insider_buying_df=insider_buying_df,
+            darkpool_df=darkpool_df,
+            earnings_tone_drift_df=earnings_tone_drift_df,
             weights=weights,
             regime=regime,
             target_horizon=target_horizon,
@@ -899,6 +934,10 @@ class EnsembleScoringEngine:
                             short_squeeze_df: Optional[pd.DataFrame] = None,
                             valueup_catalyst_df: Optional[pd.DataFrame] = None,
                             trend_efficiency_df: Optional[pd.DataFrame] = None,
+                            gamma_squeeze_df: Optional[pd.DataFrame] = None,
+                            insider_buying_df: Optional[pd.DataFrame] = None,
+                            darkpool_df: Optional[pd.DataFrame] = None,
+                            earnings_tone_drift_df: Optional[pd.DataFrame] = None,
                             weights: Optional[Dict[str, float]] = None,
                             regime: Union[int, str] = 'BULL_LOW_VOL',
                             target_horizon: int = 20,
@@ -1246,20 +1285,56 @@ class EnsembleScoringEngine:
         else:
             vu_df = pd.DataFrame(columns=['symbol', 'valueup_catalyst_score'])
 
-        # 27. Strategy 27: Kaufman Trend Efficiency Engine
-        if trend_efficiency_df is not None and not trend_efficiency_df.empty:
-            te_df = trend_efficiency_df.copy()
-            num_cols = [c for c in te_df.columns if c != 'symbol' and c not in META_COLS]
-            te_col = 'trend_efficiency_score' if 'trend_efficiency_score' in te_df.columns else (num_cols[-1] if num_cols else te_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in te_df.columns]
-            te_df = te_df[['symbol'] + meta_cols + [te_col]].rename(columns={te_col: 'trend_efficiency_score'})
-            if te_df['trend_efficiency_score'].max() > 1.0:
-                te_df['trend_efficiency_score'] = te_df['trend_efficiency_score'] / 100.0
+        # 28. Strategy 28: Options Gamma Squeeze Engine
+        if gamma_squeeze_df is not None and not gamma_squeeze_df.empty:
+            gs_df = gamma_squeeze_df.copy()
+            num_cols = [c for c in gs_df.columns if c != 'symbol' and c not in META_COLS]
+            gs_col = 'gamma_squeeze_score' if 'gamma_squeeze_score' in gs_df.columns else (num_cols[-1] if num_cols else gs_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in gs_df.columns]
+            gs_df = gs_df[['symbol'] + meta_cols + [gs_col]].rename(columns={gs_col: 'gamma_squeeze_score'})
+            if gs_df['gamma_squeeze_score'].max() > 1.0:
+                gs_df['gamma_squeeze_score'] = gs_df['gamma_squeeze_score'] / 100.0
         else:
-            te_df = pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
+            gs_df = pd.DataFrame(columns=['symbol', 'gamma_squeeze_score'])
 
-        # Combine all 27 strategy DataFrames efficiently while preserving metadata
-        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df]
+        # 29. Strategy 29: Insider Buying Engine
+        if insider_buying_df is not None and not insider_buying_df.empty:
+            ib_df = insider_buying_df.copy()
+            num_cols = [c for c in ib_df.columns if c != 'symbol' and c not in META_COLS]
+            ib_col = 'insider_buying_score' if 'insider_buying_score' in ib_df.columns else (num_cols[-1] if num_cols else ib_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in ib_df.columns]
+            ib_df = ib_df[['symbol'] + meta_cols + [ib_col]].rename(columns={ib_col: 'insider_buying_score'})
+            if ib_df['insider_buying_score'].max() > 1.0:
+                ib_df['insider_buying_score'] = ib_df['insider_buying_score'] / 100.0
+        else:
+            ib_df = pd.DataFrame(columns=['symbol', 'insider_buying_score'])
+
+        # 30. Strategy 30: Dark Pool Divergence Engine
+        if darkpool_df is not None and not darkpool_df.empty:
+            dp_df = darkpool_df.copy()
+            num_cols = [c for c in dp_df.columns if c != 'symbol' and c not in META_COLS]
+            dp_col = 'darkpool_score' if 'darkpool_score' in dp_df.columns else (num_cols[-1] if num_cols else dp_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in dp_df.columns]
+            dp_df = dp_df[['symbol'] + meta_cols + [dp_col]].rename(columns={dp_col: 'darkpool_score'})
+            if dp_df['darkpool_score'].max() > 1.0:
+                dp_df['darkpool_score'] = dp_df['darkpool_score'] / 100.0
+        else:
+            dp_df = pd.DataFrame(columns=['symbol', 'darkpool_score'])
+
+        # 31. Strategy 31: Earnings Tone Drift Engine
+        if earnings_tone_drift_df is not None and not earnings_tone_drift_df.empty:
+            etd_df = earnings_tone_drift_df.copy()
+            num_cols = [c for c in etd_df.columns if c != 'symbol' and c not in META_COLS]
+            etd_col = 'earnings_tone_drift_score' if 'earnings_tone_drift_score' in etd_df.columns else (num_cols[-1] if num_cols else etd_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in etd_df.columns]
+            etd_df = etd_df[['symbol'] + meta_cols + [etd_col]].rename(columns={etd_col: 'earnings_tone_drift_score'})
+            if etd_df['earnings_tone_drift_score'].max() > 1.0:
+                etd_df['earnings_tone_drift_score'] = etd_df['earnings_tone_drift_score'] / 100.0
+        else:
+            etd_df = pd.DataFrame(columns=['symbol', 'earnings_tone_drift_score'])
+
+        # Combine all 31 strategy DataFrames efficiently while preserving metadata
+        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df]
         merged = pd.DataFrame(columns=['symbol'])
         for d in dfs:
             if d is not None and not d.empty:
@@ -1312,6 +1387,7 @@ class EnsembleScoringEngine:
             ('gamma_squeeze', 'gamma_squeeze_score'),
             ('insider_buying', 'insider_buying_score'),
             ('darkpool', 'darkpool_score'),
+            ('earnings_tone_drift', 'earnings_tone_drift_score'),
         ]
 
         # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
@@ -1382,7 +1458,8 @@ class EnsembleScoringEngine:
             if score_col in merged.columns:
                 # Fix Task 1: Valid 0.0 scores must NOT be discarded as missing data.
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
-                total_score_series += merged[score_col].fillna(0.0) * w * valid_mask.astype(float)
+                clean_score = np.where(valid_mask, merged[score_col], 0.0)
+                total_score_series += clean_score * w
                 total_weight_series += w * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
 
