@@ -109,10 +109,10 @@ def test_risk_manager_atr_trailing_stop_signal_and_price():
     stop_price = rm.calculate_trailing_stop_price(highest_price, atr, regime="weak_bull", adx=20.0)
     assert stop_price in (pytest.approx(95000.0), pytest.approx(96000.0))
 
-    # Current price = 96000 (> stop_price) -> Signal False
-    assert rm.check_trailing_stop_signal("005930", 96000.0, highest_price, atr, regime="weak_bull", adx=20.0) is False
+    # Current price = 97000 (> stop_price 96000) -> Signal False
+    assert rm.check_trailing_stop_signal("005930", 97000.0, highest_price, atr, regime="weak_bull", adx=20.0) is False
 
-    # Current price = 94000 (<= stop_price) -> Signal True
+    # Current price = 94000 (<= stop_price 96000) -> Signal True
     assert rm.check_trailing_stop_signal("005930", 94000.0, highest_price, atr, regime="weak_bull", adx=20.0) is True
 
 

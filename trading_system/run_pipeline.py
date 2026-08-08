@@ -2752,6 +2752,42 @@ def execute_prediction_pipeline():
         logger.warning(f"Microstructure strategy computation failed: {_micro_e}")
         microstructure_df = pd.DataFrame()
 
+    # Strategy 24: Accruals Quality Anomaly Engine
+    try:
+        from src.core.accruals_quality import AccrualsQualityEngine
+        aq_engine = AccrualsQualityEngine(config)
+        accruals_quality_df = aq_engine.calculate_scores([s['symbol'] for s in universe], features_df=fundamentals_dict, prices_dict=infer_data_dict)
+    except Exception as _aq_e:
+        logger.warning(f"Accruals quality strategy computation failed: {_aq_e}")
+        accruals_quality_df = pd.DataFrame()
+
+    # Strategy 25: Short Interest & Squeeze Engine
+    try:
+        from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
+        sq_engine = ShortInterestSqueezeEngine(config)
+        short_squeeze_df = sq_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=fundamentals_dict)
+    except Exception as _sq_e:
+        logger.warning(f"Short squeeze strategy computation failed: {_sq_e}")
+        short_squeeze_df = pd.DataFrame()
+
+    # Strategy 26: Value-Up & Shareholder Yield Catalyst Engine
+    try:
+        from src.core.valueup_catalyst import ValueUpCatalystEngine
+        vu_engine = ValueUpCatalystEngine(config)
+        valueup_catalyst_df = vu_engine.calculate_scores([s['symbol'] for s in universe], features_df=fundamentals_dict, prices_dict=infer_data_dict)
+    except Exception as _vu_e:
+        logger.warning(f"Value-Up catalyst strategy computation failed: {_vu_e}")
+        valueup_catalyst_df = pd.DataFrame()
+
+    # Strategy 27: Kaufman Trend Efficiency Engine
+    try:
+        from src.core.trend_efficiency import TrendEfficiencyEngine
+        te_engine = TrendEfficiencyEngine(config)
+        trend_efficiency_df = te_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=fundamentals_dict)
+    except Exception as _te_e:
+        logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
+        trend_efficiency_df = pd.DataFrame()
+
     # Extract LSTM predictions if present in regression results (20d horizon)
     lstm_df_for_ens = None
     if res_df is not None and not res_df.empty:
@@ -2760,7 +2796,7 @@ def execute_prediction_pipeline():
         if l_col:
             lstm_df_for_ens = res_20[['symbol', l_col]].rename(columns={l_col: 'lstm_score'})
 
-    # default target horizon is 20d (23-Strategy Ensemble)
+    # default target horizon is 20d (27-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -2786,6 +2822,10 @@ def execute_prediction_pipeline():
         factor_neutralized_df=factor_neutralized_df,
         vol_target_df=vol_target_df,
         microstructure_df=microstructure_df,
+        accruals_quality_df=accruals_quality_df,
+        short_squeeze_df=short_squeeze_df,
+        valueup_catalyst_df=valueup_catalyst_df,
+        trend_efficiency_df=trend_efficiency_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )

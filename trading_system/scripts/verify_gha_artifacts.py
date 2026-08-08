@@ -3,7 +3,7 @@
 verify_gha_artifacts.py — GHA Artifact & Pipeline Result Verification Utility
 
 Verifies prediction pipeline outputs for 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)
-across 18 multi-factor strategies.
+across 23 multi-factor strategies.
 
 Usage:
     python trading_system/scripts/verify_gha_artifacts.py --result-dir trading_system/result --gh-pages-dir gh-pages
@@ -30,7 +30,8 @@ STRATEGIES = [
     "surge", "vcp_ml", "regression", "vcp", "lead_lag", "lstm",
     "stat_arb", "sector", "rim", "event_driven", "mq_factor",
     "iv_skew", "order_flow", "short_term_reversal", "arm_factor",
-    "card_factor", "latr_factor", "inst_foreign_sector"
+    "card_factor", "latr_factor", "inst_foreign_sector",
+    "supply_chain", "sentiment", "factor_neutralized", "vol_target", "microstructure"
 ]
 
 
@@ -285,6 +286,11 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "card_factor": [f"card_factor_predictions_{market}.txt", "card_factor_predictions.txt"],
         "latr_factor": [f"latr_factor_predictions_{market}.txt", "latr_factor_predictions.txt"],
         "inst_foreign_sector": [f"inst_foreign_sector_predictions_{market}.txt", "inst_foreign_sector_predictions.txt"],
+        "supply_chain": [f"supply_chain_predictions_{market}.txt", "supply_chain_predictions.txt"],
+        "sentiment": [f"sentiment_predictions_{market}.txt", "sentiment_predictions.txt"],
+        "factor_neutralized": [f"factor_neutralized_predictions_{market}.txt", "factor_neutralized_predictions.txt"],
+        "vol_target": [f"vol_target_predictions_{market}.txt", "vol_target_predictions.txt"],
+        "microstructure": [f"microstructure_predictions_{market}.txt", "microstructure_predictions.txt"],
     }
 
     check_funcs = {
@@ -306,6 +312,11 @@ def verify_market_strategies(result_dir: Path, market: str) -> MarketCheckResult
         "card_factor": lambda c, m: check_generic_strategy(c, m, "card_factor"),
         "latr_factor": lambda c, m: check_generic_strategy(c, m, "latr_factor"),
         "inst_foreign_sector": lambda c, m: check_generic_strategy(c, m, "inst_foreign_sector"),
+        "supply_chain": lambda c, m: check_generic_strategy(c, m, "supply_chain"),
+        "sentiment": lambda c, m: check_generic_strategy(c, m, "sentiment"),
+        "factor_neutralized": lambda c, m: check_generic_strategy(c, m, "factor_neutralized"),
+        "vol_target": lambda c, m: check_generic_strategy(c, m, "vol_target"),
+        "microstructure": lambda c, m: check_generic_strategy(c, m, "microstructure"),
     }
 
     for strat, filenames in files_map.items():
@@ -378,7 +389,8 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
         "ensemble", "surge", "vcp_ml", "regression", "vcp", "lead_lag",
         "stat_arb", "sector", "rim", "event_driven", "mq_factor",
         "iv_skew", "order_flow", "short_term_reversal", "arm_factor",
-        "card_factor", "latr_factor", "inst_foreign_sector"
+        "card_factor", "latr_factor", "inst_foreign_sector",
+        "supply_chain", "sentiment", "factor_neutralized", "vol_target", "microstructure"
     ]
 
     for p_id in panels_to_check:
@@ -403,7 +415,7 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
 
     if all_panels_ok and has_min_mkts:
         res.valid = True
-        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all 18 strategy panels populated with data"
+        res.message = f"GitHub Pages HTML generated cleanly with {len(res.markets_in_html)} markets and all 23 strategy panels populated with data"
     else:
         failed_panels = [p for p, valid in res.strategy_panels_valid.items() if not valid]
         res.valid = False
@@ -435,22 +447,23 @@ def run_verification(result_dir: Path, gh_pages_dir: Path) -> PipelineVerificati
 
 
 def print_report(report: PipelineVerificationReport) -> None:
-    print("\n" + "=" * 135)
-    print(" 🔍 Pipeline GHA Artifact Verification Report (18 Strategies & Dashboard)")
-    print("=" * 135)
+    print("\n" + "=" * 160)
+    print(" 🔍 Pipeline GHA Artifact Verification Report (23 Strategies & Dashboard)")
+    print("=" * 160)
     print(f"Result Directory   : {report.result_dir}")
     print(f"GitHub Pages Dir   : {report.gh_pages_dir}")
     print(f"Overall Status     : {'✅ PASSED' if report.overall_passed else '❌ FAILED'}")
-    print("-" * 135)
+    print("-" * 160)
 
     print("\n📊 Strategy Verification by Market:")
     headers = [
         "Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "LSTM", "S-Arb", 
-        "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "ARM", "CARD", "LATR", "InstFor", "Status"
+        "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "ARM", "CARD", "LATR", "InstFor",
+        "SC", "Sent", "Neu", "VolT", "Micro", "Status"
     ]
     header_str = f"{headers[0]:<8} | " + " | ".join(f"{h:<5}" for h in headers[1:-1]) + f" | {headers[-1]}"
     print(header_str)
-    print("-" * 135)
+    print("-" * 160)
 
     for market in MARKETS:
         m = report.markets.get(market)
@@ -472,7 +485,7 @@ def print_report(report: PipelineVerificationReport) -> None:
     print(f"  Total Recommendations: {report.ensemble.total_recommendations}")
     print(f"  Message        : {report.ensemble.message}")
 
-    print("\n🌐 GitHub Pages HTML Dashboard & 18 Strategy Panels:")
+    print("\n🌐 GitHub Pages HTML Dashboard & 23 Strategy Panels:")
     print(f"  File Found     : {'Yes' if report.gh_pages.file_found else 'No'}")
     print(f"  Valid Status   : {'✅ Valid' if report.gh_pages.valid else '❌ Invalid'}")
     print(f"  Markets in HTML: {', '.join(report.gh_pages.markets_in_html)}")
@@ -483,7 +496,7 @@ def print_report(report: PipelineVerificationReport) -> None:
         print(f"    - {p_id:<20}: {status_icon} ({cnt} rows)")
     print(f"  Summary Message: {report.gh_pages.message}")
 
-    print("\n" + "=" * 135 + "\n")
+    print("\n" + "=" * 160 + "\n")
 
     print("\n" + "=" * 110 + "\n")
 

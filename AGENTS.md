@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500/NASDAQ/RUSSELL2000)을 대상으로 **23대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
+통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500/NASDAQ/RUSSELL2000)을 대상으로 **27대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -29,6 +29,10 @@
 | **21** | Multi-Factor Style Neutralizer | Fama-French 5-Factor(시총/가치/수익성/투자) 노출 제거 순수 알파 | `factor_neutralized_predictions.txt` |
 | **22** | Dynamic Volatility Targeting | 실산출 변동성 및 목표 변동성(연 12%) 리스크 파리티 비중 스코어링 | `vol_target_predictions.txt` |
 | **23** | Microstructure Imbalance | 호가창 매수/매도 잔량 불균형 & 종가 동시호가 수급 오버나이트 갭 | `microstructure_predictions.txt` |
+| **24** | Accruals Quality Anomaly | 당기순이익 대비 영업현금흐름(OCF) 괴리율 회계적 품질 점수 | 앙상블 피처 결합 |
+| **25** | Short Interest & Squeeze | 공매도 잔고 비율 + Days-to-Cover + 5D 상승 모멘텀 숏스퀴즈 촉매 | 앙상블 피처 결합 |
+| **26** | Value-Up & Shareholder Yield | PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주 소각) | 앙상블 피처 결합 |
+| **27** | Kaufman Trend Efficiency | 5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세 필터 | 앙상블 피처 결합 |
 
 ## Pipeline
 
@@ -72,7 +76,7 @@ flowchart TB
         EData["Earnings & Fundamental Fetcher\n(Rate-limit Retry, 60d Filing Lag)"]
     end
 
-    subgraph Strategies ["18-Strategy Multi-Factor Engine"]
+    subgraph Strategies ["23-Strategy Multi-Factor Engine"]
         Reg["1. XGBoost Regression"]
         Surge["2. Surge Classifier"]
         LL["3. Lead-Lag Shift"]
@@ -91,6 +95,11 @@ flowchart TB
         CARD["16. Cross-Asset Divergence"]
         LATR["17. Liquidity Tail Risk"]
         InstFor["18. Inst & Foreign Sector"]
+        SC["19. Supply Chain"]
+        Sent["20. NLP Sentiment"]
+        Neutral["21. Factor Neutralized"]
+        VolT["22. Vol Targeting"]
+        Micro["23. Microstructure"]
     end
 
     subgraph Control ["Regime & Risk Control Layer"]
@@ -129,8 +138,8 @@ flowchart TB
 |------|------|
 | `trading_system/run_pipeline.py` | 통합 파이프라인 오케스트레이션 |
 | `src/ai/prediction_model.py` | OnDevicePredictionModel: 회귀 + surge + lead-lag + 60d filing lag + memory optimization |
-| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 17대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
-| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 17대 전략 커버리지 및 데이터 결측(Missingness) 정밀 분석 |
+| `src/ai/ensemble_scorer.py` | EnsembleScoringEngine: 23대 전략 앙상블 + 2D 레짐 + Decision Rationale + 순예상수익률 정렬 + 미시구조 거래비용 |
+| `src/analysis/coverage_analyzer.py` | StrategyCoverageAnalyzer: 23대 전략 커버리지 및 데이터 결측(Missingness) 정밀 분석 |
 | `src/core/event_driven.py` | EventDrivenEngine: 공시/실적 깜짝실적/자사주 촉매 수치화 |
 | `src/core/mq_factor.py` | MQFactorEngine: 12M-1M 모멘텀 - 1M 반전 노이즈 제거 + 펀더멘탈 퀄리티 |
 | `src/core/iv_skew.py` | IVSkewEngine: 옵션 풋/콜 IV Skew & 비율 역발상 점수 |
@@ -139,6 +148,11 @@ flowchart TB
 | `src/core/arm_factor.py` | ARMFactorEngine: 컨센서스 EPS/목표주가 수정 모멘텀 |
 | `src/core/card_factor.py` | CARDFactorEngine: 크로스에셋(주식-환율-유가-금리) 괴리율 매수 점수 |
 | `src/core/latr_factor.py` | LATRFactorEngine: 52주 낙폭 + 유동성 서지 - 꼬리위험 |
+| `src/core/supply_chain.py` | SupplyChainEngine: 전방 대표기업 수익률 기반 부품/장비 공급망 시차 온기 전이 |
+| `src/core/sentiment.py` | FinBERTSentimentEngine: DART/SEC 공시 및 기업 뉴스 텍스트 감성 분석 |
+| `src/core/factor_neutralized.py` | StyleNeutralizerEngine: Fama-French 5-Factor 노출 제거 순수 알파 |
+| `src/core/vol_target.py` | VolatilityTargetingEngine: 실산출 변동성 및 목표 변동성 리스크 파리티 비중 스코어링 |
+| `src/core/microstructure.py` | MicrostructureEngine: 호가창 매수/매도 잔량 불균형 & 종가 동시호가 수급 오버나이트 갭 |
 | `src/risk/risk_manager.py` | RiskManager & CrisisDetector: 거시 위기 단계 판정 및 앙상블 점수 자동 제어 |
 | `src/core/sector_rotation.py` | SectorRotationEngine: 업종 모멘텀 및 순환매 스코어링 |
 | `src/core/stat_arb.py` | StatisticalArbitrageEngine: Log 가격 공적분 잔차 평균회귀 |
@@ -160,8 +174,8 @@ market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`, `KONEX` 
 
 | 파일 | 전략 | 내용 |
 |------|------|------|
-| `ensemble_predictions.txt` | 18대 앙상블 | 18대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
-| `strategy_data_coverage_report.txt` | 결측 분석 | 18대 전략별 데이터 커버리지 및 결측 사유 비율 |
+| `ensemble_predictions.txt` | 23대 앙상블 | 23대 전략 동적 앙상블 TOP 20 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 결측 분석 | 23대 전략별 데이터 커버리지 및 결측 사유 비율 |
 | `pipeline_result.txt` | 회귀 | 종목별 horizon별 예상수익률 |
 | `surge_predictions.txt` | Surge | Horizon별 20%↑ 확률 TOP20 (scale_pos_weight 캡 적용) |
 | `lead_lag_predictions.txt` | Lead-Lag | 업종 지수/대형주 Leader 움직임 기반 follower 점수 |

@@ -715,13 +715,17 @@ class EnsembleScoringEngine:
                                  factor_neutralized_df: Optional[pd.DataFrame] = None,
                                  vol_target_df: Optional[pd.DataFrame] = None,
                                  microstructure_df: Optional[pd.DataFrame] = None,
+                                 accruals_quality_df: Optional[pd.DataFrame] = None,
+                                 short_squeeze_df: Optional[pd.DataFrame] = None,
+                                 valueup_catalyst_df: Optional[pd.DataFrame] = None,
+                                 trend_efficiency_df: Optional[pd.DataFrame] = None,
                                  rolling_sharpes: Optional[Dict[str, float]] = None,
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
                                  gamma: float = 1.0,
                                  held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Calculates 23-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 27-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
         weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
@@ -749,6 +753,10 @@ class EnsembleScoringEngine:
             factor_neutralized_df=factor_neutralized_df,
             vol_target_df=vol_target_df,
             microstructure_df=microstructure_df,
+            accruals_quality_df=accruals_quality_df,
+            short_squeeze_df=short_squeeze_df,
+            valueup_catalyst_df=valueup_catalyst_df,
+            trend_efficiency_df=trend_efficiency_df,
             weights=weights,
             regime=regime,
             target_horizon=target_horizon,
@@ -780,13 +788,17 @@ class EnsembleScoringEngine:
                             factor_neutralized_df: Optional[pd.DataFrame] = None,
                             vol_target_df: Optional[pd.DataFrame] = None,
                             microstructure_df: Optional[pd.DataFrame] = None,
+                            accruals_quality_df: Optional[pd.DataFrame] = None,
+                            short_squeeze_df: Optional[pd.DataFrame] = None,
+                            valueup_catalyst_df: Optional[pd.DataFrame] = None,
+                            trend_efficiency_df: Optional[pd.DataFrame] = None,
                             weights: Optional[Dict[str, float]] = None,
                             regime: Union[int, str] = 'BULL_LOW_VOL',
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
         """
-        Merges 23 strategy prediction DataFrames and computes weighted ensemble score.
+        Merges 27 strategy prediction DataFrames and computes weighted ensemble score.
         """
         if reg_df is None:
             reg_df = pd.DataFrame()
@@ -798,108 +810,116 @@ class EnsembleScoringEngine:
             weights = self.REGIME_2D_WEIGHTS['BULL_LOW_VOL']
 
         if vcp_ml_df is None:
-            vcp_ml_df = pd.DataFrame(columns=['symbol', 'vcp_ml_score'])
+            vcp_ml_df = pd.DataFrame()
+        if lstm_df is None:
+            lstm_df = pd.DataFrame()
 
-        META_COLS = ['name', 'market', 'volume', 'close']
+        META_COLS = ['name', 'market', 'close', 'expected_return', 'expected_return_20d', 'win_rate', 'win_rate_20d']
 
-        # 1. Strategy 1: Regression (Expected return for horizon -> mapped to [0, 1] score)
-        if not reg_df.empty:
-            num_cols = [c for c in reg_df.columns if c != 'symbol' and c not in META_COLS]
-            reg_col = target_horizon if target_horizon in reg_df.columns else (num_cols[-1] if num_cols else reg_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in reg_df.columns]
-            reg_df_copy = reg_df[['symbol'] + meta_cols + [reg_col]].rename(columns={reg_col: 'reg_pred'})
-            # M-1: Horizon-dependent return scaling factor
-            max_ret_norm = 0.15 if target_horizon <= 5 else (0.25 if target_horizon <= 20 else (0.40 if target_horizon <= 60 else 0.80))
-            reg_df_copy['reg_score'] = (reg_df_copy['reg_pred'] / max_ret_norm).clip(0.0, 1.0)
-        else:
-            reg_df_copy = pd.DataFrame(columns=['symbol', 'reg_pred', 'reg_score'])
-
-        # 2. Strategy 2: Surge Classifier
-        if not s_df.empty:
-            surge_horizons = [1, 3, 5, 20]
-            closest_horizon = min(surge_horizons, key=lambda x: abs(x - target_horizon))
-            surge_col = f'surge_{closest_horizon}d'
-            if surge_col not in s_df.columns:
-                num_cols = [c for c in s_df.columns if c != 'symbol' and c not in META_COLS and pd.api.types.is_numeric_dtype(s_df[c])]
-                surge_col = str(num_cols[-1]) if num_cols else str(s_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in s_df.columns]
-            s_df_copy = s_df[['symbol'] + meta_cols + [surge_col]].rename(columns={surge_col: 'surge_score'})
-        else:
-            s_df_copy = pd.DataFrame(columns=['symbol', 'surge_score'])
-
-        # 3. Strategy 3: Lead-Lag
-        if not ll_df.empty:
-            num_cols = [c for c in ll_df.columns if c != 'symbol' and c not in META_COLS]
-            ll_col = 'll_score' if 'll_score' in ll_df.columns else ('follower_score' if 'follower_score' in ll_df.columns else (num_cols[-1] if num_cols else ll_df.columns[-1]))
-            meta_cols = [c for c in META_COLS if c in ll_df.columns]
-            ll_df_copy = ll_df[['symbol'] + meta_cols + [ll_col]].rename(columns={ll_col: 'll_raw'})
-            # M-2: Ensure ll_score is robustly normalized [0, 1] whether raw is 0-1 or 0-100
-            max_ll_val = float(ll_df_copy['ll_raw'].max()) if not ll_df_copy['ll_raw'].empty else 1.0
-            scale_denom = 100.0 if max_ll_val > 1.0 else 1.0
-            ll_df_copy['ll_score'] = (ll_df_copy['ll_raw'] / scale_denom).clip(0.0, 1.0)
-        else:
-            ll_df_copy = pd.DataFrame(columns=['symbol', 'll_raw', 'll_score'])
-
-        # 4. Strategy 4: VCP Pattern Detector (Rule-based)
-        if v_rule_df is not None and isinstance(v_rule_df, list):
-            vr_df = pd.DataFrame({'symbol': v_rule_df, 'vcp_rule_score': 1.0})
-        elif v_rule_df is not None and not v_rule_df.empty:
-            vr_df = v_rule_df.copy()
-
-            if 'vcp_score' in vr_df.columns:
-                vr_df['vcp_rule_score'] = vr_df['vcp_score'] / 100.0
-            elif 'is_vcp' in vr_df.columns:
-                vr_df['vcp_rule_score'] = vr_df['is_vcp'].astype(float)
+        # 1. Regression Strategy
+        reg_df_copy = reg_df.copy()
+        if not reg_df_copy.empty and 'reg_score' not in reg_df_copy.columns:
+            target_col = f'expected_return_{target_horizon}d' if f'expected_return_{target_horizon}d' in reg_df_copy.columns else ('expected_return' if 'expected_return' in reg_df_copy.columns else None)
+            if target_col is None:
+                exp_cols = [c for c in reg_df_copy.columns if c.startswith('expected_return')]
+                target_col = exp_cols[0] if exp_cols else None
+            if target_col and target_col in reg_df_copy.columns:
+                ret_multiplier = self._return_multiplier
+                reg_df_copy['reg_score'] = (reg_df_copy[target_col] * ret_multiplier).clip(0.0, 1.0)
             else:
-                num_cols = [c for c in vr_df.columns if c != 'symbol' and c not in META_COLS and pd.api.types.is_numeric_dtype(vr_df[c])]
-                vr_col = num_cols[-1] if num_cols else vr_df.columns[-1]
-                vr_df['vcp_rule_score'] = vr_df[vr_col]
-            meta_cols = [c for c in META_COLS if c in vr_df.columns]
-            vr_df = vr_df[['symbol'] + meta_cols + ['vcp_rule_score']]
+                reg_df_copy['reg_score'] = 0.5
+
+        # 2. Surge Strategy
+        s_df_copy = s_df.copy()
+        if not s_df_copy.empty and 'surge_score' not in s_df_copy.columns:
+            target_col = f'surge_prob_{target_horizon}d' if f'surge_prob_{target_horizon}d' in s_df_copy.columns else ('surge_probability' if 'surge_probability' in s_df_copy.columns else None)
+            if target_col is None:
+                prob_cols = [c for c in s_df_copy.columns if 'prob' in c or 'surge' in c]
+                target_col = prob_cols[0] if prob_cols else None
+            if target_col and target_col in s_df_copy.columns:
+                s_df_copy['surge_score'] = s_df_copy[target_col].clip(0.0, 1.0)
+            else:
+                s_df_copy['surge_score'] = 0.5
+
+        # 3. Lead-Lag Strategy
+        ll_df_copy = ll_df.copy()
+        if not ll_df_copy.empty and 'll_score' not in ll_df_copy.columns:
+            target_col = 'lead_lag_score' if 'lead_lag_score' in ll_df_copy.columns else ('follower_score' if 'follower_score' in ll_df_copy.columns else None)
+            if target_col and target_col in ll_df_copy.columns:
+                ll_df_copy['ll_score'] = ll_df_copy[target_col].clip(0.0, 1.0)
+            else:
+                ll_df_copy['ll_score'] = 0.5
+
+        # 4. VCP Rule-based Pattern Strategy
+        if isinstance(v_rule_df, list):
+            vr_df = pd.DataFrame({'symbol': [str(s) for s in v_rule_df], 'vcp_rule_score': 1.0})
+        elif isinstance(v_rule_df, pd.DataFrame) and not v_rule_df.empty:
+            vr_df = v_rule_df.copy()
+            if 'vcp_rule_score' not in vr_df.columns:
+                target_col = 'vcp_score' if 'vcp_score' in vr_df.columns else ('score' if 'score' in vr_df.columns else None)
+                if target_col and target_col in vr_df.columns:
+                    max_val = vr_df[target_col].max()
+                    if max_val > 1.0:
+                        vr_df['vcp_rule_score'] = (vr_df[target_col] / 100.0).clip(0.0, 1.0)
+                    else:
+                        vr_df['vcp_rule_score'] = vr_df[target_col].clip(0.0, 1.0)
+                else:
+                    vr_df['vcp_rule_score'] = 1.0
         else:
             vr_df = pd.DataFrame(columns=['symbol', 'vcp_rule_score'])
 
-        # 5. Strategy 5: VCP ML
+        # 5. VCP ML Strategy
         if not vcp_ml_df.empty:
             v_df = vcp_ml_df.copy()
-            num_cols = [c for c in v_df.columns if c != 'symbol' and c not in META_COLS]
-            v_col = 'vcp_ml_score' if 'vcp_ml_score' in v_df.columns else (num_cols[-1] if num_cols else v_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in v_df.columns]
-            v_df = v_df[['symbol'] + meta_cols + [v_col]].rename(columns={v_col: 'vcp_ml_score'})
+            if 'vcp_ml_score' not in v_df.columns:
+                target_col = 'vcp_surge_prob' if 'vcp_surge_prob' in v_df.columns else ('surge_prob' if 'surge_prob' in v_df.columns else None)
+                if target_col and target_col in v_df.columns:
+                    v_df['vcp_ml_score'] = v_df[target_col].clip(0.0, 1.0)
+                else:
+                    v_df['vcp_ml_score'] = 0.5
         else:
             v_df = pd.DataFrame(columns=['symbol', 'vcp_ml_score'])
 
-        # 6. Strategy 6: LSTM
+        # 6. Strict Causal LSTM Strategy
         if lstm_df is not None and not lstm_df.empty:
             l_df = lstm_df.copy()
-            num_cols = [c for c in l_df.columns if c != 'symbol' and c not in META_COLS]
-            l_col = 'lstm_score' if 'lstm_score' in l_df.columns else (num_cols[-1] if num_cols else l_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in l_df.columns]
-            l_df = l_df[['symbol'] + meta_cols + [l_col]].rename(columns={l_col: 'lstm_score'})
+            target_col = 'lstm_score' if 'lstm_score' in l_df.columns else ('expected_return' if 'expected_return' in l_df.columns else None)
+            if target_col and target_col in l_df.columns:
+                if target_col == 'expected_return':
+                    l_df['lstm_score'] = (l_df[target_col] * self._return_multiplier).clip(0.0, 1.0)
+                else:
+                    l_df['lstm_score'] = l_df[target_col].clip(0.0, 1.0)
+            else:
+                l_df['lstm_score'] = 0.5
         else:
             l_df = pd.DataFrame(columns=['symbol', 'lstm_score'])
 
-        # 7. Strategy 7: Stat-Arb
+        # 7. Stat-Arb Cointegration Strategy
         if stat_arb_df is not None and not stat_arb_df.empty:
             sa_df = stat_arb_df.copy()
-            num_cols = [c for c in sa_df.columns if c != 'symbol' and c not in META_COLS]
-            sa_col = 'stat_arb_score' if 'stat_arb_score' in sa_df.columns else (num_cols[-1] if num_cols else sa_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in sa_df.columns]
-            sa_df = sa_df[['symbol'] + meta_cols + [sa_col]].rename(columns={sa_col: 'stat_arb_score'})
+            target_col = 'stat_arb_score' if 'stat_arb_score' in sa_df.columns else ('z_score' if 'z_score' in sa_df.columns else None)
+            if target_col and target_col in sa_df.columns:
+                if target_col == 'z_score':
+                    sa_df['stat_arb_score'] = (np.abs(sa_df[target_col]) / 3.0).clip(0.0, 1.0)
+                else:
+                    sa_df['stat_arb_score'] = sa_df[target_col].clip(0.0, 1.0)
+            else:
+                sa_df['stat_arb_score'] = 0.5
         else:
             sa_df = pd.DataFrame(columns=['symbol', 'stat_arb_score'])
 
-        # 8. Strategy 8: Sector Rotation
+        # 8. Sector Rotation Relative Momentum Strategy
         if sector_df is not None and not sector_df.empty:
             sec_df = sector_df.copy()
-            num_cols = [c for c in sec_df.columns if c != 'symbol' and c not in META_COLS]
-            sec_col = 'sector_score' if 'sector_score' in sec_df.columns else (num_cols[-1] if num_cols else sec_df.columns[-1])
-            meta_cols = [c for c in META_COLS if c in sec_df.columns]
-            sec_df = sec_df[['symbol'] + meta_cols + [sec_col]].rename(columns={sec_col: 'sector_score'})
+            target_col = 'sector_score' if 'sector_score' in sec_df.columns else ('sector_momentum' if 'sector_momentum' in sec_df.columns else None)
+            if target_col and target_col in sec_df.columns:
+                sec_df['sector_score'] = sec_df[target_col].clip(0.0, 1.0)
+            else:
+                sec_df['sector_score'] = 0.5
         else:
             sec_df = pd.DataFrame(columns=['symbol', 'sector_score'])
 
-        # 9. Strategy 9: RIM Valuation
+        # 9. Strategy 9: RIM Valuation Strategy
         if rim_df is not None and not rim_df.empty:
             r_val_df = rim_df.copy()
             num_cols = [c for c in r_val_df.columns if c != 'symbol' and c not in META_COLS]
@@ -909,7 +929,7 @@ class EnsembleScoringEngine:
         else:
             r_val_df = pd.DataFrame(columns=['symbol', 'rim_score'])
 
-        # 10. Strategy 10: Event-Driven
+        # 10. Strategy 10: Event-Driven Catalyst Strategy
         if event_df is not None and not event_df.empty:
             ev_df = event_df.copy()
             num_cols = [c for c in ev_df.columns if c != 'symbol' and c not in META_COLS]
@@ -919,7 +939,7 @@ class EnsembleScoringEngine:
         else:
             ev_df = pd.DataFrame(columns=['symbol', 'event_score'])
 
-        # 11. Strategy 11: MQ Factor
+        # 11. Strategy 11: Momentum Quality (MQ) Strategy
         if mq_df is not None and not mq_df.empty:
             m_df = mq_df.copy()
             num_cols = [c for c in m_df.columns if c != 'symbol' and c not in META_COLS]
@@ -929,7 +949,7 @@ class EnsembleScoringEngine:
         else:
             m_df = pd.DataFrame(columns=['symbol', 'mq_score'])
 
-        # 12. Strategy 12: Options IV Skew
+        # 12. Strategy 12: Options IV Skew Strategy
         if iv_skew_df is not None and not iv_skew_df.empty:
             iv_df = iv_skew_df.copy()
             num_cols = [c for c in iv_df.columns if c != 'symbol' and c not in META_COLS]
@@ -939,7 +959,7 @@ class EnsembleScoringEngine:
         else:
             iv_df = pd.DataFrame(columns=['symbol', 'iv_skew_score'])
 
-        # 13. Strategy 13: Order Flow Imbalance
+        # 13. Strategy 13: Order Flow Imbalance Strategy
         if order_flow_df is not None and not order_flow_df.empty:
             of_df = order_flow_df.copy()
             num_cols = [c for c in of_df.columns if c != 'symbol' and c not in META_COLS]
@@ -949,7 +969,7 @@ class EnsembleScoringEngine:
         else:
             of_df = pd.DataFrame(columns=['symbol', 'order_flow_score'])
 
-        # 14. Strategy 14: Short-Term Reversal
+        # 14. Strategy 14: Short-Term Reversal Strategy
         if reversal_df is not None and not reversal_df.empty:
             rev_df = reversal_df.copy()
             num_cols = [c for c in rev_df.columns if c != 'symbol' and c not in META_COLS]
@@ -1059,8 +1079,56 @@ class EnsembleScoringEngine:
         else:
             micro_df = pd.DataFrame(columns=['symbol', 'microstructure_score'])
 
-        # Combine all 23 strategy DataFrames efficiently while preserving metadata
-        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df]
+        # 24. Strategy 24: Accruals Quality Anomaly Engine
+        if accruals_quality_df is not None and not accruals_quality_df.empty:
+            aq_df = accruals_quality_df.copy()
+            num_cols = [c for c in aq_df.columns if c != 'symbol' and c not in META_COLS]
+            aq_col = 'accruals_quality_score' if 'accruals_quality_score' in aq_df.columns else (num_cols[-1] if num_cols else aq_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in aq_df.columns]
+            aq_df = aq_df[['symbol'] + meta_cols + [aq_col]].rename(columns={aq_col: 'accruals_quality_score'})
+            if aq_df['accruals_quality_score'].max() > 1.0:
+                aq_df['accruals_quality_score'] = aq_df['accruals_quality_score'] / 100.0
+        else:
+            aq_df = pd.DataFrame(columns=['symbol', 'accruals_quality_score'])
+
+        # 25. Strategy 25: Short Interest & Squeeze Engine
+        if short_squeeze_df is not None and not short_squeeze_df.empty:
+            sq_df = short_squeeze_df.copy()
+            num_cols = [c for c in sq_df.columns if c != 'symbol' and c not in META_COLS]
+            sq_col = 'short_squeeze_score' if 'short_squeeze_score' in sq_df.columns else (num_cols[-1] if num_cols else sq_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in sq_df.columns]
+            sq_df = sq_df[['symbol'] + meta_cols + [sq_col]].rename(columns={sq_col: 'short_squeeze_score'})
+            if sq_df['short_squeeze_score'].max() > 1.0:
+                sq_df['short_squeeze_score'] = sq_df['short_squeeze_score'] / 100.0
+        else:
+            sq_df = pd.DataFrame(columns=['symbol', 'short_squeeze_score'])
+
+        # 26. Strategy 26: Value-Up & Shareholder Yield Catalyst
+        if valueup_catalyst_df is not None and not valueup_catalyst_df.empty:
+            vu_df = valueup_catalyst_df.copy()
+            num_cols = [c for c in vu_df.columns if c != 'symbol' and c not in META_COLS]
+            vu_col = 'valueup_catalyst_score' if 'valueup_catalyst_score' in vu_df.columns else (num_cols[-1] if num_cols else vu_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in vu_df.columns]
+            vu_df = vu_df[['symbol'] + meta_cols + [vu_col]].rename(columns={vu_col: 'valueup_catalyst_score'})
+            if vu_df['valueup_catalyst_score'].max() > 1.0:
+                vu_df['valueup_catalyst_score'] = vu_df['valueup_catalyst_score'] / 100.0
+        else:
+            vu_df = pd.DataFrame(columns=['symbol', 'valueup_catalyst_score'])
+
+        # 27. Strategy 27: Kaufman Trend Efficiency Engine
+        if trend_efficiency_df is not None and not trend_efficiency_df.empty:
+            te_df = trend_efficiency_df.copy()
+            num_cols = [c for c in te_df.columns if c != 'symbol' and c not in META_COLS]
+            te_col = 'trend_efficiency_score' if 'trend_efficiency_score' in te_df.columns else (num_cols[-1] if num_cols else te_df.columns[-1])
+            meta_cols = [c for c in META_COLS if c in te_df.columns]
+            te_df = te_df[['symbol'] + meta_cols + [te_col]].rename(columns={te_col: 'trend_efficiency_score'})
+            if te_df['trend_efficiency_score'].max() > 1.0:
+                te_df['trend_efficiency_score'] = te_df['trend_efficiency_score'] / 100.0
+        else:
+            te_df = pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
+
+        # Combine all 27 strategy DataFrames efficiently while preserving metadata
+        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df]
         merged = pd.DataFrame(columns=['symbol'])
         for d in dfs:
             if d is not None and not d.empty:
@@ -1106,6 +1174,10 @@ class EnsembleScoringEngine:
             ('factor_neutralized', 'factor_neutralized_score'),
             ('vol_target', 'vol_target_score'),
             ('microstructure', 'microstructure_score'),
+            ('accruals_quality', 'accruals_quality_score'),
+            ('short_squeeze', 'short_squeeze_score'),
+            ('valueup_catalyst', 'valueup_catalyst_score'),
+            ('trend_efficiency', 'trend_efficiency_score'),
         ]
 
         # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
