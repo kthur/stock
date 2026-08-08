@@ -143,7 +143,7 @@ class FactorOrthogonalizerEngine:
         try:
             from sklearn.covariance import LedoitWolf
             lw = LedoitWolf(store_precision=False, assume_centered=True)
-            return lw.fit(X_bar).covariance_
+            return cast(np.ndarray, lw.fit(X_bar).covariance_)
         except Exception:
             pass
 
@@ -151,10 +151,10 @@ class FactorOrthogonalizerEngine:
         target = mu * np.eye(K)
         d2 = float(np.sum((C_sample - target) ** 2))
         if d2 < 1e-12:
-            return C_sample + self.ridge_epsilon * np.eye(K)
+            return cast(np.ndarray, C_sample + self.ridge_epsilon * np.eye(K))
 
         delta = self.shrinkage_alpha if self.shrinkage_alpha > 0 else 0.01
         C_shrunk = (1.0 - delta) * C_sample + delta * target
-        return C_shrunk + self.ridge_epsilon * np.eye(K)
+        return cast(np.ndarray, C_shrunk + self.ridge_epsilon * np.eye(K))
 
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class SupplyChainEngine:
     1D and 3D returns of their key customer/lead market leaders.
     """
 
-    def __init__(self, customer_map: Dict[str, List[str]] = None) -> None:
+    def __init__(self, customer_map: Optional[Dict[str, List[str]]] = None) -> None:
         self.customer_map = customer_map or LEAD_CUSTOMER_MAP
 
     def compute_scores(self, df_prices: pd.DataFrame, universe: pd.DataFrame) -> pd.DataFrame:

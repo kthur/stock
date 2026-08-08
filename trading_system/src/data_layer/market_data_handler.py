@@ -6,7 +6,7 @@ import time
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -20,7 +20,7 @@ from src.analysis.backtest import PriceBar
 logger = logging.getLogger(__name__)
 
 
-def _fetch_naver_direct(symbol: str, start_date: str = None) -> pd.DataFrame:
+def _fetch_naver_direct(symbol: str, start_date: Optional[str] = None) -> pd.DataFrame:
     """Tier 3 fallback for KRX: Naver Financial Chart XML API."""
     code = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol.split('.')[0]
     url = f"https://fchart.stock.naver.com/sise.nhn?symbol={code}&timeframe=day&count=3000&requestType=0"
@@ -54,7 +54,7 @@ def _fetch_naver_direct(symbol: str, start_date: str = None) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def _fetch_pykrx(symbol: str, start_date: str = None) -> pd.DataFrame:
+def _fetch_pykrx(symbol: str, start_date: Optional[str] = None) -> pd.DataFrame:
     """Tier 4 fallback for KRX: PyKRX API."""
     try:
         from pykrx import stock
@@ -74,7 +74,7 @@ def _fetch_pykrx(symbol: str, start_date: str = None) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def _fetch_stooq_or_yahoo_direct(symbol: str, start_date: str = None) -> pd.DataFrame:
+def _fetch_stooq_or_yahoo_direct(symbol: str, start_date: Optional[str] = None) -> pd.DataFrame:
     """Tier 3 fallback for US: Stooq / Yahoo Direct API."""
     try:
         df = fdr.DataReader(f"STOOQ:{symbol.upper()}", start=start_date)
@@ -367,7 +367,7 @@ class MarketDataHandler:
         retry=retry_if_exception_type(Exception) & retry_if_not_exception_type(CircuitBreakerOpenException),
         reraise=True
     )
-    def _fetch_historical_yf_with_retry(self, symbol: str, start_date: str = None, yf_period: str = None, period: str = "5y") -> pd.DataFrame:
+    def _fetch_historical_yf_with_retry(self, symbol: str, start_date: Optional[str] = None, yf_period: Optional[str] = None, period: str = "5y") -> pd.DataFrame:
         """Multi-tier historical data fetch with retries and fallbacks."""
         if not self.circuit_breaker.check_state():
             raise CircuitBreakerOpenException("Circuit breaker is OPEN. API calls are temporarily blocked.")

@@ -24,7 +24,7 @@ class TurnoverOptimizer:
 
     def optimize_allocations(self, current_holdings: Dict[str, float],
                              target_allocations: Dict[str, float],
-                             total_capital: float = 100000000.0) -> Dict[str, Dict[str, float]]:
+                             total_capital: float = 100000000.0) -> Dict[str, Dict[str, Any]]:
         """Filter target allocations against current holdings using turnover hysteresis.
 
         Args:
@@ -36,7 +36,7 @@ class TurnoverOptimizer:
             Dict of symbol -> {'target_weight': float, 'action': 'HOLD'|'BUY'|'SELL', 'delta_amount': float}.
         """
         all_symbols = set(current_holdings.keys()) | set(target_allocations.keys())
-        optimized: Dict[str, Dict[str, float]] = {}
+        optimized: Dict[str, Dict[str, Any]] = {}
 
         total_turnover_reduced = 0.0
 
