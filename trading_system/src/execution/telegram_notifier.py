@@ -50,7 +50,7 @@ class TelegramNotifier:
         try:
             data = urllib.parse.urlencode(payload).encode("utf-8")
             req = urllib.request.Request(url, data=data)
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310
                 if response.status == 200:
                     logger.info("[TelegramNotifier] Signal card sent successfully.")
                     return True

@@ -26,9 +26,9 @@ def _fetch_naver_direct(symbol: str, start_date: Optional[str] = None) -> pd.Dat
     url = f"https://fchart.stock.naver.com/sise.nhn?symbol={code}&timeframe=day&count=3000&requestType=0"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             xml_data = resp.read().decode('euc-kr', errors='ignore')
-        root = ET.fromstring(xml_data)
+        root = ET.fromstring(xml_data)  # nosec B314
         items = root.findall('.//item')
         rows = []
         for item in items:

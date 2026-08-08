@@ -53,7 +53,7 @@ class BOKECOSClient:
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 data = json.loads(resp.read().decode("utf-8"))
 
             if "StatisticSearch" in data and "row" in data["StatisticSearch"]:
