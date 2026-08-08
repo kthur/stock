@@ -20,7 +20,7 @@ def test_valid_zero_scores_not_discarded():
     """Verify that a valid 0.0 prediction score is NOT treated as missing data."""
     scorer = EnsembleScoringEngine()
 
-    reg_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 20: [0.0, 0.20]})
+    reg_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 'reg_score': [0.0, 0.80]})
     surge_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 'surge_20d': [0.0, 0.80]})
 
     weights = {'regression': 0.50, 'surge': 0.50}
@@ -40,7 +40,7 @@ def test_valid_zero_scores_not_discarded():
     assert stock_a['ensemble_score'] == 0.0
     assert not pd.isna(stock_a['ensemble_score'])
 
-    # STOCK_B has reg_score = 0.20/0.25 = 0.80, surge_score = 0.80.
+    # STOCK_B has reg_score = 0.80, surge_score = 0.80.
     # ensemble_score for STOCK_B should be 0.80.
     stock_b = res[res['symbol'] == 'STOCK_B'].iloc[0]
     assert pytest.approx(stock_b['ensemble_score'], abs=1e-3) == 0.80
@@ -51,7 +51,7 @@ def test_dynamic_reweighting_partial_missingness():
     scorer = EnsembleScoringEngine()
 
     # Create dataset where STOCK_A has all 3 strategies, STOCK_B has missing (NaN) iv_skew
-    reg_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 20: [0.20, 0.20]})  # reg_score = 0.80
+    reg_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 'reg_score': [0.80, 0.80]})  # reg_score = 0.80
     surge_df = pd.DataFrame({'symbol': ['STOCK_A', 'STOCK_B'], 'surge_20d': [0.60, 0.60]})  # surge_score = 0.60
     iv_skew_df = pd.DataFrame({'symbol': ['STOCK_A'], 'iv_skew_score': [0.40]})  # missing for STOCK_B
 
@@ -79,7 +79,7 @@ def test_dynamic_reweighting_omitted_strategy_dataframes():
     """Verify system rescales present strategy weights to 100% when strategy DataFrames are omitted."""
     scorer = EnsembleScoringEngine()
 
-    reg_df = pd.DataFrame({'symbol': ['STOCK_A'], 20: [0.20]})  # reg_score = 0.80
+    reg_df = pd.DataFrame({'symbol': ['STOCK_A'], 'reg_score': [0.80]})  # reg_score = 0.80
     surge_df = pd.DataFrame({'symbol': ['STOCK_A'], 'surge_20d': [0.50]})
 
     weights = {'regression': 0.60, 'surge': 0.40, 'lstm': 0.20}

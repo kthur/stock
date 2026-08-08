@@ -33,214 +33,303 @@ class EnsembleScoringEngine:
     """
 
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
-    # Dynamic Weight Configuration per 1D Market Regime (17 Strategies)
+    # Dynamic Weight Configuration per 1D Market Regime (27 Strategies)
     REGIME_WEIGHTS = {
-        0: {  # BEAR (Defensive)
-            'regression': 0.16,
+        0: {  # BEAR (Defensive) — sum = 1.00
+            'regression': 0.13,        # 회귀 모델: 방어적 장세에서 수익률 예측 중요
+            'surge': 0.01,             # 급등 분류: 하락장 급등 기회 희소
+            'lead_lag': 0.02,          # Lead-Lag: 업종 선행 효과 약화
+            'vcp_rule': 0.01,          # VCP 규칙: 변동성 수축 드물게 발생
+            'vcp_ml': 0.01,            # VCP ML: 상동
+            'lstm': 0.02,              # LSTM: 시계열 딥러닝 방어적
+            'stat_arb': 0.07,          # Stat-Arb: 시장 중립 차익거래 강화
+            'sector_rotation': 0.03,   # 섹터 로테이션: 방어 섹터 선별적 유효
+            'rim_valuation': 0.10,     # RIM 가치평가: 안전마진 탐색 최우선
+            'event_driven': 0.03,      # 이벤트 드리븐: 제한적 이벤트 발생
+            'mq_factor': 0.05,         # MQ: 수익성/모멘텀 퀄리티 방어
+            'iv_skew': 0.03,           # IV Skew: 풋 프리미엄 역발상
+            'order_flow': 0.02,        # Order Flow: 외국인 수급 관찰
+            'short_term_reversal': 0.04,  # 단기반전: 과매도 반등 탐색
+            'arm_factor': 0.04,        # ARM: 애널리스트 하향조정 역발상
+            'card_factor': 0.05,       # CARD: 크로스에셋 괴리율 역발상
+            'latr_factor': 0.04,       # LATR: 52주 낙폭 + 꼬리위험 방어
+            'inst_foreign_sector': 0.04,  # 기관/외인 수급 주도주 탐색
+            'supply_chain': 0.01,      # 공급망: 하락장 업종 연쇄 약함
+            'sentiment': 0.03,         # 감성: 역발상 공포 매수 유용
+            'factor_neutralized': 0.03,  # 팩터 중립화: 순수 알파 레짐 독립
+            'vol_target': 0.05,        # 변동성 타게팅: 리스크 파리티 방어
+            'microstructure': 0.02,    # 미시구조: 단기 수급 불균형 관찰
+            'accruals_quality': 0.05,  # 회계 품질: 불황기 회계 조작 리스크 필터
+            'short_squeeze': 0.01,     # 숏스퀴즈: 하락장에서 기회 희소
+            'valueup_catalyst': 0.05,  # 가치상승: PBR<1 저평가 방어주
+            'trend_efficiency': 0.01,  # 추세 효율성: 하락장 추세 전략 무효
+        },
+        1: {  # SIDEWAYS (Rotation) — sum = 1.00
+            'regression': 0.06,
             'surge': 0.02,
+            'lead_lag': 0.04,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.04,
+            'lstm': 0.05,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.05,
+            'event_driven': 0.05,
+            'mq_factor': 0.05,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.05,
+            'card_factor': 0.05,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.05,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.04,
+            'vol_target': 0.03,
+            'microstructure': 0.03,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.02,
+            'valueup_catalyst': 0.04,
+            'trend_efficiency': 0.01,
+        },
+        2: {  # BULL (Aggressive) — sum = 1.00
+            'regression': 0.03,
+            'surge': 0.08,
             'lead_lag': 0.02,
             'vcp_rule': 0.02,
-            'vcp_ml': 0.02,
-            'lstm': 0.03,
-            'stat_arb': 0.09,
+            'vcp_ml': 0.07,
+            'lstm': 0.05,
+            'stat_arb': 0.02,
             'sector_rotation': 0.05,
-            'rim_valuation': 0.11,
-            'event_driven': 0.04,
-            'mq_factor': 0.07,
-            'iv_skew': 0.04,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.05,
-            'arm_factor': 0.06,
-            'card_factor': 0.07,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.06
-        },
-        1: {  # SIDEWAYS (Rotation)
-            'regression': 0.07,
-            'surge': 0.03,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.05,
-            'lstm': 0.07,
-            'stat_arb': 0.09,
-            'sector_rotation': 0.06,
-            'rim_valuation': 0.07,
+            'rim_valuation': 0.03,
             'event_driven': 0.06,
-            'mq_factor': 0.06,
-            'iv_skew': 0.03,
-            'order_flow': 0.04,
-            'short_term_reversal': 0.04,
-            'arm_factor': 0.06,
-            'card_factor': 0.06,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.07
-        },
-        2: {  # BULL (Aggressive)
-            'regression': 0.04,
-            'surge': 0.11,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.09,
-            'lstm': 0.07,
-            'stat_arb': 0.03,
-            'sector_rotation': 0.07,
-            'rim_valuation': 0.05,
-            'event_driven': 0.07,
-            'mq_factor': 0.07,
+            'mq_factor': 0.05,
             'iv_skew': 0.02,
-            'order_flow': 0.04,
+            'order_flow': 0.03,
             'short_term_reversal': 0.02,
-            'arm_factor': 0.07,
-            'card_factor': 0.05,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.08
+            'arm_factor': 0.05,
+            'card_factor': 0.03,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.06,
+            'supply_chain': 0.04,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.03,
+            'accruals_quality': 0.01,
+            'short_squeeze': 0.05,
+            'valueup_catalyst': 0.01,
+            'trend_efficiency': 0.05,
         }
     }
 
-    # 2D Market Regime Matrix Weights (6 Combo States across 18 Strategies)
+    # 2D Market Regime Matrix Weights (6 Combo States across 27 Strategies)
     REGIME_2D_WEIGHTS = {
-        'BEAR_LOW_VOL': {
-            'regression': 0.16,
-            'surge': 0.02,
+        'BEAR_LOW_VOL': {  # sum = 1.00
+            'regression': 0.13,
+            'surge': 0.01,
             'lead_lag': 0.02,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.02,
-            'lstm': 0.03,
-            'stat_arb': 0.09,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.11,
-            'event_driven': 0.04,
-            'mq_factor': 0.07,
-            'iv_skew': 0.04,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.05,
-            'arm_factor': 0.06,
-            'card_factor': 0.07,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.06
+            'vcp_rule': 0.01,
+            'vcp_ml': 0.01,
+            'lstm': 0.02,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.10,
+            'event_driven': 0.03,
+            'mq_factor': 0.05,
+            'iv_skew': 0.03,
+            'order_flow': 0.02,
+            'short_term_reversal': 0.04,
+            'arm_factor': 0.04,
+            'card_factor': 0.05,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.05,
+            'microstructure': 0.02,
+            'accruals_quality': 0.05,
+            'short_squeeze': 0.01,
+            'valueup_catalyst': 0.05,
+            'trend_efficiency': 0.01,
         },
-        'BEAR_HIGH_VOL': {
-            'regression': 0.17,
+        'BEAR_HIGH_VOL': {  # sum = 1.00  고변동+하락: 리스크 파리티·회계필터 최강화, 모멘텀 제거
+            'regression': 0.12,
             'surge': 0.00,
             'lead_lag': 0.02,
-            'vcp_rule': 0.02,
-            'vcp_ml': 0.02,
-            'lstm': 0.03,
-            'stat_arb': 0.11,
-            'sector_rotation': 0.03,
-            'rim_valuation': 0.11,
-            'event_driven': 0.04,
-            'mq_factor': 0.07,
-            'iv_skew': 0.04,
-            'order_flow': 0.03,
-            'short_term_reversal': 0.06,
-            'arm_factor': 0.05,
-            'card_factor': 0.08,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.05
-        },
-        'SIDEWAYS_LOW_VOL': {
-            'regression': 0.07,
-            'surge': 0.03,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.05,
-            'lstm': 0.07,
+            'vcp_rule': 0.01,
+            'vcp_ml': 0.01,
+            'lstm': 0.02,
             'stat_arb': 0.09,
-            'sector_rotation': 0.06,
-            'rim_valuation': 0.07,
-            'event_driven': 0.06,
-            'mq_factor': 0.06,
-            'iv_skew': 0.03,
-            'order_flow': 0.04,
-            'short_term_reversal': 0.04,
-            'arm_factor': 0.06,
+            'sector_rotation': 0.02,
+            'rim_valuation': 0.09,
+            'event_driven': 0.03,
+            'mq_factor': 0.05,
+            'iv_skew': 0.04,
+            'order_flow': 0.02,
+            'short_term_reversal': 0.05,
+            'arm_factor': 0.04,
             'card_factor': 0.06,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.07
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.04,
+            'supply_chain': 0.00,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.06,
+            'microstructure': 0.02,
+            'accruals_quality': 0.06,
+            'short_squeeze': 0.00,
+            'valueup_catalyst': 0.05,
+            'trend_efficiency': 0.00,
         },
-        'SIDEWAYS_HIGH_VOL': {
-            'regression': 0.07,
-            'surge': 0.03,
-            'lead_lag': 0.05,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.05,
+        'SIDEWAYS_LOW_VOL': {  # sum = 1.00
+            'regression': 0.06,
+            'surge': 0.02,
+            'lead_lag': 0.04,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.04,
             'lstm': 0.05,
-            'stat_arb': 0.11,
-            'sector_rotation': 0.06,
-            'rim_valuation': 0.07,
-            'event_driven': 0.06,
-            'mq_factor': 0.06,
-            'iv_skew': 0.03,
-            'order_flow': 0.04,
-            'short_term_reversal': 0.04,
-            'arm_factor': 0.05,
-            'card_factor': 0.07,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.07
-        },
-        'BULL_LOW_VOL': {
-            'regression': 0.04,
-            'surge': 0.11,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.09,
-            'lstm': 0.07,
-            'stat_arb': 0.03,
-            'sector_rotation': 0.07,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.04,
             'rim_valuation': 0.05,
-            'event_driven': 0.07,
-            'mq_factor': 0.07,
+            'event_driven': 0.05,
+            'mq_factor': 0.05,
             'iv_skew': 0.02,
-            'order_flow': 0.04,
-            'short_term_reversal': 0.02,
-            'arm_factor': 0.07,
-            'card_factor': 0.05,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.08
-        },
-        'BULL_HIGH_VOL': {
-            'regression': 0.03,
-            'surge': 0.13,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.03,
-            'vcp_ml': 0.09,
-            'lstm': 0.07,
-            'stat_arb': 0.03,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.05,
-            'event_driven': 0.07,
-            'mq_factor': 0.07,
-            'iv_skew': 0.02,
-            'order_flow': 0.04,
+            'order_flow': 0.03,
             'short_term_reversal': 0.03,
-            'arm_factor': 0.06,
-            'card_factor': 0.06,
-            'latr_factor': 0.06,
-            'inst_foreign_sector': 0.08
+            'arm_factor': 0.05,
+            'card_factor': 0.05,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.05,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.04,
+            'vol_target': 0.03,
+            'microstructure': 0.03,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.02,
+            'valueup_catalyst': 0.04,
+            'trend_efficiency': 0.01,
+        },
+        'SIDEWAYS_HIGH_VOL': {  # sum = 1.00  고변동+횡보: Stat-Arb·변동성타게팅 강화
+            'regression': 0.06,
+            'surge': 0.02,
+            'lead_lag': 0.04,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.04,
+            'lstm': 0.04,
+            'stat_arb': 0.08,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.05,
+            'event_driven': 0.05,
+            'mq_factor': 0.04,
+            'iv_skew': 0.03,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.04,
+            'card_factor': 0.05,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.05,
+            'supply_chain': 0.01,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.04,
+            'vol_target': 0.05,
+            'microstructure': 0.03,
+            'accruals_quality': 0.04,
+            'short_squeeze': 0.01,
+            'valueup_catalyst': 0.04,
+            'trend_efficiency': 0.01,
+        },
+        'BULL_LOW_VOL': {  # sum = 1.00
+            'regression': 0.03,
+            'surge': 0.08,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.07,
+            'lstm': 0.05,
+            'stat_arb': 0.02,
+            'sector_rotation': 0.05,
+            'rim_valuation': 0.03,
+            'event_driven': 0.06,
+            'mq_factor': 0.05,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.02,
+            'arm_factor': 0.05,
+            'card_factor': 0.03,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.06,
+            'supply_chain': 0.04,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.03,
+            'accruals_quality': 0.01,
+            'short_squeeze': 0.05,
+            'valueup_catalyst': 0.01,
+            'trend_efficiency': 0.05,
+        },
+        'BULL_HIGH_VOL': {  # sum = 1.00  고변동+상승: 급등·숏스퀴즈 모멘텀 최강화
+            'regression': 0.02,
+            'surge': 0.09,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.02,
+            'vcp_ml': 0.07,
+            'lstm': 0.05,
+            'stat_arb': 0.02,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.03,
+            'event_driven': 0.06,
+            'mq_factor': 0.05,
+            'iv_skew': 0.02,
+            'order_flow': 0.03,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.05,
+            'card_factor': 0.04,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.06,
+            'supply_chain': 0.03,
+            'sentiment': 0.03,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.03,
+            'accruals_quality': 0.01,
+            'short_squeeze': 0.05,
+            'valueup_catalyst': 0.01,
+            'trend_efficiency': 0.05,
         }
     }
 
     # 3D Macro Regime Override Weights (LIQUIDITY_SQUEEZE, HIGH_YIELD_BULL, HIGH_YIELD_BEAR,
     #                                    INFLATION_SHOCK, YIELD_INVERSION)
+    # Deltas are applied to 2D regime base weights then re-normalized to sum=1.
     MACRO_WEIGHT_MODIFIERS = {
         'LIQUIDITY_SQUEEZE': {
             'stat_arb': +0.10,
             'vcp_rule': +0.05,
+            'vol_target': +0.05,        # 유동성 경색 시 변동성 타게팅 방어 강화
             'surge': -0.10,
-            'sector_rotation': -0.05
+            'sector_rotation': -0.05,
+            'short_squeeze': -0.03,     # 유동성 경색 시 숏스퀴즈 기회 감소
+            'supply_chain': -0.02,
         },
         'HIGH_YIELD_BULL': {
             'sector_rotation': +0.10,
             'surge': +0.05,
+            'supply_chain': +0.03,      # 업종 연쇄 온기 전이 가속
+            'trend_efficiency': +0.05,  # 강세장 추세 효율성 부스트
             'lead_lag': -0.10,
-            'stat_arb': -0.05
+            'stat_arb': -0.05,
         },
         'HIGH_YIELD_BEAR': {
             'regression': +0.10,
             'stat_arb': +0.10,
+            'accruals_quality': +0.04,  # 신용 위험 확대기 회계 품질 필터 강화
             'surge': -0.15,
-            'vcp_ml': -0.05
+            'vcp_ml': -0.05,
+            'trend_efficiency': -0.04,  # 하락 고수익 채권 국면 추세 전략 억제
         },
         # ① 인플레이션 충격 (유가 + USD/KRW 환율 동시 상승): 국내 제조업 원가 이중 압박
         # MQ Factor(영업이익률/ROE 저하) 가중치 하향, RIM Valuation(안전마진) + Stat-Arb(시장 중립) 상향
@@ -248,7 +337,9 @@ class EnsembleScoringEngine:
             'mq_factor': -0.08,
             'surge': -0.05,
             'rim_valuation': +0.07,
-            'stat_arb': +0.06
+            'stat_arb': +0.06,
+            'accruals_quality': +0.04,  # 원가 압박 시 현금흐름 품질 필터
+            'valueup_catalyst': +0.03,  # 저평가 방어주(PBR<1) 선호
         },
         # ② 장단기 금리 역전 (US10Y < US5Y): 6~18개월 내 경기침체 선행 신호
         # 공격적 모멘텀 전략 축소, 가치평가(RIM) + 평균회귀(Stat-Arb) + 단기반전 방어
@@ -257,9 +348,12 @@ class EnsembleScoringEngine:
             'rim_valuation': +0.08,
             'stat_arb': +0.06,
             'short_term_reversal': +0.04,
+            'accruals_quality': +0.05,  # 침체 선행 신호: 회계 품질 최강화
+            'valueup_catalyst': +0.03,  # 저평가 방어 포지션
             'surge': -0.12,
             'vcp_ml': -0.07,
-            'sector_rotation': -0.07
+            'sector_rotation': -0.07,
+            'trend_efficiency': -0.03,  # 금리 역전 시 추세 전략 축소
         }
     }
 
@@ -467,12 +561,20 @@ class EnsembleScoringEngine:
             w['sector_rotation'] = max(0.0, w.get('sector_rotation', 0.10) - 0.05)
             w['regression'] = w.get('regression', 0.20) + 0.10
             w['stat_arb'] = w.get('stat_arb', 0.10) + 0.05
+            # 신규: VIX>30 시 추세/숏스퀴즈 모멘텀 억제
+            w['trend_efficiency'] = max(0.0, w.get('trend_efficiency', 0.02) - 0.02)
+            w['short_squeeze'] = max(0.0, w.get('short_squeeze', 0.02) - 0.01)
+            w['supply_chain'] = max(0.0, w.get('supply_chain', 0.02) - 0.01)
 
         if vix_val > 40.0:
             w['surge'] = 0.0
             w['vcp_ml'] = 0.0
+            w['trend_efficiency'] = 0.0   # 극단적 공포 시 추세 전략 완전 제거
+            w['short_squeeze'] = 0.0      # 극단적 변동성에서 숏스퀴즈 제거
             w['stat_arb'] = w.get('stat_arb', 0.10) + 0.15
             w['rim_valuation'] = w.get('rim_valuation', 0.10) + 0.10
+            w['vol_target'] = w.get('vol_target', 0.04) + 0.05  # 리스크 파리티 극대화
+            w['accruals_quality'] = w.get('accruals_quality', 0.03) + 0.03
 
         total_w = sum(w.values())
         return {k: v / total_w for k, v in w.items()}
@@ -521,6 +623,11 @@ class EnsembleScoringEngine:
             'factor_neutralized': w.get('factor_neutralized', 0.03),
             'vol_target': w.get('vol_target', 0.04),
             'microstructure': w.get('microstructure', 0.03),
+            # 신규 4대 전략 (#24~#27) 기본값
+            'accruals_quality': w.get('accruals_quality', 0.03),
+            'short_squeeze': w.get('short_squeeze', 0.03),
+            'valueup_catalyst': w.get('valueup_catalyst', 0.03),
+            'trend_efficiency': w.get('trend_efficiency', 0.03),
         }
         total_base = sum(res.values())
         if total_base > 0:
@@ -819,11 +926,22 @@ class EnsembleScoringEngine:
         # 1. Regression Strategy
         reg_df_copy = reg_df.copy()
         if not reg_df_copy.empty and 'reg_score' not in reg_df_copy.columns:
-            target_col = f'expected_return_{target_horizon}d' if f'expected_return_{target_horizon}d' in reg_df_copy.columns else ('expected_return' if 'expected_return' in reg_df_copy.columns else None)
-            if target_col is None:
-                exp_cols = [c for c in reg_df_copy.columns if c.startswith('expected_return')]
+            target_col = None
+            if f'expected_return_{target_horizon}d' in reg_df_copy.columns:
+                target_col = f'expected_return_{target_horizon}d'
+            elif 'expected_return' in reg_df_copy.columns:
+                target_col = 'expected_return'
+            elif target_horizon in reg_df_copy.columns:
+                target_col = target_horizon
+            elif str(target_horizon) in reg_df_copy.columns:
+                target_col = str(target_horizon)
+            else:
+                exp_cols = [c for c in reg_df_copy.columns if isinstance(c, str) and c.startswith('expected_return')]
+                if not exp_cols:
+                    exp_cols = [c for c in reg_df_copy.columns if c != 'symbol' and c not in META_COLS]
                 target_col = exp_cols[0] if exp_cols else None
-            if target_col and target_col in reg_df_copy.columns:
+
+            if target_col is not None and target_col in reg_df_copy.columns:
                 ret_multiplier = self._return_multiplier
                 reg_df_copy['reg_score'] = (reg_df_copy[target_col] * ret_multiplier).clip(0.0, 1.0)
             else:
@@ -832,11 +950,24 @@ class EnsembleScoringEngine:
         # 2. Surge Strategy
         s_df_copy = s_df.copy()
         if not s_df_copy.empty and 'surge_score' not in s_df_copy.columns:
-            target_col = f'surge_prob_{target_horizon}d' if f'surge_prob_{target_horizon}d' in s_df_copy.columns else ('surge_probability' if 'surge_probability' in s_df_copy.columns else None)
-            if target_col is None:
-                prob_cols = [c for c in s_df_copy.columns if 'prob' in c or 'surge' in c]
+            target_col = None
+            if f'surge_prob_{target_horizon}d' in s_df_copy.columns:
+                target_col = f'surge_prob_{target_horizon}d'
+            elif f'surge_{target_horizon}d' in s_df_copy.columns:
+                target_col = f'surge_{target_horizon}d'
+            elif 'surge_probability' in s_df_copy.columns:
+                target_col = 'surge_probability'
+            elif target_horizon in s_df_copy.columns:
+                target_col = target_horizon
+            elif str(target_horizon) in s_df_copy.columns:
+                target_col = str(target_horizon)
+            else:
+                prob_cols = [c for c in s_df_copy.columns if isinstance(c, str) and ('prob' in c or 'surge' in c)]
+                if not prob_cols:
+                    prob_cols = [c for c in s_df_copy.columns if c != 'symbol' and c not in META_COLS]
                 target_col = prob_cols[0] if prob_cols else None
-            if target_col and target_col in s_df_copy.columns:
+
+            if target_col is not None and target_col in s_df_copy.columns:
                 s_df_copy['surge_score'] = s_df_copy[target_col].clip(0.0, 1.0)
             else:
                 s_df_copy['surge_score'] = 0.5
