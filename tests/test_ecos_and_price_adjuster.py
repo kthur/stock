@@ -52,6 +52,11 @@ class TestECOSAndPriceAdjuster(unittest.TestCase):
         self.assertEqual(len(df_stat), 2)
         self.assertAlmostEqual(df_stat["Value"].iloc[0], 3.50)
 
+    def test_ecos_client_koreabank_key_env(self):
+        with patch.dict(os.environ, {"KOREABANK_ECOS_KEY": "my_test_koreabank_key"}, clear=True):
+            client = BOKECOSClient()
+            self.assertEqual(client.api_key, "my_test_koreabank_key")
+
 
 if __name__ == "__main__":
     unittest.main()

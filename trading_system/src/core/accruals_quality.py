@@ -6,7 +6,7 @@ relative to Total Assets (Sloan 1996 Accrual Anomaly).
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
 import numpy as np
 

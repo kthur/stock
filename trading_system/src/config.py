@@ -51,6 +51,9 @@ class TradingConfig:
     # DART 공시 API 키 (OpenDART)
     dart_api_key: str = ""
 
+    # 한국은행 ECOS API 키
+    ecos_api_key: str = ""
+
     # VCP 실시간 돌파 파라미터
     vcp_near_pivot_pct: float = 0.02       # Pivot 돌파 허용 여유 (2%)
     vcp_min_score_threshold: float = 50.0  # VCP 패턴 최소 점수 임계값
@@ -150,6 +153,10 @@ class TradingConfig:
             self.kis_mock_account = os.environ["KIS_MOCK_ACCOUNT"]
         if "DART_API_KEY" in os.environ:
             self.dart_api_key = os.environ["DART_API_KEY"]
+        if "ECOS_API_KEY" in os.environ:
+            self.ecos_api_key = os.environ["ECOS_API_KEY"]
+        elif "KOREABANK_ECOS_KEY" in os.environ:
+            self.ecos_api_key = os.environ["KOREABANK_ECOS_KEY"]
         if "VCP_NEAR_PIVOT_PCT" in os.environ:
             try:
                 self.vcp_near_pivot_pct = float(os.environ["VCP_NEAR_PIVOT_PCT"])

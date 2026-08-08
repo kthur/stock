@@ -35,7 +35,7 @@ class BOKECOSClient:
     """Bank of Korea Open API Client with FRED/FDR Fallback."""
 
     def __init__(self, api_key: Optional[str] = None) -> None:
-        self.api_key = (api_key or os.environ.get("ECOS_API_KEY", "sample")).strip()
+        self.api_key = (api_key or os.environ.get("ECOS_API_KEY") or os.environ.get("KOREABANK_ECOS_KEY") or "sample").strip()
 
     def fetch_statistic(self, stat_code: str, item_code: str, cycle: str = "D",
                         start_date: str = "20200101", end_date: Optional[str] = None) -> pd.DataFrame:
