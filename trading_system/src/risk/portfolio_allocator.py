@@ -10,10 +10,13 @@ import logging
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Tuple, Any, Union
+from pathlib import Path
 from scipy.stats import genpareto, norm, skew, kurtosis
 from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class PortfolioAllocator:
@@ -531,4 +534,92 @@ class PortfolioAllocator:
             cleaned_weights = {s: w / tot_w for s, w in cleaned_weights.items()}
 
         return cleaned_weights
+
+    # =========================================================================
+    # OBJECTIVE 4: REAL-TIME OMS SLIPPAGE FEEDBACK & ATR TRAILING STOP
+    # =========================================================================
+
+    def calibrate_slippage_from_trade_logs(self, db_path: Optional[str] = None) -> float:
+        """
+        Reads realized execution logs from trade_logs.db and calculates empirical
+        realized slippage ratio vs predicted Almgren-Chriss cost, returning a 
+        calibrated cost scaling factor (default = 1.0 if insufficient trades).
+        """
+        import sqlite3
+
+        target_db = Path(db_path) if db_path else _PROJECT_ROOT / "trade_logs.db"
+        if not target_db.exists():
+            return 1.0
+
+        try:
+            conn = sqlite3.connect(str(target_db), timeout=5.0)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('trade_logs', 'orders');")
+            tables = [r[0] for r in cursor.fetchall()]
+
+            if not tables:
+                conn.close()
+                return 1.0
+
+            tbl = 'trade_logs' if 'trade_logs' in tables else 'orders'
+            df = pd.read_sql_query(f"SELECT * FROM {tbl} WHERE executed_price IS NOT NULL AND order_price IS NOT NULL LIMIT 500;", conn)
+            conn.close()
+
+            if df.empty or len(df) < 5:
+                return 1.0
+
+            df['order_price'] = pd.to_numeric(df['order_price'], errors='coerce')
+            df['executed_price'] = pd.to_numeric(df['executed_price'], errors='coerce')
+            valid = df.dropna(subset=['order_price', 'executed_price'])
+            valid = valid[valid['order_price'] > 0]
+
+            if len(valid) < 5:
+                return 1.0
+
+            slippage_pct = (np.abs(valid['executed_price'] - valid['order_price']) / valid['order_price']).mean()
+            # Normalize relative to benchmark 0.10% (10 bps)
+            calibrated_factor = float(np.clip(slippage_pct / 0.0010, 0.5, 3.0))
+            logger.info(f"[OMS SLIPPAGE FEEDBACK] Calibrated slippage factor = {calibrated_factor:.2f}x (from {len(valid)} trades)")
+            return calibrated_factor
+        except Exception as e:
+            logger.warning(f"[OMS SLIPPAGE FEEDBACK] Failed to calibrate slippage: {e}")
+            return 1.0
+
+    def calculate_atr_trailing_stop(
+        self,
+        symbol: str,
+        current_price: float,
+        atr_20d: float,
+        is_long: bool = True,
+        multiplier: float = 2.5
+    ) -> Dict[str, float]:
+        """
+        Calculates intraday dynamic ATR-based trailing stop-loss and take-profit levels:
+        - Stop Loss: current_price - (multiplier * ATR_20d)
+        - Take Profit: current_price + (1.5 * multiplier * ATR_20d)
+        """
+        if current_price <= 0.0 or atr_20d <= 0.0:
+            return {
+                "stop_loss": max(0.0, current_price * 0.95),
+                "take_profit": current_price * 1.10,
+                "risk_pct": 0.05
+            }
+
+        atr_clean = max(atr_20d, current_price * 0.005)
+        stop_dist = multiplier * atr_clean
+
+        if is_long:
+            stop_loss = max(0.0, current_price - stop_dist)
+            take_profit = current_price + (1.5 * stop_dist)
+        else:
+            stop_loss = current_price + stop_dist
+            take_profit = max(0.0, current_price - (1.5 * stop_dist))
+
+        risk_pct = float(abs(current_price - stop_loss) / current_price)
+        return {
+            "stop_loss": float(stop_loss),
+            "take_profit": float(take_profit),
+            "risk_pct": float(risk_pct)
+        }
+
 
