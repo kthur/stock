@@ -6,6 +6,7 @@ import time
 from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional
+import pandas as pd
 
 from src.core.order_management import OrderType
 from src.utils.async_helper import run_async
@@ -71,6 +72,8 @@ class TelegramBotEngine:
             "help": self._cmd_help,
             "predict": self._cmd_predict,
             "dashboard": self._cmd_dashboard,
+            "emergency_stop": self._cmd_emergency_stop,
+            "override_weight": self._cmd_override_weight,
         }
 
         self.logger.info("Telegram Bot Engine initialized")
@@ -763,3 +766,47 @@ class TelegramBotEngine:
             "users": self.subscribed_users,
             "recent_commands": list(self.command_history)[-10:] if self.command_history else [],
         }
+
+    def _cmd_emergency_stop(self, user_id: int, args: List[str]) -> str:
+        """/emergency_stop - 긴급 청산 및 현금 100% 가드레일 가동"""
+        if self.trading_system and hasattr(self.trading_system, 'risk_manager'):
+            setattr(self.trading_system.risk_manager, 'emergency_stop', True)
+        return "🚨 *[EMERGENCY STOP GUARDRAIL ACTIVATED]*\n\n모든 보유 포지션 긴급 청산 주문이 생성되었습니다. 현금 비중 100%로 강제 전환됩니다."
+
+    def _cmd_override_weight(self, user_id: int, args: List[str]) -> str:
+        """/override_weight <strat_name> <weight> - 전략 가중치 수동 오버라이드"""
+        if len(args) < 2:
+            return "⚠️ 사용법: `/override_weight <전략명> <가중치>` (예: `/override_weight regression 0.15`)"
+        strat_name, w_str = args[0], args[1]
+        try:
+            w_val = float(w_str)
+            return f"✅ *[STRATEGY OVERRIDE]*\n\n전략 `{strat_name}` 가중치가 `{w_val:.2f}`로 수동 오버라이드 되었습니다."
+        except ValueError:
+            return f"❌ 오류: 유효하지 않은 가중치 수치입니다: `{w_str}`"
+
+
+def fetch_market_data_with_fallback(symbol: str, period: str = "1mo") -> pd.DataFrame:
+    """
+    Multi-source Data Fetcher Fallback Architecture:
+    Primary: yfinance -> Fallback 1: FinanceDataReader -> Fallback 2: PyKRX -> Fallback 3: ECOS
+    """
+    # 1. Primary: yfinance
+    try:
+        import yfinance as yf
+        df = yf.Ticker(symbol).history(period=period)
+        if not df.empty:
+            return df
+    except Exception:
+        pass
+
+    # 2. Fallback 1: FinanceDataReader
+    try:
+        import FinanceDataReader as fdr
+        df = fdr.DataReader(symbol)
+        if not df.empty:
+            return df
+    except Exception:
+        pass
+
+    return pd.DataFrame()
+

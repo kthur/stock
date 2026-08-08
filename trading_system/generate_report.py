@@ -1841,7 +1841,7 @@ def build_html(
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
     <div class="strat-guide-header" onclick="toggleStratGuide()">
-      <div class="strat-guide-title">📖 23대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
+      <div class="strat-guide-title">📖 27대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
       <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold;">▼ 보기</span>
     </div>
     <div id="strat-guide-body" style="display: none;">
@@ -1869,6 +1869,10 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">21. Factor Neutralized</div><div class="strat-card-desc">Fama-French 5-Factor 노출 제거 순수 알파(Pure Alpha)</div></div>
         <div class="strat-card-item"><div class="strat-card-name">22. Vol Targeting</div><div class="strat-card-desc">실산출 변동성 기반 타겟 변동성 리스크 파리티 비중 산출</div></div>
         <div class="strat-card-item"><div class="strat-card-name">23. Microstructure</div><div class="strat-card-desc">호가창 매수/매도 잔량 불균형 및 동시호가 수급 오버나이트 갭</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">24. Accruals Quality</div><div class="strat-card-desc">당기순이익 대비 영업현금흐름(OCF) 괴리율 회계 품질 점수</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">25. Short Squeeze</div><div class="strat-card-desc">공매도 잔고 비율 + Days-to-Cover + 모멘텀 숏스퀴즈 촉매</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">26. Value-Up Yield</div><div class="strat-card-desc">PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주소각)</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">27. Kaufman Efficiency</div><div class="strat-card-desc">5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세</div></div>
       </div>
     </div>
   </div>
