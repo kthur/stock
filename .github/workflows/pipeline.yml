@@ -94,6 +94,7 @@ jobs:
           TZ: 'Asia/Seoul'
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KOREABANK_ECOS_KEY: ${{ secrets.KOREABANK_ECOS_KEY }}
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 

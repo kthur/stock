@@ -52,6 +52,7 @@ from src.utils.rate_limiter import get_global_rate_limiter
 from src.utils.technical_cache import DataFrameCache
 from src.utils.http_session import setup_global_http_headers
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
+from src.data_layer.ecos_client import BOKECOSClient, ECOS_ITEM_MAP
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -630,8 +631,8 @@ _INDICATOR_TICKERS = {
     '^TNX': 'us10y',         # US 10Y Treasury Yield (10년물)
     '^FVX': 'us5y',          # US 5Y Treasury Yield (5년물)
     '^IRX': 'us3m_yield',    # US 13-Week T-Bill (3개월물)
-    'FRED:IRLTLT01KRM156N': 'kr10y',  # Korea 10Y Government Bond Yield (FRED)
-    'FRED:IRSTCI01KRM156N': 'kr3y',   # Korea 3M/Short-Term Bond Rate (FRED)
+    'FRED:IRLTLT01KRM156N': 'kr10y',  # Korea 10Y Government Bond Yield (FRED / ECOS fallback)
+    'FRED:IRSTCI01KRM156N': 'kr3y',   # Korea 3M/Short-Term Bond Rate (FRED / ECOS fallback)
     'USDKRW=X': 'usdkrw_change',
     'CL=F': 'wti_change',
     '^KS11': 'kospi_change',
@@ -651,6 +652,14 @@ _INDICATOR_TICKERS = {
     'HYG': 'hyg_change',
     'GLD': 'gold_change',
     'EEM': 'eem_change',
+}
+
+# ECOS-only tickers: fetched directly from BOK ECOS API (not via yfinance/FDR)
+# mapped as ECOS:<key> → col_name
+_ECOS_ONLY_TICKERS = {
+    'ECOS:kr_base_rate': 'kr_base_rate',  # 한국 기준금리 (%)
+    'ECOS:cd_91d':       'kr_cd91d',       # CD 91일물 금리 (%)
+    'ECOS:m2_supply':    'kr_m2_supply',   # M2 통화량 (십억원)
 }
 
 
@@ -739,6 +748,20 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
 
 
 
+# Module-level ECOS client (lazy init): reused across calls
+_ecos_client: Optional[BOKECOSClient] = None
+
+
+def _get_ecos_client() -> BOKECOSClient:
+    """Return module-level BOKECOSClient, initializing on first call."""
+    global _ecos_client
+    if _ecos_client is None:
+        _ecos_client = BOKECOSClient()
+        mode = "sample (rate-limited)" if _ecos_client.api_key == "sample" else "authenticated"
+        logger.info(f"[ECOS] BOKECOSClient initialized in {mode} mode")
+    return _ecos_client
+
+
 def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = None,
                             freshness_days: int = 7) -> pd.DataFrame:
     """Download 8 global indicator tickers in parallel, return single DataFrame.
@@ -746,6 +769,30 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     Returns: DataFrame with DatetimeIndex and columns = _INDICATOR_TICKERS.values()
     """
     def _fetch_one(ticker: str, col_name: str):
+        # ── ECOS-only path (BOK ECOS API, no yfinance/FDR) ──────────────────
+        if ticker.startswith("ECOS:"):
+            ecos_key = ticker.split("ECOS:", 1)[1]
+            meta = ECOS_ITEM_MAP.get(ecos_key)
+            if meta is None:
+                logger.warning(f"[ECOS] Unknown ECOS key: {ecos_key}")
+                return (col_name, pd.Series(dtype=float))
+            try:
+                client = _get_ecos_client()
+                df_ecos = client.fetch_statistic(
+                    stat_code=meta["stat_code"],
+                    item_code=meta["item_code"],
+                    cycle=meta["cycle"],
+                    start_date=start_date.replace("-", ""),
+                )
+                if not df_ecos.empty:
+                    s = df_ecos.set_index("Date")["Value"].sort_index()
+                    s.index = pd.to_datetime(s.index)
+                    logger.info(f"[ECOS] {meta['name']} fetched via BOK ECOS ({len(s)} rows)")
+                    return (col_name, s.ffill())
+            except Exception as e:
+                logger.warning(f"[ECOS] Fetch failed for {ticker}: {e}")
+            return (col_name, pd.Series(dtype=float))
+
         cached_df = None
         df = None
         if price_db is not None:
@@ -814,14 +861,23 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
                 # If raw value looks already scaled (<= 20), keep as-is (some providers return real %)
                 scaled = scaled.where(raw_yield >= 1.0, raw_yield)  # safety guard: raw < 1 => already percent
                 return (col_name, scaled.fillna(float('nan')))
+            elif col_name in ('kr_base_rate', 'kr_cd91d', 'kr3y'):
+                # ECOS / FRED Korea interest rates: already in real % (e.g. 3.5)
+                return (col_name, df['Close'].ffill().fillna(float('nan')))
+            elif col_name == 'kr_m2_supply':
+                # M2 in 십억원; return level (not pct_change) for regime use
+                return (col_name, df['Close'].ffill().fillna(float('nan')))
             else:
                 return (col_name, df['Close'].ffill().fillna(float('nan')))
         return (col_name, pd.Series(dtype=float))
 
 
+    # Merge standard tickers + ECOS-only tickers for unified parallel fetch
+    _all_tickers = {**_INDICATOR_TICKERS, **_ECOS_ONLY_TICKERS}
+
     combined = {}
-    with ThreadPoolExecutor(max_workers=len(_INDICATOR_TICKERS)) as pool:
-        futures = {pool.submit(_fetch_one, t, c): c for t, c in _INDICATOR_TICKERS.items()}
+    with ThreadPoolExecutor(max_workers=len(_all_tickers)) as pool:
+        futures = {pool.submit(_fetch_one, t, c): c for t, c in _all_tickers.items()}
         for f in as_completed(futures):
             try:
                 res = f.result()
@@ -869,6 +925,20 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
         result['kr_yield_curve'] = result['kr10y'] - result['kr3y']
     elif 'kr10y' in result.columns:
         result['kr_yield_curve'] = 0.0
+
+    # ⑤ ECOS 기준금리 기반 파생 지표
+    # (kr10y - kr_base_rate): 시장 장기금리 vs 정책금리 괴리 → 긴축/완화 사이클 포착
+    if 'kr10y' in result.columns and 'kr_base_rate' in result.columns:
+        result['kr_term_premium'] = result['kr10y'] - result['kr_base_rate']
+
+    # (kr_cd91d - kr_base_rate): 단기 신용 스프레드 → 유동성 긴축 조기 경보
+    if 'kr_cd91d' in result.columns and 'kr_base_rate' in result.columns:
+        result['kr_cd_base_spread'] = result['kr_cd91d'] - result['kr_base_rate']
+
+    # M2 전월 대비 변화율: 통화 팽창/수축 방향성 신호
+    if 'kr_m2_supply' in result.columns:
+        result['kr_m2_mom'] = result['kr_m2_supply'].pct_change().fillna(0.0) * 100
+
 
     # ④ 인플레이션 충격 복합 지표 (유가 + 환율 동시 상승 = 수입물가 이중 충격)
     # wti_change > 0 & usdkrw_change > 0: 국내 원자재 수입 비용 급증 → MQ Factor 가중치 하향 신호
