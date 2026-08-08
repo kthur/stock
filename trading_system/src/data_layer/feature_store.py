@@ -47,16 +47,23 @@ class FeatureStore:
             return Path()
 
         path = self._get_parquet_path(date_str, market)
+        tmp_path = path.with_suffix(".tmp.parquet")
         try:
             df_copy = feature_df.copy()
             # Downcast floats to float32 to conserve RAM & I/O
             float_cols = df_copy.select_dtypes(include=['float64']).columns
             df_copy[float_cols] = df_copy[float_cols].astype('float32')
 
-            df_copy.to_parquet(path, compression='snappy', index=False)
+            df_copy.to_parquet(tmp_path, compression='snappy', index=False)
+            os.replace(tmp_path, path)
             logger.info(f"[FEATURE STORE] Saved {len(df_copy)} rows for {market} ({date_str}) to {path.name}")
             return path
         except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
             logger.error(f"[FEATURE STORE] Failed to save features to {path}: {e}")
             return Path()
 
