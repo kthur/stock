@@ -24,7 +24,7 @@ class DarkPoolTrackerEngine:
     def __init__(self, config=None):
         self.config = config
 
-    def fetch_darkpool_activity(self, symbol: str) -> Dict[str, Any]:
+    def fetch_darkpool_activity(self, symbol: str, *args, **kwargs) -> Dict[str, Any]:
         """Fetch dark pool activity metrics for symbol (compatibility method)."""
         return {
             'symbol': symbol,
