@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from src.data_layer.data_validator import DataValidator, clean_macro_value
+from src.data_layer.data_validator import DataValidator
 
 logger = logging.getLogger(__name__)
 

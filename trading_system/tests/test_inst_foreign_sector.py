@@ -2,7 +2,6 @@
 Tests for InstForeignSectorEngine
 """
 
-import pytest
 import pandas as pd
 import numpy as np
 from src.core.inst_foreign_sector import InstForeignSectorEngine

@@ -3,17 +3,13 @@ Adversarial Verification Suite for Milestone 4: Microstructure Costs & Portfolio
 Challenger: challenger_m4_2
 """
 
-import os
 import sys
-import sqlite3
-import datetime
 from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 import pytest
-import numpy as np
 import pandas as pd
 
 from trading_system.src.execution.slippage_feedback import (

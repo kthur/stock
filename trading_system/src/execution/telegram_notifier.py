@@ -15,7 +15,7 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 import pandas as pd
 
 logger = logging.getLogger(__name__)

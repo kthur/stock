@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 import pandas as pd
 
-from src.data_layer.data_validator import DataValidator
 
 logger = logging.getLogger(__name__)
 

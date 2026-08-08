@@ -9,9 +9,7 @@ for all 23 multi-factor quantitative strategy engines.
 from __future__ import annotations
 
 import logging
-import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +39,7 @@ class CorporateActionAdjuster:
 
         # Calculate overnight price ratios
         ratios = (close_series / close_series.shift(1)).fillna(1.0)
-        
+
         # Detect split ratio anomalies (e.g., 1:2 split -> 0.50, 1:5 split -> 0.20, 5:1 reverse split -> 5.0)
         split_mask = (ratios < (1.0 - self.split_threshold_pct)) | (ratios > (1.0 + 1.5 * self.split_threshold_pct))
 
@@ -52,7 +50,7 @@ class CorporateActionAdjuster:
                 if r <= 0:
                     continue
                 logger.info("[CorporateActionAdjuster] Stock split/action ratio %.2fx detected at %s. Adjusting prior history...", r, idx)
-                
+
                 # Backward adjust prior prices before split
                 prior_mask = df.index < idx
                 price_cols = [c for c in ["Open", "High", "Low", "Close", "Adj Close"] if c in df.columns]

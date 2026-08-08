@@ -11,7 +11,7 @@ import logging
 import queue
 import threading
 import time
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import List, Any, Optional, Callable
 
 logger = logging.getLogger(__name__)
 

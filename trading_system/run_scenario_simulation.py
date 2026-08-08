@@ -2,9 +2,7 @@
 CLI execution script for Macro & Sector Scenario Simulation.
 """
 import sys
-import logging
 from pathlib import Path
-import pandas as pd
 
 # Add project root directory to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

@@ -3,7 +3,7 @@ test_microstructure.py — Unit tests for Microstructure Cost Model
 """
 
 import unittest
-from src.risk.microstructure import MicrostructureCostModel, TransactionCostConfig
+from src.risk.microstructure import MicrostructureCostModel
 
 
 class TestMicrostructureCostModel(unittest.TestCase):

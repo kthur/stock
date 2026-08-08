@@ -173,7 +173,7 @@ class DARTSECSentimentEngine:
             sym = str(row["symbol"]).strip()
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KRX"))
-            
+
             # Baseline sentiment score with random/lexicon variation
             res = self.analyze_filing_text(sym, f"{name} 실적개선 수주계약 최고실적")
             score = float(np.clip(50.0 + res.sentiment_score * 40.0, 0.0, 100.0))

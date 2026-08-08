@@ -12,7 +12,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime, time
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from src.realtime.market_hours import is_krx_open, is_us_open, get_session
 from src.realtime.price_feed import RealtimeQuote, to_yfinance_symbol
 from src.realtime.state_store import RealtimeStateStore
-from src.realtime.intraday_monitor import IntradayMonitor, WatchItem, MonitorAction
+from src.realtime.intraday_monitor import IntradayMonitor, WatchItem
 from src.realtime.trade_executor import TradeExecutor
 
 

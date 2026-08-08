@@ -6,14 +6,12 @@ Unit tests for Milestone 2 (Worker M2):
 - Contiguous OHLCV & Date Contiguity (ffill)
 """
 
-import pytest
 import pandas as pd
 import numpy as np
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from trading_system.src.persistence.database import StockPriceDB, normalize_symbol
 from trading_system.src.data_layer.indicator_storage import _is_krx_symbol
-from trading_system.src.data_layer.data_validator import DataValidator
 from trading_system.run_pipeline import _KR_MARKET_SUFFIX, _fetch_data_fdr_network, fetch_data_fdr
 from trading_system.src.data_layer.market_data_handler import MarketDataHandler
 

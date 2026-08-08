@@ -8,9 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from run_pipeline import (
     _fetch_yf_primary,
-    _fetch_data_fdr_network,
-    prefetch_prices_batch,
-    is_empty_result
+    _fetch_data_fdr_network
 )
 from src.data_layer.market_data_handler import MarketDataHandler, CircuitBreakerOpenException
 

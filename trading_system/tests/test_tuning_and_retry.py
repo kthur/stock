@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.ai.prediction_model import OnDevicePredictionModel
 from src.ai.vcp_ml_predictor import VCPSurgePredictor
 from scripts.tune_models import tune_hyperparameters
-from run_pipeline import fetch_data_fdr, _download_indicator_network
+from run_pipeline import _download_indicator_network
 from src.data_layer.earnings_data import fetch_fundamentals
 from src.utils.rate_limiter import get_global_rate_limiter
 

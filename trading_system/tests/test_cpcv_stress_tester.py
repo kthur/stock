@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from trading_system.src.ai.cpcv_stress_tester import (
     CPCVStressTester,
     StressTestReport,

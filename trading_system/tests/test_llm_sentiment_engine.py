@@ -8,8 +8,6 @@ Unit tests for LLM/NLP Filing Sentiment Engine (Milestone 5).
 import os
 import tempfile
 import pytest
-import numpy as np
-import pandas as pd
 
 from trading_system.src.core.llm_sentiment_engine import (
     FilingSentimentMetrics,

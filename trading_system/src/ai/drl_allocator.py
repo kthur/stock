@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class DRLPortfolioAllocator:
         # Normalize sharpe values with softmax
         exp_s = np.exp(sharpe_vals - np.max(sharpe_vals))
         softmax_s = exp_s / np.sum(exp_s)
-        
+
         state_vec = np.concatenate(([float(regime_code), float(vix) / 100.0], softmax_s))
         return state_vec
 
@@ -52,11 +51,11 @@ class DRLPortfolioAllocator:
             rolling_sharpes = {}
 
         state_vec = self.compute_regime_features(regime_code, vix, rolling_sharpes)
-        
+
         # Policy Network simulation: Softmax transformation of state feature representations
         # Higher Sharpe strategies in low VIX regimes receive boost, high VIX regimes tilt to tail-risk / stat-arb
         policy_logits = state_vec[2:] # strategy softmax components
-        
+
         # Regime risk scaling
         if regime_code in (2, 5): # BEAR_HIGH_VOL or CRISIS
             # Boost Stat-Arb, Short-Term Reversal, and LATR Tail Risk weights

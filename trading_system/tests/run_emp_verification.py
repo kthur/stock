@@ -9,9 +9,8 @@ root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-import numpy as np
 import pandas as pd
-from trading_system.src.execution.slippage_feedback import SlippageFeedbackEngine, SlippageMetrics
+from trading_system.src.execution.slippage_feedback import SlippageMetrics
 from trading_system.src.ai.ensemble_scorer import EnsembleScoringEngine
 
 def main():

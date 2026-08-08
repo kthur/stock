@@ -15,8 +15,8 @@ import os
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from datetime import datetime
+from typing import Dict, Optional
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -84,11 +84,31 @@ class BOKECOSClient:
                 results[key] = df_ecos
                 logger.info("[BOKECOSClient] Fetched %s via BOK ECOS (%d rows)", meta["name"], len(df_ecos))
             else:
-                # Fallback to FDR for FRED or KRX ETF proxies
+                # Fallback to FDR or direct FRED CSV HTTP for FRED proxies
                 try:
                     import FinanceDataReader as fdr
                     fred_sym = "FRED:IRSTCI01KRM156N" if key in ("kr_base_rate", "cd_91d") else "FRED:IRLTLT01KRM156N"
-                    raw_fdr = fdr.DataReader(fred_sym, start=start_date)
+                    raw_fdr = None
+                    try:
+                        raw_fdr = fdr.DataReader(fred_sym, start=start_date)
+                    except Exception as fdr_err:
+                        logger.debug("[BOKECOSClient] FDR fetch failed for %s (%s): %s", key, fred_sym, fdr_err)
+                        # Direct HTTP FRED CSV Fallback
+                        import requests
+                        import io
+                        fred_id = fred_sym.split("FRED:", 1)[1]
+                        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                        url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={fred_id}"
+                        resp = requests.get(url, headers=headers, timeout=12)
+                        if resp.status_code == 200 and len(resp.text) > 20 and ',' in resp.text:
+                            csv_df = pd.read_csv(io.StringIO(resp.text))
+                            if len(csv_df.columns) >= 2:
+                                date_col, val_col = csv_df.columns[0], csv_df.columns[1]
+                                csv_df[date_col] = pd.to_datetime(csv_df[date_col], errors='coerce')
+                                csv_df = csv_df.dropna(subset=[date_col]).set_index(date_col)
+                                csv_df = csv_df[[val_col]].apply(pd.to_numeric, errors='coerce').dropna()
+                                raw_fdr = csv_df[csv_df.index >= pd.to_datetime(start_date)]
+
                     if raw_fdr is not None and not raw_fdr.empty:
                         c_col = raw_fdr.columns[0]
                         df_fb = pd.DataFrame({
@@ -96,7 +116,7 @@ class BOKECOSClient:
                             "Value": raw_fdr[c_col]
                         }).dropna().reset_index(drop=True)
                         results[key] = df_fb
-                        logger.info("[BOKECOSClient] %s fetched via FDR fallback (%d rows)", meta["name"], len(df_fb))
+                        logger.info("[BOKECOSClient] %s fetched via FRED fallback (%d rows)", meta["name"], len(df_fb))
                 except Exception as fb_e:
                     logger.warning("[BOKECOSClient] Fallback failed for %s: %s", key, fb_e)
 

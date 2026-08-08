@@ -1,7 +1,6 @@
 import sqlite3
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.data_layer.indicator_storage import MarketIndicatorStorage
 from src.core.sector_rotation import SectorRotationEngine

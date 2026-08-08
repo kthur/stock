@@ -4,7 +4,7 @@ test_data_validator.py — Unit tests for DataValidator module
 
 import unittest
 import pandas as pd
-from src.data_layer.data_validator import DataValidator, detect_shared_series_corruption, clean_macro_value, validate_price_data
+from src.data_layer.data_validator import DataValidator, detect_shared_series_corruption, clean_macro_value
 
 
 class TestDataValidator(unittest.TestCase):

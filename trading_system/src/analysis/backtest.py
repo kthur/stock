@@ -1649,7 +1649,7 @@ class BacktestEngine:
             np.random.seed(seed)
 
         cap = initial_capital if initial_capital is not None else getattr(self, "initial_capital", 1_000_000.0)
-        
+
         # Safely extract trade percentages, falling back to pnl / cap if pnl_pct is 0.0 or missing
         trade_pcts: List[float] = []
         for t in trades:

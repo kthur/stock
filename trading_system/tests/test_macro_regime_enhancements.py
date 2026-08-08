@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.analysis.regime_detector import MarketRegimeDetector
 from src.ai.ensemble_scorer import EnsembleScoringEngine

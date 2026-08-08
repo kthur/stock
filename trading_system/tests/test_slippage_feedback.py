@@ -2,11 +2,9 @@
 Unit Tests for Slippage Feedback Engine & Ensemble Microstructure Cost Integration
 """
 
-import os
 import sqlite3
 import datetime
 import pytest
-import numpy as np
 import pandas as pd
 
 from trading_system.src.execution.slippage_feedback import (

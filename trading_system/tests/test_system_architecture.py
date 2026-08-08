@@ -6,7 +6,6 @@ Tests FeatureDriftDetector, PreTradeRiskGatekeeper, and VectorizedFeatureEngine.
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from src.ai.drift_detector import FeatureDriftDetector
 from src.risk.pretrade_gatekeeper import PreTradeRiskGatekeeper, ProposedOrder

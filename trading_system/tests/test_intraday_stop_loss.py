@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.risk.intraday_stop_loss import IntradayStopLossEngine, StopLossResult
-from src.risk.risk_manager import RiskManager, CrisisLevel
+from src.risk.intraday_stop_loss import IntradayStopLossEngine
+from src.risk.risk_manager import RiskManager
 
 
 class TestIntradayStopLossEngine(unittest.TestCase):
