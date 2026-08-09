@@ -81,7 +81,7 @@ class BOKECOSClient:
                         recent_start = (datetime.now() - pd.Timedelta(days=30)).strftime("%Y%m%d" if cycle == "D" else "%Y%m")
                         url2 = f"https://ecos.bok.or.kr/api/StatisticSearch/{self.api_key}/json/kr/1/10/{stat_code}/{cycle}/{recent_start}/{end_str}/{item_code}"
                         req2 = urllib.request.Request(url2, headers={"User-Agent": "Mozilla/5.0"})
-                        with urllib.request.urlopen(req2, timeout=10) as resp2:
+                        with urllib.request.urlopen(req2, timeout=10) as resp2:  # nosec B310
                             data2 = json.loads(resp2.read().decode("utf-8"))
                         if "StatisticSearch" in data2 and "row" in data2["StatisticSearch"]:
                             rows = data2["StatisticSearch"]["row"]

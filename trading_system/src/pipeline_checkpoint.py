@@ -47,7 +47,7 @@ class PipelineCheckpoint:
             return None
         try:
             with open(file_path, "rb") as f:
-                data = pickle.load(f)
+                data = pickle.load(f)  # nosec B301 — self-generated local checkpoint, not untrusted input
             logger.info(f"[CHECKPOINT] Stage '{stage}' successfully restored from {file_path}")
             from typing import cast
             return cast(Optional[Dict[str, Any]], data)
