@@ -681,8 +681,8 @@ def _download_indicator_yf(ticker: str, start_date: str) -> pd.DataFrame:
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(2),
+    wait=wait_exponential(multiplier=1, min=1, max=4),
     retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)),
     reraise=False
 )
@@ -690,9 +690,35 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
     # Coordinate indicator fetch rate limiting
     get_global_rate_limiter().wait()
 
-    # Special path for FRED series or 6-digit KRX ETFs via FinanceDataReader
-    if ticker.startswith("FRED:") or (ticker.isdigit() and len(ticker) == 6):
+    # 1. Fast Path for FRED series (direct FRED HTTP CSV download - 0.3s response)
+    if ticker.startswith("FRED:"):
+        fred_id = ticker.split("FRED:", 1)[1]
         try:
+            import requests, io
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+            url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={fred_id}"
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200 and len(resp.text) > 20 and ',' in resp.text:
+                csv_df = pd.read_csv(io.StringIO(resp.text))
+                if len(csv_df.columns) >= 2:
+                    date_col, val_col = csv_df.columns[0], csv_df.columns[1]
+                    csv_df[date_col] = pd.to_datetime(csv_df[date_col], errors='coerce')
+                    csv_df = csv_df.dropna(subset=[date_col]).set_index(date_col)
+                    csv_df = csv_df[[val_col]].apply(pd.to_numeric, errors='coerce').dropna()
+                    csv_df.columns = ['Close']
+                    csv_df = csv_df[csv_df.index >= pd.to_datetime(start_date)]
+                    if not csv_df.empty:
+                        logger.info(f"Successfully retrieved FRED indicator {ticker} via direct FRED CSV")
+                        return csv_df
+        except Exception as fred_e:
+            logger.debug(f"Direct FRED CSV download failed for {ticker}: {fred_e}")
+
+    # 2. Path for KRX ETFs or FRED fallback via FinanceDataReader with strict 8s socket timeout
+    if ticker.startswith("FRED:") or (ticker.isdigit() and len(ticker) == 6):
+        import socket
+        old_timeout = socket.getdefaulttimeout()
+        try:
+            socket.setdefaulttimeout(8.0)
             raw = fdr.DataReader(ticker, start=start_date)
             if raw is not None and not raw.empty:
                 logger.info(f"Successfully retrieved indicator data for {ticker} via FDR")
@@ -700,35 +726,14 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
                 return raw
         except Exception as e:
             logger.warning(f"Direct FDR indicator download error for {ticker}: {e}")
+        finally:
+            socket.setdefaulttimeout(old_timeout)
 
-        # Secondary Direct FRED HTTP CSV fallback if ticker is FRED series and FDR connection was aborted/failed
         if ticker.startswith("FRED:"):
-            fred_id = ticker.split("FRED:", 1)[1]
-            try:
-                import requests, io
-                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-                url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={fred_id}"
-                resp = requests.get(url, headers=headers, timeout=12)
-                if resp.status_code == 200 and len(resp.text) > 20 and ',' in resp.text:
-                    csv_df = pd.read_csv(io.StringIO(resp.text))
-                    if len(csv_df.columns) >= 2:
-                        date_col, val_col = csv_df.columns[0], csv_df.columns[1]
-                        csv_df[date_col] = pd.to_datetime(csv_df[date_col], errors='coerce')
-                        csv_df = csv_df.dropna(subset=[date_col]).set_index(date_col)
-                        csv_df = csv_df[[val_col]].apply(pd.to_numeric, errors='coerce').dropna()
-                        csv_df.columns = ['Close']
-                        csv_df = csv_df[csv_df.index >= pd.to_datetime(start_date)]
-                        if not csv_df.empty:
-                            logger.info(f"Successfully retrieved FRED indicator {ticker} via direct FRED CSV fallback")
-                            return csv_df
-            except Exception as fred_e:
-                logger.debug(f"Direct FRED CSV download fallback failed for {ticker}: {fred_e}")
-
-            # FRED symbols are hosted exclusively on FRED and not Yahoo Finance.
-            # Prevent yfinance 404 errors by raising ValueError so @retry handles FDR retry.
-            raise ValueError(f"FRED indicator {ticker} download failed via FDR and direct HTTP")
+            raise ValueError(f"FRED indicator {ticker} download failed via direct FRED HTTP and FDR")
 
     # Tier 1: Primary provider (yfinance) with transient retry
+
     try:
         return _download_indicator_yf(ticker, start_date)
     except Exception as e:
