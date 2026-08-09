@@ -10,10 +10,12 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
+from .base_strategy import BaseStrategyEngine
+
 logger = logging.getLogger(__name__)
 
 
-class AccrualsQualityEngine:
+class AccrualsQualityEngine(BaseStrategyEngine):
     """
     Computes Accruals Quality Score [0.0, 1.0] for stocks.
     High Score = High Operating Cash Flow relative to Net Income (sustainable earnings).
@@ -22,6 +24,16 @@ class AccrualsQualityEngine:
 
     def __init__(self, config: Optional[Any] = None) -> None:
         self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs
+    ) -> pd.DataFrame:
+        symbols = list(prices_dict.keys()) if prices_dict else []
+        return self.calculate_scores(symbols, features_df=fundamentals_dict, prices_dict=prices_dict)
 
     def calculate_scores(
         self,

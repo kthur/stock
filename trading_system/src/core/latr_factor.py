@@ -2,10 +2,11 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import Dict
+from .base_strategy import BaseStrategyEngine
 
 logger = logging.getLogger(__name__)
 
-class LATRFactorEngine:
+class LATRFactorEngine(BaseStrategyEngine):
     """
     17. Liquidity-Adjusted Tail Risk Premium (LATR) Strategy Engine
 
@@ -15,7 +16,7 @@ class LATRFactorEngine:
     def __init__(self, lookback_window: int = 252):
         self.lookback_window = lookback_window
 
-    def compute_scores(self, prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, float]:
+    def compute_scores(self, prices_dict: Dict[str, pd.DataFrame], fundamentals_dict=None, indicators_df=None, **kwargs) -> Dict[str, float]:
         """
         Computes LATR factor scores in [0.0, 1.0] for all symbols.
         """
@@ -59,7 +60,8 @@ class LATRFactorEngine:
                 # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty + illiquidity premium
                 latr_score = (dd_score * 0.35) + (min(vol_surge, 3.0) * 0.35) - (abs(tail_risk) * 0.15) + (min(amihud_illiq, 2.0) * 0.15)
                 scores[sym] = float(latr_score)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[LATR FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
 
 

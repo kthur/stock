@@ -10,10 +10,12 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
+from .base_strategy import BaseStrategyEngine
+
 logger = logging.getLogger(__name__)
 
 
-class TrendEfficiencyEngine:
+class TrendEfficiencyEngine(BaseStrategyEngine):
     """
     Computes Trend Efficiency Score [0.0, 1.0] for stocks.
     High Score = Smooth, high-purity upward trend with high Kaufman Efficiency Ratio (KER) & low noise.
@@ -22,6 +24,16 @@ class TrendEfficiencyEngine:
 
     def __init__(self, config: Optional[Any] = None) -> None:
         self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs
+    ) -> pd.DataFrame:
+        symbols = list(prices_dict.keys()) if prices_dict else []
+        return self.calculate_scores(symbols, prices_dict=prices_dict, features_df=fundamentals_dict)
 
     def _compute_ker(self, series: pd.Series, window: int) -> float:
         """Calculates Kaufman Efficiency Ratio over window."""

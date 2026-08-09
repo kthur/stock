@@ -2,10 +2,11 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, Any
+from .base_strategy import BaseStrategyEngine
 
 logger = logging.getLogger(__name__)
 
-class CARDFactorEngine:
+class CARDFactorEngine(BaseStrategyEngine):
     """
     16. Cross-Asset Regime Divergence (CARD) Strategy Engine
 
@@ -98,7 +99,7 @@ class CARDFactorEngine:
                     card_score = 0.5
                 scores[sym] = float(card_score)
             except Exception as e:
-                logger.debug(f"[CARD FACTOR] Error computing score for {sym}: {e}")
+                logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
 
         return scores

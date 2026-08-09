@@ -997,11 +997,10 @@ class RiskManager:
 
     def update_portfolio_value(self, new_value: float):
         """포트폴리오 가치 업데이트"""
-        self.portfolio_value = new_value
-
-        # 최고값 업데이트
-        if new_value > self.peak_value:
-            self.peak_value = new_value
+        with self._lock:
+            self.portfolio_value = new_value
+            if new_value > self.peak_value:
+                self.peak_value = new_value
 
         self.logger.debug(f"Portfolio value updated: {new_value}")
 
@@ -1028,14 +1027,15 @@ class RiskManager:
 
     def calculate_drawdown(self, total_portfolio_value: Optional[float] = None) -> float:
         """현재 Drawdown 계산 (총 포트폴리오 가치 = 현금 + 오픈 포지션 평가액)"""
-        val = total_portfolio_value if (total_portfolio_value is not None and total_portfolio_value > 0) else self.portfolio_value
-        if val > self.peak_value:
-            self.peak_value = val
-        if self.peak_value == 0:
-            return 0.0
+        with self._lock:
+            val = total_portfolio_value if (total_portfolio_value is not None and total_portfolio_value > 0) else self.portfolio_value
+            if val > self.peak_value:
+                self.peak_value = val
+            if self.peak_value == 0:
+                return 0.0
 
-        drawdown = (self.peak_value - val) / self.peak_value
-        return drawdown
+            drawdown = (self.peak_value - val) / self.peak_value
+            return drawdown
 
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:
         """현재 위험 수준 계산 (drawdown + 포지션 집중도 + 상관관계 + 위기 모드)"""

@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Any, Optional
 
+from .base_strategy import BaseStrategyEngine
+
 logger = logging.getLogger(__name__)
 
 # Key customer-supplier value chain mappings (Symbol -> Lead Market Leaders)
@@ -31,7 +33,7 @@ LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
 }
 
 
-class SupplyChainEngine:
+class SupplyChainEngine(BaseStrategyEngine):
     """Strategy 19: Supply Chain Lead-Lag Momentum Engine.
 
     Calculates spillover momentum score (0% to 100%) for supplier stocks based on

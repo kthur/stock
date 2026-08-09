@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import Dict, Any
+from .base_strategy import BaseStrategyEngine
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
     except (ValueError, TypeError):
         return default
 
-class ARMFactorEngine:
+class ARMFactorEngine(BaseStrategyEngine):
     """
     15. Analyst Revision Momentum (ARM) Strategy Engine
 
@@ -25,7 +26,14 @@ class ARMFactorEngine:
     def __init__(self, lookback_days: int = 60):
         self.lookback_days = lookback_days
 
-    def compute_scores(self, fundamentals_dict: Dict[str, Dict[str, Any]], prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, float]:
+    def compute_scores(self, prices_dict: Any, fundamentals_dict: Any = None, indicators_df: Any = None, **kwargs) -> Dict[str, float]:
+        if isinstance(prices_dict, dict) and any(isinstance(v, dict) for v in prices_dict.values()):
+            return self._compute_scores_internal(prices_dict, fundamentals_dict or {})
+        fund = fundamentals_dict if isinstance(fundamentals_dict, dict) else {}
+        prc = prices_dict if isinstance(prices_dict, dict) else {}
+        return self._compute_scores_internal(fund, prc)
+
+    def _compute_scores_internal(self, fundamentals_dict: Dict[str, Dict[str, Any]], prices_dict: Dict[str, pd.DataFrame]) -> Dict[str, float]:
         """
         Computes ARM factor scores in [0.0, 1.0] for all symbols.
         """

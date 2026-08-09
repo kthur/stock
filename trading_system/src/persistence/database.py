@@ -446,6 +446,7 @@ class StockPriceDB:
                 PRIMARY KEY (symbol, date)
             )
         """)
+        conn.execute("DROP INDEX IF EXISTS idx_stock_prices_symbol_date")
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_stock_prices_date_symbol
             ON stock_prices(date, symbol)

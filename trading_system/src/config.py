@@ -343,6 +343,14 @@ class TradingConfig:
             raise ValueError(f"initial_cash must be positive: {self.initial_cash}")
         if self.max_retries < 0:
             raise ValueError(f"max_retries must be non-negative: {self.max_retries}")
+        if self.min_daily_volume_krx < 0:
+            logger.warning(f"min_daily_volume_krx should be non-negative: {self.min_daily_volume_krx}")
+        if self.min_daily_volume_sp500 < 0:
+            logger.warning(f"min_daily_volume_sp500 should be non-negative: {self.min_daily_volume_sp500}")
+        if not (0 <= self.sentiment_risk_threshold <= 1):
+            logger.warning(f"sentiment_risk_threshold should be between 0 and 1: {self.sentiment_risk_threshold}")
+        if self.portfolio_capital_krw <= 0:
+            logger.warning(f"portfolio_capital_krw should be positive: {self.portfolio_capital_krw}")
         if self.telegram_bot_token and not self.telegram_authorized_user_ids:
             logger.warning("TELEGRAM_BOT_TOKEN set but TELEGRAM_AUTHORIZED_USER_IDS empty")
         if self.openai_api_key:
