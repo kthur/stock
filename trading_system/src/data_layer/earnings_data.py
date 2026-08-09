@@ -287,10 +287,8 @@ def fetch_and_store_fundamentals_batch(
                 async with sem:
                     market = symbol_market_map.get(sym, 'SP500')
                     df_fun = await async_fetch_fundamentals(sym, market, session=shared_session)
-                    if df_fun is None:
-                        loop = asyncio.get_running_loop()
-                        df_fun = await loop.run_in_executor(None, fetch_fundamentals, sym, market)
                     return sym, df_fun
+
 
             tasks = [_fetch_task(sym) for sym in to_fetch]
             total_fetch = len(to_fetch)

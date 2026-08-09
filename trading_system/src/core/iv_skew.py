@@ -89,15 +89,8 @@ class IVSkewEngine:
 
         def _evaluate_one(sym: str):
             score = 0.5
-            # Try options chain via yfinance for US tickers (non-numeric symbols without dot)
-            if not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym:
-                try:
-                    score = self.compute_skew_for_ticker(sym)
-                except Exception:
-                    score = 0.5
-
-            # Fallback for KRX or non-optionable stocks: calculate downside vs upside vol skew from price history
-            if (score == 0.5 or sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9'))) and prices_dict and sym in prices_dict:
+            # 1. Fast in-memory realized price volatility & return skewness proxy (0 network calls)
+            if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 20:
                     try:
@@ -116,16 +109,24 @@ class IVSkewEngine:
                             if np.isnan(up_vol) or up_vol <= 0:
                                 up_vol = 0.01
                             skew_ratio = down_vol / up_vol
-                            # H-4 Fix: Combine realized volatility asymmetry with 20-day return skewness
-                            # to decouple IV Skew proxy from pure Short-Term Reversal
                             ret_skew = float(ret.tail(20).skew()) if len(ret) >= 20 else 0.0
                             if np.isnan(ret_skew):
                                 ret_skew = 0.0
-                            realized_score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15, 0.0, 1.0))
-                            score = realized_score if score == 0.5 else score
+                            score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15, 0.0, 1.0))
                     except Exception:
                         score = 0.5
+
+            # 2. Optional live options chain lookup for US tickers only if explicitly enabled
+            if score == 0.5 and not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym:
+                try:
+                    import os
+                    if os.getenv("ENABLE_LIVE_OPTIONS_FETCH", "false").lower() == "true":
+                        score = self.compute_skew_for_ticker(sym)
+                except Exception:
+                    pass
+
             return sym, score
+
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(_evaluate_one, sym): sym for sym in symbols}
