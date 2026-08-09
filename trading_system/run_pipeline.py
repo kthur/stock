@@ -979,8 +979,10 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
 def _market_symbols(universe: pd.DataFrame) -> dict:
     """Return dict of {market: set(symbols)} for all known markets."""
     markets = {}
+    if universe is not None and not universe.empty and 'market' not in universe.columns:
+        universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
     for m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
-        markets[m] = set(universe[universe['market'] == m]['symbol'])
+        markets[m] = set(universe[universe['market'] == m]['symbol']) if universe is not None and not universe.empty else set()
     return markets
 
 def _fmt_top(df: pd.DataFrame, horizon: int, symbol_to_name: dict, symbol_to_market: dict, count: int = 10) -> list:
@@ -1088,6 +1090,7 @@ def execute_prediction_pipeline():
 
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
+    storage = MarketIndicatorStorage(db_path=cfg.db_path)
     try:
         market_client = GlobalMarketClient()
         market_summary = market_client.get_summary()
@@ -1097,7 +1100,6 @@ def execute_prediction_pipeline():
 
     # 3. Store indicators
     date_str = datetime.now().strftime('%Y-%m-%d')
-    storage = MarketIndicatorStorage(db_path=cfg.db_path)
     with storage.pipeline_stage("global_indicators"):
         storage.save_indicators(market_summary, date_str)
     logger.info("Saved market indicators to database.")
@@ -1109,6 +1111,8 @@ def execute_prediction_pipeline():
         storage.update_stock_universe()
         universe = storage.get_universe()
     logger.info(f"Loaded {len(universe)} symbols from universe.")
+    if 'market' not in universe.columns:
+        universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
 
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))
@@ -2845,7 +2849,7 @@ def execute_prediction_pipeline():
         from src.core.accruals_quality import AccrualsQualityEngine
         aq_engine = AccrualsQualityEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        accruals_quality_df = aq_engine.calculate_scores([s['symbol'] for s in universe], features_df=_fund_input, prices_dict=infer_data_dict)
+        accruals_quality_df = aq_engine.calculate_scores(universe['symbol'].tolist(), features_df=_fund_input, prices_dict=infer_data_dict)
     except Exception as _aq_e:
         logger.warning(f"Accruals quality strategy computation failed: {_aq_e}")
         accruals_quality_df = pd.DataFrame()
@@ -2855,7 +2859,7 @@ def execute_prediction_pipeline():
         from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
         sq_engine = ShortInterestSqueezeEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        short_squeeze_df = sq_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=_fund_input)
+        short_squeeze_df = sq_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict, features_df=_fund_input)
     except Exception as _sq_e:
         logger.warning(f"Short squeeze strategy computation failed: {_sq_e}")
         short_squeeze_df = pd.DataFrame()
@@ -2865,7 +2869,7 @@ def execute_prediction_pipeline():
         from src.core.valueup_catalyst import ValueUpCatalystEngine
         vu_engine = ValueUpCatalystEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        valueup_catalyst_df = vu_engine.calculate_scores([s['symbol'] for s in universe], features_df=_fund_input, prices_dict=infer_data_dict)
+        valueup_catalyst_df = vu_engine.calculate_scores(universe['symbol'].tolist(), features_df=_fund_input, prices_dict=infer_data_dict)
     except Exception as _vu_e:
         logger.warning(f"Value-Up catalyst strategy computation failed: {_vu_e}")
         valueup_catalyst_df = pd.DataFrame()
@@ -2875,7 +2879,7 @@ def execute_prediction_pipeline():
         from src.core.trend_efficiency import TrendEfficiencyEngine
         te_engine = TrendEfficiencyEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
-        trend_efficiency_df = te_engine.calculate_scores([s['symbol'] for s in universe], prices_dict=infer_data_dict, features_df=_fund_input)
+        trend_efficiency_df = te_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict, features_df=_fund_input)
     except Exception as _te_e:
         logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
         trend_efficiency_df = pd.DataFrame()
@@ -3339,6 +3343,10 @@ def execute_prediction_pipeline():
     ensemble_clean = ensemble_df.drop(columns=cols_to_drop) if cols_to_drop else ensemble_df
     univ_cols = ['symbol'] + target_cols
     ensemble_df_merged = ensemble_clean.merge(universe[univ_cols], on='symbol', how='left')
+    if 'market' not in ensemble_df_merged.columns:
+        ensemble_df_merged['market'] = ensemble_df_merged['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
+    if 'name' not in ensemble_df_merged.columns:
+        ensemble_df_merged['name'] = ensemble_df_merged['symbol']
 
     # ── Execution OMS Order Plan Generation & DB Logging ──
     try:
@@ -3561,7 +3569,14 @@ def execute_prediction_pipeline():
     alloc_df = allocator.allocate(ensemble_for_alloc, infer_data_dict, total_portfolio_value=cfg.portfolio_capital_krw, use_hrp=True, regime=current_2d_regime)
 
     if not alloc_df.empty:
-        alloc_df = alloc_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
+        cols_to_drop = [c for c in ['name', 'market'] if c in alloc_df.columns]
+        alloc_df_clean = alloc_df.drop(columns=cols_to_drop) if cols_to_drop else alloc_df
+        target_cols = [c for c in ['name', 'market'] if c in universe.columns]
+        alloc_df = alloc_df_clean.merge(universe[['symbol'] + target_cols], on='symbol', how='left')
+        if 'market' not in alloc_df.columns:
+            alloc_df['market'] = alloc_df['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
+        if 'name' not in alloc_df.columns:
+            alloc_df['name'] = alloc_df['symbol']
         alloc_output_path = os.path.join(result_dir, "portfolio_allocation.txt")
         with open(alloc_output_path, "w", encoding="utf-8") as f:
             f.write("=== Portfolio Allocation Recommendations (Ensemble Kelly/Sharpe Optimized) ===\n")

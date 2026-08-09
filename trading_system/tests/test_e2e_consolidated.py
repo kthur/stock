@@ -86,6 +86,8 @@ class TestE2EConsolidated(unittest.TestCase):
                     pass
 
     def setUp(self):
+        self.price_storage = self.__class__.price_storage
+        self.indicator_storage = self.__class__.indicator_storage
         # Create temp folder for models
         self.tmp_model_dir = tempfile.mkdtemp()
         self.model = OnDevicePredictionModel(model_dir=self.tmp_model_dir)

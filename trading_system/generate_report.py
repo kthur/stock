@@ -1011,7 +1011,7 @@ def build_html(
             <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
-            <th title="23대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="27대 다변화 전략 종합 앙상블 스코어">앙상블</th>
             <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
             <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
             <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
@@ -1836,7 +1836,7 @@ def build_html(
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- 18대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
+<!-- 27대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
@@ -1892,20 +1892,20 @@ def build_html(
 </div>
 
 <nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
-  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 23대 앙상블 TOP 종목</button>
+  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 27대 앙상블 TOP 종목</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
-  <!-- ══ 23대 앙상블 TOP 종목 Tab Panel ══ -->
+  <!-- ══ 27대 앙상블 TOP 종목 Tab Panel ══ -->
   <div class="tab-panel active" id="panel-ensemble">
     <div class="row1-wrapper">
       <!-- 좌: 전략 사이드바 -->
       <div class="strategy-sidebar">
         <div class="weights-section">
-          <div class="weights-title">⚙️ 전략 가중치 (23 Strategies)</div>
+          <div class="weights-title">⚙️ 전략 가중치 (27 Strategies)</div>
           {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
         </div>
         {rationale_html}
@@ -1978,7 +1978,7 @@ def build_html(
   <!-- ══ Backtest Tab Panel ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 23대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 27대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5;">
         📌 <strong>검증 방식</strong>: 매일 저장된 앙상블 예측의 실현 수익률(outcome) 기반 실적 측정 (20d Holding)<br>
         {backtest_note_html}

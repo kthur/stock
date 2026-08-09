@@ -159,11 +159,37 @@ class MicrostructureImbalanceEngine:
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KRX"))
 
-            # Synthetic microstructure bid-ask imbalance & volume delta proxy
-            bid_ask_imbalance = np.random.uniform(-0.5, +0.5)
-            auction_volume_accel = np.random.uniform(0.8, 2.5)
+            # Real microstructure proxy calculated deterministically from OHLCV data
+            df_sym = None
+            if isinstance(df_prices, dict):
+                df_sym = df_prices.get(sym)
+            elif isinstance(df_prices, pd.DataFrame) and not df_prices.empty:
+                if "symbol" in df_prices.columns:
+                    df_sym = df_prices[df_prices["symbol"] == sym]
 
-            score = float(np.clip(50.0 + bid_ask_imbalance * 40.0 + (auction_volume_accel - 1.0) * 20.0, 0.0, 100.0))
+            if df_sym is not None and isinstance(df_sym, pd.DataFrame) and len(df_sym) >= 3:
+                recent = df_sym.iloc[-1]
+                high = float(recent.get("high", recent.get("High", 1.0)))
+                low = float(recent.get("low", recent.get("Low", 1.0)))
+                close = float(recent.get("close", recent.get("Close", 1.0)))
+                volume = float(recent.get("volume", recent.get("Volume", 1.0)))
+
+                bar_range = max(1e-6, high - low)
+                close_location = (close - low) / bar_range  # 0.0 to 1.0
+                bid_ask_imbalance = (close_location - 0.5) * 2.0  # -1.0 to +1.0
+
+                vol_col = "volume" if "volume" in df_sym.columns else ("Volume" if "Volume" in df_sym.columns else None)
+                if vol_col and len(df_sym) >= 5:
+                    vols = df_sym[vol_col].tail(5).astype(float)
+                    vol_sma5 = max(1.0, float(vols.mean()))
+                    auction_volume_accel = float(np.clip(volume / vol_sma5, 0.5, 3.0))
+                else:
+                    auction_volume_accel = 1.0
+            else:
+                bid_ask_imbalance = 0.0
+                auction_volume_accel = 1.0
+
+            score = float(np.clip(50.0 + bid_ask_imbalance * 30.0 + (auction_volume_accel - 1.0) * 15.0, 0.0, 100.0))
 
             results.append({
                 "symbol": sym,
@@ -171,6 +197,7 @@ class MicrostructureImbalanceEngine:
                 "market": mkt,
                 "microstructure_score": round(score, 2),
             })
+
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:

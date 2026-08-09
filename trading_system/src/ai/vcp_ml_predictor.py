@@ -489,11 +489,18 @@ class VCPSurgePredictor:
     def predict(self, prices_dict: Dict[str, pd.DataFrame],
                 indicator_df: pd.DataFrame = None,
                 universe: pd.DataFrame = None) -> pd.DataFrame:
+        # Disambiguate if universe was passed as 2nd positional argument (indicator_df)
+        if universe is None and indicator_df is not None and isinstance(indicator_df, pd.DataFrame) and 'symbol' in indicator_df.columns and 'vix' not in indicator_df.columns:
+            universe = indicator_df
+            indicator_df = None
+
         has_models = bool(self.models or self.lgb_models or self.cat_models)
         if not has_models:
-            logger.info("No VCP ML models loaded on disk. Using rule-based VCP heuristics for VCP ML predictions.")
+            logger.info("No VCP ML models loaded on disk. Returning empty predictions.")
+            return pd.DataFrame()
 
         from src.ai.prediction_model import case_insensitive_get
+
 
         syms, markets, feats = self._batch_features_with_vcp(prices_dict, indicator_df, universe)
         if not feats:

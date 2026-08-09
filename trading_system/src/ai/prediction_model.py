@@ -1011,6 +1011,9 @@ class OnDevicePredictionModel:
             except Exception:
                 pass
         before = len(df_copy)
+        overlap_cols = [c for c in ind_copy.columns if c in df_copy.columns]
+        if overlap_cols:
+            ind_copy = ind_copy.drop(columns=overlap_cols)
         df_merged = df_copy.join(ind_copy, how='left')
         if len(df_merged) > before:
             df_merged = df_merged.iloc[:before]
@@ -1417,7 +1420,11 @@ class OnDevicePredictionModel:
         Each fold's MSE is averaged to derive stable ensemble weights.
         The final model is retrained on the full dataset to maximise data usage.
         """
-        from src.ai.lstm_predictor import LSTMPredictor
+        try:
+            from src.ai.lstm_predictor import LSTMPredictor
+            _has_lstm = True
+        except Exception:
+            _has_lstm = False
         from sklearn.model_selection import TimeSeriesSplit
         from sklearn.metrics import mean_squared_error, mean_absolute_error
 
@@ -1616,18 +1623,22 @@ class OnDevicePredictionModel:
 
             mse_lstm = 1e6
             mae_lstm = 1e6
-            lstm_predictor = LSTMPredictor(sequence_length=20, epochs=5)
-            X_lstm_all, y_lstm_all, df_lstm_idx = self._prepare_lstm_data(
-                df_train, f'target_{h}d', seq_len=20
-            )
-            if len(X_lstm_all) >= 10:
-                lstm_predictor.train_model(X_lstm_all, y_lstm_all)
-                self.lstm_models[market][h] = lstm_predictor
-                pred_lstm = lstm_predictor.predict(X_lstm_all)
-                y_lstm_clean = np.nan_to_num(y_lstm_all, nan=0.0, posinf=0.0, neginf=0.0)
-                pred_lstm_clean = np.nan_to_num(pred_lstm, nan=0.0, posinf=0.0, neginf=0.0)
-                mse_lstm = float(mean_squared_error(y_lstm_clean, pred_lstm_clean))
-                mae_lstm = float(mean_absolute_error(y_lstm_clean, pred_lstm_clean))
+            if _has_lstm:
+                try:
+                    lstm_predictor = LSTMPredictor(sequence_length=20, epochs=5)
+                    X_lstm_all, y_lstm_all, df_lstm_idx = self._prepare_lstm_data(
+                        df_train, f'target_{h}d', seq_len=20
+                    )
+                    if len(X_lstm_all) >= 10:
+                        lstm_predictor.train_model(X_lstm_all, y_lstm_all)
+                        self.lstm_models[market][h] = lstm_predictor
+                        pred_lstm = lstm_predictor.predict(X_lstm_all)
+                        y_lstm_clean = np.nan_to_num(y_lstm_all, nan=0.0, posinf=0.0, neginf=0.0)
+                        pred_lstm_clean = np.nan_to_num(pred_lstm, nan=0.0, posinf=0.0, neginf=0.0)
+                        mse_lstm = float(mean_squared_error(y_lstm_clean, pred_lstm_clean))
+                        mae_lstm = float(mean_absolute_error(y_lstm_clean, pred_lstm_clean))
+                except Exception as _l_err:
+                    logger.warning(f"LSTM training skipped for {market} {h}d: {_l_err}")
 
             # ── Ensemble weights from walk-forward averaged MSE ─────────────
             use_lstm = mse_lstm < 1e5
@@ -2387,7 +2398,13 @@ class OnDevicePredictionModel:
                                 logger.warning(f"XGB surge predict error for {mkt} {h}d: {e}")
                         if lgb_m is not None:
                             try:
-                                preds.append(lgb_m.predict_proba(_align_surge(lgb_m, X_mkt))[:, 1])
+                                if hasattr(lgb_m, 'predict_proba'):
+                                    lgb_p = lgb_m.predict_proba(_align_surge(lgb_m, X_mkt))[:, 1]
+                                else:
+                                    lgb_p = lgb_m.predict(_align_surge(lgb_m, X_mkt))
+                                    if getattr(lgb_p, 'ndim', 1) > 1 and lgb_p.shape[1] > 1:
+                                        lgb_p = lgb_p[:, 1]
+                                preds.append(lgb_p)
                                 weights.append(w_lgb_val)
                             except Exception as e:
                                 logger.warning(f"LGB surge predict error for {mkt} {h}d: {e}")

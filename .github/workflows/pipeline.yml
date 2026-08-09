@@ -36,6 +36,7 @@ jobs:
           uv venv --python 3.12 .venv
           # Use lockfile for deterministic, idempotent builds (P2: 3.3)
           uv pip sync trading_system/requirements.lock
+          uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Get current date
         id: date

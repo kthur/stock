@@ -510,6 +510,10 @@ class EnsembleScoringEngine:
             try:
                 s = np.asarray(scores, dtype=float)
                 y = np.asarray(true_labels, dtype=float)
+                if len(s) != len(y):
+                    min_len = min(len(s), len(y))
+                    s = s[:min_len]
+                    y = y[:min_len]
                 mask = np.isfinite(s) & np.isfinite(y)
                 n_samples = mask.sum()
                 if n_samples < 20:
@@ -1624,7 +1628,10 @@ class EnsembleScoringEngine:
                 impact_coeff = impact_coeff_krx
 
             min_adv = 10_000.0 if is_us_stock else 10_000_000.0
-            adv = max(turnover, min_adv)
+            if turnover > 0:
+                adv = max(turnover, min_adv)
+            else:
+                adv = adv_ref  # Default to benchmark liquid ADV when turnover data is missing
 
             # 1. Dynamic Bid-Ask Spread Modeling
             adv_ratio = adv_ref / adv
@@ -1640,13 +1647,13 @@ class EnsembleScoringEngine:
             else:
                 impact_one_way = impact_coeff * volatility * (participation_ratio ** impact_alpha)
 
-            # 3. Participation Rate Overflow Penalty (> 10% ADV)
+            # 3. Participation Rate Overflow Penalty (> 10% ADV) with safety cap
             if participation_ratio > 0.10:
-                impact_one_way += 0.50 * (participation_ratio - 0.10)
+                impact_one_way += min(0.50 * (participation_ratio - 0.10), 0.03)
 
             raw_total_cost = stt_tax + brokerage_fee + (1.0 * clamped_spread) + (2.0 * impact_one_way)
             cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
-            total_cost_pct = raw_total_cost * cost_scaling
+            total_cost_pct = min(raw_total_cost * cost_scaling, 0.05)  # Cap total friction at 5.0% max
             return float(total_cost_pct)
 
         cost_series = merged.apply(_get_cost_pct, axis=1)

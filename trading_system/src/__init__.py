@@ -62,7 +62,14 @@ if "torch" not in sys.modules:
         sys.modules["torch"] = mock_torch
         sys.modules["torch.cuda"] = mock_cuda
 
-        mock_nn = types.ModuleType("torch.nn")
+        class DummyOptimizer:
+            def __init__(self, *args, **kwargs):
+                pass
+            def zero_grad(self, *args, **kwargs):
+                pass
+            def step(self, *args, **kwargs):
+                pass
+
         class DummyModule:
             def __init__(self, *args, **kwargs):
                 pass
@@ -82,19 +89,32 @@ if "torch" not in sys.modules:
                 return self
             def train(self, *args, **kwargs):
                 return self
+            def backward(self, *args, **kwargs):
+                pass
+
         mock_nn.Module = DummyModule
         mock_nn.Sequential = DummyModule
         mock_nn.Linear = DummyModule
         mock_nn.ReLU = DummyModule
         mock_nn.LSTM = DummyModule
-        mock_nn.MSELoss = DummyModule
+        
+        class DummyLoss(DummyModule):
+            def __call__(self, *args, **kwargs):
+                return self
+            def backward(self, *args, **kwargs):
+                pass
+            def item(self):
+                return 0.0
+
+        mock_nn.MSELoss = DummyLoss
         mock_torch.nn = mock_nn
         sys.modules["torch.nn"] = mock_nn
 
         mock_optim = types.ModuleType("torch.optim")
-        mock_optim.Adam = DummyModule
+        mock_optim.Adam = DummyOptimizer
         mock_torch.optim = mock_optim
         sys.modules["torch.optim"] = mock_optim
+
 
         mock_sb3 = types.ModuleType("stable_baselines3")
         class DummyPPO:
