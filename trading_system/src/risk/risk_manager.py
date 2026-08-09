@@ -96,6 +96,22 @@ class CrisisDetector:
         self._days_since_crisis_ended = 0
         self._recovery_days = 0
 
+    def get_target_cash_ratio(self) -> float:
+        """
+        Returns dynamic portfolio target cash allocation ratio based on CrisisLevel.
+        - NONE: 0.0 (0% Cash)
+        - WATCH: 0.15 (15% Cash)
+        - ACTIVE: 0.35 (35% Cash)
+        - SEVERE: 0.50 (50% Cash)
+        """
+        if self.crisis_level == CrisisLevel.SEVERE:
+            return 0.50
+        elif self.crisis_level == CrisisLevel.ACTIVE:
+            return 0.35
+        elif self.crisis_level == CrisisLevel.WATCH:
+            return 0.15
+        return 0.0
+
     def save_state(self, file_path: str = "models/crisis_state.json") -> None:
         """Persist CrisisDetector state and indicator histories to JSON file."""
         try:

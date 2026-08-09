@@ -1842,7 +1842,7 @@ def build_html(
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
     <div class="strat-guide-header" onclick="toggleStratGuide()">
-      <div class="strat-guide-title">📖 27대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
+      <div class="strat-guide-title">📖 31대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
       <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold;">▼ 보기</span>
     </div>
     <div id="strat-guide-body" style="display: none;">
@@ -1979,7 +1979,7 @@ def build_html(
   <!-- ══ Backtest Tab Panel ══ -->
   <div class="tab-panel" id="panel-backtest">
     <div class="weights-section">
-      <div class="weights-title">📊 27대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
+      <div class="weights-title">📊 31대 전략 롤링 백테스트 성과 (Sharpe &amp; MDD)</div>
       <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5;">
         📌 <strong>검증 방식</strong>: 매일 저장된 앙상블 예측의 실현 수익률(outcome) 기반 실적 측정 (20d Holding)<br>
         {backtest_note_html}

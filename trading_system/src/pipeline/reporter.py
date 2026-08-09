@@ -33,11 +33,14 @@ class PipelineReporter:
 
         date_kst = datetime.now().strftime("%Y-%m-%d %H:%M KST")
 
+        from src.core.strategy_registry import get_registry
+        strat_cnt = get_registry().get_strategy_count() or 31
+
         # 1. Ensemble Predictions Output
         ens_file = output_dir / f"ensemble_predictions_{market_label}.txt" if market_label != "ALL" else output_dir / "ensemble_predictions.txt"
         try:
             with open(ens_file, "w", encoding="utf-8") as f:
-                f.write(f"=== 30-Strategy Dynamic Ensemble Predictions ({market_label}) ===\n")
+                f.write(f"=== {strat_cnt}-Strategy Dynamic Ensemble Predictions ({market_label}) ===\n")
                 f.write(f"Generated: {date_kst}\n\n")
                 if ensemble_df is not None and not ensemble_df.empty:
                     top_picks = ensemble_df.head(20)

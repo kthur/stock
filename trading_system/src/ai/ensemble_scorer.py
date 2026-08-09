@@ -667,6 +667,67 @@ class EnsembleScoringEngine:
             return {k: 1.0 / n for k in res} if n > 0 else res
         return {k: v / total for k, v in res.items()}
 
+    def apply_correlation_orthogonalization_penalty(
+        self,
+        weights: Dict[str, float],
+        scores_df: Optional[pd.DataFrame] = None,
+        correlation_threshold: float = 0.65,
+        penalty_factor: float = 0.5,
+    ) -> Dict[str, float]:
+        """
+        Calculates pairwise strategy score correlation matrix and applies Gram-Schmidt-style
+        orthogonalization penalty for highly collinear strategy pairs (r > threshold).
+        """
+        if scores_df is None or (isinstance(scores_df, pd.DataFrame) and scores_df.empty) or len(weights) <= 1:
+            return weights
+
+        from src.core.strategy_registry import get_registry
+        reg = get_registry()
+        score_cols = reg.get_all_score_columns()
+
+        valid_cols = {
+            sid: col for sid, col in score_cols.items()
+            if col in scores_df.columns and sid in weights and weights.get(sid, 0.0) > 0
+        }
+        if len(valid_cols) < 2:
+            return weights
+
+        try:
+            subset_df = scores_df[list(valid_cols.values())].apply(pd.to_numeric, errors='coerce').dropna()
+            if len(subset_df) < 10:
+                return weights
+
+            corr_matrix = subset_df.corr().abs()
+            col_to_sid = {v: k for k, v in valid_cols.items()}
+
+            penalized_weights = dict(weights)
+            for col1 in corr_matrix.columns:
+                sid1 = col_to_sid.get(col1)
+                if not sid1 or penalized_weights.get(sid1, 0.0) == 0.0:
+                    continue
+
+                for col2 in corr_matrix.columns:
+                    if col1 >= col2:
+                        continue
+                    sid2 = col_to_sid.get(col2)
+                    if not sid2 or penalized_weights.get(sid2, 0.0) == 0.0:
+                        continue
+
+                    r_val = float(corr_matrix.loc[col1, col2])
+                    if pd.notna(r_val) and r_val > correlation_threshold:
+                        if penalized_weights[sid1] < penalized_weights[sid2]:
+                            penalized_weights[sid1] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
+                        else:
+                            penalized_weights[sid2] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
+
+            total = sum(penalized_weights.values())
+            if total > 0:
+                penalized_weights = {k: v / total for k, v in penalized_weights.items()}
+            return penalized_weights
+        except Exception as e:
+            logger.warning(f"[EnsembleScorer] Correlation penalty calculation failed: {e}")
+            return weights
+
     def compute_dynamic_weights_from_sharpe(self, rolling_sharpes: Dict[str, float],
                                             regime: Union[int, str],
                                             gamma: float = 1.0,
@@ -875,6 +936,14 @@ class EnsembleScoringEngine:
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
         weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
+
+        # Apply Strategy Correlation Orthogonalization Penalty
+        weights = self.apply_correlation_orthogonalization_penalty(
+            weights,
+            scores_df=regression_df if isinstance(regression_df, pd.DataFrame) else None,
+            correlation_threshold=0.65,
+            penalty_factor=0.5,
+        )
         return self.combine_predictions(
             reg_df=regression_df,
             s_df=surge_df,

@@ -200,19 +200,17 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 bid_ask_imbalance = 0.0
                 auction_volume_accel = 1.0
 
-            # Score normalized to [0.0, 1.0] scale
-            score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15, 0.0, 1.0))
+            # Score normalized to [0.0, 1.0] scale with transaction friction penalty
+            cost_penalty = 0.04
+            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 - cost_penalty, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "microstructure_score": round(score, 4),
+                "microstructure_score": net_score,
+                "overnight_gap_edge": round(bid_ask_imbalance * 2.5, 4),
+                "estimated_friction": 0.0050,
             })
 
-
-        res_df = pd.DataFrame(results)
-        if not res_df.empty:
-            res_df = res_df.sort_values(by="microstructure_score", ascending=False).reset_index(drop=True)
-        return res_df
-
+        return pd.DataFrame(results)
