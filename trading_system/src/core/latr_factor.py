@@ -48,15 +48,20 @@ class LATRFactorEngine:
                 daily_rets = close.pct_change().tail(window).dropna()
                 tail_risk = float(np.percentile(daily_rets, 5)) if len(daily_rets) >= 20 else -0.03
 
+                # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price))
+                dollar_vol = (vol.tail(20) * close.tail(20)).replace(0, 1.0)
+                amihud_illiq = float((daily_rets.abs().tail(20) / dollar_vol).mean() * 1e6)
+
                 # H-2 Fix: Gaussian scoring centered at optimal 35% drawdown for panic bounce opportunity
                 # Extreme 90% distress crash is penalized, while zero drawdown receives neutral score.
                 dd_score = float(np.exp(-((dd_pct - 0.35) ** 2) / (2.0 * (0.15 ** 2))))
 
-                # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty
-                latr_score = (dd_score * 0.4) + (min(vol_surge, 3.0) * 0.4) - (abs(tail_risk) * 0.2)
+                # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty + illiquidity premium
+                latr_score = (dd_score * 0.35) + (min(vol_surge, 3.0) * 0.35) - (abs(tail_risk) * 0.15) + (min(amihud_illiq, 2.0) * 0.15)
                 scores[sym] = float(latr_score)
             except Exception:
                 scores[sym] = 0.5
+
 
         if not scores:
             return {}

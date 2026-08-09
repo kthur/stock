@@ -62,9 +62,13 @@ class VolTargetingEngine:
         else:
             return pd.DataFrame(columns=["symbol", "name", "market", "vol_target_score"])
 
-        # Compute 20-day daily returns and realized annualized volatility
-        daily_returns = close_pivot.pct_change(1).iloc[-20:]
-        realized_vol = daily_returns.std() * np.sqrt(252)
+        # Compute EWMA conditional annualized volatility (RiskMetrics lambda=0.94 / span=20)
+        daily_returns = close_pivot.pct_change(1).tail(60)
+        weights = np.exp(-np.arange(len(daily_returns))[::-1] / 20.0)
+        weights /= weights.sum()
+        ewma_var = (daily_returns**2).apply(lambda col: np.sum(weights * col.fillna(0.0)))
+        realized_vol = np.sqrt(ewma_var * 252)
+
 
         for _, row in universe.iterrows():
             sym = str(row["symbol"]).strip()

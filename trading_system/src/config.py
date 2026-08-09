@@ -23,18 +23,19 @@ class TradingConfig:
     mock_trading: bool = True  # 모의투자 API 연동 활성화 여부
     broker_type: str = "KIS"
     db_path: str = "market_indicators.db"
-    train_sample_sp500: str = "50"
-    train_sample_krx: str = "50"
+    train_sample_sp500: int = 50
+    train_sample_krx: int = 50
     train_start_date: str = "2023-01-01"
-    train_seed: str = "42"
-    stock_price_freshness_days: str = "7"
-    update_interval: str = "0"
+    train_seed: int = 42
+    stock_price_freshness_days: int = 7
+    update_interval: int = 0
     skip_training: bool = False
     skip_inference: bool = False
     fundamental_cache_expiry_days: int = 90
 
-    # 백테스트 기간 설정 (숫자=년, "all"=전체)
-    backtest_years: str = "5"
+    # 백테스트 기간 설정 (숫자=년)
+    backtest_years: int = 5
+
     # 주가 DB 경로
     stock_price_db_path: str = "stock_prices.db"
 

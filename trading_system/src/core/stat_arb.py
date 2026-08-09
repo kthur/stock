@@ -140,8 +140,8 @@ def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
 
 def _estimate_half_life(residuals: np.ndarray) -> float:
     """
-    Estimates the mean-reversion half-life (Ornstein-Uhlenbeck process).
-    Delta res_t = lambda * res_{t-1} + error -> half_life = -ln(2) / lambda
+    Estimates the mean-reversion half-life (Ornstein-Uhlenbeck process / discrete AR(1)).
+    Delta res_t = lambda * res_{t-1} + error -> half_life = -ln(2) / ln(1 + lambda)
     """
     if len(residuals) < 10:
         return 999.0
@@ -152,11 +152,12 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
     res = linregress(y_lag, dy)
     lam = res.slope
 
-    if lam >= 0:
+    if lam >= 0 or lam <= -1.0:
         return 999.0
 
-    half_life = -np.log(2) / lam
+    half_life = -np.log(2) / np.log(1.0 + lam)
     return float(half_life)
+
 
 
 class StatisticalArbitrageEngine:
@@ -395,7 +396,7 @@ class StatisticalArbitrageEngine:
             t_stats = beta / s_err
 
             p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
-            half_lives = np.where(beta < 0, -np.log(2.0) / beta, 999.0)
+            half_lives = np.where((beta < 0) & (beta > -1.0), -np.log(2.0) / np.log(1.0 + beta), 999.0)
 
             pass_mask = (p_vals <= eff_max_pvalue) & (half_lives > 0) & (half_lives <= max_half_life)
 
@@ -450,25 +451,30 @@ class StatisticalArbitrageEngine:
             pvals = [p['adf_pvalue'] for p in found_pairs]
             n_tests = len(pvals)
             sorted_indices = np.argsort(pvals)
-            fdr_passed = []
+
+            # Benjamini-Hochberg step-up procedure
+            max_k = -1
             for rank, idx in enumerate(sorted_indices, 1):
-                q_val = pvals[idx] * n_tests / rank
-                if q_val <= max_pvalue:
+                critical_val = (rank / n_tests) * max_pvalue
+                if pvals[idx] <= critical_val:
+                    max_k = rank
+
+            if max_k != -1:
+                fdr_passed = []
+                for rank in range(1, max_k + 1):
+                    idx = sorted_indices[rank - 1]
                     p = found_pairs[idx]
+                    q_val = pvals[idx] * n_tests / rank
                     p['q_value'] = round(float(min(1.0, q_val)), 4)
                     fdr_passed.append(p)
-            if fdr_passed:
                 found_pairs = fdr_passed
             else:
-                # FDR gate failure: no pair survives the multiple-testing
-                # correction. Returning zero pairs is correct — keeping the
-                # top-50 by |z| would feed unvalidated (spurious) pairs into
-                # the ensemble stat_arb_score.
                 logger.warning(
                     f"StatArb FDR gate: none of {n_tests} candidate pair(s) survived "
                     f"multiple-testing correction (max_pvalue={max_pvalue}). Returning 0 pairs."
                 )
                 return []
+
 
         found_pairs = found_pairs[:500]
 

@@ -179,7 +179,7 @@ class DARTSECSentimentEngine:
             text = filings_dict.get(sym, filings_dict.get(sym.zfill(6), ""))
             if text:
                 res = self.analyze_filing_text(sym, text)
-                score = float(np.clip(50.0 + res.sentiment_score * 40.0, 0.0, 100.0))
+                score = float(np.clip(0.5 + res.sentiment_score * 0.4, 0.0, 1.0))
             else:
                 score = np.nan
 
@@ -187,8 +187,9 @@ class DARTSECSentimentEngine:
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "sentiment_score": round(score, 2) if pd.notna(score) else np.nan,
+                "sentiment_score": round(score, 4) if pd.notna(score) else np.nan,
             })
+
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:

@@ -389,8 +389,23 @@ class StockPriceDB:
         self._write_lock = threading.Lock()
         self._init_db()
 
+    def health_check(self) -> bool:
+        """Runs PRAGMA quick_check to verify SQLite database integrity."""
+        try:
+            conn = self._get_conn()
+            res = conn.execute("PRAGMA quick_check").fetchone()
+            if res and res[0] == "ok":
+                self.logger.info("StockPriceDB health check passed (PRAGMA quick_check = ok)")
+                return True
+            self.logger.critical(f"StockPriceDB health check FAILED: {res}")
+            return False
+        except Exception as e:
+            self.logger.critical(f"StockPriceDB health check exception: {e}")
+            return False
+
     def close(self):
         """현재 스레드의 sqlite3 커넥션 명시적 닫기"""
+
         if hasattr(self._local, "conn") and self._local.conn is not None:
             try:
                 self._local.conn.close()

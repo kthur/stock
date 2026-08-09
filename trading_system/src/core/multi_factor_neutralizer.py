@@ -69,24 +69,31 @@ class MultiFactorNeutralizerEngine:
                 })
             return pd.DataFrame(results)
 
-        # Factor definitions: Size (log Cap), Value (1/abs(PER)), Profitability (ROE)
+        # Factor definitions: Size (log Cap), Value (1/abs(PER)), Profitability (ROE), Investment (CMA), Momentum (UMD)
         size_factor = np.log(df_merged["market_cap"].clip(lower=1e8))
         value_factor = (1.0 / df_merged["per"].abs().clip(lower=0.1)).fillna(0.0)
         prof_factor = df_merged["roe"].fillna(0.0)
+        cma_factor = df_merged.get("asset_growth_yoy", pd.Series(0.0, index=df_merged.index)).fillna(0.0)
+        umd_factor = df_merged.get("momentum_12m", pd.Series(0.0, index=df_merged.index)).fillna(0.0)
 
         s_std = float(size_factor.std(ddof=0))
         v_std = float(value_factor.std(ddof=0))
         p_std = float(prof_factor.std(ddof=0))
+        c_std = float(cma_factor.std(ddof=0))
+        u_std = float(umd_factor.std(ddof=0))
 
-        # Standardize factor matrix X
+        # Standardize factor matrix X (5-Factor)
         X = np.column_stack([
             np.ones(len(df_merged)),
             (size_factor - size_factor.mean()) / (s_std if s_std > 1e-6 else 1.0),
             (value_factor - value_factor.mean()) / (v_std if v_std > 1e-6 else 1.0),
             (prof_factor - prof_factor.mean()) / (p_std if p_std > 1e-6 else 1.0),
+            (cma_factor - cma_factor.mean()) / (c_std if c_std > 1e-6 else 1.0),
+            (umd_factor - umd_factor.mean()) / (u_std if u_std > 1e-6 else 1.0),
         ])
 
         y = df_merged["score"].values
+
 
         # Perform Cross-Sectional OLS Regression: y = X * beta + residual
         try:

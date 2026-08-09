@@ -37,7 +37,8 @@ class ARMFactorEngine:
                     eps_growth = float(fund.get('eps_growth', 0.0) or 0.0)
                     rev_growth = float(fund.get('revenue_growth', 0.0) or 0.0)
                     per = float(fund.get('per', 15.0) or 15.0)
-                    arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - (per * 0.01)
+                    per_penalty = max(0.0, per) * 0.01
+                    arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - per_penalty
 
                 # Price momentum overlay
                 price_mom = 0.0
@@ -55,11 +56,12 @@ class ARMFactorEngine:
         if not scores:
             return {}
 
-        # MinMax Normalization to [0.0, 1.0]
+        # Winsorized MinMax Normalization to [0.0, 1.0] (1st and 99th percentiles)
         vals = np.array(list(scores.values()))
-        min_v, max_v = np.min(vals), np.max(vals)
-        if max_v == min_v:
+        lower = np.percentile(vals, 1)
+        upper = np.percentile(vals, 99)
+        if upper == lower:
             return {k: 0.5 for k in scores.keys()}
-        range_v = max_v - min_v
 
-        return {k: float(np.clip((v - min_v) / range_v, 0.0, 1.0)) for k, v in scores.items()}
+        return {k: float(np.clip((v - lower) / (upper - lower), 0.0, 1.0)) for k, v in scores.items()}
+

@@ -1577,6 +1577,8 @@ def build_html(
 <title>📈 Stock Prediction Dashboard | KRX &amp; SP500</title>
 <meta name="description" content="AI 기반 한국·미국 주식 예측 대시보드 — XGBoost 앙상블, Surge 분류기, VCP 패턴, Lead-Lag 전략">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
 <style>
   :root {{
     --bg: #0d1117;

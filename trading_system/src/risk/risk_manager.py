@@ -96,6 +96,52 @@ class CrisisDetector:
         self._days_since_crisis_ended = 0
         self._recovery_days = 0
 
+    def save_state(self, file_path: str = "models/crisis_state.json") -> None:
+        """Persist CrisisDetector state and indicator histories to JSON file."""
+        try:
+            p = Path(file_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            state = {
+                "crisis_level": self.crisis_level.value,
+                "vix_history": list(self._vix_history),
+                "dd_history": list(self._dd_history),
+                "usdkrw_history": list(self._usdkrw_history),
+                "oil_history": list(self._oil_history),
+                "tnx_history": list(self._tnx_history),
+                "dxy_history": list(self._dxy_history),
+                "recovery_mode": self._recovery_mode,
+                "days_in_crisis": self._days_in_crisis,
+                "days_since_crisis_ended": self._days_since_crisis_ended,
+            }
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+            logger.info(f"CrisisDetector state persisted to {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save CrisisDetector state: {e}")
+
+    def load_state(self, file_path: str = "models/crisis_state.json") -> None:
+        """Restore CrisisDetector state and indicator histories from JSON file."""
+        try:
+            p = Path(file_path)
+            if not p.exists():
+                return
+            with open(p, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            self.crisis_level = CrisisLevel(state.get("crisis_level", "NONE"))
+            self._vix_history = deque(state.get("vix_history", []), maxlen=252)
+            self._dd_history = deque(state.get("dd_history", []), maxlen=63)
+            self._usdkrw_history = deque(state.get("usdkrw_history", []), maxlen=252)
+            self._oil_history = deque(state.get("oil_history", []), maxlen=252)
+            self._tnx_history = deque(state.get("tnx_history", []), maxlen=252)
+            self._dxy_history = deque(state.get("dxy_history", []), maxlen=252)
+            self._recovery_mode = state.get("recovery_mode", False)
+            self._days_in_crisis = state.get("days_in_crisis", 0)
+            self._days_since_crisis_ended = state.get("days_since_crisis_ended", 0)
+            logger.info(f"CrisisDetector state restored from {file_path} (level={self.crisis_level.value})")
+        except Exception as e:
+            logger.warning(f"Failed to load CrisisDetector state: {e}")
+
+
     def evaluate(
         self,
         vix: float = 20.0,

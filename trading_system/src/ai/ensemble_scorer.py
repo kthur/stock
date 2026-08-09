@@ -716,8 +716,13 @@ class EnsembleScoringEngine:
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = float(rolling_sharpes.get(strategy, 0.0))
+            if sharpe < -0.50:
+                logger.warning(f"Strategy '{strategy}' pruned due to severe underperformance (Sharpe = {sharpe:.2f} < -0.50).")
+                scores[strategy] = 0.0
+                continue
             multiplier = float(np.exp(gamma * np.clip(sharpe, -sharpe_clip, sharpe_clip)))
             scores[strategy] = base_w * multiplier
+
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
         # differ up to ~5x, so multiplier-only capping is not enough). Damping the

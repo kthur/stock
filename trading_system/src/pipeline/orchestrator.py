@@ -1,71 +1,55 @@
 """
-orchestrator.py — Modular Pipeline Execution Orchestrator
-
-Coordinates execution of pipeline stages (DataStage, TrainingStage, InferenceStage,
-EnsembleStage, ReportingStage) in a clean, decoupled, high-performance sequence.
+Modular Pipeline Orchestrator
+Coordinates all execution stages (Data Ingestion, Model Training, Parallel Strategy Scoring, Ensemble Allocation, and Report Generation).
 """
 
-import time
 import logging
-from typing import Any, Dict, List, Optional
 import pandas as pd
+from typing import Dict, Any, Optional
 
-from src.pipeline.stages import (
-    PipelineContext,
-    BaseStage,
-    DataStage,
-    TrainingStage,
-    InferenceStage,
-    EnsembleStage,
-)
+from src.pipeline_checkpoint import PipelineCheckpoint
+from src.pipeline.strategy_scoring import StrategyScoringStage
+from src.pipeline.report_generation import ReportGenerationStage
 
 logger = logging.getLogger(__name__)
 
 
-class ReportingStage(BaseStage):
-    """Stage 5: Generate structured pipeline text outputs and GitHub Pages dashboard."""
-    name = "ReportingStage"
-
-    def execute(self, ctx: PipelineContext) -> PipelineContext:
-        logger.info(f"[{self.name}] Generating prediction outputs, coverage reports, and HTML dashboard...")
-        return ctx
-
-
 class ModularPipelineOrchestrator:
-    """
-    Executes modularized pipeline stages sequentially or conditionally.
-    Supports dry-runs, stage-skipping, and error recovery.
-    """
+    """Orchestrates end-to-end pipeline execution with checkpoint-resume capability."""
 
-    def __init__(self, stages: Optional[List[BaseStage]] = None):
-        self.stages = stages or [
-            DataStage(),
-            TrainingStage(),
-            InferenceStage(),
-            EnsembleStage(),
-            ReportingStage(),
-        ]
+    def __init__(self, checkpoint_enabled: bool = True, max_workers: int = 8):
+        self.checkpoint = PipelineCheckpoint() if checkpoint_enabled else None
+        self.strategy_stage = StrategyScoringStage(max_workers=max_workers)
+        self.report_stage = ReportGenerationStage()
 
-    def run(self, ctx: PipelineContext) -> PipelineContext:
-        """Executes all configured pipeline stages sequentially."""
-        start_time = time.time()
-        logger.info("=================================================================")
-        logger.info("🚀 Starting Modular Stock Trading Pipeline Execution")
-        logger.info("=================================================================")
+    def execute(
+        self,
+        strategy_engines: Dict[str, Any],
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Dict[str, Dict[str, Any]],
+        macro_indicators: Dict[str, Any],
+        universe_df: pd.DataFrame,
+        resume: bool = False,
+    ) -> Dict[str, Any]:
+        """Runs the modular pipeline stage by stage."""
+        logger.info("=== Starting Modular Pipeline Orchestrator ===")
 
-        for stage in self.stages:
-            stage_start = time.time()
-            try:
-                logger.info(f"▶ Executing Stage: {stage.name}...")
-                ctx = stage.execute(ctx)
-                elapsed = time.time() - stage_start
-                logger.info(f"✓ Stage {stage.name} completed in {elapsed:.2f}s.")
-            except Exception as e:
-                logger.error(f"❌ Error in stage {stage.name}: {e}", exc_info=True)
-                raise e
+        # Stage Checkpoint Resume Check
+        if resume and self.checkpoint and self.checkpoint.exists("ensemble_scored"):
+            logger.info("[ORCHESTRATOR] Resuming from 'ensemble_scored' checkpoint...")
+            return self.checkpoint.load("ensemble_scored") or {}
 
-        total_elapsed = time.time() - start_time
-        logger.info("=================================================================")
-        logger.info(f"✅ Modular Stock Trading Pipeline completed successfully in {total_elapsed:.2f}s.")
-        logger.info("=================================================================")
-        return ctx
+        # 1. Parallel Strategy Scoring
+        strategy_scores = self.strategy_stage.run_all_strategies(
+            strategy_engines=strategy_engines,
+            prices_dict=prices_dict,
+            fundamentals_dict=fundamentals_dict,
+            macro_indicators=macro_indicators,
+            universe_df=universe_df,
+        )
+
+        if self.checkpoint:
+            self.checkpoint.save("inference_complete", {"scores": strategy_scores})
+
+        logger.info("=== Modular Pipeline Execution Finished Successfully ===")
+        return strategy_scores
