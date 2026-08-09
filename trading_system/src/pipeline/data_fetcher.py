@@ -23,7 +23,8 @@ class PipelineDataFetcher:
     def fetch_market_indicators(self, storage: Any, cfg: Any) -> Dict[str, float]:
         """Fetch latest global macro indicators (VIX, USDKRW, TNX, ECOS, etc.)."""
         logger.info("[DataFetcher] Fetching global market indicators...")
-        market_summary = {}
+        market_summary: Dict[str, float] = {}
+
         if hasattr(storage, 'get_latest_global_indicators'):
             market_summary = storage.get_latest_global_indicators() or {}
 

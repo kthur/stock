@@ -102,7 +102,8 @@ class UnifiedDBEngine:
             else:
                 cur.execute(sql, params)
             rows = cur.fetchall()
-            return rows
+            from typing import cast
+            return cast(List[Tuple[Any, ...]], list(rows))
         finally:
             self.release_connection(conn)
 
@@ -117,7 +118,8 @@ class UnifiedDBEngine:
             else:
                 cur.execute(sql, params)
             conn.commit()
-            return cur.rowcount
+            return int(cur.rowcount if cur.rowcount is not None else 0)
+
         except Exception as e:
             conn.rollback()
             raise e

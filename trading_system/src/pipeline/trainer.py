@@ -29,7 +29,8 @@ class PipelineTrainer:
     ) -> Dict[str, Any]:
         """Runs complete training pass across all markets and horizons."""
         logger.info("[PipelineTrainer] Starting multi-market model training pass...")
-        trained_info = {}
+        trained_info: Dict[str, Any] = {}
+
 
         if df_train is None or df_train.empty:
             logger.warning("[PipelineTrainer] Training dataset is empty. Skipping training.")
