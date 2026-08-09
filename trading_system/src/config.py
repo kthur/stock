@@ -320,19 +320,20 @@ class TradingConfig:
         return int(value)
 
     def get_freshness_days(self) -> int:
-        val = self.stock_price_freshness_days.strip().lower()
+        val = str(self.stock_price_freshness_days).strip().lower()
         if val in ("-1", "never", "all", "none"):
             return -1
         return int(val)
 
     def get_train_seed(self) -> Optional[int]:
-        val = self.train_seed.strip().lower()
+        val = str(self.train_seed).strip().lower()
         if val in ("none", "", "-1"):
             return None
         return int(val)
 
     def get_update_interval(self) -> int:
-        return int(self.update_interval.strip())
+        return int(str(self.update_interval).strip())
+
 
     def validate(self) -> None:
         if self.initial_cash <= 0:

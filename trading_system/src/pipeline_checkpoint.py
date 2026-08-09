@@ -49,7 +49,9 @@ class PipelineCheckpoint:
             with open(file_path, "rb") as f:
                 data = pickle.load(f)
             logger.info(f"[CHECKPOINT] Stage '{stage}' successfully restored from {file_path}")
-            return data
+            from typing import cast
+            return cast(Optional[Dict[str, Any]], data)
+
         except Exception as e:
             logger.warning(f"Failed to load checkpoint for stage '{stage}': {e}")
             return None
