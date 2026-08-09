@@ -14,6 +14,7 @@ class BaseStrategyEngine(ABC):
         prices_dict: Dict[str, pd.DataFrame],
         fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
         indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
     ) -> pd.DataFrame:
         """Compute strategy scores for given price history and metadata.
 

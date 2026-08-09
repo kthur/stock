@@ -16,12 +16,31 @@ from typing import Dict, List, Any
 logger = logging.getLogger(__name__)
 
 
-class MultiFactorNeutralizerEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="factor_neutralized",
+        display_name="Multi-Factor Neutralized Alpha",
+        score_column="factor_neutralized_score",
+        category="factor",
+        output_file="factor_neutralized_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.04, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.03, "BULL_HIGH_VOL": 0.03, "BULL_LOW_VOL": 0.03
+        },
+    )
+)
+class MultiFactorNeutralizerEngine(BaseStrategyEngine):
     """Strategy 21: Multi-Factor Style Neutralization Engine.
 
     Extracts pure idiosyncratic alpha by neutralizing Size (SMB), Value (HML),
     Profitability (RMW), Investment (CMA), and Momentum (MOM) style exposures.
     """
+
+    def __init__(self, config: Optional[Any] = None) -> None:
+        self.config = config
 
     def compute_scores(self, universe: pd.DataFrame, raw_scores: pd.DataFrame = None) -> pd.DataFrame:
         """Compute factor-neutralized pure alpha scores for all universe symbols.
@@ -92,8 +111,11 @@ class MultiFactorNeutralizerEngine:
             (umd_factor - umd_factor.mean()) / (u_std if u_std > 1e-6 else 1.0),
         ])
 
-        y = df_merged["score"].values
+        df_merged = df_merged.dropna(subset=["score"]).copy()
+        if df_merged.empty:
+            return pd.DataFrame(columns=["symbol", "factor_neutralized_score"])
 
+        y = pd.to_numeric(df_merged["score"], errors="coerce").fillna(0.0).values
 
         # Perform Cross-Sectional OLS Regression: y = X * beta + residual
         try:
@@ -101,7 +123,7 @@ class MultiFactorNeutralizerEngine:
             residuals = y - X.dot(beta)
         except Exception as e:
             logger.warning(f"OLS regression failed in MultiFactorNeutralizerEngine: {e}")
-            residuals = y - np.mean(y)
+            residuals = y - (np.mean(y) if len(y) > 0 else 0.0)
 
         # Scale residuals to 0.0 ~ 1.0 score
         res_min, res_max = np.min(residuals), np.max(residuals)

@@ -1624,8 +1624,8 @@ def execute_prediction_pipeline():
             if result is not None:
                 result['symbol'] = sym
                 return result
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"VCP detection failed for {sym}: {e}")
         return None
 
     vcp_results = []
@@ -1743,8 +1743,8 @@ def execute_prediction_pipeline():
                                     'signal': 'LONG_SPREAD' if z < -1.0 else ('SHORT_SPREAD' if z > 1.0 else 'NEUTRAL'),
                                     'market': mkt
                                 })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Stat-Arb fallback failed for {sym}: {e}")
 
         valid_stat_arb_pairs = list(stat_arb_pairs)
         valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
@@ -3736,6 +3736,12 @@ def execute_prediction_pipeline():
                 logger.warning("Verification failed: Could not parse expected returns from pipeline_result.txt.")
         except Exception as e:
             logger.warning(f"Verification failed: Error reading/parsing pipeline_result.txt: {e}")
+
+        try:
+            db.close()
+            indicator_storage.close()
+        except Exception as e:
+            logger.debug(f"DB close during pipeline cleanup: {e}")
 
     return res_df, message_text
 

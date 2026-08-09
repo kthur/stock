@@ -33,6 +33,21 @@ LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
 }
 
 
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="supply_chain",
+        display_name="Supply Chain Lead-Lag",
+        score_column="supply_chain_score",
+        category="factor",
+        output_file="supply_chain_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.03, "BEAR_HIGH_VOL": 0.02, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.05, "BULL_LOW_VOL": 0.04
+        },
+    )
+)
 class SupplyChainEngine(BaseStrategyEngine):
     """Strategy 19: Supply Chain Lead-Lag Momentum Engine.
 

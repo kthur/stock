@@ -5,21 +5,38 @@ Fetches options chains for optionable tickers (SP500 / US equities) and calculat
 High Put/Call IV Skew signals extreme market hedging fear -> Contrarian bullish score.
 """
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-class IVSkewEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="iv_skew",
+        display_name="Options IV Skew",
+        score_column="iv_skew_score",
+        category="factor",
+        output_file="iv_skew_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.03, "BULL_HIGH_VOL": 0.04, "BULL_LOW_VOL": 0.03
+        },
+    )
+)
+class IVSkewEngine(BaseStrategyEngine):
     """
     Options-Implied Volatility (IV) Skew Strategy Engine.
     Evaluates options market sentiment via Put IV vs Call IV ratios.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, atm_threshold: float = 0.08, config: Optional[Any] = None):
+        self.atm_threshold = atm_threshold
+        self.config = config
 
     def compute_skew_for_ticker(self, ticker: str) -> float:
         """
@@ -47,9 +64,9 @@ class IVSkewEngine:
             if calls.empty or puts.empty:
                 return 0.5
 
-            # Filter ATM options (strike within ±8% of underlying price)
-            atm_calls = calls[abs(calls['strike'] - underlying_price) / underlying_price <= 0.08]
-            atm_puts = puts[abs(puts['strike'] - underlying_price) / underlying_price <= 0.08]
+            # Filter ATM options (strike within ±atm_threshold of underlying price)
+            atm_calls = calls[abs(calls['strike'] - underlying_price) / underlying_price <= self.atm_threshold]
+            atm_puts = puts[abs(puts['strike'] - underlying_price) / underlying_price <= self.atm_threshold]
 
             eff_calls = atm_calls if not atm_calls.empty else calls
             eff_puts = atm_puts if not atm_puts.empty else puts
@@ -139,3 +156,16 @@ class IVSkewEngine:
 
         res_list = [{'symbol': sym, 'iv_skew_score': results.get(sym, 0.5)} for sym in symbols]
         return pd.DataFrame(res_list)
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            return self.compute_iv_skew_scores(prices_dict)
+        except Exception as e:
+            logger.warning(f"[IVSkewEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "iv_skew_score"])

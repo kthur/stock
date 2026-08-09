@@ -15,14 +15,32 @@ from typing import Dict, List, Any
 logger = logging.getLogger(__name__)
 
 
-class VolTargetingEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="vol_target",
+        display_name="Dynamic Volatility Targeting",
+        score_column="vol_target_score",
+        category="factor",
+        output_file="vol_target_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.08, "BEAR_HIGH_VOL": 0.12, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.03, "BULL_LOW_VOL": 0.04
+        },
+    )
+)
+class VolTargetingEngine(BaseStrategyEngine):
     """Strategy 22: Dynamic Volatility Targeting Engine.
 
     Calculates volatility-adjusted risk parity score (0% to 100%) for all universe stocks,
     rewarding high Sharpe ratio assets with stable, low realized volatility.
     """
 
-    def __init__(self, target_vol_annual: float = 0.12) -> None:
+    def __init__(self, target_vol_annual: float = 0.12, config: Optional[Any] = None) -> None:
+        self.target_vol_annual = target_vol_annual
+        self.config = config
         self.target_vol_annual = target_vol_annual
 
     def compute_scores(self, df_prices: pd.DataFrame, universe: pd.DataFrame) -> pd.DataFrame:

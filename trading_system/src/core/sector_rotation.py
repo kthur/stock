@@ -1,19 +1,37 @@
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-class SectorRotationEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="sector_rotation",
+        display_name="Sector Rotation",
+        score_column="sector_score",
+        category="factor",
+        output_file="sector_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.08, "BULL_HIGH_VOL": 0.10, "BULL_LOW_VOL": 0.08
+        },
+    )
+)
+class SectorRotationEngine(BaseStrategyEngine):
     """
     Sector Rotation Strategy Engine.
     Computes sector-level relative momentum (1M / 3M returns) and generates
     per-symbol sector rotation scores [0, 1] based on sector momentum ranking.
     """
 
-    def __init__(self):
+    def __init__(self, w_20d: float = 0.6, w_60d: float = 0.4, config: Optional[Any] = None):
         # Key Sector Indexes / Representative ETFs
+        self.w_20d = w_20d
+        self.w_60d = w_60d
         self.sector_benchmarks = {
             'IT_SEMICON': ['091160.KS', 'XLK'],
             'BATTERY_AUTO': ['305720.KS', 'XLY'],
@@ -102,11 +120,13 @@ class SectorRotationEngine:
                 if len(close) < 20:
                     continue
 
-                ret_20d = float(close.iloc[-1] / close.iloc[-20] - 1.0) if len(close) >= 20 else 0.0
-                ret_60d = float(close.iloc[-1] / close.iloc[-60] - 1.0) if len(close) >= 60 else ret_20d
+                p20 = float(close.iloc[-20])
+                p60 = float(close.iloc[-60]) if len(close) >= 60 else p20
+                ret_20d = float(close.iloc[-1] / p20 - 1.0) if (len(close) >= 20 and p20 > 0) else 0.0
+                ret_60d = float(close.iloc[-1] / p60 - 1.0) if (len(close) >= 60 and p60 > 0) else ret_20d
 
                 # Composite Momentum Score
-                mom_score = 0.6 * ret_20d + 0.4 * ret_60d
+                mom_score = self.w_20d * ret_20d + self.w_60d * ret_60d
                 raw_sec = eff_sector_map.get(sym, "General")
                 norm_sec = self.normalize_sector(raw_sec)
                 records.append({'symbol': sym, 'mom_raw': mom_score, 'sector': norm_sec})
@@ -169,4 +189,22 @@ class SectorRotationEngine:
             res_df['sector_score'] = (res_df['sector_score'] + macro_boost).clip(0.0, 1.0)
 
         return res_df[['symbol', 'sector_score']]
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            return self.compute_sector_momentum_scores(
+                prices_dict,
+                sector_map=kwargs.get("sector_map"),
+                macro_indicators=indicators_df,
+                regime_label=kwargs.get("regime_label"),
+            )
+        except Exception as e:
+            logger.warning(f"[SectorRotationEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "sector_score"])
 

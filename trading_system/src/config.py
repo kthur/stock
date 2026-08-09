@@ -123,11 +123,20 @@ class TradingConfig:
         if "TRAIN_START_DATE" in os.environ:
             self.train_start_date = os.environ["TRAIN_START_DATE"]
         if "TRAIN_SEED" in os.environ:
-            self.train_seed = os.environ["TRAIN_SEED"]
+            try:
+                self.train_seed = int(os.environ["TRAIN_SEED"])
+            except ValueError:
+                logger.warning("Invalid TRAIN_SEED in env, keeping default")
         if "STOCK_PRICE_FRESHNESS_DAYS" in os.environ:
-            self.stock_price_freshness_days = os.environ["STOCK_PRICE_FRESHNESS_DAYS"]
+            try:
+                self.stock_price_freshness_days = int(os.environ["STOCK_PRICE_FRESHNESS_DAYS"])
+            except ValueError:
+                logger.warning("Invalid STOCK_PRICE_FRESHNESS_DAYS in env, keeping default")
         if "UPDATE_INTERVAL" in os.environ:
-            self.update_interval = os.environ["UPDATE_INTERVAL"]
+            try:
+                self.update_interval = int(os.environ["UPDATE_INTERVAL"])
+            except ValueError:
+                logger.warning("Invalid UPDATE_INTERVAL in env, keeping default")
         if "SKIP_TRAINING" in os.environ:
             self.skip_training = os.environ["SKIP_TRAINING"].lower() == "true"
         if "SKIP_INFERENCE" in os.environ:

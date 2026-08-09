@@ -15,6 +15,22 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
     except (ValueError, TypeError):
         return default
 
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="arm_factor",
+        display_name="Analyst Revision Momentum",
+        score_column="arm_score",
+        category="factor",
+        output_file="arm_predictions.txt",
+        requires_fundamentals=True,
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.05, "BULL_HIGH_VOL": 0.06, "BULL_LOW_VOL": 0.05
+        },
+    )
+)
 class ARMFactorEngine(BaseStrategyEngine):
     """
     15. Analyst Revision Momentum (ARM) Strategy Engine

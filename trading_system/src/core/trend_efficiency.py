@@ -15,6 +15,21 @@ from .base_strategy import BaseStrategyEngine
 logger = logging.getLogger(__name__)
 
 
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="trend_efficiency",
+        display_name="Kaufman Trend Efficiency",
+        score_column="trend_efficiency_score",
+        category="factor",
+        output_file="trend_efficiency_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.01, "BEAR_HIGH_VOL": 0.00, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.08, "BULL_LOW_VOL": 0.06
+        },
+    )
+)
 class TrendEfficiencyEngine(BaseStrategyEngine):
     """
     Computes Trend Efficiency Score [0.0, 1.0] for stocks.

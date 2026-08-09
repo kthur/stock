@@ -6,6 +6,21 @@ from .base_strategy import BaseStrategyEngine
 
 logger = logging.getLogger(__name__)
 
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="latr_factor",
+        display_name="Liquidity-Adjusted Tail Risk",
+        score_column="latr_score",
+        category="factor",
+        output_file="latr_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.04, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.03, "BULL_LOW_VOL": 0.03
+        },
+    )
+)
 class LATRFactorEngine(BaseStrategyEngine):
     """
     17. Liquidity-Adjusted Tail Risk Premium (LATR) Strategy Engine

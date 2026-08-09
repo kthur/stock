@@ -60,8 +60,10 @@ class OptunaStrategyTuner:
         target = Path(filepath) if filepath else self.params_file
         target.parent.mkdir(parents=True, exist_ok=True)
         to_save = params if params is not None else self.tuned_params
-        with open(target, 'w', encoding='utf-8') as f:
+        tmp_target = target.with_suffix('.tmp')
+        with open(tmp_target, 'w', encoding='utf-8') as f:
             json.dump(to_save, f, indent=2)
+        tmp_target.replace(target)
         logger.info(f"Saved tuned parameters to {target}")
 
     def tune_strategy_1_regression(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:

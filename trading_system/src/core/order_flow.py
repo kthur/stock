@@ -5,18 +5,51 @@ Evaluates Institutional and Foreign net buying pressure, volume-weighted order i
 and flow acceleration to generate order_flow_scores [0.0, 1.0].
 """
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-class OrderFlowEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="order_flow",
+        display_name="Order Flow Imbalance",
+        score_column="order_flow_score",
+        category="factor",
+        output_file="order_flow_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.06, "BULL_LOW_VOL": 0.04
+        },
+    )
+)
+class OrderFlowEngine(BaseStrategyEngine):
     """
     Order Flow Imbalance Strategy Engine.
     Scorers stock demand/supply imbalance based on institutional/foreign trading volume and price impact.
     """
+
+    def __init__(self, config: Optional[Any] = None) -> None:
+        self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            flow_data_dict = kwargs.get("flow_data_dict")
+            return self.compute_order_flow_scores(prices_dict, flow_data_dict=flow_data_dict)
+        except Exception as e:
+            logger.warning(f"[OrderFlowEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "order_flow_score"])
 
     def compute_order_flow_scores(
         self,

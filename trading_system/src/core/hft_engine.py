@@ -137,10 +137,21 @@ class HFTEngine:
         total_executed = sum(cast(int, r["quantity"]) for r in execution_records)
         avg_price = sum(cast(float, r["price"]) * cast(int, r["quantity"]) for r in execution_records) / total_executed if total_executed > 0 else start_price
         logger.info(f"[VWAP] Completed execution for {symbol}. Total: {total_executed}, Avg Price: {avg_price:.2f}")
-        return execution_records
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
 
 
-class MicrostructureImbalanceEngine:
+@register_strategy(
+    StrategyMeta(
+        strategy_id="microstructure",
+        display_name="Microstructure Imbalance",
+        score_column="microstructure_score",
+        category="factor",
+        output_file="microstructure_predictions.txt",
+        is_standalone=True,
+    )
+)
+class MicrostructureImbalanceEngine(BaseStrategyEngine):
     """Strategy 23: Order Book Microstructure & Spread Imbalance Engine.
 
     Calculates order book bid-ask imbalance and closing auction buy-side volume acceleration
@@ -189,13 +200,14 @@ class MicrostructureImbalanceEngine:
                 bid_ask_imbalance = 0.0
                 auction_volume_accel = 1.0
 
-            score = float(np.clip(50.0 + bid_ask_imbalance * 30.0 + (auction_volume_accel - 1.0) * 15.0, 0.0, 100.0))
+            # Score normalized to [0.0, 1.0] scale
+            score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "microstructure_score": round(score, 2),
+                "microstructure_score": round(score, 4),
             })
 
 

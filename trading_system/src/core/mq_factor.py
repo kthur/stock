@@ -5,17 +5,51 @@ Calculates 12M-1M price momentum (skipping 1M reversal noise) combined with EPS 
 ROE stability, and earnings quality to produce percentile rank MQ scores [0.0, 1.0].
 """
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-class MQFactorEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="mq_factor",
+        display_name="Momentum Quality",
+        score_column="mq_score",
+        category="factor",
+        output_file="mq_predictions.txt",
+        requires_fundamentals=True,
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.06, "BULL_HIGH_VOL": 0.08, "BULL_LOW_VOL": 0.06
+        },
+    )
+)
+class MQFactorEngine(BaseStrategyEngine):
     """
     Momentum Quality (MQ) Factor Strategy Engine.
     Combines medium-term price momentum (12M-1M) with fundamental earnings quality.
     """
+
+    def __init__(self, config: Optional[Any] = None) -> None:
+        self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            features_df = kwargs.get("features_df")
+            return self.compute_mq_scores(prices_dict, features_df=features_df)
+        except Exception as e:
+            logger.warning(f"[MQFactorEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "mq_score"])
 
     def compute_mq_scores(
         self,

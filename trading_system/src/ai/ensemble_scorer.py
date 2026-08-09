@@ -580,8 +580,10 @@ class EnsembleScoringEngine:
                     recent = s.tail(window)
                     mean_ret = float(recent.mean())
                     std_ret = float(recent.std())
-                    if std_ret < 1e-8:
+                    if np.isnan(std_ret) or std_ret < 1e-8:
                         std_ret = 1e-6
+                    if np.isnan(mean_ret):
+                        mean_ret = 0.0
                     sharpe = ((mean_ret - rf_daily) / std_ret) * np.sqrt(252)
                     sharpes[strategy] = float(sharpe)
                 else:
@@ -639,41 +641,19 @@ class EnsembleScoringEngine:
             if total_w > 0:
                 w = {k: v / total_w for k, v in w.items()}
 
-        res = {
-            'regression': w.get('regression', 0.08),
-            'surge': w.get('surge', 0.04),
-            'lead_lag': w.get('lead_lag', 0.04),
-            'vcp_rule': w.get('vcp_rule', 0.04),
-            'vcp_ml': w.get('vcp_ml', 0.06),
-            'lstm': w.get('lstm', 0.06),
-            'stat_arb': w.get('stat_arb', 0.08),
-            'sector_rotation': w.get('sector_rotation', 0.06),
-            'rim_valuation': w.get('rim_valuation', 0.08),
-            'event_driven': w.get('event_driven', 0.05),
-            'mq_factor': w.get('mq_factor', 0.06),
-            'iv_skew': w.get('iv_skew', 0.03),
-            'order_flow': w.get('order_flow', 0.04),
-            'short_term_reversal': w.get('short_term_reversal', 0.04),
-            'arm_factor': w.get('arm_factor', 0.05),
-            'card_factor': w.get('card_factor', 0.05),
-            'latr_factor': w.get('latr_factor', 0.04),
-            'inst_foreign_sector': w.get('inst_foreign_sector', 0.04),
-            'supply_chain': w.get('supply_chain', 0.03),
-            'sentiment': w.get('sentiment', 0.03),
-            'factor_neutralized': w.get('factor_neutralized', 0.03),
-            'vol_target': w.get('vol_target', 0.04),
-            'microstructure': w.get('microstructure', 0.03),
-            # 신규 4대 전략 (#24~#27) 기본값
-            'accruals_quality': w.get('accruals_quality', 0.03),
-            'short_squeeze': w.get('short_squeeze', 0.03),
-            'valueup_catalyst': w.get('valueup_catalyst', 0.03),
-            'trend_efficiency': w.get('trend_efficiency', 0.03),
-            # Phase 5 추가 전략 (#28~#31) 기본값
-            'gamma_squeeze': w.get('gamma_squeeze', 0.02),
-            'insider_buying': w.get('insider_buying', 0.02),
-            'darkpool': w.get('darkpool', 0.02),
-            'earnings_tone_drift': w.get('earnings_tone_drift', 0.02),
-        }
+        # Build baseline weights dynamically from StrategyRegistry
+        from src.core.strategy_registry import get_registry
+        registry_inst = get_registry()
+        registry_inst.auto_discover(["src.core", "src.ai"])
+        all_metas = registry_inst.get_all()
+
+        res = {}
+        regime_key = str(regime)
+        for sid, (_, meta) in all_metas.items():
+            if meta.is_standalone:
+                res[sid] = 0.0
+            else:
+                res[sid] = w.get(sid, meta.default_regime_weights.get(regime_key, 0.02))
         total_base = sum(res.values())
         if total_base > 0:
             res = {k: v / total_base for k, v in res.items()}
@@ -682,6 +662,9 @@ class EnsembleScoringEngine:
         res = self.apply_vix_override(res, vix_val=vix_val)
 
         total = sum(res.values())
+        if total == 0.0:
+            n = len(res)
+            return {k: 1.0 / n for k in res} if n > 0 else res
         return {k: v / total for k, v in res.items()}
 
     def compute_dynamic_weights_from_sharpe(self, rolling_sharpes: Dict[str, float],
@@ -736,6 +719,8 @@ class EnsembleScoringEngine:
             scores = {k: scores[k] ** _alpha for k in scores}
 
         total_score = sum(scores.values())
+        if total_score == 0.0:
+            return base_weights
         dynamic_weights = {k: v / total_score for k, v in scores.items()}
 
         # Detect regime transition to accelerate EMA weight smoothing (alpha = 1.0 on shift)

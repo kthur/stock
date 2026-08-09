@@ -14,7 +14,23 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-class EventDrivenEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="event_driven",
+        display_name="Event-Driven Momentum",
+        score_column="event_score",
+        category="event",
+        output_file="event_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.05, "BULL_HIGH_VOL": 0.08, "BULL_LOW_VOL": 0.06
+        },
+    )
+)
+class EventDrivenEngine(BaseStrategyEngine):
     """
     Event-Driven Strategy Engine.
     Evaluates corporate filings / disclosure events and assigns directional scores [0.0, 1.0].
@@ -35,11 +51,12 @@ class EventDrivenEngine:
         '05': 0.60,
     }
 
-    def __init__(self, config=None, dart_api_key: str = ""):
+    def __init__(self, config=None, dart_api_key: str = "", default_cb_dilution_ratio: float = 0.06):
         self.config = config
         self.dart_api_key = dart_api_key.strip()
         if not self.dart_api_key and config is not None:
             self.dart_api_key = getattr(config, 'dart_api_key', '').strip()
+        self.default_cb_dilution_ratio = default_cb_dilution_ratio
 
     def fetch_recent_dart_filings(self, bgn_de: str = "", end_de: str = "") -> List[Dict[str, Any]]:
         """
@@ -165,11 +182,11 @@ class EventDrivenEngine:
                         v = v.iloc[:, 0]
                     c = c.dropna()
                     v = v.dropna()
-                    if len(c) >= 5 and len(v) >= 5:
-                        avg_vol = float(v.iloc[-5:-1].mean())
+                    if len(c) >= 6 and len(v) >= 6:
+                        avg_vol = float(v.iloc[-6:-1].mean())
                         cur_vol = float(v.iloc[-1])
                         v_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
-                        ret_5d = float((c.iloc[-1] / c.iloc[-5]) - 1.0)
+                        ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
                         continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.10 * ret_5d, -0.2, 0.4)
                         scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.0, 1.0))
                 except Exception:
@@ -217,7 +234,7 @@ class EventDrivenEngine:
                     for sym in symbols:
                         sym_clean = sym.split('.')[0].zfill(6)
                         if stock_code and stock_code == sym_clean:
-                            res[sym]['cb_bw_ratio'] = 0.06  # Estimated 6% dilution ratio (> 5.0% threshold)
+                            res[sym]['cb_bw_ratio'] = self.default_cb_dilution_ratio  # Dilution ratio (> 5.0% threshold)
                             res[sym]['is_overhang_blacklisted'] = True
                             logger.info(f"[CB/BW OVERHANG SANDBOX] Blacklisted {sym} due to dilution risk in filing: {report_nm}")
 
@@ -231,5 +248,24 @@ class EventDrivenEngine:
                     logger.info(f"[MARGIN RISK SANDBOX] Applied margin penalty {penalty:.2f} to {sym} (margin rate = {rate:.1f}%)")
 
         return res
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            symbols = list(prices_dict.keys())
+            return self.compute_event_scores(
+                symbols,
+                prices_dict=prices_dict,
+                filings_list=kwargs.get("filings_list"),
+                sentiment_map=kwargs.get("sentiment_map"),
+            )
+        except Exception as e:
+            logger.warning(f"[EventDrivenEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "event_score"])
 
 

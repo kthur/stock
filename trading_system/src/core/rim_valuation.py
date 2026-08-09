@@ -26,7 +26,7 @@ Earnings Quality Filter (이익의 질 필터):
       (이익의 질 0 → RIM 부적합, 앙상블 가중치 자동 재정규화)
 """
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import numpy as np
 import pandas as pd
 
@@ -37,8 +37,25 @@ logger = logging.getLogger(__name__)
 EARNINGS_QUALITY_MIN_RATIO = 0.5
 
 
-class RIMValuationEngine:
-    def __init__(self, default_required_return: float = 0.08, decay_rate: float = 0.10, retention_ratio: float = 0.6):
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="rim_valuation",
+        display_name="RIM Valuation",
+        score_column="rim_score",
+        category="factor",
+        output_file="rim_predictions.txt",
+        requires_fundamentals=True,
+        default_regime_weights={
+            "BEAR": 0.12, "BEAR_HIGH_VOL": 0.15, "SIDEWAYS_LOW_VOL": 0.08, "BULL_HIGH_VOL": 0.05, "BULL_LOW_VOL": 0.08
+        },
+    )
+)
+class RIMValuationEngine(BaseStrategyEngine):
+    def __init__(self, default_required_return: float = 0.08, decay_rate: float = 0.10, retention_ratio: float = 0.6, config: Optional[Any] = None):
         """
         :param default_required_return: Baseline required rate of return (r_e), default 8.0%
         :param decay_rate: ROE persistence decay rate per year (0.10 = 10% decay toward r_e)
@@ -247,3 +264,20 @@ class RIMValuationEngine:
         out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'earnings_quality', 'rim_filter_reason',
                     'intrinsic_value', 'discount_ratio', 'rim_score']
         return df[[c for c in out_cols if c in df.columns]]
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            return self.compute_rim_scores(
+                prices_dict,
+                fundamentals_dict=fundamentals_dict,
+                indicators_df=indicators_df,
+            )
+        except Exception as e:
+            logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "rim_score"])

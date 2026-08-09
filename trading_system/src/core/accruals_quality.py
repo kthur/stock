@@ -15,6 +15,22 @@ from .base_strategy import BaseStrategyEngine
 logger = logging.getLogger(__name__)
 
 
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="accruals_quality",
+        display_name="Accruals Quality Anomaly",
+        score_column="accruals_quality_score",
+        category="factor",
+        output_file="accruals_quality_predictions.txt",
+        requires_fundamentals=True,
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.06, "SIDEWAYS_LOW_VOL": 0.03, "BULL_HIGH_VOL": 0.02, "BULL_LOW_VOL": 0.03
+        },
+    )
+)
 class AccrualsQualityEngine(BaseStrategyEngine):
     """
     Computes Accruals Quality Score [0.0, 1.0] for stocks.

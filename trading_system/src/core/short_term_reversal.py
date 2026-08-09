@@ -5,17 +5,50 @@ Identifies short-term oversold conditions (3~5 day drops, Bollinger band lower b
 filtered by fundamental quality and volatility bounds to calculate mean-reversion reversal_scores [0.0, 1.0].
 """
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-class ShortTermReversalEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="short_term_reversal",
+        display_name="Short-Term Reversal",
+        score_column="reversal_score",
+        category="factor",
+        output_file="reversal_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.08, "BEAR_HIGH_VOL": 0.10, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.03, "BULL_LOW_VOL": 0.04
+        },
+    )
+)
+class ShortTermReversalEngine(BaseStrategyEngine):
     """
     Short-Term Reversal Strategy Engine.
     Detects temporary overreactions in sound stocks for high-probability mean-reversion entries.
     """
+
+    def __init__(self, config: Optional[Any] = None) -> None:
+        self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            features_df = kwargs.get("features_df")
+            return self.compute_reversal_scores(prices_dict, features_df=features_df)
+        except Exception as e:
+            logger.warning(f"[ShortTermReversalEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "reversal_score"])
 
     def compute_reversal_scores(
         self,

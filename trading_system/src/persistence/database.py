@@ -38,6 +38,10 @@ class _DBConnection:
                 try:
                     await self._conn.execute("SELECT 1")
                 except Exception:
+                    try:
+                        await self._conn.close()
+                    except Exception:
+                        pass
                     self._conn = await aiosqlite.connect(self.db_path)
                     await self._conn.execute("PRAGMA journal_mode=WAL")
                     await self._conn.execute("PRAGMA busy_timeout=60000")
@@ -45,9 +49,13 @@ class _DBConnection:
 
     async def execute_write(self, sql: str, params: tuple = ()):
         """Locks connection during write and commit to ensure transaction isolation."""
-        conn = await self.get()
-        await conn.execute(sql, params)
-        await conn.commit()
+        async with self._lock:
+            if self._conn is None:
+                self._conn = await aiosqlite.connect(self.db_path)
+                await self._conn.execute("PRAGMA journal_mode=WAL")
+                await self._conn.execute("PRAGMA busy_timeout=60000")
+            await self._conn.execute(sql, params)
+            await self._conn.commit()
 
     async def close(self):
         async with self._lock:
@@ -426,33 +434,36 @@ class StockPriceDB:
         return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self):
-        conn = sqlite3.connect(str(self.db_path), timeout=60.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=60000")
+        with self._write_lock:
+            conn = sqlite3.connect(str(self.db_path), timeout=60.0)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA busy_timeout=60000")
 
-        conn.execute("PRAGMA cache_size=-500000")
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA mmap_size=2000000000")
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS stock_prices (
-                symbol TEXT NOT NULL,
-                date TEXT NOT NULL,
-                open REAL,
-                high REAL,
-                low REAL,
-                close REAL,
-                volume INTEGER,
-                updated_at TEXT DEFAULT (datetime('now')),
-                PRIMARY KEY (symbol, date)
-            )
-        """)
-        conn.execute("DROP INDEX IF EXISTS idx_stock_prices_symbol_date")
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_stock_prices_date_symbol
-            ON stock_prices(date, symbol)
-        """)
-        conn.commit()
-        conn.close()
+                conn.execute("PRAGMA cache_size=-500000")
+                conn.execute("PRAGMA temp_store=MEMORY")
+                conn.execute("PRAGMA mmap_size=2000000000")
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS stock_prices (
+                        symbol TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        open REAL,
+                        high REAL,
+                        low REAL,
+                        close REAL,
+                        volume INTEGER,
+                        updated_at TEXT DEFAULT (datetime('now')),
+                        PRIMARY KEY (symbol, date)
+                    )
+                """)
+                conn.execute("DROP INDEX IF EXISTS idx_stock_prices_symbol_date")
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_stock_prices_sym_date
+                    ON stock_prices(symbol, date DESC)
+                """)
+                conn.commit()
+            finally:
+                conn.close()
         self.logger.info(f"StockPriceDB initialized at {self.db_path}")
 
     def update_prices(self, symbol: str, df: pd.DataFrame) -> int:

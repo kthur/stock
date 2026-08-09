@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
+import pandas as pd
 import numpy as np
 from scipy.stats import linregress
 
@@ -160,10 +161,26 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
 
 
 
-class StatisticalArbitrageEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="stat_arb",
+        display_name="Statistical Arbitrage",
+        score_column="stat_arb_score",
+        category="stat",
+        output_file="stat_arb_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.15, "BEAR_HIGH_VOL": 0.20, "SIDEWAYS_LOW_VOL": 0.10, "BULL_HIGH_VOL": 0.05, "BULL_LOW_VOL": 0.05
+        },
+    )
+)
+class StatisticalArbitrageEngine(BaseStrategyEngine):
     """다중 자산 통계적 차익거래 (Statistical Arbitrage / Pairs Trading) 모듈 (R2 Fast Cointegration Scanner)"""
 
-    def __init__(self, use_clustering: bool = True, n_clusters: int = 40, clustering_method: str = "kmeans"):
+    def __init__(self, use_clustering: bool = True, n_clusters: int = 40, clustering_method: str = "kmeans", config: Optional[Any] = None):
         self.pairs: List[Any] = []
         self.use_clustering = use_clustering
         self.n_clusters = n_clusters
@@ -404,7 +421,7 @@ class StatisticalArbitrageEngine:
                 -np.log(2.0) / np.log(phi),
                 np.where(
                     (beta < 0.0) & (phi <= 0.0),
-                    -np.log(2.0) / np.log(np.minimum(np.abs(phi), 0.999)),
+                    -np.log(2.0) / np.log(np.maximum(np.minimum(np.abs(phi), 0.999), 1e-6)),
                     999.0,
                 ),
             )
@@ -528,3 +545,17 @@ class StatisticalArbitrageEngine:
 
         df = pd.DataFrame(list(symbol_scores.items()), columns=['symbol', 'stat_arb_score'])
         return df[['symbol', 'stat_arb_score']]
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            pairs = self.scan_pairs_fast(prices_dict)
+            return self.get_symbol_stat_arb_scores(pairs)
+        except Exception as e:
+            logger.warning(f"[StatArbEngine] compute_scores failed: {e}")
+            return pd.DataFrame(columns=["symbol", "stat_arb_score"])

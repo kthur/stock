@@ -113,8 +113,10 @@ class CrisisDetector:
                 "days_in_crisis": self._days_in_crisis,
                 "days_since_crisis_ended": self._days_since_crisis_ended,
             }
-            with open(p, "w", encoding="utf-8") as f:
+            tmp_p = p.with_suffix(".tmp")
+            with open(tmp_p, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2)
+            tmp_p.replace(p)
             logger.info(f"CrisisDetector state persisted to {file_path}")
         except Exception as e:
             logger.warning(f"Failed to save CrisisDetector state: {e}")

@@ -6,6 +6,22 @@ from .base_strategy import BaseStrategyEngine
 
 logger = logging.getLogger(__name__)
 
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="card_factor",
+        display_name="Cross-Asset Regime Divergence",
+        score_column="card_score",
+        category="factor",
+        output_file="card_predictions.txt",
+        requires_indicators=True,
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.05, "BULL_HIGH_VOL": 0.04, "BULL_LOW_VOL": 0.04
+        },
+    )
+)
 class CARDFactorEngine(BaseStrategyEngine):
     """
     16. Cross-Asset Regime Divergence (CARD) Strategy Engine
