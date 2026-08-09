@@ -406,7 +406,7 @@ def verify_gh_pages(gh_pages_dir: Path) -> GhPagesCheckResult:
             res.strategy_panels_valid[p_id] = count >= 5
         else:
             # Flexible fallback: check for table rows or cards with strategy keyword
-            count = len(re.findall(rf'class=["\']rank["\']', content))
+            count = len(re.findall(r'class=["\']rank["\']', content))
             res.strategy_panel_counts[p_id] = count
             res.strategy_panels_valid[p_id] = count > 0 and (p_id in content or "앙상블" in content)
 
@@ -457,7 +457,7 @@ def print_report(report: PipelineVerificationReport) -> None:
 
     print("\n📊 Strategy Verification by Market:")
     headers = [
-        "Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "LSTM", "S-Arb", 
+        "Market", "Srg", "VCP-M", "Reg", "VCP-R", "L-L", "LSTM", "S-Arb",
         "Sec", "RIM", "Event", "MQ", "IV-Sk", "Flow", "Rev", "ARM", "CARD", "LATR", "InstFor",
         "SC", "Sent", "Neu", "VolT", "Micro", "Status"
     ]

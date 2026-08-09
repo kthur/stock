@@ -8,11 +8,11 @@ from src.core.inst_foreign_sector import InstForeignSectorEngine
 
 def test_inst_foreign_sector_engine_basic():
     engine = InstForeignSectorEngine(accumulation_days=40)
-    
+
     # Generate synthetic price data for 4 symbols
     np.random.seed(42)
     dates = pd.date_range('2026-01-01', periods=60, freq='D')
-    
+
     prices_dict = {}
     for sym in ['005930', '000660', '035420', '035720']:
         ret = np.random.normal(0.001, 0.02, size=60)

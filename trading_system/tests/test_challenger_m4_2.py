@@ -25,7 +25,7 @@ def test_monotonicity_cost_scaling_factor():
     monotonically increases total_cost_pct and reduces net expected returns.
     """
     scorer = EnsembleScoringEngine()
-    
+
     # Create candidate DataFrame with diverse stocks across KOSPI, KOSDAQ, SP500
     df_candidates = pd.DataFrame([
         {
@@ -58,9 +58,9 @@ def test_monotonicity_cost_scaling_factor():
     ])
 
     scaling_factors = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]
-    
+
     prev_returns = {sym: float('inf') for sym in df_candidates['symbol']}
-    
+
     for factor in scaling_factors:
         metrics = SlippageMetrics(
             avg_slippage_bps=5.0 * factor,
@@ -69,13 +69,13 @@ def test_monotonicity_cost_scaling_factor():
         )
         scorer.update_microstructure_costs(metrics)
         assert scorer.cost_scaling_factor == pytest.approx(factor, abs=1e-5)
-        
+
         scored = scorer.combine_predictions(reg_df=df_candidates.copy())
-        
+
         for _, row in scored.iterrows():
             sym = row['symbol']
             net_ret = row['ensemble_expected_return']
-            
+
             # Net expected return must be monotonically non-increasing as cost factor rises
             assert net_ret <= prev_returns[sym] + 1e-9, (
                 f"Monotonicity violated for {sym}: factor {factor} gave net return {net_ret} > previous {prev_returns[sym]}"
@@ -85,7 +85,7 @@ def test_monotonicity_cost_scaling_factor():
     # Test strict monotonicity for positive raw returns prior to lower clipping (0.0)
     scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=1.0))
     ret_1x = scorer.combine_predictions(reg_df=df_candidates.copy()).set_index('symbol')['ensemble_expected_return']
-    
+
     scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=2.0))
     ret_2x = scorer.combine_predictions(reg_df=df_candidates.copy()).set_index('symbol')['ensemble_expected_return']
 
@@ -98,7 +98,7 @@ def test_high_slippage_asset_demotion():
     2. Verify that high-slippage assets undergo score demotion relative to low-slippage assets.
     """
     scorer = EnsembleScoringEngine()
-    
+
     # Asset A: High raw prediction (15%) but relatively low turnover (600M KRW > 500M KRW threshold) & high vol (5%) -> High transaction cost
     # Asset B: Slightly lower raw prediction (14%) but very high turnover (200B KRW) & low vol (1%) -> Low transaction cost
     # Asset C: Extremely illiquid (50M KRW < 500M KRW) -> Hard zeroed out by Liquidity Gate
@@ -135,7 +135,7 @@ def test_high_slippage_asset_demotion():
     # Baseline scaling (1.0x)
     scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=1.0))
     scored_1x = scorer.combine_predictions(reg_df=df_candidates.copy())
-    
+
     # Verify HARD_ILLIQUID_STOCK is zeroed out by Liquidity Gate
     hard_ret_1x = scored_1x.loc[scored_1x['symbol'] == 'HARD_ILLIQUID_STOCK', 'ensemble_expected_return'].values[0]
     hard_score_1x = scored_1x.loc[scored_1x['symbol'] == 'HARD_ILLIQUID_STOCK', 'ensemble_score'].values[0]
@@ -153,7 +153,7 @@ def test_high_slippage_asset_demotion():
     # Drop in return for HIGH_COST_STOCK must be strictly larger than drop for LOW_COST_STOCK
     drop_high = ret_high_1x - ret_high_3x
     drop_low = ret_low_1x - ret_low_3x
-    
+
     assert drop_high > drop_low, (
         f"High slippage asset penalty drop ({drop_high:.4f}) should exceed low slippage asset penalty drop ({drop_low:.4f})"
     )
@@ -195,7 +195,7 @@ def test_clamping_cost_scaling_factor_bounds():
 
     # Test SlippageFeedbackEngine automatic clamping of calculated cost_scaling_factor
     engine = SlippageFeedbackEngine(default_slippage_bps=5.0)
-    
+
     # Negative / zero avg_slippage in feedback calculation
     # Simulate DB with zero or negative calculated slippage
     class MockDBFeedback(SlippageFeedbackEngine):

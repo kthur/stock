@@ -733,7 +733,7 @@ def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> Por
     try:
         import numpy as np
         from src.analysis.portfolio_optimizer import calculate_hrp_weights, calculate_risk_parity_weights
-        
+
         # Build synthetic covariance matrix based on market tiers & position order
         volatilities = np.array([0.18 + (i % 5) * 0.04 for i in range(n)])
         corr_matrix = np.eye(n)
@@ -1531,7 +1531,7 @@ def build_html(
               <td class="{score_class}">{score_val}</td>
             </tr>"""
             else:
-                rows_html = f'<tr><td colspan="5" class="empty">데이터 없음</td></tr>'
+                rows_html = '<tr><td colspan="5" class="empty">데이터 없음</td></tr>'
 
             panels_html += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -1577,7 +1577,6 @@ def build_html(
 <title>📈 Stock Prediction Dashboard | KRX &amp; SP500</title>
 <meta name="description" content="AI 기반 한국·미국 주식 예측 대시보드 — XGBoost 앙상블, Surge 분류기, VCP 패턴, Lead-Lag 전략">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
   :root {{

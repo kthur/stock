@@ -15,7 +15,7 @@ from trading_system.src.ai.ensemble_scorer import EnsembleScoringEngine
 
 def main():
     print("=== EMPIRICAL VERIFICATION DATA REPORT ===")
-    
+
     # 1. Monotonicity Verification
     print("\n--- 1. Monotonicity & Net Expected Return Impact ---")
     scorer = EnsembleScoringEngine()
@@ -31,7 +31,7 @@ def main():
     for f in factors:
         scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=f))
         scored = scorer.combine_predictions(reg_df=df_candidates.copy())
-        
+
         row_dict = {'factor': f}
         for _, row in scored.iterrows():
             sym = row['symbol']
@@ -58,7 +58,7 @@ def main():
 
     scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=1.0))
     scored_1x = scorer.combine_predictions(reg_df=df_demotion.copy())
-    
+
     scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=3.0))
     scored_3x = scorer.combine_predictions(reg_df=df_demotion.copy())
 
@@ -75,7 +75,7 @@ def main():
         scorer.update_microstructure_costs(SlippageMetrics(cost_scaling_factor=inp))
         actual = scorer.cost_scaling_factor
         clamping_res.append({'input': inp, 'clamped': actual, 'valid': 0.50 <= actual <= 3.00})
-    
+
     clamp_df = pd.DataFrame(clamping_res)
     print(clamp_df.to_string(index=False))
 

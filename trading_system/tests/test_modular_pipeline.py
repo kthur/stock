@@ -11,7 +11,6 @@ import pandas as pd
 from src.pipeline import (
     PipelineContext,
     PipelineDataFetcher,
-    PipelineTrainer,
     PipelinePredictor,
     PipelineReporter,
     ModularPipelineOrchestrator,

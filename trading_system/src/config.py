@@ -2,7 +2,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from dotenv import load_dotenv
 
@@ -135,7 +135,10 @@ class TradingConfig:
             except ValueError:
                 logger.warning("Invalid FUNDAMENTAL_CACHE_EXPIRY_DAYS in env, keeping default")
         if "BACKTEST_YEARS" in os.environ:
-            self.backtest_years = os.environ["BACKTEST_YEARS"]
+            try:
+                self.backtest_years = float(os.environ["BACKTEST_YEARS"]) if "." in os.environ["BACKTEST_YEARS"] else int(os.environ["BACKTEST_YEARS"])
+            except ValueError:
+                logger.warning("Invalid BACKTEST_YEARS in env, keeping default")
         if "STOCK_PRICE_DB_PATH" in os.environ:
             self.stock_price_db_path = os.environ["STOCK_PRICE_DB_PATH"]
         if "OPENAI_API_KEY" in os.environ:
@@ -310,14 +313,14 @@ class TradingConfig:
     def parsed_authorized_user_ids(self) -> list:
         return self._parse_authorized_ids()
 
-    def resolve_sample_size(self, value: str, universe_size: int) -> int:
-        value = value.strip().lower()
-        if value == "all":
+    def resolve_sample_size(self, value: Any, universe_size: int) -> int:
+        val = str(value).strip().lower()
+        if val == "all":
             return universe_size
-        if value.endswith('%'):
-            ratio = float(value.rstrip('%')) / 100.0
+        if val.endswith('%'):
+            ratio = float(val.rstrip('%')) / 100.0
             return max(1, int(universe_size * ratio))
-        return int(value)
+        return int(val)
 
     def get_freshness_days(self) -> int:
         val = str(self.stock_price_freshness_days).strip().lower()

@@ -89,15 +89,14 @@ if "torch" not in sys.modules:
                 return self
             def train(self, *args, **kwargs):
                 return self
-            def backward(self, *args, **kwargs):
-                pass
-
+        mock_nn = types.ModuleType("torch.nn")
         mock_nn.Module = DummyModule
+
         mock_nn.Sequential = DummyModule
         mock_nn.Linear = DummyModule
         mock_nn.ReLU = DummyModule
         mock_nn.LSTM = DummyModule
-        
+
         class DummyLoss(DummyModule):
             def __call__(self, *args, **kwargs):
                 return self

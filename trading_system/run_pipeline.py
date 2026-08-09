@@ -53,8 +53,6 @@ from src.utils.technical_cache import DataFrameCache
 from src.utils.http_session import setup_global_http_headers
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
 from src.data_layer.ecos_client import BOKECOSClient, ECOS_ITEM_MAP
-from src.pipeline.orchestrator import ModularPipelineOrchestrator
-from src.pipeline_checkpoint import PipelineCheckpoint
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -698,7 +696,8 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
     if ticker.startswith("FRED:"):
         fred_id = ticker.split("FRED:", 1)[1]
         try:
-            import requests, io
+            import requests
+            import io
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
             url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={fred_id}"
             resp = requests.get(url, headers=headers, timeout=5)
@@ -3145,7 +3144,7 @@ def execute_prediction_pipeline():
 
         # Strategy matrix for PBO
         raw_scores_df = getattr(scorer, 'raw_scores', None)
-        
+
         # C6 FIX: Use actual historical market returns for stress testing,
         # NOT the current-point expected return snapshot (which is all positive and
         # produces MDD=0, VaR=0, CVaR=0 — meaningless stress test results).

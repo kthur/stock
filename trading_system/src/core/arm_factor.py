@@ -5,6 +5,15 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        return default if np.isnan(f) or np.isinf(f) else f
+    except (ValueError, TypeError):
+        return default
+
 class ARMFactorEngine:
     """
     15. Analyst Revision Momentum (ARM) Strategy Engine
@@ -22,6 +31,8 @@ class ARMFactorEngine:
         """
         scores = {}
         for sym, fund in fundamentals_dict.items():
+            if not isinstance(fund, dict):
+                continue
             try:
                 # Extract EPS estimate revision proxies or actual analyst consensus revisions
                 eps_rev = fund.get('eps_revision_pct')
@@ -29,14 +40,14 @@ class ARMFactorEngine:
 
                 if eps_rev is not None or tp_rev is not None:
                     # True Analyst Revision Momentum (ARM)
-                    e_rev = float(eps_rev or 0.0)
-                    t_rev = float(tp_rev or 0.0)
+                    e_rev = _safe_float(eps_rev, 0.0)
+                    t_rev = _safe_float(tp_rev, 0.0)
                     arm_raw = (e_rev * 0.5) + (t_rev * 0.5)
                 else:
                     # Fallback Fundamental Growth Momentum
-                    eps_growth = float(fund.get('eps_growth', 0.0) or 0.0)
-                    rev_growth = float(fund.get('revenue_growth', 0.0) or 0.0)
-                    per = float(fund.get('per', 15.0) or 15.0)
+                    eps_growth = _safe_float(fund.get('eps_growth'), 0.0)
+                    rev_growth = _safe_float(fund.get('revenue_growth'), 0.0)
+                    per = _safe_float(fund.get('per'), 15.0)
                     per_penalty = max(0.0, per) * 0.01
                     arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - per_penalty
 
@@ -50,7 +61,8 @@ class ARMFactorEngine:
 
                 arm_raw += (price_mom * 0.2)
                 scores[sym] = arm_raw
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[ARM FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.0
 
         if not scores:

@@ -21,7 +21,7 @@ def test_normalize_symbol_krx_and_us():
     assert normalize_symbol("5930") == "005930"
     assert normalize_symbol("35720") == "035720"
     assert normalize_symbol("005930") == "005930"
-    
+
     # US tickers retained
     assert normalize_symbol("BRK.B") == "BRK.B"
     assert normalize_symbol("AAPL") == "AAPL"
@@ -84,7 +84,7 @@ def test_multitier_fallback_krx():
     with patch("trading_system.run_pipeline._fetch_yf_primary", side_effect=Exception("yfinance down")), \
          patch("trading_system.run_pipeline.fdr.DataReader", side_effect=Exception("FDR down")), \
          patch("trading_system.run_pipeline._fetch_naver_direct") as mock_naver:
-        
+
         mock_df = pd.DataFrame({
             "Open": [100.0], "High": [105.0], "Low": [99.0], "Close": [104.0], "Volume": [1000]
         }, index=pd.date_range("2024-01-01", periods=1))

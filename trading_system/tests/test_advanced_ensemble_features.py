@@ -32,7 +32,7 @@ def test_meta_learner_auto_rolling_retrain(tmp_path):
     learner = MetaEnsembleLearner(model_dir=tmp_path)
     hist_df = pd.DataFrame({col: np.random.uniform(0, 1, 40) for col in STRATEGY_SCORE_COLS})
     hist_df['outcome_label'] = (hist_df['reg_score'] > 0.5).astype(float)
-    
+
     success = learner.auto_rolling_retrain(hist_df, target_col='outcome_label')
     assert success is True
 
@@ -45,7 +45,7 @@ def test_black_litterman_portfolio_allocation():
     }
     preds = {'AAPL': 0.12, 'MSFT': 0.08}
     res = allocator.allocate_black_litterman(prices_dict=prices_dict, predicted_returns=preds)
-    
+
     assert not res.empty
     assert 'symbol' in res.columns
     assert 'weight' in res.columns

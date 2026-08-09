@@ -10,7 +10,7 @@ from src.core.stat_arb import StatisticalArbitrageEngine
 def test_indicator_storage_sector_schema_and_map(tmp_path):
     db_file = str(tmp_path / "test_indicators.db")
     storage = MarketIndicatorStorage(db_path=db_file)
-    
+
     # Verify migration / schema
     with sqlite3.connect(db_file) as conn:
         cursor = conn.execute("PRAGMA table_info(stock_universe)")
@@ -37,7 +37,7 @@ def test_indicator_storage_sector_schema_and_map(tmp_path):
 
 def test_gics_sector_normalization_and_scoring():
     engine = SectorRotationEngine()
-    
+
     assert engine.normalize_sector("전기전자") == "Information Technology"
     assert engine.normalize_sector("의약품") == "Health Care"
     assert engine.normalize_sector("금융업") == "Financials"
@@ -74,11 +74,11 @@ def test_gics_sector_normalization_and_scoring():
 
 def test_stat_arb_sector_constraint():
     sa_engine = StatisticalArbitrageEngine()
-    
+
     np.random.seed(42)
     t = np.linspace(0, 10, 100)
     base_signal = np.sin(t)
-    
+
     prices_dict = {
         '005930': (100 + base_signal + np.random.normal(0, 0.05, 100)).tolist(),
         '000660': (150 + 1.5 * base_signal + np.random.normal(0, 0.05, 100)).tolist(),
@@ -97,7 +97,7 @@ def test_stat_arb_sector_constraint():
         sector_map=sector_map,
         require_same_sector=True
     )
-    
+
     for p in pairs_same:
         pair_syms = set(p['pair'])
         assert not ('005380' in pair_syms and '005930' in pair_syms)

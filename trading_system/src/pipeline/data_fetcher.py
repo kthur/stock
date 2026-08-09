@@ -5,10 +5,9 @@ Handles global market indicators fetch, stock universe synchronization,
 batch price prefetching into StockPriceDB, and background fundamental updates.
 """
 
-import os
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict
 import pandas as pd
 
 logger = logging.getLogger(__name__)

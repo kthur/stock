@@ -41,7 +41,7 @@ def test_filing_sentiment_metrics_dataclass():
 def test_offline_lexicon_korean_dart():
     """Test offline lexicon parser for Korean DART disclosures."""
     engine = LLMSentimentEngine()
-    
+
     # Positive Korean text
     text_pos = "당사는 영업이익증가 및 실적개선으로 흑자전환에 성공하였으며 자기주식소각 및 무상증자를 결정하였습니다."
     metrics_pos = engine.analyze_filing("005930", text_pos, filing_date="2026-07-31", market="KOSPI")
@@ -77,7 +77,7 @@ def test_offline_lexicon_english_sec():
 def test_sentiment_formula_exactness():
     """Test exact mathematical formula S_tone = clip(0.5 + (N_pos - N_neg)/(2*(N_pos + N_neg + 1)), 0, 1)."""
     engine = LLMSentimentEngine()
-    
+
     # 3 positive terms, 0 negative terms -> N_pos=3, N_neg=0
     # S_tone = 0.5 + 3 / (2 * (3 + 0 + 1)) = 0.5 + 3/8 = 0.875
     text_3pos = "실적개선 흑자전환 무상증자"

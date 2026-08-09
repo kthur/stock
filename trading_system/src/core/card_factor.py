@@ -97,7 +97,8 @@ class CARDFactorEngine:
                 if np.isnan(card_score) or np.isinf(card_score):
                     card_score = 0.5
                 scores[sym] = float(card_score)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[CARD FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
 
         return scores

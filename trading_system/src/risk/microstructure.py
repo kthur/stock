@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 class TransactionCostConfig:
     kospi_stt_rate: float = 0.0018     # 0.18% STT
     kosdaq_stt_rate: float = 0.0018    # 0.18% STT
-    konex_stt_rate: float = 0.0010     # 0.10% STT
+    konex_stt_rate: float = 0.0008     # 0.08% STT
+    brokerage_fee_rate: float = 0.00035 # 0.035% brokerage fee
     us_sec_rate: float = 0.0000278     # 0.00278% SEC fee
+    us_brokerage_fee_rate: float = 0.00005 # 0.005% US fee
     base_spread_pct: float = 0.0005    # 0.05% default spread
     market_impact_gamma: float = 0.1    # Square-root impact coefficient
 
@@ -35,18 +37,19 @@ class MicrostructureCostModel:
 
     def get_tax_fee_rate(self, market: str, is_sell: bool = True) -> float:
         """Return statutory tax and regulatory exchange fee rate."""
-        if not is_sell:
-            return 0.0
         mkt = (market or "").upper()
+        fee = self.cfg.us_brokerage_fee_rate if mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE") else self.cfg.brokerage_fee_rate
+        if not is_sell:
+            return fee
         if mkt == "KOSPI":
-            return self.cfg.kospi_stt_rate
+            return self.cfg.kospi_stt_rate + fee
         elif mkt == "KOSDAQ":
-            return self.cfg.kosdaq_stt_rate
+            return self.cfg.kosdaq_stt_rate + fee
         elif mkt == "KONEX":
-            return self.cfg.konex_stt_rate
+            return self.cfg.konex_stt_rate + fee
         elif mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE"):
-            return self.cfg.us_sec_rate
-        return 0.0018
+            return self.cfg.us_sec_rate + fee
+        return self.cfg.kospi_stt_rate + fee
 
     def calculate_bid_ask_spread(self, volatility: float, price: float, market: str = "KOSPI") -> float:
         """Estimate half-spread percentage based on price & volatility."""

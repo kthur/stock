@@ -9,7 +9,7 @@ import os
 import sqlite3
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 

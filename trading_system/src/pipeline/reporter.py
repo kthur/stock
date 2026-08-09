@@ -5,11 +5,10 @@ Exports structured text prediction files (ensemble_predictions.txt, strategy_dat
 and generates the GitHub Pages interactive dashboard (index.html).
 """
 
-import os
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List
 import pandas as pd
 
 logger = logging.getLogger(__name__)

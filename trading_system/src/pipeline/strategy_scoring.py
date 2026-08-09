@@ -6,7 +6,7 @@ Evaluates all 27 multi-factor trading strategies using ThreadPoolExecutor for co
 import logging
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class StrategyScoringStage:
                     import inspect
                     sig = inspect.signature(engine.compute_scores)
                     params = sig.parameters
-                    
+
                     kwargs = {}
                     if "prices_dict" in params or "df_prices" in params:
                         kwargs["df_prices" if "df_prices" in params else "prices_dict"] = prices_dict

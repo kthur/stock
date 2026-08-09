@@ -22,7 +22,7 @@ def make_dummy_indicator_df(rows=50, vix_val=15.0, sp500_ret=0.1, us10y_val=4.0)
 def test_multi_variable_gmm_training_and_predict():
     detector = MarketRegimeDetector(n_regimes=3, rolling_window=10)
     df = make_dummy_indicator_df(rows=60, vix_val=18.0, sp500_ret=0.2)
-    
+
     detector.train(df)
     assert detector.is_trained
     assert len(detector.cluster_to_regime) == 3
@@ -50,13 +50,13 @@ def test_fast_vix_shock_override():
 
 def test_ensemble_vix_override_weights():
     engine = EnsembleScoringEngine()
-    
+
     # Normal VIX (15.0) -> Normal base weights
     base_w = engine.get_base_weights(regime="SIDEWAYS_LOW_VOL", vix_val=15.0)
-    
+
     # High VIX (35.0) -> Surge & Sector Rotation reduced, Regression & Stat-Arb boosted
     vix_w = engine.get_base_weights(regime="SIDEWAYS_LOW_VOL", vix_val=35.0)
-    
+
     assert vix_w['surge'] < base_w['surge']
     assert vix_w['regression'] > base_w['regression']
     assert abs(sum(vix_w.values()) - 1.0) < 1e-5
@@ -64,7 +64,7 @@ def test_ensemble_vix_override_weights():
 
 def test_sector_rotation_macro_adjustments():
     sector_eng = SectorRotationEngine()
-    
+
     dates = pd.date_range("2024-01-01", periods=30, freq="B")
     prices_dict = {
         '005930': pd.DataFrame({'Close': np.linspace(50000, 60000, 30)}, index=dates),
@@ -93,7 +93,7 @@ def test_yield_inversion_3d_regime():
     detector = MarketRegimeDetector(n_regimes=3, rolling_window=10)
     df = make_dummy_indicator_df(rows=50, us10y_val=2.5, vix_val=0.0)
     df['us2y'] = 3.0
-    
+
     detector.train(df)
     res = detector.predict_3d_macro_regime(df)
     assert res['macro_label'] == 'YIELD_INVERSION'

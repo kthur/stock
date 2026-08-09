@@ -41,7 +41,7 @@ def test_meta_ensemble_learner_fit_save_load(tmp_path):
 
 def test_hybrid_calibration():
     scorer = EnsembleScoringEngine()
-    
+
     # Test Platt Scaling (N < 50)
     scores_small = np.random.uniform(0, 1, 30)
     labels_small = (scores_small > 0.5).astype(int)

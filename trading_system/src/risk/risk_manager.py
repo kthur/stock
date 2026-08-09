@@ -78,7 +78,7 @@ class EconomicCalendarAnalyzer:
 class CrisisDetector:
     """위기 감지 및 방어 시스템 - 금융위기/코로나/전쟁 등 이상 징후 조기 탐지"""
 
-    def __init__(self, risk_manager: "RiskManager"):
+    def __init__(self, risk_manager: Optional["RiskManager"] = None):
         self.rm = risk_manager
         self.logger = logger
         self.crisis_level = CrisisLevel.NONE
@@ -155,10 +155,9 @@ class CrisisDetector:
         cds_5y: float | None = None,
     ) -> CrisisLevel:
         """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러, CDS 신용스프레드) 융합"""
-        self._vix_history.append(vix)
-
-        dd = self.rm.calculate_drawdown()
+        dd = self.rm.calculate_drawdown() if self.rm is not None else 0.0
         self._dd_history.append(dd)
+
 
         for val, hist in [
             (usdkrw, self._usdkrw_history),
@@ -424,6 +423,8 @@ class RiskManager:
         self._correlation_matrix: Dict[str, Dict[str, float]] = {}
         self._daily_returns: deque[float] = deque(maxlen=252)
         self._consecutive_losses: int = 0
+        import threading
+        self._lock = threading.Lock()
 
         self.crisis_detector = CrisisDetector(self)
         self.intraday_stop_loss_engine = IntradayStopLossEngine()

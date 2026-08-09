@@ -48,7 +48,7 @@ def migrate_table(sqlite_db_path: Path, table_name: str, pg_engine: UnifiedDBEng
         pg_cur = pg_conn.cursor()
 
         insert_sql = f"INSERT INTO {table_name} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING;"
-        
+
         batch_size = 1000
         total_inserted = 0
         for i in range(0, len(rows), batch_size):

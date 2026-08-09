@@ -447,8 +447,8 @@ class StockPriceDB:
             )
         """)
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_stock_prices_symbol_date
-            ON stock_prices(symbol, date)
+            CREATE INDEX IF NOT EXISTS idx_stock_prices_date_symbol
+            ON stock_prices(date, symbol)
         """)
         conn.commit()
         conn.close()

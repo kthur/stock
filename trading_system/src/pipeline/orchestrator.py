@@ -5,7 +5,7 @@ Coordinates all execution stages (Data Ingestion, Model Training, Parallel Strat
 
 import logging
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from src.pipeline_checkpoint import PipelineCheckpoint
 from src.pipeline.strategy_scoring import StrategyScoringStage

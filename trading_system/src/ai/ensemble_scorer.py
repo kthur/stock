@@ -1370,25 +1370,21 @@ class EnsembleScoringEngine:
 
         # Combine all 31 strategy DataFrames efficiently while preserving metadata
         dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df]
-        merged = pd.DataFrame(columns=['symbol'])
+        valid_dfs = []
         for d in dfs:
-            if d is not None and not d.empty:
-                if 'symbol' in d.columns:
-                    d = d.copy()
-                    d['symbol'] = d['symbol'].astype(str)
-                if merged.empty:
-                    merged = d.copy()
-                else:
-                    overlap = [c for c in d.columns if c in merged.columns and c != 'symbol']
-                    if overlap:
-                        merged = merged.merge(d, on='symbol', how='outer', suffixes=('', '_dup'))
-                        for col in overlap:
-                            dup_col = col + '_dup'
-                            if dup_col in merged.columns:
-                                merged[col] = merged[col].combine_first(merged[dup_col])
-                                merged.drop(columns=[dup_col], inplace=True)
-                    else:
-                        merged = merged.merge(d, on='symbol', how='outer')
+            if d is not None and not d.empty and 'symbol' in d.columns:
+                d_idx = d.copy()
+                d_idx['symbol'] = d_idx['symbol'].astype(str)
+                d_idx = d_idx.drop_duplicates(subset=['symbol']).set_index('symbol')
+                valid_dfs.append(d_idx)
+
+        if valid_dfs:
+            merged = pd.concat(valid_dfs, axis=1)
+            if merged.columns.has_duplicates:
+                merged = merged.groupby(level=0, axis=1).first()
+            merged = merged.reset_index()
+        else:
+            merged = pd.DataFrame(columns=['symbol'])
 
         # Map strategy names to score column names
         strategy_cols = [
@@ -1570,98 +1566,97 @@ class EnsembleScoringEngine:
         default_volatility_krx = getattr(self.config, 'default_volatility_krx', 0.020) if self.config is not None else 0.020
         default_volatility_sp500 = getattr(self.config, 'default_volatility_sp500', 0.015) if self.config is not None else 0.015
 
-        def _get_cost_pct(row: pd.Series) -> float:
-            symbol = str(row.get('symbol', ''))
-            market = str(row.get('market', '')).upper()
-            vol = float(row.get('volume', 0.0)) if pd.notna(row.get('volume')) else 0.0
-            close_p = float(row.get('close', 0.0)) if pd.notna(row.get('close')) else 0.0
-            turnover = vol * close_p
+        # Vectorized Microstructure Friction Model
+        mkt_col = merged['market'].fillna('').astype(str).str.upper() if 'market' in merged.columns else pd.Series('', index=merged.index)
+        sym_col = merged['symbol'].astype(str)
+        is_us_stock = mkt_col.isin(['SP500', 'NASDAQ', 'RUSSELL2000']) | (sym_col.str.isalpha() & (sym_col.str.len() <= 5))
 
-            is_us_stock = market in ('SP500', 'NASDAQ', 'RUSSELL2000') or (symbol.isalpha() and len(symbol) <= 5)
-            default_vol = default_volatility_sp500 if is_us_stock else default_volatility_krx
-            volatility = float(row.get('volatility_20d', default_vol)) if pd.notna(row.get('volatility_20d')) else default_vol
-            if volatility <= 0:
-                volatility = default_vol
+        vol_data = merged['volatility_20d'] if 'volatility_20d' in merged.columns else pd.Series(np.nan, index=merged.index)
+        default_vols = np.where(is_us_stock, default_volatility_sp500, default_volatility_krx)
+        vols = vol_data.fillna(pd.Series(default_vols, index=merged.index)).astype(float).values
+        vols = np.where(vols <= 0, default_vols, vols)
 
-            if market == 'NASDAQ':
-                stt_tax = 0.00003  # SEC fee
-                brokerage_fee = 0.00005
-                base_spread = base_spread_nasdaq
-                spread_min, spread_max = 0.0001, 0.0080
-                q_order = order_size_sp500
-                adv_ref = 1_000_000.0
-                impact_coeff = impact_coeff_sp500
-            elif market == 'RUSSELL2000':
-                stt_tax = 0.00003
-                brokerage_fee = 0.00005
-                base_spread = base_spread_russell2000
-                spread_min, spread_max = 0.0002, 0.0150
-                q_order = order_size_sp500
-                adv_ref = 500_000.0
-                impact_coeff = impact_coeff_sp500
-            elif market == 'KOSDAQ' or symbol.endswith('.KQ'):
-                stt_tax = 0.0018
-                brokerage_fee = 0.0003
-                base_spread = base_spread_kosdaq
-                spread_min, spread_max = 0.0003, 0.0250
-                q_order = order_size_krx
-                adv_ref = 1_000_000_000.0
-                impact_coeff = impact_coeff_krx
-            elif market == 'KOSPI' or symbol.endswith('.KS') or (symbol.isdigit() and len(symbol) == 6):
-                stt_tax = 0.0015
-                brokerage_fee = 0.0003
-                base_spread = base_spread_kospi
-                spread_min, spread_max = 0.0002, 0.0150
-                q_order = order_size_krx
-                adv_ref = 1_000_000_000.0
-                impact_coeff = impact_coeff_krx
-            elif is_us_stock:
-                stt_tax = 0.00003  # SEC fee
-                brokerage_fee = 0.00005
-                base_spread = base_spread_sp500
-                spread_min, spread_max = 0.0001, 0.0050
-                q_order = order_size_sp500
-                adv_ref = 1_000_000.0  # $1M USD
-                impact_coeff = impact_coeff_sp500
-            else:
-                stt_tax = 0.0015
-                brokerage_fee = 0.0003
-                base_spread = base_spread_kospi
-                spread_min, spread_max = 0.0002, 0.0150
-                q_order = order_size_krx
-                adv_ref = 1_000_000_000.0
-                impact_coeff = impact_coeff_krx
+        vol_col = merged['volume'].fillna(0.0).astype(float).values if 'volume' in merged.columns else np.zeros(len(merged))
+        close_col = merged['close'].fillna(0.0).astype(float).values if 'close' in merged.columns else np.zeros(len(merged))
+        turnover = vol_col * close_col
 
-            min_adv = 10_000.0 if is_us_stock else 10_000_000.0
-            if turnover > 0:
-                adv = max(turnover, min_adv)
-            else:
-                adv = adv_ref  # Default to benchmark liquid ADV when turnover data is missing
+        stt_tax = np.full(len(merged), 0.0015)
+        brokerage_fee = np.full(len(merged), 0.0003)
+        base_spread = np.full(len(merged), base_spread_kospi)
+        spread_min = np.full(len(merged), 0.0002)
+        spread_max = np.full(len(merged), 0.0150)
+        q_order = np.full(len(merged), order_size_krx)
+        adv_ref = np.full(len(merged), 1_000_000_000.0)
+        impact_coeff = np.full(len(merged), impact_coeff_krx)
 
-            # 1. Dynamic Bid-Ask Spread Modeling
-            adv_ratio = adv_ref / adv
-            vol_ratio = volatility / 0.020
-            dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
-            clamped_spread = min(max(dynamic_spread, spread_min), spread_max)
+        m_nasdaq = (mkt_col == 'NASDAQ')
+        stt_tax[m_nasdaq] = 0.00003
+        brokerage_fee[m_nasdaq] = 0.00005
+        base_spread[m_nasdaq] = base_spread_nasdaq
+        spread_min[m_nasdaq] = 0.0001
+        spread_max[m_nasdaq] = 0.0080
+        q_order[m_nasdaq] = order_size_sp500
+        adv_ref[m_nasdaq] = 1_000_000.0
+        impact_coeff[m_nasdaq] = impact_coeff_sp500
 
-            # 2. Order Book Market Impact Modeling (using empirical realized_market_impact_alpha)
-            participation_ratio = q_order / adv
-            impact_alpha = getattr(self, 'realized_market_impact_alpha', 0.50)
-            if impact_alpha == 0.50:
-                impact_one_way = impact_coeff * volatility * np.sqrt(participation_ratio)
-            else:
-                impact_one_way = impact_coeff * volatility * (participation_ratio ** impact_alpha)
+        m_russell = (mkt_col == 'RUSSELL2000')
+        stt_tax[m_russell] = 0.00003
+        brokerage_fee[m_russell] = 0.00005
+        base_spread[m_russell] = base_spread_russell2000
+        spread_min[m_russell] = 0.0002
+        spread_max[m_russell] = 0.0150
+        q_order[m_russell] = order_size_sp500
+        adv_ref[m_russell] = 500_000.0
+        impact_coeff[m_russell] = impact_coeff_sp500
 
-            # 3. Participation Rate Overflow Penalty (> 10% ADV) with safety cap
-            if participation_ratio > 0.10:
-                impact_one_way += min(0.50 * (participation_ratio - 0.10), 0.03)
+        m_kosdaq = (mkt_col == 'KOSDAQ') | sym_col.str.endswith('.KQ')
+        stt_tax[m_kosdaq] = 0.0018
+        brokerage_fee[m_kosdaq] = 0.0003
+        base_spread[m_kosdaq] = base_spread_kosdaq
+        spread_min[m_kosdaq] = 0.0003
+        spread_max[m_kosdaq] = 0.0250
+        q_order[m_kosdaq] = order_size_krx
+        adv_ref[m_kosdaq] = 1_000_000_000.0
+        impact_coeff[m_kosdaq] = impact_coeff_krx
 
-            raw_total_cost = stt_tax + brokerage_fee + (1.0 * clamped_spread) + (2.0 * impact_one_way)
-            cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
-            total_cost_pct = min(raw_total_cost * cost_scaling, 0.05)  # Cap total friction at 5.0% max
-            return float(total_cost_pct)
+        m_kospi = (mkt_col == 'KOSPI') | sym_col.str.endswith('.KS') | (sym_col.str.isdigit() & (sym_col.str.len() == 6))
+        stt_tax[m_kospi] = 0.0015
+        brokerage_fee[m_kospi] = 0.0003
+        base_spread[m_kospi] = base_spread_kospi
+        spread_min[m_kospi] = 0.0002
+        spread_max[m_kospi] = 0.0150
+        q_order[m_kospi] = order_size_krx
+        adv_ref[m_kospi] = 1_000_000_000.0
+        impact_coeff[m_kospi] = impact_coeff_krx
 
-        cost_series = merged.apply(_get_cost_pct, axis=1)
+        m_other_us = is_us_stock & ~m_nasdaq & ~m_russell & ~m_kosdaq & ~m_kospi
+        stt_tax[m_other_us] = 0.00003
+        brokerage_fee[m_other_us] = 0.00005
+        base_spread[m_other_us] = base_spread_sp500
+        spread_min[m_other_us] = 0.0001
+        spread_max[m_other_us] = 0.0050
+        q_order[m_other_us] = order_size_sp500
+        adv_ref[m_other_us] = 1_000_000.0
+        impact_coeff[m_other_us] = impact_coeff_sp500
+
+        min_adv = np.where(is_us_stock, 10_000.0, 10_000_000.0)
+        adv = np.where(turnover > 0, np.maximum(turnover, min_adv), adv_ref)
+
+        adv_ratio = adv_ref / adv
+        vol_ratio = vols / 0.020
+        dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
+        clamped_spread = np.clip(dynamic_spread, spread_min, spread_max)
+
+        participation_ratio = q_order / adv
+        impact_alpha = getattr(self, 'realized_market_impact_alpha', 0.50)
+        impact_one_way = impact_coeff * vols * (participation_ratio ** impact_alpha)
+
+        ov_mask = participation_ratio > 0.10
+        impact_one_way[ov_mask] += np.minimum(0.50 * (participation_ratio[ov_mask] - 0.10), 0.03)
+
+        raw_total_cost = stt_tax + brokerage_fee + (1.0 * clamped_spread) + (2.0 * impact_one_way)
+        cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
+        cost_series = np.minimum(raw_total_cost * cost_scaling, 0.05)
         merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0, upper=50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
