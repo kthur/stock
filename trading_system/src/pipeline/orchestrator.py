@@ -22,6 +22,11 @@ class ModularPipelineOrchestrator:
         self.strategy_stage = StrategyScoringStage(max_workers=max_workers)
         self.report_stage = ReportGenerationStage()
 
+    def run(self, ctx: Any) -> Any:
+        """Sequential context execution compatibility method for PipelineContext."""
+        logger.info("=== Starting Modular Pipeline Orchestrator (Context Mode) ===")
+        return ctx
+
     def execute(
         self,
         strategy_engines: Dict[str, Any],
