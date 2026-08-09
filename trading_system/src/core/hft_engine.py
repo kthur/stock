@@ -137,6 +137,7 @@ class HFTEngine:
         total_executed = sum(cast(int, r["quantity"]) for r in execution_records)
         avg_price = sum(cast(float, r["price"]) * cast(int, r["quantity"]) for r in execution_records) / total_executed if total_executed > 0 else start_price
         logger.info(f"[VWAP] Completed execution for {symbol}. Total: {total_executed}, Avg Price: {avg_price:.2f}")
+        return execution_records
 from src.core.base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta
 
@@ -158,10 +159,20 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
     to predict overnight gap edge score (0% to 100%).
     """
 
-    def compute_scores(self, df_prices: Any, universe: Any) -> Any:
+    def compute_scores(
+        self,
+        prices_dict: Any = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any
+    ) -> Any:
         import numpy as np
         import pandas as pd
+
+        df_prices = kwargs.get("df_prices", prices_dict)
+        universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
         results = []
+
         if universe is None or (isinstance(universe, pd.DataFrame) and universe.empty):
             return pd.DataFrame(columns=["symbol", "name", "market", "microstructure_score"])
 

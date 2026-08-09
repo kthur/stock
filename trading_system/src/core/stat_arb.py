@@ -554,8 +554,9 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         try:
-            pairs = self.scan_pairs_fast(prices_dict)
+            pairs = self.find_cointegrated_pairs(prices_dict)
             return self.get_symbol_stat_arb_scores(pairs)
+
         except Exception as e:
             logger.warning(f"[StatArbEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "stat_arb_score"])

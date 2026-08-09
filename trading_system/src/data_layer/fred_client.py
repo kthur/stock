@@ -15,9 +15,10 @@ import logging
 import os
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, List
+from datetime import datetime
+from typing import Any, Dict, Optional
 import pandas as pd
+
 
 logger = logging.getLogger(__name__)
 

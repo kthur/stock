@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
         },
     )
 )
+
 class VolTargetingEngine(BaseStrategyEngine):
     """Strategy 22: Dynamic Volatility Targeting Engine.
 
@@ -41,18 +42,18 @@ class VolTargetingEngine(BaseStrategyEngine):
     def __init__(self, target_vol_annual: float = 0.12, config: Optional[Any] = None) -> None:
         self.target_vol_annual = target_vol_annual
         self.config = config
-        self.target_vol_annual = target_vol_annual
 
-    def compute_scores(self, df_prices: pd.DataFrame, universe: pd.DataFrame) -> pd.DataFrame:
-        """Compute volatility targeting risk parity score for universe symbols.
+    def compute_scores(
+        self,
+        prices_dict: Any = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any
+    ) -> Any:
+        """Compute volatility targeting risk parity score for universe symbols."""
+        df_prices = kwargs.get("df_prices", prices_dict)
+        universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
 
-        Args:
-            df_prices: DataFrame of daily Close prices.
-            universe: Universe DataFrame containing 'symbol', 'name', 'market'.
-
-        Returns:
-            DataFrame with columns ['symbol', 'name', 'market', 'vol_target_score'].
-        """
         results: List[Dict[str, Any]] = []
         if df_prices is None or universe is None or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "vol_target_score"])

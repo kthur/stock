@@ -267,17 +267,17 @@ class RIMValuationEngine(BaseStrategyEngine):
 
     def compute_scores(
         self,
-        prices_dict: Dict[str, pd.DataFrame],
+        prices_dict: Any = None,
         fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
         try:
-            return self.compute_rim_scores(
-                prices_dict,
-                fundamentals_dict=fundamentals_dict,
-                indicators_df=indicators_df,
-            )
+            features_df = kwargs.get("features_df", kwargs.get("universe", pd.DataFrame()))
+            if features_df.empty and isinstance(prices_dict, pd.DataFrame):
+                features_df = prices_dict
+            return self.compute_rim_scores(features_df)
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "rim_score"])
+

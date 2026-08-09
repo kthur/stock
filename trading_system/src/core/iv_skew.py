@@ -165,7 +165,9 @@ class IVSkewEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         try:
-            return self.compute_iv_skew_scores(prices_dict)
+            symbols = list(prices_dict.keys()) if isinstance(prices_dict, dict) else []
+            return self.compute_iv_skew_scores(symbols, prices_dict=prices_dict if isinstance(prices_dict, dict) else None)
         except Exception as e:
             logger.warning(f"[IVSkewEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "iv_skew_score"])
+

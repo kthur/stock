@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +42,17 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
     def __init__(self, config: Optional[Any] = None) -> None:
         self.config = config
 
-    def compute_scores(self, universe: pd.DataFrame, raw_scores: pd.DataFrame = None) -> pd.DataFrame:
-        """Compute factor-neutralized pure alpha scores for all universe symbols.
+    def compute_scores(
+        self,
+        prices_dict: Any = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any
+    ) -> Any:
+        """Compute factor-neutralized pure alpha scores for all universe symbols."""
+        universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
+        raw_scores = kwargs.get("raw_scores", None)
 
-        Args:
-            universe: Universe DataFrame containing 'symbol', 'name', 'market', and fundamental/price metrics.
-            raw_scores: Optional DataFrame of raw strategy scores to neutralize.
-
-        Returns:
-            DataFrame with columns ['symbol', 'name', 'market', 'neutralized_score'].
-        """
         results: List[Dict[str, Any]] = []
         if universe is None or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "neutralized_score"])

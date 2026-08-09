@@ -257,13 +257,14 @@ class EventDrivenEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         try:
-            symbols = list(prices_dict.keys())
+            symbols = list(prices_dict.keys()) if isinstance(prices_dict, dict) else []
             return self.compute_event_scores(
                 symbols,
-                prices_dict=prices_dict,
-                filings_list=kwargs.get("filings_list"),
+                prices_dict=prices_dict if isinstance(prices_dict, dict) else None,
+                filings=kwargs.get("filings") or kwargs.get("filings_list"),
                 sentiment_map=kwargs.get("sentiment_map"),
             )
+
         except Exception as e:
             logger.warning(f"[EventDrivenEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "event_score"])
