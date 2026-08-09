@@ -805,7 +805,7 @@ class EnsembleScoringEngine:
             lines.append("  - Volatility State: LOW_VOL (VIX < 20.0). Standard regime weights applied.")
 
         base_weights = self.get_base_weights(regime)
-        lines.append("\n[18-Strategy Dynamic Weight Allocation]")
+        lines.append(f"\n[{len(base_weights)}-Strategy Dynamic Weight Allocation]")
         if rolling_sharpes:
             dyn_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime)
             lines.append("• Dynamic Weighting Scheme: Base Regime Weight x Exponential Sharpe Multiplier exp(1.0 x Sharpe_20d) with EMA Smoothing")
@@ -837,7 +837,7 @@ class EnsembleScoringEngine:
             vifs = self.correlation_monitor.compute_vif()
             max_vif_strat = max(vifs.items(), key=lambda x: x[1]) if vifs else ("N/A", 1.0)
             lines.append("\n[Multicollinearity Monitoring & Regime Noise Suppression]")
-            lines.append(f"• Effective Strategy Count (N_eff): {n_eff:.2f} / 17.00")
+            lines.append(f"• Effective Strategy Count (N_eff): {n_eff:.2f} / {len(self.correlation_monitor.strategies):.2f}")
             lines.append(f"• Highest Strategy VIF            : {max_vif_strat[0]} ({max_vif_strat[1]:.2f})")
             if top_pairs:
                 lines.append(f"• High Inter-Strategy Correlations (|rho| >= 0.50): {len(top_pairs)} pair(s) detected")

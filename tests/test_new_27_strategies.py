@@ -127,7 +127,7 @@ def test_27_strategy_ensemble_integration():
 
 def test_coverage_analyzer_27_strategies():
     analyzer = StrategyCoverageAnalyzer()
-    assert len(analyzer.STRATEGIES) == 27
+    assert len(analyzer.STRATEGIES) == 31
     assert 'accruals_quality' in analyzer.STRATEGIES
     assert 'short_squeeze' in analyzer.STRATEGIES
     assert 'valueup_catalyst' in analyzer.STRATEGIES

@@ -3285,7 +3285,12 @@ def execute_prediction_pipeline():
         logger.warning(f"Milestone 3 CPCV & Stress Test calculation skipped: {_m3_e}")
 
     # Generate Decision Rationale Summary
-    decision_rationale_text = scorer.get_regime_reasoning_summary(current_2d_regime, rolling_sharpes)
+    decoupling_info = None
+    try:
+        decoupling_info = regime_detector.predict_dual_market_regime(indicator_infer)
+    except Exception as _dec_e:
+        logger.warning(f"Dual market decoupling info computation skipped: {_dec_e}")
+    decision_rationale_text = scorer.get_regime_reasoning_summary(current_2d_regime, rolling_sharpes, decoupling_info=decoupling_info)
 
     # Generate Strategy Data Coverage & Missingness Analysis Report
     try:
@@ -3405,7 +3410,7 @@ def execute_prediction_pipeline():
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
 
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
-        f.write("=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===\n")
+        f.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(ensemble_weights)} Strategies) ===\n")
         f.write(f"Date: {kst_now_str}\n\n")
 
         # 1. Executive Summary & Basis
@@ -3439,7 +3444,7 @@ def execute_prediction_pipeline():
 
         f.write(f"{decision_rationale_text}\n\n")
 
-        f.write("--- Applied Ensemble Strategy Weights (18 Strategies) ---\n")
+        f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
         f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
         f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
         f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
@@ -3520,7 +3525,7 @@ def execute_prediction_pipeline():
             continue
         _mkt_ens_path = os.path.join(result_dir, f"ensemble_predictions_{_m}.txt")
         with open(_mkt_ens_path, "w", encoding="utf-8") as _mf:
-            _mf.write("=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===\n")
+            _mf.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(ensemble_weights)} Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
             _mf.write("\n=========================================\n")
             _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")

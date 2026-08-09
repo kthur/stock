@@ -11,13 +11,18 @@ logger = logging.getLogger(__name__)
 # Auditor will independently verify your work. Integrity violations WILL be detected
 # and your work WILL be rejected.
 
-ALL_18_STRATEGIES = [
+ALL_31_STRATEGIES = [
     'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
     'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
     'event_driven', 'mq_factor', 'iv_skew', 'order_flow',
-    'short_term_reversal', 'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector'
+    'short_term_reversal', 'arm_factor', 'card_factor', 'latr_factor',
+    'inst_foreign_sector', 'supply_chain', 'sentiment', 'factor_neutralized',
+    'vol_target', 'microstructure', 'accruals_quality', 'short_squeeze',
+    'valueup_catalyst', 'trend_efficiency', 'gamma_squeeze', 'insider_buying',
+    'darkpool', 'earnings_tone_drift'
 ]
-ALL_17_STRATEGIES = ALL_18_STRATEGIES
+ALL_18_STRATEGIES = ALL_31_STRATEGIES
+ALL_17_STRATEGIES = ALL_31_STRATEGIES
 
 STRATEGY_SCORE_COL_MAP = {
     'regression': 'reg_score',
@@ -37,7 +42,20 @@ STRATEGY_SCORE_COL_MAP = {
     'arm_factor': 'arm_score',
     'card_factor': 'card_score',
     'latr_factor': 'latr_score',
-    'inst_foreign_sector': 'inst_foreign_sector_score'
+    'inst_foreign_sector': 'inst_foreign_sector_score',
+    'supply_chain': 'supply_chain_score',
+    'sentiment': 'sentiment_score',
+    'factor_neutralized': 'factor_neutralized_score',
+    'vol_target': 'vol_target_score',
+    'microstructure': 'microstructure_score',
+    'accruals_quality': 'accruals_quality_score',
+    'short_squeeze': 'short_squeeze_score',
+    'valueup_catalyst': 'valueup_catalyst_score',
+    'trend_efficiency': 'trend_efficiency_score',
+    'gamma_squeeze': 'gamma_squeeze_score',
+    'insider_buying': 'insider_buying_score',
+    'darkpool': 'darkpool_score',
+    'earnings_tone_drift': 'earnings_tone_drift_score'
 }
 
 # Inverse mapping from score column name to strategy name

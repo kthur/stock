@@ -22,8 +22,13 @@ class StrategyCoverageAnalyzer:
         'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
         'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
         'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target', 'microstructure',
-        'accruals_quality', 'short_squeeze', 'valueup_catalyst', 'trend_efficiency'
+        'accruals_quality', 'short_squeeze', 'valueup_catalyst', 'trend_efficiency',
+        'gamma_squeeze', 'insider_buying', 'darkpool', 'earnings_tone_drift'
     ]
+
+    def __init__(self, strategies: Optional[List[str]] = None):
+        self.strategies = strategies if strategies else self.STRATEGIES
+        self.strategy_count = len(self.strategies)
 
     def _has_symbol_fundamental_data(self, features_df: Optional[Any], sym: str) -> bool:
         """
@@ -121,7 +126,21 @@ class StrategyCoverageAnalyzer:
             'short_term_reversal': 'reversal_score',
             'arm_factor': 'arm_score',
             'card_factor': 'card_score',
-            'latr_factor': 'latr_score'
+            'latr_factor': 'latr_score',
+            'inst_foreign_sector': 'inst_foreign_sector_score',
+            'supply_chain': 'supply_chain_score',
+            'sentiment': 'sentiment_score',
+            'factor_neutralized': 'factor_neutralized_score',
+            'vol_target': 'vol_target_score',
+            'microstructure': 'microstructure_score',
+            'accruals_quality': 'accruals_quality_score',
+            'short_squeeze': 'short_squeeze_score',
+            'valueup_catalyst': 'valueup_catalyst_score',
+            'trend_efficiency': 'trend_efficiency_score',
+            'gamma_squeeze': 'gamma_squeeze_score',
+            'insider_buying': 'insider_buying_score',
+            'darkpool': 'darkpool_score',
+            'earnings_tone_drift': 'earnings_tone_drift_score'
         }
 
         strat_stats = {}
@@ -205,7 +224,7 @@ class StrategyCoverageAnalyzer:
     ) -> str:
         """Generates text report for strategy data coverage and missingness."""
         lines = []
-        lines.append("=== 18-Strategy Data Coverage & Missingness Report ===")
+        lines.append(f"=== {self.strategy_count}-Strategy Data Coverage & Missingness Report ===")
         lines.append(f"Date: {date_str}")
         lines.append(f"Total Evaluated Symbols: {coverage_data.get('total_symbols', 0)}")
         lines.append("")

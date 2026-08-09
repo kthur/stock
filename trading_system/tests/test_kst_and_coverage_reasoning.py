@@ -67,7 +67,7 @@ def test_strategy_coverage_analyzer():
     assert result['strategies']['rim_valuation']['valid_count'] == 2
 
     report_text = analyzer.generate_coverage_report(result, date_str="2026-07-26 22:50 KST")
-    assert "=== 18-Strategy Data Coverage & Missingness Report ===" in report_text
+    assert f"=== {analyzer.strategy_count}-Strategy Data Coverage & Missingness Report ===" in report_text
     assert "rim_valuation" in report_text
 
 

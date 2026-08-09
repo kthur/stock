@@ -9,6 +9,10 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from src.ai.correlation_monitor import ALL_31_STRATEGIES
+
+_STRATEGY_COUNT = len(ALL_31_STRATEGIES)
+
 
 def get_file_content(path: Path) -> str:
     if not path.exists():
@@ -79,7 +83,7 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     if not header:
         from datetime import timezone, timedelta
         kst_now = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')
-        header = f"=== Dynamic Multi-Strategy Ensemble Predictions (18 Strategies) ===\nDate: {kst_now}\n\n"
+        header = f"=== Dynamic Multi-Strategy Ensemble Predictions ({_STRATEGY_COUNT} Strategies) ===\nDate: {kst_now}\n\n"
 
     sections_written = 0
     with open(merged_path, "w", encoding="utf-8") as out:
@@ -565,7 +569,7 @@ def merge_coverage_report(result_dir: Path, target_dirs: dict) -> None:
         sections.append("데이터 없음\n")
 
     with open(merged_path, "w", encoding="utf-8") as out:
-        out.write("=== 18-Strategy Data Coverage & Missingness Report ===\n")
+        out.write(f"=== {_STRATEGY_COUNT}-Strategy Data Coverage & Missingness Report ===\n")
         out.write(f"Date: {datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M KST')}\n\n")
         out.write("\n\n".join(sections) + "\n")
 
