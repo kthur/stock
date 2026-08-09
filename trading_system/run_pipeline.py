@@ -664,6 +664,12 @@ _ECOS_ONLY_TICKERS = {
     'ECOS:m2_supply':    'kr_m2_supply',   # M2 통화량 (십억원)
 }
 
+# FRED series → BOK ECOS statistic key fallback (원천 데이터는 BOK)
+_FRED_TO_ECOS_KEY = {
+    'FRED:IRSTCI01KRM156N': 'cd_91d',    # kr3y — 한국 단기금리 (CD 91일물)
+    'FRED:IRLTLT01KRM156N': 'ktb_10y',   # kr10y — 한국 10년물 국고채
+}
+
 
 
 @retry(
@@ -716,17 +722,48 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
         except Exception as fred_e:
             logger.debug(f"Direct FRED CSV download failed for {ticker}: {fred_e}")
 
+        # 1b. BOK ECOS fallback for Korea rate series (원천 데이터: 한국은행)
+        ecos_key = _FRED_TO_ECOS_KEY.get(ticker)
+        if ecos_key is not None:
+            try:
+                client = _get_ecos_client()
+                meta = ECOS_ITEM_MAP[ecos_key]
+                df_ecos = client.fetch_statistic(
+                    stat_code=meta["stat_code"],
+                    item_code=meta["item_code"],
+                    cycle=meta["cycle"],
+                    start_date=start_date.replace("-", ""),
+                )
+                if not df_ecos.empty:
+                    s = df_ecos.set_index("Date")["Value"].sort_index()
+                    s.index = pd.to_datetime(s.index)
+                    logger.info(f"[ECOS Fallback] {ticker} fetched via BOK ECOS {ecos_key} ({len(s)} rows)")
+                    return pd.DataFrame({"Close": s.ffill()})
+            except Exception as ecos_e:
+                logger.debug(f"ECOS fallback failed for {ticker}: {ecos_e}")
+
     # 2. Path for KRX ETFs or FRED fallback via FinanceDataReader with strict 8s socket timeout
     if ticker.startswith("FRED:") or (ticker.isdigit() and len(ticker) == 6):
         import socket
         old_timeout = socket.getdefaulttimeout()
-        try:
-            socket.setdefaulttimeout(8.0)
+        _fdr_box: dict = {}
+        def _fdr_fetch() -> None:
             raw = fdr.DataReader(ticker, start=start_date)
             if raw is not None and not raw.empty:
-                logger.info(f"Successfully retrieved indicator data for {ticker} via FDR")
                 raw.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in raw.columns]
-                return raw
+                _fdr_box["df"] = raw
+        try:
+            socket.setdefaulttimeout(8.0)
+            worker = threading.Thread(target=_fdr_fetch, daemon=True)
+            worker.start()
+            worker.join(timeout=20.0)
+            if "df" in _fdr_box:
+                logger.info(f"Successfully retrieved indicator data for {ticker} via FDR")
+                return _fdr_box["df"]
+            if worker.is_alive():
+                logger.warning(f"FDR indicator download timed out after 20s for {ticker}")
+            else:
+                logger.warning(f"Direct FDR indicator download error for {ticker}: empty result")
         except Exception as e:
             logger.warning(f"Direct FDR indicator download error for {ticker}: {e}")
         finally:

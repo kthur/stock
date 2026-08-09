@@ -16,7 +16,7 @@ class CARDFactorEngine(BaseStrategyEngine):
     def __init__(self):
         pass
 
-    def compute_scores(self, indicator_df: Any, prices_dict: Dict[str, pd.DataFrame], sector_map: Optional[Dict[str, str]] = None) -> Dict[str, float]:
+    def compute_scores(self, indicator_df: Any, prices_dict: Dict[str, pd.DataFrame], sector_map: Optional[Dict[str, str]] = None) -> Dict[str, float]:  # type: ignore[override]
         """
         Computes CARD factor scores in [0.0, 1.0] for all symbols.
         Accepts indicator_df as pd.DataFrame or Dict[str, float].

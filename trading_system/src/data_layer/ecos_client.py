@@ -36,12 +36,14 @@ class BOKECOSClient:
 
     def __init__(self, api_key: Optional[str] = None) -> None:
         self.api_key = (api_key or os.environ.get("ECOS_API_KEY") or os.environ.get("KOREABANK_ECOS_KEY") or "sample").strip()
+        # sample 키는 조회건수 10건 이내로 제한됨 (ERROR-301 방지)
+        self._max_rows = 10 if self.api_key == "sample" or len(self.api_key) < 10 else 1000
 
     def fetch_statistic(self, stat_code: str, item_code: str, cycle: str = "D",
                         start_date: str = "20200101", end_date: Optional[str] = None) -> pd.DataFrame:
         """Query BOK ECOS API endpoint for specified statistic item.
 
-        API Format: http://ecos.bok.or.kr/api/StatisticSearch/{apiKey}/json/kr/1/1000/{stat_code}/{cycle}/{start_date}/{end_date}/{item_code}
+        API Format: https://ecos.bok.or.kr/api/StatisticSearch/{apiKey}/json/kr/1/1000/{stat_code}/{cycle}/{start_date}/{end_date}/{item_code}
         """
         if not end_date:
             end_date = datetime.now().strftime("%Y%m%d" if cycle == "D" else "%Y%m")
@@ -49,7 +51,7 @@ class BOKECOSClient:
         start_str = start_date.replace("-", "")[:8 if cycle == "D" else 6]
         end_str = end_date.replace("-", "")[:8 if cycle == "D" else 6]
 
-        url = f"http://ecos.bok.or.kr/api/StatisticSearch/{self.api_key}/json/kr/1/1000/{stat_code}/{cycle}/{start_str}/{end_str}/{item_code}"
+        url = f"https://ecos.bok.or.kr/api/StatisticSearch/{self.api_key}/json/kr/1/{self._max_rows}/{stat_code}/{cycle}/{start_str}/{end_str}/{item_code}"
 
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -64,6 +66,36 @@ class BOKECOSClient:
                     df["Value"] = pd.to_numeric(df["DATA_VALUE"], errors="coerce")
                     df = df.dropna(subset=["Value"]).sort_values("Date").reset_index(drop=True)
                     return df[["Date", "Value"]]
+            elif "RESULT" in data:
+                code = data["RESULT"].get("CODE", "")
+                # INFO-100: 인증키 무효 → sample 키로 자동 폴백
+                if code == "INFO-100" and self.api_key != "sample":
+                    logger.warning("[BOKECOSClient] ECOS API key invalid (INFO-100), falling back to sample key")
+                    return BOKECOSClient(api_key="sample").fetch_statistic(
+                        stat_code, item_code, cycle, start_date, end_date
+                    )
+                # sample 키 10건 초과 시 시작일을 뒤로 미뤄 최근 10건만 확보
+                if code == "ERROR-301" and self._max_rows >= 1000:
+                    logger.warning("[BOKECOSClient] ECOS max rows rejected (ERROR-301), retrying with recent window")
+                    try:
+                        recent_start = (datetime.now() - pd.Timedelta(days=30)).strftime("%Y%m%d" if cycle == "D" else "%Y%m")
+                        url2 = f"https://ecos.bok.or.kr/api/StatisticSearch/{self.api_key}/json/kr/1/10/{stat_code}/{cycle}/{recent_start}/{end_str}/{item_code}"
+                        req2 = urllib.request.Request(url2, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req2, timeout=10) as resp2:
+                            data2 = json.loads(resp2.read().decode("utf-8"))
+                        if "StatisticSearch" in data2 and "row" in data2["StatisticSearch"]:
+                            rows = data2["StatisticSearch"]["row"]
+                            df = pd.DataFrame(rows)
+                            if "TIME" in df.columns and "DATA_VALUE" in df.columns:
+                                df["Date"] = pd.to_datetime(df["TIME"])
+                                df["Value"] = pd.to_numeric(df["DATA_VALUE"], errors="coerce")
+                                df = df.dropna(subset=["Value"]).sort_values("Date").reset_index(drop=True)
+                                if not df.empty:
+                                    logger.warning("[BOKECOSClient] Retrieved %d recent rows via reduced ECOS window", len(df))
+                                    return df[["Date", "Value"]]
+                    except Exception as e2:
+                        logger.debug("[BOKECOSClient] ECOS reduced-window retry failed: %s", e2)
+                logger.debug("[BOKECOSClient] ECOS API error for %s/%s: %s", stat_code, item_code, code)
         except Exception as e:
             logger.debug("[BOKECOSClient] ECOS API fetch error for %s/%s: %s", stat_code, item_code, e)
 

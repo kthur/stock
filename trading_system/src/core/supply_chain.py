@@ -43,7 +43,7 @@ class SupplyChainEngine(BaseStrategyEngine):
     def __init__(self, customer_map: Optional[Dict[str, List[str]]] = None) -> None:
         self.customer_map = customer_map or LEAD_CUSTOMER_MAP
 
-    def compute_scores(self, df_prices: pd.DataFrame, universe: pd.DataFrame) -> pd.DataFrame:
+    def compute_scores(self, df_prices: pd.DataFrame, universe: pd.DataFrame) -> pd.DataFrame:  # type: ignore[override]
         """Compute supply chain lead-lag momentum score for all universe symbols.
 
         Args:

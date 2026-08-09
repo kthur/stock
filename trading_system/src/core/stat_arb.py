@@ -396,7 +396,18 @@ class StatisticalArbitrageEngine:
             t_stats = beta / s_err
 
             p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
-            half_lives = np.where((beta < 0) & (beta > -1.0), -np.log(2.0) / np.log(1.0 + beta), 999.0)
+            # AR(1) coefficient phi = 1 + beta: phi in (0,1) → stable mean reversion;
+            # phi <= 0 → oscillatory fast mean reversion (use |phi| to keep half-life real)
+            phi = 1.0 + beta
+            half_lives = np.where(
+                (beta < 0.0) & (phi > 0.0),
+                -np.log(2.0) / np.log(phi),
+                np.where(
+                    (beta < 0.0) & (phi <= 0.0),
+                    -np.log(2.0) / np.log(np.minimum(np.abs(phi), 0.999)),
+                    999.0,
+                ),
+            )
 
             pass_mask = (p_vals <= eff_max_pvalue) & (half_lives > 0) & (half_lives <= max_half_life)
 

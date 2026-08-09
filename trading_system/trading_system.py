@@ -1178,6 +1178,10 @@ class StockTradingSystem:
         # 전략 엔진: 레짐 임계값 업데이트
         regime_ths = params.get("regime_thresholds", {})
         if regime_ths and hasattr(self.strategy_engine, 'regime_thresholds'):
+            if 'regime_thresholds' not in self.strategy_engine.__dict__:
+                self.strategy_engine.regime_thresholds = {
+                    r: dict(m) for r, m in self.strategy_engine.regime_thresholds.items()
+                }
             for regime, th in regime_ths.items():
                 if regime in self.strategy_engine.regime_thresholds:
                     for key in ['buy', 'sell']:
@@ -1188,6 +1192,10 @@ class StockTradingSystem:
         # 위험 관리: ATR 멀티플라이어 업데이트
         atr_mult = params.get("atr_multipliers", {})
         if atr_mult and hasattr(self.risk_manager, 'REGIME_ATR_MULTIPLIERS'):
+            if 'REGIME_ATR_MULTIPLIERS' not in self.risk_manager.__dict__:
+                self.risk_manager.REGIME_ATR_MULTIPLIERS = {
+                    r: dict(m) for r, m in self.risk_manager.REGIME_ATR_MULTIPLIERS.items()
+                }
             for regime, mult in atr_mult.items():
                 if regime in self.risk_manager.REGIME_ATR_MULTIPLIERS:
                     for key in ['stop', 'target', 'trail']:

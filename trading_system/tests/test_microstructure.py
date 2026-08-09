@@ -12,12 +12,12 @@ class TestMicrostructureCostModel(unittest.TestCase):
         self.model = MicrostructureCostModel()
 
     def test_tax_fee_rates(self):
-        # KRX buy vs sell
-        self.assertEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=False), 0.0)
-        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=True), 0.0018)
+        # KRX buy vs sell: buy = brokerage fee only, sell = STT + brokerage fee
+        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=False), 0.00035)
+        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=True), 0.0018 + 0.00035)
 
-        # US sell
-        self.assertAlmostEqual(self.model.get_tax_fee_rate("SP500", is_sell=True), 0.0000278)
+        # US sell: SEC fee + US brokerage fee
+        self.assertAlmostEqual(self.model.get_tax_fee_rate("SP500", is_sell=True), 0.0000278 + 0.00005)
 
     def test_net_expected_return(self):
         gross_return = 0.05  # +5.0%
