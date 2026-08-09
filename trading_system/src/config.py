@@ -55,6 +55,9 @@ class TradingConfig:
     # 한국은행 ECOS API 키
     ecos_api_key: str = ""
 
+    # FRED API 키 (St. Louis Federal Reserve Economic Data)
+    fred_api_key: str = ""
+
     # VCP 실시간 돌파 파라미터
     vcp_near_pivot_pct: float = 0.02       # Pivot 돌파 허용 여유 (2%)
     vcp_min_score_threshold: float = 50.0  # VCP 패턴 최소 점수 임계값
@@ -161,6 +164,8 @@ class TradingConfig:
             self.ecos_api_key = os.environ["ECOS_API_KEY"]
         elif "KOREABANK_ECOS_KEY" in os.environ:
             self.ecos_api_key = os.environ["KOREABANK_ECOS_KEY"]
+        if "FRED_API_KEY" in os.environ:
+            self.fred_api_key = os.environ["FRED_API_KEY"]
         if "VCP_NEAR_PIVOT_PCT" in os.environ:
             try:
                 self.vcp_near_pivot_pct = float(os.environ["VCP_NEAR_PIVOT_PCT"])

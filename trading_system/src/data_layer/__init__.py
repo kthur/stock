@@ -3,5 +3,6 @@
 from .global_market import GlobalMarketClient
 from .market_data_handler import MarketDataHandler
 from .nlp_engine import NLPEngine, Sentiment
+from .fred_client import FredApiClient
 
-__all__ = ["GlobalMarketClient", "MarketDataHandler", "NLPEngine", "Sentiment"]
+__all__ = ["GlobalMarketClient", "MarketDataHandler", "NLPEngine", "Sentiment", "FredApiClient"]

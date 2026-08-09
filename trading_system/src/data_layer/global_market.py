@@ -8,6 +8,8 @@ from typing import Any, Dict, List
 import pandas as pd
 import yfinance as yf
 
+from .fred_client import FredApiClient
+
 logger = logging.getLogger(__name__)
 
 # ─── Global Benchmarks ──────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ class GlobalMarketClient:
     def __init__(self):
         self._cache: Dict[str, Any] = {}
         self._cache_ts: float = 0.0
+        self.fred_client = FredApiClient()
 
     def _get_cached_or_fetch(self, symbol: str, period: str = "1d") -> Any:
         cache_key = f"{symbol}_{period}"
@@ -168,10 +171,27 @@ class GlobalMarketClient:
         }
 
     def get_all_macro_commodities(self) -> Dict[str, Dict[str, Any]]:
-        """Return latest snapshot for every configured macro commodity."""
+        """Return latest snapshot for every configured macro commodity and FRED interest rate."""
         result: Dict[str, Dict[str, Any]] = {}
         for sym in MACRO_COMMODITIES:
             result[sym] = self.get_macro_commodity(sym)
+
+        # Include official FRED interest rates (IRSTCI01KRM156N, DGS10, etc.) if FRED_API_KEY is active
+        if self.fred_client.is_configured():
+            try:
+                fred_rates = self.fred_client.fetch_all_fred_indicators()
+                for sid, info in fred_rates.items():
+                    result[sid] = {
+                        "symbol": sid,
+                        "name": info.get("name", sid),
+                        "price": info.get("price"),
+                        "change_pct": info.get("change_pct", 0.0),
+                        "timestamp": info.get("timestamp"),
+                    }
+                logger.info(f"[GlobalMarketClient] Merged {len(fred_rates)} FRED interest rate indicators.")
+            except Exception as e:
+                logger.warning(f"[GlobalMarketClient] Failed to fetch FRED indicators: {e}")
+
         return result
 
     def get_summary(self) -> Dict[str, Any]:
