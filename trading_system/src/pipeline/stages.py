@@ -76,3 +76,13 @@ class EnsembleStage(BaseStage):
     def execute(self, ctx: PipelineContext) -> PipelineContext:
         logger.info(f"[{self.name}] Executing dynamic ensemble & portfolio allocation stage...")
         return ctx
+
+
+class ReportingStage(BaseStage):
+    """Stage 5: Output text predictions & GitHub Pages dashboard generation."""
+    name = "ReportingStage"
+
+    def execute(self, ctx: PipelineContext) -> PipelineContext:
+        logger.info(f"[{self.name}] Executing reporting stage...")
+        return ctx
+
