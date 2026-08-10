@@ -302,18 +302,32 @@ class MarketIndicatorStorage:
             import io
             import urllib.request
             url = 'https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund'
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
             with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 r_lines = resp.read().decode('utf-8', errors='ignore').splitlines()
-                start_idx = 0
+                start_idx = -1
                 for i, line in enumerate(r_lines):
-                    if line.startswith('Ticker,'):
+                    if line.startswith('Ticker,') or line.startswith('"Ticker"'):
                         start_idx = i
                         break
-                if start_idx < len(r_lines):
+                if start_idx != -1 and start_idx < len(r_lines):
                     russell2000 = pd.read_csv(io.StringIO('\n'.join(r_lines[start_idx:])), on_bad_lines='skip')
         except Exception as e:
             logger.warning(f"Failed to fetch RUSSELL2000 universe from iShares: {e}")
+
+        # Tier 2 Fallback: If iShares download fails or is empty, use NYSE listing minus SP500
+        if russell2000.empty:
+            try:
+                logger.info("Fallback: Fetching NYSE universe for RUSSELL2000 small-cap coverage...")
+                nyse = fdr.StockListing('NYSE')
+                if not nyse.empty and 'Symbol' in nyse.columns:
+                    sp500_syms = set(sp500['Symbol']) if not sp500.empty and 'Symbol' in sp500.columns else set()
+                    russell_fallback = nyse[~nyse['Symbol'].isin(sp500_syms)].copy()
+                    russell_fallback.rename(columns={'Symbol': 'Ticker'}, inplace=True)
+                    russell2000 = russell_fallback
+                    logger.info(f"Loaded {len(russell2000)} RUSSELL2000 symbols via NYSE fallback.")
+            except Exception as e_fallback:
+                logger.warning(f"Failed to load RUSSELL2000 NYSE fallback: {e_fallback}")
 
         logger.info("Fetching KRX universe...")
         krx = fdr.StockListing('KRX')
@@ -335,20 +349,26 @@ class MarketIndicatorStorage:
 
         with self._write_lock:
             with self._connect() as conn:
+                sp500_set = set()
                 # S&P 500
-                for _, row in sp500.iterrows():
-                    sec = str(row.get('Sector') or row.get('GICS Sector') or row.get('GICS_Sector') or '')
-                    ind = str(row.get('Industry') or row.get('GICS Sub-Industry') or row.get('GICS_Sub_Industry') or '')
-                    conn.execute(
-                        "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                        (row['Symbol'], row['Name'], 'SP500', sec, ind)
-                    )
+                if not sp500.empty and 'Symbol' in sp500.columns:
+                    for _, row in sp500.iterrows():
+                        sym = str(row['Symbol']).strip()
+                        if not sym:
+                            continue
+                        sp500_set.add(sym)
+                        sec = str(row.get('Sector') or row.get('GICS Sector') or row.get('GICS_Sector') or '')
+                        ind = str(row.get('Industry') or row.get('GICS Sub-Industry') or row.get('GICS_Sub_Industry') or '')
+                        conn.execute(
+                            "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
+                            (sym, row['Name'], 'SP500', sec, ind)
+                        )
 
-                # NASDAQ
+                # NASDAQ (Preserve SP500 classification for dual-listed S&P 500 stocks)
                 if not nasdaq.empty and 'Symbol' in nasdaq.columns:
                     for _, row in nasdaq.iterrows():
                         sym = str(row['Symbol']).strip()
-                        if not sym:
+                        if not sym or sym in sp500_set:
                             continue
                         sec = str(row.get('Sector') or row.get('Industry') or '')
                         ind = str(row.get('Industry') or '')
@@ -358,16 +378,16 @@ class MarketIndicatorStorage:
                             (sym, name, 'NASDAQ', sec, ind)
                         )
 
-                # RUSSELL2000
+                # RUSSELL2000 (Preserve SP500 classification)
                 if not russell2000.empty and 'Ticker' in russell2000.columns:
                     for _, row in russell2000.iterrows():
                         sym = str(row.get('Ticker') or '').strip()
-                        if not sym or sym in ('-', 'nan') or not sym.isalpha():
+                        if not sym or sym in ('-', 'nan') or not sym.isalpha() or sym in sp500_set:
                             continue
                         sec = str(row.get('Sector') or '')
                         name = str(row.get('Name') or sym)
                         conn.execute(
-                            "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
+                            "INSERT OR IGNORE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
                             (sym, name, 'RUSSELL2000', sec, '')
                         )
 

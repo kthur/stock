@@ -3405,7 +3405,16 @@ def execute_prediction_pipeline():
     ensemble_clean = ensemble_df.drop(columns=cols_to_drop) if cols_to_drop else ensemble_df
     univ_cols = ['symbol'] + target_cols
     ensemble_df_merged = ensemble_clean.merge(universe[univ_cols], on='symbol', how='left')
-    if 'market' not in ensemble_df_merged.columns:
+
+    target_env = os.environ.get("INFERENCE_TARGET", "").strip().upper()
+    if target_env in ['SP500', 'NASDAQ', 'RUSSELL2000', 'KOSPI', 'KOSDAQ']:
+        # Ensure single-market pipeline run correctly maps its symbols to target_env
+        if target_env in ['NASDAQ', 'RUSSELL2000']:
+            ensemble_df_merged['market'] = target_env
+        else:
+            ensemble_df_merged['market'] = ensemble_df_merged['market'].fillna(target_env)
+
+    if 'market' not in ensemble_df_merged.columns or ensemble_df_merged['market'].isna().all():
         ensemble_df_merged['market'] = ensemble_df_merged['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
     if 'name' not in ensemble_df_merged.columns:
         ensemble_df_merged['name'] = ensemble_df_merged['symbol']
@@ -3479,8 +3488,13 @@ def execute_prediction_pipeline():
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
         krx_markets = ['KOSPI', 'KOSDAQ']
-        for market in krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']:
+        target_env = os.environ.get("INFERENCE_TARGET", "").strip().upper()
+        all_mkts = krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']
+        active_markets = [target_env] if target_env in all_mkts else all_mkts
+        for market in active_markets:
             m_df = ensemble_df_merged[ensemble_df_merged['market'] == market].sort_values(by='ensemble_score', ascending=False)
+            if m_df.empty:
+                m_df = ensemble_df_merged.sort_values(by='ensemble_score', ascending=False)
             if m_df.empty:
                 continue
             f.write("\n=========================================\n")
