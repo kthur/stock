@@ -1000,7 +1000,7 @@ def build_html(
               <td>{r.inst_foreign_sector}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="23" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="31" class="empty">데이터 없음</td></tr>'
 
         ensemble_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -1011,7 +1011,7 @@ def build_html(
             <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
-            <th title="27대 다변화 전략 종합 앙상블 스코어">앙상블</th>
+            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블</th>
             <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
             <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
             <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
@@ -1837,7 +1837,7 @@ def build_html(
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- 27대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
+<!-- 31대 전략 가이드 아코디언 (사용성 설명 섹션)             -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div class="content" style="padding-bottom: 0;">
   <div class="strat-guide-card">
@@ -1874,6 +1874,10 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">25. Short Squeeze</div><div class="strat-card-desc">공매도 잔고 비율 + Days-to-Cover + 모멘텀 숏스퀴즈 촉매</div></div>
         <div class="strat-card-item"><div class="strat-card-name">26. Value-Up Yield</div><div class="strat-card-desc">PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주소각)</div></div>
         <div class="strat-card-item"><div class="strat-card-name">27. Kaufman Efficiency</div><div class="strat-card-desc">5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">28. Gamma Squeeze</div><div class="strat-card-desc">옵션 델타/감마 헤징 수급 폭발 및 숏가속도 갭 상승 포착</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">29. Insider Buying</div><div class="strat-card-desc">임원/주요주주 경영진 내부자 순매수 촉매 수치화</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">30. Dark Pool Flow</div><div class="strat-card-desc">장외 다크풀 대량 거래 및 동시호가 수급 은닉 자금 추적</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">31. Earnings Tone Drift</div><div class="strat-card-desc">실적발표 텍스트 FinBERT 어조(Tone) 변화 및 60D 어닝 드리프트</div></div>
       </div>
     </div>
   </div>
@@ -1893,20 +1897,20 @@ def build_html(
 </div>
 
 <nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
-  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 27대 앙상블 TOP 종목</button>
+  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 31대 앙상블 TOP 종목</button>
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
-  <!-- ══ 27대 앙상블 TOP 종목 Tab Panel ══ -->
+  <!-- ══ 31대 앙상블 TOP 종목 Tab Panel ══ -->
   <div class="tab-panel active" id="panel-ensemble">
     <div class="row1-wrapper">
       <!-- 좌: 전략 사이드바 -->
       <div class="strategy-sidebar">
         <div class="weights-section">
-          <div class="weights-title">⚙️ 전략 가중치 (27 Strategies)</div>
+          <div class="weights-title">⚙️ 전략 가중치 (31 Strategies)</div>
           {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
         </div>
         {rationale_html}
@@ -1915,7 +1919,7 @@ def build_html(
       <!-- 우: 앙상블 종목 결과 -->
       <div class="ensemble-main">
         <div class="ensemble-main-header">
-          <span class="ensemble-main-title">🏆 23대 앙상블 TOP 종목 리스트</span>
+          <span class="ensemble-main-title">🏆 31대 앙상블 TOP 종목 리스트</span>
           <div class="filter-bar" id="filter-ensemble" style="margin:0">
             <button class="filter-btn active" onclick="filterMarket(this,'ensemble')" data-mkt="all">전체</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
@@ -2012,7 +2016,7 @@ def build_html(
       {weights_html}
     </div>
 
-    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 23 Strategies)</div>
+    <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 31 Strategies)</div>
     <div class="market-panel">
       <div class="table-wrap">
         <table>
@@ -2069,7 +2073,7 @@ def build_html(
         <li><strong style="color:var(--text)">Multi-Variable GMM Cluster Fitting:</strong> 3-component Gaussian Mixture Model trained on S&amp;P 500, VIX, US 10Y Yield, USD/KRW FX, and Yield Curve Spread.</li>
         <li><strong style="color:var(--text)">Fast VIX/Market Shock Override:</strong> Zero-lag BEAR signal triggering on sudden VIX spike (&gt; 25.0 or 15% 1-day jump).</li>
         <li><strong style="color:var(--text)">Dynamic Sharpe Scaling:</strong> Base weights dynamically adjusted using rolling Sharpe ratio exponential multiplier.</li>
-        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 23-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
+        <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 31-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
   </div>
@@ -2934,7 +2938,7 @@ function closeStockDrawer() {{
   
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
     <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
-      <div style="font-size:11px; color:var(--muted);">23대 앙상블 점수</div>
+      <div style="font-size:11px; color:var(--muted);">31대 앙상블 점수</div>
       <div id="drawer-score" style="font-size:22px; font-weight:700; color:var(--blue); margin-top:4px;">0.0%</div>
     </div>
     <div style="background:var(--surface2); padding:12px; border-radius:8px; border:1px solid var(--border); text-align:center;">
@@ -2944,7 +2948,7 @@ function closeStockDrawer() {{
   </div>
 
   <div style="margin-bottom:24px;">
-    <h3 style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px;">📊 18-Factor 다변화 스코어 분해</h3>
+    <h3 style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:12px;">📊 31-Factor 다변화 스코어 분해</h3>
     <div id="drawer-factors-grid" style="display:flex; flex-direction:column; gap:8px;"></div>
   </div>
 
