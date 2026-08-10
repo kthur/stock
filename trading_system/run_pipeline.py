@@ -3737,18 +3737,21 @@ def execute_prediction_pipeline():
         "ensemble_predictions.txt",
     ]
     critical_files = ["pipeline_result.txt", "surge_predictions.txt", "ensemble_predictions.txt"]
+    _verification_failures = []
     for filename in verification_files:
         filepath = os.path.join(result_dir, filename)
         if not os.path.exists(filepath):
             logger.warning(f"Verification failed: Output file {filename} does not exist.")
             if filename in critical_files:
-                raise RuntimeError(f"Critical output file {filename} was not generated.")
+                _verification_failures.append(f"Critical output file {filename} was not generated.")
         elif os.path.getsize(filepath) == 0:
             logger.warning(f"Verification failed: Output file {filename} is empty.")
             if filename in critical_files:
-                raise RuntimeError(f"Critical output file {filename} is 0 bytes.")
+                _verification_failures.append(f"Critical output file {filename} is 0 bytes.")
         else:
             logger.info(f"Verification check: Output file {filename} exists and is not empty.")
+    if _verification_failures:
+        raise RuntimeError(f"Pipeline verification failed: {'; '.join(_verification_failures)}")
 
     pipeline_res_path = os.path.join(result_dir, "pipeline_result.txt")
     if os.path.exists(pipeline_res_path):
@@ -3841,10 +3844,11 @@ Examples:
     if _gha_server and _gha_repo and _gha_run_id:
         _gha_url = f"{_gha_server}/{_gha_repo}/actions/runs/{_gha_run_id}"
 
+    _buttons = [[{"text": "📊 GHA 결과 보기", "url": _gha_url}]] if _gha_url else None
+
     try:
         execute_prediction_pipeline()
         _elapsed = time.time() - _start
-        _buttons = [[{"text": "📊 GHA 결과 보기", "url": _gha_url}]] if _gha_url else None
         _notify_telegram(
             f"✅ 파이프라인 완료\n"
             f"⏱ 소요시간: {_elapsed / 60:.1f}분\n"
