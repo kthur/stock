@@ -6,21 +6,47 @@ and finds highly correlated laggards in the same sector for follow-through upsid
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
+
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
 
 logger = logging.getLogger(__name__)
 
 
-class InstForeignSectorEngine:
+@register_strategy(
+    StrategyMeta(
+        strategy_id="inst_foreign_sector",
+        display_name="Inst & Foreign Sector",
+        score_column="inst_foreign_sector_score",
+        category="flow",
+        output_file="inst_foreign_sector_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.03, "BEAR_HIGH_VOL": 0.03, "SIDEWAYS_LOW_VOL": 0.07, "BULL_HIGH_VOL": 0.05, "BULL_LOW_VOL": 0.07
+        },
+    )
+)
+class InstForeignSectorEngine(BaseStrategyEngine):
     """
     Tracks 2-month (40d) accumulation separately for Foreigners and Investment Trusts (투신),
     and combines them to evaluate sector leader accumulation and highly correlated laggard follow-through.
     """
 
-    def __init__(self, accumulation_days: int = 40):
+    def __init__(self, accumulation_days: int = 40, config: Optional[Any] = None) -> None:
         self.accumulation_days = accumulation_days
+        self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        symbols = list(prices_dict.keys()) if prices_dict else []
+        return self.compute_inst_foreign_sector_scores(symbols=symbols, prices_dict=prices_dict, **kwargs)
 
     def compute_foreign_accumulation(
         self,

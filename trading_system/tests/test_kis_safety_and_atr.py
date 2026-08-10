@@ -13,7 +13,7 @@ from src.risk.position_sizing import PortfolioAllocator
 from src.broker.korea_investment import KoreaInvestmentConnector
 from src.broker.real_broker import KoreaInvestmentBroker
 from src.config import TradingConfig
-from trading_system import StockTradingSystem
+from trading_system.trading_system import StockTradingSystem
 
 
 # ─────────────────────────────────────────────────────────────────────────────

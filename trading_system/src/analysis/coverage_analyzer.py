@@ -113,7 +113,7 @@ class StrategyCoverageAnalyzer:
 
         strat_stats = {}
 
-        for strat in self.STRATEGIES:
+        for strat in self.strategies:
             c_col = col_map.get(strat)
             if c_col and c_col in target_df.columns:
                 series = pd.to_numeric(target_df[c_col], errors="coerce")

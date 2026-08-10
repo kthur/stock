@@ -10,10 +10,25 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
 logger = logging.getLogger(__name__)
 
 
-class ShortInterestSqueezeEngine:
+@register_strategy(
+    StrategyMeta(
+        strategy_id="short_squeeze",
+        display_name="Short Interest & Squeeze",
+        score_column="short_squeeze_score",
+        category="catalyst",
+        output_file="short_squeeze_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.02, "BEAR_HIGH_VOL": 0.01, "SIDEWAYS_LOW_VOL": 0.03, "BULL_HIGH_VOL": 0.05, "BULL_LOW_VOL": 0.03
+        },
+    )
+)
+class ShortInterestSqueezeEngine(BaseStrategyEngine):
     """
     Computes Short Interest & Squeeze Score [0.0, 1.0] for stocks.
     High Score = High short interest + High days-to-cover + Positive short-term momentum (Short Squeeze catalyst).
@@ -22,6 +37,16 @@ class ShortInterestSqueezeEngine:
 
     def __init__(self, config: Optional[Any] = None) -> None:
         self.config = config
+
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[pd.DataFrame] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        symbols = list(prices_dict.keys()) if prices_dict else []
+        return self.calculate_scores(symbols=symbols, prices_dict=prices_dict, **kwargs)
 
     def calculate_scores(
         self,

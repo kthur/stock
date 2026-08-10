@@ -1,4 +1,5 @@
 import logging
+from typing import Optional, List, Dict, Any
 
 import numpy as np
 from scipy.optimize import minimize
@@ -227,7 +228,11 @@ def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: float = 0.15
     return shrunk_cov
 
 
-def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
+def calculate_hrp_weights(
+    cov_matrix: np.ndarray,
+    symbols: Optional[list] = None,
+    sectors: Optional[list] = None
+) -> np.ndarray:
     """
     Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
     1. Distance matrix computation from correlation matrix.
@@ -332,10 +337,67 @@ def calculate_hrp_weights(cov_matrix: np.ndarray) -> np.ndarray:
         weights = np.clip(weights, 0.0, 1.0)
         sum_w = np.sum(weights)
         if sum_w > 1e-12:
-            return weights / sum_w
+            weights = weights / sum_w
+            return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors if 'sectors' in locals() else None)
 
     except Exception as e:
         logger.error(f"HRP optimization exception: {e}. Falling back to Risk Parity.")
 
-    return calculate_risk_parity_weights(cov_matrix)
+    fallback_w = calculate_risk_parity_weights(cov_matrix)
+    return apply_portfolio_constraints(fallback_w, symbols=symbols if 'symbols' in locals() else [])
+
+
+def apply_portfolio_constraints(
+    weights: np.ndarray,
+    symbols: Optional[list] = None,
+    sectors: Optional[list] = None,
+    max_single_stock_weight: float = 0.10,
+    max_sector_weight: float = 0.25
+) -> np.ndarray:
+    """
+    Applies single stock cap (default 10.0%) and sector cap (default 25.0%) constraints
+    with iterative redistribution.
+    """
+    if weights is None or len(weights) == 0:
+        return np.array([])
+
+    n = len(weights)
+    w = np.copy(weights)
+
+    # 1. Single stock weight capping (max 10.0%, at least 1.0/n for small portfolio sizes)
+    cap_weight = max(max_single_stock_weight, 1.0 / n) if n > 0 else max_single_stock_weight
+    for _ in range(10):
+        over_mask = w > cap_weight
+        if not np.any(over_mask):
+            break
+        excess = np.sum(w[over_mask] - cap_weight)
+        w[over_mask] = cap_weight
+        under_mask = ~over_mask
+        if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
+            w[under_mask] += excess * (w[under_mask] / np.sum(w[under_mask]))
+        else:
+            break
+
+    # 2. Sector weight capping (max 25.0%) if sectors provided
+    if sectors and len(sectors) == n:
+        import pandas as pd
+        sec_series = pd.Series(sectors)
+        for _ in range(10):
+            df_w = pd.DataFrame({'weight': w, 'sector': sec_series})
+            sec_sums = df_w.groupby('sector')['weight'].transform('sum')
+            over_sec = sec_sums > max_sector_weight
+            if not np.any(over_sec):
+                break
+            scale_factors = np.where(over_sec, max_sector_weight / np.maximum(sec_sums, 1e-12), 1.0)
+            w *= scale_factors
+            sum_w = np.sum(w)
+            if sum_w > 1e-12:
+                w /= sum_w
+
+    sum_w = np.sum(w)
+    if sum_w > 1e-12:
+        w /= sum_w
+
+    return w
+
 
