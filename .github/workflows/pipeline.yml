@@ -37,14 +37,13 @@ jobs:
 
       - name: Create venv and install dependencies
         run: |
-          uv venv .venv --python 3.12
-          .venv/bin/python -m pip install --upgrade pip
+          uv venv --seed .venv --python 3.12
           if [ -f trading_system/requirements.lock ]; then
-            .venv/bin/pip install -r trading_system/requirements.lock
+            uv pip install -r trading_system/requirements.lock
           elif [ -f trading_system/pyproject.toml ]; then
-            .venv/bin/pip install ./trading_system
+            uv pip install ./trading_system
           else
-            .venv/bin/pip install pandas numpy xgboost lightgbm catboost scikit-learn yfinance FinanceDataReader beautifulsoup4 lxml optuna pyyaml pytest requests
+            uv pip install pandas numpy xgboost lightgbm catboost scikit-learn yfinance FinanceDataReader beautifulsoup4 lxml optuna pyyaml pytest requests
           fi
 
       - name: Create logs directory
