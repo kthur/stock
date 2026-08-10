@@ -776,11 +776,12 @@ class EnsembleScoringEngine:
         # scores with a power < 1 preserves ordering while keeping any single
         # strategy from dominating the ensemble.
         max_total_ratio = 20.0
-        _vals = np.array([scores[k] for k in scores], dtype=float)
-        _vmin, _vmax = float(_vals.min()), float(_vals.max())
-        if _vmin > 0.0 and _vmax / _vmin > max_total_ratio:
-            _alpha = float(np.log(max_total_ratio) / np.log(_vmax / _vmin))
-            scores = {k: scores[k] ** _alpha for k in scores}
+        _vals = np.array([v for v in scores.values() if v > 0.0], dtype=float)
+        if len(_vals) > 0:
+            _vmin, _vmax = float(_vals.min()), float(_vals.max())
+            if _vmin > 0.0 and _vmax / _vmin > max_total_ratio:
+                _alpha = float(np.log(max_total_ratio) / np.log(_vmax / _vmin))
+                scores = {k: (scores[k] ** _alpha if scores[k] > 0.0 else 0.0) for k in scores}
 
         total_score = sum(scores.values())
         if total_score == 0.0:
@@ -951,13 +952,6 @@ class EnsembleScoringEngine:
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
         weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
 
-        # Apply Strategy Correlation Orthogonalization Penalty
-        weights = self.apply_correlation_orthogonalization_penalty(
-            weights,
-            scores_df=regression_df if isinstance(regression_df, pd.DataFrame) else None,
-            correlation_threshold=0.65,
-            penalty_factor=0.5,
-        )
         return self.combine_predictions(
             reg_df=regression_df,
             s_df=surge_df,
@@ -1503,6 +1497,14 @@ class EnsembleScoringEngine:
             except Exception as _oe:
                 logger.warning(f"Factor orthogonalization warning: {_oe}")
 
+        # Phase 3-B.1: Strategy Correlation Orthogonalization Penalty
+        weights = self.apply_correlation_orthogonalization_penalty(
+            weights,
+            scores_df=merged,
+            correlation_threshold=0.65,
+            penalty_factor=0.5,
+        )
+
         # Phase 3-C: Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
         try:
             corr_df = self.correlation_monitor.update_correlation(merged)
@@ -1600,13 +1602,7 @@ class EnsembleScoringEngine:
         merged.attrs['raw_scores'] = self.raw_scores
 
         # Fill raw NaNs with 0.0 for report formatting after ensemble score calculation
-        fill_cols = [
-            'reg_pred', 'reg_score', 'surge_score', 'll_raw', 'll_score',
-            'vcp_rule_score', 'vcp_ml_score', 'lstm_score', 'stat_arb_score',
-            'sector_score', 'rim_score', 'event_score', 'mq_score',
-            'iv_skew_score', 'order_flow_score', 'reversal_score',
-            'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score'
-        ]
+        fill_cols = list(set(['reg_pred', 'll_raw'] + [sc for _, sc in strategy_cols]))
         for col in fill_cols:
             if col in merged.columns:
                 merged[col] = merged[col].fillna(0.0)
@@ -1687,7 +1683,7 @@ class EnsembleScoringEngine:
         adv_ref[m_kosdaq] = 1_000_000_000.0
         impact_coeff[m_kosdaq] = impact_coeff_krx
 
-        m_kospi = (mkt_col == 'KOSPI') | sym_col.str.endswith('.KS') | (sym_col.str.isdigit() & (sym_col.str.len() == 6))
+        m_kospi = ((mkt_col == 'KOSPI') | sym_col.str.endswith('.KS') | (sym_col.str.isdigit() & (sym_col.str.len() == 6))) & ~m_kosdaq
         stt_tax[m_kospi] = 0.0015
         brokerage_fee[m_kospi] = 0.0003
         base_spread[m_kospi] = base_spread_kospi

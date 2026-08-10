@@ -8,6 +8,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import threading
 
 import numpy as np
 import pandas as pd
@@ -81,6 +82,7 @@ class CrisisDetector:
     def __init__(self, risk_manager: Optional["RiskManager"] = None):
         self.rm = risk_manager
         self.logger = logger
+        self._lock = threading.Lock()
         self.crisis_level = CrisisLevel.NONE
         self.calendar_analyzer = EconomicCalendarAnalyzer()
         self._vix_history: deque[float] = deque(maxlen=252)
@@ -174,17 +176,17 @@ class CrisisDetector:
     ) -> CrisisLevel:
         """종합 위기 평가 - VIX + 거시지표(환율, 유가, 금리, 달러, CDS 신용스프레드) 융합"""
         dd = self.rm.calculate_drawdown() if self.rm is not None else 0.0
-        self._dd_history.append(dd)
-
-
-        for val, hist in [
-            (usdkrw, self._usdkrw_history),
-            (oil, self._oil_history),
-            (tnx, self._tnx_history),
-            (dxy, self._dxy_history),
-        ]:
-            if val is not None:
-                hist.append(val)
+        with self._lock:
+            self._vix_history.append(vix)
+            self._dd_history.append(dd)
+            for val, hist in [
+                (usdkrw, self._usdkrw_history),
+                (oil, self._oil_history),
+                (tnx, self._tnx_history),
+                (dxy, self._dxy_history),
+            ]:
+                if val is not None:
+                    hist.append(val)
 
         vix_score = self._score_vix(vix)
         dd_score = self._score_drawdown(dd)

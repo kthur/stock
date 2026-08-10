@@ -58,7 +58,8 @@ class GlobalMarketClient:
 
     def __init__(self):
         self._cache: Dict[str, Any] = {}
-        self._cache_ts: float = 0.0
+        self._summary_cache: Dict[str, Any] = {}
+        self._summary_cache_ts: float = 0.0
         self.fred_client = FredApiClient()
 
     def _get_cached_or_fetch(self, symbol: str, period: str = "1d") -> Any:
@@ -197,16 +198,16 @@ class GlobalMarketClient:
     def get_summary(self) -> Dict[str, Any]:
         """Combined market overview — indices + FX in one call."""
         now = time.time()
-        if now - self._cache_ts < _CACHE_TTL and self._cache:
-            return self._cache
+        if now - self._summary_cache_ts < _CACHE_TTL and self._summary_cache:
+            return self._summary_cache
         summary = {
             "indices": self.get_all_indices(),
             "fx_rates": self.get_all_fx_rates(),
             "macro_commodities": self.get_all_macro_commodities(),
             "updated_at": datetime.now().isoformat(),
         }
-        self._cache = summary
-        self._cache_ts = now
+        self._summary_cache = summary
+        self._summary_cache_ts = now
         return summary
 
     def get_index_historical(self, symbol: str, period: str = "6mo") -> List[Dict[str, float]]:

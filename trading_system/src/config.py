@@ -361,12 +361,18 @@ class TradingConfig:
             logger.warning(f"min_daily_volume_krx should be non-negative: {self.min_daily_volume_krx}")
         if self.min_daily_volume_sp500 < 0:
             logger.warning(f"min_daily_volume_sp500 should be non-negative: {self.min_daily_volume_sp500}")
-        if not (0 <= self.sentiment_risk_threshold <= 1):
-            logger.warning(f"sentiment_risk_threshold should be between 0 and 1: {self.sentiment_risk_threshold}")
-        if self.portfolio_capital_krw <= 0:
-            logger.warning(f"portfolio_capital_krw should be positive: {self.portfolio_capital_krw}")
-        if self.telegram_bot_token and not self.telegram_authorized_user_ids:
-            logger.warning("TELEGRAM_BOT_TOKEN set but TELEGRAM_AUTHORIZED_USER_IDS empty")
+        if self.vcp_near_pivot_pct < 0:
+            logger.warning(f"vcp_near_pivot_pct should be non-negative: {self.vcp_near_pivot_pct}")
+        if self.vcp_min_score_threshold < 0:
+            logger.warning(f"vcp_min_score_threshold should be non-negative: {self.vcp_min_score_threshold}")
+        if self.vcp_volume_surge_ratio < 0:
+            logger.warning(f"vcp_volume_surge_ratio should be non-negative: {self.vcp_volume_surge_ratio}")
+        if self.fred_api_key:
+            logger.info("FRED API key configured (St. Louis Federal Reserve Data active)")
+        if self.ecos_api_key:
+            logger.info("Bank of Korea ECOS API key configured")
+        if self.dart_api_key:
+            logger.info("DART API key configured")
         if self.openai_api_key:
             logger.info("OpenAI API key configured")
         if not self.openai_api_key and not os.getenv("GOOGLE_API_KEY", ""):

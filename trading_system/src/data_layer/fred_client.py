@@ -13,8 +13,10 @@ Specifically targets key series like:
 import json
 import logging
 import os
+import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, Optional
 import pandas as pd
@@ -59,6 +61,7 @@ class FredApiClient:
         limit: int = 30,
         sort_order: str = "desc",
         observation_start: Optional[str] = None,
+        max_retries: int = 3,
     ) -> pd.DataFrame:
         """Fetch historical observation series for a given FRED series ID.
 
@@ -67,6 +70,7 @@ class FredApiClient:
             limit: Maximum number of recent observations to return
             sort_order: 'desc' (latest first) or 'asc'
             observation_start: Optional YYYY-MM-DD start date filter
+            max_retries: Maximum HTTP retry attempts with backoff
 
         Returns:
             pd.DataFrame with Datetime index and 'value' float column.
@@ -87,45 +91,52 @@ class FredApiClient:
 
         url = f"{self.BASE_URL}?{urllib.parse.urlencode(params)}"
 
-        try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (TradingSystem/1.0; FRED-Client)"}
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
-                if resp.status != 200:
-                    logger.warning(f"[FRED API] HTTP error {resp.status} for series {series_id}")
-                    return pd.DataFrame(columns=["value"])
+        for attempt in range(max_retries):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "Mozilla/5.0 (TradingSystem/1.0; FRED-Client)"}
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
+                    if resp.status != 200:
+                        logger.warning(f"[FRED API] HTTP status {resp.status} for series {series_id} (attempt {attempt + 1})")
+                        time.sleep(0.5 * (2 ** attempt))
+                        continue
 
-                payload = json.loads(resp.read().decode("utf-8"))
-                obs_list = payload.get("observations", [])
-                if not obs_list:
-                    logger.warning(f"[FRED API] Empty observations returned for series {series_id}")
-                    return pd.DataFrame(columns=["value"])
+                    payload = json.loads(resp.read().decode("utf-8"))
+                    obs_list = payload.get("observations", [])
+                    if not obs_list:
+                        logger.warning(f"[FRED API] Empty observations returned for series {series_id}")
+                        return pd.DataFrame(columns=["value"])
 
-                records = []
-                for item in obs_list:
-                    date_str = item.get("date")
-                    val_str = item.get("value")
-                    if date_str and val_str and val_str != ".":
-                        try:
-                            val_float = float(val_str)
-                            records.append({"date": pd.to_datetime(date_str), "value": val_float})
-                        except ValueError:
-                            continue
+                    records = []
+                    for item in obs_list:
+                        date_str = item.get("date")
+                        val_str = item.get("value")
+                        if date_str and val_str and val_str != ".":
+                            try:
+                                val_float = float(val_str)
+                                records.append({"date": pd.to_datetime(date_str), "value": val_float})
+                            except ValueError:
+                                continue
 
-                if not records:
-                    return pd.DataFrame(columns=["value"])
+                    if not records:
+                        return pd.DataFrame(columns=["value"])
 
-                df = pd.DataFrame(records).set_index("date")
-                if sort_order == "desc":
-                    df = df.sort_index(ascending=True)
-                logger.info(f"[FRED API] Successfully fetched {len(df)} observations for {series_id}")
-                return df
+                    df = pd.DataFrame(records).set_index("date")
+                    if sort_order == "desc":
+                        df = df.sort_index(ascending=True)
+                    logger.info(f"[FRED API] Successfully fetched {len(df)} observations for {series_id}")
+                    return df
 
-        except Exception as e:
-            logger.error(f"[FRED API] Failed to fetch series '{series_id}': {e}")
-            return pd.DataFrame(columns=["value"])
+            except Exception as e:
+                logger.warning(f"[FRED API] Attempt {attempt + 1} failed for series '{series_id}': {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.5 * (2 ** attempt))
+                else:
+                    logger.error(f"[FRED API] All {max_retries} attempts failed for series '{series_id}': {e}")
+
+        return pd.DataFrame(columns=["value"])
 
     def get_latest_rate(self, series_id: str) -> Optional[Dict[str, Any]]:
         """Fetch the most recent interest rate or indicator snapshot for a given series.
@@ -158,14 +169,20 @@ class FredApiClient:
         return self.get_latest_rate("IRSTCI01KRM156N")
 
     def fetch_all_fred_indicators(self) -> Dict[str, Dict[str, Any]]:
-        """Fetches latest snapshots for all configured FRED interest rate series."""
+        """Fetches latest snapshots for all configured FRED interest rate series concurrently in parallel."""
         results: Dict[str, Dict[str, Any]] = {}
         if not self.is_configured():
             return results
 
-        for sid in FRED_SERIES_MAP:
-            info = self.get_latest_rate(sid)
-            if info is not None:
-                results[sid] = info
+        with ThreadPoolExecutor(max_workers=min(8, len(FRED_SERIES_MAP))) as executor:
+            future_to_sid = {executor.submit(self.get_latest_rate, sid): sid for sid in FRED_SERIES_MAP}
+            for future in as_completed(future_to_sid):
+                sid = future_to_sid[future]
+                try:
+                    info = future.result()
+                    if info is not None:
+                        results[sid] = info
+                except Exception as e:
+                    logger.warning(f"[FRED API] Parallel fetch error for {sid}: {e}")
 
         return results

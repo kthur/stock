@@ -84,6 +84,10 @@ class MarketIndicatorStorage:
                     industry TEXT
                 )
             ''')
+            conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_stock_universe_market
+                ON stock_universe(market)
+            ''')
             # Create table for AI Predictions
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS ai_predictions (

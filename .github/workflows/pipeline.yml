@@ -9,6 +9,9 @@ concurrency:
   group: pipeline-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
@@ -28,15 +31,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('trading_system/requirements.lock') }}
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml', '**/requirements*.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
 
-      - name: Install dependencies
+      - name: Create venv and install dependencies
         run: |
-          uv python install 3.12
-          uv venv --python 3.12 .venv
-          # Use lockfile for deterministic, idempotent builds (P2: 3.3)
-          uv pip sync trading_system/requirements.lock
-          uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+          uv venv .venv --python 3.12
+          .venv/bin/python -m pip install --upgrade pip
+          if [ -f trading_system/requirements.lock ]; then
+            .venv/bin/pip install -r trading_system/requirements.lock
+          elif [ -f trading_system/pyproject.toml ]; then
+            .venv/bin/pip install ./trading_system
+          else
+            .venv/bin/pip install pandas numpy xgboost lightgbm catboost scikit-learn yfinance FinanceDataReader beautifulsoup4 lxml optuna pyyaml pytest requests
+          fi
+
+      - name: Create logs directory
+        run: mkdir -p trading_system/logs
 
       - name: Get current date
         id: date
@@ -97,6 +109,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           KOREABANK_ECOS_KEY: ${{ secrets.KOREABANK_ECOS_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           .venv/bin/python trading_system/run_pipeline.py 2>&1
 
