@@ -170,11 +170,19 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
         import pandas as pd
 
         df_prices = kwargs.get("df_prices", prices_dict)
-        universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
-        results = []
-
+        universe = kwargs.get("universe", kwargs.get("universe_df", None))
         if universe is None or (isinstance(universe, pd.DataFrame) and universe.empty):
+            if isinstance(fundamentals_dict, pd.DataFrame) and not fundamentals_dict.empty:
+                universe = fundamentals_dict
+            elif isinstance(prices_dict, pd.DataFrame) and not prices_dict.empty:
+                universe = prices_dict
+            else:
+                universe = pd.DataFrame()
+
+        results = []
+        if universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "microstructure_score"])
+
 
         for _, row in universe.iterrows():
             sym = str(row["symbol"]).strip()

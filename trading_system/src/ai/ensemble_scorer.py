@@ -626,10 +626,12 @@ class EnsembleScoringEngine:
         """Return baseline strategy weights according to 1D integer regime or 2D string regime."""
         if isinstance(regime, str) and regime in self.REGIME_2D_WEIGHTS:
             w = dict(self.REGIME_2D_WEIGHTS[regime])
+        elif str(regime).isdigit() and int(regime) in self.REGIME_WEIGHTS:
+            w = dict(self.REGIME_WEIGHTS[int(regime)])
         elif isinstance(regime, int) and regime in self.REGIME_WEIGHTS:
             w = dict(self.REGIME_WEIGHTS[regime])
         else:
-            w = dict(self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL'])
+            w = dict(self.REGIME_2D_WEIGHTS.get(str(regime), self.REGIME_2D_WEIGHTS['SIDEWAYS_LOW_VOL']))
 
         # Apply 3D Macro Modifier if applicable
         if macro_label and macro_label in self.MACRO_WEIGHT_MODIFIERS:
@@ -647,13 +649,14 @@ class EnsembleScoringEngine:
         registry_inst.auto_discover(["src.core", "src.ai"])
         all_metas = registry_inst.get_all()
 
-        res = {}
+        res = dict(w)
         regime_key = str(regime)
         for sid, (_, meta) in all_metas.items():
             if meta.is_standalone:
                 res[sid] = 0.0
-            else:
-                res[sid] = w.get(sid, meta.default_regime_weights.get(regime_key, 0.02))
+            elif sid not in res:
+                res[sid] = meta.default_regime_weights.get(regime_key, 0.02)
+
         total_base = sum(res.values())
         if total_base > 0:
             res = {k: v / total_base for k, v in res.items()}
@@ -817,7 +820,18 @@ class EnsembleScoringEngine:
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
 
+    def compute_dynamic_weights(
+        self,
+        rolling_sharpes: Dict[str, float],
+        regime: Union[int, str] = "SIDEWAYS_LOW_VOL",
+        gamma: float = 1.0,
+        vix_val: Optional[float] = None
+    ) -> Dict[str, float]:
+        """Backward-compatible alias for compute_dynamic_weights_from_sharpe."""
+        return self.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime, gamma=gamma, vix_val=vix_val)
+
     def get_regime_reasoning_summary(self, regime: Union[int, str], rolling_sharpes: Optional[Dict[str, float]] = None, decoupling_info: Optional[Dict[str, Any]] = None) -> str:
+
         """
         Generates a human-readable decision rationale summary for the selected 2D Regime,
         Dual Market Decoupling status, and 14-strategy dynamic weighting scheme.
