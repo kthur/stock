@@ -100,16 +100,19 @@ class InstForeignSectorEngine(BaseStrategyEngine):
 
         return float(0.5 * price_mf_ratio + 0.5 * trust_flow_score)
 
-    def compute_scores(
+    def compute_inst_foreign_sector_scores(
         self,
-        prices_dict: Dict[str, pd.DataFrame],
+        symbols: Optional[Any] = None,
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
         flow_data_dict: Optional[Dict[str, pd.DataFrame]] = None,
-        sector_mapping: Optional[Dict[str, str]] = None
+        sector_mapping: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> pd.DataFrame:
         """
         Computes Foreign/Trust 2-Month Accumulation & Sector Correlation Scores.
 
         Args:
+            symbols: Optional list of symbols.
             prices_dict: Dict of symbol -> OHLCV DataFrame (must include 'Close', 'Volume').
             flow_data_dict: Optional dict of symbol -> Flow DataFrame containing 'foreign_net_buy' and 'trust_net_buy'.
             sector_mapping: Optional dict of symbol -> Sector name (e.g. 'IT', 'Semiconductors').
@@ -117,6 +120,7 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         Returns:
             DataFrame with columns ['symbol', 'inst_foreign_sector_score', 'foreign_acc_score', 'trust_acc_score', 'accumulation_score', 'sector_corr_score']
         """
+
         if not prices_dict:
             return pd.DataFrame(columns=['symbol', 'inst_foreign_sector_score', 'foreign_acc_score', 'trust_acc_score', 'accumulation_score', 'sector_corr_score'])
 

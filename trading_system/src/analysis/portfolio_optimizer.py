@@ -1,5 +1,6 @@
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional
+
 
 import numpy as np
 from scipy.optimize import minimize
