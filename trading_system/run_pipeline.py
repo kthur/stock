@@ -1449,26 +1449,26 @@ def execute_prediction_pipeline():
                 df_calib_base['future_return_20d'] = df_calib_base.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x - 1)
                 valid_calib_df = df_calib_base.dropna(subset=['future_return_20d'])
                 if len(valid_calib_df) > 200:
-                    # Use chronological last 30% as out-of-sample holdout for calibrator fitting
                     holdout_size = int(len(valid_calib_df) * 0.3)
                     val_holdout = valid_calib_df.iloc[-holdout_size:]
-                    _val_dict = {sym: grp for sym, grp in val_holdout.groupby('symbol')} if 'symbol' in val_holdout.columns else {}
+                    val_holdout_latest = val_holdout.groupby('symbol').last().reset_index() if 'symbol' in val_holdout.columns else val_holdout
+                    _val_dict = {sym: grp for sym, grp in val_holdout_latest.groupby('symbol')} if 'symbol' in val_holdout_latest.columns else {}
                     if _val_dict:
                         reg_preds, surge_preds = model.predict_all(
                             _val_dict, indicator_train, symbol_market,
                             storage=storage, fundamentals_cache=train_fund_cache if 'train_fund_cache' in locals() else None)
                     else:
                         reg_preds, surge_preds = pd.DataFrame(), pd.DataFrame()
-                    if not reg_preds.empty and not surge_preds.empty:
-                        y_true = (val_holdout['future_return_20d'] >= 0.15).astype(float).values
+                    if not reg_preds.empty and not surge_preds.empty and len(reg_preds) == len(val_holdout_latest):
+                        y_true = (val_holdout_latest['future_return_20d'] >= 0.15).astype(float).values
                         calib_scores = {
-                            'regression': reg_preds.get(20, pd.Series(0.5, index=val_holdout.index)).values,
-                            'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=val_holdout.index)).values,
+                            'regression': reg_preds.get(20, pd.Series(0.5, index=val_holdout_latest.index)).values,
+                            'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=val_holdout_latest.index)).values,
                         }
                         scorer_calib.fit_calibrators(calib_scores, y_true)
                         calib_path = Path(model.model_dir) / "calibrators.pkl"
                         joblib.dump(scorer_calib._calibrators, str(calib_path))
-                        logger.info(f"Fitted and saved Isotonic calibrators on out-of-sample holdout ({len(val_holdout)} rows) to {calib_path}")
+                        logger.info(f"Fitted and saved Isotonic calibrators on out-of-sample holdout ({len(val_holdout_latest)} symbols) to {calib_path}")
             except Exception as _calib_e:
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
         del df_train
@@ -3736,12 +3736,17 @@ def execute_prediction_pipeline():
         "inst_foreign_sector_predictions.txt",
         "ensemble_predictions.txt",
     ]
+    critical_files = ["pipeline_result.txt", "surge_predictions.txt", "ensemble_predictions.txt"]
     for filename in verification_files:
         filepath = os.path.join(result_dir, filename)
         if not os.path.exists(filepath):
             logger.warning(f"Verification failed: Output file {filename} does not exist.")
+            if filename in critical_files:
+                raise RuntimeError(f"Critical output file {filename} was not generated.")
         elif os.path.getsize(filepath) == 0:
             logger.warning(f"Verification failed: Output file {filename} is empty.")
+            if filename in critical_files:
+                raise RuntimeError(f"Critical output file {filename} is 0 bytes.")
         else:
             logger.info(f"Verification check: Output file {filename} exists and is not empty.")
 
@@ -3855,36 +3860,13 @@ Examples:
         _tb_tail = _tb[-800:] if len(_tb) > 800 else _tb
         logger.exception("Pipeline failed with unhandled exception.")
 
-        # Check if output files were still successfully written despite the error
-        result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
-        pipe_res_file = os.path.join(result_dir, "pipeline_result.txt")
-        ens_res_file = os.path.join(result_dir, "ensemble_predictions.txt")
-        has_results = (
-            os.path.exists(pipe_res_file) and os.path.getsize(pipe_res_file) > 0 and
-            os.path.exists(ens_res_file) and os.path.getsize(ens_res_file) > 0
+        _notify_telegram(
+            f"🚨 파이프라인 실패\n"
+            f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
+            f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
+            f"```\n{_tb_tail}\n```",
+            "CRITICAL",
+            buttons=_buttons,
         )
-
-        _buttons = [[{"text": "📋 에러 로그 보기", "url": _gha_url}]] if _gha_url else None
-
-        if has_results:
-            logger.info("Output files detected in result directory. Treating as partial success (exiting with 0).")
-            _notify_telegram(
-                f"⚠️ 파이프라인 부분 완료 (오류 발생)\n"
-                f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
-                f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
-                f"결과 파일이 정상 생성되어 프로세스를 완료 처리합니다.",
-                "WARNING",
-                buttons=_buttons,
-            )
-            sys.exit(0)
-        else:
-            _notify_telegram(
-                f"🚨 파이프라인 실패\n"
-                f"⏱ 소요시각: {_elapsed / 60:.1f}분\n"
-                f"❌ 오류: {type(_exc).__name__}: {_exc}\n\n"
-                f"```\n{_tb_tail}\n```",
-                "CRITICAL",
-                buttons=_buttons,
-            )
-            sys.exit(1)
+        sys.exit(1)
 

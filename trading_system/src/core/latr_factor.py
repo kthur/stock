@@ -84,9 +84,9 @@ class LATRFactorEngine(BaseStrategyEngine):
             return {}
 
         vals = np.array(list(scores.values()))
-        min_v, max_v = np.min(vals), np.max(vals)
-        if max_v == min_v:
+        p1, p99 = np.percentile(vals, 1), np.percentile(vals, 99)
+        if p99 == p1:
             return {k: 0.5 for k in scores.keys()}
-        range_v = max_v - min_v
+        range_v = p99 - p1
 
-        return {k: float(np.clip((v - min_v) / range_v, 0.0, 1.0)) for k, v in scores.items()}
+        return {k: float(np.clip((v - p1) / range_v, 0.0, 1.0)) for k, v in scores.items()}

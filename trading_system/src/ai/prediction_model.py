@@ -1765,22 +1765,27 @@ class OnDevicePredictionModel:
                     logger.info(f"Computing {raw_target_col} from Close for surge training")
                     df_train[raw_target_col] = df_train.groupby('symbol')['Close'].transform(
                         lambda x: x.shift(-h) / x - 1
-                    ).fillna(0.0).replace([np.inf, -np.inf], 0.0)
+                    ).replace([np.inf, -np.inf], np.nan)
                 else:
-                    df_train[raw_target_col] = df_train['Close'].pct_change(h).shift(-h).fillna(0.0)
+                    df_train[raw_target_col] = df_train['Close'].pct_change(h).shift(-h).replace([np.inf, -np.inf], np.nan)
+
+            df_h_surge = df_train.dropna(subset=[raw_target_col]).reset_index(drop=True)
+            if df_h_surge.empty:
+                logger.warning(f"No valid surge target rows for {market} {h}d horizon, skipping")
+                continue
 
             eff_thresh = horizon_thresholds.get(h, self.surge_threshold)
             logger.info(f"Training surge model (XGB/LGB/Cat) for {market} {h}d horizon (thresh={eff_thresh*100:.1f}%)...")
-            X = df_train[features]
+            X = df_h_surge[features]
             # Surge label uses raw return thresholded (not Sharpe-scaled)
-            target = (df_train[raw_target_col] >= eff_thresh).astype(int)
+            target = (df_h_surge[raw_target_col] >= eff_thresh).astype(int)
             pos_count = target.sum()
 
             if pos_count == 0:
-                q95 = df_train[raw_target_col].quantile(0.95)
+                q95 = df_h_surge[raw_target_col].quantile(0.95)
                 if q95 > 0:
                     eff_thresh = float(q95)
-                    target = (df_train[raw_target_col] >= eff_thresh).astype(int)
+                    target = (df_h_surge[raw_target_col] >= eff_thresh).astype(int)
                     pos_count = target.sum()
 
             neg_count = len(target) - pos_count

@@ -127,9 +127,9 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             residuals = y - (np.mean(y) if len(y) > 0 else 0.0)
 
         # Scale residuals to 0.0 ~ 1.0 score
-        res_min, res_max = np.min(residuals), np.max(residuals)
-        denom = (res_max - res_min) if (res_max - res_min) > 1e-6 else 1.0
-        norm_scores = (residuals - res_min) / denom
+        p1, p99 = np.percentile(residuals, 1), np.percentile(residuals, 99)
+        denom = (p99 - p1) if (p99 - p1) > 1e-6 else 1.0
+        norm_scores = (residuals - p1) / denom
 
         for idx, (_, row) in enumerate(df_merged.iterrows()):
             sym = str(row["symbol"]).strip()

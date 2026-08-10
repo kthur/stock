@@ -619,7 +619,10 @@ class EnsembleScoringEngine:
             w['accruals_quality'] = w.get('accruals_quality', 0.03) + 0.03
 
         total_w = sum(w.values())
-        return {k: v / total_w for k, v in w.items()}
+        if total_w > 0:
+            return {k: v / total_w for k, v in w.items()}
+        n_keys = len(w)
+        return {k: 1.0 / n_keys for k in w} if n_keys > 0 else w
 
     def get_base_weights(self, regime: Union[int, str], vix_val: Optional[float] = None,
                          macro_label: Optional[str] = None) -> Dict[str, float]:
