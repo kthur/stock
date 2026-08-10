@@ -131,6 +131,7 @@
     position: sticky;
     background: var(--surface);
     z-index: 2;
+    box-sizing: border-box;
   }
   .table-wrap th.sticky-col {
     position: sticky;
@@ -138,9 +139,9 @@
     z-index: 12;
     background: var(--surface2);
   }
-  .table-wrap .sticky-rank { left: 0; min-width: 45px; }
-  .table-wrap .sticky-symbol { left: 45px; min-width: 85px; }
-  .table-wrap .sticky-name { left: 130px; min-width: 130px; max-width: 160px; border-right: 2px solid var(--border); box-shadow: 2px 0 5px rgba(0,0,0,0.3); }
+  .table-wrap .sticky-rank { left: 0; width: 58px; min-width: 58px; max-width: 58px; padding-left: 4px; padding-right: 4px; text-align: center; }
+  .table-wrap .sticky-symbol { left: 58px; width: 92px; min-width: 92px; max-width: 92px; padding-left: 8px; padding-right: 8px; }
+  .table-wrap .sticky-name { left: 150px; min-width: 130px; max-width: 160px; padding-left: 8px; padding-right: 8px; border-right: 2px solid var(--border); box-shadow: 3px 0 6px rgba(0,0,0,0.4); }
   tbody tr:hover td.sticky-col { background: #1c2128; }
 
   /* Prob bar */
@@ -257,7 +258,7 @@
     <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL (Low Vol)</span>
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇰🇷 KR: 🔴 BEAR (Low Vol)</span>
     <span class="badge badge-date">📅 2026-08-04 09:44 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-10 13:43 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-10 23:02 KST</span>
   </div>
 </div>
 
