@@ -1299,7 +1299,7 @@ def execute_prediction_pipeline():
 
         # 6. Fetch corporate fundamentals in background (non-blocking)
         if train_symbols:
-            t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"))
+            t = threading.Thread(target=_bg_fundamentals, args=(train_symbols, "training"), daemon=True)
             t.start()
 
         # Prefetch training data in batches to optimize performance
@@ -1514,7 +1514,7 @@ def execute_prediction_pipeline():
     # (avoids orphaned non-daemon thread that would keep the process alive after early return)
     t2 = None
     if all_symbols and not cfg.skip_inference:
-        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"))
+        t2 = threading.Thread(target=_bg_fundamentals, args=(all_symbols, "inference"), daemon=True)
         t2.start()
 
     # Prefetch inference data in batches to optimize performance
@@ -1740,7 +1740,7 @@ def execute_prediction_pipeline():
                                     'z_score': round(float(z), 2),
                                     'correlation': 0.85,
                                     'beta': 1.0,
-                                    'signal': 'LONG_SPREAD' if z < -1.0 else ('SHORT_SPREAD' if z > 1.0 else 'NEUTRAL'),
+                                    'signal': 'LONG_SPREAD' if z <= -2.0 else ('SHORT_SPREAD' if z >= 2.0 else 'NEUTRAL'),
                                     'market': mkt
                                 })
                     except Exception as e:

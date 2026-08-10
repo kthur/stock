@@ -458,6 +458,7 @@ class StockPriceDB:
                 """)
                 conn.execute("DROP INDEX IF EXISTS idx_stock_prices_symbol_date")
                 conn.execute("DROP INDEX IF EXISTS idx_stock_prices_sym_date")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_stock_prices_date ON stock_prices (date)")
                 conn.commit()
             finally:
                 conn.close()

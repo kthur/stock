@@ -39,24 +39,24 @@ class TradingConfig:
     # 주가 DB 경로
     stock_price_db_path: str = "stock_prices.db"
 
-    openai_api_key: str = ""
+    openai_api_key: str = field(default="", repr=False)
     openai_model: str = "gpt-4o-mini"
-    telegram_bot_token: str = ""
-    telegram_authorized_user_ids: str = ""
+    telegram_bot_token: str = field(default="", repr=False)
+    telegram_authorized_user_ids: str = field(default="", repr=False)
 
     # KIS 모의투자 키 설정
-    kis_mock_app_key: str = ""
-    kis_mock_app_secret: str = ""
-    kis_mock_account: str = ""
+    kis_mock_app_key: str = field(default="", repr=False)
+    kis_mock_app_secret: str = field(default="", repr=False)
+    kis_mock_account: str = field(default="", repr=False)
 
     # DART 공시 API 키 (OpenDART)
-    dart_api_key: str = ""
+    dart_api_key: str = field(default="", repr=False)
 
     # 한국은행 ECOS API 키
-    ecos_api_key: str = ""
+    ecos_api_key: str = field(default="", repr=False)
 
     # FRED API 키 (St. Louis Federal Reserve Economic Data)
-    fred_api_key: str = ""
+    fred_api_key: str = field(default="", repr=False)
 
     # VCP 실시간 돌파 파라미터
     vcp_near_pivot_pct: float = 0.02       # Pivot 돌파 허용 여유 (2%)

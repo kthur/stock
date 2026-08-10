@@ -285,6 +285,7 @@ def fetch_and_store_fundamentals_batch(
         async with aiohttp.ClientSession() as shared_session:
             async def _fetch_task(sym):
                 async with sem:
+                    await asyncio.sleep(0.05)
                     market = symbol_market_map.get(sym, 'SP500')
                     df_fun = await async_fetch_fundamentals(sym, market, session=shared_session)
                     return sym, df_fun
