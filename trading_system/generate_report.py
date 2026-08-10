@@ -233,7 +233,7 @@ def parse_ensemble(text: str) -> EnsembleData:
             data.us10y = _clean_macro(m.group(1), "4.25%", "us10y")
         m = re.match(r"KR 10Y Bond Yield.*:\s*(.+)", line)
         if m:
-            data.kr10y = _clean_macro(m.group(1), "3.50%", "kr10y")
+            data.kr10y = _clean_macro(m.group(1), "3.15%", "kr10y")
         m = re.match(r"USD/KRW FX Rate.*:\s*(.+)", line)
         if m:
             data.usdkrw = _clean_macro(m.group(1), "1,380.00 KRW", "usdkrw")
@@ -1070,7 +1070,7 @@ def build_html(
         "sp500": "+0.050% / day",
         "vix": "18.50",
         "us10y": "4.25%",
-        "kr10y": "3.50%",
+        "kr10y": "3.15%",
         "usdkrw": "1,380.00 KRW",
         "wti": "$75.50 / bbl",
         "gold": "$220.00",

@@ -629,6 +629,7 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
 
 # Global indicator & Sector ETF tickers → feature column names
 _INDICATOR_TICKERS = {
+    '^GSPC': 'sp500_change',
     '^VIX': 'vix_change',
     '^TNX': 'us10y',         # US 10Y Treasury Yield (10년물)
     '^FVX': 'us5y',          # US 5Y Treasury Yield (5년물)
@@ -899,12 +900,11 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
             elif col_name == 'put_call_ratio':
                 return (col_name, df['Close'].ffill().fillna(0.6))
             elif col_name in ('us10y', 'us3m_yield', 'kr10y'):
-                # ^TNX, ^IRX, KR10YT=RR: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5)
-                # Divide by 10 to restore actual yield percentage.
+                # ^TNX, ^IRX: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5)
+                # FRED / ECOS report actual percentage (e.g. 3.50% → Close=3.5)
+                # Divide by 10 ONLY if raw value > 15.0 to handle yfinance ×10 convention safely.
                 raw_yield = df['Close'].ffill()
-                scaled = raw_yield / 10.0
-                # If raw value looks already scaled (<= 20), keep as-is (some providers return real %)
-                scaled = scaled.where(raw_yield >= 1.0, raw_yield)  # safety guard: raw < 1 => already percent
+                scaled = raw_yield.apply(lambda v: v / 10.0 if (pd.notna(v) and v > 15.0) else v)
                 return (col_name, scaled.fillna(float('nan')))
             elif col_name in ('kr_base_rate', 'kr_cd91d', 'kr3y'):
                 # ECOS / FRED Korea interest rates: already in real % (e.g. 3.5)
@@ -3038,7 +3038,7 @@ def execute_prediction_pipeline():
         usdkrw_val = float(db_macro['USDKRW=X'])
     usdkrw_val = _safe_float(usdkrw_val, 1380.0)
 
-    # 3. US 10Y Yield level: check us10y, price_db ^TNX, db_macro ^TNX, default 4.25
+    # 3. US 10Y Yield level: check us10y, FRED:DGS10, price_db ^TNX, db_macro ^TNX, default 4.25
     us10y_val = np.nan
     if 'us10y' in indicator_infer.columns and not indicator_infer['us10y'].dropna().empty:
         us10y_val = float(indicator_infer['us10y'].dropna().iloc[-1])
@@ -3055,8 +3055,20 @@ def execute_prediction_pipeline():
         us10y_val = _raw_tnx / 10.0 if _raw_tnx > 20 else _raw_tnx
     us10y_val = _safe_yield(us10y_val, 4.25)
 
-    # Korean 10Y Bond Yield
-    kr10y_val = _safe_yield(indicator_infer['kr10y'].iloc[-1] if 'kr10y' in indicator_infer.columns else float('nan'), 3.50)
+    # 4. Korean 10Y Bond Yield: check kr10y, FRED:IRLTLT01KRM156N in price_db, db_macro, default 3.15
+    kr10y_val = np.nan
+    if 'kr10y' in indicator_infer.columns and not indicator_infer['kr10y'].dropna().empty:
+        kr10y_val = float(indicator_infer['kr10y'].dropna().iloc[-1])
+    if (pd.isna(kr10y_val) or kr10y_val <= 0 or kr10y_val > 25) and price_db is not None:
+        try:
+            _kr_df = price_db.get_prices('FRED:IRLTLT01KRM156N', start_date=(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
+            if _kr_df is not None and not _kr_df.empty and 'Close' in _kr_df.columns:
+                kr10y_val = float(_kr_df['Close'].dropna().iloc[-1])
+        except Exception:
+            pass
+    if (pd.isna(kr10y_val) or kr10y_val <= 0 or kr10y_val > 25) and 'FRED:IRLTLT01KRM156N' in db_macro:
+        kr10y_val = float(db_macro['FRED:IRLTLT01KRM156N'])
+    kr10y_val = _safe_yield(kr10y_val, 3.15)
     # WTI Crude Oil level (CL=F absolute Close price)
     wti_val = 75.0
     try:
