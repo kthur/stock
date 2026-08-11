@@ -2,6 +2,7 @@ import logging
 import math
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -314,19 +315,31 @@ class MarketIndicatorStorage:
 
     def update_stock_universe(self):
         """Fetch and update S&P 500, NASDAQ, RUSSELL2000 and KRX (KOSPI, KOSDAQ) stocks"""
+        def _retry_fetch(label, fn, attempts=3):
+            """Retry a universe listing fetch (transient rate-limit/network failures)."""
+            last_err = None
+            for attempt in range(1, attempts + 1):
+                try:
+                    result = fn()
+                    if result is not None and not result.empty:
+                        return result
+                    last_err = ValueError("empty listing")
+                except Exception as e:  # noqa: BLE001
+                    last_err = e
+                    logger.warning(f"[Universe] {label} attempt {attempt}/{attempts} failed: {e}")
+                if attempt < attempts:
+                    time.sleep(2.0 * attempt)
+            logger.error(f"[Universe] {label} failed after {attempts} attempts: {last_err}")
+            return pd.DataFrame()
+
         logger.info("Fetching S&P 500 universe...")
-        sp500 = fdr.StockListing('S&P500')
+        sp500 = _retry_fetch("S&P500 listing", lambda: fdr.StockListing('S&P500'))
 
         logger.info("Fetching NASDAQ universe...")
-        try:
-            nasdaq = fdr.StockListing('NASDAQ')
-        except Exception as e:
-            logger.warning(f"Failed to fetch NASDAQ universe: {e}")
-            nasdaq = pd.DataFrame()
+        nasdaq = _retry_fetch("NASDAQ listing", lambda: fdr.StockListing('NASDAQ'))
 
         logger.info("Fetching RUSSELL2000 universe...")
-        russell2000 = pd.DataFrame()
-        try:
+        def _fetch_russell_ishares():
             import io
             import urllib.request
             url = 'https://www.ishares.com/us/products/239710/ishares-russell-2000-etf.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund'
@@ -339,27 +352,29 @@ class MarketIndicatorStorage:
                         start_idx = i
                         break
                 if start_idx != -1 and start_idx < len(r_lines):
-                    russell2000 = pd.read_csv(io.StringIO('\n'.join(r_lines[start_idx:])), on_bad_lines='skip')
-        except Exception as e:
-            logger.warning(f"Failed to fetch RUSSELL2000 universe from iShares: {e}")
+                    return pd.read_csv(io.StringIO('\n'.join(r_lines[start_idx:])), on_bad_lines='skip')
+            return pd.DataFrame()
+
+        russell2000 = _retry_fetch("RUSSELL2000 iShares", _fetch_russell_ishares)
 
         # Tier 2 Fallback: If iShares download fails or is empty, use NYSE listing minus SP500
         if russell2000.empty:
-            try:
-                logger.info("Fallback: Fetching NYSE universe for RUSSELL2000 small-cap coverage...")
+            def _fetch_nyse_fallback():
                 nyse = fdr.StockListing('NYSE')
                 if not nyse.empty and 'Symbol' in nyse.columns:
                     sp500_syms = set(sp500['Symbol']) if not sp500.empty and 'Symbol' in sp500.columns else set()
                     russell_fallback = nyse[~nyse['Symbol'].isin(sp500_syms)].copy()
                     russell_fallback = russell_fallback[~russell_fallback['Symbol'].isin(self._EXCLUDE_FALLBACK_TICKERS)]
                     russell_fallback.rename(columns={'Symbol': 'Ticker'}, inplace=True)
-                    russell2000 = russell_fallback.head(2500)
-                    logger.info(f"Loaded {len(russell2000)} RUSSELL2000 symbols via NYSE fallback.")
-            except Exception as e_fallback:
-                logger.warning(f"Failed to load RUSSELL2000 NYSE fallback: {e_fallback}")
+                    return russell_fallback.head(2500)
+                return pd.DataFrame()
+
+            russell2000 = _retry_fetch("RUSSELL2000 NYSE fallback", _fetch_nyse_fallback)
+            if not russell2000.empty:
+                logger.info(f"Loaded {len(russell2000)} RUSSELL2000 symbols via NYSE fallback.")
 
         logger.info("Fetching KRX universe...")
-        krx = fdr.StockListing('KRX')
+        krx = _retry_fetch("KRX listing", lambda: fdr.StockListing('KRX'))
 
         # 관리종목 제외 (Volume=0 스냅샷은 거래일시 정지가 아닐 수 있으므로 유니버스 제거 제외)
         krx.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume', 'code'] else str(c) for c in krx.columns]

@@ -1168,8 +1168,12 @@ def execute_prediction_pipeline():
 
     # 4. Update stock universe if needed
     universe = storage.get_universe()
-    if universe.empty:
-        logger.info("Universe is empty. Syncing stock universe...")
+    force_universe_refresh = os.environ.get("FORCE_UNIVERSE_REFRESH", "false").lower() == "true"
+    if universe.empty or force_universe_refresh:
+        logger.info(
+            "Syncing stock universe (%s)...",
+            "FORCE_UNIVERSE_REFRESH is set" if force_universe_refresh else "universe is empty",
+        )
         storage.update_stock_universe()
         universe = storage.get_universe()
     logger.info(f"Loaded {len(universe)} symbols from universe.")
