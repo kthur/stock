@@ -148,9 +148,21 @@ class LSTMPredictor:
     def load_model(self, filepath: str) -> None:
         try:
             if os.path.exists(filepath):
-                checkpoint = torch.load(filepath, map_location=self.device, weights_only=True)
-                self.model.load_state_dict(checkpoint['model_state_dict'])
-                self.is_trained = checkpoint['is_trained']
+                checkpoint = torch.load(filepath, map_location=self.device, weights_only=False)
+                if isinstance(checkpoint, dict):
+                    if 'model_state_dict' in checkpoint:
+                        self.model.load_state_dict(checkpoint['model_state_dict'])
+                    elif 'state_dict' in checkpoint:
+                        self.model.load_state_dict(checkpoint['state_dict'])
+                    else:
+                        logger.warning(f"LSTM checkpoint {filepath} has no state dict key (keys: {list(checkpoint.keys())[:6]}). Treating as untrained.")
+                        self.is_trained = False
+                        return
+                    self.is_trained = bool(checkpoint.get('is_trained', True))
+                else:
+                    # Legacy format: bare state dict
+                    self.model.load_state_dict(checkpoint)
+                    self.is_trained = True
                 logger.info(f"LSTM model loaded from {filepath}")
             else:
                 logger.warning(f"LSTM model file not found: {filepath}")

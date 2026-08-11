@@ -209,10 +209,25 @@ class StockTradingSystem:
         if self.config.mock_trading:
             logger.info(f"Auto-connecting to broker: {self.config.broker_type}")
             account = self.config.kis_mock_account or "mock_account_123"
-            try:
-                self.connect_to_broker(self.config.broker_type, account)
-            except Exception as e:
-                logger.error(f"Failed to auto-connect to broker: {e}")
+            # Placeholder-credential guard: 'your_kis_mock_account_here' and similar
+            # template values must NOT activate a broker routing path. Previously
+            # broker_type="KIS" failed enum lookup silently (no broker); after
+            # normalization to "korea_investment" a placeholder account would
+            # otherwise silently route mock orders through the KIS connector.
+            import re as _re
+            _account_lower = str(account).strip().lower()
+            if (_account_lower in ("mock_account_123", "") or "here" in _account_lower
+                    or _re.fullmatch(r"your_[a-z_]+_here", _account_lower)
+                    or _account_lower in ("changeme", "change_me", "xxx", "dummy", "test")):
+                logger.warning(
+                    f"Broker account {account!r} looks like a placeholder - skipping auto-connect "
+                    "(no broker routing active; orders remain simulated)."
+                )
+            else:
+                try:
+                    self.connect_to_broker(self.config.broker_type, account)
+                except Exception as e:
+                    logger.error(f"Failed to auto-connect to broker: {e}")
 
     def _setup_callbacks(self) -> None:
         """이벤트 버스 콜백 등록"""

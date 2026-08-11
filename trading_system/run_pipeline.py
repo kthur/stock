@@ -271,12 +271,14 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
         yf_symbol = symbol.replace('.', '-')
 
     result = None
+    tier_source = None
 
     # Tier 1: Try yfinance primary download (with automatic Tenacity retries)
     try:
         df = _fetch_yf_primary(yf_symbol, start_date)
         if df is not None and not df.empty:
             result = df
+            tier_source = 'yf'
             logger.debug(f"Tier 1 (yfinance) succeeded for {yf_symbol}")
     except Exception as e:
         logger.debug(f"Tier 1 (yfinance) network fetch failed for {yf_symbol}: {e}")
@@ -289,6 +291,7 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
             df = fdr.DataReader(fdr_sym, start=start_date)
             if df is not None and not df.empty:
                 result = df
+                tier_source = 'raw'
                 logger.warning(f"Successfully retrieved Tier 2 (FinanceDataReader) data for {canonical_symbol}")
         except Exception as e:
             logger.debug(f"Tier 2 (FinanceDataReader) network fetch failed for {canonical_symbol}: {e}")
@@ -302,6 +305,7 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
                 df = _fetch_naver_direct(canonical_symbol, start_date)
                 if df is not None and not df.empty:
                     result = df
+                    tier_source = 'raw'
                     logger.warning(f"Successfully retrieved Tier 3 (Naver Direct API) data for {canonical_symbol}")
             except Exception as e:
                 logger.debug(f"Tier 3 (Naver Direct API) fetch failed for {canonical_symbol}: {e}")
@@ -313,6 +317,7 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
                     df = _fetch_pykrx(canonical_symbol, start_date)
                     if df is not None and not df.empty:
                         result = df
+                        tier_source = 'raw'
                         logger.warning(f"Successfully retrieved Tier 4 (PyKRX) data for {canonical_symbol}")
                 except Exception as e:
                     logger.debug(f"Tier 4 (PyKRX) fetch failed for {canonical_symbol}: {e}")
@@ -323,12 +328,25 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
                 df = _fetch_stooq_or_yahoo_direct(canonical_symbol, start_date)
                 if df is not None and not df.empty:
                     result = df
+                    tier_source = 'raw'
                     logger.warning(f"Successfully retrieved Tier 3 (Stooq / Yahoo Direct) data for {canonical_symbol}")
             except Exception as e:
                 logger.debug(f"Tier 3 (Stooq / Yahoo Direct) fetch failed for {canonical_symbol}: {e}")
 
     if result is None or result.empty:
         raise ValueError(f"Fetched data for {symbol} is empty or None across all providers")
+
+    # ── P0-7: unify price convention ────────────────────────────────────────
+    # Tier 1 (yfinance) returns split-adjusted prices. Raw providers
+    # (FDR/Naver/PyKRX/Stooq) return unadjusted prices; backward-adjust split
+    # gaps so all symbols share one convention (recent price level is preserved,
+    # so order_plans target prices remain at actual market prices).
+    if tier_source == 'raw':
+        try:
+            from src.data_layer.price_adjuster import CorporateActionAdjuster
+            result = CorporateActionAdjuster().adjust_ohlcv(result)
+        except Exception as e:
+            logger.debug(f"Corporate action adjust failed for {symbol}: {e}")
 
     return result
 
@@ -1608,9 +1626,16 @@ def execute_prediction_pipeline():
         res_df, surge_df = model.predict_all(infer_data_dict, indicator_infer, symbol_to_market_lower, storage=storage, fundamentals_cache=infer_fund_cache)
 
     if res_df.empty:
-        logger.error("No predictions made.")
-        return None, None
+        # Live-money guard: a completely empty inference day must FAIL loudly.
+        # Previously this returned (None, None) and __main__ still sent a
+        # "pipeline complete" Telegram SUCCESS, publishing an empty release.
+        raise RuntimeError(
+            "Inference produced NO predictions (empty result). Aborting pipeline - "
+            "refusing to publish an empty prediction day."
+        )
     logger.info(f"Regression: {len(res_df)} symbols, Surge: {len(surge_df) if not surge_df.empty else 0} symbols")
+    if surge_df is None or surge_df.empty:
+        logger.warning("Surge predictions are empty - surge strategy will be inactive this run.")
 
     # 10c. Run VCP pattern detection (parallel)
     logger.info("Running VCP pattern detection...")
@@ -3424,9 +3449,32 @@ def execute_prediction_pipeline():
         from src.execution.oms_engine import ExecutionOMSEngine
         oms_engine = ExecutionOMSEngine(db_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db"))
         top_picks_dicts = ensemble_df_merged.head(20).to_dict(orient="records")
+        # Enrich top picks with the latest observed close price so order plans
+        # carry a real reference price (never the 1.0 fallback).
+        _last_close_map = {}
+        if 'infer_data_dict' in locals() and infer_data_dict:
+            for _sym, _sdf in infer_data_dict.items():
+                try:
+                    _cl = _sdf['Close']
+                    if isinstance(_cl, pd.DataFrame):
+                        _cl = _cl.iloc[:, 0]
+                    _last_close_map[str(_sym)] = float(_cl.iloc[-1])
+                except Exception:
+                    continue
+        for _pick in top_picks_dicts:
+            _p_sym = _pick.get('symbol')
+            if _pick.get('close_price') is None and _p_sym is not None:
+                _pick['close_price'] = _last_close_map.get(str(_p_sym), _pick.get('close'))
+        _crisis_lvl_str = "NORMAL"
+        if 'crisis_lvl' in locals() and crisis_lvl is not None:
+            _crisis_lvl_str = getattr(crisis_lvl, 'value', str(crisis_lvl))
         weight_dict = dict(zip(ensemble_df_merged['symbol'], ensemble_df_merged.get('portfolio_weight', 0.05)))
-        order_plans = oms_engine.generate_order_plan(top_picks_dicts, weight_dict, total_capital=cfg.portfolio_capital_krw)
-        logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db")
+        order_plans = oms_engine.generate_order_plan(
+            top_picks_dicts, weight_dict,
+            total_capital=cfg.portfolio_capital_krw,
+            crisis_level=_crisis_lvl_str,
+        )
+        logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db (crisis_level={_crisis_lvl_str})")
     except Exception as _oms_e:
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
 
@@ -3763,7 +3811,10 @@ def execute_prediction_pipeline():
             if returns:
                 all_zero = all(float(r) == 0.0 for r in returns)
                 if all_zero:
-                    logger.warning("Verification failed: All expected returns in pipeline_result.txt are 0.0.")
+                    # Live-money guard: exactly-zero expected returns for every
+                    # horizon/symbol is a model-failure signature, not a market
+                    # condition. Fail loudly so the day is not released.
+                    raise RuntimeError("Pipeline verification failed: All expected returns in pipeline_result.txt are 0.0.")
                 else:
                     logger.info("Verification check: Found non-zero expected returns in pipeline_result.txt.")
             else:
@@ -3772,8 +3823,12 @@ def execute_prediction_pipeline():
             logger.warning(f"Verification failed: Error reading/parsing pipeline_result.txt: {e}")
 
         try:
-            db.close()
-            indicator_storage.close()
+            # Pre-existing bug: variables are `price_db` and `storage` in this scope;
+            # `db`/`indicator_storage` are undefined, so DBs were silently never closed.
+            if hasattr(price_db, 'close'):
+                price_db.close()
+            if hasattr(storage, 'close'):
+                storage.close()
         except Exception as e:
             logger.debug(f"DB close during pipeline cleanup: {e}")
 

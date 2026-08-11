@@ -104,6 +104,29 @@ class TradingConfig:
 
     _parsed_authorized_user_ids: list = field(default_factory=list, init=False, repr=False)
 
+    # "KIS" (한국투자증권 별칭) → "KOREA_INVESTMENT"로 정규화 (BrokerType enum 명칭과 일치)
+    _BROKER_TYPE_ALIASES = {"KIS": "KOREA_INVESTMENT"}
+
+    def _normalize_broker_type(self, value: str) -> str:
+        """BrokerType enum 멤버명으로 정규화. 인식 불가 값이면 명시적 오류로 fail-fast.
+
+        실거래 시점(주문 접수)이 아니라 설정 로드 시점에 검증해,
+        잘못된 BROKER_TYPE 설정이 조용히 무시되고 키움 커넥터가 대신 실행되는
+        사고(실제 계좌 주문)를 원천 차단한다.
+        """
+        try:
+            from src.broker.multi_broker_manager import BrokerType
+        except Exception:
+            return value
+        norm = str(value).strip().upper()
+        if norm in self._BROKER_TYPE_ALIASES:
+            norm = self._BROKER_TYPE_ALIASES[norm]
+        if not hasattr(BrokerType, norm):
+            raise ValueError(
+                f"Invalid BROKER_TYPE={value!r}. Valid values: {', '.join(BrokerType.__members__)} "
+                f"(alias: KIS -> KOREA_INVESTMENT)"
+            )
+        return BrokerType[norm].value
 
     def __post_init__(self):
         # Override fields with env variables if set in os.environ
@@ -114,6 +137,7 @@ class TradingConfig:
             self.mock_trading = os.environ["MOCK_TRADING_ENABLED"].lower() == "true"
         if "BROKER_TYPE" in os.environ:
             self.broker_type = os.environ["BROKER_TYPE"]
+        self.broker_type = self._normalize_broker_type(self.broker_type)
         if "DB_PATH" in os.environ:
             self.db_path = os.environ["DB_PATH"]
         if "TRAIN_SAMPLE_SP500" in os.environ:

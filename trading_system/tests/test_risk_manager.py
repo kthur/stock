@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.risk.risk_manager import RiskManager, RiskLevel
+from src.risk.risk_manager import RiskManager, RiskLevel, CrisisDetector, CrisisLevel
 
 
 class TestRiskManagerKelly(unittest.TestCase):
@@ -246,6 +246,39 @@ class TestRiskManagerLiquidity(unittest.TestCase):
     def test_screen_liquidity_zero_volume(self):
         self.assertFalse(self.rm.screen_liquidity("005930", "삼성전자", 0))
         self.assertTrue(self.rm.is_illiquid_or_preferred("005930", "삼성전자", 0))
+
+
+class TestCrisisDetectorLevels(unittest.TestCase):
+    """CrisisDetector level classification and failsafe tests"""
+
+    def setUp(self):
+        self.detector = CrisisDetector()
+
+    def test_crisis_detector_levels(self):
+        self.assertEqual(self.detector.evaluate(vix=18.0), CrisisLevel.NONE)
+        self.assertEqual(self.detector.evaluate(vix=32.0), CrisisLevel.ACTIVE)
+        self.assertEqual(self.detector.evaluate(vix=42.0), CrisisLevel.SEVERE)
+
+    def test_crisis_detector_macro_escalation(self):
+        # Pre-fill stable 6-day histories so macro spikes register on first call
+        self.detector._vix_history.extend([20.0] * 6)
+        self.detector._usdkrw_history.extend([1350.0] * 6)
+        self.detector._oil_history.extend([80.0] * 6)
+        self.detector._tnx_history.extend([4.0] * 6)
+        self.detector._dxy_history.extend([100.0] * 6)
+        level = self.detector.evaluate(
+            vix=28.0,
+            daily_volume_ratio=3.0,
+            usdkrw=1700.0,
+            oil=150.0,
+            tnx=6.5,
+            dxy=120.0,
+        )
+        self.assertIn(level, (CrisisLevel.WATCH, CrisisLevel.ACTIVE, CrisisLevel.SEVERE))
+
+    def test_crisis_detector_fails_safe(self):
+        level = self.detector.evaluate(vix=float("nan"))
+        self.assertNotEqual(level, CrisisLevel.NONE)
 
 
 if __name__ == "__main__":

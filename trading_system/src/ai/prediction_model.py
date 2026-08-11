@@ -150,6 +150,13 @@ class OnDevicePredictionModel:
         'dxy_change', 'wti_change', 'kospi_change', 'kosdaq_change',
         'put_call_ratio', 'ktb_spread'
     ]
+    # US-origin indicator columns: their value for calendar date d is only known
+    # at the US close on d, which happens ~14.5h AFTER the KRX close on d.
+    # For KRX symbols these MUST be lagged by 1 business day to avoid look-ahead.
+    US_ORIGIN_INDICATOR_COLS = [
+        'vix_change', 'us10y', 'sp500_change', 'dxy_change', 'wti_change',
+        'put_call_ratio'
+    ]
     ALL_FEATURES = FEATURES + GLOBAL_FEATURES
 
     def __init__(self, model_dir: Optional[str] = None):
@@ -164,6 +171,11 @@ class OnDevicePredictionModel:
         self.surge_models: Dict[str, Dict[int, xgb.XGBClassifier]] = {}
         self.surge_lgb_models: Dict[str, Dict[int, lgb.LGBMClassifier]] = {}
         self.surge_cat_models: Dict[str, Dict[int, cb.CatBoostClassifier]] = {}
+
+        self.model_load_health: Dict[str, Dict[str, int]] = {
+            "regression": {"xgb": 0, "lgb": 0, "cat": 0, "lstm": 0},
+            "surge": {"xgb": 0, "lgb": 0, "cat": 0},
+        }
 
         self.lead_lag_matrix: Dict[str, List[Tuple[str, float]]] = {}
         self.lead_lag_leaders: List[str] = []
@@ -371,6 +383,32 @@ class OnDevicePredictionModel:
             logger.error(f"Failed to save models: {e}")
 
 
+    @staticmethod
+    def _load_lgb_booster(filepath) -> Optional[Any]:
+        """Load a LightGBM Booster, preferring text format and falling back to
+        joblib/pickle (some legacy model files were accidentally persisted as
+        pickles despite a .txt extension, which made lgb.Booster(model_file=...)
+        fail with 'Unknown model format or submodel type')."""
+        import contextlib
+        import io
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                booster = lgb.Booster(model_file=str(filepath))
+            _ = booster.num_trees()
+            return booster
+        except Exception as e:
+            try:
+                import joblib
+                obj = joblib.load(str(filepath))
+                if isinstance(obj, lgb.Booster):
+                    return obj
+                if hasattr(obj, "booster_"):
+                    return obj.booster_
+                logger.warning(f"LGB fallback load {filepath} produced unexpected type {type(obj).__name__}: {e}")
+            except Exception as e2:
+                logger.warning(f"LGB model {filepath} load failed (text: {e}; pickle: {e2}). Skipping.")
+        return None
+
     def load_models(self):
         try:
             dummy_df = pd.DataFrame(0.0, index=[0], columns=self.ALL_FEATURES)
@@ -406,15 +444,13 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                try:
-                    booster = lgb.Booster(model_file=str(fpath))
+                booster = self._load_lgb_booster(fpath)
+                if booster is not None:
                     for m_key in set([market, market.lower(), market.upper()]):
                         if m_key not in self.lgb_models:
                             self.lgb_models[m_key] = {}
                         self.lgb_models[m_key][h] = booster
                     logger.debug(f"Loaded LGB model for {market} {h}d from {fpath}")
-                except Exception as e:
-                    logger.warning(f"LGB model {market} {h}d load failed: {e}. Skipping.")
 
             # Load CatBoost models
             for fpath in self.model_dir.glob("cat_model_*_*d.bin"):
@@ -480,7 +516,21 @@ class OnDevicePredictionModel:
             total_lgb = sum(len(v) for v in self.lgb_models.values())
             total_cat = sum(len(v) for v in self.cat_models.values())
             total_lstm = sum(len(v) for v in self.lstm_models.values())
+            self.model_load_health["regression"] = {"xgb": total_xgb, "lgb": total_lgb, "cat": total_cat, "lstm": total_lstm}
+            self.model_load_health["surge"] = {
+                "xgb": sum(len(v) for v in self.surge_models.values()),
+                "lgb": sum(len(v) for v in self.surge_lgb_models.values()),
+                "cat": sum(len(v) for v in self.surge_cat_models.values()),
+            }
             logger.info(f"Loaded regression models: XGB={total_xgb}, LGB={total_lgb}, Cat={total_cat}, LSTM={total_lstm}")
+            if total_lgb == 0:
+                logger.warning("MODEL HEALTH: No LightGBM regression models loaded - ensemble is degraded to XGB+Cat.")
+            if total_cat == 0:
+                logger.warning("MODEL HEALTH: No CatBoost regression models loaded - ensemble is degraded to XGB+LGB.")
+            if total_lstm == 0:
+                logger.info("MODEL HEALTH: No LSTM models loaded (optional strategy).")
+            if total_xgb == 0:
+                logger.error("MODEL HEALTH: No XGBoost regression models loaded - regression predictions will be unavailable!")
         except Exception as e:
             logger.error(f"Failed to load models: {e}")
 
@@ -557,15 +607,13 @@ class OnDevicePredictionModel:
                 if not h_str.isdigit():
                     continue
                 h = int(h_str)
-                try:
-                    booster = lgb.Booster(model_file=str(fpath))
+                booster = self._load_lgb_booster(fpath)
+                if booster is not None:
                     for m_key in set([market, market.lower(), market.upper()]):
                         if m_key not in self.surge_lgb_models:
                             self.surge_lgb_models[m_key] = {}
                         self.surge_lgb_models[m_key][h] = booster
                     logger.debug(f"Loaded LGB surge model for {market} {h}d from {fpath}")
-                except Exception as e:
-                    logger.warning(f"LGB surge model {market} {h}d load failed: {e}. Skipping.")
 
             # CatBoost
             for fpath in self.model_dir.glob("cat_surge_model_*_*d.bin"):
@@ -991,8 +1039,16 @@ class OnDevicePredictionModel:
         return df
 
     def _merge_indicator_history(self, df: pd.DataFrame,
-                                  indicator_df: pd.DataFrame = None) -> pd.DataFrame:
-        """Merge global indicator time-series into df by date index."""
+                                  indicator_df: pd.DataFrame = None,
+                                  shift_us_indicators: bool = False) -> pd.DataFrame:
+        """Merge global indicator time-series into df by date index.
+
+        `shift_us_indicators=True` (used for KRX symbols) shifts US-origin
+        indicator columns back by one row so that a KRX bar dated `d` only
+        uses US closes up to `d-1`. Without this shift, training rows would
+        contain US data from ~14.5h in the future, which is never observable
+        at decision time (train/serve skew).
+        """
         if indicator_df is None or indicator_df.empty:
             for col in self.GLOBAL_FEATURES:
                 df[col] = 0.0
@@ -1010,6 +1066,11 @@ class OnDevicePredictionModel:
                 ind_copy.index = pd.to_datetime(ind_copy.index)
             except Exception:
                 pass
+        if shift_us_indicators:
+            ind_copy = ind_copy.sort_index()
+            for col in self.US_ORIGIN_INDICATOR_COLS:
+                if col in ind_copy.columns:
+                    ind_copy[col] = ind_copy[col].shift(1)
         before = len(df_copy)
         overlap_cols = [c for c in ind_copy.columns if c in df_copy.columns]
         if overlap_cols:
@@ -1024,7 +1085,7 @@ class OnDevicePredictionModel:
         df_merged.index = orig_index
         return df_merged
 
-    def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None, storage=None, fundamentals_cache: Optional[dict] = None) -> pd.DataFrame:
+    def _create_features(self, df: pd.DataFrame, indicator_df: pd.DataFrame = None, storage=None, fundamentals_cache: Optional[dict] = None, is_krx_symbol: bool = False) -> pd.DataFrame:
         """Create technical indicators and momentum features."""
         df = df.copy()
         # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
@@ -1245,7 +1306,9 @@ class OnDevicePredictionModel:
                 df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         # Merge global indicator history by date index
-        df = self._merge_indicator_history(df, indicator_df)
+        # KRX symbols: US-origin indicators must be lagged by 1 business day
+        # (US close of date d is unknown until ~14.5h after the KRX close of d).
+        df = self._merge_indicator_history(df, indicator_df, shift_us_indicators=is_krx_symbol)
 
         # Log warning if the latest row was dropped during feature calculation (stale prediction day)
         # Ensure return and technical indicator columns are valid (dropna on technicals only)
@@ -1323,7 +1386,7 @@ class OnDevicePredictionModel:
                 continue
             df = df.copy()
             df['symbol'] = sym
-            df_feat = self._create_features(df, indicator_df, storage)
+            df_feat = self._create_features(df, indicator_df, storage, is_krx_symbol=self.is_krx_symbol(sym))
             df_feat = self._create_targets(df_feat)
             # Drop rows where non-fundamental features are missing (exclude targets & fundamentals)
             fundamental_cols = [
@@ -2034,7 +2097,7 @@ class OnDevicePredictionModel:
         if not all(col in df_current.columns for col in required_features):
             norm_dict = self.apply_market_normalization({'TEMP': df_current})
             df_current = norm_dict['TEMP']
-            df_current = self._create_features(df_current, indicator_df)
+            df_current = self._create_features(df_current, indicator_df, is_krx_symbol=self.is_krx_symbol(market if isinstance(market, str) else ""))
             if df_current.empty:
                 return {h: 0.0 for h in self.horizons}
 
@@ -2129,7 +2192,7 @@ class OnDevicePredictionModel:
             try:
                 df_copy = df.copy()
                 df_copy['symbol'] = sym
-                df_feat = self._create_features(df_copy, indicator_df, storage, fundamentals_cache)
+                df_feat = self._create_features(df_copy, indicator_df, storage, fundamentals_cache, is_krx_symbol=self.is_krx_symbol(sym))
                 if df_feat.empty:
                     return None
                 latest = df_feat.iloc[-1:][features]

@@ -1110,7 +1110,24 @@ class EnsembleScoringEngine:
 
         # 4. VCP Rule-based Pattern Strategy
         if isinstance(v_rule_df, list):
-            vr_df = pd.DataFrame({'symbol': [str(s) for s in v_rule_df], 'vcp_rule_score': 1.0})
+            if v_rule_df and isinstance(v_rule_df[0], dict):
+                vr_rows = []
+                for _vrec in v_rule_df:
+                    if not isinstance(_vrec, dict):
+                        continue
+                    _vsym = _vrec.get('symbol')
+                    if not _vsym:
+                        continue
+                    try:
+                        _vscore = float(_vrec.get('vcp_score', 100.0))
+                    except Exception:
+                        _vscore = 100.0
+                    if _vscore > 1.0:
+                        _vscore = _vscore / 100.0
+                    vr_rows.append({'symbol': str(_vsym), 'vcp_rule_score': max(0.0, min(1.0, _vscore))})
+                vr_df = pd.DataFrame(vr_rows, columns=['symbol', 'vcp_rule_score'])
+            else:
+                vr_df = pd.DataFrame({'symbol': [str(s) for s in v_rule_df], 'vcp_rule_score': 1.0})
         elif isinstance(v_rule_df, pd.DataFrame) and not v_rule_df.empty:
             vr_df = v_rule_df.copy()
             if 'vcp_rule_score' not in vr_df.columns:

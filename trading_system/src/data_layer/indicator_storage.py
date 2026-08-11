@@ -1,4 +1,5 @@
 import logging
+import math
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -31,6 +32,33 @@ def _is_krx_symbol(symbol: str) -> bool:
 
 
 class MarketIndicatorStorage:
+    # NYSE fallback would otherwise return ~3.3k symbols (double the real RUSSELL2000);
+    # drop well-known large caps and foreign ADRs that are NOT part of the small-cap index.
+    _EXCLUDE_FALLBACK_TICKERS = {
+        'BRK.A', 'BRK.B', 'JPM', 'XOM', 'BAC', 'WMT', 'PG', 'UNH', 'CVX', 'JNJ', 'HD', 'MRK', 'PEP',
+        'KO', 'ABBV', 'TMO', 'LLY', 'ORCL', 'ABT', 'AVGO', 'CRM', 'NKE', 'MCD', 'PFE', 'COST', 'AMD',
+        'QCOM', 'TXN', 'INTC', 'CMCSA', 'WFC', 'GS', 'MS', 'C', 'V', 'MA', 'AXP', 'CAT', 'DE', 'MMM',
+        'GE', 'HON', 'BA', 'RTX', 'LMT', 'NOC', 'GD', 'UNP', 'UPS', 'FDX', 'DOW', 'LUV', 'DAL',
+        'BABA', 'TSM', 'BP', 'SHEL', 'TM', 'SONY', 'NVO', 'ASML', 'SAP', 'AZN', 'UL', 'HSBC', 'SNY',
+        'RIO', 'BHP', 'VALE', 'PBR', 'NOK', 'E', 'ITUB', 'INFY', 'WIT', 'HDB', 'IBN', 'VOD', 'BCS',
+    }
+
+    # Name-aware plausible bounds for global indicator values (P0-8). Values
+    # outside these ranges are treated as corrupted snapshots and dropped.
+    INDICATOR_VALUE_BOUNDS = {
+        '^VIX': (5.0, 120.0), 'VIX': (5.0, 120.0),
+        'USDKRW=X': (900.0, 2500.0), 'USD/KRW': (900.0, 2500.0),
+        '^TNX': (0.0, 15.0), 'TNX': (0.0, 15.0),
+        'CL=F': (10.0, 300.0), 'WTI': (10.0, 300.0),
+        'GC=F': (300.0, 10000.0), 'GLD': (50.0, 1000.0),
+        '^GSPC': (1000.0, 10000.0), '^IXIC': (1000.0, 50000.0), '^RUT': (100.0, 10000.0),
+        '^KS11': (500.0, 5000.0), '^KQ11': (100.0, 5000.0),
+        'DX-Y.NYB': (50.0, 200.0), 'DXY': (50.0, 200.0),
+        'USDJPY=X': (50.0, 400.0), 'EURUSD=X': (0.5, 3.0), 'GBPUSD=X': (0.5, 3.0),
+        '^DJI': (5000.0, 100000.0), '^FTSE': (1000.0, 20000.0),
+    }
+    _INDICATOR_DEFAULT_BOUNDS = (0.0001, 1e7)
+
     def __init__(self, db_path: str = str(_DEFAULT_INDICATORS_DB)):
         self.db_path = db_path
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
@@ -301,7 +329,7 @@ class MarketIndicatorStorage:
         try:
             import io
             import urllib.request
-            url = 'https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund'
+            url = 'https://www.ishares.com/us/products/239710/ishares-russell-2000-etf.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund'
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
             with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
                 r_lines = resp.read().decode('utf-8', errors='ignore').splitlines()
@@ -323,8 +351,9 @@ class MarketIndicatorStorage:
                 if not nyse.empty and 'Symbol' in nyse.columns:
                     sp500_syms = set(sp500['Symbol']) if not sp500.empty and 'Symbol' in sp500.columns else set()
                     russell_fallback = nyse[~nyse['Symbol'].isin(sp500_syms)].copy()
+                    russell_fallback = russell_fallback[~russell_fallback['Symbol'].isin(self._EXCLUDE_FALLBACK_TICKERS)]
                     russell_fallback.rename(columns={'Symbol': 'Ticker'}, inplace=True)
-                    russell2000 = russell_fallback
+                    russell2000 = russell_fallback.head(2500)
                     logger.info(f"Loaded {len(russell2000)} RUSSELL2000 symbols via NYSE fallback.")
             except Exception as e_fallback:
                 logger.warning(f"Failed to load RUSSELL2000 NYSE fallback: {e_fallback}")
@@ -417,13 +446,13 @@ class MarketIndicatorStorage:
         sql = "INSERT OR REPLACE INTO global_indicators (date,symbol,name,price,change_pct) VALUES (?,?,?,?,?)"
         rows = []
         for sym, info in data.get('indices', {}).items():
-            if info.get('price') is not None:
+            if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
                 rows.append((date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
         for sym, info in data.get('fx_rates', {}).items():
-            if info.get('rate') is not None:
+            if self._indicator_value_ok(info.get('pair') or sym, info.get('name'), info.get('rate')):
                 rows.append((date_str, info['pair'], info['name'], info['rate'], info['change_pct']))
         for sym, info in data.get('macro_commodities', {}).items():
-            if info.get('price') is not None:
+            if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
                 rows.append((date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
         if not rows:
             return
@@ -432,6 +461,25 @@ class MarketIndicatorStorage:
             with self._connect() as conn:
                 conn.executemany(sql, rows)
                 conn.commit()
+
+    def _indicator_value_ok(self, symbol: str, name: Optional[str], price) -> bool:
+        """Sanity gate for indicator snapshots: finite, positive and within
+        symbol-specific plausible bounds. Corrupted quotes (e.g. USDKRW=1.3e10,
+        VIX=nan) must never reach the DB / downstream strategies."""
+        if price is None:
+            return False
+        try:
+            p = float(price)
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(p) or p <= 0.0:
+            return False
+        lo, hi = self.INDICATOR_VALUE_BOUNDS.get(str(symbol), self._INDICATOR_DEFAULT_BOUNDS)
+        if p < lo or p > hi:
+            logger.warning("[IndicatorStorage] Out-of-bounds indicator value: %s=%s (bounds %s-%s) - skipped",
+                           symbol, p, lo, hi)
+            return False
+        return True
 
     def get_latest_global_indicators(self) -> Dict[str, float]:
         """
@@ -444,7 +492,11 @@ class MarketIndicatorStorage:
                     conn
                 )
                 if not df.empty and 'symbol' in df.columns and 'price' in df.columns:
-                    return dict(zip(df['symbol'], df['price'].fillna(0.0)))
+                    result: Dict[str, float] = {}
+                    for _, row in df.iterrows():
+                        if self._indicator_value_ok(row['symbol'], None, row['price']):
+                            result[row['symbol']] = float(row['price'])
+                    return result
         except Exception as e:
             logger.warning(f"Failed to fetch latest global indicators from DB: {e}")
         return {}

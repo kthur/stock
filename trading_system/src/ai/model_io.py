@@ -15,6 +15,11 @@ def save_model(model, filepath: str, metadata: dict | None = None) -> None:
     # Save the model booster/weights depending on library type
     if isinstance(model, xgb.XGBModel):
         model.get_booster().save_model(filepath)
+    elif isinstance(model, lgb.Booster):
+        # Raw LightGBM Booster (not wrapped in LGBMModel): must save in
+        # LightGBM text format, NOT via the joblib fallback below - otherwise
+        # load_model() fails with "Unknown model format or submodel type".
+        model.save_model(filepath)
     elif isinstance(model, lgb.LGBMModel):
         model.booster_.save_model(filepath)
     elif isinstance(model, (cb.CatBoostRegressor, cb.CatBoostClassifier)):

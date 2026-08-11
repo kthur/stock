@@ -25,7 +25,8 @@ class TestTradingConfig(unittest.TestCase):
         cfg = TradingConfig()
         self.assertEqual(cfg.initial_cash, 100000000.0)
         self.assertTrue(cfg.mock_trading)
-        self.assertEqual(cfg.broker_type, "KIS")
+        # "KIS" alias is normalized to the BrokerType enum member value
+        self.assertEqual(cfg.broker_type, "korea_investment")
         self.assertFalse(cfg.skip_training)
         self.assertEqual(cfg.fundamental_cache_expiry_days, 90)
 
@@ -33,7 +34,7 @@ class TestTradingConfig(unittest.TestCase):
         """Test configuration parsed from env variables"""
         os.environ["DEBUG_MODE"] = "True"
         os.environ["MOCK_TRADING_ENABLED"] = "False"
-        os.environ["BROKER_TYPE"] = "MOCK"
+        os.environ["BROKER_TYPE"] = "kiwoom"
         os.environ["TRAIN_SAMPLE_SP500"] = "20"
         os.environ["SKIP_TRAINING"] = "True"
         os.environ["FUNDAMENTAL_CACHE_EXPIRY_DAYS"] = "45"
@@ -41,10 +42,16 @@ class TestTradingConfig(unittest.TestCase):
         cfg = TradingConfig()
         self.assertTrue(cfg.debug_mode)
         self.assertFalse(cfg.mock_trading)
-        self.assertEqual(cfg.broker_type, "MOCK")
+        self.assertEqual(cfg.broker_type, "kiwoom")
         self.assertEqual(cfg.train_sample_sp500, "20")
         self.assertTrue(cfg.skip_training)
         self.assertEqual(cfg.fundamental_cache_expiry_days, 45)
+
+    def test_invalid_broker_type_raises(self):
+        """Invalid BROKER_TYPE must fail fast at config load, not at trade time."""
+        os.environ["BROKER_TYPE"] = "MOCK"
+        with self.assertRaises(ValueError):
+            TradingConfig()
 
     def test_resolve_sample_size(self):
         """Test resolved sample size formatting"""

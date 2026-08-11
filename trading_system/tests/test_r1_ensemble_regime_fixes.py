@@ -256,3 +256,74 @@ def test_regime_shift_ema_acceleration():
     # without lagging behind previous weights.
     assert scorer._prev_regime == 'BEAR_HIGH_VOL'
     assert w2 != w1
+
+
+def test_vcp_rule_list_of_dicts_keeps_real_symbols():
+    """Live-money guard: run_pipeline passes vcp_results as a list of dicts; the old
+    code converted each dict via str() producing garbage symbols like
+    "{'is_vcp': False, ..., 'symbol': 'MSFT'}". Symbols must be extracted properly."""
+    scorer = EnsembleScoringEngine()
+
+    vcp_results = [
+        {'symbol': 'MSFT', 'is_vcp': True, 'vcp_score': 85.0},
+        {'symbol': '005930', 'is_vcp': False, 'vcp_score': 45.0},
+        {'symbol': 'AAPL', 'is_vcp': True, 'vcp_score': 90.0},
+    ]
+    reg_df = pd.DataFrame({'symbol': ['MSFT', '005930', 'AAPL'], 'reg_score': [0.5, 0.5, 0.5]})
+
+    res = scorer.calculate_ensemble_score(
+        regime='BULL_LOW_VOL',
+        regression_df=reg_df,
+        surge_df=pd.DataFrame(),
+        lead_lag_df=pd.DataFrame(),
+        vcp_ml_df=pd.DataFrame(),
+        vcp_rule_df=vcp_results,
+        target_horizon=20,
+    )
+
+    assert 'MSFT' in set(res['symbol'])
+    assert '005930' in set(res['symbol'])
+    assert 'AAPL' in set(res['symbol'])
+    assert not any('{' in str(s) for s in res['symbol'])
+
+    msft = res[res['symbol'] == 'MSFT'].iloc[0]
+    # Isotonic calibrator may adjust the raw 0.85 score slightly; the key guard is
+    # that the score derives from the vcp_score of the SAME symbol (not a dict string).
+    assert msft['vcp_rule_score'] == pytest.approx(0.85, abs=0.05)
+    aapl = res[res['symbol'] == 'AAPL'].iloc[0]
+    assert aapl['vcp_rule_score'] == pytest.approx(0.90, abs=0.05)
+
+
+def test_krx_indicator_merge_shifts_us_origin_columns():
+    """Live-money guard: for KRX symbols, US-origin indicators (vix_change,
+    sp500_change, ...) must be lagged by 1 business day so training never sees
+    US closes that occur ~14.5h AFTER the KRX close of the same date."""
+    from src.ai.prediction_model import OnDevicePredictionModel
+
+    model = OnDevicePredictionModel(model_dir='trading_system/models')
+
+    dates = pd.date_range('2026-01-05', periods=6, freq='B')  # Mon..Mon (5 business days)
+    df = pd.DataFrame({'Close': [100 + i for i in range(6)],
+                       'Volume': [1000] * 6}, index=dates)
+    indicator_df = pd.DataFrame({
+        'vix_change': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        'sp500_change': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        'kospi_change': [0.01, 0.02, 0.03, 0.04, 0.05, 0.06],
+    }, index=dates)
+
+    # KRX symbol (shift US columns)
+    kr_merged = model._merge_indicator_history(df, indicator_df, shift_us_indicators=True)
+    # US symbol (no shift)
+    us_merged = model._merge_indicator_history(df, indicator_df, shift_us_indicators=False)
+
+    kr_last = kr_merged.iloc[-1]
+    us_last = us_merged.iloc[-1]
+
+    # US symbol sees the same-day US close...
+    assert us_last['vix_change'] == 6.0
+    assert us_last['sp500_change'] == 0.6
+    # ...while KRX symbol only sees the PREVIOUS day's US close (shift by 1 row)
+    assert kr_last['vix_change'] == 5.0
+    assert kr_last['sp500_change'] == 0.5
+    # KRX-origin indicators are NOT shifted for KRX symbols
+    assert kr_last['kospi_change'] == 0.06

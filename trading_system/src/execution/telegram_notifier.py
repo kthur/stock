@@ -30,8 +30,36 @@ class TelegramNotifier:
         self.token = (token or os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip()
         self.chat_id = (chat_id or os.environ.get("TELEGRAM_CHAT_ID", "")).strip()
 
+    # Placeholder values must never activate notifications: reporting "SUCCESS"
+    # while alerts silently never fire is worse than no notifications at all.
+    _PLACEHOLDER_VALUES = {
+        'your_telegram_bot_token_here',
+        'your_telegram_user_id_here',
+        'your_telegram_chat_id_here',
+        'insert_your_bot_token_here',
+        'changeme', 'change_me', 'xxx', 'test', 'token', 'dummy',
+    }
+
     def is_enabled(self) -> bool:
-        return bool(self.token and self.chat_id)
+        """Returns True only when token and chat_id look like REAL credentials.
+
+        Placeholder values (e.g. 'your_telegram_bot_token_here', 'xxx') or token
+        strings that do not look like Telegram bot tokens are treated as
+        unconfigured - otherwise the pipeline reports 'SUCCESS' notifications
+        while alerts silently never fire for real failures.
+        """
+        if not (self.token and self.chat_id):
+            return False
+        token_norm = str(self.token).strip().lower()
+        chat_norm = str(self.chat_id).strip().lower()
+        if token_norm in self._PLACEHOLDER_VALUES or chat_norm in self._PLACEHOLDER_VALUES:
+            logger.warning("[TelegramNotifier] Credentials look like placeholders - notifications DISABLED.")
+            return False
+        # Telegram bot tokens look like '123456789:AA...' (digits before the colon)
+        if ":" not in self.token:
+            logger.warning("[TelegramNotifier] TELEGRAM_BOT_TOKEN does not look like a real bot token (no ':') - notifications DISABLED.")
+            return False
+        return True
 
     def send_message(self, text: str, parse_mode: str = "Markdown", buttons: Optional[List[List[Dict[str, str]]]] = None) -> bool:
         if not self.is_enabled():

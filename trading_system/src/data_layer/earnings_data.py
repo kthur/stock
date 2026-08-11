@@ -45,7 +45,16 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     # Coordinate fundamental fetch rate limiting
     get_global_rate_limiter().wait()
     ticker = yf.Ticker(yf_sym)
-    financials = ticker.financials
+    # Prefer quarterly income statement: the most recent quarter is closer to
+    # "now" than the last fiscal year end, so RIM / accrual features react
+    # faster to fresh earnings. Fall back to annual when quarterly is missing.
+    financials = None
+    try:
+        financials = ticker.quarterly_financials
+    except Exception:
+        financials = None
+    if financials is None or financials.empty:
+        financials = ticker.financials
     if financials is None or financials.empty:
         raise ValueError(f"No annual financials for {yf_sym}")
 
@@ -79,7 +88,16 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
 
     # Fetch book value (Total Stockholder Equity) from balance sheet for RIM BPS calculation
     try:
-        bs = ticker.balance_sheet
+        bs = None
+        try:
+            bs = ticker.quarterly_balance_sheet
+        except Exception:
+            bs = None
+        if bs is None or bs.empty:
+            try:
+                bs = ticker.balance_sheet
+            except Exception:
+                bs = None
         if bs is not None and not bs.empty:
             bs_t = bs.T
             bs_t.index = pd.to_datetime(bs_t.index)

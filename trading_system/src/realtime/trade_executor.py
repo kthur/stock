@@ -81,8 +81,18 @@ class TradeExecutor:
         reason: str = "",
         risk_manager: Any = None,
         usdkrw_rate: float = 1380.0,
+        force_liquidate: bool = False,
     ) -> ExecResult:
         self._check_and_reset_daily_tracker()
+
+        # Kill switch gate (highest priority): blocks ALL new order executions.
+        # Emergency liquidation can still be forced with force_liquidate=True.
+        if not force_liquidate:
+            from src.execution.kill_switch import is_kill_switch_active
+            if is_kill_switch_active():
+                return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
+                                  executed=False, mode="dry_run" if self.dry_run else "live",
+                                  message="blocked by kill switch")
 
         if price <= 0 or quantity <= 0:
             return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
