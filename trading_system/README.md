@@ -69,7 +69,7 @@ copy .env.example .env
 .venv\Scripts\python run_pipeline.py --target KRX --skip-training
 ```
 
-> **`--target KRX`** = KOSPI + KOSDAQ + KONEX 전체
+> **`--target KRX`** = KOSPI + KOSDAQ 전체
 
 ### 2. 출력 파일 (`result/`)
 

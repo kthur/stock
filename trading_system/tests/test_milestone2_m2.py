@@ -1,6 +1,6 @@
 """
 Unit tests for Milestone 2 (Worker M2):
-- Ticker Symbol Normalization (KRX zfill(6), US dots to hyphens, KONEX suffix)
+- Ticker Symbol Normalization (KRX zfill(6), US dots to hyphens)
 - Multi-Tier Fallback Data Fetching
 - DataValidator Gate in fetch_data_fdr
 - Contiguous OHLCV & Date Contiguity (ffill)
@@ -37,9 +37,11 @@ def test_is_krx_symbol_unpadded():
     assert _is_krx_symbol("BRK.B") is False
 
 
-def test_kr_market_suffix_konex():
-    assert 'KONEX' in _KR_MARKET_SUFFIX
-    assert _KR_MARKET_SUFFIX['KONEX'] == '.KS'
+def test_kr_market_suffix_no_konex():
+    # KONEX removed entirely from the universe; suffix map covers KOSPI/KOSDAQ/KRX only
+    assert 'KONEX' not in _KR_MARKET_SUFFIX
+    assert _KR_MARKET_SUFFIX['KOSPI'] == '.KS'
+    assert _KR_MARKET_SUFFIX['KOSDAQ'] == '.KQ'
 
 
 def test_stock_prices_db_normalization(tmp_path):

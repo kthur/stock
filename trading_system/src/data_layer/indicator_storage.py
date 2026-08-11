@@ -17,7 +17,7 @@ _DEFAULT_INDICATORS_DB = _TRADING_SYSTEM_ROOT / "market_indicators.db"
 
 
 def _is_krx_symbol(symbol: str) -> bool:
-    """Return True for KRX-listed symbols (KOSPI/KOSDAQ/KONEX).
+    """Return True for KRX-listed symbols (KOSPI/KOSDAQ).
 
     KRX symbols carry a `.KS`/`.KQ`/`.KX` suffix (Yahoo style) or are bare
     numeric codes up to 6 digits (FinanceDataReader style). Everything else is treated

@@ -2,7 +2,7 @@
 microstructure.py — Microstructure Cost & Market Impact Model
 
 Calculates realistic execution friction costs:
-  - STT (Securities Transaction Tax) for KRX (KOSPI/KOSDAQ/KONEX)
+  - STT (Securities Transaction Tax) for KRX (KOSPI/KOSDAQ)
   - SEC transaction fee for US exchanges (SP500/NASDAQ/RUSSELL2000)
   - Bid-Ask spread friction cost
   - Square-root market impact cost (Kyle's Lambda proxy based on Order Size / ADV)
@@ -45,8 +45,6 @@ class MicrostructureCostModel:
             return self.cfg.kospi_stt_rate + fee
         elif mkt == "KOSDAQ":
             return self.cfg.kosdaq_stt_rate + fee
-        elif mkt == "KONEX":
-            return self.cfg.konex_stt_rate + fee
         elif mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE"):
             return self.cfg.us_sec_rate + fee
         return self.cfg.kospi_stt_rate + fee

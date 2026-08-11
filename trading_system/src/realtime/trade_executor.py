@@ -56,7 +56,7 @@ class TradeExecutor:
     def _round_lot(self, qty: int, market: str = "KOSPI") -> int:
         if qty <= 0:
             return 0
-        lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ", "KONEX") else self.lot_size_us
+        lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ") else self.lot_size_us
         if lot <= 1:
             return qty
         remainder = qty % lot
@@ -110,7 +110,7 @@ class TradeExecutor:
                                   executed=False, mode="dry_run" if self.dry_run else "live",
                                   message="new buys blocked by crisis detector")
 
-        if market in ("KOSPI", "KOSDAQ", "KONEX"):
+        if market in ("KOSPI", "KOSDAQ"):
             quantity = self._round_lot(quantity, market=market)
             if quantity <= 0:
                 return ExecResult(symbol=symbol, action="NONE", quantity=0, price=price,
@@ -124,7 +124,7 @@ class TradeExecutor:
         order_value_krw = quantity * price * fx_rate
         if order_value_krw > self.max_order_value_krw:
             max_qty_raw = int(self.max_order_value_krw / (price * fx_rate))
-            lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ", "KONEX") else self.lot_size_us
+            lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ") else self.lot_size_us
             quantity = (max_qty_raw // lot) * lot
             order_value_krw = quantity * price * fx_rate
             if quantity <= 0:
@@ -139,7 +139,7 @@ class TradeExecutor:
                               message="duplicate action for symbol today")
 
         order_id = ""
-        is_krx = market in ("KOSPI", "KOSDAQ", "KONEX")
+        is_krx = market in ("KOSPI", "KOSDAQ")
         live = self.can_trade_live and is_krx
         mode = "live" if live else "dry_run"
 

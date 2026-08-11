@@ -154,7 +154,6 @@ def is_empty_result(result):
 _KR_MARKET_SUFFIX = {
     'KOSPI': '.KS',
     'KOSDAQ': '.KQ',
-    'KONEX': '.KS',
     'KRX': '.KS',
 }
 
@@ -261,7 +260,7 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
     get_global_rate_limiter().wait()
 
     # Symbol normalization
-    is_krx = market in ('KOSPI', 'KOSDAQ', 'KONEX', 'KRX') or (symbol.isdigit() and len(symbol) <= 6)
+    is_krx = market in ('KOSPI', 'KOSDAQ', 'KRX') or (symbol.isdigit() and len(symbol) <= 6)
     if is_krx:
         canonical_symbol = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol
         suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
@@ -1176,6 +1175,44 @@ def execute_prediction_pipeline():
     logger.info(f"Loaded {len(universe)} symbols from universe.")
     if 'market' not in universe.columns:
         universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
+
+    # Exclude KONEX entirely from the universe (KRX coverage = KOSPI/KOSDAQ only)
+    pre_konex_count = len(universe)
+    universe = universe[universe['market'].astype(str).str.upper() != 'KONEX']
+    if len(universe) < pre_konex_count:
+        logger.info(f"Removed {pre_konex_count - len(universe)} KONEX symbols from universe.")
+
+    # Single-market pipeline runs (GHA matrix): restrict universe to the target market(s)
+    # so each job predicts only its own market (prevents foreign symbols leaking into
+    # [NASDAQ]/[RUSSELL2000] sections of the ensemble report).
+    _target_env_raw = os.environ.get("INFERENCE_TARGET", "").strip().upper()
+    if _target_env_raw:
+        _targets = [t.strip() for t in _target_env_raw.split(",") if t.strip()]
+        _allowed_markets: list[str] = []
+        for _t in _targets:
+            if _t == "SP500":
+                _allowed_markets.append("SP500")
+            elif _t == "NASDAQ":
+                _allowed_markets.append("NASDAQ")
+            elif _t in ("RUSSELL2000", "RUSSELL"):
+                _allowed_markets.append("RUSSELL2000")
+            elif _t == "KOSPI":
+                _allowed_markets.append("KOSPI")
+            elif _t == "KOSDAQ":
+                _allowed_markets.append("KOSDAQ")
+            elif _t == "KRX":
+                _allowed_markets.extend(("KOSPI", "KOSDAQ"))
+        if _allowed_markets:
+            _allowed_set = set(_allowed_markets)
+            _filtered = universe[universe['market'].astype(str).str.upper().isin(_allowed_set)]
+            if not _filtered.empty:
+                logger.info(f"INFERENCE_TARGET={_target_env_raw}: universe restricted to {len(_filtered)} symbols ({sorted(_allowed_set)}).")
+                universe = _filtered
+            else:
+                logger.warning(
+                    f"INFERENCE_TARGET={_target_env_raw}: no symbols matched markets {sorted(_allowed_set)}; "
+                    "falling back to the full universe."
+                )
 
     # Build symbol→market mapping for adjusted price fetching
     symbol_market = dict(zip(universe['symbol'], universe['market']))

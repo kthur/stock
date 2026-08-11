@@ -230,14 +230,14 @@ def test_indicator_storage_latest_macro(tmp_path):
     macro_data = {
         'indices': {'^VIX': {'symbol': '^VIX', 'name': 'VIX', 'price': 19.5, 'change_pct': 2.1}},
         'fx_rates': {'USDKRW=X': {'pair': 'USDKRW=X', 'name': 'USD/KRW', 'rate': 1375.5, 'change_pct': 0.1}},
-        'macro_commodities': {'^TNX': {'symbol': '^TNX', 'name': 'US10Y', 'price': 42.1, 'change_pct': -0.5}}
+        'macro_commodities': {'^TNX': {'symbol': '^TNX', 'name': 'US10Y', 'price': 4.21, 'change_pct': -0.5}}
     }
     storage.save_indicators(macro_data, date_str="2026-07-29")
 
     latest = storage.get_latest_global_indicators()
     assert latest.get('^VIX') == 19.5
     assert latest.get('USDKRW=X') == 1375.5
-    assert latest.get('^TNX') == 42.1
+    assert latest.get('^TNX') == 4.21
 
 
 def test_regime_shift_ema_acceleration():

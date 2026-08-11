@@ -160,7 +160,7 @@ class ExecutionOMSEngine:
             # Quantity conversion: target_amount / target_price with KRX 10-share
             # lot rounding (US markets trade in single shares). Zero quantity plans
             # are dropped so no broker ever receives an empty order.
-            lot = 10 if market in ("KOSPI", "KOSDAQ", "KONEX", "KRX") else 1
+            lot = 10 if market in ("KOSPI", "KOSDAQ", "KRX") else 1
             quantity = int(target_amount // target_price)
             if lot > 1:
                 quantity = (quantity // lot) * lot

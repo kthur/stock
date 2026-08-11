@@ -626,7 +626,7 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
             date = m.group(1).strip()
             continue
         # Matches: rank  symbol  name (anything)  market  score%
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)\s+([-+]?(?:[\d.]+|nan|NaN|None))%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-+]?(?:[\d.]+|nan|NaN|None))%$", line)
         if m:
             score_val = m.group(5).strip()
             if "nan" in score_val.lower() or "none" in score_val.lower():
@@ -806,7 +806,7 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
             data.remaining_cash = m.group(2).strip()
 
         m = re.match(
-            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|KONEX|SP500|NASDAQ|RUSSELL2000)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
+            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$",
             line
         )
         if m:
@@ -2876,7 +2876,7 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   
   const naverLink = document.getElementById('drawer-naver-link');
   if (naverLink) {{
-    if (market === 'KOSPI' || market === 'KOSDAQ' || market === 'KONEX') {{
+    if (market === 'KOSPI' || market === 'KOSDAQ') {{
       naverLink.href = `https://m.stock.naver.com/domestic/stock/${{symbol}}/total`;
     }} else {{
       naverLink.href = `https://finance.yahoo.com/quote/${{symbol}}`;
