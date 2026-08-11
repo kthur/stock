@@ -113,6 +113,9 @@ class TradingConfig:
         실거래 시점(주문 접수)이 아니라 설정 로드 시점에 검증해,
         잘못된 BROKER_TYPE 설정이 조용히 무시되고 키움 커넥터가 대신 실행되는
         사고(실제 계좌 주문)를 원천 차단한다.
+
+        MOCK_TRADING_ENABLED=True(GHA 예측 파이프라인)에서는 BROKER_TYPE=DUMMY/MOCK 이
+        정상적인 설정이다 - 실제 주문 라우팅이 없으므로 허용한다.
         """
         try:
             from src.broker.multi_broker_manager import BrokerType
@@ -121,10 +124,12 @@ class TradingConfig:
         norm = str(value).strip().upper()
         if norm in self._BROKER_TYPE_ALIASES:
             norm = self._BROKER_TYPE_ALIASES[norm]
+        if self.mock_trading and norm in ("DUMMY", "MOCK"):
+            return norm.lower()
         if not hasattr(BrokerType, norm):
             raise ValueError(
                 f"Invalid BROKER_TYPE={value!r}. Valid values: {', '.join(BrokerType.__members__)} "
-                f"(alias: KIS -> KOREA_INVESTMENT)"
+                f"(alias: KIS -> KOREA_INVESTMENT; DUMMY/MOCK allowed only when MOCK_TRADING_ENABLED=True)"
             )
         return BrokerType[norm].value
 

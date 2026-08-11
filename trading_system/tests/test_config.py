@@ -49,9 +49,17 @@ class TestTradingConfig(unittest.TestCase):
 
     def test_invalid_broker_type_raises(self):
         """Invalid BROKER_TYPE must fail fast at config load, not at trade time."""
-        os.environ["BROKER_TYPE"] = "MOCK"
+        os.environ["BROKER_TYPE"] = "BOGUS_BROKER"
         with self.assertRaises(ValueError):
             TradingConfig()
+
+    def test_dummy_broker_allowed_in_mock_mode(self):
+        """BROKER_TYPE=DUMMY/MOCK is legitimate for GHA mock prediction runs."""
+        os.environ["BROKER_TYPE"] = "DUMMY"
+        os.environ["MOCK_TRADING_ENABLED"] = "True"
+        self.assertEqual(TradingConfig().broker_type, "dummy")
+        os.environ["BROKER_TYPE"] = "MOCK"
+        self.assertEqual(TradingConfig().broker_type, "mock")
 
     def test_resolve_sample_size(self):
         """Test resolved sample size formatting"""
