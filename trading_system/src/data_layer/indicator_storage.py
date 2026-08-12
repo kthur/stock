@@ -470,10 +470,12 @@ class MarketIndicatorStorage:
             if isinstance(val_data, pd.DataFrame):
                 for idx, row in val_data.iterrows():
                     cur_d = idx.strftime("%Y-%m-%d") if hasattr(idx, 'strftime') else str(idx)
-                    price = float(row.get('Close', 0.0))
+                    raw_val = row.get('Close')
+                    price = float(raw_val) if raw_val is not None else 0.0
                     rows.append((cur_d, symbol, symbol, price, 0.0))
             elif isinstance(val_data, dict):
-                price = float(val_data.get('price', val_data.get('Close', 0.0)))
+                raw_val = val_data.get('price') if val_data.get('price') is not None else val_data.get('Close')
+                price = float(raw_val) if raw_val is not None else 0.0
                 rows.append((d_str, symbol, symbol, price, 0.0))
         elif isinstance(data, dict):
             d_str = str(date_str or datetime.now().strftime("%Y-%m-%d"))
