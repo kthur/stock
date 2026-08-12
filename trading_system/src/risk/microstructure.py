@@ -45,6 +45,8 @@ class MicrostructureCostModel:
             return self.cfg.kospi_stt_rate + fee
         elif mkt == "KOSDAQ":
             return self.cfg.kosdaq_stt_rate + fee
+        elif mkt == "KONEX":
+            return self.cfg.konex_stt_rate + fee
         elif mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE"):
             return self.cfg.us_sec_rate + fee
         return self.cfg.kospi_stt_rate + fee

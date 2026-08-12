@@ -1,107 +1,116 @@
-# Handoff Report — Milestone 1 Financial Engineering & Model Optimization Verification
+# Handoff Report — Challenger M1-2: Price Spike Filtering & Database Persistence Verification
 
-**Date**: 2026-08-05  
-**Author**: Challenger M1 (`teamwork_preview_challenger`)  
-**Working Directory**: `d:\Finance\code\stock\.agents\challenger_m1_2`  
-**Verdict**: **APPROVE**  
+## Explicit Verdict: APPROVE
 
 ---
 
 ## 1. Observation
 
-### Executed Tool Commands & Pytest Results
+### Codebase Inspection
+- **`trading_system/src/persistence/database.py` (lines 474–478)**:
+  `StockPriceDB.update_prices` invokes `DataValidator.validate_price_data(symbol, df)` when `bypass_validation=False`. If validation fails, upsert is aborted and `0` is returned.
+- **`trading_system/src/data_layer/data_validator.py` (lines 146–155)**:
+  `DataValidator.validate_price_data` computes single-day price return magnitude `max_mag` and rejects data if `max_mag > 3.0` (> 300% change magnitude), logging a warning and returning `False`.
+- **`trading_system/src/utils/technical_cache.py` (lines 222–256)**:
+  `DataFrameCache` implements `_check_date_change_unlocked()` (clearing cache on trading date change) and `_evict_expired_unlocked()` (purging entries older than `ttl` on `get()`, `set()`, `get_or_compute()`, and `evict_expired()`).
 
-1. **Milestone 1 Test Suite Execution**:
-   - Command: `.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py tests/test_factor_ortho_empirical_stress.py tests/test_correlation_suppression.py tests/test_hpo_and_2d_ensemble.py tests/test_isotonic_sharpe_calibration.py -v`
-   - Outcome: **39 passed out of 39 tests** (100% clean pass in 68.51s, exit code 0).
+### Independent Empirical Test Suite Execution (`.agents/challenger_m1_2/empirical_test_m1.py`)
+Executed command:
+```bash
+.venv\Scripts\python.exe -u .agents\challenger_m1_2\empirical_test_m1.py
+```
+Output:
+```text
+=== Testing StockPriceDB.update_prices Price Spike Filtering ===
+  [PASS] Normal price data upserted successfully (5 rows).
+[DataValidator] TEST_SPIKE: single-day price return/split spike max_magnitude=350.0% > 300% (unadjusted split/corrupted), skipping
+[StockPriceDB] Price data validation failed for TEST_SPIKE. Upsert aborted.
+  [PASS] Single-day >300% price spike REJECTED when bypass_validation=False.
+  [PASS] Single-day >300% price spike ACCEPTED when bypass_validation=True.
+=== Testing DataFrameCache Auto-Eviction & Date Invalidation ===
+  [PASS] Basic set/get successful.
+  [PASS] TTL auto-eviction works correctly.
+  [PASS] get() auto-evicts expired item.
+  [PASS] Trading date change auto-clears cache.
 
-2. **Empirical Challenger Test Suite Execution**:
-   - Command: `.venv\Scripts\python.exe -m pytest tests/test_m1_empirical_challenger.py -v`
-   - Outcome: **4 passed out of 4 tests** (100% clean pass in 23.35s, exit code 0):
-     - `test_empirical_ledoit_wolf_matrix_conditioning`: PASSED
-     - `test_empirical_regime_factor_suppression`: PASSED
-     - `test_empirical_isotonic_calibration_zero_variance`: PASSED
-     - `test_empirical_ema_regime_shift_reset`: PASSED
+ALL EMPIRICAL TESTS PASSED SUCCESSFULLY!
+```
 
-3. **Independent Empirical Stress Test Suite (`empirical_stress_test.py`)**:
-   - Command: `.venv\Scripts\python.exe -u .agents/challenger_m1_2/empirical_stress_test.py`
-   - Findings:
-     - **Matrix Condition & Bounds**: In `trading_system/src/ai/factor_orthogonalizer.py` (lines 118–135), under 100% collinearity ($\rho = 1.0$) across $K=18$ strategies, Ledoit-Wolf shrinkage $\hat{C} = (1-\alpha)C + \alpha I$ ($\alpha=0.01$) yields $\kappa(\hat{C}) \approx 1783$. Max eigenvalue $\hat{\lambda}_1 = 17.83$, min eigenvalue $\hat{\lambda}_{18} = 0.01$. The ZCA whitening transform $C^{-1/2} = V \text{diag}(\lambda^{-1/2}) V^T$ remains completely well-conditioned ($\max(\lambda^{-1/2}) = 10.0$), producing zero NaNs and score outputs strictly clipped to $[0.0, 1.0]$.
-     - **Regime Factor Noise Suppression**: Verified parameter mappings in `trading_system/src/ai/factor_suppression.py` (lines 68–70):
-       - `'CRISIS'`: $\theta=0.50, \lambda=2.0$, target clusters `['MOMENTUM', 'FLOW_MICRO', 'REVERSAL']`.
-       - `'HIGH_VOL'`: $\theta=0.55, \lambda=1.5$, target clusters `['MOMENTUM', 'FLOW_MICRO']`.
-       - Verified across all 6 2D market regimes (`BULL_LOW_VOL`, `BULL_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`).
-     - **Calibrator Class-Balance Protection**: Verified `trading_system/src/ai/ensemble_scorer.py` (lines 359–361):
-       ```python
-       if len(np.unique(y[mask])) < 2:
-           logger.warning(f"Calibrator for '{strategy}': target labels have single-class zero variance, skipping.")
-           continue
-       ```
-       When single-class target labels (all 0s or all 1s) are provided, calibration is safely skipped, returning raw scores untouched rather than flattening scores to 0.0.
-     - **EMA Weight Smoothing Regime Shift Reset**: Verified `trading_system/src/ai/ensemble_scorer.py` (lines 548–553):
-       ```python
-       current_regime_str = str(regime)
-       is_regime_shift = (self._prev_regime is not None) and (str(self._prev_regime) != current_regime_str)
-       self._prev_regime = regime
+### Pytest Unit Test Suite Execution
+Executed command:
+```bash
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_data_validator.py trading_system/tests/test_technical_cache.py trading_system/tests/test_database.py -v
+```
+Output:
+```text
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
+collected 23 items
 
-       eff_alpha = 1.0 if is_regime_shift else self.alpha_smoothing
-       ```
-       On 2D regime shift, `eff_alpha` accelerates to `1.0`, instantaneously matching target regime weights with 0 transition lag.
+trading_system\tests\test_data_validator.py::TestDataValidator::test_clean_macro_value PASSED [  4%]
+trading_system\tests\test_data_validator.py::TestDataValidator::test_detect_shared_series_corruption PASSED [  8%]
+trading_system\tests\test_data_validator.py::TestDataValidator::test_filter_price_spikes PASSED [ 13%]
+trading_system\tests\test_data_validator.py::TestDataValidator::test_single_day_price_spike_rejection PASSED [ 17%]
+trading_system\tests\test_data_validator.py::TestDataValidator::test_unadjusted_split_and_corporate_action_gate PASSED [ 21%]
+trading_system\tests\test_data_validator.py::TestDataValidator::test_validate_price_data PASSED [ 26%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_cache_hit_and_miss PASSED [ 30%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_date_change_invalidation PASSED [ 34%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_explicit_evict_expired PASSED [ 39%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_invalidate_and_clear PASSED [ 43%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_lru_capacity_eviction PASSED [ 47%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_thread_safety PASSED [ 52%]
+trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_ttl_auto_eviction PASSED [ 56%]
+trading_system\tests\test_database.py::TestTradeLogger::test_concurrent_init PASSED [ 60%]
+trading_system\tests\test_database.py::TestTradeLogger::test_double_init_safe PASSED [ 65%]
+trading_system\tests\test_database.py::TestTradeLogger::test_log_execution PASSED [ 73%]
+trading_system\tests\test_database.py::TestTradeLogger::test_log_order PASSED [ 78%]
+trading_system\tests\test_database.py::TestAssetHistoryDB::test_get_history_empty PASSED [ 82%]
+trading_system\tests\test_database.py::TestAssetHistoryDB::test_save_snapshot PASSED [ 86%]
+trading_system\tests\test_database.py::TestMarketIndicatorStorage::test_save_and_get_fundamentals PASSED [ 91%]
+trading_system\tests\test_database.py::TestMarketIndicatorStorageConcurrency::test_concurrent_writes PASSED [ 95%]
+trading_system\tests\test_database.py::TestStockPriceDBConcurrency::test_concurrent_price_updates PASSED [100%]
 
-4. **Test Harness Minor Observation**:
-   - `tests/test_m1_master_suite.py` attempts `from tests.test_correlation_suppression import TestCorrelationSuppression`. `test_correlation_suppression.py` defines pytest functions instead of a unittest class. This test runner aggregation file issue does not impact core implementation code.
+============================= 23 passed in 4.98s ==============================
+```
 
 ---
 
 ## 2. Logic Chain
 
-1. **Step 1 (Matrix Conditioning Verification)**:
-   - *Observation*: `FactorOrthogonalizerEngine` applies Ledoit-Wolf shrinkage $\hat{C} = 0.99 C + 0.01 I$.
-   - *Logic*: For $K=18$ features under extreme collinearity ($\rho \to 1.0$), $\hat{\lambda}_{\max} = 0.99 \times 18 + 0.01 = 17.83$, $\hat{\lambda}_{\min} = 0.01$. Condition number $\kappa(\hat{C}) = 1783 \ll 10^4$. ZCA whitening multiplier $1/\sqrt{0.01} = 10.0$ is bounded and numerically stable. Output scores remain strictly clipped to $[0.0, 1.0]$.
-   - *Conclusion*: Matrix decorrelation will not collapse or produce NaNs/floating point overflow during market panic.
-
-2. **Step 2 (Regime Parameter Completeness)**:
-   - *Observation*: Mappings for `'CRISIS'` ($\theta=0.50, \lambda=2.0$) and `'HIGH_VOL'` ($\theta=0.55, \lambda=1.5$) exist in `DEFAULT_REGIME_PARAMS` and `HIGH_RISK_CLUSTERS_PER_REGIME`.
-   - *Logic*: Direct lookup in `_get_regime_params('CRISIS')` and `_get_high_risk_clusters('CRISIS')` returns explicit parameters instead of default fallbacks.
-   - *Conclusion*: Redundant factor noise in panic regimes is explicitly dampened.
-
-3. **Step 3 (Calibration Class-Balance Protection)**:
-   - *Observation*: `fit_calibrators` checks `len(np.unique(y[mask])) < 2`.
-   - *Logic*: When a severe bear market yields zero $>20\%$ positive stock targets (all 0s), `IsotonicRegression` fit is skipped. `calibrate_scores` returns uncalibrated scores untouched.
-   - *Conclusion*: Single-class target labels do not flatten relative strategy rankings to zero.
-
-4. **Step 4 (Regime Transition Acceleration)**:
-   - *Observation*: `compute_dynamic_weights_from_sharpe` compares `str(self._prev_regime) != current_regime_str`.
-   - *Logic*: When shifting regimes (e.g. `BULL_LOW_VOL` $\to$ `BEAR_HIGH_VOL`), `eff_alpha = 1.0` bypasses EMA smoothing (`self._prev_weights`), forcing 100% target weight allocation.
-   - *Conclusion*: Weight allocation adapts instantly to regime transitions without multi-step lag.
+1. **Price Spike Sanity Check**: Single-day price jumps exceeding +300% typically stem from corrupted data feeds or unadjusted corporate stock splits. Passing unadjusted series downstream distorts technical indicators (e.g., ATR, Bollinger Bands, Moving Averages).
+2. **Defensive Database Upsert**: Integrating `DataValidator.validate_price_data` into `StockPriceDB.update_prices` guarantees that price series containing >300% single-day jumps are rejected prior to SQLite persistence, unless `bypass_validation=True` is explicitly passed.
+3. **Validation Bypass**: Bypassing validation with `bypass_validation=True` allows synthetic test fixtures with arbitrary price values to be saved without triggering real-market validation gates.
+4. **Cache Invalidation & TTL Eviction**: `DataFrameCache` maintains active TTL eviction during all key lookup and mutation methods (`get`, `set`, `get_or_compute`, `evict_expired`), preventing memory leaks and stale data persistence. It also invalidates cache contents when trading dates change (`_last_date` comparison with `date.today()`), guaranteeing freshness across session boundaries.
 
 ---
 
 ## 3. Caveats
 
-- **Test Suite Aggregator Mismatch**: `tests/test_m1_master_suite.py` should be updated in subsequent milestones to import individual pytest functions or run pytest directly, as `test_correlation_suppression.py` uses pytest fixtures/functions rather than unittest test cases.
+- **Extreme Micro-cap Volatility**: In rare market events where an ultra-low-priced stock legitimately surges over +300% in a single day, the data validator will reject the update unless pre-adjusted or explicitly bypassed. This trade-off prioritizes model stability and feature integrity over extreme outlier inclusion.
+- **`bypass_validation=True` Usage**: This flag must remain restricted to mock unit test fixtures and synthetic data generators.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict**: **APPROVE**
+All requirements for Milestone 1: Data Quality & Corporate Action Sanity Gates have been empirically verified and tested:
+1. `StockPriceDB.update_prices` rejects single-day price spikes (>300%) unless `bypass_validation=True`.
+2. `DataFrameCache` auto-evicts expired items via TTL and clears cache on date change.
+3. Target test suite passed 100% (23/23 tests).
 
-Milestone 1 (Financial Engineering & Model Optimization) implementation is fully verified, mathematically sound, numerically stable, and 100% compliant with all requirements.
+Final Verdict: **APPROVE**.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify the Milestone 1 implementation and empirical stress tests, execute the following commands:
+To independently verify:
 
-```bash
-# 1. Run Milestone 1 unit test suite (39 passed)
-.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py tests/test_factor_ortho_empirical_stress.py tests/test_correlation_suppression.py tests/test_hpo_and_2d_ensemble.py tests/test_isotonic_sharpe_calibration.py -v
-
-# 2. Run M1 empirical challenger test suite (4 passed)
-.venv\Scripts\python.exe -m pytest tests/test_m1_empirical_challenger.py -v
-
-# 3. Run independent stress test script
-.venv\Scripts\python.exe .agents/challenger_m1_2/empirical_stress_test.py
-```
+1. **Run the empirical test harness**:
+   ```bash
+   .venv\Scripts\python.exe -u .agents\challenger_m1_2\empirical_test_m1.py
+   ```
+2. **Run the target pytest suite**:
+   ```bash
+   .venv\Scripts\python.exe -m pytest trading_system/tests/test_data_validator.py trading_system/tests/test_technical_cache.py trading_system/tests/test_database.py -v
+   ```

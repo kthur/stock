@@ -332,8 +332,13 @@ class MarketDataHandler:
             try:
                 hist = self._fetch_historical_yf_with_retry(symbol, start_date=start_date, yf_period=yf_period, period=period)
 
-                # 3. 새 데이터 DB에 저장 (Parquet 캐시는 유지보수)
-                db.update_prices(symbol, hist)
+                # 3. 새 데이터 DB에 저장 (DataValidator sanity check 적용)
+                from src.data_layer.data_validator import DataValidator
+                is_valid, hist = DataValidator.sanitize_and_validate_price_data(symbol, hist)
+                if is_valid:
+                    db.update_prices(symbol, hist)
+                else:
+                    self.logger.warning(f"Historical data for {symbol} failed quality validation. Skipping DB update.")
 
                 # Parquet에도 저장 (하위 호환성)
                 cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "cache")

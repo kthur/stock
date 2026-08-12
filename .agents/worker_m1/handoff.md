@@ -1,44 +1,74 @@
-# Handoff Report — Milestone 1: Network Exception Hardening & Retries
+# Handoff Report — Milestone 1: Data Quality & Corporate Action Sanity Gates
 
 ## 1. Observation
-- **`trading_system/run_pipeline.py` (lines ~163–195)**: Tier 1 (`yf.download`) was previously called within a local `try...except Exception as e:` inside `_fetch_data_fdr_network`. This caught exceptions locally and set `result = None`, swallowing transient yfinance exceptions before Tenacity's `@retry` decorator on `_fetch_data_fdr_network` could trigger retries for Tier 1.
-- **`trading_system/run_pipeline.py` (lines ~310–347)**: `prefetch_prices_batch` / `_download_with_recovery` called `yf.download` without exponential backoff retry logic. Upon encountering HTTP 429 rate limit errors or network exceptions, it immediately split batch requests binary-wise, increasing request rates and worsening IP blocks.
-- **`trading_system/src/data_layer/market_data_handler.py`**: `fetch_historical_data` directly invoked `ticker.history` without Tenacity `@retry` decorators or backoff delay.
-- **Verification Commands & Results**:
-  - `test_network_hardening.py` & `test_tuning_and_retry.py` run via `.venv\Scripts\python.exe -m pytest trading_system/tests/test_network_hardening.py trading_system/tests/test_tuning_and_retry.py -v`.
-  - All unit tests for retry logic, fallback behavior, circuit breaker gating, and optuna parameter loading passed 100%.
+- **Modified files**:
+  1. `trading_system/src/data_layer/data_validator.py`:
+     - Updated `validate_price_data(sym, df)` to check daily ratio magnitudes `max(r, 1/r) - 1.0 > 3.0` (>300%), detecting single-day price return spikes and unadjusted stock split drops (>75% drop).
+     - Implemented `filter_price_spikes(df, max_return=3.0)` to normalize unadjusted stock splits via `CorporateActionAdjuster` and clean isolated single-day price spikes (>300% change magnitude) using surrounding prices or backward adjustments. Exposed `DataValidator.filter_price_spikes`.
+     - Updated `sanitize_and_validate_price_data` to run `filter_price_spikes` before validation.
+  2. `trading_system/src/data_layer/price_adjuster.py`:
+     - Exposed `filter_price_spikes` method on `CorporateActionAdjuster` and module-level function `filter_price_spikes`.
+  3. `trading_system/src/utils/technical_cache.py`:
+     - Added `_check_date_change_unlocked()` to `DataFrameCache` tracking trading date (`datetime.now().date()`), auto-invalidating and clearing cached entries when calendar date changes.
+     - Added `_evict_expired_unlocked()` and explicit `evict_expired() -> int` method to purge expired entries (`age >= ttl`).
+     - Added active TTL auto-eviction inside `get()`, `set()`, and `get_or_compute()`.
+  4. `trading_system/tests/test_technical_cache.py`:
+     - Created unit test file covering cache hit/miss, TTL auto-eviction, `evict_expired()`, LRU capacity eviction, calendar date-change invalidation, thread safety, and cache clearing.
+  5. `trading_system/tests/test_data_validator.py`:
+     - Updated unit tests for `validate_price_data` single-day spike rejection (>300%), `sanitize_and_validate_price_data`, unadjusted stock split gates, and `filter_price_spikes`.
+
+- **Test Execution Commands & Output**:
+  - Test command:
+    ```cmd
+    .venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v
+    ```
+  - Verbatim Output:
+    ```
+    ============================= test session starts =============================
+    platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0 -- D:\Finance\code\stock\.venv\Scripts\python.exe
+    cachedir: .pytest_cache
+    rootdir: D:\Finance\code\stock\trading_system
+    configfile: pyproject.toml
+    plugins: anyio-4.14.0, dash-2.18.2, cov-7.1.0, github-actions-annotate-failures-0.4.2
+    collecting ... collected 13 items
+
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_cache_hit_and_miss PASSED [  7%]
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_date_change_invalidation PASSED [ 15%]
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_explicit_evict_expired PASSED [ 23%]
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_invalidate_and_clear PASSED [ 30%]
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_lru_capacity_eviction PASSED [ 38%]
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_thread_safety PASSED [ 46%]
+    trading_system\tests\test_technical_cache.py::TestDataFrameCache::test_ttl_auto_eviction PASSED [ 53%]
+    trading_system\tests\test_data_validator.py::TestDataValidator::test_clean_macro_value PASSED [ 61%]
+    trading_system\tests\test_data_validator.py::TestDataValidator::test_detect_shared_series_corruption PASSED [ 69%]
+    trading_system\tests\test_data_validator.py::TestDataValidator::test_filter_price_spikes PASSED [ 76%]
+    trading_system\tests\test_data_validator.py::TestDataValidator::test_single_day_price_spike_rejection PASSED [ 84%]
+    trading_system\tests\test_data_validator.py::TestDataValidator::test_unadjusted_split_and_corporate_action_gate PASSED [ 92%]
+    trading_system\tests\test_data_validator.py::TestDataValidator::test_validate_price_data PASSED [100%]
+
+    ============================= 13 passed in 1.64s ==============================
+    ```
+  - Full regression test run: 62 selected tests in `trading_system/tests/` passed in 8.75s with zero failures.
 
 ## 2. Logic Chain
-- **Task 1**: Refactored Tier 1 yfinance fetch in `run_pipeline.py` into `_fetch_yf_primary(yf_symbol, start_date)` decorated with `@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)), reraise=True)`. In `_fetch_data_fdr_network`, calling `_fetch_yf_primary` inside a try block allows Tenacity to retry yfinance up to 3 times with exponential backoff on network errors/empty responses. Only after Tier 1 retries are exhausted does it fall back to Tier 2 (`FinanceDataReader.DataReader`).
-- **Task 2**: Created `_download_yf_batch_with_retry` helper in `prefetch_prices_batch` / `_download_with_recovery`. When downloading batches, network exceptions and HTTP 429 rate limits are retried up to 3 times with exponential backoff (2s -> 4s -> 8s -> 10s max) before binary splitting, preventing rate limit escalation.
-- **Task 3**: Hardened `MarketDataHandler` by adding `_fetch_historical_yf_with_retry(symbol, start_date, yf_period, period)` decorated with `@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception_type(Exception) & retry_if_not_exception_type(CircuitBreakerOpenException), reraise=True)`. `fetch_historical_data` uses `_fetch_historical_yf_with_retry`, ensuring retries on rate limits, connection timeouts, and empty responses.
+1. *Observation*: Raw market data fetched from external providers can contain isolated >300% price spikes or unadjusted stock split jumps/drops.
+2. *Deduction*: By updating `DataValidator.validate_price_data` to measure daily return magnitude `max(r, 1/r) - 1.0 > 3.0`, corrupted or unadjusted series are flagged and rejected before database persistence.
+3. *Deduction*: `filter_price_spikes` cleans isolated single-day price spikes using surrounding prices and adjusts unadjusted stock splits via `CorporateActionAdjuster`, ensuring clean OHLCV data for quantitative strategy engines.
+4. *Observation*: `DataFrameCache` retained stale entries past TTL or across calendar/trading days if lookup missed eviction triggers.
+5. *Deduction*: Active TTL auto-eviction during `get()`, `set()`, `get_or_compute()`, and explicit `evict_expired()` combined with date-change checking (`datetime.now().date()`) guarantees cache freshness across midnight and trading sessions.
 
 ## 3. Caveats
-- No caveats. All network retry and backoff mechanisms function cleanly and maintain backward compatibility.
+No caveats. All requirement items for Milestone 1 were implemented and verified with tests.
 
 ## 4. Conclusion
-- Tier 1 exception swallowing in `run_pipeline.py` has been completely decoupled using Tenacity `@retry`.
-- Batch prefetching exponential backoff retry logic is implemented and avoids IP block escalation on HTTP 429 rate limits.
-- `MarketDataHandler` is hardened against rate limits, connection timeouts, and empty responses.
-- All test suites pass 100%.
+Milestone 1 is complete, verified, and operational:
+- Corporate Action Sanity Gates prevent price spike contamination in DB storage and quantitative strategy engines.
+- `DataFrameCache` maintains strict active TTL eviction and calendar date-change invalidation.
+- All unit tests pass cleanly.
 
 ## 5. Verification Method
-To independently verify the changes:
-1. Run network hardening tests:
-   ```cmd
-   .venv\Scripts\python.exe -m pytest trading_system/tests/test_network_hardening.py -v
-   ```
-2. Run tuning & retry tests:
-   ```cmd
-   .venv\Scripts\python.exe -m pytest trading_system/tests/test_tuning_and_retry.py -v
-   ```
-3. Run main test suite:
-   ```cmd
-   .venv\Scripts\python.exe -m pytest trading_system/tests/ -v
-   .venv\Scripts\python.exe -m pytest tests/ -v
-   ```
-
----
-
-⚠️ **MANDATORY INTEGRITY WARNING**:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A Forensic Auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+Execute the following verification command from the project root directory `d:\Finance\code\stock`:
+```cmd
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v
+```
+All 13 tests must pass.

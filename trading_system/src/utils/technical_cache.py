@@ -1,9 +1,13 @@
 import time
+import logging
 import threading
+from datetime import datetime
 from typing import Dict, Optional, Callable, Tuple
 import numpy as np
 import pandas as pd
 from .indicators import calc_atr, calc_ema
+
+logger = logging.getLogger(__name__)
 
 
 class TechnicalCache:
@@ -189,43 +193,136 @@ class CorrelationCache:
 
 
 class DataFrameCache:
-    """Thread-safe TTL cache for raw OHLCV DataFrames fetched from yfinance/fdr."""
+    """Thread-safe TTL cache for raw OHLCV DataFrames fetched from yfinance/fdr.
+
+    Includes active TTL auto-eviction, trading date-change invalidation, and LRU capacity bounds.
+    """
+
     def __init__(self, ttl: float = 60.0, max_items: int = 200):
         self._ttl = ttl
         self._max_items = max_items
         self._cache: Dict[Tuple[str, str], pd.DataFrame] = {}
         self._timestamps: Dict[Tuple[str, str], float] = {}
+        self._last_date = datetime.now().date()
         self._lock = threading.Lock()
 
-    def get_or_compute(self, symbol: str, start_date: str, fetcher: Callable[[str, str], pd.DataFrame]) -> Optional[pd.DataFrame]:
+    @property
+    def ttl(self) -> float:
+        return self._ttl
+
+    @ttl.setter
+    def ttl(self, value: float) -> None:
+        with self._lock:
+            self._ttl = value
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._cache)
+
+    def _check_date_change_unlocked(self) -> None:
+        """Check date transition under lock and clear cache if date changed."""
+        today = datetime.now().date()
+        if today != self._last_date:
+            logger.info(
+                f"[DataFrameCache] Trading date changed ({self._last_date} -> {today}). Clearing cache."
+            )
+            self._cache.clear()
+            self._timestamps.clear()
+            self._last_date = today
+
+    def _evict_expired_unlocked(self, now: float) -> int:
+        """Purge keys older than self._ttl under lock. Return count of evicted items."""
+        expired_keys = [k for k, ts in self._timestamps.items() if (now - ts) >= self._ttl]
+        for k in expired_keys:
+            self._cache.pop(k, None)
+            self._timestamps.pop(k, None)
+        return len(expired_keys)
+
+    def evict_expired(self) -> int:
+        """Purge all entries older than self._ttl. Returns count of evicted items."""
+        now = time.time()
+        with self._lock:
+            self._check_date_change_unlocked()
+            return self._evict_expired_unlocked(now)
+
+    def get(self, symbol: str, start_date: str) -> Optional[pd.DataFrame]:
         key = (symbol, start_date)
         now = time.time()
         with self._lock:
+            self._check_date_change_unlocked()
+            self._evict_expired_unlocked(now)
             if key in self._cache:
-                age = now - self._timestamps.get(key, 0)
-                if age < self._ttl:
-                    return self._cache[key]
-            df = fetcher(symbol, start_date)
-            if df is None or df.empty:
-                return df
+                return self._cache[key]
+            return None
+
+    def set(self, symbol: str, start_date: str, df: pd.DataFrame) -> None:
+        if df is None or df.empty:
+            return
+        key = (symbol, start_date)
+        now = time.time()
+        with self._lock:
+            self._check_date_change_unlocked()
+            self._evict_expired_unlocked(now)
             self._cache[key] = df
             self._timestamps[key] = now
             self._evict_if_needed()
+
+    def get_or_compute(
+        self, symbol: str, start_date: str, fetcher: Callable[[str, str], Optional[pd.DataFrame]]
+    ) -> Optional[pd.DataFrame]:
+        key = (symbol, start_date)
+        now = time.time()
+        with self._lock:
+            self._check_date_change_unlocked()
+            self._evict_expired_unlocked(now)
+            if key in self._cache:
+                return self._cache[key]
+
+        df = fetcher(symbol, start_date)
+        if df is None or df.empty:
             return df
 
-    def invalidate(self, symbol: str, start_date: str):
-        key = (symbol, start_date)
+        now_store = time.time()
         with self._lock:
-            self._cache.pop(key, None)
-            self._timestamps.pop(key, None)
+            self._check_date_change_unlocked()
+            self._evict_expired_unlocked(now_store)
+            self._cache[key] = df
+            self._timestamps[key] = now_store
+            self._evict_if_needed()
+            return df
 
-    def _evict_if_needed(self):
+    def invalidate_symbol(self, symbol: str) -> None:
+        """Clear all cached entries for a given symbol."""
+        with self._lock:
+            keys_to_del = [k for k in self._cache if k[0] == symbol]
+            for k in keys_to_del:
+                self._cache.pop(k, None)
+                self._timestamps.pop(k, None)
+
+    def invalidate_all(self) -> None:
+        """Clear all cache entries."""
+        self.clear()
+
+    def invalidate(self, symbol: str, start_date: Optional[str] = None) -> None:
+        with self._lock:
+            if start_date is not None:
+                key = (symbol, start_date)
+                self._cache.pop(key, None)
+                self._timestamps.pop(key, None)
+            else:
+                keys_to_del = [k for k in self._cache if k[0] == symbol]
+                for k in keys_to_del:
+                    self._cache.pop(k, None)
+                    self._timestamps.pop(k, None)
+
+    def _evict_if_needed(self) -> None:
         if len(self._cache) > self._max_items:
             oldest_key = min(self._timestamps, key=self._timestamps.get)
             self._cache.pop(oldest_key, None)
             self._timestamps.pop(oldest_key, None)
 
-    def clear(self):
+    def clear(self) -> None:
         with self._lock:
             self._cache.clear()
             self._timestamps.clear()
+            self._last_date = datetime.now().date()

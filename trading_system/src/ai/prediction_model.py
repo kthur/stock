@@ -2317,8 +2317,9 @@ class OnDevicePredictionModel:
                             weights.append(w_cat_val)
 
                         if lstm_m is not None and w_lstm_val > 0 and prices_dict is not None:
-                            lstm_preds = []
-                            for idx_val in idx:
+                            valid_indices = []
+                            seq_list = []
+                            for i, idx_val in enumerate(idx):
                                 sym = symbols_list[idx_val]
                                 df_price = prices_dict.get(sym)
                                 if df_price is not None and len(df_price) >= 20:
@@ -2327,14 +2328,19 @@ class OnDevicePredictionModel:
                                         close_series = close_series.iloc[:, 0]
                                     ret_seq = close_series.pct_change().dropna().tail(20).values
                                     if len(ret_seq) == 20:
-                                        x_in = ret_seq.reshape(1, 20, 1)
-                                        pred_val = lstm_m.predict(x_in)[0]
-                                        lstm_preds.append(pred_val)
-                                    else:
-                                        lstm_preds.append(0.0)
-                                else:
-                                    lstm_preds.append(0.0)
-                            preds.append(np.array(lstm_preds))
+                                        valid_indices.append(i)
+                                        seq_list.append(ret_seq.reshape(20, 1))
+
+                            lstm_preds = np.zeros(len(idx), dtype=np.float32)
+                            if seq_list:
+                                X_batch = np.array(seq_list, dtype=np.float32)
+                                batch_preds = lstm_m.predict(X_batch)
+                                if hasattr(batch_preds, "ravel"):
+                                    batch_preds = batch_preds.ravel()
+                                elif isinstance(batch_preds, (list, tuple)):
+                                    batch_preds = np.array(batch_preds).ravel()
+                                lstm_preds[valid_indices] = batch_preds
+                            preds.append(lstm_preds)
                             weights.append(w_lstm_val)
 
                         if preds:
@@ -2713,14 +2719,24 @@ class OnDevicePredictionModel:
             return pd.DataFrame()
 
         today_returns = {}
+        valid_syms = []
+        last_vals = []
+        prev_vals = []
         for sym, df in prices_dict.items():
-            if df is None or len(df) < 2:
-                continue
-            close = df['Close']
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-            ret_1d = (close.iloc[-1] / close.iloc[-2]) - 1
-            today_returns[sym] = ret_1d
+            if df is not None and len(df) >= 2:
+                close = df['Close']
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]
+                vals = close.iloc[-2:].values
+                if len(vals) == 2 and vals[0] != 0 and not np.isnan(vals[0]) and not np.isnan(vals[1]):
+                    valid_syms.append(sym)
+                    prev_vals.append(vals[0])
+                    last_vals.append(vals[1])
+        if valid_syms:
+            arr_last = np.array(last_vals, dtype=np.float64)
+            arr_prev = np.array(prev_vals, dtype=np.float64)
+            rets = (arr_last / arr_prev) - 1.0
+            today_returns = dict(zip(valid_syms, rets))
 
         # Map index change (%) to virtual symbols
         index_sector_mapping = {

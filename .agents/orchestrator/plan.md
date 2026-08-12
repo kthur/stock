@@ -1,37 +1,42 @@
-# Project Plan: Stock Trading System Deep Audit & Enhancement
+# Plan — Stock Trading System (31-Strategy Multi-Factor Engine) Enhancement
 
-## Objectives
-1. Perform deep financial engineering audit of the Stock Trading System (18 strategies, 2D regime engine, HRP/Black-Litterman portfolio optimization, microstructure costs).
-2. Perform software architecture and UI/UX responsiveness evaluation (Pipeline & GHA workflows, mobile 375/414px & desktop 1920px responsiveness, macro badges).
-3. Produce `SYSTEM_IMPROVEMENT_REPORT.md` featuring quantitative equations, architecture diagrams, and concrete actionable code improvements.
-4. Execute automated verification: 100% pass on pytest test suite (`.venv\Scripts\python.exe -m pytest tests/ -v`) and GHA artifact verifier across all 14 strategy panels on `gh-pages/index.html`.
-5. Pass Forensic Audit gate with CLEAN verdict.
+## Executive Summary
+This project enhances the Stock Trading System across data quality/sanity checks, inference vectorization & database concurrency, dynamic microstructure slippage modeling & OMS guardrails, and CI/CD archiving & API resilience.
 
-## Phased Plan
+## Objectives & Work Breakdown
 
-### Milestone 1: Deep Codebase & System Survey
-- **Step 1.1**: Dispatch Explorer 1 (`teamwork_preview_explorer`) to audit Financial Engineering: 18 strategies (`src/ai/ensemble_scorer.py`, `src/ai/prediction_model.py`, `src/core/`), Portfolio Optimization (`src/strategy/`), Microstructure & Friction Costs (`src/config.py`).
-- **Step 1.2**: Dispatch Explorer 2 (`teamwork_preview_explorer`) to audit Software Architecture & GHA Pipeline: `run_pipeline.py`, SQLite WAL concurrency (`src/persistence/database.py`, `src/data_layer/indicator_storage.py`), `.github/workflows/`, artifact aggregation resilience.
-- **Step 1.3**: Dispatch Explorer 3 (`teamwork_preview_explorer`) to audit Dashboard UI/UX & GHA Artifacts: `gh-pages/index.html` (Mobile 375/414px & Desktop 1920px responsiveness, sticky headers, live macro badges) and `verify_gha_artifacts.py` / GHA verifier skill integration.
+### Milestone 1: Data Quality & Corporate Action Sanity Gates
+- **Objective**: Prevent unadjusted corporate action price anomalies and cache staleness.
+- **Tasks**:
+  1. Add corporate action price spike filter (> 300% single-day change or unadjusted split detector) in data ingestion/cleaning pipelines.
+  2. Implement TTL auto-eviction and date-change invalidation in `DataFrameCache`.
+- **Target Files**: `src/data_layer/`, `src/persistence/database.py`, `src/config.py`
 
-### Milestone 2: System Improvement Report Generation (`SYSTEM_IMPROVEMENT_REPORT.md`)
-- **Step 2.1**: Aggregate M1 findings into unified technical requirements and blueprint.
-- **Step 2.2**: Dispatch Worker 1 (`teamwork_preview_worker`) to draft `SYSTEM_IMPROVEMENT_REPORT.md` at `d:\Finance\code\stock\SYSTEM_IMPROVEMENT_REPORT.md` containing:
-  - Section 1: 18-Strategy Multi-Factor Model Audit (return calibration, signal independence, isotonic calibration, coverage analysis)
-  - Section 2: Portfolio Optimization Audit (HRP & Black-Litterman, covariance shrinkage, risk parity, sector caps, max position limits)
-  - Section 3: Microstructure & Friction Costs (STT 0.18%, bid-ask spread models, Spiess-Kyung market impact equations for small-caps)
-  - Section 4: Pipeline & GHA Workflow Resilience (automation order, weekend training vs daily split market inference, SQLite WAL concurrency, artifact aggregation)
-  - Section 5: Dashboard UI/UX Responsiveness (Mobile 375/414px & Desktop 1920px layout evaluation, sticky headers, macro indicator badges)
-  - Section 6: Actionable Code Improvements & Architecture Diagrams (Mermaid diagrams, formulas, code snippets)
+### Milestone 2: Inference Vectorization & SQLite Concurrency Protection
+- **Objective**: Accelerate 3,379-symbol inference and prevent SQLite `database is locked` errors during multi-threaded operation.
+- **Tasks**:
+  1. Vectorize symbol-level loop calculations in `OnDevicePredictionModel` and strategy scorers using NumPy/Pandas.
+  2. Ensure `PRAGMA busy_timeout = 30000;` is executed on all SQLite connections in `StockPriceDB` and `MarketIndicatorStorage`.
+- **Target Files**: `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/persistence/database.py`, `src/data_layer/indicator_storage.py`
 
-### Milestone 3: Automated Test Suite & Artifact Verification
-- **Step 3.1**: Dispatch Worker 2 (`teamwork_preview_worker`) to run the pytest suite (`.venv\Scripts\python.exe -m pytest tests/ -v`) and verify 100% pass rate.
-- **Step 3.2**: Dispatch Worker 3 (`teamwork_preview_worker`) armed with GHA Artifact Verifier skill (`gha-artifact-verifier`) to execute verification across all 14 strategy panels on `gh-pages/index.html`.
-- **Step 3.3**: Dispatch 2 Reviewers (`teamwork_preview_reviewer`) to independently review `SYSTEM_IMPROVEMENT_REPORT.md`, test outputs, and GHA artifact verification results.
-- **Step 3.4**: Dispatch 2 Challengers (`teamwork_preview_challenger`) to adversarially challenge financial model accuracy, equations, pipeline edge cases, and UI responsiveness.
-- **Step 3.5**: Dispatch Forensic Auditor (`teamwork_preview_auditor`) for integrity verification (zero hardcoding, zero fake tests, clean audit).
+### Milestone 3: Dynamic Slippage Model & OMS Portfolio Guardrails
+- **Objective**: Improve real-money execution accuracy and portfolio safety.
+- **Tasks**:
+  1. Enhance `MicrostructureCostModel` to incorporate intraday ATR and ADV (Average Daily Volume) ratio scaling for dynamic market impact & slippage.
+  2. Update OMS / `PortfolioAllocator` to check single stock (<= 5%) and sector (<= 20%) constraints, logging compliance to `trade_logs.db`.
+- **Target Files**: `src/core/microstructure.py`, `src/execution/oms.py`, `src/portfolio/allocator.py`
 
-### Milestone 4: Final Synthesis & Handover
-- **Step 4.1**: Check Gate Status: Pytest 100% pass, GHA artifact verifier 100% pass across all 14 strategy panels, Reviewers APPROVE, Auditor CLEAN.
-- **Step 4.2**: Update `progress.md`, `PROJECT.md`, `BRIEFING.md`.
-- **Step 4.3**: Report final completion to parent/Sentinel.
+### Milestone 4: CI/CD Build Artifact Archiving & API Retry Jitter
+- **Objective**: Harden CI/CD pipeline artifact output and prevent API rate-limit throttling.
+- **Tasks**:
+  1. Update `.github/workflows/*.yml` to upload/archive `ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, `index.html`.
+  2. Add randomized exponential backoff jitter to API fetchers (`earnings_data.py`, global indicators, rate-limited HTTP calls).
+- **Target Files**: `.github/workflows/`, `src/data_layer/earnings_data.py`, `src/data_layer/`
+
+### Milestone 5: E2E Testing & System Verification
+- **Objective**: Verify that all 725+ unit tests pass, vectorization speeds up inference, SQLite stress test passes without lock errors, and build artifacts are valid.
+
+## Execution Strategy
+1. **Step 0: Survey**: Dispatch 3 Explorers / Spec Miners to map current implementation in target modules and existing tests.
+2. **Decompose & Dispatch**: Delegate each milestone to sub-orchestrators/workers with Explorer -> Worker -> Reviewer -> Challenger -> Auditor iteration loop.
+3. **Verification**: Worker runs pytest and benchmarks; Reviewers approve; Challengers stress-test; Forensic Auditor verifies integrity.

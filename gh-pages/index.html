@@ -258,7 +258,7 @@
     <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL (Low Vol)</span>
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇰🇷 KR: 🔴 BEAR (Low Vol)</span>
     <span class="badge badge-date">📅 2026-08-04 09:44 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-10 23:42 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-13 00:15 KST</span>
   </div>
 </div>
 
@@ -2113,16 +2113,6 @@
               <td>1.02%</td>
               <td class="pos">14.10%</td>
               <td>140,994,706</td>
-            </tr>
-            <tr>
-              <td class="rank">#4</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/207940" target="_blank" class="stock-link">207940</a></td>
-              <td class="name">Samsung BioLogics</td>
-              <td> KONEX</td>
-              <td class="pos">4.62%</td>
-              <td>1.02%</td>
-              <td class="pos">7.05%</td>
-              <td>70,497,352</td>
             </tr>
             <tr>
               <td class="rank">#5</td>
@@ -54011,10 +54001,10 @@ function switchHz(btn) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  const hrpLabels = ["Celltrion", "Samsung Electronic", "Apple Inc.", "Samsung BioLogics", "Microsoft Corp.", "Remaining Cash"];
-  const hrpWeights = [15.0, 15.0, 14.1, 7.05, 7.05, 41.8];
+  const hrpLabels = ["Celltrion", "Samsung Electronic", "Apple Inc.", "Microsoft Corp.", "Remaining Cash"];
+  const hrpWeights = [15.0, 15.0, 14.1, 7.05, 48.85];
   const mktLabels = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000", "CASH"];
-  const mktWeights = [15.0, 15.0, 28.2, 0.0, 0.0, 41.8];
+  const mktWeights = [15.0, 15.0, 21.15, 0.0, 0.0, 48.85];
 
   const donutCtx = document.getElementById('hrpDonutChart');
   if (donutCtx && typeof Chart !== 'undefined' && hrpLabels.length > 0) {
@@ -54299,7 +54289,7 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
   
   const naverLink = document.getElementById('drawer-naver-link');
   if (naverLink) {
-    if (market === 'KOSPI' || market === 'KOSDAQ' || market === 'KONEX') {
+    if (market === 'KOSPI' || market === 'KOSDAQ') {
       naverLink.href = `https://m.stock.naver.com/domestic/stock/${symbol}/total`;
     } else {
       naverLink.href = `https://finance.yahoo.com/quote/${symbol}`;

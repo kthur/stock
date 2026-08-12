@@ -404,61 +404,6 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 
             logger.info(f"Downloading batch of {len(batch)} symbols starting from {fetch_start}...")
 
-            # ---------------------------------------------------------------------------
-            # P2: Data Quality Gate — validate OHLCV data before storing to DB
-            # ---------------------------------------------------------------------------
-            def _validate_price_data(sym: str, df: pd.DataFrame) -> bool:
-                """Return True if data passes quality checks, False if it should be skipped.
-
-                Checks:
-                  1. Close <= 0 or NaN ratio > 50% → reject
-                  2. Daily return absolute value > 100% on more than 5% of rows → suspicious
-                  3. Volume == 0 ratio > 90% → likely halted/suspended
-                """
-                if df is None or df.empty:
-                    return False
-
-                # Normalize column casing
-                cols_lower = {str(c).lower(): c for c in df.columns}
-                close_col = cols_lower.get('close')
-                volume_col = cols_lower.get('volume')
-
-                if close_col is None:
-                    logger.warning(f"[DataQualityGate] {sym}: missing Close column, skipping")
-                    return False
-
-                close = df[close_col].astype(float)
-                total_rows = len(close)
-
-                # 1. Close zero/negative or too many NaN
-                nan_ratio = close.isna().sum() / total_rows
-                valid_close = close.dropna()
-                non_positive = (valid_close <= 0).sum()
-                if nan_ratio > 0.5:
-                    logger.warning(f"[DataQualityGate] {sym}: Close NaN ratio={nan_ratio:.1%} > 50%, skipping")
-                    return False
-                if len(valid_close) > 0 and non_positive / len(valid_close) > 0.5:
-                    logger.warning(f"[DataQualityGate] {sym}: Close non-positive ratio > 50%, skipping")
-                    return False
-
-                # 2. Extreme daily returns (> ±100% on more than 5% of rows)
-                if len(valid_close) >= 5:
-                    daily_ret = valid_close.pct_change().abs().dropna()
-                    extreme_ratio = (daily_ret > 1.0).sum() / len(daily_ret)
-                    if extreme_ratio > 0.05:
-                        logger.warning(f"[DataQualityGate] {sym}: extreme return ratio={extreme_ratio:.1%} > 5%, skipping")
-                        return False
-
-                # 3. Volume zero ratio (likely suspended/halted ticker)
-                if volume_col is not None:
-                    volume = df[volume_col].astype(float)
-                    zero_vol_ratio = (volume == 0).sum() / total_rows
-                    if zero_vol_ratio > 0.90:
-                        logger.debug(f"[DataQualityGate] {sym}: Volume zero ratio={zero_vol_ratio:.1%} > 90% (halted), skipping")
-                        return False
-
-                return True
-
             def _download_yf_batch_with_retry(tickers: list, start_dt: str, max_attempts: int = 3) -> pd.DataFrame:
                 """Download batch of tickers with exponential backoff retry on HTTP 429 rate limits / network errors."""
                 delay = 2.0
@@ -551,8 +496,9 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                         if ticker_df is not None and not ticker_df.empty:
                             if isinstance(ticker_df.columns, pd.MultiIndex):
                                 ticker_df.columns = ticker_df.columns.droplevel(1)
-                            # P2: Data Quality Gate — reject bad data before DB write
-                            if DataValidator.validate_price_data(sym, ticker_df):
+                            # P2: Data Quality Gate — adjust corporate actions and validate before DB write
+                            is_valid, ticker_df = DataValidator.sanitize_and_validate_price_data(sym, ticker_df)
+                            if is_valid:
                                 price_db.update_prices(sym, ticker_df)
                                 prefetched_count += 1
             except Exception as e:
@@ -592,8 +538,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
             logger.warning(f"Multi-tier network download failed for {s}: {e}")
 
         if network_result is not None and not network_result.empty:
-            # DataValidator Gate: Validate before storing into DB
-            if DataValidator.validate_price_data(s, network_result):
+            # DataValidator Gate: Adjust corporate actions and validate before storing into DB
+            is_valid, network_result = DataValidator.sanitize_and_validate_price_data(s, network_result)
+            if is_valid:
                 if price_db is not None:
                     try:
                         price_db.update_prices(s, network_result)

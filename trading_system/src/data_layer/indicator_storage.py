@@ -74,7 +74,7 @@ class MarketIndicatorStorage:
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA cache_size=-50000")  # 50MB page cache
         conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA busy_timeout=5000")  # 5s retry on locked DB
+        conn.execute("PRAGMA busy_timeout=30000")  # 30s retry on locked DB
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             yield conn

@@ -1,13 +1,13 @@
-## 2026-08-05T13:02:47Z
-You are teamwork_preview_challenger for Milestone 1: Financial Engineering & Model Optimization.
+## 2026-08-12T14:45:38Z
+You are Challenger 1 for Milestone 1 (Data Quality & Corporate Action Sanity Gates).
+Your working directory is d:/Finance/code/stock/.agents/challenger_m1_1.
 
-Working directory: d:\Finance\code\stock\.agents\challenger_m1_1
-Dispatch file: d:\Finance\code\stock\.agents\challenger_m1_1\DISPATCH.md
-Original Request file: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Worker Handoff file: d:\Finance\code\stock\.agents\worker_m1_financial_eng\handoff.md
-Master Project file: d:\Finance\code\stock\.agents\orchestrator_eval_opt\PROJECT.md
+Task:
+Read d:/Finance/code/stock/ORIGINAL_REQUEST.md, d:/Finance/code/stock/PROJECT.md, and d:/Finance/code/stock/.agents/worker_m1_impl/handoff.md.
+Empirically stress-test the implementation:
+1. Write a test harness/script to test `DataFrameCache` under high concurrency, rapid TTL expiration, and simulated date boundary crossings (`datetime.now().date()` monkeypatching).
+2. Test `DataValidator` and `CorporateActionAdjuster` with extreme synthetic datasets (e.g. 1:10 stock splits, single-day +500% price spikes, NaN price series, empty DataFrames).
+3. Execute `.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v`.
 
-Please empirically stress test and verify Milestone 1 changes:
-- Run pytest suites.
-- Perform empirical checks on Ledoit-Wolf matrix conditioning, regime factor suppression mappings, Isotonic calibration zero-variance edge cases, and EMA regime shift reset behavior.
-Write progress.md and handoff.md in your working directory with findings and an explicit verdict (APPROVE or REQUEST_CHANGES). Send a completion message to the parent orchestrator.
+State your verdict explicitly: APPROVE or REJECT.
+Write your findings and test output to d:/Finance/code/stock/.agents/challenger_m1_1/handoff.md and send a message with your verdict.

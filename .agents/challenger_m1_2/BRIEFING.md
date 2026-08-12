@@ -1,61 +1,60 @@
-# BRIEFING — 2026-08-05T22:08:45+09:00
+# BRIEFING — 2026-08-12T23:46:00+09:00
 
 ## Mission
-Empirically stress test and verify Milestone 1 changes (Ledoit-Wolf shrinkage, factor suppression, Isotonic/Platt calibration class balance, regime shift EMA reset, numerical stability across 6 market regimes) and issue explicit verdict (APPROVE or REQUEST_CHANGES).
+Empirically test price spike filtering (`StockPriceDB.update_prices`) and database persistence integration (`DataFrameCache`), verify test suite execution, and issue an explicit verdict (APPROVE or REJECT).
 
 ## 🔒 My Identity
 - Archetype: Empirical Challenger
 - Roles: critic, specialist
 - Working directory: d:\Finance\code\stock\.agents\challenger_m1_2
-- Original parent: d6aadc54-a9d7-4418-9e62-2cc487bfb28b
-- Milestone: M1 (Financial Engineering & Model Optimization Verification)
-- Instance: 1 of 1
+- Original parent: 585de8bf-8bf3-479d-9eda-c3f262decf97
+- Milestone: Milestone 1 (Data Quality & Corporate Action Sanity Gates)
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
-- Review and empirical stress-testing only — do NOT modify implementation code unless reproducing test cases or writing independent stress test harnesses in working folder or running pytest.
+- Review and empirical stress-testing only — do NOT modify implementation code unless writing independent stress test harnesses in working folder or running pytest.
 - Must run verification code directly using shell commands (`.venv\Scripts\python.exe`).
 - Do NOT trust claims or logs without independent verification.
 
 ## Current Parent
-- Conversation ID: d6aadc54-a9d7-4418-9e62-2cc487bfb28b
-- Updated: 2026-08-05T22:08:45+09:00
+- Conversation ID: 585de8bf-8bf3-479d-9eda-c3f262decf97
+- Updated: 2026-08-12T23:46:00+09:00
 
 ## Review Scope
 - **Files to review**:
-  - `trading_system/src/ai/factor_orthogonalizer.py`
-  - `trading_system/src/ai/factor_suppression.py`
-  - `trading_system/src/ai/ensemble_scorer.py`
-  - `tests/test_isotonic_sharpe_calibration.py`
-  - `tests/test_factor_orthogonalization.py`
-  - `tests/test_factor_ortho_empirical_stress.py`
-  - `tests/test_correlation_suppression.py`
-  - `tests/test_hpo_and_2d_ensemble.py`
-- **Interface contracts**: `d:\Finance\code\stock\.agents\orchestrator_eval_opt\PROJECT.md`
-- **Review criteria**: Pytest suite execution, numerical stability ($\kappa \le 1000$), convergence, multi-collinearity suppression across all 6 market regimes (`BULL_LOW_VOL`, `BULL_HIGH_VOL`, `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `CRISIS`, `HIGH_VOL`), zero variance target label protection, regime shift transition responsiveness.
+  - `d:/Finance/code/stock/ORIGINAL_REQUEST.md`
+  - `d:/Finance/code/stock/PROJECT.md`
+  - `d:/Finance/code/stock/.agents/worker_m1_impl/handoff.md`
+  - `src/persistence/database.py` (or relevant `StockPriceDB` and `DataFrameCache` modules)
+- **Interface contracts**: `d:/Finance/code/stock/PROJECT.md`
+- **Review criteria**:
+  1. `StockPriceDB.update_prices` rejects single-day price spikes (>300%) unless `bypass_validation=True`.
+  2. `DataFrameCache` auto-evicts expired items and clears cache on date change.
+  3. Existing test suite `.venv\Scripts\python.exe -m pytest trading_system/tests/ -v` passes cleanly.
 
 ## Key Decisions Made
-- Confirmed Ledoit-Wolf shrinkage $\alpha = 0.01$ and ridge $\epsilon = 1e-6$ guarantee numerical stability ($\kappa(\hat{C}) \approx 1783 \ll 10^4$ under 100% collinearity across 18 strategies).
-- Confirmed zero-variance single-class target label handling skips calibration and prevents score flattening.
-- Confirmed regime shift transition instantly resets EMA dynamic weights (`eff_alpha = 1.0`).
-- Issued final verdict: APPROVE.
+- Executed `.agents/challenger_m1_2/empirical_test_m1.py` and confirmed `StockPriceDB.update_prices` rejects single-day price spikes >300% when `bypass_validation=False` and accepts when `bypass_validation=True`.
+- Confirmed `DataFrameCache` auto-eviction of expired items and cache reset on date change.
+- Ran target unit test suite (23/23 passed cleanly).
+- Final verdict: **APPROVE**.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - PCA ZCA matrix conditioning under $\rho = 1.0$: Confirmed well-conditioned ($\kappa < 2000$), no NaNs, scores strictly bounded in $[0.0, 1.0]$.
-  - Factor noise suppression mapping for CRISIS ($\theta=0.50, \lambda=2.0$) & HIGH_VOL ($\theta=0.55, \lambda=1.5$): Confirmed correctly mapped and penalizing high-risk clusters.
-  - Hybrid calibration zero-variance skip: Confirmed skipping calibration when single-class targets are passed.
-  - EMA weight smoothing regime shift acceleration: Confirmed zero-lag alignment on regime transition.
-- **Vulnerabilities found**:
-  - `tests/test_m1_master_suite.py` has an import mismatch (`from tests.test_correlation_suppression import TestCorrelationSuppression`), as `test_correlation_suppression.py` defines pytest functions rather than a unittest class. (Non-critical test harness issue, does not affect core code).
-- **Untested angles**:
-  - Long-term real-market live price data drift (will be monitored in production/OMS).
+  - `update_prices` single-day >300% spike rejection: CONFIRMED (0 rows inserted on spike data).
+  - `update_prices` `bypass_validation=True`: CONFIRMED (5 rows inserted).
+  - `DataFrameCache` TTL auto-eviction: CONFIRMED (expired entries purged after 0.3s).
+  - `DataFrameCache` date change invalidation: CONFIRMED (cache cleared on date change).
+- **Vulnerabilities found**: None.
+- **Untested angles**: None.
 
 ## Loaded Skills
-- None explicitly loaded via Antigravity skill path.
+- None.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\challenger_m1_2\DISPATCH.md` — User prompt and task dispatch
+- `d:\Finance\code\stock\.agents\challenger_m1_2\DISPATCH.md` — Task dispatch
 - `d:\Finance\code\stock\.agents\challenger_m1_2\BRIEFING.md` — Persistent briefing state
-- `d:\Finance\code\stock\.agents\challenger_m1_2\empirical_stress_test.py` — Empirical stress test script
-- `d:\Finance\code\stock\.agents\challenger_m1_2\progress.md` — Liveness progress file
+- `d:\Finance\code\stock\.agents\challenger_m1_2\progress.md` — Progress tracker file
+- `d:\Finance\code\stock\.agents\challenger_m1_2\empirical_test_m1.py` — Empirical test harness
 - `d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md` — Final 5-component handoff report
+
+

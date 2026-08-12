@@ -63,7 +63,9 @@ class SlippageFeedbackEngine:
             )
 
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA busy_timeout = 30000;")
             cursor = conn.cursor()
 
             # Check if order_plans / execution_logs or trade_logs exist

@@ -77,36 +77,40 @@ class AccrualsQualityEngine(BaseStrategyEngine):
                     for sym, group in features_df.groupby('symbol'):
                         fund_map[str(sym)] = group.iloc[-1].to_dict()
 
-        accrual_ratios = {}
-        for sym in symbols:
-            sym_str = str(sym)
+        sym_strs = [str(s) for s in symbols]
+        if not fund_map:
+            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': 0.50})
+            return df_acc[['symbol', 'accruals_quality_score']]
+
+        rows = []
+        for sym_str in sym_strs:
             row = fund_map.get(sym_str, fund_map.get(sym_str.zfill(6), {}))
+            rows.append(row)
 
-            net_income = row.get('net_income', row.get('net_profit', np.nan))
-            ocf = row.get('operating_cash_flow', row.get('ocf', row.get('cash_flow_operating', np.nan)))
-            assets = row.get('total_assets', row.get('assets', row.get('book_value', np.nan)))
+        df_rows = pd.DataFrame(rows, index=sym_strs)
 
-            # If OCF is missing, fallback using operating income or revenue proxy
-            if pd.isna(ocf) and not pd.isna(row.get('operating_income')):
-                ocf = row.get('operating_income') * 0.9  # Proxy estimate
+        net_inc = pd.to_numeric(
+            df_rows.get('net_income', df_rows.get('net_profit', pd.Series(np.nan, index=sym_strs))),
+            errors='coerce'
+        )
+        ocf = pd.to_numeric(
+            df_rows.get('operating_cash_flow', df_rows.get('ocf', df_rows.get('cash_flow_operating', pd.Series(np.nan, index=sym_strs)))),
+            errors='coerce'
+        )
+        if 'operating_income' in df_rows.columns:
+            op_inc = pd.to_numeric(df_rows['operating_income'], errors='coerce')
+            ocf = ocf.fillna(op_inc * 0.9)
 
-            if pd.notna(net_income) and pd.notna(ocf):
-                net_inc_val = float(net_income)
-                ocf_val = float(ocf)
+        assets = pd.to_numeric(
+            df_rows.get('total_assets', df_rows.get('assets', df_rows.get('book_value', pd.Series(np.nan, index=sym_strs)))),
+            errors='coerce'
+        )
 
-                # Assets scale denominator
-                denom = float(assets) if (pd.notna(assets) and float(assets) > 0) else abs(net_inc_val) * 10.0 + 1e-5
+        valid_mask = net_inc.notna() & ocf.notna()
+        denom = np.where(assets.notna() & (assets > 0), assets, net_inc.abs() * 10.0 + 1e-5)
+        accrual_ratio = np.where(valid_mask, (net_inc - ocf) / denom, np.nan)
 
-                # Accrual ratio = (Net Income - OCF) / Total Assets
-                # Higher positive = worse accruals (inflated earnings)
-                # Lower / negative = better accruals (high cash conversion)
-                accrual_ratio = (net_inc_val - ocf_val) / denom
-                accrual_ratios[sym_str] = accrual_ratio
-            else:
-                accrual_ratios[sym_str] = np.nan
-
-        # Convert to DataFrame
-        df_acc = pd.DataFrame(list(accrual_ratios.items()), columns=['symbol', 'accrual_ratio'])
+        df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio})
         valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
 
         if valid_mask.sum() > 0:

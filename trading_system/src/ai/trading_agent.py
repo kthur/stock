@@ -106,10 +106,16 @@ class TradingAgent:
     # Rule 5: 비상 대응 프로토콜
     # ───────────────────────────────────────────────────────────────
 
+    def _connect_db(self, db_path: str) -> sqlite3.Connection:
+        conn = sqlite3.connect(db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA busy_timeout = 30000;")
+        return conn
+
     async def _emergency_protocol(self) -> bool:
         """Rule 5: 당일 주가 변동성 5% 이상 시 모든 미체결 주문을 취소하고 전량 청산"""
         try:
-            conn = sqlite3.connect(self.config.db_path)
+            conn = self._connect_db(self.config.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
@@ -279,7 +285,7 @@ class TradingAgent:
     async def _process_new_signals(self):
         """신규 매수 시그널 검증 및 거래 실행"""
         try:
-            conn = sqlite3.connect(self.config.db_path)
+            conn = self._connect_db(self.config.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
@@ -557,7 +563,7 @@ class TradingAgent:
     def _get_daily_returns(self, symbol: str, days: int) -> Optional[np.ndarray]:
         """StockPriceDB에서 일별 수익률 배열 계산"""
         try:
-            conn = sqlite3.connect(self.config.stock_price_db_path)
+            conn = self._connect_db(self.config.stock_price_db_path)
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -584,7 +590,7 @@ class TradingAgent:
     def _calculate_atr(self, symbol: str, lookback: int = ATR_LOOKBACK_DAYS) -> float:
         """Q1: 최근 N일 ATR(Average True Range) 계산"""
         try:
-            conn = sqlite3.connect(self.config.stock_price_db_path)
+            conn = self._connect_db(self.config.stock_price_db_path)
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -632,7 +638,7 @@ class TradingAgent:
             latest_buy_ts = max(r['timestamp'] for r in buy_records)
             buy_date = latest_buy_ts[:10]
 
-            conn = sqlite3.connect(self.config.stock_price_db_path)
+            conn = self._connect_db(self.config.stock_price_db_path)
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -694,7 +700,7 @@ class TradingAgent:
     def _get_current_price(self, symbol: str) -> float:
         """StockPriceDB에서 종목 최신 종가 조회"""
         try:
-            conn = sqlite3.connect(self.config.stock_price_db_path)
+            conn = self._connect_db(self.config.stock_price_db_path)
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT close FROM stock_prices WHERE symbol = ? ORDER BY date DESC LIMIT 1",
@@ -711,7 +717,7 @@ class TradingAgent:
     def _get_vix_index(self) -> Optional[float]:
         """VIX 지수 조회"""
         try:
-            conn = sqlite3.connect(self.config.db_path)
+            conn = self._connect_db(self.config.db_path)
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT price FROM global_indicators WHERE symbol = '^VIX' ORDER BY date DESC LIMIT 1"
@@ -727,7 +733,7 @@ class TradingAgent:
     def _get_stock_sector(self, symbol: str) -> str:
         """Lookup sector for symbol from stock_universe table or return default."""
         try:
-            conn = sqlite3.connect(self.config.db_path)
+            conn = self._connect_db(self.config.db_path)
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT sector FROM stock_universe WHERE symbol = ?",

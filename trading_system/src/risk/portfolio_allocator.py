@@ -552,7 +552,9 @@ class PortfolioAllocator:
             return 1.0
 
         try:
-            conn = sqlite3.connect(str(target_db), timeout=5.0)
+            conn = sqlite3.connect(str(target_db), timeout=30.0)
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA busy_timeout = 30000;")
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('trade_logs', 'orders');")
             tables = [r[0] for r in cursor.fetchall()]

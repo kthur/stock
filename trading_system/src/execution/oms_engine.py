@@ -29,9 +29,15 @@ class ExecutionOMSEngine:
         self.db_path = db_path
         self._init_db()
 
+    def _get_conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA busy_timeout = 30000;")
+        return conn
+
     def _init_db(self):
         """Initializes trade_logs.db schema for order execution & tracking error monitoring."""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS order_plans (
@@ -116,7 +122,7 @@ class ExecutionOMSEngine:
             logger.warning("[OMS ENGINE] SEVERE crisis level - skipping ALL order plan generation.")
             return order_plans
 
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         for pred in top_predictions:
@@ -210,7 +216,7 @@ class ExecutionOMSEngine:
             # Slippage in basis points (1 bps = 0.01%)
             slippage_bps = ((executed_price - target_price) / target_price) * 10000.0
 
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("""

@@ -73,42 +73,45 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         if not symbols or not prices_dict:
             return pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
 
-        results = {}
+        valid_cols = {}
         for sym in symbols:
             sym_str = str(sym)
             p_df = prices_dict.get(sym_str, prices_dict.get(sym))
+            if isinstance(p_df, pd.DataFrame):
+                close_col = 'close' if 'close' in p_df.columns else ('Close' if 'Close' in p_df.columns else None)
+                if close_col:
+                    c_series = p_df[close_col].dropna()
+                    if len(c_series) >= 21:
+                        valid_cols[sym_str] = c_series.iloc[-21:].values
 
-            if not isinstance(p_df, pd.DataFrame) or len(p_df) < 21:
-                results[sym_str] = np.nan
-                continue
+        if not valid_cols:
+            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
+            return df_out[['symbol', 'trend_efficiency_score']]
 
-            close_col = 'close' if 'close' in p_df.columns else 'Close'
-            if close_col not in p_df.columns:
-                results[sym_str] = np.nan
-                continue
+        close_2d = pd.DataFrame(valid_cols)  # 21 rows x N columns
 
-            c_series = p_df[close_col].dropna()
-            if len(c_series) < 21:
-                results[sym_str] = np.nan
-                continue
+        change_5 = (close_2d.iloc[-1] - close_2d.iloc[-6]).abs()
+        vol_5 = close_2d.iloc[-6:].diff().abs().sum(axis=0)
+        ker5 = np.where(vol_5 > 1e-8, change_5 / vol_5, 0.0)
 
-            # Calculate KER across 5D, 10D, 20D
-            ker5 = self._compute_ker(c_series, 5)
-            ker10 = self._compute_ker(c_series, 10)
-            ker20 = self._compute_ker(c_series, 20)
-            avg_ker = (ker5 + ker10 + ker20) / 3.0
+        change_10 = (close_2d.iloc[-1] - close_2d.iloc[-11]).abs()
+        vol_10 = close_2d.iloc[-11:].diff().abs().sum(axis=0)
+        ker10 = np.where(vol_10 > 1e-8, change_10 / vol_10, 0.0)
 
-            # Directional multiplier (positive trend gets bonus, negative gets penalty)
-            ret_20d = (c_series.iloc[-1] / c_series.iloc[-21]) - 1.0
+        change_20 = (close_2d.iloc[-1] - close_2d.iloc[-21]).abs()
+        vol_20 = close_2d.iloc[-21:].diff().abs().sum(axis=0)
+        ker20 = np.where(vol_20 > 1e-8, change_20 / vol_20, 0.0)
 
-            if ret_20d > 0:
-                score = avg_ker * (1.0 + min(1.0, ret_20d * 2.0))
-            else:
-                score = avg_ker * max(0.1, 1.0 + ret_20d)
+        avg_ker = (ker5 + ker10 + ker20) / 3.0
+        ret_20d = (close_2d.iloc[-1] / close_2d.iloc[-21]) - 1.0
 
-            results[sym_str] = float(score)
+        pos_mask = ret_20d > 0
+        ret_pos = np.minimum(1.0, ret_20d * 2.0)
+        ret_neg = np.maximum(0.1, 1.0 + ret_20d)
+        score_arr = np.where(pos_mask, avg_ker * (1.0 + ret_pos), avg_ker * ret_neg)
 
-        df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
+        results = dict(zip(close_2d.columns, score_arr))
+        df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in symbols])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 0:

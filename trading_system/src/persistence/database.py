@@ -33,7 +33,7 @@ class _DBConnection:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
                 await self._conn.execute("PRAGMA journal_mode=WAL")
-                await self._conn.execute("PRAGMA busy_timeout=60000")
+                await self._conn.execute("PRAGMA busy_timeout=30000")
             else:
                 try:
                     await self._conn.execute("SELECT 1")
@@ -44,7 +44,7 @@ class _DBConnection:
                         pass
                     self._conn = await aiosqlite.connect(self.db_path)
                     await self._conn.execute("PRAGMA journal_mode=WAL")
-                    await self._conn.execute("PRAGMA busy_timeout=60000")
+                    await self._conn.execute("PRAGMA busy_timeout=30000")
             return self._conn
 
     async def execute_write(self, sql: str, params: tuple = ()):
@@ -53,7 +53,7 @@ class _DBConnection:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
                 await self._conn.execute("PRAGMA journal_mode=WAL")
-                await self._conn.execute("PRAGMA busy_timeout=60000")
+                await self._conn.execute("PRAGMA busy_timeout=30000")
             await self._conn.execute(sql, params)
             await self._conn.commit()
 
@@ -424,10 +424,10 @@ class StockPriceDB:
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = sqlite3.connect(
-                str(self.db_path), timeout=60.0, check_same_thread=False
+                str(self.db_path), timeout=30.0, check_same_thread=False
             )
             self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA busy_timeout=60000")
+            self._local.conn.execute("PRAGMA busy_timeout=30000")
             self._local.conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
             self._local.conn.execute("PRAGMA temp_store=MEMORY")
             self._local.conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
@@ -435,10 +435,10 @@ class StockPriceDB:
 
     def _init_db(self):
         with self._write_lock:
-            conn = sqlite3.connect(str(self.db_path), timeout=60.0)
+            conn = sqlite3.connect(str(self.db_path), timeout=30.0)
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("PRAGMA busy_timeout=60000")
+                conn.execute("PRAGMA busy_timeout=30000")
 
                 conn.execute("PRAGMA cache_size=-500000")
                 conn.execute("PRAGMA temp_store=MEMORY")
@@ -464,9 +464,19 @@ class StockPriceDB:
                 conn.close()
         self.logger.info(f"StockPriceDB initialized at {self.db_path}")
 
-    def update_prices(self, symbol: str, df: pd.DataFrame) -> int:
+    def update_prices(self, symbol: str, df: pd.DataFrame, bypass_validation: bool = False) -> int:
         """OHLCV DataFrame을 DB에 batch upsert. 반환: 저장된 행 수 (Retry Lock 포함)"""
+        if df is None or df.empty:
+            return 0
+
         symbol = normalize_symbol(symbol)
+
+        if not bypass_validation:
+            from src.data_layer.data_validator import DataValidator
+            if not DataValidator.validate_price_data(symbol, df):
+                self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert aborted.")
+                return 0
+
         records = []
         for idx, row in df.iterrows():
             date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]

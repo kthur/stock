@@ -1,5 +1,5 @@
 """
-tests/test_database_concurrency.py
+trading_system/tests/test_database_concurrency.py
 Multi-threaded concurrency and lock-free SQLite database stress tests.
 
 MANDATORY INTEGRITY WARNING:
@@ -19,7 +19,7 @@ import unittest
 import pandas as pd
 
 # Ensure project root and trading_system are in sys.path
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _TS_DIR = os.path.join(_ROOT, "trading_system")
 if _TS_DIR not in sys.path:
     sys.path.insert(0, _TS_DIR)

@@ -165,6 +165,41 @@ Integrity mode: development
 
 ### Dashboard UX/UI & Mobile/Desktop Readiness
 - [ ] GitHub Pages report renders responsively on both mobile and desktop screens without text clipping or overlapping cards.
-- [ ] All global market indicators and 18 strategy outputs display non-zero, validated data.
+
+## Follow-up — 2026-08-12T23:37:01+09:00
+
+<USER_REQUEST>
+Enhance the Stock Trading System (31-Strategy Multi-Factor Engine) with data sanity filters, numpy/pandas vectorized inference, SQLite busy timeout concurrency, dynamic intraday ATR/ADV slippage model, and GHA build artifact archiving.
+
+Working directory: d:/Finance/code/stock
+
+Integrity mode: development
+
+## Requirements
+
+### R1. Data Quality & Corporate Action Sanity Gates
+Implement automatic sanity checks to filter out abnormal corporate action price spikes (e.g. single-day price changes > 300% or unadjusted splits) and add TTL auto-eviction to the technical indicator cache (`DataFrameCache`).
+
+### R2. Inference Vectorization & SQLite Concurrency Protection
+Refactor symbol-level loop calculations in `OnDevicePredictionModel` and strategy scorers to NumPy/Pandas matrix operations, and configure `PRAGMA busy_timeout = 30000;` on SQLite database connections (`StockPriceDB`, `MarketIndicatorStorage`).
+
+### R3. Dynamic Slippage Model & OMS Portfolio Guardrails
+Enhance `MicrostructureCostModel` with intraday ATR and ADV-dependent dynamic market impact & slippage calculations, and record portfolio allocation constraint compliance (single stock <= 5%, sector <= 20%) in `trade_logs.db`.
+
+### R4. CI/CD Build Artifact Archiving & API Retry Jitter
+Update GitHub Actions workflows to archive output files (`ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, `index.html`) as build artifacts and add randomized exponential backoff jitter to rate-limited API fetch calls.
+
+## Acceptance Criteria
+
+### Data & Performance Verification
+- [ ] Technical indicator cache invalidates automatically on date change or TTL expiration.
+- [ ] Benchmark test confirms 3,379-symbol inference time is reduced by vectorized operations.
+- [ ] Multi-threaded SQLite stress test passes without `database is locked` errors.
+
+### OMS & CI/CD Verification
+- [ ] `MicrostructureCostModel` correctly scales market impact based on order size vs ADV and intraday ATR.
+- [ ] All 725+ unit tests pass cleanly after all modifications (`.venv\Scripts\python.exe -m pytest tests/`).
+- [ ] Workflow YAML files produce non-zero build artifacts on GitHub Pages deployment.
 </USER_REQUEST>
+
 

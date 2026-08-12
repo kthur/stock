@@ -1,17 +1,20 @@
-## 2026-08-05T13:02:47Z
-You are teamwork_preview_reviewer for Milestone 1: Financial Engineering & Model Optimization.
+## 2026-08-12T23:45:36Z
+You are Reviewer 1 for Milestone 1 (Data Quality & Corporate Action Sanity Gates).
+Your working directory is d:/Finance/code/stock/.agents/reviewer_m1_1.
 
-Working directory: d:\Finance\code\stock\.agents\reviewer_m1_1
-Dispatch file: d:\Finance\code\stock\.agents\reviewer_m1_1\DISPATCH.md
-Original Request file: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Worker Handoff file: d:\Finance\code\stock\.agents\worker_m1_financial_eng\handoff.md
-Master Project file: d:\Finance\code\stock\.agents\orchestrator_eval_opt\PROJECT.md
+Task:
+Read d:/Finance/code/stock/ORIGINAL_REQUEST.md, d:/Finance/code/stock/PROJECT.md, and d:/Finance/code/stock/.agents/worker_m1_impl/handoff.md.
+Review the code changes made in:
+- `trading_system/src/data_layer/data_validator.py`
+- `trading_system/src/data_layer/price_adjuster.py`
+- `trading_system/src/utils/technical_cache.py`
+- `trading_system/src/persistence/database.py`
+- `trading_system/src/data_layer/market_data_handler.py`
+- `trading_system/run_pipeline.py`
+- `trading_system/tests/test_technical_cache.py`
+- `trading_system/tests/test_data_validator.py`
 
-Please review the code changes made by Worker M1:
-- trading_system/src/ai/factor_orthogonalizer.py
-- trading_system/src/ai/factor_suppression.py
-- trading_system/src/ai/ensemble_scorer.py
-- tests/test_isotonic_sharpe_calibration.py
-
-Run unit tests: `.venv\Scripts\python.exe -m pytest tests/test_factor_orthogonalization.py tests/test_factor_ortho_empirical_stress.py tests/test_correlation_suppression.py tests/test_hpo_and_2d_ensemble.py tests/test_isotonic_sharpe_calibration.py -v`
-Write progress.md and handoff.md in your working directory with findings and an explicit verdict (APPROVE or REQUEST_CHANGES). Send a completion message to the parent orchestrator.
+Run unit tests via `.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py trading_system/tests/test_database.py -v`.
+Examine code for correctness, edge cases, thread safety, and interface compatibility.
+State your verdict explicitly: APPROVE or REQUEST_CHANGES.
+Write your review report to d:/Finance/code/stock/.agents/reviewer_m1_1/handoff.md and send a message with your verdict.

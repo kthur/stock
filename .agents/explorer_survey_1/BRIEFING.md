@@ -1,36 +1,38 @@
-# BRIEFING — 2026-08-06T21:49:34Z
+# BRIEFING — 2026-08-12T14:40:30Z
 
 ## Mission
-Investigate price fetching implementation across all 6 markets (KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000), identify missing network retries, backoff, and exception handling, and produce analysis.md and handoff.md.
+Investigate codebase for R1 (Data Quality & Corporate Action Sanity Gates, DataFrameCache) and R4 API portion (Retry Backoff Jitter), examine existing tests, write analysis to report.md and submit handoff to parent.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Read-only investigation, evidence chain generation, synthesis and handoff reporting
-- Working directory: d:\Finance\code\stock\.agents\explorer_survey_1
-- Original parent: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Milestone: Price Fetch Hardening Survey
+- Archetype: Teamwork explorer
+- Roles: Read-only investigator
+- Working directory: d:/Finance/code/stock/.agents/explorer_survey_1
+- Original parent: 585de8bf-8bf3-479d-9eda-c3f262decf97
+- Milestone: Stock Trading System Survey Phase 1 (R1 & R4 API)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement production code fixes in src/ or trading_system/
-- Focus on d:\Finance\code\stock codebase
-- Deliver findings to analysis.md and handoff.md, then send_message to parent
+- Read-only investigation — do NOT modify source code or project files (only write inside .agents/explorer_survey_1/)
+- Write findings, line numbers, architectural recommendations to report.md
+- Deliver soft handoff via send_message to parent when complete
 
 ## Current Parent
-- Conversation ID: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Updated: 2026-08-06T21:49:34Z
+- Conversation ID: 585de8bf-8bf3-479d-9eda-c3f262decf97
+- Updated: 2026-08-12T14:40:30Z
 
 ## Investigation State
-- **Explored paths**: `trading_system/src/persistence/database.py`, `trading_system/src/ai/prediction_model.py`, `trading_system/run_pipeline.py`, `trading_system/src/data_layer/market_data_handler.py`, `trading_system/src/data_layer/indicator_storage.py`
-- **Key findings**: Identified 7 structural defects: Tier 1 exception swallowing in `_fetch_data_fdr_network`, missing retries/Tier 2 fallback in `prefetch_prices_batch`, omitted `KONEX` in `_KR_MARKET_SUFFIX`, ticker normalization bugs (`BRK.B` vs `BRK-B`, 6-digit zero padding), single-symbol DataQualityGate bypass in `fetch_data_fdr`, missing Tier 2 fallback in `MarketDataHandler`, and ThreadPool queue timeout contention.
-- **Unexplored areas**: None (investigation complete)
+- **Explored paths**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `trading_system/run_pipeline.py`, `trading_system/src/data_layer/data_validator.py`, `trading_system/src/data_layer/price_adjuster.py`, `trading_system/src/utils/technical_cache.py`, `trading_system/src/persistence/database.py`, `trading_system/src/data_layer/earnings_data.py`, `trading_system/src/data_layer/market_data_handler.py`, `trading_system/src/data_layer/ecos_client.py`, `trading_system/src/data_layer/fred_client.py`, `trading_system/src/utils/error_handler.py`, `trading_system/tests/` and `tests/`.
+- **Key findings**:
+  1. R1: Single-day price spikes (>300%) or unadjusted stock splits pass `DataValidator.validate_price_data` when <5% of rows are affected; `CorporateActionAdjuster` is only invoked for raw tier sources. `DataFrameCache` lacks active TTL auto-eviction and calendar date-change invalidation.
+  2. R4 API: External API retry loops in `earnings_data.py`, `market_data_handler.py`, `run_pipeline.py`, `fred_client.py`, and `error_handler.py` use deterministic exponential backoffs (`wait_exponential`, `2 ** attempt`) without random jitter, leading to thundering herd rate limit collisions under concurrency.
+  3. Tests: Existing test files cover basic validator/adjuster and network retries, but `DataFrameCache` has zero unit test coverage.
+- **Unexplored areas**: None within scope.
 
 ## Key Decisions Made
-- Completed full audit of all 6 markets and 3-tier fallback architecture.
-- Documented findings in `analysis.md` and synthesized handoff report in `handoff.md`.
+- Completed read-only investigation and compiled full findings, code locations, flaw analyses, and architectural recommendations into `report.md` and `handoff.md`.
 
 ## Artifact Index
-- d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md — Dispatch log
-- d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md — Working memory index
-- d:\Finance\code\stock\.agents\explorer_survey_1\progress.md — Progress log
-- d:\Finance\code\stock\.agents\explorer_survey_1\analysis.md — Comprehensive price fetch survey analysis
-- d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md — 5-component handoff report for parent agent
+- `d:/Finance/code/stock/.agents/explorer_survey_1/DISPATCH.md` — Dispatch log
+- `d:/Finance/code/stock/.agents/explorer_survey_1/BRIEFING.md` — Situational awareness
+- `d:/Finance/code/stock/.agents/explorer_survey_1/progress.md` — Liveness progress log
+- `d:/Finance/code/stock/.agents/explorer_survey_1/report.md` — Detailed survey report (R1 & R4 API)
+- `d:/Finance/code/stock/.agents/explorer_survey_1/handoff.md` — Soft handoff report (5-component format)

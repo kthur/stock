@@ -1,53 +1,56 @@
-# BRIEFING — 2026-08-06T21:50:30+09:00
+# BRIEFING — 2026-08-12T14:49:50Z
 
 ## Mission
-Implement network exception hardening, exponential backoff retries, and timeout handling across `trading_system/run_pipeline.py` and `trading_system/src/data_layer/market_data_handler.py`.
+Implement Milestone 1: Data Quality & Corporate Action Sanity Gates (Corporate action spike filter, DataFrameCache TTL eviction & Date invalidation, and unit tests).
 
 ## 🔒 My Identity
-- Archetype: worker-agent
+- Archetype: implementer, qa, specialist
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\worker_m1
-- Original parent: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Milestone: Milestone 1: Network Exception Hardening & Retries
+- Working directory: d:/Finance/code/stock/.agents/worker_m1
+- Original parent: 585de8bf-8bf3-479d-9eda-c3f262decf97
+- Milestone: Milestone 1
 
 ## 🔒 Key Constraints
-- DO NOT CHEAT. All implementations must be genuine. Do not hardcode test results.
-- Decouple Tier 1 exception swallowing in `run_pipeline.py` using tenacity `@retry`.
-- Add exponential backoff retry logic to batch prefetching in `run_pipeline.py` and handle HTTP 429 rate limits.
-- Harden `MarketDataHandler` in `trading_system/src/data_layer/market_data_handler.py`.
-- Run pytest suites and verify 100% pass rate.
+- DO NOT CHEAT. All implementations must be genuine.
+- Run tests with `.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v`.
+- Ensure all existing unit tests in `trading_system/tests/` pass.
 
 ## Current Parent
-- Conversation ID: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Updated: 2026-08-06T21:53:00Z
+- Conversation ID: 585de8bf-8bf3-479d-9eda-c3f262decf97
+- Updated: 2026-08-12T14:49:50Z
 
 ## Task Summary
-- **What to build**: Network retry and backoff logic in `run_pipeline.py` and `market_data_handler.py`.
-- **Success criteria**: All network calls handle retries/backoffs cleanly without swallowing exceptions prior to retrying; all unit & integration tests pass 100%.
-- **Interface contracts**: `d:\Finance\code\stock\AGENTS.md`
-
-## Key Decisions Made
-- Introduced `_fetch_yf_primary(yf_symbol, start_date)` decorated with Tenacity `@retry` to decouple Tier 1 retries from Tier 2 fallback in `run_pipeline.py`.
-- Added `_download_yf_batch_with_retry` in `prefetch_prices_batch` with exponential backoff delay (2s to 10s max) on HTTP 429 and network errors prior to binary splitting.
-- Hardened `MarketDataHandler` with `_fetch_historical_yf_with_retry` decorated with `@retry` for handling rate limits, timeouts, and empty responses.
-- Added `trading_system/tests/test_network_hardening.py` with 5 unit test cases covering all new behavior.
-
-## Artifact Index
-- `d:\Finance\code\stock\.agents\worker_m1\changes.md` — Detailed list of code modifications
-- `d:\Finance\code\stock\.agents\worker_m1\handoff.md` — Handoff report
+- **What to build**:
+  1. Corporate action price spike filtering (>300% single-day ratio magnitude or unadjusted split handling) in `DataValidator`/`price_adjuster.py` and applied in `run_pipeline.py` and `market_data_handler.py`.
+  2. `DataFrameCache` active TTL eviction (`evict_expired`) and calendar date-change auto-invalidation.
+  3. Tests for `DataFrameCache` in `trading_system/tests/test_technical_cache.py` and updated `trading_system/tests/test_data_validator.py`.
+- **Success criteria**: All 13 unit tests passed in 1.64s; 62 regression tests passed in 8.75s.
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/run_pipeline.py`: Added `_fetch_yf_primary` with `@retry` decorator and `_download_yf_batch_with_retry` with backoff.
-  - `trading_system/src/data_layer/market_data_handler.py`: Added `_fetch_historical_yf_with_retry` with `@retry` decorator.
-  - `trading_system/tests/test_network_hardening.py`: Created unit tests for network hardening features.
-- **Build status**: Pass (100% test pass rate)
+  - `trading_system/src/data_layer/data_validator.py`: Added >300% ratio magnitude check to `validate_price_data`, implemented `filter_price_spikes`.
+  - `trading_system/src/data_layer/price_adjuster.py`: Exposed `filter_price_spikes` method and function.
+  - `trading_system/src/utils/technical_cache.py`: Added active TTL eviction and date-change invalidation to `DataFrameCache`.
+  - `trading_system/tests/test_technical_cache.py`: New unit tests file.
+  - `trading_system/tests/test_data_validator.py`: Updated unit tests.
+- **Build status**: PASS (13/13 passed, 62/62 regression passed)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (11/11 tests passed in test_network_hardening.py & test_tuning_and_retry.py)
-- **Lint status**: 0 violations
-- **Tests added/modified**: `trading_system/tests/test_network_hardening.py`
+- **Build/test result**: PASS (1.64s for targeted tests, 8.75s for regression)
+- **Lint status**: Clean
+- **Tests added/modified**: `test_technical_cache.py` (7 tests), `test_data_validator.py` (6 tests)
 
 ## Loaded Skills
 - None
+
+## Key Decisions Made
+- `validate_price_data` uses daily ratio magnitude `max(r, 1/r) - 1.0 > 3.0` to detect both upward price spikes >300% and unadjusted split drops >75%.
+- `filter_price_spikes` combines `CorporateActionAdjuster` backward scaling with isolated single-day spike smoothing.
+- `DataFrameCache` tracks `datetime.now().date()` to auto-clear cache when crossing midnight / new trading day.
+
+## Artifact Index
+- d:/Finance/code/stock/.agents/worker_m1/DISPATCH.md
+- d:/Finance/code/stock/.agents/worker_m1/BRIEFING.md
+- d:/Finance/code/stock/.agents/worker_m1/progress.md
+- d:/Finance/code/stock/.agents/worker_m1/handoff.md

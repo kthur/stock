@@ -1,20 +1,16 @@
-## 2026-08-06T21:50:30Z
-You are Worker 1 for Milestone 1: Network Exception Hardening & Retries.
-
-Working directory: d:\Finance\code\stock\.agents\worker_m1
-Original request file: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-
-OBJECTIVE:
-Implement network exception hardening, exponential backoff retries, and timeout handling across `trading_system/run_pipeline.py` and `trading_system/src/data_layer/market_data_handler.py`.
-
-TASKS:
-1. **Decouple Tier 1 Exception Swallowing in `run_pipeline.py`**:
-   - In `_fetch_data_fdr_network` (lines ~163–195), `try/except Exception as e:` catches `yf.download` errors and swallows them into log debug statements. This prevents Tenacity's `@retry` decorator from retrying yfinance on transient errors.
-   - Refactor Tier 1 fetch into a helper `_fetch_yf_primary(symbol, start_date)` decorated with `@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=(retry_if_result(is_empty_result) | retry_if_exception_type(Exception)), reraise=True)` so network timeouts/errors trigger automatic exponential backoff retries on Tier 1 before falling back to Tier 2 (`FinanceDataReader`).
-2. **Add Retries & Backoff to Batch Prefetching (`run_pipeline.py`)**:
-   - In `prefetch_prices_batch` / `_download_with_recovery` (lines ~310–347), wrap `yf.download(tickers, ...)` with exponential backoff retry logic. Replace immediate binary splitting on HTTP 429 rate limits with exponential backoff delay to avoid escalating IP blocks.
-3. **Harden `MarketDataHandler` (`trading_system/src/data_layer/market_data_handler.py`)**:
-   - Ensure `_fetch_yf_with_retry` and `fetch_historical_data` handle rate limits (HTTP 429), connection timeouts, and empty responses with exponential backoff retries.
-4. **Verification**:
-   - Run the test suite using `.venv\Scripts\python.exe -m pytest trading_system/tests/ -v` and `.venv\Scripts\python.exe -m pytest tests/ -v`.
-   - Ensure all existing tests pass 100%.
+## 2026-08-12T14:41:18Z
+Task: Implement Milestone 1 (Data Quality & Corporate Action Sanity Gates):
+1. Corporate Action Sanity Gates:
+   - Inspect trading_system/src/data_layer/data_validator.py and trading_system/src/data_layer/price_adjuster.py.
+   - Update DataValidator.validate_price_data to detect and handle abnormal corporate action price spikes (e.g. single-day price changes > 300% or unadjusted splits).
+   - Add a sanity filter function/method filter_price_spikes(df: pd.DataFrame) -> pd.DataFrame (or incorporate into DataValidator/CorporateActionAdjuster) that cleans/adjusts/filters single-day abnormal spikes (> 300%) or unadjusted splits from price series before DB storage and indicator calculation.
+   - Ensure sanity check is applied consistently in trading_system/run_pipeline.py or market_data_handler.py.
+2. DataFrameCache TTL Auto-Eviction & Date Invalidation:
+   - Inspect trading_system/src/utils/technical_cache.py (class DataFrameCache).
+   - Implement active TTL auto-eviction: automatically purge expired entries (age >= ttl) during lookup/eviction and expose an explicit evict_expired() method.
+   - Implement calendar date-change invalidation: track current trading/calendar date (datetime.now().date() or date string) alongside timestamps, and automatically invalidate/clear cached entries when the date changes across midnight/trading days.
+3. Unit Tests:
+   - Create new unit test file trading_system/tests/test_technical_cache.py to test DataFrameCache TTL eviction, LRU capacity, cache hit/miss, thread safety, and date-change invalidation.
+   - Update trading_system/tests/test_data_validator.py to test >300% price spike filtering and corporate action sanity checks.
+   - Execute tests using .venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v.
+   - Ensure all existing unit tests in trading_system/tests/ continue to pass.

@@ -1,93 +1,38 @@
-# Project: Stock Trading System Full-scale Optimization
-
-## System Block Architecture
-
-```mermaid
-flowchart LR
-    subgraph CoreEngine ["DAG Pipeline & Data Layer"]
-        DAG["DAG Pipeline\n(dag_pipeline.py)"]
-        HybridDB[("Hybrid Data Storage\nSQLite WAL + Parquet")]
-        DAG --> HybridDB
-    end
-
-    subgraph AlphaModule ["18-Factor Alpha Engine & Orthogonalizer"]
-        FactorMat["18 Strategy Raw Signals\nMatrix X (N x 18)"]
-        Orthogon["Gram-Schmidt / PCA\nFactor Orthogonalization"]
-        FactorMat --> Orthogon
-    end
-
-    subgraph RiskAlloc ["Risk & Portfolio Management"]
-        RegimeRisk["2D Regime & Crisis Detector"]
-        PortAlloc["Portfolio Allocator\n(EVT-CVaR & HRP Risk Budget)"]
-        RegimeRisk --> PortAlloc
-    end
-
-    subgraph ExecutionMLOps ["Execution & MLOps"]
-        OMS["OMS Slicer (TWAP/VWAP)"]
-        SlippageFB["Real-Time Slippage Feedback"]
-        MLOps["MLOps Monitor & Drift Detector"]
-        
-        OMS --> SlippageFB
-    end
-
-    HybridDB --> FactorMat
-    Orthogon --> PortAlloc
-    PortAlloc --> OMS
-    SlippageFB --> FactorMat
-    OMS --> MLOps
-```
+# Project: Stock Trading System Enhancement (31-Strategy Multi-Factor Engine)
 
 ## Architecture
-- **DAG Pipeline**: Task graph execution with state serialization & resume capability (`trading_system/dag_pipeline.py`).
-- **Hybrid Data Engine**: SQLite/Parquet hybrid storage for high-concurrency multi-asset streaming (`src/data_layer/`).
-- **Ensemble Engine**: Gram-Schmidt & PCA factor orthogonalization across 18 strategies (`src/ai/ensemble_scorer.py`).
-- **Stat-Arb Engine**: Cluster-accelerated cointegration scanner (K-Means / OPTICS) (`src/core/stat_arb.py`).
-- **Portfolio Allocator**: EVT-CVaR risk budget constraints & dynamic band-based rebalancing (`src/risk/portfolio_allocator.py`).
-- **OMS Engine**: TWAP/VWAP order slicing & real-time slippage feedback loop (`src/execution/oms_engine.py`).
-- **MLOps Monitor**: MLflow model drift detector & auto-retrain triggers (`src/monitoring/mlops_monitor.py`).
+- **Data Layer & Persistence**: `trading_system/src/data_layer/`, `trading_system/src/persistence/database.py`, `trading_system/src/data_layer/indicator_storage.py`
+- **AI & Strategy Prediction Engine**: `trading_system/src/ai/prediction_model.py`, `trading_system/src/ai/ensemble_scorer.py`, `trading_system/src/core/`
+- **Risk & Execution (OMS)**: `trading_system/src/risk/microstructure.py`, `trading_system/src/execution/oms_engine.py`, `trading_system/src/risk/portfolio_allocator.py`
+- **CI/CD Workflows**: `.github/workflows/pipeline.yml`, `.github/workflows/ci.yml`, `.github/workflows/pytest.yml`
+
+## Feature Inventory
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | Corporate Action Sanity Check | Automatic filter for abnormal price spikes (>300% single-day change / unadjusted splits) | M1 | ORIGINAL_REQUEST R1 |
+| 2 | Technical Indicator Cache TTL Eviction | Auto-eviction on date change or TTL expiration in `DataFrameCache` | M1 | ORIGINAL_REQUEST R1 |
+| 3 | Inference Vectorization | Refactor symbol loops in `OnDevicePredictionModel` & strategy scorers to NumPy/Pandas matrix ops | M2 | ORIGINAL_REQUEST R2 |
+| 4 | SQLite Concurrency Protection | `PRAGMA busy_timeout = 30000;` on `StockPriceDB` & `MarketIndicatorStorage` | M2 | ORIGINAL_REQUEST R2 |
+| 5 | Dynamic Slippage Model | Intraday ATR & ADV-dependent dynamic market impact scaling in `MicrostructureCostModel` | M3 | ORIGINAL_REQUEST R3 |
+| 6 | OMS Portfolio Compliance Logging | Log single stock (<= 5%) & sector (<= 20%) compliance in `trade_logs.db` | M3 | ORIGINAL_REQUEST R3 |
+| 7 | CI/CD Artifact Archiving | Archive `ensemble_predictions.txt`, `strategy_data_coverage_report.txt`, `index.html` in GHA workflows | M4 | ORIGINAL_REQUEST R4 |
+| 8 | API Retry Backoff Jitter | Randomized exponential backoff jitter in rate-limited API fetch calls (`earnings_data.py`) | M4 | ORIGINAL_REQUEST R4 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Architecture Modularization & Data Engine Upgrade | R1 | None | DONE |
-| 2 | Quantitative Alpha & Ensemble Orthogonalization | R2 | M1 | DONE |
-| 3 | Risk Management & Portfolio Optimization Enhancement | R3 | M1 | IN_PROGRESS |
-| 4 | Execution Engine & MLOps Monitoring | R4 | M1, M3 | PLANNED |
-| 5 | E2E Integration, Verification & Forensic Audit | Acceptance | M1, M2, M3, M4 | PLANNED |
-
-## Interface Contracts
-### DAG Pipeline ↔ Task Modules
-- Tasks implement `Task` interface with `name`, `dependencies`, `execute(context)`, `checkpoint()`/`restore()`.
-- Pipeline state saved to `.checkpoints/pipeline_state.json` / parquet frames.
-
-### Data Storage ↔ Multi-Asset Streamers
-- Concurrent writes routed through Parquet append-log / Timescale WAL engine.
-- Zero SQLite `database is locked` OperationalErrors under multi-threading.
-
-### Factor Orthogonalizer ↔ Ensemble Scorer
-- Input: matrix of 18 raw strategy signal scores per ticker $X \in \mathbb{R}^{N \times 18}$.
-- Output: orthogonalized score matrix $X_{ortho} \in \mathbb{R}^{N \times 18}$ preserving relative variance explaining power.
-
-### Stat-Arb Scanner ↔ Cointegration Engine
-- Pre-clustering partitions 3,379 symbols into $K$ feature clusters (K-Means/OPTICS).
-- Cointegration test performed only within/adjacent clusters ($O(N \log N)$ complexity).
-
-### Portfolio Allocator ↔ Dynamic Rebalancer
-- Tail-risk CVaR estimated via GPD (Generalized Pareto Distribution) fitting.
-- Rebalance signal emitted only when allocation drift breaches no-trade buffer bands.
-
-### OMS Slicer ↔ Slippage Feedback
-- TWAP/VWAP slices orders into sub-blocks across time buckets.
-- Real-time execution slippage fed back to `EnsembleScoringEngine` dynamic weights.
+| M1 | Data Quality & Corporate Action Sanity Gates | Price spike filter (>300%), unadjusted split filter, `DataFrameCache` TTL eviction | None | DONE |
+| M2 | Vectorized Inference & SQLite Concurrency | Vectorize `OnDevicePredictionModel` symbol loops, `busy_timeout=30000` on DBs | M1 | IN_PROGRESS |
+| M3 | Dynamic Slippage & OMS Guardrails | ATR & ADV market impact in `MicrostructureCostModel`, portfolio limits in OMS (`trade_logs.db`) | M2 | PLANNED |
+| M4 | CI/CD Archiving & API Retry Jitter | GHA artifact upload, API fetch jitter backoff in `earnings_data.py` | M3 | PLANNED |
+| M5 | E2E Testing & Final Verification | 725+ pytest verification, benchmark speedup, stress test concurrency, artifact check | M1, M2, M3, M4 | PLANNED |
 
 ## Code Layout
-- `trading_system/`: Pipeline entry points and DAG orchestration.
-- `src/ai/`: ML models, prediction pipelines, ensemble scoring.
-- `src/analysis/`: Coverage and performance analytics.
-- `src/core/`: Quantitative strategy engines (Stat-Arb, Sector Rotation, Event-Driven, etc.).
-- `src/data_layer/`: Database storage, hybrid Parquet engine, indicator management.
-- `src/risk/`: Risk manager, crisis detector, portfolio allocator.
-- `src/execution/`: OMS engine, order slicing, trade log persistence.
-- `src/monitoring/`: MLOps drift triggers, metrics reporting.
-- `tests/`: Pytest suite.
-
+- `trading_system/src/data_layer/` - Data loading, technical indicators, `DataFrameCache`, `earnings_data.py`
+- `trading_system/src/persistence/database.py` - `StockPriceDB` SQLite connection and WAL settings
+- `trading_system/src/data_layer/indicator_storage.py` - `MarketIndicatorStorage` SQLite storage
+- `trading_system/src/ai/prediction_model.py` - `OnDevicePredictionModel` inference & prediction routines
+- `trading_system/src/ai/ensemble_scorer.py` - Strategy scoring and ensemble matrix calculations
+- `trading_system/src/risk/microstructure.py` - `MicrostructureCostModel` market impact & slippage calculations
+- `trading_system/src/execution/oms_engine.py` / `trading_system/src/risk/portfolio_allocator.py` - OMS order execution & portfolio allocation guardrails
+- `.github/workflows/` - GitHub Actions CI/CD workflows

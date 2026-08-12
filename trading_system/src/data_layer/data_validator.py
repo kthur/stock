@@ -105,8 +105,9 @@ def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
     Checks:
       1. Close column exists and non-empty
       2. Close <= 0 or NaN ratio > 50% -> reject
-      3. Daily return absolute value > 100% on more than 5% of rows -> suspicious/corrupted
-      4. Volume == 0 ratio > 90% -> likely halted/suspended ticker
+      3. Abnormal corporate action price spikes (single-day return magnitude > 300% or unadjusted splits) -> reject
+      4. Extreme daily return ratio > 100% on more than 5% of rows -> suspicious/corrupted
+      5. Volume == 0 ratio > 90% -> likely halted/suspended ticker
     """
     if df is None or df.empty:
         return False
@@ -141,11 +142,19 @@ def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
         logger.warning(f"[DataValidator] {sym}: Close non-positive ratio > 50%, skipping")
         return False
 
-    # 2. Extreme daily returns (> ±100% on more than 5% of rows)
-    if len(valid_close) >= 5:
-        daily_ret = valid_close.pct_change().abs().dropna()
-        if len(daily_ret) > 0:
-            extreme_ratio = (daily_ret > 1.0).sum() / len(daily_ret)
+    # 2. Extreme daily returns & corporate action price spikes (> 300% change magnitude)
+    if len(valid_close) >= 2:
+        ratios = (valid_close / valid_close.shift(1)).dropna()
+        if len(ratios) > 0:
+            mags = ratios.apply(lambda r: (max(r, 1.0 / r) - 1.0) if (pd.notna(r) and r > 0) else 0.0)
+            max_mag = mags.max()
+            if max_mag > 3.0:
+                logger.warning(
+                    f"[DataValidator] {sym}: single-day price return/split spike max_magnitude={max_mag:.1%} > 300% (unadjusted split/corrupted), skipping"
+                )
+                return False
+
+            extreme_ratio = (mags > 1.0).sum() / len(mags)
             if extreme_ratio > 0.05:
                 logger.warning(
                     f"[DataValidator] {sym}: extreme return ratio={extreme_ratio:.1%} > 5%, skipping"
@@ -168,6 +177,105 @@ def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
     return True
 
 
+def sanitize_and_validate_price_data(
+    sym_or_df: str | pd.DataFrame,
+    df_or_sym: pd.DataFrame | str | None = None,
+) -> Tuple[bool, pd.DataFrame]:
+    """Applies CorporateActionAdjuster and filter_price_spikes to backward-adjust stock splits and clean spikes,
+    then validates the resulting price data using validate_price_data.
+
+    Returns:
+        (is_valid: bool, adjusted_df: pd.DataFrame)
+    """
+    if isinstance(sym_or_df, pd.DataFrame):
+        df = sym_or_df
+        sym = str(df_or_sym) if df_or_sym is not None else "UNKNOWN"
+    elif isinstance(df_or_sym, pd.DataFrame):
+        sym = str(sym_or_df)
+        df = df_or_sym
+    else:
+        return False, pd.DataFrame()
+
+    if df is None or df.empty:
+        return False, df if df is not None else pd.DataFrame()
+
+    adjusted_df = filter_price_spikes(df)
+    is_valid = validate_price_data(sym, adjusted_df)
+    return is_valid, adjusted_df
+
+
+def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFrame:
+    """Filter, clean, or adjust single-day abnormal price spikes (>300% change magnitude) or unadjusted splits."""
+    if df is None or df.empty:
+        return df
+
+    from src.data_layer.price_adjuster import CorporateActionAdjuster
+    try:
+        adjusted = CorporateActionAdjuster().adjust_ohlcv(df)
+    except Exception as e:
+        logger.debug(f"[DataValidator] CorporateActionAdjuster error in filter_price_spikes: {e}")
+        adjusted = df.copy()
+
+    cols_lower = {str(c).lower(): c for c in adjusted.columns}
+    close_col = cols_lower.get("close")
+    if close_col is None or len(adjusted) < 2:
+        return adjusted
+
+    try:
+        close = adjusted[close_col].astype(float)
+        ratios = (close / close.shift(1)).fillna(1.0)
+        mags = ratios.apply(lambda r: (max(r, 1.0 / r) - 1.0) if (pd.notna(r) and r > 0) else 0.0)
+
+        if (mags > max_return).any():
+            logger.warning(
+                f"[DataValidator] filter_price_spikes: handling price spike/split anomalies (> {max_return:.0%})"
+            )
+            n = len(adjusted)
+            price_cols = [cols_lower[k] for k in ["open", "high", "low", "close"] if k in cols_lower]
+            for pc in price_cols:
+                adjusted[pc] = adjusted[pc].astype(float)
+
+            for i in range(1, n):
+                r = float(ratios.iloc[i])
+                if r <= 0 or pd.isna(r):
+                    continue
+                mag = max(r, 1.0 / r) - 1.0
+                if mag > max_return:
+                    idx_curr = adjusted.index[i]
+                    p_prev = float(close.iloc[i - 1])
+
+                    is_isolated = False
+                    if i + 1 < n:
+                        p_next = float(close.iloc[i + 1])
+                        r_next = p_next / p_prev if p_prev > 0 else 1.0
+                        mag_next = max(r_next, 1.0 / r_next) - 1.0 if (pd.notna(r_next) and r_next > 0) else 0.0
+                        if mag_next <= max_return:
+                            is_isolated = True
+
+                    if is_isolated:
+                        p_fill = (p_prev + float(close.iloc[i + 1])) / 2.0 if p_prev > 0 else float(close.iloc[i + 1])
+                        for pc in price_cols:
+                            adjusted.loc[idx_curr, pc] = p_fill
+                        close.iloc[i] = p_fill
+                    elif i + 1 == n:
+                        for pc in price_cols:
+                            adjusted.loc[idx_curr, pc] = p_prev
+                        close.iloc[i] = p_prev
+                    else:
+                        prior_mask = adjusted.index < idx_curr
+                        for pc in price_cols:
+                            adjusted.loc[prior_mask, pc] = adjusted.loc[prior_mask, pc] * r
+                        volume_col = cols_lower.get("volume")
+                        if volume_col is not None:
+                            adjusted.loc[prior_mask, volume_col] = adjusted.loc[prior_mask, volume_col] / r
+                        close = adjusted[close_col].astype(float)
+                        ratios = (close / close.shift(1)).fillna(1.0)
+    except Exception as e:
+        logger.warning(f"[DataValidator] filter_price_spikes failed: {e}")
+
+    return adjusted
+
+
 class DataValidator:
     """Centralized Data Quality Gate Manager."""
 
@@ -186,3 +294,14 @@ class DataValidator:
     @staticmethod
     def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
         return validate_price_data(sym, df)
+
+    @staticmethod
+    def sanitize_and_validate_price_data(
+        sym_or_df: str | pd.DataFrame,
+        df_or_sym: pd.DataFrame | str | None = None,
+    ) -> Tuple[bool, pd.DataFrame]:
+        return sanitize_and_validate_price_data(sym_or_df, df_or_sym)
+
+    @staticmethod
+    def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFrame:
+        return filter_price_spikes(df, max_return)

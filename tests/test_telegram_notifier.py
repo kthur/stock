@@ -57,7 +57,7 @@ class TestTelegramNotifier(unittest.TestCase):
         mock_response.status = 200
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        notifier = TelegramNotifier(token="mock_token_123", chat_id="mock_chat_456")
+        notifier = TelegramNotifier(token="123456:mock_token_123", chat_id="mock_chat_456")
         self.assertTrue(notifier.is_enabled())
 
         res = notifier.send_top_recommendations_card(self.mock_df, regime_name="BULL_LOW_VOL")

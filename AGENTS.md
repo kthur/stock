@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500/NASDAQ/RUSSELL2000)을 대상으로 **27대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
+통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500/NASDAQ/RUSSELL2000)을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -33,6 +33,10 @@
 | **25** | Short Interest & Squeeze | 공매도 잔고 비율 + Days-to-Cover + 5D 상승 모멘텀 숏스퀴즈 촉매 | 앙상블 피처 결합 |
 | **26** | Value-Up & Shareholder Yield | PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주 소각) | 앙상블 피처 결합 |
 | **27** | Kaufman Trend Efficiency | 5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세 필터 | 앙상블 피처 결합 |
+| **28** | Gamma Squeeze | 옵션 미결제약정 및 콜 옵션 델타 가속도 기반 숏/델타 스퀴즈 | 앙상블 피처 결합 |
+| **29** | Insider Buying | 임원/대주주 내부자 매수 공시 및 수급 수치화 | 앙상블 피처 결합 |
+| **30** | Earnings Tone Drift | 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 | 앙상블 피처 결합 |
+| **31** | High-Frequency Execution | 호가 불균형 & 마이크로스프레드 고빈도 모멘텀 | 앙상블 피처 결합 |
 
 ## Pipeline
 

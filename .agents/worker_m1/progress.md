@@ -1,7 +1,14 @@
-## Current Status
-Last visited: 2026-08-06T21:53:00Z
-- [x] Task 1: Decouple Tier 1 Exception Swallowing in `run_pipeline.py`
-- [x] Task 2: Add Retries & Backoff to Batch Prefetching in `run_pipeline.py`
-- [x] Task 3: Harden `MarketDataHandler` in `trading_system/src/data_layer/market_data_handler.py`
-- [x] Task 4: Run test suite and verify 100% pass rate
-- [x] Task 5: Write changes.md and handoff.md, send message to parent
+# Progress Log
+
+Last visited: 2026-08-12T14:49:50Z
+
+- Started Milestone 1 task.
+- Initialized DISPATCH.md and BRIEFING.md.
+- Updated DataValidator and CorporateActionAdjuster with single-day price spike filter (>300%) and corporate action sanity gates.
+- Integrated DataValidator sanity check & spike filter into market_data_handler.py and run_pipeline.py.
+- Implemented active TTL auto-eviction (`evict_expired`) and calendar date-change invalidation in DataFrameCache.
+- Created unit tests in `trading_system/tests/test_technical_cache.py`.
+- Updated unit tests in `trading_system/tests/test_data_validator.py`.
+- Executed unit tests (`13/13 passed in 1.64s`) and regression tests (`62/62 passed in 8.75s`).
+- Written `handoff.md` and sent soft handoff message to parent agent.
+- Milestone 1 task COMPLETE.

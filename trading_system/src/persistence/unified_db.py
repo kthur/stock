@@ -76,9 +76,9 @@ class UnifiedDBEngine:
         if self.engine_type == "postgresql" and self._pg_pool:
             return self._pg_pool.getconn()
         else:
-            conn = sqlite3.connect(self.sqlite_path, timeout=60.0)
+            conn = sqlite3.connect(self.sqlite_path, timeout=30.0)
             conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout=60000;")
+            conn.execute("PRAGMA busy_timeout=30000;")
             return conn
 
     def release_connection(self, conn):

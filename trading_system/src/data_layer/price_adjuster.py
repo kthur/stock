@@ -29,11 +29,19 @@ class CorporateActionAdjuster:
         Returns:
             Cleaned and split-adjusted OHLCV DataFrame.
         """
-        if df_prices is None or df_prices.empty or "Close" in df_prices.columns and len(df_prices) < 2:
+        if df_prices is None or df_prices.empty:
+            return df_prices
+
+        close_col = None
+        for col in ["Close", "close"]:
+            if col in df_prices.columns:
+                close_col = col
+                break
+        if close_col is None or len(df_prices) < 2:
             return df_prices
 
         df = df_prices.copy()
-        close_series = df["Close"]
+        close_series = df[close_col]
         if isinstance(close_series, pd.DataFrame):
             close_series = close_series.iloc[:, 0]
 
@@ -53,9 +61,24 @@ class CorporateActionAdjuster:
 
                 # Backward adjust prior prices before split
                 prior_mask = df.index < idx
-                price_cols = [c for c in ["Open", "High", "Low", "Close", "Adj Close"] if c in df.columns]
+                price_cols = [c for c in df.columns if str(c).lower() in ["open", "high", "low", "close", "adj close"]]
+                for pc in price_cols:
+                    df[pc] = df[pc].astype(float)
                 df.loc[prior_mask, price_cols] = df.loc[prior_mask, price_cols] * r
-                if "Volume" in df.columns:
-                    df.loc[prior_mask, "Volume"] = df.loc[prior_mask, "Volume"] / r
+                vol_cols = [c for c in df.columns if str(c).lower() == "volume"]
+                if vol_cols:
+                    df[vol_cols[0]] = df[vol_cols[0]].astype(float)
+                    df.loc[prior_mask, vol_cols[0]] = df.loc[prior_mask, vol_cols[0]] / r
 
         return df
+
+    def filter_price_spikes(self, df_prices: pd.DataFrame, max_spike_pct: float = 3.0) -> pd.DataFrame:
+        """Sanity filter to clean single-day abnormal spikes (> 300%) or unadjusted splits."""
+        from src.data_layer.data_validator import filter_price_spikes
+        return filter_price_spikes(df_prices, max_return=max_spike_pct)
+
+
+def filter_price_spikes(df: pd.DataFrame, max_spike_pct: float = 3.0) -> pd.DataFrame:
+    """Sanity filter function to clean single-day abnormal spikes (> 300%) or unadjusted splits."""
+    from src.data_layer.data_validator import filter_price_spikes as dv_filter
+    return dv_filter(df, max_return=max_spike_pct)

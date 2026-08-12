@@ -1,19 +1,18 @@
-# Progress — Challenger M1 Verification
+# Progress — Challenger M1-2 Verification
 
-Last visited: 2026-08-05T22:08:45+09:00
+Last visited: 2026-08-12T23:52:22+09:00
 
 ## Status
 Verification Complete — Explicit Verdict: APPROVE.
 
 ## Completed Steps
-- Created DISPATCH.md and BRIEFING.md.
-- Examined ORIGINAL_REQUEST.md, worker handoff.md, and master PROJECT.md.
-- Executed Milestone 1 pytest suites (`test_factor_orthogonalization.py`, `test_factor_ortho_empirical_stress.py`, `test_correlation_suppression.py`, `test_hpo_and_2d_ensemble.py`, `test_isotonic_sharpe_calibration.py`): 39 of 39 passed (100%).
-- Executed `test_m1_empirical_challenger.py`: 4 of 4 passed (100%).
-- Constructed independent empirical stress harness `empirical_stress_test.py` to verify:
-  1. Matrix conditioning $\kappa(\hat{C}) < 2000$ and $[0.0, 1.0]$ bounds under 100% collinearity ($\rho = 1.0$).
-  2. Factor noise suppression mappings across all 6 regimes + CRISIS/HIGH_VOL.
-  3. Single-class zero-variance target label skip in Isotonic/Platt calibrators.
-  4. EMA weight smoothing alpha reset (`eff_alpha = 1.0`) on 2D regime transition.
-- Identified test suite runner import mismatch in `test_m1_master_suite.py` (importing `TestCorrelationSuppression` function module as a class), which does not affect core code functionality.
-- Authored handoff.md with verdict APPROVE.
+- Appended latest dispatch message to `DISPATCH.md`.
+- Initialized `BRIEFING.md` with identity, mission, and constraints.
+- Analyzed codebase: `StockPriceDB.update_prices`, `DataValidator.validate_price_data`, `DataFrameCache`.
+- Created and executed independent empirical test harness `.agents/challenger_m1_2/empirical_test_m1.py`:
+  - Verified `StockPriceDB.update_prices` rejects single-day >300% price spikes when `bypass_validation=False`.
+  - Verified `StockPriceDB.update_prices` accepts single-day >300% price spikes when `bypass_validation=True`.
+  - Verified `DataFrameCache` auto-evicts expired items on TTL expiration.
+  - Verified `DataFrameCache` clears cache entries on trading date change.
+- Executed target unit test suite (`test_data_validator.py`, `test_technical_cache.py`, `test_database.py`): 23 of 23 passed (100%).
+- Authored final handoff report `handoff.md` with explicit verdict **APPROVE**.
