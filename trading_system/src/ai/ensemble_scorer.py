@@ -762,9 +762,9 @@ class EnsembleScoringEngine:
 
             penalized_weights = dict(weights)
             for col, p_factor in zip(corr_matrix.columns, norm_penalties):
-                sid = col_to_sid.get(col)
-                if sid in penalized_weights and penalized_weights[sid] > 0:
-                    penalized_weights[sid] *= (1.0 / float(p_factor))
+                strategy_id = col_to_sid.get(col)
+                if strategy_id and strategy_id in penalized_weights and penalized_weights[strategy_id] > 0:
+                    penalized_weights[strategy_id] *= (1.0 / float(p_factor))
 
             # Pairwise differential adjustment for collinear pairs above threshold
             cols = list(corr_matrix.columns)
