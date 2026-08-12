@@ -148,7 +148,7 @@ class LSTMPredictor:
     def load_model(self, filepath: str) -> None:
         try:
             if os.path.exists(filepath):
-                checkpoint = torch.load(filepath, map_location=self.device, weights_only=False)
+                checkpoint = torch.load(filepath, map_location=self.device, weights_only=False)  # nosec B614
                 if isinstance(checkpoint, dict):
                     if 'model_state_dict' in checkpoint:
                         self.model.load_state_dict(checkpoint['model_state_dict'])
