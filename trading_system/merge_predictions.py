@@ -288,7 +288,7 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict) -> None:
         if m:
             date_str = m.group(1).strip()
 
-        pattern = rf"(--- {re.escape(mkt)} ---\n.*?)(?=\n--- |\Z)"
+        pattern = rf"(--- {re.escape(mkt)}.*?\n.*?)(?=\n--- |\Z)"
         match = re.search(pattern, content, re.DOTALL)
         if match:
             sect_text = match.group(1).strip()

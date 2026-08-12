@@ -605,9 +605,11 @@ class VCPSurgePredictor:
                             if calib_dict:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
-                                if coef is not None and intercept is not None:
-                                    z = np.clip(coef * blend_prob + intercept, -20, 20)
-                                    blend_prob = 1.0 / (1.0 + np.exp(-z))
+                                if coef is not None and intercept is not None and coef > 0:
+                                    z = np.clip(coef * blend_prob + intercept, -10, 10)
+                                    calib_p = 1.0 / (1.0 + np.exp(-z))
+                                    # Prevent numeric collapse to 0.0 while preserving model ranking
+                                    blend_prob = np.where(blend_prob > 0, np.maximum(calib_p, blend_prob * 0.05), blend_prob)
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             # Use VCP feature heuristic probability fallback when no pre-trained model exists on disk

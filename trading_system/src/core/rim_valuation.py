@@ -26,6 +26,7 @@ Earnings Quality Filter (이익의 질 필터):
       (이익의 질 0 → RIM 부적합, 앙상블 가중치 자동 재정규화)
 """
 import logging
+import re
 from typing import Dict, Optional, Any
 import numpy as np
 import pandas as pd
@@ -35,6 +36,16 @@ logger = logging.getLogger(__name__)
 # 영업이익/순이익 비율이 이 값 미만이면 순이익의 상당 부분이 영업외/일회성 항목으로
 # 판단하여 ROE를 감쇠한다. (0.5 = 순이익의 절반 이상이 영업 이익에서 발생해야 정상)
 EARNINGS_QUALITY_MIN_RATIO = 0.5
+
+# 우선주 심볼 판별 (KOSPI/KOSDAQ):
+#   - 6자리 코드 마지막 자리 5~9: 005935(삼성전자우), 000025(한진칼우) 등
+#   - 6자리 + K/L 접미사: 00680K(미래에셋증권2우B), 33626L(두산퓨얼셀2우B) 등
+_KRX_PREFERRED_RE = re.compile(r"^(?:\d{5}[56789KL]|\d{6}[KL])$")
+
+
+def is_preferred_share(symbol: str) -> bool:
+    """True if the symbol is a Korean preferred share (우선주)."""
+    return bool(_KRX_PREFERRED_RE.match(str(symbol).strip().upper()))
 
 
 from src.core.base_strategy import BaseStrategyEngine
@@ -214,12 +225,18 @@ class RIMValuationEngine(BaseStrategyEngine):
             # 영업손실 + 순이익 양수 → 지속가능 이익 없음으로 간주
             df.loc[suspicious, 'roe'] = 0.0
 
+        # ---- Preferred Share Filter (우선주 필터) ----
+        pref_mask = df['symbol'].apply(is_preferred_share)
+        if pref_mask.any():
+            df.loc[pref_mask, 'rim_filter_reason'] = 'PREFERRED_SHARE'
+
         n_suspicious = int(df['rim_filter_reason'].eq('LOW_EARNINGS_QUALITY').sum())
         n_adjusted = int(df['rim_filter_reason'].eq('QUALITY_ADJUSTED').sum())
-        if n_suspicious or n_adjusted:
+        n_preferred = int(df['rim_filter_reason'].eq('PREFERRED_SHARE').sum())
+        if n_suspicious or n_adjusted or n_preferred:
             logger.info(
-                f"Earnings quality filter: {n_suspicious} symbols invalidated (one-off gains), "
-                f"{n_adjusted} symbols ROE-adjusted"
+                f"Earnings quality & preferred filter: {n_suspicious} low quality, "
+                f"{n_adjusted} ROE-adjusted, {n_preferred} preferred shares invalidated"
             )
 
         # Vectorized calculation per market with dynamic r_e
@@ -227,6 +244,11 @@ class RIMValuationEngine(BaseStrategyEngine):
         discount_list = []
 
         for idx, row in df.iterrows():
+            if row.get('rim_filter_reason') == 'PREFERRED_SHARE':
+                v0_list.append(np.nan)
+                discount_list.append(np.nan)
+                continue
+
             mkt = row.get('market', 'KOSPI')
             if us10y_yield is not None:
                 r_e = self.derive_required_return(mkt, us10y_yield)
@@ -254,12 +276,12 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market
         df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
 
-        # 영업손실 + 순이익 양수(일회성 이익 의존) 종목은 RIM 점수 무효화
+        # 영업손실 + 순이익 양수(일회성 이익 의존) 및 우선주 종목은 RIM 점수 무효화
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
-        invalid_mask = df['rim_filter_reason'].eq('LOW_EARNINGS_QUALITY')
+        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE'])
         if invalid_mask.any():
-            df.loc[invalid_mask, ['rim_score', 'discount_ratio']] = np.nan
-            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (low earnings quality)")
+            df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
+            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (low quality or preferred share)")
 
         out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'earnings_quality', 'rim_filter_reason',
                     'intrinsic_value', 'discount_ratio', 'rim_score']

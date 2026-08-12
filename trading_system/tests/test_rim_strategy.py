@@ -70,6 +70,32 @@ def test_rim_earnings_quality_filter():
     assert abs(res.loc['005930', 'roe'] - 0.15) < 1e-9
 
 
+def test_rim_preferred_share_exclusion():
+    """우선주(삼성전자우 005935, 미래에셋증권2우B 00680K 등)는 RIM 점수가 NaN이어야 한다."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    df = pd.DataFrame([
+        {'symbol': '005930', 'market': 'KOSPI', 'Close': 70000.0, 'bps': 50000.0, 'roe': 0.15},
+        {'symbol': '005935', 'market': 'KOSPI', 'Close': 60000.0, 'bps': 50000.0, 'roe': 0.15},  # 삼성전자우
+        {'symbol': '00680K', 'market': 'KOSPI', 'Close': 5000.0, 'bps': 8000.0, 'roe': 0.10},   # 미래에셋증권2우B
+    ])
+
+    res = engine.compute_rim_scores(df).set_index('symbol')
+
+    # 보통주는 정상 산출
+    assert not np.isnan(res.loc['005930', 'rim_score'])
+    assert res.loc['005930', 'rim_filter_reason'] == ''
+
+    # 우선주는 RIM 점수 및 내재가치 NaN 무효화
+    assert res.loc['005935', 'rim_filter_reason'] == 'PREFERRED_SHARE'
+    assert np.isnan(res.loc['005935', 'rim_score'])
+    assert np.isnan(res.loc['005935', 'intrinsic_value'])
+
+    assert res.loc['00680K', 'rim_filter_reason'] == 'PREFERRED_SHARE'
+    assert np.isnan(res.loc['00680K', 'rim_score'])
+    assert np.isnan(res.loc['00680K', 'intrinsic_value'])
+
+
 def test_ensemble_scorer_9_strategies():
     scorer = EnsembleScoringEngine()
 

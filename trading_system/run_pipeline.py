@@ -2144,8 +2144,15 @@ def execute_prediction_pipeline():
             m_results = [r for r in res_list if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
             if not m_results:
                 continue
-            f_out.write(f"--- {m} Top {min(100, len(m_results))} ---\n")
-            for rank, r in enumerate(m_results[:100], 1):
+            confirmed = [r for r in m_results if r.get('is_vcp')]
+            if confirmed:
+                f_out.write(f"--- {m} Top {min(100, len(confirmed))} (Confirmed VCP Patterns) ---\n")
+                display_list = confirmed[:100]
+            else:
+                f_out.write(f"--- {m} Top {min(10, len(m_results))} VCP Candidates (Strict Pattern Unmet, Score Order) ---\n")
+                display_list = m_results[:10]
+
+            for rank, r in enumerate(display_list, 1):
                 sym = r['symbol']
                 name, _market = vcp_universe_map.get(sym, ('Unknown', ''))
                 peaks = ' > '.join(f'{p:.1f}%' for p in r['contraction_peaks']) if 'contraction_peaks' in r and r['contraction_peaks'] else 'N/A'
