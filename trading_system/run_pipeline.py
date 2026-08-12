@@ -19,6 +19,7 @@ from pathlib import Path
 
 cpu_count = os.cpu_count()
 _CPU_WORKERS: int = max(1, cpu_count if cpu_count is not None else 4)
+_IO_WORKERS: int = min(32, max(16, _CPU_WORKERS * 8))
 _PER_SYMBOL_TIMEOUT = 30  # seconds per symbol before skipping
 
 # Rate limiter for network requests (shared across threads)
@@ -1370,7 +1371,7 @@ def execute_prediction_pipeline():
         logger.info(f"Fetching training data for {len(train_symbols)} sampled symbols (update_interval={update_interval}s)...")
         train_data_dict = {}
 
-        with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=_IO_WORKERS) as executor:
             future_to_sym = {}
             for sym in train_symbols:
                 sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
@@ -1585,7 +1586,7 @@ def execute_prediction_pipeline():
     # 9. Fetch recent data for ALL symbols to run inference
     logger.info(f"Fetching inference data for ALL {len(all_symbols)} symbols (update_interval={update_interval}s)...")
     infer_data_dict = {}
-    with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=_IO_WORKERS) as executor:
         future_to_sym = {}
         for sym in all_symbols:
             sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
