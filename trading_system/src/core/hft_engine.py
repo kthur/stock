@@ -2,6 +2,7 @@ import logging
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +56,13 @@ class HFTEngine:
             if qty <= 0:
                 continue
 
-            # Model simple random-walk price and slippage (higher quantity -> more slippage)
-            slippage = 0.0001 * (qty / 1000.0) * start_price
+            # Almgren-Chriss Square-Root Market Impact model
+            # Delta P = sigma * Y * start_price * sqrt(qty / ADV)
+            sigma = 0.020        # 2% daily volatility assumption
+            impact_y = 0.50     # Empirical impact coefficient
+            adv = 1_000_000.0   # Average Daily Volume default
+            participation = qty / adv
+            slippage = float(sigma * impact_y * start_price * np.sqrt(participation)) if participation > 0 else 0.0
             price = start_price + (slippage if action == "BUY" else -slippage) + (_np_noise := 0.05 * (step - intervals/2))
 
             logger.info(f"[TWAP Step {step+1}/{intervals}] Executing {action} {qty} shares of {symbol} at {price:.2f} (slippage: {slippage:.4f})")

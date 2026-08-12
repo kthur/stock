@@ -3061,25 +3061,25 @@ def execute_prediction_pipeline():
 
     # 1. VIX
     vix_raw = float(indicator_infer['vix_raw'].dropna().iloc[-1]) if ('vix_raw' in indicator_infer.columns and not indicator_infer['vix_raw'].dropna().empty) else np.nan
-    vix_val = _extract_macro_indicator('VIX', vix_raw, '^VIX', '^VIX', getattr(config, 'default_vix', 18.5), min_val=0.0, max_val=150.0)
+    vix_val = _extract_macro_indicator('VIX', vix_raw, '^VIX', '^VIX', getattr(cfg, 'default_vix', 18.5), min_val=0.0, max_val=150.0)
 
     # 2. USD/KRW
     usdkrw_raw = float(indicator_infer['usdkrw_raw'].dropna().iloc[-1]) if ('usdkrw_raw' in indicator_infer.columns and not indicator_infer['usdkrw_raw'].dropna().empty) else np.nan
-    usdkrw_val = _extract_macro_indicator('USDKRW', usdkrw_raw, 'USDKRW=X', 'USDKRW=X', getattr(config, 'default_usdkrw', 1380.0), min_val=500.0, max_val=3000.0)
+    usdkrw_val = _extract_macro_indicator('USDKRW', usdkrw_raw, 'USDKRW=X', 'USDKRW=X', getattr(cfg, 'default_usdkrw', 1380.0), min_val=500.0, max_val=3000.0)
 
     # 3. US 10Y
     us10y_raw = float(indicator_infer['us10y'].dropna().iloc[-1]) if ('us10y' in indicator_infer.columns and not indicator_infer['us10y'].dropna().empty) else np.nan
-    us10y_val = _extract_macro_indicator('US10Y', us10y_raw, '^TNX', '^TNX', getattr(config, 'default_us10y', 4.25), min_val=0.0, max_val=25.0, is_yield=True)
+    us10y_val = _extract_macro_indicator('US10Y', us10y_raw, '^TNX', '^TNX', getattr(cfg, 'default_us10y', 4.25), min_val=0.0, max_val=25.0, is_yield=True)
 
     # 4. KR 10Y
     kr10y_raw = float(indicator_infer['kr10y'].dropna().iloc[-1]) if ('kr10y' in indicator_infer.columns and not indicator_infer['kr10y'].dropna().empty) else np.nan
-    kr10y_val = _extract_macro_indicator('KR10Y', kr10y_raw, 'FRED:IRLTLT01KRM156N', 'FRED:IRLTLT01KRM156N', getattr(config, 'default_kr10y', 3.15), min_val=0.0, max_val=25.0, is_yield=True)
+    kr10y_val = _extract_macro_indicator('KR10Y', kr10y_raw, 'FRED:IRLTLT01KRM156N', 'FRED:IRLTLT01KRM156N', getattr(cfg, 'default_kr10y', 3.15), min_val=0.0, max_val=25.0, is_yield=True)
 
     # WTI Crude Oil
-    wti_val = _extract_macro_indicator('WTI', np.nan, 'CL=F', 'CL=F', getattr(config, 'default_wti', 75.0), min_val=10.0, max_val=300.0)
+    wti_val = _extract_macro_indicator('WTI', np.nan, 'CL=F', 'CL=F', getattr(cfg, 'default_wti', 75.0), min_val=10.0, max_val=300.0)
 
     # Gold
-    gold_val = _extract_macro_indicator('Gold', np.nan, 'GLD', 'GLD', getattr(config, 'default_gold', 220.0), min_val=10.0, max_val=5000.0)
+    gold_val = _extract_macro_indicator('Gold', np.nan, 'GLD', 'GLD', getattr(cfg, 'default_gold', 220.0), min_val=10.0, max_val=5000.0)
 
     # ══ P0: Macro Indicator Data-Integrity Gate ══════════════════════════════
     # Protect the report AND the crisis/regime gating against corrupted/duplicated

@@ -244,19 +244,35 @@ class MarketIndicatorStorage:
                     PRIMARY KEY (symbol, filing_date, filing_id)
                 )
             ''')
-            # Migration: add new columns to stock_fundamentals and stock_universe if missing
-            for col_sql in [
-                "ALTER TABLE stock_fundamentals ADD COLUMN net_income REAL DEFAULT 0",
-                "ALTER TABLE stock_fundamentals ADD COLUMN eps REAL DEFAULT 0",
-                "ALTER TABLE stock_fundamentals ADD COLUMN shares_outstanding REAL DEFAULT 0",
-                "ALTER TABLE stock_fundamentals ADD COLUMN book_value REAL DEFAULT 0",
-                "ALTER TABLE stock_universe ADD COLUMN sector TEXT DEFAULT ''",
-                "ALTER TABLE stock_universe ADD COLUMN industry TEXT DEFAULT ''",
-            ]:
-                try:
-                    conn.execute(col_sql)
-                except sqlite3.OperationalError:
-                    pass
+            # Create table for Dead-Letter Queue (failed_ingestions)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS failed_ingestions (
+                    symbol TEXT,
+                    market TEXT,
+                    fetch_date TEXT,
+                    error_type TEXT,
+                    error_message TEXT,
+                    retry_count INTEGER DEFAULT 1,
+                    PRIMARY KEY (symbol, fetch_date)
+                )
+            ''')
+            # Helper function for safe schema migration
+            def _column_exists(c_conn, table_name, column_name):
+                cur = c_conn.cursor()
+                info = cur.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+                return any(col[1] == column_name for col in info)
+
+            migrations = [
+                ("stock_fundamentals", "net_income", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "eps", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "shares_outstanding", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "book_value", "REAL DEFAULT 0"),
+                ("stock_universe", "sector", "TEXT DEFAULT ''"),
+                ("stock_universe", "industry", "TEXT DEFAULT ''"),
+            ]
+            for tbl, col, col_def in migrations:
+                if not _column_exists(conn, tbl, col):
+                    conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {col_def}")
             conn.commit()
 
     # ------------------------------------------------------------------

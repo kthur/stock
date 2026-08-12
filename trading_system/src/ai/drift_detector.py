@@ -1,116 +1,111 @@
 """
-Feature Drift & Model Health Monitoring Module (MLOps)
-
-Calculates data drift metrics between baseline training distribution and live inference distribution.
-Provides Population Stability Index (PSI), Kolmogorov-Smirnov (KS) test, and Wasserstein distance.
+Feature Drift & Model Staleness Detector Module
+Computes Population Stability Index (PSI) and Page-Hinkley test on model prediction residuals to detect concept drift.
 """
 
-import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class FeatureDriftDetector:
-    """Monitors feature distribution shift (drift) between baseline and inference data."""
+    """
+    Detects distribution shifts in top model features (PSI) and concept drift in predictions (Page-Hinkley).
+    """
 
-    def __init__(self, psi_threshold: float = 0.25, output_dir: Optional[Union[str, Path]] = None) -> None:
+    def __init__(self, psi_threshold: float = 0.25, page_hinkley_delta: float = 0.005, page_hinkley_lambda: float = 50.0):
         self.psi_threshold = psi_threshold
-        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent.parent.parent / "data"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.ph_delta = page_hinkley_delta
+        self.ph_lambda = page_hinkley_lambda
+        
+        # Page-Hinkley state
+        self._ph_sum = 0.0
+        self._ph_min = 0.0
+        self._ph_n = 0
 
     @staticmethod
-    def calculate_psi(baseline: np.ndarray, current: np.ndarray, num_bins: int = 10) -> float:
-        """Calculate Population Stability Index (PSI) for a continuous variable."""
-        baseline = baseline[~np.isnan(baseline)]
-        current = current[~np.isnan(current)]
+    def compute_psi(reference_dist: np.ndarray, target_dist: np.ndarray, num_bins: int = 10) -> float:
+        """
+        Calculates Population Stability Index (PSI) between reference (train) and target (inference) distributions.
+        Rules of thumb:
+        - PSI < 0.10: No significant change.
+        - 0.10 <= PSI < 0.25: Moderate shift.
+        - PSI >= 0.25: Significant distribution shift -> Trigger model retraining.
+        """
+        ref_clean = np.asarray(reference_dist, dtype=np.float64)
+        ref_clean = ref_clean[~np.isnan(ref_clean)]
+        tar_clean = np.asarray(target_dist, dtype=np.float64)
+        tar_clean = tar_clean[~np.isnan(tar_clean)]
 
-        if len(baseline) == 0 or len(current) == 0:
+        if len(ref_clean) < 10 or len(tar_clean) < 10:
             return 0.0
 
         quantiles = np.linspace(0, 100, num_bins + 1)
-        bins = np.percentile(baseline, quantiles)
+        bins = np.percentile(ref_clean, quantiles)
+        bins[0] -= 1e-5
+        bins[-1] += 1e-5
         bins = np.unique(bins)
-
         if len(bins) < 2:
             return 0.0
 
-        # Adjust endpoints to cover full range
-        bins[0] = min(bins[0], np.min(current), np.min(baseline)) - 1e-5
-        bins[-1] = max(bins[-1], np.max(current), np.max(baseline)) + 1e-5
+        ref_counts, _ = np.histogram(ref_clean, bins=bins)
+        tar_counts, _ = np.histogram(tar_clean, bins=bins)
 
-        base_counts, _ = np.histogram(baseline, bins=bins)
-        curr_counts, _ = np.histogram(current, bins=bins)
+        ref_pct = ref_counts / float(len(ref_clean)) + 1e-6
+        tar_pct = tar_counts / float(len(tar_clean)) + 1e-6
 
-        base_pct = base_counts / max(1, len(baseline))
-        curr_pct = curr_counts / max(1, len(current))
+        psi_val = np.sum((tar_pct - ref_pct) * np.log(tar_pct / ref_pct))
+        return float(psi_val)
 
-        # Avoid zero division and log(0) using small epsilon
-        eps = 1e-4
-        base_pct = np.where(base_pct == 0, eps, base_pct)
-        curr_pct = np.where(curr_pct == 0, eps, curr_pct)
+    def update_page_hinkley(self, error: float) -> bool:
+        """
+        Updates Page-Hinkley test with the latest prediction residual error.
+        Returns True if concept drift is detected.
+        """
+        self._ph_n += 1
+        mean_error = self._ph_sum / float(self._ph_n) if self._ph_n > 1 else error
+        self._ph_sum += error
+        
+        # Cumulative sum of deviation
+        cum_dev = (error - mean_error - self.ph_delta)
+        self._ph_min = min(self._ph_min, cum_dev)
+        
+        ph_stat = cum_dev - self._ph_min
+        if ph_stat > self.ph_lambda:
+            logger.warning(f"🚨 [CONCEPT DRIFT] Page-Hinkley test triggered (stat={ph_stat:.2f} > threshold={self.ph_lambda})")
+            # Reset detector state
+            self._ph_sum = 0.0
+            self._ph_min = 0.0
+            self._ph_n = 0
+            return True
+        return False
 
-        psi = np.sum((curr_pct - base_pct) * np.log(curr_pct / base_pct))
-        return float(psi)
+    def check_feature_drift(
+        self,
+        ref_df: pd.DataFrame,
+        target_df: pd.DataFrame,
+        top_features: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Checks PSI for all specified top features and returns report.
+        """
+        drift_results = {}
+        flagged_features = []
 
-    def analyze_dataframe_drift(
-        self, baseline_df: pd.DataFrame, current_df: pd.DataFrame, feature_cols: List[str]
-    ) -> Dict[str, Dict[str, Union[float, str, bool]]]:
-        """Analyze PSI and drift status for multiple features."""
-        results = {}
-        drift_detected_features = []
+        for feat in top_features:
+            if feat in ref_df.columns and feat in target_df.columns:
+                psi = self.compute_psi(ref_df[feat].values, target_df[feat].values)
+                drift_results[feat] = round(psi, 4)
+                if psi >= self.psi_threshold:
+                    flagged_features.append(feat)
+                    logger.warning(f"⚠️ [FEATURE DRIFT] Feature '{feat}' PSI = {psi:.4f} (>= {self.psi_threshold})")
 
-        for col in feature_cols:
-            if col not in baseline_df.columns or col not in current_df.columns:
-                continue
-
-            base_vals = baseline_df[col].to_numpy(dtype=np.float64)
-            curr_vals = current_df[col].to_numpy(dtype=np.float64)
-
-            psi_score = self.calculate_psi(base_vals, curr_vals)
-            has_drift = psi_score >= self.psi_threshold
-
-            if psi_score < 0.1:
-                status = "NO_DRIFT"
-            elif psi_score < 0.25:
-                status = "MODERATE_DRIFT"
-            else:
-                status = "SIGNIFICANT_DRIFT"
-                drift_detected_features.append(col)
-
-            results[col] = {
-                "psi_score": round(psi_score, 4),
-                "status": status,
-                "has_significant_drift": has_drift,
-            }
-
-        if drift_detected_features:
-            logger.warning(
-                f"[DriftDetector] Significant feature drift detected in {len(drift_detected_features)} features: "
-                f"{drift_detected_features}"
-            )
-
-        # Save metrics JSON report
-        report_path = self.output_dir / "drift_metrics.json"
-        try:
-            with open(report_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "total_features": len(feature_cols),
-                        "significant_drift_count": len(drift_detected_features),
-                        "features": results,
-                    },
-                    f,
-                    indent=2,
-                    ensure_ascii=False,
-                )
-            logger.info(f"[DriftDetector] Drift report saved to {report_path}")
-        except Exception as e:
-            logger.error(f"[DriftDetector] Failed to save drift report: {e}")
-
-        from typing import cast
-        return cast(Dict[str, Dict[str, Union[float, str, bool]]], results)
+        requires_retrain = len(flagged_features) > 0
+        return {
+            "psi_scores": drift_results,
+            "flagged_features": flagged_features,
+            "requires_retrain": requires_retrain
+        }

@@ -271,3 +271,24 @@ class ErrorHandler:
             "recovery_enabled": self.recovery_enabled,
             "timestamp": datetime.now().isoformat(),
         }
+
+
+def safe_strategy_execute(strategy_name: str, func: Callable, *args, **kwargs) -> Any:
+    """
+    Executes a strategy function inside a safety isolation wrapper.
+    If an unhandled exception occurs, logs the error trace and returns an empty DataFrame or fallback,
+    preventing pipeline crashes and allowing the ensemble to proceed.
+    """
+    import pandas as pd
+    try:
+        res = func(*args, **kwargs)
+        if isinstance(res, pd.DataFrame):
+            logger.info(f"✅ Strategy '{strategy_name}' executed successfully ({len(res)} predictions).")
+            return res
+        elif res is not None:
+            logger.info(f"✅ Strategy '{strategy_name}' executed successfully.")
+            return res
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"❌ Strategy '{strategy_name}' FAILED with exception: {e}", exc_info=True)
+        return pd.DataFrame()

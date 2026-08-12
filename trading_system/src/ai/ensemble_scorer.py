@@ -558,6 +558,40 @@ class EnsembleScoringEngine:
         except Exception as e:
             logger.warning(f"Calibration predict failed for '{strategy}': {e}")
             return np.asarray(scores)
+
+    @staticmethod
+    def compute_ece_and_brier(probs: np.ndarray, y_true: np.ndarray, n_bins: int = 10) -> Dict[str, float]:
+        """
+        Computes Expected Calibration Error (ECE) and Brier Score for probability outputs.
+        ECE = sum(|bin_acc - bin_conf| * bin_weight)
+        Brier = mean((prob - y_true)^2)
+        """
+        p = np.asarray(probs, dtype=float)
+        y = np.asarray(y_true, dtype=float)
+        mask = np.isfinite(p) & np.isfinite(y)
+        p, y = p[mask], y[mask]
+        if len(p) == 0:
+            return {"ece": 0.0, "brier": 0.0}
+
+        brier = float(np.mean((p - y) ** 2))
+        bins = np.linspace(0.0, 1.0, n_bins + 1)
+        ece = 0.0
+        n_total = len(p)
+
+        for i in range(n_bins):
+            bin_lower, bin_upper = bins[i], bins[i + 1]
+            if i == n_bins - 1:
+                in_bin = (p >= bin_lower) & (p <= bin_upper)
+            else:
+                in_bin = (p >= bin_lower) & (p < bin_upper)
+            
+            n_in_bin = np.sum(in_bin)
+            if n_in_bin > 0:
+                acc = np.mean(y[in_bin])
+                conf = np.mean(p[in_bin])
+                ece += (n_in_bin / n_total) * abs(acc - conf)
+
+        return {"ece": float(ece), "brier": float(brier)}
     def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[List[float], pd.Series]],
                                window: int = 60,
                                risk_free_rate: float = 0.0,
@@ -706,25 +740,21 @@ class EnsembleScoringEngine:
             corr_matrix = subset_df.corr().abs()
             col_to_sid = {v: k for k, v in valid_cols.items()}
 
+            # Löwdin Symmetric Orthogonalization: C^(-1/2) for order-independent penalization
+            C = corr_matrix.values
+            evals, evecs = np.linalg.eigh(C)
+            evals = np.maximum(evals, 1e-4)
+            inv_sqrt_C = evecs @ np.diag(1.0 / np.sqrt(evals)) @ evecs.T
+
+            diag_penalties = np.diag(inv_sqrt_C)
+            mean_p = np.mean(diag_penalties) if np.mean(diag_penalties) > 0 else 1.0
+            norm_penalties = np.clip(diag_penalties / mean_p, 0.3, 3.0)
+
             penalized_weights = dict(weights)
-            for col1 in corr_matrix.columns:
-                sid1 = col_to_sid.get(col1)
-                if not sid1 or penalized_weights.get(sid1, 0.0) == 0.0:
-                    continue
-
-                for col2 in corr_matrix.columns:
-                    if col1 >= col2:
-                        continue
-                    sid2 = col_to_sid.get(col2)
-                    if not sid2 or penalized_weights.get(sid2, 0.0) == 0.0:
-                        continue
-
-                    r_val = float(corr_matrix.loc[col1, col2])
-                    if pd.notna(r_val) and r_val > correlation_threshold:
-                        if penalized_weights[sid1] < penalized_weights[sid2]:
-                            penalized_weights[sid1] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
-                        else:
-                            penalized_weights[sid2] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
+            for col, p_factor in zip(corr_matrix.columns, norm_penalties):
+                sid = col_to_sid.get(col)
+                if sid in penalized_weights and penalized_weights[sid] > 0:
+                    penalized_weights[sid] *= (1.0 / float(p_factor))
 
             total = sum(penalized_weights.values())
             if total > 0:

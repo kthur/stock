@@ -214,10 +214,23 @@ class PortfolioAllocator:
         returns_matrix = returns_sub.values
         mu = expected_returns.values
 
+        # Ledoit-Wolf Covariance Shrinkage for numerical stability & lower estimation error
+        try:
+            from sklearn.covariance import LedoitWolf
+            if len(returns_matrix) >= 5 and n_assets > 1:
+                cov_shrunk = LedoitWolf().fit(returns_matrix).covariance_
+            else:
+                cov_shrunk = np.cov(returns_matrix, rowvar=False)
+                if cov_shrunk.ndim == 0:
+                    cov_shrunk = np.array([[float(cov_shrunk)]])
+        except Exception:
+            cov_shrunk = np.cov(returns_matrix, rowvar=False) if len(returns_matrix) > 1 else np.eye(n_assets) * 0.0004
+            if cov_shrunk.ndim == 0:
+                cov_shrunk = np.array([[float(cov_shrunk)]])
+
         def objective(w):
             ret = np.dot(w, mu)
-            port_returns = np.dot(returns_matrix, w)
-            var_p = float(np.var(port_returns, ddof=1)) if len(port_returns) > 1 else 0.0004
+            var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (n_assets, n_assets) else float(np.var(np.dot(returns_matrix, w), ddof=1))
             return -(ret - 0.5 * self.risk_aversion * var_p)
 
         def cvar_constraint(w):

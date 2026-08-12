@@ -226,9 +226,24 @@ class ExecutionOMSEngine:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (order_id, symbol, target_price, executed_price, round(slippage_bps, 2), executed_volume, now_str))
 
+            # Calculate total executed volume so far for this order
             cursor.execute("""
-                UPDATE order_plans SET status = 'EXECUTED' WHERE order_id = ?
+                SELECT COALESCE(SUM(executed_volume), 0) FROM execution_logs WHERE order_id = ?
             """, (order_id,))
+            total_executed = cursor.execute("SELECT COALESCE(SUM(executed_volume), 0) FROM execution_logs WHERE order_id = ?", (order_id,)).fetchone()[0]
+
+            # Fetch target quantity from order_plans
+            row = cursor.execute("SELECT quantity FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
+            target_qty = row[0] if row and row[0] is not None else 0
+
+            if target_qty > 0 and total_executed < target_qty:
+                new_status = 'PARTIALLY_FILLED'
+            else:
+                new_status = 'EXECUTED'
+
+            cursor.execute("""
+                UPDATE order_plans SET status = ? WHERE order_id = ?
+            """, (new_status, order_id))
 
             conn.commit()
         finally:

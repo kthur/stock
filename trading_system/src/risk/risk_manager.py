@@ -36,6 +36,37 @@ class RiskLevel(Enum):
     CRITICAL = "CRITICAL"
 
 
+class PortfolioCircuitBreaker:
+    """
+    Hard portfolio-level Max Drawdown circuit breaker.
+    Triggers emergency liquidation if current portfolio value drops below max_drawdown threshold from peak.
+    """
+    def __init__(self, max_drawdown: float = -0.15):
+        self.max_drawdown = max_drawdown  # Default -15% MDD hard limit
+        self.peak_value = 0.0
+        self.is_tripped = False
+
+    def update_and_check(self, current_value: float) -> bool:
+        if current_value <= 0:
+            return self.is_tripped
+        if self.peak_value <= 0:
+            self.peak_value = current_value
+
+        if current_value > self.peak_value:
+            self.peak_value = current_value
+
+        drawdown = (current_value - self.peak_value) / self.peak_value
+        if drawdown <= self.max_drawdown:
+            self.is_tripped = True
+            logger.critical(f"🚨 [PORTFOLIO CIRCUIT BREAKER TRIPPED] Drawdown {drawdown:.2%} breached hard limit {self.max_drawdown:.2%}")
+            return True
+        return self.is_tripped
+
+    def reset(self):
+        self.is_tripped = False
+        self.peak_value = 0.0
+
+
 class EconomicCalendarAnalyzer:
     """
     Macro Economic Event Calendar & Surprise Index Analyzer
@@ -1056,6 +1087,42 @@ class RiskManager:
 
             drawdown = (self.peak_value - val) / self.peak_value
             return drawdown
+
+    def run_built_in_stress_tests(self, portfolio_weights: Dict[str, float]) -> Dict[str, Any]:
+        """
+        Runs built-in historical stress tests (2008 GFC, 2020 COVID, 2022 Rate Hikes)
+        on current portfolio weights and determines if defensive scaling is needed.
+        """
+        if not portfolio_weights:
+            return {"status": "NO_POSITIONS", "stress_scaling": 1.0, "scenarios": {}}
+
+        scenarios = {
+            "2008_GFC": {"market_drop": -0.45, "vol_multiplier": 2.5, "corr_spike": 0.85},
+            "2020_COVID": {"market_drop": -0.34, "vol_multiplier": 3.0, "corr_spike": 0.90},
+            "2022_RATE_HIKES": {"market_drop": -0.25, "vol_multiplier": 1.8, "corr_spike": 0.70},
+        }
+
+        results = {}
+        worst_drawdown = 0.0
+
+        for name, spec in scenarios.items():
+            w_arr = np.array(list(portfolio_weights.values()))
+            est_drop = spec["market_drop"] * np.sum(w_arr) * (1.0 + 0.2 * spec["corr_spike"])
+            results[name] = round(float(est_drop), 4)
+            worst_drawdown = min(worst_drawdown, float(est_drop))
+
+        stress_scaling = 1.0
+        if worst_drawdown <= -0.25:
+            stress_scaling = 0.50
+        elif worst_drawdown <= -0.15:
+            stress_scaling = 0.75
+
+        return {
+            "status": "PASS" if stress_scaling == 1.0 else "SCALED",
+            "worst_drawdown": round(worst_drawdown, 4),
+            "stress_scaling": stress_scaling,
+            "scenarios": results
+        }
 
     def calculate_risk_level(self, positions: Dict[str, float]) -> RiskLevel:
         """현재 위험 수준 계산 (drawdown + 포지션 집중도 + 상관관계 + 위기 모드)"""
