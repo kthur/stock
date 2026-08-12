@@ -728,14 +728,16 @@ class EnsembleScoringEngine:
         valid_cols = {}
         for sid in weights.keys():
             if weights.get(sid, 0.0) > 0:
-                reg_col = score_cols.get(sid)
+                str_sid = str(sid)
+                reg_col = score_cols.get(str_sid) or (score_cols.get(sid) if isinstance(sid, str) else None)
                 if reg_col and reg_col in scores_df.columns:
                     valid_cols[sid] = reg_col
                 elif sid in scores_df.columns:
                     valid_cols[sid] = sid
                 else:
                     for df_col in scores_df.columns:
-                        if sid.lower() in df_col.lower() or df_col.lower().startswith(sid[:3].lower()):
+                        str_df_col = str(df_col)
+                        if str_sid.lower() in str_df_col.lower() or str_df_col.lower().startswith(str_sid[:3].lower()):
                             valid_cols[sid] = df_col
                             break
 
