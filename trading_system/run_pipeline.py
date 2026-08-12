@@ -1262,8 +1262,11 @@ def execute_prediction_pipeline():
         if os.environ.get("PRESEED_MODE", "false").lower() == "true":
             logger.info("PRESEED_MODE active: forcing skip training (cache-only data run).")
             should_skip = True
-        elif regression_loaded and surge_loaded and vcp_loaded:
-            logger.info("Pre-trained models found and loaded successfully. Skipping model training phase.")
+        elif os.environ.get("SKIP_TRAINING", "").lower() in ("true", "1", "yes"):
+            logger.info("SKIP_TRAINING environment variable is explicitly set. Forcing skip training phase for inference run.")
+            should_skip = True
+        elif regression_loaded or surge_loaded or vcp_loaded:
+            logger.info("Pre-trained models found on disk. Skipping model training phase.")
             should_skip = True
         else:
             logger.warning("Missing or incomplete pre-trained models on disk. Falling back to training. Setting should_skip = False.")
