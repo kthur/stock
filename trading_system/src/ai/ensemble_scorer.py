@@ -725,10 +725,20 @@ class EnsembleScoringEngine:
         reg = get_registry()
         score_cols = reg.get_all_score_columns()
 
-        valid_cols = {
-            sid: col for sid, col in score_cols.items()
-            if col in scores_df.columns and sid in weights and weights.get(sid, 0.0) > 0
-        }
+        valid_cols = {}
+        for sid in weights.keys():
+            if weights.get(sid, 0.0) > 0:
+                reg_col = score_cols.get(sid)
+                if reg_col and reg_col in scores_df.columns:
+                    valid_cols[sid] = reg_col
+                elif sid in scores_df.columns:
+                    valid_cols[sid] = sid
+                else:
+                    for df_col in scores_df.columns:
+                        if sid.lower() in df_col.lower() or df_col.lower().startswith(sid[:3].lower()):
+                            valid_cols[sid] = df_col
+                            break
+
         if len(valid_cols) < 2:
             return weights
 
@@ -755,6 +765,17 @@ class EnsembleScoringEngine:
                 sid = col_to_sid.get(col)
                 if sid in penalized_weights and penalized_weights[sid] > 0:
                     penalized_weights[sid] *= (1.0 / float(p_factor))
+
+            # Pairwise differential adjustment for collinear pairs above threshold
+            cols = list(corr_matrix.columns)
+            for i in range(len(cols)):
+                for j in range(i + 1, len(cols)):
+                    c1, c2 = cols[i], cols[j]
+                    s1, s2 = col_to_sid.get(c1), col_to_sid.get(c2)
+                    if s1 and s2 and s1 in penalized_weights and s2 in penalized_weights:
+                        r_val = float(corr_matrix.loc[c1, c2])
+                        if pd.notna(r_val) and r_val > correlation_threshold:
+                            penalized_weights[s2] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
 
             total = sum(penalized_weights.values())
             if total > 0:

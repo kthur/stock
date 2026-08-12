@@ -35,8 +35,13 @@ class HFTEngine:
             logger.error(f"[HFT ENGINE] Failed to execute micro order: {e}")
             return False
 
+    def compute_almgren_chriss_impact(self, qty: int, start_price: float, adv: float = 1_000_000.0, sigma: float = 0.020, impact_y: float = 0.50) -> float:
+        """Computes Almgren-Chriss Square-Root Market Impact slippage."""
+        participation = qty / max(adv, 1.0)
+        return float(sigma * impact_y * start_price * np.sqrt(participation)) if participation > 0 else 0.0
+
     def execute_twap(
-        self, symbol: str, action: str, total_quantity: int, duration_minutes: int, intervals: int = 5, start_price: float = 100.0
+        self, symbol: str, action: str, total_quantity: int, duration_minutes: int, intervals: int = 5, start_price: float = 100.0, use_almgren_chriss: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Time-Weighted Average Price (TWAP) execution.
@@ -56,13 +61,11 @@ class HFTEngine:
             if qty <= 0:
                 continue
 
-            # Almgren-Chriss Square-Root Market Impact model
-            # Delta P = sigma * Y * start_price * sqrt(qty / ADV)
-            sigma = 0.020        # 2% daily volatility assumption
-            impact_y = 0.50     # Empirical impact coefficient
-            adv = 1_000_000.0   # Average Daily Volume default
-            participation = qty / adv
-            slippage = float(sigma * impact_y * start_price * np.sqrt(participation)) if participation > 0 else 0.0
+            if use_almgren_chriss:
+                slippage = self.compute_almgren_chriss_impact(qty, start_price)
+            else:
+                slippage = 0.0001 * (qty / 1000.0) * start_price
+
             price = start_price + (slippage if action == "BUY" else -slippage) + (_np_noise := 0.05 * (step - intervals/2))
 
             logger.info(f"[TWAP Step {step+1}/{intervals}] Executing {action} {qty} shares of {symbol} at {price:.2f} (slippage: {slippage:.4f})")

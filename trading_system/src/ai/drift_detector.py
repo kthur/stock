@@ -6,7 +6,7 @@ Computes Population Stability Index (PSI) and Page-Hinkley test on model predict
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -109,3 +109,33 @@ class FeatureDriftDetector:
             "flagged_features": flagged_features,
             "requires_retrain": requires_retrain
         }
+
+    @staticmethod
+    def calculate_psi(reference_dist: np.ndarray, target_dist: np.ndarray, num_bins: int = 10) -> float:
+        """Alias for compute_psi for backward compatibility."""
+        return FeatureDriftDetector.compute_psi(reference_dist, target_dist, num_bins=num_bins)
+
+    def analyze_dataframe_drift(
+        self,
+        ref_df: pd.DataFrame,
+        target_df: pd.DataFrame,
+        feature_cols: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Alias for check_feature_drift returning feature status dict for backward compatibility."""
+        cols = feature_cols if feature_cols is not None else list(ref_df.columns)
+        res = self.check_feature_drift(ref_df, target_df, cols)
+        psi_scores = res.get("psi_scores", {})
+        output = {}
+        for feat, psi in psi_scores.items():
+            if psi < 0.10:
+                status = "NO_DRIFT"
+            elif psi < 0.25:
+                status = "MODERATE_DRIFT"
+            else:
+                status = "SIGNIFICANT_DRIFT"
+            output[feat] = {
+                "psi": psi,
+                "status": status,
+                "has_significant_drift": psi >= self.psi_threshold
+            }
+        return output
