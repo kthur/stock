@@ -584,7 +584,7 @@ class EnsembleScoringEngine:
                 in_bin = (p >= bin_lower) & (p <= bin_upper)
             else:
                 in_bin = (p >= bin_lower) & (p < bin_upper)
-            
+
             n_in_bin = np.sum(in_bin)
             if n_in_bin > 0:
                 acc = np.mean(y[in_bin])

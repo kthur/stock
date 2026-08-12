@@ -6,7 +6,7 @@ Computes Population Stability Index (PSI) and Page-Hinkley test on model predict
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class FeatureDriftDetector:
         self.psi_threshold = psi_threshold
         self.ph_delta = page_hinkley_delta
         self.ph_lambda = page_hinkley_lambda
-        
+
         # Page-Hinkley state
         self._ph_sum = 0.0
         self._ph_min = 0.0
@@ -68,11 +68,11 @@ class FeatureDriftDetector:
         self._ph_n += 1
         mean_error = self._ph_sum / float(self._ph_n) if self._ph_n > 1 else error
         self._ph_sum += error
-        
+
         # Cumulative sum of deviation
         cum_dev = (error - mean_error - self.ph_delta)
         self._ph_min = min(self._ph_min, cum_dev)
-        
+
         ph_stat = cum_dev - self._ph_min
         if ph_stat > self.ph_lambda:
             logger.warning(f"🚨 [CONCEPT DRIFT] Page-Hinkley test triggered (stat={ph_stat:.2f} > threshold={self.ph_lambda})")
