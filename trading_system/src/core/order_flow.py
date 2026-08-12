@@ -102,8 +102,20 @@ class OrderFlowEngine(BaseStrategyEngine):
                 vol_20d = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else vol_5d
                 vol_accel = (vol_5d / (vol_20d + 1e-6)) if vol_20d > 0 else 1.0
 
-                # Composite order flow indicator
-                composite_flow = 0.60 * mfi_ratio + 0.25 * np.clip(0.5 + obv_trend * 0.1, 0.0, 1.0) + 0.15 * np.clip(vol_accel / 2.0, 0.0, 1.0)
+                # VWAP Deviation Signal (Current Close vs 20-day VWAP)
+                vol_20_slice = volume.iloc[-20:]
+                close_20_slice = close.iloc[-20:]
+                vwap_20d = (close_20_slice * vol_20_slice).sum() / (vol_20_slice.sum() + 1e-6)
+                vwap_dev = (float(close.iloc[-1]) - float(vwap_20d)) / (float(vwap_20d) + 1e-6)
+                vwap_score = float(np.clip(0.5 + vwap_dev * 5.0, 0.0, 1.0))
+
+                # Composite order flow indicator (MFI + OBV + Volume Accel + VWAP Deviation)
+                composite_flow = (
+                    0.45 * mfi_ratio +
+                    0.20 * np.clip(0.5 + obv_trend * 0.1, 0.0, 1.0) +
+                    0.15 * np.clip(vol_accel / 2.0, 0.0, 1.0) +
+                    0.20 * vwap_score
+                )
 
                 # Check if detailed foreign/institutional flow data is available
                 inst_boost = 0.0

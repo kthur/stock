@@ -301,17 +301,18 @@ class MarketIndicatorStorage:
             elapsed = _time.monotonic() - t0
             status = "FAILED" if err_msg else "SUCCESS"
             end_iso = datetime.now().isoformat(timespec='seconds')
-            try:
-                with self._write_lock:
-                    with self._connect() as conn:
-                        conn.execute(
-                            "UPDATE pipeline_runs SET end_time=?, status=?, error_message=? WHERE id=?",
-                            (end_iso, status, err_msg, row_id),
-                        )
-                        conn.commit()
-                logger.info(f"[PipelineRun] stage={stage} id={row_id} {status} ({elapsed:.1f}s)")
-            except Exception as _e:
-                logger.warning(f"[PipelineRun] Failed to log stage end for '{stage}': {_e}")
+            if row_id is not None:
+                try:
+                    with self._write_lock:
+                        with self._connect() as conn:
+                            conn.execute(
+                                "UPDATE pipeline_runs SET end_time=?, status=?, error_message=? WHERE id=?",
+                                (end_iso, status, err_msg, row_id),
+                            )
+                            conn.commit()
+                    logger.info(f"[PipelineRun] stage={stage} id={row_id} {status} ({elapsed:.1f}s)")
+                except Exception as _e:
+                    logger.warning(f"[PipelineRun] Failed to log stage end for '{stage}' (id={row_id}): {_e}")
 
     def update_stock_universe(self):
         """Fetch and update S&P 500, NASDAQ, RUSSELL2000 and KRX (KOSPI, KOSDAQ) stocks"""
@@ -453,22 +454,39 @@ class MarketIndicatorStorage:
                 conn.commit()
         logger.info("Stock universe updated successfully with sector information.")
 
-    def save_indicators(self, data: dict, date_str: str):
+    def save_indicators(self, data: Any, date_str: Any = None):
         """
-        Save the indicators fetched from GlobalMarketClient using batch executemany.
-        `data` is expected to have 'indices', 'fx_rates', 'macro_commodities'
+        Save global indicators using batch executemany.
+        Supports both (data: dict, date_str: str) and (symbol: str, df: DataFrame/dict) calls.
         """
         sql = "INSERT OR REPLACE INTO global_indicators (date,symbol,name,price,change_pct) VALUES (?,?,?,?,?)"
         rows = []
-        for sym, info in data.get('indices', {}).items():
-            if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
-                rows.append((date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
-        for sym, info in data.get('fx_rates', {}).items():
-            if self._indicator_value_ok(info.get('pair') or sym, info.get('name'), info.get('rate')):
-                rows.append((date_str, info['pair'], info['name'], info['rate'], info['change_pct']))
-        for sym, info in data.get('macro_commodities', {}).items():
-            if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
-                rows.append((date_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+
+        if isinstance(data, str):
+            # Called as save_indicators(symbol, df_or_dict)
+            symbol = data
+            val_data = date_str
+            d_str = datetime.now().strftime("%Y-%m-%d")
+            if isinstance(val_data, pd.DataFrame):
+                for idx, row in val_data.iterrows():
+                    cur_d = idx.strftime("%Y-%m-%d") if hasattr(idx, 'strftime') else str(idx)
+                    price = float(row.get('Close', 0.0))
+                    rows.append((cur_d, symbol, symbol, price, 0.0))
+            elif isinstance(val_data, dict):
+                price = float(val_data.get('price', val_data.get('Close', 0.0)))
+                rows.append((d_str, symbol, symbol, price, 0.0))
+        elif isinstance(data, dict):
+            d_str = str(date_str or datetime.now().strftime("%Y-%m-%d"))
+            for sym, info in data.get('indices', {}).items():
+                if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
+                    rows.append((d_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+            for sym, info in data.get('fx_rates', {}).items():
+                if self._indicator_value_ok(info.get('pair') or sym, info.get('name'), info.get('rate')):
+                    rows.append((d_str, info['pair'], info['name'], info['rate'], info['change_pct']))
+            for sym, info in data.get('macro_commodities', {}).items():
+                if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
+                    rows.append((d_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+
         if not rows:
             return
 

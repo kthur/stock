@@ -67,6 +67,41 @@ class TradeJournal:
         finally:
             conn.close()
 
+    def add_trade(
+        self,
+        symbol: str,
+        side: str,
+        quantity: int,
+        price: float,
+        reason: Optional[str] = None,
+        ensemble_score: Optional[float] = None,
+        sentiment_score: Optional[float] = None,
+        regime: Optional[str] = None,
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None,
+        pnl: Optional[float] = None,
+        status: str = "EXECUTED",
+        timestamp: Optional[str] = None,
+    ) -> None:
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        trade = TradeRecord(
+            timestamp=timestamp,
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            price=price,
+            reason=reason,
+            ensemble_score=ensemble_score,
+            sentiment_score=sentiment_score,
+            regime=regime,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            pnl=pnl,
+            status=status,
+        )
+        self.log_trade(trade)
+
     def log_trade(self, trade: TradeRecord) -> None:
         """거래 기록 저장 (매수/매도/취소)"""
         conn = self._get_connection()

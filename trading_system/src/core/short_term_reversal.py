@@ -7,6 +7,7 @@ filtered by fundamental quality and volatility bounds to calculate mean-reversio
 import logging
 from typing import Dict, Optional, Any
 import pandas as pd
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

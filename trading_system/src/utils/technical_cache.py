@@ -317,7 +317,7 @@ class DataFrameCache:
 
     def _evict_if_needed(self) -> None:
         if len(self._cache) > self._max_items:
-            oldest_key = min(self._timestamps, key=self._timestamps.get)
+            oldest_key = min(self._timestamps, key=lambda k: self._timestamps[k])
             self._cache.pop(oldest_key, None)
             self._timestamps.pop(oldest_key, None)
 

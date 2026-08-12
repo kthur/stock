@@ -20,6 +20,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +62,14 @@ def disengage() -> None:
     logger.warning("KILL SWITCH DISENGAGED: order generation/execution re-enabled.")
 
 
-def get_state() -> dict:
+def get_state() -> dict[str, Any]:
     """현재 킬 스위치 상태 딕셔너리."""
     try:
         if STATE_FILE.exists():
             with open(STATE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
     except Exception as e:
         logger.debug(f"kill_switch_state read failed: {e}")
     return {}

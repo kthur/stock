@@ -66,7 +66,7 @@ class OptunaStrategyTuner:
         tmp_target.replace(target)
         logger.info(f"Saved tuned parameters to {target}")
 
-    def tune_strategy_1_regression(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:
+    def tune_strategy_1_regression(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20) -> Dict[str, Any]:
         """Strategy 1: Regression tuning (XGBoost, LightGBM, CatBoost) using TimeSeriesSplit."""
         logger.info("Tuning Strategy 1 (Regression)...")
         if X is not None:
@@ -89,7 +89,7 @@ class OptunaStrategyTuner:
             self.tuned_params['cat'] = default_cat
             return {'xgb': default_xgb, 'lgb': default_lgb, 'cat': default_cat}
 
-        tscv = TimeSeriesSplit(n_splits=n_splits)
+        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
 
         # 1. XGBoost Regressor
         def xgb_objective(trial):
@@ -156,7 +156,7 @@ class OptunaStrategyTuner:
 
         return self.tune_strategy_1_regression(None, None, n_trials=n_trials)
 
-    def tune_strategy_2_surge(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:
+    def tune_strategy_2_surge(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20) -> Dict[str, Any]:
         """Strategy 2: Surge Classifier tuning (XGBoost, LightGBM, CatBoost)."""
         logger.info("Tuning Strategy 2 (Surge Classifier)...")
         if X is not None:
@@ -179,7 +179,7 @@ class OptunaStrategyTuner:
             self.tuned_params['surge_cat'] = default_surge_cat
             return {'surge_xgb': default_surge_xgb, 'surge_lgb': default_surge_lgb, 'surge_cat': default_surge_cat}
 
-        tscv = TimeSeriesSplit(n_splits=n_splits)
+        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
 
         def surge_objective(trial):
             params = {
@@ -355,7 +355,8 @@ class OptunaStrategyTuner:
                     r1 = float(r_pct.iloc[-10:-5].max())
                     r2 = float(r_pct.iloc[-20:-10].max())
                     decreasing = (r1 <= r2 * c_ratio)
-                    high_52w = float(high.iloc[-70:-5].max())
+                    lookback_52w = min(len(high) - 5, 252)
+                    high_52w = float(high.iloc[-(lookback_52w + 5):-5].max())
                     curr_p = float(close.iloc[-5])
                     near_pivot = (curr_p / (high_52w + 1e-8)) >= near_high
                     if decreasing and near_pivot:
@@ -376,7 +377,7 @@ class OptunaStrategyTuner:
         """Convenience wrapper for Strategy 4: VCP Rule Detector tuning."""
         return self.tune_strategy_4_vcp_rule(prices_dict=prices_dict, n_trials=n_trials)
 
-    def tune_strategy_5_vcp_ml(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3) -> Dict[str, Any]:
+    def tune_strategy_5_vcp_ml(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20) -> Dict[str, Any]:
         """Strategy 5: VCP ML Predictor tuning (scale_pos_weight, window_step, XGBoost/LGB/CatBoost hyperparams)."""
         logger.info("Tuning Strategy 5 (VCP ML Predictor)...")
         if X is not None:
@@ -395,7 +396,7 @@ class OptunaStrategyTuner:
             self.tuned_params['vcp_ml'] = default_vcp_ml
             return default_vcp_ml
 
-        tscv = TimeSeriesSplit(n_splits=n_splits)
+        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
 
         def vcp_ml_objective(trial):
             max_depth = trial.suggest_int('max_depth', 3, 6)

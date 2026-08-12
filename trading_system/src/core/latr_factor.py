@@ -28,8 +28,9 @@ class LATRFactorEngine(BaseStrategyEngine):
     52주 고점 대비 낙폭(DD) + 호가/거래량 유동성 + 하방 꼬리위험 프리미엄 조합.
     - 투매(Panic Selling) 후 극단적 반등(Extreme Bounce) 신호 포착
     """
-    def __init__(self, lookback_window: int = 252):
+    def __init__(self, lookback_window: int = 252, target_drawdown: float = 0.35):
         self.lookback_window = lookback_window
+        self.target_drawdown = target_drawdown
 
     def compute_scores(self, prices_dict: Dict[str, pd.DataFrame], fundamentals_dict=None, indicators_df=None, **kwargs) -> Dict[str, float]:
         """
@@ -38,39 +39,35 @@ class LATRFactorEngine(BaseStrategyEngine):
         scores = {}
         for sym, df in prices_dict.items():
             try:
-                if df.empty:
+                if df is None or len(df) < 20:
                     scores[sym] = 0.5
                     continue
 
-                close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
-                vol = df['Volume'].iloc[:, 0] if isinstance(df['Volume'], pd.DataFrame) else df['Volume']
-
+                close = df['Close']
+                vol = df['Volume']
                 if len(close) < 20:
                     scores[sym] = 0.5
                     continue
 
-                # 1. 52-week Drawdown (Max - Current) / Max
-                window = min(len(close), self.lookback_window)
-                high_52w = float(close.tail(window).max())
-                curr_price = float(close.iloc[-1])
-                dd_pct = (high_52w - curr_price) / high_52w if high_52w > 0 else 0.0
+                # 1. 52-week Drawdown
+                h52 = close.tail(self.lookback_window).max()
+                cp = close.iloc[-1]
+                dd_pct = (h52 - cp) / (h52 + 1e-8) if h52 > 0 else 0.0
 
-                # 2. Volume Spike / Liquidity Surge (5d vol / 20d vol)
-                vol_5d = float(vol.tail(5).mean())
-                vol_20d = float(vol.tail(20).mean())
-                vol_surge = vol_5d / (vol_20d + 1e-5)
+                # 2. Volume Surge Ratio
+                vol_20m = vol.tail(20).mean()
+                vol_surge = (vol.iloc[-1] / vol_20m) if vol_20m > 0 else 1.0
 
-                # 3. Tail Risk Premium (Quantile 5% lower return ratio)
-                daily_rets = close.pct_change().tail(window).dropna()
+                # 3. Tail Risk (5th percentile daily return over 60D)
+                daily_rets = close.pct_change().dropna()
                 tail_risk = float(np.percentile(daily_rets, 5)) if len(daily_rets) >= 20 else -0.03
 
                 # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price))
                 dollar_vol = (vol.tail(20) * close.tail(20)).replace(0, 1.0)
                 amihud_illiq = float((daily_rets.abs().tail(20) / dollar_vol).mean() * 1e6)
 
-                # H-2 Fix: Gaussian scoring centered at optimal 35% drawdown for panic bounce opportunity
-                # Extreme 90% distress crash is penalized, while zero drawdown receives neutral score.
-                dd_score = float(np.exp(-((dd_pct - 0.35) ** 2) / (2.0 * (0.15 ** 2))))
+                # Gaussian scoring centered at target drawdown for panic bounce opportunity
+                dd_score = float(np.exp(-((dd_pct - self.target_drawdown) ** 2) / (2.0 * (0.15 ** 2))))
 
                 # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty + illiquidity premium
                 latr_score = (dd_score * 0.35) + (min(vol_surge, 3.0) * 0.35) - (abs(tail_risk) * 0.15) + (min(amihud_illiq, 2.0) * 0.15)

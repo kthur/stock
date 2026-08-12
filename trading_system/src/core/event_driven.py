@@ -57,6 +57,8 @@ class EventDrivenEngine(BaseStrategyEngine):
         if not self.dart_api_key and config is not None:
             self.dart_api_key = getattr(config, 'dart_api_key', '').strip()
         self.default_cb_dilution_ratio = default_cb_dilution_ratio
+        configured_weights = getattr(config, 'event_weights', None) if config else None
+        self.event_weights = dict(configured_weights) if configured_weights else dict(self.EVENT_WEIGHTS)
 
     def fetch_recent_dart_filings(self, bgn_de: str = "", end_de: str = "") -> List[Dict[str, Any]]:
         """

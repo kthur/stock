@@ -1024,13 +1024,12 @@ class OnDevicePredictionModel:
             if col in df.columns:
                 df[col] = df[col].ffill().fillna(meta.get(col, 0.0))
 
-        # Add has_fundamental feature to explicitly differentiate true 0.0 from missing data (Issue S4)
+        # Add has_fundamental feature to explicitly differentiate true 0.0 from missing data (point-in-time, no lookahead)
         if 'has_fundamental' not in df.columns:
-            if has_cols:
-                df['has_fundamental'] = 1.0 if not df['revenue'].isna().all() else 0.0
+            if 'revenue' in df.columns:
+                df['has_fundamental'] = df['revenue'].notna().astype(np.float32)
             else:
-                # If df_fun was fetched and had data, fundamental exists
-                df['has_fundamental'] = 1.0 if (df_fun is not None and not df_fun.empty) else 0.0
+                df['has_fundamental'] = 0.0
 
         # Ensure index has no duplicates to prevent reindexing errors
         if df.index.has_duplicates:
@@ -2766,7 +2765,12 @@ class OnDevicePredictionModel:
             leader_ret = today_returns.get(leader, 0.0)
             if leader_ret <= 0.001:
                 continue
-            for follower, corr in followers:
+            follower_iterable = followers.items() if isinstance(followers, dict) else followers
+            for item in follower_iterable:
+                if isinstance(item, (tuple, list)) and len(item) == 2:
+                    follower, corr = str(item[0]), float(item[1])
+                else:
+                    follower, corr = str(item), 1.0
                 weight = leader_ret * corr
                 follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, weight)
 
@@ -2774,8 +2778,13 @@ class OnDevicePredictionModel:
             logger.info("Lead-lag: calculating fallback follower scores")
             if hasattr(self, 'lead_lag_matrix') and self.lead_lag_matrix:
                 for leader, followers in self.lead_lag_matrix.items():
-                    for follower, corr in followers:
-                        follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, float(corr))
+                    follower_iterable = followers.items() if isinstance(followers, dict) else followers
+                    for item in follower_iterable:
+                        if isinstance(item, (tuple, list)) and len(item) == 2:
+                            follower, corr = str(item[0]), float(item[1])
+                        else:
+                            follower, corr = str(item), 1.0
+                        follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, corr)
             for sym, df in prices_dict.items():
                 if sym not in follower_scores and df is not None and len(df) >= 2:
                     c = df['Close']

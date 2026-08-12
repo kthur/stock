@@ -347,10 +347,16 @@ class TradingConfig:
     def _parse_authorized_ids(self) -> list:
         if not self.telegram_authorized_user_ids.strip():
             return []
-        try:
-            return [int(uid.strip()) for uid in self.telegram_authorized_user_ids.split(",") if uid.strip()]
-        except ValueError:
-            return []
+        res = []
+        for uid in self.telegram_authorized_user_ids.split(","):
+            uid = uid.strip()
+            if not uid:
+                continue
+            try:
+                res.append(int(uid))
+            except ValueError:
+                logger.warning(f"Invalid Telegram user ID ignored: {uid!r}")
+        return res
 
     @property
     def parsed_authorized_user_ids(self) -> list:

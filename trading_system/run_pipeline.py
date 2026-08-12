@@ -3032,89 +3032,54 @@ def execute_prediction_pipeline():
     kospi_ret_20d = _safe_float(indicator_infer['kospi_change'].tail(20).mean(), 0.05) if 'kospi_change' in indicator_infer.columns else 0.05
     kospi_vol_20d = _safe_float(indicator_infer['kospi_change'].tail(20).std(), 1.2) if 'kospi_change' in indicator_infer.columns else 1.2
 
-    # 1. VIX Index level: check vix_raw, price_db ^VIX, db_macro ^VIX, default 18.5
-    vix_val = np.nan
-    if 'vix_raw' in indicator_infer.columns and not indicator_infer['vix_raw'].dropna().empty:
-        vix_val = float(indicator_infer['vix_raw'].dropna().iloc[-1])
-    if (pd.isna(vix_val) or vix_val <= 0 or vix_val > 150) and price_db is not None:
-        try:
-            _vix_df = price_db.get_prices('^VIX', start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
-            if _vix_df is not None and not _vix_df.empty and 'Close' in _vix_df.columns:
-                vix_val = float(_vix_df['Close'].dropna().iloc[-1])
-        except Exception:
-            pass
-    if (pd.isna(vix_val) or vix_val <= 0 or vix_val > 150) and '^VIX' in db_macro:
-        vix_val = float(db_macro['^VIX'])
-    vix_val = _safe_float(vix_val, 18.5)
+    def _extract_macro_indicator(
+        name: str,
+        raw_val: float,
+        ticker: str,
+        db_macro_key: str,
+        default_val: float,
+        min_val: float = 0.0,
+        max_val: float = 1000.0,
+        is_yield: bool = False
+    ) -> float:
+        val = raw_val
+        if (pd.isna(val) or val <= min_val or val > max_val) and price_db is not None:
+            try:
+                _df = price_db.get_prices(ticker, start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
+                if _df is not None and not _df.empty and 'Close' in _df.columns:
+                    _c = float(_df['Close'].dropna().iloc[-1])
+                    val = _c / 10.0 if (is_yield and _c > 20) else _c
+            except Exception as e:
+                logger.warning(f"Failed price_db lookup for macro indicator {name} ({ticker}): {e}")
+        if (pd.isna(val) or val <= min_val or val > max_val) and db_macro_key in db_macro:
+            try:
+                _c = float(db_macro[db_macro_key])
+                val = _c / 10.0 if (is_yield and _c > 20) else _c
+            except Exception as e:
+                logger.warning(f"Failed db_macro lookup for macro indicator {name} ({db_macro_key}): {e}")
+        return _safe_yield(val, default_val) if is_yield else _safe_float(val, default_val)
 
-    # 2. USD/KRW FX level: check usdkrw_raw, price_db USDKRW=X, db_macro USDKRW=X, default 1380.0
-    usdkrw_val = np.nan
-    if 'usdkrw_raw' in indicator_infer.columns and not indicator_infer['usdkrw_raw'].dropna().empty:
-        usdkrw_val = float(indicator_infer['usdkrw_raw'].dropna().iloc[-1])
-    if (pd.isna(usdkrw_val) or usdkrw_val < 500) and price_db is not None:
-        try:
-            _usdkrw_df = price_db.get_prices('USDKRW=X', start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
-            if _usdkrw_df is not None and not _usdkrw_df.empty and 'Close' in _usdkrw_df.columns:
-                usdkrw_val = float(_usdkrw_df['Close'].dropna().iloc[-1])
-        except Exception:
-            pass
-    if (pd.isna(usdkrw_val) or usdkrw_val < 500) and 'USDKRW=X' in db_macro:
-        usdkrw_val = float(db_macro['USDKRW=X'])
-    usdkrw_val = _safe_float(usdkrw_val, 1380.0)
+    # 1. VIX
+    vix_raw = float(indicator_infer['vix_raw'].dropna().iloc[-1]) if ('vix_raw' in indicator_infer.columns and not indicator_infer['vix_raw'].dropna().empty) else np.nan
+    vix_val = _extract_macro_indicator('VIX', vix_raw, '^VIX', '^VIX', getattr(config, 'default_vix', 18.5), min_val=0.0, max_val=150.0)
 
-    # 3. US 10Y Yield level: check us10y, FRED:DGS10, price_db ^TNX, db_macro ^TNX, default 4.25
-    us10y_val = np.nan
-    if 'us10y' in indicator_infer.columns and not indicator_infer['us10y'].dropna().empty:
-        us10y_val = float(indicator_infer['us10y'].dropna().iloc[-1])
-    if (pd.isna(us10y_val) or us10y_val <= 0 or us10y_val > 25) and price_db is not None:
-        try:
-            _tnx_df = price_db.get_prices('^TNX', start_date=(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d'))
-            if _tnx_df is not None and not _tnx_df.empty and 'Close' in _tnx_df.columns:
-                _raw_tnx = float(_tnx_df['Close'].dropna().iloc[-1])
-                us10y_val = _raw_tnx / 10.0 if _raw_tnx > 20 else _raw_tnx
-        except Exception:
-            pass
-    if (pd.isna(us10y_val) or us10y_val <= 0 or us10y_val > 25) and '^TNX' in db_macro:
-        _raw_tnx = float(db_macro['^TNX'])
-        us10y_val = _raw_tnx / 10.0 if _raw_tnx > 20 else _raw_tnx
-    us10y_val = _safe_yield(us10y_val, 4.25)
+    # 2. USD/KRW
+    usdkrw_raw = float(indicator_infer['usdkrw_raw'].dropna().iloc[-1]) if ('usdkrw_raw' in indicator_infer.columns and not indicator_infer['usdkrw_raw'].dropna().empty) else np.nan
+    usdkrw_val = _extract_macro_indicator('USDKRW', usdkrw_raw, 'USDKRW=X', 'USDKRW=X', getattr(config, 'default_usdkrw', 1380.0), min_val=500.0, max_val=3000.0)
 
-    # 4. Korean 10Y Bond Yield: check kr10y, FRED:IRLTLT01KRM156N in price_db, db_macro, default 3.15
-    kr10y_val = np.nan
-    if 'kr10y' in indicator_infer.columns and not indicator_infer['kr10y'].dropna().empty:
-        kr10y_val = float(indicator_infer['kr10y'].dropna().iloc[-1])
-    if (pd.isna(kr10y_val) or kr10y_val <= 0 or kr10y_val > 25) and price_db is not None:
-        try:
-            _kr_df = price_db.get_prices('FRED:IRLTLT01KRM156N', start_date=(datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
-            if _kr_df is not None and not _kr_df.empty and 'Close' in _kr_df.columns:
-                kr10y_val = float(_kr_df['Close'].dropna().iloc[-1])
-        except Exception:
-            pass
-    if (pd.isna(kr10y_val) or kr10y_val <= 0 or kr10y_val > 25) and 'FRED:IRLTLT01KRM156N' in db_macro:
-        kr10y_val = float(db_macro['FRED:IRLTLT01KRM156N'])
-    kr10y_val = _safe_yield(kr10y_val, 3.15)
-    # WTI Crude Oil level (CL=F absolute Close price)
-    wti_val = 75.0
-    try:
-        if price_db is not None:
-            _wti_df = price_db.get_prices('CL=F', start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'))
-            if _wti_df is not None and not _wti_df.empty and 'Close' in _wti_df.columns:
-                _last_wti = _wti_df['Close'].dropna().iloc[-1]
-                if 10 < _last_wti < 300:  # sanity check
-                    wti_val = float(_last_wti)
-    except Exception:
-        pass
-    # Gold level (GLD ETF absolute Close price)
-    gold_val = 220.0
-    try:
-        if price_db is not None:
-            _gold_df = price_db.get_prices('GLD', start_date=(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d'))
-            if _gold_df is not None and not _gold_df.empty and 'Close' in _gold_df.columns:
-                _last_gold = _gold_df['Close'].dropna().iloc[-1]
-                if _last_gold > 0:
-                    gold_val = float(_last_gold)
-    except Exception:
-        pass
+    # 3. US 10Y
+    us10y_raw = float(indicator_infer['us10y'].dropna().iloc[-1]) if ('us10y' in indicator_infer.columns and not indicator_infer['us10y'].dropna().empty) else np.nan
+    us10y_val = _extract_macro_indicator('US10Y', us10y_raw, '^TNX', '^TNX', getattr(config, 'default_us10y', 4.25), min_val=0.0, max_val=25.0, is_yield=True)
+
+    # 4. KR 10Y
+    kr10y_raw = float(indicator_infer['kr10y'].dropna().iloc[-1]) if ('kr10y' in indicator_infer.columns and not indicator_infer['kr10y'].dropna().empty) else np.nan
+    kr10y_val = _extract_macro_indicator('KR10Y', kr10y_raw, 'FRED:IRLTLT01KRM156N', 'FRED:IRLTLT01KRM156N', getattr(config, 'default_kr10y', 3.15), min_val=0.0, max_val=25.0, is_yield=True)
+
+    # WTI Crude Oil
+    wti_val = _extract_macro_indicator('WTI', np.nan, 'CL=F', 'CL=F', getattr(config, 'default_wti', 75.0), min_val=10.0, max_val=300.0)
+
+    # Gold
+    gold_val = _extract_macro_indicator('Gold', np.nan, 'GLD', 'GLD', getattr(config, 'default_gold', 220.0), min_val=10.0, max_val=5000.0)
 
     # ══ P0: Macro Indicator Data-Integrity Gate ══════════════════════════════
     # Protect the report AND the crisis/regime gating against corrupted/duplicated

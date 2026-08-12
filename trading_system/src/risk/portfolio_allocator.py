@@ -528,9 +528,9 @@ class PortfolioAllocator:
                     if sector_map.get(sym, "UNKNOWN") == sec:
                         cleaned_weights[sym] = w * scale_factor
 
-        # Re-normalize total weight if sum > 1.0
+        # Re-normalize total weight so scaled-down capital is redistributed proportionally
         tot_w = sum(cleaned_weights.values())
-        if tot_w > 1.0:
+        if abs(tot_w - 1.0) > 1e-9 and tot_w > 0:
             cleaned_weights = {s: w / tot_w for s, w in cleaned_weights.items()}
 
         return cleaned_weights

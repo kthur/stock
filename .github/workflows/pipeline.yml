@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
-    timeout-minutes: 480   # 8시간: RUSSELL2000/NASDAQ/KOSPI 대규모 종목 처리 여유
+    timeout-minutes: 350   # 5시간 50분 (GitHub Runner 6시간 리밋 이내)
 
     steps:
       - uses: actions/checkout@v4

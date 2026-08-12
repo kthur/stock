@@ -313,9 +313,10 @@ class VCPSurgePredictor:
             if df_feat.empty:
                 return None
             df_feat['symbol'] = sym
-            # Downcast to float32 per-symbol to avoid pandas consolidation OOM
-            for c in df_feat.select_dtypes(include='float64').columns:
-                df_feat[c] = df_feat[c].astype('float32')
+            # Vectorized float32 downcasting
+            f64_cols = df_feat.select_dtypes(include=['float64']).columns
+            if len(f64_cols) > 0:
+                df_feat[f64_cols] = df_feat[f64_cols].astype(np.float32)
             return df_feat
 
         with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
@@ -368,7 +369,8 @@ class VCPSurgePredictor:
 
             m_df['date'] = pd.to_datetime(m_df['date'])
             cutoff = m_df['date'].quantile(0.8)
-            train_idx = m_df['date'] <= cutoff
+            embargo_days = pd.Timedelta(days=20)
+            train_idx = m_df['date'] <= (cutoff - embargo_days)
             val_idx = m_df['date'] > cutoff
             if val_idx.sum() < 50:
                 train_idx = pd.Series([True] * len(m_df))
