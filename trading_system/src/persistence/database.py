@@ -34,6 +34,7 @@ class _DBConnection:
                 self._conn = await aiosqlite.connect(self.db_path)
                 await self._conn.execute("PRAGMA journal_mode=WAL")
                 await self._conn.execute("PRAGMA busy_timeout=30000")
+                await self._conn.execute("PRAGMA foreign_keys=ON")
             else:
                 try:
                     await self._conn.execute("SELECT 1")
@@ -43,6 +44,9 @@ class _DBConnection:
                     except Exception:
                         pass
                     self._conn = await aiosqlite.connect(self.db_path)
+                    await self._conn.execute("PRAGMA journal_mode=WAL")
+                    await self._conn.execute("PRAGMA busy_timeout=30000")
+                    await self._conn.execute("PRAGMA foreign_keys=ON")
                     await self._conn.execute("PRAGMA journal_mode=WAL")
                     await self._conn.execute("PRAGMA busy_timeout=30000")
             return self._conn
@@ -116,6 +120,10 @@ class TradeLogger:
                 FOREIGN KEY(order_id) REFERENCES orders(order_id)
             )
         """)
+
+        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_executions_order_id ON executions(order_id);")
+        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_sym_date ON orders(symbol, created_at DESC);")
+        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
 
         await conn.commit()
         self._db_initialized = True

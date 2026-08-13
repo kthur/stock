@@ -56,10 +56,10 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
     ) -> pd.DataFrame:
         """
         Computes Tone Drift Acceleration score per symbol [0.0, 1.0].
-        Returns DataFrame with ['symbol', 'tone_drift_score'].
+        Returns DataFrame with ['symbol', 'earnings_tone_drift_score'].
         """
         if not symbols:
-            return pd.DataFrame(columns=['symbol', 'tone_drift_score'])
+            return pd.DataFrame(columns=['symbol', 'earnings_tone_drift_score'])
 
         results = []
 
@@ -88,6 +88,6 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 if abs(tone_delta) > 0.15:
                     logger.info(f"[EARNINGS TONE DRIFT] Tone Drift acceleration for {sym}: {prev_tone:.2f} -> {cur_tone:.2f} (Delta={tone_delta:+.2f}, Score={score:.2f})")
 
-            results.append({'symbol': sym, 'tone_drift_score': score})
+            results.append({'symbol': sym, 'earnings_tone_drift_score': score})
 
         return pd.DataFrame(results)

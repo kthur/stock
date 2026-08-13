@@ -145,7 +145,7 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
     yf_sym = _yf_ticker(symbol, market)
     url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{yf_sym}"
     params = {
-        "modules": "incomeStatementHistory,defaultKeyStatistics,summaryDetail"
+        "modules": "incomeStatementHistory,balanceSheetHistory,defaultKeyStatistics,summaryDetail"
     }
     headers = {
         "User-Agent": DEFAULT_USER_AGENT
@@ -209,6 +209,15 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                     shares_obj = stats.get("sharesOutstanding") or {}
                     shares = shares_obj.get("raw", 0.0) if isinstance(shares_obj, dict) else 0.0
 
+                    book_val_obj = stats.get("bookValue") or {}
+                    book_val = book_val_obj.get("raw", 0.0) if isinstance(book_val_obj, dict) else 0.0
+                    if not book_val:
+                        bs_statements = data.get("balanceSheetHistory", {}).get("balanceSheetStatements", [])
+                        if bs_statements:
+                            total_eq = bs_statements[0].get("totalStockholderEquity", {}).get("raw", 0.0)
+                            if total_eq and shares > 0:
+                                book_val = total_eq / shares
+
                     detail = data.get("summaryDetail") or {}
                     div_rate_obj = detail.get("dividendRate") or {}
                     div_rate = div_rate_obj.get("raw") if isinstance(div_rate_obj, dict) else None
@@ -222,6 +231,7 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
 
                     df['shares_outstanding'] = float(shares)
                     df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))
+                    df['book_value'] = float(book_val)
 
                     for col in ['revenue', 'operating_income', 'net_income', 'eps']:
                         df[col] = df[col].fillna(0).astype(float)

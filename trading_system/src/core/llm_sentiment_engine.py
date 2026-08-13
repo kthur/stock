@@ -178,11 +178,32 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
             summary_tone=summary,
         )
 
-    def compute_scores(self, universe: Any, filings_map: Any = None) -> Any:
+    def compute_scores(
+        self,
+        prices_dict: Any = None,
+        fundamentals_dict: Any = None,
+        indicators_df: Any = None,
+        **kwargs: Any,
+    ) -> Any:
         """Compute NLP sentiment catalyst score (0% to 100%) for universe symbols. Returns NaN if no filing text exists."""
         import pandas as pd
+        
+        universe = kwargs.get("universe", kwargs.get("universe_df"))
+        filings_map = kwargs.get("filings_map") or {}
+
+        if universe is None or not isinstance(universe, pd.DataFrame):
+            if isinstance(prices_dict, dict):
+                symbols = list(prices_dict.keys())
+            elif isinstance(prices_dict, pd.DataFrame):
+                universe = prices_dict
+                symbols = []
+            else:
+                symbols = []
+            if symbols:
+                universe = pd.DataFrame({"symbol": symbols, "name": symbols, "market": "KRX"})
+
         results = []
-        if universe is None or (isinstance(universe, pd.DataFrame) and universe.empty):
+        if universe is None or not isinstance(universe, pd.DataFrame) or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "sentiment_score"])
 
         filings_dict = filings_map if isinstance(filings_map, dict) else {}

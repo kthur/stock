@@ -511,6 +511,7 @@ class MarketIndicatorStorage:
                 sp500_set = set()
                 # S&P 500
                 if not sp500.empty and 'Symbol' in sp500.columns:
+                    sp500_tuples = []
                     for _, row in sp500.iterrows():
                         sym = str(row['Symbol']).strip()
                         if not sym:
@@ -518,13 +519,16 @@ class MarketIndicatorStorage:
                         sp500_set.add(sym)
                         sec = str(row.get('Sector') or row.get('GICS Sector') or row.get('GICS_Sector') or '')
                         ind = str(row.get('Industry') or row.get('GICS Sub-Industry') or row.get('GICS_Sub_Industry') or '')
-                        conn.execute(
+                        sp500_tuples.append((sym, row['Name'], 'SP500', sec, ind))
+                    if sp500_tuples:
+                        conn.executemany(
                             "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                            (sym, row['Name'], 'SP500', sec, ind)
+                            sp500_tuples
                         )
 
                 # NASDAQ (Preserve SP500 classification for dual-listed S&P 500 stocks)
                 if not nasdaq.empty and 'Symbol' in nasdaq.columns:
+                    nasdaq_tuples = []
                     for _, row in nasdaq.iterrows():
                         sym = str(row['Symbol']).strip()
                         if not sym or sym in sp500_set:
@@ -532,25 +536,31 @@ class MarketIndicatorStorage:
                         sec = str(row.get('Sector') or row.get('Industry') or '')
                         ind = str(row.get('Industry') or '')
                         name = str(row.get('Name') or sym)
-                        conn.execute(
+                        nasdaq_tuples.append((sym, name, 'NASDAQ', sec, ind))
+                    if nasdaq_tuples:
+                        conn.executemany(
                             "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                            (sym, name, 'NASDAQ', sec, ind)
+                            nasdaq_tuples
                         )
 
                 # RUSSELL2000 (Preserve SP500 classification)
                 if not russell2000.empty and 'Ticker' in russell2000.columns:
+                    russell_tuples = []
                     for _, row in russell2000.iterrows():
                         sym = str(row.get('Ticker') or '').strip()
                         if not sym or sym in ('-', 'nan') or not sym.isalpha() or sym in sp500_set:
                             continue
                         sec = str(row.get('Sector') or '')
                         name = str(row.get('Name') or sym)
-                        conn.execute(
+                        russell_tuples.append((sym, name, 'RUSSELL2000', sec, ''))
+                    if russell_tuples:
+                        conn.executemany(
                             "INSERT OR IGNORE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                            (sym, name, 'RUSSELL2000', sec, '')
+                            russell_tuples
                         )
 
                 # KRX (filtered: KOSPI, KOSDAQ only; exclude KONEX)
+                krx_tuples = []
                 for _, row in krx.iterrows():
                     code_raw = str(row['Code']).strip()
                     code_str = code_raw.zfill(6) if code_raw.isdigit() and len(code_raw) <= 6 else code_raw
@@ -561,9 +571,11 @@ class MarketIndicatorStorage:
                         continue
                     sec = str(row.get('Sector') or row.get('Dept') or row.get('Industry') or '')
                     ind = str(row.get('Industry') or '')
-                    conn.execute(
+                    krx_tuples.append((code_str, row['Name'], mkt, sec, ind))
+                if krx_tuples:
+                    conn.executemany(
                         "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                        (code_str, row['Name'], mkt, sec, ind)
+                        krx_tuples
                     )
                 conn.commit()
         logger.info("Stock universe updated successfully with sector information.")

@@ -572,7 +572,24 @@ class PortfolioAllocator:
                 return 1.0
 
             tbl = 'trade_logs' if 'trade_logs' in tables else 'orders'
-            df = pd.read_sql_query(f"SELECT * FROM {tbl} WHERE executed_price IS NOT NULL AND order_price IS NOT NULL LIMIT 500;", conn)  # nosec B608
+            cursor.execute(f"PRAGMA table_info({tbl});")
+            cols = [r[1] for r in cursor.fetchall()]
+            
+            p_col = 'order_price' if 'order_price' in cols else ('price' if 'price' in cols else None)
+            exec_col = 'executed_price' if 'executed_price' in cols else ('price' if 'price' in cols else None)
+
+            if not p_col or not exec_col:
+                conn.close()
+                return 1.0
+
+            if p_col == exec_col and tbl == 'orders':
+                # Join orders and executions
+                df = pd.read_sql_query(
+                    "SELECT o.price AS order_price, e.price AS executed_price "
+                    "FROM orders o JOIN executions e ON o.order_id = e.order_id LIMIT 500;", conn
+                )
+            else:
+                df = pd.read_sql_query(f"SELECT {p_col} AS order_price, {exec_col} AS executed_price FROM {tbl} LIMIT 500;", conn)
             conn.close()
 
             if df.empty or len(df) < 5:

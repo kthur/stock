@@ -393,7 +393,7 @@ class VCPSurgePredictor:
                     logger.info(f"VCP ML skip {market} {h}d: only {pos_count} positive (< 10)")
                     continue
 
-                scale_pos_weight = min(neg_count / pos_count, 500)
+                scale_pos_weight = min(neg_count / pos_count, 20.0)
                 kw_xgb['scale_pos_weight'] = scale_pos_weight
                 kw_lgb['scale_pos_weight'] = scale_pos_weight
                 kw_cat['scale_pos_weight'] = scale_pos_weight

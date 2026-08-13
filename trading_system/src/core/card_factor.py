@@ -32,13 +32,29 @@ class CARDFactorEngine(BaseStrategyEngine):
     def __init__(self):
         pass
 
-    def compute_scores(self, indicator_df: Any, prices_dict: Dict[str, pd.DataFrame], sector_map: Optional[Dict[str, str]] = None) -> Dict[str, float]:  # type: ignore[override]
+    def compute_scores(
+        self,
+        prices_dict: Dict[str, pd.DataFrame],
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
         """
         Computes CARD factor scores in [0.0, 1.0] for all symbols.
-        Accepts indicator_df as pd.DataFrame or Dict[str, float].
+        Returns pd.DataFrame with columns ['symbol', 'card_score'].
         """
-        if not prices_dict:
-            return {}
+        # Handle dict or positional fallback
+        if isinstance(prices_dict, pd.DataFrame) and isinstance(fundamentals_dict, dict):
+            # Signature was called with swapped parameters
+            indicator_df = prices_dict
+            prices_dict = fundamentals_dict
+        else:
+            indicator_df = indicators_df if indicators_df is not None else kwargs.get("indicator_df")
+
+        sector_map = kwargs.get("sector_map") or {}
+
+        if not prices_dict or not isinstance(prices_dict, dict):
+            return pd.DataFrame(columns=['symbol', 'card_score'])
 
         def _safe_macro(col):
             if indicator_df is None:
@@ -57,66 +73,50 @@ class CARDFactorEngine(BaseStrategyEngine):
         wti_chg = _safe_macro('wti_change') or _safe_macro('wti_pct') or 0.0
         vix_val = _safe_macro('vix_change') or _safe_macro('vix') or 0.0
 
-        # M-3 Fix: If vix_val is an absolute index level (e.g. > 5.0), scale to percentage change proxy
         if abs(vix_val) > 5.0:
             vix_val = (vix_val - 20.0) / 20.0
 
-        scores = {}
-        sector_map = sector_map or {}
-
-        # Basic Sector Beta sensitivity factors to macro shock
         sector_beta = {
-            'Information Technology': 1.2,
-            'Financials': 0.8,
-            'Health Care': 0.6,
-            'Consumer Discretionary': 1.1,
-            'Industrials': 1.0,
-            'Materials': 1.1,
-            'Energy': 1.2,
-            'Communication Services': 0.9,
-            'Consumer Staples': 0.5,
-            'Utilities': 0.4,
-            'Real Estate': 0.7,
+            'Semiconductor': 1.5, 'IT': 1.3, 'Automotive': 1.1,
+            'Steel': 0.8, 'Chemical': 0.9, 'Finance': 0.7,
+            'Energy': 1.4, 'Shipbuilding': 1.2, 'Market': 1.0
         }
 
+        res_rows = []
         for sym, df in prices_dict.items():
             try:
-                if df is None or df.empty:
-                    scores[sym] = 0.5
+                if df is None or df.empty or 'close' not in df.columns:
+                    res_rows.append({'symbol': sym, 'card_score': 0.5})
                     continue
 
-                close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
-                close = close.dropna()
+                close = df['close'].dropna()
                 if len(close) < 5 or float(close.iloc[-5]) <= 0:
-                    scores[sym] = 0.5
+                    res_rows.append({'symbol': sym, 'card_score': 0.5})
                     continue
 
                 c_last = float(close.iloc[-1])
                 c_prev = float(close.iloc[-5])
                 if np.isnan(c_last) or np.isnan(c_prev) or c_prev <= 0:
-                    scores[sym] = 0.5
+                    res_rows.append({'symbol': sym, 'card_score': 0.5})
                     continue
 
                 stock_ret = float((c_last - c_prev) / c_prev * 100)
                 if np.isnan(stock_ret) or np.isinf(stock_ret):
-                    scores[sym] = 0.5
+                    res_rows.append({'symbol': sym, 'card_score': 0.5})
                     continue
 
-                sec = sector_map.get(sym, 'Market')
+                sec = sector_map.get(sym, 'Market') if isinstance(sector_map, dict) else 'Market'
                 beta = sector_beta.get(sec, 1.0)
 
-                # Divergence calculation: Stock return vs Sector-Beta weighted Macro shock
                 macro_impact = ((usdkrw_chg * 0.3) + (wti_chg * 0.3) + (vix_val * 0.4)) * beta * 10.0
                 divergence = stock_ret - macro_impact
 
-                # Mean reversion opportunity score
                 card_score = 1.0 / (1.0 + np.exp(divergence * 0.1))
                 if np.isnan(card_score) or np.isinf(card_score):
                     card_score = 0.5
-                scores[sym] = float(card_score)
+                res_rows.append({'symbol': sym, 'card_score': float(card_score)})
             except Exception as e:
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
-                scores[sym] = 0.5
+                res_rows.append({'symbol': sym, 'card_score': 0.5})
 
-        return scores
-
+        return pd.DataFrame(res_rows)

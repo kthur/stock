@@ -826,6 +826,7 @@ class RiskManager:
 
     def save_config(self):
         config_path = self._get_config_path()
+        tmp_path = config_path.with_suffix(".json.tmp")
         try:
             data = {
                 "default_stop_loss_pct": self.default_stop_loss_pct,
@@ -833,8 +834,10 @@ class RiskManager:
                 "max_position_size_pct": self.max_position_size_pct,
                 "active_strategy": self.active_strategy,
             }
-            with open(config_path, "w", encoding="utf-8") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
+            import os
+            os.replace(tmp_path, config_path)
             self.logger.info(
                 f"Risk configuration saved to {config_path}: "
                 f"StopLoss={self.default_stop_loss_pct:.2%}, "
