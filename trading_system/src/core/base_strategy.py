@@ -43,6 +43,18 @@ class ScoreDataFrame(pd.DataFrame):
             return True
         return False
 
+    def __eq__(self, other: Any) -> Any:
+        if isinstance(other, dict):
+            if len(other) == 0:
+                return self.empty
+            if "symbol" in self.columns:
+                val_cols = [c for c in self.columns if c != "symbol"]
+                if val_cols:
+                    cur_dict = self.set_index("symbol")[val_cols[0]].to_dict()
+                    return cur_dict == other
+            return False
+        return super().__eq__(other)
+
     def __getitem__(self, item: Any) -> Any:
         if isinstance(item, str) and item not in self.columns and "symbol" in self.columns:
             match = self[self["symbol"] == item]
