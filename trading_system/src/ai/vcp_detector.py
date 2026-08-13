@@ -139,10 +139,15 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
     # 5. Current tightness (last 5d range)
     current_range = float(df['range_pct'].tail(5).max())
 
-    # 6. Price near range high (tight + constructive)
+    # 6. Price near range high (tight + constructive) & near 52-week high (257 trading days)
     last_10d_high = float(high.tail(10).max())
     last_10d_low = float(low.tail(10).min())
-    near_high = (last_close - last_10d_low) / (last_10d_high - last_10d_low + 1e-10) > near_high_cutoff
+    near_high_10d = (last_close - last_10d_low) / (last_10d_high - last_10d_low + 1e-10) > near_high_cutoff
+
+    high_52w = float(high.tail(min(len(high), 257)).max())
+    near_52w_high = (last_close / (high_52w + 1e-10)) >= 0.75
+
+    near_high = near_high_10d and near_52w_high
 
     # 7. Recent price action: positive return over last 5-10 days
     momentum_ok = float(close.tail(10).iloc[0]) < last_close

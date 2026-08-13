@@ -91,10 +91,13 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
 
         # Factor definitions: Size (log Cap), Value (1/abs(PER)), Profitability (ROE), Investment (CMA), Momentum (UMD)
         size_factor = np.log(df_merged["market_cap"].clip(lower=1e8))
-        value_factor = (1.0 / df_merged["per"].abs().clip(lower=0.1)).fillna(0.0)
-        prof_factor = df_merged["roe"].fillna(0.0)
-        cma_factor = df_merged.get("asset_growth_yoy", pd.Series(0.0, index=df_merged.index)).fillna(0.0)
-        umd_factor = df_merged.get("momentum_12m", pd.Series(0.0, index=df_merged.index)).fillna(0.0)
+        value_raw = 1.0 / df_merged["per"].abs().clip(lower=0.1)
+        value_factor = value_raw.fillna(value_raw.median() if not np.isnan(value_raw.median()) else 0.0)
+        prof_factor = df_merged["roe"].fillna(df_merged["roe"].median() if not np.isnan(df_merged["roe"].median()) else 0.0)
+        cma_raw = df_merged.get("asset_growth_yoy", pd.Series(np.nan, index=df_merged.index))
+        cma_factor = cma_raw.fillna(cma_raw.median() if not np.isnan(cma_raw.median()) else 0.0)
+        umd_raw = df_merged.get("momentum_12m", pd.Series(np.nan, index=df_merged.index))
+        umd_factor = umd_raw.fillna(umd_raw.median() if not np.isnan(umd_raw.median()) else 0.0)
 
         s_std = float(size_factor.std(ddof=0))
         v_std = float(value_factor.std(ddof=0))

@@ -167,14 +167,14 @@ class InstForeignSectorEngine(BaseStrategyEngine):
 
         acc_df = pd.DataFrame(acc_records).set_index('symbol')
 
-        # Calculate returns matrix for correlation
+        # Calculate returns matrix for correlation (Date Index aligned)
         returns_dict = {}
         for sym in valid_symbols:
             df = prices_dict[sym]
             close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
-            returns_dict[sym] = close.pct_change().iloc[-40:]
+            returns_dict[sym] = close.pct_change()
 
-        returns_df = pd.DataFrame(returns_dict).fillna(0.0)
+        returns_df = pd.DataFrame(returns_dict).ffill().tail(40).fillna(0.0)
 
         # Sector Correlation & Laggard Follow-Through Scoring
         sector_corr_scores = {}

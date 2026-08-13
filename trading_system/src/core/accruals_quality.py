@@ -97,9 +97,8 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             df_rows.get('operating_cash_flow', df_rows.get('ocf', df_rows.get('cash_flow_operating', pd.Series(np.nan, index=sym_strs)))),
             errors='coerce'
         )
-        if 'operating_income' in df_rows.columns:
-            op_inc = pd.to_numeric(df_rows['operating_income'], errors='coerce')
-            ocf = ocf.fillna(op_inc * 0.9)
+        # Do not artificially impute missing OCF with operating_income * 0.9.
+        # Stocks missing real OCF will be assigned neutral score (0.50).
 
         assets = pd.to_numeric(
             df_rows.get('total_assets', df_rows.get('assets', df_rows.get('book_value', pd.Series(np.nan, index=sym_strs)))),

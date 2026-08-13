@@ -121,14 +121,20 @@ class OrderFlowEngine(BaseStrategyEngine):
                 inst_boost = 0.0
                 if flow_data_dict and sym in flow_data_dict:
                     f_df = flow_data_dict[sym]
-                    if f_df is not None and 'foreign_net_buy' in f_df.columns:
-                        f_buy = f_df['foreign_net_buy'].iloc[-5:].sum()
-                        if f_buy > 0:
-                            inst_boost += 0.10
-                    if f_df is not None and 'inst_net_buy' in f_df.columns:
-                        i_buy = f_df['inst_net_buy'].iloc[-5:].sum()
-                        if i_buy > 0:
-                            inst_boost += 0.10
+                    if f_df is not None and not f_df.empty:
+                        try:
+                            # Align flow dates with price dates
+                            f_df_aligned = f_df.reindex(df.index).ffill()
+                            if 'foreign_net_buy' in f_df_aligned.columns:
+                                f_buy = f_df_aligned['foreign_net_buy'].iloc[-5:].sum()
+                                if f_buy > 0:
+                                    inst_boost += 0.10
+                            if 'inst_net_buy' in f_df_aligned.columns:
+                                i_buy = f_df_aligned['inst_net_buy'].iloc[-5:].sum()
+                                if i_buy > 0:
+                                    inst_boost += 0.10
+                        except Exception:
+                            pass
 
                 records.append({
                     'symbol': sym,

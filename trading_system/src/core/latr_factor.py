@@ -60,7 +60,7 @@ class LATRFactorEngine(BaseStrategyEngine):
 
                 # 3. Tail Risk (5th percentile daily return over 60D)
                 daily_rets = close.pct_change().dropna()
-                tail_risk = float(np.percentile(daily_rets, 5)) if len(daily_rets) >= 20 else -0.03
+                tail_risk = float(np.percentile(daily_rets.tail(60), 5)) if len(daily_rets) >= 20 else -0.03
 
                 # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price))
                 dollar_vol = (vol.tail(20) * close.tail(20)).replace(0, 1.0)

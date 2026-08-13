@@ -83,8 +83,8 @@ class TestPredictionModelVectorization(unittest.TestCase):
         self.assertEqual(len(scores_df), 100)
         self.assertIn("symbol", scores_df.columns)
         self.assertIn("trend_efficiency_score", scores_df.columns)
-        self.assertTrue((scores_df["trend_efficiency_score"] >= 0.05).all())
-        self.assertTrue((scores_df["trend_efficiency_score"] <= 0.95).all())
+        self.assertTrue((scores_df["trend_efficiency_score"] >= 0.0).all())
+        self.assertTrue((scores_df["trend_efficiency_score"] <= 1.0).all())
         self.assertLess(t1 - t0, 1.0, "Vectorized trend efficiency execution took too long")
 
     def test_short_term_reversal_vectorized_scoring(self):

@@ -82,13 +82,17 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
                 if close_col:
                     c_series = p_df[close_col].dropna()
                     if len(c_series) >= 21:
-                        valid_cols[sym_str] = c_series.iloc[-21:].values
+                        valid_cols[sym_str] = c_series
 
         if not valid_cols:
             df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
             return df_out[['symbol', 'trend_efficiency_score']]
 
-        close_2d = pd.DataFrame(valid_cols)  # 21 rows x N columns
+        # Date-aligned price matrix
+        close_2d = pd.DataFrame(valid_cols).ffill().tail(21)
+        if len(close_2d) < 21:
+            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
+            return df_out[['symbol', 'trend_efficiency_score']]
 
         change_5 = (close_2d.iloc[-1] - close_2d.iloc[-6]).abs()
         vol_5 = close_2d.iloc[-6:].diff().abs().sum(axis=0)
@@ -105,10 +109,21 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         avg_ker = (ker5 + ker10 + ker20) / 3.0
         ret_20d = (close_2d.iloc[-1] / close_2d.iloc[-21]) - 1.0
 
-        pos_mask = ret_20d > 0
-        ret_pos = np.minimum(1.0, ret_20d * 2.0)
-        ret_neg = np.maximum(0.1, 1.0 + ret_20d)
-        score_arr = np.where(pos_mask, avg_ker * (1.0 + ret_pos), avg_ker * ret_neg)
+        # R/S Hurst Exponent over 20 days
+        diffs = close_2d.diff().iloc[1:]
+        mean_diff = diffs.mean(axis=0)
+        deviations = (diffs - mean_diff).cumsum(axis=0)
+        r_range = deviations.max(axis=0) - deviations.min(axis=0)
+        s_std = diffs.std(axis=0, ddof=1).replace(0, 1e-8)
+        rs = np.maximum(r_range / s_std, 1e-4)
+        hurst = np.clip(np.log(rs) / np.log(20.0), 0.1, 0.9)
+
+        # Signed trend score: High KER + High Hurst on uptrend yields high score; downtrend penalizes
+        score_arr = np.where(
+            ret_20d >= 0,
+            0.5 + 0.5 * avg_ker * (hurst / 0.5),
+            0.5 - 0.5 * avg_ker * (hurst / 0.5)
+        )
 
         results = dict(zip(close_2d.columns, score_arr))
         df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in symbols])
@@ -116,7 +131,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
 
         if valid_mask.sum() > 0:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
-            df_out.loc[valid_mask, 'trend_efficiency_score'] = ranks.clip(0.05, 0.95)
+            df_out.loc[valid_mask, 'trend_efficiency_score'] = ranks
         else:
             df_out['trend_efficiency_score'] = 0.50
 

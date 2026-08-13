@@ -187,6 +187,7 @@ class SectorRotationEngine(BaseStrategyEngine):
                 macro_boost += res_df['sector'].isin(['Information Technology', 'Financials', 'Consumer Discretionary']).astype(float) * 0.05
 
             res_df['sector_score'] = (res_df['sector_score'] + macro_boost).clip(0.0, 1.0)
+            res_df.loc[res_df['sector'] == 'General', 'sector_score'] = 0.5
 
         return res_df[['symbol', 'sector_score']]
 

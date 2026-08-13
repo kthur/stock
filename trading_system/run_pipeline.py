@@ -2953,6 +2953,33 @@ def execute_prediction_pipeline():
         logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
         trend_efficiency_df = pd.DataFrame()
 
+    # Strategy 28: Options Gamma Squeeze Engine
+    try:
+        from src.core.gamma_squeeze import OptionsGammaSqueezeEngine
+        gamma_engine = OptionsGammaSqueezeEngine(cfg)
+        gamma_squeeze_df = gamma_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+    except Exception as _gs_e:
+        logger.warning(f"Gamma squeeze strategy computation failed: {_gs_e}")
+        gamma_squeeze_df = pd.DataFrame()
+
+    # Strategy 29: Insider Buying Catalyst Engine
+    try:
+        from src.core.insider_buying import InsiderBuyingEngine
+        insider_engine = InsiderBuyingEngine(cfg)
+        insider_buying_df = insider_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+    except Exception as _ib_e:
+        logger.warning(f"Insider buying strategy computation failed: {_ib_e}")
+        insider_buying_df = pd.DataFrame()
+
+    # Strategy 30: Earnings Tone Drift Engine
+    try:
+        from src.core.earnings_tone_drift import EarningsToneDriftEngine
+        tone_engine = EarningsToneDriftEngine(cfg)
+        earnings_tone_drift_df = tone_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+    except Exception as _et_e:
+        logger.warning(f"Earnings tone drift strategy computation failed: {_et_e}")
+        earnings_tone_drift_df = pd.DataFrame()
+
     # Extract LSTM predictions if present in regression results (20d horizon)
     lstm_df_for_ens = None
     if res_df is not None and not res_df.empty:
@@ -2961,7 +2988,7 @@ def execute_prediction_pipeline():
         if l_col:
             lstm_df_for_ens = res_20[['symbol', l_col]].rename(columns={l_col: 'lstm_score'})
 
-    # default target horizon is 20d (27-Strategy Ensemble)
+    # default target horizon is 20d (31-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
         regression_df=res_df,
@@ -2991,6 +3018,9 @@ def execute_prediction_pipeline():
         short_squeeze_df=short_squeeze_df,
         valueup_catalyst_df=valueup_catalyst_df,
         trend_efficiency_df=trend_efficiency_df,
+        gamma_squeeze_df=gamma_squeeze_df,
+        insider_buying_df=insider_buying_df,
+        earnings_tone_drift_df=earnings_tone_drift_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
     )

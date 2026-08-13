@@ -263,7 +263,7 @@ def run_historical_stress_test(data, scenario: str = "2008_CRISIS", mdd_threshol
                 pass_flag=r0.passed_stress_test,
                 details={},
             )
-        return StressTestReport(scenario, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, True, {})
+        return StressTestReport(scenario, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, False, {"status": "UNVERIFIED_EMPTY"})
 
     if hasattr(data, "values"):
         arr_raw = np.asarray(data.values)

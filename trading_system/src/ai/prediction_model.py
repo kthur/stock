@@ -2659,50 +2659,76 @@ class OnDevicePredictionModel:
         forced_leaders = []
         if indicator_df is not None and not indicator_df.empty:
             ind_df = indicator_df.copy()
-            # Directly parse the index as datetime
             ind_df.index = pd.to_datetime(ind_df.index)
             ind_df.index.name = 'date'
 
-            # Map index change (%) to fractional returns (/ 100.0)
+            # Shift US ETFs by 1 day because US market closes next morning KST (prevent look-ahead bias)
             us_etfs = {'XLK', 'XLF', 'XLV', 'XLE'}
             for src_col, target_sym in index_sector_mapping.items():
                 if src_col in ind_df.columns:
                     ret_series = ind_df[src_col] / 100.0
-                    # Shift US ETFs by 1 day because US market closes next morning KST
                     if target_sym in us_etfs:
                         ret_series = ret_series.shift(1)
                     ret_pivot[target_sym] = ret_series
                     forced_leaders.append(target_sym)
 
-        ret_pivot = ret_pivot.fillna(0.0)
+        ret_pivot = ret_pivot.ffill().fillna(0.0)
         all_leaders = top_50_leaders + forced_leaders
 
         all_symbols = ret_pivot.columns.tolist()
-        leaders_present = [sym for sym in all_leaders if sym in ret_pivot.columns]
-        if not leaders_present:
-            leaders_present = all_symbols[:50]
+        n_symbols = len(all_symbols)
+        if n_symbols == 0:
+            logger.warning("No price data for lead-lag matrix computation")
+            return
 
-        ret_arr = ret_pivot.values.astype(np.float64)
-        ret_z = (ret_arr - ret_arr.mean(axis=0)) / (ret_arr.std(axis=0) + 1e-10)
+        # Z-score normalization per column for stationarity
+        ret_matrix = ret_pivot.values  # (T, N)
+        stds = np.std(ret_matrix, axis=0, keepdims=True)
+        stds[stds == 0] = 1.0
+        ret_z = (ret_matrix - np.mean(ret_matrix, axis=0, keepdims=True)) / stds
 
-        leader_indices = [ret_pivot.columns.get_loc(sym) for sym in leaders_present]
+        # Compute lag-1 cross-correlation: corr(i,j) = E[ret_i[t] * ret_j[t+1]]
+        leader_indices = [all_symbols.index(s) for s in all_leaders if s in all_symbols]
+        if not leader_indices:
+            logger.warning("No leaders found in dataset")
+            return
+
         lead_arr = ret_z[:-lead_lag_days, leader_indices]
         follow_arr = ret_z[lead_lag_days:]
-        n_time = lead_arr.shape[0]
+        T_eff = lead_arr.shape[0]
 
-        # corr_matrix shape: (len(leaders_present), len(all_symbols))
-        corr_matrix = (lead_arr.T @ follow_arr) / (n_time - 1)
+        if T_eff < 10:
+            logger.warning("Insufficient data points for lead-lag correlation")
+            return
+
+        corr_matrix = np.dot(lead_arr.T, follow_arr) / T_eff  # (n_leaders, n_symbols)
 
         self.lead_lag_leaders = []
         self.lead_lag_matrix = {}
-        for i, leader in enumerate(leaders_present):
-            # Exclude other virtual index symbols from being followers
-            followers = [
-                (all_symbols[j], float(corr_matrix[i, j]))
-                for j in range(len(all_symbols))
-                if all_symbols[j] != leader and all_symbols[j] not in index_sector_mapping.values() and corr_matrix[i, j] > 0
-            ]
-            followers.sort(key=lambda x: -x[1])
+
+        for i, leader_idx in enumerate(leader_indices):
+            leader = all_symbols[leader_idx]
+            corrs = corr_matrix[i]
+
+            # Filter out self-correlation, virtual index symbols, and negligible correlations (|corr| <= 0.01)
+            valid_mask = np.ones(n_symbols, dtype=bool)
+            valid_mask[leader_idx] = False
+            virtual_symbols = set(index_sector_mapping.values()).union(forced_leaders)
+            for v_sym in virtual_symbols:
+                if v_sym in all_symbols:
+                    valid_mask[all_symbols.index(v_sym)] = False
+            valid_mask &= (np.abs(corrs) > 0.01)
+
+            if not np.any(valid_mask):
+                continue
+
+            follower_indices = np.where(valid_mask)[0]
+            follower_corrs = corrs[follower_indices]
+
+            # Sort followers by absolute correlation descending
+            sort_order = np.argsort(-np.abs(follower_corrs))
+            followers = [(all_symbols[follower_indices[k]], float(follower_corrs[k])) for k in sort_order]
+
             if followers:
                 self.lead_lag_leaders.append(leader)
                 self.lead_lag_matrix[leader] = followers[:20]
@@ -2737,7 +2763,6 @@ class OnDevicePredictionModel:
             rets = (arr_last / arr_prev) - 1.0
             today_returns = dict(zip(valid_syms, rets))
 
-        # Map index change (%) to virtual symbols
         index_sector_mapping = {
             'sp500_change': '^GSPC',
             'kospi_change': '^KS11',
@@ -2752,12 +2777,15 @@ class OnDevicePredictionModel:
         }
 
         # Extract today's index/sector returns from indicator_df
+        # For US indices/ETFs, use iloc[-2] (or lag-1) if available to avoid look-ahead bias
         if indicator_df is not None and not indicator_df.empty:
             last_row = indicator_df.iloc[-1]
+            prev_row = indicator_df.iloc[-2] if len(indicator_df) >= 2 else last_row
+            us_origin_sources = {'sp500_change', 'xlk_change', 'xlf_change', 'xlv_change', 'xle_change'}
             for src_col, target_sym in index_sector_mapping.items():
-                if src_col in last_row:
-                    # Convert percent change to fractional return
-                    val = float(last_row[src_col]) / 100.0
+                if src_col in indicator_df.columns:
+                    target_row = prev_row if src_col in us_origin_sources else last_row
+                    val = float(target_row[src_col]) / 100.0
                     today_returns[target_sym] = val
 
         follower_scores: Dict[str, float] = {}

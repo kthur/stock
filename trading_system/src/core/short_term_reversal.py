@@ -74,14 +74,17 @@ class ShortTermReversalEngine(BaseStrategyEngine):
                     close = close.iloc[:, 0]
                 close = close.dropna()
                 if len(close) >= 20:
-                    valid_cols[sym] = close.iloc[-20:].values
+                    valid_cols[sym] = close
             except Exception:
                 continue
 
         if not valid_cols:
             return pd.DataFrame(columns=['symbol', 'reversal_score'])
 
-        close_2d = pd.DataFrame(valid_cols)  # 20 rows x N columns
+        # Align all series on Date Index, forward-fill missing dates, and take last 20 trading days
+        close_2d = pd.DataFrame(valid_cols).ffill().tail(20)
+        if len(close_2d) < 6:
+            return pd.DataFrame(columns=['symbol', 'reversal_score'])
         cur_price = close_2d.iloc[-1]
         price_5d_ago = close_2d.iloc[-6]
         ret_5d = (cur_price / price_5d_ago) - 1.0

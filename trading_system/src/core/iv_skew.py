@@ -117,10 +117,11 @@ class IVSkewEngine(BaseStrategyEngine):
                         c = c.dropna()
                         if len(c) >= 20:
                             ret = c.pct_change().dropna()
-                            down_ret = ret[ret < 0]
-                            up_ret = ret[ret > 0]
-                            down_vol = float(down_ret.iloc[-20:].std()) if len(down_ret) >= 2 else 0.01
-                            up_vol = float(up_ret.iloc[-20:].std()) if len(up_ret) >= 2 else 0.01
+                            ret_20 = ret.tail(20)
+                            down_ret = ret_20[ret_20 < 0]
+                            up_ret = ret_20[ret_20 > 0]
+                            down_vol = float(down_ret.std()) if len(down_ret) >= 2 else 0.01
+                            up_vol = float(up_ret.std()) if len(up_ret) >= 2 else 0.01
                             if np.isnan(down_vol) or down_vol <= 0:
                                 down_vol = 0.01
                             if np.isnan(up_vol) or up_vol <= 0:

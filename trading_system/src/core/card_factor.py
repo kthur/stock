@@ -37,25 +37,25 @@ class CARDFactorEngine(BaseStrategyEngine):
         Computes CARD factor scores in [0.0, 1.0] for all symbols.
         Accepts indicator_df as pd.DataFrame or Dict[str, float].
         """
-        if indicator_df is None or not prices_dict:
-            return {}
-        if isinstance(indicator_df, pd.DataFrame) and indicator_df.empty:
+        if not prices_dict:
             return {}
 
         def _safe_macro(col):
+            if indicator_df is None:
+                return 0.0
             if isinstance(indicator_df, dict):
                 v = float(indicator_df.get(col, 0.0))
                 return 0.0 if (np.isnan(v) or np.isinf(v)) else v
             elif isinstance(indicator_df, pd.DataFrame):
-                if col in indicator_df.columns and not indicator_df[col].dropna().empty:
+                if not indicator_df.empty and col in indicator_df.columns and not indicator_df[col].dropna().empty:
                     v = float(indicator_df[col].dropna().iloc[-1])
                     return 0.0 if (np.isnan(v) or np.isinf(v)) else v
             return 0.0
 
-        # Extract latest macro indicators with safe scaling
-        usdkrw_chg = _safe_macro('usdkrw_change')
-        wti_chg = _safe_macro('wti_change')
-        vix_val = _safe_macro('vix_change')
+        # Extract latest macro indicators with safe scaling (supports raw or change keys)
+        usdkrw_chg = _safe_macro('usdkrw_change') or _safe_macro('usdkrw_pct') or 0.0
+        wti_chg = _safe_macro('wti_change') or _safe_macro('wti_pct') or 0.0
+        vix_val = _safe_macro('vix_change') or _safe_macro('vix') or 0.0
 
         # M-3 Fix: If vix_val is an absolute index level (e.g. > 5.0), scale to percentage change proxy
         if abs(vix_val) > 5.0:

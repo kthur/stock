@@ -104,6 +104,8 @@ class RIMValuationEngine(BaseStrategyEngine):
 
         if np.isnan(roe):
             roe = r_e  # Neutral assumption: ROE = r_e => V_0 = BPS
+        else:
+            roe = max(-0.5, min(0.5, float(roe)))
 
         if self.decay_rate <= 0:
             # Constant ROE Perpetuity Formula (legacy, no 유보금):
@@ -182,13 +184,15 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Only fill NaN BPS with Close*0.8 when fundamentals exist for that stock but BPS is temporarily missing
         # Never invent BPS from price alone — that creates an artificial -20% discount for all symbols
 
-        # Handle ROE
+        # Handle ROE and clip to realistic limits [-0.5, +0.5] (-50% to +50%) to prevent overflow
         if 'roe' not in df.columns:
             if 'eps' in df.columns and 'bps' in df.columns:
-                df['roe'] = (df['eps'] / df['bps']).replace([np.inf, -np.inf], np.nan)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    df['roe'] = np.where(df['bps'] > 0, df['eps'] / df['bps'], np.nan)
             else:
                 df['roe'] = np.nan
         df['roe'] = df['roe'].replace([np.inf, -np.inf], np.nan).fillna(self.default_required_return)
+        df['roe'] = df['roe'].clip(-0.5, 0.5)
 
         # ---- Earnings Quality Filter (이익의 질 필터) ----
         # 순이익이 영업이익보다 크게 높으면(일회성 이익 포함) ROE를 감쇠하고,
