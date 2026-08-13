@@ -69,8 +69,8 @@ class TradingConfig:
 
     # 앙상블 스코어 및 거래비용/유동성/슬리피지 파라미터
     ensemble_return_multiplier: float = 20.0  # ensemble_score → expected_return 환산 계수
-    min_daily_volume_krx: float = 5_000_000_000.0  # KRX 최소 일평균 거래대금 (50억원)
-    min_daily_volume_sp500: float = 1_000_000.0   # SP500 최소 일평균 거래량 (100만 주)
+    min_daily_volume_krx: float = 500_000_000.0   # KRX 최소 일평균 거래대금 (5억원)
+    min_daily_volume_sp500: float = 1_000_000.0   # US 최소 일평균 거래대금 ($1M USD)
     slippage_krx_market_order: float = 0.005      # KRX 시가 슬리피지 (0.5%)
 
     # Order Book Market Impact & Bid-Ask Spread Cost Parameters (R2)

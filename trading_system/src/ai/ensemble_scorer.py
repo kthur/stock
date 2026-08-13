@@ -1822,13 +1822,13 @@ class EnsembleScoringEngine:
                 close_p = float(row.get('close', 0.0)) if pd.notna(row.get('close')) else 0.0
                 turnover = vol * close_p
                 mkt = str(row.get('market', '')).upper()
-                min_krx_turnover = getattr(self.config, 'min_daily_volume_krx', 5_000_000_000.0) if self.config else 5_000_000_000.0
-                min_sp_vol = getattr(self.config, 'min_daily_volume_sp500', 1_000_000.0) if self.config else 1_000_000.0
+                min_krx_turnover = getattr(self.config, 'min_daily_volume_krx', 500_000_000.0) if self.config else 500_000_000.0
+                min_us_turnover = getattr(self.config, 'min_daily_volume_sp500', 1_000_000.0) if self.config else 1_000_000.0
                 if vol <= 0:
                     return True
-                if mkt in ['KOSPI', 'KOSDAQ'] and turnover > 0 and turnover < (min_krx_turnover * 0.1): # 10% threshold for daily turnover
+                if mkt in ['KOSPI', 'KOSDAQ', 'KONEX'] and turnover > 0 and turnover < min_krx_turnover:
                     return True
-                if mkt in ['SP500', 'NASDAQ', 'RUSSELL2000'] and vol < (min_sp_vol * 0.1):
+                if mkt in ['SP500', 'NASDAQ', 'RUSSELL2000'] and turnover > 0 and turnover < min_us_turnover:
                     return True
             return False
 

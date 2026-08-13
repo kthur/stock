@@ -121,8 +121,8 @@ TELEGRAM_AUTHORIZED_USER_IDS=12345678,87654321
 | 위치 | 상수 | 값 | 설명 |
 |------|------|----|------|
 | `config.py` | `ensemble_return_multiplier` | `20.0` | ensemble_score → expected_return 환산 계수 |
-| `config.py` | `min_daily_volume_krx` | `5,000,000,000.0` | KRX 최소 일평균 거래대금 (50억 원) |
-| `config.py` | `min_daily_volume_sp500` | `1,000,000.0` | SP500 최소 일평균 거래량 (100만 주) |
+| `config.py` | `min_daily_volume_krx` | `500,000,000.0` | KRX 최소 일평균 거래대금 (5억 원) |
+| `config.py` | `min_daily_volume_sp500` | `1,000,000.0` | US 최소 일평균 거래대금 ($1M USD, 약 13억 원) |
 | `config.py` | `slippage_krx_market_order` | `0.005` | KRX 시가 슬리피지 (0.5%) |
 | `run_pipeline.py` L15 | `_CPU_WORKERS` | `os.cpu_count()` | 병렬 작업자 수 |
 | `run_pipeline.py` L16 | `_PER_SYMBOL_TIMEOUT` | `30` | 종목당 타임아웃 (초) |
