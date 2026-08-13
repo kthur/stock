@@ -163,8 +163,43 @@ class TestMarketIndicatorStorage(unittest.TestCase):
         with self.storage._connect() as conn:
             old_count = conn.execute("SELECT COUNT(*) FROM pipeline_run_history WHERE run_id = ?", (r_old,)).fetchone()[0]
             new_count = conn.execute("SELECT COUNT(*) FROM pipeline_run_history WHERE run_id = ?", (r_new,)).fetchone()[0]
-            self.assertEqual(old_count, 0)
-            self.assertEqual(new_count, 1)
+        self.assertEqual(old_count, 0)
+        self.assertEqual(new_count, 1)
+
+    def test_outcome_performance_summary(self):
+        r_id = self.storage.start_pipeline_run(trigger_type="manual")
+        df = pd.DataFrame([
+            {'symbol': '005930', 'ensemble_score': 0.85, 'net_expected_return': 0.05, 'regime': 'Bullish'},
+            {'symbol': '000660', 'ensemble_score': 0.75, 'net_expected_return': 0.03, 'regime': 'Bullish'},
+        ])
+        today_str = pd.Timestamp.now().strftime("%Y-%m-%d")
+        self.storage.save_ensemble_history(r_id, df, date_str=today_str)
+        self.storage.finish_pipeline_run(r_id, status="SUCCESS")
+
+        # Manually populate actual returns for testing summary
+        with self.storage._write_lock:
+            with self.storage._connect() as conn:
+                conn.execute("""
+                    UPDATE ensemble_prediction_history
+                    SET actual_return_1d = 0.02, hit_1d = 1,
+                        actual_return_5d = 0.05, hit_5d = 1,
+                        actual_return_20d = 0.10, hit_20d = 1
+                    WHERE run_id = ? AND symbol = '005930'
+                """, (r_id,))
+                conn.execute("""
+                    UPDATE ensemble_prediction_history
+                    SET actual_return_1d = -0.01, hit_1d = 0,
+                        actual_return_5d = 0.01, hit_5d = 1,
+                        actual_return_20d = -0.02, hit_20d = 0
+                    WHERE run_id = ? AND symbol = '000660'
+                """, (r_id,))
+                conn.commit()
+
+        summary = self.storage.get_outcome_performance_summary(days=30)
+        self.assertEqual(summary['total_predictions'], 2)
+        self.assertEqual(summary['evaluated_5d'], 2)
+        self.assertEqual(summary['hit_rate_5d'], 100.0) # Both 005930 (+5%) and 000660 (+1%) are positive
+        self.assertEqual(summary['hit_rate_1d'], 50.0)  # 1 positive, 1 negative
 
 
 if __name__ == "__main__":

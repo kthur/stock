@@ -3963,10 +3963,23 @@ Examples:
         except Exception:
             pass
 
+        _perf_msg = ""
+        try:
+            from src.data_layer.indicator_storage import MarketIndicatorStorage
+            _db_p = Path(__file__).parent / "market_indicators.db"
+            if _db_p.exists():
+                _st = MarketIndicatorStorage(db_path=str(_db_p))
+                _perf = _st.get_outcome_performance_summary(days=60)
+                if _perf.get("evaluated_5d", 0) > 0:
+                    _perf_msg = f"\n🎯 *과거 예측 5D 적중률:* {_perf['hit_rate_5d']}% (평균 {'+' if _perf['avg_ret_5d'] > 0 else ''}{_perf['avg_ret_5d']}%)"
+        except Exception:
+            pass
+
         _notify_telegram(
             f"✅ 파이프라인 완료\n"
             f"⏱ 소요시간: {_elapsed / 60:.1f}분\n"
             f"📅 실행시각: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            f"{_perf_msg}"
             f"{_cmp_msg}",
             "SUCCESS",
             buttons=_buttons,

@@ -343,6 +343,12 @@ class MarketIndicatorStorage:
                 ("stock_fundamentals", "book_value", "REAL DEFAULT 0"),
                 ("stock_universe", "sector", "TEXT DEFAULT ''"),
                 ("stock_universe", "industry", "TEXT DEFAULT ''"),
+                ("ensemble_prediction_history", "actual_return_1d", "REAL"),
+                ("ensemble_prediction_history", "actual_return_5d", "REAL"),
+                ("ensemble_prediction_history", "actual_return_20d", "REAL"),
+                ("ensemble_prediction_history", "hit_1d", "INTEGER"),
+                ("ensemble_prediction_history", "hit_5d", "INTEGER"),
+                ("ensemble_prediction_history", "hit_20d", "INTEGER"),
             ]
             for tbl, col, col_def in migrations:
                 if not _column_exists(conn, tbl, col):
@@ -915,83 +921,153 @@ class MarketIndicatorStorage:
     def update_ensemble_outcomes(self, prices_getter, horizon: int = 20,
                                  days: int = 60, min_date: Optional[str] = None,
                                  label_threshold: float = 0.0) -> int:
-        """Backfill realized forward returns for stored ensemble predictions.
-
-        For each (date, symbol) row whose outcome_return is NULL, looks up the close
-        price on the prediction date and `horizon` trading days later via
-        ``prices_getter(symbol, start_date, end_date)`` (e.g. StockPriceDB.get_prices)
-        and stores the realized return as ``outcome_return`` and a binary
-        ``outcome_label`` (1 if return > label_threshold).
-
-        US symbols: the prediction is created after the KRX close on KST date ``d``,
-        while the US session dated ``d`` only closes ~KST ``d+1`` 06:00. Using that
-        bar as the entry would leak 24h of future information into rolling Sharpe and
-        the realized backtest summary. For US symbols the entry is therefore the last
-        close strictly BEFORE the ``d``-dated US session (i.e. the most recent bar
-        available when the prediction was made).
-
-        Returns the number of rows updated.
-        """
-        history = self.get_ensemble_predictions_history(days=days, min_date=min_date)
-        if history is None or history.empty:
+        """Backfill realized forward returns (1D, 5D, 20D) for stored ensemble predictions."""
+        with self._connect() as conn:
+            query = """
+                SELECT DISTINCT run_id, date, symbol FROM ensemble_prediction_history
+                WHERE (actual_return_20d IS NULL OR outcome_return IS NULL)
+                  AND date >= date('now', '-' || ? || ' days')
+            """
+            rows = conn.execute(query, (days,)).fetchall()
+        if not rows:
             return 0
-        pending = history[history['outcome_return'].isna()].copy()
-        if pending.empty:
-            return 0
-        _pending_dates = sorted(pending['date'].unique().tolist())
-        updates = []
-        for d in _pending_dates:
-            day_rows = pending[pending['date'] == d]
-            syms = day_rows['symbol'].unique().tolist()
-            for sym in syms:
-                try:
-                    is_us = not _is_krx_symbol(str(sym))
-                    fetch_start = d if not is_us else (
-                        pd.Timestamp(d) - pd.Timedelta(days=14)
-                    ).strftime("%Y-%m-%d")
-                    px = prices_getter(sym, start_date=fetch_start)
-                except Exception:
-                    continue
-                if px is None or px.empty:
-                    continue
-                closes = px['Close']
-                if isinstance(closes, pd.DataFrame):
-                    closes = closes.iloc[:, 0]
-                closes = closes.dropna()
-                if is_us:
-                    if not isinstance(closes.index, pd.DatetimeIndex):
-                        closes.index = pd.to_datetime(closes.index)
-                    avail = closes[closes.index < pd.Timestamp(d)]
-                    if len(avail) < 1:
-                        continue
-                    rest = closes[closes.index >= avail.index[-1]]
-                    if len(rest) < horizon + 1:
-                        continue
-                    entry = float(avail.iloc[-1])
-                    exit_px = float(rest.iloc[horizon])
-                else:
-                    if len(closes) < horizon + 1:
-                        continue
-                    entry = float(closes.iloc[0])
-                    exit_px = float(closes.iloc[horizon])
-                if entry is None or entry <= 0 or exit_px is None or exit_px <= 0:
-                    continue
-                outcome_return = exit_px / entry - 1.0
-                outcome_label = 1 if outcome_return > label_threshold else 0
-                updates.append((float(outcome_return), int(outcome_label), d, str(sym)))
 
-        if not updates:
+        updates_legacy = []
+        updates_hist = []
+
+        date_sym_map = {}
+        for r_id, d, sym in rows:
+            date_sym_map.setdefault((d, str(sym)), []).append(r_id)
+
+        for (d, sym), r_ids in date_sym_map.items():
+            try:
+                is_us = not _is_krx_symbol(str(sym))
+                fetch_start = d if not is_us else (
+                    pd.Timestamp(d) - pd.Timedelta(days=14)
+                ).strftime("%Y-%m-%d")
+                px = prices_getter(sym, start_date=fetch_start)
+            except Exception:
+                continue
+            if px is None or px.empty:
+                continue
+            closes = px['Close']
+            if isinstance(closes, pd.DataFrame):
+                closes = closes.iloc[:, 0]
+            closes = closes.dropna()
+            if closes.empty:
+                continue
+
+            if is_us:
+                if not isinstance(closes.index, pd.DatetimeIndex):
+                    closes.index = pd.to_datetime(closes.index)
+                avail = closes[closes.index < pd.Timestamp(d)]
+                if len(avail) < 1:
+                    continue
+                rest = closes[closes.index >= avail.index[-1]]
+                if len(rest) < 2:
+                    continue
+                entry = float(avail.iloc[-1])
+                rest_closes = rest.values
+            else:
+                if len(closes) < 2:
+                    continue
+                entry = float(closes.iloc[0])
+                rest_closes = closes.values
+
+            if entry <= 0:
+                continue
+
+            ret_1d = (float(rest_closes[1]) / entry - 1.0) if len(rest_closes) > 1 else None
+            hit_1d = (1 if ret_1d > label_threshold else 0) if ret_1d is not None else None
+
+            ret_5d = (float(rest_closes[5]) / entry - 1.0) if len(rest_closes) > 5 else None
+            hit_5d = (1 if ret_5d > label_threshold else 0) if ret_5d is not None else None
+
+            ret_20d = (float(rest_closes[20]) / entry - 1.0) if len(rest_closes) > 20 else None
+            hit_20d = (1 if ret_20d > label_threshold else 0) if ret_20d is not None else None
+
+            main_ret = ret_20d if ret_20d is not None else (ret_5d if ret_5d is not None else ret_1d)
+            main_hit = hit_20d if hit_20d is not None else (hit_5d if hit_5d is not None else hit_1d)
+
+            if main_ret is not None:
+                updates_legacy.append((float(main_ret), int(main_hit or 0), d, sym))
+                for r_id in r_ids:
+                    updates_hist.append((
+                        float(main_ret),
+                        ret_1d, hit_1d,
+                        ret_5d, hit_5d,
+                        ret_20d, hit_20d,
+                        r_id, sym
+                    ))
+
+        if not updates_hist and not updates_legacy:
             return 0
 
         with self._write_lock:
             with self._connect() as conn:
-                conn.executemany(
-                    "UPDATE ensemble_predictions SET outcome_return = ?, outcome_label = ? "
-                    "WHERE date = ? AND symbol = ?",
-                    updates
-                )
+                if updates_legacy:
+                    conn.executemany(
+                        "UPDATE ensemble_predictions SET outcome_return = ?, outcome_label = ? "
+                        "WHERE date = ? AND symbol = ?",
+                        updates_legacy
+                    )
+                if updates_hist:
+                    conn.executemany(
+                        "UPDATE ensemble_prediction_history SET "
+                        "outcome_return = ?, actual_return_1d = ?, hit_1d = ?, "
+                        "actual_return_5d = ?, hit_5d = ?, actual_return_20d = ?, hit_20d = ? "
+                        "WHERE run_id = ? AND symbol = ?",
+                        updates_hist
+                    )
                 conn.commit()
-        return len(updates)
+        return len(updates_hist)
+
+    def get_outcome_performance_summary(self, days: int = 60) -> Dict[str, Any]:
+        """Compute realized outcome statistics (Hit Rate %, avg return, win rate) for predictions in last N days."""
+        sql = """
+            SELECT 
+                COUNT(*) as total_predictions,
+                COUNT(actual_return_1d) as evaluated_1d,
+                AVG(actual_return_1d) as avg_ret_1d,
+                AVG(CASE WHEN hit_1d = 1 THEN 1.0 ELSE 0.0 END) as hit_rate_1d,
+                COUNT(actual_return_5d) as evaluated_5d,
+                AVG(actual_return_5d) as avg_ret_5d,
+                AVG(CASE WHEN hit_5d = 1 THEN 1.0 ELSE 0.0 END) as hit_rate_5d,
+                COUNT(actual_return_20d) as evaluated_20d,
+                AVG(actual_return_20d) as avg_ret_20d,
+                AVG(CASE WHEN hit_20d = 1 THEN 1.0 ELSE 0.0 END) as hit_rate_20d
+            FROM ensemble_prediction_history
+            WHERE date >= date('now', '-' || ? || ' days')
+        """
+        try:
+            with self._connect() as conn:
+                row = conn.execute(sql, (days,)).fetchone()
+                if not row or row[0] == 0:
+                    return {
+                        "total_predictions": 0,
+                        "evaluated_1d": 0, "hit_rate_1d": 0.0, "avg_ret_1d": 0.0,
+                        "evaluated_5d": 0, "hit_rate_5d": 0.0, "avg_ret_5d": 0.0,
+                        "evaluated_20d": 0, "hit_rate_20d": 0.0, "avg_ret_20d": 0.0,
+                    }
+                return {
+                    "total_predictions": row[0],
+                    "evaluated_1d": row[1] or 0,
+                    "avg_ret_1d": round(float(row[2] or 0.0) * 100, 2),
+                    "hit_rate_1d": round(float(row[3] or 0.0) * 100, 1),
+                    "evaluated_5d": row[4] or 0,
+                    "avg_ret_5d": round(float(row[5] or 0.0) * 100, 2),
+                    "hit_rate_5d": round(float(row[6] or 0.0) * 100, 1),
+                    "evaluated_20d": row[7] or 0,
+                    "avg_ret_20d": round(float(row[8] or 0.0) * 100, 2),
+                    "hit_rate_20d": round(float(row[9] or 0.0) * 100, 1),
+                }
+        except Exception:
+            return {
+                "total_predictions": 0,
+                "evaluated_1d": 0, "hit_rate_1d": 0.0, "avg_ret_1d": 0.0,
+                "evaluated_5d": 0, "hit_rate_5d": 0.0, "avg_ret_5d": 0.0,
+                "evaluated_20d": 0, "hit_rate_20d": 0.0, "avg_ret_20d": 0.0,
+            }
 
     def get_filing_sentiment(
         self,
