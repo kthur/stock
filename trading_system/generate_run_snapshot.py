@@ -18,13 +18,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Ensure trading_system root is on sys.path
-_ROOT = Path(__file__).resolve().parent.parent
+# Ensure trading_system root and repo root are on sys.path
 _TS_DIR = Path(__file__).resolve().parent
-if str(_TS_DIR) not in sys.path:
-    sys.path.insert(0, str(_TS_DIR))
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+_ROOT = _TS_DIR.parent
+for _p in [str(_TS_DIR), str(_ROOT)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+try:
+    from src.data_layer.indicator_storage import MarketIndicatorStorage
+except ModuleNotFoundError:
+    try:
+        from trading_system.src.data_layer.indicator_storage import MarketIndicatorStorage  # type: ignore
+    except ModuleNotFoundError:
+        MarketIndicatorStorage = None  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -44,9 +51,8 @@ def generate_snapshot(result_dir: Path, db_path: Path, output_file: Path) -> Dic
     strategy_weights: Dict[str, float] = {}
 
     # 1. Query SQLite DB if present
-    if db_path.exists():
+    if MarketIndicatorStorage is not None and db_path.exists():
         try:
-            from src.data_layer.indicator_storage import MarketIndicatorStorage
             storage = MarketIndicatorStorage(db_path=str(db_path))
             with storage._connect() as conn:
                 # Get latest run metadata

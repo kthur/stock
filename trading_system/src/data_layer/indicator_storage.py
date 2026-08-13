@@ -1136,7 +1136,7 @@ class MarketIndicatorStorage:
                     sym = row.get('symbol')
                     if pd.isna(sym) or str(sym) == 'nan' or sym == '':
                         continue
-                    vals = [run_id, date_str, str(sym)]
+                    vals: List[Any] = [run_id, date_str, str(sym)]
                     for c in all_cols:
                         v = row.get(c, None)
                         if c == 'regime':
