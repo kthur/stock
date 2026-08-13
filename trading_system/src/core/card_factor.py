@@ -54,7 +54,8 @@ class CARDFactorEngine(BaseStrategyEngine):
         sector_map = kwargs.get("sector_map") or {}
 
         if not prices_dict or not isinstance(prices_dict, dict):
-            return pd.DataFrame(columns=['symbol', 'card_score'])
+            from .base_strategy import make_score_dataframe
+            return make_score_dataframe([], 'card_score')
 
         def _safe_macro(col):
             if indicator_df is None:
