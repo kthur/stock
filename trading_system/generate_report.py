@@ -899,6 +899,192 @@ def make_stock_link(symbol: str, market: str) -> str:
         return f'<a href="https://finance.yahoo.com/quote/{clean_sym}" target="_blank" class="stock-link">{clean_sym}</a>'
 
 
+def build_history_section(result_dir: Path) -> str:
+    """Build HTML for the Pipeline Run History & Comparison tab panel."""
+    import html as _html
+    cmp_path = result_dir / "run_comparison.txt"
+    cmp_text = ""
+    if cmp_path.exists():
+        try:
+            cmp_text = cmp_path.read_text(encoding="utf-8")
+        except Exception:
+            cmp_text = cmp_path.read_text(encoding="utf-8", errors="replace")
+
+    db_paths = [
+        result_dir.parent / "market_indicators.db",
+        result_dir / "market_indicators.db",
+        result_dir.parent / "trading_system" / "market_indicators.db"
+    ]
+    for dp in db_paths:
+        if dp.exists():
+            try:
+                from src.data_layer.indicator_storage import MarketIndicatorStorage
+                storage = MarketIndicatorStorage(db_path=str(dp))
+                with storage._connect() as conn:
+                    cur = conn.execute("""
+                        SELECT run_id, run_date, start_time, end_time, status, trigger_type, git_sha, markets_processed, total_symbols, duration_seconds, regime_detected
+                        FROM pipeline_run_history
+                        ORDER BY start_time DESC LIMIT 20
+                    """)
+                    runs = cur.fetchall()
+                if runs:
+                    break
+            except Exception as _db_e:
+                logger.warning(f"Failed reading DB history: {_db_e}")
+
+    if runs:
+        r_list = []
+        for r in runs:
+            r_id, r_date, st_time, end_time, status, trigger, git_sha, markets, total_syms, dur_sec, regime = r
+            st_cls = "pos" if status == "SUCCESS" else ("neg" if status == "FAILED" else "score")
+            sha_short = git_sha[:7] if git_sha else "local"
+            dur_str = f"{dur_sec/60:.1f}m" if dur_sec else "-"
+            r_list.append(
+                f"<tr>"
+                f"<td class='symbol'>{r_id}</td>"
+                f"<td>{r_date}</td>"
+                f"<td><span class='badge badge-date'>{trigger} ({sha_short})</span></td>"
+                f"<td><span class='{st_cls}'>● {status}</span></td>"
+                f"<td>{regime or '-'}</td>"
+                f"<td>{total_syms} 종목</td>"
+                f"<td>{dur_str}</td>"
+                f"</tr>"
+            )
+        run_rows_html = "\n".join(r_list)
+    else:
+        run_rows_html = "<tr><td colspan='7' class='empty'>저장된 실행 이력 데이터가 없습니다 (DB 캐시 보존 중).</td></tr>"
+
+    # Fetch TOP symbols trend data for Chart.js
+    chart_dates = []
+    chart_datasets_json = "[]"
+    if runs:
+        try:
+            for dp in db_paths:
+                if dp.exists():
+                    from src.data_layer.indicator_storage import MarketIndicatorStorage
+                    storage = MarketIndicatorStorage(db_path=str(dp))
+                    with storage._connect() as conn:
+                        latest_run_id = runs[0][0]
+                        top_syms = [r[0] for r in conn.execute(
+                            "SELECT symbol FROM ensemble_prediction_history WHERE run_id = ? ORDER BY ensemble_score DESC LIMIT 5",
+                            (latest_run_id,)
+                        ).fetchall()]
+
+                        if top_syms:
+                            placeholders = ",".join(["?"] * len(top_syms))
+                            history_rows = conn.execute(f"""
+                                SELECT date, symbol, ensemble_score
+                                FROM ensemble_prediction_history
+                                WHERE symbol IN ({placeholders})
+                                ORDER BY date ASC
+                            """, tuple(top_syms)).fetchall()
+
+                            import pandas as pd
+                            df_trend = pd.DataFrame(history_rows, columns=['date', 'symbol', 'score'])
+                            if not df_trend.empty:
+                                chart_dates = sorted(df_trend['date'].unique().tolist())
+                                colors = ['#58a6ff', '#2ea043', '#d29922', '#f85149', '#a371f7']
+                                datasets = []
+                                for idx, sym in enumerate(top_syms):
+                                    sym_df = df_trend[df_trend['symbol'] == sym].set_index('date')
+                                    scores = [round(float(sym_df.loc[d, 'score']), 4) if d in sym_df.index else None for d in chart_dates]
+                                    datasets.append({
+                                        "label": sym,
+                                        "data": scores,
+                                        "borderColor": colors[idx % len(colors)],
+                                        "backgroundColor": colors[idx % len(colors)],
+                                        "fill": False,
+                                        "tension": 0.2
+                                    })
+                                chart_datasets_json = json.dumps(datasets, ensure_ascii=False)
+                    break
+        except Exception as _chart_e:
+            logger.warning(f"Failed generating trend chart data: {_chart_e}")
+
+    if cmp_text:
+        escaped_cmp = _html.escape(cmp_text)
+        cmp_html = f"""
+        <div class="market-panel" style="margin-top: 20px;">
+          <h3 class="market-title">📑 직전 실행 vs 현재 실행 비교 상세 리포트 (run_comparison.txt)</h3>
+          <div style="padding: 16px; background: #0d1117; border-radius: 0 0 8px 8px;">
+            <pre style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12px; color: #58a6ff; background: #161b22; padding: 16px; border-radius: 6px; border: 1px solid var(--border); overflow-x: auto; white-space: pre;">{escaped_cmp}</pre>
+          </div>
+        </div>
+        """
+    else:
+        cmp_html = """
+        <div class="market-panel" style="margin-top: 20px;">
+          <h3 class="market-title">📑 직전 실행 vs 현재 실행 비교 상세 리포트</h3>
+          <div class="empty">비교 대상 직전 실행 기록이 아직 없습니다 (파이프라인 2회 이상 실행 시 자동 활성화).</div>
+        </div>
+        """
+
+    trend_chart_html = ""
+    if chart_dates:
+        trend_chart_html = f"""
+        <div class="market-panel" style="margin-bottom: 20px; padding: 16px;">
+          <h3 class="market-title" style="margin: -16px -16px 16px -16px; border-radius: 8px 8px 0 0;">📈 TOP 5 종목 최근 앙상블 점수 변동 추이 (Score Trend)</h3>
+          <div style="position: relative; height: 260px;">
+            <canvas id="scoreTrendChart"></canvas>
+          </div>
+        </div>
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {{
+          var ctx = document.getElementById("scoreTrendChart");
+          if (ctx && typeof Chart !== "undefined") {{
+            new Chart(ctx, {{
+              type: "line",
+              data: {{
+                labels: {json.dumps(chart_dates)},
+                datasets: {chart_datasets_json}
+              }},
+              options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ labels: {{ color: "#e6edf3" }} }} }},
+                scales: {{
+                  x: {{ ticks: {{ color: "#8b949e" }}, grid: {{ color: "#30363d" }} }},
+                  y: {{ ticks: {{ color: "#8b949e" }}, grid: {{ color: "#30363d" }}, min: 0, max: 1 }}
+                }}
+              }}
+            }});
+          }}
+        }});
+        </script>
+        """
+
+    return f"""
+    <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
+      <div class="macro-grid">
+        <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">{len(runs)}회</span></div>
+        <div class="macro-item"><span class="ml">이력 보존 정책</span><span class="mv">180일 (자동 Pruning)</span></div>
+        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">31대 Multi-Factor Ensemble</span></div>
+      </div>
+    </div>
+
+    {trend_chart_html}
+
+    <div class="market-panel" style="margin-bottom: 20px;">
+      <h3 class="market-title">📜 최근 파이프라인 실행 히스토리 (Pipeline Run History)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Run ID</th><th>실행 날짜</th><th>트리거 (Commit)</th><th>상태</th><th>감지된 레짐</th><th>대상 종목</th><th>소요시간</th>
+            </tr>
+          </thead>
+          <tbody>
+            {run_rows_html}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {cmp_html}
+    """
+
+
+
 def build_html(
     ensemble: EnsembleData,
     surge_date: str, surge_sections: list[SurgeSection],
@@ -927,6 +1113,7 @@ def build_html(
     scenario_universe_json: str = "[]",
     backtest_rows_html: str = "",
     backtest_note_html: str = "",
+    history_html: str = "",
 ) -> str:
     from datetime import timezone, timedelta
     KST = timezone(timedelta(hours=9))
@@ -1902,6 +2089,7 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
+  <button class="tab" onclick="switchTab(this,'history')">📜 파이프라인 이력 &amp; 비교</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
@@ -2077,6 +2265,11 @@ def build_html(
         <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 31-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
+  </div>
+
+  <!-- ══ Pipeline Run History & Comparison Tab Panel ══ -->
+  <div class="tab-panel" id="panel-history">
+    {history_html}
   </div>
 </div>
 
@@ -3111,6 +3304,8 @@ def main(args_list: Optional[list[str]] = None):
         backtest_rows_html = ('<tr><td colspan="5" style="text-align:center; '
                               'color:var(--muted);">백테스트 데이터 없음</td></tr>')
 
+    history_html = build_history_section(result_dir)
+
     html = build_html(
         ensemble,
         surge_date, surge_sections,
@@ -3138,6 +3333,7 @@ def main(args_list: Optional[list[str]] = None):
         scenario_universe_json,
         backtest_rows_html,
         backtest_note_html,
+        history_html=history_html,
     )
 
 

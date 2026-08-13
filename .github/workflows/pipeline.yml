@@ -273,6 +273,7 @@ jobs:
 
           # Run python merging script to generate unified result files
           python3 trading_system/merge_predictions.py
+          python3 trading_system/generate_run_snapshot.py
 
       - name: Upload merged results as artifact
         if: always()
@@ -304,12 +305,14 @@ jobs:
                       arm_factor_predictions.txt card_factor_predictions.txt latr_factor_predictions.txt \
                       inst_foreign_sector_predictions.txt supply_chain_predictions.txt sentiment_predictions.txt \
                       factor_neutralized_predictions.txt vol_target_predictions.txt microstructure_predictions.txt \
-                      ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt; do
+                      ensemble_predictions.txt strategy_data_coverage_report.txt portfolio_allocation.txt run_comparison.txt; do
               fpath="trading_system/result/$f"
               [ -f "$fpath" ] && gh release upload "$TAG_NAME" "$fpath" --clobber || true
             done
-            # JSON metadata (realized backtest summary) for external consumers
+            # JSON metadata (realized backtest summary & run snapshot) for external consumers and permanent backup
             [ -f "trading_system/result/backtest_summary.json" ] && gh release upload "$TAG_NAME" "trading_system/result/backtest_summary.json" --clobber || true
+            [ -f "trading_system/result/run_snapshot.json" ] && gh release upload "$TAG_NAME" "trading_system/result/run_snapshot.json" --clobber || true
+
           else
             echo "No prediction output files found to upload."
           fi

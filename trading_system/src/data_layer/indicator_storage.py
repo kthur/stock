@@ -256,6 +256,80 @@ class MarketIndicatorStorage:
                     PRIMARY KEY (symbol, fetch_date)
                 )
             ''')
+            # Create tables for multi-run history tracking & run comparison
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS pipeline_run_history (
+                    run_id TEXT PRIMARY KEY,
+                    run_date TEXT NOT NULL,
+                    start_time TEXT NOT NULL,
+                    end_time TEXT,
+                    status TEXT NOT NULL,
+                    trigger_type TEXT DEFAULT 'manual',
+                    git_sha TEXT DEFAULT '',
+                    markets_processed TEXT DEFAULT '',
+                    total_symbols INTEGER DEFAULT 0,
+                    duration_seconds REAL DEFAULT 0.0,
+                    regime_detected TEXT DEFAULT '',
+                    error_summary TEXT DEFAULT ''
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ensemble_prediction_history (
+                    run_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    ensemble_score REAL,
+                    net_expected_return REAL,
+                    regime TEXT,
+                    reg_score REAL,
+                    surge_score REAL,
+                    ll_score REAL,
+                    vcp_rule_score REAL,
+                    vcp_ml_score REAL,
+                    lstm_score REAL,
+                    stat_arb_score REAL,
+                    sector_score REAL,
+                    rim_score REAL,
+                    event_score REAL,
+                    mq_score REAL,
+                    iv_skew_score REAL,
+                    order_flow_score REAL,
+                    reversal_score REAL,
+                    arm_score REAL,
+                    card_score REAL,
+                    latr_score REAL,
+                    inst_foreign_sector_score REAL,
+                    supply_chain_score REAL,
+                    sentiment_score REAL,
+                    factor_neutralized_score REAL,
+                    vol_target_score REAL,
+                    microstructure_score REAL,
+                    accruals_quality_score REAL,
+                    short_squeeze_score REAL,
+                    valueup_catalyst_score REAL,
+                    trend_efficiency_score REAL,
+                    gamma_squeeze_score REAL,
+                    insider_buying_score REAL,
+                    darkpool_score REAL,
+                    earnings_tone_drift_score REAL,
+                    portfolio_weight REAL,
+                    outcome_return REAL,
+                    PRIMARY KEY (run_id, symbol)
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS strategy_weight_history (
+                    run_id TEXT NOT NULL,
+                    strategy_name TEXT NOT NULL,
+                    weight REAL NOT NULL,
+                    rolling_sharpe REAL DEFAULT 0.0,
+                    regime TEXT DEFAULT '',
+                    PRIMARY KEY (run_id, strategy_name)
+                )
+            ''')
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ens_pred_hist_run_id ON ensemble_prediction_history(run_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ens_pred_hist_sym_date ON ensemble_prediction_history(symbol, date)")
+
             # Helper function for safe schema migration
             def _column_exists(c_conn, table_name, column_name):
                 cur = c_conn.cursor()
@@ -985,8 +1059,269 @@ class MarketIndicatorStorage:
                 conn.execute(sql, (sym, f_date, filing_id, tone, surprise, composite, conf, src, now_str))
                 conn.commit()
 
+    # ------------------------------------------------------------------
+    # Pipeline Run History & Cross-Run Comparison API
+    # ------------------------------------------------------------------
+
+    def start_pipeline_run(self, trigger_type: str = "manual", git_sha: str = "") -> str:
+        """Start a pipeline run and record it in pipeline_run_history.
+        Returns generated run_id.
+        """
+        now = datetime.now()
+        git_tag = git_sha[:7] if git_sha else "local"
+        run_id = f"run_{now.strftime('%Y%m%d_%H%M%S_%f')[:22]}_{git_tag}"
+        run_date = now.strftime('%Y-%m-%d')
+        start_time = now.isoformat(timespec='seconds')
+        sql = """
+            INSERT INTO pipeline_run_history
+            (run_id, run_date, start_time, status, trigger_type, git_sha)
+            VALUES (?, ?, ?, 'RUNNING', ?, ?)
+        """
+        with self._write_lock:
+            with self._connect() as conn:
+                conn.execute(sql, (run_id, run_date, start_time, trigger_type, git_sha))
+                conn.commit()
+        return run_id
+
+    def finish_pipeline_run(self, run_id: str, status: str = "SUCCESS",
+                            markets: Optional[List[str]] = None,
+                            total_symbols: int = 0,
+                            duration_seconds: float = 0.0,
+                            regime_detected: str = "",
+                            error_summary: str = "") -> None:
+        """Finish a pipeline run and update pipeline_run_history."""
+        end_time = datetime.now().isoformat(timespec='seconds')
+        markets_str = ",".join(markets) if markets else ""
+        sql = """
+            UPDATE pipeline_run_history
+            SET end_time = ?, status = ?, markets_processed = ?,
+                total_symbols = ?, duration_seconds = ?, regime_detected = ?, error_summary = ?
+            WHERE run_id = ?
+        """
+        with self._write_lock:
+            with self._connect() as conn:
+                conn.execute(sql, (end_time, status, markets_str, total_symbols,
+                                   duration_seconds, regime_detected, error_summary, run_id))
+                conn.commit()
+
+    def save_ensemble_history(self, run_id: str, ensemble_df: pd.DataFrame, date_str: Optional[str] = None) -> None:
+        """Save 31-strategy ensemble prediction results into ensemble_prediction_history."""
+        if ensemble_df is None or ensemble_df.empty:
+            return
+        if not date_str:
+            date_str = datetime.now().strftime('%Y-%m-%d')
+
+        score_cols = [
+            'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score',
+            'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score', 'event_score',
+            'mq_score', 'iv_skew_score', 'order_flow_score', 'reversal_score',
+            'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score',
+            'supply_chain_score', 'sentiment_score', 'factor_neutralized_score',
+            'vol_target_score', 'microstructure_score', 'accruals_quality_score',
+            'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
+            'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
+            'earnings_tone_drift_score'
+        ]
+        all_cols = ['ensemble_score', 'net_expected_return', 'regime', 'portfolio_weight'] + score_cols
+        col_names = ['run_id', 'date', 'symbol'] + all_cols
+        placeholders = ", ".join(["?"] * len(col_names))
+        sql = f"""
+            INSERT OR REPLACE INTO ensemble_prediction_history
+            ({", ".join(col_names)})
+            VALUES ({placeholders})
+        """
+        with self._write_lock:
+            with self._connect() as conn:
+                for _, row in ensemble_df.iterrows():
+                    sym = row.get('symbol')
+                    if pd.isna(sym) or str(sym) == 'nan' or sym == '':
+                        continue
+                    vals = [run_id, date_str, str(sym)]
+                    for c in all_cols:
+                        v = row.get(c, None)
+                        if c == 'regime':
+                            vals.append(str(v) if v is not None and not pd.isna(v) else '')
+                        else:
+                            try:
+                                vals.append(float(v) if v is not None and not pd.isna(v) else None)
+                            except (TypeError, ValueError):
+                                vals.append(None)
+                    conn.execute(sql, tuple(vals))
+                conn.commit()
+
+    def save_strategy_weights(self, run_id: str, weights_dict: Dict[str, float], regime: str = "") -> None:
+        """Save strategy weight snapshot into strategy_weight_history."""
+        if not weights_dict:
+            return
+        sql = """
+            INSERT OR REPLACE INTO strategy_weight_history
+            (run_id, strategy_name, weight, regime)
+            VALUES (?, ?, ?, ?)
+        """
+        with self._write_lock:
+            with self._connect() as conn:
+                for strat_name, weight in weights_dict.items():
+                    conn.execute(sql, (run_id, str(strat_name), float(weight), regime))
+                conn.commit()
+
+    def get_latest_run_id(self) -> Optional[str]:
+        """Get the most recent run_id."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT run_id FROM pipeline_run_history ORDER BY start_time DESC LIMIT 1").fetchone()
+            return row[0] if row else None
+
+    def get_previous_run_id(self, current_run_id: str) -> Optional[str]:
+        """Get the successful run_id preceding current_run_id."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT run_id FROM pipeline_run_history WHERE run_id != ? AND status = 'SUCCESS' ORDER BY start_time DESC LIMIT 1",
+                (current_run_id,)
+            ).fetchone()
+            return row[0] if row else None
+
+    def compare_runs(self, run_id_1: str, run_id_2: str, top_n: int = 20) -> Dict[str, Any]:
+        """Compare two pipeline runs (run_id_1 = previous, run_id_2 = current)."""
+        with self._connect() as conn:
+            # Metadata
+            r1_meta = conn.execute("SELECT run_id, run_date, regime_detected, trigger_type, git_sha, duration_seconds FROM pipeline_run_history WHERE run_id = ?", (run_id_1,)).fetchone()
+            r2_meta = conn.execute("SELECT run_id, run_date, regime_detected, trigger_type, git_sha, duration_seconds FROM pipeline_run_history WHERE run_id = ?", (run_id_2,)).fetchone()
+
+            meta1 = dict(zip(['run_id', 'run_date', 'regime', 'trigger', 'git_sha', 'duration'], r1_meta)) if r1_meta else {}
+            meta2 = dict(zip(['run_id', 'run_date', 'regime', 'trigger', 'git_sha', 'duration'], r2_meta)) if r2_meta else {}
+
+            # TOP N predictions
+            sql = "SELECT symbol, ensemble_score, net_expected_return, portfolio_weight FROM ensemble_prediction_history WHERE run_id = ? ORDER BY ensemble_score DESC LIMIT ?"
+            top1 = conn.execute(sql, (run_id_1, top_n)).fetchall()
+            top2 = conn.execute(sql, (run_id_2, top_n)).fetchall()
+
+            dict1 = {r[0]: {'rank': idx + 1, 'score': r[1], 'return': r[2], 'weight': r[3]} for idx, r in enumerate(top1)}
+            dict2 = {r[0]: {'rank': idx + 1, 'score': r[1], 'return': r[2], 'weight': r[3]} for idx, r in enumerate(top2)}
+
+            rank_changes = []
+            for sym, d2 in dict2.items():
+                if sym in dict1:
+                    d1 = dict1[sym]
+                    rank_diff = d1['rank'] - d2['rank']  # Positive = improved rank
+                    score_diff = (d2['score'] or 0.0) - (d1['score'] or 0.0)
+                    rank_changes.append({
+                        'symbol': sym,
+                        'current_rank': d2['rank'],
+                        'prev_rank': d1['rank'],
+                        'rank_diff': rank_diff,
+                        'current_score': d2['score'],
+                        'prev_score': d1['score'],
+                        'score_diff': score_diff,
+                        'status': 'SAME' if rank_diff == 0 else ('UP' if rank_diff > 0 else 'DOWN')
+                    })
+                else:
+                    rank_changes.append({
+                        'symbol': sym,
+                        'current_rank': d2['rank'],
+                        'prev_rank': None,
+                        'rank_diff': None,
+                        'current_score': d2['score'],
+                        'prev_score': None,
+                        'score_diff': None,
+                        'status': 'NEW'
+                    })
+
+            exited = [sym for sym in dict1 if sym not in dict2]
+
+            # Weights comparison
+            w1_rows = conn.execute("SELECT strategy_name, weight FROM strategy_weight_history WHERE run_id = ?", (run_id_1,)).fetchall()
+            w2_rows = conn.execute("SELECT strategy_name, weight FROM strategy_weight_history WHERE run_id = ?", (run_id_2,)).fetchall()
+            w1 = dict(w1_rows)
+            w2 = dict(w2_rows)
+
+            all_strats = sorted(list(set(w1.keys()) | set(w2.keys())))
+            weight_diffs = []
+            for st in all_strats:
+                weight_diffs.append({
+                    'strategy': st,
+                    'prev_weight': w1.get(st, 0.0),
+                    'current_weight': w2.get(st, 0.0),
+                    'diff': w2.get(st, 0.0) - w1.get(st, 0.0)
+                })
+
+            return {
+                'run_id_1': run_id_1,
+                'run_id_2': run_id_2,
+                'meta_1': meta1,
+                'meta_2': meta2,
+                'top_n_changes': rank_changes,
+                'exited_entries': exited,
+                'weight_diffs': weight_diffs
+            }
+
+    def generate_comparison_report(self, comparison: Dict[str, Any]) -> str:
+        """Format comparison dict into human-readable text report."""
+        if not comparison or not comparison.get('run_id_2'):
+            return "No previous run data available for comparison."
+
+        m1 = comparison.get('meta_1', {})
+        m2 = comparison.get('meta_2', {})
+        r1_id = comparison.get('run_id_1', 'N/A')
+        r2_id = comparison.get('run_id_2', 'N/A')
+
+        lines = []
+        lines.append("=" * 66)
+        lines.append("          Pipeline Run Comparison Report")
+        lines.append(f"          Previous: {r1_id} vs Current: {r2_id}")
+        lines.append("=" * 66)
+        lines.append("")
+        lines.append("📊 Run Metadata Comparison")
+        lines.append(f"  Previous Date:  {m1.get('run_date', 'N/A')} | Regime: {m1.get('regime', 'N/A')} | Trigger: {m1.get('trigger', 'N/A')}")
+        lines.append(f"  Current Date:   {m2.get('run_date', 'N/A')} | Regime: {m2.get('regime', 'N/A')} | Trigger: {m2.get('trigger', 'N/A')}")
+        lines.append("")
+        lines.append("📈 TOP Picks Rank & Score Changes")
+        lines.append(f"  {'Rank':<5} {'Symbol':<10} {'Prev Rank':<10} {'Score':<10} {'Score Diff':<12} {'Status':<8}")
+        lines.append("  " + "-" * 58)
+
+        for item in comparison.get('top_n_changes', []):
+            c_rank = item['current_rank']
+            sym = item['symbol']
+            p_rank = str(item['prev_rank']) if item['prev_rank'] is not None else '-'
+            c_score = f"{item['current_score']:.4f}" if item['current_score'] is not None else '-'
+            s_diff = f"{item['score_diff']:+.4f}" if item['score_diff'] is not None else '-'
+            status = item['status']
+            lines.append(f"  {c_rank:<5} {sym:<10} {p_rank:<10} {c_score:<10} {s_diff:<12} {status:<8}")
+
+        exited = comparison.get('exited_entries', [])
+        if exited:
+            lines.append("")
+            lines.append(f"❌ Exited TOP Picks ({len(exited)} symbols): {', '.join(exited)}")
+
+        w_diffs = comparison.get('weight_diffs', [])
+        if w_diffs:
+            lines.append("")
+            lines.append("🔧 Strategy Weight Changes")
+            lines.append(f"  {'Strategy':<25} {'Prev Weight':<12} {'Current Weight':<14} {'Diff':<10}")
+            lines.append("  " + "-" * 62)
+            for w in w_diffs:
+                if abs(w['diff']) > 0.0001:
+                    lines.append(f"  {w['strategy']:<25} {w['prev_weight']:<12.4f} {w['current_weight']:<14.4f} {w['diff']:+.4f}")
+
+        lines.append("")
+        lines.append("=" * 66)
+        return "\n".join(lines)
+
+    def prune_old_history(self, keep_days: int = 180) -> None:
+        """Delete history records older than keep_days and run WAL checkpoint."""
+        cutoff = (datetime.now() - pd.Timedelta(days=keep_days)).strftime("%Y-%m-%d")
+        with self._write_lock:
+            with self._connect() as conn:
+                old_runs = [r[0] for r in conn.execute("SELECT run_id FROM pipeline_run_history WHERE run_date < ?", (cutoff,)).fetchall()]
+                if old_runs:
+                    placeholders = ",".join(["?"] * len(old_runs))
+                    conn.execute(f"DELETE FROM ensemble_prediction_history WHERE run_id IN ({placeholders})", tuple(old_runs))
+                    conn.execute(f"DELETE FROM strategy_weight_history WHERE run_id IN ({placeholders})", tuple(old_runs))
+                    conn.execute(f"DELETE FROM pipeline_run_history WHERE run_id IN ({placeholders})", tuple(old_runs))
+                    conn.commit()
+        self.checkpoint_wal()
+
 
 if __name__ == "__main__":
+
     logging.basicConfig(level=logging.INFO)
     storage = MarketIndicatorStorage()
     storage.update_stock_universe()

@@ -1083,6 +1083,7 @@ def _get_excluded_krx_symbols() -> set:
 
 
 def execute_prediction_pipeline():
+    _pipeline_start_time = time.time()
     logger.info("Starting consolidated market indicator and prediction pipeline...")
 
     # 1. Load configurations from TradingConfig (.env)
@@ -1101,6 +1102,14 @@ def execute_prediction_pipeline():
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
+
+    # Initialize Run History tracking
+    _git_sha = os.environ.get("GITHUB_SHA", "")
+    _trigger_type = os.environ.get("GITHUB_EVENT_NAME", "manual")
+    current_run_id = storage.start_pipeline_run(trigger_type=_trigger_type, git_sha=_git_sha)
+    previous_run_id = storage.get_previous_run_id(current_run_id)
+    logger.info(f"[RUN HISTORY] Registered current_run_id={current_run_id} (previous_run_id={previous_run_id or 'None'})")
+
     try:
         market_client = GlobalMarketClient()
         market_summary = market_client.get_summary()
@@ -3026,14 +3035,36 @@ def execute_prediction_pipeline():
     )
 
 
-    # Persist today's ensemble predictions (all strategy scores) for future
-    # rolling Sharpe weighting, calibrator fitting and coverage analysis.
     try:
         if ensemble_df is not None and not ensemble_df.empty and storage is not None:
             storage.save_ensemble_predictions(ensemble_df, date_str)
             logger.info(f"[ENSEMBLE DB] Saved {len(ensemble_df)} ensemble prediction rows for {date_str}.")
+
+            # Save multi-run prediction history & strategy weights for cross-run tracking
+            if 'current_run_id' in locals() and current_run_id:
+                storage.save_ensemble_history(current_run_id, ensemble_df, date_str)
+                weights_dict = getattr(scorer, '_prev_weights', {}) or getattr(scorer, 'strategy_weights', {})
+                if not weights_dict and hasattr(scorer, 'strategy_cols'):
+                    weights_dict = {col[0]: 1.0 / len(scorer.strategy_cols) for col in scorer.strategy_cols}
+                storage.save_strategy_weights(current_run_id, weights_dict, regime=current_2d_regime if 'current_2d_regime' in locals() else '')
+
+                # Generate cross-run comparison report if previous run exists
+                if 'previous_run_id' in locals() and previous_run_id:
+                    try:
+                        comparison = storage.compare_runs(previous_run_id, current_run_id, top_n=20)
+                        cmp_report = storage.generate_comparison_report(comparison)
+                        logger.info("\n" + cmp_report)
+
+                        _res_dir = Path(__file__).parent / "result"
+                        _res_dir.mkdir(exist_ok=True)
+                        with open(_res_dir / "run_comparison.txt", "w", encoding="utf-8") as _cmp_f:
+                            _cmp_f.write(cmp_report)
+                        logger.info(f"[RUN HISTORY] Saved run_comparison.txt comparing {previous_run_id} vs {current_run_id}")
+                    except Exception as _cmp_e:
+                        logger.warning(f"[RUN HISTORY] Failed to generate run comparison report: {_cmp_e}")
     except Exception as _ens_save_e:
         logger.warning(f"[ENSEMBLE DB] Save skipped: {_ens_save_e}")
+
 
     # 11f. Save Ensemble Predictions Report (ensemble_predictions.txt)
     # Gather decision basis metrics (kst_now_str and KST already defined above)
@@ -3816,6 +3847,26 @@ def execute_prediction_pipeline():
         except Exception as e:
             logger.warning(f"Verification failed: Error reading/parsing pipeline_result.txt: {e}")
 
+        # Finalize pipeline run tracking in DB
+        if 'current_run_id' in locals() and current_run_id and storage is not None:
+            try:
+                total_syms = len(universe) if 'universe' in locals() and universe is not None else 0
+                dur_secs = time.time() - _pipeline_start_time if '_pipeline_start_time' in locals() else 0.0
+                active_mkts = list(universe['market'].unique()) if 'universe' in locals() and universe is not None and 'market' in universe.columns else []
+                regime_name = current_2d_regime if 'current_2d_regime' in locals() else ""
+                storage.finish_pipeline_run(
+                    run_id=current_run_id,
+                    status="SUCCESS",
+                    markets=active_mkts,
+                    total_symbols=total_syms,
+                    duration_seconds=dur_secs,
+                    regime_detected=regime_name
+                )
+                storage.prune_old_history(keep_days=180)
+                logger.info(f"[RUN HISTORY] Finalized run_id={current_run_id} (duration={dur_secs:.1f}s, symbols={total_syms})")
+            except Exception as _fin_e:
+                logger.warning(f"[RUN HISTORY] Failed to finalize pipeline run history: {_fin_e}")
+
         try:
             # Pre-existing bug: variables are `price_db` and `storage` in this scope;
             # `db`/`indicator_storage` are undefined, so DBs were silently never closed.
@@ -3827,6 +3878,7 @@ def execute_prediction_pipeline():
             logger.debug(f"DB close during pipeline cleanup: {e}")
 
     return res_df, message_text
+
 
 if __name__ == "__main__":
     import argparse
@@ -3898,10 +3950,24 @@ Examples:
     try:
         execute_prediction_pipeline()
         _elapsed = time.time() - _start
+
+        _cmp_msg = ""
+        try:
+            _cmp_path = Path(__file__).parent / "result" / "run_comparison.txt"
+            if _cmp_path.exists():
+                _cmp_raw = _cmp_path.read_text(encoding="utf-8", errors="replace")
+                import re
+                _new_lines = [l.strip() for l in _cmp_raw.splitlines() if "NEW" in l or "UP" in l or "DOWN" in l][:4]
+                if _new_lines:
+                    _cmp_msg = "\n\n📈 *이전 대비 TOP 종목 변동 요약:*\n" + "\n".join([f"• {l}" for l in _new_lines])
+        except Exception:
+            pass
+
         _notify_telegram(
             f"✅ 파이프라인 완료\n"
             f"⏱ 소요시간: {_elapsed / 60:.1f}분\n"
-            f"📅 실행시각: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"📅 실행시각: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            f"{_cmp_msg}",
             "SUCCESS",
             buttons=_buttons,
         )

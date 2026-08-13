@@ -258,7 +258,7 @@
     <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇺🇸 US: 🟢 BULL (Low Vol)</span>
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇰🇷 KR: 🔴 BEAR (Low Vol)</span>
     <span class="badge badge-date">📅 2026-08-04 09:44 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-13 10:15 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-13 13:04 KST</span>
   </div>
 </div>
 
@@ -342,6 +342,7 @@
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
+  <button class="tab" onclick="switchTab(this,'history')">📜 파이프라인 이력 &amp; 비교</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
@@ -2231,6 +2232,44 @@
         <li><strong style="color:var(--text)">Kelly Optimization &amp; HRP:</strong> 31-Strategy Ensemble scores mapped to expected returns with maximum allocation constraints per regime.</li>
       </ul>
     </div>
+  </div>
+
+  <!-- ══ Pipeline Run History & Comparison Tab Panel ══ -->
+  <div class="tab-panel" id="panel-history">
+    
+    <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
+      <div class="macro-grid">
+        <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">0회</span></div>
+        <div class="macro-item"><span class="ml">이력 보존 정책</span><span class="mv">180일 (자동 Pruning)</span></div>
+        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">31대 Multi-Factor Ensemble</span></div>
+      </div>
+    </div>
+
+    
+
+    <div class="market-panel" style="margin-bottom: 20px;">
+      <h3 class="market-title">📜 최근 파이프라인 실행 히스토리 (Pipeline Run History)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Run ID</th><th>실행 날짜</th><th>트리거 (Commit)</th><th>상태</th><th>감지된 레짐</th><th>대상 종목</th><th>소요시간</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan='7' class='empty'>저장된 실행 이력 데이터가 없습니다 (DB 캐시 보존 중).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    
+        <div class="market-panel" style="margin-top: 20px;">
+          <h3 class="market-title">📑 직전 실행 vs 현재 실행 비교 상세 리포트</h3>
+          <div class="empty">비교 대상 직전 실행 기록이 아직 없습니다 (파이프라인 2회 이상 실행 시 자동 활성화).</div>
+        </div>
+        
+    
   </div>
 </div>
 

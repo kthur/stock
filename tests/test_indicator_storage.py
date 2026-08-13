@@ -97,5 +97,76 @@ class TestMarketIndicatorStorage(unittest.TestCase):
         self.assertIn("2024-01-02", retrieved.index)
 
 
+    def test_pipeline_run_history_and_comparison(self):
+        # 1. Start run 1
+        r1_id = self.storage.start_pipeline_run(trigger_type="schedule", git_sha="abc123456")
+        self.assertTrue(r1_id.startswith("run_"))
+
+        # Save run 1 ensemble history
+        df1 = pd.DataFrame([
+            {'symbol': '005930', 'ensemble_score': 0.85, 'net_expected_return': 0.05, 'regime': 'Bullish-LowVol', 'reg_score': 0.8, 'surge_score': 0.7, 'portfolio_weight': 0.05},
+            {'symbol': '000660', 'ensemble_score': 0.80, 'net_expected_return': 0.04, 'regime': 'Bullish-LowVol', 'reg_score': 0.75, 'surge_score': 0.65, 'portfolio_weight': 0.04},
+            {'symbol': '035420', 'ensemble_score': 0.75, 'net_expected_return': 0.03, 'regime': 'Bullish-LowVol', 'reg_score': 0.7, 'surge_score': 0.6, 'portfolio_weight': 0.03},
+        ])
+        self.storage.save_ensemble_history(r1_id, df1, date_str="2026-08-12")
+        self.storage.save_strategy_weights(r1_id, {'regression': 0.15, 'surge': 0.10}, regime="Bullish-LowVol")
+        self.storage.finish_pipeline_run(r1_id, status="SUCCESS", markets=["KOSPI"], total_symbols=3, duration_seconds=120.0, regime_detected="Bullish-LowVol")
+
+        # 2. Start run 2
+        r2_id = self.storage.start_pipeline_run(trigger_type="manual", git_sha="def789012")
+        self.assertNotEqual(r1_id, r2_id)
+
+        df2 = pd.DataFrame([
+            {'symbol': '005930', 'ensemble_score': 0.89, 'net_expected_return': 0.06, 'regime': 'Bullish-MidVol', 'reg_score': 0.82, 'surge_score': 0.75, 'portfolio_weight': 0.06}, # Improved score
+            {'symbol': 'AAPL', 'ensemble_score': 0.82, 'net_expected_return': 0.045, 'regime': 'Bullish-MidVol', 'reg_score': 0.80, 'surge_score': 0.70, 'portfolio_weight': 0.05}, # New entry
+            {'symbol': '000660', 'ensemble_score': 0.78, 'net_expected_return': 0.035, 'regime': 'Bullish-MidVol', 'reg_score': 0.70, 'surge_score': 0.60, 'portfolio_weight': 0.03}, # Dropped rank
+        ])
+        self.storage.save_ensemble_history(r2_id, df2, date_str="2026-08-13")
+        self.storage.save_strategy_weights(r2_id, {'regression': 0.12, 'surge': 0.12}, regime="Bullish-MidVol")
+        self.storage.finish_pipeline_run(r2_id, status="SUCCESS", markets=["KOSPI", "SP500"], total_symbols=3, duration_seconds=130.0, regime_detected="Bullish-MidVol")
+
+        # 3. Test previous_run_id helper
+        prev_id = self.storage.get_previous_run_id(r2_id)
+        self.assertEqual(prev_id, r1_id)
+
+        # 4. Compare runs
+        cmp_dict = self.storage.compare_runs(r1_id, r2_id, top_n=3)
+        self.assertEqual(cmp_dict['run_id_1'], r1_id)
+        self.assertEqual(cmp_dict['run_id_2'], r2_id)
+
+        # AAPL should be NEW
+        new_entry_syms = [x['symbol'] for x in cmp_dict['top_n_changes'] if x['status'] == 'NEW']
+        self.assertIn('AAPL', new_entry_syms)
+
+        # 035420 should be in exited_entries
+        self.assertIn('035420', cmp_dict['exited_entries'])
+
+        # Check formatted report text
+        report = self.storage.generate_comparison_report(cmp_dict)
+        self.assertIn("Pipeline Run Comparison Report", report)
+        self.assertIn("005930", report)
+        self.assertIn("AAPL", report)
+        self.assertIn("NEW", report)
+
+    def test_prune_old_history(self):
+        r_old = self.storage.start_pipeline_run(trigger_type="schedule")
+        # Manually set run_date to 200 days ago
+        with self.storage._write_lock:
+            with self.storage._connect() as conn:
+                conn.execute("UPDATE pipeline_run_history SET run_date = '2025-01-01' WHERE run_id = ?", (r_old,))
+                conn.commit()
+
+        r_new = self.storage.start_pipeline_run(trigger_type="schedule")
+
+        self.storage.prune_old_history(keep_days=180)
+
+        with self.storage._connect() as conn:
+            old_count = conn.execute("SELECT COUNT(*) FROM pipeline_run_history WHERE run_id = ?", (r_old,)).fetchone()[0]
+            new_count = conn.execute("SELECT COUNT(*) FROM pipeline_run_history WHERE run_id = ?", (r_new,)).fetchone()[0]
+            self.assertEqual(old_count, 0)
+            self.assertEqual(new_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+
