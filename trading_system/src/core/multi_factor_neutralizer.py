@@ -71,33 +71,40 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                     "symbol": sym,
                     "name": name,
                     "market": mkt,
-                    "neutralized_score": np.nan,
+                    "factor_neutralized_score": np.nan,
                 })
             res_df = pd.DataFrame(results)
             return res_df
 
         # Explicitly align universe df and raw_scores by symbol
         df_merged = pd.merge(df, raw_scores[['symbol', 'score']], on='symbol', how='inner')
-        if df_merged.empty or len(df_merged) < 2:
+        # Drop rows missing score or critical factors BEFORE constructing X matrix to ensure dimension alignment
+        df_merged = df_merged.dropna(subset=["score", "market_cap", "per", "roe"]).copy()
+
+        if df_merged.empty or len(df_merged) < 6:
             results = []
             for _, row in df.iterrows():
                 results.append({
                     "symbol": str(row["symbol"]).strip(),
                     "name": str(row.get("name", row["symbol"])),
                     "market": str(row.get("market", "KRX")),
-                    "neutralized_score": np.nan,
+                    "factor_neutralized_score": np.nan,
                 })
             return pd.DataFrame(results)
 
-        # Factor definitions: Size (log Cap), Value (1/abs(PER)), Profitability (ROE), Investment (CMA), Momentum (UMD)
+        # Factor definitions: Size (log Cap), Value (E/P preserving sign), Profitability (ROE), Investment (CMA), Momentum (UMD)
         size_factor = np.log(df_merged["market_cap"].clip(lower=1e8))
-        value_raw = 1.0 / df_merged["per"].abs().clip(lower=0.1)
-        value_factor = value_raw.fillna(value_raw.median() if not np.isnan(value_raw.median()) else 0.0)
-        prof_factor = df_merged["roe"].fillna(df_merged["roe"].median() if not np.isnan(df_merged["roe"].median()) else 0.0)
+        
+        # Value factor (E/P yield): Positive PER -> 1/PER, Negative PER (unprofitable) -> -1/|PER|
+        per_val = pd.to_numeric(df_merged["per"], errors="coerce").values
+        value_raw = np.where(per_val > 0, 1.0 / np.maximum(per_val, 0.1), -1.0 / np.maximum(np.abs(per_val), 0.1))
+        value_factor = pd.Series(value_raw, index=df_merged.index).fillna(0.0)
+
+        prof_factor = pd.to_numeric(df_merged["roe"], errors="coerce").fillna(0.0)
         cma_raw = df_merged.get("asset_growth_yoy", pd.Series(np.nan, index=df_merged.index))
-        cma_factor = cma_raw.fillna(cma_raw.median() if not np.isnan(cma_raw.median()) else 0.0)
+        cma_factor = pd.to_numeric(cma_raw, errors="coerce").fillna(0.0)
         umd_raw = df_merged.get("momentum_12m", pd.Series(np.nan, index=df_merged.index))
-        umd_factor = umd_raw.fillna(umd_raw.median() if not np.isnan(umd_raw.median()) else 0.0)
+        umd_factor = pd.to_numeric(umd_raw, errors="coerce").fillna(0.0)
 
         s_std = float(size_factor.std(ddof=0))
         v_std = float(value_factor.std(ddof=0))
@@ -114,10 +121,6 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             (cma_factor - cma_factor.mean()) / (c_std if c_std > 1e-6 else 1.0),
             (umd_factor - umd_factor.mean()) / (u_std if u_std > 1e-6 else 1.0),
         ])
-
-        df_merged = df_merged.dropna(subset=["score"]).copy()
-        if df_merged.empty:
-            return pd.DataFrame(columns=["symbol", "factor_neutralized_score"])
 
         y = pd.to_numeric(df_merged["score"], errors="coerce").fillna(0.0).values
 
@@ -144,10 +147,10 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "neutralized_score": round(score, 4),
+                "factor_neutralized_score": round(score, 4),
             })
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df = res_df.sort_values(by="neutralized_score", ascending=False).reset_index(drop=True)
+            res_df = res_df.sort_values(by="factor_neutralized_score", ascending=False).reset_index(drop=True)
         return res_df

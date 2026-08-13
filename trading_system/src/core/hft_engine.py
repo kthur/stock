@@ -228,9 +228,8 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 bid_ask_imbalance = 0.0
                 auction_volume_accel = 1.0
 
-            # Score normalized to [0.0, 1.0] scale with transaction friction penalty
-            cost_penalty = 0.04
-            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 - cost_penalty, 0.0, 1.0))
+            # Score normalized to [0.0, 1.0] scale centered at 0.50
+            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,

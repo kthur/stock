@@ -633,16 +633,6 @@ class OnDevicePredictionModel:
                     logger.debug(f"Loaded CatBoost surge model for {market} {h}d from {fpath}")
                 except Exception as e:
                     logger.warning(f"CatBoost surge model {market} {h}d load failed: {e}. Skipping.")
-                    booster = lgb.Booster(model_file=str(fpath))
-                    fn = booster.feature_name() if hasattr(booster, "feature_name") and booster.feature_name() else self.ALL_FEATURES
-                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = booster.predict(val_df)
-                    if market not in self.surge_lgb_models:
-                        self.surge_lgb_models[market] = {}
-                    self.surge_lgb_models[market][h] = booster
-                    logger.debug(f"Loaded LGB surge model for {market} {h}d from {fpath}")
-                except Exception as e:
-                    logger.warning(f"LGB surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
 
             # CatBoost
             for fpath in self.model_dir.glob("cat_surge_model_*_*d.bin"):
@@ -1369,6 +1359,10 @@ class OnDevicePredictionModel:
         for h in self.horizons:
             raw_ret = df['Close'].shift(-h) / df['Close'] - 1
             df[f'target_{h}d'] = raw_ret / vol_20d
+
+        for h in self.surge_horizons:
+            raw_ret = (df['Close'].shift(-h) / df['Close'] - 1).replace([np.inf, -np.inf], np.nan)
+            df[f'raw_surge_target_{h}d'] = raw_ret
         return df
 
     def prepare_training_data(self, prices_dict: Dict[str, pd.DataFrame],

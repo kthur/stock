@@ -219,67 +219,51 @@ class CrisisDetector:
                 if val is not None:
                     hist.append(val)
 
-        vix_score = self._score_vix(vix)
-        dd_score = self._score_drawdown(dd)
-        volume_score = self._score_volume(daily_volume_ratio)
-        trend_score = self._score_trend_breakdown(market_data_cache)
-        macro_score = self._score_macro(usdkrw, oil, tnx, dxy)
+            vix_score = self._score_vix(vix)
+            dd_score = self._score_drawdown(dd)
+            volume_score = self._score_volume(daily_volume_ratio)
+            trend_score = self._score_trend_breakdown(market_data_cache)
+            macro_score = self._score_macro(usdkrw, oil, tnx, dxy)
 
-        # Credit Default Swap (CDS) Risk Spike Booster (> 100bp or delta > 50bp)
-        if cds_5y is not None and cds_5y > 100.0:
-            macro_score = max(macro_score, 0.85)
-            logger.info(f"[CREDIT RISK ENGINE] High CDS 5Y Premium detected ({cds_5y:.1f}bp); macro score boosted to {macro_score:.2f}")
+            # Credit Default Swap (CDS) Risk Spike Booster (> 100bp or delta > 50bp)
+            if cds_5y is not None and cds_5y > 100.0:
+                macro_score = max(macro_score, 0.85)
+                logger.info(f"[CREDIT RISK ENGINE] High CDS 5Y Premium detected ({cds_5y:.1f}bp); macro score boosted to {macro_score:.2f}")
 
-        # Geopolitical Oil Shock Booster (3-day oil return > 8.0%)
-        if len(self._oil_history) >= 4 and self._oil_history[-4] > 0:
-            oil_3d_ret = (self._oil_history[-1] / self._oil_history[-4]) - 1.0
-            if oil_3d_ret > 0.08:
-                macro_score = max(macro_score, 0.75)
-                logger.info(f"[GEOPOLITICAL RISK ENGINE] Oil shock surge detected ({oil_3d_ret*100:.1f}% 3D return); macro score boosted to {macro_score:.2f}")
+            # Geopolitical Oil Shock Booster (3-day oil return > 8.0%)
+            if len(self._oil_history) >= 4 and self._oil_history[-4] > 0:
+                oil_3d_ret = (self._oil_history[-1] / self._oil_history[-4]) - 1.0
+                if oil_3d_ret > 0.08:
+                    macro_score = max(macro_score, 0.75)
+                    logger.info(f"[GEOPOLITICAL RISK ENGINE] Oil shock surge detected ({oil_3d_ret*100:.1f}% 3D return); macro score boosted to {macro_score:.2f}")
 
-        composite = vix_score * 0.25 + dd_score * 0.25 + volume_score * 0.15 + trend_score * 0.10 + macro_score * 0.25
+            composite = vix_score * 0.25 + dd_score * 0.25 + volume_score * 0.15 + trend_score * 0.10 + macro_score * 0.25
 
-        previous = self.crisis_level
-        if composite >= 0.70:
-            self.crisis_level = CrisisLevel.SEVERE
-        elif composite >= 0.45:
-            self.crisis_level = CrisisLevel.ACTIVE
-        elif composite >= 0.25:
-            self.crisis_level = CrisisLevel.WATCH
-        else:
-            self.crisis_level = CrisisLevel.NONE
-
-        # Standalone VIX override check
-        if vix >= 40.0:
-            self.crisis_level = CrisisLevel.SEVERE
-        elif vix >= 30.0:
-            if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
-                self.crisis_level = CrisisLevel.ACTIVE
-
-        # Standalone CDS credit risk override check
-        if cds_5y is not None:
-            if cds_5y > 150.0:
+            previous = self.crisis_level
+            if composite >= 0.70:
                 self.crisis_level = CrisisLevel.SEVERE
-            elif cds_5y > 100.0:
+            elif composite >= 0.45:
+                self.crisis_level = CrisisLevel.ACTIVE
+            elif composite >= 0.25:
+                self.crisis_level = CrisisLevel.WATCH
+            else:
+                self.crisis_level = CrisisLevel.NONE
+
+            # Standalone VIX override check
+            if vix >= 40.0:
+                self.crisis_level = CrisisLevel.SEVERE
+            elif vix >= 30.0:
                 if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
                     self.crisis_level = CrisisLevel.ACTIVE
 
-        if self.crisis_level in (CrisisLevel.ACTIVE, CrisisLevel.SEVERE):
-            self._days_in_crisis += 1
-            self._recovery_mode = False
-            self._recovery_start_day = None
-            self._recovery_days = 0
-            self._days_since_crisis_ended = 0
-        else:
-            if self._recovery_mode:
-                self._recovery_days += 1
-                if self._recovery_days >= 20:
-                    self._recovery_mode = False
-                    self._recovery_days = 0
-                    self.logger.info("Recovery complete: portfolio exposure fully restored")
-            if self._days_in_crisis > 0:
-                self._days_since_crisis_ended += 1
-                self._check_recovery(vix, dd)
+            # Standalone CDS credit risk override check
+            if cds_5y is not None:
+                if cds_5y > 150.0:
+                    self.crisis_level = CrisisLevel.SEVERE
+                elif cds_5y > 100.0:
+                    if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
+                        self.crisis_level = CrisisLevel.ACTIVE
+
 
         if self.crisis_level != previous:
             self.logger.warning(
@@ -483,8 +467,8 @@ class RiskManager:
 
         self._load_config()
 
-        self.metrics_history: List[RiskMetrics] = []
-        self.alerts: List[Dict] = []
+        self.metrics_history: deque[RiskMetrics] = deque(maxlen=1000)
+        self.alerts: deque[Dict] = deque(maxlen=1000)
         self.stress_test_passed: bool = True
         self.stress_test_adjustment_factor: float = 1.0
         self.stress_test_reports: Dict[str, Any] = {}

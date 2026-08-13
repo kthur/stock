@@ -58,18 +58,27 @@ class SupplyChainEngine(BaseStrategyEngine):
     def __init__(self, customer_map: Optional[Dict[str, List[str]]] = None) -> None:
         self.customer_map = customer_map or LEAD_CUSTOMER_MAP
 
-    def compute_scores(self, df_prices: pd.DataFrame, universe: pd.DataFrame) -> pd.DataFrame:  # type: ignore[override]
-        """Compute supply chain lead-lag momentum score for all universe symbols.
+    def compute_scores(
+        self,
+        prices_dict: Any = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
+        indicators_df: Optional[Any] = None,
+        **kwargs: Any
+    ) -> pd.DataFrame:
+        """Compute supply chain lead-lag momentum score for all universe symbols."""
+        df_prices = kwargs.get("df_prices", prices_dict)
+        universe = kwargs.get("universe", kwargs.get("universe_df", None))
 
-        Args:
-            df_prices: Multi-symbol daily OHLCV DataFrame or dictionary of Close prices.
-            universe: Universe DataFrame containing 'symbol', 'name', 'market'.
+        if universe is None or not isinstance(universe, pd.DataFrame) or universe.empty:
+            if isinstance(fundamentals_dict, pd.DataFrame):
+                universe = fundamentals_dict
+            elif isinstance(prices_dict, pd.DataFrame):
+                universe = prices_dict
+            else:
+                return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
-        Returns:
-            DataFrame with columns ['symbol', 'name', 'market', 'supply_chain_score'].
-        """
         results: List[Dict[str, Any]] = []
-        if df_prices is None or universe is None or universe.empty:
+        if df_prices is None or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
         if isinstance(df_prices, dict):
@@ -99,14 +108,18 @@ class SupplyChainEngine(BaseStrategyEngine):
         returns_1d = close_pivot.pct_change(1).iloc[-1] if len(close_pivot) >= 2 else pd.Series(dtype=float)
         returns_3d = close_pivot.pct_change(3).iloc[-1] if len(close_pivot) >= 4 else pd.Series(dtype=float)
 
+        def clean_sym(s: str) -> str:
+            raw = s.split(".")[0].strip()
+            return raw.zfill(6) if raw.isdigit() else raw
+
         for _, row in universe.iterrows():
             sym = str(row["symbol"]).strip()
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KRX"))
+            c_key = clean_sym(sym)
 
-            customers = self.customer_map.get(sym, [])
+            customers = self.customer_map.get(c_key, self.customer_map.get(sym, []))
             if not customers:
-                # Assign baseline momentum based on sector/market average return
                 score = 0.50
             else:
                 cust_rets = []
@@ -116,7 +129,6 @@ class SupplyChainEngine(BaseStrategyEngine):
                     cust_rets.append(0.6 * r1 + 0.4 * r3)
 
                 avg_cust_ret = float(np.mean(cust_rets)) if cust_rets else 0.0
-                # Scale return (-10% ~ +10%) to score (0.0 ~ 1.0)
                 score = float(np.clip(0.50 + avg_cust_ret * 5.0, 0.0, 1.0))
 
             results.append({

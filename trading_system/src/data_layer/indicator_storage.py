@@ -166,6 +166,19 @@ class MarketIndicatorStorage:
                     card_score REAL,
                     latr_score REAL,
                     inst_foreign_sector_score REAL,
+                    supply_chain_score REAL,
+                    sentiment_score REAL,
+                    factor_neutralized_score REAL,
+                    vol_target_score REAL,
+                    microstructure_score REAL,
+                    accruals_quality_score REAL,
+                    short_squeeze_score REAL,
+                    valueup_catalyst_score REAL,
+                    trend_efficiency_score REAL,
+                    gamma_squeeze_score REAL,
+                    insider_buying_score REAL,
+                    darkpool_score REAL,
+                    earnings_tone_drift_score REAL,
                     outcome_return REAL,
                     outcome_label INTEGER,
                     PRIMARY KEY (date, symbol)
@@ -176,7 +189,12 @@ class MarketIndicatorStorage:
                 'vcp_rule_score', 'lstm_score', 'stat_arb_score', 'sector_score',
                 'rim_score', 'event_score', 'mq_score', 'iv_skew_score',
                 'order_flow_score', 'reversal_score', 'arm_score', 'card_score',
-                'latr_score', 'inst_foreign_sector_score', 'outcome_return', 'outcome_label'
+                'latr_score', 'inst_foreign_sector_score', 'supply_chain_score',
+                'sentiment_score', 'factor_neutralized_score', 'vol_target_score',
+                'microstructure_score', 'accruals_quality_score', 'short_squeeze_score',
+                'valueup_catalyst_score', 'trend_efficiency_score', 'gamma_squeeze_score',
+                'insider_buying_score', 'darkpool_score', 'earnings_tone_drift_score',
+                'outcome_return', 'outcome_label'
             ]
             _ens_existing = {r[1] for r in conn.execute("PRAGMA table_info(ensemble_predictions)").fetchall()}
             for _ec in legacy_ens_cols:
@@ -867,7 +885,12 @@ class MarketIndicatorStorage:
             'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score',
             'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score', 'event_score',
             'mq_score', 'iv_skew_score', 'order_flow_score', 'reversal_score',
-            'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score'
+            'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score',
+            'supply_chain_score', 'sentiment_score', 'factor_neutralized_score',
+            'vol_target_score', 'microstructure_score', 'accruals_quality_score',
+            'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
+            'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
+            'earnings_tone_drift_score'
         ]
         _cols_sql = ", ".join(_score_cols)
         _placeholders = ", ".join(["?"] * len(_score_cols))

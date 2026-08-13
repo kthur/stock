@@ -83,10 +83,12 @@ class VolTargetingEngine(BaseStrategyEngine):
 
         # Compute EWMA conditional annualized volatility (RiskMetrics lambda=0.94 / span=20)
         daily_returns = close_pivot.pct_change(1).tail(60)
+        valid_counts = daily_returns.notna().sum(axis=0)
         weights = np.exp(-np.arange(len(daily_returns))[::-1] / 20.0)
         weights /= weights.sum()
-        ewma_var = (daily_returns**2).apply(lambda col: np.sum(weights * col.fillna(0.0)))
+        ewma_var = (daily_returns**2).apply(lambda col: np.sum(weights * col.fillna(col.mean() if not pd.isna(col.mean()) else 0.0)))
         realized_vol = np.sqrt(ewma_var * 252)
+        realized_vol[valid_counts < 20] = 0.25
 
 
         for _, row in universe.iterrows():

@@ -417,13 +417,9 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             # phi <= 0 → oscillatory fast mean reversion (use |phi| to keep half-life real)
             phi = 1.0 + beta
             half_lives = np.where(
-                (beta < 0.0) & (phi > 0.0),
+                (beta < 0.0) & (phi > 0.0) & (phi < 1.0),
                 -np.log(2.0) / np.log(phi),
-                np.where(
-                    (beta < 0.0) & (phi <= 0.0),
-                    -np.log(2.0) / np.log(np.maximum(np.minimum(np.abs(phi), 0.999), 1e-6)),
-                    999.0,
-                ),
+                999.0,
             )
 
             pass_mask = (p_vals <= eff_max_pvalue) & (half_lives > 0) & (half_lives <= max_half_life)

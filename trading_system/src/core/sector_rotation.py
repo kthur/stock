@@ -85,10 +85,9 @@ class SectorRotationEngine(BaseStrategyEngine):
         # 1. Exact match check
         if raw_clean in cls.GICS_SECTOR_MAP:
             return cls.GICS_SECTOR_MAP[raw_clean]
-        # 2. Check longer keys first to prevent short string false positives (e.g. 'IT' in 'UTILITIES')
         sorted_keys = sorted(cls.GICS_SECTOR_MAP.keys(), key=len, reverse=True)
         for key in sorted_keys:
-            if len(key) > 2 and key in raw_clean:
+            if len(key) >= 2 and (key == raw_clean or key in raw_clean.split() or (len(key) > 3 and key in raw_clean)):
                 return cls.GICS_SECTOR_MAP[key]
         return "General"
 

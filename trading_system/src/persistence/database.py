@@ -477,18 +477,18 @@ class StockPriceDB:
                 self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert aborted.")
                 return 0
 
-        records = []
-        for idx, row in df.iterrows():
-            date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
-            records.append((
+        records = [
+            (
                 symbol,
-                date_str,
-                float(row["Open"]),
-                float(row["High"]),
-                float(row["Low"]),
-                float(row["Close"]),
-                int(row["Volume"]),
-            ))
+                idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10],
+                float(r.Open),
+                float(r.High),
+                float(r.Low),
+                float(r.Close),
+                int(r.Volume),
+            )
+            for idx, r in zip(df.index, df.itertuples())
+        ]
         if not records:
             return 0
 
@@ -505,7 +505,7 @@ class StockPriceDB:
         try:
             from src.data_layer.hybrid_storage import execute_sqlite_with_retry
             execute_sqlite_with_retry(_do_update)
-        except Exception:
+        except (ImportError, ModuleNotFoundError):
             _do_update()
 
         count = len(records)

@@ -257,8 +257,8 @@
   <div class="header-meta">
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇺🇸 US: 🔴 BEAR (Low Vol)</span>
     <span class="badge" style="color: #f85149; border-color: #f85149; background: #f8514920;">🇰🇷 KR: 🔴 BEAR (Low Vol)</span>
-    <span class="badge badge-date">📅 2026-08-13 10:17 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-13 10:17 KST</span>
+    <span class="badge badge-date">📅 2026-08-14 00:05 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-14 00:05 KST</span>
   </div>
 </div>
 
@@ -342,6 +342,7 @@
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
+  <button class="tab" onclick="switchTab(this,'history')">📜 파이프라인 이력 &amp; 비교</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
@@ -1032,6 +1033,44 @@
       </ul>
     </div>
   </div>
+
+  <!-- ══ Pipeline Run History & Comparison Tab Panel ══ -->
+  <div class="tab-panel" id="panel-history">
+    
+    <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
+      <div class="macro-grid">
+        <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">0회</span></div>
+        <div class="macro-item"><span class="ml">이력 보존 정책</span><span class="mv">180일 (자동 Pruning)</span></div>
+        <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">31대 Multi-Factor Ensemble</span></div>
+      </div>
+    </div>
+
+    
+
+    <div class="market-panel" style="margin-bottom: 20px;">
+      <h3 class="market-title">📜 최근 파이프라인 실행 히스토리 (Pipeline Run History)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Run ID</th><th>실행 날짜</th><th>트리거 (Commit)</th><th>상태</th><th>감지된 레짐</th><th>대상 종목</th><th>소요시간</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan='7' class='empty'>저장된 실행 이력 데이터가 없습니다 (DB 캐시 보존 중).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    
+        <div class="market-panel" style="margin-top: 20px;">
+          <h3 class="market-title">📑 직전 실행 vs 현재 실행 비교 상세 리포트</h3>
+          <div class="empty">비교 대상 직전 실행 기록이 아직 없습니다 (파이프라인 2회 이상 실행 시 자동 활성화).</div>
+        </div>
+        
+    
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
@@ -1682,14 +1721,14 @@
               <td><span class="badge">NEUTRAL</span></td>
             </tr>
             <tr>
-              <td class="symbol"><strong>068270-BENCHMARK</strong></td>
+              <td class="symbol"><strong>005930-BENCHMARK</strong></td>
               <td class="neg">-0.97</td>
               <td>0.85</td>
               <td>1.0</td>
               <td><span class="badge">NEUTRAL</span></td>
             </tr>
             <tr>
-              <td class="symbol"><strong>005930-BENCHMARK</strong></td>
+              <td class="symbol"><strong>068270-BENCHMARK</strong></td>
               <td class="neg">-0.97</td>
               <td>0.85</td>
               <td>1.0</td>
@@ -1732,7 +1771,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -1815,7 +1854,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electronic</td>
               <td>103.48</td>
@@ -1835,7 +1874,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>103.48</td>
@@ -1921,7 +1960,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -1939,7 +1978,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2019,7 +2058,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2037,7 +2076,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2117,7 +2156,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2135,7 +2174,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2215,7 +2254,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2233,7 +2272,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2313,7 +2352,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2331,7 +2370,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2481,7 +2520,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2499,7 +2538,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2579,7 +2618,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2597,7 +2636,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -2677,7 +2716,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#4</td>
+              <td class="rank">#3</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
@@ -2695,7 +2734,7 @@
           </tr></thead>
           <tbody>
             <tr>
-              <td class="rank">#3</td>
+              <td class="rank">#4</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
@@ -3115,7 +3154,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
               <td class="name">Samsung Electron</td>
               <td>🇰🇷 KOSPI</td>
-              <td class="pos">0.2%</td>
+              <td class="pos">0.3%</td>
             </tr></tbody>
         </table>
       </div>
@@ -3133,7 +3172,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/068270/total" target="_blank" class="stock-link">068270</a></td>
               <td class="name">Celltrion</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td class="pos">0.2%</td>
+              <td class="pos">0.3%</td>
             </tr></tbody>
         </table>
       </div>
@@ -3151,14 +3190,14 @@
               <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
               <td class="name">Apple Inc.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">0.2%</td>
+              <td class="pos">0.3%</td>
             </tr>
             <tr>
               <td class="rank">#2</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
               <td class="name">Microsoft Corp.</td>
               <td>🇺🇸 SP500</td>
-              <td class="pos">0.2%</td>
+              <td class="pos">0.3%</td>
             </tr></tbody>
         </table>
       </div>
@@ -3360,8 +3399,8 @@
               <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:0%;background:#8b949e"></div>
@@ -3371,8 +3410,8 @@
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:0%;background:#8b949e"></div>
@@ -3462,8 +3501,8 @@
               <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:1%;background:#8b949e"></div>
@@ -3473,8 +3512,8 @@
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:1%;background:#8b949e"></div>
@@ -3564,8 +3603,8 @@
               <tbody>
             <tr>
               <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
-              <td class="name">Apple Inc.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
+              <td class="name">Microsoft Corp.</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:2%;background:#8b949e"></div>
@@ -3575,8 +3614,8 @@
             </tr>
             <tr>
               <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/MSFT" target="_blank" class="stock-link">MSFT</a></td>
-              <td class="name">Microsoft Corp.</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/AAPL" target="_blank" class="stock-link">AAPL</a></td>
+              <td class="name">Apple Inc.</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:2%;background:#8b949e"></div>

@@ -1627,8 +1627,9 @@ class EnsembleScoringEngine:
         present_strategy_cols = [score_col for _, score_col in strategy_cols if score_col in merged.columns and merged[score_col].notna().any()]
         num_present_strats = max(float(len(present_strategy_cols)), 1.0)
 
+        default_strat_w = 1.0 / max(float(len(strategy_cols)), 1.0)
         for strat_name, score_col in strategy_cols:
-            w = weights.get(strat_name, 0.10)
+            w = weights.get(strat_name, default_strat_w)
             if score_col in merged.columns:
                 # Fix Task 1: Valid 0.0 scores must NOT be discarded as missing data.
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
@@ -1684,8 +1685,7 @@ class EnsembleScoringEngine:
 
         # Scale Ensemble Score to Calibrated Realistic Expected Return Proxy (%) [e.g. 0% ~ 50% max]
         # ensemble_score is [0, 1]. For a 20d horizon, score 1.0 represents ~25% expected gain max.
-        mult = self._return_multiplier if self._return_multiplier <= 1.0 else (self._return_multiplier / 100.0)
-        raw_exp_ret = merged['ensemble_score'] * mult * 100.0
+        raw_exp_ret = merged['ensemble_score'] * float(self._return_multiplier)
 
         # Microstructure execution model: Sell-side STT tax, SEC fees, dynamic Bid-Ask spread,
         # and Kyle/Almgren-Chriss Square-Root Market Impact Cost modeling.

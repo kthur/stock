@@ -41,7 +41,23 @@ class FilingSentimentResult:
         }
 
 
-class DARTSECSentimentEngine:
+from src.core.base_strategy import BaseStrategyEngine
+from src.core.strategy_registry import register_strategy, StrategyMeta
+
+
+@register_strategy(
+    StrategyMeta(
+        strategy_id="sentiment",
+        display_name="NLP Sentiment Catalyst",
+        score_column="sentiment_score",
+        category="event",
+        output_file="sentiment_predictions.txt",
+        default_regime_weights={
+            "BEAR": 0.05, "BEAR_HIGH_VOL": 0.06, "SIDEWAYS_LOW_VOL": 0.04, "BULL_HIGH_VOL": 0.04, "BULL_LOW_VOL": 0.04
+        },
+    )
+)
+class DARTSECSentimentEngine(BaseStrategyEngine):
     """
     NLP & Sentiment Scoring Engine for DART (Korean) and SEC (English) filings.
     Quantifies management tone, risk disclosures, and forward guidance sentiment.
