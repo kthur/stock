@@ -473,7 +473,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
 
         if found_pairs:
             if len(found_pairs) <= 3:
-                found_pairs = [p for p in found_pairs if p.get('adf_pvalue', 1.0) <= max_pvalue]
+                found_pairs = [p for p in found_pairs if p.get('adf_pvalue', 1.0) <= eff_max_pvalue]
             else:
                 pvals = [p['adf_pvalue'] for p in found_pairs]
                 n_tests = len(pvals)
