@@ -541,6 +541,9 @@ class PortfolioAllocator:
                     if sector_map.get(sym, "UNKNOWN") == sec:
                         cleaned_weights[sym] = w * scale_factor
 
+        total_w = sum(cleaned_weights.values())
+        if total_w > 0:
+            return {sym: w / total_w for sym, w in cleaned_weights.items()}
         return cleaned_weights
 
     # =========================================================================

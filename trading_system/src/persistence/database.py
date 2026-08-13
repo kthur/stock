@@ -154,12 +154,20 @@ class TradeLogger:
     async def log_execution(self, order_id: str, symbol: str, quantity: int, price: float):
         """체결 기록"""
         await self._init_database()
+        now_str = datetime.now().isoformat()
+        sql_order = """
+            INSERT OR IGNORE INTO orders
+            (order_id, symbol, order_type, quantity, price, status, created_at)
+            VALUES (?, ?, 'LIMIT', ?, ?, 'FILLED', ?)
+        """
+        await self._conn_mgr.execute_write(sql_order, (order_id, symbol, quantity, price, now_str))
+
         sql = """
             INSERT INTO executions
             (order_id, symbol, quantity, price, executed_at)
             VALUES (?, ?, ?, ?, ?)
         """
-        params = (order_id, symbol, quantity, price, datetime.now().isoformat())
+        params = (order_id, symbol, quantity, price, now_str)
         await self._conn_mgr.execute_write(sql, params)
         self.logger.info(f"Execution logged: {symbol} x{quantity} @ {price}")
 

@@ -82,14 +82,21 @@ class CARDFactorEngine(BaseStrategyEngine):
             'Energy': 1.4, 'Shipbuilding': 1.2, 'Market': 1.0
         }
 
+        from .base_strategy import make_score_dataframe
+
         res_rows = []
         for sym, df in prices_dict.items():
             try:
-                if df is None or df.empty or 'close' not in df.columns:
+                if df is None or df.empty:
                     res_rows.append({'symbol': sym, 'card_score': 0.5})
                     continue
 
-                close = df['close'].dropna()
+                col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                if not col:
+                    res_rows.append({'symbol': sym, 'card_score': 0.5})
+                    continue
+
+                close = df[col].dropna()
                 if len(close) < 5 or float(close.iloc[-5]) <= 0:
                     res_rows.append({'symbol': sym, 'card_score': 0.5})
                     continue
@@ -119,4 +126,4 @@ class CARDFactorEngine(BaseStrategyEngine):
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
                 res_rows.append({'symbol': sym, 'card_score': 0.5})
 
-        return pd.DataFrame(res_rows)
+        return make_score_dataframe(res_rows, 'card_score')

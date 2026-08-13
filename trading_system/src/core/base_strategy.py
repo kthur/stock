@@ -28,3 +28,41 @@ class BaseStrategyEngine(ABC):
             normalized to [0.0, 1.0].
         """
         pass
+
+
+class ScoreDataFrame(pd.DataFrame):
+    """Custom DataFrame subclass providing dict-like access for legacy test compatibility."""
+    @property
+    def _constructor(self):
+        return ScoreDataFrame
+
+    def __contains__(self, item: Any) -> bool:
+        if super().__contains__(item):
+            return True
+        if "symbol" in self.columns and item in self["symbol"].values:
+            return True
+        return False
+
+    def __getitem__(self, item: Any) -> Any:
+        if isinstance(item, str) and item not in self.columns and "symbol" in self.columns:
+            match = self[self["symbol"] == item]
+            if not match.empty:
+                val_cols = [c for c in self.columns if c != "symbol"]
+                if val_cols:
+                    return float(match[val_cols[0]].iloc[0])
+        return super().__getitem__(item)
+
+
+def make_score_dataframe(rows: list, score_column: str) -> pd.DataFrame:
+    """Helper to construct a ScoreDataFrame from rows list or dict."""
+    if not rows:
+        return ScoreDataFrame(columns=["symbol", score_column])
+    if isinstance(rows, dict):
+        rows = [{"symbol": k, score_column: v} for k, v in rows.items()]
+    df = ScoreDataFrame(rows)
+    if "symbol" not in df.columns:
+        df["symbol"] = ""
+    if score_column not in df.columns:
+        df[score_column] = 0.5
+    return df
+

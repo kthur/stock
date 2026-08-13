@@ -926,6 +926,11 @@ class MarketIndicatorStorage:
                             vals.append(None)
                     conn.execute(sql, (date_str, str(sym), *vals))
                 conn.commit()
+        # Also persist into ensemble_prediction_history table
+        try:
+            self.save_ensemble_history(ensemble_df, date_str)
+        except Exception as e:
+            logger.debug(f"Failed to auto-persist into ensemble_prediction_history: {e}")
 
     def get_ensemble_predictions_history(self, days: int = 60,
                                          min_date: Optional[str] = None) -> Optional[pd.DataFrame]:
@@ -965,6 +970,12 @@ class MarketIndicatorStorage:
                   AND date >= ?
             """  # nosec B608
             rows = conn.execute(query, (cutoff_date,)).fetchall()
+            if not rows:
+                query_legacy = """
+                    SELECT DISTINCT 'legacy' as run_id, date, symbol FROM ensemble_predictions
+                    WHERE outcome_return IS NULL AND date >= ?
+                """
+                rows = conn.execute(query_legacy, (cutoff_date,)).fetchall()
         if not rows:
             return 0
 

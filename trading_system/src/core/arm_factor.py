@@ -53,16 +53,21 @@ class ARMFactorEngine(BaseStrategyEngine):
         Computes ARM factor scores in [0.0, 1.0] for all symbols.
         Returns pd.DataFrame with columns ['symbol', 'arm_score'].
         """
-        # Handle dict or positional fallback
-        if isinstance(prices_dict, dict) and any(isinstance(v, dict) for v in prices_dict.values()) and not fundamentals_dict:
+        from .base_strategy import make_score_dataframe
+
+        # Robust argument binding (handles positional swaps or dict inputs)
+        if isinstance(prices_dict, dict) and any(isinstance(v, dict) for v in prices_dict.values()):
             fund = prices_dict
-            prc = kwargs.get("prices_dict", {}) if isinstance(kwargs.get("prices_dict"), dict) else {}
+            prc = fundamentals_dict if isinstance(fundamentals_dict, dict) else kwargs.get("prices_dict", {})
+        elif isinstance(fundamentals_dict, dict) and any(isinstance(v, dict) for v in fundamentals_dict.values()):
+            fund = fundamentals_dict
+            prc = prices_dict if isinstance(prices_dict, dict) else {}
         else:
             prc = prices_dict if isinstance(prices_dict, dict) else {}
             fund = fundamentals_dict if isinstance(fundamentals_dict, dict) else {}
 
         if not prc and not fund:
-            return pd.DataFrame(columns=['symbol', 'arm_score'])
+            return make_score_dataframe([], 'arm_score')
 
         symbols = list(set(list(prc.keys()) + list(fund.keys())))
         raw_scores = {}
@@ -100,18 +105,18 @@ class ARMFactorEngine(BaseStrategyEngine):
                 raw_scores[sym] = 0.0
 
         if not raw_scores:
-            return pd.DataFrame(columns=['symbol', 'arm_score'])
+            return make_score_dataframe([], 'arm_score')
 
         vals = np.array(list(raw_scores.values()))
         lower = np.percentile(vals, 1)
         upper = np.percentile(vals, 99)
         if upper == lower:
-            return pd.DataFrame([{'symbol': k, 'arm_score': 0.5} for k in raw_scores.keys()])
+            return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
 
         res_rows = []
         for k, v in raw_scores.items():
             sc = float(np.clip((v - lower) / (upper - lower), 0.0, 1.0))
             res_rows.append({'symbol': k, 'arm_score': sc})
 
-        return pd.DataFrame(res_rows)
+        return make_score_dataframe(res_rows, 'arm_score')
 

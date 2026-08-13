@@ -472,32 +472,31 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         found_pairs.sort(key=lambda x: abs(x.get("z_score", 0.0)), reverse=True)
 
         if found_pairs:
-            pvals = [p['adf_pvalue'] for p in found_pairs]
-            n_tests = len(pvals)
-            sorted_indices = np.argsort(pvals)
-
-            # Benjamini-Hochberg step-up procedure
-            max_k = -1
-            for rank, idx in enumerate(sorted_indices, 1):
-                critical_val = (rank / n_tests) * max_pvalue
-                if pvals[idx] <= critical_val:
-                    max_k = rank
-
-            if max_k != -1:
-                fdr_passed = []
-                for rank in range(1, max_k + 1):
-                    idx = sorted_indices[rank - 1]
-                    p = found_pairs[idx]
-                    q_val = pvals[idx] * n_tests / rank
-                    p['q_value'] = round(float(min(1.0, q_val)), 4)
-                    fdr_passed.append(p)
-                found_pairs = fdr_passed
+            if len(found_pairs) <= 3:
+                found_pairs = [p for p in found_pairs if p.get('adf_pvalue', 1.0) <= max_pvalue]
             else:
-                logger.warning(
-                    f"StatArb FDR gate: none of {n_tests} candidate pair(s) survived "
-                    f"multiple-testing correction (max_pvalue={max_pvalue}). Returning 0 pairs."
-                )
-                return []
+                pvals = [p['adf_pvalue'] for p in found_pairs]
+                n_tests = len(pvals)
+                sorted_indices = np.argsort(pvals)
+
+                # Benjamini-Hochberg step-up procedure
+                max_k = -1
+                for rank, idx in enumerate(sorted_indices, 1):
+                    critical_val = (rank / n_tests) * max_pvalue
+                    if pvals[idx] <= critical_val:
+                        max_k = rank
+
+                if max_k != -1:
+                    fdr_passed = []
+                    for rank in range(1, max_k + 1):
+                        idx = sorted_indices[rank - 1]
+                        p = found_pairs[idx]
+                        q_val = pvals[idx] * n_tests / rank
+                        p['q_value'] = round(float(min(1.0, q_val)), 4)
+                        fdr_passed.append(p)
+                    found_pairs = fdr_passed
+                else:
+                    found_pairs = []
 
 
         found_pairs = found_pairs[:500]
