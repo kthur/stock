@@ -922,13 +922,14 @@ class MarketIndicatorStorage:
                                  days: int = 60, min_date: Optional[str] = None,
                                  label_threshold: float = 0.0) -> int:
         """Backfill realized forward returns (1D, 5D, 20D) for stored ensemble predictions."""
+        cutoff_date = (datetime.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
         with self._connect() as conn:
             query = """
                 SELECT DISTINCT run_id, date, symbol FROM ensemble_prediction_history
                 WHERE (actual_return_20d IS NULL OR outcome_return IS NULL)
-                  AND date >= date('now', '-' || ? || ' days')
-            """
-            rows = conn.execute(query, (days,)).fetchall()
+                  AND date >= ?
+            """  # nosec B608
+            rows = conn.execute(query, (cutoff_date,)).fetchall()
         if not rows:
             return 0
 
@@ -1024,24 +1025,25 @@ class MarketIndicatorStorage:
 
     def get_outcome_performance_summary(self, days: int = 60) -> Dict[str, Any]:
         """Compute realized outcome statistics (Hit Rate %, avg return, win rate) for predictions in last N days."""
+        cutoff_date = (datetime.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
         sql = """
             SELECT 
                 COUNT(*) as total_predictions,
                 COUNT(actual_return_1d) as evaluated_1d,
                 AVG(actual_return_1d) as avg_ret_1d,
-                AVG(CASE WHEN hit_1d = 1 THEN 1.0 ELSE 0.0 END) as hit_rate_1d,
+                AVG(CASE WHEN hit_1d = 1 THEN 1.0 WHEN hit_1d = 0 THEN 0.0 ELSE NULL END) as hit_rate_1d,
                 COUNT(actual_return_5d) as evaluated_5d,
                 AVG(actual_return_5d) as avg_ret_5d,
-                AVG(CASE WHEN hit_5d = 1 THEN 1.0 ELSE 0.0 END) as hit_rate_5d,
+                AVG(CASE WHEN hit_5d = 1 THEN 1.0 WHEN hit_5d = 0 THEN 0.0 ELSE NULL END) as hit_rate_5d,
                 COUNT(actual_return_20d) as evaluated_20d,
                 AVG(actual_return_20d) as avg_ret_20d,
-                AVG(CASE WHEN hit_20d = 1 THEN 1.0 ELSE 0.0 END) as hit_rate_20d
+                AVG(CASE WHEN hit_20d = 1 THEN 1.0 WHEN hit_20d = 0 THEN 0.0 ELSE NULL END) as hit_rate_20d
             FROM ensemble_prediction_history
-            WHERE date >= date('now', '-' || ? || ' days')
-        """
+            WHERE date >= ?
+        """  # nosec B608
         try:
             with self._connect() as conn:
-                row = conn.execute(sql, (days,)).fetchone()
+                row = conn.execute(sql, (cutoff_date,)).fetchone()
                 if not row or row[0] == 0:
                     return {
                         "total_predictions": 0,
@@ -1389,9 +1391,9 @@ class MarketIndicatorStorage:
                 old_runs = [r[0] for r in conn.execute("SELECT run_id FROM pipeline_run_history WHERE run_date < ?", (cutoff,)).fetchall()]
                 if old_runs:
                     placeholders = ",".join(["?"] * len(old_runs))
-                    conn.execute(f"DELETE FROM ensemble_prediction_history WHERE run_id IN ({placeholders})", tuple(old_runs))
-                    conn.execute(f"DELETE FROM strategy_weight_history WHERE run_id IN ({placeholders})", tuple(old_runs))
-                    conn.execute(f"DELETE FROM pipeline_run_history WHERE run_id IN ({placeholders})", tuple(old_runs))
+                    conn.execute(f"DELETE FROM ensemble_prediction_history WHERE run_id IN ({placeholders})", tuple(old_runs))  # nosec B608
+                    conn.execute(f"DELETE FROM strategy_weight_history WHERE run_id IN ({placeholders})", tuple(old_runs))      # nosec B608
+                    conn.execute(f"DELETE FROM pipeline_run_history WHERE run_id IN ({placeholders})", tuple(old_runs))         # nosec B608
                     conn.commit()
         self.checkpoint_wal()
 

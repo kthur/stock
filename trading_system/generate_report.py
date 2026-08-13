@@ -915,6 +915,7 @@ def build_history_section(result_dir: Path) -> str:
         result_dir / "market_indicators.db",
         result_dir.parent / "trading_system" / "market_indicators.db"
     ]
+    runs = []
     for dp in db_paths:
         if dp.exists():
             try:
