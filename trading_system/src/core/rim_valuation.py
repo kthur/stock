@@ -280,9 +280,14 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market
         df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
 
+        # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
+        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE'])
+        mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & (~invalid_mask)
+        if mos_mask.any():
+            df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
+
         # 영업손실 + 순이익 양수(일회성 이익 의존) 및 우선주 종목은 RIM 점수 무효화
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
-        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE'])
         if invalid_mask.any():
             df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
             logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (low quality or preferred share)")
