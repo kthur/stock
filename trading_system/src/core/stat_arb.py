@@ -523,7 +523,9 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             if len(pair) != 2:
                 continue
             s1, s2 = pair
-            score_delta = min(0.4, z * 0.1)
+            # Non-linear mean-reversion acceleration for extreme cointegration divergences (|Z| >= 2.0)
+            z_mult = 1.20 if z >= 2.0 else 1.0
+            score_delta = min(0.45, z * 0.10 * z_mult)
 
             if "LONG_" + s1 in sig:
                 symbol_scores[s1] = max(symbol_scores.get(s1, 0.5), 0.5 + score_delta)
