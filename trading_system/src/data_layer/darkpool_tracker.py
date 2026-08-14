@@ -101,8 +101,10 @@ class DarkPoolTrackerEngine:
 
                             # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x)
                             if abs(ret_10d) < 0.02 and vol_spike > 2.5:
-                                score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.95))
-                                logger.info(f"[DARK POOL ENGINE] Accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%)")
+                                base_score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.95))
+                                # Dark Pool Stealth Inflow Booster for high conviction accumulation
+                                score = float(np.clip(base_score * 1.10, 0.50, 0.98))
+                                logger.info(f"[DARK POOL ENGINE] Accumulation divergence for {sym} (Vol Spike={vol_spike:.1f}x, Ret={ret_10d*100:.1f}%, Score={score:.2f})")
 
             # 2. Live Dark Pool / ATS Volume Data override
             if darkpool_data_dict and sym in darkpool_data_dict:
