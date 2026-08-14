@@ -69,8 +69,11 @@ class LATRFactorEngine(BaseStrategyEngine):
                 # Gaussian scoring centered at target drawdown for panic bounce opportunity
                 dd_score = float(np.exp(-((dd_pct - self.target_drawdown) ** 2) / (2.0 * (0.15 ** 2))))
 
+                # Panic volume surge bounce bonus (Volume surge >= 2.5 on panic drawdown)
+                panic_bounce_bonus = 0.12 if (vol_surge >= 2.5 and dd_score > 0.70) else 0.0
+
                 # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty + illiquidity premium
-                latr_score = (dd_score * 0.35) + (min(vol_surge, 3.0) * 0.35) - (abs(tail_risk) * 0.15) + (min(amihud_illiq, 2.0) * 0.15)
+                latr_score = (dd_score * 0.35) + (min(vol_surge, 3.0) * 0.35) - (abs(tail_risk) * 0.15) + (min(amihud_illiq, 2.0) * 0.15) + panic_bounce_bonus
                 scores[sym] = float(latr_score)
             except Exception as e:
                 logger.warning(f"[LATR FACTOR] Error computing score for {sym}: {e}")
