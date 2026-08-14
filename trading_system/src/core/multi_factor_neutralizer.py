@@ -340,8 +340,11 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                     else:
                         norm_scores = np.full(N_m, 0.5)
 
-            # Pure Idiosyncratic Alpha Conviction Boost (Top 15% pure alpha signals)
-            alpha_mask = norm_scores >= 0.85
+            # Pure Idiosyncratic Alpha Conviction Boost & Super Premium
+            super_alpha_mask = norm_scores >= 0.90
+            alpha_mask = (norm_scores >= 0.80) & (~super_alpha_mask)
+            if np.any(super_alpha_mask):
+                norm_scores[super_alpha_mask] = np.clip(norm_scores[super_alpha_mask] * 1.10, 0.0, 1.0)
             if np.any(alpha_mask):
                 norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.06, 0.0, 1.0)
 
