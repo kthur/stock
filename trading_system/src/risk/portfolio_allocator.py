@@ -311,6 +311,52 @@ class PortfolioAllocator:
 
         return {sym: float(w) for sym, w in zip(symbols, final_w)}
 
+    def allocate_volatility_targeted_kelly(
+        self,
+        expected_returns: pd.Series,
+        volatilities: Optional[pd.Series] = None,
+        target_annual_vol: float = 0.15,
+        max_weight: Optional[float] = None,
+        kelly_fraction: float = 0.25
+    ) -> Dict[str, float]:
+        """
+        Allocates portfolio weights combining Fractional Kelly with Volatility Targeting:
+        1. Calculates relative Kelly asset weights w_raw_i = (mu_i / sigma_i^2).
+        2. Computes aggregate portfolio expected volatility sigma_port.
+        3. Scales portfolio leverage by (target_annual_vol / sigma_port) to maintain steady risk.
+        4. Clamps individual asset weights to max_weight and ensures sum(w_i) <= 1.0.
+        """
+        base_weights = self.allocate_quarter_kelly(
+            expected_returns=expected_returns,
+            volatilities=volatilities,
+            max_weight=max_weight,
+            kelly_fraction=kelly_fraction
+        )
+        if not base_weights:
+            return {}
+
+        symbols = list(base_weights.keys())
+        w_vec = np.array([base_weights[s] for s in symbols])
+
+        if volatilities is not None and not volatilities.empty:
+            daily_vols = volatilities.reindex(symbols).fillna(0.02).values.astype(float)
+        else:
+            daily_vols = np.full(len(symbols), 0.02)
+
+        # Estimate weighted annual volatility proxy: sqrt(252) * sum(w_i * sigma_i)
+        port_ann_vol = float(np.sqrt(252) * np.dot(w_vec, daily_vols))
+        if port_ann_vol > 1e-4:
+            vol_scale = float(np.clip(target_annual_vol / port_ann_vol, 0.40, 1.25))
+        else:
+            vol_scale = 1.0
+
+        scaled_weights = {s: float(np.clip(w * vol_scale, 0.0, max_weight or self.default_max_weight)) for s, w in base_weights.items()}
+        tot = sum(scaled_weights.values())
+        if tot > 1.0:
+            scaled_weights = {s: w / tot for s, w in scaled_weights.items()}
+
+        return scaled_weights
+
     # =========================================================================
     # OBJECTIVE 2: DYNAMIC LELAND BAND-BASED REBALANCING & MICROSTRUCTURE COSTS
     # =========================================================================

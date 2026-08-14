@@ -1698,6 +1698,15 @@ class EnsembleScoringEngine:
                 # Apply convex super-linear boost for multi-factor confluence (3+ signals)
                 synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
+
+                # Phase 2-B: Order-Flow & Momentum Confluence Booster (for high momentum + high institutional inflow)
+                has_mom = (('mq_score' in merged.columns and merged['mq_score'].ge(0.60)) |
+                           ('trend_efficiency_score' in merged.columns and merged['trend_efficiency_score'].ge(0.60)))
+                has_flow = (('order_flow_score' in merged.columns and merged['order_flow_score'].ge(0.60)) |
+                            ('inst_foreign_sector_score' in merged.columns and merged['inst_foreign_sector_score'].ge(0.60)))
+                flow_mom_mask = (has_mom & has_flow)
+                if flow_mom_mask.any():
+                    blended_score.loc[flow_mom_mask] = (blended_score.loc[flow_mom_mask] * 1.025).clip(0.0, 1.0)
             except Exception as _be:
                 logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
 
