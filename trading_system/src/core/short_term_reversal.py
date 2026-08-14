@@ -108,7 +108,11 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         lower_band = np.where(std_20 > 0, sma_20 - 2.0 * std_20, sma_20)
         dist_lower_band = (cur_price - lower_band) / (std_20 + 1e-8)
 
-        oversold_metric = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band
+        # First green bounce bonus for oversold stocks to prioritize turnaround over falling knives
+        ret_1d = (cur_price / close_2d.iloc[-2]) - 1.0
+        bounce_bonus = np.where((consec >= 2.0) & (ret_1d > 0.0), 0.15, 0.0)
+
+        oversold_metric = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus
 
         res_df = pd.DataFrame({
             'symbol': close_2d.columns,
