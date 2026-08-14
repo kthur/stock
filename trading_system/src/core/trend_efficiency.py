@@ -119,9 +119,11 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         hurst = np.clip(np.log(rs) / np.log(20.0), 0.1, 0.9)
 
         # Signed trend score: High KER + High Hurst on uptrend yields high score; downtrend penalizes
+        # High conviction persistent trend accelerator (KER > 0.5 and Hurst > 0.55 on strong uptrend)
+        trend_mult = np.where((avg_ker > 0.50) & (hurst > 0.55) & (ret_20d > 0.05), 1.15, 1.0)
         score_arr = np.where(
             ret_20d >= 0,
-            0.5 + 0.5 * avg_ker * (hurst / 0.5),
+            0.5 + 0.5 * avg_ker * (hurst / 0.5) * trend_mult,
             0.5 - 0.5 * avg_ker * (hurst / 0.5)
         )
 
