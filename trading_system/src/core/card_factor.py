@@ -122,6 +122,10 @@ class CARDFactorEngine(BaseStrategyEngine):
                 card_score = 1.0 / (1.0 + np.exp(divergence * 0.1))
                 if np.isnan(card_score) or np.isinf(card_score):
                     card_score = 0.5
+                else:
+                    # Asymmetric Upside Booster for extreme macro divergence undervaluation
+                    if card_score >= 0.70:
+                        card_score = float(np.clip(card_score * 1.10, 0.0, 1.0))
                 res_rows.append({'symbol': sym, 'card_score': float(card_score)})
             except Exception as e:
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
