@@ -1242,6 +1242,11 @@ class EnsembleScoringEngine:
                     l_df['lstm_score'] = (l_df[target_col] * self._return_multiplier).clip(0.0, 1.0)
                 else:
                     l_df['lstm_score'] = l_df[target_col].clip(0.0, 1.0)
+
+                # Strict Causal LSTM Trend Momentum Booster (Top 15% Deep Learning Trend Signals)
+                lstm_trend_mask = l_df['lstm_score'] >= 0.70
+                if lstm_trend_mask.any():
+                    l_df.loc[lstm_trend_mask, 'lstm_score'] = (l_df.loc[lstm_trend_mask, 'lstm_score'] * 1.08).clip(0.0, 1.0)
             else:
                 l_df['lstm_score'] = 0.5
         else:
