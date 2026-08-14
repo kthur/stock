@@ -1027,13 +1027,13 @@ def format_prediction_message(res_df: pd.DataFrame, universe: pd.DataFrame) -> s
         for m in krx_markets:
             m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
             if not m_df.empty:
-                lines.append(f"\n*{h}일 예상 — {m} TOP 10*")
+                lines.append(f"\n*{h}일 예상수익률 — {m} TOP 10*")
                 lines.extend(_fmt_top(m_df, h, symbol_to_name, symbol_to_market, 10))
 
         for m in us_markets:
             m_df = sorted_df[sorted_df['symbol'].isin(market_syms.get(m, set()))]
             if not m_df.empty:
-                lines.append(f"\n*{h}일 예상 — {m} TOP 10*")
+                lines.append(f"\n*{h}일 예상수익률 — {m} TOP 10*")
                 lines.extend(_fmt_top(m_df, h, symbol_to_name, symbol_to_market, 10))
 
     return "\n".join(lines)
@@ -3592,9 +3592,9 @@ def execute_prediction_pipeline():
             if m_df.empty:
                 continue
             f.write("\n=========================================\n")
-            f.write(f"[{market}] Top 100 Ensemble Picks\n")
+            f.write(f"[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
             f.write("-" * 176 + "\n")
             for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                 name_val = row.get('name', 'Unknown')
@@ -3648,9 +3648,9 @@ def execute_prediction_pipeline():
             _mf.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(ensemble_weights)} Strategies) ===\n")
             _mf.write(f"Date: {kst_now_str}\n\n")
             _mf.write("\n=========================================\n")
-            _mf.write(f"[{_m}] Top 100 Ensemble Picks\n")
+            _mf.write(f"[{_m}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n")
             _mf.write("=========================================\n")
-            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Expected Ret':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
+            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
             _mf.write("-" * 176 + "\n")
             for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"

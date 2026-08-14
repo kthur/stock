@@ -303,7 +303,7 @@ def parse_ensemble(text: str) -> EnsembleData:
 
     for line in text.splitlines():
         l_str = line.strip()
-        m = re.match(r"\[(\w+)\] Top \d+ Ensemble Picks", l_str)
+        m = re.match(r"\[(\w+)\] Top \d+ Ensemble Picks.*", l_str)
         if m:
             current_market = EnsembleMarket(market=m.group(1))
             data.markets.append(current_market)
@@ -943,7 +943,7 @@ def format_telegram_alert_summary(ensemble: EnsembleData, regime_2d: str = "SIDE
         for m in ensemble.markets:
             if m.rows:
                 top1 = m.rows[0]
-                picks.append(f"• {m.market}: *{top1.symbol}* ({top1.name}) | 예상: {top1.expected_return}")
+                picks.append(f"• {m.market}: *{top1.symbol}* ({top1.name}) | 예상수익률(20D): {top1.expected_return}")
     body = "\n".join(picks) if picks else "추천 종목 없음"
     return f"{header}\n🔥 *Top Picks by Market:*\n{body}\n\n💡 *HRP Portfolio Optimization & Meta-Filtering Applied*"
 
@@ -1258,7 +1258,7 @@ def build_html(
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블</th>
-            <th title="20일 Horizon 예상 수익률 (%)">기대수익</th>
+            <th title="20일(20D) Horizon 기준 미시구조 거래비용 차감 후 순예상수익률 (%)">예상수익률 (20D)</th>
             <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
             <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
             <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
@@ -1642,7 +1642,7 @@ def build_html(
           <h3 class="market-title">{flag} {mkt}</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ({hz})</th></tr></thead>
               <tbody>{rows_html}</tbody>
             </table>
           </div>
@@ -2224,7 +2224,7 @@ def build_html(
           <thead>
             <tr>
               <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th>
-              <th>기대수익</th><th>변동성</th><th>비중</th><th>투자금액</th>
+              <th title="20일(20D) Horizon 기준 순예상수익률 (%)">예상수익률 (20D)</th><th>변동성</th><th>비중</th><th>투자금액</th>
             </tr>
           </thead>
           <tbody>

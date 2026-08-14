@@ -953,6 +953,7 @@ class EnsembleScoringEngine:
         getattr(self.config, 'order_size_sp500', 50_000.0) if self.config else 50_000.0
 
         lines.append("\n[Transaction Costs & Liquidity Filter Rationale]")
+        lines.append("• Target Horizon: 20 Trading Days (20D Expected Net Return after transaction friction)")
         lines.append("• Microstructure Execution & Market Impact Model Active (Almgren-Chriss Order Size Hypothesis (Q): KRX 50M KRW / SP500 50k USD)")
         lines.append("• Transaction Cost & Slippage Deductions Applied:")
         lines.append("  - RUSSELL2000: 0.08% spread + STT/SEC friction")
