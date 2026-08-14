@@ -230,8 +230,13 @@ class PortfolioAllocator:
 
         def objective(w):
             ret = np.dot(w, mu)
-            var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (n_assets, n_assets) else float(np.var(np.dot(returns_matrix, w), ddof=1))
-            return -(ret - 0.5 * self.risk_aversion * var_p)
+            p_rets = np.dot(returns_matrix, w)
+            downside_losses = np.minimum(0.0, p_rets)
+            semi_var = float(np.mean(downside_losses ** 2))
+            var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (n_assets, n_assets) else float(np.var(p_rets, ddof=1))
+            # Sortino-guided Downside Risk Penalty
+            total_risk = 0.5 * self.risk_aversion * (0.6 * var_p + 0.4 * semi_var)
+            return -(ret - total_risk)
 
         def cvar_constraint(w):
             cvar_val = self.estimate_portfolio_evt_cvar(w, returns_matrix, confidence)
