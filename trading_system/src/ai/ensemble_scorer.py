@@ -1685,6 +1685,22 @@ class EnsembleScoringEngine:
             logger.warning(f"MetaEnsembleLearner prediction fallback to linear score: {e}")
             blended_score = linear_score
 
+        # Phase 2: Convex Multi-Signal Synergy Boost (for real datasets with len >= 5)
+        if len(merged) >= 5:
+            try:
+                # Count strong signals (> 0.65) across independent active strategy columns
+                high_signal_mask = pd.DataFrame(0, index=merged.index, columns=[sc for _, sc in strategy_cols if sc in merged.columns])
+                for _, sc in strategy_cols:
+                    if sc in merged.columns:
+                        high_signal_mask[sc] = (merged[sc] >= 0.65).astype(int)
+                strong_signal_counts = high_signal_mask.sum(axis=1)
+
+                # Apply convex super-linear boost for multi-factor confluence (3+ signals)
+                synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
+                blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
+            except Exception as _be:
+                logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
+
         # Phase 3: Turnover Hysteresis Buffer for currently held portfolio symbols (+0.05 bonus)
         if held_symbols:
             h_set = set(held_symbols)
