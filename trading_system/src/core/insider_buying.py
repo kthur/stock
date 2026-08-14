@@ -95,11 +95,12 @@ class InsiderBuyingEngine(BaseStrategyEngine):
 
                     if trans_type in buy_keywords:
                         boost = 0.35 if any(role in insider_role for role in high_level_roles) else 0.20
-                        scores_map[sym] = float(np.clip(scores_map[sym] + boost, 0.0, 1.0))
+                        # Accumulate multiple insider buys up to 0.98 cap
+                        scores_map[sym] = float(np.clip(scores_map[sym] + boost, 0.0, 0.98))
                         logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {scores_map[sym]:.2f})")
                     elif trans_type in sell_keywords:
                         penalty = 0.25
-                        scores_map[sym] = float(np.clip(scores_map[sym] - penalty, 0.0, 1.0))
+                        scores_map[sym] = float(np.clip(scores_map[sym] - penalty, 0.05, 1.0))
 
         results = [{'symbol': k, 'insider_buying_score': float(v)} for k, v in scores_map.items()]
         return pd.DataFrame(results)

@@ -111,13 +111,15 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                                 vol_surge = v_series.iloc[-1] / (v_series.iloc[-20:-1].mean() + 1e-5)
                                 (c_series.iloc[-1] / c_series.iloc[-20]) - 1.0
                                 # High volume surge + positive recent bounce = squeeze proxy
-                                proxy_score = float(vol_surge * np.clip(1.0 + ret_5d * 3.0, 0.2, 3.0))
+                                proxy_score = float(vol_surge * np.clip(1.0 + ret_5d * 4.0, 0.2, 4.0))
                                 results[sym_str] = proxy_score
                                 continue
                 results[sym_str] = np.nan
             else:
-                # Formula: Short Interest Ratio * DTC * (1 + max(0, ret_5d * 2))
-                raw_squeeze = float(short_ratio) * float(dtc) * (1.0 + max(0.0, float(ret_5d) * 2.0))
+                # Formula: Short Interest Ratio * DTC * (1 + max(0, ret_5d * 3))
+                # Add squeeze ignition multiplier when momentum turns positive with heavy DTC
+                ignite_mult = 1.35 if (ret_5d > 0.02 and float(dtc) >= 3.0) else 1.0
+                raw_squeeze = float(short_ratio) * float(dtc) * (1.0 + max(0.0, float(ret_5d) * 3.0)) * ignite_mult
                 results[sym_str] = raw_squeeze
 
         # Build output DataFrame and normalize
