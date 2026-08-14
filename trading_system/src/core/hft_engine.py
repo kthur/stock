@@ -239,6 +239,10 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
             # Score normalized to [0.0, 1.0] scale centered at 0.50
             net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 + gap_bonus, 0.0, 1.0))
 
+            # HFT Order Flow Momentum Booster for high-conviction order imbalance
+            if net_score >= 0.75:
+                net_score = float(np.clip(net_score * 1.10, 0.0, 1.0))
+
             results.append({
                 "symbol": sym,
                 "name": name,
