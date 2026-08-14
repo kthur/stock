@@ -157,16 +157,16 @@ class EventDrivenEngine(BaseStrategyEngine):
                             if '처분' in report_nm or '매각' in report_nm:
                                 weight = 0.20  # Bearish (Disposal / Supply pressure)
                             elif '취득' in report_nm or '매입' in report_nm or '소각' in report_nm:
-                                weight = 0.85  # Bullish (Acquisition / Cancellation)
+                                weight = 0.88  # Bullish (Acquisition / Cancellation)
                             else:
                                 weight = 0.60  # Neutral / Informational
                         elif '무상증자' in report_nm or '주식분할' in report_nm:
-                            weight = 0.90  # Bullish
+                            weight = 0.92  # Bullish
                         elif '영업이익' in report_nm or '실적' in report_nm:
                             if '적자' in report_nm or '감소' in report_nm:
                                 weight = 0.30
                             else:
-                                weight = 0.75
+                                weight = 0.78
 
                         scores_map[sym] = max(scores_map[sym], weight)
 
@@ -189,7 +189,9 @@ class EventDrivenEngine(BaseStrategyEngine):
                         cur_vol = float(v.iloc[-1])
                         v_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
                         ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
-                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.10 * ret_5d, -0.2, 0.4)
+                        # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
+                        breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
+                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.10 * ret_5d + breakout_bonus, -0.2, 0.45)
                         scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.0, 1.0))
                 except Exception:
                     pass
