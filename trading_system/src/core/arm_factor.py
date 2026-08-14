@@ -118,6 +118,9 @@ class ARMFactorEngine(BaseStrategyEngine):
         res_rows = []
         for k, v in raw_scores.items():
             sc = float(np.clip((v - lower) / (upper - lower), 0.0, 1.0))
+            # ARM Consensus Revision Booster for high-conviction analyst upgrades (Top 15%)
+            if sc >= 0.75:
+                sc = float(np.clip(sc * 1.10, 0.0, 1.0))
             res_rows.append({'symbol': k, 'arm_score': sc})
 
         return make_score_dataframe(res_rows, 'arm_score')
