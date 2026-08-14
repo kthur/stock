@@ -136,6 +136,11 @@ class MQFactorEngine(BaseStrategyEngine):
                 distress_mask = distress_mask | (res_df['roe'] < 0)
             if distress_mask.any():
                 res_df.loc[distress_mask, 'mq_score'] = (res_df.loc[distress_mask, 'mq_score'] * 0.60).clip(0.0, 1.0)
+
+            # High-Conviction Momentum Quality Super Alpha Booster (Top 15% Quality Momentum Leaders)
+            high_mq_mask = (res_df['mq_score'] >= 0.75) & (~distress_mask)
+            if high_mq_mask.any():
+                res_df.loc[high_mq_mask, 'mq_score'] = (res_df.loc[high_mq_mask, 'mq_score'] * 1.10).clip(0.0, 1.0)
         else:
             res_df['mq_score'] = res_df['price_mom_rank']
 
