@@ -88,8 +88,11 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                             cur_v = float(v.iloc[-1])
                             vol_surge = (cur_v / avg_v) if avg_v > 0 else 1.0
 
+                        # Gamma Breakout Ignition Bonus
+                        gamma_ignition_bonus = 0.10 if (proximity >= 0.97 and ret_5d >= 0.08 and vol_surge >= 2.0) else 0.0
+
                         # Squeeze score formula
-                        squeeze_raw = 0.40 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.30 * min(2.0, vol_surge) / 2.0
+                        squeeze_raw = 0.40 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.30 * min(2.0, vol_surge) / 2.0 + gamma_ignition_bonus
                         score = float(np.clip(squeeze_raw, 0.0, 1.0))
 
             # 2. Live Options Chain GEX override if available
