@@ -83,7 +83,8 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
 
                 # Tone Drift Delta (Positive = Management Sentiment Upgrade)
                 tone_delta = (cur_tone - prev_tone) * confidence
-                score = float(np.clip(0.50 + 1.0 * tone_delta, 0.0, 1.0))
+                accel_mult = 1.20 if tone_delta > 0.10 else 1.0
+                score = float(np.clip(0.50 + 1.0 * tone_delta * accel_mult, 0.0, 1.0))
 
             results.append({
                 'symbol': sym,

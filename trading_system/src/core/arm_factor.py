@@ -81,7 +81,9 @@ class ARMFactorEngine(BaseStrategyEngine):
                 if eps_rev is not None or tp_rev is not None:
                     e_rev = _safe_float(eps_rev, 0.0)
                     t_rev = _safe_float(tp_rev, 0.0)
-                    arm_raw = (e_rev * 0.5) + (t_rev * 0.5)
+                    # Both EPS and Target Price upgraded -> Confluence synergy bonus
+                    rev_bonus = 0.10 if (e_rev > 0.05 and t_rev > 0.05) else 0.0
+                    arm_raw = (e_rev * 0.5) + (t_rev * 0.5) + rev_bonus
                 else:
                     eps_growth = _safe_float(f_data.get('eps_growth'), 0.0)
                     rev_growth = _safe_float(f_data.get('revenue_growth'), 0.0)
