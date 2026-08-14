@@ -91,27 +91,19 @@ class VolTargetingEngine(BaseStrategyEngine):
         realized_vol[valid_counts < 20] = 0.25
 
 
-        for _, row in universe.iterrows():
-            sym = str(row["symbol"]).strip()
-            name = str(row.get("name", sym))
-            mkt = str(row.get("market", "KRX"))
+        # Fully vectorized computation across all universe symbols (O(1) Pandas vectorized)
+        sym_series = universe["symbol"].astype(str).str.strip()
+        vols = sym_series.map(realized_vol).fillna(0.25).clip(lower=0.05)
+        target_weights = self.target_vol_annual / vols
+        scores = (target_weights * 0.50).clip(0.0, 1.0).round(4)
 
-            vol = float(realized_vol.get(sym, np.nan)) if not pd.isna(realized_vol.get(sym, np.nan)) else 0.25
-            vol = max(vol, 0.05)  # Floor volatility at 5%
+        res_df = pd.DataFrame({
+            "symbol": sym_series,
+            "name": universe.get("name", sym_series),
+            "market": universe.get("market", "KRX"),
+            "vol_target_score": scores
+        })
 
-            # Target leverage weight = target_vol / asset_vol
-            target_weight = self.target_vol_annual / vol
-            # Map target weight (0.2 ~ 2.0) to score (0.0 ~ 1.0)
-            score = float(np.clip(target_weight * 0.50, 0.0, 1.0))
-
-            results.append({
-                "symbol": sym,
-                "name": name,
-                "market": mkt,
-                "vol_target_score": round(score, 4),
-            })
-
-        res_df = pd.DataFrame(results)
         if not res_df.empty:
             res_df = res_df.sort_values(by="vol_target_score", ascending=False).reset_index(drop=True)
         return res_df
