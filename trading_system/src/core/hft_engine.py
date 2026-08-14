@@ -193,18 +193,23 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=["symbol", "name", "market", "microstructure_score"])
 
 
-        for _, row in universe.iterrows():
-            sym = str(row["symbol"]).strip()
-            name = str(row.get("name", sym))
-            mkt = str(row.get("market", "KRX"))
+        # Pre-index df_prices by symbol for O(1) ultra-fast lookup
+        price_lookup = {}
+        if isinstance(df_prices, dict):
+            price_lookup = df_prices
+        elif isinstance(df_prices, pd.DataFrame) and not df_prices.empty and "symbol" in df_prices.columns:
+            for s, grp in df_prices.groupby("symbol"):
+                price_lookup[str(s)] = grp
 
-            # Real microstructure proxy calculated deterministically from OHLCV data
-            df_sym = None
-            if isinstance(df_prices, dict):
-                df_sym = df_prices.get(sym)
-            elif isinstance(df_prices, pd.DataFrame) and not df_prices.empty:
-                if "symbol" in df_prices.columns:
-                    df_sym = df_prices[df_prices["symbol"] == sym]
+        syms = universe["symbol"].astype(str).str.strip().values
+        names = universe.get("name", universe["symbol"]).astype(str).values
+        mkts = universe.get("market", pd.Series("KRX", index=universe.index)).astype(str).values
+
+        for i, sym in enumerate(syms):
+            name = names[i]
+            mkt = mkts[i]
+
+            df_sym = price_lookup.get(sym, price_lookup.get(sym.zfill(6)))
 
             if df_sym is not None and isinstance(df_sym, pd.DataFrame) and len(df_sym) >= 3:
                 recent = df_sym.iloc[-1]
@@ -228,8 +233,11 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 bid_ask_imbalance = 0.0
                 auction_volume_accel = 1.0
 
+            # High-conviction Overnight Gap Edge Bonus (Top close location & surging auction volume)
+            gap_bonus = 0.10 if (bid_ask_imbalance >= 0.80 and auction_volume_accel >= 1.80) else 0.0
+
             # Score normalized to [0.0, 1.0] scale centered at 0.50
-            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15, 0.0, 1.0))
+            net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 + gap_bonus, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
