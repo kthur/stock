@@ -130,7 +130,9 @@ class IVSkewEngine(BaseStrategyEngine):
                             ret_skew = float(ret.tail(20).skew()) if len(ret) >= 20 else 0.0
                             if np.isnan(ret_skew):
                                 ret_skew = 0.0
-                            score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15, 0.0, 1.0))
+                            # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
+                            turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
+                            score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
                     except Exception:
                         score = 0.5
 
