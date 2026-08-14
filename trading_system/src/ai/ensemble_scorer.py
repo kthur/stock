@@ -1726,8 +1726,23 @@ class EnsembleScoringEngine:
                 merged[col] = 0.0
 
         # Scale Ensemble Score to Calibrated Realistic Expected Return Proxy (%) [e.g. 0% ~ 50% max]
-        # ensemble_score is [0, 1]. For a 20d horizon, score 1.0 represents ~25% expected gain max.
-        raw_exp_ret = merged['ensemble_score'] * float(self._return_multiplier)
+        # Horizon-Adaptive Time Scaling: sqrt(h / 20)
+        try:
+            h_int = int(str(target_horizon).replace('d', '')) if str(target_horizon).replace('d', '').isdigit() else 20
+        except Exception:
+            h_int = 20
+        horizon_scale = float(np.clip(np.sqrt(max(1, h_int) / 20.0), 0.25, 3.0))
+
+        # Regime-dynamic elasticity multiplier (BULL = 1.15, BEAR = 0.85, SIDEWAYS = 1.0)
+        regime_str = str(regime).upper()
+        if 'BULL' in regime_str or str(regime) == '2':
+            regime_elasticity = 1.15
+        elif 'BEAR' in regime_str or str(regime) == '0':
+            regime_elasticity = 0.85
+        else:
+            regime_elasticity = 1.0
+
+        raw_exp_ret = merged['ensemble_score'] * float(self._return_multiplier) * horizon_scale * regime_elasticity
 
         # Microstructure execution model: Sell-side STT tax, SEC fees, dynamic Bid-Ask spread,
         # and Kyle/Almgren-Chriss Square-Root Market Impact Cost modeling.
