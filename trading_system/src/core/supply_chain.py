@@ -104,9 +104,10 @@ class SupplyChainEngine(BaseStrategyEngine):
         else:
             return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
-        # Compute 1D and 3D returns for all symbols
+        # Compute 1D, 3D, and 5D returns for all symbols
         returns_1d = close_pivot.pct_change(1).iloc[-1] if len(close_pivot) >= 2 else pd.Series(dtype=float)
         returns_3d = close_pivot.pct_change(3).iloc[-1] if len(close_pivot) >= 4 else pd.Series(dtype=float)
+        returns_5d = close_pivot.pct_change(5).iloc[-1] if len(close_pivot) >= 6 else pd.Series(dtype=float)
 
         def clean_sym(s: str) -> str:
             raw = s.split(".")[0].strip()
@@ -126,7 +127,8 @@ class SupplyChainEngine(BaseStrategyEngine):
                 for c_sym in customers:
                     r1 = float(returns_1d.get(c_sym, 0.0)) if not pd.isna(returns_1d.get(c_sym, np.nan)) else 0.0
                     r3 = float(returns_3d.get(c_sym, 0.0)) if not pd.isna(returns_3d.get(c_sym, np.nan)) else 0.0
-                    cust_rets.append(0.6 * r1 + 0.4 * r3)
+                    r5 = float(returns_5d.get(c_sym, 0.0)) if not pd.isna(returns_5d.get(c_sym, np.nan)) else 0.0
+                    cust_rets.append(0.50 * r1 + 0.30 * r3 + 0.20 * r5)
 
                 avg_cust_ret = float(np.mean(cust_rets)) if cust_rets else 0.0
                 score = float(np.clip(0.50 + avg_cust_ret * 5.0, 0.0, 1.0))
