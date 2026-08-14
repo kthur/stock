@@ -340,6 +340,11 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                     else:
                         norm_scores = np.full(N_m, 0.5)
 
+            # Pure Idiosyncratic Alpha Conviction Boost (Top 15% pure alpha signals)
+            alpha_mask = norm_scores >= 0.85
+            if np.any(alpha_mask):
+                norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.06, 0.0, 1.0)
+
             scores[idxs_arr] = norm_scores
             exposures[idxs_arr] = Z_m
 
