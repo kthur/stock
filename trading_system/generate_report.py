@@ -1898,6 +1898,13 @@ def build_html(
     z-index: 12;
     background: var(--surface2);
   }}
+  /* Rank > Symbol > Name z-index stacking to prevent overlap */
+  .table-wrap td.sticky-rank {{ z-index: 4; }}
+  .table-wrap td.sticky-symbol {{ z-index: 3; }}
+  .table-wrap td.sticky-name {{ z-index: 2; }}
+  .table-wrap th.sticky-rank {{ z-index: 14; }}
+  .table-wrap th.sticky-symbol {{ z-index: 13; }}
+  .table-wrap th.sticky-name {{ z-index: 12; }}
   .table-wrap .sticky-rank {{ left: 0; width: 58px; min-width: 58px; max-width: 58px; padding-left: 4px; padding-right: 4px; text-align: center; }}
   .table-wrap .sticky-symbol {{ left: 58px; width: 92px; min-width: 92px; max-width: 92px; padding-left: 8px; padding-right: 8px; }}
   .table-wrap .sticky-name {{ left: 150px; min-width: 130px; max-width: 160px; padding-left: 8px; padding-right: 8px; border-right: 2px solid var(--border); box-shadow: 3px 0 6px rgba(0,0,0,0.4); }}
