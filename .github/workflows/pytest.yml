@@ -76,8 +76,12 @@ jobs:
       if: always()
       working-directory: trading_system
       run: |
-        python -m coverage report
-        python -m coverage xml -o coverage.xml
+        if [ -f .coverage ]; then
+          python -m coverage report
+          python -m coverage xml -o coverage.xml
+        else
+          echo "No .coverage file found; skipping coverage reporting."
+        fi
 
     - name: Upload coverage to artifacts
       if: always() && matrix.python-version == '3.12'
@@ -85,3 +89,4 @@ jobs:
       with:
         name: coverage-report
         path: trading_system/coverage.xml
+        if-no-files-found: ignore

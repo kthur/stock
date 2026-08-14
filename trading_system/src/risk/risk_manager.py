@@ -1259,7 +1259,7 @@ class RiskManager:
 
     def get_active_alerts(self) -> List[Dict]:
         """활성 경고 조회"""
-        return self.alerts
+        return list(self.alerts)
 
     def clear_alerts(self):
         """경고 초기화"""

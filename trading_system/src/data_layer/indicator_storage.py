@@ -982,7 +982,7 @@ class MarketIndicatorStorage:
         updates_legacy = []
         updates_hist = []
 
-        date_sym_map = {}
+        date_sym_map: Dict[tuple[Any, str], List[Any]] = {}
         for r_id, d, sym in rows:
             date_sym_map.setdefault((d, str(sym)), []).append(r_id)
 

@@ -1709,10 +1709,18 @@ class EnsembleScoringEngine:
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
 
                 # Phase 2-B: Order-Flow & Momentum Confluence Booster (for high momentum + high institutional inflow)
-                has_mom = (('mq_score' in merged.columns and merged['mq_score'].ge(0.60)) |
-                           ('trend_efficiency_score' in merged.columns and merged['trend_efficiency_score'].ge(0.60)))
-                has_flow = (('order_flow_score' in merged.columns and merged['order_flow_score'].ge(0.60)) |
-                            ('inst_foreign_sector_score' in merged.columns and merged['inst_foreign_sector_score'].ge(0.60)))
+                has_mom = pd.Series(False, index=merged.index)
+                if 'mq_score' in merged.columns:
+                    has_mom = has_mom | merged['mq_score'].ge(0.60)
+                if 'trend_efficiency_score' in merged.columns:
+                    has_mom = has_mom | merged['trend_efficiency_score'].ge(0.60)
+
+                has_flow = pd.Series(False, index=merged.index)
+                if 'order_flow_score' in merged.columns:
+                    has_flow = has_flow | merged['order_flow_score'].ge(0.60)
+                if 'inst_foreign_sector_score' in merged.columns:
+                    has_flow = has_flow | merged['inst_foreign_sector_score'].ge(0.60)
+
                 flow_mom_mask = (has_mom & has_flow)
                 if flow_mom_mask.any():
                     blended_score.loc[flow_mom_mask] = (blended_score.loc[flow_mom_mask] * 1.025).clip(0.0, 1.0)

@@ -4,7 +4,7 @@ Scales out data fetch, feature engineering, and 31-strategy inference across wor
 """
 
 import logging
-from typing import Dict, List, Any, Callable, Optional
+from typing import Dict, List, Any, Callable, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class RayClusterOrchestrator:
                 futures = [remote_func.remote(item, **kwargs) for item in items]
                 results = ray.get(futures)
                 logger.info(f"✅ [RAY CLUSTER] Completed parallel map for {len(items)} items.")
-                return results
+                return cast(List[Any], results)
             except Exception as e:
                 logger.warning(f"Ray parallel map failed: {e}. Executing sequentially.")
 

@@ -92,8 +92,9 @@ class ARMFactorEngine(BaseStrategyEngine):
                     arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - per_penalty
 
                 price_mom = 0.0
-                if sym in prc and isinstance(prc[sym], pd.DataFrame) and not prc[sym].empty:
-                    df = prc[sym]
+                p_sym = prc.get(sym)
+                if p_sym is not None and isinstance(p_sym, pd.DataFrame) and not p_sym.empty:
+                    df = p_sym
                     col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
                     if col:
                         close = df[col].dropna()
@@ -113,7 +114,7 @@ class ARMFactorEngine(BaseStrategyEngine):
         lower = np.percentile(vals, 1)
         upper = np.percentile(vals, 99)
         if upper == lower:
-            return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
+            return make_score_dataframe([{'symbol': k, 'arm_score': 0.5} for k in raw_scores.keys()], 'arm_score')
 
         res_rows = []
         for k, v in raw_scores.items():
