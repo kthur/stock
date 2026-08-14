@@ -302,6 +302,10 @@ class PortfolioAllocator:
 
         # Normalize and scale by fractional kelly
         norm_w = raw_kelly / total_k
+        # Kelly Conviction Boost for top conviction alpha signals
+        top_mask = norm_w >= np.percentile(norm_w, 75) if len(norm_w) >= 4 else np.zeros(n_assets, dtype=bool)
+        if np.any(top_mask):
+            norm_w[top_mask] *= 1.08
         clamped_w = np.clip(norm_w, 0.0, cap)
         sum_c = np.sum(clamped_w)
         if sum_c > 0:
