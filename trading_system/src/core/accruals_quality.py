@@ -116,7 +116,11 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             # Rank score: inverted because lower accrual_ratio -> higher earnings quality
             # Percentile rank: 1 - percentile_rank(accrual_ratio)
             ranks = df_acc.loc[valid_mask, 'accrual_ratio'].rank(pct=True, ascending=True)
-            df_acc.loc[valid_mask, 'accruals_quality_score'] = (1.0 - ranks).clip(0.05, 0.95)
+            base_score = (1.0 - ranks).clip(0.05, 0.95)
+            # Accruals Quality Alpha Boost for top 15% high-cashflow sustainable earnings stocks
+            high_quality_mask = base_score >= 0.85
+            enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
+            df_acc.loc[valid_mask, 'accruals_quality_score'] = enhanced_score
         else:
             df_acc['accruals_quality_score'] = 0.50
 
