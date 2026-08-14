@@ -130,7 +130,7 @@ class IntradayStopLossEngine:
                 if pd.isna(raw_last) or math.isinf(float(raw_last)) if not pd.isna(raw_last) else True:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
-                closes = data["close"].dropna().values
+                closes = data["close"].replace([np.inf, -np.inf], np.nan).dropna().values
                 if len(closes) == 0:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
@@ -141,7 +141,7 @@ class IntradayStopLossEngine:
                     prev_price = current_price
 
                 if "volume" in data.columns:
-                    vols = data["volume"].dropna().values[-20:]
+                    vols = data["volume"].replace([np.inf, -np.inf], np.nan).dropna().values[-20:]
                     if len(vols) > 0:
                         volume = float(vols[-1])
                         volume_ma_20 = float(np.mean(vols))
@@ -150,7 +150,7 @@ class IntradayStopLossEngine:
                         volume_ma_20 = 0.0
 
                 if "high" in data.columns:
-                    highs = data["high"].dropna().values
+                    highs = data["high"].replace([np.inf, -np.inf], np.nan).dropna().values
                     if len(highs) > 0:
                         peak_price = float(np.max(highs))
                     else:
@@ -159,7 +159,7 @@ class IntradayStopLossEngine:
                     peak_price = float(np.max(closes))
 
                 if "atr" in data.columns:
-                    atrs = data["atr"].dropna().values
+                    atrs = data["atr"].replace([np.inf, -np.inf], np.nan).dropna().values
                     if len(atrs) > 0:
                         atr = float(atrs[-1])
 

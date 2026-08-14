@@ -239,6 +239,12 @@ class CrisisDetector:
 
             composite = vix_score * 0.25 + dd_score * 0.25 + volume_score * 0.15 + trend_score * 0.10 + macro_score * 0.25
 
+            # Single-factor VIX fast shock override (guarantee acute crisis sensitivity)
+            if vix >= 40.0:
+                composite = max(composite, 0.60)
+            elif vix >= 30.0:
+                composite = max(composite, 0.30)
+
             previous = self.crisis_level
             if composite >= 0.70:
                 self.crisis_level = CrisisLevel.SEVERE

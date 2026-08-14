@@ -2642,7 +2642,20 @@ def execute_prediction_pipeline():
                 ('arm_factor', 'arm_score'),
                 ('card_factor', 'card_score'),
                 ('latr_factor', 'latr_score'),
-                ('inst_foreign_sector', 'inst_foreign_sector_score')
+                ('inst_foreign_sector', 'inst_foreign_sector_score'),
+                ('supply_chain', 'supply_chain_score'),
+                ('sentiment', 'sentiment_score'),
+                ('factor_neutralized', 'factor_neutralized_score'),
+                ('vol_target', 'vol_target_score'),
+                ('microstructure', 'microstructure_score'),
+                ('accruals_quality', 'accruals_quality_score'),
+                ('short_squeeze', 'short_squeeze_score'),
+                ('valueup_catalyst', 'valueup_catalyst_score'),
+                ('trend_efficiency', 'trend_efficiency_score'),
+                ('gamma_squeeze', 'gamma_squeeze_score'),
+                ('insider_buying', 'insider_buying_score'),
+                ('darkpool', 'darkpool_score'),
+                ('earnings_tone_drift', 'earnings_tone_drift_score')
             ]:
                 if col in hist_df.columns and 'outcome_return' in hist_df.columns:
                     strat_series = hist_df.groupby('date').apply(lambda d: (d[col] * d['outcome_return']).mean(), include_groups=False)
@@ -2866,7 +2879,12 @@ def execute_prediction_pipeline():
     try:
         from src.core.multi_factor_neutralizer import MultiFactorNeutralizerEngine
         fn_engine = MultiFactorNeutralizerEngine()
-        factor_neutralized_df = fn_engine.compute_scores(universe)
+        factor_neutralized_df = fn_engine.compute_scores(
+            prices_dict=infer_data_dict if ('infer_data_dict' in locals() and infer_data_dict) else None,
+            universe=universe,
+            raw_scores=res_df if ('res_df' in locals() and res_df is not None and not res_df.empty) else None,
+            fundamentals_dict=infer_fund_cache if ('infer_fund_cache' in locals() and infer_fund_cache) else None
+        )
         fn_output_path = os.path.join(result_dir, "factor_neutralized_predictions.txt")
         if not factor_neutralized_df.empty:
             with open(fn_output_path, "w", encoding="utf-8") as f:
@@ -2877,7 +2895,10 @@ def execute_prediction_pipeline():
                 f.write("-" * 60 + "\n")
                 for rank, (_, row) in enumerate(factor_neutralized_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['neutralized_score']:>12.1f}%\n")
+                    score_val = row.get('factor_neutralized_score', row.get('neutralized_score', 0.0))
+                    if pd.isna(score_val):
+                        score_val = 0.0
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{score_val * 100.0 if score_val <= 1.0 else score_val:>12.1f}%\n")
     except Exception as _fn_e:
         logger.warning(f"Multi-factor neutralizer strategy computation failed: {_fn_e}")
         factor_neutralized_df = pd.DataFrame()

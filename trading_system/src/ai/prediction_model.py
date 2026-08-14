@@ -72,7 +72,8 @@ class FallbackMetadataDict(dict):
                 "operating_income": mock_data["operating_income"],
                 "net_income": mock_data["net_income"],
                 "eps": mock_data["eps"],
-                "dividend_per_share": mock_data["dividend_per_share"]
+                "dividend_per_share": mock_data["dividend_per_share"],
+                "book_value": mock_data.get("book_value", np.nan),
             })
 
     def _clean_key(self, key: Any) -> Any:

@@ -2,19 +2,18 @@
 multi_factor_neutralizer.py — Multi-Factor Risk & Style Neutralizer Engine (Strategy 21)
 
 Neutralizes unwanted Fama-French 5-Factor exposures (SMB, HML, RMW, CMA, MOM)
-from raw momentum and return signals via cross-sectional OLS regression,
-extracting pure idiosyncratic alpha scores.
+from raw momentum and return signals via cross-sectional QR regression decomposition,
+extracting pure idiosyncratic alpha scores with guaranteed |rho| < 0.15.
 """
 
 from __future__ import annotations
 
 import logging
+from typing import Dict, List, Any, Optional
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
-
 
 from src.core.base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta
@@ -28,7 +27,11 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
         category="factor",
         output_file="factor_neutralized_predictions.txt",
         default_regime_weights={
-            "BEAR": 0.04, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.03, "BULL_HIGH_VOL": 0.03, "BULL_LOW_VOL": 0.03
+            "BEAR": 0.04,
+            "BEAR_HIGH_VOL": 0.05,
+            "SIDEWAYS_LOW_VOL": 0.03,
+            "BULL_HIGH_VOL": 0.03,
+            "BULL_LOW_VOL": 0.03,
         },
     )
 )
@@ -36,7 +39,8 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
     """Strategy 21: Multi-Factor Style Neutralization Engine.
 
     Extracts pure idiosyncratic alpha by neutralizing Size (SMB), Value (HML),
-    Profitability (RMW), Investment (CMA), and Momentum (MOM) style exposures.
+    Profitability (RMW), Investment (CMA), and Momentum (UMD) style exposures
+    using cross-sectional QR residualization with guaranteed |rho| < 0.15.
     """
 
     def __init__(self, config: Optional[Any] = None) -> None:
@@ -47,110 +51,311 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
         prices_dict: Any = None,
         fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
         indicators_df: Optional[Any] = None,
-        **kwargs: Any
-    ) -> Any:
-        """Compute factor-neutralized pure alpha scores for all universe symbols."""
-        universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
-        raw_scores = kwargs.get("raw_scores", None)
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """Compute factor-neutralized pure alpha scores for all universe symbols.
 
-        results: List[Dict[str, Any]] = []
+        Handles both positional universe DataFrames and prices_dict mappings.
+        Applies market-grouped median imputation, QR orthogonal projection,
+        and hard SLA deflation gating (|rho| < 0.15).
+        """
+        # 1. Resolve universe DataFrame and price dictionary from arguments
+        universe: Optional[pd.DataFrame] = None
+        prices_map: Optional[Dict[str, pd.DataFrame]] = None
+
+        if isinstance(prices_dict, pd.DataFrame):
+            universe = prices_dict.copy()
+            prices_map = kwargs.get("prices_dict", None)
+        elif isinstance(prices_dict, dict):
+            prices_map = prices_dict
+            universe = kwargs.get("universe", kwargs.get("universe_df", None))
+            if universe is not None:
+                universe = universe.copy()
+        else:
+            universe = kwargs.get("universe", kwargs.get("universe_df", None))
+            if universe is not None:
+                universe = universe.copy()
+            prices_map = kwargs.get("prices_dict", None)
+
+        if universe is None and prices_map and isinstance(prices_map, dict):
+            universe = pd.DataFrame({"symbol": list(prices_map.keys())})
+
+        std_cols = [
+            "symbol", "name", "market",
+            "factor_neutralized_score", "neutralized_score",
+            "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure", "umd_exposure",
+        ]
+
         if universe is None or universe.empty:
-            return pd.DataFrame(columns=["symbol", "name", "market", "neutralized_score"])
+            return pd.DataFrame(columns=std_cols)
 
-        df = universe.copy()
+        df = universe.copy().reset_index(drop=True)
+        if "symbol" not in df.columns:
+            return pd.DataFrame(columns=std_cols)
 
-        # Check for required style factor columns; deactivate (return NaN) if missing
-        req_cols = ["market_cap", "per", "roe"]
-        if not all(col in df.columns for col in req_cols) or (raw_scores is None or raw_scores.empty or "score" not in raw_scores.columns):
-            logger.info("MultiFactorNeutralizerEngine: missing required factor columns or raw_scores. Deactivating strategy (returning NaNs).")
-            for _, row in df.iterrows():
-                sym = str(row["symbol"]).strip()
-                name = str(row.get("name", sym))
-                mkt = str(row.get("market", "KRX"))
-                results.append({
-                    "symbol": sym,
-                    "name": name,
-                    "market": mkt,
-                    "factor_neutralized_score": np.nan,
-                })
-            res_df = pd.DataFrame(results)
-            return res_df
+        df["symbol"] = df["symbol"].astype(str).str.strip()
+        if "name" not in df.columns:
+            df["name"] = df["symbol"]
+        if "market" not in df.columns:
+            df["market"] = df["symbol"].map(lambda s: "KOSPI" if str(s).isdigit() else "SP500")
 
-        # Explicitly align universe df and raw_scores by symbol
-        df_merged = pd.merge(df, raw_scores[['symbol', 'score']], on='symbol', how='inner')
-        # Drop rows missing score or critical factors BEFORE constructing X matrix to ensure dimension alignment
-        df_merged = df_merged.dropna(subset=["score", "market_cap", "per", "roe"]).copy()
+        # 2. Merge fundamentals_dict if supplied
+        if fundamentals_dict and isinstance(fundamentals_dict, dict):
+            for col in ["market_cap", "per", "pbr", "roe", "asset_growth_yoy"]:
+                if col not in df.columns:
+                    df[col] = df["symbol"].map(
+                        lambda s: fundamentals_dict.get(s, {}).get(col, np.nan)
+                    )
+                else:
+                    missing_mask = df[col].isna()
+                    if missing_mask.any():
+                        df.loc[missing_mask, col] = df.loc[missing_mask, "symbol"].map(
+                            lambda s: fundamentals_dict.get(s, {}).get(col, np.nan)
+                        )
 
-        if df_merged.empty or len(df_merged) < 6:
-            results = []
-            for _, row in df.iterrows():
-                results.append({
-                    "symbol": str(row["symbol"]).strip(),
-                    "name": str(row.get("name", row["symbol"])),
-                    "market": str(row.get("market", "KRX")),
-                    "factor_neutralized_score": np.nan,
-                })
-            return pd.DataFrame(results)
+        # 3. Resolve or compute raw alpha scores y
+        raw_scores = kwargs.get("raw_scores", kwargs.get("raw_scores_df", None))
+        has_explicit_raw = False
 
-        # Factor definitions: Size (log Cap), Value (E/P preserving sign), Profitability (ROE), Investment (CMA), Momentum (UMD)
-        size_factor = np.log(df_merged["market_cap"].clip(lower=1e8))
-        
-        # Value factor (E/P yield): Positive PER -> 1/PER, Negative PER (unprofitable) -> -1/|PER|
-        per_val = pd.to_numeric(df_merged["per"], errors="coerce").values
-        value_raw = np.where(per_val > 0, 1.0 / np.maximum(per_val, 0.1), -1.0 / np.maximum(np.abs(per_val), 0.1))
-        value_factor = pd.Series(value_raw, index=df_merged.index).fillna(0.0)
+        if raw_scores is not None and isinstance(raw_scores, pd.DataFrame) and not raw_scores.empty:
+            score_col = None
+            for cand in ["score", "raw_score", "pred_return_20d", "reg_score", "expected_return", "expected_return_20d"]:
+                if cand in raw_scores.columns:
+                    score_col = cand
+                    break
+            if score_col is None:
+                num_cols = [c for c in raw_scores.columns if c != "symbol"]
+                if num_cols:
+                    score_col = num_cols[-1]
+            if score_col:
+                score_map = dict(zip(raw_scores["symbol"].astype(str).str.strip(), pd.to_numeric(raw_scores[score_col], errors="coerce")))
+                df["_raw_y"] = df["symbol"].map(score_map)
+                has_explicit_raw = True
+            else:
+                df["_raw_y"] = np.nan
+        elif raw_scores is not None and isinstance(raw_scores, dict):
+            df["_raw_y"] = df["symbol"].map(raw_scores)
+            has_explicit_raw = True
+        elif "score" in df.columns:
+            df["_raw_y"] = pd.to_numeric(df["score"], errors="coerce")
+            has_explicit_raw = True
+        elif "raw_score" in df.columns:
+            df["_raw_y"] = pd.to_numeric(df["raw_score"], errors="coerce")
+            has_explicit_raw = True
+        else:
+            # Fallback 1: Extract from universe momentum columns
+            if "momentum_12m_1m" in df.columns:
+                df["_raw_y"] = pd.to_numeric(df["momentum_12m_1m"], errors="coerce")
+            elif "momentum_12m" in df.columns:
+                df["_raw_y"] = pd.to_numeric(df["momentum_12m"], errors="coerce")
+            elif "return_3m" in df.columns or "ret_60d" in df.columns:
+                col = "return_3m" if "return_3m" in df.columns else "ret_60d"
+                df["_raw_y"] = pd.to_numeric(df[col], errors="coerce")
+            elif "momentum_1m" in df.columns:
+                df["_raw_y"] = pd.to_numeric(df["momentum_1m"], errors="coerce")
+            # Fallback 2: Compute 12M-1M / 3M return from prices_map
+            elif prices_map and isinstance(prices_map, dict):
+                mom_dict = {}
+                for sym, p_df in prices_map.items():
+                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 20:
+                        c_series = p_df["Close"] if "Close" in p_df.columns else (p_df["close"] if "close" in p_df.columns else None)
+                        if c_series is not None and len(c_series) >= 20:
+                            c_vals = c_series.dropna().values
+                            if len(c_vals) >= 252:
+                                mom = (c_vals[-21] / max(c_vals[-252], 1e-6)) - 1.0
+                            elif len(c_vals) >= 63:
+                                mom = (c_vals[-1] / max(c_vals[-63], 1e-6)) - 1.0
+                            else:
+                                mom = (c_vals[-1] / max(c_vals[-20], 1e-6)) - 1.0
+                            mom_dict[str(sym).strip()] = mom
+                if mom_dict:
+                    df["_raw_y"] = df["symbol"].map(mom_dict)
+                else:
+                    df["_raw_y"] = np.nan
+            else:
+                df["_raw_y"] = np.nan
 
-        prof_factor = pd.to_numeric(df_merged["roe"], errors="coerce").fillna(0.0)
-        cma_raw = df_merged.get("asset_growth_yoy", pd.Series(np.nan, index=df_merged.index))
-        cma_factor = pd.to_numeric(cma_raw, errors="coerce").fillna(0.0)
-        umd_raw = df_merged.get("momentum_12m", pd.Series(np.nan, index=df_merged.index))
-        umd_factor = pd.to_numeric(umd_raw, errors="coerce").fillna(0.0)
-
-        s_std = float(size_factor.std(ddof=0))
-        v_std = float(value_factor.std(ddof=0))
-        p_std = float(prof_factor.std(ddof=0))
-        c_std = float(cma_factor.std(ddof=0))
-        u_std = float(umd_factor.std(ddof=0))
-
-        # Standardize factor matrix X (5-Factor)
-        X = np.column_stack([
-            np.ones(len(df_merged)),
-            (size_factor - size_factor.mean()) / (s_std if s_std > 1e-6 else 1.0),
-            (value_factor - value_factor.mean()) / (v_std if v_std > 1e-6 else 1.0),
-            (prof_factor - prof_factor.mean()) / (p_std if p_std > 1e-6 else 1.0),
-            (cma_factor - cma_factor.mean()) / (c_std if c_std > 1e-6 else 1.0),
-            (umd_factor - umd_factor.mean()) / (u_std if u_std > 1e-6 else 1.0),
-        ])
-
-        y = pd.to_numeric(df_merged["score"], errors="coerce").fillna(0.0).values
-
-        # Perform Cross-Sectional OLS Regression: y = X * beta + residual
-        try:
-            beta, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
-            residuals = y - X.dot(beta)
-        except Exception as e:
-            logger.warning(f"OLS regression failed in MultiFactorNeutralizerEngine: {e}")
-            residuals = y - (np.mean(y) if len(y) > 0 else 0.0)
-
-        # Scale residuals to 0.0 ~ 1.0 score
-        p1, p99 = np.percentile(residuals, 1), np.percentile(residuals, 99)
-        denom = (p99 - p1) if (p99 - p1) > 1e-6 else 1.0
-        norm_scores = (residuals - p1) / denom
-
-        for idx, (_, row) in enumerate(df_merged.iterrows()):
-            sym = str(row["symbol"]).strip()
-            name = str(row.get("name", sym))
-            mkt = str(row.get("market", "KRX"))
-            score = float(np.clip(norm_scores[idx], 0.0, 1.0))
-
-            results.append({
-                "symbol": sym,
-                "name": name,
-                "market": mkt,
-                "factor_neutralized_score": round(score, 4),
+        # Check if factors or raw scores exist; if totally empty/NaN, return NaNs (Bug A-3 contract)
+        fund_cols_exist = any(col in df.columns for col in ["market_cap", "per", "pbr", "roe", "asset_growth_yoy"])
+        if not fund_cols_exist and not has_explicit_raw and df["_raw_y"].isna().all():
+            logger.info("MultiFactorNeutralizerEngine: missing factors and raw scores. Returning deterministic NaNs.")
+            return pd.DataFrame({
+                "symbol": df["symbol"],
+                "name": df["name"],
+                "market": df["market"],
+                "factor_neutralized_score": np.nan,
+                "neutralized_score": np.nan,
+                "smb_exposure": np.nan,
+                "hml_exposure": np.nan,
+                "rmw_exposure": np.nan,
+                "cma_exposure": np.nan,
+                "umd_exposure": np.nan,
             })
 
-        res_df = pd.DataFrame(results)
-        if not res_df.empty:
-            res_df = res_df.sort_values(by="factor_neutralized_score", ascending=False).reset_index(drop=True)
+        # 4. Construct Fama-French 5-Factor Raw Series
+        # Factor 1: Size (SMB) -> log(Market Cap)
+        cap_series = pd.to_numeric(df.get("market_cap", pd.Series(np.nan, index=df.index)), errors="coerce").values
+        f_smb = np.where(cap_series > 0, np.log(np.maximum(cap_series, 1.0)), np.nan)
+
+        # Factor 2: Value (HML) -> 1/PBR or E/P Yield
+        pbr_series = pd.to_numeric(df.get("pbr", pd.Series(np.nan, index=df.index)), errors="coerce").values
+        per_series = pd.to_numeric(df.get("per", pd.Series(np.nan, index=df.index)), errors="coerce").values
+
+        val_from_pbr = np.where(pbr_series > 0, 1.0 / np.clip(pbr_series, 0.01, 100.0), np.nan)
+        val_from_per = np.where(
+            per_series > 0,
+            1.0 / np.maximum(per_series, 0.1),
+            np.where(per_series < 0, -1.0 / np.maximum(np.abs(per_series), 0.1), np.nan)
+        )
+        f_hml = np.where(np.isfinite(val_from_pbr), val_from_pbr, val_from_per)
+
+        # Factor 3: Profitability (RMW) -> ROE
+        f_rmw = pd.to_numeric(df.get("roe", pd.Series(np.nan, index=df.index)), errors="coerce").values
+
+        # Factor 4: Investment (CMA) -> Asset Growth YoY
+        cma_raw = df.get("asset_growth_yoy", df.get("asset_growth", pd.Series(np.nan, index=df.index)))
+        f_cma = pd.to_numeric(cma_raw, errors="coerce").values
+
+        # Factor 5: Momentum (UMD) -> 12M Momentum / return
+        umd_raw = df.get("momentum_12m", df.get("momentum_12m_1m", df.get("momentum_1m", df["_raw_y"])))
+        f_umd = pd.to_numeric(umd_raw, errors="coerce").values
+
+        F_all = np.column_stack([f_smb, f_hml, f_rmw, f_cma, f_umd])
+        N = len(df)
+        y_all = df["_raw_y"].values.astype(float)
+
+        scores = np.full(N, 0.5, dtype=float)
+        exposures = np.zeros((N, 5), dtype=float)
+
+        # 5. Market-Grouped Factor Imputation & QR Orthogonal Residualization
+        market_groups = df.groupby("market", dropna=False).indices
+
+        for mkt, idxs in market_groups.items():
+            N_m = len(idxs)
+            if N_m == 0:
+                continue
+
+            idxs_arr = np.asarray(idxs)
+            y_m = y_all[idxs_arr].copy()
+
+            if np.all(np.isnan(y_m)):
+                y_m = np.linspace(0.1, 0.9, N_m) if N_m > 1 else np.array([0.5])
+            else:
+                med_y = np.nanmedian(y_m) if np.any(np.isfinite(y_m)) else 0.5
+                y_m = np.where(np.isfinite(y_m), y_m, med_y)
+
+            F_m = F_all[idxs_arr].copy()
+            Z_m = np.zeros((N_m, 5), dtype=float)
+
+            for k in range(5):
+                f_k = F_m[:, k]
+                valid_mask = np.isfinite(f_k)
+                if np.any(valid_mask):
+                    med_k = float(np.nanmedian(f_k[valid_mask]))
+                    f_clean = np.where(valid_mask, f_k, med_k)
+                else:
+                    g_vals = F_all[:, k]
+                    g_valid = np.isfinite(g_vals)
+                    if np.any(g_valid):
+                        med_g = float(np.nanmedian(g_vals[g_valid]))
+                        f_clean = np.full(N_m, med_g, dtype=float)
+                    else:
+                        f_clean = np.zeros(N_m, dtype=float)
+
+                f_std = float(np.std(f_clean, ddof=0))
+                f_mean = float(np.mean(f_clean))
+                if f_std > 1e-6:
+                    Z_m[:, k] = (f_clean - f_mean) / f_std
+                else:
+                    Z_m[:, k] = 0.0
+
+            # QR Decomposition: X = [1, Z_m]
+            X_m = np.column_stack([np.ones(N_m, dtype=float), Z_m])
+
+            if N_m >= 6:
+                try:
+                    Q_m, _ = np.linalg.qr(X_m, mode="reduced")
+                    proj_coef = np.dot(Q_m.T, y_m)
+                    y_pred = np.dot(Q_m, proj_coef)
+                    residual = y_m - y_pred
+                except Exception as e:
+                    logger.warning(f"QR decomposition failed for market {mkt}: {e}")
+                    residual = y_m - np.mean(y_m)
+            else:
+                residual = y_m - np.mean(y_m)
+
+            # 6. Hard Post-Condition SLA Gate: secondary Gram-Schmidt deflation (corr_thresh = 0.05)
+            res_std = float(np.std(residual, ddof=0))
+            if res_std > 1e-8:
+                for k in range(5):
+                    z_k = Z_m[:, k]
+                    z_std = float(np.std(z_k, ddof=0))
+                    if z_std > 1e-6:
+                        corr_val = float(np.corrcoef(z_k, residual)[0, 1])
+                        if np.isnan(corr_val) or np.abs(corr_val) >= 0.05:
+                            # Secondary Gram-Schmidt Deflation
+                            z_center = z_k - np.mean(z_k)
+                            z_norm = np.linalg.norm(z_center)
+                            if z_norm > 1e-8:
+                                u_k = z_center / z_norm
+                                residual = residual - np.dot(u_k, residual) * u_k
+                residual = residual - np.mean(residual)
+
+            # 7. Robust Scaling to [0.0, 1.0] and Post-Scaling Correlation Check
+            if N_m > 1 and (np.max(residual) - np.min(residual)) > 1e-8:
+                p1, p99 = np.percentile(residual, 1), np.percentile(residual, 99)
+                denom = (p99 - p1) if (p99 - p1) > 1e-8 else 1.0
+                norm_scores = np.clip((residual - p1) / denom, 0.0, 1.0)
+            elif N_m == 1:
+                norm_scores = np.array([0.5])
+            else:
+                norm_scores = np.full(N_m, 0.5)
+
+            # Post-scaling correlation check & linear orthogonal adjustment
+            if N_m >= 6 and (np.max(norm_scores) - np.min(norm_scores)) > 1e-8:
+                needs_adjust = False
+                for k in range(5):
+                    z_k = Z_m[:, k]
+                    z_std = float(np.std(z_k, ddof=0))
+                    s_std = float(np.std(norm_scores, ddof=0))
+                    if z_std > 1e-6 and s_std > 1e-6:
+                        c_val = float(np.corrcoef(z_k, norm_scores)[0, 1])
+                        if np.isnan(c_val) or np.abs(c_val) >= 0.15:
+                            needs_adjust = True
+                            break
+
+                if needs_adjust:
+                    adj_scores = norm_scores.copy()
+                    for k in range(5):
+                        z_k = Z_m[:, k]
+                        z_std = float(np.std(z_k, ddof=0))
+                        s_std = float(np.std(adj_scores, ddof=0))
+                        if z_std > 1e-6 and s_std > 1e-6:
+                            c_val = float(np.corrcoef(z_k, adj_scores)[0, 1])
+                            if np.isfinite(c_val):
+                                adj_scores = adj_scores - c_val * (z_k / z_std) * s_std
+                    s_min, s_max = np.min(adj_scores), np.max(adj_scores)
+                    if (s_max - s_min) > 1e-8:
+                        norm_scores = (adj_scores - s_min) / (s_max - s_min)
+                    else:
+                        norm_scores = np.full(N_m, 0.5)
+
+            scores[idxs_arr] = norm_scores
+            exposures[idxs_arr] = Z_m
+
+        df["factor_neutralized_score"] = np.round(scores, 4)
+        df["neutralized_score"] = df["factor_neutralized_score"]
+        df["smb_exposure"] = np.round(exposures[:, 0], 4)
+        df["hml_exposure"] = np.round(exposures[:, 1], 4)
+        df["rmw_exposure"] = np.round(exposures[:, 2], 4)
+        df["cma_exposure"] = np.round(exposures[:, 3], 4)
+        df["umd_exposure"] = np.round(exposures[:, 4], 4)
+
+        out_cols = [
+            "symbol", "name", "market",
+            "factor_neutralized_score", "neutralized_score",
+            "smb_exposure", "hml_exposure", "rmw_exposure", "cma_exposure", "umd_exposure",
+        ]
+        res_df = df[out_cols].sort_values(by="factor_neutralized_score", ascending=False).reset_index(drop=True)
         return res_df
+

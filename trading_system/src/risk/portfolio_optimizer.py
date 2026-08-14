@@ -20,7 +20,7 @@ class PortfolioOptimizer:
     Portfolio Optimization Engine implementing Risk Parity, Mean-Variance,
     EVT-CVaR Tail Loss Constraints, and Factor/Sector Exposure Constraints.
     """
-    def __init__(self, default_max_weight: float = 0.20, default_max_sector_weight: float = 0.35):
+    def __init__(self, default_max_weight: float = 0.15, default_max_sector_weight: float = 0.30):
         self.default_max_weight = default_max_weight
         self.default_max_sector_weight = default_max_sector_weight
 

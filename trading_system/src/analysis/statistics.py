@@ -54,7 +54,11 @@ class AdvancedStatistics:
         """수익률 계산"""
         returns = []
         for i in range(1, len(equity_curve)):
-            r = (equity_curve[i] - equity_curve[i - 1]) / equity_curve[i - 1]
+            prev = equity_curve[i - 1]
+            if prev <= 0 or abs(prev) < 1e-8:
+                r = 0.0
+            else:
+                r = (equity_curve[i] - prev) / prev
             returns.append(r)
         return returns
 
@@ -103,8 +107,8 @@ class AdvancedStatistics:
 
     def calculate_calmar_ratio(self, annual_return: float, max_drawdown: float) -> float:
         """Calmar Ratio 계산"""
-        if max_drawdown == 0:
-            return float("inf") if annual_return > 0 else 0
+        if max_drawdown == 0 or abs(max_drawdown) < 1e-8:
+            return 999.0 if annual_return > 0 else 0.0
 
         return annual_return / abs(max_drawdown)
 
@@ -123,7 +127,10 @@ class AdvancedStatistics:
                 peak = value
                 peak_idx = i
 
-            dd = (peak - value) / peak
+            if peak <= 0 or abs(peak) < 1e-8:
+                dd = 0.0
+            else:
+                dd = (peak - value) / peak
             if dd > max_dd:
                 max_dd = dd
                 trough_idx = i
@@ -132,8 +139,8 @@ class AdvancedStatistics:
 
     def calculate_recovery_factor(self, total_return: float, max_drawdown: float) -> float:
         """Recovery Factor 계산"""
-        if max_drawdown == 0:
-            return float("inf") if total_return > 0 else 0
+        if max_drawdown == 0 or abs(max_drawdown) < 1e-8:
+            return 999.0 if total_return > 0 else 0.0
 
         return total_return / abs(max_drawdown)
 
@@ -223,11 +230,17 @@ class AdvancedStatistics:
 
     def get_performance_summary(self, equity_curve: List[float], trades: List[Dict]) -> Dict:
         """성과 요약 조회"""
+        if not equity_curve:
+            return {}
+
         returns = self.calculate_returns(equity_curve)
 
         initial_value = equity_curve[0]
         final_value = equity_curve[-1]
-        total_return = (final_value - initial_value) / initial_value
+        if initial_value <= 0 or abs(initial_value) < 1e-8:
+            total_return = 0.0
+        else:
+            total_return = (final_value - initial_value) / initial_value
         n = len(equity_curve)
         total_ret_clamped = max(1e-6, 1.0 + total_return)
         annual_return = (total_ret_clamped ** (252.0 / n)) - 1.0 if n > 0 else 0.0
@@ -247,10 +260,10 @@ class AdvancedStatistics:
 
             gross_profit = sum(t.get("pnl", 0) for t in trades if t.get("pnl", 0) > 0)
             gross_loss = abs(sum(t.get("pnl", 0) for t in trades if t.get("pnl", 0) <= 0))
-            profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
+            profit_factor = gross_profit / gross_loss if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
         else:
-            win_rate = 0
-            profit_factor = 0
+            win_rate = 0.0
+            profit_factor = 0.0
 
         summary = {
             "total_return": total_return,

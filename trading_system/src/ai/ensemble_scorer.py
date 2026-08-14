@@ -804,7 +804,14 @@ class EnsembleScoringEngine:
         if not rolling_sharpes:
             return base_weights
 
-        all_zero = all(abs(v) < 1e-8 for v in rolling_sharpes.values())
+        clean_sharpes = {}
+        for s, val in rolling_sharpes.items():
+            if val is None or np.isnan(val):
+                clean_sharpes[s] = 0.0
+            else:
+                clean_sharpes[s] = float(val)
+
+        all_zero = all(abs(v) < 1e-8 for v in clean_sharpes.values())
         if all_zero:
             logger.info(
                 "[COLD-START] No realized strategy outcomes yet — using regime base weights (dynamic Sharpe weighting inactive)."
@@ -817,11 +824,13 @@ class EnsembleScoringEngine:
         max_multiplier_ratio = 5.0
         sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
         scores = {}
+        pruned_strategies = {s for s, sh in clean_sharpes.items() if sh < -0.50}
         for strategy, base_w in base_weights.items():
-            sharpe = float(rolling_sharpes.get(strategy, 0.0))
-            if sharpe < -0.50:
+            sharpe = clean_sharpes.get(strategy, 0.0)
+            if sharpe < -0.50 or strategy in pruned_strategies:
                 logger.warning(f"Strategy '{strategy}' pruned due to severe underperformance (Sharpe = {sharpe:.2f} < -0.50).")
                 scores[strategy] = 0.0
+                pruned_strategies.add(strategy)
                 continue
             multiplier = float(np.exp(gamma * np.clip(sharpe, -sharpe_clip, sharpe_clip)))
             scores[strategy] = base_w * multiplier
@@ -857,8 +866,14 @@ class EnsembleScoringEngine:
             for k, target_w in dynamic_weights.items():
                 prev_w = self._prev_weights.get(k, target_w)
                 smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
-            tot_s = sum(smoothed.values())
-            dynamic_weights = {k: v / tot_s for k, v in smoothed.items()}
+
+            for s in pruned_strategies:
+                smoothed[s] = 0.0
+
+            total_w = sum(smoothed.values())
+            if total_w > 0:
+                smoothed = {k: v / total_w for k, v in smoothed.items()}
+            dynamic_weights = smoothed
 
         self._prev_weights = dict(dynamic_weights)
 
@@ -1375,7 +1390,7 @@ class EnsembleScoringEngine:
         if factor_neutralized_df is not None and not factor_neutralized_df.empty:
             fn_df = factor_neutralized_df.copy()
             num_cols = [c for c in fn_df.columns if c != 'symbol' and c not in META_COLS]
-            fn_col = 'neutralized_score' if 'neutralized_score' in fn_df.columns else ('factor_neutralized_score' if 'factor_neutralized_score' in fn_df.columns else (num_cols[-1] if num_cols else fn_df.columns[-1]))
+            fn_col = 'factor_neutralized_score' if 'factor_neutralized_score' in fn_df.columns else ('neutralized_score' if 'neutralized_score' in fn_df.columns else (num_cols[-1] if num_cols else fn_df.columns[-1]))
             meta_cols = [c for c in META_COLS if c in fn_df.columns]
             fn_df = fn_df[['symbol'] + meta_cols + [fn_col]].rename(columns={fn_col: 'factor_neutralized_score'})
             if fn_df['factor_neutralized_score'].max() > 1.0:
