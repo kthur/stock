@@ -833,6 +833,9 @@ class EnsembleScoringEngine:
                 pruned_strategies.add(strategy)
                 continue
             multiplier = float(np.exp(gamma * np.clip(sharpe, -sharpe_clip, sharpe_clip)))
+            # Convex Sharpe Elasticity Multiplier for high performing strategies
+            if sharpe >= 0.50:
+                multiplier *= 1.10
             scores[strategy] = base_w * multiplier
 
 
