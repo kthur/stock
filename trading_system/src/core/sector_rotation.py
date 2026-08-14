@@ -153,6 +153,11 @@ class SectorRotationEngine(BaseStrategyEngine):
                 sector_weight = 1.0 - stock_weight
 
                 res_df['sector_score'] = sector_weight * res_df['sector_rank'] + stock_weight * res_df['stock_rank']
+
+                # Sector Leadership Synergy Boost: Top sector (sector_rank >= 0.80) + Top stock momentum (stock_rank >= 0.70)
+                leadership_mask = (res_df['sector_rank'] >= 0.80) & (res_df['stock_rank'] >= 0.70)
+                if leadership_mask.any():
+                    res_df.loc[leadership_mask, 'sector_score'] = (res_df.loc[leadership_mask, 'sector_score'] * 1.08).clip(0.0, 1.0)
             else:
                 res_df['sector_score'] = res_df['stock_rank']
         else:
