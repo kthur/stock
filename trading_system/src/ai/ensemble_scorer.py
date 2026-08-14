@@ -1215,11 +1215,20 @@ class EnsembleScoringEngine:
         if not vcp_ml_df.empty:
             v_df = vcp_ml_df.copy()
             if 'vcp_ml_score' not in v_df.columns:
-                target_col = 'vcp_surge_prob' if 'vcp_surge_prob' in v_df.columns else ('surge_prob' if 'surge_prob' in v_df.columns else None)
+                target_col = None
+                for c_cand in [f'vcp_prob_{target_horizon}d', f'vcp_{target_horizon}d', 'vcp_surge_prob', 'vcp_prob', 'surge_prob', 'prob']:
+                    if c_cand in v_df.columns:
+                        target_col = c_cand
+                        break
                 if target_col and target_col in v_df.columns:
                     v_df['vcp_ml_score'] = v_df[target_col].clip(0.0, 1.0)
                 else:
-                    v_df['vcp_ml_score'] = 0.5
+                    num_cols = [c for c in v_df.columns if c != 'symbol' and pd.api.types.is_numeric_dtype(v_df[c])]
+                    target_col = num_cols[0] if num_cols else None
+                    if target_col:
+                        v_df['vcp_ml_score'] = v_df[target_col].clip(0.0, 1.0)
+                    else:
+                        v_df['vcp_ml_score'] = 0.5
         else:
             v_df = pd.DataFrame(columns=['symbol', 'vcp_ml_score'])
 
@@ -1594,37 +1603,38 @@ class EnsembleScoringEngine:
         )
 
         # Phase 3-C: Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
-        try:
-            corr_df = self.correlation_monitor.update_correlation(merged)
-            vif_dict = self.correlation_monitor.compute_vif(corr_df)
+        if len(merged) >= 5:
+            try:
+                corr_df = self.correlation_monitor.update_correlation(merged)
+                vif_dict = self.correlation_monitor.compute_vif(corr_df)
 
-            tuned_p = getattr(self, '_tuned_params', None)
-            suppressed_w = self.factor_suppression.suppress_weights(
-                base_weights=weights,
-                corr_matrix=corr_df,
-                regime_label=str(regime),
-                tuned_params=tuned_p
-            )
-            n_eff = self.correlation_monitor.compute_effective_strategy_count(
-                weights=suppressed_w,
-                corr_matrix=corr_df
-            )
-            top_pairs = self.correlation_monitor.get_top_collinear_pairs(threshold=0.50, corr_matrix=corr_df)
+                tuned_p = getattr(self, '_tuned_params', None)
+                suppressed_w = self.factor_suppression.suppress_weights(
+                    base_weights=weights,
+                    corr_matrix=corr_df,
+                    regime_label=str(regime),
+                    tuned_params=tuned_p
+                )
+                n_eff = self.correlation_monitor.compute_effective_strategy_count(
+                    weights=suppressed_w,
+                    corr_matrix=corr_df
+                )
+                top_pairs = self.correlation_monitor.get_top_collinear_pairs(threshold=0.50, corr_matrix=corr_df)
 
-            weights = suppressed_w
+                weights = suppressed_w
 
-            if not hasattr(merged, 'attrs') or merged.attrs is None:
-                merged.attrs = {}
-            merged.attrs['correlation_report'] = {
-                'correlation_matrix': corr_df,
-                'vif': vif_dict,
-                'n_eff': n_eff,
-                'suppressed_weights': suppressed_w,
-                'penalties': self.factor_suppression.compute_penalties(corr_df, str(regime)),
-                'top_collinear_pairs': top_pairs
-            }
-        except Exception as _ce:
-            logger.warning(f"Correlation suppression calculation warning: {_ce}")
+                if not hasattr(merged, 'attrs') or merged.attrs is None:
+                    merged.attrs = {}
+                merged.attrs['correlation_report'] = {
+                    'correlation_matrix': corr_df,
+                    'vif': vif_dict,
+                    'n_eff': n_eff,
+                    'suppressed_weights': suppressed_w,
+                    'penalties': self.factor_suppression.compute_penalties(corr_df, str(regime)),
+                    'top_collinear_pairs': top_pairs
+                }
+            except Exception as _ce:
+                logger.warning(f"Correlation suppression calculation warning: {_ce}")
 
         # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
         if self.has_calibrators():
@@ -1662,10 +1672,11 @@ class EnsembleScoringEngine:
         coverage_penalty = np.where(coverage_ratio < 0.40, 0.5 + 0.5 * (coverage_ratio / 0.40), 1.0)
         linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
 
-        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50 if fitted)
+        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50 if fitted and explicit weights not specified)
+        explicit_weights_provided = (weights is not None and len(weights) > 0 and len(merged) < 5)
         try:
             meta_learner = MetaEnsembleLearner()
-            if meta_learner.is_fitted:
+            if meta_learner.is_fitted and not explicit_weights_provided:
                 meta_score = meta_learner.predict(merged)
                 blended_score = pd.Series(0.5 * linear_score + 0.5 * meta_score, index=merged.index).clip(0.0, 1.0)
             else:

@@ -91,43 +91,43 @@ class TradeLogger:
             if self._db_initialized:
                 return
             conn = await self._get_conn()
-        cursor = await conn.cursor()
+            cursor = await conn.cursor()
 
-        # 주문 테이블
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                order_id TEXT PRIMARY KEY,
-                symbol TEXT,
-                order_type TEXT,
-                quantity INTEGER,
-                price REAL,
-                status TEXT,
-                filled_quantity INTEGER,
-                created_at TIMESTAMP,
-                executed_at TIMESTAMP
-            )
-        """)
+            # 주문 테이블
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS orders (
+                    order_id TEXT PRIMARY KEY,
+                    symbol TEXT,
+                    order_type TEXT,
+                    quantity INTEGER,
+                    price REAL,
+                    status TEXT,
+                    filled_quantity INTEGER,
+                    created_at TIMESTAMP,
+                    executed_at TIMESTAMP
+                )
+            """)
 
-        # 체결 기록 테이블
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS executions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id TEXT,
-                symbol TEXT,
-                quantity INTEGER,
-                price REAL,
-                executed_at TIMESTAMP,
-                FOREIGN KEY(order_id) REFERENCES orders(order_id)
-            )
-        """)
+            # 체결 기록 테이블
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS executions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id TEXT,
+                    symbol TEXT,
+                    quantity INTEGER,
+                    price REAL,
+                    executed_at TIMESTAMP,
+                    FOREIGN KEY(order_id) REFERENCES orders(order_id)
+                )
+            """)
 
-        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_executions_order_id ON executions(order_id);")
-        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_sym_date ON orders(symbol, created_at DESC);")
-        await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
+            await cursor.execute("CREATE INDEX IF NOT EXISTS idx_executions_order_id ON executions(order_id);")
+            await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_sym_date ON orders(symbol, created_at DESC);")
+            await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
 
-        await conn.commit()
-        self._db_initialized = True
-        self.logger.info(f"Database initialized at {self.db_path}")
+            await conn.commit()
+            self._db_initialized = True
+            self.logger.info(f"Database initialized at {self.db_path}")
 
     async def log_order(self, order: Any) -> None:
         """주문 로그"""
@@ -212,22 +212,22 @@ class AssetHistoryDB:
             if self._db_initialized:
                 return
             conn = await self._get_conn()
-        cursor = await conn.cursor()
+            cursor = await conn.cursor()
 
-        # 자산 스냅샷 테이블
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS asset_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cash REAL,
-                total_value REAL,
-                holdings TEXT,
-                timestamp TIMESTAMP
-            )
-        """)
+            # 자산 스냅샷 테이블
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS asset_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cash REAL,
+                    total_value REAL,
+                    holdings TEXT,
+                    timestamp TIMESTAMP
+                )
+            """)
 
-        await conn.commit()
-        self._db_initialized = True
-        self.logger.info(f"Asset history DB initialized at {self.db_path}")
+            await conn.commit()
+            self._db_initialized = True
+            self.logger.info(f"Asset history DB initialized at {self.db_path}")
 
     async def save_snapshot(self, cash: float, total_value: float, holdings: Dict[str, int]):
         """자산 스냅샷 저장"""
@@ -281,26 +281,26 @@ class AIPredictionDB:
             if self._db_initialized:
                 return
             conn = await self._get_conn()
-        cursor = await conn.cursor()
+            cursor = await conn.cursor()
 
-        await cursor.execute("""
-            CREATE TABLE IF NOT EXISTS predictions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                symbol TEXT,
-                recommendation TEXT,
-                sentiment TEXT,
-                confidence REAL,
-                target_price REAL,
-                current_price REAL,
-                reasoning TEXT,
-                timestamp TIMESTAMP,
-                evaluated INTEGER DEFAULT 0,
-                accuracy_score REAL DEFAULT NULL
-            )
-        """)
-        await conn.commit()
-        self._db_initialized = True
-        self.logger.info(f"AI Prediction DB initialized at {self.db_path}")
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS predictions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT,
+                    recommendation TEXT,
+                    sentiment TEXT,
+                    confidence REAL,
+                    target_price REAL,
+                    current_price REAL,
+                    reasoning TEXT,
+                    timestamp TIMESTAMP,
+                    evaluated INTEGER DEFAULT 0,
+                    accuracy_score REAL DEFAULT NULL
+                )
+            """)
+            await conn.commit()
+            self._db_initialized = True
+            self.logger.info(f"AI Prediction DB initialized at {self.db_path}")
 
     async def log_prediction(self, opinion: Any, current_price: float) -> None:
         await self._init_database()

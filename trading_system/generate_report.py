@@ -53,6 +53,19 @@ class EnsembleRow:
     card_factor: str = ""
     latr_factor: str = ""
     inst_foreign_sector: str = ""
+    supply_chain: str = ""
+    sentiment: str = ""
+    factor_neutralized: str = ""
+    vol_target: str = ""
+    microstructure: str = ""
+    accruals_quality: str = ""
+    short_squeeze: str = ""
+    valueup_catalyst: str = ""
+    trend_efficiency: str = ""
+    gamma_squeeze: str = ""
+    insider_buying: str = ""
+    darkpool: str = ""
+    earnings_tone_drift: str = ""
 
 @dataclass
 class EnsembleMarket:
@@ -333,6 +346,19 @@ def parse_ensemble(text: str) -> EnsembleData:
                         card_factor=s_vals[15] if len(s_vals) > 15 else "-",
                         latr_factor=s_vals[16] if len(s_vals) > 16 else "-",
                         inst_foreign_sector=s_vals[17] if len(s_vals) > 17 else "-",
+                        supply_chain=s_vals[18] if len(s_vals) > 18 else "-",
+                        sentiment=s_vals[19] if len(s_vals) > 19 else "-",
+                        factor_neutralized=s_vals[20] if len(s_vals) > 20 else "-",
+                        vol_target=s_vals[21] if len(s_vals) > 21 else "-",
+                        microstructure=s_vals[22] if len(s_vals) > 22 else "-",
+                        accruals_quality=s_vals[23] if len(s_vals) > 23 else "-",
+                        short_squeeze=s_vals[24] if len(s_vals) > 24 else "-",
+                        valueup_catalyst=s_vals[25] if len(s_vals) > 25 else "-",
+                        trend_efficiency=s_vals[26] if len(s_vals) > 26 else "-",
+                        gamma_squeeze=s_vals[27] if len(s_vals) > 27 else "-",
+                        insider_buying=s_vals[28] if len(s_vals) > 28 else "-",
+                        darkpool=s_vals[29] if len(s_vals) > 29 else "-",
+                        earnings_tone_drift=s_vals[30] if len(s_vals) > 30 else "-",
                     ))
     return data
 
@@ -694,6 +720,38 @@ def parse_vol_target(text: str) -> tuple[str, list[SimpleStrategyRow]]:
 
 def parse_microstructure(text: str) -> tuple[str, list[SimpleStrategyRow]]:
     return _parse_simple_strategy(text, "microstructure_score")
+
+
+def parse_accruals_quality(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "accruals_quality_score")
+
+
+def parse_short_squeeze(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "short_squeeze_score")
+
+
+def parse_valueup_catalyst(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "valueup_catalyst_score")
+
+
+def parse_trend_efficiency(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "trend_efficiency_score")
+
+
+def parse_gamma_squeeze(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "gamma_squeeze_score")
+
+
+def parse_insider_buying(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "insider_buying_score")
+
+
+def parse_darkpool(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "darkpool_score")
+
+
+def parse_earnings_tone_drift(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "earnings_tone_drift_score")
 
 
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
@@ -3208,6 +3266,14 @@ def main(args_list: Optional[list[str]] = None):
     fn_date, factor_neutralized_rows = parse_factor_neutralized(_read(result_dir / "factor_neutralized_predictions.txt"))
     vt_date, vol_target_rows = parse_vol_target(_read(result_dir / "vol_target_predictions.txt"))
     micro_date, microstructure_rows = parse_microstructure(_read(result_dir / "microstructure_predictions.txt"))
+    aq_date, accruals_quality_rows = parse_accruals_quality(_read(result_dir / "accruals_quality_predictions.txt"))
+    sq_date, short_squeeze_rows = parse_short_squeeze(_read(result_dir / "short_squeeze_predictions.txt"))
+    vu_date, valueup_catalyst_rows = parse_valueup_catalyst(_read(result_dir / "valueup_catalyst_predictions.txt"))
+    te_date, trend_efficiency_rows = parse_trend_efficiency(_read(result_dir / "trend_efficiency_predictions.txt"))
+    gs_date, gamma_squeeze_rows = parse_gamma_squeeze(_read(result_dir / "gamma_squeeze_predictions.txt"))
+    ib_date, insider_buying_rows = parse_insider_buying(_read(result_dir / "insider_buying_predictions.txt"))
+    dp_date, darkpool_rows = parse_darkpool(_read(result_dir / "darkpool_predictions.txt"))
+    etd_date, earnings_tone_drift_rows = parse_earnings_tone_drift(_read(result_dir / "earnings_tone_drift_predictions.txt"))
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
     scen_universe = []

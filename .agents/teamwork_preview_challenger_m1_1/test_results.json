@@ -2,18 +2,18 @@
   "task_1_hrp_weights": [
     {
       "scenario": "Singular matrix (all 1s)",
-      "elapsed_sec": 0.174,
+      "elapsed_sec": 0.201,
       "output_shape": 5,
       "sum_weights": 1.0,
       "has_nan": false,
       "has_inf": false,
-      "min_w": 0.13164917274485677,
-      "max_w": 0.2465753424660156,
+      "min_w": 0.19999999999999854,
+      "max_w": 0.2000000000000005,
       "passed": true
     },
     {
       "scenario": "Ill-conditioned matrix (rank 2, dim 10)",
-      "elapsed_sec": 0.004,
+      "elapsed_sec": 0.005,
       "output_shape": 10,
       "sum_weights": 1.0,
       "has_nan": false,
@@ -31,7 +31,7 @@
     },
     {
       "scenario": "Covariance with NaNs/Infs",
-      "elapsed_sec": 0.001,
+      "elapsed_sec": 0.002,
       "output_shape": 3,
       "sum_weights": 1.0,
       "has_nan": false,
@@ -42,7 +42,7 @@
   "task_2_merge_fundamentals": [
     {
       "scenario": "Unnamed DatetimeIndex & 60d Filing Lag Verification",
-      "elapsed_sec": 0.051,
+      "elapsed_sec": 0.049,
       "rev_jan15_before_60d": 1000.0,
       "rev_mar15_after_60d": 1500.0,
       "lookahead_leakage_free": true,
@@ -50,13 +50,12 @@
     },
     {
       "scenario": "Benchmark symbol AAPL (KeyError 'book_value' test)",
-      "elapsed_sec": 0.027,
-      "error": "'book_value'",
-      "passed": false
+      "elapsed_sec": 0.021,
+      "passed": true
     },
     {
       "scenario": "Out-of-order timestamps & Duplicate dates",
-      "elapsed_sec": 0.033,
+      "elapsed_sec": 0.026,
       "output_rows": 3,
       "index_has_duplicates": false,
       "is_chronological": true,
@@ -64,7 +63,7 @@
     },
     {
       "scenario": "Missing price columns (only Close)",
-      "elapsed_sec": 0.032,
+      "elapsed_sec": 0.015,
       "columns_present": [
         "Close",
         "date",
@@ -98,12 +97,17 @@
     {
       "scenario": "total_return = -2.0",
       "elapsed_sec": 0.0,
-      "error": "float division by zero",
-      "passed": false
+      "total_return": -2.0,
+      "annual_return": "-1.0",
+      "annual_return_type": "float",
+      "has_complex": false,
+      "json_serializable": true,
+      "json_error": "None",
+      "passed": true
     },
     {
       "scenario": "total_return = 0.0",
-      "elapsed_sec": 0.0,
+      "elapsed_sec": 0.001,
       "total_return": 0.0,
       "annual_return": "0.0",
       "annual_return_type": "float",
@@ -125,17 +129,17 @@
     },
     {
       "scenario": "Trades with 0 losses (profit_factor=inf)",
-      "elapsed_sec": 0.001,
-      "profit_factor": "inf",
-      "json_strict_serializable": false,
-      "json_error": "Out of range float values are not JSON compliant",
-      "passed": false
+      "elapsed_sec": 0.0,
+      "profit_factor": "999.0",
+      "json_strict_serializable": true,
+      "json_error": "None",
+      "passed": true
     }
   ],
   "task_4_intraday_stop_loss": [
     {
       "scenario": "Extreme 50% price drop",
-      "elapsed_sec": 0.001,
+      "elapsed_sec": 0.003,
       "triggered": true,
       "reason": "PEAK_TO_TROUGH_DROP",
       "drop_pct": -0.5,
@@ -145,13 +149,13 @@
     {
       "scenario": "NaN/Inf inputs in DataFrame",
       "elapsed_sec": 0.002,
-      "triggered": false,
-      "reason": "NONE",
-      "passed": false
+      "triggered": true,
+      "reason": "PEAK_TO_TROUGH_DROP",
+      "passed": true
     },
     {
       "scenario": "Volume spike (20x volume with price drop)",
-      "elapsed_sec": 0.001,
+      "elapsed_sec": 0.002,
       "triggered": true,
       "reason": "PANIC_VOLUME_SPIKE",
       "panic_volume_ratio": 10.256410256410257,

@@ -1,17 +1,14 @@
-## 2026-08-06T01:00:08Z
+# Challenger M1-2 Dispatch: Full Universe Empirical Verification & Pipeline Latency
 
-<USER_REQUEST>
-You are a teamwork_preview_challenger stress testing Milestone 1 (Financial Engineering & Quantitative Risk Audit).
-Your working directory is: d:\Finance\code\stock\.agents\teamwork_preview_challenger_m1_2.
-Read ORIGINAL_REQUEST.md at: d:\Finance\code\stock\ORIGINAL_REQUEST.md.
-Read PROJECT.md at: d:\Finance\code\stock\.agents\orchestrator_readiness_audit\PROJECT.md.
+## 2026-08-14T10:02:27Z
 
-Task:
-Empirically challenge microstructure cost calculations, ensemble score calibration, and CrisisDetector gating:
-1. Test `_get_cost_pct` in `ensemble_scorer.py` across KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000 symbols under high volatility and low ADV conditions to verify total cost deductions are accurate and non-negative.
-2. Verify that raw score mapping to expected return does not produce unrealistic expectations.
-3. Verify CrisisDetector gating when VIX > 30 or USD/KRW spike occurs.
-4. Verify 18-strategy formatting string in `run_pipeline.py` ensures 18 columns including `IFS` are written to `ensemble_predictions.txt`.
+### Objective
+Empirically test `MultiFactorNeutralizerEngine` across full 3,379 synthetic symbols and verify end-to-end compatibility with `EnsembleScoringEngine` and `run_pipeline.py`.
 
-Run tests and report results. Write `handoff.md` with your verdict (APPROVE or REQUEST_CHANGES). Send a message to parent when finished.
-</USER_REQUEST>
+### Instructions
+1. Read `ORIGINAL_REQUEST.md` and `PROJECT.md`.
+2. Execute empirical workloads validating:
+   - Complete 3,379 symbol execution latency $< 50\text{ ms}$.
+   - Rank correlation preservation $\rho_{\text{spearman}} \ge 0.65$.
+   - Integration with `EnsembleScoringEngine.score_universe()`.
+3. Report your empirical findings and verdict (APPROVE or REQUEST_CHANGES) in `handoff.md`.

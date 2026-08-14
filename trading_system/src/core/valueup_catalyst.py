@@ -46,6 +46,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         feat_df = kwargs.get("features_df", fundamentals_dict)
+        symbols = kwargs.get("symbols") or (list(prices_dict.keys()) if prices_dict else [])
         return self.calculate_scores(symbols=symbols, features_df=feat_df, prices_dict=prices_dict)
 
     def calculate_scores(

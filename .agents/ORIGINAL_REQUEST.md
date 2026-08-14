@@ -1,90 +1,29 @@
 # Original User Request
 
-## Initial Request — 2026-08-05T21:57:38+09:00
+## Initial Request — 2026-08-14T09:21:31Z
 
-You are the Project Orchestrator for the multi-agent evaluation and optimization of the Stock Trading System (`d:\Finance\code\stock`).
+You are the Project Orchestrator for the Stock Trading System (3,379 symbols: KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000).
 
-Working directory: `d:\Finance\code\stock\.agents\orchestrator_eval_opt`
-Original request file: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`
+Your working directory: `d:\Finance\code\stock\.agents\orchestrator_factor_regime`
+Original request file: `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md` (also `d:\Finance\code\stock\ORIGINAL_REQUEST.md`)
 
-Your job is to orchestrate specialists (explorer, worker, reviewer, challenger, etc.) to evaluate, optimize, verify, and resolve all requirements specified in `ORIGINAL_REQUEST.md`:
+User Request Summary:
+3,379개 한국/미국 주식을 대상으로 한 통합 주식 자동매매 및 예측 시스템의 31대 Multi-Factor & Multi-Model 전략 알파 성능을 고도화하고, Fama-French 5-Factor 노출 제거(Factor Neutralization) 강화 및 2D 시장 레짐 기반 동적 Sharpe 앙상블 가중치 배분을 최적화하는 프로젝트.
 
-### Requirements Summary:
-1. **R1. Financial Engineering & Model Optimization**:
-   - Verify PCA Symmetric ZCA factor orthogonalization and correlation suppression under all 6 market regimes to prevent multi-collinearity.
-   - Ensure Isotonic Regression calibrators and rolling Sharpe weights seamlessly adapt without signal degradation.
-2. **R2. Risk Management & Portfolio Optimization**:
-   - Verify GICS sector-based stress scenarios and crisis level thresholds in `generate_report.py`.
-   - Validate real-time order execution tracking in `trade_logs.db` and tracking error monitoring in OMS engine.
-3. **R3. Pipeline Resilience & UI/UX Presentation**:
-   - Audit SQLite WAL multi-thread write locks and workflow execution timing for GHA pipeline resilience.
-   - Verify mobile (375px/414px) and desktop (1920px) rendering, sticky table headers, and macro badges in GitHub Pages report (`index.html` / `update_dashboard.py`).
+Requirements:
+1. R1. 31대 전략 알파 스코어링 고도화 및 Fama-French 팩터 중립화 강화:
+   - Surge 분류기, VCP, Stat-Arb, Sector Rotation 등 주요 전략 엔진의 노이즈 필터링 및 시그널 정밀도를 향상시킨다.
+   - Style Neutralizer 엔진에서 Gram-Schmidt 직교화 및 5-Factor(시총, 가치, 수익성, 투자, 모멘텀) 노출 제거 제약을 강화하여 순수 알파(Pure Alpha) 산출 능력을 증대시킨다 (|rho| < 0.15 이하 보장).
+2. R2. 2D 레짐 기반 동적 가중치 배분 및 Sharpe Multiplier 최적화:
+   - 2D 시장 레짐(BULL/BEAR, HIGH/LOW VOL) 상태에 따른 31대 전략 가중치 조정을 롤링 Sharpe Ratio 기반 지수형 멀티플라이어(Exponential Sharpe Multiplier)와 EMA 스무딩으로 정밀화하여 변동성 장세 하방 방어력을 극대화한다.
+3. R3. 백테스트 검증 및 시스템 회귀 테스트 준수:
+   - 백테스트 평가 엔진을 통해 3,379개 종목 대상 롤링 연율화 수익률, Sharpe Ratio, MDD 개선을 검증한다.
+   - 기존 pytest 테스트 수트(818개 이상의 unit/integration tests)가 100% PASS 상태를 유지하도록 품질을 보장한다.
+   - `run_pipeline.py` 실행 및 `index.html` GitHub Pages 대시보드 리포트가 정상 갱신되는지 확인한다.
 
-### Acceptance Criteria:
-- [ ] All unit and integration tests pass cleanly (`.venv\Scripts\python.exe -m pytest tests/ -v`).
-- [ ] GHA Artifact Verifier (`verify_gha_artifacts.py`) confirms 100% valid non-zero data across all 18 strategy panels and 5 markets.
-- [ ] No regression in trading logic, position sizing, or risk manager thresholds.
-
-## Follow-up — 2026-08-06T00:53:01+09:00
-
-<USER_REQUEST>
-Full architectural, financial engineering, dashboard UX/UI, and real-money investment readiness audit & improvement for the 18-strategy multi-factor automated stock trading system.
-
-Working directory: d:\Finance\code\stock
-Integrity mode: development
-
-## Requirements
-
-### R1. Financial Engineering & Quantitative Risk Audit
-- Thoroughly inspect all 18 quantitative strategies, 2D regime-based dynamic ensemble weighting, Isotonic Regression calibration, Gram-Schmidt factor orthogonalization, and HRP (Hierarchical Risk Parity) portfolio allocation.
-- Audit for lookahead bias, filing lag (60-day lag on fundamentals), survivorship bias, microstructure transaction costs (STT, SEC fee, bid-ask spread, market impact), and empirical risk metrics (CVaR, EVT-VaR, Max Drawdown, Sharpe ratio).
-- Validate Backtest calculations and ensure realistic return expectations for real-money deployment.
-
-### R2. Software Architecture & Pipeline Robustness
-- Review end-to-end pipeline execution (run_pipeline.py), GitHub Actions workflow schedules (pipeline.yml, training.yml), and SQLite WAL database concurrency locks.
-- Ensure strict failure isolation, exception safety, graceful degradation on missing market data, and memory/performance optimizations across all 3,379 symbols (KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000).
-
-### R3. GitHub Pages Dashboard (Mobile & Desktop UX/UI) & Data Integrity
-- Inspect and refine gh-pages/index.html and generate_report.py to ensure pristine, responsive display on both mobile and desktop screen sizes.
-- Verify that macro economic indicators (VIX, TNX, USDKRW, WTI, Gold, etc.), strategy coverage metrics, top 20 ensemble recommendations, HRP asset allocation percentages, and decision rationales display cleanly without layout bugs or missing data.
-
-## Acceptance Criteria
-
-### Financial Engineering Integrity
-- [ ] 100% check against lookahead bias, data leakage, and unrealistic backtest assumptions.
-- [ ] HRP portfolio allocation strictly enforces liquidity, position sizing, and transaction cost deductions.
-- [ ] RiskManager & CrisisGating automatically trigger defensive posturing during market anomalies.
-
-### SW Architecture & Pipeline Reliability
-- [ ] run_pipeline.py executes without unhandled exceptions across all markets and data conditions.
-- [ ] GitHub Actions workflows complete reliably and generate updated predictions and report files.
-
-### Dashboard UX/UI & Mobile/Desktop Readiness
-- [ ] GitHub Pages report renders responsively on both mobile and desktop screens without text clipping or overlapping cards.
-- [ ] All global market indicators and 18 strategy outputs display non-zero, validated data.
-</USER_REQUEST>
-
-## Follow-up — 2026-08-06T21:47:44+09:00
-
-<USER_REQUEST>
-Audit stock price data fetching across all 3,379 symbols (KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000) and GHA pipelines to identify, fix, and verify missing or invalid price history cases.
-
-Working directory: d:/Finance/code/stock
-Integrity mode: development
-
-## Requirements
-
-### R1. Price Data Fetching & Network Exception Hardening
-Audit price data fetchers (FinanceDataReader, yfinance, StockPriceDB) across all 6 markets. Implement robust retry mechanisms, rate-limit backoff, and fallback historical data sources so network timeouts, missing ticker aliases, or API rate limits never cause price history data gaps.
-
-### R2. Data Completeness & Resilience Verification
-Ensure all 3,379 symbols have clean, contiguous OHLCV price histories without unhandled NaNs or missing trading days, enabling all 18 multi-factor strategies to run reliably.
-
-## Acceptance Criteria
-
-### Data Completeness & Verification
-- [ ] Network retries and exponential backoff are applied during price fetching for both KRX (FinanceDataReader/Naver) and US (yfinance) markets.
-- [ ] Ticker normalization and fallback data handling prevent zero-row returns for active universe symbols.
-- [ ] All 18 strategies execute cleanly with non-zero predictions across all target markets.
-- [ ] Automated test suite (`pytest trading_system/tests/ -v`) passes 100%.
-</USER_REQUEST>
+Acceptance Criteria:
+- 31대 전략 앙상블 알파 백테스트 Sharpe Ratio 향상
+- Fama-French 5-Factor 노출 잔여 상관성이 |rho| < 0.15 이하로 제어됨
+- 818개 이상의 pytest 단위/통합 테스트 수트 전체 100% 통과 유지
+- `run_pipeline.py` 파이프라인 실행 시 오류 없이 31대 전략 스코어링 및 앙상블 출력 정상 완료
+- GitHub Pages 대시보드 리포트(`index.html`) 갱신 및 최신 앙상블 TOP 20 및 Rationale 정확한 시각화

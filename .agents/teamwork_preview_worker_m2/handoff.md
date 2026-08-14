@@ -1,66 +1,133 @@
-# Handoff Report — Requirement R1 Fixes & Enhancements
+# Handoff Report — Milestone 2 Worker M2: Dynamic Sharpe Pruning & NaN Resilience Fixes
 
 ## 1. Observation
 
-- **Score Filtering Issue (`src/ai/ensemble_scorer.py:690`)**:
-  - Previously: `valid_mask = merged[score_col].notna() & (merged[score_col] > 0.0)` in `EnsembleScoringEngine.combine_predictions`.
-  - Effect: Valid predictions returning `0.0` (neutral score / 0 expected gain) were filtered out as missing data, under-counting active strategy weight in dynamic weight renormalization.
-- **Coverage Analyzer Misleading Scores (`src/analysis/coverage_analyzer.py` & `src/ai/ensemble_scorer.py`)**:
-  - Previously: `combine_predictions` ran `merged[col] = merged[col].fillna(0.0)` in-place for display formatting before returning `ensemble_df`.
-  - Effect: `StrategyCoverageAnalyzer` received DataFrames where `notna()` was True for all rows, reporting 100% valid coverage for all strategies even when underlying data had NaNs.
-- **Macro Header Output NaNs (`run_pipeline.py` & `src/data_layer/indicator_storage.py`)**:
-  - Previously: `vix_val` and `usdkrw_val` pulled from percentage-change series (`vix_change`, `usdkrw_change`) or failed over to default values without checking SQLite `global_indicators` table.
-  - Effect: Header output rendered raw percentage changes (e.g. `2.50` instead of `18.5`) or defaulted on missing tickers.
-- **Transaction Costs & Liquidity Filter (`src/ai/ensemble_scorer.py`)**:
-  - Previously: SP500 transaction cost was defined as `0.0010` without adding market order slippage (`0.0050`), while KRX markets included slippage. Decision rationale lacked explicit fee & liquidity breakdown.
+### Codebase Inspection & Problem Statement
+In `trading_system/src/ai/ensemble_scorer.py`, `compute_dynamic_weights_from_sharpe()`:
+1. **NaN / None / Inf Vulnerability**:
+   Prior implementation at line 807 performed `all_zero = all(abs(v) < 1e-8 for v in rolling_sharpes.values())` and lines 821–826 `sharpe = float(rolling_sharpes.get(strategy, 0.0))`. If `rolling_sharpes` contained `None` (raising `TypeError`) or `np.nan` (propagating `nan` through `np.clip` and `np.exp` into `scores`), dynamic weights became corrupted or crashed.
+2. **EMA Dilution of Pruned Strategies**:
+   Prior lines 822–825 pruned underperforming strategies (`Sharpe < -0.50`) by setting `scores[strategy] = 0.0` and `dynamic_weights[strategy] = 0.0`. However, when EMA smoothing was subsequently applied (lines 855–861):
+   ```python
+   smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
+   ```
+   If a strategy previously had a non-zero weight `prev_w > 0`, the pruned strategy received `(1.0 - eff_alpha) * prev_w > 0.0`, defeating the hard underperformance pruning gate.
+
+### Verbatim Code Modifications in `trading_system/src/ai/ensemble_scorer.py`
+Lines 804–870 were updated to sanitize Sharpe inputs and enforce zero-weight post-EMA:
+```python
+        base_weights = self.get_base_weights(regime, vix_val=vix_val)
+        if not rolling_sharpes:
+            return base_weights
+
+        clean_sharpes = {}
+        for s, val in rolling_sharpes.items():
+            if val is None or np.isnan(val):
+                clean_sharpes[s] = 0.0
+            else:
+                clean_sharpes[s] = float(val)
+
+        all_zero = all(abs(v) < 1e-8 for v in clean_sharpes.values())
+        if all_zero:
+            logger.info(
+                "[COLD-START] No realized strategy outcomes yet — using regime base weights (dynamic Sharpe weighting inactive)."
+            )
+            return base_weights
+
+        # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
+        # L = ln(sqrt(MAX_MULTIPLIER_RATIO))/gamma keeps the multiplier ratio
+        # <= MAX_MULTIPLIER_RATIO (prevents e^6 ≈ 400:1 single-strategy dominance).
+        max_multiplier_ratio = 5.0
+        sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
+        scores = {}
+        pruned_strategies = {s for s, sh in clean_sharpes.items() if sh < -0.50}
+        for strategy, base_w in base_weights.items():
+            sharpe = clean_sharpes.get(strategy, 0.0)
+            if sharpe < -0.50 or strategy in pruned_strategies:
+                logger.warning(f"Strategy '{strategy}' pruned due to severe underperformance (Sharpe = {sharpe:.2f} < -0.50).")
+                scores[strategy] = 0.0
+                pruned_strategies.add(strategy)
+                continue
+            multiplier = float(np.exp(gamma * np.clip(sharpe, -sharpe_clip, sharpe_clip)))
+            scores[strategy] = base_w * multiplier
+...
+        # Apply EMA Weight Smoothing to prevent regime transition whipsaws
+        if self._prev_weights is not None:
+            smoothed = {}
+            for k, target_w in dynamic_weights.items():
+                prev_w = self._prev_weights.get(k, target_w)
+                smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
+
+            for s in pruned_strategies:
+                smoothed[s] = 0.0
+
+            total_w = sum(smoothed.values())
+            if total_w > 0:
+                smoothed = {k: v / total_w for k, v in smoothed.items()}
+            dynamic_weights = smoothed
+
+        self._prev_weights = dict(dynamic_weights)
+```
+
+### Verification Execution Results
+1. Command: `.venv\Scripts\python.exe -m pytest tests/test_isotonic_sharpe_calibration.py trading_system/tests/test_hpo_and_2d_ensemble.py -v`
+   Result: **18 passed in 45.47s**
+2. Command: `.venv\Scripts\python.exe -m pytest trading_system/tests/test_regime_detector.py trading_system/tests/test_regime_ensemble.py -v`
+   Result: **6 passed in 2.87s**
+3. Command: `.venv\Scripts\python.exe -m pytest trading_system/tests/test_adversarial_regime_sharpe_m2.py -v`
+   Result: **16 passed in 2.68s**
+4. Full Combined Suite: `.venv\Scripts\python.exe -m pytest tests/test_isotonic_sharpe_calibration.py trading_system/tests/test_hpo_and_2d_ensemble.py trading_system/tests/test_regime_detector.py trading_system/tests/test_regime_ensemble.py trading_system/tests/test_adversarial_regime_sharpe_m2.py -v`
+   Result: **40 passed in 49.37s (100% PASS)**
+
+---
 
 ## 2. Logic Chain
 
-- **Fix 1 (Valid 0.0 Score Handling)**:
-  - Updated `valid_mask` in `combine_predictions` to `merged[score_col].notna() & np.isfinite(merged[score_col])`.
-  - Rationale: Scores of `0.0` are finite, valid numbers indicating zero expected excess return or neutral signal. They should participate in denominator weight sum `total_weight_series` without being discarded.
-- **Fix 2 (Raw Un-Mutated Strategy Scores Preserving NaNs)**:
-  - In `EnsembleScoringEngine.combine_predictions`, saved `self.raw_scores = merged.copy()` and attached `merged.attrs['raw_scores'] = self.raw_scores` prior to `fillna(0.0)` display formatting.
-  - Updated `StrategyCoverageAnalyzer.analyze_coverage` to inspect `raw_scores` (or `ensemble_df.attrs['raw_scores']`).
-  - Rationale: Allows display formatting (0.0 for report tables) to coexist with precise missingness reporting in `strategy_data_coverage_report.txt`.
-- **Fix 3 (Global Macro Indicator Retrieval)**:
-  - In `fetch_indicator_history`, preserved `vix_raw` and `usdkrw_raw` (raw price levels) alongside percentage change features `vix_change` and `usdkrw_change`.
-  - Added `get_latest_global_indicators()` to `MarketIndicatorStorage` to retrieve latest snapshot from `global_indicators` table.
-  - In `run_pipeline.py`, implemented multi-tier lookup (raw series -> price DB -> DB macro snapshot -> safe default).
-- **Fix 4 (Transaction Costs & Liquidity Gate Consistency)**:
-  - Updated `_get_cost_pct` in `ensemble_scorer.py`:
-    - KONEX: 0.80% fee + 0.50% slippage = 1.30% total deduction.
-    - KOSDAQ: 0.50% fee + 0.50% slippage = 1.00% total deduction.
-    - KOSPI: 0.35% fee + 0.50% slippage = 0.85% total deduction.
-    - SP500: 0.10% fee + 0.50% slippage = 0.60% total deduction.
-  - Reinforced liquidity gate to filter preferred stocks (`우`, `B`), SPACs, and zero-volume symbols.
-  - Expanded `get_regime_reasoning_summary` with transaction cost & liquidity rationale section.
-- **Fix 5 (Verification & Unit Testing)**:
-  - Created `trading_system/tests/test_r1_ensemble_regime_fixes.py` containing 6 unit test cases verifying all items 1-4.
+1. **Step 1 (Input Sanitization)**:
+   - Observation: `rolling_sharpes` can contain corrupted or missing values (`None`, `np.nan`, `np.inf`, `-np.inf`).
+   - In `clean_sharpes`, `None` and `np.nan` are converted to `0.0`. Realized finite numbers and `-inf` / `+inf` are preserved.
+   - `all_zero` test now runs safely over `clean_sharpes.values()`, correctly triggering cold-start baseline weights if all values are 0.0 or corrupted.
+
+2. **Step 2 (Pruning Tracking)**:
+   - Observation: Strategies with `Sharpe < -0.50` (or `-inf`) must receive 0.0 weight.
+   - `pruned_strategies = {s for s, sh in clean_sharpes.items() if sh < -0.50}` identifies every severely underperforming strategy.
+   - During score calculation, `scores[strategy] = 0.0` is assigned and recorded in `pruned_strategies`.
+
+3. **Step 3 (Zero-Out Post-EMA & Re-normalization)**:
+   - Observation: EMA smoothing combines `eff_alpha * target_w + (1.0 - eff_alpha) * prev_w`.
+   - When a strategy transitions from healthy to pruned, `(1 - eff_alpha) * prev_w` was giving it a positive weight.
+   - By explicitly enforcing `smoothed[s] = 0.0` for all `s in pruned_strategies` and re-normalizing by `total_w = sum(smoothed.values())`, the pruned strategy is guaranteed to receive `0.0` weight, while the remaining active strategies are smoothed properly and sum to 1.0.
+
+---
 
 ## 3. Caveats
 
-- In offline or test environments without market DB connections, default macro values (VIX 18.5, USD/KRW 1380.0, US 10Y Yield 4.25%) act as safe fallbacks.
+No caveats. All changes strictly adhere to the minimal change principle and interface contracts. All 40 unit and adversarial test cases pass without errors.
+
+---
 
 ## 4. Conclusion
 
-All 5 items of Requirement R1 have been implemented cleanly with genuine logic:
-1. Valid 0.0 strategy scores are preserved in dynamic weight normalization.
-2. `self.raw_scores` and `ensemble_df.attrs['raw_scores']` preserve NaNs for accurate coverage reporting.
-3. Global macro indicators render correct non-NaN values across all pipeline stages.
-4. Transaction costs (KONEX 0.8%, KOSDAQ 0.5%, KOSPI 0.35%, SP500 0.10% + 0.5% slippage) and liquidity gates are consistently applied.
-5. All 2D regime and 14-strategy ensemble unit tests are in place and passing.
+Both refinements requested for Milestone 2 have been implemented and verified:
+1. `rolling_sharpes` safely handles `None` and `np.nan` by converting to `0.0` without crashes or NaN propagation.
+2. Underperformance pruning (`Sharpe < -0.50`) is strictly enforced post-EMA smoothing, eliminating any weight leakage from prior periods while preserving normalization.
+
+---
 
 ## 5. Verification Method
 
-Run the following test commands using Python `.venv\Scripts\python.exe`:
+To independently verify:
 ```bash
-.venv\Scripts\python.exe -m pytest trading_system/tests/test_r1_ensemble_regime_fixes.py -v
-.venv\Scripts\python.exe -m pytest trading_system/tests/test_kst_and_coverage_reasoning.py -v
-.venv\Scripts\python.exe -m pytest trading_system/tests/test_hpo_and_2d_ensemble.py -v
+# 1. Run Isotonic & HPO 2D Ensemble tests
+.venv\Scripts\python.exe -m pytest tests/test_isotonic_sharpe_calibration.py trading_system/tests/test_hpo_and_2d_ensemble.py -v
+
+# 2. Run Regime Detector & Regime Ensemble tests
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_regime_detector.py trading_system/tests/test_regime_ensemble.py -v
+
+# 3. Run Adversarial Stress test suite
+.venv\Scripts\python.exe -m pytest trading_system/tests/test_adversarial_regime_sharpe_m2.py -v
+
+# 4. Run entire Milestone 2 test battery (40 tests)
+.venv\Scripts\python.exe -m pytest tests/test_isotonic_sharpe_calibration.py trading_system/tests/test_hpo_and_2d_ensemble.py trading_system/tests/test_regime_detector.py trading_system/tests/test_regime_ensemble.py trading_system/tests/test_adversarial_regime_sharpe_m2.py -v
 ```
-Inspect files:
-- `trading_system/src/ai/ensemble_scorer.py`
-- `trading_system/src/analysis/coverage_analyzer.py`
-- `trading_system/src/data_layer/indicator_storage.py`
-- `trading_system/run_pipeline.py`
+Expected result: 40 passed, 0 failed.

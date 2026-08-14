@@ -63,9 +63,9 @@
     c. Lead-Lag 2-tier inference
     d. Stat-Arb pair cointegration scanning
     e. Sector Rotation relative momentum scoring
-    f. RIM Valuation / Event-Driven / MQ / IV Skew / Order Flow / Reversal / ARM / CARD / LATR / Inst & Foreign / Supply Chain / NLP Sentiment / Factor Neutralized / Vol Target / Microstructure scoring
-    g. 23-Strategy Dynamic Weighted Ensemble Scoring (Microstructure costs & RiskManager Crisis Gating)
-11. Save predictions to DB & 23-Strategy Ensemble Output + Strategy Data Coverage Report
+    f. RIM Valuation / Event-Driven / MQ / IV Skew / Order Flow / Reversal / ARM / CARD / LATR / Inst & Foreign / Supply Chain / NLP Sentiment / Factor Neutralized / Vol Target / Microstructure / Accruals / Short Squeeze / Value-Up / Trend Eff / Gamma Squeeze / Insider Buying / Tone Drift scoring
+    g. 31-Strategy Dynamic Weighted Ensemble Scoring (Microstructure costs & RiskManager Crisis Gating)
+11. Save predictions to DB & 31-Strategy Ensemble Output + Strategy Data Coverage Report
 12. Save output files & Update GitHub Pages HTML Report (KST Timezone)
 ```
 
@@ -80,7 +80,7 @@ flowchart TB
         EData["Earnings & Fundamental Fetcher\n(Rate-limit Retry, 60d Filing Lag)"]
     end
 
-    subgraph Strategies ["23-Strategy Multi-Factor Engine"]
+    subgraph Strategies ["31-Strategy Multi-Factor Engine"]
         Reg["1. XGBoost Regression"]
         Surge["2. Surge Classifier"]
         LL["3. Lead-Lag Shift"]
@@ -104,6 +104,14 @@ flowchart TB
         Neutral["21. Factor Neutralized"]
         VolT["22. Vol Targeting"]
         Micro["23. Microstructure"]
+        Accrual["24. Accruals Quality"]
+        ShortSq["25. Short Squeeze"]
+        ValueUp["26. Value-Up Catalyst"]
+        TrendEff["27. Trend Efficiency"]
+        GammaSq["28. Gamma Squeeze"]
+        Insider["29. Insider Buying"]
+        ToneDrift["30. Earnings Tone Drift"]
+        HFT["31. HFT Order Flow"]
     end
 
     subgraph Control ["Regime & Risk Control Layer"]

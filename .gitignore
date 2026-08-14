@@ -121,5 +121,9 @@ opencode.json
 .idea/
 .vscode/
 *.swp
+*.swp
 *.swo
 *~
+
+# Temporary scratch
+scratch/

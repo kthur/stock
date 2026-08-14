@@ -1,52 +1,57 @@
-# BRIEFING — 2026-07-29T14:28:00Z
+# BRIEFING — 2026-08-14T23:31:00Z
 
 ## Mission
-Fixes and enhancements for Requirement R1 (14-Strategy Dynamic Weighted Ensemble & 2D Market Regime Engine).
+Apply 2 refinements in `trading_system/src/ai/ensemble_scorer.py`: sanitize NaN/Inf in `rolling_sharpes` and zero-out pruned strategies post-EMA smoothing with re-normalization.
 
 ## 🔒 My Identity
 - Archetype: implementer / qa / specialist
 - Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m2
-- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Milestone: Milestone 2 (Worker 1)
+- Original parent: 644fa09c-3631-4b51-bf49-e7616ad72a36
+- Milestone: Milestone 2 (Worker M2)
 
 ## 🔒 Key Constraints
-- ALWAYS use `.venv\Scripts\python.exe` on Windows for running scripts, builds, tests.
-- DO NOT CHEAT (no hardcoded test results, facade implementations).
-- All communications to parent must be via send_message to Recipient "b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb".
+- ALWAYS use `.venv\Scripts\python.exe` on Windows.
+- Integrity Mandate: NO CHEATING, no hardcoded test results, genuine logic only.
+- Follow minimal change principle and re-read before edit.
+- Handoff report in `handoff.md` with 5 components.
+- Communicate with parent orchestrator via `send_message`.
 
 ## Current Parent
-- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Updated: 2026-07-29T14:28:00Z
+- Conversation ID: 644fa09c-3631-4b51-bf49-e7616ad72a36
+- Updated: 2026-08-14T23:31:00Z
 
 ## Task Summary
-- **What to build**: Fix 0.0 prediction scores filtering in `src/ai/ensemble_scorer.py`, expose raw un-mutated strategy scores (preserving NaNs) for `StrategyCoverageAnalyzer`, fix global macro indicator retrieval header output (VIX, US 10Y, USD/KRW), verify transaction costs & liquidity filters, create and verify unit tests.
-- **Success criteria**: All items 1-5 addressed cleanly, unit and integration tests written and passing.
+- **What to build**:
+  1. Sanitize NaN/Inf/None in `rolling_sharpes` to 0.0 in `compute_dynamic_weights_from_sharpe()`.
+  2. Zero-out pruned strategies (`Sharpe < -0.50`) post-EMA smoothing and re-normalize so underperforming strategies receive strictly 0.0 weight.
+- **Success criteria**:
+  - `pytest tests/test_isotonic_sharpe_calibration.py trading_system/tests/test_hpo_and_2d_ensemble.py -v` (18/18 PASS)
+  - `pytest trading_system/tests/test_regime_detector.py trading_system/tests/test_regime_ensemble.py -v` (6/6 PASS)
+  - `pytest trading_system/tests/test_adversarial_regime_sharpe_m2.py -v` (16/16 PASS)
+  - Full 40/40 test suite PASS.
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/ai/ensemble_scorer.py`: Fixed valid 0.0 score filtering (`notna() & isfinite()`), preserved `raw_scores` attribute and dataframe `.attrs['raw_scores']`, unified market transaction costs (SP500 0.10% + 0.5% slippage, KONEX 0.8% + slippage, KOSDAQ 0.5% + slippage, KOSPI 0.35% + slippage), added transaction cost rationale text.
-  - `trading_system/src/analysis/coverage_analyzer.py`: Updated `analyze_coverage` to read un-mutated `raw_scores` preserving NaNs.
-  - `trading_system/src/data_layer/indicator_storage.py`: Added `get_latest_global_indicators()` to query SQLite global macro table.
-  - `trading_system/run_pipeline.py`: Preserved `vix_raw` and `usdkrw_raw` in indicator fetch, implemented robust multi-tier fallback for VIX/USD-KRW/US-10Y, passed `raw_scores` to `StrategyCoverageAnalyzer`.
-  - `trading_system/tests/test_r1_ensemble_regime_fixes.py`: Added unit test suite covering all 5 items.
-- **Build status**: PASS
-- **Pending issues**: None
+  - `trading_system/src/ai/ensemble_scorer.py`: Sanitized `clean_sharpes` for NaN/None inputs; tracked `pruned_strategies`; zeroed out pruned strategies in `smoothed` post-EMA and re-normalized.
+  - `trading_system/tests/test_adversarial_regime_sharpe_m2.py`: Added `test_none_in_sharpes_sanitized_safely` and `test_pruned_strategy_strictly_zero_under_ema_smoothing`. Fixed un-smoothed baseline in `test_steady_regime_ema_smoothing_applied`.
+- **Build status**: 40/40 tests PASSED (100%).
+- **Pending issues**: None.
 
 ## Quality Status
-- **Build/test result**: All unit tests written and pass 100%.
-- **Lint status**: Clean, compliant Python.
-- **Tests added/modified**: `trading_system/tests/test_r1_ensemble_regime_fixes.py` added with 6 test cases.
+- **Build/test result**: All 40 unit and adversarial tests pass 100%.
+- **Lint status**: Clean, PEP 8 compliant.
+- **Tests added/modified**: 2 new test methods in `test_adversarial_regime_sharpe_m2.py`.
 
 ## Loaded Skills
 - None.
 
 ## Key Decisions Made
-- `valid_mask` updated from `merged[col].notna() & (merged[col] > 0.0)` to `merged[col].notna() & np.isfinite(merged[col])` so valid 0.0 scores count towards weight renormalization.
-- `raw_scores` preserved prior to report-formatting `fillna(0.0)` so `StrategyCoverageAnalyzer` receives true NaNs and calculates accurate coverage percentages.
+- `clean_sharpes` dictionary created at start of `compute_dynamic_weights_from_sharpe` replacing `None` or `np.nan` with `0.0`, protecting both `all_zero` cold-start detection and dynamic multiplier computation.
+- `pruned_strategies` tracks all strategies with `Sharpe < -0.50`. Post-EMA smoothing, `smoothed[s] = 0.0` is enforced for all `s in pruned_strategies`, followed by weight re-normalization (`total_w = sum(smoothed.values())`), preventing EMA leakage to severely underperforming strategies.
 
 ## Artifact Index
-- `.agents/teamwork_preview_worker_m2/ORIGINAL_REQUEST.md` — User request copy
-- `.agents/teamwork_preview_worker_m2/BRIEFING.md` — Agent briefing state
-- `.agents/teamwork_preview_worker_m2/progress.md` — Heartbeat and progress tracker
-- `.agents/teamwork_preview_worker_m2/handoff.md` — Final handoff report
+- `.agents/teamwork_preview_worker_m2/DISPATCH.md` — Assignment dispatch
+- `.agents/teamwork_preview_worker_m2/BRIEFING.md` — Working memory
+- `.agents/teamwork_preview_worker_m2/progress.md` — Heartbeat & progress log
+- `.agents/teamwork_preview_worker_m2/handoff.md` — 5-Component handoff report

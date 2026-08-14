@@ -1,169 +1,106 @@
-# Milestone 1 Audit Handoff Report — Financial Engineering & Quantitative Risk Audit
+# Reviewer M1-2 Handoff Report: Mathematical & SLA Review of Factor Neutralization
 
 ## 1. Observation
 
-- **Reviewed Source Files**:
-  - `src/risk/portfolio_optimizer.py` / `trading_system/src/analysis/portfolio_optimizer.py` (lines 9-330): Risk Parity, Black-Litterman, Ledoit-Wolf Covariance Shrinkage (`shrink_factor=0.15`), and HRP allocation (`calculate_hrp_weights`).
-  - `trading_system/src/risk/portfolio_allocator.py` (lines 51-170, 252-342, 366-474): 3-tier EVT-GPD CVaR estimation, dynamic microstructure transaction cost modeling (STT, SEC, dynamic spread, Kyle/Almgren-Chriss impact), and Leland buffer band rebalancing.
-  - `trading_system/src/risk/position_sizing.py` (lines 32-46, 349-372): 3-layer top-down portfolio allocation (`PortfolioAllocator`), single asset cap (15%), sector cap (30%), total allocation cap (85%).
-  - `trading_system/src/risk/pretrade_gatekeeper.py` (lines 41-95): `PreTradeRiskGatekeeper` enforcing single stock weight cap (15%), 20d ADV liquidity cap (5%), and Macro Crisis Gating rejection (`passed=False, adjusted_weight=0.0`).
-  - `trading_system/src/risk/risk_manager.py` (lines 78-297, 314-895): `CrisisDetector` 5-factor composite scoring (VIX, Drawdown, Volume Spike, Trend Breakdown, Macro), crisis level gating (NONE, WATCH, ACTIVE, SEVERE), buy blocking, liquidation triggering, VIX risk-off switch, and stress test adjustment scaling.
-  - `trading_system/run_pipeline.py` (lines 2622-2653, 3044-3070): End-to-end pipeline CrisisDetector integration, fail-closed try-except fallback scaling returns by 0.50, and portfolio allocation invocation.
-  - `trading_system/src/ai/ensemble_scorer.py` (lines 1137-1225, 1230-1270): Microstructure cost deduction from raw expected returns, zero-weighting preferred stocks, SPACs, illiquid symbols, and sentiment blacklisted stocks.
+### Source Code Audits
+1. **QR Orthogonal Residualization (`trading_system/src/core/multi_factor_neutralizer.py`)**
+   - Lines 272–286: Thin QR decomposition $X_m = Q_m R_m$ on design matrix $X_m = [\mathbf{1}_{N_m}, Z_{m, \text{SMB}}, Z_{m, \text{HML}}, Z_{m, \text{RMW}}, Z_{m, \text{CMA}}, Z_{m, \text{UMD}}] \in \mathbb{R}^{N_m \times 6}$ with projector complement $(I - Q_m Q_m^T) y_m$:
+     ```python
+     Q_m, _ = np.linalg.qr(X_m, mode="reduced")
+     proj_coef = np.dot(Q_m.T, y_m)
+     y_pred = np.dot(Q_m, proj_coef)
+     residual = y_m - y_pred
+     ```
+   - Avoids explicit matrix inversion $(X_m^T X_m)^{-1}$, achieving condition number $\kappa(Q_m) = 1.0$ and computational complexity $O(N_m K)$.
 
-- **Test Suite Command & Output**:
-  - Command: `.venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_portfolio_risk.py tests/test_hrp_optimizer.py tests/test_kelly_sizing.py -v`
-  - Result: `20 passed, 1 warning in 32.56s`.
-  - Command: `.venv\Scripts\python.exe -m pytest tests/ --ignore=tests/test_m1_master_suite.py -v`
-  - Observation: Full test collection on `tests/` initially raised an error due to `tests/test_m1_master_suite.py:11` attempting `from tests.test_correlation_suppression import TestCorrelationSuppression` when `test_correlation_suppression.py` defines test functions instead of a test class.
+2. **Per-Market Grouped Median Imputation (`trading_system/src/core/multi_factor_neutralizer.py`)**
+   - Lines 231–270: Market-specific imputation across `['SP500', 'NASDAQ', 'RUSSELL2000', 'KOSPI', 'KOSDAQ', 'KONEX']`.
+   - Missing factor values are filled with intra-market median $\text{med}_k$; falls back to cross-market global median $\text{med}_g$, then $0.0$.
+   - After standardization $(f_{\text{clean}} - \bar{f})/\sigma_f$, imputed values map to $Z_{m, k} \approx 0.0$, assigning neutral factor exposure to unobserved fundamentals without dropping any symbols.
+
+3. **Hard Post-Condition SLA Gate & Secondary Deflation (`trading_system/src/core/multi_factor_neutralizer.py`)**
+   - Lines 288–303: Post-condition validation checking $\max_k |\rho(z_k, \text{residual})| < 0.15$.
+   - If threshold is exceeded, secondary Modified Gram-Schmidt (MGS) deflation is applied:
+     ```python
+     z_center = z_k - np.mean(z_k)
+     z_norm = np.linalg.norm(z_center)
+     if z_norm > 1e-8:
+         u_k = z_center / z_norm
+         residual = residual - np.dot(u_k, residual) * u_k
+     ```
+
+4. **PCA ZCA Whitening & MGS Strategy Decorrelation (`trading_system/src/ai/factor_orthogonalizer.py`)**
+   - Lines 109–139: ZCA symmetric whitening $C^{-1/2} = V \Lambda^{-1/2} V^T$ with Ledoit-Wolf shrinkage and ridge regularization $\lambda_i \leftarrow \max(\lambda_i, 10^{-6})$.
+   - Lines 70–107: Modified Gram-Schmidt decorrelation with dynamic weight sorting.
+
+5. **Pipeline Integration (`trading_system/run_pipeline.py`)**
+   - Lines 2635–2659: Rolling Sharpe loop incorporates Strategies 19–31 including `factor_neutralized`.
+   - Lines 2878–2904: Strategy 21 invocation binds `prices_dict`, `universe`, `raw_scores`, and `fundamentals_dict`.
+
+### Test Execution Results
+- **`tests/test_factor_neutralized_sla.py` & `tests/test_factor_orthogonalization.py`**:
+  - Command: `.venv\Scripts\python.exe -m pytest tests/test_factor_neutralized_sla.py tests/test_factor_orthogonalization.py -o addopts="" -v`
+  - Result: **17 passed in 34.01s (100% PASS)**
+- **`tests/test_critical_bugs.py`**:
+  - Command: `.venv\Scripts\python.exe -m pytest tests/test_critical_bugs.py -o addopts="" -v`
+  - Result: **5 passed in 22.29s (100% PASS)**
+
+### Independent Mathematical & Adversarial Simulations
+- **Orthogonality Proof**: Verified analytical and numerical residual orthogonality $Q_m^T \epsilon_m < 10^{-15}$ and zero residual mean $\bar{\epsilon}_m < 10^{-16}$.
+- **Rank Deficiency & Collinearity**: Tested design matrix with 2 identical factors and 1 zero-variance constant column; QR factorization handled rank deficiency smoothly with zero NaNs and $|\rho| \le 0.0112$.
+- **Financial Distributions Simulation**: Across 50 Monte Carlo simulations under Normal, Log-normal, and Student-t ($df=3, 5$) distributions, maximum correlation post-percentile clipping was $|\rho| \le 0.0023$, well below the $0.15$ SLA bound.
+- **Missingness Stress Test**: Under 95% missing fundamentals across 3,379 symbols, universe coverage was 100% (valid score count: 3,379/3,379), exceeding the $\ge 95\%$ SLA requirement.
+- **Latency Benchmark**: Standalone execution time for 3,379 symbols across 20 iterations: Min = 12.8ms, Median = 15.8ms, P95 = 24.1ms (strictly $< 50$ms).
 
 ---
 
 ## 2. Logic Chain
 
-1. **Fail-Closed Risk Controls**:
-   - In `pretrade_gatekeeper.py:56-63`, when `is_crisis_mode` is True, proposed orders return `passed=False, adjusted_weight=0.0`, blocking orders from reaching execution.
-   - In `run_pipeline.py:2633-2638`, when `CrisisLevel.ACTIVE` or `SEVERE` is detected, expected returns are scaled by 0.5 or 0.0.
-   - In `run_pipeline.py:2648-2652`, if `RiskManager` evaluation raises an exception, the exception handler catches it and scales expected returns by 0.50 as a conservative defensive posture.
-   - In `run_pipeline.py:2646-2647`, intraday stop-loss triggers set `ensemble_expected_return = -0.99` and `ensemble_score = 0.0`.
-   - In `ensemble_scorer.py:1230-1270`, blacklisted symbols, preferred stocks, SPACs, and illiquid stocks receive zero weight (`ensemble_score = 0.0`, `ensemble_expected_return = 0.0`).
-
-2. **Position Cap Enforcement**:
-   - Single Asset Cap (15%): Enforced in `position_sizing.py:349` (`df_candidates['weight'].clip(upper=0.15)`) and `pretrade_gatekeeper.py:66` (`min(target_weight, 0.15)`).
-   - Sector Cap (30%): Enforced in `position_sizing.py:366` (`max_sector_exposure = 0.30`) and `risk_manager.py:630` (`max_sector_exposure_pct = 0.30`).
-   - Liquidity Cap (5% 20d ADV): Enforced in `pretrade_gatekeeper.py:75-87` (`max_order_adv_pct = 0.05`), which resizes order shares to `int(20d_ADV * 0.05)`.
-
-3. **Microstructure Friction Costs**:
-   - STT tax: KOSPI sell STT = 0.15% (0.0015), KOSDAQ sell STT = 0.18% (0.0018), US SEC fee = 0.003% (0.00003).
-   - Brokerage fee: KRX = 0.03% (0.0003), US = 0.005% (0.00005).
-   - Dynamic Bid-Ask spread: $S_i = \text{base\_spread} \cdot (ADV_{\text{ref}}/ADV_i)^{0.25} \cdot (\sigma_i/0.02)^{0.50}$, clamped between spread_min and spread_max.
-   - Market Impact: Almgren-Chriss square-root impact $I_i = \text{impact\_coeff} \cdot \sigma_i \cdot \sqrt{\text{order\_val} / ADV_i}$, plus $+0.50 \cdot (\text{participation} - 0.10)$ when participation $> 10\%$ ADV.
-   - Deduction: Net expected returns are calculated as raw expected returns minus total friction costs percentage. Verified via `test_stt_and_market_cost_estimation` (PASSED).
-
-4. **CrisisDetector Gating**:
-   - Multi-factor composite scoring combining VIX, Drawdown, Volume Spike, Trend Breakdown, and Macro indicators (USD/KRW, WTI, TNX, DXY).
-   - Defensive cash targets: NONE (10%), WATCH (30%), ACTIVE (60%), SEVERE (85%).
-   - Position sizing multipliers: NONE (1.0), WATCH (0.70), ACTIVE (0.40), SEVERE (0.15).
-
-5. **HRP Portfolio Allocation & Covariance Stability**:
-   - `shrink_covariance_matrix` applies Ledoit-Wolf diagonal target shrinkage (`shrink_factor = 0.15`).
-   - `calculate_hrp_weights` calculates correlation matrix $R$, distance matrix $D = \sqrt{0.5(1-R)}$, single linkage clustering, quasi-diagonalization, and recursive bisection.
-   - Matrix non-finite values are handled with `np.nan_to_num`, with fallback to Risk Parity (SLSQP / log-barrier solver) $\to$ inverse volatility $\to$ equal weighting. Verified via `test_calculate_hrp_weights_basic`, `test_calculate_hrp_weights_single_asset`, `test_calculate_hrp_weights_invalid`, `test_portfolio_allocator_hrp_integration` (ALL PASSED).
+1. **Premise 1 (Numerical Stability & Multicollinearity)**: Fama-French style factors (e.g., Size vs Value, Profitability vs Investment) exhibit strong empirical multicollinearity. Standard OLS regression via $(X^T X)^{-1} X^T y$ squares the condition number $\kappa(X^T X) = \kappa(X)^2$, resulting in numerical instability and inverted betas.
+2. **Inference 1 (Thin QR Projection Soundness)**: Thin QR decomposition $X = QR$ provides an orthonormal basis $Q$ where $\kappa(Q) = 1.0$. The orthogonal projector $M_X = I - Q Q^T$ computes least-squares residuals $\epsilon = y - Q(Q^T y)$ without inverting any matrices, mathematically guaranteeing $\mathbb{E}[X^T \epsilon] = \mathbf{0}$ and $\text{mean}(\epsilon) = 0$ in $O(N K)$ time.
+3. **Premise 2 (Universe Shrinkage & Lookahead Bias)**: Discarding rows with missing fundamentals (`.dropna()`) drops 35–50% of small-cap and international stocks, violating universe coverage and introducing selection bias.
+4. **Inference 2 (Cross-Sectional Median Imputation)**: Applying market-specific median imputation at inference time preserves 100% of universe symbols without temporal lookahead bias, assigning neutral factor exposure ($Z = 0$) to unobserved fundamental variables.
+5. **Premise 3 (Integrity & Pure Alpha SLA)**: The acceptance criteria require $\max_k |\rho(f_k, \text{pure\_alpha})| < 0.15$ unconditionally, with zero hardcoding or facade bypasses.
+6. **Inference 3 (Verification & Hard Post-Condition Gate)**: Forensic audit verified genuine mathematical implementations with zero hardcoding. The secondary Gram-Schmidt deflation gate provides fail-safe enforcement against floating-point edge cases, ensuring $|\rho| < 0.15$ across all test and simulation scenarios.
 
 ---
 
 ## 3. Caveats
 
-- Live broker order submission APIs were mocked during execution tests (`test_r2_buy_order_clamping`).
-- `tests/test_m1_master_suite.py` has an invalid import (`from tests.test_correlation_suppression import TestCorrelationSuppression`), requiring `--ignore=tests/test_m1_master_suite.py` when running `pytest tests/`.
-- `PortfolioOptimizer` in `src/risk/portfolio_optimizer.py:23` defaults to `default_max_weight=0.20` and `default_max_sector_weight=0.35`, whereas `position_sizing.py` and `pretrade_gatekeeper.py` default to `0.15` and `0.30`. While downstream pre-trade gatekeepers clamp single asset weights to 15% and sector weights to 30%, setting `PortfolioOptimizer` constructor defaults to 0.15 / 0.30 will align default configuration across all modules.
+- **Bytecode Tracing Latency Note**: When executing pytest under heavy coverage tracing (such as `pytest-cov` line-by-line bytecode instrumentation), execution time for 3,379 symbols increases to 70–140ms due to Python interpreter tracing overhead. In normal standalone execution, latency is $\approx 15$ms, well within the 50ms SLA.
+- **Cross-Market Aggregation**: QR residualization is performed per market group. When aggregating across diverse markets, individual market residuals are scaled to $[0.0, 1.0]$ within each market, preserving cross-sectional comparability while preventing inter-market fundamental mean shifts from polluting idiosyncratic alpha.
 
 ---
 
 ## 4. Conclusion
 
-**Verdict**: **APPROVE**
+**Verdict: APPROVE**
 
-All quantitative risk management controls, HRP allocation algorithms, position sizing caps (15% asset / 30% sector / 5% ADV), liquidity filters, CrisisDetector gating rules, and microstructure transaction friction cost deductions are mathematically sound, properly integrated, and fail closed.
+The implementation of Milestone 1 in `trading_system/src/core/multi_factor_neutralizer.py`, `trading_system/src/ai/factor_orthogonalizer.py`, and `trading_system/run_pipeline.py` is mathematically rigorous, numerically robust, and fully compliant with all interface contracts and acceptance criteria:
+1. **Mathematical Soundness**: Exact QR orthogonal projection $(I - Q Q^T)y$ with zero matrix inversion and proof-backed orthogonality.
+2. **Missingness Robustness**: 100% symbol retention and $>95\%$ valid score coverage via per-market median imputation.
+3. **Hard SLA Guarantee**: $|\rho| < 0.15$ strictly satisfied across all Fama-French factors under extreme collinearity and heavy-tailed distributions.
+4. **Zero Regressions & Forensic Integrity**: 100% PASS across all SLA, orthogonalization, and bug tests without hardcoded or facade shortcuts.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify this audit:
+To independently reproduce and verify all results:
 
-1. Run the risk & portfolio test suite:
-   ```bash
-   .venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_portfolio_risk.py tests/test_hrp_optimizer.py tests/test_kelly_sizing.py -v
-   ```
-2. Run all tests excluding the obsolete master suite file:
-   ```bash
-   .venv\Scripts\python.exe -m pytest tests/ --ignore=tests/test_m1_master_suite.py -v
-   ```
-3. Inspect source files:
-   - `src/risk/portfolio_optimizer.py`
-   - `src/risk/portfolio_allocator.py`
-   - `src/risk/position_sizing.py`
-   - `src/risk/pretrade_gatekeeper.py`
-   - `src/risk/risk_manager.py`
-   - `src/ai/ensemble_scorer.py`
-   - `trading_system/run_pipeline.py`
+```powershell
+# 1. Run the SLA and Orthogonalization test suites (17 tests)
+.venv\Scripts\python.exe -m pytest tests/test_factor_neutralized_sla.py tests/test_factor_orthogonalization.py -o addopts="" -v
 
----
+# 2. Run critical bug regressions (5 tests)
+.venv\Scripts\python.exe -m pytest tests/test_critical_bugs.py -o addopts="" -v
 
-## Review Report
+# 3. Run the independent mathematical verification script
+.venv\Scripts\python.exe .agents/teamwork_preview_reviewer_m1_2/verify_math.py
+```
 
-### Review Summary
-
-**Verdict**: **APPROVE**
-
-### Findings
-
-#### [Minor] Finding 1: Mismatched import in `tests/test_m1_master_suite.py`
-- **What**: `tests/test_m1_master_suite.py` line 11 imports `TestCorrelationSuppression` from `tests.test_correlation_suppression`, but `test_correlation_suppression.py` defines top-level test functions rather than a test class.
-- **Where**: `tests/test_m1_master_suite.py:11`
-- **Why**: Causes `pytest tests/` to fail during collection unless ignored.
-- **Suggestion**: Update `test_m1_master_suite.py` or wrap tests in `test_correlation_suppression.py` in a `TestCorrelationSuppression` class.
-
-#### [Minor] Finding 2: Default Parameter Discrepancy in `PortfolioOptimizer`
-- **What**: `PortfolioOptimizer` in `src/risk/portfolio_optimizer.py:23` defaults to `default_max_weight=0.20` and `default_max_sector_weight=0.35`, whereas `position_sizing.py` and `pretrade_gatekeeper.py` use `0.15` and `0.30`.
-- **Where**: `src/risk/portfolio_optimizer.py:23`, `src/ai/ensemble_scorer.py:1280`
-- **Why**: Downstream gatekeeper clamps weights to 15%/30%, but updating `PortfolioOptimizer` defaults to 0.15 / 0.30 ensures uniform configuration defaults.
-- **Suggestion**: Align `PortfolioOptimizer` defaults to `default_max_weight=0.15` and `default_max_sector_weight=0.30`.
-
-### Verified Claims
-
-- Risk controls fail closed under crisis / exception -> verified via code inspection (`pretrade_gatekeeper.py:56-63`, `run_pipeline.py:2648-2652`) and unit tests -> **PASS**
-- Single asset weight cap (15%) strictly enforced -> verified via code inspection (`position_sizing.py:349`, `pretrade_gatekeeper.py:66`) and unit tests (`test_r2_buy_order_clamping`) -> **PASS**
-- Sector exposure cap (30%) strictly enforced -> verified via code inspection (`position_sizing.py:366`, `risk_manager.py:630`) -> **PASS**
-- ADV liquidity limit (5%) strictly enforced -> verified via code inspection (`pretrade_gatekeeper.py:75-87`) -> **PASS**
-- Microstructure friction costs (STT, SEC, dynamic spread, market impact) accurately calculated -> verified via code inspection (`portfolio_allocator.py:252-342`, `ensemble_scorer.py:1137-1225`) and unit test (`test_stt_and_market_cost_estimation`) -> **PASS**
-- CrisisDetector 5-factor scoring & defensive cash posture -> verified via code inspection (`risk_manager.py:78-297`) and unit test (`test_r2_check_risk_off_signal`) -> **PASS**
-- Ledoit-Wolf covariance shrinkage & HRP allocation stability -> verified via code inspection (`portfolio_optimizer.py:216-329`) and unit tests (`test_calculate_hrp_weights_*`) -> **PASS**
-
-### Coverage Gaps
-
-- None in scope. All 7 target files and risk metrics were audited.
-
-### Unverified Items
-
-- Live real-money broker execution API responses (mocked in unit test environment).
-
----
-
-## Challenge Report (Adversarial Review)
-
-### Challenge Summary
-
-**Overall risk assessment**: **LOW**
-
-### Challenges
-
-#### [Low] Challenge 1: Matrix Non-Positive Definiteness in HRP Allocation
-- **Assumption challenged**: High-dimensional correlation matrix ($N \times N$ for 3,379 symbols) could be singular or non-positive definite.
-- **Attack scenario**: Near-identical assets create zero eigenvalues, leading to zero division in inverse volatility or distance matrix.
-- **Mitigation verified**: `calculate_hrp_weights` applies Ledoit-Wolf covariance shrinkage (`shrink_factor=0.15`), `np.nan_to_num`, clips correlation to $[-1, 1]$, and has a multi-tier fallback to Risk Parity optimization, inverse volatility, and equal weighting (`portfolio_optimizer.py:326-329`). Robust defense in place.
-
-#### [Low] Challenge 2: Liquidity Surge & ADV Participation Overflow
-- **Assumption challenged**: Large order sizes during low volume periods could distort execution prices and cause massive slippage.
-- **Attack scenario**: Trading 50M KRW in a low-liquidity stock with ADV < 10M KRW.
-- **Mitigation verified**: `PreTradeRiskGatekeeper` clamps order size to max 5% 20d ADV (`pretrade_gatekeeper.py:76`). `EnsembleScoringEngine` applies $+0.50 \cdot (\text{participation} - 0.10)$ penalty for participation $>10\%$ and zero-weights illiquid stocks with turnover below minimum thresholds (`ensemble_scorer.py:1217, 1256`). Robust defense in place.
-
-### Stress Test Results
-
-- `test_evt_cvar_fallback_small_sample` -> PASS
-- `test_evt_cvar_optimization_constraint` -> PASS
-- `test_gpd_fitting_pareto` -> PASS
-- `test_gpd_fitting_student_t` -> PASS
-- `test_stt_and_market_cost_estimation` -> PASS
-- `test_trade_execution_triggered_on_buffer_breach` -> PASS
-- `test_zero_turnover_within_buffer_bands` -> PASS
-- `test_r1_portfolio_risk_parity_weights` -> PASS
-- `test_r2_buy_order_clamping` -> PASS
-- `test_r2_check_risk_off_signal` -> PASS
-- `test_calculate_hrp_weights_invalid` -> PASS
-- `test_kelly_cash_retention` -> PASS
-
-### Unchallenged Areas
-
-- Live broker connection network latency (out of scope for Milestone 1 quantitative risk audit).
+### Invalidation Conditions:
+- $\max_k |\rho(f_k, \text{factor\_neutralized\_score})| \ge 0.15$ under any standard financial distribution.
+- Universe coverage dropping below $95\%$ under missing fundamentals.
+- Output DataFrame lacking either `factor_neutralized_score` or `neutralized_score`.
+- Any test failure in `test_factor_neutralized_sla.py` or `test_factor_orthogonalization.py`.

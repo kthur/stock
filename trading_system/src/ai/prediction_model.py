@@ -627,35 +627,16 @@ class OnDevicePredictionModel:
                 try:
                     model = cb.CatBoostClassifier()
                     model.load_model(str(fpath))
+                    fn = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else self.ALL_FEATURES
+                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
+                    _ = model.predict_proba(val_df)
                     for m_key in set([market, market.lower(), market.upper()]):
                         if m_key not in self.surge_cat_models:
                             self.surge_cat_models[m_key] = {}
                         self.surge_cat_models[m_key][h] = model
                     logger.debug(f"Loaded CatBoost surge model for {market} {h}d from {fpath}")
                 except Exception as e:
-                    logger.warning(f"CatBoost surge model {market} {h}d load failed: {e}. Skipping.")
-
-            # CatBoost
-            for fpath in self.model_dir.glob("cat_surge_model_*_*d.bin"):
-                parts = fpath.stem.replace("cat_surge_model_", "").split("_")
-                h_str = parts[-1].replace("d", "")
-                market = "_".join(parts[:-1])
-                if not h_str.isdigit():
-                    continue
-                h = int(h_str)
-                model = cb.CatBoostClassifier()
-                model.load_model(str(fpath))
-
-                try:
-                    fn = model.feature_names_ if hasattr(model, "feature_names_") and model.feature_names_ else self.ALL_FEATURES
-                    val_df = pd.DataFrame(0.0, index=[0], columns=fn)
-                    _ = model.predict_proba(val_df)
-                    if market not in self.surge_cat_models:
-                        self.surge_cat_models[market] = {}
-                    self.surge_cat_models[market][h] = model
-                    logger.debug(f"Loaded CatBoost surge model for {market} {h}d from {fpath}")
-                except Exception as e:
-                    logger.warning(f"CatBoost surge model {market} {h}d validation failed (probably feature dimension mismatch): {e}. Skipping.")
+                    logger.warning(f"CatBoost surge model {market} {h}d load/validation failed: {e}. Skipping.")
 
             # Fallback checks
             if not self.surge_models:

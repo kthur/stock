@@ -1,57 +1,57 @@
-# BRIEFING — 2026-08-06T01:01:45Z
+# BRIEFING — 2026-08-14T10:07:35Z
 
 ## Mission
-Review Milestone 1 (Financial Engineering & Quantitative Risk Audit) implementations across portfolio optimizer, ensemble scorer, prediction model, run_pipeline, statistics, intraday stop loss engine, and risk manager. Verify mathematical correctness, zero lookahead bias, zero integrity violations, test pass status, and issue verdict.
+Independently review the source code, interface conformance, edge case handling, and test SLA compliance for Milestone 1 (Fama-French 5-Factor Pure Alpha Neutralization, polymorphic interface binding, missing data median imputation, and hard SLA $|\rho| < 0.15$ gating) in `trading_system/src/core/multi_factor_neutralizer.py`, `trading_system/run_pipeline.py`, and `tests/test_factor_neutralized_sla.py`.
 
 ## 🔒 My Identity
 - Archetype: reviewer / critic
 - Roles: reviewer, critic
 - Working directory: d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1
-- Original parent: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
-- Milestone: M1 (Financial Engineering & Quantitative Risk Audit)
+- Original parent: 644fa09c-3631-4b51-bf49-e7616ad72a36
+- Milestone: M1 (31-Strategy Alpha Precision & Pure Alpha Neutralization)
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code.
-- Thoroughly inspect mathematical formulas, quantitative logic, lookahead bias, filing lag, microstructure costs, and integrity violations.
+- Thoroughly inspect mathematical formulas, quantitative logic, lookahead bias, interface contracts, and integrity violations.
 
 ## Current Parent
-- Conversation ID: ab1fad37-52ff-4a84-ae22-ac7b6b57361b
-- Updated: 2026-08-06T01:01:45Z
+- Conversation ID: 644fa09c-3631-4b51-bf49-e7616ad72a36
+- Updated: 2026-08-14T10:07:35Z
 
 ## Review Scope
 - **Files to review**:
-  - `src/risk/portfolio_optimizer.py` & `trading_system/src/analysis/portfolio_optimizer.py` (HRP inverse variance weight formula)
-  - `trading_system/src/ai/ensemble_scorer.py` (microstructure transaction cost spread deduction)
-  - `trading_system/src/ai/prediction_model.py` (60-day filing lag index detection & `FUND_COLS` book_value)
-  - `trading_system/run_pipeline.py` (RIM filing lag, RiskManager crisis fallback, 18th strategy `IFS` format string)
-  - `trading_system/src/analysis/statistics.py` (annual return complex number guard, Sortino inf guard)
-  - `trading_system/src/risk/intraday_stop_loss.py` & `trading_system/src/risk/risk_manager.py` (intraday stop loss engine)
-- **Interface contracts**: PROJECT.md, ORIGINAL_REQUEST.md
-- **Review criteria**: Correctness, mathematical rigor, lookahead bias, test suite execution, integrity violations.
+  - `trading_system/src/core/multi_factor_neutralizer.py` (MultiFactorNeutralizerEngine implementation)
+  - `trading_system/run_pipeline.py` (Strategy 21 invocation, output writing, and 31-strategy rolling Sharpes)
+  - `tests/test_factor_neutralized_sla.py` (6-tier SLA test suite)
+- **Interface contracts**: PROJECT.md §Interface Contracts, ORIGINAL_REQUEST.md §R1
+- **Review criteria**: Correctness, mathematical rigor, zero lookahead bias, test suite execution, integrity violations.
 
 ## Review Checklist
-- [x] HRP Inverse Variance Formula in `trading_system/src/analysis/portfolio_optimizer.py` line 305/311: verified (`1.0 / (vols_left ** 2)`).
-- [x] Microstructure Costs & Net Return Deduction in `trading_system/src/ai/ensemble_scorer.py` line 1226: verified (`(raw_exp_ret - cost_series * 100.0)`).
-- [x] 60-Day Filing Lag & `book_value` in `trading_system/src/ai/prediction_model.py` line 861/927: verified (`FUND_COLS` contains `'book_value'`, `pd.merge_asof` with `direction='backward'`).
-- [x] Pipeline RIM Lag, Crisis Fallback, & `IFS` Format String in `trading_system/run_pipeline.py`: verified.
-- [x] Statistics Math Guards in `trading_system/src/analysis/statistics.py` lines 90 & 232: verified (`max(1e-6, 1.0 + total_return)`, Sortino `999.0`).
-- [x] Intraday Stop Loss & Risk Manager in `trading_system/src/risk/intraday_stop_loss.py` & `risk_manager.py`: verified.
-- [x] Integrity Violation Check: verified (0 hardcoded test results, 0 facade implementations, 0 shortcuts).
+- **Items reviewed**:
+  - [x] MultiFactorNeutralizerEngine argument resolution (positional vs keyword universe/prices_dict/raw_scores)
+  - [x] Intra-market median imputation for Fama-French 5 factors (`market_cap`, `per`, `pbr`, `roe`, `asset_growth_yoy`, `momentum_12m`)
+  - [x] Thin QR decomposition $X_m = Q_m R_m$ and projection $y_m - Q_m(Q_m^T y_m)$
+  - [x] Hard SLA post-condition gate $\max_k |\rho(f_k, \epsilon_m)| < 0.15$ with secondary Gram-Schmidt deflation
+  - [x] Column naming & alias compliance (`factor_neutralized_score` and `neutralized_score`)
+  - [x] Empty/missing universe deterministic NaN contract (Bug A-3)
+  - [x] `run_pipeline.py` Strategy 21 invocation and 31-strategy rolling Sharpes integration
+  - [x] 6-tier SLA test suite in `tests/test_factor_neutralized_sla.py`
 - **Verdict**: APPROVE
+- **Unverified claims**: None.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - H1: Did HRP weighting use inverse volatility $1/\sigma$ instead of inverse variance $1/\sigma^2$? Result: False. It correctly uses $1/\sigma^2$.
-  - H2: Does filing lag enforcement allow lookahead bias? Result: False. `pd.merge_asof` with `date_available = date + 60d` prevents lookahead bias.
-  - H3: Are complex numbers generated during negative annual returns? Result: False. `max(1e-6, 1.0 + total_return)` prevents negative base exponentiation.
-  - H4: Does `ensemble_predictions.txt` misformat the 18th strategy `IFS` column? Result: False. Format string `{ifs_val*100:>4.0f}%` aligns under `{'IFS':<5}` header.
-- **Vulnerabilities found**: None in implementation logic. Minor import mismatch in test aggregator `test_m1_master_suite.py` (`TestCorrelationSuppression` class vs top-level `test_*` functions).
-- **Untested angles**: Execution on live broker API endpoints (out of scope for M1 quantitative audit).
+  - H1: Multicollinearity breakdown — does high correlation between PER, ROE, and Market Cap cause QR failure or explosive residuals? (Tested: QR with reduced mode handles rank deficiency stably; secondary Gram-Schmidt deflation enforces $|\rho| < 0.15$).
+  - H2: Severe missingness — does missing 80% fundamentals cause row drops or NaN propagation? (Tested: Market-grouped median imputation retains 100% of symbols).
+  - H3: Degenerate inputs — zero variance factors, single-symbol universe ($N=1$), small universe ($N=5$). (Tested: $N=1$ outputs 0.5; $N<6$ falls back to de-meaned residual; zero variance factors assign $Z=0$).
+  - H4: Integrity violations — are there hardcoded constants, mock responses, or bypassed logic? (Tested: 0 hardcoded symbols/outputs, true QR and Gram-Schmidt math).
+- **Vulnerabilities found**: None.
+- **Untested angles**: Live production broker feeds (handled by OMS tests).
 
 ## Key Decisions Made
-- Confirmed all 6 core quantitative targets meet mathematical rigor, zero lookahead bias, zero integrity violations.
-- Verdict: APPROVE.
+- Confirmed full compliance with PROJECT.md and ORIGINAL_REQUEST.md.
+- Issued verdict: **APPROVE**.
 
 ## Artifact Index
 - `d:\Finance\code\stock\.agents\teamwork_preview_reviewer_m1_1\BRIEFING.md` — persistent working memory
