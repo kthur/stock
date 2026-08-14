@@ -1707,6 +1707,17 @@ class EnsembleScoringEngine:
                 flow_mom_mask = (has_mom & has_flow)
                 if flow_mom_mask.any():
                     blended_score.loc[flow_mom_mask] = (blended_score.loc[flow_mom_mask] * 1.025).clip(0.0, 1.0)
+
+                # Phase 2-C: Fundamental Distress Gatekeeper (Penalize chronic loss-making / negative profitability firms)
+                if 'operating_margin' in merged.columns or 'roe' in merged.columns:
+                    distress_cond = pd.Series(False, index=merged.index)
+                    if 'operating_margin' in merged.columns:
+                        distress_cond = distress_cond | (merged['operating_margin'] < -0.10)
+                    if 'roe' in merged.columns:
+                        distress_cond = distress_cond | (merged['roe'] < -0.10)
+                    if distress_cond.any():
+                        blended_score.loc[distress_cond] = (blended_score.loc[distress_cond] * 0.70).clip(0.0, 1.0)
+                        logger.info(f"[DISTRESS GATEKEEPER] Applied 0.70x penalty to {distress_cond.sum()} loss-making symbols.")
             except Exception as _be:
                 logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
 

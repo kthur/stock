@@ -95,8 +95,15 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
 
             if pd.notna(pbr):
                 pbr_val = float(pbr)
-                # Low PBR bonus factor: highest for PBR between 0.3 and 1.0
-                if pbr_val <= 0:
+                # Check fundamental profitability to prevent distress value traps
+                op_margin = row.get('operating_margin', row.get('op_margin', np.nan))
+                roe_val = row.get('roe', np.nan)
+                is_distress = (pd.notna(op_margin) and float(op_margin) < 0) or (pd.notna(roe_val) and float(roe_val) < 0)
+
+                # Low PBR bonus factor: highest for PBR between 0.3 and 1.0 (profitable firms only)
+                if is_distress:
+                    pbr_factor = 0.20  # Invalidate low PBR bonus for loss-making distress value traps
+                elif pbr_val <= 0:
                     pbr_factor = 0.1
                 elif pbr_val < 1.0:
                     pbr_factor = 1.5 - (pbr_val * 0.5)  # PBR 0.4 -> 1.3, PBR 0.8 -> 1.1

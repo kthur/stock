@@ -217,29 +217,33 @@ class RIMValuationEngine(BaseStrategyEngine):
                 )
             df['earnings_quality'] = eq_ratio
 
+            # 영업손실(-) 또는 순손실(-): 사업 본연의 수익성이 훼손된 기업 → RIM 점수 왜곡 방지를 위해 무효화
+            op_loss = (op_inc < 0) | (net_inc < 0)
             # 영업손실(-) & 순이익 양수(+): 순이익이 전적으로 일회성/영업외 이익 → RIM 부적합
             suspicious = (op_inc <= 0) & (net_inc > 0)
             # 영업이익/순이익 비율이 임계 미만 → 이익의 질 낮음 → ROE 감쇠
             low_quality = pd.Series(eq_ratio, index=df.index) < EARNINGS_QUALITY_MIN_RATIO
 
+            df.loc[op_loss, 'rim_filter_reason'] = 'OPERATING_LOSS'
             df.loc[suspicious, 'rim_filter_reason'] = 'LOW_EARNINGS_QUALITY'
-            df.loc[low_quality & ~suspicious, 'rim_filter_reason'] = 'QUALITY_ADJUSTED'
+            df.loc[low_quality & ~suspicious & ~op_loss, 'rim_filter_reason'] = 'QUALITY_ADJUSTED'
             # 이익의 질이 낮은 종목만 ROE 감쇠 (정상 기업 ROE 불변)
-            df.loc[low_quality, 'roe'] = df.loc[low_quality, 'roe'] * eq_ratio[low_quality.to_numpy()]
-            # 영업손실 + 순이익 양수 → 지속가능 이익 없음으로 간주
-            df.loc[suspicious, 'roe'] = 0.0
+            df.loc[low_quality & ~op_loss, 'roe'] = df.loc[low_quality & ~op_loss, 'roe'] * eq_ratio[(low_quality & ~op_loss).to_numpy()]
+            # 영업손실 또는 순손실 → 지속가능 이익 없음으로 간주
+            df.loc[op_loss | suspicious, 'roe'] = 0.0
 
         # ---- Preferred Share Filter (우선주 필터) ----
         pref_mask = df['symbol'].apply(is_preferred_share)
         if pref_mask.any():
             df.loc[pref_mask, 'rim_filter_reason'] = 'PREFERRED_SHARE'
 
+        n_op_loss = int(df['rim_filter_reason'].eq('OPERATING_LOSS').sum())
         n_suspicious = int(df['rim_filter_reason'].eq('LOW_EARNINGS_QUALITY').sum())
         n_adjusted = int(df['rim_filter_reason'].eq('QUALITY_ADJUSTED').sum())
         n_preferred = int(df['rim_filter_reason'].eq('PREFERRED_SHARE').sum())
-        if n_suspicious or n_adjusted or n_preferred:
+        if n_op_loss or n_suspicious or n_adjusted or n_preferred:
             logger.info(
-                f"Earnings quality & preferred filter: {n_suspicious} low quality, "
+                f"Earnings quality & distress filter: {n_op_loss} operating loss, {n_suspicious} low quality, "
                 f"{n_adjusted} ROE-adjusted, {n_preferred} preferred shares invalidated"
             )
 
@@ -281,16 +285,16 @@ class RIMValuationEngine(BaseStrategyEngine):
         df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
 
         # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
-        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE'])
+        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
         mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & (~invalid_mask)
         if mos_mask.any():
             df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
 
-        # 영업손실 + 순이익 양수(일회성 이익 의존) 및 우선주 종목은 RIM 점수 무효화
+        # 영업손실, 순손실, 일회성 이익 의존 및 우선주 종목은 RIM 점수 무효화
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
         if invalid_mask.any():
             df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
-            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (low quality or preferred share)")
+            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (distress, low quality or preferred share)")
 
         out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'earnings_quality', 'rim_filter_reason',
                     'intrinsic_value', 'discount_ratio', 'rim_score']
