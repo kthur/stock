@@ -50,7 +50,7 @@ class DeltaBetaHedgeEngine:
                 'net_asset_weights': {}
             }
 
-        # 1. Compute Portfolio Market Beta (handle NaN/inf safely)
+        # 1. Compute Portfolio Market Beta with vectorized NumPy operations
         valid_items = {sym: w for sym, w in portfolio_weights.items() if w is not None and np.isfinite(w)}
         if not valid_items:
             return {
@@ -61,14 +61,19 @@ class DeltaBetaHedgeEngine:
                 'net_asset_weights': {}
             }
 
-        total_w = sum(valid_items.values())
-        norm_weights = {sym: w / total_w for sym, w in valid_items.items()} if total_w > 0 else valid_items
+        symbols = list(valid_items.keys())
+        weights_arr = np.array([valid_items[s] for s in symbols], dtype=np.float64)
+        total_w = float(np.sum(weights_arr))
+        if total_w > 0:
+            weights_arr /= total_w
+        norm_weights = dict(zip(symbols, weights_arr))
 
-        port_beta = sum(w * (symbol_betas.get(sym, 1.0) if symbol_betas and np.isfinite(symbol_betas.get(sym, 1.0)) else 1.0) for sym, w in norm_weights.items())
+        betas_arr = np.array([symbol_betas.get(s, 1.0) if (symbol_betas and np.isfinite(symbol_betas.get(s, 1.0))) else 1.0 for s in symbols], dtype=np.float64)
+        port_beta = float(np.dot(weights_arr, betas_arr))
 
         # Determine portfolio primary market (KRX vs US)
-        kr_count = sum(1 for sym in norm_weights if str(sym).endswith('.KS') or str(sym).endswith('.KQ') or str(sym).isdigit())
-        us_count = len(norm_weights) - kr_count
+        kr_count = sum(1 for sym in symbols if str(sym).endswith('.KS') or str(sym).endswith('.KQ') or str(sym).isdigit())
+        us_count = len(symbols) - kr_count
         is_us_portfolio = us_count > kr_count
 
         hedge_etf = 'SH' if is_us_portfolio else '252670.KS'
@@ -82,9 +87,11 @@ class DeltaBetaHedgeEngine:
             target_beta = 0.0 if crisis_level == "SEVERE" else 0.20
             beta_reduction = port_beta - target_beta
 
-            if beta_reduction > 0.0 and (port_beta - inverse_beta) != 0:
+            if beta_reduction > 0.0 and (port_beta - inverse_beta) > 1e-6:
                 raw_hedge_w = (port_beta - target_beta) / (port_beta - inverse_beta)
-                hedge_weight = float(np.clip(raw_hedge_w, 0.0, 0.35))
+                # Dynamic Beta Hedging Booster: Cap up to 40% in severe crisis
+                max_hedge_cap = 0.40 if crisis_level == "SEVERE" else 0.35
+                hedge_weight = float(np.clip(raw_hedge_w, 0.0, max_hedge_cap))
 
         # 3. Rescale asset weights to make room for Hedge ETF
         scale = 1.0 - hedge_weight
