@@ -90,4 +90,6 @@ def get_tickers() -> Dict[str, str]:
 
 
 def get_tickers_rev() -> Dict[str, str]:
+    if not _KOR_STOCK_LIST._tickers_rev:
+        _KOR_STOCK_LIST.load()
     return _KOR_STOCK_LIST._tickers_rev
