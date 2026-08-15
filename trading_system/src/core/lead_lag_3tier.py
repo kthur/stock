@@ -48,12 +48,14 @@ class ThreeTierLeadLagEngine:
                 alias = self.TICKER_ALIASES.get(sym)
                 if alias:
                     df = prices_dict.get(alias)
-            if df is not None and len(df) >= 4 and 'Close' in df.columns:
-                c = df['Close'].dropna()
-                if len(c) >= 4 and c.iloc[-2] > 0 and c.iloc[-4] > 0:
-                    ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
-                    ret_3d = float((c.iloc[-1] / c.iloc[-4]) - 1.0)
-                    t1_returns.append(0.6 * ret_1d + 0.4 * ret_3d)
+            if df is not None and len(df) >= 4:
+                c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                if c_col:
+                    c = df[c_col].dropna()
+                    if len(c) >= 4 and c.iloc[-2] > 0 and c.iloc[-4] > 0:
+                        ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
+                        ret_3d = float((c.iloc[-1] / c.iloc[-4]) - 1.0)
+                        t1_returns.append(0.6 * ret_1d + 0.4 * ret_3d)
 
         t1_score = float(np.mean(t1_returns)) if t1_returns else 0.0
 
@@ -63,11 +65,13 @@ class ThreeTierLeadLagEngine:
             df = prices_dict.get(sym)
             if df is None:
                 df = prices_dict.get(f"{sym}.KS")
-            if df is not None and len(df) >= 2 and 'Close' in df.columns:
-                c = df['Close'].dropna()
-                if len(c) >= 2 and c.iloc[-2] > 0:
-                    ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
-                    t2_returns.append(ret_1d)
+            if df is not None and len(df) >= 2:
+                c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                if c_col:
+                    c = df[c_col].dropna()
+                    if len(c) >= 2 and c.iloc[-2] > 0:
+                        ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
+                        t2_returns.append(ret_1d)
 
         t2_score = float(np.mean(t2_returns)) if t2_returns else 0.0
 
@@ -86,10 +90,12 @@ class ThreeTierLeadLagEngine:
         for sym in tier3_symbols:
             df = prices_dict.get(sym)
             follower_mom = 0.0
-            if df is not None and len(df) >= 2 and 'Close' in df.columns:
-                c = df['Close'].dropna()
-                if len(c) >= 2 and c.iloc[-2] > 0:
-                    follower_mom = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
+            if df is not None and len(df) >= 2:
+                c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                if c_col:
+                    c = df[c_col].dropna()
+                    if len(c) >= 2 and c.iloc[-2] > 0:
+                        follower_mom = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
 
             # Lag transfer bonus: High leader momentum vs delayed follower momentum
             # Restricted strictly to positive leader momentum (> 0)
