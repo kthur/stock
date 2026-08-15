@@ -25,7 +25,7 @@ class SimulatedBrokerBase:
     ORDER_PREFIX = "BR"
 
     def __init__(self, account_number: Optional[str] = None):
-        self.account_number: Optional[str] = account_number or "0000000000"
+        self.account_number: Optional[str] = str(account_number) if account_number is not None else "0000000000"
         self.is_connected = False
         self.simulation_mode = True
         self.orders: Dict[str, BrokerOrder] = {}
