@@ -166,26 +166,38 @@ class KiwoomConnector:
         Returns:
             주문 번호
         """
+        import time, math
         try:
-            order_id = f"ORD_{datetime.now().timestamp()}"
+            q = max(0, int(quantity)) if quantity is not None else 0
+            if q <= 0:
+                self.logger.warning(f"Invalid order quantity ({quantity}) for {code}")
+                return ""
+
+            try:
+                p = float(price) if (price is not None and math.isfinite(float(price))) else 0.0
+            except (ValueError, TypeError):
+                p = 0.0
+            p = max(0.0, p)
+
+            order_id = f"KW_ORD_{int(time.time() * 1000)}"
 
             if self.simulation_mode:
                 order = {
                     "order_id": order_id,
-                    "code": code,
-                    "quantity": quantity,
-                    "price": price,
-                    "order_type": order_type,
+                    "code": str(code),
+                    "quantity": q,
+                    "price": p,
+                    "order_type": str(order_type),
                     "status": KiwoomOrderStatus.SUBMITTED.value,
                     "timestamp": datetime.now(),
                     "filled_quantity": 0,
                 }
                 self.simulated_orders[order_id] = order
-                self.logger.info(f"Order placed: {order_id} {order_type} {quantity}주 @ {price}")
+                self.logger.info(f"Order placed: {order_id} {order_type} {q}주 @ {p:,.0f}")
 
             # 주문 콜백 호출
             self._trigger_callback(
-                "order", {"order_id": order_id, "code": code, "quantity": quantity, "status": "SUBMITTED"}
+                "order", {"order_id": order_id, "code": str(code), "quantity": q, "price": p, "status": "SUBMITTED"}
             )
 
             return order_id
