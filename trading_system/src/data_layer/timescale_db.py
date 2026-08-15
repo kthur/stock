@@ -71,16 +71,23 @@ class TimescaleDBConnector:
                 INSERT OR REPLACE INTO stock_prices_ts (time, symbol, market, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
+            def _sf(val):
+                try:
+                    f = float(val)
+                    return 0.0 if (f != f or f == float('inf') or f == float('-inf')) else f
+                except (ValueError, TypeError):
+                    return 0.0
+
             rows = [
                 (
-                    r.get("time", r.get("date", "")),
-                    r.get("symbol", ""),
-                    r.get("market", ""),
-                    float(r.get("open", 0.0)),
-                    float(r.get("high", 0.0)),
-                    float(r.get("low", 0.0)),
-                    float(r.get("close", 0.0)),
-                    float(r.get("volume", 0.0))
+                    str(r.get("time", r.get("date", ""))),
+                    str(r.get("symbol", "")),
+                    str(r.get("market", "")),
+                    _sf(r.get("open", 0.0)),
+                    _sf(r.get("high", 0.0)),
+                    _sf(r.get("low", 0.0)),
+                    _sf(r.get("close", 0.0)),
+                    _sf(r.get("volume", 0.0))
                 )
                 for r in price_records
             ]
