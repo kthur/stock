@@ -93,18 +93,21 @@ class AdvancedStatistics:
         self, returns: List[float], target_return: float = 0, periods_per_year: int = 252
     ) -> float:
         """Sortino Ratio 계산"""
-        if not returns or len(returns) < 2:
+        if not returns:
+            return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if len(valid_returns) < 2:
             return 0.0
 
-        avg_return = sum(returns) / len(returns)
+        avg_return = sum(valid_returns) / len(valid_returns)
 
         # 하방 편차만 계산
-        downside_returns = [r for r in returns if r < target_return]
+        downside_returns = [r for r in valid_returns if r < target_return]
 
         if not downside_returns:
             return 10.0 if avg_return > target_return else 0.0
 
-        downside_variance = sum((r - target_return) ** 2 for r in downside_returns) / len(returns)
+        downside_variance = sum((r - target_return) ** 2 for r in downside_returns) / len(valid_returns)
         downside_std = math.sqrt(downside_variance)
 
         if downside_std == 0 or abs(downside_std) < 1e-9:
@@ -112,7 +115,7 @@ class AdvancedStatistics:
 
         excess_return = avg_return - (self.risk_free_rate / periods_per_year)
         sortino = (excess_return / downside_std) * math.sqrt(periods_per_year)
-        if math.isnan(sortino) or math.isinf(sortino):
+        if not math.isfinite(sortino):
             return 0.0
 
         return max(-10.0, min(10.0, float(sortino)))
@@ -130,14 +133,18 @@ class AdvancedStatistics:
     def calculate_max_drawdown(self, equity_curve: List[float]) -> tuple:
         """최대 낙폭 계산"""
         if not equity_curve:
-            return 0, 0, 0
+            return 0.0, 0, 0
 
-        peak = equity_curve[0]
+        valid_curve = [float(x) for x in equity_curve if x is not None and math.isfinite(float(x))]
+        if not valid_curve:
+            return 0.0, 0, 0
+
+        peak = valid_curve[0]
         max_dd = 0.0
         peak_idx = 0
         trough_idx = 0
 
-        for i, value in enumerate(equity_curve):
+        for i, value in enumerate(valid_curve):
             if value > peak:
                 peak = value
                 peak_idx = i
@@ -150,7 +157,7 @@ class AdvancedStatistics:
                 max_dd = dd
                 trough_idx = i
 
-        return max_dd, peak_idx, trough_idx
+        return float(max_dd), peak_idx, trough_idx
 
     def calculate_recovery_factor(self, total_return: float, max_drawdown: float) -> float:
         """Recovery Factor 계산"""
