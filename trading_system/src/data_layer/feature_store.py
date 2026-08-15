@@ -51,7 +51,8 @@ class FeatureStore:
             df_copy = feature_df.copy()
             # Downcast floats to float32 to conserve RAM & I/O
             float_cols = df_copy.select_dtypes(include=['float64']).columns
-            df_copy[float_cols] = df_copy[float_cols].astype('float32')
+            for col in float_cols:
+                df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce').astype('float32')
 
             df_copy.to_parquet(tmp_path, compression='snappy', index=False)
             os.replace(tmp_path, path)
