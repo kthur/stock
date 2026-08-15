@@ -9,6 +9,7 @@ Fixes:
 import os
 import logging
 import re
+import html
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -166,9 +167,12 @@ class DARTNewsFetcher:
                 logger.debug(f"Naver news fetch returned {resp.status_code} for {symbol}")
                 return []
 
-            # Extract news titles from HTML (lightweight regex; avoids BeautifulSoup dep)
-            # Naver Finance news titles appear in <dt> tags or specific <a> anchor patterns
-            text = resp.text
+            # Naver Finance news pages use EUC-KR / CP949 encoding
+            try:
+                text = resp.content.decode("euc-kr", errors="replace")
+            except Exception:
+                text = resp.text
+
             # Match title anchors from the news list table
             title_pattern = re.compile(
                 r'<a[^>]+class="[^"]*tit[^"]*"[^>]*>(.*?)</a>', re.DOTALL
@@ -179,7 +183,7 @@ class DARTNewsFetcher:
             clean_titles = []
             for raw in raw_titles[:max_items]:
                 clean = re.sub(r"<[^>]+>", "", raw).strip()
-                clean = clean.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'")
+                clean = html.unescape(clean)
                 if clean:
                     clean_titles.append(clean)
 
