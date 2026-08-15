@@ -68,32 +68,37 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
             score = 0.50  # Base neutral score
 
             # 1. Price Momentum & Volume Surge Proxy (when live options chain is simulated/unavailable)
-            if prices_dict and sym in prices_dict:
-                df = prices_dict[sym]
-                if df is not None and len(df) >= 10 and 'Close' in df.columns:
-                    c = df['Close'].dropna()
-                    v = df['Volume'].dropna() if 'Volume' in df.columns else None
+            if prices_dict and (sym in prices_dict or str(sym) in prices_dict):
+                df = prices_dict.get(sym, prices_dict.get(str(sym)))
+                if df is not None and len(df) >= 10:
+                    c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                    v_col = 'volume' if 'volume' in df.columns else ('Volume' if 'Volume' in df.columns else None)
+                    
+                    if c_col:
+                        c = df[c_col].dropna()
+                        v = df[v_col].dropna() if v_col else None
 
-                    if len(c) >= 10:
-                        ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
-                        high_20d = float(c.iloc[-20:].max())
-                        cur_p = float(c.iloc[-1])
+                        if len(c) >= 10:
+                            ret_3d = float((c.iloc[-1] / c.iloc[-4]) - 1.0) if len(c) >= 4 else 0.0
+                            ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
+                            high_20d = float(c.iloc[-20:].max())
+                            cur_p = float(c.iloc[-1])
 
-                        # Proximity to 20-day High (Call Wall Proxy)
-                        proximity = (cur_p / high_20d) if high_20d > 0 else 0.95
+                            # Proximity to 20-day High (Call Wall Proxy)
+                            proximity = (cur_p / high_20d) if high_20d > 0 else 0.95
 
-                        vol_surge = 1.0
-                        if v is not None and len(v) >= 6:
-                            avg_v = float(v.iloc[-6:-1].mean())
-                            cur_v = float(v.iloc[-1])
-                            vol_surge = (cur_v / avg_v) if avg_v > 0 else 1.0
+                            vol_surge = 1.0
+                            if v is not None and len(v) >= 6:
+                                avg_v = float(v.iloc[-6:-1].mean())
+                                cur_v = float(v.iloc[-1])
+                                vol_surge = (cur_v / avg_v) if avg_v > 0 else 1.0
 
-                        # Gamma Breakout Ignition Bonus
-                        gamma_ignition_bonus = 0.10 if (proximity >= 0.97 and ret_5d >= 0.08 and vol_surge >= 2.0) else 0.0
+                            # Gamma Breakout Ignition Bonus (Strong momentum + volume surge + near 20d high)
+                            gamma_ignition_bonus = 0.12 if (proximity >= 0.97 and (ret_5d >= 0.08 or ret_3d >= 0.05) and vol_surge >= 1.8) else 0.0
 
-                        # Squeeze score formula
-                        squeeze_raw = 0.40 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.30 * min(2.0, vol_surge) / 2.0 + gamma_ignition_bonus
-                        score = float(np.clip(squeeze_raw, 0.0, 1.0))
+                            # Squeeze score formula
+                            squeeze_raw = 0.35 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.25 * min(2.0, vol_surge) / 2.0 + 0.10 * max(0.0, ret_3d * 6.0) + gamma_ignition_bonus
+                            score = float(np.clip(squeeze_raw, 0.0, 1.0))
 
             # 2. Live Options Chain GEX override if available
             if options_chain_dict and sym in options_chain_dict:
