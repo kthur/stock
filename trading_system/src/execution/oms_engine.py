@@ -26,7 +26,7 @@ class ExecutionOMSEngine:
     Generates actionable trade execution plans and monitors slippage and tracking error.
     """
     def __init__(self, db_path: str = "trade_logs.db"):
-        self.db_path = db_path
+        self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
