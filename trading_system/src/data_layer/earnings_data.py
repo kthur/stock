@@ -79,12 +79,24 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     else:
         result['eps'] = 0.0
 
-    info = ticker.info or {}
-    result['shares_outstanding'] = info.get('sharesOutstanding', 0)
-    current_price = float(info.get('regularMarketPrice', info.get('previousClose', 0.0)) or 0.0)
-    div_yield = float(info.get('dividendYield', 0.0) or 0.0)
-    div = info.get('dividendRate', div_yield * current_price)
-    result['dividend_per_share'] = max(0.0, float(div) if div else 0.0)
+    info = {}
+    try:
+        info = ticker.info or {}
+    except Exception:
+        info = {}
+
+    try:
+        result['shares_outstanding'] = int(info.get('sharesOutstanding', 0) or 0)
+    except (ValueError, TypeError):
+        result['shares_outstanding'] = 0
+
+    try:
+        current_price = float(info.get('regularMarketPrice', info.get('previousClose', 0.0)) or 0.0)
+        div_yield = float(info.get('dividendYield', 0.0) or 0.0)
+        div = info.get('dividendRate', div_yield * current_price)
+        result['dividend_per_share'] = max(0.0, float(div) if div else 0.0)
+    except (ValueError, TypeError):
+        result['dividend_per_share'] = 0.0
 
     # Fetch book value (Total Stockholder Equity) from balance sheet for RIM BPS calculation
     try:
