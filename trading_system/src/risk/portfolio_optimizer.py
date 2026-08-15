@@ -21,13 +21,18 @@ class PortfolioOptimizer:
     EVT-CVaR Tail Loss Constraints, and Factor/Sector Exposure Constraints.
     """
     def __init__(self, default_max_weight: float = 0.15, default_max_sector_weight: float = 0.30):
-        self.default_max_weight = default_max_weight
-        self.default_max_sector_weight = default_max_sector_weight
+        safe_max_w = float(default_max_weight) if (default_max_weight is not None and np.isfinite(default_max_weight)) else 0.15
+        self.default_max_weight = max(0.01, min(1.0, safe_max_w))
+        safe_sec_w = float(default_max_sector_weight) if (default_max_sector_weight is not None and np.isfinite(default_max_sector_weight)) else 0.30
+        self.default_max_sector_weight = max(0.01, min(1.0, safe_sec_w))
 
     def calculate_covariance_matrix(self, returns_df: pd.DataFrame, shrinkage: float = 0.1) -> pd.DataFrame:
         """
         Calculate sample covariance matrix with Ledoit-Wolf-like shrinkage for stability.
         """
+        safe_shrinkage = float(shrinkage) if (shrinkage is not None and np.isfinite(shrinkage)) else 0.1
+        safe_shrinkage = max(0.0, min(1.0, safe_shrinkage))
+
         if returns_df.empty or len(returns_df) < 5:
             n_assets = len(returns_df.columns) if not returns_df.empty else 1
             cols = returns_df.columns if not returns_df.empty else ["ASSET"]
@@ -36,7 +41,7 @@ class PortfolioOptimizer:
         cov_sample = returns_df.cov().fillna(0.0)
         n_assets = cov_sample.shape[0]
         prior = np.eye(n_assets) * np.trace(cov_sample.values) / max(n_assets, 1)
-        shrunk_cov = (1.0 - shrinkage) * cov_sample.values + shrinkage * prior
+        shrunk_cov = (1.0 - safe_shrinkage) * cov_sample.values + safe_shrinkage * prior
         return pd.DataFrame(shrunk_cov, index=returns_df.columns, columns=returns_df.columns)
 
     def optimize_risk_parity(
