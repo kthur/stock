@@ -87,25 +87,29 @@ class NLPEngine:
 
         positive_count = sum(1 for keyword in self.positive_keywords if keyword.lower() in text_lower)
         negative_count = sum(1 for keyword in self.negative_keywords if keyword.lower() in text_lower)
+        total_hits = positive_count + negative_count
 
-        max_keywords = max(len(self.positive_keywords), len(self.negative_keywords), 1)
-        if positive_count > negative_count:
-            score = min(positive_count / max_keywords, 1.0)
-            return Sentiment.POSITIVE, score
-        elif negative_count > positive_count:
-            score = -min(negative_count / max_keywords, 1.0)
-            return Sentiment.NEGATIVE, score
+        if total_hits == 0:
+            return Sentiment.NEUTRAL, 0.0
+
+        score = float(positive_count - negative_count) / float(total_hits)
+        if score > 0.05:
+            return Sentiment.POSITIVE, round(score, 4)
+        elif score < -0.05:
+            return Sentiment.NEGATIVE, round(score, 4)
         else:
             return Sentiment.NEUTRAL, 0.0
 
     def process_news(self, title: str, content: str, symbol: str, source: str = "Naver") -> NewsData:
         """뉴스 처리 및 감정 분석"""
-        sentiment, score = self.analyze_sentiment(f"{title} {content}")
+        safe_title = str(title or "").strip()
+        safe_content = str(content or "").strip()
+        sentiment, score = self.analyze_sentiment(f"{safe_title} {safe_content}")
 
         news = NewsData(
-            title=title,
-            content=content,
-            symbol=symbol,
+            title=safe_title,
+            content=safe_content,
+            symbol=str(symbol or "").strip(),
             sentiment=sentiment,
             score=score,
             source=source,
