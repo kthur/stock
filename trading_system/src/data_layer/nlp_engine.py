@@ -81,10 +81,12 @@ class NLPEngine:
         self.logger.info(f"Subscribed NLP callback: {callback_name}")
 
     def analyze_sentiment(self, text: str) -> tuple[Sentiment, float]:
-        text_lower = text.lower()
+        if not text:
+            return Sentiment.NEUTRAL, 0.0
+        text_lower = str(text).lower()
 
-        positive_count = sum(1 for keyword in self.positive_keywords if keyword in text_lower)
-        negative_count = sum(1 for keyword in self.negative_keywords if keyword in text_lower)
+        positive_count = sum(1 for keyword in self.positive_keywords if keyword.lower() in text_lower)
+        negative_count = sum(1 for keyword in self.negative_keywords if keyword.lower() in text_lower)
 
         max_keywords = max(len(self.positive_keywords), len(self.negative_keywords), 1)
         if positive_count > negative_count:
