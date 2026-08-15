@@ -16,7 +16,7 @@ class RayClusterOrchestrator:
     """
 
     def __init__(self, address: Optional[str] = None):
-        self.address = address
+        self.address = str(address) if address is not None else None
         self.is_ray_available = False
         self._init_ray()
 
