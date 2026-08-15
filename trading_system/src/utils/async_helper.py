@@ -22,6 +22,15 @@ def run_async(coro: Coroutine, timeout: float = 60.0) -> Any:
     Raises:
         TimeoutError: 타임아웃 발생 시
     """
+    import math
+    if coro is None:
+        return None
+    try:
+        safe_timeout = float(timeout) if (timeout is not None and math.isfinite(float(timeout))) else 60.0
+    except (ValueError, TypeError):
+        safe_timeout = 60.0
+    safe_timeout = max(0.1, safe_timeout)
+
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
