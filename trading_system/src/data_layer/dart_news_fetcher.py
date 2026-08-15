@@ -90,6 +90,8 @@ class DARTNewsFetcher:
             logger.debug(f"DART_API_KEY not set. Using local disclosure scanner for {symbol}")
             return []
 
+        safe_days = max(1, int(days)) if days is not None else 7
+
         # ✅ Fixed: resolve actual DART corp_code from KRX stock symbol
         corp_code = self.corp_mapper.get_corp_code(symbol)
         if not corp_code:
@@ -101,7 +103,7 @@ class DARTNewsFetcher:
 
         url = "https://opendart.fss.or.kr/api/list.json"
         end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=safe_days)).strftime("%Y%m%d")
 
         params: Dict[str, Any] = {
             "crtfc_key": self.api_key,
@@ -146,6 +148,7 @@ class DARTNewsFetcher:
         Uses Naver Finance news RSS feed (no API key required).
         Returns DisclosureEvents for any headlines containing risk keywords.
         """
+        safe_max = max(1, int(max_items)) if max_items is not None else 20
         # Naver Finance news search RSS for Korean stocks
         code = str(symbol).strip().split('.')[0].zfill(6) if str(symbol).strip().split('.')[0].isdigit() else str(symbol).strip()
         rss_url = f"https://finance.naver.com/item/news_news.naver?code={code}&page=1&sm=title_entity_id.basic&clusterId="
