@@ -90,10 +90,12 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
             if pd.isna(pbr) and pd.notna(bps) and float(bps) > 0 and prices_dict:
                 p_df = prices_dict.get(sym_str, prices_dict.get(sym))
                 if isinstance(p_df, pd.DataFrame) and not p_df.empty:
-                    close_col = 'close' if 'close' in p_df.columns else 'Close'
-                    if close_col in p_df.columns:
-                        last_price = float(p_df[close_col].dropna().iloc[-1])
-                        pbr = last_price / float(bps)
+                    close_col = 'close' if 'close' in p_df.columns else ('Close' if 'Close' in p_df.columns else None)
+                    if close_col and close_col in p_df.columns:
+                        c_series = p_df[close_col].dropna()
+                        if not c_series.empty:
+                            last_price = float(c_series.iloc[-1])
+                            pbr = last_price / float(bps)
 
             if pd.notna(pbr):
                 pbr_val = float(pbr)
