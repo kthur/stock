@@ -292,9 +292,12 @@ class PortfolioAllocator:
         cap = max_weight or self.default_max_weight
 
         # Clean expected returns (annualized or horizon percentage)
-        mu = np.maximum(0.0, expected_returns.values.astype(float))
+        mu = np.nan_to_num(expected_returns.values.astype(float), nan=0.0, posinf=0.0, neginf=0.0)
+        mu = np.maximum(0.0, mu)
         if volatilities is not None and not volatilities.empty:
-            vols = np.maximum(0.005, volatilities.reindex(symbols).fillna(0.02).values.astype(float))
+            raw_vols = volatilities.reindex(symbols).fillna(0.02).values.astype(float)
+            raw_vols = np.nan_to_num(raw_vols, nan=0.02, posinf=0.02, neginf=0.02)
+            vols = np.maximum(0.005, raw_vols)
         else:
             vols = np.full(n_assets, 0.02)
 
@@ -309,7 +312,7 @@ class PortfolioAllocator:
         # Normalize and scale by fractional kelly
         norm_w = raw_kelly / total_k
         # Kelly Conviction Boost, Ultra Conviction & Lower-Tail Attenuation for alpha signals
-        if len(norm_w) >= 4:
+        if len(norm_w) >= 4 and np.std(norm_w) > 1e-8:
             p95 = np.percentile(norm_w, 95)
             p90 = np.percentile(norm_w, 90)
             p75 = np.percentile(norm_w, 75)
