@@ -525,8 +525,16 @@ class RiskManager:
         dxy: float | None = None,
     ) -> CrisisLevel:
         """Evaluate crisis level using VIX + macro indicators + drawdown."""
+        safe_vix = 20.0
+        try:
+            if vix is not None:
+                fv = float(vix)
+                safe_vix = fv if (fv > 0 and not np.isnan(fv) and not np.isinf(fv)) else 20.0
+        except (ValueError, TypeError):
+            safe_vix = 20.0
+
         return self.crisis_detector.evaluate(
-            vix=vix,
+            vix=safe_vix,
             positions=positions,
             daily_volume_ratio=daily_volume_ratio,
             market_data_cache=market_data_cache,
