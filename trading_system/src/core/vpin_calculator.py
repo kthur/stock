@@ -42,7 +42,9 @@ class VPINCalculator:
         volumes = np.nan_to_num(volumes, nan=0.0, posinf=0.0, neginf=0.0)
 
         price_diffs = np.diff(prices)
-        std_diff = np.std(price_diffs) + 1e-8
+        std_diff = float(np.std(price_diffs))
+        if std_diff <= 1e-8 or np.isnan(std_diff) or np.isinf(std_diff):
+            std_diff = 1e-4
         z_scores = price_diffs / std_diff
 
         # Bulk Volume Classification (BVC)
