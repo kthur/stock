@@ -395,9 +395,13 @@ def apply_portfolio_constraints(
             if sum_w > 1e-12:
                 w /= sum_w
 
-    sum_w = np.sum(w)
+    w = np.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0)
+    w = np.clip(w, 0.0, 1.0)
+    sum_w = float(np.sum(w))
     if sum_w > 1e-12:
         w /= sum_w
+    else:
+        w = np.full(n, 1.0 / n) if n > 0 else w
 
     return w
 
