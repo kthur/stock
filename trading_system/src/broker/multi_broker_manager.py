@@ -67,12 +67,13 @@ class MultiBrokerManager:
             self.logger.error(f"Unknown broker type: {broker_type}")
             return False
 
+        safe_acc = str(account_number) if account_number is not None else ""
         broker = self.brokers[broker_type]
-        result = broker.connect(account_number)
+        result = broker.connect(safe_acc)
 
         if result:
             self.active_broker = broker_type
-            self.logger.info(f"Connected to {broker_type.value} with account {account_number}")
+            self.logger.info(f"Connected to {broker_type.value} with account {safe_acc}")
 
         return result
 
