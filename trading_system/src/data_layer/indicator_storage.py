@@ -519,7 +519,8 @@ class MarketIndicatorStorage:
                         sp500_set.add(sym)
                         sec = str(row.get('Sector') or row.get('GICS Sector') or row.get('GICS_Sector') or '')
                         ind = str(row.get('Industry') or row.get('GICS Sub-Industry') or row.get('GICS_Sub_Industry') or '')
-                        sp500_tuples.append((sym, row['Name'], 'SP500', sec, ind))
+                        name = str(row.get('Name') or sym)
+                        sp500_tuples.append((sym, name, 'SP500', sec, ind))
                     if sp500_tuples:
                         conn.executemany(
                             "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
