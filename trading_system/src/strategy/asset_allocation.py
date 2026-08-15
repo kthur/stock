@@ -15,7 +15,15 @@ def _compute_returns(prices: List[float]) -> List[float]:
     """Compute period-over-period simple returns from a price series."""
     if len(prices) < 2:
         return []
-    return [(prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))]
+    returns = []
+    for i in range(1, len(prices)):
+        prev = prices[i - 1]
+        cur = prices[i]
+        if prev > 0 and not math.isnan(prev) and not math.isnan(cur):
+            returns.append((cur - prev) / prev)
+        else:
+            returns.append(0.0)
+    return returns
 
 
 def _stdev(values: List[float]) -> float:
