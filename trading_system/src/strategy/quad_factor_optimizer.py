@@ -66,16 +66,18 @@ class QuadFactorNeutralOptimizer:
             r_vec = expected_returns.values
         elif isinstance(expected_returns, dict):
             symbols = list(expected_returns.keys())
-            r_vec = np.array([expected_returns[s] for s in symbols])
+            r_vec = np.array([expected_returns[s] for s in symbols], dtype=np.float64)
         else:
             symbols = list(expected_returns)
-            r_vec = np.array([expected_returns[s] for s in symbols])
+            r_vec = np.array([expected_returns[s] for s in symbols], dtype=np.float64)
 
         n = len(symbols)
         if n == 0:
             return {}
         if n == 1:
             return {symbols[0]: 1.0}
+
+        r_vec = np.nan_to_num(r_vec, nan=0.0, posinf=0.0, neginf=0.0)
 
         eff_max_w = max_asset_weight or max_weight or self.default_max_weight
         eff_max_sec_w = max_sector_weight or self.default_max_sector_weight
@@ -85,14 +87,14 @@ class QuadFactorNeutralOptimizer:
             cov_mat = cov_matrix.loc[symbols, symbols].values
         else:
             cov_mat = np.asarray(cov_matrix)
-        cov_mat = np.nan_to_num(cov_mat, nan=0.0)
+        cov_mat = np.nan_to_num(cov_mat, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Factor matrix F (n x 4)
         F = np.zeros((n, 4), dtype=np.float64)
         for i, col in enumerate(["beta", "size", "volatility", "momentum"]):
             if isinstance(factor_df, pd.DataFrame) and col in factor_df.columns:
                 raw_f = factor_df.loc[symbols, col].values
-                raw_f = np.nan_to_num(raw_f, nan=0.0)
+                raw_f = np.nan_to_num(raw_f, nan=0.0, posinf=0.0, neginf=0.0)
                 std_val = float(np.std(raw_f))
                 if std_val > 1e-8:
                     F[:, i] = (raw_f - np.mean(raw_f)) / std_val
@@ -175,15 +177,16 @@ class QuadFactorNeutralOptimizer:
                 options={"maxiter": 300, "ftol": 1e-6},
             )
 
-        w_opt = np.clip(res.x, 0.0, eff_max_w)
-        w_sum = np.sum(w_opt)
+        w_opt = np.nan_to_num(res.x, nan=0.0, posinf=0.0, neginf=0.0)
+        w_opt = np.clip(w_opt, 0.0, eff_max_w)
+        w_sum = float(np.sum(w_opt))
 
         if not isinfeasible_sector and w_sum > 0:
             w_opt /= w_sum
         elif isinfeasible_sector and w_sum > 1.0:
             w_opt /= w_sum
 
-        return {symbols[i]: float(w_opt[i]) for i in range(n)}
+        return {symbols[i]: float(w_opt[i]) if (i < len(w_opt) and np.isfinite(w_opt[i])) else 0.0 for i in range(n)}
 
     def optimize_portfolio(self, *args, **kwargs) -> Dict[str, float]:
         return self.optimize(*args, **kwargs)
