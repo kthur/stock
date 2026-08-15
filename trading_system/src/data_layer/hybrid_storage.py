@@ -37,15 +37,19 @@ def execute_sqlite_with_retry(
     Executes a database write callable with exponential backoff and random jitter,
     retrying transient sqlite3.OperationalError ("database is locked") to eliminate lock failures.
     """
-    for attempt in range(max_retries):
+    safe_retries = max(1, int(max_retries)) if max_retries is not None else 10
+    safe_base = max(0.001, float(base_delay)) if base_delay is not None else 0.05
+    safe_max = max(safe_base, float(max_delay)) if max_delay is not None else 0.5
+
+    for attempt in range(safe_retries):
         try:
             return fn()
         except sqlite3.OperationalError as e:
             if "locked" in str(e).lower() or "busy" in str(e).lower():
-                if attempt == max_retries - 1:
-                    logger.error(f"SQLite write lock exhausted after {max_retries} retries: {e}")
+                if attempt == safe_retries - 1:
+                    logger.error(f"SQLite write lock exhausted after {safe_retries} retries: {e}")
                     raise e
-                sleep_time = min(max_delay, base_delay * (2 ** attempt)) + random.uniform(0, 0.02)
+                sleep_time = min(safe_max, safe_base * (2 ** attempt)) + random.uniform(0, 0.02)
                 time.sleep(sleep_time)
             else:
                 raise e
