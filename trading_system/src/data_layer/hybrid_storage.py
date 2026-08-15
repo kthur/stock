@@ -162,6 +162,15 @@ class ParquetWALBuffer:
         for sym_part, f_list in symbol_files.items():
             try:
                 dfs = [_normalize_date_column(pd.read_parquet(fp)) for fp in f_list]
+                dfs = [d for d in dfs if d is not None and not d.empty]
+                if not dfs:
+                    for fp in f_list:
+                        try:
+                            fp.unlink()
+                        except Exception:
+                            pass
+                    continue
+
                 combined = pd.concat(dfs, ignore_index=True)
 
                 if "index" in combined.columns and "date" not in combined.columns:
@@ -175,24 +184,30 @@ class ParquetWALBuffer:
                 # Save master parquet
                 master_sym_path = self.master_dir / f"{sym_part}.parquet"
                 if master_sym_path.exists():
-                    existing = pd.read_parquet(master_sym_path)
-                    if not existing.empty:
-                        existing_norm = _normalize_date_column(existing)
-                        combined_reset = _normalize_date_column(combined)
-                        merged = pd.concat([existing_norm, combined_reset], ignore_index=True)
-                        if "index" in merged.columns and "date" not in merged.columns:
-                            merged.rename(columns={"index": "date"}, inplace=True)
-                        if "date" in merged.columns:
-                            merged = merged.dropna(subset=["date"])
-                            merged = merged.drop_duplicates(subset=["date"], keep="last").sort_values("date")
-                            merged.set_index("date", inplace=True)
-                        combined = merged
+                    try:
+                        existing = pd.read_parquet(master_sym_path)
+                        if existing is not None and not existing.empty:
+                            existing_norm = _normalize_date_column(existing)
+                            combined_reset = _normalize_date_column(combined)
+                            merged = pd.concat([existing_norm, combined_reset], ignore_index=True)
+                            if "index" in merged.columns and "date" not in merged.columns:
+                                merged.rename(columns={"index": "date"}, inplace=True)
+                            if "date" in merged.columns:
+                                merged = merged.dropna(subset=["date"])
+                                merged = merged.drop_duplicates(subset=["date"], keep="last").sort_values("date")
+                                merged.set_index("date", inplace=True)
+                            combined = merged
+                    except Exception as read_err:
+                        logger.warning(f"Error reading existing master parquet for {sym_part}: {read_err}")
 
                 out_df = _normalize_date_column(combined)
-                out_df.to_parquet(master_sym_path, compression="snappy", index=False)
+                if not out_df.empty:
+                    tmp_master_path = master_sym_path.with_suffix(".tmp")
+                    out_df.to_parquet(tmp_master_path, compression="snappy", index=False)
+                    tmp_master_path.replace(master_sym_path)
 
                 # Call optional SQLite callback in consolidated batch
-                if db_callback:
+                if db_callback and not combined.empty:
                     db_callback(sym_part, combined)
 
                 # Unlink staging files
