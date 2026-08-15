@@ -6,6 +6,7 @@ import time
 from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional
+import numpy as np
 import pandas as pd
 
 from src.core.order_management import OrderType
@@ -797,6 +798,8 @@ class TelegramBotEngine:
         strat_name, w_str = args[0], args[1]
         try:
             w_val = float(w_str)
+            if not np.isfinite(w_val) or w_val < 0.0 or w_val > 1.0:
+                return f"❌ 오류: 가중치는 0.0 ~ 1.0 사이의 유한수여야 합니다: `{w_str}`"
             return f"✅ *[STRATEGY OVERRIDE]*\n\n전략 `{strat_name}` 가중치가 `{w_val:.2f}`로 수동 오버라이드 되었습니다."
         except ValueError:
             return f"❌ 오류: 유효하지 않은 가중치 수치입니다: `{w_str}`"
