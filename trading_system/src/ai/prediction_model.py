@@ -1522,6 +1522,8 @@ class OnDevicePredictionModel:
 
             # ── Walk-Forward cross-validation (with strict in-fold scaler fitting & embargo gap >= h) ─────
             fold_mse_xgb, fold_mse_lgb, fold_mse_cat = [], [], []
+            fold_ic_xgb, fold_ic_lgb, fold_ic_cat = [], [], []
+            best_iters_xgb, best_iters_lgb, best_iters_cat = [], [], []
             splits = []
             if use_wf and len(df_h) >= 200:
                 embargo_gap = max(gap, h)
@@ -1530,6 +1532,16 @@ class OnDevicePredictionModel:
                     splits = list(tscv_h.split(df_h))
                 except (ValueError, Exception):
                     splits = []
+
+            def _calc_rank_ic(y_true, y_pred):
+                try:
+                    from scipy.stats import spearmanr
+                    if len(y_true) < 5 or np.std(y_true) < 1e-7 or np.std(y_pred) < 1e-7:
+                        return 0.0
+                    corr, _ = spearmanr(y_true, y_pred)
+                    return float(corr) if (corr is not None and math.isfinite(float(corr))) else 0.0
+                except Exception:
+                    return 0.0
 
             if splits:
                 for fold_idx, (tr_idx, va_idx) in enumerate(splits):
@@ -1547,6 +1559,8 @@ class OnDevicePredictionModel:
                     _m_xgb = xgb.XGBRegressor(**kw_xgb)
                     try:
                         _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                        if hasattr(_m_xgb, 'best_iteration') and _m_xgb.best_iteration is not None:
+                            best_iters_xgb.append(_m_xgb.best_iteration)
                     except Exception as ex:
                         if _is_gpu_error(ex):
                             kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
@@ -1558,6 +1572,7 @@ class OnDevicePredictionModel:
                     y_va_clean = np.nan_to_num(y_va, nan=0.0, posinf=0.0, neginf=0.0)
                     pred_xgb_clean = np.nan_to_num(_m_xgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_xgb.append(float(mean_squared_error(y_va_clean, pred_xgb_clean)))
+                    fold_ic_xgb.append(_calc_rank_ic(y_va_clean, pred_xgb_clean))
 
                     # LightGBM fold
                     _m_lgb = lgb.LGBMRegressor(**kw_lgb)
@@ -1565,6 +1580,8 @@ class OnDevicePredictionModel:
                         _m_lgb.fit(X_tr, y_tr,
                                    eval_set=[(X_va, y_va)],
                                    callbacks=[lgb.early_stopping(50, verbose=False)])
+                        if hasattr(_m_lgb, 'best_iteration_') and _m_lgb.best_iteration_ is not None:
+                            best_iters_lgb.append(_m_lgb.best_iteration_)
                     except Exception as ex:
                         if _is_gpu_error(ex):
                             kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
@@ -1574,16 +1591,21 @@ class OnDevicePredictionModel:
                             _m_lgb.fit(X_tr, y_tr)
                     pred_lgb_clean = np.nan_to_num(_m_lgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_lgb.append(float(mean_squared_error(y_va_clean, pred_lgb_clean)))
+                    fold_ic_lgb.append(_calc_rank_ic(y_va_clean, pred_lgb_clean))
 
                     # CatBoost fold
                     try:
                         if len(np.unique(y_tr)) > 1:
                             _m_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
                             _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                            if hasattr(_m_cat, 'get_best_iteration') and _m_cat.get_best_iteration() is not None:
+                                best_iters_cat.append(_m_cat.get_best_iteration())
                             pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                             fold_mse_cat.append(float(mean_squared_error(y_va_clean, pred_cat_clean)))
+                            fold_ic_cat.append(_calc_rank_ic(y_va_clean, pred_cat_clean))
                         else:
                             fold_mse_cat.append(1.0)
+                            fold_ic_cat.append(0.0)
                     except Exception as ex:
                         if _is_gpu_error(ex):
                             kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
@@ -1591,23 +1613,32 @@ class OnDevicePredictionModel:
                             _m_cat.fit(X_tr, y_tr, verbose=False)
                             pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                             fold_mse_cat.append(float(mean_squared_error(y_va_clean, pred_cat_clean)))
+                            fold_ic_cat.append(_calc_rank_ic(y_va_clean, pred_cat_clean))
                         else:
                             fold_mse_cat.append(1.0)
+                            fold_ic_cat.append(0.0)
 
                     logger.debug(
                         f"{market} {h}d fold {fold_idx+1}/{n_splits}: "
-                        f"XGB={fold_mse_xgb[-1]:.4f} LGB={fold_mse_lgb[-1]:.4f} Cat={fold_mse_cat[-1]:.4f}"
+                        f"XGB(MSE={fold_mse_xgb[-1]:.4f}, IC={fold_ic_xgb[-1]:.3f}) "
+                        f"LGB(MSE={fold_mse_lgb[-1]:.4f}, IC={fold_ic_lgb[-1]:.3f}) "
+                        f"Cat(MSE={fold_mse_cat[-1]:.4f}, IC={fold_ic_cat[-1]:.3f})"
                     )
 
                 avg_mse_xgb = float(np.mean(fold_mse_xgb)) if fold_mse_xgb else 1.0
                 avg_mse_lgb = float(np.mean(fold_mse_lgb)) if fold_mse_lgb else 1.0
                 avg_mse_cat = float(np.mean(fold_mse_cat)) if fold_mse_cat else 1.0
+                avg_ic_xgb = float(np.mean(fold_ic_xgb)) if fold_ic_xgb else 0.0
+                avg_ic_lgb = float(np.mean(fold_ic_lgb)) if fold_ic_lgb else 0.0
+                avg_ic_cat = float(np.mean(fold_ic_cat)) if fold_ic_cat else 0.0
                 logger.info(
-                    f"{market} {h}d WF avg MSE: XGB={avg_mse_xgb:.4f} LGB={avg_mse_lgb:.4f} Cat={avg_mse_cat:.4f}"
+                    f"{market} {h}d WF avg: XGB(MSE={avg_mse_xgb:.4f}, IC={avg_ic_xgb:.3f}) "
+                    f"LGB(MSE={avg_mse_lgb:.4f}, IC={avg_ic_lgb:.3f}) Cat(MSE={avg_mse_cat:.4f}, IC={avg_ic_cat:.3f})"
                 )
             else:
                 # No walk-forward: equal weights, no MSE estimation
                 avg_mse_xgb = avg_mse_lgb = avg_mse_cat = 1.0
+                avg_ic_xgb = avg_ic_lgb = avg_ic_cat = 0.0
 
             # ── Final model: retrain on ALL data ────────────────────────────
             scaler = fit_scaler(df_h, features, str(self.model_dir), market, h)
@@ -1678,20 +1709,27 @@ class OnDevicePredictionModel:
                 except Exception as _l_err:
                     logger.warning(f"LSTM training skipped for {market} {h}d: {_l_err}")
 
-            # ── Ensemble weights from walk-forward averaged MSE ─────────────
+            # ── Ensemble weights from walk-forward averaged Rank IC and MSE ─────────────
             use_lstm = mse_lstm < 1e5
-            sum_inv_mse = (
-                (1.0 / max(avg_mse_xgb, 1e-6))
-                + (1.0 / max(avg_mse_lgb, 1e-6))
-                + (1.0 / max(avg_mse_cat, 1e-6))
-            )
-            if use_lstm:
-                sum_inv_mse += (1.0 / max(mse_lstm, 1e-6))
 
-            w_xgb = (1.0 / max(avg_mse_xgb, 1e-6)) / sum_inv_mse
-            w_lgb = (1.0 / max(avg_mse_lgb, 1e-6)) / sum_inv_mse
-            w_cat = (1.0 / max(avg_mse_cat, 1e-6)) / sum_inv_mse
-            w_lstm = ((1.0 / max(mse_lstm, 1e-6)) / sum_inv_mse) if use_lstm else 0.0
+            # Rank IC exponential scaling (tau=5.0) to favor models with superior cross-sectional ranking ability
+            ic_xgb_clamped = max(-0.1, min(0.5, avg_ic_xgb))
+            ic_lgb_clamped = max(-0.1, min(0.5, avg_ic_lgb))
+            ic_cat_clamped = max(-0.1, min(0.5, avg_ic_cat))
+
+            score_xgb = (1.0 / max(avg_mse_xgb, 1e-6)) * float(np.exp(5.0 * ic_xgb_clamped))
+            score_lgb = (1.0 / max(avg_mse_lgb, 1e-6)) * float(np.exp(5.0 * ic_lgb_clamped))
+            score_cat = (1.0 / max(avg_mse_cat, 1e-6)) * float(np.exp(5.0 * ic_cat_clamped))
+            score_lstm = (1.0 / max(mse_lstm, 1e-6)) if use_lstm else 0.0
+
+            sum_scores = score_xgb + score_lgb + score_cat + score_lstm
+            if sum_scores > 0:
+                w_xgb = score_xgb / sum_scores
+                w_lgb = score_lgb / sum_scores
+                w_cat = score_cat / sum_scores
+                w_lstm = (score_lstm / sum_scores) if use_lstm else 0.0
+            else:
+                w_xgb, w_lgb, w_cat, w_lstm = 0.33, 0.33, 0.34, 0.0
 
             # Evaluate final model on last fold's val set (only if WF ran)
             if market not in self.validation_metrics["regression"]:

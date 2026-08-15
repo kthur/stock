@@ -18,18 +18,59 @@ logger = logging.getLogger(__name__)
 
 # Key customer-supplier value chain mappings (Symbol -> Lead Market Leaders)
 LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
-    # Semiconductor Equipment / Materials -> Customer Leaders
-    "005930": ["NVDA", "AAPL", "MSFT"],       # Samsung Electronics -> NVDA/AAPL/MSFT
-    "000660": ["NVDA", "AAPL"],               # SK Hynix -> NVDA/AAPL
-    "042700": ["005930", "000660"],           # Hanmi Semiconductor -> Samsung / SK Hynix
-    "036540": ["005930", "000660"],           # SFA -> Samsung / SK Hynix
-    "053800": ["TSLA"],                       # Hyundai Motor -> TSLA
-    "006400": ["TSLA", "AAPL"],               # Samsung SDI -> TSLA / AAPL
-    "373220": ["TSLA"],                       # LG Energy Solution -> TSLA
-    "NVDA": ["AAPL", "MSFT", "GOOGL", "AMZN"],# NVDA -> Tech Giants
-    "ASML": ["NVDA", "TSM", "AAPL"],          # ASML -> NVDA/TSM/AAPL
-    "AMAT": ["NVDA", "TSM", "INTC"],          # Applied Materials -> NVDA/TSM
-    "LRCX": ["NVDA", "TSM", "000660"],        # Lam Research -> NVDA/SK Hynix
+    # Semiconductor Memory & Foundries -> Global Tech / AI Leaders
+    "005930": ["NVDA", "AAPL", "MSFT", "GOOGL"], # Samsung Electronics -> NVDA/AAPL/MSFT
+    "000660": ["NVDA", "AAPL", "MSFT"],         # SK Hynix -> NVDA/AAPL
+    "TSM": ["AAPL", "NVDA", "AMD", "QCOM"],      # TSMC -> Apple/NVIDIA/AMD
+    # KRX Semiconductor Equipment & Packaging Vendors -> Samsung / SK Hynix / NVDA
+    "042700": ["000660", "005930", "NVDA"],     # Hanmi Semiconductor -> HBM Lead Vendor
+    "036540": ["005930", "000660"],             # SFA -> Samsung / SK Hynix
+    "240810": ["005930", "000660", "TSM"],      # Wonik IPS -> Memory/Foundry
+    "039030": ["005930", "000660"],             # EO Technics -> Semiconductor Laser
+    "058470": ["005930", "000660"],             # L&C Bio / Reno Industrial
+    "095610": ["005930", "000660"],             # TES -> Memory Fab
+    "036930": ["005930", "000660"],             # Ju Sung Engineering
+    "084370": ["005930", "000660"],             # YIK -> Memory Test
+    "101490": ["005930", "000660"],             # SnS Tech -> EUV Blankmask
+    "108320": ["005930", "000660"],             # Dongjin Semichem -> PR / Materials
+    "067310": ["005930", "000660"],             # Hana Micron -> OSAT
+    "053690": ["005930", "000660"],             # HanKook M&A / Hana Materials
+    "222800": ["005930", "000660"],             # Simmtech -> PCB / Substrate
+    "077360": ["005930", "000660"],             # Duksan Neolux -> OLED
+    # EV & Battery Value Chain -> Tesla / Hyundai / LG Energy Solution
+    "373220": ["TSLA", "GM", "F"],              # LG Energy Solution -> Tesla / US Autos
+    "006400": ["TSLA", "AAPL", "BMW"],          # Samsung SDI -> Tesla / Premium EV
+    "051910": ["373220", "TSLA"],               # LG Chem -> LGES / Battery
+    "247540": ["373220", "006400", "TSLA"],     # Ecopro BM -> Cathode to LGES / SDI
+    "086520": ["247540", "373220"],             # Ecopro -> Battery Eco
+    "003670": ["373220", "006400"],             # POSCO Future M -> Cathode/Anode
+    "096770": ["373220", "F"],                  # SK Innovation -> SK On
+    "278280": ["373220", "006400"],             # Chunbo -> Electrolyte Additive
+    "137310": ["373220", "006400"],             # Cosmax / Cosmo AM&T
+    "091990": ["005930", "373220"],             # Celltrion Healthcare
+    # Automotive OEM & Tier-1 Suppliers -> Hyundai / Kia / Tesla
+    "053800": ["TSLA", "TM"],                   # Hyundai Motor -> Global Auto
+    "000270": ["053800", "TSLA"],               # Kia -> Hyundai / Global EV
+    "012330": ["053800", "000270"],             # Hyundai Mobis -> Hyundai / Kia
+    "018880": ["053800", "000270", "F"],        # Hanon Systems -> Thermal Mgmt
+    "204320": ["053800", "000270"],             # HL Mando -> Chassis / ADAS
+    "005830": ["053800", "000270"],             # DB Insurance / SL Corp -> Lighting
+    "011210": ["053800", "000270"],             # Hyundai Wia -> Powertrain
+    # US AI / Cloud Hardware Value Chain -> Megacap Tech Leaders
+    "NVDA": ["AAPL", "MSFT", "GOOGL", "AMZN", "META"], # Nvidia -> Hyperscalers
+    "AMD": ["MSFT", "GOOGL", "AMZN", "META"],          # AMD -> Cloud Hyperscalers
+    "ASML": ["TSM", "INTC", "005930"],                  # ASML -> Lithography Customers
+    "AMAT": ["TSM", "005930", "INTC", "000660"],       # Applied Materials -> Fabs
+    "LRCX": ["TSM", "000660", "005930"],               # Lam Research -> Memory & Foundry
+    "KLAC": ["TSM", "005930", "INTC"],                 # KLA -> Process Control
+    "AVGO": ["AAPL", "GOOGL", "META"],                 # Broadcom -> Custom Silicon / Networking
+    "MRVL": ["MSFT", "AMZN", "GOOGL"],                 # Marvell -> AI Optical & DSP
+    "ANET": ["MSFT", "META", "GOOGL"],                 # Arista Networks -> Cloud Switches
+    "SMCI": ["NVDA", "AMD", "INTC"],                   # Super Micro -> GPU Server Integration
+    "VRT": ["MSFT", "AMZN", "NVDA"],                   # Vertiv -> Data Center Power & Cooling
+    "ARM": ["AAPL", "NVDA", "QCOM", "GOOGL"],          # ARM -> IP Licensees
+    "MU": ["NVDA", "AAPL", "MSFT"],                    # Micron -> Memory / AI Server
+    "QCOM": ["AAPL", "SAMSUNG", "XIAOMI"],             # Qualcomm -> Handset & Auto
 }
 
 
