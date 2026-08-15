@@ -758,12 +758,21 @@ class PortfolioAllocator:
         atr_clean = max(atr_20d, current_price * 0.005)
         stop_dist = multiplier * atr_clean
 
+        safe_ref = None
+        try:
+            if highest_price is not None:
+                hp = float(highest_price)
+                if hp > 0 and not np.isnan(hp) and not np.isinf(hp):
+                    safe_ref = hp
+        except (ValueError, TypeError):
+            safe_ref = None
+
         if is_long:
-            ref_price = max(highest_price, current_price) if (highest_price is not None and highest_price > 0) else current_price
+            ref_price = max(safe_ref, current_price) if safe_ref is not None else current_price
             stop_loss = max(0.0, ref_price - stop_dist)
             take_profit = current_price + (1.5 * stop_dist)
         else:
-            ref_price = min(highest_price, current_price) if (highest_price is not None and highest_price > 0) else current_price
+            ref_price = min(safe_ref, current_price) if safe_ref is not None else current_price
             stop_loss = ref_price + stop_dist
             take_profit = max(0.0, current_price - (1.5 * stop_dist))
 
