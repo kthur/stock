@@ -3,7 +3,6 @@ Feast Feature Store Definitions Module
 Defines Entities, Feature Views, and Sources for zero-leakage offline (Parquet/PostgreSQL) and online (Redis) feature serving.
 """
 
-from datetime import timedelta
 import logging
 from typing import Dict, Any, List
 

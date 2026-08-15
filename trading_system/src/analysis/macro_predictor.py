@@ -5,7 +5,6 @@ Trains a RandomForestRegressor to predict stock excess returns over a benchmark.
 
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 

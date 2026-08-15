@@ -6,7 +6,7 @@ Applies overlapping patch embeddings and multi-head self-attention for multi-hor
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ Models Graph Attention Network (GAT) node attention across supply chain & indust
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class GNNSupplyChainLeadLagEngine:
         Calculates Strategy #36 GNN Supply Chain scores across all stocks in universe.
         """
         results = []
-        
+
         # Build 1-day price momentum for all symbols
         returns_1d = {}
         for sym, df_p in prices_dict.items():

@@ -5,8 +5,7 @@ Calculates multi-level Order Book Imbalance (OBI) and Weighted Micro-Price (P_mi
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 

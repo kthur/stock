@@ -103,7 +103,7 @@ def fetch_quotes_yfinance(symbols: List[str], market_of: Dict[str, str]) -> Dict
                 prev_close = float(df["Close"].dropna().iloc[-2]) if len(df["Close"].dropna()) >= 2 else 0.0
                 if not math.isfinite(prev_close):
                     prev_close = 0.0
-                
+
                 open_p = float(df["Open"].dropna().iloc[-1]) if "Open" in df and not df["Open"].dropna().empty else 0.0
                 high_p = float(df["High"].dropna().tail(1).iloc[0]) if "High" in df and not df["High"].dropna().empty else 0.0
                 low_p = float(df["Low"].dropna().tail(1).iloc[0]) if "Low" in df and not df["Low"].dropna().empty else 0.0

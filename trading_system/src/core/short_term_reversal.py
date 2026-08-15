@@ -110,7 +110,7 @@ class ShortTermReversalEngine(BaseStrategyEngine):
 
         # First green bounce bonus with volume confirmation to prioritize turnaround over falling knives
         ret_1d = (cur_price / close_2d.iloc[-2]) - 1.0
-        
+
         # Calculate volume surge if available
         vol_cols = {}
         for sym in close_2d.columns:
@@ -120,7 +120,7 @@ class ShortTermReversalEngine(BaseStrategyEngine):
                 vol_s = df_sym[v_col].dropna()
                 if len(vol_s) >= 6:
                     vol_cols[sym] = vol_s
-        
+
         if vol_cols:
             vol_2d = pd.DataFrame(vol_cols).reindex(columns=close_2d.columns).ffill().tail(6)
             cur_vol = vol_2d.iloc[-1]

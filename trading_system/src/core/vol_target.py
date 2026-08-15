@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,6 @@ class VolTargetingEngine(BaseStrategyEngine):
         df_prices = kwargs.get("df_prices", prices_dict)
         universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
 
-        results: List[Dict[str, Any]] = []
         if df_prices is None or universe is None or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "vol_target_score"])
 

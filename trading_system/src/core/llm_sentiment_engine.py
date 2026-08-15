@@ -187,7 +187,7 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
     ) -> Any:
         """Compute NLP sentiment catalyst score (0% to 100%) for universe symbols. Returns NaN if no filing text exists."""
         import pandas as pd
-        
+
         universe = kwargs.get("universe", kwargs.get("universe_df"))
         filings_map = kwargs.get("filings_map") or {}
 

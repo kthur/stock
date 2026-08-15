@@ -5,7 +5,7 @@ Instruments pipeline latency, model drift alerts, OMS execution timing, and syst
 
 import time
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)

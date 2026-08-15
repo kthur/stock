@@ -6,7 +6,6 @@ Extends SQLite storage to scalable PostgreSQL/TimescaleDB for enterprise time-se
 import logging
 import sqlite3
 from typing import Dict, List, Any, Optional
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

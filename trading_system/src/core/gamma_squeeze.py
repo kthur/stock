@@ -73,7 +73,7 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                 if df is not None and len(df) >= 10:
                     c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
                     v_col = 'volume' if 'volume' in df.columns else ('Volume' if 'Volume' in df.columns else None)
-                    
+
                     if c_col:
                         c = df[c_col].dropna()
                         v = df[v_col].dropna() if v_col else None

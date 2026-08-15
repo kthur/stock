@@ -121,7 +121,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
 
         # Signed trend score: High KER + High Hurst on uptrend yields high score; downtrend penalizes
         # High conviction persistent trend accelerator (KER > 0.50 and Hurst > 0.55 on strong uptrend)
-        trend_mult = np.where((weighted_ker > 0.55) & (hurst > 0.58) & (ret_20d > 0.05), 1.20, 
+        trend_mult = np.where((weighted_ker > 0.55) & (hurst > 0.58) & (ret_20d > 0.05), 1.20,
                               np.where((weighted_ker > 0.45) & (hurst > 0.52) & (ret_20d > 0.02), 1.10, 1.0))
         score_arr = np.where(
             ret_20d >= 0,

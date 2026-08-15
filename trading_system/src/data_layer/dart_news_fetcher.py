@@ -191,7 +191,7 @@ class DARTNewsFetcher:
                     clean_titles.append(clean)
 
             # Scan cleaned titles for risk keywords
-            for title in clean_titles:
+            for title in clean_titles[:safe_max]:
                 kw = self._match_risk_keyword(title)
                 if kw:
                     events.append(

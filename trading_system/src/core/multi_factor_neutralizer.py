@@ -9,7 +9,7 @@ extracting pure idiosyncratic alpha scores with guaranteed |rho| < 0.15.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
 

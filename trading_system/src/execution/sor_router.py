@@ -4,8 +4,7 @@ Aggregates KRX Nextrade (NXT) ATS and US Lit/Dark pool liquidity to minimize exe
 """
 
 import logging
-import numpy as np
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 

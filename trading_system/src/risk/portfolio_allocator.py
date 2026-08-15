@@ -709,7 +709,7 @@ class PortfolioAllocator:
             tbl = 'trade_logs' if 'trade_logs' in tables else 'orders'
             cursor.execute(f"PRAGMA table_info({tbl});")
             cols = [r[1] for r in cursor.fetchall()]
-            
+
             p_col = 'order_price' if 'order_price' in cols else ('price' if 'price' in cols else None)
             exec_col = 'executed_price' if 'executed_price' in cols else ('price' if 'price' in cols else None)
 

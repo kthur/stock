@@ -167,7 +167,8 @@ class KiwoomConnector:
         Returns:
             주문 번호
         """
-        import time, math
+        import time
+        import math
         try:
             q = max(0, int(quantity)) if quantity is not None else 0
             if q <= 0:

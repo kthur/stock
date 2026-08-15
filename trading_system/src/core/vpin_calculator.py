@@ -5,8 +5,7 @@ Estimates real-time adverse selection and toxic flow (BVC bulk volume classifica
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from scipy.stats import norm
 
 logger = logging.getLogger(__name__)

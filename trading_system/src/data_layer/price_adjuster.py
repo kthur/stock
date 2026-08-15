@@ -9,7 +9,6 @@ for all 31 multi-factor quantitative strategy engines.
 from __future__ import annotations
 
 import logging
-import math
 import numpy as np
 import pandas as pd
 

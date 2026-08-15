@@ -73,7 +73,8 @@ class SimulatedBrokerBase:
         return chart
 
     def place_order(self, code: str, quantity: int, price: float, order_type: str) -> str:
-        import time, math
+        import time
+        import math
         now = datetime.now()
         order_id = f"{self.ORDER_PREFIX}_{int(time.time() * 1000)}"
         q = max(0, int(quantity)) if quantity is not None else 0

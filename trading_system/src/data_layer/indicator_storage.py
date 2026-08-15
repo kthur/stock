@@ -1085,9 +1085,10 @@ class MarketIndicatorStorage:
 
     def get_outcome_performance_summary(self, days: int = 60) -> Dict[str, Any]:
         """Compute realized outcome statistics (Hit Rate %, avg return, win rate) for predictions in last N days."""
-        cutoff_date = (datetime.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+        safe_days = max(1, int(days)) if days is not None else 60
+        cutoff_date = (datetime.now() - pd.Timedelta(days=safe_days)).strftime("%Y-%m-%d")
         sql = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_predictions,
                 COUNT(actual_return_1d) as evaluated_1d,
                 AVG(actual_return_1d) as avg_ret_1d,

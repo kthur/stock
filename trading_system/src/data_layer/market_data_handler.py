@@ -39,17 +39,17 @@ def _fetch_naver_direct(symbol: str, start_date: Optional[str] = None) -> pd.Dat
                 date_str = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
                 if not start_date or date_str >= start_date:
                     try:
-                        o, h, l, c, v = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), float(parts[5])
+                        op, hi, lo, cl, vol = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), float(parts[5])
                         import math
-                        if not (math.isfinite(o) and math.isfinite(h) and math.isfinite(l) and math.isfinite(c)):
+                        if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
                             continue
                         rows.append({
                             'Date': pd.to_datetime(date_str, errors='coerce'),
-                            'Open': o,
-                            'High': h,
-                            'Low': l,
-                            'Close': c,
-                            'Volume': v if (math.isfinite(v) and v >= 0) else 0.0,
+                            'Open': op,
+                            'High': hi,
+                            'Low': lo,
+                            'Close': cl,
+                            'Volume': int(vol) if math.isfinite(vol) and vol >= 0 else 0,
                         })
                     except (ValueError, TypeError):
                         continue
