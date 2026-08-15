@@ -53,20 +53,26 @@ class MicrostructureCostModel:
 
     def calculate_bid_ask_spread(self, volatility: float, price: float, market: str = "KOSPI") -> float:
         """Estimate half-spread percentage based on price & volatility."""
-        if price <= 0:
-            return self.cfg.base_spread_pct
+        p = float(price) if (price is not None and math.isfinite(price) and price > 0) else 0.0
+        if p <= 0:
+            return float(self.cfg.base_spread_pct)
+        vol = max(0.001, float(volatility)) if (volatility is not None and math.isfinite(volatility) and volatility > 0) else 0.20
         mkt = (market or "").upper()
         threshold = 20.0 if mkt in ("SP500", "NASDAQ", "RUSSELL2000", "NYSE") else 10000.0
-        price_factor = 1.0 + max(0.0, (threshold - price) / threshold) if price < threshold else 1.0
-        spread = max(self.cfg.base_spread_pct, (0.0002 + (volatility * 0.02)) * price_factor)
+        price_factor = 1.0 + max(0.0, (threshold - p) / threshold) if p < threshold else 1.0
+        spread = max(self.cfg.base_spread_pct, (0.0002 + (vol * 0.02)) * price_factor)
         return float(spread)
 
     def calculate_market_impact(self, order_amount: float, adv: float, volatility: float) -> float:
         """Square-root market impact cost using daily volatility: Impact = gamma * daily_vol * sqrt(Order / ADV)."""
-        if adv <= 0 or order_amount <= 0:
+        amt = float(order_amount) if (order_amount is not None and math.isfinite(order_amount) and order_amount > 0) else 0.0
+        adv_val = float(adv) if (adv is not None and math.isfinite(adv) and adv > 0) else 0.0
+        vol = max(0.001, float(volatility)) if (volatility is not None and math.isfinite(volatility) and volatility > 0) else 0.20
+
+        if adv_val <= 0 or amt <= 0:
             return 0.0005  # 5 bps fallback
-        participation_rate = min(1.0, order_amount / adv)
-        daily_vol = max(0.005, volatility / math.sqrt(252.0))
+        participation_rate = min(1.0, amt / adv_val)
+        daily_vol = max(0.005, vol / math.sqrt(252.0))
         impact = self.cfg.market_impact_gamma * daily_vol * math.sqrt(participation_rate)
         return float(impact)
 
