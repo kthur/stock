@@ -507,6 +507,7 @@ class StockPriceDB:
         has_close = "close" in cols
         has_vol = "volume" in cols
 
+        import math
         records = []
         for idx, row in df.iterrows():
             d_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
@@ -515,7 +516,11 @@ class StockPriceDB:
                 hi = float(row[cols["high"]]) if has_high else 0.0
                 lo = float(row[cols["low"]]) if has_low else 0.0
                 cl = float(row[cols["close"]]) if has_close else 0.0
-                vol = int(float(row[cols["volume"]])) if has_vol else 0
+                vol_f = float(row[cols["volume"]]) if has_vol else 0.0
+                vol = int(vol_f) if math.isfinite(vol_f) and vol_f >= 0 else 0
+
+                if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
+                    continue
             except (ValueError, TypeError, KeyError):
                 continue
             records.append((symbol, d_str, op, hi, lo, cl, vol))
