@@ -12,6 +12,7 @@ import math
 import re
 import logging
 from typing import Tuple, Dict, Any
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)

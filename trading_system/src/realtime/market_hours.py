@@ -8,6 +8,7 @@ NYSE  : 22:30 ~ 05:00 KST (Mon-Fri, KST 자정 넘김)  (DST: 21:30 ~ 04:00)
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class MarketSession:
 
 def _is_weekday_kst(now: datetime) -> bool:
     # KST 기준 평일이지만 US는 KST 금요일 새벽 = US 목요일 장중임을 별도 처리
-    return now.weekday() < 5
+    return bool(now.weekday() < 5)
 
 
 def is_krx_open(now: Optional[datetime] = None) -> bool:
@@ -37,7 +38,7 @@ def is_krx_open(now: Optional[datetime] = None) -> bool:
     if not _is_weekday_kst(now):
         return False
     t = now.time()
-    return time(9, 0) <= t <= time(15, 30)
+    return bool(time(9, 0) <= t <= time(15, 30))
 
 
 def is_us_open(now: Optional[datetime] = None) -> bool:

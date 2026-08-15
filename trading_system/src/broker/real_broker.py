@@ -93,9 +93,14 @@ class RealBroker(BrokerBase):
     Useful for testing strategies without live capital.
     """
 
-    def __init__(self):
+    def __init__(self, initial_balance: float = 100_000_000.0):
+        import math
         self.connected: bool = False
-        self._balance: float = 100_000_000.0  # ₩100M initial paper balance
+        try:
+            safe_bal = float(initial_balance) if (initial_balance is not None and math.isfinite(float(initial_balance))) else 100_000_000.0
+        except (ValueError, TypeError):
+            safe_bal = 100_000_000.0
+        self._balance: float = max(0.0, safe_bal)  # ₩100M initial paper balance
         self._positions: list = []
         self._order_history: list = []
 
