@@ -227,8 +227,9 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
 
                 vol_col = "volume" if "volume" in df_sym.columns else ("Volume" if "Volume" in df_sym.columns else None)
                 if vol_col and len(df_sym) >= 5:
-                    vols = df_sym[vol_col].tail(5).astype(float)
-                    vol_sma5 = max(1.0, float(vols.mean()))
+                    vols = pd.to_numeric(df_sym[vol_col].tail(5), errors="coerce").fillna(1.0)
+                    mean_val = float(vols.mean())
+                    vol_sma5 = mean_val if (mean_val > 0 and not np.isnan(mean_val)) else 1.0
                     auction_volume_accel = float(np.clip(volume / vol_sma5, 0.5, 3.0))
                 else:
                     auction_volume_accel = 1.0
