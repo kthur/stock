@@ -61,11 +61,11 @@ class TrainingStage(BaseStage):
 
 
 class InferenceStage(BaseStage):
-    """Stage 3: Execute inference across all 18 multi-factor strategies."""
+    """Stage 3: Execute inference across all 31 multi-factor strategies."""
     name = "InferenceStage"
 
     def execute(self, ctx: PipelineContext) -> PipelineContext:
-        logger.info(f"[{self.name}] Executing 18-strategy inference stage...")
+        logger.info(f"[{self.name}] Executing 31-strategy inference stage...")
         return ctx
 
 
@@ -74,7 +74,7 @@ class EnsembleStage(BaseStage):
     name = "EnsembleStage"
 
     def execute(self, ctx: PipelineContext) -> PipelineContext:
-        logger.info(f"[{self.name}] Executing dynamic ensemble & portfolio allocation stage...")
+        logger.info(f"[{self.name}] Executing dynamic 31-strategy ensemble & portfolio allocation stage...")
         return ctx
 
 

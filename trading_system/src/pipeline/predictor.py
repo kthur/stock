@@ -1,7 +1,7 @@
 """
 predictor.py — Inference & Ensemble Stage Pipeline Component
 
-Executes 30-strategy multi-factor signal generation, 2D/3D market regime detection,
+Executes 31-strategy multi-factor signal generation, 2D/3D market regime detection,
 dynamic exponential Sharpe weighting, microstructure cost deduction, and HRP portfolio allocation.
 """
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class PipelinePredictor:
     """
-    Inference & Ensemble Component: Evaluates all 30 strategies, applies 2D market regime
+    Inference & Ensemble Component: Evaluates all 31 strategies, applies 2D market regime
     weights, deducts STT tax / SEC fees / market impact, and generates final expected returns.
     """
 
@@ -28,7 +28,7 @@ class PipelinePredictor:
         vcp_ml_predictor: Any
     ) -> Dict[str, pd.DataFrame]:
         """Runs predictions across all available strategy engines."""
-        logger.info(f"[PipelinePredictor] Running 30-strategy inference pass across {len(symbols)} symbols...")
+        logger.info(f"[PipelinePredictor] Running 31-strategy inference pass across {len(symbols)} symbols...")
         results = {}
 
         # 1. Regression & Surge Predictions
@@ -64,19 +64,22 @@ class PipelinePredictor:
         target_horizon: int = 20
     ) -> pd.DataFrame:
         """Ensembles all strategy outputs using 2D Market Regime weights and dynamic Sharpe weighting."""
-        logger.info(f"[PipelinePredictor] Calculating ensemble score for market regime {regime} (Horizon: {target_horizon}d)...")
+        h = max(1, int(target_horizon)) if target_horizon is not None else 20
+        logger.info(f"[PipelinePredictor] Calculating ensemble score for market regime {regime} (Horizon: {h}d)...")
         if not hasattr(ensemble_engine, 'calculate_ensemble_score'):
             return pd.DataFrame()
+
+        strat_outs = strategy_outputs if isinstance(strategy_outputs, dict) else {}
 
         try:
             ensemble_df = ensemble_engine.calculate_ensemble_score(
                 regime=regime,
-                regression_df=strategy_outputs.get('regression'),
-                surge_df=strategy_outputs.get('surge'),
-                lead_lag_df=strategy_outputs.get('lead_lag'),
-                vcp_ml_df=strategy_outputs.get('vcp_ml'),
-                target_horizon=target_horizon,
-                strategy_dfs=strategy_outputs
+                regression_df=strat_outs.get('regression'),
+                surge_df=strat_outs.get('surge'),
+                lead_lag_df=strat_outs.get('lead_lag'),
+                vcp_ml_df=strat_outs.get('vcp_ml'),
+                target_horizon=h,
+                strategy_dfs=strat_outs
             )
             return ensemble_df
         except Exception as e:
