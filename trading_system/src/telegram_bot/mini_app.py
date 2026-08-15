@@ -80,5 +80,8 @@ async def get_telegram_mini_app():
 
 def init_mini_app(app):
     """FastAPI 앱에 라우터 등록"""
-    app.include_router(mini_app_router, prefix="/mini-app")
-    logger.info("Telegram Mini App endpoints initialized")
+    if app is not None:
+        app.include_router(mini_app_router, prefix="/mini-app")
+        logger.info("Telegram Mini App endpoints initialized")
+    else:
+        logger.warning("init_mini_app called with None app instance")
