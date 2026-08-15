@@ -219,11 +219,11 @@ class MinervaStrategy:
         - 상승 추세 확인
         """
         symbol = stock_data.get("symbol", "UNKNOWN")
-        price_change_52w = stock_data.get("price_change_52w", 0)  # %
-        price_change_6m = stock_data.get("price_change_6m", 0)  # %
-        momentum_score = stock_data.get("momentum_score", 0)  # 0-100
-        rsi = stock_data.get("rsi", 50)  # 0-100
-        volume_trend = stock_data.get("volume_trend", 0)  # %
+        price_change_52w = _safe_float(stock_data.get("price_change_52w"), 0.0)  # %
+        price_change_6m = _safe_float(stock_data.get("price_change_6m"), 0.0)  # %
+        momentum_score = _safe_float(stock_data.get("momentum_score"), 0.0)  # 0-100
+        rsi = _safe_float(stock_data.get("rsi"), 50.0)  # 0-100
+        volume_trend = _safe_float(stock_data.get("volume_trend"), 0.0)  # %
 
         reasons = []
         score = 0.0
@@ -301,11 +301,11 @@ class DividendStrategy:
         - 지속 가능한 배당
         """
         symbol = stock_data.get("symbol", "UNKNOWN")
-        dividend_yield = stock_data.get("dividend_yield", 0)  # %
-        payout_ratio = stock_data.get("payout_ratio", 0)  # %
-        dividend_growth = stock_data.get("dividend_growth", 0)  # %
-        years_of_dividend = stock_data.get("years_of_dividend", 0)
-        fcf = stock_data.get("fcf", 0)  # 잉여현금흐름
+        dividend_yield = _safe_float(stock_data.get("dividend_yield"), 0.0)  # %
+        payout_ratio = _safe_float(stock_data.get("payout_ratio"), 0.0)  # %
+        dividend_growth = _safe_float(stock_data.get("dividend_growth"), 0.0)  # %
+        years_of_dividend = _safe_float(stock_data.get("years_of_dividend"), 0.0)
+        fcf = _safe_float(stock_data.get("fcf"), 0.0)  # 잉여현금흐름
 
         reasons = []
         score = 0.0
