@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 _KR_MARKET_SUFFIX = {
     "KOSPI": ".KS",
     "KOSDAQ": ".KQ",
+    "KONEX": ".KS",
     "KRX": ".KS",
 }
 
@@ -35,8 +36,10 @@ class RealtimeQuote:
 
     @property
     def change_pct(self) -> float:
+        import math
         if self.prev_close and self.prev_close > 0:
-            return (self.price - self.prev_close) / self.prev_close * 100.0
+            val = (self.price - self.prev_close) / self.prev_close * 100.0
+            return val if math.isfinite(val) else 0.0
         return 0.0
 
 
@@ -53,6 +56,7 @@ def _normalize_symbol(yf_symbol: str) -> str:
 
 def fetch_quotes_yfinance(symbols: List[str], market_of: Dict[str, str]) -> Dict[str, RealtimeQuote]:
     """yfinance 5m 캔들로 종목별 현재가 조회. 실패 종목은 건너뜀."""
+    import math
     quotes: Dict[str, RealtimeQuote] = {}
     if not symbols:
         return quotes
@@ -94,18 +98,26 @@ def fetch_quotes_yfinance(symbols: List[str], market_of: Dict[str, str]) -> Dict
                 if last.empty:
                     continue
                 price = float(last["Close"].iloc[-1])
-                if price <= 0:
+                if not math.isfinite(price) or price <= 0:
                     continue
                 prev_close = float(df["Close"].dropna().iloc[-2]) if len(df["Close"].dropna()) >= 2 else 0.0
+                if not math.isfinite(prev_close):
+                    prev_close = 0.0
+                
+                open_p = float(df["Open"].dropna().iloc[-1]) if "Open" in df and not df["Open"].dropna().empty else 0.0
+                high_p = float(df["High"].dropna().tail(1).iloc[0]) if "High" in df and not df["High"].dropna().empty else 0.0
+                low_p = float(df["Low"].dropna().tail(1).iloc[0]) if "Low" in df and not df["Low"].dropna().empty else 0.0
+                vol_p = float(df["Volume"].dropna().iloc[-1]) if "Volume" in df and not df["Volume"].dropna().empty else 0.0
+
                 quotes[orig_sym] = RealtimeQuote(
                     symbol=orig_sym,
                     market=market_of.get(orig_sym, "KOSPI"),
                     price=price,
-                    open_price=float(df["Open"].dropna().iloc[-1]) if "Open" in df and not df["Open"].dropna().empty else 0.0,
+                    open_price=open_p if math.isfinite(open_p) else 0.0,
                     prev_close=prev_close,
-                    high=float(df["High"].dropna().tail(1).iloc[0]) if "High" in df and not df["High"].dropna().empty else 0.0,
-                    low=float(df["Low"].dropna().tail(1).iloc[0]) if "Low" in df and not df["Low"].dropna().empty else 0.0,
-                    volume=float(df["Volume"].dropna().iloc[-1]) if "Volume" in df and not df["Volume"].dropna().empty else 0.0,
+                    high=high_p if math.isfinite(high_p) else 0.0,
+                    low=low_p if math.isfinite(low_p) else 0.0,
+                    volume=vol_p if math.isfinite(vol_p) else 0.0,
                     source="yfinance_5m",
                 )
             except Exception as e:
@@ -135,21 +147,28 @@ class RealtimePriceFeed:
         if not self.has_kiwoom:
             return quotes
         for sym in symbols:
-            if market_of.get(sym, "KOSPI") not in ("KOSPI", "KOSDAQ"):
+            if market_of.get(sym, "KOSPI") not in ("KOSPI", "KOSDAQ", "KONEX"):
                 continue
             try:
+                import math
                 q = self.kiwoom.get_stock_quote(sym)
-                price = float(q.get("price", 0.0))
-                if price > 0:
+                price = float(q.get("price", 0.0) or 0.0)
+                if math.isfinite(price) and price > 0:
+                    op = float(q.get("open", 0.0) or 0.0)
+                    pc = float(q.get("prev_close", 0.0) or 0.0)
+                    hp = float(q.get("high", 0.0) or 0.0)
+                    lp = float(q.get("low", 0.0) or 0.0)
+                    vp = float(q.get("volume", 0.0) or 0.0)
+
                     quotes[sym] = RealtimeQuote(
                         symbol=sym,
                         market=market_of.get(sym, "KOSPI"),
                         price=price,
-                        open_price=float(q.get("open", 0.0) or 0.0),
-                        prev_close=float(q.get("prev_close", 0.0) or 0.0),
-                        high=float(q.get("high", 0.0) or 0.0),
-                        low=float(q.get("low", 0.0) or 0.0),
-                        volume=float(q.get("volume", 0.0) or 0.0),
+                        open_price=op if math.isfinite(op) else 0.0,
+                        prev_close=pc if math.isfinite(pc) else 0.0,
+                        high=hp if math.isfinite(hp) else 0.0,
+                        low=lp if math.isfinite(lp) else 0.0,
+                        volume=vp if math.isfinite(vp) else 0.0,
                         source="kiwoom",
                     )
             except Exception as e:
