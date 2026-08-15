@@ -85,22 +85,27 @@ class QuadFactorNeutralOptimizer:
             cov_mat = cov_matrix.loc[symbols, symbols].values
         else:
             cov_mat = np.asarray(cov_matrix)
+        cov_mat = np.nan_to_num(cov_mat, nan=0.0)
 
         # Factor matrix F (n x 4)
         F = np.zeros((n, 4), dtype=np.float64)
         for i, col in enumerate(["beta", "size", "volatility", "momentum"]):
             if isinstance(factor_df, pd.DataFrame) and col in factor_df.columns:
                 raw_f = factor_df.loc[symbols, col].values
-                std_val = np.std(raw_f)
-                if std_val > 0:
+                raw_f = np.nan_to_num(raw_f, nan=0.0)
+                std_val = float(np.std(raw_f))
+                if std_val > 1e-8:
                     F[:, i] = (raw_f - np.mean(raw_f)) / std_val
                 else:
                     F[:, i] = 0.0
             elif isinstance(factor_df, dict):
-                vals = np.array([factor_df.get(s, {}).get(col, 0.0) if isinstance(factor_df.get(s), dict) else getattr(factor_df.get(s, None), col, 0.0) for s in symbols])
-                std_val = np.std(vals)
-                if std_val > 0:
+                vals = np.array([factor_df.get(s, {}).get(col, 0.0) if isinstance(factor_df.get(s), dict) else getattr(factor_df.get(s, None), col, 0.0) for s in symbols], dtype=np.float64)
+                vals = np.nan_to_num(vals, nan=0.0)
+                std_val = float(np.std(vals))
+                if std_val > 1e-8:
                     F[:, i] = (vals - np.mean(vals)) / std_val
+                else:
+                    F[:, i] = 0.0
 
         sec_map = sector_mapping if isinstance(sector_mapping, dict) else {}
         unique_sectors = list(set(sec_map.values())) if sec_map else ["Default"]
