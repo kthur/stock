@@ -462,15 +462,22 @@ class MarketDataHandler:
         ohlcv_cols = [cols[k] for k in ["open", "high", "low", "close", "volume"] if k in cols]
         if ohlcv_cols:
             df[ohlcv_cols] = df[ohlcv_cols].ffill()
-        price_bars = []
         for date_idx, row in df.iterrows():
             pydt = date_idx.to_pydatetime() if hasattr(date_idx, "to_pydatetime") else pd.to_datetime(date_idx).to_pydatetime()
+            try:
+                op = float(row[cols["open"]]) if "open" in cols else 0.0
+                hi = float(row[cols["high"]]) if "high" in cols else 0.0
+                lo = float(row[cols["low"]]) if "low" in cols else 0.0
+                cl = float(row[cols["close"]]) if "close" in cols else 0.0
+                vol = int(float(row[cols["volume"]])) if "volume" in cols else 0
+            except (ValueError, TypeError, KeyError):
+                continue
             price_bars.append(PriceBar(
                 timestamp=pydt,
-                open=float(row[cols["open"]]),
-                high=float(row[cols["high"]]),
-                low=float(row[cols["low"]]),
-                close=float(row[cols["close"]]),
-                volume=int(row[cols["volume"]]),
+                open=op,
+                high=hi,
+                low=lo,
+                close=cl,
+                volume=vol,
             ))
         return price_bars
