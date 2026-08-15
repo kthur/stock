@@ -89,9 +89,13 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
 
                             vol_surge = 1.0
                             if v is not None and len(v) >= 6:
-                                avg_v = float(v.iloc[-6:-1].mean())
-                                cur_v = float(v.iloc[-1])
-                                vol_surge = (cur_v / avg_v) if avg_v > 0 else 1.0
+                                v_num = pd.to_numeric(v.iloc[-6:-1], errors='coerce').fillna(1.0)
+                                avg_v = float(v_num.mean())
+                                try:
+                                    cur_v = float(v.iloc[-1])
+                                except (ValueError, TypeError):
+                                    cur_v = 1.0
+                                vol_surge = (cur_v / avg_v) if avg_v > 0 and not np.isnan(avg_v) else 1.0
 
                             # Gamma Breakout Ignition Bonus (Strong momentum + volume surge + near 20d high)
                             gamma_ignition_bonus = 0.12 if (proximity >= 0.97 and (ret_5d >= 0.08 or ret_3d >= 0.05) and vol_surge >= 1.8) else 0.0
