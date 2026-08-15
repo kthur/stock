@@ -2219,9 +2219,48 @@ def execute_prediction_pipeline():
         try:
             _hist_df = storage.get_ensemble_predictions_history(days=60)
             if _hist_df is not None and len(_hist_df) >= 20 and 'outcome_label' in _hist_df.columns:
-                _strategy_cols = {'regression': 'reg_score', 'surge': 'surge_score',
-                                  'lead_lag': 'll_score', 'vcp_rule': 'vcp_rule_score',
-                                  'vcp_ml': 'vcp_ml_score'}
+                if hasattr(scorer, 'strategy_cols') and isinstance(scorer.strategy_cols, dict):
+                    _strategy_cols = dict(scorer.strategy_cols)
+                elif hasattr(scorer, 'strategy_cols') and isinstance(scorer.strategy_cols, (list, tuple)):
+                    _strategy_cols = dict(scorer.strategy_cols)
+                else:
+                    try:
+                        from src.ai.correlation_monitor import STRATEGY_SCORE_COL_MAP
+                        _strategy_cols = dict(STRATEGY_SCORE_COL_MAP)
+                    except Exception:
+                        _strategy_cols = {
+                            'regression': 'reg_score',
+                            'surge': 'surge_score',
+                            'lead_lag': 'll_score',
+                            'vcp_rule': 'vcp_rule_score',
+                            'vcp_ml': 'vcp_ml_score',
+                            'lstm': 'lstm_score',
+                            'stat_arb': 'stat_arb_score',
+                            'sector_rotation': 'sector_score',
+                            'rim_valuation': 'rim_score',
+                            'event_driven': 'event_score',
+                            'mq_factor': 'mq_score',
+                            'iv_skew': 'iv_skew_score',
+                            'order_flow': 'order_flow_score',
+                            'short_term_reversal': 'reversal_score',
+                            'arm_factor': 'arm_score',
+                            'card_factor': 'card_score',
+                            'latr_factor': 'latr_score',
+                            'inst_foreign_sector': 'inst_foreign_sector_score',
+                            'supply_chain': 'supply_chain_score',
+                            'sentiment': 'sentiment_score',
+                            'factor_neutralized': 'factor_neutralized_score',
+                            'vol_target': 'vol_target_score',
+                            'microstructure': 'microstructure_score',
+                            'accruals_quality': 'accruals_quality_score',
+                            'short_squeeze': 'short_squeeze_score',
+                            'valueup_catalyst': 'valueup_catalyst_score',
+                            'trend_efficiency': 'trend_efficiency_score',
+                            'gamma_squeeze': 'gamma_squeeze_score',
+                            'insider_buying': 'insider_buying_score',
+                            'darkpool': 'darkpool_score',
+                            'earnings_tone_drift': 'earnings_tone_drift_score',
+                        }
                 _strat_scores = {}
                 for _sname, _scol in _strategy_cols.items():
                     if _scol in _hist_df.columns:
@@ -2231,7 +2270,7 @@ def execute_prediction_pipeline():
                     scorer.fit_calibrators(_strat_scores, _true_labels)
                     joblib.dump(scorer._calibrators, str(_calibrator_path))
                     logger.info(f"[5-B] Fitted and saved Isotonic calibrators "
-                                f"({len(_true_labels)} samples) → {_calibrator_path}")
+                                f"({len(_true_labels)} samples, {len(scorer._calibrators)} strategies) → {_calibrator_path}")
         except Exception as _cal_fit_e:
             logger.warning(f"[5-B] Calibrator fitting skipped: {_cal_fit_e}")
 

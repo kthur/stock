@@ -70,7 +70,7 @@ class TestCoverageAndUniverse(unittest.TestCase):
 
         prices_dict = {
             "005930": pd.DataFrame(index=pd.date_range("2023-01-01", periods=250, freq="D")),
-            "000660": pd.DataFrame(index=pd.date_range("2023-01-01", periods=100, freq="D")),  # < 200 days
+            "000660": pd.DataFrame(index=pd.date_range("2023-01-01", periods=10, freq="D")),  # < 20 bars
         }
 
         features_df = pd.DataFrame({

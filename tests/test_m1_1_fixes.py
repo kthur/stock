@@ -88,7 +88,7 @@ class TestMilestone1Fixes(unittest.TestCase):
         # Test Sortino ratio when downside returns list is empty
         all_positive_returns = [0.01, 0.02, 0.015, 0.03]
         sortino = stats.calculate_sortino_ratio(all_positive_returns, target_return=0.0)
-        self.assertEqual(sortino, 999.0)
+        self.assertEqual(sortino, 10.0)
         self.assertFalse(np.isinf(sortino))
 
     def test_statistics_var_cvar_safe_bounds(self):

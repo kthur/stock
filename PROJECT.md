@@ -1,53 +1,56 @@
-# Project: Stock Trading System — 31-Factor Alpha & 2D Regime Dynamic Sharpe Optimization
+# Project: Autonomous Continuous Quantitative Strategy & Execution Platform (`kthur/stock`)
 
 ## Architecture
-- **Data & Ingestion Layer**: `StockPriceDB` (SQLite WAL mutex), `MarketIndicatorStorage`, `EarningsDataFetcher` (60d filing lag).
-- **Strategy Alpha Engines (31 Strategies)**: `src/core/` and `src/ai/` implementing `BaseStrategyEngine`, unified via `StrategyRegistry` and `ml_strategy_adapters.py`.
-- **Factor Neutralization & Orthogonalization**: `src/core/multi_factor_neutralizer.py` (Fama-French 5-Factor QR residualization), `src/ai/factor_orthogonalizer.py` (PCA ZCA whitening & Gram-Schmidt), `src/ai/regime_factor_suppression.py` (cluster noise suppression).
-- **2D Market Regime & Dynamic Ensemble Engine**: `src/analysis/regime_detector.py` (10-feature GMM, 6 combo states, fast VIX > 30 / S&P crash overrides), `src/ai/ensemble_scorer.py` (Exponential Sharpe Multipliers, adaptive EMA smoothing, Almgren-Chriss microstructure cost models).
-- **Portfolio Optimization & Execution OMS**: `src/strategy/quad_factor_optimizer.py`, `src/portfolio/allocator.py` (HRP, Risk Parity, Ledoit-Wolf shrinkage), `trading_system/run_pipeline.py`, `trading_system/generate_report.py` (GitHub Pages `index.html`).
+- **Data & Storage Layer**: `StockPriceDB`, `MarketIndicatorStorage`, `CorporateActionAdjuster`, `ParquetWALBuffer`, `hybrid_storage.py` (SQLite WAL mode, 30s timeout, thread-local connections, write mutex).
+- **31-Strategy Multi-Factor Engine**: 31 registered quantitative alpha engines spanning ML (XGBoost, Strict Causal LSTM, VCP ML), Technical/Factor (Lead-Lag, Stat-Arb, Sector Rotation, MQ Factor, Short-Term Reversal, ARM, CARD, LATR, Inst & Foreign, Supply Chain, Multi-Factor Neutralizer, Vol Target, Accruals Quality, Value-Up Catalyst, Trend Efficiency), Event/Sentiment (Event-Driven, NLP FinBERT Sentiment, Insider Buying, Earnings Tone Drift), Options (IV Skew, Gamma Squeeze, Short Squeeze), and Microstructure (Microstructure Imbalance, DMA Darkpool HFT).
+- **Regime & Calibration Engine**: 2D Market Regime Matrix (6 states), 3D Macro Overrides, Quantile Winsorization, PCA ZCA Factor Orthogonalization, Regime Factor Suppression, Isotonic Regression & Platt Scaling probability calibration.
+- **Risk & Portfolio Optimization Layer**: EVT-CVaR (POT GPD with 3-Tier fallback), Leland Dynamic Buffer Band Rebalancing, Ledoit-Wolf Covariance Shrinkage, Hierarchical Risk Parity (HRP), Equal Risk Contribution (ERC), Constrained MVO, Fractional Kelly with Volatility Targeting.
+- **Execution & Friction Layer**: Asset-specific Microstructure Cost Model (STT 0.15% KOSPI / 0.18% KOSDAQ, SEC fee 0.003%, dynamic spread, square-root market impact), Execution OMS Engine (`trade_logs.db`, 6 live-money safety gates), Closed-Loop Slippage Feedback Engine (`cost_scaling_factor` calibration), Turnover Optimizer with hysteresis buffer.
+- **Reporting & Pipeline Layer**: `run_pipeline.py` orchestration across 3,379 symbols (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ, KONEX), Strategy Coverage Analyzer, KST HTML Dashboard Generator (`index.html`), Pipeline Text Outputs.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| F1 | Multi-Factor Neutralizer Interface & Imputation | Fix argument binding, column naming (`factor_neutralized_score`), and median imputation for fundamentals in `multi_factor_neutralizer.py` & `run_pipeline.py` | M1 | ORIGINAL_REQUEST §R1 |
-| F2 | Fama-French 5-Factor Pure Alpha QR Residualization | Cross-sectional QR decomposition $(I - Q Q^T)y$ across Size, Value, Profitability, Investment, Momentum | M1 | ORIGINAL_REQUEST §R1 |
-| F3 | Pure Alpha $|\rho| < 0.15$ Hard SLA Gate | Post-condition verification and secondary Gram-Schmidt deflation ensuring $|\rho| < 0.15$ unconditionally | M1 | ORIGINAL_REQUEST §R1 |
-| F4 | Strategy Alpha Precision & Noise Filtering | Fine-tune class balancing, embargoes, and signal thresholds for Surge, VCP, Stat-Arb, Sector Rotation | M1 | ORIGINAL_REQUEST §R1 |
-| F5 | 2D Regime Dynamic Exponential Sharpe Multipliers | $w_i = \text{base\_w}_i \cdot \exp(\gamma \cdot \text{clip}(\text{Sharpe}_i, -L, L))$ with underperformance pruning ($\text{Sharpe} < -0.50$) | M2 | ORIGINAL_REQUEST §R2 |
-| F6 | Adaptive EMA Smoothing & Downside Risk Defense | $\alpha_{\text{eff}} = 0.2$ in steady state, $\alpha_{\text{eff}} = 1.0$ on regime shift; power ratio damping ($\le 20.0$) | M2 | ORIGINAL_REQUEST §R2 |
-| F7 | Microstructure Transaction Cost Deduction | Deduct STT/SEC tax, dynamic bid-ask spread, and Almgren-Chriss market impact ($Q = 50\text{M KRW} / 50\text{k USD}$) | M2 | ORIGINAL_REQUEST §R2 |
-| F8 | Comparative Rolling Backtest Verification | Verify Sharpe, annualized return, and MDD across 3,379 symbols via `compare_backtests.py` | M3 | ORIGINAL_REQUEST §R3 |
-| F9 | Pytest Full Regression (1,554+ Tests 100% Pass) | Comprehensive execution of all unit, integration, and empirical stress tests in `tests/` and `trading_system/tests/` | M3 | ORIGINAL_REQUEST §R3 |
-| F10 | Pipeline Execution & GitHub Pages Report Update | End-to-end `run_pipeline.py` validation, prediction files, coverage reports, and `index.html` generation | M3 | ORIGINAL_REQUEST §R3 |
+| 1 | 31 Alpha Strategy Engines | All 31 quantitative strategy engines registered, normalized $[0.0, 1.0]$, and executing cleanly. | M1 | Survey (R1) |
+| 2 | Data Hygiene & Anti-Lookahead | 60-day fundamental filing lag, US-to-KRX 1-day indicator shift, and corporate action split adjustment. | M1 | Survey (R1) |
+| 3 | Factor Orthogonalization & Calibration | PCA ZCA symmetric decorrelation, Gram-Schmidt residualization, and Isotonic probability calibration across all strategies. | M1 | Survey (R1) |
+| 4 | EVT-CVaR Risk Budgeting | Peaks-Over-Threshold (POT) GPD tail modeling with 3-tier fallback and non-linear SLSQP optimization. | M2 | Survey (R2) |
+| 5 | Leland Dynamic Buffer Bands | Optimal no-trade buffer bands $\delta_i = (3 c_i w_i \sigma_i / 2\gamma)^{1/3}$ achieving $\ge 60\%$ friction cost reduction. | M2 | Survey (R2) |
+| 6 | Microstructure & Closed-Loop OMS | Directional STT tax, SEC fees, dynamic spread, square-root impact, 6 live-money safety gates, and `trade_logs.db` slippage feedback. | M2 | Survey (R2) |
+| 7 | Logging & Friction Remediation | Fix `turnover_optimizer.py` string formatting bug (`%,.0f` -> `%s`), and resolve legacy test assertions in `test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`. | M2 | Survey (R2, R4) |
+| 8 | High-Throughput SQLite WAL & Threading | SQLite WAL concurrency with thread-local pooling, retry cascades, and `np.float32` memory optimization across 3,379 symbols. | M3 | Survey (R3) |
+| 9 | Comprehensive Verification & CI Suite | Full automated execution of primary acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`), modular risk/factor suites, and coverage reporting. | M3 | Survey (R4) |
+| 10 | Version Control Deployment | Git synchronization and clean push to `origin/main`. | M4 | Survey (R4) |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | 31-Strategy Alpha Precision & Pure Alpha Neutralization | F1, F2, F3, F4: Fix Strategy 21 interface, implement QR residualization, secondary deflation gate ($|\rho| < 0.15$), noise filter refinement | none | DONE |
-| M2 | 2D Regime Dynamic Weights & Exponential Sharpe Multiplier | F5, F6, F7: Optimize Exponential Sharpe weighting, adaptive EMA smoothing, power damping, microstructure friction | M1 | DONE |
-| M3 | Backtest Verification, Full Pytest Regression & Pipeline Validation | F8, F9, F10: Run comparative rolling backtests, 1,554+ pytest suite 100% PASS, execute `run_pipeline.py` & verify `index.html` | M2 | IN_PROGRESS |
+| M1 | Alpha Engine & Calibration Optimization | Expand calibrator registration in `run_pipeline.py` to all 31 strategies; verify causal data hygiene and factor orthogonalization. | None | PLANNED |
+| M2 | Portfolio Allocator & Friction Remediation | Fix `turnover_optimizer.py` logger format bug; update legacy test assertions (`test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`); verify EVT-CVaR, Leland bands, and OMS. | None | PLANNED |
+| M3 | End-to-End Test Suite Verification | Run and verify 100% pass across primary acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`) and all secondary modular suites. | M1, M2 | PLANNED |
+| M4 | Final Audit & Git Push Deployment | Forensic integrity audit, final documentation, and push to `origin/main`. | M3 | PLANNED |
 
 ## Interface Contracts
-### `MultiFactorNeutralizerEngine` ↔ `run_pipeline.py` / `EnsembleScoringEngine`
-- `compute_scores(prices_dict: dict | pd.DataFrame, **kwargs) -> pd.DataFrame`:
-  - Input: `prices_dict` (symbol -> DataFrame) or `universe` (DataFrame with fundamentals).
-  - Output DataFrame columns: `['symbol', 'factor_neutralized_score', 'neutralized_score', 'smb_exposure', 'hml_exposure', 'rmw_exposure', 'cma_exposure', 'umd_exposure']`.
-  - Guarantee: $\max_k |\rho(f_k, \text{factor\_neutralized\_score})| < 0.15$.
-  - Fallback: Deterministic momentum residualization when raw scores are absent; median imputation per market for missing fundamentals.
+### `PortfolioAllocator` (`trading_system/src/risk/portfolio_allocator.py`)
+- `calculate_evt_cvar(returns: np.ndarray, alpha: float = 0.95, u_quantile: float = 0.90) -> float`
+- `calculate_leland_buffer_band(current_weight: float, target_weight: float, transaction_cost: float, volatility: float, risk_aversion: float = 3.0) -> LelandBand`
+- `estimate_microstructure_cost(symbol: str, market: str, order_qty: float, price: float, adv: float, volatility: float, is_sell: bool = True) -> float`
+- `allocate_portfolio(signals: pd.DataFrame, covariance_matrix: np.ndarray, current_weights: Dict[str, float]) -> AllocationResult`
 
-### `EnsembleScoringEngine` ↔ `RegimeDetector` & `FactorOrthogonalizerEngine`
-- `score_universe(all_predictions: dict, regime_state: str, rolling_sharpes: dict) -> pd.DataFrame`:
-  - Input: 31 strategy predictions, 2D regime combo state (`BEAR_LOW_VOL`, etc.), rolling Sharpe dict.
-  - Output: Ensembled net alpha scores after Exponential Sharpe weighting, PCA ZCA orthogonalization, cluster suppression, and microstructure transaction costs.
+### `TurnoverOptimizer` (`trading_system/src/execution/turnover_optimizer.py`)
+- `filter_target_portfolio(current_portfolio: Dict[str, Any], target_portfolio: Dict[str, Any], prices: Dict[str, float]) -> Tuple[Dict[str, Any], float]`
+
+### `EnsembleScoringEngine` (`trading_system/src/ai/ensemble_scorer.py`)
+- `fit_calibrators(historical_scores: pd.DataFrame, realized_outcomes: pd.Series) -> None`
+- `calculate_ensemble_score(strategy_scores: pd.DataFrame, market_indicators: Dict[str, Any], regime: str) -> pd.DataFrame`
 
 ## Code Layout
-- `trading_system/src/core/multi_factor_neutralizer.py`: Fama-French 5-Factor QR residualization & pure alpha engine.
-- `trading_system/src/ai/factor_orthogonalizer.py`: PCA ZCA symmetric whitening & Modified Gram-Schmidt decorrelation.
-- `trading_system/src/ai/regime_factor_suppression.py`: Cluster noise suppression across 5 strategy families.
-- `trading_system/src/ai/ensemble_scorer.py`: 31-strategy 2D regime dynamic ensemble scorer.
-- `trading_system/src/analysis/regime_detector.py`: 2D GMM Market Regime Detector with fast shock overrides.
-- `trading_system/run_pipeline.py`: Master pipeline orchestration.
-- `trading_system/generate_report.py`: GitHub Pages `index.html` report compiler.
-- `tests/`: 730 unit, integration, and stress tests.
-- `trading_system/tests/`: 824 pipeline and component tests.
+- `trading_system/run_pipeline.py`: Pipeline execution and orchestration.
+- `trading_system/src/ai/`: ML models, VCP detectors, LSTM, factor orthogonalization, ensemble scorer.
+- `trading_system/src/core/`: 31 Alpha strategy engines, strategy registry, base strategy classes.
+- `trading_system/src/risk/`: Portfolio allocator, EVT-CVaR, Leland bands, risk manager, position sizing.
+- `trading_system/src/execution/`: Execution OMS engine, slippage feedback, turnover optimizer.
+- `trading_system/src/analysis/`: Strategy coverage analyzer, portfolio optimizer algorithms.
+- `trading_system/src/persistence/`: SQLite database manager, trade logger.
+- `trading_system/src/data_layer/`: Market indicator storage, hybrid storage, price adjuster, earnings data.
+- `tests/`: Automated pytest suites.
