@@ -73,7 +73,8 @@ class RLEngine:
         act = str(action).upper().strip()
         if act not in self._action_performance:
             self._action_performance[act] = []
-        self._action_performance[act].append(pnl_pct > 0)
+        pnl = float(pnl_pct) if (pnl_pct is not None and np.isfinite(pnl_pct)) else 0.0
+        self._action_performance[act].append(pnl > 0)
         if len(self._action_history) % 20 == 0:
             self._adapt_thresholds()
 
@@ -113,6 +114,12 @@ class RLEngine:
         elif sell_acc > 0.6:
             self._thresholds["vix_sell"] *= 1.0 + self._adaptation_rate
             self._thresholds["rsi_sell"] *= 1.0 - self._adaptation_rate
+
+        # Bound thresholds to realistic ranges
+        self._thresholds["vix_buy"] = float(np.clip(self._thresholds["vix_buy"], 10.0, 60.0))
+        self._thresholds["rsi_buy"] = float(np.clip(self._thresholds["rsi_buy"], 10.0, 50.0))
+        self._thresholds["vix_sell"] = float(np.clip(self._thresholds["vix_sell"], 5.0, 40.0))
+        self._thresholds["rsi_sell"] = float(np.clip(self._thresholds["rsi_sell"], 50.0, 90.0))
 
         total_perf = sum(len(v) for v in self._action_performance.values())
         logger.info(f"RL stats: buy_acc={buy_acc:.2f} sell_acc={sell_acc:.2f} total_actions={total_perf}")
