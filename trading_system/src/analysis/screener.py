@@ -19,10 +19,10 @@ class StockScreener:
         max_distance_from_high: float = 0.20,
         config_path: Optional[str] = None,
     ):
-        self.min_volume = min_volume
-        self.min_rsi = min_rsi
-        self.max_rsi = max_rsi
-        self.max_distance_from_high = max_distance_from_high
+        self.min_volume = max(0.0, float(min_volume)) if min_volume is not None else 100000.0
+        self.min_rsi = float(np.clip(float(min_rsi) if min_rsi is not None else 30.0, 0.0, 100.0))
+        self.max_rsi = float(np.clip(float(max_rsi) if max_rsi is not None else 70.0, 0.0, 100.0))
+        self.max_distance_from_high = max(0.0, float(max_distance_from_high)) if max_distance_from_high is not None else 0.20
 
         if config_path is not None:
             if os.path.exists(config_path):
@@ -33,12 +33,12 @@ class StockScreener:
                     raise ValueError(f"Malformed JSON in config file: {e}")
 
                 if isinstance(config_data, dict):
-                    self.min_volume = float(config_data.get("min_volume", self.min_volume))
-                    self.min_rsi = float(config_data.get("min_rsi", self.min_rsi))
-                    self.max_rsi = float(config_data.get("max_rsi", self.max_rsi))
-                    self.max_distance_from_high = float(
+                    self.min_volume = max(0.0, float(config_data.get("min_volume", self.min_volume)))
+                    self.min_rsi = float(np.clip(float(config_data.get("min_rsi", self.min_rsi)), 0.0, 100.0))
+                    self.max_rsi = float(np.clip(float(config_data.get("max_rsi", self.max_rsi)), 0.0, 100.0))
+                    self.max_distance_from_high = max(0.0, float(
                         config_data.get("max_distance_from_high", self.max_distance_from_high)
-                    )
+                    ))
             else:
                 logger.warning(f"Config file not found: {config_path}")
 
