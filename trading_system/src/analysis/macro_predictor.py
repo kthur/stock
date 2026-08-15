@@ -117,20 +117,24 @@ class MacroPredictor:
         """
         Predicts expected excess returns.
         """
+        if features is None or features.empty:
+            return pd.Series(dtype=float)
+
         if not self.is_trained:
             logger.warning("MacroPredictor is not trained yet. Returning zero predictions.")
             return pd.Series(0.0, index=features.index)
 
+        X = features.copy()
         # Ensure correct column alignment
         if self.feature_names:
             for col in self.feature_names:
-                if col not in features.columns:
-                    features[col] = 0.0
-            X = features[self.feature_names]
-        else:
-            X = features
+                if col not in X.columns:
+                    X[col] = 0.0
+            X = X[self.feature_names]
 
+        X = X.fillna(0.0).astype(float)
         xgb_preds = self.xgb_model.predict(X)
         lgb_preds = self.lgb_model.predict(X)
         preds = (xgb_preds + lgb_preds) / 2.0
+        preds = np.nan_to_num(preds, nan=0.0, posinf=0.0, neginf=0.0)
         return pd.Series(preds, index=features.index)
