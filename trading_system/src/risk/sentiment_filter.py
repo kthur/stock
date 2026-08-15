@@ -84,10 +84,11 @@ class SentimentMetaFilter:
             api_events = self.fetcher.fetch_dart_disclosures(symbol)
             events.extend(api_events)
 
-        # 2. Crawl Naver Finance news (Korean market symbols only)
-        if self.crawl_naver_news and symbol.isdigit() and len(symbol) == 6:
+        # 2. Crawl Naver Finance news (Korean market symbols only, handle .KS / .KQ suffixes)
+        sym_clean = str(symbol).replace('.KS', '').replace('.KQ', '').replace('.ks', '').replace('.kq', '').strip()
+        if self.crawl_naver_news and sym_clean.isdigit() and len(sym_clean) == 6:
             try:
-                naver_events = self.fetcher.fetch_naver_news(symbol)
+                naver_events = self.fetcher.fetch_naver_news(sym_clean)
                 events.extend(naver_events)
             except Exception as e:
                 logger.debug(f"Naver news crawl skipped for {symbol}: {e}")
