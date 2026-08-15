@@ -38,16 +38,20 @@ def _fetch_naver_direct(symbol: str, start_date: Optional[str] = None) -> pd.Dat
                 d_str = parts[0]
                 date_str = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}"
                 if not start_date or date_str >= start_date:
-                    rows.append({
-                        'Date': pd.to_datetime(date_str),
-                        'Open': float(parts[1]),
-                        'High': float(parts[2]),
-                        'Low': float(parts[3]),
-                        'Close': float(parts[4]),
-                        'Volume': float(parts[5]),
-                    })
+                    try:
+                        o, h, l, c, v = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), float(parts[5])
+                        rows.append({
+                            'Date': pd.to_datetime(date_str, errors='coerce'),
+                            'Open': o,
+                            'High': h,
+                            'Low': l,
+                            'Close': c,
+                            'Volume': v,
+                        })
+                    except (ValueError, TypeError):
+                        continue
         if rows:
-            df = pd.DataFrame(rows).set_index('Date').sort_index()
+            df = pd.DataFrame(rows).dropna(subset=['Date', 'Close']).set_index('Date').sort_index()
             return df
     except Exception as e:
         logger.debug(f"Naver direct API fetch failed for {symbol}: {e}")
@@ -315,7 +319,8 @@ class MarketDataHandler:
         # 1. DB에서 먼저 조회
         df = db.get_prices(symbol, start_date=start_date)
         if not df.empty:
-            latest_db_dt = pd.to_datetime(df.index[-1]).tz_localize(None)
+            dt = pd.to_datetime(df.index[-1])
+            latest_db_dt = dt.tz_localize(None) if getattr(dt, "tz", None) is not None else dt
             cutoff = datetime.now() - timedelta(days=1)
             needs_fetch = latest_db_dt < cutoff
         else:
