@@ -32,16 +32,18 @@ class DarkPoolTrackerEngine:
         dp_ratio = 0.35
 
         if df_price is not None and len(df_price) >= 2:
-            c_col = 'close' if 'close' in df_price.columns else ('Close' if 'Close' in df_price.columns else None)
-            v_col = 'volume' if 'volume' in df_price.columns else ('Volume' if 'Volume' in df_price.columns else None)
+            c_col = next((c for c in df_price.columns if str(c).lower() in ('close', 'adj close', 'adjclose')), None)
+            v_col = next((c for c in df_price.columns if str(c).lower() == 'volume'), None)
             if c_col and v_col:
-                clean = df_price[[c_col, v_col]].dropna()
+                c_s = pd.to_numeric(df_price[c_col], errors='coerce')
+                v_s = pd.to_numeric(df_price[v_col], errors='coerce')
+                clean = pd.DataFrame({'c': c_s, 'v': v_s}).dropna()
                 if len(clean) >= 2:
-                    last_close = float(clean[c_col].iloc[-1])
-                    prev_close = float(clean[c_col].iloc[-2])
+                    last_close = float(clean['c'].iloc[-1])
+                    prev_close = float(clean['c'].iloc[-2])
                     ret_last = (last_close / prev_close) - 1.0 if prev_close > 0 else 0.0
 
-                    volumes = clean[v_col].values
+                    volumes = clean['v'].values
                     cur_vol = float(volumes[-1])
                     avg_vol = float(volumes[:-1].mean()) if len(volumes) > 1 else cur_vol
                     vol_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
@@ -91,16 +93,21 @@ class DarkPoolTrackerEngine:
             if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 10:
-                    c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
-                    v_col = 'volume' if 'volume' in df.columns else ('Volume' if 'Volume' in df.columns else None)
+                    c_col = next((c for c in df.columns if str(c).lower() in ('close', 'adj close', 'adjclose')), None)
+                    v_col = next((c for c in df.columns if str(c).lower() == 'volume'), None)
                     if c_col and v_col:
-                        clean_df = df[[c_col, v_col]].dropna()
+                        c_s = pd.to_numeric(df[c_col], errors='coerce')
+                        v_s = pd.to_numeric(df[v_col], errors='coerce')
+                        clean_df = pd.DataFrame({'c': c_s, 'v': v_s}).dropna()
 
                         if len(clean_df) >= 10:
-                            c = clean_df[c_col]
-                            v = clean_df[v_col]
-                            if c.iloc[-10] > 0:
-                                ret_10d = float((c.iloc[-1] / c.iloc[-10]) - 1.0)
+                            c = clean_df['c']
+                            v = clean_df['v']
+                            ret_10d = 0.0
+                            vol_spike = 1.0
+                            p10 = float(c.iloc[-10])
+                            if p10 > 0 and np.isfinite(p10):
+                                ret_10d = float((c.iloc[-1] / p10) - 1.0)
                                 avg_vol = float(v.iloc[-10:-1].mean())
                                 cur_vol = float(v.iloc[-1])
                                 vol_spike = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
@@ -115,14 +122,15 @@ class DarkPoolTrackerEngine:
             # 2. Live Dark Pool / ATS Volume Data override
             if darkpool_data_dict and sym in darkpool_data_dict:
                 dp_data = darkpool_data_dict[sym]
-                dp_share = dp_data.get('dark_pool_ratio', 0.30)
-                dp_buy_bias = dp_data.get('buy_bias', 0.50)
+                if isinstance(dp_data, dict):
+                    dp_share = float(dp_data.get('dark_pool_ratio', 0.30))
+                    dp_buy_bias = float(dp_data.get('buy_bias', 0.50))
 
-                if dp_share > 0.40 and dp_buy_bias > 0.65:  # High dark pool volume with institutional buy bias
-                    score = float(np.clip(score + 0.30, 0.0, 1.0))
-                    logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional buying for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
+                    if dp_share > 0.40 and dp_buy_bias > 0.65:  # High dark pool volume with institutional buy bias
+                        score = float(np.clip(score + 0.30, 0.0, 1.0))
+                        logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional buying for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
 
-            results.append({'symbol': sym, 'darkpool_score': score})
+            results.append({'symbol': sym, 'darkpool_score': round(score, 4)})
 
         return pd.DataFrame(results)
 
