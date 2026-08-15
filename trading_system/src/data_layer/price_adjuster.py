@@ -3,12 +3,14 @@ price_adjuster.py — Corporate Action & Stock Split Resilient Price Adjuster
 
 Detects price discontinuities (splits, reverse splits, corporate actions)
 and normalizes OHLCV price series to ensure continuous, reliable input
-for all 23 multi-factor quantitative strategy engines.
+for all 31 multi-factor quantitative strategy engines.
 """
 
 from __future__ import annotations
 
 import logging
+import math
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)

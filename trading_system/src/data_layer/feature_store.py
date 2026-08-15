@@ -3,7 +3,7 @@ trading_system/src/data_layer/feature_store.py
 DuckDB / Parquet Feature Store & Parallel Strategy Inference Engine.
 
 Key Capabilities:
-1. Columnar Parquet Feature Persistence Layer for 3,379 symbols & 27 strategies.
+1. Columnar Parquet Feature Persistence Layer for 3,379 symbols & 31 strategies.
 2. Fast DuckDB / PyArrow Queries bypassing SQLite locks.
 3. Parallel Strategy Inference Execution via ProcessPoolExecutor / ThreadPoolExecutor.
 """
@@ -22,7 +22,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 class FeatureStore:
     """
-    Parquet/DuckDB Feature Store for high-concurrency 27-strategy feature caching & parallel inference.
+    Parquet/DuckDB Feature Store for high-concurrency 31-strategy feature caching & parallel inference.
     """
 
     def __init__(self, store_dir: Optional[Union[str, Path]] = None):
@@ -39,7 +39,7 @@ class FeatureStore:
 
     def save_strategy_features(self, date_str: str, market: str, feature_df: pd.DataFrame) -> Path:
         """
-        Saves calculated 27-strategy feature DataFrame as compressed Parquet file.
+        Saves calculated 31-strategy feature DataFrame as compressed Parquet file.
         """
         if feature_df is None or feature_df.empty:
             logger.warning(f"FeatureStore: Attempted to save empty feature_df for {market} {date_str}")
@@ -96,15 +96,16 @@ class FeatureStore:
         max_workers: int = 4
     ) -> Dict[str, pd.DataFrame]:
         """
-        Executes 27-strategy score inference functions in parallel using ProcessPool / ThreadPool.
+        Executes 31-strategy score inference functions in parallel using ProcessPool / ThreadPool.
         """
         if not strategy_func_map:
             return {}
 
+        workers = max(1, int(max_workers)) if max_workers is not None else 4
         results: Dict[str, pd.DataFrame] = {}
-        logger.info(f"[FEATURE STORE] Executing parallel inference for {len(strategy_func_map)} strategies with {max_workers} workers...")
+        logger.info(f"[FEATURE STORE] Executing parallel inference for {len(strategy_func_map)} strategies with {workers} workers...")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             future_to_strat = {
                 executor.submit(func, **kwargs): strat_name
                 for strat_name, (func, kwargs) in strategy_func_map.items()
