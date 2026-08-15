@@ -25,10 +25,13 @@ def calculate_almgren_chriss_impact(
     Computes non-linear Almgren-Chriss market impact cost (pct of price).
     Formula: Cost = 0.5 * spread + gamma * daily_volatility * sqrt(order_quantity / max(adv, 1.0))
     """
-    if adv <= 0:
+    if adv <= 0 or order_quantity <= 0:
         return 0.5 * spread + 0.005
     ratio = order_quantity / max(adv, 1.0)
-    impact = 0.5 * spread + gamma * daily_volatility * float(np.sqrt(ratio))
+    vol_clean = max(1e-4, daily_volatility)
+    impact = 0.5 * spread + gamma * vol_clean * float(np.sqrt(ratio))
+    if np.isnan(impact) or np.isinf(impact):
+        return 0.5 * spread + 0.005
     return float(np.clip(impact, 0.0005, 0.05))
 
 
