@@ -37,12 +37,17 @@ class TradeExecutor:
         lot_size_krx: int = 10,                     # KRX 호가 단위 수량 (10주)
         lot_size_us: int = 1,                       # US 호가 단위 수량 (1주)
     ):
+        import math
         self.kiwoom = kiwoom
         self.oms = oms
-        self.dry_run = dry_run
-        self.max_order_value_krw = max_order_value_krw
-        self.lot_size_krx = lot_size_krx
-        self.lot_size_us = lot_size_us
+        self.dry_run = bool(dry_run)
+        try:
+            safe_max_val = float(max_order_value_krw) if (max_order_value_krw is not None and math.isfinite(float(max_order_value_krw))) else 50_000_000.0
+        except (ValueError, TypeError):
+            safe_max_val = 50_000_000.0
+        self.max_order_value_krw = max(1000.0, safe_max_val)
+        self.lot_size_krx = max(1, int(lot_size_krx)) if lot_size_krx is not None else 10
+        self.lot_size_us = max(1, int(lot_size_us)) if lot_size_us is not None else 1
         self._executed_today: Dict[str, str] = {}   # symbol -> action (중복 실행 방지)
         self._last_execution_date: str = datetime.now().strftime('%Y-%m-%d')
 
