@@ -179,7 +179,8 @@ class TradeJournal:
                 FROM trade_journal
                 WHERE side = 'SELL' AND timestamp >= ? AND pnl > 0
             """, (since_date,))
-            avg_win = cursor.fetchone()['avg_win']
+            r_win = cursor.fetchone()
+            avg_win = r_win['avg_win'] if r_win and r_win['avg_win'] is not None else None
 
             # 평균 손실
             cursor.execute("""
@@ -187,12 +188,13 @@ class TradeJournal:
                 FROM trade_journal
                 WHERE side = 'SELL' AND timestamp >= ? AND pnl < 0
             """, (since_date,))
-            avg_loss = cursor.fetchone()['avg_loss']
+            r_loss = cursor.fetchone()
+            avg_loss = r_loss['avg_loss'] if r_loss and r_loss['avg_loss'] is not None else None
 
-            if not avg_win:
+            if not avg_win or float(avg_win) <= 0:
                 return 0.0
-            if not avg_loss or avg_loss == 0:
-                return 10.0 if avg_win > 0 else 0.0
+            if not avg_loss or float(avg_loss) == 0:
+                return 10.0 if float(avg_win) > 0 else 0.0
 
             return float(avg_win) / abs(float(avg_loss))
         except Exception as e:
