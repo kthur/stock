@@ -89,8 +89,15 @@ class ScenarioSimulationEngine:
             'defense_shipbuilding': sector_scenario.defense_shipbuilding,
         }
 
-        for sym, base_score in base_ensemble_scores.items():
-            raw_sec = sector_map.get(sym, 'General')
+        for sym, raw_base_score in base_ensemble_scores.items():
+            try:
+                base_score = float(raw_base_score)
+                if not np.isfinite(base_score):
+                    base_score = 0.0
+            except (ValueError, TypeError):
+                base_score = 0.0
+
+            raw_sec = sector_map.get(sym, 'General') if sector_map else 'General'
             gics_sec = self._normalize_gics(raw_sec)
 
             elas = self.SECTOR_MACRO_ELASTICITY.get(gics_sec, {
@@ -98,14 +105,21 @@ class ScenarioSimulationEngine:
             })
 
             # 1. Macro Impact Calculation
-            _usdkrw: float = float(macro_scenario.usdkrw_change_pct)
-            _wti: float = float(macro_scenario.wti_change_pct)
-            _us10y: float = float(macro_scenario.us10y_rate)
-            _vix: float = float(macro_scenario.vix_change_pct)
-            _elas_usdkrw: float = float(elas.get('usdkrw', 0.0))
-            _elas_wti: float = float(elas.get('wti', 0.0))
-            _elas_us10y: float = float(elas.get('us10y', 0.0))
-            _elas_vix: float = float(elas.get('vix', 0.0))
+            def _sf_val(v: Any, default: float = 0.0) -> float:
+                try:
+                    f = float(v)
+                    return f if np.isfinite(f) else default
+                except (ValueError, TypeError):
+                    return default
+
+            _usdkrw: float = _sf_val(macro_scenario.usdkrw_change_pct)
+            _wti: float = _sf_val(macro_scenario.wti_change_pct)
+            _us10y: float = _sf_val(macro_scenario.us10y_rate, 4.0)
+            _vix: float = _sf_val(macro_scenario.vix_change_pct)
+            _elas_usdkrw: float = _sf_val(elas.get('usdkrw', 0.0))
+            _elas_wti: float = _sf_val(elas.get('wti', 0.0))
+            _elas_us10y: float = _sf_val(elas.get('us10y', 0.0))
+            _elas_vix: float = _sf_val(elas.get('vix', 0.0))
             macro_shock = (
                 (_usdkrw / 10.0) * _elas_usdkrw +
                 (_wti / 10.0) * _elas_wti +
@@ -115,7 +129,7 @@ class ScenarioSimulationEngine:
 
             # 2. Direct Sector Outlook Impact Calculation
             sec_key = str(elas.get('sector_key', 'consumer_staples'))
-            sector_outlook = float(sector_outlook_dict.get(sec_key, 0.0))
+            sector_outlook = _sf_val(sector_outlook_dict.get(sec_key, 0.0))
             sector_shock = sector_outlook * 0.25  # 최대 ±25% 충격 가중치
 
             # 3. Total Combined Scenario Shock & Simulated Score
@@ -144,6 +158,8 @@ class ScenarioSimulationEngine:
     def _normalize_gics(self, raw_sec: str) -> str:
         if not raw_sec or not isinstance(raw_sec, str):
             return 'Consumer Staples'
+        if raw_sec in self.SECTOR_MACRO_ELASTICITY:
+            return raw_sec
         if '전기전자' in raw_sec or '반도체' in raw_sec or 'IT' in raw_sec:
             return 'Information Technology'
         if '자동차' in raw_sec or '운수장비' in raw_sec or '유통' in raw_sec:
