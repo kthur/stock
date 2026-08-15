@@ -76,14 +76,21 @@ class LiveAlphaTracker:
 
         grouped = merged.groupby("strategy_name")
         for strat_name, group in grouped:
-            # Directional hit: pred >= 0.50 and realized_return > 0 OR pred < 0.50 and realized_return <= 0
+            scores = group["pred_score"].values
+            realized = group["realized_return_20d"].values
+
+            # Dynamically determine baseline: probability score (0.5) vs return score (0.0)
+            is_prob_scale = (scores.min() >= 0.0) and (scores.max() <= 1.0) and (np.median(scores) > 0.15)
+            baseline = 0.50 if is_prob_scale else 0.0
+
             correct_dirs = (
-                ((group["pred_score"] >= 0.50) & (group["realized_return_20d"] > 0)) |
-                ((group["pred_score"] < 0.50) & (group["realized_return_20d"] <= 0))
+                ((scores >= baseline) & (realized > 0)) |
+                ((scores < baseline) & (realized <= 0))
             )
-            hit_rate = float(correct_dirs.mean()) if len(group) > 0 else 0.50
-            diff = group["pred_score"] - group["realized_return_20d"]
-            rmse = float(np.sqrt(np.mean(diff ** 2))) if len(diff) > 0 else 0.0
+            hit_rate = float(np.mean(correct_dirs)) if len(scores) > 0 else 0.50
+            diff = scores - realized
+            valid_diff = diff[np.isfinite(diff)]
+            rmse = float(np.sqrt(np.mean(valid_diff ** 2))) if len(valid_diff) > 0 else 0.0
 
             # Feedback Multiplier: penalize if hit_rate < threshold, reward if hit_rate > 0.55
             multiplier = 1.0
