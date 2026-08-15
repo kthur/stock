@@ -32,8 +32,13 @@ class PipelineObservability:
 
     def record_metric(self, name: str, value: float):
         """Records a custom metric value."""
-        self._metrics_store[name] = float(value)
-        logger.debug(f"📊 [PROMETHEUS METRIC] {name} = {value}")
+        import math
+        try:
+            val = float(value) if (value is not None and math.isfinite(float(value))) else 0.0
+        except (ValueError, TypeError):
+            val = 0.0
+        self._metrics_store[str(name)] = val
+        logger.debug(f"📊 [PROMETHEUS METRIC] {name} = {val}")
 
     def get_all_metrics(self) -> Dict[str, float]:
         """Returns snapshot of recorded observability metrics."""
