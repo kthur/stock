@@ -120,12 +120,21 @@ class RealBroker(BrokerBase):
         if not symbol or not isinstance(symbol, str):
             raise ValueError("symbol must be a non-empty string")
 
+        import math
         if isinstance(arg2, str):
-            side = arg2
-            qty = arg3
+            side = str(arg2).upper()
+            try:
+                f_qty = float(arg3)
+                qty = f_qty if math.isfinite(f_qty) else 0.0
+            except (ValueError, TypeError):
+                qty = 0.0
         else:
-            qty = arg2
-            side = arg3
+            try:
+                f_qty = float(arg2)
+                qty = f_qty if math.isfinite(f_qty) else 0.0
+            except (ValueError, TypeError):
+                qty = 0.0
+            side = str(arg3).upper()
 
         if qty <= 0:
             raise ValueError("qty must be > 0")
@@ -343,11 +352,18 @@ class KoreaInvestmentBroker(BrokerBase):
         Modify existing unexecuted order (or convert to market order).
         new_order_type: '00' = limit, '01' = market
         """
+        import math
+        try:
+            p = float(new_price) if (new_price is not None and math.isfinite(float(new_price))) else 0.0
+        except (ValueError, TypeError):
+            p = 0.0
+        p = max(0.0, p)
+
         if order_id in self.orders and self.orders[order_id]["status"] in ("ACCEPTED", "PENDING"):
-            self.orders[order_id]["price"] = new_price
-            self.orders[order_id]["order_type"] = new_order_type
+            self.orders[order_id]["price"] = p
+            self.orders[order_id]["order_type"] = str(new_order_type)
             self.orders[order_id]["status"] = "MODIFIED"
-            logger.info("KoreaInvestmentBroker: order %s modified (price=%.2f, type=%s)", order_id, new_price, new_order_type)
+            logger.info("KoreaInvestmentBroker: order %s modified (price=%.2f, type=%s)", order_id, p, new_order_type)
             return True
         return False
 
@@ -359,13 +375,16 @@ class KoreaInvestmentBroker(BrokerBase):
         now = datetime.datetime.now()
         for oid, order in list(self.orders.items()):
             if order.get("status") in ("ACCEPTED", "PENDING"):
-                order_time = datetime.datetime.fromisoformat(order["timestamp"])
-                elapsed = (now - order_time).total_seconds()
-                if elapsed >= max_unfilled_seconds:
-                    logger.info("Unfilled order %s elapsed %.1fs -> Auto-converting to Market Order", oid, elapsed)
-                    self.modify_order(oid, new_price=0.0, new_order_type="01")
-                    order["status"] = "FILLED"
-                    modified_count += 1
+                try:
+                    order_time = datetime.datetime.fromisoformat(order["timestamp"])
+                    elapsed = (now - order_time).total_seconds()
+                    if elapsed >= max_unfilled_seconds:
+                        logger.info("Unfilled order %s elapsed %.1fs -> Auto-converting to Market Order", oid, elapsed)
+                        self.modify_order(oid, new_price=0.0, new_order_type="01")
+                        order["status"] = "FILLED"
+                        modified_count += 1
+                except Exception as e:
+                    logger.warning("Error processing unfilled order %s: %s", oid, e)
         return modified_count
 
     def get_positions(self) -> list:
