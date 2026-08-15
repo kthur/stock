@@ -19,20 +19,26 @@ class EventBus:
 
     def subscribe(self, event_type: str, listener: Callable):
         """이벤트 구독"""
+        if listener is None:
+            return
+        event_name = str(event_type) if event_type is not None else ""
         with self._lock:
-            if event_type not in self._listeners:
-                self._listeners[event_type] = []
-            if listener not in self._listeners[event_type]:
-                self._listeners[event_type].append(listener)
+            if event_name not in self._listeners:
+                self._listeners[event_name] = []
+            if listener not in self._listeners[event_name]:
+                self._listeners[event_name].append(listener)
                 listener_name = listener.__name__ if hasattr(listener, "__name__") else str(listener)
-                self.logger.info(f"EventBus: Subscribed listener '{listener_name}' to '{event_type}'")
+                self.logger.info(f"EventBus: Subscribed listener '{listener_name}' to '{event_name}'")
 
     def unsubscribe(self, event_type: str, listener: Callable):
         """이벤트 구독 해제"""
+        if listener is None:
+            return
+        event_name = str(event_type) if event_type is not None else ""
         with self._lock:
-            if event_type in self._listeners and listener in self._listeners[event_type]:
-                self._listeners[event_type].remove(listener)
-                self.logger.info(f"EventBus: Unsubscribed listener from '{event_type}'")
+            if event_name in self._listeners and listener in self._listeners[event_name]:
+                self._listeners[event_name].remove(listener)
+                self.logger.info(f"EventBus: Unsubscribed listener from '{event_name}'")
 
     def publish(self, event_type: str, data: Any):
         """
