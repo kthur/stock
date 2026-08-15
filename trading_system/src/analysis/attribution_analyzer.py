@@ -22,7 +22,21 @@ STRATEGY_MAP = {
     'reversal_score': 'Short-Term Reversal',
     'arm_score': 'ARM Factor',
     'card_score': 'CARD Factor',
-    'latr_score': 'LATR Factor'
+    'latr_score': 'LATR Factor',
+    'inst_foreign_score': 'Inst & Foreign Sector',
+    'supply_chain_score': 'Supply Chain Momentum',
+    'sentiment_score': 'NLP Sentiment Catalyst',
+    'factor_neutralized_score': 'Factor Neutralized Alpha',
+    'vol_target_score': 'Dynamic Vol Targeting',
+    'microstructure_score': 'Microstructure Imbalance',
+    'accruals_score': 'Accruals Quality Anomaly',
+    'short_squeeze_score': 'Short Interest & Squeeze',
+    'valueup_score': 'Value-Up & Shareholder Yield',
+    'trend_efficiency_score': 'Kaufman Trend Efficiency',
+    'gamma_squeeze_score': 'Gamma Squeeze Strategy',
+    'insider_buying_score': 'Insider Buying Strategy',
+    'earnings_tone_drift_score': 'Earnings Tone Drift',
+    'hft_score': 'High-Frequency Order Flow',
 }
 
 class StrategyAttributionAnalyzer:
@@ -95,7 +109,7 @@ class StrategyAttributionAnalyzer:
     def _generate_report_text(self, summary_df: pd.DataFrame, total_exp_ret: float, total_symbols: int) -> str:
         lines = []
         lines.append("==========================================================================")
-        lines.append("        17-STRATEGY ALPHA ATTRIBUTION & FACTOR CONTRIBUTION REPORT        ")
+        lines.append("        31-STRATEGY ALPHA ATTRIBUTION & FACTOR CONTRIBUTION REPORT        ")
         lines.append("==========================================================================")
         lines.append(f"• Evaluated Symbol Count     : {total_symbols:,} symbols")
         lines.append(f"• Total Portfolio Exp Return : {total_exp_ret:.2f}%\n")
