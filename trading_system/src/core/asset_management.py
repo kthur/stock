@@ -151,7 +151,7 @@ class PortfolioManager:
                     "symbol": sym,
                     "quantity": abs(diff_qty),
                     "is_buy": diff_qty > 0,
-                    "reason": f"rebalance: target={target_pct:.1%} current={current_value / total_value:.1%}",
+                    "reason": f"rebalance: target={target_pct:.1%} current={current_value / max(total_value, 1.0):.1%}",
                 }
             )
 
