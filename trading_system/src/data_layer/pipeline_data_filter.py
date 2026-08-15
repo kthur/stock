@@ -20,28 +20,31 @@ def filter_training_data(
     2. Removes extreme price percentage change outliers (beyond sigma_threshold).
     3. Removes symbols with fewer than min_history_days records.
     """
-    if df_train.empty:
-        return df_train
+    if df_train is None or df_train.empty:
+        return pd.DataFrame() if df_train is None else df_train
 
     df = df_train.copy()
 
     # 1. Filter zero/missing volume if Volume column is available
     vol_col = next((c for c in ['Volume', 'volume', 'norm_volume'] if c in df.columns), None)
     if vol_col:
-        df = df[df[vol_col] > min_volume]
+        num_vol = pd.to_numeric(df[vol_col], errors='coerce').fillna(0.0)
+        df = df[num_vol > min_volume]
 
     # 2. Filter price extreme outliers (4-sigma rule on returns if available)
     ret_cols = [c for c in df.columns if c.startswith('ret_') or c.startswith('target_')]
     for col in ret_cols:
-        if df[col].dtype in [np.float32, np.float64]:
-            mu = df[col].mean()
-            std = df[col].std()
+        if pd.api.types.is_numeric_dtype(df[col]):
+            s = pd.to_numeric(df[col], errors='coerce')
+            mu = float(s.mean())
+            std = float(s.std())
             if not np.isnan(std) and std > 0:
-                df = df[(df[col] - mu).abs() <= sigma_threshold * std]
+                df = df[(s - mu).abs() <= sigma_threshold * std]
 
     # 3. Filter symbols with insufficient history
-    if 'symbol' in df.columns:
-        counts = df.groupby('symbol')['symbol'].transform('count')
+    sym_col = next((c for c in ['symbol', 'Symbol', 'code', 'Code'] if c in df.columns), None)
+    if sym_col:
+        counts = df.groupby(sym_col)[sym_col].transform('count')
         df = df[counts >= min_history_days]
 
     return df.reset_index(drop=True)
