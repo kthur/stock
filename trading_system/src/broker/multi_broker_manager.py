@@ -114,24 +114,43 @@ class MultiBrokerManager:
         self, code: str, quantity: int, price: float, order_type: str, broker_type: Optional[BrokerType] = None
     ) -> str:
         """주문 접수 (지정 증권사 또는 활성 증권사)"""
+        import math
         broker_to_use = broker_type or self.active_broker
 
         if not broker_to_use or broker_to_use not in self.brokers:
             self.logger.error("No active broker selected")
             return ""
 
+        q = max(0, int(quantity)) if quantity is not None else 0
+        if q <= 0:
+            self.logger.warning(f"Invalid order quantity ({quantity}) for {code}")
+            return ""
+
+        try:
+            p = float(price) if (price is not None and math.isfinite(float(price))) else 0.0
+        except (ValueError, TypeError):
+            p = 0.0
+
         broker = self.brokers[broker_to_use]
-        return broker.place_order(code, quantity, price, order_type)
+        try:
+            return broker.place_order(str(code), q, p, str(order_type))
+        except Exception as e:
+            self.logger.error(f"Error placing order on {broker_to_use.value}: {e}")
+            return ""
 
     def cancel_order(self, order_id: str, broker_type: Optional[BrokerType] = None) -> bool:
         """주문 취소"""
         broker_to_use = broker_type or self.active_broker
 
-        if not broker_to_use or broker_to_use not in self.brokers:
+        if not broker_to_use or broker_to_use not in self.brokers or not order_id:
             return False
 
         broker = self.brokers[broker_to_use]
-        return broker.cancel_order(order_id)
+        try:
+            return broker.cancel_order(str(order_id))
+        except Exception as e:
+            self.logger.error(f"Error cancelling order {order_id} on {broker_to_use.value}: {e}")
+            return False
 
     def get_order_status(self, order_id: str, broker_type: Optional[BrokerType] = None) -> Dict:
         """주문 상태 조회"""
