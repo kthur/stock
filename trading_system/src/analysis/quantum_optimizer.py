@@ -54,9 +54,10 @@ class QuantumPortfolioOptimizer:
             gamma = (B - A * mu_target) / D if D != 0 else 1.0 / C
             raw_weights = inv_cov @ (lam * er + gamma * ones)
 
+        raw_weights = np.nan_to_num(raw_weights, nan=0.0, posinf=0.0, neginf=0.0)
         raw_weights = np.maximum(raw_weights, 0.0)
-        total = raw_weights.sum()
-        if total > 0:
+        total = float(raw_weights.sum())
+        if total > 1e-12:
             raw_weights /= total
         else:
             raw_weights = np.full(n, 1.0 / n)
@@ -95,10 +96,19 @@ class QuantumPortfolioOptimizer:
         return optimized
 
     def compute_covariance(self, historical_returns: Dict[str, List[float]]) -> np.ndarray:
+        if not historical_returns:
+            return np.array([[]])
         symbols = list(historical_returns.keys())
         n = len(symbols)
-        min_len = min(len(v) for v in historical_returns.values())
-        if min_len < 2:
+        if n == 0:
+            return np.array([[]])
+        lengths = [len(v) for v in historical_returns.values() if v is not None]
+        if not lengths or min(lengths) < 2:
             return np.eye(n) * 0.04
-        arr = np.array([historical_returns[s][:min_len] for s in symbols])
-        return np.cov(arr)
+        min_len = min(lengths)
+        arr = np.array([historical_returns[s][:min_len] for s in symbols], dtype=float)
+        cov = np.cov(arr)
+        if cov.ndim == 0:
+            cov = np.array([[float(cov)]])
+        cov = np.nan_to_num(cov, nan=0.04, posinf=0.04, neginf=0.04)
+        return cov
