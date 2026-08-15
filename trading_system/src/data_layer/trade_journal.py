@@ -192,7 +192,7 @@ class TradeJournal:
             if not avg_win:
                 return 0.0
             if not avg_loss or avg_loss == 0:
-                return float('inf') if avg_win > 0 else 0.0
+                return 10.0 if avg_win > 0 else 0.0
 
             return float(avg_win) / abs(float(avg_loss))
         except Exception as e:
@@ -281,7 +281,7 @@ class TradeJournal:
                     p = positions[symbol]
                     p['qty'] += qty
                     p['total_cost'] += qty * price
-                    p['avg_price'] = p['total_cost'] / p['qty']
+                    p['avg_price'] = p['total_cost'] / p['qty'] if p['qty'] > 0 else 0.0
                     if sl is not None:
                         p['stop_loss'] = sl
                     if tp is not None:
