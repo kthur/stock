@@ -117,6 +117,8 @@ class NLPEngine:
         )
 
         self.news_queue.append(news)
+        if len(self.news_queue) > 10000:
+            self.news_queue = self.news_queue[-5000:]
         self.logger.info(f"News processed: {news}")
 
         # 이벤트 버스로 전송
@@ -134,9 +136,10 @@ class NLPEngine:
 
     def get_latest_news(self, symbol: str | None = None, limit: int = 10) -> List[NewsData]:
         """최근 뉴스 조회"""
+        safe_limit = max(1, int(limit)) if limit is not None else 10
         if symbol:
             news = [n for n in self.news_queue if n.symbol == symbol]
         else:
             news = self.news_queue
 
-        return news[-limit:]
+        return news[-safe_limit:] if safe_limit > 0 else []
