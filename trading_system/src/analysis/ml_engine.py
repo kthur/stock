@@ -476,9 +476,10 @@ class MLEngine:
 
             return np.mean(losses)
 
+        safe_trials = max(1, min(100, int(n_trials))) if n_trials is not None else 10
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         study = optuna.create_study(direction="minimize")
-        study.optimize(objective, n_trials=n_trials)
+        study.optimize(objective, n_trials=safe_trials)
 
         best_params: dict = study.best_params
         logger.info(f"Optimized hyperparameters: {best_params}")
