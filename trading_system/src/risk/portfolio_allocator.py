@@ -465,6 +465,8 @@ class PortfolioAllocator:
         adv_ratio = adv_ref / adv_clean
         vol_ratio = vol_clean / base_vol
         dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
+        if np.isnan(dynamic_spread) or np.isinf(dynamic_spread):
+            dynamic_spread = base_spread
         clamped_spread = min(max(dynamic_spread, spread_min), spread_max)
         half_spread = 0.5 * clamped_spread
 
