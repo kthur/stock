@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 # and your work WILL be rejected.
 
 
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_METRICS_PATH = _PROJECT_ROOT / "data" / "macro_model_metrics.json"
+
 try:
     import torch
     _HAS_CUDA = torch.cuda.is_available()
@@ -103,12 +108,19 @@ class MacroPredictor:
             "features": self.feature_names,
         }
 
-        # Save metrics to cache file
-        os.makedirs("data", exist_ok=True)
+        # Save metrics to cache file using atomic write
+        _METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp_metrics_path = _METRICS_PATH.with_suffix(".tmp.json")
         try:
-            with open("data/macro_model_metrics.json", "w") as f:
+            with open(tmp_metrics_path, "w", encoding="utf-8") as f:
                 json.dump(metrics, f, indent=4)
+            tmp_metrics_path.replace(_METRICS_PATH)
         except Exception as e:
+            if tmp_metrics_path.exists():
+                try:
+                    tmp_metrics_path.unlink()
+                except Exception:
+                    pass
             logger.error(f"Failed to save macro model metrics to JSON: {e}")
 
         return metrics
@@ -132,7 +144,10 @@ class MacroPredictor:
                     X[col] = 0.0
             X = X[self.feature_names]
 
-        X = X.fillna(0.0).astype(float)
+        for col in X.columns:
+            X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0.0)
+
+        X = X.astype(float)
         xgb_preds = self.xgb_model.predict(X)
         lgb_preds = self.lgb_model.predict(X)
         preds = (xgb_preds + lgb_preds) / 2.0
