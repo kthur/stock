@@ -39,6 +39,19 @@ STRATEGY_SCORE_COLS: List[tuple] = [
     ("CARD Factor", "card_score"),
     ("LATR Factor", "latr_score"),
     ("Inst & Foreign Sector", "inst_foreign_sector_score"),
+    ("Supply Chain Momentum", "supply_chain_score"),
+    ("NLP Sentiment Catalyst", "sentiment_score"),
+    ("Multi-Factor Neutralizer", "factor_neutralized_score"),
+    ("Dynamic Vol Target", "vol_target_score"),
+    ("Microstructure Imbalance", "microstructure_score"),
+    ("Accruals Quality Anomaly", "accruals_score"),
+    ("Short Interest Squeeze", "short_squeeze_score"),
+    ("Value-Up Shareholder Yield", "value_up_score"),
+    ("Kaufman Trend Efficiency", "trend_eff_score"),
+    ("Gamma Squeeze Engine", "gamma_squeeze_score"),
+    ("Insider Buying Flow", "insider_buying_score"),
+    ("Earnings Tone Drift", "tone_drift_score"),
+    ("HFT Microstructure Flow", "hft_score"),
 ]
 
 _KST = timezone(timedelta(hours=9))
@@ -53,7 +66,7 @@ def _compute_strategy_metrics(daily_returns: pd.Series, horizon: int) -> Dict[st
     """
     if daily_returns is None or len(daily_returns) == 0:
         return {}
-    s = daily_returns.dropna()
+    s = pd.to_numeric(daily_returns, errors="coerce").dropna()
     n = len(s)
     if n == 0:
         return {}
@@ -61,22 +74,24 @@ def _compute_strategy_metrics(daily_returns: pd.Series, horizon: int) -> Dict[st
     periods_per_year = _TRADING_DAYS_PER_YEAR / max(horizon, 1)
 
     mean_period = float(s.mean())
-    std_period = float(s.std(ddof=1))
+    std_period = float(s.std(ddof=1)) if n > 1 else 0.0
 
-    # Annualized return (geometric compounding of average period return)
-    annualized_return = ((1.0 + mean_period) ** periods_per_year - 1.0) * 100.0
+    # Annualized return (geometric compounding of average period return with loss floor)
+    clamped_mean = max(mean_period, -0.999)
+    annualized_return = ((1.0 + clamped_mean) ** periods_per_year - 1.0) * 100.0
 
     # Annualized volatility
-    annualized_vol = std_period * math.sqrt(periods_per_year)
+    annualized_vol = std_period * math.sqrt(periods_per_year) if not np.isnan(std_period) else 0.0
     sharpe = (annualized_return / 100.0) / annualized_vol if annualized_vol > 1e-12 else 0.0
+    sharpe = float(np.clip(sharpe, -10.0, 10.0))
 
     # Win rate per rebalance period
     win_rate = float((s > 0).mean()) * 100.0
 
     # Max drawdown on the compounded equity curve
-    equity = np.cumprod(1.0 + s.values)
+    equity = np.cumprod(1.0 + np.clip(s.values, -0.999, 10.0))
     peak = np.maximum.accumulate(equity)
-    dd = (equity - peak) / peak
+    dd = (equity - peak) / np.maximum(peak, 1e-12)
     max_dd = float(np.min(dd)) * 100.0 if len(dd) else 0.0
 
     return {
