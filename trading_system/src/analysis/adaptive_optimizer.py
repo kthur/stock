@@ -450,17 +450,20 @@ class AdaptiveParameterOptimizer:
     def _bollinger_position(prices, period=20):
         if len(prices) < period:
             return 0.0
-        recent = prices[-period:]
+        recent = [float(x) for x in prices[-period:] if x is not None and not np.isnan(x)]
+        if len(recent) < period:
+            return 0.0
         mean = sum(recent) / period
         std = (sum((x - mean) ** 2 for x in recent) / period) ** 0.5
         upper = mean + 2 * std
         lower = mean - 2 * std
-        current = prices[-1]
+        current = recent[-1]
         if current >= upper:
             return 1.0
         elif current <= lower:
             return -1.0
-        return (current - lower) / (upper - lower) * 2 - 1 if std > 0 else 0.0
+        band_width = upper - lower
+        return float(np.clip((current - lower) / band_width * 2 - 1, -1.0, 1.0)) if band_width > 1e-8 else 0.0
 
     @staticmethod
     def _calc_adx(bars, period=14):
@@ -474,15 +477,16 @@ class AdaptiveParameterOptimizer:
             trs.append(tr)
             up_moves.append(bars[i].high - bars[i - 1].high)
             down_moves.append(bars[i - 1].low - bars[i].low)
-        atr = sum(trs) / period if trs else 0
+        atr = sum(trs) / period if trs else 0.0
         avg_up = sum(max(m, 0) for m in up_moves) / period
         avg_down = sum(max(m, 0) for m in down_moves) / period
-        if atr <= 0:
+        if atr <= 1e-8:
             return 20.0
         plus_di = avg_up / atr * 100
         minus_di = avg_down / atr * 100
-        dx = abs(plus_di - minus_di) / (plus_di + minus_di) * 100 if (plus_di + minus_di) > 0 else 0
-        return dx
+        di_sum = plus_di + minus_di
+        dx = abs(plus_di - minus_di) / di_sum * 100 if di_sum > 1e-8 else 0.0
+        return float(np.clip(dx, 0.0, 100.0))
 
     def _fetch_bars(self, symbol: str, lookback_days: int) -> list:
         """과거 가격 데이터 조회"""
