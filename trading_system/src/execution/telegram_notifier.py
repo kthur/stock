@@ -107,6 +107,7 @@ class TelegramNotifier:
             logger.warning("[TelegramNotifier] 'ensemble_score' column missing in ensemble_df.")
             return False
 
+        import math
         top_df = ensemble_df.sort_values(by="ensemble_score", ascending=False).head(top_n)
 
         from datetime import datetime
@@ -114,25 +115,32 @@ class TelegramNotifier:
 
         border = "━━━━━━━━━━━━━━━━━━━━━━"
         lines = [
-            f"🚀 *[23-Strategy Multi-Factor TOP {top_n} Signals]*",
+            f"🚀 *[31-Strategy Multi-Factor TOP {top_n} Signals]*",
             f"📅 Date: `{dt_str}` | Regime: `{regime_name}`",
             border,
         ]
+
+        def _safe_float(val, default: float = 0.0) -> float:
+            try:
+                f = float(val)
+                return f if math.isfinite(f) else default
+            except (ValueError, TypeError):
+                return default
 
         for rank, (_, row) in enumerate(top_df.iterrows(), 1):
             sym = str(row["symbol"]).strip()
             name = str(row.get("name", sym)).strip()
             mkt = str(row.get("market", "KRX")).strip()
-            score = float(row["ensemble_score"]) * 100.0
+            score = _safe_float(row["ensemble_score"]) * 100.0
 
-            close_val = float(row.get("close", row.get("Close", 0.0)))
-            price_str = f"{close_val:,.0f} KRW" if mkt in ("KOSPI", "KOSDAQ") and close_val > 0 else (f"${close_val:,.2f}" if close_val > 0 else "N/A")
+            close_val = _safe_float(row.get("close", row.get("Close", 0.0)))
+            price_str = f"{close_val:,.0f} KRW" if mkt in ("KOSPI", "KOSDAQ", "KONEX") and close_val > 0 else (f"${close_val:,.2f}" if close_val > 0 else "N/A")
 
             # Risk boundaries (Target +15%, Stop Loss -5%)
             tp_val = close_val * 1.15 if close_val > 0 else 0.0
             sl_val = close_val * 0.95 if close_val > 0 else 0.0
-            tp_str = f"{tp_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ") and tp_val > 0 else (f"${tp_val:,.2f}" if tp_val > 0 else "N/A")
-            sl_str = f"{sl_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ") and sl_val > 0 else (f"${sl_val:,.2f}" if sl_val > 0 else "N/A")
+            tp_str = f"{tp_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ", "KONEX") and tp_val > 0 else (f"${tp_val:,.2f}" if tp_val > 0 else "N/A")
+            sl_str = f"{sl_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ", "KONEX") and sl_val > 0 else (f"${sl_val:,.2f}" if sl_val > 0 else "N/A")
 
             lines.append(f"*{rank}. {name} ({sym})* [{mkt}]")
             lines.append(f"  • *Score*: `{score:.1f}%` | *Price*: `{price_str}`")
@@ -140,23 +148,29 @@ class TelegramNotifier:
 
             # Strategy attribution breakdown
             strat_contribs = []
-            if "supply_chain_score" in row and pd.notna(row["supply_chain_score"]) and float(row["supply_chain_score"]) > 0:
-                strat_contribs.append(f"🔗SC:{float(row['supply_chain_score'])*100:.0f}%")
-            if "sentiment_score" in row and pd.notna(row["sentiment_score"]) and float(row["sentiment_score"]) > 0:
-                strat_contribs.append(f"🧠Sent:{float(row['sentiment_score'])*100:.0f}%")
-            if "factor_neutralized_score" in row and pd.notna(row["factor_neutralized_score"]) and float(row["factor_neutralized_score"]) > 0:
-                strat_contribs.append(f"🛡️FN:{float(row['factor_neutralized_score'])*100:.0f}%")
-            if "vol_target_score" in row and pd.notna(row["vol_target_score"]) and float(row["vol_target_score"]) > 0:
-                strat_contribs.append(f"🎯VT:{float(row['vol_target_score'])*100:.0f}%")
-            if "microstructure_score" in row and pd.notna(row["microstructure_score"]) and float(row["microstructure_score"]) > 0:
-                strat_contribs.append(f"⚡HFT:{float(row['microstructure_score'])*100:.0f}%")
+            contrib_keys = [
+                ("supply_chain_score", "🔗SC"),
+                ("sentiment_score", "🧠Sent"),
+                ("factor_neutralized_score", "🛡️FN"),
+                ("vol_target_score", "🎯VT"),
+                ("microstructure_score", "⚡HFT"),
+                ("accruals_score", "📊Accrual"),
+                ("short_squeeze_score", "🔥Sq"),
+                ("valueup_score", "💎ValUp"),
+                ("trend_efficiency_score", "📈KER"),
+            ]
+            for col_k, label in contrib_keys:
+                if col_k in row and pd.notna(row[col_k]):
+                    v = _safe_float(row[col_k])
+                    if v > 0:
+                        strat_contribs.append(f"{label}:{v*100:.0f}%")
 
             if strat_contribs:
                 lines.append(f"  • *Attribution*: `{' | '.join(strat_contribs[:4])}`")
             lines.append("")
 
         lines.append(border)
-        lines.append("📊 *Full 23-Strategy Dashboard available on GitHub Pages*")
+        lines.append("📊 *Full 31-Strategy Dashboard available on GitHub Pages*")
 
         card_text = "\n".join(lines)
         buttons = [[{"text": "🌐 Open HTML Dashboard", "url": GH_PAGES_URL}]]
