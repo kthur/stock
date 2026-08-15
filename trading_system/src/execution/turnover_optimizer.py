@@ -17,8 +17,18 @@ class TurnoverOptimizer:
     """Filters target portfolio allocations against current holdings to reduce turnover."""
 
     def __init__(self, turnover_threshold_pct: float = 0.05, min_rebalance_delta_krw: float = 50000.0) -> None:
-        self.turnover_threshold_pct = turnover_threshold_pct
-        self.min_rebalance_delta_krw = min_rebalance_delta_krw
+        import math
+        try:
+            safe_thresh = float(turnover_threshold_pct) if (turnover_threshold_pct is not None and math.isfinite(float(turnover_threshold_pct))) else 0.05
+        except (ValueError, TypeError):
+            safe_thresh = 0.05
+        self.turnover_threshold_pct = max(0.001, min(0.50, safe_thresh))
+
+        try:
+            safe_min_delta = float(min_rebalance_delta_krw) if (min_rebalance_delta_krw is not None and math.isfinite(float(min_rebalance_delta_krw))) else 50000.0
+        except (ValueError, TypeError):
+            safe_min_delta = 50000.0
+        self.min_rebalance_delta_krw = max(0.0, safe_min_delta)
 
     def optimize_allocations(self, current_holdings: Dict[str, float],
                              target_allocations: Dict[str, float],
