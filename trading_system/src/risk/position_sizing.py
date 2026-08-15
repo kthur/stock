@@ -36,13 +36,26 @@ class PortfolioAllocator:
                  target_horizon: int = 20,
                  use_kelly: bool = True,
                  kelly_fraction: float = 0.5):
-        self.max_single_position = max_single_position / 100.0 if max_single_position > 1.0 else max_single_position
-        self.min_single_position = min_single_position / 100.0 if min_single_position > 1.0 else min_single_position
-        self.max_total_allocation = max_total_allocation / 100.0 if max_total_allocation > 1.0 else max_total_allocation
-        self.max_sector_exposure = max_sector_exposure / 100.0 if max_sector_exposure > 1.0 else max_sector_exposure
-        self.target_horizon = target_horizon
-        self.use_kelly = use_kelly
-        self.kelly_fraction = kelly_fraction
+        s_single = float(max_single_position) if (max_single_position is not None and np.isfinite(max_single_position)) else 0.15
+        s_single = s_single / 100.0 if s_single > 1.0 else s_single
+        self.max_single_position = max(0.01, min(1.0, s_single))
+
+        s_min_single = float(min_single_position) if (min_single_position is not None and np.isfinite(min_single_position)) else 0.02
+        s_min_single = s_min_single / 100.0 if s_min_single > 1.0 else s_min_single
+        self.min_single_position = max(0.001, min(1.0, s_min_single))
+
+        s_tot = float(max_total_allocation) if (max_total_allocation is not None and np.isfinite(max_total_allocation)) else 0.85
+        s_tot = s_tot / 100.0 if s_tot > 1.0 else s_tot
+        self.max_total_allocation = max(0.05, min(1.0, s_tot))
+
+        s_sec = float(max_sector_exposure) if (max_sector_exposure is not None and np.isfinite(max_sector_exposure)) else 0.30
+        s_sec = s_sec / 100.0 if s_sec > 1.0 else s_sec
+        self.max_sector_exposure = max(0.05, min(1.0, s_sec))
+
+        self.target_horizon = max(1, int(target_horizon)) if target_horizon is not None else 20
+        self.use_kelly = bool(use_kelly)
+        s_kelly = float(kelly_fraction) if (kelly_fraction is not None and np.isfinite(kelly_fraction)) else 0.5
+        self.kelly_fraction = max(0.05, min(2.0, s_kelly))
 
     def compute_market_budgets(self,
                                regime: Optional[Any] = None,
