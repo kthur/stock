@@ -111,53 +111,65 @@ class IntradayMonitor:
         volume_ma20: float = 0.0,
         force_alert: bool = False,
     ) -> List[MonitorAction]:
+        import math
         actions: List[MonitorAction] = []
-        if quote_price is None or quote_price <= 0:
+        try:
+            qp = float(quote_price) if (quote_price is not None and math.isfinite(float(quote_price))) else 0.0
+        except (ValueError, TypeError):
+            qp = 0.0
+
+        if qp <= 0:
             return actions
+
+        try:
+            vol = float(volume) if (volume is not None and math.isfinite(float(volume))) else 0.0
+            vol_ma = float(volume_ma20) if (volume_ma20 is not None and math.isfinite(float(volume_ma20))) else 0.0
+        except (ValueError, TypeError):
+            vol, vol_ma = 0.0, 0.0
 
         state = self.state_store.get_state(item.symbol, date)
         open_initialized = False
         if state.open_price <= 0:
-            state.open_price = quote_price
-            state.peak_price = quote_price
-            state.low_price = quote_price
+            state.open_price = qp
+            state.peak_price = qp
+            state.low_price = qp
             open_initialized = True
 
         # 고점/저점 갱신
-        state.peak_price = max(state.peak_price, quote_price)
-        state.low_price = min(state.low_price if state.low_price > 0 else quote_price, quote_price)
+        state.peak_price = max(state.peak_price, qp)
+        state.low_price = min(state.low_price if state.low_price > 0 else qp, qp)
 
         # 1) 손절: 진입가 대비 하락
         if not state.stop_triggered and item.entry_price > 0 and item.position_qty > 0:
-            drop_pct = (quote_price - item.entry_price) / item.entry_price
-            if drop_pct <= self.stop_loss_pct:
+            drop_pct = (qp - item.entry_price) / item.entry_price
+            if math.isfinite(drop_pct) and drop_pct <= self.stop_loss_pct:
                 state.stop_triggered = True
                 state.stop_reasons = f"ENTRY_DROP {drop_pct*100:.1f}%"
                 actions.append(MonitorAction(
                     symbol=item.symbol, action_type="STOP_LOSS",
                     reason=f"진입 대비 {drop_pct*100:.1f}% 하락 (임계 {self.stop_loss_pct*100:.0f}%)",
-                    price=quote_price, drop_pct=drop_pct,
+                    price=qp, drop_pct=drop_pct,
                 ))
 
         # 2) 익절: 진입가 대비 상승
         if not state.take_profit_triggered and item.entry_price > 0 and item.position_qty > 0:
-            gain_pct = (quote_price - item.entry_price) / item.entry_price
-            if gain_pct >= self.take_profit_pct:
+            gain_pct = (qp - item.entry_price) / item.entry_price
+            if math.isfinite(gain_pct) and gain_pct >= self.take_profit_pct:
                 state.take_profit_triggered = True
                 actions.append(MonitorAction(
                     symbol=item.symbol, action_type="TAKE_PROFIT",
                     reason=f"진입 대비 {gain_pct*100:.1f}% 상승 (임계 {self.take_profit_pct*100:.0f}%)",
-                    price=quote_price, drop_pct=gain_pct,
+                    price=qp, drop_pct=gain_pct,
                 ))
 
         # 3) IntradayStopLossEngine 재사용 (마이크로구조: ATR 트레일링/패닉 볼륨)
         if self.intraday_engine is not None and not state.stop_triggered:
             try:
                 res = self.intraday_engine.evaluate(item.symbol, {
-                    "current_price": quote_price,
-                    "volume": volume,
-                    "volume_ma_20": volume_ma20,
-                    "prev_price": quote_price,  # 15분 폴링이므로 이전 틱 대비로 단순화
+                    "current_price": qp,
+                    "volume": vol,
+                    "volume_ma_20": vol_ma,
+                    "prev_price": qp,  # 15분 폴링이므로 이전 틱 대비로 단순화
                 })
                 if res.triggered:
                     state.stop_triggered = True
@@ -165,7 +177,7 @@ class IntradayMonitor:
                     actions.append(MonitorAction(
                         symbol=item.symbol, action_type="STOP_LOSS",
                         reason=f"인트라데이 스탑: {res.reason}",
-                        price=quote_price, drop_pct=res.drop_pct,
+                        price=qp, drop_pct=res.drop_pct,
                     ))
             except Exception as e:
                 logger.debug(f"[MONITOR] intraday engine failed for {item.symbol}: {e}")
@@ -175,13 +187,13 @@ class IntradayMonitor:
                 and item.expected_return > 0.0 and item.entry_price <= 0):
             # 매수 신호 종목이 장중 크게 이탈했으면 다운그레이드
             if state.open_price > 0:
-                intraday_ret = (quote_price - state.open_price) / state.open_price
-                if intraday_ret <= self.signal_reversal_threshold:
+                intraday_ret = (qp - state.open_price) / state.open_price
+                if math.isfinite(intraday_ret) and intraday_ret <= self.signal_reversal_threshold:
                     state.signal_downgraded = True
                     actions.append(MonitorAction(
                         symbol=item.symbol, action_type="SIGNAL_DOWNGRADE",
                         reason=f"장중 {intraday_ret*100:.1f}% 하락 (시가 대비) — 매수 신호 다운그레이드",
-                        price=quote_price, drop_pct=intraday_ret,
+                        price=qp, drop_pct=intraday_ret,
                     ))
 
         state.updated_at = datetime.now().isoformat(timespec="seconds")
