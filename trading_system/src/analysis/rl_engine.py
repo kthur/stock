@@ -39,15 +39,19 @@ class RLEngine:
             logger.warning("No RL model path provided. Running in adaptive mode.")
             self._is_loaded = False
 
-    def get_action(self, state_features: Dict[str, float]) -> Dict[str, Any]:
+    def get_action(self, state_features: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+        if state_features is None:
+            state_features = {}
         features = np.array(
             [
-                state_features.get("vix", 20.0),
-                state_features.get("rsi", 50.0),
-                state_features.get("macd", 0.0),
-                state_features.get("trend_strength", 0.0),
-            ]
+                float(state_features.get("vix", 20.0) or 20.0),
+                float(state_features.get("rsi", 50.0) or 50.0),
+                float(state_features.get("macd", 0.0) or 0.0),
+                float(state_features.get("trend_strength", 0.0) or 0.0),
+            ],
+            dtype=float
         )
+        features = np.nan_to_num(features, nan=0.0)
 
         action_probs = self._simulate_policy_network(features)
 
@@ -66,7 +70,10 @@ class RLEngine:
         return result
 
     def record_outcome(self, action: str, pnl_pct: float) -> None:
-        self._action_performance[action].append(pnl_pct > 0)
+        act = str(action).upper().strip()
+        if act not in self._action_performance:
+            self._action_performance[act] = []
+        self._action_performance[act].append(pnl_pct > 0)
         if len(self._action_history) % 20 == 0:
             self._adapt_thresholds()
 
