@@ -62,11 +62,37 @@ class IntradayMonitor:
         intraday_engine=None,
         crisis_detector=None,
     ):
-        self.stop_loss_pct = stop_loss_pct
-        self.take_profit_pct = take_profit_pct
-        self.signal_reversal_threshold = signal_reversal_threshold
-        self.macro_vix_threshold = macro_vix_threshold
-        self.macro_usdkrw_threshold = macro_usdkrw_threshold
+        import math
+        try:
+            safe_sl = float(stop_loss_pct) if (stop_loss_pct is not None and math.isfinite(float(stop_loss_pct))) else -0.04
+        except (ValueError, TypeError):
+            safe_sl = -0.04
+        self.stop_loss_pct = min(-0.001, max(-0.50, safe_sl))
+
+        try:
+            safe_tp = float(take_profit_pct) if (take_profit_pct is not None and math.isfinite(float(take_profit_pct))) else 0.08
+        except (ValueError, TypeError):
+            safe_tp = 0.08
+        self.take_profit_pct = max(0.001, min(2.0, safe_tp))
+
+        try:
+            safe_rev = float(signal_reversal_threshold) if (signal_reversal_threshold is not None and math.isfinite(float(signal_reversal_threshold))) else -0.03
+        except (ValueError, TypeError):
+            safe_rev = -0.03
+        self.signal_reversal_threshold = min(-0.001, max(-0.50, safe_rev))
+
+        try:
+            safe_vix = float(macro_vix_threshold) if (macro_vix_threshold is not None and math.isfinite(float(macro_vix_threshold))) else 28.0
+        except (ValueError, TypeError):
+            safe_vix = 28.0
+        self.macro_vix_threshold = max(5.0, min(100.0, safe_vix))
+
+        try:
+            safe_usd = float(macro_usdkrw_threshold) if (macro_usdkrw_threshold is not None and math.isfinite(float(macro_usdkrw_threshold))) else 1450.0
+        except (ValueError, TypeError):
+            safe_usd = 1450.0
+        self.macro_usdkrw_threshold = max(500.0, min(3000.0, safe_usd))
+
         self.state_store = state_store or RealtimeStateStore()
         self.intraday_engine = intraday_engine  # IntradayStopLossEngine (재사용)
         self.crisis_detector = crisis_detector  # CrisisDetector (재사용)
