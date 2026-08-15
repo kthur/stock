@@ -176,28 +176,41 @@ class PortfolioAllocator:
             horizon_col = min(numeric_cols, key=lambda x: abs(x - self.target_horizon))
             logger.warning(f"Horizon {self.target_horizon}d not found. Falling back to {horizon_col}d.")
 
+        sym_col = next((c for c in predictions_df.columns if str(c).lower() in ('symbol', 'ticker')), 'symbol')
         records = []
         for _, row in predictions_df.iterrows():
-            sym = row['symbol']
-            pred_ret = row[horizon_col]
+            sym = row.get(sym_col)
+            if not sym:
+                continue
+            pred_ret = row.get(horizon_col, 0.0)
 
             # Skip negative expected returns
-            if pred_ret <= 0:
+            if pred_ret <= 0 or pd.isna(pred_ret):
                 continue
 
             df_price = prices_dict.get(sym)
             if df_price is None or len(df_price) < 21:
                 continue
 
-            close = df_price['Close']
+            close_col = next((c for c in df_price.columns if str(c).lower() in ('close', 'adj close', 'adjclose')), None)
+            if not close_col:
+                continue
+
+            close = df_price[close_col]
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]
 
-            daily_returns = close.pct_change().dropna()
-            vol = daily_returns.tail(20).std()
+            close_s = pd.to_numeric(close, errors='coerce').dropna()
+            if len(close_s) < 21:
+                continue
+
+            daily_returns = close_s.pct_change(fill_method=None).dropna()
+            vol = float(daily_returns.tail(20).std())
+            vol = max(vol, 1e-4) if np.isfinite(vol) else 0.02
 
             # Liquidity-proportional slippage estimation based on recent 20d volume/value
-            volume_series = df_price['Volume'] if 'Volume' in df_price.columns else None
+            vol_col_name = next((c for c in df_price.columns if str(c).lower() == 'volume'), None)
+            volume_series = df_price[vol_col_name] if vol_col_name else None
             if isinstance(volume_series, pd.DataFrame):
                 volume_series = volume_series.iloc[:, 0]
 
