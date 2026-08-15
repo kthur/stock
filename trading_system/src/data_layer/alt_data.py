@@ -70,12 +70,14 @@ class AlternativeDataClient:
             if hist.empty or len(hist) < 50:
                 return {"trend": "NEUTRAL", "strength": 0.0}
             closes = hist["Close"].values
-            closes = np.nan_to_num(closes, nan=1.0)
+            closes = np.nan_to_num(closes, nan=1.0, posinf=1.0, neginf=1.0)
+            if len(closes) < 50:
+                return {"trend": "NEUTRAL", "strength": 0.0}
             sma50 = float(np.mean(closes[-50:]))
             sma200 = float(np.mean(closes[-200:])) if len(closes) >= 200 else sma50
             current = float(closes[-1])
-            returns_1m = float((closes[-1] / closes[-21] - 1.0)) if len(closes) >= 21 and closes[-21] > 0 else 0.0
-            returns_3m = float((closes[-1] / closes[-63] - 1.0)) if len(closes) >= 63 and closes[-63] > 0 else 0.0
+            returns_1m = float((closes[-1] / closes[-21] - 1.0)) if len(closes) >= 21 and closes[-21] > 0 and np.isfinite(closes[-21]) else 0.0
+            returns_3m = float((closes[-1] / closes[-63] - 1.0)) if len(closes) >= 63 and closes[-63] > 0 and np.isfinite(closes[-63]) else 0.0
 
             if current > sma50 and returns_1m > 0.02:
                 trend = "BULL"
@@ -113,21 +115,24 @@ class AlternativeDataClient:
 
     def get_market_regime(self) -> Dict[str, Any]:
         vix = self.fetch_vix()
+        vix_clean = float(vix) if (vix is not None and np.isfinite(vix)) else 20.0
+        vix_safe = float(np.clip(vix_clean, 8.0, 100.0))
+
         sentiment = self.fetch_fear_and_greed_proxy()
         trend_info = self._fetch_spx_trend()
-        vol_regime = self._detect_volatility_regime(vix)
+        vol_regime = self._detect_volatility_regime(vix_safe)
 
         trend = trend_info["trend"]
         trend_strength = trend_info["strength"] * (1.0 if trend in ("BULL", "BULLISH") else -1.0)
 
         return {
-            "vix": vix,
+            "vix": vix_safe,
             "sentiment": sentiment,
             "volatility_regime": vol_regime,
             "trend": trend,
             "trend_strength": trend_strength,
-            "is_high_volatility": vix > 25,
+            "is_high_volatility": vix_safe > 25,
             "is_bull_market": trend in ("BULL", "BULLISH"),
             "is_bear_market": trend in ("BEAR", "BEARISH"),
-            "regime_score": round(trend_strength * 0.6 + (1.0 - vix / 50.0) * 0.4, 3),
+            "regime_score": round(trend_strength * 0.6 + (1.0 - vix_safe / 50.0) * 0.4, 3),
         }
