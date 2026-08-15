@@ -85,5 +85,5 @@ class TurnoverOptimizer:
                 "delta_amount": amount_delta if action != "HOLD" else 0.0,
             }
 
-        logger.info("[TurnoverOptimizer] Reduced turnover by %,.0f KRW across %d symbols.", total_turnover_reduced, len(all_symbols))
+        logger.info("[TurnoverOptimizer] Reduced turnover by %s KRW across %d symbols.", f"{total_turnover_reduced:,.0f}", len(all_symbols))
         return optimized
