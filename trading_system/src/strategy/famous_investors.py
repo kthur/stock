@@ -9,6 +9,19 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+import numpy as np
+
+
+def _safe_float(val, default=None):
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        return default if np.isnan(f) or np.isinf(f) else f
+    except (ValueError, TypeError):
+        return default
+
+
 class InvestorType(Enum):
     VALUE_INVESTOR = "가치투자"
     GROWTH_INVESTOR = "성장투자"
@@ -49,11 +62,11 @@ class BuffettStrategy:
         - 안정적 현금흐름
         """
         symbol = stock_data.get("symbol", "UNKNOWN")
-        pe_ratio = stock_data.get("pe_ratio")
-        pb_ratio = stock_data.get("pb_ratio")
-        roe = stock_data.get("roe", 0)
-        debt_ratio = stock_data.get("debt_ratio", 0)
-        dividend_yield = stock_data.get("dividend_yield", 0)
+        pe_ratio = _safe_float(stock_data.get("pe_ratio"))
+        pb_ratio = _safe_float(stock_data.get("pb_ratio"))
+        roe = _safe_float(stock_data.get("roe"), 0.0)
+        debt_ratio = _safe_float(stock_data.get("debt_ratio"), 0.0)
+        dividend_yield = _safe_float(stock_data.get("dividend_yield"), 0.0)
 
         reasons = []
         score = 0.0
@@ -129,10 +142,10 @@ class LynchStrategy:
         - 시장 기회 큼
         """
         symbol = stock_data.get("symbol", "UNKNOWN")
-        earnings_growth = stock_data.get("earnings_growth", 0)
-        revenue_growth = stock_data.get("revenue_growth", 0)
-        pe_ratio = stock_data.get("pe_ratio")
-        industry_growth = stock_data.get("industry_growth", 0)
+        earnings_growth = _safe_float(stock_data.get("earnings_growth"), 0.0)
+        revenue_growth = _safe_float(stock_data.get("revenue_growth"), 0.0)
+        pe_ratio = _safe_float(stock_data.get("pe_ratio"))
+        industry_growth = _safe_float(stock_data.get("industry_growth"), 0.0)
 
         reasons = []
         score = 0.0
