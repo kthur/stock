@@ -36,33 +36,56 @@ class PipelineReporter:
         from src.core.strategy_registry import get_registry
         strat_cnt = get_registry().get_strategy_count() or 31
 
+        import math
         # 1. Ensemble Predictions Output
         ens_file = output_dir / f"ensemble_predictions_{market_label}.txt" if market_label != "ALL" else output_dir / "ensemble_predictions.txt"
+        tmp_ens = ens_file.with_suffix(".tmp.txt")
         try:
-            with open(ens_file, "w", encoding="utf-8") as f:
+            with open(tmp_ens, "w", encoding="utf-8") as f:
                 f.write(f"=== {strat_cnt}-Strategy Dynamic Ensemble Predictions ({market_label}) ===\n")
                 f.write(f"Generated: {date_kst}\n\n")
                 if ensemble_df is not None and not ensemble_df.empty:
                     top_picks = ensemble_df.head(20)
-                    for idx, row in top_picks.iterrows():
-                        sym = row.get("symbol", "")
-                        name = row.get("name", sym)
-                        score = row.get("ensemble_score", 0.0)
-                        ret = row.get("ensemble_expected_return", 0.0)
-                        f.write(f"#{idx+1} {sym} ({name}) | Ensemble Score: {score:.2f} | Expected Return: {ret:.2f}%\n")
+                    for rank, (_, row) in enumerate(top_picks.iterrows(), 1):
+                        sym = str(row.get("symbol", "") or "").strip()
+                        name = str(row.get("name", sym) or sym).strip()
+                        try:
+                            s_raw = float(row.get("ensemble_score", 0.0))
+                            score = s_raw if math.isfinite(s_raw) else 0.0
+                        except (ValueError, TypeError):
+                            score = 0.0
+                        try:
+                            r_raw = float(row.get("ensemble_expected_return", 0.0))
+                            ret = r_raw if math.isfinite(r_raw) else 0.0
+                        except (ValueError, TypeError):
+                            ret = 0.0
+                        f.write(f"#{rank} {sym} ({name}) | Ensemble Score: {score:.2f} | Expected Return: {ret:.2f}%\n")
+            tmp_ens.replace(ens_file)
             generated_files.append(ens_file)
             logger.info(f"[PipelineReporter] Saved ensemble predictions report to {ens_file.name}")
         except Exception as e:
+            if tmp_ens.exists():
+                try:
+                    tmp_ens.unlink()
+                except Exception:
+                    pass
             logger.error(f"[PipelineReporter] Failed to save ensemble predictions report: {e}")
 
         # 2. Strategy Coverage Report Output
         cov_file = output_dir / f"strategy_data_coverage_report_{market_label}.txt" if market_label != "ALL" else output_dir / "strategy_data_coverage_report.txt"
+        tmp_cov = cov_file.with_suffix(".tmp.txt")
         try:
-            with open(cov_file, "w", encoding="utf-8") as f:
+            with open(tmp_cov, "w", encoding="utf-8") as f:
                 f.write(coverage_report_text or "No coverage report data available.\n")
+            tmp_cov.replace(cov_file)
             generated_files.append(cov_file)
             logger.info(f"[PipelineReporter] Saved coverage report to {cov_file.name}")
         except Exception as e:
+            if tmp_cov.exists():
+                try:
+                    tmp_cov.unlink()
+                except Exception:
+                    pass
             logger.error(f"[PipelineReporter] Failed to save coverage report: {e}")
 
         return generated_files
