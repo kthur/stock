@@ -150,8 +150,8 @@ class FredApiClient:
 
         latest_val = float(df["value"].iloc[-1])
         prev_val = float(df["value"].iloc[-2]) if len(df) >= 2 else latest_val
-        change_pct = ((latest_val - prev_val) / prev_val * 100.0) if prev_val != 0 else 0.0
-        latest_date = df.index[-1].strftime("%Y-%m-%d")
+        change_pct = ((latest_val - prev_val) / abs(prev_val) * 100.0) if prev_val != 0 else 0.0
+        latest_date = df.index[-1].strftime("%Y-%m-%d") if hasattr(df.index[-1], "strftime") else str(df.index[-1])[:10]
 
         name = FRED_SERIES_MAP.get(series_id, series_id)
         return {
