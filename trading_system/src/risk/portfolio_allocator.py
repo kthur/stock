@@ -143,12 +143,13 @@ class PortfolioAllocator:
 
                 z_a = float(norm.ppf(confidence))
                 z_cf = z_a + (s_loss / 6.0) * (z_a**2 - 1.0) + (k_loss / 24.0) * (z_a**3 - 3.0 * z_a) - (s_loss**2 / 36.0) * (2.0 * z_a**3 - 5.0 * z_a)
+                z_cf = float(np.clip(z_cf, 0.5, 6.0))
 
                 var_cf = mu_l + sigma_l * z_cf
                 pdf_cf = norm.pdf(z_cf)
                 cvar_cf = mu_l + sigma_l * (pdf_cf / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * z_cf**3 + (k_loss / 24.0) * (z_cf**4 - 2.0 * z_cf**2 - 1.0))
 
-                if not np.isnan(cvar_cf) and cvar_cf > 0:
+                if not np.isnan(cvar_cf) and not np.isinf(cvar_cf) and cvar_cf > 0:
                     return {
                         "var": float(max(0.0, var_cf)),
                         "cvar": float(max(0.0, cvar_cf)),
