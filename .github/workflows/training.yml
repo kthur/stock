@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
-    timeout-minutes: 180
+    timeout-minutes: 350
 
     steps:
       - uses: actions/checkout@v4
