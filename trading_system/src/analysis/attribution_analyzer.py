@@ -70,12 +70,17 @@ class StrategyAttributionAnalyzer:
 
         # Calculate average score & weighted contribution per strategy
         strat_summaries = []
-        total_exp_ret = df['ensemble_expected_return'].mean() if 'ensemble_expected_return' in df.columns else 0.0
+        if 'ensemble_expected_return' in df.columns:
+            ret_s = pd.to_numeric(df['ensemble_expected_return'], errors='coerce').dropna()
+            total_exp_ret = float(ret_s.mean()) if not ret_s.empty else 0.0
+        else:
+            total_exp_ret = 0.0
 
         for col in strategy_cols:
             name = STRATEGY_MAP[col]
-            avg_score = float(df[col].mean()) if col in df.columns else 0.0
-            non_zero_count = int((df[col] > 0.0).sum())
+            num_s = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+            avg_score = float(num_s.mean()) if not num_s.empty else 0.0
+            non_zero_count = int((num_s.abs() > 1e-6).sum())
             coverage_pct = (non_zero_count / len(df)) * 100.0 if len(df) > 0 else 0.0
 
             # Linear attribution proxy
@@ -93,12 +98,19 @@ class StrategyAttributionAnalyzer:
 
         report_text = self._generate_report_text(summary_df, total_exp_ret, len(df))
         report_path = self.output_dir / "strategy_attribution_report.txt"
+        tmp_report_path = report_path.with_suffix(".tmp.txt")
         try:
-            with open(report_path, "w", encoding="utf-8") as f:
+            with open(tmp_report_path, "w", encoding="utf-8") as f:
                 f.write(report_text)
+            tmp_report_path.replace(report_path)
             logger.info(f"Generated Strategy Attribution Report at {report_path}")
         except Exception as e:
-            logger.error(f"Failed to write strategy attribution report: {e}")
+            if tmp_report_path.exists():
+                try:
+                    tmp_report_path.unlink()
+                except Exception:
+                    pass
+            logger.error(f"Failed to write Strategy Attribution Report: {e}")
 
         return {
             'status': 'SUCCESS',
