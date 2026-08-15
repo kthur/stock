@@ -11,6 +11,7 @@ Enforces pre-trade risk controls and circuit breakers before orders reach the ex
 import logging
 from dataclasses import dataclass
 from typing import List, Optional
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,13 @@ class PreTradeRiskGatekeeper:
         max_allowed_drawdown: float = 0.10,
         enable_crisis_gating: bool = True,
     ) -> None:
-        self.max_single_stock_weight = max_single_stock_weight
-        self.max_order_adv_pct = max_order_adv_pct
-        self.max_allowed_drawdown = max_allowed_drawdown
-        self.enable_crisis_gating = enable_crisis_gating
+        safe_single_w = float(max_single_stock_weight) if (max_single_stock_weight is not None and np.isfinite(max_single_stock_weight)) else 0.15
+        self.max_single_stock_weight = max(0.01, min(1.0, safe_single_w))
+        safe_adv_pct = float(max_order_adv_pct) if (max_order_adv_pct is not None and np.isfinite(max_order_adv_pct)) else 0.05
+        self.max_order_adv_pct = max(0.001, min(1.0, safe_adv_pct))
+        safe_dd = float(max_allowed_drawdown) if (max_allowed_drawdown is not None and np.isfinite(max_allowed_drawdown)) else 0.10
+        self.max_allowed_drawdown = max(0.01, min(1.0, safe_dd))
+        self.enable_crisis_gating = bool(enable_crisis_gating)
 
     def evaluate_order(
         self, order: ProposedOrder, portfolio_value: float, is_crisis_mode: bool = False
