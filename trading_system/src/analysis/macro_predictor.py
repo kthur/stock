@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_squared_error, r2_score
@@ -40,11 +41,13 @@ class MacroPredictor:
     """
 
     def __init__(self, max_depth: int = 5, n_estimators: int = 100):
+        safe_depth = max(1, min(20, int(max_depth))) if max_depth is not None else 5
+        safe_n_estimators = max(10, min(1000, int(n_estimators))) if n_estimators is not None else 100
         xgb_kwargs: Dict[str, Any] = dict(
-            max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05
+            max_depth=safe_depth, n_estimators=safe_n_estimators, random_state=42, learning_rate=0.05
         )
         lgb_kwargs: Dict[str, Any] = dict(
-            max_depth=max_depth, n_estimators=n_estimators, random_state=42, learning_rate=0.05, verbose=-1
+            max_depth=safe_depth, n_estimators=safe_n_estimators, random_state=42, learning_rate=0.05, verbose=-1
         )
         if _HAS_CUDA:
             xgb_kwargs['tree_method'] = 'gpu_hist'
