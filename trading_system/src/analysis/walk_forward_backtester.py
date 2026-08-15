@@ -1,7 +1,7 @@
 """
 walk_forward_backtester.py — Out-of-Sample Walk-Forward Backtester
 
-Executes rolling-window walk-forward out-of-sample backtesting across all 23 multi-factor
+Executes rolling-window walk-forward out-of-sample backtesting across all 31 multi-factor
 strategies to compute Information Coefficients (IC), Rank IC, Sharpe ratios, and Cumulative PnL.
 """
 
@@ -50,7 +50,7 @@ class WalkForwardBacktester:
 
         Args:
             predictions_df: DataFrame with 'date', 'symbol', and strategy score columns.
-            returns_df: DataFrame with 'date', 'symbol', and 'forward_return_20d'.
+            returns_df: DataFrame with 'date', 'symbol', and forward return column.
 
         Returns:
             Dict of strategy metrics and overall cumulative PnL series.
@@ -62,11 +62,19 @@ class WalkForwardBacktester:
         if merged.empty:
             return {"status": "NO_MATCHING_DATES", "strategy_metrics": {}}
 
+        ret_col = None
+        for c in ["forward_return_20d", "forward_return", "actual_return", "realized_return", "return"]:
+            if c in merged.columns:
+                ret_col = c
+                break
+        if ret_col is None:
+            return {"status": "NO_RETURN_COL", "strategy_metrics": {}}
+
         strategy_cols = [c for c in merged.columns if c.endswith("_score") or c in ("ensemble_score",)]
         metrics: Dict[str, Dict[str, float]] = {}
 
         for col in strategy_cols:
-            res = self.evaluate_strategy_ic(merged[col], merged["forward_return_20d"])
+            res = self.evaluate_strategy_ic(merged[col], merged[ret_col])
             metrics[col] = res
 
         return {
