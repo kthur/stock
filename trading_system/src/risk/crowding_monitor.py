@@ -36,35 +36,46 @@ class CrowdingRiskMonitor:
         df = ensemble_df.copy()
         warnings: List[str] = []
 
+        col_map = {str(c).lower(): c for c in df.columns}
+        sec_col = col_map.get("sector")
+        ens_col = col_map.get("ensemble_score")
+
+        if ens_col:
+            df[ens_col] = pd.to_numeric(df[ens_col], errors="coerce").fillna(0.0)
+
         # 1. Sector Concentration Budget Check
-        if "sector" in df.columns and "ensemble_score" in df.columns:
-            sector_sums = df.groupby("sector")["ensemble_score"].sum()
-            total_score_sum = sector_sums.sum()
-            if total_score_sum > 0:
+        if sec_col and ens_col:
+            sector_sums = df.groupby(sec_col)[ens_col].sum()
+            total_score_sum = float(sector_sums.sum())
+            if total_score_sum > 1e-12:
                 sector_weights = sector_sums / total_score_sum
                 overconcentrated = sector_weights[sector_weights > self.max_sector_weight]
                 for sec, w in overconcentrated.items():
-                    warnings.append(f"Sector '{sec}' weight {w*100:.1f}% exceeds max {self.max_sector_weight*100:.0f}% threshold!")
+                    w_float = float(w)
+                    warnings.append(f"Sector '{sec}' weight {w_float*100:.1f}% exceeds max {self.max_sector_weight*100:.0f}% threshold!")
                     # Dampen scores in overconcentrated sector
-                    sec_mask = df["sector"] == sec
-                    df.loc[sec_mask, "ensemble_score"] = df.loc[sec_mask, "ensemble_score"] * (self.max_sector_weight / w)
+                    sec_mask = df[sec_col] == sec
+                    scale_factor = self.max_sector_weight / max(w_float, 1e-6)
+                    df.loc[sec_mask, ens_col] = df.loc[sec_mask, ens_col] * scale_factor
 
         # 2. Multi-Strategy Consensus Crowding Penalty
-        strat_cols = [c for c in df.columns if c.endswith("_score") and c != "ensemble_score"]
-        if strat_cols and "ensemble_score" in df.columns:
+        strat_cols = [c for c in df.columns if str(c).endswith("_score") and c != ens_col]
+        num_crowded = 0
+        if strat_cols and ens_col:
+            numeric_strat_df = df[strat_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0)
             # Count how many strategies assign a score >= 0.70 to a symbol
-            high_score_counts = (df[strat_cols] >= 0.70).sum(axis=1)
+            high_score_counts = (numeric_strat_df >= 0.70).sum(axis=1)
             crowded_mask = high_score_counts >= self.consensus_crowding_threshold
 
             if crowded_mask.any():
                 num_crowded = int(crowded_mask.sum())
                 logger.info("[CrowdingRiskMonitor] %d symbols exhibit high strategy consensus crowding (>=%d strats). Applying 15%% anti-crowding penalty.", num_crowded, self.consensus_crowding_threshold)
-                df.loc[crowded_mask, "ensemble_score"] = df.loc[crowded_mask, "ensemble_score"] * 0.85
+                df.loc[crowded_mask, ens_col] = df.loc[crowded_mask, ens_col] * 0.85
 
         status = {
             "status": "SUCCESS",
             "warnings": warnings,
-            "crowded_symbols_count": int(crowded_mask.sum()) if "strat_cols" in locals() and strat_cols else 0,
+            "crowded_symbols_count": num_crowded,
         }
 
         return df, status
