@@ -59,13 +59,19 @@ class IntradayStopLossEngine:
         order_imbalance_threshold: float = -0.6,
         volume_spike_multiplier: float = 3.5,
     ):
-        self.peak_drop_threshold = peak_drop_threshold
-        self.volume_spike_threshold = volume_spike_threshold
-        self.atr_multiplier = atr_multiplier
-        self.max_symbols = max_symbols
-        self.stop_loss_threshold = stop_loss_threshold
-        self.order_imbalance_threshold = order_imbalance_threshold
-        self.volume_spike_multiplier = volume_spike_multiplier
+        safe_peak_drop = float(peak_drop_threshold) if (peak_drop_threshold is not None and np.isfinite(peak_drop_threshold)) else -0.04
+        self.peak_drop_threshold = min(-0.001, safe_peak_drop)
+        safe_vol_spike = float(volume_spike_threshold) if (volume_spike_threshold is not None and np.isfinite(volume_spike_threshold)) else 3.0
+        self.volume_spike_threshold = max(1.0, safe_vol_spike)
+        safe_atr_mult = float(atr_multiplier) if (atr_multiplier is not None and np.isfinite(atr_multiplier)) else 2.0
+        self.atr_multiplier = max(0.5, safe_atr_mult)
+        self.max_symbols = max(10, int(max_symbols)) if max_symbols is not None else 1000
+        safe_stop_thresh = float(stop_loss_threshold) if (stop_loss_threshold is not None and np.isfinite(stop_loss_threshold)) else -0.04
+        self.stop_loss_threshold = min(-0.001, safe_stop_thresh)
+        safe_imbalance = float(order_imbalance_threshold) if (order_imbalance_threshold is not None and np.isfinite(order_imbalance_threshold)) else -0.6
+        self.order_imbalance_threshold = max(-1.0, min(1.0, safe_imbalance))
+        safe_vol_mult = float(volume_spike_multiplier) if (volume_spike_multiplier is not None and np.isfinite(volume_spike_multiplier)) else 3.5
+        self.volume_spike_multiplier = max(1.0, safe_vol_mult)
 
         self._symbol_peaks: Dict[str, float] = collections.OrderedDict()
         self._price_history: Dict[str, list] = collections.OrderedDict()
@@ -97,9 +103,11 @@ class IntradayStopLossEngine:
     def register_open(self, symbol: str, open_price: float, avg_volume: float = 1000.0) -> None:
         """Register market open price and baseline average volume for a symbol."""
         self._evict_lru_if_needed(symbol)
-        self._open_prices[symbol] = max(1e-5, open_price)
-        self._symbol_peaks[symbol] = max(1e-5, open_price)
-        self._avg_volumes[symbol] = max(1.0, avg_volume)
+        safe_open = float(open_price) if (open_price is not None and np.isfinite(open_price)) else 1e-5
+        safe_vol = float(avg_volume) if (avg_volume is not None and np.isfinite(avg_volume)) else 1000.0
+        self._open_prices[symbol] = max(1e-5, safe_open)
+        self._symbol_peaks[symbol] = max(1e-5, safe_open)
+        self._avg_volumes[symbol] = max(1.0, safe_vol)
 
     def evaluate(
         self,
