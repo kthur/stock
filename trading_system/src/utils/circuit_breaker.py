@@ -19,9 +19,14 @@ class APICircuitBreaker:
     States: CLOSED (normal), OPEN (tripped after N failures), HALF_OPEN (testing recovery after cooldown).
     """
     def __init__(self, name: str = "default", fail_max: int = 50, reset_timeout: float = 300.0):
-        self.name = name
-        self.fail_max = fail_max
-        self.reset_timeout = reset_timeout
+        import math
+        self.name = str(name)
+        self.fail_max = max(1, int(fail_max)) if fail_max is not None else 50
+        try:
+            safe_timeout = float(reset_timeout) if (reset_timeout is not None and math.isfinite(float(reset_timeout))) else 300.0
+        except (ValueError, TypeError):
+            safe_timeout = 300.0
+        self.reset_timeout = max(1.0, safe_timeout)
 
         self.consecutive_failures = 0
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
