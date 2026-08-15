@@ -157,7 +157,13 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
     if lam >= 0 or lam <= -1.0:
         return 999.0
 
-    half_life = -np.log(2) / np.log(1.0 + lam)
+    denom = np.log(1.0 + lam)
+    if denom == 0 or np.isnan(denom):
+        return 999.0
+
+    half_life = -np.log(2) / denom
+    if np.isnan(half_life) or np.isinf(half_life) or half_life <= 0:
+        return 999.0
     return float(half_life)
 
 
