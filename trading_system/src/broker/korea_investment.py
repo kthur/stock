@@ -228,40 +228,51 @@ class KoreaInvestmentConnector:
           - Single order max value cap (max 50,000,000 KRW)
           - Limit price sanity bounds (max ±3% deviation from market price)
         """
+        import math
+        q = max(0, int(quantity)) if quantity is not None else 0
+        if q <= 0:
+            raise ValueError(f"Invalid order quantity {quantity} for {code}")
+
+        try:
+            p = float(price) if (price is not None and math.isfinite(float(price))) else 0.0
+        except (ValueError, TypeError):
+            p = 0.0
+        p = max(0.0, p)
+
         # Safety guard 1: Single order max value cap
-        order_value = price * quantity if price > 0 else 0.0
+        order_value = p * q if p > 0 else 0.0
         if order_value > self.max_order_value:
             raise ValueError(
                 f"Order value {order_value:,.0f} KRW exceeds maximum allowed single order value limit of {self.max_order_value:,.0f} KRW"
             )
 
         # Safety guard 2: Limit price sanity bounds (±3%)
-        if price > 0:
+        if p > 0:
             ref_price = market_price
             if ref_price is None or ref_price <= 0:
                 quote = self.get_live_quote(code)
                 if isinstance(quote, dict) and quote.get("price", 0) > 0:
-                    ref_price = quote["price"]
+                    ref_price = float(quote["price"])
 
             if ref_price is not None and ref_price > 0:
-                dev = abs(price - ref_price) / ref_price
+                dev = abs(p - ref_price) / ref_price
                 if dev > self.max_price_deviation_pct:
                     raise ValueError(
-                        f"Order price {price:,.0f} deviates by {dev:.2%} from market price {ref_price:,.0f}, exceeding ±{self.max_price_deviation_pct:.0%} sanity bound"
+                        f"Order price {p:,.0f} deviates by {dev:.2%} from market price {ref_price:,.0f}, exceeding ±{self.max_price_deviation_pct:.0%} sanity bound"
                     )
 
         if self.simulation_mode:
-            order_id = f"KIS_SIM_{datetime.now().timestamp()}"
+            order_id = f"KIS_SIM_{int(time.time() * 1000)}"
             self.orders[order_id] = KoreaInvestmentOrder(
                 order_id=order_id,
                 code=code,
-                quantity=quantity,
-                price=price,
+                quantity=q,
+                price=p,
                 order_type=order_type,
                 status="SUBMITTED",
                 timestamp=datetime.now(),
             )
-            self.logger.info(f"Simulated order placed: {order_id} {order_type} {quantity}주 @ {price:,.0f}")
+            self.logger.info(f"Simulated order placed: {order_id} {order_type} {q}주 @ {p:,.0f}")
             return order_id
 
         clean_code = code.split(".")[0] if "." in code else code
