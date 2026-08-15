@@ -9,6 +9,7 @@ multipliers to dynamically scale down decaying or noisy strategies.
 from __future__ import annotations
 
 import logging
+import math
 import numpy as np
 import pandas as pd
 from typing import Dict, Any
@@ -20,7 +21,7 @@ class LiveAlphaTracker:
     """Real-time Strategy Realized Alpha Evaluator & Feedback Generator."""
 
     def __init__(self, hit_rate_threshold: float = 0.50) -> None:
-        self.hit_rate_threshold = hit_rate_threshold
+        self.hit_rate_threshold = float(np.clip(float(hit_rate_threshold) if hit_rate_threshold is not None else 0.50, 0.01, 0.99))
 
     def evaluate_realized_alpha(self, predictions_history_df: pd.DataFrame,
                                 realized_prices_df: pd.DataFrame) -> Dict[str, Any]:
@@ -88,9 +89,13 @@ class LiveAlphaTracker:
                 ((scores < baseline) & (realized <= 0))
             )
             hit_rate = float(np.mean(correct_dirs)) if len(scores) > 0 else 0.50
+            if not math.isfinite(hit_rate):
+                hit_rate = 0.50
             diff = scores - realized
             valid_diff = diff[np.isfinite(diff)]
             rmse = float(np.sqrt(np.mean(valid_diff ** 2))) if len(valid_diff) > 0 else 0.0
+            if not math.isfinite(rmse):
+                rmse = 0.0
 
             # Feedback Multiplier: penalize if hit_rate < threshold, reward if hit_rate > 0.55
             multiplier = 1.0
@@ -98,6 +103,7 @@ class LiveAlphaTracker:
                 multiplier = max(0.20, hit_rate / threshold)
             elif hit_rate > 0.55:
                 multiplier = min(1.50, hit_rate / 0.50)
+            multiplier = float(np.clip(multiplier if math.isfinite(multiplier) else 1.0, 0.10, 2.0))
 
             results[str(strat_name)] = {
                 "hit_rate": round(hit_rate, 4),
