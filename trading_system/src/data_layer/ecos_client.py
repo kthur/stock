@@ -143,9 +143,11 @@ class BOKECOSClient:
 
                     if raw_fdr is not None and not raw_fdr.empty:
                         c_col = raw_fdr.columns[0]
+                        val_series = pd.to_numeric(raw_fdr[c_col], errors='coerce')
+                        date_series = pd.to_datetime(raw_fdr.index, errors='coerce')
                         df_fb = pd.DataFrame({
-                            "Date": raw_fdr.index,
-                            "Value": raw_fdr[c_col]
+                            "Date": date_series,
+                            "Value": val_series
                         }).dropna().reset_index(drop=True)
                         results[key] = df_fb
                         logger.info("[BOKECOSClient] %s fetched via FRED fallback (%d rows)", meta["name"], len(df_fb))
