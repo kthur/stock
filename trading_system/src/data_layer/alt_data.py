@@ -69,11 +69,12 @@ class AlternativeDataClient:
             if hist.empty or len(hist) < 50:
                 return {"trend": "NEUTRAL", "strength": 0.0}
             closes = hist["Close"].values
-            sma50 = np.mean(closes[-50:])
-            sma200 = np.mean(closes[-200:]) if len(closes) >= 200 else sma50
-            current = closes[-1]
-            returns_1m = (closes[-1] / closes[-21] - 1) if len(closes) >= 21 else 0.0
-            returns_3m = (closes[-1] / closes[-63] - 1) if len(closes) >= 63 else 0.0
+            closes = np.nan_to_num(closes, nan=1.0)
+            sma50 = float(np.mean(closes[-50:]))
+            sma200 = float(np.mean(closes[-200:])) if len(closes) >= 200 else sma50
+            current = float(closes[-1])
+            returns_1m = float((closes[-1] / closes[-21] - 1.0)) if len(closes) >= 21 and closes[-21] > 0 else 0.0
+            returns_3m = float((closes[-1] / closes[-63] - 1.0)) if len(closes) >= 63 and closes[-63] > 0 else 0.0
 
             if current > sma50 and returns_1m > 0.02:
                 trend = "BULL"
