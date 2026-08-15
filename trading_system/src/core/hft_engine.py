@@ -198,7 +198,7 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
         if isinstance(df_prices, dict):
             price_lookup = df_prices
         elif isinstance(df_prices, pd.DataFrame) and not df_prices.empty and "symbol" in df_prices.columns:
-            for s, grp in df_prices.groupby("symbol"):
+            for s, grp in df_prices.groupby("symbol", observed=True):
                 price_lookup[str(s)] = grp
 
         syms = universe["symbol"].astype(str).str.strip().values
@@ -213,10 +213,13 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
 
             if df_sym is not None and isinstance(df_sym, pd.DataFrame) and len(df_sym) >= 3:
                 recent = df_sym.iloc[-1]
-                high = float(recent.get("high", recent.get("High", 1.0)))
-                low = float(recent.get("low", recent.get("Low", 1.0)))
-                close = float(recent.get("close", recent.get("Close", 1.0)))
-                volume = float(recent.get("volume", recent.get("Volume", 1.0)))
+                try:
+                    high = float(recent.get("high", recent.get("High", 1.0)))
+                    low = float(recent.get("low", recent.get("Low", 1.0)))
+                    close = float(recent.get("close", recent.get("Close", 1.0)))
+                    volume = float(recent.get("volume", recent.get("Volume", 1.0)))
+                except (ValueError, TypeError):
+                    high, low, close, volume = 1.0, 1.0, 1.0, 1.0
 
                 bar_range = max(1e-6, high - low)
                 close_location = (close - low) / bar_range  # 0.0 to 1.0
