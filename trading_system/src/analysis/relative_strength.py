@@ -130,17 +130,30 @@ class RelativeStrengthAnalyzer:
                 "n": 0,
             }
 
-        sr = stock_returns[-n:].astype(float)
-        br = benchmark_returns[-n:].astype(float)
+        sr = np.asarray(stock_returns[-n:], dtype=float)
+        br = np.asarray(benchmark_returns[-n:], dtype=float)
+        valid = np.isfinite(sr) & np.isfinite(br)
+        sr = sr[valid]
+        br = br[valid]
+
+        if len(sr) < 5:
+            return {
+                "symbol": symbol,
+                "correlation": 0.0,
+                "beta": 1.0,
+                "alpha": 0.0,
+                "r_squared": 0.0,
+                "n": int(len(sr)),
+            }
 
         corr_matrix = np.corrcoef(sr, br)
-        corr = float(corr_matrix[0, 1]) if not np.isnan(corr_matrix[0, 1]) else 0.0
-        corr = max(-1.0, min(1.0, corr))  # clamp
+        corr_val = float(corr_matrix[0, 1]) if not np.isnan(corr_matrix[0, 1]) else 0.0
+        corr = max(-1.0, min(1.0, corr_val)) if np.isfinite(corr_val) else 0.0
 
         # CAPM beta = cov(s, b) / var(b)  (same ddof for numerator and denominator)
         var_b = float(np.var(br))
         beta = float(np.cov(sr, br, ddof=0)[0, 1] / var_b) if var_b > 1e-10 else 1.0
-        if np.isnan(beta) or np.isinf(beta):
+        if not np.isfinite(beta):
             beta = 1.0
         beta = max(-5.0, min(5.0, beta))
 
@@ -148,11 +161,11 @@ class RelativeStrengthAnalyzer:
         r_sq = max(0.0, min(1.0, corr * corr))
 
         # Jensen's alpha = E[s] - rf - beta * (E[b] - rf)
-        daily_rf = risk_free_rate / 252.0
+        daily_rf = (risk_free_rate / 252.0) if np.isfinite(risk_free_rate) else (0.03 / 252.0)
         mean_s = float(np.mean(sr))
         mean_b = float(np.mean(br))
         alpha = mean_s - daily_rf - beta * (mean_b - daily_rf)
-        if np.isnan(alpha) or np.isinf(alpha):
+        if not np.isfinite(alpha):
             alpha = 0.0
         alpha = max(-1.0, min(1.0, alpha))
 
