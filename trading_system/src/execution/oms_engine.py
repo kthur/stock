@@ -123,6 +123,13 @@ class ExecutionOMSEngine:
             logger.warning("[OMS ENGINE] SEVERE crisis level - skipping ALL order plan generation.")
             return order_plans
 
+        import math
+        try:
+            tot_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
+        except (ValueError, TypeError):
+            tot_cap = 100000000.0
+        tot_cap = max(0.0, tot_cap)
+
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
@@ -135,16 +142,16 @@ class ExecutionOMSEngine:
                 if not sym:
                     continue
 
-                weight = portfolio_weights.get(sym, 0.0)
+                weight_raw = portfolio_weights.get(sym, 0.0)
                 try:
-                    weight = float(weight)
-                except Exception:
+                    weight = float(weight_raw) if (weight_raw is not None and math.isfinite(float(weight_raw))) else 0.0
+                except (ValueError, TypeError):
                     continue
                 if not (0.0 < weight <= 1.0):
                     continue
 
-                target_amount = total_capital * weight
-                if not (0.0 < target_amount <= total_capital):
+                target_amount = tot_cap * weight
+                if not (0.0 < target_amount <= tot_cap):
                     continue
 
                 close_price = pred.get("close_price")
@@ -154,21 +161,19 @@ class ExecutionOMSEngine:
                 if close_price is None or close_price == "":
                     continue
                 try:
-                    target_price = float(close_price)
-                except Exception:
+                    f_price = float(close_price)
+                    target_price = f_price if math.isfinite(f_price) else 0.0
+                except (ValueError, TypeError):
                     continue
                 if not (_MIN_PRICE_BOUND <= target_price <= _MAX_PRICE_BOUND):
                     continue
 
                 order_id = f"ORD_{sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
                 action = "BUY"
-                name = pred.get("name", "")
-                market = pred.get("market", "")
+                name = str(pred.get("name", "") or "")
+                market = str(pred.get("market", "") or "")
 
-                lot = 10 if market in ("KOSPI", "KOSDAQ", "KRX") else 1
                 quantity = int(target_amount // target_price)
-                if lot > 1:
-                    quantity = (quantity // lot) * lot
                 if quantity <= 0:
                     continue
 
@@ -209,12 +214,22 @@ class ExecutionOMSEngine:
         """
         Records trade execution and calculates real-time slippage in basis points (bps).
         """
+        import math
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if target_price <= 0:
+        try:
+            pt = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 0.0
+            pe = float(executed_price) if (executed_price is not None and math.isfinite(float(executed_price))) else 0.0
+        except (ValueError, TypeError):
+            pt, pe = 0.0, 0.0
+
+        if pt <= 0:
             slippage_bps = 0.0
         else:
             # Slippage in basis points (1 bps = 0.01%)
-            slippage_bps = ((executed_price - target_price) / target_price) * 10000.0
+            raw_slip = ((pe - pt) / pt) * 10000.0
+            slippage_bps = raw_slip if math.isfinite(raw_slip) else 0.0
+
+        q_vol = max(0, int(executed_volume)) if executed_volume is not None else 0
 
         conn = self._get_conn()
         try:
@@ -224,7 +239,7 @@ class ExecutionOMSEngine:
                 INSERT INTO execution_logs
                 (order_id, symbol, target_price, executed_price, slippage_bps, executed_volume, executed_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (order_id, symbol, target_price, executed_price, round(slippage_bps, 2), executed_volume, now_str))
+            """, (order_id, symbol, pt, pe, round(slippage_bps, 2), q_vol, now_str))
 
             # Calculate total executed volume so far for this order
             cursor.execute("""
