@@ -11,7 +11,12 @@ class GlobalRateLimiter:
     between consecutive network requests across all threads.
     """
     def __init__(self, min_interval_seconds: float = 1.0):
-        self.min_interval = min_interval_seconds
+        import math
+        try:
+            safe_interval = float(min_interval_seconds) if (min_interval_seconds is not None and math.isfinite(float(min_interval_seconds))) else 1.0
+        except (ValueError, TypeError):
+            safe_interval = 1.0
+        self.min_interval = max(0.0, safe_interval)
         self.lock = threading.Lock()
         self.last_request_time = 0.0
 
