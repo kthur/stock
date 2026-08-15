@@ -43,10 +43,15 @@ class SlippageFeedbackEngine:
     """
 
     def __init__(self, db_path: Optional[str] = None, default_slippage_bps: float = 5.0):
+        import math
         if db_path is None:
             db_path = str(Path(__file__).parent.parent.parent / "trade_logs.db")
         self.db_path = db_path
-        self.default_slippage_bps = default_slippage_bps
+        try:
+            safe_slip = float(default_slippage_bps) if (default_slippage_bps is not None and math.isfinite(float(default_slippage_bps))) else 5.0
+        except (ValueError, TypeError):
+            safe_slip = 5.0
+        self.default_slippage_bps = max(0.0, min(1000.0, safe_slip))
 
     def calculate_realized_slippage(self) -> SlippageMetrics:
         """Reads trade_logs.db and returns realized slippage metrics in basis points (bps)."""
@@ -88,6 +93,7 @@ class SlippageFeedbackEngine:
                     JOIN order_plans p ON e.order_id = p.order_id
                     WHERE e.executed_price IS NOT NULL AND p.target_price > 0
                 """)
+                rows = cursor.fetchall()
                 import math
                 for mkt, act, p_target, p_exec in rows:
                     try:
