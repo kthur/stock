@@ -20,15 +20,15 @@
 | 7 | Logging & Friction Remediation | Fix `turnover_optimizer.py` string formatting bug (`%,.0f` -> `%s`), and resolve legacy test assertions in `test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`. | M2 | Survey (R2, R4) |
 | 8 | High-Throughput SQLite WAL & Threading | SQLite WAL concurrency with thread-local pooling, retry cascades, and `np.float32` memory optimization across 3,379 symbols. | M3 | Survey (R3) |
 | 9 | Comprehensive Verification & CI Suite | Full automated execution of primary acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`), modular risk/factor suites, and coverage reporting. | M3 | Survey (R4) |
-| 10 | Version Control Deployment | Git synchronization and clean push to `origin/main`. | M4 | Survey (R4) |
+| 10 | Version Control Deployment | Git synchronization and clean push to `origin/main` (`1a8b4fc`). | M4 | Survey (R4) |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Alpha Engine & Calibration Optimization | Expand calibrator registration in `run_pipeline.py` to all 31 strategies; verify causal data hygiene and factor orthogonalization. | None | PLANNED |
-| M2 | Portfolio Allocator & Friction Remediation | Fix `turnover_optimizer.py` logger format bug; update legacy test assertions (`test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`); verify EVT-CVaR, Leland bands, and OMS. | None | PLANNED |
-| M3 | End-to-End Test Suite Verification | Run and verify 100% pass across primary acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`) and all secondary modular suites. | M1, M2 | PLANNED |
-| M4 | Final Audit & Git Push Deployment | Forensic integrity audit, final documentation, and push to `origin/main`. | M3 | PLANNED |
+| M1 | Alpha Engine & Calibration Optimization | Expand calibrator registration in `run_pipeline.py` to all 31 strategies; verify causal data hygiene and factor orthogonalization. | None | DONE |
+| M2 | Portfolio Allocator & Friction Remediation | Fix `turnover_optimizer.py` logger format bug; update legacy test assertions (`test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`); verify EVT-CVaR, Leland bands, and OMS. | None | DONE |
+| M3 | End-to-End Test Suite Verification | Run and verify 100% pass across primary acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`) and all secondary modular suites. | M1, M2 | DONE |
+| M4 | Final Audit & Git Push Deployment | Forensic integrity audit, final documentation, and push to `origin/main` (`1a8b4fc`). | M3 | DONE |
 
 ## Interface Contracts
 ### `PortfolioAllocator` (`trading_system/src/risk/portfolio_allocator.py`)

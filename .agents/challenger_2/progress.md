@@ -1,12 +1,12 @@
-# Progress Log - Challenger 2
+# Progress — challenger_2
 
-Last visited: 2026-07-30T01:42:40Z
+Last visited: 2026-08-15T18:38:30+09:00
 
-## Status
-- [x] Initialized BRIEFING and ORIGINAL_REQUEST.
-- [x] Created empirical verification script `test_regime_cost_clamping.py`.
-- [x] Verified Market Cost Bounds Clamping across all 4 markets (KOSPI, KOSDAQ, KONEX, SP500).
-- [x] Verified 2D Regime factor dampening shifts from BULL_LOW_VOL to SIDEWAYS_HIGH_VOL.
-- [x] Saved comprehensive empirical challenge report at `D:\Finance\code\stock\.agents\challenger_2\challenger_report.md`.
-- [x] Created `handoff.md`.
-- [x] Ready to communicate verdict to parent.
+## Tasks
+- [x] Read required documents (ORIGINAL_REQUEST.md, PROJECT.md, explorer_survey_1/handoff.md)
+- [x] Inspect ensemble scorer implementation & calibration architecture
+- [x] Task 1: Stress test `scorer.fit_calibrators` with corrupted, missing, identical, extreme score distributions across all 31 strategies
+- [x] Task 2: Stress test PCA ZCA factor orthogonalization and Gram-Schmidt decorrelation under collinear, rank-deficient, single-asset matrices
+- [x] Task 3: Verify 2D market regime weighting and macro overrides (sum weights == 1.000, scores in [0.0, 1.0])
+- [x] Task 4: Execute all empirical tests, document findings, write handoff.md with verdict (`APPROVE`)
+- [ ] Send completion message to parent

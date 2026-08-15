@@ -1,38 +1,37 @@
-# BRIEFING — 2026-08-12T14:40:30Z
+# BRIEFING — 2026-08-15T09:26:00Z
 
 ## Mission
-Investigate codebase for R1 (Data Quality & Corporate Action Sanity Gates, DataFrameCache) and R4 API portion (Retry Backoff Jitter), examine existing tests, write analysis to report.md and submit handoff to parent.
+Comprehensive survey and investigation of the 31 quantitative strategy alpha engines, data hygiene, feature engineering, isotonic calibration, and ensemble scoring in the stock trading system.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: Read-only investigator
-- Working directory: d:/Finance/code/stock/.agents/explorer_survey_1
-- Original parent: 585de8bf-8bf3-479d-9eda-c3f262decf97
-- Milestone: Stock Trading System Survey Phase 1 (R1 & R4 API)
+- Archetype: explorer
+- Roles: investigation, synthesis
+- Working directory: d:\Finance\code\stock\.agents\explorer_survey_1
+- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Milestone: R1 Multi-Factor & Alpha Engine Optimization Survey
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT modify source code or project files (only write inside .agents/explorer_survey_1/)
-- Write findings, line numbers, architectural recommendations to report.md
-- Deliver soft handoff via send_message to parent when complete
+- Read-only investigation — do NOT implement
+- Base working directory: d:\Finance\code\stock\.agents\explorer_survey_1
 
 ## Current Parent
-- Conversation ID: 585de8bf-8bf3-479d-9eda-c3f262decf97
-- Updated: 2026-08-12T14:40:30Z
+- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Updated: 2026-08-15T09:26:00Z
 
 ## Investigation State
-- **Explored paths**: `ORIGINAL_REQUEST.md`, `PROJECT.md`, `trading_system/run_pipeline.py`, `trading_system/src/data_layer/data_validator.py`, `trading_system/src/data_layer/price_adjuster.py`, `trading_system/src/utils/technical_cache.py`, `trading_system/src/persistence/database.py`, `trading_system/src/data_layer/earnings_data.py`, `trading_system/src/data_layer/market_data_handler.py`, `trading_system/src/data_layer/ecos_client.py`, `trading_system/src/data_layer/fred_client.py`, `trading_system/src/utils/error_handler.py`, `trading_system/tests/` and `tests/`.
+- **Explored paths**: `ORIGINAL_REQUEST.md`, `AGENTS.md`, `trading_system/run_pipeline.py`, `trading_system/src/core/` (all 20+ core strategy files), `trading_system/src/ai/` (`prediction_model.py`, `ensemble_scorer.py`, `factor_orthogonalizer.py`, `factor_suppression.py`, `vcp_detector.py`, `vcp_ml_predictor.py`), `trading_system/src/analysis/` (`coverage_analyzer.py`), `trading_system/src/data_layer/` (`price_adjuster.py`, `earnings_data.py`).
 - **Key findings**:
-  1. R1: Single-day price spikes (>300%) or unadjusted stock splits pass `DataValidator.validate_price_data` when <5% of rows are affected; `CorporateActionAdjuster` is only invoked for raw tier sources. `DataFrameCache` lacks active TTL auto-eviction and calendar date-change invalidation.
-  2. R4 API: External API retry loops in `earnings_data.py`, `market_data_handler.py`, `run_pipeline.py`, `fred_client.py`, and `error_handler.py` use deterministic exponential backoffs (`wait_exponential`, `2 ** attempt`) without random jitter, leading to thundering herd rate limit collisions under concurrency.
-  3. Tests: Existing test files cover basic validator/adjuster and network retries, but `DataFrameCache` has zero unit test coverage.
-- **Unexplored areas**: None within scope.
+  - Full inventory of all 31 quantitative strategy alpha engines documented with file locations, class names, score column names, categories, and methodologies.
+  - Data hygiene confirmed: 60-day filing lag (`prediction_model.py:954-968`), 1-day US-KRX time-zone lag shift (`prediction_model.py:157-160, 1040-1045`), corporate split adjustment (`price_adjuster.py`), division-by-zero protections, and output score clipping $[0, 1]$.
+  - Feature engineering and calibration confirmed: Isotonic regression ($N \ge 50$), Platt scaling ($20 \le N < 50$), ECE/Brier tracking, PCA ZCA symmetric factor orthogonalization, and 2D regime noise suppression.
+  - Pipeline optimization opportunities identified (e.g. updating `_strategy_cols` in `run_pipeline.py:2222` to reference all 31 strategies).
+- **Unexplored areas**: None for R1 survey.
 
 ## Key Decisions Made
-- Completed read-only investigation and compiled full findings, code locations, flaw analyses, and architectural recommendations into `report.md` and `handoff.md`.
+- Completed systematic investigation of all 31 strategies and compiled comprehensive 5-component handoff report in `handoff.md`.
 
 ## Artifact Index
-- `d:/Finance/code/stock/.agents/explorer_survey_1/DISPATCH.md` — Dispatch log
-- `d:/Finance/code/stock/.agents/explorer_survey_1/BRIEFING.md` — Situational awareness
-- `d:/Finance/code/stock/.agents/explorer_survey_1/progress.md` — Liveness progress log
-- `d:/Finance/code/stock/.agents/explorer_survey_1/report.md` — Detailed survey report (R1 & R4 API)
-- `d:/Finance/code/stock/.agents/explorer_survey_1/handoff.md` — Soft handoff report (5-component format)
+- `d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md` — Persistent working memory
+- `d:\Finance\code\stock\.agents\explorer_survey_1\progress.md` — Liveness heartbeat
+- `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md` — Final comprehensive investigation handoff report
+- `d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md` — Dispatch log

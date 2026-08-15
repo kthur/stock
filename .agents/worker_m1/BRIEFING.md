@@ -1,56 +1,39 @@
-# BRIEFING — 2026-08-12T14:49:50Z
+# BRIEFING — 2026-08-15T18:33:00+09:00
 
 ## Mission
-Implement Milestone 1: Data Quality & Corporate Action Sanity Gates (Corporate action spike filter, DataFrameCache TTL eviction & Date invalidation, and unit tests).
+Expand `_strategy_cols` dictionary in `trading_system/run_pipeline.py` during `fit_calibrators` to dynamically cover all active strategies from `scorer.strategy_cols` / `STRATEGY_SCORE_COL_MAP` (all 31 strategies), ensuring robust Isotonic/Platt calibration across all strategies, and verifying with test suites.
 
 ## 🔒 My Identity
-- Archetype: implementer, qa, specialist
+- Archetype: worker
 - Roles: implementer, qa, specialist
-- Working directory: d:/Finance/code/stock/.agents/worker_m1
-- Original parent: 585de8bf-8bf3-479d-9eda-c3f262decf97
-- Milestone: Milestone 1
+- Working directory: d:\Finance\code\stock\.agents\worker_m1
+- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Milestone: Dynamic Calibrator Strategy Expansion (all 31 strategies)
 
 ## 🔒 Key Constraints
+- Exclusively owned files: `trading_system/run_pipeline.py`
 - DO NOT CHEAT. All implementations must be genuine.
-- Run tests with `.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v`.
-- Ensure all existing unit tests in `trading_system/tests/` pass.
+- Run tests using `.venv\Scripts\python.exe -m pytest tests/test_new_27_strategies.py tests/test_isotonic_sharpe_calibration.py tests/test_factor_orthogonalization.py -v`.
 
 ## Current Parent
-- Conversation ID: 585de8bf-8bf3-479d-9eda-c3f262decf97
-- Updated: 2026-08-12T14:49:50Z
+- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Updated: 2026-08-15T18:33:00+09:00
 
 ## Task Summary
-- **What to build**:
-  1. Corporate action price spike filtering (>300% single-day ratio magnitude or unadjusted split handling) in `DataValidator`/`price_adjuster.py` and applied in `run_pipeline.py` and `market_data_handler.py`.
-  2. `DataFrameCache` active TTL eviction (`evict_expired`) and calendar date-change auto-invalidation.
-  3. Tests for `DataFrameCache` in `trading_system/tests/test_technical_cache.py` and updated `trading_system/tests/test_data_validator.py`.
-- **Success criteria**: All 13 unit tests passed in 1.64s; 62 regression tests passed in 8.75s.
+- **What to build**: Updated `trading_system/run_pipeline.py` calibrator training block (`fit_calibrators` around line 2220) so that `_strategy_cols` dynamically covers all 31 active strategies from `scorer.strategy_cols`, `STRATEGY_SCORE_COL_MAP`, and fallback dictionary.
+- **Success criteria**: All 31 strategies have calibrator mapping and fit cleanly; targeted test suites pass (17/17 passed).
+- **Interface contracts**: `PROJECT.md`, `EnsembleScoringEngine.strategy_cols`, `STRATEGY_SCORE_COL_MAP`
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/data_layer/data_validator.py`: Added >300% ratio magnitude check to `validate_price_data`, implemented `filter_price_spikes`.
-  - `trading_system/src/data_layer/price_adjuster.py`: Exposed `filter_price_spikes` method and function.
-  - `trading_system/src/utils/technical_cache.py`: Added active TTL eviction and date-change invalidation to `DataFrameCache`.
-  - `trading_system/tests/test_technical_cache.py`: New unit tests file.
-  - `trading_system/tests/test_data_validator.py`: Updated unit tests.
-- **Build status**: PASS (13/13 passed, 62/62 regression passed)
+  - `trading_system/run_pipeline.py`: Expanded `_strategy_cols` in Phase 5-B `fit_calibrators` to dynamically resolve all 31 strategy columns.
+- **Build status**: 17/17 pytest tests PASSED (100%)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (1.64s for targeted tests, 8.75s for regression)
+- **Build/test result**: 17 passed in 16.64s (`tests/test_new_27_strategies.py`, `tests/test_isotonic_sharpe_calibration.py`, `tests/test_factor_orthogonalization.py`)
 - **Lint status**: Clean
-- **Tests added/modified**: `test_technical_cache.py` (7 tests), `test_data_validator.py` (6 tests)
+- **Tests added/modified**: Verified all 31 strategies in Isotonic ($N \ge 50$) and Platt Scaling ($20 \le N < 50$) calibration regimes.
 
 ## Loaded Skills
 - None
-
-## Key Decisions Made
-- `validate_price_data` uses daily ratio magnitude `max(r, 1/r) - 1.0 > 3.0` to detect both upward price spikes >300% and unadjusted split drops >75%.
-- `filter_price_spikes` combines `CorporateActionAdjuster` backward scaling with isolated single-day spike smoothing.
-- `DataFrameCache` tracks `datetime.now().date()` to auto-clear cache when crossing midnight / new trading day.
-
-## Artifact Index
-- d:/Finance/code/stock/.agents/worker_m1/DISPATCH.md
-- d:/Finance/code/stock/.agents/worker_m1/BRIEFING.md
-- d:/Finance/code/stock/.agents/worker_m1/progress.md
-- d:/Finance/code/stock/.agents/worker_m1/handoff.md

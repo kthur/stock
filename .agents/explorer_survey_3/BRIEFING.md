@@ -1,38 +1,40 @@
-# BRIEFING — 2026-08-06T21:50:08+09:00
+# BRIEFING — 2026-08-15T09:27:15Z
 
 ## Mission
-Investigate test suite and 18 strategy dependencies on price data for Price Fetch Hardening Project.
+Investigate codebase architecture and implementation status for R3 (Pipeline Performance & System Reliability) and R4 (Automated Testing & Deployment), run test suites, check git readiness, and produce detailed handoff report.
 
 ## 🔒 My Identity
-- Archetype: Explorer
-- Roles: Read-only investigator (Explorer 3)
+- Archetype: explorer
+- Roles: investigation, synthesis
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_3
-- Original parent: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Milestone: Price Fetch Hardening Survey
+- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Milestone: Initial Survey & Gap Analysis (R3 & R4)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Investigation only; write analysis.md and handoff.md in working dir
+- Read-only investigation — do NOT implement changes to production code.
+- Write only to your agent folder (`.agents/explorer_survey_3/`).
+- Verify tests and git status using appropriate commands.
 
 ## Current Parent
-- Conversation ID: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Updated: 2026-08-06T21:50:08+09:00
+- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Updated: not yet
 
 ## Investigation State
-- **Explored paths**: `tests/`, `trading_system/tests/`, `trading_system/src/ai/`, `trading_system/src/core/`, `trading_system/src/data_layer/`, `trading_system/src/persistence/`.
+- **Explored paths**: `ORIGINAL_REQUEST.md`, `AGENTS.md`, `trading_system/run_pipeline.py`, `src/persistence/database.py`, `src/data_layer/indicator_storage.py`, `src/data_layer/hybrid_storage.py`, `src/data_layer/feature_store.py`, `src/analysis/coverage_analyzer.py`, `src/ai/prediction_model.py`, `src/risk/microstructure.py`, `src/analysis/statistics.py`, `tests/`
 - **Key findings**:
-  1. Existing test suite covers SQLite WAL DB concurrency & static data validation well, but has zero tests for network retries, rate limits, ticker normalization, or multi-tier fallback fetching.
-  2. All 18 multi-factor strategies audited for price row minimums (1 to 200 rows). Strategies 1, 2, 5 require 65 rows; Strategy 4 requires 200 rows. Zero-row/empty DataFrames are safely skipped or return default values across all strategies without crashing.
-  3. Formulated 5 recommended test modules to fill test gaps: retries, ticker normalization, multi-tier fallback, 18-strategy zero-row/NaN resilience, dynamic ensemble partial coverage.
-- **Unexplored areas**: None, survey complete.
+  - SQLite WAL concurrency robust across multiple test suites with 20 threads writing concurrently without locks.
+  - Vectorized float32 downcasting in feature stores and ML models cuts memory consumption by ~50%.
+  - Primary required acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`) passed 100% (17/17).
+  - Secondary modular test suites achieved 97% pass rate (96/99 passed); 3 minor failures traced to legacy unit test assertion discrepancies.
+  - Git repository on `main` is up to date with `origin/main` and clean for downstream commits.
+- **Unexplored areas**: None for R3/R4 survey scope.
 
 ## Key Decisions Made
-- Completed full audit of existing tests, 18 strategy price history consumption, and failure modes.
-- Generated `analysis.md` and `handoff.md`.
+- Executed targeted and modular test batches to thoroughly analyze concurrency, SLA, and accuracy without stalling on monolithic test runs.
+- Detailed root causes for the 3 legacy test expectation discrepancies in handoff report.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\explorer_survey_3\DISPATCH.md` — Dispatch log
-- `d:\Finance\code\stock\.agents\explorer_survey_3\BRIEFING.md` — Briefing state
-- `d:\Finance\code\stock\.agents\explorer_survey_3\progress.md` — Heartbeat progress
-- `d:\Finance\code\stock\.agents\explorer_survey_3\analysis.md` — Detailed analysis report
-- `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md` — Handoff report (5 components)
+- `d:\Finance\code\stock\.agents\explorer_survey_3\DISPATCH.md` — Dispatch history
+- `d:\Finance\code\stock\.agents\explorer_survey_3\BRIEFING.md` — Working state & memory
+- `d:\Finance\code\stock\.agents\explorer_survey_3\progress.md` — Progress tracker
+- `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md` — Comprehensive 5-component handoff report

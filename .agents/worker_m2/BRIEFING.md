@@ -1,49 +1,54 @@
-# BRIEFING — 2026-08-06T22:01:00+09:00
+# BRIEFING — 2026-08-15T09:32:00Z
 
 ## Mission
-Milestone 2: Implement Ticker Symbol Normalization, Multi-Tier Fallback Data Fetching, DataValidator Gate, and Contiguous OHLCV Date Alignment (`ffill`).
+Fix turnover_optimizer logging format string bugs and align assertions in tests (STT rate, Sortino clamp, coverage analyzer bar count).
 
 ## 🔒 My Identity
-- Archetype: implementer/qa/specialist
-- Roles: implementer, qa, specialist
+- Archetype: worker
+- Roles: implementer, qa
 - Working directory: d:\Finance\code\stock\.agents\worker_m2
-- Original parent: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Milestone: Milestone 2 - Ticker Normalization, Fallbacks & Data Quality
+- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Milestone: M2
 
 ## 🔒 Key Constraints
-- Minimal change principle.
-- Standardize KRX numeric tickers (6-digit zero padding).
-- Update _KR_MARKET_SUFFIX to include 'KONEX': '.KS'.
-- Standardize US tickers for yfinance query ('.' -> '-') while keeping clean canonical keys in StockPriceDB.
-- Implement multi-tier fallback historical price retrieval for KRX and US.
-- Apply DataValidator gate before price_db.update_prices in single-symbol fetch_data_fdr.
-- Apply ffill() date contiguity on OHLCV DataFrames before passing to strategy feature engines.
-- Do NOT cheat, hardcode test results, or create dummy implementations.
+- Minimal change principle. Only modify assigned scope.
+- Genuine implementations, no hardcoding.
+- Exclusively owned files:
+  - `trading_system/src/execution/turnover_optimizer.py`
+  - `src/execution/turnover_optimizer.py`
+  - `tests/test_critical_bugs.py`
+  - `tests/test_m1_1_fixes.py`
+  - `tests/test_r3_coverage_and_universe.py`
 
 ## Current Parent
-- Conversation ID: 2e75046a-9db0-4604-9d56-a55830aecf0f
-- Updated: 2026-08-06T22:01:00+09:00
+- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Updated: 2026-08-15T09:32:00Z
 
 ## Task Summary
-- **What to build**: Ticker normalization, multi-tier fallback, DataValidator gate, ffill date contiguity.
-- **Success criteria**: All tests pass (`trading_system/tests/` and `tests/`).
-- **Interface contracts**: AGENTS.md
+- **What to build**: Fixed logging format bug in turnover optimizer, updated STT assertion in test_critical_bugs, updated Sortino clamp assertion in test_m1_1_fixes, fixed synthetic data bar count in test_r3_coverage_and_universe.
+- **Success criteria**: All specified tests pass without errors.
+- **Interface contracts**: PROJECT.md
+- **Code layout**: src/ and tests/
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/persistence/database.py`: `normalize_symbol` and `StockPriceDB` symbol normalization
-  - `trading_system/src/data_layer/indicator_storage.py`: `_is_krx_symbol` unpadded handling and 6-digit zfill for stock_universe
-  - `trading_system/run_pipeline.py`: KONEX suffix, multi-tier fallback fetchers, `_fetch_data_fdr_network` multi-tier ordering, US dot-to-hyphen conversion, DataValidator gate in `fetch_data_fdr`, ffill on OHLCV
-  - `trading_system/src/data_layer/market_data_handler.py`: multi-tier fallbacks, symbol normalization, ffill on OHLCV in `_df_to_price_bars`
-  - `trading_system/src/ai/prediction_model.py`: ffill on OHLCV in `_create_features`
-  - `trading_system/tests/test_milestone2_m2.py`: Unit test suite for Milestone 2
-- **Build status**: PASS (21/21 targeted unit tests passed cleanly)
+  - `trading_system/src/execution/turnover_optimizer.py`: Fixed logging format `%,.0f` to `%s` using `f"{total_turnover_reduced:,.0f}"`.
+  - `src/execution/turnover_optimizer.py`: Fixed logging format `%,.0f` to `%s` using `f"{total_turnover_reduced:,.0f}"`.
+  - `tests/test_critical_bugs.py`: Updated KOSPI STT tax rate assertion to current statutory rate 0.0018 (0.15% STT + 0.03% brokerage), KOSDAQ to 0.0021, and KONEX to 0.0011.
+  - `tests/test_m1_1_fixes.py`: Updated Sortino ratio expectation to 10.0 per `AdvancedStatistics` clamping.
+  - `tests/test_r3_coverage_and_universe.py`: Set price history to 10 bars (< 20) for 000660 to properly trigger `INSUFFICIENT_PRICE_HISTORY`.
+- **Build status**: 34/34 tests passed.
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (100%)
+- **Build/test result**: 100% pass across all verification suites.
 - **Lint status**: Clean
-- **Tests added/modified**: `trading_system/tests/test_milestone2_m2.py`
+- **Tests added/modified**: 3 test files aligned and passing.
 
-## Loaded Skills
-- None
+## Key Decisions Made
+- Maintained exact statutory rate alignment across microstructure test assertions.
+- Preserved clamping consistency for advanced performance statistics.
+
+## Artifact Index
+- `d:\Finance\code\stock\.agents\worker_m2\handoff.md` — Final handoff report
+- `d:\Finance\code\stock\.agents\worker_m2\progress.md` — Liveness heartbeat

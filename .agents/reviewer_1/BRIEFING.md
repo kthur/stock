@@ -1,7 +1,7 @@
-# BRIEFING — 2026-07-30T01:42:22Z
+# BRIEFING — 2026-08-15T09:39:00Z
 
 ## Mission
-Review implementation and test verification of Requirement 1 (Dynamic Re-weighting), Requirement 2 (Order Book Market Impact), and Requirement 3 (Multicollinearity & Regime Suppression).
+Rigorous quality & adversarial review of M1 (Dynamic 31-strategy calibrator in `run_pipeline.py`) and M2 (Turnover optimizer logging fix and test assertion alignment in `test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`).
 
 ## 🔒 My Identity
 - Archetype: reviewer
@@ -10,38 +10,44 @@ Review implementation and test verification of Requirement 1 (Dynamic Re-weighti
 - Original parent: 9ed29734-c83d-454d-bd8d-2fc2c01e97a5
 - Milestone: Requirement 1-3 Review
 - Instance: 1 of 1
+- Current Parent (2026-08-15): f42f2931-57da-4e3b-aa91-2f5b4f29a74b (parent)
+- Current Milestone: M1 & M2 Review
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
 - Evidence-based review and adversarial stress-testing
 - Check for integrity violations (hardcoded tests, dummy facades, self-certifying work)
+- Verify mathematical validity, edge cases, zero-variance fallback, calibration consistency
 
 ## Current Parent
-- Conversation ID: 9ed29734-c83d-454d-bd8d-2fc2c01e97a5
-- Updated: 2026-07-30T01:42:22Z
+- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Updated: 2026-08-15T09:39:00Z
 
 ## Review Scope
-- **Files to review**: `src/config.py`, `src/ai/ensemble_scorer.py`, `src/ai/correlation_monitor.py`, `src/ai/factor_suppression.py`, `src/ai/optuna_tuner.py`
-- **Interface contracts**: AGENTS.md
-- **Review criteria**: Correctness, market impact calculation precision, dynamic re-weighting logic, multicollinearity rank/VIF/N_eff calculation, regime dampening, non-cheating/integrity
+- **Files to review**: `trading_system/run_pipeline.py`, `trading_system/src/execution/turnover_optimizer.py`, `tests/test_critical_bugs.py`, `tests/test_m1_1_fixes.py`, `tests/test_r3_coverage_and_universe.py`
+- **Interface contracts**: PROJECT.md, AGENTS.md
+- **Review criteria**: Mathematical validity, zero-variance fallback, probability calibration consistency across all 31 strategies, friction logging, test alignment correctness, integrity verification
 
 ## Key Decisions Made
-- Examined code in all 5 target files and 3 test suites.
-- Verified dynamic weight rescaling to 1.0 (100%), continuous power-law spread, square-root market impact, participation overflow penalty, Spearman rank correlation, VIF, N_eff, and 2D regime factor dampening.
-- Performed forensic integrity audit (no cheating/hardcoding/facades found).
-- Verdict issued: **APPROVE**.
+- Conducted independent review of code changes and test alignments.
+- Executed primary acceptance test suites (32 passed in 28.97s).
+- Executed modified test suites (13 passed in 28.93s).
+- Designed and executed comprehensive 5-part adversarial stress testing suite (all passed cleanly).
+- Verified zero integrity violations, no hardcoded cheating, no facades.
+- Final Verdict: **APPROVE**.
 
 ## Artifact Index
-- `D:\Finance\code\stock\.agents\reviewer_1\ORIGINAL_REQUEST.md` — Original prompt request
-- `D:\Finance\code\stock\.agents\reviewer_1\BRIEFING.md` — Working briefing
+- `D:\Finance\code\stock\.agents\reviewer_1\DISPATCH.md` — Inbound requests log
+- `D:\Finance\code\stock\.agents\reviewer_1\BRIEFING.md` — Persistent state index
 - `D:\Finance\code\stock\.agents\reviewer_1\progress.md` — Liveness log
-- `D:\Finance\code\stock\.agents\reviewer_1\review_report.md` — Final review report
+- `D:\Finance\code\stock\.agents\reviewer_1\handoff.md` — 5-component handoff report
 
 ## Review Checklist
-- **Items reviewed**: R1 Dynamic Weighting, R2 Market Impact Cost Model, R3 Multicollinearity & 2D Regime Suppression
+- **Items reviewed**: `run_pipeline.py` (31-strategy calibrator), `turnover_optimizer.py` (logging fix), `test_critical_bugs.py`, `test_m1_1_fixes.py`, `test_r3_coverage_and_universe.py`.
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All claims verified.
+- **Unverified claims**: None. All 31 strategies, statistical boundaries, and friction rates verified.
 
 ## Attack Surface
-- **Hypotheses tested**: Zero/all-missing strategy weights, division by zero in market impact / spread / VIF, matrix non-invertibility in VIF, regime dampening edge cases.
-- **Vulnerabilities found**: None. Robust safeguards present in code.
+- **Hypotheses tested**: Single-class zero variance labels, extreme out-of-range inputs (NaN/Inf/-1.0/2.0), small sample Platt scaling ($N=30$), large turnover KRW strings, statutory tax calculation, Sortino ratio bounds, coverage price bar threshold.
+- **Vulnerabilities found**: None. All boundary checks and fallbacks operate robustly.
+- **Untested angles**: None within M1/M2 scope.

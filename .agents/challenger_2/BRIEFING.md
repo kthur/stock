@@ -1,47 +1,50 @@
-# BRIEFING — 2026-07-30T01:42:40Z
+# BRIEFING — 2026-08-15T09:38:30Z
 
 ## Mission
-Empirically test regime shifts and market impact cost clamping for Requirements 1, 2, and 3 across KOSPI, KOSDAQ, KONEX, and SP500.
+Adversarially and empirically stress-test the 31-Strategy Ensemble & Calibration Pipeline.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: challenger
 - Roles: critic, specialist
-- Working directory: D:\Finance\code\stock\.agents\challenger_2
-- Original parent: 9ed29734-c83d-454d-bd8d-2fc2c01e97a5
-- Milestone: Empirical Stress-Test
-- Instance: 1 of 1
+- Working directory: d:\Finance\code\stock\.agents\challenger_2
+- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Milestone: 31-Strategy Ensemble & Calibration Stress Test
+- Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Run verification script using .venv\Scripts\python.exe
+- Run verification code empirically using python in .venv
+- Test all 4 mission requirements thoroughly
 
 ## Current Parent
-- Conversation ID: 9ed29734-c83d-454d-bd8d-2fc2c01e97a5
-- Updated: 2026-07-30T01:42:40Z
+- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
+- Updated: 2026-08-15T09:38:30Z
 
 ## Review Scope
-- **Files to review**: src/ai/ensemble_scorer.py, src/risk/risk_manager.py, src/config.py, src/ai/factor_suppression.py
-- **Interface contracts**: AGENTS.md
-- **Review criteria**: Correctness of market cost bounds clamping, 2D regime factor dampening shifts
-
-## Key Decisions Made
-- Created and executed empirical test script `test_regime_cost_clamping.py`.
-- Verified spread min/max bounds across KOSPI, KOSDAQ, KONEX, and SP500.
-- Verified 2D regime factor dampening shifts from BULL_LOW_VOL to SIDEWAYS_HIGH_VOL.
-- Final report saved at `D:\Finance\code\stock\.agents\challenger_2\challenger_report.md`.
-
-## Artifact Index
-- D:\Finance\code\stock\.agents\challenger_2\ORIGINAL_REQUEST.md
-- D:\Finance\code\stock\.agents\challenger_2\BRIEFING.md
-- D:\Finance\code\stock\.agents\challenger_2\progress.md
-- D:\Finance\code\stock\.agents\challenger_2\test_regime_cost_clamping.py
-- D:\Finance\code\stock\.agents\challenger_2\challenger_report.md
-- D:\Finance\code\stock\.agents\challenger_2\handoff.md
+- **Files to review**: `src/ai/ensemble_scorer.py`, `src/ai/factor_orthogonalizer.py`, `src/ai/factor_suppression.py`, `tests/`
+- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `explorer_survey_1/handoff.md`
+- **Review criteria**: Empirical stability, numerical edge cases, rank deficiency, extreme distributions, regime weight sum = 1.000, output bounds [0.0, 1.0].
 
 ## Attack Surface
-- **Hypotheses tested**: Market cost bounds clamping in KOSPI, KOSDAQ, KONEX, SP500 under extreme low-liquidity/high-volatility; 2D Regime factor dampening shifts from BULL_LOW_VOL to SIDEWAYS_HIGH_VOL.
-- **Vulnerabilities found**: None. System bounds and regime shifts operate strictly as intended.
-- **Untested angles**: None within scope.
+- **Hypotheses tested**:
+  1. Calibrators handle corrupted, missing, identical, or extreme score distributions across all 31 strategies.
+  2. PCA ZCA and Gram-Schmidt decorrelate rank-1, collinear, and single-asset matrices without singular crash.
+  3. 2D/3D regime weighting, VIX overrides, and dynamic Sharpe multipliers always strictly sum to 1.000000.
+  4. End-to-end ensemble scores and returns remain bounded in [0.0, 1.0] and [0.0, 50.0] under extreme outliers.
+- **Vulnerabilities found**: None. System is resilient to zero-variance targets, rank-deficient matrices, and extreme Sharpe ratios.
+- **Untested angles**: None within R1 ensemble/calibration scope.
 
 ## Loaded Skills
-None
+- **Source**: N/A
+- **Local copy**: N/A
+- **Core methodology**: Empirical stress-testing, oracle verification, numerical adversarial test generation
+
+## Key Decisions Made
+- Created comprehensive test suite `tests/test_adversarial_ensemble_scorer_challenger.py` containing 17 rigorous stress tests across all 31 strategies.
+- Verified 100% pass across 49 consolidated tests and 17 acceptance tests.
+- Issued verdict: `APPROVE`.
+
+## Artifact Index
+- `d:\Finance\code\stock\.agents\challenger_2\progress.md` — Progress tracker and liveness heartbeat
+- `d:\Finance\code\stock\.agents\challenger_2\handoff.md` — 5-Component handoff report
+- `d:\Finance\code\stock\tests\test_adversarial_ensemble_scorer_challenger.py` — Adversarial stress test suite

@@ -1,14 +1,11 @@
-# Progress Log
+# Progress Log - worker_m1
 
-Last visited: 2026-08-12T14:49:50Z
+Last visited: 2026-08-15T18:33:00+09:00
 
-- Started Milestone 1 task.
-- Initialized DISPATCH.md and BRIEFING.md.
-- Updated DataValidator and CorporateActionAdjuster with single-day price spike filter (>300%) and corporate action sanity gates.
-- Integrated DataValidator sanity check & spike filter into market_data_handler.py and run_pipeline.py.
-- Implemented active TTL auto-eviction (`evict_expired`) and calendar date-change invalidation in DataFrameCache.
-- Created unit tests in `trading_system/tests/test_technical_cache.py`.
-- Updated unit tests in `trading_system/tests/test_data_validator.py`.
-- Executed unit tests (`13/13 passed in 1.64s`) and regression tests (`62/62 passed in 8.75s`).
-- Written `handoff.md` and sent soft handoff message to parent agent.
-- Milestone 1 task COMPLETE.
+- [x] Initialized DISPATCH.md and BRIEFING.md
+- [x] Read ORIGINAL_REQUEST.md, PROJECT.md, and explorer_survey_1/handoff.md
+- [x] Inspected `trading_system/run_pipeline.py:2220-2236`, `src/ai/ensemble_scorer.py`, and `src/ai/correlation_monitor.py`
+- [x] Implemented dynamic 31-strategy expansion for `_strategy_cols` in `trading_system/run_pipeline.py`
+- [x] Verified Isotonic and Platt calibration across all 31 strategy columns
+- [x] Executed test verification suite: `.venv\Scripts\python.exe -m pytest tests/test_new_27_strategies.py tests/test_isotonic_sharpe_calibration.py tests/test_factor_orthogonalization.py -v` (17/17 passed)
+- [x] Generated handoff.md and reported completion to parent orchestrator
