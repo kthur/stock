@@ -34,7 +34,7 @@ class ScenarioSimulationEngine:
     """
     섹터 및 거시경제(Macro) 시나리오 기반 주가 상승 수혜/타격 종목 예측 시뮬레이션 엔진.
 
-    17대 다변화 앙상블 시스템의 CARD(Cross-Asset Regime Divergence) & Sector Rotation 팩터와 연동하여,
+    31대 다변화 앙상블 시스템의 CARD(Cross-Asset Regime Divergence) & Sector Rotation 팩터와 연동하여,
     사용자 지정 경기/매크로 변동 시나리오 하에서 3,379개 전 종목의 수혜 탄력성(Elasticity Score) 및
     조건부 앙상블 상승 예측 점수를 산출합니다.
     """
@@ -177,17 +177,17 @@ class ScenarioSimulationEngine:
         elif sector_outlook < -0.2:
             reasons.append(f"섹터 업황 둔화 ({sector_outlook:.1f})")
 
-        if macro.usdkrw_change_pct != 0 and elas['usdkrw'] != 0:
-            direction = "수혜" if (macro.usdkrw_change_pct * elas['usdkrw']) > 0 else "부담"
+        if macro.usdkrw_change_pct != 0 and elas.get('usdkrw', 0.0) != 0:
+            direction = "수혜" if (macro.usdkrw_change_pct * float(elas.get('usdkrw', 0.0))) > 0 else "부담"
             reasons.append(f"환율변동({macro.usdkrw_change_pct:+.1f}%) {direction}")
 
-        if macro.wti_change_pct != 0 and elas['wti'] != 0:
-            direction = "수혜" if (macro.wti_change_pct * elas['wti']) > 0 else "원가부담"
+        if macro.wti_change_pct != 0 and elas.get('wti', 0.0) != 0:
+            direction = "수혜" if (macro.wti_change_pct * float(elas.get('wti', 0.0))) > 0 else "원가부담"
             reasons.append(f"유가변동({macro.wti_change_pct:+.1f}%) {direction}")
 
-        if macro.us10y_rate >= 4.3 and elas['us10y'] > 0:
+        if macro.us10y_rate >= 4.3 and float(elas.get('us10y', 0.0)) > 0:
             reasons.append(f"고금리({macro.us10y_rate:.2f}%) 마진 확대")
-        elif macro.us10y_rate >= 4.3 and elas['us10y'] < -0.3:
+        elif macro.us10y_rate >= 4.3 and float(elas.get('us10y', 0.0)) < -0.3:
             reasons.append(f"고금리({macro.us10y_rate:.2f}%) 할인율 부담")
 
         return ", ".join(reasons) if reasons else "중립 시나리오 유지"
