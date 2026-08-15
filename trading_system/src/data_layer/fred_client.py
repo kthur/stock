@@ -12,6 +12,7 @@ Specifically targets key series like:
 
 import json
 import logging
+import math
 import os
 import time
 import urllib.parse
@@ -19,6 +20,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, Optional
+import numpy as np
 import pandas as pd
 
 
@@ -152,7 +154,9 @@ class FredApiClient:
 
         latest_val = float(df["value"].iloc[-1])
         prev_val = float(df["value"].iloc[-2]) if len(df) >= 2 else latest_val
-        change_pct = ((latest_val - prev_val) / abs(prev_val) * 100.0) if prev_val != 0 else 0.0
+        change_pct = ((latest_val - prev_val) / abs(prev_val) * 100.0) if (prev_val != 0 and math.isfinite(latest_val) and math.isfinite(prev_val)) else 0.0
+        if not math.isfinite(change_pct):
+            change_pct = 0.0
         latest_date = df.index[-1].strftime("%Y-%m-%d") if hasattr(df.index[-1], "strftime") else str(df.index[-1])[:10]
 
         name = FRED_SERIES_MAP.get(series_id, series_id)
@@ -160,8 +164,8 @@ class FredApiClient:
             "series_id": series_id,
             "name": name,
             "date": latest_date,
-            "value": round(latest_val, 4),
-            "price": round(latest_val, 4),
+            "value": round(latest_val, 4) if math.isfinite(latest_val) else 0.0,
+            "price": round(latest_val, 4) if math.isfinite(latest_val) else 0.0,
             "change_pct": round(change_pct, 2),
             "timestamp": datetime.now().isoformat(),
         }
