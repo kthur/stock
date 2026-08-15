@@ -124,8 +124,10 @@ class FactorOrthogonalizerEngine:
         # Eigen-decomposition of symmetric correlation matrix
         eigenvalues, eigenvectors = np.linalg.eigh(C_shrunk)
 
-        # Ridge regularize small/negative eigenvalues for numerical stability
-        eigenvalues = np.maximum(eigenvalues, self.ridge_epsilon)
+        # Dynamic condition number regularization for ill-conditioned correlation matrices
+        max_eig = float(np.max(eigenvalues)) if len(eigenvalues) > 0 else 1.0
+        min_allowed_eig = max(max_eig / 1e6, self.ridge_epsilon)
+        eigenvalues = np.maximum(eigenvalues, min_allowed_eig)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(lambda^(-1/2)) * V^T
         inv_sqrt_lambda = np.diag(1.0 / np.sqrt(eigenvalues))

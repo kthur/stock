@@ -130,14 +130,18 @@ class QuadFactorOptimizer:
         expected_returns: pd.Series,
         cov_matrix: Union[pd.DataFrame, np.ndarray],
         factor_df: pd.DataFrame,
-        sector_map: Dict[str, str],
+        sector_map: Optional[Dict[str, str]] = None,
         w_initial: Optional[Dict[str, float]] = None,
         max_weight: Optional[float] = None,
         max_sector_weight: Optional[float] = None,
-        factor_tolerances: Optional[Union[Dict[str, float], float]] = None
+        factor_tolerances: Optional[Union[Dict[str, float], float]] = None,
+        sector_mapping: Optional[Dict[str, str]] = None,
+        risk_aversion: Optional[float] = None,
+        **kwargs: Any
     ) -> Dict[str, float]:
         """
         Solves the Quad-Factor Neutral QP Portfolio Risk Optimization problem.
+
 
         Parameters:
             expected_returns: Expected returns per asset (Series indexed by symbol).
@@ -161,6 +165,7 @@ class QuadFactorOptimizer:
 
         max_w = max_weight if max_weight is not None else self.default_max_weight
         max_sec_w = max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight
+        eff_sector_map = sector_map if sector_map is not None else (sector_mapping or {})
 
         # Align inputs to symbols order
         mu = expected_returns.loc[symbols].values.astype(np.float64)
@@ -204,21 +209,21 @@ class QuadFactorOptimizer:
                     norm_f = (std_f - np.mean(std_f)) / std_val
                 else:
                     norm_f = np.zeros(n_assets)
-                standardized_factors[f] = norm_f
             else:
-                standardized_factors[f] = np.zeros(n_assets)
+                norm_f = np.zeros(n_assets)
+            standardized_factors[f] = norm_f
 
-        # 2. Primary Solver Selection (CVXPY vs SciPy SLSQP)
+        # Primary Solver Execution
         weights = None
         if self.use_cvxpy_if_available and HAS_CVXPY:
             weights = self._solve_cvxpy(
-                symbols, mu, Sigma, standardized_factors, sector_map,
+                symbols, mu, Sigma, standardized_factors, eff_sector_map,
                 w0, max_w, max_sec_w, tol_dict
             )
 
         if weights is None:
             weights = self._solve_scipy_slsqp(
-                symbols, mu, Sigma, standardized_factors, sector_map,
+                symbols, mu, Sigma, standardized_factors, eff_sector_map,
                 w0, max_w, max_sec_w, tol_dict
             )
 
@@ -227,23 +232,23 @@ class QuadFactorOptimizer:
             logger.warning("QuadFactorOptimizer primary QP solver failed. Triggering Tier 1 Fallback (Relaxed Factor Bounds).")
             relaxed_tols = {f: tol_dict.get(f, self.default_factor_tolerance) * 2.0 for f in factors}
             weights = self._solve_scipy_slsqp(
-                symbols, mu, Sigma, standardized_factors, sector_map,
+                symbols, mu, Sigma, standardized_factors, eff_sector_map,
                 w0, max_w, max_sec_w, relaxed_tols
             )
 
         if weights is None:
             logger.warning("Tier 1 Fallback failed. Triggering Tier 2 Fallback (Mean-Variance / Sector Capped MVO).")
             weights = self._solve_scipy_slsqp(
-                symbols, mu, Sigma, {}, sector_map,
+                symbols, mu, Sigma, {}, eff_sector_map,
                 w0, max_w, max_sec_w, {}
             )
 
         if weights is None:
             logger.warning("Tier 2 Fallback failed. Triggering Tier 3 Fallback (Equal Weight with Sector Caps).")
-            weights = self._fallback_equal_weight(symbols, sector_map, max_w, max_sec_w)
+            weights = self._fallback_equal_weight(symbols, eff_sector_map, max_w, max_sec_w)
 
         # Final Bounded Normalization & Cleaning
-        weights = _apply_bounded_normalization(weights, symbols, sector_map, max_w, max_sec_w)
+        weights = _apply_bounded_normalization(weights, symbols, eff_sector_map, max_w, max_sec_w)
 
         return {sym: float(w) for sym, w in zip(symbols, weights)}
 

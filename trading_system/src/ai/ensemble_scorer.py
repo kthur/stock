@@ -833,10 +833,17 @@ class EnsembleScoringEngine:
                 pruned_strategies.add(strategy)
                 continue
             multiplier = float(np.exp(gamma * np.clip(sharpe, -sharpe_clip, sharpe_clip)))
-            # Convex Sharpe Elasticity Multiplier for high performing strategies
-            if sharpe >= 0.50:
+            # Convex Sharpe Elasticity Multiplier for high performing strategies & Asymmetric Downside Penalty
+            if sharpe >= 1.00:
+                multiplier *= 1.15
+            elif sharpe >= 0.50:
                 multiplier *= 1.10
+            elif sharpe < 0.0:
+                # Asymmetric downside risk mitigation: reduce allocation to underperforming signals
+                downside_penalty = 1.0 / (1.0 + abs(sharpe) * 0.35)
+                multiplier *= downside_penalty
             scores[strategy] = base_w * multiplier
+
 
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
@@ -1549,7 +1556,7 @@ class EnsembleScoringEngine:
         if valid_dfs:
             merged = pd.concat(valid_dfs, axis=1)
             if merged.columns.has_duplicates:
-                merged = merged.groupby(level=0, axis=1).first()
+                merged = merged.loc[:, ~merged.columns.duplicated(keep='first')]
             merged = merged.reset_index()
         else:
             merged = pd.DataFrame(columns=['symbol'])
@@ -1588,6 +1595,17 @@ class EnsembleScoringEngine:
             ('darkpool', 'darkpool_score'),
             ('earnings_tone_drift', 'earnings_tone_drift_score'),
         ]
+
+        # Phase 3-A: Cross-Sectional Robust Winsorization (0.5% - 99.5% quantile clipping for N >= 20)
+        if len(merged) >= 20:
+            for _, score_col in strategy_cols:
+                if score_col in merged.columns:
+                    valid_vals = merged[score_col].dropna()
+                    if len(valid_vals) >= 20:
+                        q_low = float(np.percentile(valid_vals, 0.5))
+                        q_high = float(np.percentile(valid_vals, 99.5))
+                        if q_high > q_low:
+                            merged[score_col] = merged[score_col].clip(lower=q_low, upper=q_high)
 
         # Phase 3-B: Factor Orthogonalization (PCA ZCA / Gram-Schmidt)
         if getattr(self, 'orthogonalizer_enabled', True):
@@ -1883,11 +1901,12 @@ class EnsembleScoringEngine:
         impact_one_way = impact_coeff * vols * (participation_ratio ** impact_alpha)
 
         ov_mask = participation_ratio > 0.10
-        impact_one_way[ov_mask] += np.minimum(0.50 * (participation_ratio[ov_mask] - 0.10), 0.03)
+        impact_one_way[ov_mask] += 0.50 * (participation_ratio[ov_mask] - 0.10)
 
         raw_total_cost = stt_tax + brokerage_fee + (1.0 * clamped_spread) + (2.0 * impact_one_way)
         cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
-        cost_series = np.minimum(raw_total_cost * cost_scaling, 0.05)
+        max_cost_cap = np.where(ov_mask, 0.20, 0.05)
+        cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
         merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0, upper=50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)

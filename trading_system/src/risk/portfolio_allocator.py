@@ -307,16 +307,27 @@ class PortfolioAllocator:
 
         # Normalize and scale by fractional kelly
         norm_w = raw_kelly / total_k
-        # Kelly Conviction Boost & Super Conviction for top alpha signals
+        # Kelly Conviction Boost, Ultra Conviction & Lower-Tail Attenuation for alpha signals
         if len(norm_w) >= 4:
+            p95 = np.percentile(norm_w, 95)
             p90 = np.percentile(norm_w, 90)
             p75 = np.percentile(norm_w, 75)
-            super_mask = norm_w >= p90
-            top_mask = (norm_w >= p75) & (~super_mask)
+            p25 = np.percentile(norm_w, 25)
+
+            ultra_mask = norm_w >= p95
+            super_mask = (norm_w >= p90) & (~ultra_mask)
+            top_mask = (norm_w >= p75) & (norm_w < p90)
+            low_mask = norm_w < p25
+
+            if np.any(ultra_mask):
+                norm_w[ultra_mask] *= 1.16
             if np.any(super_mask):
                 norm_w[super_mask] *= 1.12
             if np.any(top_mask):
                 norm_w[top_mask] *= 1.08
+            if np.any(low_mask):
+                norm_w[low_mask] *= 0.92
+
         clamped_w = np.clip(norm_w, 0.0, cap)
         sum_c = np.sum(clamped_w)
         if sum_c > 0:

@@ -33,6 +33,9 @@ class _DBConnection:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
                 await self._conn.execute("PRAGMA journal_mode=WAL")
+                await self._conn.execute("PRAGMA synchronous=NORMAL")
+                await self._conn.execute("PRAGMA cache_size=-32000")
+                await self._conn.execute("PRAGMA temp_store=MEMORY")
                 await self._conn.execute("PRAGMA busy_timeout=30000")
                 await self._conn.execute("PRAGMA foreign_keys=ON")
             else:
@@ -45,10 +48,11 @@ class _DBConnection:
                         pass
                     self._conn = await aiosqlite.connect(self.db_path)
                     await self._conn.execute("PRAGMA journal_mode=WAL")
+                    await self._conn.execute("PRAGMA synchronous=NORMAL")
+                    await self._conn.execute("PRAGMA cache_size=-32000")
+                    await self._conn.execute("PRAGMA temp_store=MEMORY")
                     await self._conn.execute("PRAGMA busy_timeout=30000")
                     await self._conn.execute("PRAGMA foreign_keys=ON")
-                    await self._conn.execute("PRAGMA journal_mode=WAL")
-                    await self._conn.execute("PRAGMA busy_timeout=30000")
             return self._conn
 
     async def execute_write(self, sql: str, params: tuple = ()):
@@ -57,6 +61,9 @@ class _DBConnection:
             if self._conn is None:
                 self._conn = await aiosqlite.connect(self.db_path)
                 await self._conn.execute("PRAGMA journal_mode=WAL")
+                await self._conn.execute("PRAGMA synchronous=NORMAL")
+                await self._conn.execute("PRAGMA cache_size=-32000")
+                await self._conn.execute("PRAGMA temp_store=MEMORY")
                 await self._conn.execute("PRAGMA busy_timeout=30000")
             await self._conn.execute(sql, params)
             await self._conn.commit()
