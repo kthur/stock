@@ -78,6 +78,7 @@ def get_state() -> dict[str, Any]:
 def _write_state(status: str, reason: str) -> None:
     from datetime import datetime
 
+    tmp_state = STATE_FILE.with_suffix(".tmp.json")
     try:
         payload = {
             "status": status,
@@ -85,7 +86,14 @@ def _write_state(status: str, reason: str) -> None:
             "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "file": str(KILL_SWITCH_FILE),
         }
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(tmp_state, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
+        tmp_state.replace(STATE_FILE)
     except Exception as e:
+        if tmp_state.exists():
+            try:
+                tmp_state.unlink()
+            except Exception:
+                pass
         logger.debug(f"kill_switch_state write failed: {e}")
