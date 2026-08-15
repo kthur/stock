@@ -75,16 +75,20 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
         for sym in symbols:
             score = 0.50  # Base neutral score
 
-            if transcript_map and sym in transcript_map:
-                t_data = transcript_map[sym]
-                prev_tone = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
-                cur_tone = _safe_float(t_data.get('current_quarter_tone'), 0.50)
-                confidence = _safe_float(t_data.get('confidence'), 1.0)
+            if transcript_map:
+                sym_raw = str(sym).split('.')[0]
+                sym_clean = sym_raw.zfill(6) if sym_raw.isdigit() else sym_raw
+                t_data = transcript_map.get(sym, transcript_map.get(str(sym), transcript_map.get(sym_clean, transcript_map.get(sym_raw))))
 
-                # Tone Drift Delta (Positive = Management Sentiment Upgrade)
-                tone_delta = (cur_tone - prev_tone) * confidence
-                accel_mult = 1.20 if tone_delta > 0.10 else 1.0
-                score = float(np.clip(0.50 + 1.0 * tone_delta * accel_mult, 0.0, 1.0))
+                if t_data:
+                    prev_tone = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
+                    cur_tone = _safe_float(t_data.get('current_quarter_tone'), 0.50)
+                    confidence = _safe_float(t_data.get('confidence'), 1.0)
+
+                    # Tone Drift Delta (Positive = Management Sentiment Upgrade)
+                    tone_delta = (cur_tone - prev_tone) * confidence
+                    accel_mult = 1.25 if tone_delta > 0.10 else 1.0
+                    score = float(np.clip(0.50 + 1.0 * tone_delta * accel_mult, 0.0, 1.0))
 
             results.append({
                 'symbol': sym,
