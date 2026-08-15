@@ -131,8 +131,13 @@ class InstForeignSectorEngine(BaseStrategyEngine):
             if df is None or len(df) < 15:
                 continue
 
-            close = df['Close']
-            volume = df['Volume']
+            c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+            v_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
+            if not c_col or not v_col:
+                continue
+
+            close = df[c_col]
+            volume = df[v_col]
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]
             if isinstance(volume, pd.DataFrame):
@@ -171,8 +176,10 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         returns_dict = {}
         for sym in valid_symbols:
             df = prices_dict[sym]
-            close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
-            returns_dict[sym] = close.pct_change()
+            c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+            if c_col:
+                close = df[c_col].iloc[:, 0] if isinstance(df[c_col], pd.DataFrame) else df[c_col]
+                returns_dict[sym] = close.pct_change()
 
         returns_df = pd.DataFrame(returns_dict).ffill().tail(40).fillna(0.0)
 
