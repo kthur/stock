@@ -1,0 +1,76 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Global & Korean Value Chain & Supply Chain Lead-Lag Momentum Map",
+    "last_updated": "2026-08-15"
+  },
+  "sectors": {
+    "Semiconductor_HBM_Foundry": {
+      "lead_companies": ["NVDA", "AAPL", "MSFT", "TSM", "005930", "000660"],
+      "mappings": {
+        "005930": { "customers": ["NVDA", "AAPL", "MSFT", "GOOGL"], "weights": [0.35, 0.25, 0.20, 0.20], "role": "Integrated Device / Memory" },
+        "000660": { "customers": ["NVDA", "AAPL", "MSFT"], "weights": [0.50, 0.30, 0.20], "role": "HBM / DRAM Leader" },
+        "TSM": { "customers": ["AAPL", "NVDA", "AMD", "QCOM"], "weights": [0.40, 0.30, 0.15, 0.15], "role": "Foundry Leader" },
+        "042700": { "customers": ["000660", "005930", "NVDA"], "weights": [0.55, 0.25, 0.20], "role": "TC Bonder / HBM Equipment" },
+        "036540": { "customers": ["005930", "000660"], "weights": [0.60, 0.40], "role": "Fab Automation Equipment" },
+        "240810": { "customers": ["005930", "000660", "TSM"], "weights": [0.45, 0.35, 0.20], "role": "Atomic Layer Deposition (ALD)" },
+        "039030": { "customers": ["005930", "000660"], "weights": [0.55, 0.45], "role": "Semiconductor Laser Annealing" },
+        "058470": { "customers": ["005930", "000660"], "weights": [0.50, 0.50], "role": "Test Sockets & Pins" },
+        "095610": { "customers": ["005930", "000660"], "weights": [0.60, 0.40], "role": "PECVD Equipment" },
+        "036930": { "customers": ["005930", "000660"], "weights": [0.40, 0.60], "role": "ALD / High-k Equipment" },
+        "084370": { "customers": ["005930", "000660"], "weights": [0.65, 0.35], "role": "Wafer Memory Testers" },
+        "101490": { "customers": ["005930", "000660"], "weights": [0.60, 0.40], "role": "EUV Blankmask & Pelicle" },
+        "108320": { "customers": ["005930", "000660"], "weights": [0.50, 0.50], "role": "EUV Photoresist & Wet Chemicals" },
+        "067310": { "customers": ["005930", "000660"], "weights": [0.50, 0.50], "role": "OSAT / Packaging" },
+        "053690": { "customers": ["005930", "000660"], "weights": [0.55, 0.45], "role": "Silicon Electrodes & Rings" },
+        "222800": { "customers": ["005930", "000660"], "weights": [0.50, 0.50], "role": "Package Substrates (PCB)" },
+        "077360": { "customers": ["005930", "000660"], "weights": [0.60, 0.40], "role": "OLED Organic Materials" }
+      }
+    },
+    "EV_Battery_Value_Chain": {
+      "lead_companies": ["TSLA", "GM", "F", "373220", "006400"],
+      "mappings": {
+        "373220": { "customers": ["TSLA", "GM", "F"], "weights": [0.50, 0.30, 0.20], "role": "EV Battery Cell OEM" },
+        "006400": { "customers": ["TSLA", "AAPL", "BMW"], "weights": [0.40, 0.30, 0.30], "role": "Premium Cylindrical Battery" },
+        "051910": { "customers": ["373220", "TSLA"], "weights": [0.70, 0.30], "role": "Battery Parent & Petrochem" },
+        "247540": { "customers": ["373220", "006400", "TSLA"], "weights": [0.50, 0.30, 0.20], "role": "High-Nickel Cathode Active Materials" },
+        "086520": { "customers": ["247540", "373220"], "weights": [0.60, 0.40], "role": "Battery Eco Holding" },
+        "003670": { "customers": ["373220", "006400"], "weights": [0.60, 0.40], "role": "Cathode / Synthetic Anode" },
+        "096770": { "customers": ["373220", "F"], "weights": [0.50, 0.50], "role": "SK On Battery Parent" },
+        "278280": { "customers": ["373220", "006400"], "weights": [0.55, 0.45], "role": "Specialty Electrolyte Additives" },
+        "137310": { "customers": ["373220", "006400"], "weights": [0.50, 0.50], "role": "Cathode Precursors" }
+      }
+    },
+    "Automotive_ADAS_Powertrain": {
+      "lead_companies": ["053800", "000270", "TSLA"],
+      "mappings": {
+        "053800": { "customers": ["TSLA", "TM"], "weights": [0.60, 0.40], "role": "Automotive OEM" },
+        "000270": { "customers": ["053800", "TSLA"], "weights": [0.70, 0.30], "role": "EV & Automotive OEM" },
+        "012330": { "customers": ["053800", "000270"], "weights": [0.60, 0.40], "role": "Tier-1 Chassis & Modules" },
+        "018880": { "customers": ["053800", "000270", "F"], "weights": [0.45, 0.35, 0.20], "role": "EV Thermal Management" },
+        "204320": { "customers": ["053800", "000270", "TSLA"], "weights": [0.45, 0.35, 0.20], "role": "Brake-by-Wire & ADAS" },
+        "005830": { "customers": ["053800", "000270"], "weights": [0.55, 0.45], "role": "LED Automotive Lighting" },
+        "011210": { "customers": ["053800", "000270"], "weights": [0.55, 0.45], "role": "Powertrain & Industrial Robot" }
+      }
+    },
+    "US_AI_Cloud_Hardware": {
+      "lead_companies": ["MSFT", "GOOGL", "AMZN", "META", "AAPL"],
+      "mappings": {
+        "NVDA": { "customers": ["MSFT", "META", "GOOGL", "AMZN", "AAPL"], "weights": [0.30, 0.25, 0.20, 0.15, 0.10], "role": "GPU & AI Compute Platform" },
+        "AMD": { "customers": ["MSFT", "GOOGL", "AMZN", "META"], "weights": [0.35, 0.25, 0.20, 0.20], "role": "MI300 GPU & EPYC Server CPU" },
+        "ASML": { "customers": ["TSM", "INTC", "005930"], "weights": [0.45, 0.30, 0.25], "role": "EUV / DUV Lithography" },
+        "AMAT": { "customers": ["TSM", "005930", "INTC", "000660"], "weights": [0.35, 0.30, 0.20, 0.15], "role": "Wafer Fab Equipment" },
+        "LRCX": { "customers": ["TSM", "000660", "005930"], "weights": [0.40, 0.35, 0.25], "role": "Etch & Deposition" },
+        "KLAC": { "customers": ["TSM", "005930", "INTC"], "weights": [0.40, 0.35, 0.25], "role": "Process Diagnostic & Metrology" },
+        "AVGO": { "customers": ["AAPL", "GOOGL", "META"], "weights": [0.40, 0.35, 0.25], "role": "Custom ASIC & Ethernet Switches" },
+        "MRVL": { "customers": ["MSFT", "AMZN", "GOOGL"], "weights": [0.40, 0.35, 0.25], "role": "AI Optical Interconnects" },
+        "ANET": { "customers": ["MSFT", "META", "GOOGL"], "weights": [0.45, 0.35, 0.20], "role": "High-Throughput Data Center Switching" },
+        "SMCI": { "customers": ["NVDA", "AMD", "INTC"], "weights": [0.65, 0.20, 0.15], "role": "AI Server Rack Building Blocks" },
+        "VRT": { "customers": ["MSFT", "AMZN", "NVDA"], "weights": [0.40, 0.35, 0.25], "role": "Liquid Cooling & Power Infrastructure" },
+        "ARM": { "customers": ["AAPL", "NVDA", "QCOM", "GOOGL"], "weights": [0.35, 0.30, 0.20, 0.15], "role": "Architecture IP" },
+        "MU": { "customers": ["NVDA", "AAPL", "MSFT"], "weights": [0.40, 0.30, 0.30], "role": "Memory & HBM3e" },
+        "QCOM": { "customers": ["AAPL", "SAMSUNG", "XIAOMI"], "weights": [0.40, 0.35, 0.25], "role": "Snapdragon Mobile & AI" }
+      }
+    }
+  }
+}

@@ -93,11 +93,53 @@ class SupplyChainEngine(BaseStrategyEngine):
     """Strategy 19: Supply Chain Lead-Lag Momentum Engine.
 
     Calculates spillover momentum score (0% to 100%) for supplier stocks based on
-    1D and 3D returns of their key customer/lead market leaders.
+    1D, 3D, and 5D returns of their key customer/lead market leaders with relation weights.
     """
 
-    def __init__(self, customer_map: Optional[Dict[str, List[str]]] = None) -> None:
-        self.customer_map = customer_map or LEAD_CUSTOMER_MAP
+    def __init__(self, customer_map: Optional[Dict[str, Any]] = None, map_path: Optional[str] = None) -> None:
+        self.customer_weights_map: Dict[str, Dict[str, Any]] = {}
+        if customer_map is not None:
+            self.customer_map = customer_map
+        else:
+            self.customer_map = self._load_supply_chain_map_json(map_path) or LEAD_CUSTOMER_MAP
+
+    def _load_supply_chain_map_json(self, map_path: Optional[str] = None) -> Dict[str, List[str]]:
+        """Load structured supply chain mappings from JSON database."""
+        import json
+        from pathlib import Path
+
+        search_paths = [
+            Path(map_path) if map_path else None,
+            Path(__file__).resolve().parent.parent.parent / "data" / "supply_chain_map.json",
+            Path("trading_system/data/supply_chain_map.json"),
+            Path("data/supply_chain_map.json"),
+        ]
+
+        for p in search_paths:
+            if p and p.exists() and p.is_file():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    
+                    flat_map: Dict[str, List[str]] = {}
+                    sectors = data.get("sectors", {})
+                    for _, s_info in sectors.items():
+                        mappings = s_info.get("mappings", {})
+                        for sym, m_info in mappings.items():
+                            customers = m_info.get("customers", [])
+                            weights = m_info.get("weights", [])
+                            flat_map[sym] = customers
+                            self.customer_weights_map[sym] = {
+                                "customers": customers,
+                                "weights": weights if len(weights) == len(customers) else [1.0 / len(customers)] * len(customers),
+                                "role": m_info.get("role", "")
+                            }
+                    if flat_map:
+                        logger.info(f"Loaded {len(flat_map)} supply chain relations from {p}")
+                        return flat_map
+                except Exception as ex:
+                    logger.warning(f"Failed to parse supply chain map from {p}: {ex}")
+        return LEAD_CUSTOMER_MAP
 
     def compute_scores(
         self,
@@ -166,15 +208,26 @@ class SupplyChainEngine(BaseStrategyEngine):
             if not customers:
                 score = 0.50
             else:
+                # Check for explicit customer relation weights
+                w_info = self.customer_weights_map.get(c_key, self.customer_weights_map.get(sym, {}))
+                weights = w_info.get("weights", []) if w_info else []
+                if not weights or len(weights) != len(customers):
+                    weights = [1.0 / len(customers)] * len(customers)
+                
+                # Normalize weights to sum to 1.0
+                sum_w = sum(weights) or 1.0
+                weights = [w / sum_w for w in weights]
+
                 cust_rets = []
-                for c_sym in customers:
+                for c_sym, c_weight in zip(customers, weights):
                     r1 = float(returns_1d.get(c_sym, 0.0)) if not pd.isna(returns_1d.get(c_sym, np.nan)) else 0.0
                     r3 = float(returns_3d.get(c_sym, 0.0)) if not pd.isna(returns_3d.get(c_sym, np.nan)) else 0.0
                     r5 = float(returns_5d.get(c_sym, 0.0)) if not pd.isna(returns_5d.get(c_sym, np.nan)) else 0.0
-                    cust_rets.append(0.50 * r1 + 0.30 * r3 + 0.20 * r5)
+                    spillover_ret = 0.50 * r1 + 0.30 * r3 + 0.20 * r5
+                    cust_rets.append(spillover_ret * c_weight)
 
-                avg_cust_ret = float(np.mean(cust_rets)) if cust_rets else 0.0
-                score = float(np.clip(0.50 + avg_cust_ret * 5.0, 0.0, 1.0))
+                weighted_cust_ret = float(np.sum(cust_rets)) if cust_rets else 0.0
+                score = float(np.clip(0.50 + weighted_cust_ret * 5.0, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,

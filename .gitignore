@@ -73,6 +73,7 @@ venv.bak/
 data/
 *.parquet
 trading_system/data/
+!trading_system/data/supply_chain_map.json
 risk_config.json
 
 # Models (regenerated each pipeline run)
