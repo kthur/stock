@@ -223,7 +223,8 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
 
     try:
         close = adjusted[close_col].astype(float)
-        ratios = (close / close.shift(1)).fillna(1.0)
+        prev_close = close.shift(1).replace(0, float('nan'))
+        ratios = (close / prev_close).fillna(1.0)
         mags = ratios.apply(lambda r: (max(r, 1.0 / r) - 1.0) if (pd.notna(r) and r > 0) else 0.0)
 
         if (mags > max_return).any():
