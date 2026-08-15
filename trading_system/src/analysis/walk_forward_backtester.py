@@ -19,8 +19,8 @@ class WalkForwardBacktester:
     """Out-of-Sample Walk-Forward Quantitative Backtester."""
 
     def __init__(self, train_window: int = 60, test_window: int = 20) -> None:
-        self.train_window = train_window
-        self.test_window = test_window
+        self.train_window = max(5, int(train_window)) if train_window is not None else 60
+        self.test_window = max(1, int(test_window)) if test_window is not None else 20
 
     def evaluate_strategy_ic(self, pred_scores: pd.Series, actual_returns: pd.Series) -> Dict[str, float]:
         """Compute Pearson IC and Spearman Rank IC for a single prediction slice.
@@ -41,8 +41,8 @@ class WalkForwardBacktester:
         ic_val = combined["pred"].corr(combined["actual"], method="pearson")
         rank_ic_val = combined["pred"].corr(combined["actual"], method="spearman")
 
-        ic = float(ic_val) if (ic_val is not None and np.isfinite(ic_val)) else 0.0
-        rank_ic = float(rank_ic_val) if (rank_ic_val is not None and np.isfinite(rank_ic_val)) else 0.0
+        ic = float(np.clip(ic_val, -1.0, 1.0)) if (ic_val is not None and np.isfinite(ic_val)) else 0.0
+        rank_ic = float(np.clip(rank_ic_val, -1.0, 1.0)) if (rank_ic_val is not None and np.isfinite(rank_ic_val)) else 0.0
 
         return {
             "ic": round(ic, 4),
