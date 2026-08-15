@@ -36,8 +36,19 @@ class StyleRotator:
 
         try:
             latest = macro_data.iloc[-1]
-            tnx_change = latest.get("^TNX_pct_change", 0.0)
-            vix_level = latest.get("^VIX", 15.0)
+            tnx_val = latest.get("^TNX_pct_change", None)
+            if tnx_val is None or pd.isna(tnx_val):
+                if "^TNX" in macro_data.columns and len(macro_data) >= 2:
+                    prev_tnx = float(macro_data["^TNX"].iloc[-2])
+                    curr_tnx = float(macro_data["^TNX"].iloc[-1])
+                    tnx_change = (curr_tnx - prev_tnx) / prev_tnx if prev_tnx > 0 else 0.0
+                else:
+                    tnx_change = 0.0
+            else:
+                tnx_change = float(tnx_val)
+
+            vix_val = latest.get("^VIX", 15.0)
+            vix_level = float(vix_val) if not pd.isna(vix_val) else 15.0
 
             # 레짐 판별
             if vix_level > 25.0:
@@ -98,8 +109,11 @@ class StyleRotator:
 
             adjusted_weights[i] *= size_multiplier * value_multiplier
 
-        sum_w = np.sum(adjusted_weights)
+        adjusted_weights = np.nan_to_num(adjusted_weights, nan=0.0, posinf=0.0, neginf=0.0)
+        sum_w = float(np.sum(adjusted_weights))
         if sum_w > 1e-12:
-            adjusted_weights /= sum_w
+            adjusted_weights = adjusted_weights / sum_w
+        else:
+            adjusted_weights = np.ones(len(tickers)) / len(tickers) if len(tickers) > 0 else adjusted_weights
 
         return adjusted_weights
