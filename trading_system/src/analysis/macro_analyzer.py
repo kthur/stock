@@ -178,11 +178,19 @@ def fetch_macro_indices_data(period: str = "1y") -> pd.DataFrame:
         # yf.download handles multiple tickers efficiently
         df = yf.download(MACRO_SYMBOLS, period=period, group_by="ticker", progress=False, timeout=5, auto_adjust=True)
 
-        for sym in MACRO_SYMBOLS:
-            if sym in df.columns.levels[0]:
-                close = df[sym]["Close"]
-                if not close.dropna().empty:
-                    data_dict[sym] = close
+        if not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                for sym in MACRO_SYMBOLS:
+                    if sym in df.columns.levels[0]:
+                        close_col = next((c for c in df[sym].columns if str(c).lower() in ('close', 'adj close', 'adjclose')), None)
+                        if close_col:
+                            close = df[sym][close_col]
+                            if not close.dropna().empty:
+                                data_dict[sym] = close
+            else:
+                for sym in MACRO_SYMBOLS:
+                    if sym in df.columns:
+                        data_dict[sym] = df[sym]
     except Exception as e:
         logger.warning(f"Failed to fetch macro indices data from yfinance: {e}. Falling back to simulation.")
 
