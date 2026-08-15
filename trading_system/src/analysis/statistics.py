@@ -52,23 +52,31 @@ class AdvancedStatistics:
 
     def calculate_returns(self, equity_curve: List[float]) -> List[float]:
         """수익률 계산"""
+        if not equity_curve:
+            return []
+        valid_curve = [float(x) for x in equity_curve if x is not None and math.isfinite(float(x))]
+        if len(valid_curve) < 2:
+            return []
         returns = []
-        for i in range(1, len(equity_curve)):
-            prev = equity_curve[i - 1]
+        for i in range(1, len(valid_curve)):
+            prev = valid_curve[i - 1]
             if prev <= 0 or abs(prev) < 1e-8:
                 r = 0.0
             else:
-                r = (equity_curve[i] - prev) / prev
-            returns.append(r)
+                r = (valid_curve[i] - prev) / prev
+            returns.append(float(r) if math.isfinite(r) else 0.0)
         return returns
 
     def calculate_sharpe_ratio(self, returns: List[float], periods_per_year: int = 252) -> float:
         """Sharpe Ratio 계산"""
-        if not returns or len(returns) < 2:
+        if not returns:
+            return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if len(valid_returns) < 2:
             return 0.0
 
-        avg_return = sum(returns) / len(returns)
-        variance = sum((r - avg_return) ** 2 for r in returns) / len(returns)
+        avg_return = sum(valid_returns) / len(valid_returns)
+        variance = sum((r - avg_return) ** 2 for r in valid_returns) / len(valid_returns)
         std_dev = math.sqrt(variance)
 
         if std_dev == 0 or abs(std_dev) < 1e-9:
@@ -76,7 +84,7 @@ class AdvancedStatistics:
 
         excess_return = avg_return - (self.risk_free_rate / periods_per_year)
         sharpe = (excess_return / std_dev) * math.sqrt(periods_per_year)
-        if math.isnan(sharpe) or math.isinf(sharpe):
+        if not math.isfinite(sharpe):
             return 0.0
 
         return max(-10.0, min(10.0, float(sharpe)))
@@ -149,27 +157,35 @@ class AdvancedStatistics:
         if max_drawdown == 0 or abs(max_drawdown) < 1e-8:
             return 999.0 if total_return > 0 else 0.0
 
-        return total_return / abs(max_drawdown)
+        res = total_return / abs(max_drawdown)
+        if not math.isfinite(res):
+            return 0.0
+        return max(-999.0, min(999.0, float(res)))
 
     def calculate_volatility(self, returns: List[float], periods_per_year: int = 252) -> float:
         """변동성 계산"""
-        if not returns or len(returns) < 2:
-            return 0
+        if not returns:
+            return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if len(valid_returns) < 2:
+            return 0.0
 
-        avg_return = sum(returns) / len(returns)
-        variance = sum((r - avg_return) ** 2 for r in returns) / len(returns)
+        avg_return = sum(valid_returns) / len(valid_returns)
+        variance = sum((r - avg_return) ** 2 for r in valid_returns) / len(valid_returns)
         daily_volatility = math.sqrt(variance)
 
         annual_volatility = daily_volatility * math.sqrt(periods_per_year)
-
-        return annual_volatility
+        return float(annual_volatility) if math.isfinite(annual_volatility) else 0.0
 
     def calculate_var(self, returns: List[float], confidence: float = 0.95) -> float:
         """Value at Risk (VaR) 계산"""
         if not returns:
             return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not valid_returns:
+            return 0.0
 
-        sorted_returns = sorted(returns)
+        sorted_returns = sorted(valid_returns)
         index = max(0, min(len(sorted_returns) - 1, int(len(sorted_returns) * (1.0 - confidence))))
 
         return float(sorted_returns[index])
@@ -178,9 +194,12 @@ class AdvancedStatistics:
         """Conditional Value at Risk (CVaR) / Expected Shortfall 계산"""
         if not returns:
             return 0.0
+        valid_returns = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not valid_returns:
+            return 0.0
 
-        var = self.calculate_var(returns, confidence)
-        worse_returns = [r for r in returns if r <= var]
+        var = self.calculate_var(valid_returns, confidence)
+        worse_returns = [r for r in valid_returns if r <= var]
 
         if not worse_returns:
             return float(var)
