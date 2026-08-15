@@ -88,31 +88,46 @@ class SlippageFeedbackEngine:
                     JOIN order_plans p ON e.order_id = p.order_id
                     WHERE e.executed_price IS NOT NULL AND p.target_price > 0
                 """)
-                rows = cursor.fetchall()
+                import math
                 for mkt, act, p_target, p_exec in rows:
-                    if p_target > 0 and p_exec > 0:
-                        sign = 1.0 if str(act).upper() in ["BUY", "LONG"] else -1.0
-                        slip_bps = sign * ((p_exec - p_target) / p_target) * 10000.0
-                        slippages.append(slip_bps)
-                        if mkt in mkt_slippage:
-                            mkt_slippage[mkt].append(slip_bps)
+                    try:
+                        pt = float(p_target) if (p_target is not None and math.isfinite(float(p_target))) else 0.0
+                        pe = float(p_exec) if (p_exec is not None and math.isfinite(float(p_exec))) else 0.0
+                    except (ValueError, TypeError):
+                        continue
+                    if pt > 0 and pe > 0:
+                        sign = 1.0 if str(act).strip().upper() in ["BUY", "LONG"] else -1.0
+                        slip_bps = sign * ((pe - pt) / pt) * 10000.0
+                        if math.isfinite(slip_bps):
+                            slippages.append(slip_bps)
+                            if mkt in mkt_slippage:
+                                mkt_slippage[mkt].append(slip_bps)
 
             elif "trade_logs" in tables:
+                import math
                 cursor.execute(
                     "SELECT market, side, expected_price, fill_price FROM trade_logs WHERE fill_price IS NOT NULL AND expected_price > 0"
                 )
                 rows = cursor.fetchall()
                 for mkt, side, p_exp, p_fill in rows:
-                    if p_exp > 0 and p_fill > 0:
-                        sign = 1.0 if str(side).upper() in ["BUY", "LONG"] else -1.0
-                        slip_bps = sign * ((p_fill - p_exp) / p_exp) * 10000.0
-                        slippages.append(slip_bps)
-                        if mkt in mkt_slippage:
-                            mkt_slippage[mkt].append(slip_bps)
+                    try:
+                        pe = float(p_exp) if (p_exp is not None and math.isfinite(float(p_exp))) else 0.0
+                        pf = float(p_fill) if (p_fill is not None and math.isfinite(float(p_fill))) else 0.0
+                    except (ValueError, TypeError):
+                        continue
+                    if pe > 0 and pf > 0:
+                        sign = 1.0 if str(side).strip().upper() in ["BUY", "LONG"] else -1.0
+                        slip_bps = sign * ((pf - pe) / pe) * 10000.0
+                        if math.isfinite(slip_bps):
+                            slippages.append(slip_bps)
+                            if mkt in mkt_slippage:
+                                mkt_slippage[mkt].append(slip_bps)
 
             conn.close()
 
-            if not slippages:
+            valid_slippages = [s for s in slippages if math.isfinite(s)]
+
+            if not valid_slippages:
                 return SlippageMetrics(
                     avg_slippage_bps=self.default_slippage_bps,
                     market_impact_alpha=0.50,
@@ -124,15 +139,26 @@ class SlippageFeedbackEngine:
                     recommended_market_impact_multiplier=1.0,
                 )
 
-            avg_slip = float(np.mean(slippages))
-            max_slip = float(np.max(slippages))
+            avg_slip = float(np.mean(valid_slippages))
+            max_slip = float(np.max(valid_slippages))
+            if not math.isfinite(avg_slip):
+                avg_slip = self.default_slippage_bps
+            if not math.isfinite(max_slip):
+                max_slip = 15.0
+
             scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 3.0)) if self.default_slippage_bps > 0 else 1.0
+            if not math.isfinite(scaling):
+                scaling = 1.0
             alpha = float(np.clip(0.50 * scaling, 0.1, 1.00))
+            if not math.isfinite(alpha):
+                alpha = 0.50
 
             final_mkt_map = {}
             for mkt, val_list in mkt_slippage.items():
-                if val_list:
-                    final_mkt_map[mkt] = float(np.mean(val_list))
+                v_finite = [v for v in val_list if math.isfinite(v)]
+                if v_finite:
+                    m_val = float(np.mean(v_finite))
+                    final_mkt_map[mkt] = m_val if math.isfinite(m_val) else self.default_slippage_bps
                 else:
                     baseline_defaults = {"KOSPI": 5.0, "KOSDAQ": 8.0, "SP500": 3.0, "NASDAQ": 4.0, "RUSSELL2000": 7.0}
                     final_mkt_map[mkt] = baseline_defaults.get(mkt, self.default_slippage_bps)
@@ -140,10 +166,10 @@ class SlippageFeedbackEngine:
             return SlippageMetrics(
                 avg_slippage_bps=avg_slip,
                 market_impact_alpha=alpha,
-                sample_count=len(slippages),
+                sample_count=len(valid_slippages),
                 cost_scaling_factor=scaling,
                 market_slippage_map=final_mkt_map,
-                total_trades=len(slippages),
+                total_trades=len(valid_slippages),
                 mean_slippage_bps=avg_slip,
                 max_slippage_bps=max_slip,
                 recommended_market_impact_multiplier=scaling,
