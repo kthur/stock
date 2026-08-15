@@ -31,16 +31,18 @@ def _is_weekday_kst(now: datetime) -> bool:
     return now.weekday() < 5
 
 
-def is_krx_open(now: datetime) -> bool:
+def is_krx_open(now: Optional[datetime] = None) -> bool:
     """KRX 정규장 여부 (09:00 ~ 15:30 KST, 평일)."""
+    now = now or datetime.now()
     if not _is_weekday_kst(now):
         return False
     t = now.time()
     return time(9, 0) <= t <= time(15, 30)
 
 
-def is_us_open(now: datetime) -> bool:
+def is_us_open(now: Optional[datetime] = None) -> bool:
     """US 정규장 여부 (22:30 ~ 05:00 KST, 평일 새벽 구간 포함)."""
+    now = now or datetime.now()
     t = now.time()
     if time(22, 30) <= t <= time(23, 59):
         # KST 월~금 저녁 22:30~23:59 = US 월~금 당일 개장 (정규장)
