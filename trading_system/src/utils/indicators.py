@@ -3,9 +3,9 @@ from typing import List
 
 def calc_sma(closes: List[float], period: int) -> List[float]:
     """단순이동평균(SMA) 계산 (슬라이딩 윈도우, O(n))"""
-    n = len(closes)
-    if n == 0 or period < 1:
+    if not closes or period is None or period < 1:
         return []
+    n = len(closes)
     sma = [0.0] * n
     for i in range(n):
         start = max(0, i - period + 1)
