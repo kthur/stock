@@ -32,7 +32,7 @@ class RealtimeStateStore:
     """SQLite 기반 장중 상태 저장소 (realtime_state.db)."""
 
     def __init__(self, db_path: str = "realtime_state.db"):
-        self.db_path = db_path
+        self.db_path = str(db_path) if db_path is not None else "realtime_state.db"
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:
