@@ -36,37 +36,69 @@ class LiveAlphaTracker:
         if predictions_history_df is None or predictions_history_df.empty or realized_prices_df is None or realized_prices_df.empty:
             return {"status": "NO_DATA", "multipliers": {}}
 
-        merged = pd.merge(predictions_history_df, realized_prices_df, on=["date", "symbol"], how="inner")
+        # Standardize column names
+        p_df = predictions_history_df.copy()
+        r_df = realized_prices_df.copy()
+
+        p_cols = {str(c).lower(): c for c in p_df.columns}
+        r_cols = {str(c).lower(): c for c in r_df.columns}
+
+        p_date = p_cols.get("date")
+        p_sym = p_cols.get("symbol")
+        p_strat = p_cols.get("strategy_name")
+        p_score = p_cols.get("pred_score")
+
+        r_date = r_cols.get("date")
+        r_sym = r_cols.get("symbol")
+        r_ret = r_cols.get("realized_return_20d") or r_cols.get("realized_return") or r_cols.get("return")
+
+        if not (p_date and p_sym and p_strat and p_score and r_date and r_sym and r_ret):
+            return {"status": "INVALID_COLUMNS", "multipliers": {}}
+
+        p_df = p_df[[p_date, p_sym, p_strat, p_score]].rename(
+            columns={p_date: "date", p_sym: "symbol", p_strat: "strategy_name", p_score: "pred_score"}
+        )
+        r_df = r_df[[r_date, r_sym, r_ret]].rename(
+            columns={r_date: "date", r_sym: "symbol", r_ret: "realized_return_20d"}
+        )
+
+        p_df["pred_score"] = pd.to_numeric(p_df["pred_score"], errors="coerce")
+        r_df["realized_return_20d"] = pd.to_numeric(r_df["realized_return_20d"], errors="coerce")
+
+        merged = pd.merge(p_df.dropna(), r_df.dropna(), on=["date", "symbol"], how="inner")
         if merged.empty:
             return {"status": "NO_OVERLAP", "multipliers": {}}
 
         results: Dict[str, Dict[str, float]] = {}
         multipliers: Dict[str, float] = {}
 
+        threshold = max(float(self.hit_rate_threshold), 1e-4)
+
         grouped = merged.groupby("strategy_name")
         for strat_name, group in grouped:
-            # Directional hit: pred > 0.50 and realized_return > 0 OR pred < 0.50 and realized_return < 0
+            # Directional hit: pred >= 0.50 and realized_return > 0 OR pred < 0.50 and realized_return <= 0
             correct_dirs = (
                 ((group["pred_score"] >= 0.50) & (group["realized_return_20d"] > 0)) |
                 ((group["pred_score"] < 0.50) & (group["realized_return_20d"] <= 0))
             )
             hit_rate = float(correct_dirs.mean()) if len(group) > 0 else 0.50
-            rmse = float(np.sqrt(np.mean((group["pred_score"] - group["realized_return_20d"]) ** 2)))
+            diff = group["pred_score"] - group["realized_return_20d"]
+            rmse = float(np.sqrt(np.mean(diff ** 2))) if len(diff) > 0 else 0.0
 
-            # Feedback Multiplier: penalize if hit_rate < 0.50, reward if hit_rate > 0.55
+            # Feedback Multiplier: penalize if hit_rate < threshold, reward if hit_rate > 0.55
             multiplier = 1.0
-            if hit_rate < self.hit_rate_threshold:
-                multiplier = max(0.20, hit_rate / self.hit_rate_threshold)
+            if hit_rate < threshold:
+                multiplier = max(0.20, hit_rate / threshold)
             elif hit_rate > 0.55:
                 multiplier = min(1.50, hit_rate / 0.50)
 
             results[str(strat_name)] = {
-                "hit_rate": hit_rate,
-                "rmse": rmse,
+                "hit_rate": round(hit_rate, 4),
+                "rmse": round(rmse, 4),
                 "sample_count": float(len(group)),
-                "multiplier": multiplier,
+                "multiplier": round(multiplier, 4),
             }
-            multipliers[str(strat_name)] = multiplier
+            multipliers[str(strat_name)] = round(multiplier, 4)
 
         return {
             "status": "SUCCESS",
