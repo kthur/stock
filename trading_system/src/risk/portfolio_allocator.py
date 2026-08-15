@@ -707,7 +707,7 @@ class PortfolioAllocator:
                 return 1.0
 
             tbl = 'trade_logs' if 'trade_logs' in tables else 'orders'
-            cursor.execute(f"PRAGMA table_info({tbl});")
+            cursor.execute(f"PRAGMA table_info({tbl});")  # nosec B608
             cols = [r[1] for r in cursor.fetchall()]
 
             p_col = 'order_price' if 'order_price' in cols else ('price' if 'price' in cols else None)
@@ -724,7 +724,10 @@ class PortfolioAllocator:
                     "FROM orders o JOIN executions e ON o.order_id = e.order_id LIMIT 500;", conn
                 )
             else:
-                df = pd.read_sql_query(f"SELECT {p_col} AS order_price, {exec_col} AS executed_price FROM {tbl} LIMIT 500;", conn)
+                df = pd.read_sql_query(
+                    f"SELECT {p_col} AS order_price, {exec_col} AS executed_price FROM {tbl} LIMIT 500;",  # nosec B608
+                    conn
+                )
             conn.close()
 
             if df.empty or len(df) < 5:
