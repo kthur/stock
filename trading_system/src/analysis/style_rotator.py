@@ -39,16 +39,28 @@ class StyleRotator:
             tnx_val = latest.get("^TNX_pct_change", None)
             if tnx_val is None or pd.isna(tnx_val):
                 if "^TNX" in macro_data.columns and len(macro_data) >= 2:
-                    prev_tnx = float(macro_data["^TNX"].iloc[-2])
-                    curr_tnx = float(macro_data["^TNX"].iloc[-1])
-                    tnx_change = (curr_tnx - prev_tnx) / prev_tnx if prev_tnx > 0 else 0.0
+                    tnx_series = pd.to_numeric(macro_data["^TNX"], errors='coerce').dropna()
+                    if len(tnx_series) >= 2:
+                        prev_tnx = float(tnx_series.iloc[-2])
+                        curr_tnx = float(tnx_series.iloc[-1])
+                        tnx_change = (curr_tnx - prev_tnx) / prev_tnx if (prev_tnx > 0 and np.isfinite(prev_tnx) and np.isfinite(curr_tnx)) else 0.0
+                    else:
+                        tnx_change = 0.0
                 else:
                     tnx_change = 0.0
             else:
-                tnx_change = float(tnx_val)
+                try:
+                    f_tnx = float(tnx_val)
+                    tnx_change = f_tnx if np.isfinite(f_tnx) else 0.0
+                except (ValueError, TypeError):
+                    tnx_change = 0.0
 
             vix_val = latest.get("^VIX", 15.0)
-            vix_level = float(vix_val) if not pd.isna(vix_val) else 15.0
+            try:
+                f_vix = float(vix_val)
+                vix_level = f_vix if np.isfinite(f_vix) else 15.0
+            except (ValueError, TypeError):
+                vix_level = 15.0
 
             # 레짐 판별
             if vix_level > 25.0:
@@ -95,21 +107,24 @@ class StyleRotator:
         ticker_styles 예시: {'AAPL': {'size': 'LARGE_CAP', 'value': 'GROWTH'}, ...}
         """
         if len(base_weights) != len(tickers):
-            return base_weights
+            return np.asarray(base_weights, dtype=float)
 
-        adjusted_weights = np.copy(base_weights)
+        adjusted_weights = np.asarray(base_weights, dtype=float).copy()
+        adjusted_weights = np.nan_to_num(adjusted_weights, nan=0.0, posinf=0.0, neginf=0.0)
+        adjusted_weights = np.maximum(adjusted_weights, 0.0)
 
         for i, ticker in enumerate(tickers):
-            style_info = ticker_styles.get(ticker, {})
+            style_info = ticker_styles.get(ticker, {}) if ticker_styles else {}
             size_style = style_info.get("size", "LARGE_CAP")
             value_style = style_info.get("value", "VALUE")
 
-            size_multiplier = self.style_preferences.get(size_style, 1.0)
-            value_multiplier = self.style_preferences.get(value_style, 1.0)
+            size_multiplier = float(self.style_preferences.get(size_style, 1.0))
+            value_multiplier = float(self.style_preferences.get(value_style, 1.0))
 
-            adjusted_weights[i] *= size_multiplier * value_multiplier
+            adjusted_weights[i] *= (size_multiplier * value_multiplier)
 
         adjusted_weights = np.nan_to_num(adjusted_weights, nan=0.0, posinf=0.0, neginf=0.0)
+        adjusted_weights = np.maximum(adjusted_weights, 0.0)
         sum_w = float(np.sum(adjusted_weights))
         if sum_w > 1e-12:
             adjusted_weights = adjusted_weights / sum_w
