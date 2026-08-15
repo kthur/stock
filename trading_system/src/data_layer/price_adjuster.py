@@ -46,8 +46,9 @@ class CorporateActionAdjuster:
             close_series = close_series.iloc[:, 0]
 
         # Calculate overnight price ratios
-        prev_close = close_series.shift(1).replace(0, float('nan'))
-        ratios = (close_series / prev_close).fillna(1.0)
+        close_num = pd.to_numeric(close_series, errors='coerce')
+        prev_close = close_num.shift(1).replace(0, np.nan)
+        ratios = (close_num / prev_close).fillna(1.0)
 
         # Detect split ratio anomalies (e.g., 1:2 split -> 0.50, 1:5 split -> 0.20, 5:1 reverse split -> 5.0)
         split_mask = (ratios < (1.0 - self.split_threshold_pct)) | (ratios > (1.0 + 1.5 * self.split_threshold_pct))
@@ -55,8 +56,9 @@ class CorporateActionAdjuster:
         if split_mask.any():
             split_indices = df.index[split_mask]
             for idx in split_indices:
-                r = float(ratios.loc[idx])
-                if r <= 0:
+                r_val = ratios.loc[idx]
+                r = float(r_val.iloc[0] if isinstance(r_val, pd.Series) else r_val)
+                if r <= 0 or not np.isfinite(r):
                     continue
                 logger.info("[CorporateActionAdjuster] Stock split/action ratio %.2fx detected at %s. Adjusting prior history...", r, idx)
 
@@ -64,11 +66,11 @@ class CorporateActionAdjuster:
                 prior_mask = df.index < idx
                 price_cols = [c for c in df.columns if str(c).lower() in ["open", "high", "low", "close", "adj close"]]
                 for pc in price_cols:
-                    df[pc] = df[pc].astype(float)
+                    df[pc] = pd.to_numeric(df[pc], errors='coerce')
                 df.loc[prior_mask, price_cols] = df.loc[prior_mask, price_cols] * r
                 vol_cols = [c for c in df.columns if str(c).lower() == "volume"]
                 if vol_cols:
-                    df[vol_cols[0]] = df[vol_cols[0]].astype(float)
+                    df[vol_cols[0]] = pd.to_numeric(df[vol_cols[0]], errors='coerce')
                     df.loc[prior_mask, vol_cols[0]] = df.loc[prior_mask, vol_cols[0]] / r
 
         return df
