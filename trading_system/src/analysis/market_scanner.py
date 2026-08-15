@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 class MarketScanner:
     """한국 시장 전체를 스캔하여 고수익 종목을 발굴하는 엔진"""
 
-    def __init__(self):
-        self.top_n = 5  # 최종 추천할 종목 수
-        self.scan_pool_size = 300  # 1차 스캔할 시총 상위 종목 수
+    def __init__(self, top_n: int = 5, scan_pool_size: int = 300):
+        self.top_n = max(1, min(100, int(top_n))) if top_n is not None else 5
+        self.scan_pool_size = max(10, min(2000, int(scan_pool_size))) if scan_pool_size is not None else 300
         self.logger = logger
 
     def _get_top_krx_stocks(self) -> Dict[str, str]:
@@ -134,7 +134,7 @@ class MarketScanner:
                             "name": krx_stocks.get(symbol, symbol),
                             "current_price": current_price,
                             "expected_return": round(momentum_1m * 100, 2),  # 모멘텀을 기대 수익률로 변환 (표시용)
-                            "score": base_score,
+                            "score": round(base_score, 4),
                             "volatility": round(volatility * 100, 2),
                             "avg_volume": int(avg_vol) if np.isfinite(avg_vol) else 0,
                         }
