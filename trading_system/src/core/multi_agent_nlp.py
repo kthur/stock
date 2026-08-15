@@ -52,7 +52,12 @@ class MultiAgentNLPEngine:
         else:
             tone_drift = 0.0
 
-        composite = (catalyst_score * self.catalyst_weight) + ((50.0 + tone_drift * 2.0) * self.tone_drift_weight)
+        total_w = self.catalyst_weight + self.tone_drift_weight
+        if total_w <= 0:
+            total_w = 1.0
+        composite = ((catalyst_score * self.catalyst_weight) + ((50.0 + tone_drift * 2.0) * self.tone_drift_weight)) / total_w
+        if np.isnan(composite) or np.isinf(composite):
+            composite = 50.0
         composite = float(np.clip(composite, 0.0, 100.0))
 
         return {
