@@ -41,23 +41,24 @@ class KoreaInvestmentConnector:
         max_order_value: float = 50_000_000.0,
         max_price_deviation_pct: float = 0.03,
     ):
-        """
-        한국투자증권 연동 초기화
-
-        Args:
-            account_number: 8~10자리 계좌번호
-            use_mock: True면 모의투자 API, False면 실전투자 API
-            max_order_value: 단일 주문 최대 금액 한도 (원)
-            max_price_deviation_pct: 시장가 대비 주문가 허용 오차 (±3%)
-        """
-        self.account_number: Optional[str] = account_number
+        import math
+        self.account_number: Optional[str] = str(account_number) if account_number is not None else None
         self.is_connected = False
 
         self.app_key = os.getenv("KIS_APP_KEY")
         self.app_secret = os.getenv("KIS_APP_SECRET")
-        self.use_mock = use_mock
-        self.max_order_value = max_order_value
-        self.max_price_deviation_pct = max_price_deviation_pct
+        self.use_mock = bool(use_mock)
+        try:
+            safe_max_val = float(max_order_value) if (max_order_value is not None and math.isfinite(float(max_order_value))) else 50_000_000.0
+        except (ValueError, TypeError):
+            safe_max_val = 50_000_000.0
+        self.max_order_value = max(1000.0, safe_max_val)
+
+        try:
+            safe_dev = float(max_price_deviation_pct) if (max_price_deviation_pct is not None and math.isfinite(float(max_price_deviation_pct))) else 0.03
+        except (ValueError, TypeError):
+            safe_dev = 0.03
+        self.max_price_deviation_pct = max(0.001, min(0.30, safe_dev))
 
         # API 인증 및 환경 변수가 없으면 순수 시뮬레이션 모드로 작동
         self.simulation_mode = not bool(self.app_key and self.app_secret)
