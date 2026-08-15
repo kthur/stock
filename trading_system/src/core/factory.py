@@ -18,6 +18,7 @@ from src.utils import ErrorHandler, EventBus
 class SystemFactory:
     @staticmethod
     def create_default_components(initial_cash: float, event_bus: EventBus | None = None):
+        safe_cash = max(0.0, float(initial_cash)) if initial_cash is not None else 0.0
         if event_bus is None:
             event_bus = EventBus()
 
@@ -36,7 +37,7 @@ class SystemFactory:
             global_market_weight=0.10,
             cash_ratio_weight=0.08,
         )
-        portfolio = PortfolioManager(initial_cash=initial_cash)
+        portfolio = PortfolioManager(initial_cash=safe_cash)
         strategy_engine.portfolio = portfolio
         return {
             "event_bus": event_bus,
@@ -50,8 +51,8 @@ class SystemFactory:
             "logger": TradeLogger(),
             "db": AssetHistoryDB(),
             "ai_db": AIPredictionDB(),
-            "risk": RiskManager(portfolio_value=initial_cash),
-            "backtest": BacktestEngine(initial_capital=initial_cash),
+            "risk": RiskManager(portfolio_value=safe_cash),
+            "backtest": BacktestEngine(initial_capital=safe_cash),
             "stats": AdvancedStatistics(),
             "error_handler": ErrorHandler(max_retries=3),
             "broker": KiwoomConnector(),
