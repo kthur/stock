@@ -43,9 +43,15 @@ class LATRFactorEngine(BaseStrategyEngine):
                     scores[sym] = 0.5
                     continue
 
-                close = df['Close']
-                vol = df['Volume']
-                if len(close) < 20:
+                c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                v_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
+                if not c_col or not v_col:
+                    scores[sym] = 0.5
+                    continue
+
+                close = df[c_col].dropna()
+                vol = df[v_col].dropna()
+                if len(close) < 20 or len(vol) < 20:
                     scores[sym] = 0.5
                     continue
 
