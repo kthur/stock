@@ -133,7 +133,25 @@ class MLEngine:
             logger.warning("No ML library installed. MLEngine will not work properly.")
 
     def _create_features(self, df: pd.DataFrame, is_training: bool = False) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame(columns=self.feature_cols)
+
         df = df.copy()
+        col_map = {str(c).lower(): c for c in df.columns}
+
+        close_col = col_map.get("close")
+        if not close_col:
+            return pd.DataFrame(0.0, index=df.index, columns=self.feature_cols)
+
+        df["close"] = pd.to_numeric(df[close_col], errors="coerce").ffill().bfill().replace(0, np.nan)
+        if col_map.get("open"):
+            df["open"] = pd.to_numeric(df[col_map["open"]], errors="coerce")
+        if col_map.get("high"):
+            df["high"] = pd.to_numeric(df[col_map["high"]], errors="coerce")
+        if col_map.get("low"):
+            df["low"] = pd.to_numeric(df[col_map["low"]], errors="coerce")
+        if col_map.get("volume"):
+            df["volume"] = pd.to_numeric(df[col_map["volume"]], errors="coerce")
 
         # 1. 수익률 (Returns)
         df["ret_1"] = df["close"].pct_change(1)
@@ -143,8 +161,8 @@ class MLEngine:
         # 2. 이동평균 이격도 (SMA Distance)
         df["sma_10"] = df["close"].rolling(10).mean()
         df["sma_50"] = df["close"].rolling(50).mean()
-        df["sma_10_dist"] = (df["close"] - df["sma_10"]) / df["sma_10"]
-        df["sma_50_dist"] = (df["close"] - df["sma_50"]) / df["sma_50"]
+        df["sma_10_dist"] = (df["close"] - df["sma_10"]) / df["sma_10"].replace(0, np.nan)
+        df["sma_50_dist"] = (df["close"] - df["sma_50"]) / df["sma_50"].replace(0, np.nan)
 
         # 3. 간이 RSI (14)
         delta = df["close"].diff()
