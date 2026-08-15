@@ -104,10 +104,10 @@ class StockScreener:
                     return {"current": current, "52week_high": high if high > 0 else current}
         info = getattr(ticker, "info", None)
         if isinstance(info, dict):
-            current = info.get("regularMarketPrice") or info.get("currentPrice")
-            high = info.get("fiftyTwoWeekHigh")
-            if current is not None and high is not None:
-                return {"current": float(current), "52week_high": float(high)}
+            current_raw = info.get("regularMarketPrice") or info.get("currentPrice")
+            high_raw = info.get("fiftyTwoWeekHigh")
+            if current_raw is not None and high_raw is not None:
+                return {"current": float(current_raw), "52week_high": float(high_raw)}
         return {"current": 95.0, "52week_high": 100.0}
 
     def screen(self, universe: List[str]) -> List[str]:
