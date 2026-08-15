@@ -20,11 +20,11 @@ class SQLiteAsyncRingBuffer:
     """Async In-Memory Ring Buffer Write Manager for SQLite WAL DB."""
 
     def __init__(self, max_capacity: int = 100000, batch_size: int = 1000, flush_interval: float = 1.0) -> None:
-        self.max_capacity = max_capacity
-        self.batch_size = batch_size
-        self.flush_interval = flush_interval
+        self.max_capacity = max(100, int(max_capacity)) if max_capacity is not None else 100000
+        self.batch_size = max(1, int(batch_size)) if batch_size is not None else 1000
+        self.flush_interval = max(0.01, float(flush_interval)) if flush_interval is not None else 1.0
 
-        self._queue: queue.Queue = queue.Queue(maxsize=max_capacity)
+        self._queue: queue.Queue = queue.Queue(maxsize=self.max_capacity)
         self._stop_event = threading.Event()
         self._flush_thread: Optional[threading.Thread] = None
         self._flush_callback: Optional[Callable[[List[Any]], None]] = None
@@ -48,6 +48,8 @@ class SQLiteAsyncRingBuffer:
 
     def push_many(self, items: List[Any]) -> int:
         """Enqueue multiple items into buffer."""
+        if not items:
+            return 0
         pushed = 0
         for item in items:
             if self.push(item):
