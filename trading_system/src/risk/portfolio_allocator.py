@@ -501,6 +501,8 @@ class PortfolioAllocator:
 
         cubic_term = (3.0 * cost_rate * target_weight * vol_clean) / (2.0 * max(1e-4, gamma))
         delta_raw = np.cbrt(cubic_term)
+        if np.isnan(delta_raw) or np.isinf(delta_raw):
+            return self.delta_floor
         return float(min(max(delta_raw, self.delta_floor), self.delta_cap))
 
     def compute_portfolio_rebalance(
