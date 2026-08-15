@@ -411,7 +411,7 @@ class InvestorStrategyEngine:
         hold_count = sum(1 for s in results.values() if s.recommendation == "HOLD")
         sell_count = sum(1 for s in results.values() if s.recommendation == "SELL")
 
-        avg_confidence = sum(s.confidence for s in results.values()) / len(results)
+        avg_confidence = (sum(s.confidence for s in results.values()) / len(results)) if results else 0.50
 
         # 합의 도출
         if buy_count >= 3:
