@@ -24,8 +24,9 @@ def _extract_close_series(val: Any) -> Optional[Any]:
     if val is None:
         return None
     if isinstance(val, pd.DataFrame):
-        if 'Close' in val.columns:
-            res = val['Close']
+        c_col = 'Close' if 'Close' in val.columns else ('close' if 'close' in val.columns else None)
+        if c_col:
+            res = val[c_col]
             return res.iloc[:, 0] if isinstance(res, pd.DataFrame) else res
         return val.iloc[:, 0]
     if isinstance(val, (list, tuple, np.ndarray)):
