@@ -96,7 +96,7 @@ class ParquetWALBuffer:
         Writes a staging Parquet file for a symbol without acquiring database write locks.
         Returns path to created staging file.
         """
-        if df.empty:
+        if df is None or df.empty:
             return Path()
         clean_sym = symbol.replace("/", "_").replace("\\", "_")
         file_id = f"{clean_sym}_{uuid.uuid4().hex[:8]}.parquet"
@@ -108,6 +108,8 @@ class ParquetWALBuffer:
             if not df_copy.index.name or str(df_copy.index.name).lower() == "index":
                 df_copy.index.name = "date"
         df_copy = _normalize_date_column(df_copy)
+        if df_copy.empty:
+            return Path()
         df_copy.to_parquet(staging_path, compression="snappy", index=False)
         return staging_path
 
