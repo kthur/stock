@@ -18,8 +18,10 @@ class DRLPortfolioAllocator:
     """
 
     def __init__(self, risk_penalty: float = 1.5, cost_penalty_multiplier: float = 1.0):
-        self.risk_penalty = risk_penalty
-        self.cost_penalty_multiplier = cost_penalty_multiplier
+        safe_risk = float(risk_penalty) if (risk_penalty is not None and np.isfinite(risk_penalty)) else 1.5
+        safe_cost = float(cost_penalty_multiplier) if (cost_penalty_multiplier is not None and np.isfinite(cost_penalty_multiplier)) else 1.0
+        self.risk_penalty = max(0.0, safe_risk)
+        self.cost_penalty_multiplier = max(0.0, safe_cost)
 
     def compute_drl_reward(
         self,
@@ -72,6 +74,8 @@ class DRLPortfolioAllocator:
         """
         Generates DRL portfolio weights for predictions_df symbols.
         """
+        safe_max_w = float(max_weight) if (max_weight is not None and np.isfinite(max_weight)) else 0.20
+        safe_max_w = max(0.01, min(1.0, safe_max_w))
         if predictions_df is None or predictions_df.empty:
             return {}
 
@@ -94,7 +98,7 @@ class DRLPortfolioAllocator:
         sum_exp = float(np.sum(exp_s))
         weights_raw = (exp_s / sum_exp) if sum_exp > 1e-12 else np.ones(N) / N
 
-        effective_max_w = max(float(max_weight), 1.0 / N)
+        effective_max_w = max(safe_max_w, 1.0 / N)
         weights_capped = np.clip(weights_raw, 0.0, effective_max_w)
         total_w = float(np.sum(weights_capped))
         weights_final = (weights_capped / total_w) if total_w > 1e-12 else np.ones(N) / N
