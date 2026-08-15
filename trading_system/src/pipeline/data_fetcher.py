@@ -21,11 +21,19 @@ class PipelineDataFetcher:
 
     def fetch_market_indicators(self, storage: Any, cfg: Any) -> Dict[str, float]:
         """Fetch latest global macro indicators (VIX, USDKRW, TNX, ECOS, etc.)."""
+        import math
         logger.info("[DataFetcher] Fetching global market indicators...")
         market_summary: Dict[str, float] = {}
 
         if hasattr(storage, 'get_latest_global_indicators'):
-            market_summary = storage.get_latest_global_indicators() or {}
+            raw_summary = storage.get_latest_global_indicators() or {}
+            for k, v in raw_summary.items():
+                try:
+                    f = float(v)
+                    if math.isfinite(f):
+                        market_summary[str(k).strip()] = f
+                except (ValueError, TypeError):
+                    continue
 
         date_str = datetime.now().strftime('%Y-%m-%d')
         if hasattr(storage, 'save_indicators') and market_summary:
@@ -42,14 +50,24 @@ class PipelineDataFetcher:
         logger.info("[DataFetcher] Loading stock universe...")
         universe = pd.DataFrame()
         if hasattr(storage, 'get_universe'):
-            universe = storage.get_universe()
+            try:
+                u_res = storage.get_universe()
+                if isinstance(u_res, pd.DataFrame):
+                    universe = u_res
+            except Exception as e:
+                logger.warning(f"[DataFetcher] Failed to get universe from storage: {e}")
 
         if universe.empty and hasattr(storage, 'update_stock_universe'):
             logger.info("[DataFetcher] Universe empty. Syncing stock universe from exchanges...")
-            storage.update_stock_universe()
-            universe = storage.get_universe()
+            try:
+                storage.update_stock_universe()
+                u_res = storage.get_universe()
+                if isinstance(u_res, pd.DataFrame):
+                    universe = u_res
+            except Exception as e:
+                logger.warning(f"[DataFetcher] Failed to sync universe: {e}")
 
-        if not universe.empty and 'market' not in universe.columns:
+        if not universe.empty and 'market' not in universe.columns and 'symbol' in universe.columns:
             universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
 
         logger.info(f"[DataFetcher] Universe loaded: {len(universe)} symbols.")
@@ -57,6 +75,6 @@ class PipelineDataFetcher:
 
     def build_symbol_market_map(self, universe: pd.DataFrame) -> Dict[str, str]:
         """Returns symbol -> market dictionary."""
-        if universe.empty or 'symbol' not in universe.columns or 'market' not in universe.columns:
+        if universe is None or not isinstance(universe, pd.DataFrame) or universe.empty or 'symbol' not in universe.columns or 'market' not in universe.columns:
             return {}
-        return dict(zip(universe['symbol'], universe['market']))
+        return dict(zip(universe['symbol'].astype(str), universe['market'].astype(str)))
