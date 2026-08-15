@@ -40,6 +40,9 @@ def allocate_assets(prices_dict: dict, strict: bool = False) -> dict:
         return {}
 
     total_price = sum(valid_prices.values())
+    if total_price <= 0 or not math.isfinite(total_price):
+        n = len(valid_prices)
+        return {k: 1.0 / n for k in valid_prices}
     weights = {k: v / total_price for k, v in valid_prices.items()}
 
     # Ensure exact sum of 1.0 by adjusting the last weight
