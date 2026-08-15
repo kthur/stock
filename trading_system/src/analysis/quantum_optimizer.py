@@ -10,7 +10,7 @@ class QuantumPortfolioOptimizer:
     """포트폴리오 최적화 - Mean-Variance / Risk-Parity"""
 
     def __init__(self, risk_free_rate: float = 0.03):
-        self.risk_free_rate = risk_free_rate
+        self.risk_free_rate = float(risk_free_rate) if (risk_free_rate is not None and np.isfinite(risk_free_rate)) else 0.03
 
     def optimize_allocation(
         self,
@@ -19,9 +19,9 @@ class QuantumPortfolioOptimizer:
         expected_returns: Dict[str, float] | None = None,
         cov_matrix: np.ndarray | None = None,
     ) -> Dict[str, float]:
+        if symbols is None or len(symbols) == 0:
+            return current_weights if current_weights is not None else {}
         n = len(symbols)
-        if n == 0:
-            return current_weights
         if n == 1:
             return {symbols[0]: 1.0}
         if expected_returns is None:
@@ -76,9 +76,11 @@ class QuantumPortfolioOptimizer:
         symbols: List[str],
         cov_matrix: np.ndarray | None = None,
     ) -> Dict[str, float]:
+        if symbols is None or len(symbols) == 0:
+            return {}
         n = len(symbols)
-        if n <= 1:
-            return {s: 1.0 for s in symbols}
+        if n == 1:
+            return {symbols[0]: 1.0}
         if cov_matrix is None:
             cov_matrix = np.eye(n) * 0.04
 
