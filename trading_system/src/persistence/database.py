@@ -500,18 +500,25 @@ class StockPriceDB:
                 self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert aborted.")
                 return 0
 
-        records = [
-            (
-                symbol,
-                idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10],
-                float(r.Open),
-                float(r.High),
-                float(r.Low),
-                float(r.Close),
-                int(r.Volume),
-            )
-            for idx, r in zip(df.index, df.itertuples())
-        ]
+        cols = {str(c).lower(): c for c in df.columns}
+        has_open = "open" in cols
+        has_high = "high" in cols
+        has_low = "low" in cols
+        has_close = "close" in cols
+        has_vol = "volume" in cols
+
+        records = []
+        for idx, row in df.iterrows():
+            d_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
+            try:
+                op = float(row[cols["open"]]) if has_open else 0.0
+                hi = float(row[cols["high"]]) if has_high else 0.0
+                lo = float(row[cols["low"]]) if has_low else 0.0
+                cl = float(row[cols["close"]]) if has_close else 0.0
+                vol = int(float(row[cols["volume"]])) if has_vol else 0
+            except (ValueError, TypeError, KeyError):
+                continue
+            records.append((symbol, d_str, op, hi, lo, cl, vol))
         if not records:
             return 0
 
