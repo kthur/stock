@@ -31,15 +31,17 @@ def filter_training_data(
         num_vol = pd.to_numeric(df[vol_col], errors='coerce').fillna(0.0)
         df = df[num_vol > min_volume]
 
-    # 2. Filter price extreme outliers (4-sigma rule on returns if available)
-    ret_cols = [c for c in df.columns if c.startswith('ret_') or c.startswith('target_')]
+    # 2. Filter price extreme feature outliers (4-sigma rule on return features; exclude targets to preserve surge labels)
+    ret_cols = [c for c in df.columns if c.startswith('ret_') and not c.startswith('target_')]
     for col in ret_cols:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            s = pd.to_numeric(df[col], errors='coerce')
-            mu = float(s.mean())
-            std = float(s.std())
-            if not np.isnan(std) and std > 0:
-                df = df[(s - mu).abs() <= sigma_threshold * std]
+        s = pd.to_numeric(df[col], errors='coerce')
+        valid_s = s.dropna()
+        if len(valid_s) > 10:
+            mu = float(valid_s.mean())
+            std = float(valid_s.std())
+            if np.isfinite(std) and std > 1e-8:
+                mask = (s - mu).abs() <= sigma_threshold * std
+                df = df[mask.fillna(True)]
 
     # 3. Filter symbols with insufficient history
     sym_col = next((c for c in ['symbol', 'Symbol', 'code', 'Code'] if c in df.columns), None)
