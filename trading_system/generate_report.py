@@ -968,28 +968,39 @@ def build_history_section(result_dir: Path) -> str:
         except Exception:
             cmp_text = cmp_path.read_text(encoding="utf-8", errors="replace")
 
+    # DB discovery: local dev DB, result-dir DB, and per-market GHA DBs (db_split/<MARKET>/)
     db_paths = [
         result_dir.parent / "market_indicators.db",
         result_dir / "market_indicators.db",
-        result_dir.parent / "trading_system" / "market_indicators.db"
+        result_dir.parent / "trading_system" / "market_indicators.db",
     ]
+    split_dir = result_dir.parent / "db_split"
+    if split_dir.exists():
+        db_paths.extend(sorted(split_dir.rglob("*.db")))
+    existing_dbs = [dp for dp in db_paths if dp.exists()]
+
+    from src.data_layer.indicator_storage import MarketIndicatorStorage
+
+    # ── Merge pipeline_run_history across all available DBs ──
     runs = []
-    for dp in db_paths:
-        if dp.exists():
-            try:
-                from src.data_layer.indicator_storage import MarketIndicatorStorage
-                storage = MarketIndicatorStorage(db_path=str(dp))
-                with storage._connect() as conn:
-                    cur = conn.execute("""
-                        SELECT run_id, run_date, start_time, end_time, status, trigger_type, git_sha, markets_processed, total_symbols, duration_seconds, regime_detected
-                        FROM pipeline_run_history
-                        ORDER BY start_time DESC LIMIT 20
-                    """)
-                    runs = cur.fetchall()
-                if runs:
-                    break
-            except Exception as _db_e:
-                logger.warning(f"Failed reading DB history: {_db_e}")
+    seen_run_ids = set()
+    for dp in existing_dbs:
+        try:
+            storage = MarketIndicatorStorage(db_path=str(dp))
+            with storage._connect() as conn:
+                rows = conn.execute("""
+                    SELECT run_id, run_date, start_time, end_time, status, trigger_type, git_sha, markets_processed, total_symbols, duration_seconds, regime_detected
+                    FROM pipeline_run_history
+                    ORDER BY start_time DESC LIMIT 200
+                """).fetchall()
+            for r in rows:
+                if r[0] not in seen_run_ids:
+                    seen_run_ids.add(r[0])
+                    runs.append(r)
+        except Exception as _db_e:
+            logger.warning(f"Failed reading DB history ({dp}): {_db_e}")
+    runs.sort(key=lambda r: r[2] or "", reverse=True)
+    runs = runs[:20]
 
     if runs:
         r_list = []
@@ -1013,50 +1024,55 @@ def build_history_section(result_dir: Path) -> str:
     else:
         run_rows_html = "<tr><td colspan='7' class='empty'>저장된 실행 이력 데이터가 없습니다 (DB 캐시 보존 중).</td></tr>"
 
-    # Fetch TOP symbols trend data for Chart.js
+    # Fetch TOP symbols trend data for Chart.js (merged across all DBs)
     chart_dates = []
     chart_datasets_json = "[]"
     if runs:
         try:
-            for dp in db_paths:
-                if dp.exists():
-                    from src.data_layer.indicator_storage import MarketIndicatorStorage
+            latest_run_id = runs[0][0]
+            top_syms = []
+            for dp in existing_dbs:
+                storage = MarketIndicatorStorage(db_path=str(dp))
+                with storage._connect() as conn:
+                    found = conn.execute(
+                        "SELECT symbol FROM ensemble_prediction_history WHERE run_id = ? ORDER BY ensemble_score DESC LIMIT 5",
+                        (latest_run_id,),
+                    ).fetchall()
+                    if found:
+                        top_syms = [f[0] for f in found]
+                        break
+
+            if top_syms:
+                placeholders = ",".join(["?"] * len(top_syms))
+                history_rows = []
+                for dp in existing_dbs:
                     storage = MarketIndicatorStorage(db_path=str(dp))
                     with storage._connect() as conn:
-                        latest_run_id = runs[0][0]
-                        top_syms = [r[0] for r in conn.execute(
-                            "SELECT symbol FROM ensemble_prediction_history WHERE run_id = ? ORDER BY ensemble_score DESC LIMIT 5",
-                            (latest_run_id,)
-                        ).fetchall()]
+                        history_rows.extend(conn.execute(f"""
+                            SELECT date, symbol, ensemble_score
+                            FROM ensemble_prediction_history
+                            WHERE symbol IN ({placeholders})
+                            ORDER BY date ASC
+                        """, tuple(top_syms)).fetchall())
 
-                        if top_syms:
-                            placeholders = ",".join(["?"] * len(top_syms))
-                            history_rows = conn.execute(f"""
-                                SELECT date, symbol, ensemble_score
-                                FROM ensemble_prediction_history
-                                WHERE symbol IN ({placeholders})
-                                ORDER BY date ASC
-                            """, tuple(top_syms)).fetchall()
-
-                            import pandas as pd
-                            df_trend = pd.DataFrame(history_rows, columns=['date', 'symbol', 'score'])
-                            if not df_trend.empty:
-                                chart_dates = sorted(df_trend['date'].unique().tolist())
-                                colors = ['#58a6ff', '#2ea043', '#d29922', '#f85149', '#a371f7']
-                                datasets = []
-                                for idx, sym in enumerate(top_syms):
-                                    sym_df = df_trend[df_trend['symbol'] == sym].set_index('date')
-                                    scores = [round(float(sym_df.loc[d, 'score']), 4) if d in sym_df.index else None for d in chart_dates]
-                                    datasets.append({
-                                        "label": sym,
-                                        "data": scores,
-                                        "borderColor": colors[idx % len(colors)],
-                                        "backgroundColor": colors[idx % len(colors)],
-                                        "fill": False,
-                                        "tension": 0.2
-                                    })
-                                chart_datasets_json = json.dumps(datasets, ensure_ascii=False)
-                    break
+                import pandas as pd
+                df_trend = pd.DataFrame(history_rows, columns=['date', 'symbol', 'score'])
+                if not df_trend.empty:
+                    chart_dates = sorted(df_trend['date'].unique().tolist())
+                    colors = ['#58a6ff', '#2ea043', '#d29922', '#f85149', '#a371f7']
+                    datasets = []
+                    for idx, sym in enumerate(top_syms):
+                        sym_df = df_trend[df_trend['symbol'] == sym].drop_duplicates(subset=['date']).set_index('date')
+                        scores = [round(float(sym_df.loc[d, 'score']), 4) if d in sym_df.index else None for d in chart_dates]
+                        datasets.append({
+                            "label": sym,
+                            "data": scores,
+                            "borderColor": colors[idx % len(colors)],
+                            "backgroundColor": colors[idx % len(colors)],
+                            "fill": False,
+                            "tension": 0.2
+                        })
+                    chart_datasets_json = json.dumps(datasets, ensure_ascii=False)
         except Exception as _chart_e:
             logger.warning(f"Failed generating trend chart data: {_chart_e}")
 

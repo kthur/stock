@@ -201,6 +201,14 @@ jobs:
           path: trading_system/result_split/
           retention-days: 7
 
+      - name: Upload market indicators DB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-${{ matrix.target }}
+          path: trading_system/market_indicators.db
+          retention-days: 7
+
   merge-and-release:
     runs-on: ubuntu-latest
     needs: run-pipeline
@@ -336,6 +344,20 @@ jobs:
         with:
           name: merged-results
           path: trading_system/result
+
+      - name: Download per-market indicator DBs
+        continue-on-error: true
+        run: |
+          mkdir -p trading_system/db_split
+          for m in SP500 NASDAQ RUSSELL2000 KOSPI KOSDAQ; do
+            if gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" \
+                 --name "db-$m" --dir "trading_system/db_split/$m" --token "${{ secrets.GITHUB_TOKEN }}" 2>/dev/null; then
+              echo "Downloaded db-$m"
+            else
+              echo "db-$m not available (market job may have failed)"
+            fi
+          done
+          find trading_system/db_split -name '*.db' | sed 's/^/  /' || true
 
       - name: Verify merged results present (abort stale deploys)
         run: |
