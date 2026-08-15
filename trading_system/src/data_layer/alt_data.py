@@ -43,8 +43,9 @@ class AlternativeDataClient:
         try:
             vix = yf.Ticker("^VIX")
             hist = vix.history(period="1d")
-            if not hist.empty:
-                return float(hist["Close"].iloc[-1])
+            if not hist.empty and "Close" in hist.columns:
+                val = float(hist["Close"].iloc[-1])
+                return val if np.isfinite(val) and val > 0 else 20.0
             return 20.0
         except Exception as e:
             logger.error(f"VIX fetch failed: {e}")
@@ -56,10 +57,10 @@ class AlternativeDataClient:
             return "EXTREME_FEAR"
         elif vix >= 20:
             return "FEAR"
-        elif vix <= 15:
-            return "GREED"
         elif vix <= 12:
             return "EXTREME_GREED"
+        elif vix <= 15:
+            return "GREED"
         return "NEUTRAL"
 
     def _fetch_spx_trend(self) -> Dict[str, Any]:
