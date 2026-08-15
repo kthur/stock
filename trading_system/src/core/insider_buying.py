@@ -41,12 +41,17 @@ class InsiderBuyingEngine(BaseStrategyEngine):
 
     def compute_scores(
         self,
-        prices_dict: Dict[str, pd.DataFrame],
+        prices_dict: Any = None,
         fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        symbols = list(prices_dict.keys()) if prices_dict else []
+        symbols = kwargs.get("symbols")
+        if not symbols and isinstance(prices_dict, dict):
+            symbols = list(prices_dict.keys())
+        elif not symbols and isinstance(prices_dict, (list, tuple, set)):
+            symbols = list(prices_dict)
+        symbols = symbols or []
         return self.compute_insider_buying_scores(symbols=symbols, **kwargs)
 
     def compute_insider_buying_scores(
