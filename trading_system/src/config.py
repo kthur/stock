@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -206,27 +207,37 @@ class TradingConfig:
             self.fred_api_key = os.environ["FRED_API_KEY"]
         if "VCP_NEAR_PIVOT_PCT" in os.environ:
             try:
-                self.vcp_near_pivot_pct = float(os.environ["VCP_NEAR_PIVOT_PCT"])
+                v = float(os.environ["VCP_NEAR_PIVOT_PCT"])
+                if math.isfinite(v):
+                    self.vcp_near_pivot_pct = v
             except ValueError:
                 pass
         if "VCP_MIN_SCORE_THRESHOLD" in os.environ:
             try:
-                self.vcp_min_score_threshold = float(os.environ["VCP_MIN_SCORE_THRESHOLD"])
+                v = float(os.environ["VCP_MIN_SCORE_THRESHOLD"])
+                if math.isfinite(v):
+                    self.vcp_min_score_threshold = v
             except ValueError:
                 pass
         if "VCP_VOLUME_SURGE_RATIO" in os.environ:
             try:
-                self.vcp_volume_surge_ratio = float(os.environ["VCP_VOLUME_SURGE_RATIO"])
+                v = float(os.environ["VCP_VOLUME_SURGE_RATIO"])
+                if math.isfinite(v):
+                    self.vcp_volume_surge_ratio = v
             except ValueError:
                 pass
         if "SENTIMENT_RISK_THRESHOLD" in os.environ:
             try:
-                self.sentiment_risk_threshold = float(os.environ["SENTIMENT_RISK_THRESHOLD"])
+                v = float(os.environ["SENTIMENT_RISK_THRESHOLD"])
+                if math.isfinite(v):
+                    self.sentiment_risk_threshold = v
             except ValueError:
                 pass
         if "ENSEMBLE_RETURN_MULTIPLIER" in os.environ:
             try:
-                self.ensemble_return_multiplier = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
+                v = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
+                if math.isfinite(v):
+                    self.ensemble_return_multiplier = v
             except ValueError:
                 pass
         if "ORDER_SIZE_KRX" in os.environ:
