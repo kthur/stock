@@ -52,6 +52,14 @@ class PreTradeRiskGatekeeper:
         self, order: ProposedOrder, portfolio_value: float, is_crisis_mode: bool = False
     ) -> RiskCheckResult:
         """Evaluates a single proposed order against all risk rules."""
+        if order is None:
+            return RiskCheckResult(
+                passed=False,
+                symbol="",
+                rejection_reason="Null Order",
+                adjusted_weight=0.0,
+            )
+
         # 1. Macro Crisis Gating
         if self.enable_crisis_gating and is_crisis_mode:
             logger.warning(f"[PreTradeRisk] ORDER REJECTED for {order.symbol}: Macro Crisis Gating active.")
@@ -63,43 +71,52 @@ class PreTradeRiskGatekeeper:
             )
 
         # 2. Maximum Single Asset Weight Limit
-        clamped_weight = min(order.target_weight, self.max_single_stock_weight)
-        if order.target_weight > self.max_single_stock_weight:
+        target_w = float(order.target_weight) if (order.target_weight is not None and np.isfinite(order.target_weight)) else 0.0
+        clamped_weight = max(0.0, min(target_w, float(self.max_single_stock_weight)))
+        if target_w > self.max_single_stock_weight:
             logger.info(
-                f"[PreTradeRisk] Weight for {order.symbol} clamped from {order.target_weight:.3f} to {clamped_weight:.3f}"
+                f"[PreTradeRisk] Weight for {order.symbol} clamped from {target_w:.3f} to {clamped_weight:.3f}"
             )
 
         # 3. Liquidity Impact Check (ADV Limit)
-        if order.avg_daily_volume_20d > 0:
-            order_adv_ratio = order.order_size_shares / order.avg_daily_volume_20d
+        adv_20d = float(order.avg_daily_volume_20d) if (order.avg_daily_volume_20d is not None and np.isfinite(order.avg_daily_volume_20d)) else 0.0
+        shares = int(order.order_size_shares) if (order.order_size_shares is not None and np.isfinite(order.order_size_shares)) else 0
+        price = float(order.current_price) if (order.current_price is not None and np.isfinite(order.current_price) and order.current_price > 0) else 0.0
+
+        if adv_20d > 0 and shares > 0:
+            order_adv_ratio = shares / adv_20d
             if order_adv_ratio > self.max_order_adv_pct:
-                max_shares = int(order.avg_daily_volume_20d * self.max_order_adv_pct)
-                reason = f"Order volume ({order.order_size_shares}) exceeds {self.max_order_adv_pct*100}% of 20d ADV ({max_shares} max shares allowed)"
-                logger.warning(f"[PreTradeRisk] ORDER REJECTED/RESIZED for {order.symbol}: {reason}")
+                max_shares = int(adv_20d * self.max_order_adv_pct)
+                reason = f"Order volume ({shares}) exceeds {self.max_order_adv_pct*100:.1f}% of 20d ADV ({max_shares} max shares allowed)"
+                logger.warning(f"[PreTradeRisk] ORDER RESIZED for {order.symbol}: {reason}")
 
                 # Recalculate adjusted weight based on max shares
-                max_allowed_value = max_shares * order.current_price
-                adjusted_w = min(clamped_weight, max_allowed_value / max(1.0, portfolio_value))
+                port_val = max(1.0, float(portfolio_value)) if np.isfinite(portfolio_value) else 1.0
+                max_allowed_value = max_shares * price
+                adjusted_w = min(clamped_weight, max_allowed_value / port_val)
                 return RiskCheckResult(
                     passed=True,
                     symbol=order.symbol,
                     rejection_reason=f"Resized due to ADV limit: {reason}",
-                    adjusted_weight=adjusted_w,
+                    adjusted_weight=round(float(adjusted_w), 4),
                 )
 
         return RiskCheckResult(
             passed=True,
             symbol=order.symbol,
             rejection_reason=None,
-            adjusted_weight=clamped_weight,
+            adjusted_weight=round(float(clamped_weight), 4),
         )
 
     def filter_portfolio_orders(
-        self, proposed_orders: List[ProposedOrder], portfolio_value: float, is_crisis_mode: bool = False
+        self, proposed_orders: Optional[List[ProposedOrder]], portfolio_value: float, is_crisis_mode: bool = False
     ) -> List[RiskCheckResult]:
         """Evaluates and filters a batch of proposed portfolio orders."""
+        if not proposed_orders:
+            return []
         results = []
         for order in proposed_orders:
-            res = self.evaluate_order(order, portfolio_value, is_crisis_mode)
-            results.append(res)
+            if order is not None:
+                res = self.evaluate_order(order, portfolio_value, is_crisis_mode)
+                results.append(res)
         return results
