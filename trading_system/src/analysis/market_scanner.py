@@ -91,38 +91,39 @@ class MarketScanner:
                 if symbol not in close_data.columns:
                     continue
 
-                prices = close_data[symbol].dropna()
+                prices = pd.to_numeric(close_data[symbol], errors='coerce').dropna()
                 if len(prices) < 20:
                     continue
 
                 # 최근 가격
                 current_price = float(prices.iloc[-1])
                 p_prev = float(prices.iloc[-20])
-                if p_prev <= 0:
+                if p_prev <= 0 or not np.isfinite(current_price) or not np.isfinite(p_prev):
                     continue
 
                 # 1개월 모멘텀 (최근 20일 수익률)
                 momentum_1m = (current_price / p_prev) - 1.0
-                if np.isnan(momentum_1m) or np.isinf(momentum_1m):
+                if not np.isfinite(momentum_1m):
                     momentum_1m = 0.0
 
                 # 변동성 (최근 20일 일간 수익률의 표준편차)
                 returns = prices.pct_change().dropna()
-                volatility = float(returns.tail(20).std() * np.sqrt(252))
-                if np.isnan(volatility) or np.isinf(volatility):
-                    volatility = 0.0
+                valid_ret = returns.tail(20)
+                vol_std = float(valid_ret.std()) if len(valid_ret) > 1 else 0.0
+                volatility = float(vol_std * np.sqrt(252)) if np.isfinite(vol_std) else 0.0
 
                 # 딥러닝/RL 엔진의 스코어를 시뮬레이션한 휴리스틱 점수 결합 (AI Scoring Mock)
                 base_score = (momentum_1m * 0.7) + (volatility * 0.3)
-                if np.isnan(base_score) or np.isinf(base_score):
+                if not np.isfinite(base_score):
                     base_score = 0.0
 
                 # 거래량 필터: 너무 거래량이 적으면 제외 (선택)
-                avg_vol = 0
+                avg_vol = 0.0
                 if volume_data is not None and symbol in volume_data.columns:
-                    vols = volume_data[symbol].dropna()
+                    vols = pd.to_numeric(volume_data[symbol], errors='coerce').dropna()
                     if len(vols) >= 20:
-                        avg_vol = vols.tail(20).mean()
+                        v_tail = vols.tail(20)
+                        avg_vol = float(v_tail.mean()) if not v_tail.empty else 0.0
                         if avg_vol < 10000:
                             continue
 
@@ -130,12 +131,12 @@ class MarketScanner:
                     results.append(
                         {
                             "symbol": symbol,
-                            "name": krx_stocks[symbol],
+                            "name": krx_stocks.get(symbol, symbol),
                             "current_price": current_price,
                             "expected_return": round(momentum_1m * 100, 2),  # 모멘텀을 기대 수익률로 변환 (표시용)
                             "score": base_score,
                             "volatility": round(volatility * 100, 2),
-                            "avg_volume": int(avg_vol),
+                            "avg_volume": int(avg_vol) if np.isfinite(avg_vol) else 0,
                         }
                     )
             except Exception as e:
