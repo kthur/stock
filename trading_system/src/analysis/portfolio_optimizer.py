@@ -136,6 +136,11 @@ def calculate_black_litterman_weights(
         logger.error("Invalid covariance matrix for Black-Litterman: not a numpy array.")
         return np.array([])
 
+    risk_aversion = float(risk_aversion) if (risk_aversion is not None and np.isfinite(risk_aversion)) else 2.5
+    tau = max(1e-4, float(tau)) if (tau is not None and np.isfinite(tau)) else 0.05
+    omega_scale = max(1e-4, float(omega_scale)) if (omega_scale is not None and np.isfinite(omega_scale)) else 0.1
+    risk_free_rate = float(risk_free_rate) if (risk_free_rate is not None and np.isfinite(risk_free_rate)) else 0.02
+
     n = cov_matrix.shape[0]
     if n == 0:
         return np.array([])

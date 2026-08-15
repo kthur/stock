@@ -8,8 +8,9 @@ budgets (>40%) to protect against liquidity squeezes and systemic factor crowdin
 from __future__ import annotations
 
 import logging
-import pandas as pd
 from typing import Dict, List, Any, Tuple
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,9 @@ class CrowdingRiskMonitor:
     """Anti-Crowding & Sector Concentration Monitor."""
 
     def __init__(self, max_sector_weight: float = 0.40, consensus_crowding_threshold: int = 15) -> None:
-        self.max_sector_weight = max_sector_weight
-        self.consensus_crowding_threshold = consensus_crowding_threshold
+        safe_sector_w = float(max_sector_weight) if (max_sector_weight is not None and np.isfinite(max_sector_weight)) else 0.40
+        self.max_sector_weight = max(0.05, min(1.0, safe_sector_w))
+        self.consensus_crowding_threshold = max(1, int(consensus_crowding_threshold)) if consensus_crowding_threshold is not None else 15
 
     def evaluate_crowding_risk(self, ensemble_df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Apply anti-crowding penalty dampening to strategy scores.
