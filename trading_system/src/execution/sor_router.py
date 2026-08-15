@@ -32,48 +32,80 @@ class SmartOrderRouter:
         Venue dict structure:
         {"venue_id": "NXT", "ask_price": 70000.0, "ask_vol": 500, "fee_bps": -0.5, "impact_coeff": 0.3}
         """
-        if total_quantity <= 0 or not venues:
+        import math
+        q_tot = max(0, int(total_quantity)) if total_quantity is not None else 0
+        if q_tot <= 0 or not venues:
             return []
 
-        remaining_qty = total_quantity
+        act = str(action).strip().upper()
+        is_buy = act == "BUY"
+        clean_symbol = str(symbol).strip()
+
+        remaining_qty = q_tot
         allocations = []
+
+        valid_venues = [v for v in venues if isinstance(v, dict)]
+        if not valid_venues:
+            return []
+
+        # Helper to parse finite float
+        def _get_float(d: dict, key: str, default: float) -> float:
+            try:
+                val = float(d.get(key, default))
+                return val if math.isfinite(val) else default
+            except (ValueError, TypeError):
+                return default
+
+        # Helper to parse finite int vol
+        def _get_vol(d: dict, key: str, default: int) -> int:
+            try:
+                val = float(d.get(key, default))
+                return max(0, int(val)) if math.isfinite(val) else default
+            except (ValueError, TypeError):
+                return default
 
         # Sort venues by effective price (price + fee)
         def venue_key(v):
-            p = v.get("ask_price", 1e9) if action == "BUY" else -v.get("bid_price", 0.0)
-            fee = v.get("fee_bps", 0.0) / 10000.0 * p
-            return p + fee
+            if is_buy:
+                p = _get_float(v, "ask_price", 1e9)
+                fee = (_get_float(v, "fee_bps", 0.0) / 10000.0) * p
+                return p + fee
+            else:
+                p = _get_float(v, "bid_price", 0.0)
+                fee = (_get_float(v, "fee_bps", 0.0) / 10000.0) * p
+                return -(p - fee)
 
-        sorted_venues = sorted(venues, key=venue_key)
+        sorted_venues = sorted(valid_venues, key=venue_key)
 
         for v in sorted_venues:
             if remaining_qty <= 0:
                 break
 
-            v_id = v.get("venue_id", "PRIMARY")
-            avail_vol = v.get("ask_vol", remaining_qty) if action == "BUY" else v.get("bid_vol", remaining_qty)
-            price = v.get("ask_price", 0.0) if action == "BUY" else v.get("bid_price", 0.0)
+            v_id = str(v.get("venue_id") or "PRIMARY")
+            avail_vol = _get_vol(v, "ask_vol" if is_buy else "bid_vol", remaining_qty)
+            price = _get_float(v, "ask_price" if is_buy else "bid_price", 0.0)
 
             alloc_qty = min(remaining_qty, avail_vol)
             if alloc_qty > 0:
                 allocations.append({
                     "venue_id": v_id,
-                    "symbol": symbol,
-                    "action": action,
+                    "symbol": clean_symbol,
+                    "action": act,
                     "allocated_quantity": alloc_qty,
-                    "target_price": price
+                    "target_price": max(0.0, price)
                 })
                 remaining_qty -= alloc_qty
 
         # Allocate any residual to primary venue
         if remaining_qty > 0 and sorted_venues:
             primary_v = sorted_venues[0]
+            fallback_price = _get_float(primary_v, "ask_price" if is_buy else "bid_price", 0.0)
             allocations.append({
-                "venue_id": primary_v.get("venue_id", "PRIMARY"),
-                "symbol": symbol,
-                "action": action,
+                "venue_id": str(primary_v.get("venue_id") or "PRIMARY"),
+                "symbol": clean_symbol,
+                "action": act,
                 "allocated_quantity": remaining_qty,
-                "target_price": primary_v.get("ask_price", 0.0)
+                "target_price": max(0.0, fallback_price)
             })
 
         return allocations

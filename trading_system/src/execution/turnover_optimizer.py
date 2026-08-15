@@ -33,16 +33,30 @@ class TurnoverOptimizer:
         Returns:
             Dict of symbol -> {'target_weight': float, 'action': 'HOLD'|'BUY'|'SELL', 'delta_amount': float}.
         """
-        all_symbols = set(current_holdings.keys()) | set(target_allocations.keys())
+        import math
+        try:
+            cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
+        except (ValueError, TypeError):
+            cap = 100000000.0
+        cap = max(0.0, cap)
+
+        all_symbols = set(str(k).strip() for k in current_holdings.keys() if str(k).strip()) | set(str(k).strip() for k in target_allocations.keys() if str(k).strip())
         optimized: Dict[str, Dict[str, Any]] = {}
 
         total_turnover_reduced = 0.0
 
-        for sym in all_symbols:
-            curr_w = current_holdings.get(sym, 0.0)
-            raw_w = target_allocations.get(sym, 0.0)
+        def _get_w(d: Dict[str, float], sym: str) -> float:
+            try:
+                val = float(d.get(sym, 0.0))
+                return max(0.0, min(1.0, val)) if math.isfinite(val) else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+
+        for sym in sorted(all_symbols):
+            curr_w = _get_w(current_holdings, sym)
+            raw_w = _get_w(target_allocations, sym)
             weight_delta = abs(raw_w - curr_w)
-            amount_delta = weight_delta * total_capital
+            amount_delta = weight_delta * cap
 
             # Apply turnover penalty threshold: if weight change < 5% or capital change < 50k, HOLD current weight
             if weight_delta < self.turnover_threshold_pct or amount_delta < self.min_rebalance_delta_krw:
