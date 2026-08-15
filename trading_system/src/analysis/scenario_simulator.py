@@ -188,22 +188,27 @@ class ScenarioSimulationEngine:
         elas: Dict[str, Any]
     ) -> str:
         reasons = []
-        if sector_outlook > 0.2:
-            reasons.append(f"섹터 업황 호조 (+{sector_outlook:.1f})")
-        elif sector_outlook < -0.2:
-            reasons.append(f"섹터 업황 둔화 ({sector_outlook:.1f})")
+        s_out = float(sector_outlook) if (sector_outlook is not None and np.isfinite(sector_outlook)) else 0.0
+        if s_out > 0.2:
+            reasons.append(f"섹터 업황 호조 (+{s_out:.1f})")
+        elif s_out < -0.2:
+            reasons.append(f"섹터 업황 둔화 ({s_out:.1f})")
 
-        if macro.usdkrw_change_pct != 0 and elas.get('usdkrw', 0.0) != 0:
-            direction = "수혜" if (macro.usdkrw_change_pct * float(elas.get('usdkrw', 0.0))) > 0 else "부담"
-            reasons.append(f"환율변동({macro.usdkrw_change_pct:+.1f}%) {direction}")
+        _usdkrw = float(macro.usdkrw_change_pct) if (macro.usdkrw_change_pct is not None and np.isfinite(macro.usdkrw_change_pct)) else 0.0
+        _wti = float(macro.wti_change_pct) if (macro.wti_change_pct is not None and np.isfinite(macro.wti_change_pct)) else 0.0
+        _us10y = float(macro.us10y_rate) if (macro.us10y_rate is not None and np.isfinite(macro.us10y_rate)) else 4.0
 
-        if macro.wti_change_pct != 0 and elas.get('wti', 0.0) != 0:
-            direction = "수혜" if (macro.wti_change_pct * float(elas.get('wti', 0.0))) > 0 else "원가부담"
-            reasons.append(f"유가변동({macro.wti_change_pct:+.1f}%) {direction}")
+        if _usdkrw != 0 and elas.get('usdkrw', 0.0) != 0:
+            direction = "수혜" if (_usdkrw * float(elas.get('usdkrw', 0.0))) > 0 else "부담"
+            reasons.append(f"환율변동({_usdkrw:+.1f}%) {direction}")
 
-        if macro.us10y_rate >= 4.3 and float(elas.get('us10y', 0.0)) > 0:
-            reasons.append(f"고금리({macro.us10y_rate:.2f}%) 마진 확대")
-        elif macro.us10y_rate >= 4.3 and float(elas.get('us10y', 0.0)) < -0.3:
-            reasons.append(f"고금리({macro.us10y_rate:.2f}%) 할인율 부담")
+        if _wti != 0 and elas.get('wti', 0.0) != 0:
+            direction = "수혜" if (_wti * float(elas.get('wti', 0.0))) > 0 else "원가부담"
+            reasons.append(f"유가변동({_wti:+.1f}%) {direction}")
+
+        if _us10y >= 4.3 and float(elas.get('us10y', 0.0)) > 0:
+            reasons.append(f"고금리({_us10y:.2f}%) 마진 확대")
+        elif _us10y >= 4.3 and float(elas.get('us10y', 0.0)) < -0.3:
+            reasons.append(f"고금리({_us10y:.2f}%) 할인율 부담")
 
         return ", ".join(reasons) if reasons else "중립 시나리오 유지"
