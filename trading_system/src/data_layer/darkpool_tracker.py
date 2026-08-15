@@ -31,26 +31,29 @@ class DarkPoolTrackerEngine:
         net_usd = 0.0
         dp_ratio = 0.35
 
-        if df_price is not None and len(df_price) >= 2 and 'Close' in df_price.columns and 'Volume' in df_price.columns:
-            clean = df_price[['Close', 'Volume']].dropna()
-            if len(clean) >= 2:
-                last_close = float(clean['Close'].iloc[-1])
-                prev_close = float(clean['Close'].iloc[-2])
-                ret_last = (last_close / prev_close) - 1.0 if prev_close > 0 else 0.0
+        if df_price is not None and len(df_price) >= 2:
+            c_col = 'close' if 'close' in df_price.columns else ('Close' if 'Close' in df_price.columns else None)
+            v_col = 'volume' if 'volume' in df_price.columns else ('Volume' if 'Volume' in df_price.columns else None)
+            if c_col and v_col:
+                clean = df_price[[c_col, v_col]].dropna()
+                if len(clean) >= 2:
+                    last_close = float(clean[c_col].iloc[-1])
+                    prev_close = float(clean[c_col].iloc[-2])
+                    ret_last = (last_close / prev_close) - 1.0 if prev_close > 0 else 0.0
 
-                volumes = clean['Volume'].values
-                cur_vol = float(volumes[-1])
-                avg_vol = float(volumes[:-1].mean()) if len(volumes) > 1 else cur_vol
-                vol_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                    volumes = clean[v_col].values
+                    cur_vol = float(volumes[-1])
+                    avg_vol = float(volumes[:-1].mean()) if len(volumes) > 1 else cur_vol
+                    vol_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
 
-                if ret_last > 0 and vol_ratio > 1.2:
-                    is_accum = True
-                    net_usd = last_close * cur_vol * 0.2
-                elif ret_last < 0 and vol_ratio > 1.2:
-                    is_dist = True
-                    net_usd = -last_close * cur_vol * 0.2
+                    if ret_last > 0 and vol_ratio > 1.2:
+                        is_accum = True
+                        net_usd = last_close * cur_vol * 0.2
+                    elif ret_last < 0 and vol_ratio > 1.2:
+                        is_dist = True
+                        net_usd = -last_close * cur_vol * 0.2
 
-                dp_ratio = float(np.clip(0.35 * min(2.0, max(0.5, vol_ratio)), 0.1, 0.6))
+                    dp_ratio = float(np.clip(0.35 * min(2.0, max(0.5, vol_ratio)), 0.1, 0.6))
 
         return {
             'symbol': symbol,
@@ -87,17 +90,20 @@ class DarkPoolTrackerEngine:
             # 1. Price Volume Accumulation Proxy if live ATS data is unavailable
             if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
-                if df is not None and len(df) >= 10 and 'Close' in df.columns and 'Volume' in df.columns:
-                    clean_df = df[['Close', 'Volume']].dropna()
+                if df is not None and len(df) >= 10:
+                    c_col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                    v_col = 'volume' if 'volume' in df.columns else ('Volume' if 'Volume' in df.columns else None)
+                    if c_col and v_col:
+                        clean_df = df[[c_col, v_col]].dropna()
 
-                    if len(clean_df) >= 10:
-                        c = clean_df['Close']
-                        v = clean_df['Volume']
-                        if c.iloc[-10] > 0:
-                            ret_10d = float((c.iloc[-1] / c.iloc[-10]) - 1.0)
-                            avg_vol = float(v.iloc[-10:-1].mean())
-                            cur_vol = float(v.iloc[-1])
-                            vol_spike = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                        if len(clean_df) >= 10:
+                            c = clean_df[c_col]
+                            v = clean_df[v_col]
+                            if c.iloc[-10] > 0:
+                                ret_10d = float((c.iloc[-1] / c.iloc[-10]) - 1.0)
+                                avg_vol = float(v.iloc[-10:-1].mean())
+                                cur_vol = float(v.iloc[-1])
+                                vol_spike = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
 
                             # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x)
                             if abs(ret_10d) < 0.02 and vol_spike > 2.5:
