@@ -40,11 +40,17 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
 
     # 1. Align timezone-mismatched indices: convert index to naive normalized date
     if not isinstance(df.index, pd.DatetimeIndex):
-        df.index = pd.to_datetime(df.index)
+        df.index = pd.to_datetime(df.index, errors='coerce')
+
+    # Drop NaT dates from index
+    df = df[df.index.notna()]
 
     # Normalize index to timezone-naive dates
     if df.index.tz is not None:
-        df.index = df.index.tz_convert(None)
+        try:
+            df.index = df.index.tz_convert(None)
+        except Exception:
+            df.index = df.index.tz_localize(None)
     df.index = df.index.normalize()
 
     # Handle duplicate dates by taking the mean
@@ -69,7 +75,7 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
         for t1 in tickers:
             for t2 in tickers:
                 val = returns[t1].corr(shifted[t2])
-                corr_df.loc[t1, (t2, lag)] = val if not pd.isna(val) else 0.0
+                corr_df.loc[t1, (t2, lag)] = float(val) if (val is not None and np.isfinite(val)) else 0.0
 
     return corr_df
 
