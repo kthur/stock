@@ -123,14 +123,19 @@ class IntradayStopLossEngine:
             prev_price = 0.0
 
             if isinstance(data, pd.DataFrame):
-                if data.empty or "close" not in data.columns:
+                if data.empty:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
-                raw_last = data["close"].values[-1]
-                if pd.isna(raw_last) or math.isinf(float(raw_last)) if not pd.isna(raw_last) else True:
+                col_map = {str(c).lower(): c for c in data.columns}
+                close_col = col_map.get("close")
+                if not close_col:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
-                closes = data["close"].replace([np.inf, -np.inf], np.nan).dropna().values
+                raw_last = data[close_col].values[-1]
+                if pd.isna(raw_last) or not np.isfinite(float(raw_last)):
+                    return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
+
+                closes = data[close_col].replace([np.inf, -np.inf], np.nan).dropna().values
                 if len(closes) == 0:
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
@@ -140,8 +145,9 @@ class IntradayStopLossEngine:
                 else:
                     prev_price = current_price
 
-                if "volume" in data.columns:
-                    vols = data["volume"].replace([np.inf, -np.inf], np.nan).dropna().values[-20:]
+                vol_col = col_map.get("volume")
+                if vol_col:
+                    vols = data[vol_col].replace([np.inf, -np.inf], np.nan).dropna().values[-20:]
                     if len(vols) > 0:
                         volume = float(vols[-1])
                         volume_ma_20 = float(np.mean(vols))
@@ -149,8 +155,9 @@ class IntradayStopLossEngine:
                         volume = 0.0
                         volume_ma_20 = 0.0
 
-                if "high" in data.columns:
-                    highs = data["high"].replace([np.inf, -np.inf], np.nan).dropna().values
+                high_col = col_map.get("high")
+                if high_col:
+                    highs = data[high_col].replace([np.inf, -np.inf], np.nan).dropna().values
                     if len(highs) > 0:
                         peak_price = float(np.max(highs))
                     else:
@@ -158,14 +165,15 @@ class IntradayStopLossEngine:
                 else:
                     peak_price = float(np.max(closes))
 
-                if "atr" in data.columns:
-                    atrs = data["atr"].replace([np.inf, -np.inf], np.nan).dropna().values
+                atr_col = col_map.get("atr")
+                if atr_col:
+                    atrs = data[atr_col].replace([np.inf, -np.inf], np.nan).dropna().values
                     if len(atrs) > 0:
                         atr = float(atrs[-1])
 
             elif isinstance(data, dict):
                 raw_cp = data.get("current_price", 0.0)
-                if pd.isna(raw_cp) or math.isinf(float(raw_cp)) if not pd.isna(raw_cp) else True:
+                if pd.isna(raw_cp) or not np.isfinite(float(raw_cp)):
                     return StopLossSignal(symbol=symbol, triggered=False, reason="INVALID_PRICE")
 
                 current_price = float(raw_cp)
