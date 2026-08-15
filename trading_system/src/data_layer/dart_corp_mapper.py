@@ -149,10 +149,11 @@ class DARTCorpMapper:
             return False
 
     def _save_cache(self):
-        """Persist the mapping to the JSON cache file."""
+        """Persist the mapping to the JSON cache file using atomic write."""
         try:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.cache_path.open("w", encoding="utf-8") as f:
+            tmp_path = self.cache_path.with_suffix(".tmp")
+            with tmp_path.open("w", encoding="utf-8") as f:
                 json.dump(
                     {
                         "updated_at": datetime.now().isoformat(),
@@ -163,6 +164,7 @@ class DARTCorpMapper:
                     ensure_ascii=False,
                     indent=2,
                 )
+            tmp_path.replace(self.cache_path)
             logger.info(f"DARTCorpMapper: cache saved to {self.cache_path}.")
         except Exception as e:
             logger.warning(f"DARTCorpMapper: failed to save cache: {e}")
