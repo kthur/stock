@@ -19,8 +19,15 @@ def _compute_returns(prices: List[float]) -> List[float]:
     for i in range(1, len(prices)):
         prev = prices[i - 1]
         cur = prices[i]
-        if prev > 0 and not math.isnan(prev) and not math.isnan(cur):
-            returns.append((cur - prev) / prev)
+        if (
+            isinstance(prev, (int, float))
+            and isinstance(cur, (int, float))
+            and math.isfinite(prev)
+            and math.isfinite(cur)
+            and prev > 0
+        ):
+            ret = (cur - prev) / prev
+            returns.append(ret if math.isfinite(ret) else 0.0)
         else:
             returns.append(0.0)
     return returns
@@ -28,12 +35,13 @@ def _compute_returns(prices: List[float]) -> List[float]:
 
 def _stdev(values: List[float]) -> float:
     """Population standard deviation."""
-    n = len(values)
+    valid = [v for v in values if isinstance(v, (int, float)) and math.isfinite(v)]
+    n = len(valid)
     if n == 0:
         return 0.0
-    mean = sum(values) / n
-    variance = sum((v - mean) ** 2 for v in values) / n
-    return math.sqrt(variance)
+    mean = sum(valid) / n
+    variance = sum((v - mean) ** 2 for v in valid) / n
+    return math.sqrt(max(0.0, variance))
 
 
 def _normalize(weights: Dict[str, float]) -> Dict[str, float]:
@@ -41,19 +49,27 @@ def _normalize(weights: Dict[str, float]) -> Dict[str, float]:
     Normalize a dict of weights so they sum exactly to 1.0.
     Uses Fraction-style correction on the last key to avoid floating-point drift.
     """
-    total = sum(weights.values())
-    if total == 0:
+    if not weights:
+        return {}
+    clean = {}
+    for k, v in weights.items():
+        if isinstance(v, (int, float)) and math.isfinite(v) and v > 0:
+            clean[k] = float(v)
+        else:
+            clean[k] = 0.0
+    total = sum(clean.values())
+    if total <= 0 or not math.isfinite(total):
         # Fallback: equal weight
         n = len(weights)
         return {k: 1.0 / n for k in weights}
 
     # Scale all weights
-    scaled = {k: v / total for k, v in weights.items()}
+    scaled = {k: v / total for k, v in clean.items()}
 
     # Force exact sum = 1.0 by adjusting the last key
     keys = list(scaled.keys())
     running_sum = sum(scaled[k] for k in keys[:-1])
-    scaled[keys[-1]] = 1.0 - running_sum
+    scaled[keys[-1]] = max(0.0, 1.0 - running_sum)
 
     return scaled
 
