@@ -240,10 +240,13 @@ class CrisisDetector:
             composite = vix_score * 0.25 + dd_score * 0.25 + volume_score * 0.15 + trend_score * 0.10 + macro_score * 0.25
 
             # Single-factor VIX fast shock override (guarantee acute crisis sensitivity)
-            if vix >= 40.0:
-                composite = max(composite, 0.60)
-            elif vix >= 30.0:
-                composite = max(composite, 0.30)
+            if vix is None or (isinstance(vix, (float, int)) and (np.isnan(vix) or np.isinf(vix))):
+                composite = max(composite, 0.25)
+            elif isinstance(vix, (float, int)) and not np.isnan(vix):
+                if vix >= 40.0:
+                    composite = max(composite, 0.60)
+                elif vix >= 30.0:
+                    composite = max(composite, 0.30)
 
             previous = self.crisis_level
             if composite >= 0.70:
@@ -256,11 +259,15 @@ class CrisisDetector:
                 self.crisis_level = CrisisLevel.NONE
 
             # Standalone VIX override check
-            if vix >= 40.0:
-                self.crisis_level = CrisisLevel.SEVERE
-            elif vix >= 30.0:
-                if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
-                    self.crisis_level = CrisisLevel.ACTIVE
+            if vix is None or (isinstance(vix, (float, int)) and (np.isnan(vix) or np.isinf(vix))):
+                if self.crisis_level == CrisisLevel.NONE:
+                    self.crisis_level = CrisisLevel.WATCH
+            elif isinstance(vix, (float, int)) and not np.isnan(vix):
+                if vix >= 40.0:
+                    self.crisis_level = CrisisLevel.SEVERE
+                elif vix >= 30.0:
+                    if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
+                        self.crisis_level = CrisisLevel.ACTIVE
 
             # Standalone CDS credit risk override check
             if cds_5y is not None:
@@ -280,14 +287,26 @@ class CrisisDetector:
         return self.crisis_level
 
     def _score_vix(self, vix: float) -> float:
-        if vix <= 15:
+        if vix is None or (isinstance(vix, (float, int)) and (np.isnan(vix) or np.isinf(vix))):
+            # Fail-safe on missing/corrupted VIX: trigger defensive WATCH baseline (0.35)
+            return 0.35
+
+        try:
+            fv = float(vix)
+        except (ValueError, TypeError):
+            return 0.35
+
+        if fv <= 15.0:
             return 0.0
+
         vix_roc = 0.0
         if len(self._vix_history) >= 5:
-            vix_roc = (vix - self._vix_history[-5]) / max(self._vix_history[-5], 0.1)
-        raw = (vix - 15) / 40.0
-        roc_bonus = max(0, min(0.3, vix_roc * 0.1))
-        return min(1.0, raw + roc_bonus)
+            past_vix = self._vix_history[-5]
+            if past_vix is not None and not np.isnan(past_vix) and past_vix > 0:
+                vix_roc = (fv - past_vix) / max(past_vix, 0.1)
+        raw = (fv - 15.0) / 40.0
+        roc_bonus = max(0.0, min(0.3, vix_roc * 0.1))
+        return float(min(1.0, max(0.0, raw + roc_bonus)))
 
     def _score_drawdown(self, dd: float) -> float:
         dd_speed = 0.0
@@ -525,16 +544,8 @@ class RiskManager:
         dxy: float | None = None,
     ) -> CrisisLevel:
         """Evaluate crisis level using VIX + macro indicators + drawdown."""
-        safe_vix = 20.0
-        try:
-            if vix is not None:
-                fv = float(vix)
-                safe_vix = fv if (fv > 0 and not np.isnan(fv) and not np.isinf(fv)) else 20.0
-        except (ValueError, TypeError):
-            safe_vix = 20.0
-
         return self.crisis_detector.evaluate(
-            vix=safe_vix,
+            vix=vix,
             positions=positions,
             daily_volume_ratio=daily_volume_ratio,
             market_data_cache=market_data_cache,
