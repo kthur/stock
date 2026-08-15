@@ -25,11 +25,13 @@ class WalkForwardBacktestEngine:
         test_window_days: int = 63,
         embargo_days: int = 60
     ):
-        self.initial_capital = initial_capital
-        self.transaction_cost_rate = transaction_cost_rate
-        self.train_window = train_window_days
-        self.test_window = test_window_days
-        self.embargo_days = embargo_days
+        safe_init_cap = float(initial_capital) if (initial_capital is not None and np.isfinite(initial_capital)) else 100_000_000.0
+        self.initial_capital = max(1.0, safe_init_cap)
+        safe_cost = float(transaction_cost_rate) if (transaction_cost_rate is not None and np.isfinite(transaction_cost_rate)) else 0.0015
+        self.transaction_cost_rate = max(0.0, min(0.10, safe_cost))
+        self.train_window = max(5, int(train_window_days)) if train_window_days is not None else 252
+        self.test_window = max(1, int(test_window_days)) if test_window_days is not None else 63
+        self.embargo_days = max(0, int(embargo_days)) if embargo_days is not None else 60
 
     def run_backtest(
         self,
