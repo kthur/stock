@@ -108,7 +108,8 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         )
 
         valid_mask = net_inc.notna() & ocf.notna()
-        denom = np.where(assets.notna() & (assets > 0), assets, net_inc.abs() * 10.0 + 1e-5)
+        raw_denom = np.where(assets.notna() & (assets > 0), assets, net_inc.abs() * 10.0 + 1e-5)
+        denom = np.maximum(raw_denom, 1e-5)
         accrual_ratio = np.where(valid_mask, (net_inc - ocf) / denom, np.nan)
 
         # Cash conversion booster: OCF > Net Income significantly
