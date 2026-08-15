@@ -238,18 +238,23 @@ class PortfolioOptimizer:
 
     def check_rebalance_trigger(
         self,
-        current_weights: Dict[str, float],
-        target_weights: Dict[str, float],
+        current_weights: Optional[Dict[str, float]],
+        target_weights: Optional[Dict[str, float]],
         buffer_band: float = 0.03
     ) -> bool:
         """
         Emits rebalance signal only when allocation drift breaches no-trade buffer bands.
         """
-        all_keys = set(current_weights.keys()).union(set(target_weights.keys()))
+        curr = current_weights or {}
+        targ = target_weights or {}
+        all_keys = set(curr.keys()).union(set(targ.keys()))
+        if not all_keys:
+            return False
+
         max_drift = 0.0
         for k in all_keys:
-            w_curr = current_weights.get(k, 0.0)
-            w_targ = target_weights.get(k, 0.0)
+            w_curr = float(curr.get(k, 0.0)) if np.isfinite(curr.get(k, 0.0)) else 0.0
+            w_targ = float(targ.get(k, 0.0)) if np.isfinite(targ.get(k, 0.0)) else 0.0
             max_drift = max(max_drift, abs(w_curr - w_targ))
         return max_drift > buffer_band
 
@@ -284,9 +289,8 @@ class PortfolioOptimizer:
         Returns:
             Dict[str, float]: Optimized asset weights.
         """
-
-        list(expected_returns.index)
-        cov_matrix.values if isinstance(cov_matrix, pd.DataFrame) else cov_matrix
+        if expected_returns is None or expected_returns.empty:
+            return {}
 
         from src.strategy.quad_factor_optimizer import QuadFactorOptimizer
         optimizer = QuadFactorOptimizer(
