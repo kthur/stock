@@ -37,7 +37,8 @@ def save_profile_report(result_dir: str = "trading_system/result"):
     """Saves profiling metrics to pipeline_profile.json."""
     if not PROFILE_DATA:
         return
-    res_path = Path(result_dir) / "pipeline_profile.json"
+    safe_dir = str(result_dir) if result_dir is not None else "trading_system/result"
+    res_path = Path(safe_dir) / "pipeline_profile.json"
     res_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(res_path, "w", encoding="utf-8") as f:
