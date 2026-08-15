@@ -19,7 +19,8 @@ class ModularPipelineOrchestrator:
 
     def __init__(self, checkpoint_enabled: bool = True, max_workers: int = 8):
         self.checkpoint = PipelineCheckpoint() if checkpoint_enabled else None
-        self.strategy_stage = StrategyScoringStage(max_workers=max_workers)
+        workers = max(1, int(max_workers)) if max_workers is not None else 8
+        self.strategy_stage = StrategyScoringStage(max_workers=workers)
         self.report_stage = ReportGenerationStage()
 
     def run(self, ctx: Any) -> Any:

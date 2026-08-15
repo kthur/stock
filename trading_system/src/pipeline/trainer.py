@@ -31,9 +31,8 @@ class PipelineTrainer:
         logger.info("[PipelineTrainer] Starting multi-market model training pass...")
         trained_info: Dict[str, Any] = {}
 
-
-        if df_train is None or df_train.empty:
-            logger.warning("[PipelineTrainer] Training dataset is empty. Skipping training.")
+        if df_train is None or not isinstance(df_train, pd.DataFrame) or df_train.empty:
+            logger.warning("[PipelineTrainer] Training dataset is empty or invalid. Skipping training.")
             return trained_info
 
         # 1. Train Regression & Surge Classifier
