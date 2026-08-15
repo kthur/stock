@@ -73,18 +73,27 @@ class SimulatedBrokerBase:
         return chart
 
     def place_order(self, code: str, quantity: int, price: float, order_type: str) -> str:
-        order_id = f"{self.ORDER_PREFIX}_{datetime.timestamp(datetime.now())}"
+        import time, math
+        now = datetime.now()
+        order_id = f"{self.ORDER_PREFIX}_{int(time.time() * 1000)}"
+        q = max(0, int(quantity)) if quantity is not None else 0
+        try:
+            p = float(price) if (price is not None and math.isfinite(float(price))) else 0.0
+        except (ValueError, TypeError):
+            p = 0.0
+        p = max(0.0, p)
+
         order = BrokerOrder(
             order_id=order_id,
-            code=code,
-            quantity=quantity,
-            price=price,
-            order_type=order_type,
+            code=str(code),
+            quantity=q,
+            price=p,
+            order_type=str(order_type),
             status="0",
-            timestamp=datetime.now(),
+            timestamp=now,
         )
         self.orders[order_id] = order
-        self.logger.info(f"Order placed: {order_id} {order_type} {quantity}주 @ {price:,.0f}")
+        self.logger.info(f"Order placed: {order_id} {order_type} {q}주 @ {p:,.0f}")
         return order_id
 
     def cancel_order(self, order_id: str) -> bool:
