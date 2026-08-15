@@ -25,11 +25,11 @@ class RegimeFactorSuppressionEngine:
     """
 
     CLUSTER_MAP = {
-        'CORE_AI': ['regression', 'lstm'],
-        'MOMENTUM': ['surge', 'vcp_ml', 'sector_rotation', 'arm_factor'],
-        'VALUATION': ['rim_valuation', 'mq_factor'],
+        'CORE_AI': ['regression', 'lstm', 'vol_target'],
+        'MOMENTUM': ['surge', 'vcp_ml', 'sector_rotation', 'arm_factor', 'supply_chain', 'short_squeeze', 'trend_efficiency'],
+        'VALUATION': ['rim_valuation', 'mq_factor', 'factor_neutralized', 'accruals_quality', 'valueup_catalyst'],
         'REVERSAL': ['stat_arb', 'vcp_rule', 'short_term_reversal', 'card_factor'],
-        'FLOW_MICRO': ['lead_lag', 'event_driven', 'iv_skew', 'order_flow', 'latr_factor']
+        'FLOW_MICRO': ['lead_lag', 'event_driven', 'iv_skew', 'order_flow', 'latr_factor', 'inst_foreign_sector', 'sentiment', 'microstructure', 'gamma_squeeze', 'insider_buying', 'darkpool', 'earnings_tone_drift']
     }
 
     # Inverse mapping from strategy to cluster name
