@@ -76,12 +76,14 @@ class MarketScanner:
         results = []
 
         # 3. 스코어링 로직 적용
-        if "Close" not in data:
+        close_col = next((c for c in ['Close', 'close', 'Adj Close', 'adj close'] if c in data), None)
+        if close_col is None:
             self.logger.error("No Close price data found in download.")
             return []
 
-        close_data = data["Close"]
-        volume_data = data["Volume"] if "Volume" in data else None
+        close_data = data[close_col]
+        vol_col = next((c for c in ['Volume', 'volume'] if c in data), None)
+        volume_data = data[vol_col] if vol_col else None
 
         for symbol in symbols_list:
             try:
@@ -95,17 +97,25 @@ class MarketScanner:
 
                 # 최근 가격
                 current_price = float(prices.iloc[-1])
+                p_prev = float(prices.iloc[-20])
+                if p_prev <= 0:
+                    continue
 
                 # 1개월 모멘텀 (최근 20일 수익률)
-                momentum_1m = (current_price / prices.iloc[-20]) - 1
+                momentum_1m = (current_price / p_prev) - 1.0
+                if np.isnan(momentum_1m) or np.isinf(momentum_1m):
+                    momentum_1m = 0.0
 
                 # 변동성 (최근 20일 일간 수익률의 표준편차)
                 returns = prices.pct_change().dropna()
-                volatility = returns.tail(20).std() * np.sqrt(252)
+                volatility = float(returns.tail(20).std() * np.sqrt(252))
+                if np.isnan(volatility) or np.isinf(volatility):
+                    volatility = 0.0
 
                 # 딥러닝/RL 엔진의 스코어를 시뮬레이션한 휴리스틱 점수 결합 (AI Scoring Mock)
-                # 실제 환경에서는 ml_engine.predict() 등을 호출하나, 성능을 위해 스캐너에서는 휴리스틱 사용
                 base_score = (momentum_1m * 0.7) + (volatility * 0.3)
+                if np.isnan(base_score) or np.isinf(base_score):
+                    base_score = 0.0
 
                 # 거래량 필터: 너무 거래량이 적으면 제외 (선택)
                 avg_vol = 0
