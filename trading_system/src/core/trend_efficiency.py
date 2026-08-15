@@ -107,7 +107,8 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         ker20 = np.where(vol_20 > 1e-8, change_20 / vol_20, 0.0)
 
         weighted_ker = 0.50 * ker5 + 0.30 * ker10 + 0.20 * ker20
-        ret_20d = (close_2d.iloc[-1] / close_2d.iloc[-21]) - 1.0
+        base_p = close_2d.iloc[-21].replace(0, 1e-8)
+        ret_20d = (close_2d.iloc[-1] / base_p) - 1.0
 
         # R/S Hurst Exponent over 20 days
         diffs = close_2d.diff().iloc[1:]
