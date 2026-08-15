@@ -47,7 +47,28 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
         **kwargs: Any,
     ) -> pd.DataFrame:
         symbols = list(prices_dict.keys()) if prices_dict else []
-        return self.compute_tone_drift_scores(symbols=symbols, **kwargs)
+        transcript_map = kwargs.get("transcript_map", None)
+        return self.compute_tone_drift_scores(symbols=symbols, transcript_map=transcript_map)
+
+    def calculate_scores(
+        self,
+        symbols: List[str],
+        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+        transcript_map: Optional[Dict[str, Dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """Compatibility alias called by run_pipeline.py.
+
+        Merges symbol list from both explicit `symbols` arg and `prices_dict` keys,
+        then delegates to compute_tone_drift_scores().
+        """
+        merged_symbols: List[str] = list(symbols) if symbols else []
+        if prices_dict:
+            for sym in prices_dict.keys():
+                if sym not in merged_symbols:
+                    merged_symbols.append(sym)
+        tm = transcript_map or kwargs.get("transcript_map", None)
+        return self.compute_tone_drift_scores(symbols=merged_symbols, transcript_map=tm)
 
     def compute_tone_drift_scores(
         self,

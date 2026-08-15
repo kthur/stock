@@ -3044,10 +3044,34 @@ def execute_prediction_pipeline():
     try:
         from src.core.earnings_tone_drift import EarningsToneDriftEngine
         tone_engine = EarningsToneDriftEngine(cfg)
-        earnings_tone_drift_df = tone_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+        earnings_tone_drift_df = tone_engine.calculate_scores(
+            universe['symbol'].tolist(), prices_dict=infer_data_dict
+        )
+        logger.info(f"[Strategy 30] Earnings Tone Drift computed: {len(earnings_tone_drift_df)} rows")
     except Exception as _et_e:
         logger.warning(f"Earnings tone drift strategy computation failed: {_et_e}")
         earnings_tone_drift_df = pd.DataFrame()
+
+    # Strategy 31 (Darkpool proxy): Build darkpool_df from overnight gap + microstructure extended score.
+    # Represents HFT Order Flow dark-pool divergence. Uses microstructure_df as base proxy
+    # until a dedicated dark-pool data feed is integrated.
+    try:
+        if microstructure_df is not None and not microstructure_df.empty and 'microstructure_score' in microstructure_df.columns:
+            darkpool_df = microstructure_df[['symbol', 'microstructure_score']].copy()
+            darkpool_df = darkpool_df.rename(columns={'microstructure_score': 'darkpool_score'})
+            # Apply mild scaling to differentiate from raw microstructure score
+            darkpool_df['darkpool_score'] = (darkpool_df['darkpool_score'] * 0.90 + 0.05).clip(0.0, 1.0)
+            logger.info(f"[Strategy 31] Darkpool proxy from microstructure: {len(darkpool_df)} rows")
+        else:
+            # Neutral 0.50 for all universe symbols when microstructure unavailable
+            darkpool_df = pd.DataFrame({
+                'symbol': universe['symbol'].tolist(),
+                'darkpool_score': 0.50
+            })
+            logger.info("[Strategy 31] Darkpool using neutral 0.50 default for all symbols")
+    except Exception as _dp_e:
+        logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
+        darkpool_df = pd.DataFrame()
 
     # Extract LSTM predictions if present in regression results (20d horizon)
     lstm_df_for_ens = None
@@ -3089,6 +3113,7 @@ def execute_prediction_pipeline():
         trend_efficiency_df=trend_efficiency_df,
         gamma_squeeze_df=gamma_squeeze_df,
         insider_buying_df=insider_buying_df,
+        darkpool_df=darkpool_df,
         earnings_tone_drift_df=earnings_tone_drift_df,
         rolling_sharpes=rolling_sharpes,
         target_horizon=20
