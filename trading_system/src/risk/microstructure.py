@@ -113,4 +113,5 @@ class MicrostructureCostModel:
             adv=adv,
             is_sell=True
         )
-        return float(gross_return - friction)
+        gross = float(gross_return) if (gross_return is not None and math.isfinite(gross_return)) else 0.0
+        return float(gross - friction)
