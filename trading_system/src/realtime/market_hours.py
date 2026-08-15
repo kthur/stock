@@ -43,13 +43,13 @@ def is_us_open(now: datetime) -> bool:
     """US 정규장 여부 (22:30 ~ 05:00 KST, 평일 새벽 구간 포함)."""
     t = now.time()
     if time(22, 30) <= t <= time(23, 59):
-        # KST 월~금 저녁 (US 당일 장) — 토요일 저녁은 US 장 아님
+        # KST 월~금 저녁 22:30~23:59 = US 월~금 당일 개장 (정규장)
         return _is_weekday_kst(now)
     if time(0, 0) <= t <= time(5, 0):
-        # KST 새벽 (US 전일 장 마감 전) — 토/일 새벽은 US 금요일 장일 수 있음
-        # KST 토요일 00:00~05:00 = US 금요일 장중 (정상 거래일)
-        # KST 일요일 00:00~05:00 = US 토요일 (휴장)
-        return now.weekday() in (5, 0, 1, 2, 3, 4) and now.weekday() != 6
+        # KST 화~토 새벽 00:00~05:00 = US 월~금 정규장 후반부
+        # KST 월요일 새벽 = US 일요일 (휴장)
+        # KST 일요일 새벽 = US 토요일 (휴장)
+        return now.weekday() in (1, 2, 3, 4, 5)
     return False
 
 
