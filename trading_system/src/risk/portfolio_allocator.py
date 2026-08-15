@@ -39,13 +39,18 @@ class PortfolioAllocator:
         min_tail_samples: int = 15
     ):
         self.config = config
-        self.default_max_weight = default_max_weight
-        self.default_max_sector_weight = default_max_sector_weight
-        self.risk_aversion = risk_aversion
-        self.delta_floor = delta_floor
-        self.delta_cap = delta_cap
-        self.rebalance_mode = rebalance_mode.lower()
-        self.min_tail_samples = min_tail_samples
+        safe_max_w = float(default_max_weight) if (default_max_weight is not None and np.isfinite(default_max_weight)) else 0.20
+        self.default_max_weight = max(0.01, min(1.0, safe_max_w))
+        safe_sec_w = float(default_max_sector_weight) if (default_max_sector_weight is not None and np.isfinite(default_max_sector_weight)) else 0.35
+        self.default_max_sector_weight = max(0.01, min(1.0, safe_sec_w))
+        safe_ra = float(risk_aversion) if (risk_aversion is not None and np.isfinite(risk_aversion)) else 1.0
+        self.risk_aversion = max(0.01, safe_ra)
+        safe_df = float(delta_floor) if (delta_floor is not None and np.isfinite(delta_floor)) else 0.005
+        self.delta_floor = max(0.0001, min(0.5, safe_df))
+        safe_dc = float(delta_cap) if (delta_cap is not None and np.isfinite(delta_cap)) else 0.050
+        self.delta_cap = max(self.delta_floor, min(0.5, safe_dc))
+        self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
+        self.min_tail_samples = max(2, int(min_tail_samples)) if min_tail_samples is not None else 15
 
     # =========================================================================
     # OBJECTIVE 1: EVT-CVaR LOSS BUDGET CONSTRAINTS & 3-TIER FALLBACK HIERARCHY
