@@ -71,26 +71,34 @@ class TimescaleDBConnector:
                 INSERT OR REPLACE INTO stock_prices_ts (time, symbol, market, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
+            import math
             def _sf(val):
                 try:
                     f = float(val)
-                    return 0.0 if (f != f or f == float('inf') or f == float('-inf')) else f
+                    return f if math.isfinite(f) else 0.0
                 except (ValueError, TypeError):
                     return 0.0
 
-            rows = [
-                (
-                    str(r.get("time", r.get("date", ""))),
-                    str(r.get("symbol", "")),
-                    str(r.get("market", "")),
+            rows = []
+            for r in price_records:
+                if not isinstance(r, dict):
+                    continue
+                t_val = str(r.get("time") or r.get("date") or "").strip()
+                sym_val = str(r.get("symbol") or "").strip()
+                if not t_val or not sym_val:
+                    continue
+                rows.append((
+                    t_val,
+                    sym_val,
+                    str(r.get("market") or "").strip(),
                     _sf(r.get("open", 0.0)),
                     _sf(r.get("high", 0.0)),
                     _sf(r.get("low", 0.0)),
                     _sf(r.get("close", 0.0)),
                     _sf(r.get("volume", 0.0))
-                )
-                for r in price_records
-            ]
+                ))
+            if not rows:
+                return True
             cursor.executemany(query, rows)
             conn.commit()
             logger.info(f"[TIMESCALEDB] Inserted {len(rows)} price records.")
