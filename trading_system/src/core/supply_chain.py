@@ -86,11 +86,13 @@ class SupplyChainEngine(BaseStrategyEngine):
                 return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
             close_dict = {}
             for sym, df_p in df_prices.items():
-                if df_p is not None and hasattr(df_p, 'empty') and not df_p.empty and "Close" in df_p.columns:
-                    c = df_p["Close"]
-                    if isinstance(c, pd.DataFrame):
-                        c = c.iloc[:, 0]
-                    close_dict[sym] = c
+                if df_p is not None and hasattr(df_p, 'empty') and not df_p.empty:
+                    c_col = "Close" if "Close" in df_p.columns else ("close" if "close" in df_p.columns else None)
+                    if c_col:
+                        c = df_p[c_col]
+                        if isinstance(c, pd.DataFrame):
+                            c = c.iloc[:, 0]
+                        close_dict[sym] = c
             if not close_dict:
                 return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
             close_pivot = pd.DataFrame(close_dict)
