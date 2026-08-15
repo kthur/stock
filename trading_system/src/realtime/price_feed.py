@@ -131,12 +131,17 @@ def fetch_quotes_yfinance(symbols: List[str], market_of: Dict[str, str]) -> Dict
 class RealtimePriceFeed:
     """키움 실시간 시세 우선 + yfinance 5m 폴백 이중 피드."""
 
-    def __init__(self, kiwoom=None, use_yfinance: bool = True):
+    def __init__(self, kiwoom=None, use_yfinance: bool = True, cache_ttl: float = 300.0):
+        import math
         self.kiwoom = kiwoom  # KiwoomConnector 인스턴스 (연결 시)
-        self.use_yfinance = use_yfinance
+        self.use_yfinance = bool(use_yfinance)
         self._cache: Dict[str, RealtimeQuote] = {}
         self._cache_ts: float = 0.0
-        self._cache_ttl: float = 300.0  # 5분 캐시
+        try:
+            safe_ttl = float(cache_ttl) if (cache_ttl is not None and math.isfinite(float(cache_ttl))) else 300.0
+        except (ValueError, TypeError):
+            safe_ttl = 300.0
+        self._cache_ttl: float = max(1.0, min(3600.0, safe_ttl))
 
     @property
     def has_kiwoom(self) -> bool:
