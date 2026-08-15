@@ -69,8 +69,13 @@ class OrderFlowEngine(BaseStrategyEngine):
             if df is None or len(df) < 10:
                 continue
             try:
-                close = df['Close']
-                volume = df['Volume']
+                c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                v_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
+                if not c_col or not v_col:
+                    continue
+
+                close = df[c_col]
+                volume = df[v_col]
                 if isinstance(close, pd.DataFrame):
                     close = close.iloc[:, 0]
                 if isinstance(volume, pd.DataFrame):
