@@ -146,8 +146,13 @@ class StrategyCoverageAnalyzer:
                 for sym in missing_syms:
                     sym_str = str(sym)
                     p_df = prices_dict.get(sym_str) if prices_dict else None
+                    if p_df is None and prices_dict:
+                        if sym_str.isdigit():
+                            p_df = prices_dict.get(sym_str.zfill(6))
+                        if p_df is None:
+                            p_df = prices_dict.get(sym)
 
-                    has_price = (p_df is not None and len(p_df) >= 200)
+                    has_price = (p_df is not None and len(p_df) >= 20)
 
                     if not has_price:
                         no_price_cnt += 1
