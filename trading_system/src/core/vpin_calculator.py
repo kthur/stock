@@ -30,8 +30,16 @@ class VPINCalculator:
         prices = np.asarray(trade_prices, dtype=np.float64)
         volumes = np.asarray(trade_volumes, dtype=np.float64)
 
-        if len(prices) < 2 or bucket_volume <= 0:
+        min_len = min(len(prices), len(volumes))
+        if min_len < 2 or bucket_volume <= 0:
             return 0.0
+
+        prices = prices[:min_len]
+        volumes = volumes[:min_len]
+
+        # Replace non-finite values
+        prices = np.nan_to_num(prices, nan=1.0, posinf=1.0, neginf=1.0)
+        volumes = np.nan_to_num(volumes, nan=0.0, posinf=0.0, neginf=0.0)
 
         price_diffs = np.diff(prices)
         std_diff = np.std(price_diffs) + 1e-8
