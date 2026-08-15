@@ -68,7 +68,10 @@ class MQFactorEngine(BaseStrategyEngine):
             if df is None or len(df) < 30:
                 continue
             try:
-                close = df['Close']
+                c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                if not c_col:
+                    continue
+                close = df[c_col]
                 if isinstance(close, pd.DataFrame):
                     close = close.iloc[:, 0]
                 close = close.dropna()
