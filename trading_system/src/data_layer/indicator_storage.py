@@ -723,19 +723,32 @@ class MarketIndicatorStorage:
             (date, symbol, name, rank, composite_score, technical_score, ai_score, sentiment_score)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
-        rows = [
-            (
-                date_str,
-                r['symbol'],
-                r['name'],
-                int(r['rank']),
-                float(r['composite_score']),
-                float(r['technical_score']),
-                float(r['ai_score']),
-                float(r['sentiment_score'])
-            )
-            for r in rankings
-        ]
+        rows = []
+        for r in rankings:
+            if not isinstance(r, dict):
+                continue
+            try:
+                sym = str(r.get('symbol', '')).strip()
+                name = str(r.get('name', '')).strip()
+                if not sym:
+                    continue
+                rank_val = int(r.get('rank', 0) or 0)
+                comp = float(r.get('composite_score', 0.0) or 0.0)
+                tech = float(r.get('technical_score', 0.0) or 0.0)
+                ai_sc = float(r.get('ai_score', 0.0) or 0.0)
+                sent = float(r.get('sentiment_score', 0.0) or 0.0)
+                rows.append((
+                    date_str,
+                    sym,
+                    name,
+                    rank_val,
+                    comp if math.isfinite(comp) else 0.0,
+                    tech if math.isfinite(tech) else 0.0,
+                    ai_sc if math.isfinite(ai_sc) else 0.0,
+                    sent if math.isfinite(sent) else 0.0,
+                ))
+            except (ValueError, TypeError):
+                continue
         with self._write_lock:
             with self._connect() as conn:
                 conn.executemany(sql, rows)
