@@ -14,6 +14,8 @@ class ReportGenerator:
     @staticmethod
     def generate_text_report(data: Dict[str, Any]) -> str:
         """콘솔/텍스트 리포트 생성"""
+        if not data or not isinstance(data, dict):
+            return "No data available for report generation."
         lines = []
         lines.append("=" * 55)
         lines.append(f"  백테스트 리포트: {data.get('symbol', 'UNKNOWN')}")
