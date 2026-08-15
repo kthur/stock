@@ -46,7 +46,8 @@ class CorporateActionAdjuster:
             close_series = close_series.iloc[:, 0]
 
         # Calculate overnight price ratios
-        ratios = (close_series / close_series.shift(1)).fillna(1.0)
+        prev_close = close_series.shift(1).replace(0, float('nan'))
+        ratios = (close_series / prev_close).fillna(1.0)
 
         # Detect split ratio anomalies (e.g., 1:2 split -> 0.50, 1:5 split -> 0.20, 5:1 reverse split -> 5.0)
         split_mask = (ratios < (1.0 - self.split_threshold_pct)) | (ratios > (1.0 + 1.5 * self.split_threshold_pct))
