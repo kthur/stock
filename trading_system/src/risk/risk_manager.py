@@ -279,9 +279,12 @@ class CrisisDetector:
 
 
         if self.crisis_level != previous:
+            vix_str = f"{float(vix):.1f}" if (vix is not None and isinstance(vix, (int, float)) and np.isfinite(vix)) else "N/A"
+            dd_str = f"{float(dd):.2%}" if (dd is not None and np.isfinite(dd)) else "N/A"
+            vol_str = f"{float(daily_volume_ratio):.1f}x" if (daily_volume_ratio is not None and np.isfinite(daily_volume_ratio)) else "N/A"
             self.logger.warning(
                 f"Crisis level changed: {previous.value} -> {self.crisis_level.value} "
-                f"(VIX={vix:.1f}, DD={dd:.2%}, vol={daily_volume_ratio:.1f}x, macro={macro_score:.2f}, "
+                f"(VIX={vix_str}, DD={dd_str}, vol={vol_str}, macro={macro_score:.2f}, "
                 f"composite={composite:.2f})"
             )
         return self.crisis_level
