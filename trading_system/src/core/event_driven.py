@@ -173,11 +173,15 @@ class EventDrivenEngine(BaseStrategyEngine):
         # Volatility / Volume Event Boost from price data (continuous scoring for all symbols)
         if prices_dict:
             for sym, df in prices_dict.items():
-                if sym not in scores_map or df is None or len(df) < 5:
+                if sym not in scores_map or df is None or len(df) < 6:
                     continue
                 try:
-                    c = df['Close']
-                    v = df['Volume']
+                    c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                    v_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
+                    if not c_col or not v_col:
+                        continue
+                    c = df[c_col]
+                    v = df[v_col]
                     if isinstance(c, pd.DataFrame):
                         c = c.iloc[:, 0]
                     if isinstance(v, pd.DataFrame):
