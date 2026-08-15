@@ -65,26 +65,28 @@ class AdvancedStatistics:
     def calculate_sharpe_ratio(self, returns: List[float], periods_per_year: int = 252) -> float:
         """Sharpe Ratio 계산"""
         if not returns or len(returns) < 2:
-            return 0
+            return 0.0
 
         avg_return = sum(returns) / len(returns)
         variance = sum((r - avg_return) ** 2 for r in returns) / len(returns)
         std_dev = math.sqrt(variance)
 
-        if std_dev == 0:
-            return 0
+        if std_dev == 0 or abs(std_dev) < 1e-9:
+            return 0.0
 
         excess_return = avg_return - (self.risk_free_rate / periods_per_year)
         sharpe = (excess_return / std_dev) * math.sqrt(periods_per_year)
+        if math.isnan(sharpe) or math.isinf(sharpe):
+            return 0.0
 
-        return sharpe
+        return max(-10.0, min(10.0, float(sharpe)))
 
     def calculate_sortino_ratio(
         self, returns: List[float], target_return: float = 0, periods_per_year: int = 252
     ) -> float:
         """Sortino Ratio 계산"""
         if not returns or len(returns) < 2:
-            return 0
+            return 0.0
 
         avg_return = sum(returns) / len(returns)
 
@@ -92,25 +94,30 @@ class AdvancedStatistics:
         downside_returns = [r for r in returns if r < target_return]
 
         if not downside_returns:
-            return 999.0 if avg_return > target_return else 0.0
+            return 10.0 if avg_return > target_return else 0.0
 
         downside_variance = sum((r - target_return) ** 2 for r in downside_returns) / len(returns)
         downside_std = math.sqrt(downside_variance)
 
-        if downside_std == 0:
-            return 0
+        if downside_std == 0 or abs(downside_std) < 1e-9:
+            return 0.0
 
         excess_return = avg_return - (self.risk_free_rate / periods_per_year)
         sortino = (excess_return / downside_std) * math.sqrt(periods_per_year)
+        if math.isnan(sortino) or math.isinf(sortino):
+            return 0.0
 
-        return sortino
+        return max(-10.0, min(10.0, float(sortino)))
 
     def calculate_calmar_ratio(self, annual_return: float, max_drawdown: float) -> float:
         """Calmar Ratio 계산"""
         if max_drawdown == 0 or abs(max_drawdown) < 1e-8:
-            return 999.0 if annual_return > 0 else 0.0
+            return 10.0 if annual_return > 0 else 0.0
 
-        return annual_return / abs(max_drawdown)
+        res = annual_return / abs(max_drawdown)
+        if math.isnan(res) or math.isinf(res):
+            return 0.0
+        return max(-100.0, min(100.0, float(res)))
 
     def calculate_max_drawdown(self, equity_curve: List[float]) -> tuple:
         """최대 낙폭 계산"""
@@ -260,7 +267,7 @@ class AdvancedStatistics:
 
             gross_profit = sum(t.get("pnl", 0) for t in trades if t.get("pnl", 0) > 0)
             gross_loss = abs(sum(t.get("pnl", 0) for t in trades if t.get("pnl", 0) <= 0))
-            profit_factor = gross_profit / gross_loss if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
+            profit_factor = min(gross_profit / gross_loss, 100.0) if gross_loss > 0 else (10.0 if gross_profit > 0 else 0.0)
         else:
             win_rate = 0.0
             profit_factor = 0.0
