@@ -146,7 +146,8 @@ class DARTNewsFetcher:
         Returns DisclosureEvents for any headlines containing risk keywords.
         """
         # Naver Finance news search RSS for Korean stocks
-        rss_url = f"https://finance.naver.com/item/news_news.naver?code={symbol}&page=1&sm=title_entity_id.basic&clusterId="
+        code = str(symbol).strip().split('.')[0].zfill(6) if str(symbol).strip().split('.')[0].isdigit() else str(symbol).strip()
+        rss_url = f"https://finance.naver.com/item/news_news.naver?code={code}&page=1&sm=title_entity_id.basic&clusterId="
         events: List[DisclosureEvent] = []
         today_str = datetime.now().strftime("%Y%m%d")
 
