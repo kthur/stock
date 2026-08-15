@@ -62,9 +62,9 @@ class BOKECOSClient:
                 rows = data["StatisticSearch"]["row"]
                 df = pd.DataFrame(rows)
                 if "TIME" in df.columns and "DATA_VALUE" in df.columns:
-                    df["Date"] = pd.to_datetime(df["TIME"])
+                    df["Date"] = pd.to_datetime(df["TIME"], errors="coerce")
                     df["Value"] = pd.to_numeric(df["DATA_VALUE"], errors="coerce")
-                    df = df.dropna(subset=["Value"]).sort_values("Date").reset_index(drop=True)
+                    df = df.dropna(subset=["Date", "Value"]).sort_values("Date").reset_index(drop=True)
                     return df[["Date", "Value"]]
             elif "RESULT" in data:
                 code = data["RESULT"].get("CODE", "")
