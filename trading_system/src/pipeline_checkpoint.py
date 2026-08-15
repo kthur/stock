@@ -33,11 +33,18 @@ class PipelineCheckpoint:
         if stage not in self.STAGES:
             logger.warning(f"Unknown checkpoint stage: {stage}")
         file_path = self.checkpoint_dir / f"{stage}.pkl"
+        tmp_path = file_path.with_suffix(".tmp.pkl")
         try:
-            with open(file_path, "wb") as f:
+            with open(tmp_path, "wb") as f:
                 pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            tmp_path.replace(file_path)
             logger.info(f"[CHECKPOINT] Stage '{stage}' successfully saved to {file_path}")
         except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
             logger.warning(f"Failed to save checkpoint for stage '{stage}': {e}")
 
     def load(self, stage: str) -> Optional[Dict[str, Any]]:
@@ -64,6 +71,9 @@ class PipelineCheckpoint:
         """Clear all stored stage checkpoints."""
         for stage in self.STAGES:
             fp = self.checkpoint_dir / f"{stage}.pkl"
-            if fp.exists():
-                fp.unlink()
+            try:
+                if fp.exists():
+                    fp.unlink()
+            except Exception as e:
+                logger.debug(f"[CHECKPOINT] Could not remove checkpoint {fp}: {e}")
         logger.info("[CHECKPOINT] Cleared all pipeline stage checkpoints.")
