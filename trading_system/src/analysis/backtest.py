@@ -971,20 +971,20 @@ class BacktestEngine:
     def _calculate_profit_factor(self, trades: List[BacktestTrade]) -> float:
         """이익 계수 계산"""
         if not trades:
-            return 0
+            return 0.0
 
         gross_profit = sum(t.pnl for t in trades if t.pnl > 0)
         gross_loss = abs(sum(t.pnl for t in trades if t.pnl <= 0))
 
         if gross_loss == 0:
-            return float("inf") if gross_profit > 0 else 0
+            return 10.0 if gross_profit > 0 else 0.0
 
-        return gross_profit / gross_loss
+        return min(gross_profit / gross_loss, 100.0)
 
     def _calculate_max_drawdown(self, equity_curve: List[float]) -> float:
         """최대 낙폭 계산"""
         if not equity_curve:
-            return 0
+            return 0.0
 
         peak = equity_curve[0]
         max_dd = 0.0
@@ -1005,7 +1005,7 @@ class BacktestEngine:
     def _calculate_sharpe_ratio(self, equity_curve: List[float], risk_free_rate: float = 0.02) -> float:
         """Sharpe Ratio 계산"""
         if len(equity_curve) < 2:
-            return 0
+            return 0.0
 
         returns = []
         for i in range(1, len(equity_curve)):
@@ -1017,7 +1017,7 @@ class BacktestEngine:
             returns.append(r)
 
         if not returns:
-            return 0
+            return 0.0
 
         avg_return = sum(returns) / len(returns)
         variance = sum((r - avg_return) ** 2 for r in returns) / max(len(returns) - 1, 1)
@@ -1028,8 +1028,10 @@ class BacktestEngine:
 
         # 연율화 (252 거래일 기준)
         sharpe = float(((avg_return - risk_free_rate / 252) / std_dev) * (252**0.5))
+        if math.isnan(sharpe) or math.isinf(sharpe):
+            return 0.0
 
-        return sharpe
+        return float(np.clip(sharpe, -10.0, 10.0))
 
     def optimize_parameters(
         self, symbol: str, price_bars: List[PriceBar], param_ranges: Dict, strategy_name: str = "MA"
