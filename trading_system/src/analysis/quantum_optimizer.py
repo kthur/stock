@@ -29,15 +29,20 @@ class QuantumPortfolioOptimizer:
         if cov_matrix is None:
             cov_matrix = np.eye(n) * 0.04
 
-        er = np.array([expected_returns.get(s, 0.0) for s in symbols])
+        er = np.array([float(expected_returns.get(s, 0.0) or 0.0) for s in symbols])
+        er = np.nan_to_num(er, nan=0.0, posinf=0.0, neginf=0.0)
         cov = np.asarray(cov_matrix, dtype=float)
+        cov = np.nan_to_num(cov, nan=0.04, posinf=0.04, neginf=0.04)
 
-        if np.linalg.cond(cov) > 1e12:
+        try:
+            if np.linalg.cond(cov) > 1e12:
+                cov += np.eye(n) * 0.001
+        except Exception:
             cov += np.eye(n) * 0.001
 
         try:
             inv_cov = np.linalg.inv(cov)
-        except np.linalg.LinAlgError:
+        except Exception:
             inv_cov = np.linalg.inv(cov + np.eye(n) * 0.01)
 
         ones = np.ones(n)
@@ -78,15 +83,20 @@ class QuantumPortfolioOptimizer:
             cov_matrix = np.eye(n) * 0.04
 
         cov = np.asarray(cov_matrix, dtype=float)
-        if np.linalg.cond(cov) > 1e12:
+        cov = np.nan_to_num(cov, nan=0.04, posinf=0.04, neginf=0.04)
+        try:
+            if np.linalg.cond(cov) > 1e12:
+                cov += np.eye(n) * 0.001
+        except Exception:
             cov += np.eye(n) * 0.001
 
         sigma = np.sqrt(np.diag(cov))
+        sigma = np.nan_to_num(sigma, nan=0.20, posinf=0.20, neginf=0.20)
         sigma = np.where(sigma < 1e-8, 1e-8, sigma)
 
         raw_weights = 1.0 / sigma
-        total = raw_weights.sum()
-        if total > 0:
+        total = float(raw_weights.sum())
+        if total > 1e-12:
             raw_weights /= total
         else:
             raw_weights = np.full(n, 1.0 / n)
