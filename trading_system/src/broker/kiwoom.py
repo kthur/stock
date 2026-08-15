@@ -64,11 +64,12 @@ class KiwoomConnector:
         """
         try:
             self.logger.info(f"Connecting to Kiwoom API (version {self.api_version})...")
+            safe_acc = str(account_number) if account_number is not None else ""
 
             if self.simulation_mode:
                 # 시뮬레이션 모드
                 self.is_connected = True
-                self.account_number = account_number
+                self.account_number = safe_acc
                 self._init_simulated_account()
                 self.logger.info("Connected to Kiwoom API (simulation mode)")
             else:
@@ -82,11 +83,11 @@ class KiwoomConnector:
                 self.socket.send_json({"command": "ping"})
                 self.socket.recv_json()
 
-                self.socket.send_json({"command": "connect", "args": {"account_number": account_number}})
+                self.socket.send_json({"command": "connect", "args": {"account_number": safe_acc}})
                 res: dict = cast(dict, self.socket.recv_json())
                 if res.get("status") == "success":
                     self.is_connected = bool(res.get("data", False))
-                    self.account_number = account_number
+                    self.account_number = safe_acc
                     self.logger.info("Connected to Kiwoom 32-bit Microservice via ZeroMQ")
                 else:
                     self.is_connected = False
