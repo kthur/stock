@@ -382,11 +382,17 @@ class TelegramBotEngine:
         raw_symbol = args[0]
         symbol = _get_tickers().get(raw_symbol, raw_symbol.upper())
 
+        import math
         try:
             quantity = int(args[1])
             price = float(args[2]) if len(args) > 2 else 0.0
-        except ValueError:
-            return "⚠️ 수량과 가격은 숫자여야 합니다."
+            if not math.isfinite(price) or price < 0:
+                price = 0.0
+        except (ValueError, TypeError):
+            return "⚠️ 수량과 가격은 유효한 숫자여야 합니다."
+
+        if quantity <= 0:
+            return "⚠️ 주문 수량은 1주 이상이어야 합니다."
 
         if not self.trading_system:
             return "❌ 시스템 연동 안됨"
