@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Set
+import numpy as np
 from src.data_layer.dart_news_fetcher import DARTNewsFetcher, DisclosureEvent
 
 logger = logging.getLogger(__name__)
@@ -52,13 +53,14 @@ class SentimentMetaFilter:
         crawl_naver_news: bool = True,
     ):
         self.fetcher = fetcher or DARTNewsFetcher()
-        self.risk_threshold = risk_threshold
+        safe_thresh = float(risk_threshold) if (risk_threshold is not None and np.isfinite(risk_threshold)) else 0.70
+        self.risk_threshold = max(0.01, min(1.0, safe_thresh))
         self.instant_blacklist_keywords = (
             instant_blacklist_keywords
             if instant_blacklist_keywords is not None
             else _DEFAULT_INSTANT_BLACKLIST_KW
         )
-        self.crawl_naver_news = crawl_naver_news
+        self.crawl_naver_news = bool(crawl_naver_news)
         self._blacklist: Dict[str, SentimentRiskResult] = {}
 
     def evaluate_symbol(
