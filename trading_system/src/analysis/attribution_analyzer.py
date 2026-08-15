@@ -1,4 +1,5 @@
 import logging
+import math
 import pandas as pd
 from typing import Dict, Any, Optional
 from pathlib import Path
@@ -41,7 +42,7 @@ STRATEGY_MAP = {
 
 class StrategyAttributionAnalyzer:
     """
-    Evaluates 17-strategy PnL Attribution & Shapley Value Proxy contributions.
+    Evaluates 31-strategy PnL Attribution & Shapley Value Proxy contributions.
     Identifies top-performing alpha drivers and underperforming strategies.
     """
 
@@ -85,6 +86,8 @@ class StrategyAttributionAnalyzer:
 
             # Linear attribution proxy
             alpha_contrib = avg_score * (total_exp_ret / 100.0) * (coverage_pct / 100.0)
+            if not math.isfinite(alpha_contrib):
+                alpha_contrib = 0.0
 
             strat_summaries.append({
                 'col': col,
