@@ -32,16 +32,21 @@ class WalkForwardBacktester:
         Returns:
             Dict containing 'ic', 'rank_ic', and 'sample_size'.
         """
-        combined = pd.DataFrame({"pred": pred_scores, "actual": actual_returns}).dropna()
+        p_num = pd.to_numeric(pred_scores, errors="coerce")
+        a_num = pd.to_numeric(actual_returns, errors="coerce")
+        combined = pd.DataFrame({"pred": p_num, "actual": a_num}).dropna()
         if len(combined) < 5:
             return {"ic": 0.0, "rank_ic": 0.0, "sample_size": float(len(combined))}
 
-        ic = float(combined["pred"].corr(combined["actual"], method="pearson"))
-        rank_ic = float(combined["pred"].corr(combined["actual"], method="spearman"))
+        ic_val = combined["pred"].corr(combined["actual"], method="pearson")
+        rank_ic_val = combined["pred"].corr(combined["actual"], method="spearman")
+
+        ic = float(ic_val) if (ic_val is not None and np.isfinite(ic_val)) else 0.0
+        rank_ic = float(rank_ic_val) if (rank_ic_val is not None and np.isfinite(rank_ic_val)) else 0.0
 
         return {
-            "ic": 0.0 if np.isnan(ic) else ic,
-            "rank_ic": 0.0 if np.isnan(rank_ic) else rank_ic,
+            "ic": round(ic, 4),
+            "rank_ic": round(rank_ic, 4),
             "sample_size": float(len(combined)),
         }
 
@@ -58,7 +63,20 @@ class WalkForwardBacktester:
         if predictions_df is None or predictions_df.empty or returns_df is None or returns_df.empty:
             return {"status": "EMPTY_INPUT", "strategy_metrics": {}}
 
-        merged = pd.merge(predictions_df, returns_df, on=["date", "symbol"], how="inner")
+        p_df = predictions_df.copy()
+        r_df = returns_df.copy()
+
+        if "date" in p_df.columns:
+            p_df["date"] = pd.to_datetime(p_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+        if "date" in r_df.columns:
+            r_df["date"] = pd.to_datetime(r_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+        if "symbol" in p_df.columns:
+            p_df["symbol"] = p_df["symbol"].astype(str).str.strip()
+        if "symbol" in r_df.columns:
+            r_df["symbol"] = r_df["symbol"].astype(str).str.strip()
+
+        merged = pd.merge(p_df.dropna(subset=["date", "symbol"]), r_df.dropna(subset=["date", "symbol"]), on=["date", "symbol"], how="inner")
         if merged.empty:
             return {"status": "NO_MATCHING_DATES", "strategy_metrics": {}}
 
