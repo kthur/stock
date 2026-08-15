@@ -106,7 +106,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         vol_20 = close_2d.iloc[-21:].diff().abs().sum(axis=0)
         ker20 = np.where(vol_20 > 1e-8, change_20 / vol_20, 0.0)
 
-        avg_ker = (ker5 + ker10 + ker20) / 3.0
+        weighted_ker = 0.50 * ker5 + 0.30 * ker10 + 0.20 * ker20
         ret_20d = (close_2d.iloc[-1] / close_2d.iloc[-21]) - 1.0
 
         # R/S Hurst Exponent over 20 days
@@ -119,12 +119,13 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         hurst = np.clip(np.log(rs) / np.log(20.0), 0.1, 0.9)
 
         # Signed trend score: High KER + High Hurst on uptrend yields high score; downtrend penalizes
-        # High conviction persistent trend accelerator (KER > 0.5 and Hurst > 0.55 on strong uptrend)
-        trend_mult = np.where((avg_ker > 0.50) & (hurst > 0.55) & (ret_20d > 0.05), 1.15, 1.0)
+        # High conviction persistent trend accelerator (KER > 0.50 and Hurst > 0.55 on strong uptrend)
+        trend_mult = np.where((weighted_ker > 0.55) & (hurst > 0.58) & (ret_20d > 0.05), 1.20, 
+                              np.where((weighted_ker > 0.45) & (hurst > 0.52) & (ret_20d > 0.02), 1.10, 1.0))
         score_arr = np.where(
             ret_20d >= 0,
-            0.5 + 0.5 * avg_ker * (hurst / 0.5) * trend_mult,
-            0.5 - 0.5 * avg_ker * (hurst / 0.5)
+            0.5 + 0.5 * weighted_ker * (hurst / 0.5) * trend_mult,
+            0.5 - 0.5 * weighted_ker * (hurst / 0.5) * 1.10
         )
 
         results = dict(zip(close_2d.columns, score_arr))

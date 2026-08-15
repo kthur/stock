@@ -108,11 +108,44 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         lower_band = np.where(std_20 > 0, sma_20 - 2.0 * std_20, sma_20)
         dist_lower_band = (cur_price - lower_band) / (std_20 + 1e-8)
 
-        # First green bounce bonus for oversold stocks to prioritize turnaround over falling knives
+        # First green bounce bonus with volume confirmation to prioritize turnaround over falling knives
         ret_1d = (cur_price / close_2d.iloc[-2]) - 1.0
-        bounce_bonus = np.where((consec >= 2.0) & (ret_1d > 0.0), 0.15, 0.0)
+        
+        # Calculate volume surge if available
+        vol_cols = {}
+        for sym in close_2d.columns:
+            df_sym = prices_dict.get(sym)
+            if df_sym is not None and ('Volume' in df_sym.columns or 'volume' in df_sym.columns):
+                v_col = 'Volume' if 'Volume' in df_sym.columns else 'volume'
+                vol_s = df_sym[v_col].dropna()
+                if len(vol_s) >= 6:
+                    vol_cols[sym] = vol_s
+        
+        if vol_cols:
+            vol_2d = pd.DataFrame(vol_cols).reindex(columns=close_2d.columns).ffill().tail(6)
+            cur_vol = vol_2d.iloc[-1]
+            avg_vol_5d = vol_2d.iloc[-6:-1].mean(axis=0).replace(0, 1.0)
+            vol_surge = (cur_vol / avg_vol_5d) > 1.20
+        else:
+            vol_surge = pd.Series(False, index=close_2d.columns)
 
-        oversold_metric = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus
+        bounce_bonus = np.where(
+            (consec >= 2.0) & (ret_1d > 0.0),
+            np.where(vol_surge, 0.25, 0.15),
+            0.0
+        )
+
+        # Vectorized RSI-14 Oversold Indicator
+        delta = close_2d.diff().iloc[1:]
+        gain = np.maximum(delta, 0.0)
+        loss = np.maximum(-delta, 0.0)
+        avg_gain = gain.tail(14).mean(axis=0)
+        avg_loss = loss.tail(14).mean(axis=0).replace(0, 1e-8)
+        rs_val = avg_gain / avg_loss
+        rsi_14 = 100.0 - (100.0 / (1.0 + rs_val))
+        rsi_oversold_term = np.clip((35.0 - rsi_14) / 20.0, -0.2, 0.3)
+
+        oversold_metric = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus + rsi_oversold_term
 
         res_df = pd.DataFrame({
             'symbol': close_2d.columns,
