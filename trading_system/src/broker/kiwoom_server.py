@@ -17,10 +17,11 @@ logger = logging.getLogger("KiwoomServer")
 class Kiwoom32Server:
     """키움증권 API 전용 32비트 서버"""
 
-    def __init__(self, port=5555):
+    def __init__(self, port: int = 5555):
+        safe_port = max(1024, min(65535, int(port))) if port is not None else 5555
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
-        self.socket.bind(f"tcp://127.0.0.1:{port}")
+        self.socket.bind(f"tcp://127.0.0.1:{safe_port}")
         self.logger = logger
         self.is_connected = False
 
