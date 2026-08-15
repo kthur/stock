@@ -111,10 +111,15 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(symbol, period="5d")
         if hist is None or hist.empty:
             return {"symbol": symbol, "price": None, "change_pct": None}
-        prices = hist["Close"]
+        c_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+        if not c_col:
+            return {"symbol": symbol, "price": None, "change_pct": None}
+        prices = hist[c_col].dropna()
+        if prices.empty:
+            return {"symbol": symbol, "price": None, "change_pct": None}
         price = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else price
-        change_pct = ((price - prev) / prev) * 100 if prev else 0.0
+        change_pct = ((price - prev) / abs(prev)) * 100 if prev else 0.0
         return {
             "symbol": symbol,
             "name": GLOBAL_INDICES.get(symbol, symbol),
@@ -135,10 +140,15 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(pair, period="5d")
         if hist is None or hist.empty:
             return {"pair": pair, "rate": None, "change_pct": None}
-        prices = hist["Close"]
+        c_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+        if not c_col:
+            return {"pair": pair, "rate": None, "change_pct": None}
+        prices = hist[c_col].dropna()
+        if prices.empty:
+            return {"pair": pair, "rate": None, "change_pct": None}
         rate = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else rate
-        change_pct = ((rate - prev) / prev) * 100 if prev else 0.0
+        change_pct = ((rate - prev) / abs(prev)) * 100 if prev else 0.0
         return {
             "pair": pair,
             "name": FX_PAIRS.get(pair, pair),
@@ -159,10 +169,15 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(symbol, period="5d")
         if hist is None or hist.empty:
             return {"symbol": symbol, "price": None, "change_pct": None}
-        prices = hist["Close"]
+        c_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+        if not c_col:
+            return {"symbol": symbol, "price": None, "change_pct": None}
+        prices = hist[c_col].dropna()
+        if prices.empty:
+            return {"symbol": symbol, "price": None, "change_pct": None}
         price = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else price
-        change_pct = ((price - prev) / prev) * 100 if prev else 0.0
+        change_pct = ((price - prev) / abs(prev)) * 100 if prev else 0.0
         return {
             "symbol": symbol,
             "name": MACRO_COMMODITIES.get(symbol, symbol),
