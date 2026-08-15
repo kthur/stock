@@ -114,7 +114,10 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
         result['book_value'] = 0.0
 
     for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value']:
-        result[col] = result[col].fillna(0).astype(float)
+        if col in result.columns:
+            result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0.0).astype(float)
+        else:
+            result[col] = 0.0
 
     return result
 
@@ -233,8 +236,11 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                     df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))
                     df['book_value'] = float(book_val)
 
-                    for col in ['revenue', 'operating_income', 'net_income', 'eps']:
-                        df[col] = df[col].fillna(0).astype(float)
+                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'shares_outstanding', 'dividend_per_share']:
+                        if col in df.columns:
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
+                        else:
+                            df[col] = 0.0
 
                     return df
 
