@@ -62,14 +62,24 @@ class DeltaBetaHedgeEngine:
             }
 
         symbols = list(valid_items.keys())
+        n_syms = len(symbols)
         weights_arr = np.array([valid_items[s] for s in symbols], dtype=np.float64)
         total_w = float(np.sum(weights_arr))
-        if total_w > 0:
+        if total_w > 1e-12:
             weights_arr /= total_w
+        else:
+            weights_arr = np.full(n_syms, 1.0 / n_syms) if n_syms > 0 else weights_arr
         norm_weights = dict(zip(symbols, weights_arr))
 
-        betas_arr = np.array([symbol_betas.get(s, 1.0) if (symbol_betas and np.isfinite(symbol_betas.get(s, 1.0))) else 1.0 for s in symbols], dtype=np.float64)
-        port_beta = float(np.dot(weights_arr, betas_arr))
+        betas_arr = np.array(
+            [
+                float(symbol_betas[s]) if (symbol_betas and s in symbol_betas and symbol_betas[s] is not None and np.isfinite(symbol_betas[s])) else 1.0
+                for s in symbols
+            ],
+            dtype=np.float64
+        )
+        port_beta = float(np.dot(weights_arr, betas_arr)) if n_syms > 0 else 0.0
+        port_beta = float(np.nan_to_num(port_beta, nan=1.0))
 
         # Determine portfolio primary market (KRX vs US)
         kr_count = sum(1 for sym in symbols if str(sym).endswith('.KS') or str(sym).endswith('.KQ') or str(sym).isdigit())
@@ -89,6 +99,7 @@ class DeltaBetaHedgeEngine:
 
             if beta_reduction > 0.0 and (port_beta - inverse_beta) > 1e-6:
                 raw_hedge_w = (port_beta - target_beta) / (port_beta - inverse_beta)
+                raw_hedge_w = float(np.nan_to_num(raw_hedge_w, nan=0.0))
                 # Dynamic Beta Hedging Booster: Cap up to 40% in severe crisis
                 max_hedge_cap = 0.40 if crisis_level == "SEVERE" else 0.35
                 hedge_weight = float(np.clip(raw_hedge_w, 0.0, max_hedge_cap))
