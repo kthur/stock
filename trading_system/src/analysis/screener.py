@@ -60,9 +60,12 @@ class StockScreener:
         return 2000000.0  # Default mock volume to pass constraints
 
     def _calc_rsi_list(self, closes: List[float], window: int = 14) -> float:
-        if len(closes) <= window:
+        if not closes:
             return 50.0
-        deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+        valid_closes = [float(c) for c in closes if c is not None and np.isfinite(c)]
+        if len(valid_closes) <= window:
+            return 50.0
+        deltas = [valid_closes[i] - valid_closes[i - 1] for i in range(1, len(valid_closes))]
         gains = [d if d > 0 else 0.0 for d in deltas]
         losses = [abs(d) if d < 0 else 0.0 for d in deltas]
         avg_gain = sum(gains[:window]) / window
@@ -70,10 +73,11 @@ class StockScreener:
         for i in range(window, len(deltas)):
             avg_gain = (avg_gain * (window - 1) + gains[i]) / window
             avg_loss = (avg_loss * (window - 1) + losses[i]) / window
-        if avg_loss == 0:
+        if avg_loss <= 1e-12:
             return 100.0 if avg_gain > 0 else 50.0
         rs = avg_gain / avg_loss
-        return 100.0 - (100.0 / (1.0 + rs))
+        rsi = 100.0 - (100.0 / (1.0 + rs))
+        return float(np.clip(rsi, 0.0, 100.0)) if np.isfinite(rsi) else 50.0
 
     def _calculate_rsi(self, symbol: str) -> float:
         try:
@@ -168,12 +172,16 @@ class StockScreener:
 
         # Timezone/Date normalization for macro data
         if not isinstance(macro_df.index, pd.DatetimeIndex):
-            macro_df.index = pd.to_datetime(macro_df.index)
+            macro_df.index = pd.to_datetime(macro_df.index, errors='coerce')
+        macro_df = macro_df[macro_df.index.notna()]
         if macro_df.index.tz is not None:
-            macro_df.index = macro_df.index.tz_convert(None)
+            try:
+                macro_df.index = macro_df.index.tz_convert(None)
+            except Exception:
+                macro_df.index = macro_df.index.tz_localize(None)
         macro_df.index = macro_df.index.normalize()
         macro_df = macro_df.groupby(macro_df.index).mean()
-        macro_df = macro_df.ffill().bfill()
+        macro_df = macro_df.infer_objects(copy=False).ffill().bfill()
 
         macro_returns = macro_df.pct_change().dropna(how="all")
         for col in MACRO_SYMBOLS:
