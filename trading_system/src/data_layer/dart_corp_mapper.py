@@ -52,8 +52,11 @@ class DARTCorpMapper:
 
     def get_corp_code(self, stock_symbol: str) -> Optional[str]:
         """Return OpenDART corp_code for the given KRX stock symbol, or None if not found."""
+        if not stock_symbol:
+            return None
         self._ensure_loaded()
-        return self._mapping.get(stock_symbol.strip())
+        clean_code = str(stock_symbol).strip().split('.')[0].zfill(6) if str(stock_symbol).strip().split('.')[0].isdigit() else str(stock_symbol).strip()
+        return self._mapping.get(clean_code) or self._mapping.get(str(stock_symbol).strip())
 
     def refresh(self) -> bool:
         """Force-download and rebuild the mapping table from OpenDART. Returns True on success."""
