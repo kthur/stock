@@ -470,6 +470,7 @@ class MarketDataHandler:
         ohlcv_cols = [cols[k] for k in ["open", "high", "low", "close", "volume"] if k in cols]
         if ohlcv_cols:
             df[ohlcv_cols] = df[ohlcv_cols].ffill()
+        price_bars: List[Any] = []
         for date_idx, row in df.iterrows():
             pydt = date_idx.to_pydatetime() if hasattr(date_idx, "to_pydatetime") else pd.to_datetime(date_idx).to_pydatetime()
             try:

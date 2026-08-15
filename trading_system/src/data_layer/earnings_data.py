@@ -1,7 +1,7 @@
 """Fetch corporate earnings/fundamental data from Yahoo Finance."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import pandas as pd
 import yfinance as yf
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
@@ -80,7 +80,7 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     else:
         result['eps'] = 0.0
 
-    info = {}
+    info: Dict[str, Any] = {}
     try:
         info = ticker.info or {}
     except Exception:

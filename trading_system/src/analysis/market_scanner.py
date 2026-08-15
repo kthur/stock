@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 import FinanceDataReader as fdr
 import numpy as np
+import pandas as pd
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
@@ -144,7 +145,14 @@ class MarketScanner:
                 continue
 
         # 4. 점수 순으로 정렬 후 Top N 추출
-        results = sorted(results, key=lambda x: x["score"], reverse=True)
+        def _safe_score(x: dict) -> float:
+            try:
+                val = float(x.get("score", 0.0))
+                return val if np.isfinite(val) else -999999.0
+            except (ValueError, TypeError):
+                return -999999.0
+
+        results = sorted(results, key=_safe_score, reverse=True)
         top_picks = results[: self.top_n]
 
         elapsed = time.time() - start_time

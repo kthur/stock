@@ -61,7 +61,7 @@ def _returns(series: np.ndarray) -> np.ndarray:
     denom = np.where(np.abs(denom) < 1e-8, np.nan, denom)
     result = (series[1:] - series[:-1]) / denom
     result = np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0)
-    return result
+    return np.asarray(result, dtype=float)
 
 
 class RelativeStrengthAnalyzer:
