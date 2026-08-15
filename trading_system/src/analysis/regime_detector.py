@@ -43,14 +43,24 @@ class MarketRegimeDetector:
         """
         df = indicator_df.copy()
 
-        # Check for sp500_change column (global indicator)
+        # Flexible sp500_change resolution
         if 'sp500_change' not in df.columns:
-            raise ValueError("Indicator DataFrame must contain 'sp500_change' column.")
+            sp_candidates = ['sp500_pct_change', 'sp500_ret', 'sp500_return', '^gspc_change', 'sp500_close']
+            found_col = next((c for c in sp_candidates if c in df.columns), None)
+            if found_col:
+                df['sp500_change'] = df[found_col]
+            elif 'sp500' in df.columns:
+                df['sp500_change'] = df['sp500'].pct_change(fill_method=None).fillna(0.0) * 100.0
+            elif '^GSPC' in df.columns:
+                df['sp500_change'] = df['^GSPC'].pct_change(fill_method=None).fillna(0.0) * 100.0
+            else:
+                df['sp500_change'] = 0.0
 
         features = pd.DataFrame(index=df.index)
         # ── Core: S&P500 모멘텀 & 변동성 ──────────────────────────────────────
-        features['sp500_ret_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).mean()
-        features['sp500_vol_roll'] = df['sp500_change'].rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
+        sp500_s = pd.to_numeric(df['sp500_change'], errors='coerce').fillna(0.0)
+        features['sp500_ret_roll'] = sp500_s.rolling(self.rolling_window, min_periods=1).mean().fillna(0.0)
+        features['sp500_vol_roll'] = sp500_s.rolling(self.rolling_window, min_periods=1).std().fillna(0.0)
 
         # ── 공포/위험선호 지표: VIX ────────────────────────────────────────────
         if 'vix_change' in df.columns:
