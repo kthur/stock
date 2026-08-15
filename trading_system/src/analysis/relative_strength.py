@@ -55,7 +55,7 @@ def _benchmark_for_symbol(symbol: str) -> str:
 
 
 def _returns(series: np.ndarray) -> np.ndarray:
-    if len(series) < 2:
+    if series is None or len(series) < 2:
         return np.array([])
     denom = series[:-1]
     denom = np.where(np.abs(denom) < 1e-8, np.nan, denom)
@@ -186,7 +186,7 @@ class RelativeStrengthAnalyzer:
         risk_free_rate: float = 0.03,
     ) -> Dict[str, Any]:
         """Convenience — compute metrics from price lists directly."""
-        if len(stock_prices) < 3 or len(benchmark_prices) < 3:
+        if stock_prices is None or benchmark_prices is None or len(stock_prices) < 3 or len(benchmark_prices) < 3:
             return self.compute_metrics(symbol, np.array([]), np.array([]))
         sr = _returns(np.array(stock_prices, dtype=float))
         br = _returns(np.array(benchmark_prices, dtype=float))
