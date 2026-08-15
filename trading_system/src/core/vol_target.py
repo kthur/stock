@@ -95,8 +95,13 @@ class VolTargetingEngine(BaseStrategyEngine):
         # Fully vectorized computation across all universe symbols (O(1) Pandas vectorized)
         sym_series = universe["symbol"].astype(str).str.strip()
         vols = sym_series.map(realized_vol).fillna(0.25).clip(lower=0.05)
-        target_weights = self.target_vol_annual / vols
-        scores = (target_weights * 0.50).clip(0.0, 1.0).round(4)
+        inv_vols = 1.0 / vols
+        if len(inv_vols) > 1 and inv_vols.std() > 1e-6:
+            pct_rank = inv_vols.rank(pct=True)
+            scores = (0.20 + pct_rank * 0.60).clip(0.0, 1.0).round(4)
+        else:
+            target_weights = self.target_vol_annual / vols
+            scores = (target_weights * 0.50).clip(0.0, 1.0).round(4)
 
         res_df = pd.DataFrame({
             "symbol": sym_series,

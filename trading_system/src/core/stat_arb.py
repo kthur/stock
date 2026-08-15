@@ -309,16 +309,27 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             raw_val_dict[sym] = val
             features_list.append(feats)
 
+        if not valid_symbols:
+            return []
+
+        # Prevent a single short-history stock from collapsing min_T for all symbols
+        lengths = [len(log_price_dict[s]) for s in valid_symbols]
+        target_min_T = max(60, min(120, int(np.percentile(lengths, 20)))) if len(lengths) >= 5 else min(lengths)
+        
+        filtered_indices = [i for i, s in enumerate(valid_symbols) if len(log_price_dict[s]) >= target_min_T]
+        if len(filtered_indices) >= 2:
+            valid_symbols = [valid_symbols[i] for i in filtered_indices]
+            features_list = [features_list[i] for i in filtered_indices]
+            min_T = target_min_T
+        else:
+            min_T = min(lengths)
+
         N = len(valid_symbols)
-        if N < 2:
+        if N < 2 or min_T < 30:
             return []
 
         found_pairs: List[Dict[str, Any]] = []
         eff_sector_map = sector_map or {}
-
-        min_T = min(len(log_price_dict[s]) for s in valid_symbols)
-        if min_T < 30:
-            return []
 
         log_mat = np.array([log_price_dict[s][-min_T:] for s in valid_symbols], dtype=np.float64)
         means = np.mean(log_mat, axis=1, keepdims=True)

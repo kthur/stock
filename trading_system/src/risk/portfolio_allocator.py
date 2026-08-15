@@ -586,7 +586,10 @@ class PortfolioAllocator:
                 }
             else:
                 traded_count += 1
-                if w_curr < L_i:
+                if w_targ == 0.0:
+                    w_exec = 0.0
+                    action = "SELL"
+                elif w_curr < L_i:
                     w_exec = L_i if mode == "boundary" else w_targ
                     action = "BUY"
                 else:

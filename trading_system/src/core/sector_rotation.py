@@ -40,36 +40,43 @@ class SectorRotationEngine(BaseStrategyEngine):
             'ENERGY_CHEMICAL': ['011780.KS', 'XLE']
         }
 
-    # Standard 11 GICS Sector Mapping Table (KRX Raw Sectors → GICS 11 Sectors)
+    # Standard 11 GICS Sector Mapping Table (KRX Raw Sectors + US Yahoo/FDR Sectors → GICS 11 Sectors)
     GICS_SECTOR_MAP = {
         # Information Technology
         '전기전자': 'Information Technology', '반도체': 'Information Technology',
         '소프트웨어': 'Information Technology', 'IT': 'Information Technology',
         'Information Technology': 'Information Technology', 'IT_SEMICON': 'Information Technology',
+        'Technology': 'Information Technology', 'Tech': 'Information Technology',
         # Financials
         '금융업': 'Financials', '은행': 'Financials', '증권': 'Financials', '보험': 'Financials',
-        'Financials': 'Financials', 'FINANCE': 'Financials',
+        'Financials': 'Financials', 'FINANCE': 'Financials', 'Financial Services': 'Financials',
+        'Financial': 'Financials',
         # Health Care
         '의약품': 'Health Care', '제약': 'Health Care', '바이오': 'Health Care',
         '의료정밀': 'Health Care', 'Health Care': 'Health Care', 'BIO_PHARMA': 'Health Care',
+        'Healthcare': 'Health Care', 'Biotechnology': 'Health Care',
         # Consumer Discretionary
         '운수장비': 'Consumer Discretionary', '자동차': 'Consumer Discretionary',
         '유통업': 'Consumer Discretionary', 'Consumer Discretionary': 'Consumer Discretionary',
-        'BATTERY_AUTO': 'Consumer Discretionary',
+        'BATTERY_AUTO': 'Consumer Discretionary', 'Consumer Cyclical': 'Consumer Discretionary',
+        'Consumer Services': 'Consumer Discretionary',
         # Industrials
         '기계': 'Industrials', '건설업': 'Industrials', '운수창고': 'Industrials',
         '조선': 'Industrials', '방산': 'Industrials', 'Industrials': 'Industrials',
+        'Industrial': 'Industrials',
         # Materials
         '화학': 'Materials', '철강금속': 'Materials', '비금속광물': 'Materials',
-        'Materials': 'Materials', 'ENERGY_CHEMICAL': 'Materials',
+        'Materials': 'Materials', 'ENERGY_CHEMICAL': 'Materials', 'Basic Materials': 'Materials',
         # Energy
         '에너지': 'Energy', '정유': 'Energy', 'Energy': 'Energy',
         # Communication Services
         '통신업': 'Communication Services', '미디어': 'Communication Services',
-        'Communication Services': 'Communication Services',
+        'Communication Services': 'Communication Services', 'Communication': 'Communication Services',
+        'Telecommunications': 'Communication Services',
         # Consumer Staples
         '음식료품': 'Consumer Staples', '섬유의복': 'Consumer Staples',
-        'Consumer Staples': 'Consumer Staples',
+        'Consumer Staples': 'Consumer Staples', 'Consumer Defensive': 'Consumer Staples',
+        'Consumer Non-Cyclical': 'Consumer Staples',
         # Utilities
         '전기가스업': 'Utilities', '전력': 'Utilities', 'Utilities': 'Utilities',
         # Real Estate
@@ -85,9 +92,13 @@ class SectorRotationEngine(BaseStrategyEngine):
         # 1. Exact match check
         if raw_clean in cls.GICS_SECTOR_MAP:
             return cls.GICS_SECTOR_MAP[raw_clean]
+        # Case-insensitive exact match
+        for k, v in cls.GICS_SECTOR_MAP.items():
+            if k.lower() == raw_clean.lower():
+                return v
         sorted_keys = sorted(cls.GICS_SECTOR_MAP.keys(), key=len, reverse=True)
         for key in sorted_keys:
-            if len(key) >= 2 and (key == raw_clean or key in raw_clean.split() or (len(key) > 3 and key in raw_clean)):
+            if len(key) >= 2 and (key.lower() == raw_clean.lower() or key.lower() in raw_clean.lower().split() or (len(key) > 3 and key.lower() in raw_clean.lower())):
                 return cls.GICS_SECTOR_MAP[key]
         return "General"
 
@@ -194,7 +205,12 @@ class SectorRotationEngine(BaseStrategyEngine):
                 macro_boost += res_df['sector'].isin(['Information Technology', 'Financials', 'Consumer Discretionary']).astype(float) * 0.05
 
             res_df['sector_score'] = (res_df['sector_score'] + macro_boost).clip(0.0, 1.0)
-            res_df.loc[res_df['sector'] == 'General', 'sector_score'] = 0.5
+            general_mask = res_df['sector'] == 'General'
+            if general_mask.any():
+                if 'stock_rank' in res_df.columns:
+                    res_df.loc[general_mask, 'sector_score'] = (0.35 + res_df.loc[general_mask, 'stock_rank'] * 0.30).clip(0.1, 0.9)
+                else:
+                    res_df.loc[general_mask, 'sector_score'] = 0.50
 
         return res_df[['symbol', 'sector_score']]
 

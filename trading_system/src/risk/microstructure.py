@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TransactionCostConfig:
-    kospi_stt_rate: float = 0.0018     # 0.18% STT
+    kospi_stt_rate: float = 0.0015     # 0.15% STT (current statutory rate)
     kosdaq_stt_rate: float = 0.0018    # 0.18% STT
     konex_stt_rate: float = 0.0008     # 0.08% STT
-    brokerage_fee_rate: float = 0.00035 # 0.035% brokerage fee
+    brokerage_fee_rate: float = 0.00030 # 0.030% brokerage fee
     us_sec_rate: float = 0.0000278     # 0.00278% SEC fee
     us_brokerage_fee_rate: float = 0.00005 # 0.005% US fee
     base_spread_pct: float = 0.0005    # 0.05% default spread

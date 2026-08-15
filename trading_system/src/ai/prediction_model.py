@@ -1254,6 +1254,11 @@ class OnDevicePredictionModel:
         df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
         df['block_trade_net_usd'] = (volume * close * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)
 
+        # Merge global indicator history by date index BEFORE calculating macro sensitivities
+        # KRX symbols: US-origin indicators must be lagged by 1 business day
+        # (US close of date d is unknown until ~14.5h after the KRX close of d).
+        df = self._merge_indicator_history(df, indicator_df, shift_us_indicators=is_krx_symbol)
+
         # 13. FX (KRW/USD) 60-day rolling Sensitivity Beta
         if 'usdkrw_change' in df.columns:
             fx_change = df['usdkrw_change'].fillna(0.0)
@@ -1276,11 +1281,6 @@ class OnDevicePredictionModel:
             if col in df.columns:
                 df[col] = df[col].replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
-        # Merge global indicator history by date index
-        # KRX symbols: US-origin indicators must be lagged by 1 business day
-        # (US close of date d is unknown until ~14.5h after the KRX close of d).
-        df = self._merge_indicator_history(df, indicator_df, shift_us_indicators=is_krx_symbol)
-
         # Log warning if the latest row was dropped during feature calculation (stale prediction day)
         # Ensure return and technical indicator columns are valid (dropna on technicals only)
         tech_cols = ['Close', 'Volume', 'ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'sma_20', 'sma_60',
@@ -1290,7 +1290,7 @@ class OnDevicePredictionModel:
                      'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
                      'dist_ma50', 'dist_ma200', 'range_pos_10d', 'range_pos_20d', 'atr_14d_norm',
                      'monotonic', 'vcp_score', 'ret_1d_lag1', 'ret_5d_lag1', 'adx_14', 'tenkan_sen', 'kijun_sen',
-                     'stoch_rsi_k', 'stoch_rsi_d', 'dark_pool_ratio', 'block_trade_net_usd']
+                     'stoch_rsi_k', 'stoch_rsi_d', 'dark_pool_ratio', 'block_trade_net_usd', 'fx_beta_60d']
         existing_tech_cols = [c for c in tech_cols if c in df.columns]
         df = df.dropna(subset=existing_tech_cols)
 

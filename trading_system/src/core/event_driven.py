@@ -168,7 +168,10 @@ class EventDrivenEngine(BaseStrategyEngine):
                             else:
                                 weight = 0.78
 
-                        scores_map[sym] = max(scores_map[sym], weight)
+                        if weight < 0.50:
+                            scores_map[sym] = min(scores_map[sym], weight)
+                        else:
+                            scores_map[sym] = max(scores_map[sym], weight)
 
         # Volatility / Volume Event Boost from price data (continuous scoring for all symbols)
         if prices_dict:

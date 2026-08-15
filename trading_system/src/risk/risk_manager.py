@@ -134,18 +134,9 @@ class CrisisDetector:
     def get_target_cash_ratio(self) -> float:
         """
         Returns dynamic portfolio target cash allocation ratio based on CrisisLevel.
-        - NONE: 0.0 (0% Cash)
-        - WATCH: 0.15 (15% Cash)
-        - ACTIVE: 0.35 (35% Cash)
-        - SEVERE: 0.50 (50% Cash)
+        Delegates to get_crisis_cash_target for unified, recovery-aware cash targets.
         """
-        if self.crisis_level == CrisisLevel.SEVERE:
-            return 0.50
-        elif self.crisis_level == CrisisLevel.ACTIVE:
-            return 0.35
-        elif self.crisis_level == CrisisLevel.WATCH:
-            return 0.15
-        return 0.0
+        return self.get_crisis_cash_target()
 
     def save_state(self, file_path: str = "models/crisis_state.json") -> None:
         """Persist CrisisDetector state and indicator histories to JSON file."""
@@ -1013,22 +1004,15 @@ class RiskManager:
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price)
         position_quantity = min(position_quantity, unpenalized_max_position)
 
-        # 위기 시 포지션 크기 감축
+        # 위기 시 포지션 크기 감축 (과도한 5중 중복 감쇄 방어: 최소 15% 바운드 유지)
         crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
-        if crisis_mult < 1.0:
+        combined_mult = max(0.15, crisis_mult * self.stress_test_adjustment_factor)
+        if combined_mult < 1.0:
             old_qty = position_quantity
-            position_quantity = max(0, int(position_quantity * crisis_mult))
+            position_quantity = max(0, int(position_quantity * combined_mult))
             self.logger.info(
-                f"Crisis position sizing: {symbol} qty {old_qty} -> {position_quantity} "
-                f"(crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
-            )
-
-        if self.stress_test_adjustment_factor < 1.0:
-            old_qty = position_quantity
-            position_quantity = max(0, int(position_quantity * self.stress_test_adjustment_factor))
-            self.logger.info(
-                f"Stress test position sizing: {symbol} qty {old_qty} -> {position_quantity} "
-                f"(stress_factor={self.stress_test_adjustment_factor:.2f})"
+                f"Risk adjusted position sizing: {symbol} qty {old_qty} -> {position_quantity} "
+                f"(combined_mult={combined_mult:.2f}, crisis_mult={crisis_mult:.2f}, level={self.crisis_detector.crisis_level.value})"
             )
 
         if symbol in self.position_limits:

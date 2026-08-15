@@ -835,13 +835,14 @@ class EnsembleScoringEngine:
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
             # Convex Sharpe Elasticity Multiplier for high performing strategies & Asymmetric Downside Penalty
-            if clipped_sharpe >= 1.00:
+            # Evaluated on unclipped sharpe to allow outperforming strategies to receive full allocation boosts
+            if sharpe >= 1.00:
                 multiplier *= 1.15
-            elif clipped_sharpe >= 0.50:
+            elif sharpe >= 0.50:
                 multiplier *= 1.10
-            elif clipped_sharpe < 0.0:
+            elif sharpe < 0.0:
                 # Asymmetric downside risk mitigation: reduce allocation to underperforming signals
-                downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.35)
+                downside_penalty = 1.0 / (1.0 + abs(sharpe) * 0.35)
                 multiplier *= downside_penalty
             scores[strategy] = base_w * multiplier
 
