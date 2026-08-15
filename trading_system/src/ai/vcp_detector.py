@@ -100,8 +100,10 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
     volume_weight = params.get('volume_weight', 15.0)
 
     df = df.copy()
-    # Standardize column casing to capitalize (e.g. close -> Close, volume -> Volume)
     df.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in df.columns]
+    for req_c in ['High', 'Low', 'Close', 'Volume']:
+        if req_c not in df.columns:
+            return {'is_vcp': False, 'vcp_score': 0.0, 'pivot_price': round(pivot_price, 2), 'contraction_peaks': []}
 
     high = _safe_series(df['High'])
     low = _safe_series(df['Low'])
