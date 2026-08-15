@@ -16,8 +16,9 @@ class VectorizedFeatureEngine:
     @staticmethod
     def rsi_vectorized(prices: np.ndarray, period: int = 14) -> np.ndarray:
         """Fast vectorized Relative Strength Index (RSI)."""
-        if len(prices) <= period:
-            return np.full_like(prices, 50.0)
+        safe_period = max(1, int(period)) if period is not None else 14
+        if prices is None or len(prices) <= safe_period:
+            return np.full_like(prices, 50.0) if prices is not None else np.array([])
 
         deltas = np.diff(prices)
         seed = deltas[:period]
