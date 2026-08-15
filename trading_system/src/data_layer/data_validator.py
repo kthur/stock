@@ -222,8 +222,8 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
         return adjusted
 
     try:
-        close = adjusted[close_col].astype(float)
-        prev_close = close.shift(1).replace(0, float('nan'))
+        close = pd.to_numeric(adjusted[close_col], errors='coerce')
+        prev_close = close.shift(1).replace(0, np.nan)
         ratios = (close / prev_close).fillna(1.0)
         mags = ratios.apply(lambda r: (max(r, 1.0 / r) - 1.0) if (pd.notna(r) and r > 0) else 0.0)
 
@@ -234,7 +234,9 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
             n = len(adjusted)
             price_cols = [cols_lower[k] for k in ["open", "high", "low", "close"] if k in cols_lower]
             for pc in price_cols:
-                adjusted[pc] = adjusted[pc].astype(float)
+                adjusted[pc] = pd.to_numeric(adjusted[pc], errors='coerce')
+
+            close_arr = adjusted[close_col].to_numpy(dtype=np.float64, copy=True)
 
             for i in range(1, n):
                 r = float(ratios.iloc[i])
@@ -243,25 +245,25 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
                 mag = max(r, 1.0 / r) - 1.0
                 if mag > max_return:
                     idx_curr = adjusted.index[i]
-                    p_prev = float(close.iloc[i - 1])
+                    p_prev = float(close_arr[i - 1])
 
                     is_isolated = False
                     if i + 1 < n:
-                        p_next = float(close.iloc[i + 1])
+                        p_next = float(close_arr[i + 1])
                         r_next = p_next / p_prev if p_prev > 0 else 1.0
                         mag_next = max(r_next, 1.0 / r_next) - 1.0 if (pd.notna(r_next) and r_next > 0) else 0.0
                         if mag_next <= max_return:
                             is_isolated = True
 
                     if is_isolated:
-                        p_fill = (p_prev + float(close.iloc[i + 1])) / 2.0 if p_prev > 0 else float(close.iloc[i + 1])
+                        p_fill = (p_prev + float(close_arr[i + 1])) / 2.0 if p_prev > 0 else float(close_arr[i + 1])
                         for pc in price_cols:
                             adjusted.loc[idx_curr, pc] = p_fill
-                        close.iloc[i] = p_fill
+                        close_arr[i] = p_fill
                     elif i + 1 == n:
                         for pc in price_cols:
                             adjusted.loc[idx_curr, pc] = p_prev
-                        close.iloc[i] = p_prev
+                        close_arr[i] = p_prev
                     else:
                         prior_mask = adjusted.index < idx_curr
                         for pc in price_cols:
@@ -269,8 +271,9 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
                         volume_col = cols_lower.get("volume")
                         if volume_col is not None:
                             adjusted.loc[prior_mask, volume_col] = adjusted.loc[prior_mask, volume_col] / r
-                        close = adjusted[close_col].astype(float)
-                        ratios = (close / close.shift(1)).fillna(1.0)
+                        close_arr = adjusted[close_col].to_numpy(dtype=np.float64, copy=True)
+                        close_s = pd.Series(close_arr)
+                        ratios = (close_s / close_s.shift(1).replace(0, np.nan)).fillna(1.0)
     except Exception as e:
         logger.warning(f"[DataValidator] filter_price_spikes failed: {e}")
 
