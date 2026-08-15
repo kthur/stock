@@ -106,6 +106,8 @@ class StyleRotator:
         리스크 패리티 등으로 구한 base_weights에 스타일 가중치를 곱하고 정규화.
         ticker_styles 예시: {'AAPL': {'size': 'LARGE_CAP', 'value': 'GROWTH'}, ...}
         """
+        if base_weights is None or len(base_weights) == 0:
+            return np.array([], dtype=float)
         if len(base_weights) != len(tickers):
             return np.asarray(base_weights, dtype=float)
 
