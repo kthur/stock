@@ -25,13 +25,25 @@ class ReportGenerationStage:
     ) -> Path:
         """Exports ensemble prediction DataFrame as structured JSON Lines format."""
         file_path = self.output_dir / file_name
+        tmp_path = file_path.with_suffix(".tmp.jsonl")
         try:
-            records = ensemble_df.to_dict(orient="records")
-            with open(file_path, "w", encoding="utf-8") as f:
+            if ensemble_df is None or ensemble_df.empty:
+                records = []
+            else:
+                records = ensemble_df.to_dict(orient="records")
+
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 for rec in records:
-                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                    if isinstance(rec, dict):
+                        f.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
+            tmp_path.replace(file_path)
             logger.info(f"[REPORT STAGE] Exported {len(records)} prediction records to {file_path}")
             return file_path
         except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
             logger.error(f"Failed to export JSONL predictions: {e}")
             return file_path

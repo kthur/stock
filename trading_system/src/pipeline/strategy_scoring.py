@@ -15,7 +15,7 @@ class StrategyScoringStage:
     """Orchestrates parallel execution of all multi-factor strategy engines."""
 
     def __init__(self, max_workers: int = 8):
-        self.max_workers = max_workers
+        self.max_workers = max(1, int(max_workers)) if max_workers is not None else 8
 
     def run_all_strategies(
         self,
@@ -26,6 +26,9 @@ class StrategyScoringStage:
         universe_df: pd.DataFrame,
     ) -> Dict[str, Any]:
         """Runs all strategy scoring methods concurrently using ThreadPoolExecutor."""
+        if not strategy_engines:
+            return {}
+
         logger.info(f"[STRATEGY SCORING] Executing strategies in parallel using ThreadPoolExecutor (workers={self.max_workers})...")
         results: Dict[str, Any] = {}
 
