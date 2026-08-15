@@ -91,12 +91,21 @@ def _build_styles():
 
 def _metrics_table(data: dict, styles: dict) -> Table:
     """Build the performance metrics table."""
+    try:
+        init_cap = int(data.get("initial_capital", 0))
+    except (ValueError, TypeError):
+        init_cap = 0
+    try:
+        fin_cap = int(data.get("final_capital", 0))
+    except (ValueError, TypeError):
+        fin_cap = 0
+
     rows = [
         ["Metric", "Value"],
         ["Symbol", str(data.get("symbol", "N/A"))],
         ["Period", f"{data.get('start_date', '?')} → {data.get('end_date', '?')}"],
-        ["Initial Capital", f"₩{int(data.get('initial_capital', 0)):,}"],
-        ["Final Capital", f"₩{int(data.get('final_capital', 0)):,}"],
+        ["Initial Capital", f"₩{init_cap:,}"],
+        ["Final Capital", f"₩{fin_cap:,}"],
         ["Total Return", str(data.get("total_return_pct", "N/A"))],
         ["Win Rate", str(data.get("win_rate", "N/A"))],
         ["Max Drawdown", str(data.get("max_drawdown", "N/A"))],

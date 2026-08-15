@@ -173,7 +173,11 @@ class ExecutionOMSEngine:
                 name = str(pred.get("name", "") or "")
                 market = str(pred.get("market", "") or "")
 
-                quantity = int(target_amount // target_price)
+                raw_quantity = int(target_amount // target_price)
+                if str(market).upper() in ["KOSPI", "KOSDAQ", "KONEX"]:
+                    quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
+                else:
+                    quantity = raw_quantity
                 if quantity <= 0:
                     continue
 

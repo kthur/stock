@@ -657,9 +657,10 @@ class PortfolioAllocator:
             return {s: w / s_sum for s, w in weights.items()} if s_sum > 0 else weights
 
         cleaned_weights = dict(weights)
+        target_total = sum(weights.values()) if sum(weights.values()) > 0 else 1.0
 
-        # Iterative Sector Cap Enforcement (up to 5 passes for convergence)
-        for _ in range(5):
+        # Iterative Sector Cap Enforcement (up to 10 passes for convergence)
+        for _ in range(10):
             sector_totals: Dict[str, float] = {}
             for sym, w in cleaned_weights.items():
                 sec = sector_map.get(sym, "UNKNOWN")
@@ -675,6 +676,27 @@ class PortfolioAllocator:
                 for sym, w in cleaned_weights.items():
                     if sector_map.get(sym, "UNKNOWN") == sec:
                         cleaned_weights[sym] = w * scale_factor
+
+            # Re-distribute excess weight proportionally across compliant sectors
+            non_over_sum = sum(w for sym, w in cleaned_weights.items() if sector_map.get(sym, "UNKNOWN") not in over_sectors)
+            if non_over_sum > 0:
+                cur_sum = sum(cleaned_weights.values())
+                excess = target_total - cur_sum
+                if excess > 0:
+                    for sym, w in cleaned_weights.items():
+                        if sector_map.get(sym, "UNKNOWN") not in over_sectors:
+                            cleaned_weights[sym] += excess * (w / non_over_sum)
+            else:
+                # If all sectors are capped, normalize directly
+                s_sum = sum(cleaned_weights.values())
+                if s_sum > 0:
+                    cleaned_weights = {s: (w / s_sum) * target_total for s, w in cleaned_weights.items()}
+                break
+
+        # Final safety normalization if needed to preserve target_total
+        s_sum = sum(cleaned_weights.values())
+        if s_sum > 0 and abs(s_sum - target_total) > 1e-4:
+            cleaned_weights = {s: (w / s_sum) * target_total for s, w in cleaned_weights.items()}
 
         return cleaned_weights
 
