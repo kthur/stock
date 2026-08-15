@@ -52,7 +52,7 @@ class DARTCorpMapper:
 
     def get_corp_code(self, stock_symbol: str) -> Optional[str]:
         """Return OpenDART corp_code for the given KRX stock symbol, or None if not found."""
-        if not stock_symbol:
+        if not stock_symbol or not isinstance(stock_symbol, (str, int)):
             return None
         self._ensure_loaded()
         clean_code = str(stock_symbol).strip().split('.')[0].zfill(6) if str(stock_symbol).strip().split('.')[0].isdigit() else str(stock_symbol).strip()
@@ -150,9 +150,9 @@ class DARTCorpMapper:
 
     def _save_cache(self):
         """Persist the mapping to the JSON cache file using atomic write."""
+        tmp_path = self.cache_path.with_suffix(".tmp")
         try:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = self.cache_path.with_suffix(".tmp")
             with tmp_path.open("w", encoding="utf-8") as f:
                 json.dump(
                     {
@@ -167,4 +167,9 @@ class DARTCorpMapper:
             tmp_path.replace(self.cache_path)
             logger.info(f"DARTCorpMapper: cache saved to {self.cache_path}.")
         except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
             logger.warning(f"DARTCorpMapper: failed to save cache: {e}")
