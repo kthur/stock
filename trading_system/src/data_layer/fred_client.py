@@ -113,17 +113,19 @@ class FredApiClient:
                     for item in obs_list:
                         date_str = item.get("date")
                         val_str = item.get("value")
-                        if date_str and val_str and val_str != ".":
+                        if date_str and val_str and val_str not in (".", "NA", "null", "None"):
                             try:
-                                val_float = float(val_str)
-                                records.append({"date": pd.to_datetime(date_str), "value": val_float})
-                            except ValueError:
+                                val_float = float(str(val_str).replace(",", ""))
+                                dt = pd.to_datetime(date_str, errors='coerce')
+                                if pd.notna(dt) and np.isfinite(val_float):
+                                    records.append({"date": dt, "value": val_float})
+                            except (ValueError, TypeError):
                                 continue
 
                     if not records:
                         return pd.DataFrame(columns=["value"])
 
-                    df = pd.DataFrame(records).set_index("date")
+                    df = pd.DataFrame(records).dropna(subset=["date", "value"]).set_index("date")
                     if sort_order == "desc":
                         df = df.sort_index(ascending=True)
                     logger.info(f"[FRED API] Successfully fetched {len(df)} observations for {series_id}")
