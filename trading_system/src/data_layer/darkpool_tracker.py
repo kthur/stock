@@ -110,7 +110,7 @@ class DarkPoolTrackerEngine:
                                 ret_10d = float((c.iloc[-1] / p10) - 1.0)
                                 avg_vol = float(v.iloc[-10:-1].mean())
                                 cur_vol = float(v.iloc[-1])
-                                vol_spike = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                                vol_spike = (cur_vol / avg_vol) if (avg_vol > 0 and np.isfinite(avg_vol) and np.isfinite(cur_vol)) else 1.0
 
                             # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x)
                             if abs(ret_10d) < 0.02 and vol_spike > 2.5:
@@ -130,7 +130,9 @@ class DarkPoolTrackerEngine:
                         score = float(np.clip(score + 0.30, 0.0, 1.0))
                         logger.info(f"[DARK POOL ENGINE] High Dark Pool institutional buying for {sym} (Share={dp_share*100:.1f}%, Buy Bias={dp_buy_bias:.2f})")
 
-            results.append({'symbol': sym, 'darkpool_score': round(score, 4)})
+            score_clean = float(score) if (score is not None and np.isfinite(score)) else 0.50
+            score_clipped = float(np.clip(score_clean, 0.0, 1.0))
+            results.append({'symbol': sym, 'darkpool_score': round(score_clipped, 4)})
 
         return pd.DataFrame(results)
 
