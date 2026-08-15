@@ -632,13 +632,15 @@ class PortfolioAllocator:
         weights: Dict[str, float],
         sector_map: Optional[Dict[str, str]] = None,
         regime: Optional[Union[int, str]] = None,
-        max_sector_cap: Optional[float] = None
+        max_sector_cap: Optional[float] = None,
+        renormalize: Optional[bool] = None
     ) -> Dict[str, float]:
         """
         Enforces Sector Exposure Cap and Factor Risk Budgeting:
         - Sector Cap: <= 25% in BEAR/SIDEWAYS regimes, <= 35% in BULL market regimes.
         - Rank Preservation: Iteratively rescales over-concentrated sectors while preserving relative rank.
-        - Cash/Re-allocation: Re-distributes excess weight proportionally across compliant sectors.
+        - Cash/Re-allocation: If renormalize is True (default when max_sector_cap is explicitly provided),
+          re-distributes excess weight proportionally across compliant sectors.
         """
         if not weights:
             return {}
@@ -646,10 +648,13 @@ class PortfolioAllocator:
         # Determine Regime-Dependent Sector Cap
         if max_sector_cap is not None:
             sector_cap = max_sector_cap
+            should_renormalize = True if renormalize is None else bool(renormalize)
         elif regime in [2, 'BULL', 'BULL_LOW_VOL', 'BULL_HIGH_VOL']:
             sector_cap = 0.35  # Dynamic relaxation in BULL market
+            should_renormalize = False if renormalize is None else bool(renormalize)
         else:
             sector_cap = 0.25  # Defensive 25% cap in BEAR/SIDEWAYS
+            should_renormalize = False if renormalize is None else bool(renormalize)
 
         if not sector_map:
             # Fallback if no sector mapping is available
@@ -677,26 +682,28 @@ class PortfolioAllocator:
                     if sector_map.get(sym, "UNKNOWN") == sec:
                         cleaned_weights[sym] = w * scale_factor
 
-            # Re-distribute excess weight proportionally across compliant sectors
-            non_over_sum = sum(w for sym, w in cleaned_weights.items() if sector_map.get(sym, "UNKNOWN") not in over_sectors)
-            if non_over_sum > 0:
-                cur_sum = sum(cleaned_weights.values())
-                excess = target_total - cur_sum
-                if excess > 0:
-                    for sym, w in cleaned_weights.items():
-                        if sector_map.get(sym, "UNKNOWN") not in over_sectors:
-                            cleaned_weights[sym] += excess * (w / non_over_sum)
-            else:
-                # If all sectors are capped, normalize directly
-                s_sum = sum(cleaned_weights.values())
-                if s_sum > 0:
-                    cleaned_weights = {s: (w / s_sum) * target_total for s, w in cleaned_weights.items()}
-                break
+            if should_renormalize:
+                # Re-distribute excess weight proportionally across compliant sectors
+                non_over_sum = sum(w for sym, w in cleaned_weights.items() if sector_map.get(sym, "UNKNOWN") not in over_sectors)
+                if non_over_sum > 0:
+                    cur_sum = sum(cleaned_weights.values())
+                    excess = target_total - cur_sum
+                    if excess > 0:
+                        for sym, w in cleaned_weights.items():
+                            if sector_map.get(sym, "UNKNOWN") not in over_sectors:
+                                cleaned_weights[sym] += excess * (w / non_over_sum)
+                else:
+                    # If all sectors are capped, normalize directly
+                    s_sum = sum(cleaned_weights.values())
+                    if s_sum > 0:
+                        cleaned_weights = {s: (w / s_sum) * target_total for s, w in cleaned_weights.items()}
+                    break
 
-        # Final safety normalization if needed to preserve target_total
-        s_sum = sum(cleaned_weights.values())
-        if s_sum > 0 and abs(s_sum - target_total) > 1e-4:
-            cleaned_weights = {s: (w / s_sum) * target_total for s, w in cleaned_weights.items()}
+        if should_renormalize:
+            # Final safety normalization if needed to preserve target_total
+            s_sum = sum(cleaned_weights.values())
+            if s_sum > 0 and abs(s_sum - target_total) > 1e-4:
+                cleaned_weights = {s: (w / s_sum) * target_total for s, w in cleaned_weights.items()}
 
         return cleaned_weights
 
