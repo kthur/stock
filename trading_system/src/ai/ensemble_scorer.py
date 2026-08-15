@@ -836,13 +836,15 @@ class EnsembleScoringEngine:
             multiplier = float(np.exp(gamma * clipped_sharpe))
             # Convex Sharpe Elasticity Multiplier for high performing strategies & Asymmetric Downside Penalty
             # Evaluated on unclipped sharpe to allow outperforming strategies to receive full allocation boosts
-            if sharpe >= 1.00:
+            if sharpe >= 1.50:
+                multiplier *= 1.25
+            elif sharpe >= 1.00:
                 multiplier *= 1.15
             elif sharpe >= 0.50:
-                multiplier *= 1.10
+                multiplier *= 1.08
             elif sharpe < 0.0:
                 # Asymmetric downside risk mitigation: reduce allocation to underperforming signals
-                downside_penalty = 1.0 / (1.0 + abs(sharpe) * 0.35)
+                downside_penalty = 1.0 / (1.0 + abs(sharpe) * 0.40)
                 multiplier *= downside_penalty
             scores[strategy] = base_w * multiplier
 
@@ -1728,24 +1730,45 @@ class EnsembleScoringEngine:
                 synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
 
-                # Phase 2-B: Order-Flow & Momentum Confluence Booster (for high momentum + high institutional inflow)
+                # Phase 2-B: Triple Confirmation Alpha Booster (Valuation + Momentum + Institutional Flow)
+                has_val = pd.Series(False, index=merged.index)
+                if 'rim_score' in merged.columns:
+                    has_val = has_val | merged['rim_score'].ge(0.60)
+                if 'valueup_catalyst_score' in merged.columns:
+                    has_val = has_val | merged['valueup_catalyst_score'].ge(0.60)
+                if 'arm_score' in merged.columns:
+                    has_val = has_val | merged['arm_score'].ge(0.60)
+
                 has_mom = pd.Series(False, index=merged.index)
                 if 'mq_score' in merged.columns:
                     has_mom = has_mom | merged['mq_score'].ge(0.60)
                 if 'trend_efficiency_score' in merged.columns:
                     has_mom = has_mom | merged['trend_efficiency_score'].ge(0.60)
+                if 'surge_score' in merged.columns:
+                    has_mom = has_mom | merged['surge_score'].ge(0.60)
+                if 'vcp_ml_score' in merged.columns:
+                    has_mom = has_mom | merged['vcp_ml_score'].ge(0.60)
 
                 has_flow = pd.Series(False, index=merged.index)
                 if 'order_flow_score' in merged.columns:
                     has_flow = has_flow | merged['order_flow_score'].ge(0.60)
                 if 'inst_foreign_sector_score' in merged.columns:
                     has_flow = has_flow | merged['inst_foreign_sector_score'].ge(0.60)
+                if 'darkpool_score' in merged.columns:
+                    has_flow = has_flow | merged['darkpool_score'].ge(0.60)
 
-                flow_mom_mask = (has_mom & has_flow)
-                if flow_mom_mask.any():
-                    blended_score.loc[flow_mom_mask] = (blended_score.loc[flow_mom_mask] * 1.025).clip(0.0, 1.0)
+                # Triple Confluence (All 3 pillars confirmed) -> 5.0% super-linear alpha boost
+                triple_confluence_mask = (has_val & has_mom & has_flow)
+                if triple_confluence_mask.any():
+                    blended_score.loc[triple_confluence_mask] = (blended_score.loc[triple_confluence_mask] * 1.050).clip(0.0, 1.0)
+                    logger.info(f"[TRIPLE CONFLUENCE] Applied 1.050x boost to {triple_confluence_mask.sum()} high-conviction symbols.")
 
-                # Phase 2-C: Fundamental Distress Gatekeeper (Penalize chronic loss-making / negative profitability firms)
+                # Dual Confluence (2 pillars confirmed, not triple) -> 2.5% synergy boost
+                dual_confluence_mask = ((has_mom & has_flow) | (has_val & has_mom) | (has_val & has_flow)) & ~triple_confluence_mask
+                if dual_confluence_mask.any():
+                    blended_score.loc[dual_confluence_mask] = (blended_score.loc[dual_confluence_mask] * 1.025).clip(0.0, 1.0)
+
+                # Phase 2-C: Fundamental Distress Gatekeeper vs High-Quality Compounder Dual Gate
                 if 'operating_margin' in merged.columns or 'roe' in merged.columns:
                     distress_cond = pd.Series(False, index=merged.index)
                     if 'operating_margin' in merged.columns:
@@ -1755,6 +1778,19 @@ class EnsembleScoringEngine:
                     if distress_cond.any():
                         blended_score.loc[distress_cond] = (blended_score.loc[distress_cond] * 0.70).clip(0.0, 1.0)
                         logger.info(f"[DISTRESS GATEKEEPER] Applied 0.70x penalty to {distress_cond.sum()} loss-making symbols.")
+
+                    # High-Quality Compounder Bonus (Profitable compounding champions)
+                    quality_cond = pd.Series(False, index=merged.index)
+                    if 'operating_margin' in merged.columns and 'roe' in merged.columns:
+                        quality_cond = (merged['operating_margin'] >= 0.15) & (merged['roe'] >= 0.15) & ~distress_cond
+                    elif 'operating_margin' in merged.columns:
+                        quality_cond = (merged['operating_margin'] >= 0.18) & ~distress_cond
+                    elif 'roe' in merged.columns:
+                        quality_cond = (merged['roe'] >= 0.18) & ~distress_cond
+
+                    if quality_cond.any():
+                        blended_score.loc[quality_cond] = (blended_score.loc[quality_cond] * 1.035).clip(0.0, 1.0)
+                        logger.info(f"[QUALITY COMPOUNDER] Applied 1.035x quality bonus to {quality_cond.sum()} high-ROIC firms.")
             except Exception as _be:
                 logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
 
@@ -1981,7 +2017,13 @@ class EnsembleScoringEngine:
                         {sym: ret_series[sym] + base_noise for sym in top_syms}
                     )
 
-                raw_weights = optimizer.optimize_risk_parity(returns_matrix_df)
+                expected_ret_series = top_candidates.set_index('symbol')['ensemble_expected_return']
+                raw_weights = optimizer.optimize_return_tilted_risk_parity(
+                    returns_matrix_df,
+                    expected_returns=expected_ret_series,
+                    tilt_exponent=1.0,
+                    max_weight=0.20
+                )
                 sector_map = dict(zip(top_candidates['symbol'], top_candidates.get('sector', 'Unknown')))
                 constrained_weights = optimizer.apply_factor_and_sector_constraints(raw_weights, sector_map)
 

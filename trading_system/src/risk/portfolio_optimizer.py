@@ -95,6 +95,88 @@ class PortfolioOptimizer:
 
         return {sym: float(w) for sym, w in zip(symbols, weights)}
 
+    def optimize_return_tilted_risk_parity(
+        self,
+        returns_df: pd.DataFrame,
+        expected_returns: Optional[Union[pd.Series, Dict[str, float]]] = None,
+        tilt_exponent: float = 1.0,
+        max_weight: Optional[float] = None
+    ) -> Dict[str, float]:
+        """
+        Return-Tilted Equal Risk Contribution Optimizer for Return & Sharpe Maximization.
+        1. Computes base Equal Risk Contribution (ERC) weights w_erc.
+        2. Tilts weights proportionally to normalized positive expected return:
+           tilt_i = (max(0.001, E[R_i]) / mean(E[R])) ** tilt_exponent
+        3. Optimizes the tilted allocation with bounded SLSQP projection (sum=1.0, 0 <= w_i <= max_weight).
+        """
+        if max_weight is None:
+            max_weight = self.default_max_weight
+
+        symbols = list(returns_df.columns)
+        n_assets = len(symbols)
+        if n_assets == 0:
+            return {}
+        if n_assets == 1:
+            return {symbols[0]: 1.0}
+
+        # Step 1: Base ERC Risk Parity weights
+        base_erc = self.optimize_risk_parity(returns_df, max_weight=max_weight)
+        if expected_returns is None or (isinstance(expected_returns, (pd.Series, dict)) and len(expected_returns) == 0):
+            return base_erc
+
+        # Step 2: Extract expected returns per symbol
+        if isinstance(expected_returns, pd.Series):
+            er_dict = expected_returns.to_dict()
+        elif isinstance(expected_returns, dict):
+            er_dict = expected_returns
+        else:
+            er_dict = {}
+
+        er_vals = np.array([float(er_dict.get(s, 1.0)) for s in symbols], dtype=np.float64)
+        er_vals = np.nan_to_num(er_vals, nan=1.0, posinf=1.0, neginf=0.0)
+        # Ensure positive expected returns proxy
+        min_er = 0.001
+        er_pos = np.maximum(er_vals, min_er)
+        mean_er = float(np.mean(er_pos)) if np.mean(er_pos) > 0 else 1.0
+        tilt_factors = (er_pos / mean_er) ** max(0.1, min(3.0, float(tilt_exponent)))
+
+        # Step 3: Raw tilted target weights
+        raw_erc_arr = np.array([base_erc.get(s, 1.0 / n_assets) for s in symbols], dtype=np.float64)
+        tilted_raw = raw_erc_arr * tilt_factors
+        tilted_target = tilted_raw / max(np.sum(tilted_raw), 1e-12)
+
+        # Step 4: Bounded quadratic projection to strictly satisfy 0 <= w_i <= max_weight & sum(w) == 1.0
+        cov_matrix = self.calculate_covariance_matrix(returns_df).values
+
+        def projection_objective(w):
+            # Minimize squared deviation from tilted target while penalizing covariance risk
+            dev_penalty = np.sum((w - tilted_target) ** 2)
+            port_vol = np.sqrt(max(0.0, np.dot(w.T, np.dot(cov_matrix, w))))
+            return dev_penalty + 0.10 * port_vol
+
+        init_weights = np.clip(tilted_target, 0.0, max_weight)
+        init_weights = init_weights / max(np.sum(init_weights), 1e-12)
+        bounds = tuple((0.0, max_weight) for _ in range(n_assets))
+        constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0})
+
+        res = minimize(
+            projection_objective,
+            init_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 300, 'ftol': 1e-9}
+        )
+
+        if not res.success:
+            final_weights = np.clip(tilted_target, 0.0, max_weight)
+            final_weights = final_weights / max(np.sum(final_weights), 1e-12)
+        else:
+            final_weights = res.x / max(np.sum(res.x), 1e-12)
+
+        return {sym: float(w) for sym, w in zip(symbols, final_weights)}
+
+
     def optimize_mean_variance(
         self,
         expected_returns: pd.Series,
