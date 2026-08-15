@@ -120,7 +120,7 @@ class SupplyChainEngine(BaseStrategyEngine):
                 try:
                     with open(p, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    
+
                     flat_map: Dict[str, List[str]] = {}
                     sectors = data.get("sectors", {})
                     for _, s_info in sectors.items():
@@ -213,7 +213,7 @@ class SupplyChainEngine(BaseStrategyEngine):
                 weights = w_info.get("weights", []) if w_info else []
                 if not weights or len(weights) != len(customers):
                     weights = [1.0 / len(customers)] * len(customers)
-                
+
                 # Normalize weights to sum to 1.0
                 sum_w = sum(weights) or 1.0
                 weights = [w / sum_w for w in weights]

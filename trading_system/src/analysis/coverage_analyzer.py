@@ -119,20 +119,14 @@ class StrategyCoverageAnalyzer:
                 series = pd.to_numeric(target_df[c_col], errors="coerce")
                 # Valid if non-null and finite
                 valid_mask = series.notna() & np.isfinite(series)
-                active_mask = valid_mask & (np.abs(series - 0.50) > 1e-4)
                 valid_cnt = int(valid_mask.sum())
-                active_cnt = int(active_mask.sum())
                 missing_cnt = total_symbols - valid_cnt
                 cov_pct = (valid_cnt / total_symbols * 100.0) if total_symbols > 0 else 0.0
-                active_cov_pct = (active_cnt / total_symbols * 100.0) if total_symbols > 0 else 0.0
             else:
                 valid_mask = pd.Series(False, index=target_df.index)
-                active_mask = pd.Series(False, index=target_df.index)
                 valid_cnt = 0
-                active_cnt = 0
                 missing_cnt = total_symbols
                 cov_pct = 0.0
-                active_cov_pct = 0.0
 
             # Dynamic missingness reason calculation by inspecting underlying data
             reasons = {}

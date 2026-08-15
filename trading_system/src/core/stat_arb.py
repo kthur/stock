@@ -315,7 +315,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         # Prevent a single short-history stock from collapsing min_T for all symbols
         lengths = [len(log_price_dict[s]) for s in valid_symbols]
         target_min_T = max(60, min(120, int(np.percentile(lengths, 20)))) if len(lengths) >= 5 else min(lengths)
-        
+
         filtered_indices = [i for i, s in enumerate(valid_symbols) if len(log_price_dict[s]) >= target_min_T]
         if len(filtered_indices) >= 2:
             valid_symbols = [valid_symbols[i] for i in filtered_indices]
