@@ -40,13 +40,16 @@ def _fetch_naver_direct(symbol: str, start_date: Optional[str] = None) -> pd.Dat
                 if not start_date or date_str >= start_date:
                     try:
                         o, h, l, c, v = float(parts[1]), float(parts[2]), float(parts[3]), float(parts[4]), float(parts[5])
+                        import math
+                        if not (math.isfinite(o) and math.isfinite(h) and math.isfinite(l) and math.isfinite(c)):
+                            continue
                         rows.append({
                             'Date': pd.to_datetime(date_str, errors='coerce'),
                             'Open': o,
                             'High': h,
                             'Low': l,
                             'Close': c,
-                            'Volume': v,
+                            'Volume': v if (math.isfinite(v) and v >= 0) else 0.0,
                         })
                     except (ValueError, TypeError):
                         continue
@@ -112,9 +115,9 @@ class RateLimiter:
     """토큰 버킷 알고리즘 기반 API 호출 제한기 (Thread-Safe)"""
 
     def __init__(self, rate_limit: int, time_window: float = 1.0):
-        self.rate_limit = rate_limit
-        self.time_window = time_window
-        self.tokens = rate_limit
+        self.rate_limit = max(1, int(rate_limit)) if rate_limit is not None else 5
+        self.time_window = max(0.01, float(time_window)) if time_window is not None else 1.0
+        self.tokens = self.rate_limit
         self.last_updated = time.time()
         self._lock = threading.Lock()
 
@@ -141,8 +144,8 @@ class CircuitBreaker:
     """연속 실패 시 외부 호출을 차단하는 서킷 브레이커"""
 
     def __init__(self, max_failures: int = 5, reset_timeout: float = 60.0):
-        self.max_failures = max_failures
-        self.reset_timeout = reset_timeout
+        self.max_failures = max(1, int(max_failures)) if max_failures is not None else 5
+        self.reset_timeout = max(1.0, float(reset_timeout)) if reset_timeout is not None else 60.0
         self.failures = 0
         self.last_failure_time = 0
         self.is_open = False
