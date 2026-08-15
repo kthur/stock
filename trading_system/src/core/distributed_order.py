@@ -23,6 +23,8 @@ class DistributedOrderConfig:
 
 def _normalize(allocation: Tuple[float, ...], n: int) -> List[float]:
     """Ensure the allocation tuple matches *n* and sums to 1.0."""
+    if n <= 0:
+        return []
     alloc = list(allocation)
     if len(alloc) < n:
         alloc += [0.0] * (n - len(alloc))
