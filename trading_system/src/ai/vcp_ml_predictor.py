@@ -528,7 +528,7 @@ class VCPSurgePredictor:
                 for mkt in set(markets):
                     idx = market_series[market_series == mkt].index
                     if len(idx) > 0:
-                        X_mkt = df_all.iloc[idx][feat_cols]
+                        X_mkt = df_all.iloc[idx].reindex(columns=feat_cols, fill_value=0.0)
 
                         xgb_m = case_insensitive_get(self.models, mkt, {}).get(h)
                         if xgb_m is None and mkt.upper() in ['KOSPI', 'KOSDAQ']:
