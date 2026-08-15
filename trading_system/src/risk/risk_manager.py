@@ -42,20 +42,22 @@ class PortfolioCircuitBreaker:
     Triggers emergency liquidation if current portfolio value drops below max_drawdown threshold from peak.
     """
     def __init__(self, max_drawdown: float = -0.15):
-        self.max_drawdown = max_drawdown  # Default -15% MDD hard limit
+        safe_mdd = float(max_drawdown) if (max_drawdown is not None and np.isfinite(max_drawdown)) else -0.15
+        self.max_drawdown = min(-0.01, safe_mdd)  # Default -15% MDD hard limit
         self.peak_value = 0.0
         self.is_tripped = False
 
     def update_and_check(self, current_value: float) -> bool:
-        if current_value <= 0:
+        val = float(current_value) if (current_value is not None and np.isfinite(current_value)) else 0.0
+        if val <= 0:
             return self.is_tripped
         if self.peak_value <= 0:
-            self.peak_value = current_value
+            self.peak_value = val
 
-        if current_value > self.peak_value:
-            self.peak_value = current_value
+        if val > self.peak_value:
+            self.peak_value = val
 
-        drawdown = (current_value - self.peak_value) / self.peak_value
+        drawdown = (val - self.peak_value) / self.peak_value
         if drawdown <= self.max_drawdown:
             self.is_tripped = True
             logger.critical(f"🚨 [PORTFOLIO CIRCUIT BREAKER TRIPPED] Drawdown {drawdown:.2%} breached hard limit {self.max_drawdown:.2%}")
