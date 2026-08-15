@@ -17,6 +17,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 from typing import Dict, Optional
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,8 @@ class BOKECOSClient:
                 if "TIME" in df.columns and "DATA_VALUE" in df.columns:
                     df["Date"] = pd.to_datetime(df["TIME"], errors="coerce")
                     df["Value"] = pd.to_numeric(df["DATA_VALUE"], errors="coerce")
-                    df = df.dropna(subset=["Date", "Value"]).sort_values("Date").reset_index(drop=True)
+                    df = df.dropna(subset=["Date", "Value"])
+                    df = df[np.isfinite(df["Value"])].sort_values("Date").reset_index(drop=True)
                     return df[["Date", "Value"]]
             elif "RESULT" in data:
                 code = data["RESULT"].get("CODE", "")
@@ -148,7 +150,8 @@ class BOKECOSClient:
                         df_fb = pd.DataFrame({
                             "Date": date_series,
                             "Value": val_series
-                        }).dropna().reset_index(drop=True)
+                        }).dropna()
+                        df_fb = df_fb[np.isfinite(df_fb["Value"])].reset_index(drop=True)
                         results[key] = df_fb
                         logger.info("[BOKECOSClient] %s fetched via FRED fallback (%d rows)", meta["name"], len(df_fb))
                 except Exception as fb_e:
