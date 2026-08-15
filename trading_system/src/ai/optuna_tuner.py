@@ -498,8 +498,8 @@ class OptunaStrategyTuner:
                 combo_series = sum(combo_returns[s] * norm_w[s] for s in valid_strats).dropna()
                 if len(combo_series) < 5 or combo_series.std() < 1e-8:
                     return 0.0
-                sharpe = float(combo_series.mean() / combo_series.std() * np.sqrt(252))
-                return sharpe
+                sharpe = float(combo_series.mean() / (combo_series.std() + 1e-10) * np.sqrt(252))
+                return sharpe if (np.isfinite(sharpe)) else 0.0
 
             study = optuna.create_study(direction='maximize')
             study.optimize(regime_objective, n_trials=n_trials)
