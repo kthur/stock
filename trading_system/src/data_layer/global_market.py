@@ -111,20 +111,20 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(symbol, period="5d")
         if hist is None or hist.empty:
             return {"symbol": symbol, "price": None, "change_pct": None}
-        c_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+        c_col = next((c for c in hist.columns if str(c).lower() in ("close", "adj close", "adjclose")), None)
         if not c_col:
             return {"symbol": symbol, "price": None, "change_pct": None}
-        prices = hist[c_col].dropna()
+        prices = pd.to_numeric(hist[c_col], errors='coerce').dropna()
         if prices.empty:
             return {"symbol": symbol, "price": None, "change_pct": None}
         price = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else price
-        change_pct = ((price - prev) / abs(prev)) * 100 if prev else 0.0
+        change_pct = ((price - prev) / abs(prev)) * 100.0 if (prev and abs(prev) > 1e-8) else 0.0
         return {
             "symbol": symbol,
             "name": GLOBAL_INDICES.get(symbol, symbol),
-            "price": round(price, 2),
-            "change_pct": round(change_pct, 2),
+            "price": round(price, 2) if np.isfinite(price) else None,
+            "change_pct": round(change_pct, 2) if np.isfinite(change_pct) else None,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -140,20 +140,20 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(pair, period="5d")
         if hist is None or hist.empty:
             return {"pair": pair, "rate": None, "change_pct": None}
-        c_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+        c_col = next((c for c in hist.columns if str(c).lower() in ("close", "adj close", "adjclose")), None)
         if not c_col:
             return {"pair": pair, "rate": None, "change_pct": None}
-        prices = hist[c_col].dropna()
+        prices = pd.to_numeric(hist[c_col], errors='coerce').dropna()
         if prices.empty:
             return {"pair": pair, "rate": None, "change_pct": None}
         rate = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else rate
-        change_pct = ((rate - prev) / abs(prev)) * 100 if prev else 0.0
+        change_pct = ((rate - prev) / abs(prev)) * 100.0 if (prev and abs(prev) > 1e-8) else 0.0
         return {
             "pair": pair,
             "name": FX_PAIRS.get(pair, pair),
-            "rate": round(rate, 4),
-            "change_pct": round(change_pct, 2),
+            "rate": round(rate, 4) if np.isfinite(rate) else None,
+            "change_pct": round(change_pct, 2) if np.isfinite(change_pct) else None,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -169,20 +169,20 @@ class GlobalMarketClient:
         hist = self._get_cached_or_fetch(symbol, period="5d")
         if hist is None or hist.empty:
             return {"symbol": symbol, "price": None, "change_pct": None}
-        c_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+        c_col = next((c for c in hist.columns if str(c).lower() in ("close", "adj close", "adjclose")), None)
         if not c_col:
             return {"symbol": symbol, "price": None, "change_pct": None}
-        prices = hist[c_col].dropna()
+        prices = pd.to_numeric(hist[c_col], errors='coerce').dropna()
         if prices.empty:
             return {"symbol": symbol, "price": None, "change_pct": None}
         price = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) > 1 else price
-        change_pct = ((price - prev) / abs(prev)) * 100 if prev else 0.0
+        change_pct = ((price - prev) / abs(prev)) * 100.0 if (prev and abs(prev) > 1e-8) else 0.0
         return {
             "symbol": symbol,
             "name": MACRO_COMMODITIES.get(symbol, symbol),
-            "price": round(price, 4),
-            "change_pct": round(change_pct, 2),
+            "price": round(price, 4) if np.isfinite(price) else None,
+            "change_pct": round(change_pct, 2) if np.isfinite(change_pct) else None,
             "timestamp": datetime.now().isoformat(),
         }
 
