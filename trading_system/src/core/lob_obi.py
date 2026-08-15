@@ -75,14 +75,18 @@ class LimitOrderBookCalculator:
         if not bids or not asks:
             return {"obi": 0.0, "micro_price": 0.0, "spread": 0.0}
 
-        p_b1 = bids[0].get("price", 0.0)
-        v_b1 = bids[0].get("volume", 0.0)
-        p_a1 = asks[0].get("price", 0.0)
-        v_a1 = asks[0].get("volume", 0.0)
+        # Safe sorting: bids descending by price, asks ascending by price
+        sorted_bids = sorted(bids, key=lambda x: x.get("price", 0.0), reverse=True)
+        sorted_asks = sorted(asks, key=lambda x: x.get("price", 0.0))
+
+        p_b1 = sorted_bids[0].get("price", 0.0)
+        v_b1 = sorted_bids[0].get("volume", 0.0)
+        p_a1 = sorted_asks[0].get("price", 0.0)
+        v_a1 = sorted_asks[0].get("volume", 0.0)
 
         micro = self.calculate_micro_price(p_b1, v_b1, p_a1, v_a1)
-        obi = self.calculate_obi(bids, asks)
-        spread = p_a1 - p_b1
+        obi = self.calculate_obi(sorted_bids, sorted_asks)
+        spread = max(0.0, p_a1 - p_b1)
 
         return {
             "obi": round(obi, 4),
