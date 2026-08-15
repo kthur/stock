@@ -74,8 +74,8 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                         short_map[str(sym)] = df_item
             elif isinstance(features_df, pd.DataFrame) and not features_df.empty:
                 if 'symbol' in features_df.columns:
-                    for sym, group in features_df.groupby('symbol'):
-                        short_map[str(sym)] = group.iloc[-1].to_dict()
+                    deduped = features_df.drop_duplicates(subset=['symbol'], keep='last')
+                    short_map = deduped.set_index('symbol').to_dict(orient='index')
 
         for sym in symbols:
             sym_str = str(sym)
