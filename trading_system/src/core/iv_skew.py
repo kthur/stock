@@ -111,7 +111,10 @@ class IVSkewEngine(BaseStrategyEngine):
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 20:
                     try:
-                        c = df['Close']
+                        c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                        if not c_col:
+                            return sym, 0.5
+                        c = df[c_col]
                         if isinstance(c, pd.DataFrame):
                             c = c.iloc[:, 0]
                         c = c.dropna()
