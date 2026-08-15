@@ -49,7 +49,10 @@ class CrossBorderLeadLagEngine:
             if us_sym in prices_dict:
                 df = prices_dict[us_sym]
                 if df is not None and len(df) >= 2:
-                    close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
+                    col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                    if not col:
+                        continue
+                    close = df[col].iloc[:, 0] if isinstance(df[col], pd.DataFrame) else df[col]
                     us_ret = (close.iloc[-1] - close.iloc[-2]) / max(close.iloc[-2], 1e-4)
                     us_returns[us_sym] = float(us_ret)
 
@@ -70,7 +73,11 @@ class CrossBorderLeadLagEngine:
                     scores[sym] = 0.5
                     continue
 
-                close = df['Close'].iloc[:, 0] if isinstance(df['Close'], pd.DataFrame) else df['Close']
+                col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                if not col:
+                    scores[sym] = 0.5
+                    continue
+                close = df[col].iloc[:, 0] if isinstance(df[col], pd.DataFrame) else df[col]
                 kr_5d_ret = float((close.iloc[-1] - close.iloc[-5]) / max(close.iloc[-5], 1e-4))
 
                 sec = sector_map.get(sym, 'General')
