@@ -57,7 +57,10 @@ def _benchmark_for_symbol(symbol: str) -> str:
 def _returns(series: np.ndarray) -> np.ndarray:
     if len(series) < 2:
         return np.array([])
-    result: np.ndarray = (series[1:] - series[:-1]) / series[:-1]
+    denom = series[:-1]
+    denom = np.where(np.abs(denom) < 1e-8, np.nan, denom)
+    result = (series[1:] - series[:-1]) / denom
+    result = np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0)
     return result
 
 
@@ -130,20 +133,28 @@ class RelativeStrengthAnalyzer:
         sr = stock_returns[-n:].astype(float)
         br = benchmark_returns[-n:].astype(float)
 
-        corr = float(np.corrcoef(sr, br)[0, 1])
+        corr_matrix = np.corrcoef(sr, br)
+        corr = float(corr_matrix[0, 1]) if not np.isnan(corr_matrix[0, 1]) else 0.0
         corr = max(-1.0, min(1.0, corr))  # clamp
 
         # CAPM beta = cov(s, b) / var(b)  (same ddof for numerator and denominator)
-        beta = float(np.cov(sr, br, ddof=0)[0, 1] / max(np.var(br), 1e-10))
+        var_b = float(np.var(br))
+        beta = float(np.cov(sr, br, ddof=0)[0, 1] / var_b) if var_b > 1e-10 else 1.0
+        if np.isnan(beta) or np.isinf(beta):
+            beta = 1.0
+        beta = max(-5.0, min(5.0, beta))
 
         # R²
-        r_sq = corr * corr
+        r_sq = max(0.0, min(1.0, corr * corr))
 
         # Jensen's alpha = E[s] - rf - beta * (E[b] - rf)
         daily_rf = risk_free_rate / 252.0
         mean_s = float(np.mean(sr))
         mean_b = float(np.mean(br))
         alpha = mean_s - daily_rf - beta * (mean_b - daily_rf)
+        if np.isnan(alpha) or np.isinf(alpha):
+            alpha = 0.0
+        alpha = max(-1.0, min(1.0, alpha))
 
         return {
             "symbol": symbol,
