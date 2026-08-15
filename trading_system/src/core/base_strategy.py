@@ -76,5 +76,7 @@ def make_score_dataframe(rows: list, score_column: str) -> pd.DataFrame:
         df["symbol"] = ""
     if score_column not in df.columns:
         df[score_column] = 0.5
+    else:
+        df[score_column] = pd.to_numeric(df[score_column], errors="coerce").fillna(0.5).clip(0.0, 1.0)
     return df
 
