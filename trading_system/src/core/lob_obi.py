@@ -53,8 +53,19 @@ class LimitOrderBookCalculator:
 
         for i in range(n_levels):
             w = np.exp(-self.decay_lambda * i)
-            v_b = bids[i].get("volume", 0.0)
-            v_a = asks[i].get("volume", 0.0)
+            try:
+                v_b = max(0.0, float(bids[i].get("volume", 0.0) or 0.0))
+            except (ValueError, TypeError):
+                v_b = 0.0
+            try:
+                v_a = max(0.0, float(asks[i].get("volume", 0.0) or 0.0))
+            except (ValueError, TypeError):
+                v_a = 0.0
+
+            if np.isnan(v_b) or np.isinf(v_b):
+                v_b = 0.0
+            if np.isnan(v_a) or np.isinf(v_a):
+                v_a = 0.0
 
             numerator += w * (v_b - v_a)
             denominator += w * (v_b + v_a)
