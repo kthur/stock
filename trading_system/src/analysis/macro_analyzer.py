@@ -33,9 +33,10 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
     Returns:
         pd.DataFrame: Pearson correlation matrix with columns as MultiIndex (ticker, lag).
     """
-    if indices_data.empty:
+    if indices_data is None or indices_data.empty:
         return pd.DataFrame()
 
+    safe_lags = max(0, min(60, int(lags))) if lags is not None else 5
     df = indices_data.copy()
 
     # 1. Align timezone-mismatched indices: convert index to naive normalized date
@@ -67,10 +68,10 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
     if not tickers:
         tickers = list(returns.columns)
 
-    col_index = pd.MultiIndex.from_product([tickers, range(lags + 1)], names=["ticker", "lag"])
+    col_index = pd.MultiIndex.from_product([tickers, range(safe_lags + 1)], names=["ticker", "lag"])
     corr_df = pd.DataFrame(index=tickers, columns=col_index, dtype=float)
 
-    for lag in range(lags + 1):
+    for lag in range(safe_lags + 1):
         shifted = returns.shift(lag)
         for t1 in tickers:
             for t2 in tickers:
@@ -82,9 +83,13 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
 
 def get_correlation_matrix_at_lag(corr_df: pd.DataFrame, lag: int = 0) -> pd.DataFrame:
     """Extracts the 2D correlation matrix for a given lag from the multi-lag correlation DataFrame."""
-    if corr_df.empty:
+    if corr_df is None or corr_df.empty:
         return pd.DataFrame()
-    return corr_df.xs(lag, axis=1, level="lag")
+    safe_lag = max(0, int(lag)) if lag is not None else 0
+    try:
+        return corr_df.xs(safe_lag, axis=1, level="lag")
+    except KeyError:
+        return pd.DataFrame()
 
 
 def generate_simulated_macro_data(period: str = "1y") -> dict:
