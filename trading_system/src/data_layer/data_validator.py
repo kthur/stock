@@ -47,14 +47,14 @@ def detect_shared_series_corruption(
         (
             us10y_val * 10.0
             if us10y_val is not None
-            and not (isinstance(us10y_val, float) and math.isnan(us10y_val))
+            and not (isinstance(us10y_val, (int, float)) and not math.isfinite(us10y_val))
             and us10y_val < 25
             else us10y_val
         ),
     ):
         try:
             fv = float(v)
-            if fv > 0 and not math.isnan(fv):
+            if fv > 0 and math.isfinite(fv):
                 candidates.append(fv)
         except (TypeError, ValueError):
             continue
