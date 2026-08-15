@@ -83,21 +83,35 @@ class TradeJournal:
         status: str = "EXECUTED",
         timestamp: Optional[str] = None,
     ) -> None:
+        import math
+        def _sf(v):
+            if v is None:
+                return None
+            try:
+                f = float(v)
+                return f if math.isfinite(f) else None
+            except (ValueError, TypeError):
+                return None
+
         if timestamp is None:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        safe_qty = int(quantity) if quantity is not None else 0
+        safe_price = float(price) if (price is not None and math.isfinite(price)) else 0.0
+
         trade = TradeRecord(
             timestamp=timestamp,
-            symbol=symbol,
-            side=side,
-            quantity=quantity,
-            price=price,
+            symbol=str(symbol or "").strip(),
+            side=str(side or "").upper().strip(),
+            quantity=safe_qty,
+            price=safe_price,
             reason=reason,
-            ensemble_score=ensemble_score,
-            sentiment_score=sentiment_score,
+            ensemble_score=_sf(ensemble_score),
+            sentiment_score=_sf(sentiment_score),
             regime=regime,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            pnl=pnl,
+            stop_loss=_sf(stop_loss),
+            take_profit=_sf(take_profit),
+            pnl=_sf(pnl),
             status=status,
         )
         self.log_trade(trade)
@@ -130,7 +144,8 @@ class TradeJournal:
         """최근 N일간 총 매매(매도) 횟수 조회"""
         conn = self._get_connection()
         try:
-            since_date = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d %H:%M:%S")
+            safe_days = max(1, int(lookback_days)) if lookback_days is not None else 90
+            since_date = (datetime.now() - timedelta(days=safe_days)).strftime("%Y-%m-%d %H:%M:%S")
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COUNT(*) as total
@@ -149,7 +164,8 @@ class TradeJournal:
         """최근 N일간 승률 계산 (매도 중 실현 손익 > 0인 비중)"""
         conn = self._get_connection()
         try:
-            since_date = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d %H:%M:%S")
+            safe_days = max(1, int(lookback_days)) if lookback_days is not None else 90
+            since_date = (datetime.now() - timedelta(days=safe_days)).strftime("%Y-%m-%d %H:%M:%S")
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COUNT(*) as total,
