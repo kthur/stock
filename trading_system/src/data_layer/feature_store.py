@@ -49,10 +49,12 @@ class FeatureStore:
         tmp_path = path.with_suffix(".tmp.parquet")
         try:
             df_copy = feature_df.copy()
-            # Downcast floats to float32 to conserve RAM & I/O
-            float_cols = df_copy.select_dtypes(include=['float64']).columns
+            # Downcast floats to float32 to conserve RAM & I/O, sanitizing non-finite values
+            float_cols = df_copy.select_dtypes(include=['float64', 'float32', 'object']).columns
             for col in float_cols:
-                df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce').astype('float32')
+                num_s = pd.to_numeric(df_copy[col], errors='ignore')
+                if pd.api.types.is_float_dtype(num_s):
+                    df_copy[col] = num_s.fillna(0.0).clip(lower=-1e9, upper=1e9).astype('float32')
 
             df_copy.to_parquet(tmp_path, compression='snappy', index=False)
             os.replace(tmp_path, path)
