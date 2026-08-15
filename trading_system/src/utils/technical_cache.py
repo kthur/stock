@@ -18,8 +18,13 @@ class TechnicalCache:
     """
 
     def __init__(self, ttl: float = 60.0, max_symbols: int = 100):
-        self._ttl = ttl
-        self._max_symbols = max_symbols
+        import math
+        try:
+            safe_ttl = float(ttl) if (ttl is not None and math.isfinite(float(ttl))) else 60.0
+        except (ValueError, TypeError):
+            safe_ttl = 60.0
+        self._ttl = max(1.0, safe_ttl)
+        self._max_symbols = max(1, int(max_symbols)) if max_symbols is not None else 100
         self._cache: Dict[str, dict] = {}
         self._timestamps: Dict[str, float] = {}
 
