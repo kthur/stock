@@ -16,8 +16,9 @@ def _safe_float(val, default=None):
     if val is None:
         return default
     try:
+        import math
         f = float(val)
-        return default if np.isnan(f) or np.isinf(f) else f
+        return default if not math.isfinite(f) else f
     except (ValueError, TypeError):
         return default
 
@@ -436,9 +437,15 @@ class InvestorStrategyEngine:
 
     def get_top_recommendations(self, stocks_data: List[Dict], top_n: int = 10) -> List[Dict]:
         """상위 추천주 조회"""
+        if not stocks_data:
+            return []
+
+        limit = max(1, int(top_n)) if top_n is not None else 10
         recommendations = []
 
         for stock in stocks_data:
+            if not isinstance(stock, dict):
+                continue
             consensus = self.get_consensus_recommendation(stock)
 
             recommendations.append(
@@ -454,8 +461,8 @@ class InvestorStrategyEngine:
             )
 
         # 신뢰도로 정렬
-        recommendations.sort(key=lambda x: x["confidence"], reverse=True)
+        recommendations.sort(key=lambda x: x["confidence"] if (isinstance(x.get("confidence"), (int, float)) and np.isfinite(x["confidence"])) else 0.0, reverse=True)
 
-        self.logger.info(f"Generated {len(recommendations)} recommendations, top {top_n} selected")
+        self.logger.info(f"Generated {len(recommendations)} recommendations, top {limit} selected")
 
-        return recommendations[:top_n]
+        return recommendations[:limit]
