@@ -68,10 +68,12 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 for sym, df_item in features_df.items():
                     if isinstance(df_item, pd.DataFrame) and not df_item.empty:
                         fund_map[str(sym)] = df_item.iloc[-1].to_dict()
+                    elif isinstance(df_item, dict):
+                        fund_map[str(sym)] = df_item
             elif isinstance(features_df, pd.DataFrame) and not features_df.empty:
                 if 'symbol' in features_df.columns:
-                    for sym, group in features_df.groupby('symbol'):
-                        fund_map[str(sym)] = group.iloc[-1].to_dict()
+                    deduped = features_df.drop_duplicates(subset=['symbol'], keep='last')
+                    fund_map = deduped.set_index('symbol').to_dict(orient='index')
 
         scores = {}
         for sym in symbols:
@@ -119,8 +121,13 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 if div_val > 1.0:  # Percentage format e.g. 3.5 -> 0.035
                     div_val /= 100.0
 
+                # Profitability Booster (ROE > 8% accelerates Value-Up re-rating potential)
+                roe_boost = 1.0
+                if pd.notna(roe_val) and float(roe_val) > 0.08:
+                    roe_boost = np.clip(1.0 + float(roe_val) * 0.5, 1.0, 1.25)
+
                 # Composite score
-                raw_score = pbr_factor * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.5 + np.clip(div_val, 0.0, 0.10) * 5.0)
+                raw_score = pbr_factor * roe_boost * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.5 + np.clip(div_val, 0.0, 0.10) * 5.0)
                 scores[sym_str] = float(raw_score)
             else:
                 scores[sym_str] = np.nan

@@ -72,10 +72,12 @@ class AccrualsQualityEngine(BaseStrategyEngine):
                 for sym, df_item in features_df.items():
                     if isinstance(df_item, pd.DataFrame) and not df_item.empty:
                         fund_map[str(sym)] = df_item.iloc[-1].to_dict()
+                    elif isinstance(df_item, dict):
+                        fund_map[str(sym)] = df_item
             elif isinstance(features_df, pd.DataFrame) and not features_df.empty:
                 if 'symbol' in features_df.columns:
-                    for sym, group in features_df.groupby('symbol'):
-                        fund_map[str(sym)] = group.iloc[-1].to_dict()
+                    deduped = features_df.drop_duplicates(subset=['symbol'], keep='last')
+                    fund_map = deduped.set_index('symbol').to_dict(orient='index')
 
         sym_strs = [str(s) for s in symbols]
         if not fund_map:
@@ -109,14 +111,18 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         denom = np.where(assets.notna() & (assets > 0), assets, net_inc.abs() * 10.0 + 1e-5)
         accrual_ratio = np.where(valid_mask, (net_inc - ocf) / denom, np.nan)
 
-        df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio})
+        # Cash conversion booster: OCF > Net Income significantly
+        cash_conversion = np.where(valid_mask & (net_inc > 0), ocf / np.maximum(net_inc, 1e-5), 1.0)
+        conversion_bonus = np.where(cash_conversion > 1.25, 0.05, 0.0)
+
+        df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio, 'conversion_bonus': conversion_bonus})
         valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
 
         if valid_mask.sum() > 0:
             # Rank score: inverted because lower accrual_ratio -> higher earnings quality
             # Percentile rank: 1 - percentile_rank(accrual_ratio)
             ranks = df_acc.loc[valid_mask, 'accrual_ratio'].rank(pct=True, ascending=True)
-            base_score = (1.0 - ranks).clip(0.05, 0.95)
+            base_score = (1.0 - ranks + df_acc.loc[valid_mask, 'conversion_bonus']).clip(0.05, 0.95)
             # Accruals Quality Alpha Boost for top 15% high-cashflow sustainable earnings stocks
             high_quality_mask = base_score >= 0.85
             enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
