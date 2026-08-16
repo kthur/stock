@@ -192,7 +192,7 @@ class PortfolioOptimizer:
         risk_aversion: float = 1.0,
         max_weight: Optional[float] = None,
         max_cvar_limit: Optional[float] = None,
-        cvar_confidence: float = 0.95
+        cvar_confidence: float = 0.99
     ) -> Dict[str, float]:
         """
         Mean-Variance Optimization balancing expected net return vs portfolio variance,
@@ -336,10 +336,12 @@ class PortfolioOptimizer:
         self,
         current_weights: Optional[Dict[str, float]],
         target_weights: Optional[Dict[str, float]],
-        buffer_band: float = 0.03
+        buffer_band: float = 0.03,
+        asset_volatilities: Optional[Dict[str, float]] = None
     ) -> bool:
         """
         Emits rebalance signal only when allocation drift breaches no-trade buffer bands.
+        Supports Leland volatility-aware dynamic buffer bands (buffer_band + asset_vol * k).
         """
         curr = current_weights or {}
         targ = target_weights or {}
@@ -347,12 +349,15 @@ class PortfolioOptimizer:
         if not all_keys:
             return False
 
-        max_drift = 0.0
+        vols = asset_volatilities or {}
         for k in all_keys:
             w_curr = float(curr.get(k, 0.0)) if np.isfinite(curr.get(k, 0.0)) else 0.0
             w_targ = float(targ.get(k, 0.0)) if np.isfinite(targ.get(k, 0.0)) else 0.0
-            max_drift = max(max_drift, abs(w_curr - w_targ))
-        return max_drift > buffer_band
+            drift = abs(w_curr - w_targ)
+            eff_buffer = buffer_band + min(float(vols.get(k, 0.0)) * 0.25, 0.04) if vols else buffer_band
+            if drift > eff_buffer:
+                return True
+        return False
 
     def optimize_quad_factor_portfolio(
         self,

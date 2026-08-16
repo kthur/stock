@@ -614,13 +614,13 @@ class VCPSurgePredictor:
                                     blend_prob = np.where(blend_prob > 0, np.maximum(calib_p, blend_prob * 0.05), blend_prob)
                             res_df.loc[idx, col_name] = blend_prob
                         else:
-                            # Use VCP feature heuristic probability fallback when no pre-trained model exists on disk
+                            # Use VCP feature heuristic probability fallback (calibrated to ~0.20-0.25 base rate)
                             if 'vcp_score' in X_mkt.columns:
-                                fallback_prob = np.clip(X_mkt['vcp_score'] / 100.0, 0.10, 0.90)
+                                fallback_prob = np.clip((X_mkt['vcp_score'] / 100.0) * 0.40 + 0.05, 0.05, 0.45)
                             elif 'range_pct' in X_mkt.columns:
-                                fallback_prob = np.clip(1.0 - (X_mkt['range_pct'] / 50.0), 0.10, 0.90)
+                                fallback_prob = np.clip((1.0 - (X_mkt['range_pct'] / 50.0)) * 0.40 + 0.05, 0.05, 0.45)
                             else:
-                                fallback_prob = 0.50
+                                fallback_prob = 0.20
                             res_df.loc[idx, col_name] = fallback_prob
                             logger.info(f"VCP ML fallback heuristic applied for market={mkt}, horizon={h}.")
 
