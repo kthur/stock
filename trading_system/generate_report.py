@@ -2171,6 +2171,7 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
   <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
   <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
+  <button class="tab" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
   <button class="tab" onclick="switchTab(this,'history')">📜 파이프라인 이력 &amp; 비교</button>
 </nav>
 
@@ -2349,6 +2350,115 @@ def build_html(
     </div>
   </div>
 
+  <!-- ══ Scenario Simulator Tab Panel ══ -->
+  <div class="tab-panel" id="panel-scenario">
+    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+      <h3 style="color: #60a5fa; margin-top:0; font-size: 1.25rem;"><i class="fas fa-sliders-h"></i> 대화형 거시경제 & 섹터 경기 시나리오 시뮬레이터</h3>
+      <p style="color: #94a3b8; font-size: 0.9rem;">섹터 경기 전망 및 거시 지표 슬라이더를 조작하면 시나리오 조건부 수혜/타격 예측 종목이 실시간 계산됩니다.</p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 15px;">
+        <!-- Sector Outlook Sliders -->
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 8px;">
+          <h4 style="color: #38bdf8; margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">🏢 섹터별 경기 전망</h4>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>반도체 / IT</span><span id="val-semi" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-semi" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>자동차 / 이차전지</span><span id="val-auto" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-auto" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>에너지 / 화학 / 철강</span><span id="val-energy" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-energy" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>금융 / 은행 / 증권</span><span id="val-fin" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-fin" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>식음료 / 필수소비재</span><span id="val-staples" style="color:#60a5fa; font-weight:bold;">0.0</span>
+            </label>
+            <input type="range" id="scen-staples" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+        </div>
+
+        <!-- Macro Indicator Sliders -->
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 8px;">
+          <h4 style="color: #f43f5e; margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">🌐 거시경제(Macro) 지표 변동</h4>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>원/달러 환율 변동 (%)</span><span id="val-fx" style="color:#f43f5e; font-weight:bold;">0.0%</span>
+            </label>
+            <input type="range" id="scen-fx" min="-15" max="15" step="0.5" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>유가 WTI 변동 (%)</span><span id="val-wti" style="color:#f43f5e; font-weight:bold;">0.0%</span>
+            </label>
+            <input type="range" id="scen-wti" min="-30" max="30" step="1" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>미국 10년물 국채 금리 (%)</span><span id="val-rate" style="color:#f43f5e; font-weight:bold;">4.0%</span>
+            </label>
+            <input type="range" id="scen-rate" min="2.0" max="6.0" step="0.1" value="4.0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
+              <span>VIX 공포지수 변동 (%)</span><span id="val-vix" style="color:#f43f5e; font-weight:bold;">0.0%</span>
+            </label>
+            <input type="range" id="scen-vix" min="-40" max="60" step="2" value="0" style="width:100%" oninput="updateScenarioSim()">
+          </div>
+
+          <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="applyPresetScenario('semicon_boom')" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🚀 반도체 호황</button>
+            <button onclick="applyPresetScenario('stagflation')" style="background:#e11d48; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">⚠️ 스태그플레이션</button>
+            <button onclick="resetScenarioSliders()" style="background:#475569; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🔄 초기화</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scenario Market Filter Bar & Table -->
+    <div class="filter-bar" id="filter-scenario" style="margin-bottom: 15px;">
+      <button class="filter-btn active" onclick="filterScenarioMarket(this,'all')">전체 (TOP 30)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSPI')">🇰🇷 KOSPI (TOP 20)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSDAQ')">🇰🇷 KOSDAQ (TOP 20)</button>
+      <button class="filter-btn" onclick="filterScenarioMarket(this,'SP500')">🇺🇸 SP500 (TOP 20)</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table" id="table-scenario-results">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th>시장</th>
+            <th>종목코드</th>
+            <th>종목명</th>
+            <th>섹터</th>
+            <th>기본 점수</th>
+            <th>시뮬레이션 점수</th>
+            <th>변동폭</th>
+            <th>수혜 / 타격 판단 근거 (Impact Rationale)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-scenario-sim">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- ══ Pipeline Run History & Comparison Tab Panel ══ -->
   <div class="tab-panel" id="panel-history">
     {history_html}
@@ -2362,9 +2472,8 @@ def build_html(
 <div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
 
 <nav class="tabs">
-  <button class="tab active" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
+  <button class="tab active" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation (섹터 로테이션)</button>
-  <button class="tab" onclick="switchTab(this,'surge')">⚡ Surge</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
   <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
   <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
@@ -2389,7 +2498,7 @@ def build_html(
 
 <div class="content row2-content" style="padding: 24px 32px;">
   <!-- ══ Surge Tab ══ -->
-  <div class="tab-panel" id="panel-surge">
+  <div class="tab-panel active" id="panel-surge">
     <div class="hz-tabs">{surge_tabs_nav}</div>
     {surge_tabs_content}
   </div>
@@ -2685,115 +2794,6 @@ def build_html(
     </div>
     <div id="microstructure-panels">
     {microstructure_panels}
-    </div>
-  </div>
-
-  <!-- ══ Scenario Simulator Tab ══ -->
-  <div class="tab-panel active" id="panel-scenario">
-    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-      <h3 style="color: #60a5fa; margin-top:0; font-size: 1.25rem;"><i class="fas fa-sliders-h"></i> 대화형 거시경제 & 섹터 경기 시나리오 시뮬레이터</h3>
-      <p style="color: #94a3b8; font-size: 0.9rem;">섹터 경기 전망 및 거시 지표 슬라이더를 조작하면 시나리오 조건부 수혜/타격 예측 종목이 실시간 계산됩니다.</p>
-      
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 15px;">
-        <!-- Sector Outlook Sliders -->
-        <div style="background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 8px;">
-          <h4 style="color: #38bdf8; margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">🏢 섹터별 경기 전망</h4>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>반도체 / IT</span><span id="val-semi" style="color:#60a5fa; font-weight:bold;">0.0</span>
-            </label>
-            <input type="range" id="scen-semi" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>자동차 / 이차전지</span><span id="val-auto" style="color:#60a5fa; font-weight:bold;">0.0</span>
-            </label>
-            <input type="range" id="scen-auto" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>에너지 / 화학 / 철강</span><span id="val-energy" style="color:#60a5fa; font-weight:bold;">0.0</span>
-            </label>
-            <input type="range" id="scen-energy" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>금융 / 은행 / 증권</span><span id="val-fin" style="color:#60a5fa; font-weight:bold;">0.0</span>
-            </label>
-            <input type="range" id="scen-fin" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>식음료 / 필수소비재</span><span id="val-staples" style="color:#60a5fa; font-weight:bold;">0.0</span>
-            </label>
-            <input type="range" id="scen-staples" min="-1" max="1" step="0.1" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-        </div>
-
-        <!-- Macro Indicator Sliders -->
-        <div style="background: rgba(15, 23, 42, 0.6); padding: 15px; border-radius: 8px;">
-          <h4 style="color: #f43f5e; margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">🌐 거시경제(Macro) 지표 변동</h4>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>원/달러 환율 변동 (%)</span><span id="val-fx" style="color:#f43f5e; font-weight:bold;">0.0%</span>
-            </label>
-            <input type="range" id="scen-fx" min="-15" max="15" step="0.5" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>유가 WTI 변동 (%)</span><span id="val-wti" style="color:#f43f5e; font-weight:bold;">0.0%</span>
-            </label>
-            <input type="range" id="scen-wti" min="-30" max="30" step="1" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>미국 10년물 국채 금리 (%)</span><span id="val-rate" style="color:#f43f5e; font-weight:bold;">4.0%</span>
-            </label>
-            <input type="range" id="scen-rate" min="2.0" max="6.0" step="0.1" value="4.0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-          <div style="margin-bottom: 12px;">
-            <label style="display:flex; justify-between:space-between; color:#cbd5e1; font-size:0.85rem;">
-              <span>VIX 공포지수 변동 (%)</span><span id="val-vix" style="color:#f43f5e; font-weight:bold;">0.0%</span>
-            </label>
-            <input type="range" id="scen-vix" min="-40" max="60" step="2" value="0" style="width:100%" oninput="updateScenarioSim()">
-          </div>
-
-          <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <button onclick="applyPresetScenario('semicon_boom')" style="background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🚀 반도체 호황</button>
-            <button onclick="applyPresetScenario('stagflation')" style="background:#e11d48; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">⚠️ 스태그플레이션</button>
-            <button onclick="resetScenarioSliders()" style="background:#475569; color:#fff; border:none; padding:6px 12px; border-radius:4px; font-size:0.8rem; cursor:pointer;">🔄 초기화</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Scenario Market Filter Bar & Table -->
-    <div class="filter-bar" id="filter-scenario" style="margin-bottom: 15px;">
-      <button class="filter-btn active" onclick="filterScenarioMarket(this,'all')">전체 (TOP 30)</button>
-      <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSPI')">🇰🇷 KOSPI (TOP 20)</button>
-      <button class="filter-btn" onclick="filterScenarioMarket(this,'KOSDAQ')">🇰🇷 KOSDAQ (TOP 20)</button>
-      <button class="filter-btn" onclick="filterScenarioMarket(this,'SP500')">🇺🇸 SP500 (TOP 20)</button>
-    </div>
-
-    <div class="table-wrap">
-      <table class="data-table" id="table-scenario-results">
-        <thead>
-          <tr>
-            <th>순위</th>
-            <th>시장</th>
-            <th>종목코드</th>
-            <th>종목명</th>
-            <th>섹터</th>
-            <th>기본 점수</th>
-            <th>시뮬레이션 점수</th>
-            <th>변동폭</th>
-            <th>수혜 / 타격 판단 근거 (Impact Rationale)</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-scenario-sim">
-          <!-- Populated by JS -->
-        </tbody>
-      </table>
     </div>
   </div>
 
