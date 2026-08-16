@@ -66,7 +66,7 @@ class HFTEngine:
             else:
                 slippage = 0.0001 * (qty / 1000.0) * start_price
 
-            price = start_price + (slippage if action == "BUY" else -slippage) + (_np_noise := 0.05 * (step - intervals/2))
+            price = start_price + (slippage if action == "BUY" else -slippage) + (0.0005 * start_price * (step - intervals/2) / max(1, intervals))
 
             logger.info(f"[TWAP Step {step+1}/{intervals}] Executing {action} {qty} shares of {symbol} at {price:.2f} (slippage: {slippage:.4f})")
 
@@ -129,7 +129,7 @@ class HFTEngine:
             volume_share = volume_profile[step]
             impact_factor = (qty / 1000.0) / (volume_share + 1e-5)
             slippage = 0.00005 * impact_factor * start_price
-            price = start_price + (slippage if action == "BUY" else -slippage) + (0.04 * (step - intervals/2))
+            price = start_price + (slippage if action == "BUY" else -slippage) + (0.0005 * start_price * (step - intervals/2) / max(1, intervals))
 
             logger.info(f"[VWAP Step {step+1}/{intervals}] Executing {action} {qty} shares of {symbol} at {price:.2f} (volume_share: {volume_share:.2%}, slippage: {slippage:.4f})")
 

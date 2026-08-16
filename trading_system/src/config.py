@@ -72,7 +72,7 @@ class TradingConfig:
     ensemble_return_multiplier: float = 20.0  # ensemble_score → expected_return 환산 계수
     min_daily_volume_krx: float = 500_000_000.0   # KRX 최소 일평균 거래대금 (5억원)
     min_daily_volume_sp500: float = 1_000_000.0   # US 최소 일평균 거래대금 ($1M USD)
-    slippage_krx_market_order: float = 0.005      # KRX 시가 슬리피지 (0.5%)
+    slippage_krx_market_order: float = 0.0015     # KRX 시가 슬리피지 (0.15%)
 
     # Order Book Market Impact & Bid-Ask Spread Cost Parameters (R2)
     order_size_krx: float = 50_000_000.0        # KRX 기본 주문 금액 가설 (5천만원)
@@ -93,7 +93,7 @@ class TradingConfig:
     # 실시간 장중 모니터링 (realtime_monitor.py)
     realtime_interval_min: int = 15          # 폴링 간격 (분)
     realtime_dry_run: bool = True            # 실매매 없이 모의 실행
-    realtime_stop_loss_pct: float = -0.04    # 진입 대비 손절 임계
+    realtime_stop_loss_pct: float = -0.08    # 진입 대비 손절 임계 (-8%)
     realtime_take_profit_pct: float = 0.08   # 진입 대비 익절 임계
     realtime_vix_threshold: float = 28.0     # VIX 위기 임계
     realtime_usdkrw_threshold: float = 1450.0  # USD/KRW 위기 임계

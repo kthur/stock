@@ -302,7 +302,9 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                 residual = residual - np.mean(residual)
 
             # 7. Robust Scaling to [0.0, 1.0] and Post-Scaling Correlation Check
-            if N_m > 1 and (np.max(residual) - np.min(residual)) > 1e-8:
+            if N_m >= 5 and (np.max(residual) - np.min(residual)) > 1e-8:
+                norm_scores = pd.Series(residual).rank(pct=True).values
+            elif N_m > 1 and (np.max(residual) - np.min(residual)) > 1e-8:
                 p1, p99 = np.percentile(residual, 1), np.percentile(residual, 99)
                 denom = (p99 - p1) if (p99 - p1) > 1e-8 else 1.0
                 norm_scores = np.clip((residual - p1) / denom, 0.0, 1.0)

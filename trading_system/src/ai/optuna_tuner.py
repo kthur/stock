@@ -245,7 +245,8 @@ class OptunaStrategyTuner:
                 feature_cols = [c for c in df_train.columns if c not in ['symbol', 'date', 'name', 'market', target_col] and not c.startswith('target_')]
                 df_clean = df_train.dropna(subset=feature_cols + [target_col])
                 if len(df_clean) >= 30:
-                    y = (df_clean[target_col] >= 0.20).astype(int)
+                    surge_thresh = 0.08 if df_clean[target_col].quantile(0.90) < 0.15 else 0.15
+                    y = (df_clean[target_col] >= surge_thresh).astype(int)
                     if len(np.unique(y)) < 2:
                         logger.warning("Single-class target encountered in surge tuning. Returning defaults without fake label injection.")
                         return self.tune_strategy_2_surge(None, None, n_trials=n_trials)
@@ -445,7 +446,8 @@ class OptunaStrategyTuner:
                 feature_cols = [c for c in df_train.columns if c not in ['symbol', 'date', 'name', 'market', target_col] and not c.startswith('target_')]
                 df_clean = df_train.dropna(subset=feature_cols + [target_col])
                 if len(df_clean) >= 30:
-                    y = (df_clean[target_col] >= 0.20).astype(int)
+                    vcp_thresh = 0.08 if df_clean[target_col].quantile(0.90) < 0.15 else 0.15
+                    y = (df_clean[target_col] >= vcp_thresh).astype(int)
                     if len(np.unique(y)) < 2:
                         logger.warning("Single-class target encountered in vcp_ml tuning. Returning defaults without fake label injection.")
                         return self.tune_strategy_5_vcp_ml(None, None, n_trials=n_trials)
@@ -464,15 +466,22 @@ class OptunaStrategyTuner:
             'SIDEWAYS_LOW_VOL', 'SIDEWAYS_HIGH_VOL',
             'BULL_LOW_VOL', 'BULL_HIGH_VOL'
         ]
-        strats = [
-            'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
-            'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
-            'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
-            'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
-            'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target',
-            'microstructure', 'accruals_quality', 'short_squeeze', 'valueup_catalyst',
-            'trend_efficiency'
-        ]
+        try:
+            from src.core.strategy_registry import get_registry
+            strats = get_registry().get_all_ids()
+        except Exception:
+            strats = []
+
+        if not strats:
+            strats = [
+                'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml',
+                'lstm', 'stat_arb', 'sector_rotation', 'rim_valuation',
+                'event_driven', 'mq_factor', 'iv_skew', 'order_flow', 'short_term_reversal',
+                'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
+                'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target',
+                'microstructure', 'accruals_quality', 'short_squeeze', 'valueup_catalyst',
+                'trend_efficiency', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift', 'hft_order_flow'
+            ]
 
         if not strategy_returns_by_regime:
             logger.warning("No strategy returns by regime provided; returning default regime 2d weights")

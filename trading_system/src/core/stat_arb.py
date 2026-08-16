@@ -414,21 +414,55 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             spreads = Y_hist - (slopes[:, None] * X_hist + intercepts[:, None])
 
             dy = spreads[:, 1:] - spreads[:, :-1]
-            y_lag = spreads[:, :-1]
-            yl_mean = np.mean(y_lag, axis=1, keepdims=True)
-            dy_mean = np.mean(dy, axis=1, keepdims=True)
-            yl_diff = y_lag - yl_mean
-            dy_diff = dy - dy_mean
-            var_yl = np.sum(yl_diff**2, axis=1)
-            cov_yldy = np.sum(yl_diff * dy_diff, axis=1)
-            var_yl = np.where(var_yl < 1e-8, 1e-6, var_yl)
-            beta = cov_yldy / var_yl
+            if dy.shape[1] >= 10:
+                # Augmented Dickey-Fuller (ADF) with 1 lag difference: dy_t = beta * y_{t-1} + gamma * dy_{t-1} + c
+                dy_target = dy[:, 1:]
+                y_lag_target = spreads[:, 1:-1]
+                dy_lag = dy[:, :-1]
 
-            res_dy = dy_diff - beta[:, None] * yl_diff
-            T_sub = float(dy.shape[1])
-            s_err = np.sqrt(np.maximum(np.sum(res_dy**2, axis=1) / max(1.0, T_sub - 2.0), 1e-12) / var_yl)
-            s_err = np.where(s_err < 1e-12, 1e-6, s_err)
-            t_stats = beta / s_err
+                dy_mean = np.mean(dy_target, axis=1, keepdims=True)
+                yl_mean = np.mean(y_lag_target, axis=1, keepdims=True)
+                dyl_mean = np.mean(dy_lag, axis=1, keepdims=True)
+
+                Y_c = dy_target - dy_mean
+                X1_c = y_lag_target - yl_mean
+                X2_c = dy_lag - dyl_mean
+
+                # Vectorized 2x2 Gram matrix inversion per pair
+                s11 = np.sum(X1_c**2, axis=1)
+                s22 = np.sum(X2_c**2, axis=1)
+                s12 = np.sum(X1_c * X2_c, axis=1)
+                sy1 = np.sum(Y_c * X1_c, axis=1)
+                sy2 = np.sum(Y_c * X2_c, axis=1)
+
+                det = s11 * s22 - s12**2
+                det = np.where(det < 1e-8, 1e-6, det)
+
+                beta = (s22 * sy1 - s12 * sy2) / det
+                gamma = (s11 * sy2 - s12 * sy1) / det
+
+                res_dy = Y_c - beta[:, None] * X1_c - gamma[:, None] * X2_c
+                T_sub = float(dy_target.shape[1])
+                inv_c11 = s22 / det
+                s_err = np.sqrt(np.maximum(np.sum(res_dy**2, axis=1) / max(1.0, T_sub - 3.0), 1e-12) * inv_c11)
+                s_err = np.where(s_err < 1e-12, 1e-6, s_err)
+                t_stats = beta / s_err
+            else:
+                y_lag = spreads[:, :-1]
+                yl_mean = np.mean(y_lag, axis=1, keepdims=True)
+                dy_mean = np.mean(dy, axis=1, keepdims=True)
+                yl_diff = y_lag - yl_mean
+                dy_diff = dy - dy_mean
+                var_yl = np.sum(yl_diff**2, axis=1)
+                cov_yldy = np.sum(yl_diff * dy_diff, axis=1)
+                var_yl = np.where(var_yl < 1e-8, 1e-6, var_yl)
+                beta = cov_yldy / var_yl
+
+                res_dy = dy_diff - beta[:, None] * yl_diff
+                T_sub = float(dy.shape[1])
+                s_err = np.sqrt(np.maximum(np.sum(res_dy**2, axis=1) / max(1.0, T_sub - 2.0), 1e-12) / var_yl)
+                s_err = np.where(s_err < 1e-12, 1e-6, s_err)
+                t_stats = beta / s_err
 
             p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
             # AR(1) coefficient phi = 1 + beta: phi in (0,1) → stable mean reversion;
@@ -533,7 +567,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         if not found_pairs:
             return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
 
-        symbol_scores: dict[str, float] = {}
+        symbol_deltas: dict[str, float] = {}
         for item in found_pairs:
             sig = item.get("signal", "")
             z = abs(item.get("z_score", 0.0))
@@ -543,21 +577,22 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             s1, s2 = pair
             # Non-linear mean-reversion acceleration for extreme cointegration divergences (|Z| >= 2.0)
             z_mult = 1.20 if z >= 2.0 else 1.0
-            score_delta = min(0.45, z * 0.10 * z_mult)
+            score_delta = min(0.40, z * 0.10 * z_mult)
 
             if "LONG_" + s1 in sig:
-                symbol_scores[s1] = max(symbol_scores.get(s1, 0.5), 0.5 + score_delta)
+                symbol_deltas[s1] = symbol_deltas.get(s1, 0.0) + score_delta
             if "SHORT_" + s1 in sig:
-                symbol_scores[s1] = min(symbol_scores.get(s1, 0.5), 0.5 - score_delta)
+                symbol_deltas[s1] = symbol_deltas.get(s1, 0.0) - score_delta
 
             if "LONG_" + s2 in sig:
-                symbol_scores[s2] = max(symbol_scores.get(s2, 0.5), 0.5 + score_delta)
+                symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) + score_delta
             if "SHORT_" + s2 in sig:
-                symbol_scores[s2] = min(symbol_scores.get(s2, 0.5), 0.5 - score_delta)
+                symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) - score_delta
 
-        if not symbol_scores:
+        if not symbol_deltas:
             return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
 
+        symbol_scores = {s: float(np.clip(0.5 + delta, 0.05, 0.95)) for s, delta in symbol_deltas.items()}
         df = pd.DataFrame(list(symbol_scores.items()), columns=['symbol', 'stat_arb_score'])
         return df[['symbol', 'stat_arb_score']]
 

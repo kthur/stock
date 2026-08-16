@@ -176,11 +176,13 @@ class RIMValuationEngine(BaseStrategyEngine):
             else:
                 df['bps'] = np.nan
         df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
-        # Fallback BPS from eps/roe when book_value is unavailable (DB default=0)
+        # Fallback BPS from eps/roe when book_value is unavailable (DB default=0) and both eps & roe are strictly positive
         nan_mask = df['bps'].isna()
         if nan_mask.any() and 'eps' in df.columns and 'roe' in df.columns:
-            fallback = (df.loc[nan_mask, 'eps'] / df.loc[nan_mask, 'roe']).replace([np.inf, -np.inf], np.nan)
-            df.loc[nan_mask, 'bps'] = fallback
+            pos_mask = nan_mask & (df['eps'] > 0) & (df['roe'] > 0)
+            if pos_mask.any():
+                fallback = (df.loc[pos_mask, 'eps'] / df.loc[pos_mask, 'roe']).replace([np.inf, -np.inf], np.nan)
+                df.loc[pos_mask, 'bps'] = fallback
         # Only fill NaN BPS with Close*0.8 when fundamentals exist for that stock but BPS is temporarily missing
         # Never invent BPS from price alone — that creates an artificial -20% discount for all symbols
 

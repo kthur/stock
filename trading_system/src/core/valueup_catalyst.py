@@ -114,10 +114,15 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 else:
                     pbr_factor = max(0.1, 1.0 / (pbr_val ** 0.5))
 
-                # Net cash ratio
+                # Net cash ratio (cash minus total debt)
+                debt = row.get('total_debt', row.get('debt', row.get('interest_bearing_debt', 0.0)))
+                debt_val = float(debt) if (pd.notna(debt) and float(debt) > 0) else 0.0
+                cash_val = float(cash) if (pd.notna(cash) and float(cash) > 0) else 0.0
+                net_cash = cash_val - debt_val
+
                 cash_ratio = 0.0
-                if pd.notna(cash) and pd.notna(mcap) and float(mcap) > 0:
-                    cash_ratio = float(cash) / float(mcap)
+                if pd.notna(mcap) and float(mcap) > 0:
+                    cash_ratio = max(0.0, net_cash) / float(mcap)
 
                 div_val = float(div_yield) if pd.notna(div_yield) else 0.0
                 if div_val > 1.0:  # Percentage format e.g. 3.5 -> 0.035

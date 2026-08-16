@@ -90,5 +90,5 @@ def test_optuna_tuner_27_strategies_support():
     tuned = tuner.tune_regime_2d_weights(strategy_returns_by_regime=returns_by_regime, n_trials=2)
     assert 'BULL_LOW_VOL' in tuned
     bull_w = tuned['BULL_LOW_VOL']
-    assert len(bull_w) == 27
+    assert len(bull_w) == len(strategy_cols)
     assert pytest.approx(sum(bull_w.values()), abs=1e-3) == 1.0

@@ -130,14 +130,18 @@ class OrderFlowEngine(BaseStrategyEngine):
                         try:
                             # Align flow dates with price dates
                             f_df_aligned = f_df.reindex(df.index).ffill()
+                            v_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
+                            vol_5d = float(df[v_col].iloc[-5:].sum()) if (v_col and len(df) >= 5) else 1e6
+                            vol_5d = max(vol_5d, 1.0)
+
                             if 'foreign_net_buy' in f_df_aligned.columns:
-                                f_buy = f_df_aligned['foreign_net_buy'].iloc[-5:].sum()
+                                f_buy = float(f_df_aligned['foreign_net_buy'].iloc[-5:].sum())
                                 if f_buy > 0:
-                                    inst_boost += 0.10
+                                    inst_boost += min(0.10, (f_buy / vol_5d) * 0.5)
                             if 'inst_net_buy' in f_df_aligned.columns:
-                                i_buy = f_df_aligned['inst_net_buy'].iloc[-5:].sum()
+                                i_buy = float(f_df_aligned['inst_net_buy'].iloc[-5:].sum())
                                 if i_buy > 0:
-                                    inst_boost += 0.10
+                                    inst_boost += min(0.10, (i_buy / vol_5d) * 0.5)
                         except Exception:
                             pass
 

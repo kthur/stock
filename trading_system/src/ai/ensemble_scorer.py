@@ -643,10 +643,10 @@ class EnsembleScoringEngine:
             w['supply_chain'] = max(0.0, w.get('supply_chain', 0.02) - 0.01)
 
         if vix_val > 40.0:
-            w['surge'] = 0.0
-            w['vcp_ml'] = 0.0
-            w['trend_efficiency'] = 0.0   # 극단적 공포 시 추세 전략 완전 제거
-            w['short_squeeze'] = 0.0      # 극단적 변동성에서 숏스퀴즈 제거
+            w['surge'] = max(0.01, w.get('surge', 0.15) * 0.3)
+            w['vcp_ml'] = max(0.01, w.get('vcp_ml', 0.10) * 0.3)
+            w['trend_efficiency'] = max(0.01, w.get('trend_efficiency', 0.02) * 0.3)
+            w['short_squeeze'] = max(0.01, w.get('short_squeeze', 0.02) * 0.3)
             w['stat_arb'] = w.get('stat_arb', 0.10) + 0.15
             w['rim_valuation'] = w.get('rim_valuation', 0.10) + 0.10
             w['vol_target'] = w.get('vol_target', 0.04) + 0.05  # 리스크 파리티 극대화
@@ -777,7 +777,8 @@ class EnsembleScoringEngine:
                     if s1 and s2 and s1 in penalized_weights and s2 in penalized_weights:
                         r_val = float(corr_matrix.loc[c1, c2])
                         if pd.notna(r_val) and r_val > correlation_threshold:
-                            penalized_weights[s2] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
+                            target_s = s2 if penalized_weights[s1] >= penalized_weights[s2] else s1
+                            penalized_weights[target_s] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
 
             total = sum(penalized_weights.values())
             if total > 0:
@@ -824,14 +825,8 @@ class EnsembleScoringEngine:
         max_multiplier_ratio = 5.0
         sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
         scores = {}
-        pruned_strategies = {s for s, sh in clean_sharpes.items() if sh < -0.50}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
-            if sharpe < -0.50 or strategy in pruned_strategies:
-                logger.warning(f"Strategy '{strategy}' pruned due to severe underperformance (Sharpe = {sharpe:.2f} < -0.50).")
-                scores[strategy] = 0.0
-                pruned_strategies.add(strategy)
-                continue
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
             # Convex Sharpe Elasticity Multiplier for high performing strategies & Asymmetric Downside Penalty
@@ -880,9 +875,6 @@ class EnsembleScoringEngine:
             for k, target_w in dynamic_weights.items():
                 prev_w = self._prev_weights.get(k, target_w)
                 smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
-
-            for s in pruned_strategies:
-                smoothed[s] = 0.0
 
             total_w = sum(smoothed.values())
             if total_w > 0:
@@ -1703,13 +1695,19 @@ class EnsembleScoringEngine:
         coverage_penalty = np.where(coverage_ratio < 0.40, 0.5 + 0.5 * (coverage_ratio / 0.40), 1.0)
         linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
 
-        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend (50:50 if fitted and explicit weights not specified)
+        # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend
         explicit_weights_provided = (weights is not None and len(weights) > 0 and len(merged) < 5)
         try:
             meta_learner = MetaEnsembleLearner()
             if meta_learner.is_fitted and not explicit_weights_provided:
                 meta_score = meta_learner.predict(merged)
-                blended_score = pd.Series(0.5 * linear_score + 0.5 * meta_score, index=merged.index).clip(0.0, 1.0)
+                meta_weight = 0.50
+                if hasattr(meta_learner, 'oob_score_') and pd.notna(meta_learner.oob_score_):
+                    meta_weight = float(np.clip(meta_learner.oob_score_, 0.30, 0.75))
+                blended_score = pd.Series(
+                    (1.0 - meta_weight) * linear_score + meta_weight * meta_score,
+                    index=merged.index
+                ).clip(0.0, 1.0)
             else:
                 blended_score = linear_score
         except Exception as e:
@@ -1775,9 +1773,20 @@ class EnsembleScoringEngine:
                         distress_cond = distress_cond | (merged['operating_margin'] < -0.10)
                     if 'roe' in merged.columns:
                         distress_cond = distress_cond | (merged['roe'] < -0.10)
-                    if distress_cond.any():
-                        blended_score.loc[distress_cond] = (blended_score.loc[distress_cond] * 0.70).clip(0.0, 1.0)
-                        logger.info(f"[DISTRESS GATEKEEPER] Applied 0.70x penalty to {distress_cond.sum()} loss-making symbols.")
+
+                    # Exempt tactical turnaround / deep value / squeeze catalysts from distress penalty
+                    tactical_exempt = pd.Series(False, index=merged.index)
+                    if 'short_squeeze_score' in merged.columns:
+                        tactical_exempt = tactical_exempt | (merged['short_squeeze_score'] >= 0.65)
+                    if 'valueup_catalyst_score' in merged.columns:
+                        tactical_exempt = tactical_exempt | (merged['valueup_catalyst_score'] >= 0.65)
+                    if 'reversal_score' in merged.columns:
+                        tactical_exempt = tactical_exempt | (merged['reversal_score'] >= 0.65)
+
+                    distress_to_penalize = distress_cond & (~tactical_exempt)
+                    if distress_to_penalize.any():
+                        blended_score.loc[distress_to_penalize] = (blended_score.loc[distress_to_penalize] * 0.70).clip(0.0, 1.0)
+                        logger.info(f"[DISTRESS GATEKEEPER] Applied 0.70x penalty to {distress_to_penalize.sum()} loss-making non-tactical symbols.")
 
                     # High-Quality Compounder Bonus (Profitable compounding champions)
                     quality_cond = pd.Series(False, index=merged.index)
@@ -1793,14 +1802,6 @@ class EnsembleScoringEngine:
                         logger.info(f"[QUALITY COMPOUNDER] Applied 1.035x quality bonus to {quality_cond.sum()} high-ROIC firms.")
             except Exception as _be:
                 logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
-
-        # Phase 3: Turnover Hysteresis Buffer for currently held portfolio symbols (+0.05 bonus)
-        if held_symbols:
-            h_set = set(held_symbols)
-            held_mask = merged['symbol'].isin(h_set)
-            if held_mask.any():
-                blended_score.loc[held_mask] = (blended_score.loc[held_mask] + 0.05).clip(upper=1.0)
-                logger.info(f"[TURNOVER HYSTERESIS] Applied +0.05 hold buffer to {held_mask.sum()} held symbols.")
 
         merged['ensemble_score'] = blended_score
 
@@ -2010,12 +2011,15 @@ class EnsembleScoringEngine:
                     # Use actual strategy scores per symbol as sample return vectors
                     returns_matrix_df = top_candidates.set_index('symbol')[score_cols].T
                 else:
-                    # Fallback construct deterministic return series scaled by expected return
+                    # Fallback construct return series scaled by expected return with uncorrelated noise
                     ret_series = top_candidates.set_index('symbol')['ensemble_expected_return'] / 100.0
-                    base_noise = np.linspace(-0.01, 0.01, 30)
-                    returns_matrix_df = pd.DataFrame(
-                        {sym: ret_series[sym] + base_noise for sym in top_syms}
-                    )
+                    ret_dict = {}
+                    for sym in top_syms:
+                        sym_seed = int(abs(hash(str(sym)))) % (2**31)
+                        sym_rng = np.random.RandomState(sym_seed)
+                        base_noise = sym_rng.normal(0.0, 0.02, 30)
+                        ret_dict[sym] = float(ret_series.get(sym, 0.0)) + base_noise
+                    returns_matrix_df = pd.DataFrame(ret_dict)
 
                 expected_ret_series = top_candidates.set_index('symbol')['ensemble_expected_return']
                 raw_weights = optimizer.optimize_return_tilted_risk_parity(

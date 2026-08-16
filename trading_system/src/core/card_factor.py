@@ -123,6 +123,15 @@ class CARDFactorEngine(BaseStrategyEngine):
                 if np.isnan(card_score) or np.isinf(card_score):
                     card_score = 0.5
                 else:
+                    # Check fundamental distress to avoid idiosyncratic collapse value traps
+                    fund_dict = kwargs.get('fundamentals_dict') or fundamentals_dict
+                    if isinstance(fund_dict, dict) and sym in fund_dict:
+                        f_info = fund_dict[sym]
+                        op_m = f_info.get('operating_margin', f_info.get('op_margin', np.nan))
+                        roe_v = f_info.get('roe', np.nan)
+                        if (pd.notna(op_m) and float(op_m) < -0.15) or (pd.notna(roe_v) and float(roe_v) < -0.15):
+                            card_score *= 0.70
+
                     # Asymmetric Upside Booster for extreme macro divergence undervaluation
                     if card_score >= 0.70:
                         card_score = float(np.clip(card_score * 1.10, 0.0, 1.0))

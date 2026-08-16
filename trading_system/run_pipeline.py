@@ -550,6 +550,24 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
                 logger.warning(f"[DataQualityGate] Network payload for {s} failed validation. Skipping price_db update.")
 
             if cached_df is not None and not cached_df.empty:
+                # Discontinuity / split check on overlapping dates
+                overlap_idx = cached_df.index.intersection(network_result.index)
+                if len(overlap_idx) > 0:
+                    c_col = 'Close' if 'Close' in cached_df.columns else ('close' if 'close' in cached_df.columns else None)
+                    n_col = 'Close' if 'Close' in network_result.columns else ('close' if 'close' in network_result.columns else None)
+                    if c_col and n_col:
+                        try:
+                            c_last_overlap = float(cached_df.loc[overlap_idx[-1], c_col])
+                            n_last_overlap = float(network_result.loc[overlap_idx[-1], n_col])
+                            if c_last_overlap > 0 and n_last_overlap > 0:
+                                ratio = n_last_overlap / c_last_overlap
+                                if ratio < 0.70 or ratio > 1.40:
+                                    logger.warning(f"[DataQualityGate] Split / corporate action discontinuity detected for {s} (ratio={ratio:.2f}). Invalidate old cache.")
+                                    cached_df = None
+                        except Exception:
+                            pass
+
+            if cached_df is not None and not cached_df.empty:
                 merged_df = pd.concat([cached_df, network_result])
                 merged_df = merged_df[~merged_df.index.duplicated(keep='last')].sort_index()
                 ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in merged_df.columns]

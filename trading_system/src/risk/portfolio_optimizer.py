@@ -26,18 +26,27 @@ class PortfolioOptimizer:
         safe_sec_w = float(default_max_sector_weight) if (default_max_sector_weight is not None and np.isfinite(default_max_sector_weight)) else 0.30
         self.default_max_sector_weight = max(0.01, min(1.0, safe_sec_w))
 
-    def calculate_covariance_matrix(self, returns_df: pd.DataFrame, shrinkage: float = 0.1) -> pd.DataFrame:
+    def calculate_covariance_matrix(self, returns_df: pd.DataFrame, shrinkage: Optional[float] = None) -> pd.DataFrame:
         """
-        Calculate sample covariance matrix with Ledoit-Wolf-like shrinkage for stability.
+        Calculate covariance matrix with dynamic Ledoit-Wolf shrinkage for optimal estimation stability.
         """
-        safe_shrinkage = float(shrinkage) if (shrinkage is not None and np.isfinite(shrinkage)) else 0.1
-        safe_shrinkage = max(0.0, min(1.0, safe_shrinkage))
-
         if returns_df.empty or len(returns_df) < 5:
             n_assets = len(returns_df.columns) if not returns_df.empty else 1
             cols = returns_df.columns if not returns_df.empty else ["ASSET"]
             return pd.DataFrame(np.eye(n_assets) * 0.0004, index=cols, columns=cols)
 
+        clean_returns = returns_df.dropna()
+        if len(clean_returns) >= 10 and clean_returns.shape[1] >= 2 and shrinkage is None:
+            try:
+                from sklearn.covariance import LedoitWolf
+                lw = LedoitWolf()
+                lw.fit(clean_returns.values)
+                return pd.DataFrame(lw.covariance_, index=returns_df.columns, columns=returns_df.columns)
+            except Exception:
+                pass
+
+        safe_shrinkage = float(shrinkage) if (shrinkage is not None and np.isfinite(shrinkage)) else 0.1
+        safe_shrinkage = max(0.0, min(1.0, safe_shrinkage))
         cov_sample = returns_df.cov().fillna(0.0)
         n_assets = cov_sample.shape[0]
         prior = np.eye(n_assets) * np.trace(cov_sample.values) / max(n_assets, 1)
@@ -63,6 +72,7 @@ class PortfolioOptimizer:
         if n_assets == 1:
             return {symbols[0]: 1.0}
 
+        eff_max_w = max(float(max_weight), 1.05 / n_assets)
         cov_matrix = self.calculate_covariance_matrix(returns_df).values
 
         def risk_budget_objective(weights, cov):
@@ -75,7 +85,7 @@ class PortfolioOptimizer:
             return np.sum((risk_contrib - target_risk) ** 2)
 
         init_weights = np.ones(n_assets) / n_assets
-        bounds = tuple((0.0, max_weight) for _ in range(n_assets))
+        bounds = tuple((0.0, eff_max_w) for _ in range(n_assets))
         constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0})
 
         res = minimize(
@@ -119,8 +129,10 @@ class PortfolioOptimizer:
         if n_assets == 1:
             return {symbols[0]: 1.0}
 
+        eff_max_w = max(float(max_weight), 1.05 / n_assets)
+
         # Step 1: Base ERC Risk Parity weights
-        base_erc = self.optimize_risk_parity(returns_df, max_weight=max_weight)
+        base_erc = self.optimize_risk_parity(returns_df, max_weight=eff_max_w)
         if expected_returns is None or (isinstance(expected_returns, (pd.Series, dict)) and len(expected_returns) == 0):
             return base_erc
 
@@ -145,18 +157,14 @@ class PortfolioOptimizer:
         tilted_raw = raw_erc_arr * tilt_factors
         tilted_target = tilted_raw / max(np.sum(tilted_raw), 1e-12)
 
-        # Step 4: Bounded quadratic projection to strictly satisfy 0 <= w_i <= max_weight & sum(w) == 1.0
-        cov_matrix = self.calculate_covariance_matrix(returns_df).values
-
+        # Step 4: Bounded quadratic projection to strictly satisfy 0 <= w_i <= eff_max_w & sum(w) == 1.0
         def projection_objective(w):
-            # Minimize squared deviation from tilted target while penalizing covariance risk
-            dev_penalty = np.sum((w - tilted_target) ** 2)
-            port_vol = np.sqrt(max(0.0, np.dot(w.T, np.dot(cov_matrix, w))))
-            return dev_penalty + 0.10 * port_vol
+            # Pure bounded quadratic projection preserving return tilt while respecting constraints
+            return np.sum((w - tilted_target) ** 2)
 
-        init_weights = np.clip(tilted_target, 0.0, max_weight)
+        init_weights = np.clip(tilted_target, 0.0, eff_max_w)
         init_weights = init_weights / max(np.sum(init_weights), 1e-12)
-        bounds = tuple((0.0, max_weight) for _ in range(n_assets))
+        bounds = tuple((0.0, eff_max_w) for _ in range(n_assets))
         constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0})
 
         res = minimize(
@@ -169,7 +177,7 @@ class PortfolioOptimizer:
         )
 
         if not res.success:
-            final_weights = np.clip(tilted_target, 0.0, max_weight)
+            final_weights = np.clip(tilted_target, 0.0, eff_max_w)
             final_weights = final_weights / max(np.sum(final_weights), 1e-12)
         else:
             final_weights = res.x / max(np.sum(res.x), 1e-12)
@@ -268,15 +276,16 @@ class PortfolioOptimizer:
             w_arr /= total_w
 
         sectors = sorted(list(set(sector_map.get(s, "Unknown") for s in symbols)))
+        eff_max_sector_w = max(float(max_sector_weight), 1.05 / max(1, len(sectors)))
 
         for _ in range(10):
-            # 1. Cap sector weights at max_sector_weight
+            # 1. Cap sector weights at eff_max_sector_w
             for sec in sectors:
                 idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") == sec]
                 if idx:
                     s_sum = np.sum(w_arr[idx])
-                    if s_sum > max_sector_weight + 1e-8:
-                        w_arr[idx] *= (max_sector_weight / s_sum)
+                    if s_sum > eff_max_sector_w + 1e-8:
+                        w_arr[idx] *= (eff_max_sector_w / s_sum)
 
             # 2. Check total sum
             w_tot = np.sum(w_arr)
@@ -286,13 +295,13 @@ class PortfolioOptimizer:
             if w_tot > 1.0:
                 w_arr /= w_tot
             else:
-                # w_tot < 1.0: scale up only sectors that have s_sum < max_sector_weight - 1e-8
+                # w_tot < 1.0: scale up only sectors that have s_sum < eff_max_sector_w - 1e-8
                 eligible_secs = []
                 for sec in sectors:
                     idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") == sec]
                     if idx:
                         s_sum = np.sum(w_arr[idx])
-                        if s_sum < max_sector_weight - 1e-8:
+                        if s_sum < eff_max_sector_w - 1e-8:
                             eligible_secs.append(sec)
 
                 if not eligible_secs:
@@ -309,13 +318,13 @@ class PortfolioOptimizer:
                     add_w = needed / len(eligible_idx)
                     w_arr[eligible_idx] += add_w
 
-        # Final pass: strictly cap sectors at max_sector_weight
+        # Final pass: strictly cap sectors at eff_max_sector_w
         for sec in sectors:
             idx = [i for i, s in enumerate(symbols) if sector_map.get(s, "Unknown") == sec]
             if idx:
                 s_sum = np.sum(w_arr[idx])
-                if s_sum > max_sector_weight + 1e-8:
-                    w_arr[idx] *= (max_sector_weight / s_sum)
+                if s_sum > eff_max_sector_w + 1e-8:
+                    w_arr[idx] *= (eff_max_sector_w / s_sum)
 
         w_tot = np.sum(w_arr)
         if w_tot > 1.0 + 1e-8:

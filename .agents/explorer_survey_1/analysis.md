@@ -1,166 +1,136 @@
-# Stock Price Fetching & Data Resilience Investigation Report
+# R1 Survey & Forensic Analysis: 31 Quantitative Alpha Engines & Dynamic Ensemble Scoring
 
-**Explorer**: Explorer 1  
-**Project**: Price Fetch Hardening Project  
-**Date**: 2026-08-06  
-**Target Directory**: `d:\Finance\code\stock`  
-
----
-
-## Executive Summary
-
-An in-depth investigation was conducted into the price fetching, caching, and update architecture across all 6 target stock markets (**KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000**, comprising ~3,379 active symbols).
-
-While the system implements a conceptual **3-Tier Fallback Architecture** (Tier 1: `yfinance` → Tier 2: `FinanceDataReader` → Tier 3: `StockPriceDB` local SQLite WAL cache), the audit uncovered critical network retry gaps, exception swallowing bugs, ticker symbol format mismatches (especially for KONEX and dotted US tickers), missing rate-limit backoff in batch prefetching, and data quality gate bypasses.
+**Date:** 2026-08-15  
+**Investigator:** Explorer 1  
+**Target Repository:** `kthur/stock`  
+**Working Directory:** `d:\Finance\code\stock`  
 
 ---
 
-## 1. `StockPriceDB` Persistence Layer Analysis (`trading_system/src/persistence/database.py`)
+## 1. Executive Summary
 
-### 1.1 Architecture & Schema
-`StockPriceDB` manages daily OHLCV bar storage in `trading_system/stock_prices.db` using SQLite WAL mode.
-- **Table Schema**:
-  ```sql
-  CREATE TABLE IF NOT EXISTS stock_prices (
-      symbol TEXT NOT NULL,
-      date TEXT NOT NULL,
-      open REAL,
-      high REAL,
-      low REAL,
-      close REAL,
-      volume INTEGER,
-      updated_at TEXT DEFAULT (datetime('now')),
-      PRIMARY KEY (symbol, date)
-  );
-  CREATE INDEX IF NOT EXISTS idx_stock_prices_symbol_date ON stock_prices(symbol, date);
+This investigation performed a comprehensive forensic audit of the **31 Quantitative Alpha Strategy Engines and the Dynamic Multi-Factor Ensemble Scoring Engine** in `kthur/stock`. 
+
+### Key Findings:
+1. **Full 31-Strategy Implementation & Integration:** All 31 strategies listed in `AGENTS.md` and `ORIGINAL_REQUEST.md` are implemented as specialized modular classes (under `trading_system/src/core/` and `trading_system/src/ai/`), decorated with `@register_strategy` in `StrategyRegistry`, and fully connected through `EnsembleScoringEngine.combine_predictions` in `trading_system/src/ai/ensemble_scorer.py` and orchestrated in `trading_system/run_pipeline.py`.
+2. **Zero Lookahead Bias Guarantee:** The codebase strictly implements a **60-day conservative filing lag** for fundamental financial data (`pd.merge_asof` with `date_available = date + 60d`, `direction='backward'`) preventing future earnings leaks. Furthermore, **cross-timezone lag shifts** (`shift_us_indicators=True`) are enforced on US macroeconomic and market indicators when evaluating Asian/KRX equities.
+3. **Robust Collinearity & Dimensionality Management:** A tripartite collinearity defense is active:
+   - **PCA ZCA Symmetric Whitening & Modified Gram-Schmidt Decorrelation** (`FactorOrthogonalizerEngine`) regularized via Ledoit-Wolf shrinkage covariance.
+   - **Cross-Sectional Spearman Rank Correlation & VIF Filtering** (`StrategyCorrelationMonitor`).
+   - **2D Regime Factor Noise Suppression** (`RegimeFactorSuppressionEngine`) penalizing redundant intra-cluster factor exposures.
+4. **Resilient Calibration & Missingness Handling:** Valid 0.0 scores are preserved without being erroneously treated as missing data. A missingness-aware coverage penalty (`coverage_ratio < 0.40`) prevents sparse data stocks from unfairly dominating rankings. Isotonic regression score calibrators fit empirical probabilities, and cross-sectional 0.5%–99.5% winsorization eliminates outlier distortion.
+
+---
+
+## 2. Comprehensive Catalog & Forensic Audit of 31 Strategy Engines
+
+| # | Strategy Name | Core Module Path | Output File | Mathematical Formulation & Operation | Integration Status |
+|---|---|---|---|---|---|
+| **1** | **XGBoost Regression** | `src/ai/prediction_model.py` (`OnDevicePredictionModel`) | `pipeline_result.txt` | Multi-horizon (1d~200d) forward return forecasting via gradient boosted trees with float32 downcasting and feature normalization. | ✅ Fully integrated (`reg_score`) |
+| **2** | **Surge Classifier** | `src/ai/prediction_model.py` (`OnDevicePredictionModel`) | `surge_predictions.txt` | Multi-horizon (1d/3d/5d/20d) 20%+ breakout probability classification with capped `scale_pos_weight <= 20.0`. | ✅ Fully integrated (`surge_score`) |
+| **3** | **Lead-Lag Shift** | `src/core/cross_border_lead_lag.py` & `prediction_model.py` | `lead_lag_predictions.txt` | 2-Tier industry/large-cap and US Megacap Tech (NVDA/AAPL/TSLA) $\to$ KR supply-chain follower lag-shifted momentum. | ✅ Fully integrated (`ll_score`) |
+| **4** | **VCP Rule Pattern** | `src/ai/vcp_detector.py` (`VCPPatternDetector`) | `vcp_patterns.txt` | Volatility contraction pattern detection: decreasing swing amplitude, volume dry-up, and 52-week high proximity. | ✅ Fully integrated (`vcp_rule_score`) |
+| **5** | **VCP ML Predictor** | `src/ai/vcp_ml_predictor.py` (`VCPMLPredictor`) | `vcp_ml_predictions.txt` | Market-specific XGBoost surge classifier trained specifically on historical VCP pattern setups. | ✅ Fully integrated (`vcp_ml_score`) |
+| **6** | **Strict Causal LSTM** | `src/ai/lstm_predictor.py` (`LSTMPredictor`) | `lstm_predictions.txt` | Time-series causal PyTorch LSTM with rolling lookahead-free standardization and trend momentum boosting ($\ge 0.70 \to 1.08\times$). | ✅ Fully integrated (`lstm_score`) |
+| **7** | **Stat-Arb Cointegration** | `src/core/stat_arb.py` (`StatisticalArbitrageEngine`) | `stat_arb_predictions.txt` | Engle-Granger 2-step log cointegration residual mean-reversion, Ornstein-Uhlenbeck half-life estimation, and MiniBatchKMeans clustering. | ✅ Fully integrated (`stat_arb_score`) |
+| **8** | **Sector Rotation** | `src/core/sector_rotation.py` (`SectorRotationEngine`) | `sector_predictions.txt` | KRX/GICS sector 1M/3M relative momentum scoring with macro factor sensitivity adjustments. | ✅ Fully integrated (`sector_score`) |
+| **9** | **RIM Valuation** | `src/core/rim_valuation.py` (`RIMValuationEngine`) | `rim_predictions.txt` | Finite-horizon decaying ROE Residual Income Model ($V_0 = BPS_0 + \sum PV(Excess)$) with retained earnings accumulation and earnings quality filtering. | ✅ Fully integrated (`rim_score`) |
+| **10** | **Event-Driven** | `src/core/event_driven.py` (`EventDrivenEngine`) | `event_driven_predictions.txt` | OpenDART / SEC corporate disclosures, buybacks, earnings surprises, and CB/BW dilution discount modeling. | ✅ Fully integrated (`event_score`) |
+| **11** | **Momentum Quality (MQ)** | `src/core/mq_factor.py` (`MQFactorEngine`) | `mq_factor_predictions.txt` | 12M-1M price momentum (skipping 1M reversal noise) combined with fundamental profitability (operating margin, ROE, EPS growth). | ✅ Fully integrated (`mq_score`) |
+| **12** | **Options IV Skew** | `src/core/iv_skew.py` (`IVSkewEngine`) | `iv_skew_predictions.txt` | Put/Call implied volatility skew ratio, contrarian bullish panic scoring, and vectorized semi-volatility skewness proxy. | ✅ Fully integrated (`iv_skew_score`) |
+| **13** | **Order Flow Imbalance** | `src/core/order_flow.py` (`OrderFlowEngine`) | `order_flow_predictions.txt` | Money Flow Index (MFI), foreign/institutional volume-weighted order imbalance, and flow acceleration. | ✅ Fully integrated (`order_flow_score`) |
+| **14** | **Short-Term Reversal** | `src/core/short_term_reversal.py` (`ShortTermReversalEngine`) | `short_term_reversal_predictions.txt` | 3~5 day consecutive oversold conditions and Bollinger Lower Band breach mean-reversion entries with distress filtering. | ✅ Fully integrated (`reversal_score`) |
+| **15** | **Analyst Revision Momentum (ARM)** | `src/core/arm_factor.py` (`ARMFactorEngine`) | `arm_factor_predictions.txt` | Consensus EPS and Target Price upward revisions and earnings estimate surprise momentum. | ✅ Fully integrated (`arm_score`) |
+| **16** | **Cross-Asset Regime Divergence (CARD)** | `src/core/card_factor.py` (`CARDFactorEngine`) | `card_factor_predictions.txt` | Equity vs. Commodities (WTI/Gold), FX (USD/KRW), and Yield divergence contrarian opportunity scoring. | ✅ Fully integrated (`card_score`) |
+| **17** | **Liquidity-Adjusted Tail Risk (LATR)** | `src/core/latr_factor.py` (`LATRFactorEngine`) | `latr_factor_predictions.txt` | 52-week drawdown Gaussian sweet-spot ($DD \approx 35\%$) + Amihud illiquidity premium + volume surge bounce - 60D tail risk penalty. | ✅ Fully integrated (`latr_score`) |
+| **18** | **Inst & Foreign Sector** | `src/core/inst_foreign_sector.py` (`InstForeignSectorEngine`) | `inst_foreign_sector_predictions.txt` | 40-day (2-month) separate cumulative net buying for Foreign and Investment Trusts (투신) with sector leader/laggard correlation. | ✅ Fully integrated (`inst_foreign_sector_score`) |
+| **19** | **Supply Chain Momentum** | `src/core/supply_chain.py` (`SupplyChainEngine`) | `supply_chain_predictions.txt` | 1D/3D/5D momentum spillover from primary customers (NVDA, Apple, Samsung, Hyundai) to supplier/equipment vendors. | ✅ Fully integrated (`supply_chain_score`) |
+| **20** | **NLP Sentiment Catalyst** | `src/core/llm_sentiment_engine.py` / `src/ai/sentiment.py` | `sentiment_predictions.txt` | FinBERT / LLM text sentiment polarity on DART/SEC filings, catalyst surprise scoring, and lexicon fallback. | ✅ Fully integrated (`sentiment_score`) |
+| **21** | **Multi-Factor Style Neutralizer** | `src/core/multi_factor_neutralizer.py` (`MultiFactorNeutralizerEngine`) | `factor_neutralized_predictions.txt` | Cross-sectional QR residualization against Fama-French 5 factors (Size, Value, Profitability, Investment, Momentum) extracting pure idiosyncratic alpha ($|\rho| < 0.15$). | ✅ Fully integrated (`factor_neutralized_score`) |
+| **22** | **Dynamic Volatility Targeting** | `src/core/vol_target.py` (`VolTargetingEngine`) | `vol_target_predictions.txt` | EWMA 20-day annualized realized volatility inverse weighting targeting steady 12% annualized volatility risk parity. | ✅ Fully integrated (`vol_target_score`) |
+| **23** | **Microstructure Imbalance** | `src/core/hft_engine.py` (`MicrostructureImbalanceEngine`) | `microstructure_predictions.txt` | Order book bid-ask imbalance, bar close location, and closing auction volume acceleration predicting overnight gap edge. | ✅ Fully integrated (`microstructure_score`) |
+| **24** | **Accruals Quality Anomaly** | `src/core/accruals_quality.py` (`AccrualsQualityEngine`) | `accruals_quality_predictions.txt` | Sloan (1996) accruals quality: Operating Cash Flow (OCF) vs. Net Income relative to Total Assets to detect earnings inflation. | ✅ Fully integrated (`accruals_quality_score`) |
+| **25** | **Short Interest & Squeeze** | `src/core/short_interest_squeeze.py` (`ShortInterestSqueezeEngine`) | `short_squeeze_predictions.txt` | Short interest ratio + Days-to-Cover (DTC) + short-term upward price momentum short squeeze catalyst trigger. | ✅ Fully integrated (`short_squeeze_score`) |
+| **26** | **Value-Up & Shareholder Yield** | `src/core/valueup_catalyst.py` (`ValueUpCatalystEngine`) | `valueup_catalyst_predictions.txt` | PBR < 1.0 + Net Cash / Market Cap + Total Shareholder Yield (dividend yield + buyback/treasury share cancellation). | ✅ Fully integrated (`valueup_catalyst_score`) |
+| **27** | **Kaufman Trend Efficiency** | `src/core/trend_efficiency.py` (`TrendEfficiencyEngine`) | `trend_efficiency_predictions.txt` | Multi-window (5D/10D/20D) Kaufman Efficiency Ratio (KER) filtering out choppy sideways noise for pure directional trends. | ✅ Fully integrated (`trend_efficiency_score`) |
+| **28** | **Options Gamma Squeeze** | `src/core/gamma_squeeze.py` (`OptionsGammaSqueezeEngine`) | `gamma_squeeze_predictions.txt` | Gamma Exposure (GEX), 20D high Call Wall proximity, and volume breakout delta-hedging acceleration. | ✅ Fully integrated (`gamma_squeeze_score`) |
+| **29** | **Insider Buying** | `src/core/insider_buying.py` (`InsiderBuyingEngine`) | `insider_buying_predictions.txt` | OpenDART and SEC Form 4 insider purchases: CEO/Director open-market buys and controlling shareholder accumulation. | ✅ Fully integrated (`insider_buying_score`) |
+| **30** | **Earnings Tone Drift** | `src/core/earnings_tone_drift.py` (`EarningsToneDriftEngine`) | `earnings_tone_drift_predictions.txt` | Conference call transcripts and quarterly disclosure management tone acceleration and guidance confidence drift. | ✅ Fully integrated (`earnings_tone_drift_score`) |
+| **31** | **High-Frequency Execution & Dark Pool Flow** | `src/core/hft_engine.py` (`HFTEngine` / Dark Pool proxy) | `darkpool_predictions.txt` | DMA micro-orders, TWAP/VWAP execution with Almgren-Chriss impact modeling, and dark pool flow divergence proxy. | ✅ Fully integrated (`darkpool_score`) |
+
+---
+
+## 3. Lookahead Bias Prevention & Temporal Integrity Architecture
+
+### 3.1 60-Day Fundamental Filing Lag
+- **Mechanism:** In `prediction_model.py` (lines 955-973), fundamental balance sheet and income statement dates are shifted by +60 calendar days:
+  ```python
+  df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
+  df = pd.merge_asof(
+      df.sort_values('date_align'),
+      df_fun_shifted.sort_values('date_available'),
+      left_on='date_align',
+      right_on='date_available',
+      direction='backward'
+  )
   ```
+- **Auditing Result:** This mathematically guarantees that Q4 and full-year earnings reports are never visible to the model during the fiscal quarter itself, strictly adhering to statutory 60-day filing lag realities.
 
-### 1.2 Thread Safety & Concurrency Locking
-- **Thread-local connections**: Managed via `_get_conn()` using `threading.local()`.
-- **WAL Settings**: Enables `PRAGMA journal_mode=WAL`, `PRAGMA busy_timeout=60000`, `cache_size=-500000` (500MB cache), `mmap_size=2000000000` (2GB memory mapped I/O).
-- **Write Lock Mutex**: `self._write_lock = threading.Lock()` wraps all upserts in `update_prices()`.
-- **Retry Mechanism**: Delegates to `execute_sqlite_with_retry(_do_update)` from `src.data_layer.hybrid_storage` to handle SQLite write lock contention.
+### 3.2 Cross-Timezone Lag Shifts
+- **Mechanism:** In `prediction_model.py` (lines 1015-1045) and `cross_border_lead_lag.py`, US macroeconomic and market indicators (S&P 500, VIX, US 10Y yield, US tech returns) are shifted by 1 trading day (`shift(1)`) when merging into Asian/KRX market features (`shift_us_indicators=True`).
+- **Auditing Result:** Korean market morning trading opens at 09:00 KST (before US market opens for that calendar date). Shifting ensures models use only US closes finalized prior to Asian opening bell.
 
-### 1.3 Key Functionalities
-- `update_prices(symbol, df)`: Normalizes date index, constructs `(symbol, date, open, high, low, close, volume)` tuples, and executes batch `INSERT OR REPLACE INTO stock_prices`.
-- `get_prices(symbol, start_date, end_date)`: Queries records matching symbol and date bounds, returns a DatetimeIndex-sorted pandas DataFrame with capitalized columns (`Open`, `High`, `Low`, `Close`, `Volume`).
-- `needs_update(symbol, max_age_days=1, start_date=None)`: Checks if cached data is older than `max_age_days` or if historical backfill is required (`earliest_cached_date - start_date > 7 days`).
-
-### 1.4 Critical Vulnerabilities & Gaps in `StockPriceDB`
-1. **Passive Storage Only**: `StockPriceDB` contains no internal network fetching logic; it relies strictly on caller functions (`fetch_data_fdr`, `prefetch_prices_batch`) to fetch and inject data.
-2. **Missing Input Data Quality Validation**: `update_prices()` inserts any DataFrame passed to it without verifying if values contain NaNs, non-positive prices, or zero-volume anomalies.
-3. **Ticker Casing & Alias Fragmentation**: Tickers are stored verbatim (`'005930'` vs `'005930.KS'`, `'BRK.B'` vs `'BRK-B'`). Inconsistent formatting across modules creates duplicate or fragmented DB records and causes cache misses.
+### 3.3 Macro Indicator Gate & Cache Corruption Protection
+- **Mechanism:** In `run_pipeline.py` (lines 3230-3286), `detect_shared_series_corruption()` and `_plausible_bounds()` check macro indicators before feeding them to the crisis gating and ensemble weight modifiers. Identical raw values across unrelated tickers (e.g. VIX, WTI, Gold all resolving to identical SQLite values) are detected and replaced with verified macro defaults.
 
 ---
 
-## 2. Model Training & Inference Data Ingestion Analysis (`trading_system/src/ai/prediction_model.py`)
+## 4. Multicollinearity Reduction & Factor Suppression
 
-### 2.1 Ingestion Mechanism (`OnDevicePredictionModel`)
-`OnDevicePredictionModel` does NOT directly fetch data from network APIs. It receives pre-fetched price DataFrames via `prices_dict: Dict[str, pd.DataFrame]` supplied by `run_pipeline.py`.
+### 4.1 Orthogonalization Engines
+- **PCA ZCA Symmetric Whitening (`_pca_zca_symmetric`):** Standardizes factor score matrix $X \in \mathbb{R}^{N \times K}$, computes sample covariance $C$, applies Ledoit-Wolf shrinkage, computes whitening operator $C^{-1/2} = V \Lambda^{-1/2} V^T$, and decorrelates features while preserving variance and original scale:
+  $$X_{\text{ortho}} = \mu + (X_{\text{std}} C^{-1/2}) \cdot \sigma$$
+- **Modified Gram-Schmidt (`_gram_schmidt`):** Iteratively orthogonalizes columns ordered by strategy weight importance.
 
-### 2.2 Data Quality & Length Requirements
-- **Training (`prepare_training_data`)**:
-  - Filters out symbols where `df is None or len(df) < 70`.
-  - Normalizes market capitalization and volume scale (`apply_market_normalization`).
-  - Computes 54+ technical indicators, VCP vectorized features, and lag features (`_create_features`).
-  - Computes Sharpe-scaled forward return targets (`target_1d` to `target_200d`) in `_create_targets`.
-  - Downcasts `float64` to `float32` for memory optimization.
-- **Inference (`predict_all`)**:
-  - Requires `len(df) >= 200` trading days of price history. Symbols with `< 200` days are filtered out prior to inference in `run_pipeline.py`.
-  - Generates predictions across 8 regression horizons and 4 surge horizons per market.
+### 4.2 Correlation Monitoring & VIF Calculation
+- **Cross-Sectional Spearman Matrix:** Updated daily with exponential moving average smoothing ($\alpha_{\text{corr}} = 0.15$).
+- **Variance Inflation Factor (VIF):** Computed via ridge regularized matrix inversion $VIF_i = (R_{\text{reg}}^{-1})_{ii}$.
+- **Effective Strategy Count ($N_{\text{eff}}$):**
+  $$N_{\text{eff}} = \frac{(\sum w_i)^2}{\sum_i \sum_j w_i w_j \rho_{ij}}$$
 
-### 2.3 Fallback Mechanism (`FALLBACK_METADATA`)
-- `FallbackMetadataDict` provides benchmark fundamental metrics (shares outstanding, floating shares) for 16 core US/KR stocks.
-- For non-benchmark symbols, it returns `np.nan` rather than artificial dummy values, preventing synthetic feature corruption during inference.
-
-### 2.4 Critical Gaps in Model Ingestion
-- `prediction_model.py` drops symbols cleanly if data is below the threshold (`len(df) < 70` for train, `len(df) < 200` for infer), but network fetch failures directly reduce universe coverage and prediction yield.
+### 4.3 2D Regime Noise Dampening Penalties
+- **Penalty Formula:**
+  $$E_{ij} = \max(0, |\rho_{ij}| - \theta(R))$$
+  $$P_i(R) = \frac{1}{\sqrt{1 + \lambda(R) \sum_{j \neq i} c_{ij}(R) E_{ij}^2}}$$
+  Where $c_{ij} = 1.5$ for intra-cluster redundancy and high-risk regime target clusters, and $0.5$ for inter-cluster redundancy.
 
 ---
 
-## 3. Pipeline Step 5 & Step 9 Price Fetching Analysis (`trading_system/run_pipeline.py`)
+## 5. Scoring Calibration, Confluence, & Outlier Management
 
-### 3.1 Step 5: Training Data Fetching Flow
-1. **Universe Sampling**: Selects active KRX and US symbols based on `TradingConfig` sample sizes.
-2. **Background Fundamentals**: Starts non-blocking thread `_bg_fundamentals(train_symbols, "training")`.
-3. **Batch Prefetching**: Executes `prefetch_prices_batch(train_symbols, symbol_market, start_date_train, price_db, freshness)`:
-   - Batches symbols in chunks of 100 tickers.
-   - Downloads from yfinance (`yf.download`) using `_download_with_recovery`.
-   - Validates data via `_validate_price_data` (DataQualityGate).
-   - Writes valid bars to `StockPriceDB`.
-4. **Parallel Per-Symbol Fetching**:
-   - Spawns `ThreadPoolExecutor(max_workers=_CPU_WORKERS)` calling `fetch_data_fdr(sym, sym_market, start_date_train, price_db, freshness, update_interval)`.
-   - Times out individual symbol tasks after `_PER_SYMBOL_TIMEOUT = 30` seconds.
-   - Stores valid DataFrames into `train_data_dict`.
-5. **Feature & Target Generation**: Merges fundamentals, prepares `df_train`, fits per-market models (`sp500`, `nasdaq`, `russell2000`, `kospi`, `kosdaq`), computes lead-lag matrix, and fits Isotonic calibrators.
-
-### 3.2 Step 9: Inference Data Fetching Flow
-1. **Full Universe Resolution**: Resolves all active target symbols across target markets (~3,379 symbols).
-2. **Administrative/Halted Filter**: Excludes halted and administrative KRX stocks via `_get_excluded_krx_symbols()`.
-3. **Background Fundamentals**: Starts non-blocking inference fundamentals thread `t2`.
-4. **Batch Prefetching**: Executes `prefetch_prices_batch(all_symbols, symbol_market, start_date_infer, price_db, freshness)`.
-5. **Parallel Per-Symbol Fetching**:
-   - Spawns `ThreadPoolExecutor(max_workers=_CPU_WORKERS)` running `fetch_data_fdr` across all symbols.
-   - Collects DataFrames into `infer_data_dict`.
-6. **Data Length Filtering**: Excludes symbols with `< 200` days of OHLCV history (`infer_data_dict = {s: df for s, df in infer_data_dict.items() if len(df) >= 200}`).
-7. **Model Execution**: Merges fundamentals and runs `model.predict_all(...)`.
+1. **Cross-Sectional Winsorization:** Applied across all 31 strategy columns in `ensemble_scorer.py` (0.5% and 99.5% quantiles for $N \ge 20$) before ensembling, preventing extreme outliers from skewing linear combinations.
+2. **Isotonic Calibration:** Per-strategy non-parametric monotonic regression (`IsotonicRegression(out_of_bounds='clip')`) calibrates raw model outputs to empirical win rates.
+3. **Convex Multi-Signal Synergy Boost:** When 3 or more independent strategies produce strong signals ($\ge 0.65$), a super-linear multiplier $1.0 + 0.03 \times (\text{count} - 2)$ is applied.
+4. **Fundamental Distress Gatekeeper:** Severe penalty ($0.70\times$) applied to companies with chronic operating loss ($< -10\%$) or negative ROE ($< -10\%$).
+5. **Turnover Hysteresis Buffer:** $+0.05$ bonus applied to currently held portfolio symbols to prevent excessive churn.
 
 ---
 
-## 4. Comprehensive Audit of Retries, Exponential Backoff, Rate Limiting & Exception Handling
+## 6. Dynamic Ensemble & Missingness Resilience
 
-### 4.1 Implemented 3-Tier Fallback Architecture
-```
-[Client Request: fetch_data_fdr(symbol)]
-       │
-       ▼
-┌───────────────────────────────┐
-│ Tier 1: yfinance Download     │  <-- Wrapped with @retry(stop_after_attempt(3), wait_exponential)
-│ (US: AAPL | KR: 005930.KS)    │
-└──────────────┬────────────────┘
-               │ (Fails / Empty)
-               ▼
-┌───────────────────────────────┐
-│ Tier 2: FinanceDataReader     │  <-- Secondary provider fallback
-│ (Direct symbol: 005930)       │
-└──────────────┬────────────────┘
-               │ (Fails / Empty)
-               ▼
-┌───────────────────────────────┐
-│ Tier 3: StockPriceDB Cache    │  <-- Offline SQLite WAL historical fallback
-│ (Local stock_prices.db)       │
-└───────────────────────────────┘
-```
+- **2D Regime Matrix (6 States):** `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL` with tailored baseline weight distributions.
+- **Dynamic Sharpe Weighting:** Exponential Sharpe weighting $w_i \propto \exp(2.0 \times \text{Sharpe}_i)$ with EMA continuity across pipeline runs via `prev_weights.json`.
+- **Missingness-Aware Dynamic Renormalization:** Valid 0.0 scores are preserved as legitimate observations. Division by total valid weight renormalizes missing strategies without biasing against symbols lacking options chains or corporate filings.
+- **Coverage Penalization:** If valid strategy count falls below 40% of available strategies, a graduated penalty ($0.5 + 0.5 \times \text{ratio}/0.40$) deflates the score.
 
 ---
 
-### 4.2 Exhaustive Findings: Missing Retries, Defective Backoff & Edge Cases
+## 7. Gaps, Observations, and Technical Recommendations
 
-| # | Vulnerability / Defect Area | Location | Specific Finding & Impact | Recommended Fix |
-|---|-----------------------------|----------|---------------------------|-----------------|
-| **1** | **KONEX Market Suffix Missing** | `run_pipeline.py` (line 151) | `_KR_MARKET_SUFFIX` only maps `KOSPI`, `KOSDAQ`, `KRX`. `KONEX` falls back to `.KS` suffix on `yfinance`, causing 404 / empty download errors on Yahoo Finance for all KONEX symbols. | Add `'KONEX': '.KS'` or special handling for KONEX to route directly to FinanceDataReader (`fdr.DataReader`). |
-| **2** | **Batch Prefetching Missing Retries & Backoff** | `run_pipeline.py` (lines 310-347) | `prefetch_prices_batch` calls `_download_with_recovery`, which uses raw `yf.download` **without Tenacity `@retry` decorators or exponential backoff**. Transient network errors or HTTP 429 rate limits trigger binary batch splitting without retrying the network call. | Decorate `_download_with_recovery` or internal batch downloader with `@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))`. |
-| **3** | **Batch Prefetching Lacks Tier 2 Secondary Fallback** | `run_pipeline.py` (lines 236-376) | `prefetch_prices_batch` relies exclusively on `yfinance`. If `yfinance` rate-limits or blocks a batch of KRX symbols, it fails completely and does not fall back to `FinanceDataReader`. | Add secondary batch fallback using `FinanceDataReader` or individual `fdr.DataReader` when yfinance batch fails. |
-| **4** | **Internal Exception Catching Swallows Tier 1 Retries** | `run_pipeline.py` (lines 177-184) | `_fetch_data_fdr_network` encloses `yf.download` in a local `try...except` block that catches `Exception` and swallows it locally (setting `result = None`) before cascading to Tier 2. Because the Tier 1 exception is swallowed locally, Tenacity's `@retry` decorator on `_fetch_data_fdr_network` NEVER retries Tier 1 (`yf.download`) on transient failures! | Decouple Tier 1 into a separate retryable function `_fetch_yf_primary(symbol, start_date)` decorated with `@retry(reraise=True)`, matching the pattern used in `_download_indicator_yf`. |
-| **5** | **Ticker Symbol Format Mismatches** | `run_pipeline.py` & `database.py` | US tickers with dots (`BRK.B`, `BF.B`) fail on `yfinance` unless converted to `BRK-B`. KRX numeric tickers passed as unpadded strings (e.g. `'5930'`) fail unless zero-padded (`'005930'`). | Implement a centralized `normalize_ticker(symbol, market)` helper to standardize tickers before calling APIs or querying `StockPriceDB`. |
-| **6** | **Single-Symbol Data Quality Gate Bypass** | `run_pipeline.py` (lines 408-413) | `prefetch_prices_batch` enforces `DataValidator.validate_price_data()` before writing to `StockPriceDB`, but single-symbol `fetch_data_fdr()` directly calls `price_db.update_prices(s, network_result)` **without quality validation**. Corrupted network payloads overwrite clean DB cache. | Wrap `network_result` in `DataValidator.validate_price_data(s, network_result)` inside `fetch_data_fdr()` before updating `price_db`. |
-| **7** | **`MarketDataHandler` Single-Provider Dependency** | `src/data_layer/market_data_handler.py` (lines 201-305) | `MarketDataHandler.fetch_historical_data` uses `yfinance` exclusively (`yf.Ticker(symbol)`). If yfinance fails, it returns empty or cached bars without attempting Tier 2 `FinanceDataReader` fallback. | Add `FinanceDataReader` secondary fallback inside `MarketDataHandler.fetch_historical_data`. |
-| **8** | **ThreadPool Rate Limiter Timeout Contention** | `run_pipeline.py` (lines 957-985, 1164-1194) | During 3,379 symbol parallel fetching, worker threads block on `get_global_rate_limiter().wait()`. Under heavy thread contention, worker threads time out waiting in queue (`_PER_SYMBOL_TIMEOUT = 30s`), logging `Skipping {sym}: timeout (>=30s)` and dropping valid symbols. | Increase per-symbol timeout during batch runs, optimize batch size, and ensure rate limiter token replenishment is smooth. |
-
----
-
-## 5. Summary of Recommended Actions for Implementation Team
-
-1. **Decouple Tier 1 & Tier 2 Retries in `_fetch_data_fdr_network`**:
-   - Extract `_fetch_yf_primary(symbol, market, start_date)` decorated with `@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)`.
-   - Call `_fetch_yf_primary` inside `_fetch_data_fdr_network` and fall back to `fdr.DataReader` only after Tier 1 retries are exhausted.
-2. **Add Network Retries & Secondary Fallback to `prefetch_prices_batch`**:
-   - Decorate batch downloads with Tenacity exponential backoff `@retry`.
-   - Add fallback to `FinanceDataReader` for failed yfinance batches.
-3. **Standardize Ticker Normalization**:
-   - Add `normalize_ticker(symbol, market)` handling dot-to-dash conversion (`BRK.B` -> `BRK-B`) and 6-digit zero-padding (`'5930'` -> `'005930'`).
-   - Add `'KONEX'` explicit suffix mapping in `_KR_MARKET_SUFFIX`.
-4. **Enforce Data Quality Gate in Single-Symbol `fetch_data_fdr`**:
-   - Validate `network_result` via `DataValidator.validate_price_data()` before updating `StockPriceDB`.
-5. **Add Tier 2 Fallback to `MarketDataHandler`**:
-   - Update `fetch_historical_data` in `src/data_layer/market_data_handler.py` to fall back to `FinanceDataReader` if `yfinance` fails.
+1. **Cluster Mapping Completeness in `factor_suppression.py`:**
+   - *Observation:* While `factor_suppression.py` safely defaults unmapped strategies to `'OTHER'`, updating `CLUSTER_MAP` to include all 31 strategies explicitly will optimize intra-cluster penalty calculations across all 31 engines.
+   - *Recommendation:* Assign the full 31 strategies into 6 coherent clusters (`CORE_AI`, `MOMENTUM`, `VALUATION`, `REVERSAL`, `FLOW_MICRO`, `RISK_NEUTRAL`).
+2. **Standardized Naming in Documentation:**
+   - *Observation:* `AGENTS.md` and codebase outputs use interchangeable labels for Strategy 31 (`High-Frequency Execution` / `darkpool`). Both refer to the HFT order book / dark pool proxy module.
+3. **High-Performance Memory and Vectorization:**
+   - *Observation:* Vectorized Pandas and NumPy operations are used throughout feature engineering and scoring, maintaining low memory footprints even across 3,379 symbols.

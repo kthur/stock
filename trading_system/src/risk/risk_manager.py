@@ -362,10 +362,10 @@ class CrisisDetector:
         return sum(scores) / max(len(scores), 1)
 
     def _check_recovery(self, vix: float, dd: float):
-        """위기 종료(회복) 감지"""
+        """위기 종료(회복) 감지: VIX와 낙폭이 안정화되면 신속하게 회복 모드 전환"""
         if self._recovery_start_day is not None:
             days_since = self._days_since_crisis_ended - self._recovery_start_day
-            if days_since >= 5 and dd < 0.05 and vix < 25:
+            if days_since >= 2 and dd < 0.06 and vix < 26:
                 self._recovery_mode = True
                 self._recovery_days = 1
                 self._days_in_crisis = 0
@@ -374,7 +374,7 @@ class CrisisDetector:
                 self.logger.info("Recovery mode activated: crisis passed, gradually increasing exposure")
             return
 
-        if vix < 25 and dd < 0.05 and self._days_in_crisis >= 10:
+        if vix < 26 and dd < 0.06 and self._days_in_crisis >= 1:
             self._recovery_start_day = self._days_since_crisis_ended
 
     @property

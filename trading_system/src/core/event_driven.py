@@ -198,7 +198,7 @@ class EventDrivenEngine(BaseStrategyEngine):
                         ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
                         # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
                         breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
-                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.10 * ret_5d + breakout_bonus, -0.2, 0.45)
+                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 1.50 * ret_5d + breakout_bonus, -0.2, 0.45)
                         scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.0, 1.0))
                 except Exception:
                     pass

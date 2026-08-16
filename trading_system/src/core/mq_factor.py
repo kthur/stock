@@ -6,6 +6,7 @@ ROE stability, and earnings quality to produce percentile rank MQ scores [0.0, 1
 """
 import logging
 from typing import Dict, Optional, Any
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -80,9 +81,18 @@ class MQFactorEngine(BaseStrategyEngine):
 
                 # 12M-1M price momentum calculation (skip recent 21 trading days)
                 p_t21 = float(close.iloc[-21]) if len(close) >= 21 else float(close.iloc[-1])
-                p_t252 = float(close.iloc[-252]) if len(close) >= 252 else float(close.iloc[0])
+                if len(close) >= 252:
+                    p_base = float(close.iloc[-252])
+                    effective_days = 231
+                else:
+                    p_base = float(close.iloc[0])
+                    effective_days = max(1, len(close) - 21)
 
-                price_mom = (p_t21 / p_t252 - 1.0) if p_t252 > 0 else 0.0
+                raw_mom = (p_t21 / p_base - 1.0) if p_base > 0 else 0.0
+                if effective_days < 231 and raw_mom > -0.8:
+                    price_mom = float(np.clip(((1.0 + raw_mom) ** (231.0 / effective_days)) - 1.0, -0.95, 5.0))
+                else:
+                    price_mom = float(np.clip(raw_mom, -0.95, 5.0))
 
                 records.append({
                     'symbol': sym,

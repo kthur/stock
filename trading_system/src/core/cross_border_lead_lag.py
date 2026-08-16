@@ -58,7 +58,7 @@ class CrossBorderLeadLagEngine:
 
         # Default fallback US tech return if US ticker prices aren't loaded explicitly
         if not us_returns:
-            avg_us_tech_ret = 0.005  # Slight positive momentum default
+            avg_us_tech_ret = 0.0  # Neutral default (no phantom momentum)
         else:
             avg_us_tech_ret = float(np.mean(list(us_returns.values())))
 

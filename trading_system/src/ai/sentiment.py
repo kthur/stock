@@ -106,14 +106,27 @@ POSITIVE_WORDS: Dict[str, float] = {
     "expansion": 0.6,
     "expand": 0.5,
     "expanding": 0.5,
-    # Korean financial terms (romanized)
-    "sangseung": 0.7,  # 상승 - rise
-    "seonggang": 0.7,  # 성장 - growth
-    "hobok": 0.6,  # 회복 - recovery
-    "eoham": 0.6,  # 억하 - undervalued
-    "maedoo": 0.3,  # 매도 (sell) neutral
-    "maesoo": 0.5,  # 매수 (buy)
-    "gangse": 0.7,  # 강세 - strong/bullish
+    # Korean financial terms (Hangeul & Romanized)
+    "상승": 0.7,
+    "성장": 0.7,
+    "회복": 0.6,
+    "개선": 0.6,
+    "호실적": 0.8,
+    "흑자": 0.7,
+    "매수": 0.5,
+    "강세": 0.7,
+    "수혜": 0.6,
+    "돌파": 0.6,
+    "신고가": 0.8,
+    "호재": 0.7,
+    "서프라이즈": 0.8,
+    "sangseung": 0.7,
+    "seonggang": 0.7,
+    "hobok": 0.6,
+    "eoham": 0.6,
+    "maedoo": 0.3,
+    "maesoo": 0.5,
+    "gangse": 0.7,
 }
 
 NEGATIVE_WORDS: Dict[str, float] = {
@@ -237,12 +250,25 @@ NEGATIVE_WORDS: Dict[str, float] = {
     "volatile": 0.5,
     "pessimistic": 0.7,
     "pessimism": 0.6,
-    # Korean financial terms (romanized)
-    "harak": 0.7,  # 하락 - decline
-    "pokrak": 0.9,  # 폭락 - crash
-    "sonhae": 0.7,  # 손해 - loss
-    "yakse": 0.6,  # 약세 - weak/bearish
-    "busil": 0.8,  # 부실 - insolvency
+    # Korean financial terms (Hangeul & Romanized)
+    "하락": 0.7,
+    "폭락": 0.9,
+    "손실": 0.7,
+    "적자": 0.8,
+    "부실": 0.8,
+    "감소": 0.5,
+    "악화": 0.7,
+    "약세": 0.6,
+    "위기": 0.8,
+    "리스크": 0.5,
+    "우려": 0.5,
+    "급락": 0.8,
+    "충격": 0.7,
+    "harak": 0.7,
+    "pokrak": 0.9,
+    "sonhae": 0.7,
+    "yakse": 0.6,
+    "busil": 0.8,
 }
 
 # Intensifier words that amplify the next sentiment word

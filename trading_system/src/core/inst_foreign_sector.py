@@ -67,10 +67,11 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         price_mf_ratio = positive_mf / total_mf
 
         foreign_flow_score = 0.5
+        vol_sum = float(vol_window.sum()) if not vol_window.empty else 1e6
+        vol_sum = max(vol_sum, 1.0)
         if flow_df is not None and 'foreign_net_buy' in flow_df.columns:
-            f_buy_40d = flow_df['foreign_net_buy'].iloc[-days:].sum()
-            f_buy_prev = flow_df['foreign_net_buy'].iloc[-days*2:-days].sum() if len(flow_df) >= days * 2 else 0.0
-            foreign_flow_score = np.clip(0.5 + (f_buy_40d / (abs(f_buy_prev) + 1e-6)) * 0.1, 0.0, 1.0) if f_buy_40d != 0 else 0.5
+            f_buy_40d = float(flow_df['foreign_net_buy'].iloc[-days:].sum())
+            foreign_flow_score = np.clip(0.5 + (f_buy_40d / vol_sum) * 2.0, 0.0, 1.0) if f_buy_40d != 0 else 0.5
 
         return float(0.5 * price_mf_ratio + 0.5 * foreign_flow_score)
 
@@ -93,10 +94,11 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         price_mf_ratio = positive_mf / total_mf
 
         trust_flow_score = 0.5
+        vol_sum = float(vol_window.sum()) if not vol_window.empty else 1e6
+        vol_sum = max(vol_sum, 1.0)
         if flow_df is not None and 'trust_net_buy' in flow_df.columns:
-            t_buy_40d = flow_df['trust_net_buy'].iloc[-days:].sum()
-            t_buy_prev = flow_df['trust_net_buy'].iloc[-days*2:-days].sum() if len(flow_df) >= days * 2 else 0.0
-            trust_flow_score = np.clip(0.5 + (t_buy_40d / (abs(t_buy_prev) + 1e-6)) * 0.1, 0.0, 1.0) if t_buy_40d != 0 else 0.5
+            t_buy_40d = float(flow_df['trust_net_buy'].iloc[-days:].sum())
+            trust_flow_score = np.clip(0.5 + (t_buy_40d / vol_sum) * 2.0, 0.0, 1.0) if t_buy_40d != 0 else 0.5
 
         return float(0.5 * price_mf_ratio + 0.5 * trust_flow_score)
 

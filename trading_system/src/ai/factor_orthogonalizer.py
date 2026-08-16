@@ -64,7 +64,11 @@ class FactorOrthogonalizerEngine:
             X_ortho[nan_mask] = np.nan
 
         out_df = score_df.copy()
-        out_df[valid_cols] = np.clip(X_ortho, 0.0, 1.0)
+        if len(out_df) >= 5:
+            ranks = pd.DataFrame(X_ortho, index=out_df.index, columns=valid_cols).rank(pct=True)
+            out_df[valid_cols] = ranks.values
+        else:
+            out_df[valid_cols] = np.clip(X_ortho, 0.0, 1.0)
         return out_df
 
     def _gram_schmidt(

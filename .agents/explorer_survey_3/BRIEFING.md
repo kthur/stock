@@ -1,40 +1,46 @@
-# BRIEFING — 2026-08-15T09:27:15Z
+# BRIEFING — 2026-08-15T13:54:30Z
 
 ## Mission
-Investigate codebase architecture and implementation status for R3 (Pipeline Performance & System Reliability) and R4 (Automated Testing & Deployment), run test suites, check git readiness, and produce detailed handoff report.
+Investigate R3 & R4: Pipeline Performance, Concurrency, Database/Storage, Test Suite & Deployment readiness.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigation, synthesis
+- Roles: explorer, synthesizer
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_3
-- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Milestone: Initial Survey & Gap Analysis (R3 & R4)
+- Original parent: 2360bd25-0726-4de0-9663-3e89b1085ea0
+- Milestone: Explorer Survey Phase (R3 & R4)
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes to production code.
-- Write only to your agent folder (`.agents/explorer_survey_3/`).
-- Verify tests and git status using appropriate commands.
+- Read-only investigation — do NOT implement changes in src/ or tests/ (except reporting in .agents/explorer_survey_3/)
+- Target topics: Pipeline performance, concurrency, SQLite WAL & mutex, ThreadPoolExecutor, float32 downcast, test suite coverage & status, Git status / deployment.
 
 ## Current Parent
-- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Updated: not yet
+- Conversation ID: 2360bd25-0726-4de0-9663-3e89b1085ea0
+- Updated: 2026-08-15T13:54:30Z
 
 ## Investigation State
-- **Explored paths**: `ORIGINAL_REQUEST.md`, `AGENTS.md`, `trading_system/run_pipeline.py`, `src/persistence/database.py`, `src/data_layer/indicator_storage.py`, `src/data_layer/hybrid_storage.py`, `src/data_layer/feature_store.py`, `src/analysis/coverage_analyzer.py`, `src/ai/prediction_model.py`, `src/risk/microstructure.py`, `src/analysis/statistics.py`, `tests/`
+- **Explored paths**:
+  - `trading_system/run_pipeline.py` (concurrency workers, staged ThreadPoolExecutor, per-symbol timeouts, rate limiter, crisis detector gating)
+  - `trading_system/src/persistence/database.py` (StockPriceDB, threading.local, write lock mutex, WAL mode, 500MB cache, 2GB mmap)
+  - `trading_system/src/data_layer/indicator_storage.py` (MarketIndicatorStorage, batch fundamental queries, WAL checkpoint truncate)
+  - `trading_system/src/data_layer/earnings_data.py` (tenacity exponential backoff retries, async/sync fetches, global rate limiter)
+  - `trading_system/src/ai/prediction_model.py` (float32 downcast, Sharpe target clipping ±5√h, walk-forward time-series CV)
+  - `trading_system/src/risk/risk_manager.py` (CrisisDetector, RiskManager, PortfolioCircuitBreaker, intraday stop-loss)
+  - `tests/` and `trading_system/tests/` (108 and 103 test suites, test forwarding bridge, pyproject.toml configuration)
+  - `.github/workflows/` (pytest.yml, pipeline.yml, preseed.yml, training.yml, weekly_hpo.yml, realtime_monitor.yml)
+  - Git repository tracking (`origin/main`, commit f46efb1)
 - **Key findings**:
-  - SQLite WAL concurrency robust across multiple test suites with 20 threads writing concurrently without locks.
-  - Vectorized float32 downcasting in feature stores and ML models cuts memory consumption by ~50%.
-  - Primary required acceptance tests (`test_portfolio_allocator.py`, `test_new_27_strategies.py`) passed 100% (17/17).
-  - Secondary modular test suites achieved 97% pass rate (96/99 passed); 3 minor failures traced to legacy unit test assertion discrepancies.
-  - Git repository on `main` is up to date with `origin/main` and clean for downstream commits.
-- **Unexplored areas**: None for R3/R4 survey scope.
+  - High concurrency throughput with separated I/O (up to 32) and CPU worker pools.
+  - Zero SQLite lock starvation due to WAL mode, 30s busy timeout, write mutex, and batch queries.
+  - Memory usage halved via float32 downcasting and explicit GC at stage transitions.
+  - Comprehensive test suite covering all 31 quantitative engines and stress scenarios.
+  - Clean Git status on `main` tracking `origin/main`.
+- **Unexplored areas**: None for survey scope.
 
 ## Key Decisions Made
-- Executed targeted and modular test batches to thoroughly analyze concurrency, SLA, and accuracy without stalling on monolithic test runs.
-- Detailed root causes for the 3 legacy test expectation discrepancies in handoff report.
+- Completed in-depth survey of R3 & R4 areas and synthesized findings in `analysis.md` and `handoff.md`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\explorer_survey_3\DISPATCH.md` — Dispatch history
-- `d:\Finance\code\stock\.agents\explorer_survey_3\BRIEFING.md` — Working state & memory
-- `d:\Finance\code\stock\.agents\explorer_survey_3\progress.md` — Progress tracker
-- `d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md` — Comprehensive 5-component handoff report
+- d:\Finance\code\stock\.agents\explorer_survey_3\progress.md — Liveness & task tracker
+- d:\Finance\code\stock\.agents\explorer_survey_3\analysis.md — Detailed survey analysis
+- d:\Finance\code\stock\.agents\explorer_survey_3\handoff.md — 5-component handoff report

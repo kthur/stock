@@ -106,10 +106,12 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                     cur_tone = _safe_float(t_data.get('current_quarter_tone'), 0.50)
                     confidence = _safe_float(t_data.get('confidence'), 1.0)
 
-                    # Tone Drift Delta (Positive = Management Sentiment Upgrade)
+                    # Tone Drift Delta (Positive = Management Sentiment Upgrade) + Absolute Tone Level
                     tone_delta = (cur_tone - prev_tone) * confidence
                     accel_mult = 1.25 if tone_delta > 0.10 else 1.0
-                    score = float(np.clip(0.50 + 1.0 * tone_delta * accel_mult, 0.0, 1.0))
+                    abs_tone_boost = (cur_tone - 0.50) * 0.40 * confidence
+                    drift_boost = 1.0 * tone_delta * accel_mult
+                    score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.0, 1.0))
 
             results.append({
                 'symbol': sym,

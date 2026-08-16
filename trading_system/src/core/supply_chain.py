@@ -218,11 +218,36 @@ class SupplyChainEngine(BaseStrategyEngine):
                 sum_w = sum(weights) or 1.0
                 weights = [w / sum_w for w in weights]
 
+                # Compute US proxy return from indicators_df if present
+                us_proxy_1d = 0.0
+                if indicators_df is not None:
+                    if isinstance(indicators_df, pd.DataFrame) and not indicators_df.empty:
+                        for col_candidate in ['nasdaq_change', 'sp500_change', 'nasdaq', 'sp500']:
+                            if col_candidate in indicators_df.columns:
+                                val = indicators_df[col_candidate].iloc[-1]
+                                if pd.notna(val):
+                                    us_proxy_1d = float(val) / 100.0 if abs(val) > 0.5 else float(val)
+                                    break
+                    elif isinstance(indicators_df, dict):
+                        for col_candidate in ['nasdaq_change', 'sp500_change', 'nasdaq', 'sp500']:
+                            if col_candidate in indicators_df:
+                                val = indicators_df[col_candidate]
+                                if pd.notna(val):
+                                    us_proxy_1d = float(val) / 100.0 if abs(val) > 0.5 else float(val)
+                                    break
+
                 cust_rets = []
                 for c_sym, c_weight in zip(customers, weights):
-                    r1 = float(returns_1d.get(c_sym, 0.0)) if not pd.isna(returns_1d.get(c_sym, np.nan)) else 0.0
-                    r3 = float(returns_3d.get(c_sym, 0.0)) if not pd.isna(returns_3d.get(c_sym, np.nan)) else 0.0
-                    r5 = float(returns_5d.get(c_sym, 0.0)) if not pd.isna(returns_5d.get(c_sym, np.nan)) else 0.0
+                    if c_sym in returns_1d and pd.notna(returns_1d.get(c_sym)):
+                        r1 = float(returns_1d.get(c_sym))
+                        r3 = float(returns_3d.get(c_sym, r1)) if pd.notna(returns_3d.get(c_sym, np.nan)) else r1
+                        r5 = float(returns_5d.get(c_sym, r1)) if pd.notna(returns_5d.get(c_sym, np.nan)) else r1
+                    else:
+                        # Fallback to US tech proxy for US leaders not present in prices_dict
+                        is_us_leader = c_sym.upper() in ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'ASML', 'TSM', 'GOOGL', 'META']
+                        r1 = us_proxy_1d if is_us_leader else 0.0
+                        r3 = r1 * 1.5
+                        r5 = r1 * 2.0
                     spillover_ret = 0.50 * r1 + 0.30 * r3 + 0.20 * r5
                     cust_rets.append(spillover_ret * c_weight)
 

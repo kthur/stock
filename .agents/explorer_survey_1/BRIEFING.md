@@ -1,37 +1,40 @@
-# BRIEFING — 2026-08-15T09:26:00Z
+# BRIEFING — 2026-08-15T13:57:15Z
 
 ## Mission
-Comprehensive survey and investigation of the 31 quantitative strategy alpha engines, data hygiene, feature engineering, isotonic calibration, and ensemble scoring in the stock trading system.
+Investigate R1: 31 Quantitative Alpha Engines & Dynamic Ensemble Scoring in `kthur/stock`. Examine strategy engines, ensemble scorer, prediction model, pipelines, lookahead bias prevention, orthogonalization, winsorization, scoring calibration, NaN handling, and identify gaps or issues.
 
 ## 🔒 My Identity
-- Archetype: explorer
-- Roles: investigation, synthesis
+- Archetype: Explorer
+- Roles: Alpha engine investigator, quantitative finance reviewer, ensemble auditor
 - Working directory: d:\Finance\code\stock\.agents\explorer_survey_1
-- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Milestone: R1 Multi-Factor & Alpha Engine Optimization Survey
+- Original parent: 2360bd25-0726-4de0-9663-3e89b1085ea0
+- Milestone: R1 Alpha Engine & Ensemble Investigation
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement
-- Base working directory: d:\Finance\code\stock\.agents\explorer_survey_1
+- Read-only investigation — do NOT modify source code (except agent metadata)
+- Thorough code examination with exact file paths and line numbers
+- Write detailed survey in analysis.md and handoff.md
 
 ## Current Parent
-- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Updated: 2026-08-15T09:26:00Z
+- Conversation ID: 2360bd25-0726-4de0-9663-3e89b1085ea0
+- Updated: 2026-08-15T13:57:15Z
 
 ## Investigation State
-- **Explored paths**: `ORIGINAL_REQUEST.md`, `AGENTS.md`, `trading_system/run_pipeline.py`, `trading_system/src/core/` (all 20+ core strategy files), `trading_system/src/ai/` (`prediction_model.py`, `ensemble_scorer.py`, `factor_orthogonalizer.py`, `factor_suppression.py`, `vcp_detector.py`, `vcp_ml_predictor.py`), `trading_system/src/analysis/` (`coverage_analyzer.py`), `trading_system/src/data_layer/` (`price_adjuster.py`, `earnings_data.py`).
+- **Explored paths**: `trading_system/src/ai/`, `trading_system/src/core/`, `trading_system/src/analysis/`, `trading_system/run_pipeline.py`
 - **Key findings**:
-  - Full inventory of all 31 quantitative strategy alpha engines documented with file locations, class names, score column names, categories, and methodologies.
-  - Data hygiene confirmed: 60-day filing lag (`prediction_model.py:954-968`), 1-day US-KRX time-zone lag shift (`prediction_model.py:157-160, 1040-1045`), corporate split adjustment (`price_adjuster.py`), division-by-zero protections, and output score clipping $[0, 1]$.
-  - Feature engineering and calibration confirmed: Isotonic regression ($N \ge 50$), Platt scaling ($20 \le N < 50$), ECE/Brier tracking, PCA ZCA symmetric factor orthogonalization, and 2D regime noise suppression.
-  - Pipeline optimization opportunities identified (e.g. updating `_strategy_cols` in `run_pipeline.py:2222` to reference all 31 strategies).
-- **Unexplored areas**: None for R1 survey.
+  1. All 31 strategies are fully implemented in modular engines under `src/core` and `src/ai`, dynamically registered via `StrategyRegistry`, and combined in `ensemble_scorer.py` and `run_pipeline.py`.
+  2. Lookahead bias is strictly prevented via a 60-day fundamental filing lag (`date_available = date + 60d`, `pd.merge_asof(direction='backward')`) and 1-day US macro indicator shifts for Asian/KRX markets (`shift_us_indicators=True`).
+  3. Multicollinearity is minimized using PCA ZCA symmetric whitening, Modified Gram-Schmidt orthogonalization, Spearman rank correlation monitoring with EMA smoothing, VIF computation, and 2D regime noise dampening penalties.
+  4. Scoring is stabilized via cross-sectional 0.5%–99.5% winsorization, Isotonic Regression calibration, multi-factor synergy boosts, fundamental distress gating (0.70x penalty for loss-makers), and missingness-aware coverage penalties.
+- **Unexplored areas**: None for R1 alpha engines. Investigation complete.
 
 ## Key Decisions Made
-- Completed systematic investigation of all 31 strategies and compiled comprehensive 5-component handoff report in `handoff.md`.
+- Completed structured forensic analysis across all 31 strategies, lookahead bias prevention, collinearity reduction, outlier winsorization, scoring calibration, and NaN resilience.
+- Authored comprehensive `analysis.md` and 5-component `handoff.md`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md` — Persistent working memory
-- `d:\Finance\code\stock\.agents\explorer_survey_1\progress.md` — Liveness heartbeat
-- `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md` — Final comprehensive investigation handoff report
-- `d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md` — Dispatch log
+- d:\Finance\code\stock\.agents\explorer_survey_1\DISPATCH.md — Incoming message log
+- d:\Finance\code\stock\.agents\explorer_survey_1\BRIEFING.md — Persistent working memory
+- d:\Finance\code\stock\.agents\explorer_survey_1\progress.md — Progress and liveness tracker
+- d:\Finance\code\stock\.agents\explorer_survey_1\analysis.md — Detailed survey analysis
+- d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md — 5-component handoff report
