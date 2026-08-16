@@ -968,16 +968,24 @@ def build_history_section(result_dir: Path) -> str:
         except Exception:
             cmp_text = cmp_path.read_text(encoding="utf-8", errors="replace")
 
-    # DB discovery: local dev DB, result-dir DB, and per-market GHA DBs (db_split/<MARKET>/)
-    db_paths = [
+    # DB discovery: scan local DB, result-dir DB, trading_system DB, and per-market GHA DBs
+    db_candidates = [
         result_dir.parent / "market_indicators.db",
         result_dir / "market_indicators.db",
         result_dir.parent / "trading_system" / "market_indicators.db",
+        Path("trading_system/market_indicators.db"),
+        Path("market_indicators.db"),
     ]
-    split_dir = result_dir.parent / "db_split"
-    if split_dir.exists():
-        db_paths.extend(sorted(split_dir.rglob("*.db")))
-    existing_dbs = [dp for dp in db_paths if dp.exists()]
+    for base_split in [result_dir.parent / "db_split", result_dir / "db_split", Path("trading_system/db_split"), Path("db_split")]:
+        if base_split.exists():
+            db_candidates.extend(sorted(base_split.rglob("*.db")))
+
+    existing_dbs = []
+    seen_db_paths = set()
+    for dp in db_candidates:
+        if dp.exists() and dp.is_file() and str(dp.resolve()) not in seen_db_paths:
+            seen_db_paths.add(str(dp.resolve()))
+            existing_dbs.append(dp)
 
     from src.data_layer.indicator_storage import MarketIndicatorStorage
 
@@ -999,6 +1007,25 @@ def build_history_section(result_dir: Path) -> str:
                     runs.append(r)
         except Exception as _db_e:
             logger.warning(f"Failed reading DB history ({dp}): {_db_e}")
+
+    # Fallback to run_snapshot.json if DB query returned nothing
+    if not runs:
+        snap_path = result_dir / "run_snapshot.json"
+        if snap_path.exists():
+            try:
+                snap_data = json.loads(snap_path.read_text(encoding="utf-8"))
+                snap_run_id = snap_data.get("run_id", "run_snapshot")
+                snap_date = snap_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+                snap_status = snap_data.get("status", "SUCCESS")
+                snap_trigger = snap_data.get("trigger_type", "manual")
+                snap_sha = snap_data.get("git_sha", "local")
+                snap_regime = snap_data.get("regime_detected", "BULL")
+                snap_syms = snap_data.get("total_symbols", len(snap_data.get("top_picks", [])))
+                snap_dur = snap_data.get("duration_seconds", 0.0)
+                runs.append((snap_run_id, snap_date, f"{snap_date}T00:00:00", f"{snap_date}T00:00:00", snap_status, snap_trigger, snap_sha, "ALL", snap_syms, snap_dur, snap_regime))
+            except Exception as _snap_e:
+                logger.warning(f"Failed parsing run_snapshot.json: {_snap_e}")
+
     runs.sort(key=lambda r: r[2] or "", reverse=True)
     runs = runs[:20]
 

@@ -346,17 +346,14 @@ jobs:
           path: trading_system/result
 
       - name: Download per-market indicator DBs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: db-*
+          path: trading_system/db_split
         continue-on-error: true
+
+      - name: List downloaded DB artifacts
         run: |
-          mkdir -p trading_system/db_split
-          for m in SP500 NASDAQ RUSSELL2000 KOSPI KOSDAQ; do
-            if gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" \
-                 --name "db-$m" --dir "trading_system/db_split/$m" --token "${{ secrets.GITHUB_TOKEN }}" 2>/dev/null; then
-              echo "Downloaded db-$m"
-            else
-              echo "db-$m not available (market job may have failed)"
-            fi
-          done
           find trading_system/db_split -name '*.db' | sed 's/^/  /' || true
 
       - name: Verify merged results present (abort stale deploys)
