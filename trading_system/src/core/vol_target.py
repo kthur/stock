@@ -85,7 +85,7 @@ class VolTargetingEngine(BaseStrategyEngine):
         # Compute EWMA conditional annualized volatility (RiskMetrics lambda=0.94 / span=20)
         daily_returns = close_pivot.pct_change(1).tail(60)
         valid_counts = daily_returns.notna().sum(axis=0)
-        
+
         def _calc_col_var(col: pd.Series) -> float:
             c_clean = col.dropna()
             if len(c_clean) < 15:

@@ -65,8 +65,10 @@ class StrategyRegistry:
     def get_strategy_count(self) -> int:
         return len(self._strategies)
 
-    def auto_discover(self, package_paths: List[str]) -> None:
+    def auto_discover(self, package_paths: Optional[List[str]] = None) -> None:
         """지정된 패키지 경로에서 전략 모듈을 자동 임포트하여 데코레이터를 실행시킴."""
+        if package_paths is None:
+            package_paths = ["src.core", "src.ai"]
         import sys
         from pathlib import Path
 
