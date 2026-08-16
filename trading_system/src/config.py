@@ -35,7 +35,7 @@ class TradingConfig:
     fundamental_cache_expiry_days: int = 90
 
     # 백테스트 기간 설정 (숫자=년)
-    backtest_years: int = 5
+    backtest_years: float = 5.0
 
     # 주가 DB 경로
     stock_price_db_path: str = "stock_prices.db"

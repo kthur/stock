@@ -521,6 +521,8 @@ class StockPriceDB:
 
                 if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
                     continue
+                if cl <= 0.0 or op <= 0.0 or hi <= 0.0 or lo <= 0.0:
+                    continue
             except (ValueError, TypeError, KeyError):
                 continue
             records.append((symbol, d_str, op, hi, lo, cl, vol))

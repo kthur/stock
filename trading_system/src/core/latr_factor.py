@@ -85,7 +85,6 @@ class LATRFactorEngine(BaseStrategyEngine):
                 logger.warning(f"[LATR FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
 
-
         if not scores:
             return {}
 

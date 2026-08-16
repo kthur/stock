@@ -52,12 +52,17 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     financials = None
     try:
         financials = ticker.quarterly_financials
-    except Exception:
+    except Exception as _q_err:
+        logger.debug(f"Quarterly financials fetch failed for {yf_sym}: {_q_err}. Trying annual financials.")
         financials = None
-    if financials is None or financials.empty:
-        financials = ticker.financials
-    if financials is None or financials.empty:
-        raise ValueError(f"No annual financials for {yf_sym}")
+    if financials is None or (hasattr(financials, 'empty') and financials.empty):
+        try:
+            financials = ticker.financials
+        except Exception as _a_err:
+            logger.debug(f"Annual financials fetch failed for {yf_sym}: {_a_err}.")
+            financials = None
+    if financials is None or (hasattr(financials, 'empty') and financials.empty):
+        raise ValueError(f"No financials available for {yf_sym}")
 
     fin = financials.T
     fin.index = pd.to_datetime(fin.index)

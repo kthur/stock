@@ -472,21 +472,36 @@ class MarketIndicatorStorage:
 
         russell2000 = _retry_fetch("RUSSELL2000 iShares", _fetch_russell_ishares)
 
-        # Tier 2 Fallback: If iShares download fails or is empty, use NYSE listing minus SP500
+        # Tier 2 Fallback: If iShares download fails or is empty, use NYSE + NASDAQ listings minus SP500
         if russell2000.empty:
-            def _fetch_nyse_fallback():
-                nyse = fdr.StockListing('NYSE')
-                if not nyse.empty and 'Symbol' in nyse.columns:
-                    sp500_syms = set(sp500['Symbol']) if not sp500.empty and 'Symbol' in sp500.columns else set()
-                    russell_fallback = nyse[~nyse['Symbol'].isin(sp500_syms)].copy()
+            def _fetch_us_smallcap_fallback():
+                sp500_syms = set(sp500['Symbol']) if not sp500.empty and 'Symbol' in sp500.columns else set()
+                combined_syms = []
+                try:
+                    nyse = fdr.StockListing('NYSE')
+                    if not nyse.empty and 'Symbol' in nyse.columns:
+                        combined_syms.append(nyse)
+                except Exception:
+                    pass
+                try:
+                    nasdaq = fdr.StockListing('NASDAQ')
+                    if not nasdaq.empty and 'Symbol' in nasdaq.columns:
+                        combined_syms.append(nasdaq)
+                except Exception:
+                    pass
+
+                if combined_syms:
+                    all_us = pd.concat(combined_syms, ignore_index=True)
+                    russell_fallback = all_us[~all_us['Symbol'].isin(sp500_syms)].copy()
                     russell_fallback = russell_fallback[~russell_fallback['Symbol'].isin(self._EXCLUDE_FALLBACK_TICKERS)]
+                    russell_fallback = russell_fallback.drop_duplicates(subset=['Symbol'])
                     russell_fallback.rename(columns={'Symbol': 'Ticker'}, inplace=True)
                     return russell_fallback.head(2500)
                 return pd.DataFrame()
 
-            russell2000 = _retry_fetch("RUSSELL2000 NYSE fallback", _fetch_nyse_fallback)
+            russell2000 = _retry_fetch("RUSSELL2000 US fallback", _fetch_us_smallcap_fallback)
             if not russell2000.empty:
-                logger.info(f"Loaded {len(russell2000)} RUSSELL2000 symbols via NYSE fallback.")
+                logger.info(f"Loaded {len(russell2000)} RUSSELL2000 symbols via NYSE+NASDAQ fallback.")
 
         logger.info("Fetching KRX universe...")
         krx = _retry_fetch("KRX listing", lambda: fdr.StockListing('KRX'))
@@ -560,7 +575,7 @@ class MarketIndicatorStorage:
                             russell_tuples
                         )
 
-                # KRX (filtered: KOSPI, KOSDAQ only; exclude KONEX)
+                # KRX (KOSPI, KOSDAQ, KONEX)
                 krx_tuples = []
                 for _, row in krx.iterrows():
                     code_raw = str(row['Code']).strip()
@@ -568,8 +583,6 @@ class MarketIndicatorStorage:
                     if code_str in excluded or code_raw in excluded:
                         continue
                     mkt = str(row.get('Market', 'KRX')).upper()
-                    if mkt in ('KONEX', 'KN'):
-                        continue
                     sec = str(row.get('Sector') or row.get('Dept') or row.get('Industry') or '')
                     ind = str(row.get('Industry') or '')
                     krx_tuples.append((code_str, row['Name'], mkt, sec, ind))

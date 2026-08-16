@@ -1,16 +1,24 @@
-import sys
+"""
+Global Pytest fixtures for the Stock Trading System test suite.
+"""
 import os
+import sys
 import pytest
-import numpy as np
-import pandas as pd
+from pathlib import Path
 
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ts_dir = os.path.join(root_dir, "trading_system")
+# Add project root to sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+_TRADING_SYS = _PROJECT_ROOT / "trading_system"
+if str(_TRADING_SYS) not in sys.path:
+    sys.path.insert(0, str(_TRADING_SYS))
 
-if ts_dir not in sys.path:
-    sys.path.insert(0, ts_dir)
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+
+@pytest.fixture
+def temp_db_path(tmp_path):
+    """Provides a temporary SQLite database path for isolated database tests."""
+    return str(tmp_path / "test_stock_prices.db")
 
 
 @pytest.fixture
@@ -22,6 +30,8 @@ def temp_model_dir(tmp_path):
 
 @pytest.fixture
 def synthetic_regression_data():
+    import numpy as np
+    import pandas as pd
     np.random.seed(42)
     n = 100
     X = pd.DataFrame({
@@ -35,6 +45,8 @@ def synthetic_regression_data():
 
 @pytest.fixture
 def synthetic_surge_data():
+    import numpy as np
+    import pandas as pd
     np.random.seed(42)
     n = 100
     X = pd.DataFrame({
@@ -42,13 +54,14 @@ def synthetic_surge_data():
         'vol_20d': np.abs(np.random.randn(n)),
         'rsi_14': np.random.uniform(30, 70, size=n),
     })
-    probs = 1 / (1 + np.exp(-X['ret_1d']))
-    y = pd.Series((probs > 0.5).astype(int))
+    y = pd.Series((np.arange(n) % 2).astype(int))
     return X, y
 
 
 @pytest.fixture
 def synthetic_prices_dict():
+    import numpy as np
+    import pandas as pd
     np.random.seed(42)
     n = 250
     dict_prices = {}
@@ -70,3 +83,20 @@ def synthetic_prices_dict():
         dict_prices[sym] = df
     return dict_prices
 
+
+@pytest.fixture
+def mock_ohlcv_df():
+    """Provides a standard mock OHLCV pandas DataFrame for unit tests."""
+    import numpy as np
+    import pandas as pd
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=100, freq='D')
+    np.random.seed(42)
+    prices = 100.0 + np.cumsum(np.random.randn(100) * 0.5)
+    df = pd.DataFrame({
+        'Open': prices + np.random.randn(100) * 0.1,
+        'High': prices + 1.0,
+        'Low': prices - 1.0,
+        'Close': prices,
+        'Volume': np.random.randint(1000, 10000, size=100)
+    }, index=dates)
+    return df

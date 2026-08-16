@@ -135,13 +135,7 @@ class CrisisDetector:
         """
         Returns dynamic portfolio target cash allocation ratio based on CrisisLevel.
         """
-        targets = {
-            CrisisLevel.NONE: 0.0,
-            CrisisLevel.WATCH: 0.15,
-            CrisisLevel.ACTIVE: 0.35,
-            CrisisLevel.SEVERE: 0.50,
-        }
-        return targets.get(self.crisis_level, 0.0)
+        return self.get_crisis_cash_target()
 
     def save_state(self, file_path: str = "models/crisis_state.json") -> None:
         """Persist CrisisDetector state and indicator histories to JSON file."""
@@ -312,7 +306,7 @@ class CrisisDetector:
     def _score_drawdown(self, dd: float) -> float:
         dd_speed = 0.0
         if len(self._dd_history) >= 5:
-            dd_speed = (dd - self._dd_history[-5]) / max(0.01, 5)
+            dd_speed = (dd - self._dd_history[-5]) / 5.0
         raw = min(1.0, dd / 0.20)
         speed_bonus = max(0, min(0.3, dd_speed * 5.0))
         return min(1.0, raw + speed_bonus)

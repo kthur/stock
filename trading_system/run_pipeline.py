@@ -16,6 +16,7 @@ import FinanceDataReader as fdr
 import yfinance as yf
 import warnings
 from pathlib import Path
+import joblib
 
 cpu_count = os.cpu_count()
 _CPU_WORKERS: int = max(1, cpu_count if cpu_count is not None else 4)
@@ -607,6 +608,9 @@ def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional
         ohlcv_cols = [c for c in ['Open', 'High', 'Low', 'Close', 'Volume'] if c in result.columns]
         if ohlcv_cols:
             result[ohlcv_cols] = result[ohlcv_cols].ffill()
+            for col in ohlcv_cols:
+                if result[col].dtype == np.float64:
+                    result[col] = result[col].astype(np.float32)
     return result
 
 
@@ -726,10 +730,8 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
             except Exception as ecos_e:
                 logger.debug(f"ECOS fallback failed for {ticker}: {ecos_e}")
 
-    # 2. Path for KRX ETFs or FRED fallback via FinanceDataReader with strict 8s socket timeout
+    # 2. Path for KRX ETFs or FRED fallback via FinanceDataReader with worker thread timeout
     if ticker.startswith("FRED:") or (ticker.isdigit() and len(ticker) == 6):
-        import socket
-        old_timeout = socket.getdefaulttimeout()
         _fdr_box: dict = {}
         def _fdr_fetch() -> None:
             raw = fdr.DataReader(ticker, start=start_date)
@@ -737,21 +739,18 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
                 raw.columns = [str(c).capitalize() if str(c).lower() in ['open', 'high', 'low', 'close', 'volume'] else str(c) for c in raw.columns]
                 _fdr_box["df"] = raw
         try:
-            socket.setdefaulttimeout(8.0)
             worker = threading.Thread(target=_fdr_fetch, daemon=True)
             worker.start()
-            worker.join(timeout=20.0)
+            worker.join(timeout=15.0)
             if "df" in _fdr_box:
                 logger.info(f"Successfully retrieved indicator data for {ticker} via FDR")
                 return _fdr_box["df"]
             if worker.is_alive():
-                logger.warning(f"FDR indicator download timed out after 20s for {ticker}")
+                logger.warning(f"FDR indicator download timed out after 15s for {ticker}")
             else:
                 logger.warning(f"Direct FDR indicator download error for {ticker}: empty result")
         except Exception as e:
             logger.warning(f"Direct FDR indicator download error for {ticker}: {e}")
-        finally:
-            socket.setdefaulttimeout(old_timeout)
 
         if ticker.startswith("FRED:"):
             raise ValueError(f"FRED indicator {ticker} download failed via direct FRED HTTP and FDR")
@@ -1826,8 +1825,17 @@ def execute_prediction_pipeline():
 
 
     # 11. Save predictions to DB
-    storage.save_predictions(res_df, date_str)
-    logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
+    try:
+        storage.save_predictions(res_df, date_str)
+        logger.info(f"Saved predictions to database table 'ai_predictions' for {date_str}.")
+    except Exception as _save_pred_e:
+        logger.warning(f"Initial attempt to save predictions to DB failed: {_save_pred_e}. Retrying after 1s...")
+        try:
+            time.sleep(1.0)
+            storage.save_predictions(res_df, date_str)
+            logger.info(f"Saved predictions to database on retry for {date_str}.")
+        except Exception as _retry_save_e:
+            logger.error(f"Permanent error saving predictions to DB for {date_str}: {_retry_save_e}")
 
     # 11b. Run Market Regime Detection
     logger.info("Running GMM Market Regime Detection...")
@@ -2216,7 +2224,8 @@ def execute_prediction_pipeline():
     # ── Milestone 4: Closed-Loop Realized Slippage Execution Feedback ─────────
     try:
         from src.execution.slippage_feedback import SlippageFeedbackEngine
-        db_path_trade = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "trade_logs.db")
+        _proj_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path_trade = os.environ.get("TRADE_LOGS_DB_PATH", os.path.normpath(os.path.join(_proj_dir, "..", "trade_logs.db")))
         slippage_engine = SlippageFeedbackEngine(db_path=db_path_trade, default_slippage_bps=5.0)
         slippage_metrics = slippage_engine.calculate_realized_slippage()
         scorer.update_microstructure_costs(slippage_metrics)

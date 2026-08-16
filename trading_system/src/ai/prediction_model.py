@@ -123,6 +123,53 @@ class FallbackMetadataDict(dict):
 FALLBACK_METADATA = FallbackMetadataDict()
 
 
+class DateAwareTimeSeriesSplit:
+    """
+    Cross-validation splitter that splits strictly by unique dates rather than row indices.
+    Enforces true calendar embargo gaps across all symbols on each trading date,
+    preventing lookahead bias and future data leakage in cross-sectional panel datasets.
+    """
+    def __init__(self, n_splits: int = 5, gap: int = 20):
+        self.n_splits = max(1, n_splits)
+        self.gap = max(0, gap)
+
+    def split(self, df_or_dates: Any, y: Any = None, groups: Any = None):
+        if isinstance(df_or_dates, pd.DataFrame):
+            if 'date' in df_or_dates.columns:
+                dates = pd.to_datetime(df_or_dates['date']).values
+            else:
+                dates = pd.to_datetime(df_or_dates.index).values
+        elif isinstance(df_or_dates, pd.Series):
+            dates = pd.to_datetime(df_or_dates).values
+        else:
+            dates = np.asarray(df_or_dates)
+
+        unique_dates = np.sort(np.unique(dates))
+        n_dates = len(unique_dates)
+
+        if n_dates <= self.n_splits + 1:
+            n_samples = len(dates)
+            cutoff = int(n_samples * 0.8)
+            yield np.arange(cutoff), np.arange(cutoff, n_samples)
+            return
+
+        test_size = max(1, (n_dates - self.gap) // (self.n_splits + 1))
+        for i in range(self.n_splits):
+            train_end_idx = n_dates - (self.n_splits - i) * test_size - self.gap
+            test_start_idx = train_end_idx + self.gap
+            test_end_idx = test_start_idx + test_size
+            if train_end_idx <= 0 or test_start_idx >= n_dates:
+                continue
+
+            train_dates = set(unique_dates[:train_end_idx])
+            test_dates = set(unique_dates[test_start_idx:min(test_end_idx, n_dates)])
+
+            train_idx = np.where(np.isin(dates, list(train_dates)))[0]
+            test_idx = np.where(np.isin(dates, list(test_dates)))[0]
+            if len(train_idx) > 0 and len(test_idx) > 0:
+                yield train_idx, test_idx
+
+
 class OnDevicePredictionModel:
     # Core OHLCV + feature engineered columns
     FEATURES = [
@@ -427,12 +474,9 @@ class OnDevicePredictionModel:
                     continue
                 h = int(h_str)
                 try:
-                    booster = xgb.Booster()
-                    booster.load_model(str(fpath))
-                    booster.set_param('predictor', 'auto')
                     model = xgb.XGBRegressor(**self._xgb_kwargs)
-                    model._Booster = booster
-                    model._estimator_type = 'regressor'
+                    model.load_model(str(fpath))
+                    model.set_params(predictor='auto')
                     for m_key in set([market, market.lower(), market.upper()]):
                         if m_key not in self.models:
                             self.models[m_key] = {}
@@ -581,21 +625,9 @@ class OnDevicePredictionModel:
                     continue
                 h = int(h_str)
                 try:
-                    booster = xgb.Booster()
-                    booster.load_model(str(fpath))
-                    booster.set_param('predictor', 'auto')
                     model = xgb.XGBClassifier(**self._surge_xgb_kwargs)
-                    model._Booster = booster
-                    model._estimator_type = 'classifier'
-                    try:
-                        model.n_classes_ = 2
-                    except (AttributeError, TypeError):
-                        model._n_classes = 2
-                    try:
-                        model.classes_ = np.array([0, 1])
-                    except (AttributeError, TypeError):
-                        model._classes = np.array([0, 1])
-
+                    model.load_model(str(fpath))
+                    model.set_params(predictor='auto')
                     for m_key in set([market, market.lower(), market.upper()]):
                         if m_key not in self.surge_models:
                             self.surge_models[m_key] = {}
@@ -973,7 +1005,21 @@ class OnDevicePredictionModel:
                 else:
                     df_fun_shifted = df_fun.copy()
                     df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
-                    df = df.join(df_fun_shifted.set_index('date_available'), how='left')
+                    df_idx_name = df.index.name or 'index_date'
+                    df_reset = df.reset_index()
+                    if df.index.name is None and 'index' in df_reset.columns:
+                        df_reset = df_reset.rename(columns={'index': df_idx_name})
+                    df_reset['date_align'] = pd.to_datetime(df_reset[df_idx_name])
+                    df_merged = pd.merge_asof(
+                        df_reset.sort_values('date_align'),
+                        df_fun_shifted.sort_values('date_available'),
+                        left_on='date_align',
+                        right_on='date_available',
+                        direction='backward',
+                        suffixes=('', '_fund')
+                    )
+                    df_merged = df_merged.drop(columns=['date_align', 'date_available', 'date_fund'], errors='ignore')
+                    df = df_merged.set_index(df_idx_name)
             else:
                 meta = FALLBACK_METADATA[symbol]
                 for col in FUND_COLS:
@@ -1532,7 +1578,7 @@ class OnDevicePredictionModel:
             if use_wf and len(df_h) >= 200:
                 embargo_gap = max(gap, h)
                 try:
-                    tscv_h = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
+                    tscv_h = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=embargo_gap)
                     splits = list(tscv_h.split(df_h))
                 except (ValueError, Exception):
                     splits = []
@@ -1838,7 +1884,7 @@ class OnDevicePredictionModel:
         horizon_thresholds = {1: 0.03, 3: 0.05, 5: 0.08, 20: 0.15}
         for h in self.surge_horizons:
             embargo_gap = max(gap, h)
-            tscv_surge = TimeSeriesSplit(n_splits=n_splits, gap=embargo_gap) if (use_wf and len(df_train) >= 200) else None
+            tscv_surge = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=embargo_gap) if (use_wf and len(df_train) >= 200) else None
             raw_target_col = f'raw_surge_target_{h}d'
             if raw_target_col not in df_train.columns:
                 if 'Close' in df_train.columns and 'symbol' in df_train.columns:
@@ -1885,7 +1931,7 @@ class OnDevicePredictionModel:
             surge_splits = []
             if tscv_surge is not None:
                 try:
-                    surge_splits = list(tscv_surge.split(X))
+                    surge_splits = list(tscv_surge.split(df_h_surge))
                 except (ValueError, Exception):
                     surge_splits = []
             if surge_splits:
@@ -2040,31 +2086,66 @@ class OnDevicePredictionModel:
             probs_cat_fit = model_cat.predict_proba(X_fit_th)[:, 1]
             blend_probs_fit = w_xgb_s * probs_xgb_fit + w_lgb_s * probs_lgb_fit + w_cat_s * probs_cat_fit
 
+            from sklearn.isotonic import IsotonicRegression
             from sklearn.linear_model import LogisticRegression
-            calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
+            calibration_model = None
+            is_isotonic = True
             try:
-                calibration_model.fit(blend_probs_fit.reshape(-1, 1), y_fit_th)
-                logger.info(f"Platt calibration fitted for {market} {h}d.")
-            except Exception as calib_err:
-                logger.warning(f"Calibration fitting failed: {calib_err}. Using uncalibrated probs.")
-                calibration_model = None
+                calibration_model = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
+                calibration_model.fit(blend_probs_fit, y_fit_th)
+                logger.info(f"Isotonic calibration fitted for {market} {h}d.")
+            except Exception as iso_err:
+                try:
+                    calibration_model = LogisticRegression(C=1.0, solver='lbfgs', random_state=42)
+                    calibration_model.fit(blend_probs_fit.reshape(-1, 1), y_fit_th)
+                    is_isotonic = False
+                    logger.info(f"Platt calibration fallback fitted for {market} {h}d: {iso_err}")
+                except Exception as calib_err:
+                    logger.warning(f"Calibration fitting failed: {calib_err}. Using uncalibrated probs.")
+                    calibration_model = None
 
             if calibration_model is not None:
                 if "calibration" not in self.ensemble_weights:
                     self.ensemble_weights["calibration"] = {}
                 if market not in self.ensemble_weights["calibration"]:
                     self.ensemble_weights["calibration"][market] = {}
-                self.ensemble_weights["calibration"][market][str(h)] = {
-                    "coef": float(calibration_model.coef_[0][0]),
-                    "intercept": float(calibration_model.intercept_[0])
-                }
+                if is_isotonic:
+                    # Store isotonic piece-wise linear interpolator checkpoints
+                    x_th = getattr(calibration_model, 'X_thresholds_', None)
+                    y_th = getattr(calibration_model, 'y_thresholds_', None)
+                    if x_th is not None and y_th is not None:
+                        self.ensemble_weights["calibration"][market][str(h)] = {
+                            "type": "isotonic",
+                            "x_thresholds": [float(x) for x in x_th],
+                            "y_thresholds": [float(y) for y in y_th]
+                        }
+                    else:
+                        # Fallback to Platt
+                        try:
+                            platt = LogisticRegression(C=1.0, solver='lbfgs', random_state=42).fit(blend_probs_fit.reshape(-1, 1), y_fit_th)
+                            self.ensemble_weights["calibration"][market][str(h)] = {
+                                "type": "platt",
+                                "coef": float(platt.coef_[0][0]),
+                                "intercept": float(platt.intercept_[0])
+                            }
+                        except Exception:
+                            pass
+                else:
+                    self.ensemble_weights["calibration"][market][str(h)] = {
+                        "type": "platt",
+                        "coef": float(calibration_model.coef_[0][0]),
+                        "intercept": float(calibration_model.intercept_[0])
+                    }
 
             probs_xgb_tune = model_xgb.predict_proba(X_tune_th)[:, 1]
             probs_lgb_tune = model_lgb.predict_proba(X_tune_th)[:, 1]  # type: ignore[call-overload]
             probs_cat_tune = model_cat.predict_proba(X_tune_th)[:, 1]
             blend_probs_tune = w_xgb_s * probs_xgb_tune + w_lgb_s * probs_lgb_tune + w_cat_s * probs_cat_tune
             if calibration_model is not None:
-                calibrated_probs_tune = calibration_model.predict_proba(blend_probs_tune.reshape(-1, 1))[:, 1]
+                if is_isotonic:
+                    calibrated_probs_tune = calibration_model.predict(blend_probs_tune)
+                else:
+                    calibrated_probs_tune = calibration_model.predict_proba(blend_probs_tune.reshape(-1, 1))[:, 1]
             else:
                 calibrated_probs_tune = blend_probs_tune
 
@@ -2512,7 +2593,7 @@ class OnDevicePredictionModel:
                             for p, w in zip(preds, weights):
                                 blend_prob += np.nan_to_num(p, nan=0.0) * (w / total_w)
 
-                            # Apply Platt Scaling calibration if coefficient metadata is present
+                            # Apply Isotonic or Platt Scaling calibration if metadata is present
                             calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), mkt, {})
                             if not calib_mkt and mkt.lower() in ['kospi', 'kosdaq']:
                                 calib_mkt = case_insensitive_get(self.ensemble_weights.get("calibration", {}), 'krx', {})
@@ -2520,12 +2601,20 @@ class OnDevicePredictionModel:
                             if calib_dict is None:
                                 calib_dict = calib_mkt.get(h, {})
                             if calib_dict:
-                                coef = calib_dict.get("coef")
-                                intercept = calib_dict.get("intercept")
-                                if coef is not None and intercept is not None:
-                                    z = np.clip(coef * blend_prob + intercept, -10, 10)
-                                    calib_p = 1.0 / (1.0 + np.exp(-z))
-                                    blend_prob = np.maximum(calib_p, blend_prob * 0.1)
+                                calib_type = calib_dict.get("type", "platt")
+                                if calib_type == "isotonic" and "x_thresholds" in calib_dict and "y_thresholds" in calib_dict:
+                                    x_th = np.array(calib_dict["x_thresholds"])
+                                    y_th = np.array(calib_dict["y_thresholds"])
+                                    if len(x_th) > 0 and len(x_th) == len(y_th):
+                                        calib_p = np.interp(blend_prob, x_th, y_th, left=float(y_th[0]), right=float(y_th[-1]))
+                                        blend_prob = np.clip(calib_p, 0.0, 1.0)
+                                else:
+                                    coef = calib_dict.get("coef")
+                                    intercept = calib_dict.get("intercept")
+                                    if coef is not None and intercept is not None:
+                                        z = np.clip(coef * blend_prob + intercept, -10, 10)
+                                        calib_p = 1.0 / (1.0 + np.exp(-z))
+                                        blend_prob = np.maximum(calib_p, blend_prob * 0.1)
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             # Momentum heuristic fallback when ML models are missing

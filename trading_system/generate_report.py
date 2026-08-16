@@ -16,13 +16,20 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
 from src.data_layer.data_validator import DataValidator
 
 logger = logging.getLogger(__name__)
+
+KST = timezone(timedelta(hours=9))
+
+
+def _safe_json(obj: any) -> str:
+    """Safely serialize JSON for embedding directly in HTML script blocks without XSS risk."""
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
 
 # ─────────────────────────────────────────────
 # Data models
@@ -756,7 +763,7 @@ def parse_earnings_tone_drift(text: str) -> tuple[str, list[SimpleStrategyRow]]:
 
 def _generate_fallback_portfolio(ensemble: Optional[EnsembleData] = None) -> PortfolioAllocationData:
     data = PortfolioAllocationData(
-        date=datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+        date=datetime.now(KST).strftime("%Y-%m-%d %H:%M KST"),
         total_capital="1,000,000,000 KRW/USD",
         target_horizon="20d",
         regime=ensemble.regime if ensemble and ensemble.regime else "SIDEWAYS",
@@ -1015,7 +1022,7 @@ def build_history_section(result_dir: Path) -> str:
             try:
                 snap_data = json.loads(snap_path.read_text(encoding="utf-8"))
                 snap_run_id = snap_data.get("run_id", "run_snapshot")
-                snap_date = snap_data.get("date", datetime.now().strftime("%Y-%m-%d"))
+                snap_date = snap_data.get("date", datetime.now(KST).strftime("%Y-%m-%d"))
                 snap_status = snap_data.get("status", "SUCCESS")
                 snap_trigger = snap_data.get("trigger_type", "manual")
                 snap_sha = snap_data.get("git_sha", "local")
@@ -1212,13 +1219,19 @@ def build_html(
     factor_neutralized_rows: Optional[list[SimpleStrategyRow]] = None,
     vol_target_rows: Optional[list[SimpleStrategyRow]] = None,
     microstructure_rows: Optional[list[SimpleStrategyRow]] = None,
+    accruals_quality_rows: Optional[list[SimpleStrategyRow]] = None,
+    short_squeeze_rows: Optional[list[SimpleStrategyRow]] = None,
+    valueup_catalyst_rows: Optional[list[SimpleStrategyRow]] = None,
+    trend_efficiency_rows: Optional[list[SimpleStrategyRow]] = None,
+    gamma_squeeze_rows: Optional[list[SimpleStrategyRow]] = None,
+    insider_buying_rows: Optional[list[SimpleStrategyRow]] = None,
+    darkpool_rows: Optional[list[SimpleStrategyRow]] = None,
+    earnings_tone_drift_rows: Optional[list[SimpleStrategyRow]] = None,
     scenario_universe_json: str = "[]",
     backtest_rows_html: str = "",
     backtest_note_html: str = "",
     history_html: str = "",
 ) -> str:
-    from datetime import timezone, timedelta
-    KST = timezone(timedelta(hours=9))
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
     def resolve_regime_info(reg_name: str, fallback_label: str) -> tuple[str, str]:
         r = (reg_name or "").strip().upper()
@@ -1257,11 +1270,18 @@ def build_html(
                     "RIM Valuation": r.rim_valuation, "Event-Driven": r.event_driven,
                     "MQ Factor": r.mq_factor, "IV Skew": r.iv_skew, "Order Flow": r.order_flow,
                     "Short Reversal": r.short_term_reversal, "ARM Factor": r.arm_factor,
-                    "CARD Factor": r.card_factor, "LATR Factor": r.latr_factor
+                    "CARD Factor": r.card_factor, "LATR Factor": r.latr_factor,
+                    "Inst & Foreign Sector": r.inst_foreign_sector, "Supply Chain": r.supply_chain,
+                    "NLP Sentiment": r.sentiment, "Factor Neutralized": r.factor_neutralized,
+                    "Vol Targeting": r.vol_target, "Microstructure": r.microstructure,
+                    "Accruals Quality": r.accruals_quality, "Short Squeeze": r.short_squeeze,
+                    "Value-Up Yield": r.valueup_catalyst, "Trend Efficiency": r.trend_efficiency,
+                    "Gamma Squeeze": r.gamma_squeeze, "Insider Buying": r.insider_buying,
+                    "Darkpool & HFT": r.darkpool, "Tone Drift": r.earnings_tone_drift
                 }
                 import urllib.parse
-                factors_encoded = urllib.parse.quote(json.dumps(factors_dict, ensure_ascii=False))
-                clean_name = r.name.replace("'", "")
+                factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
+                clean_name = r.name.replace("'", "").replace('"', '')
                 rows_html += f"""
             <tr onclick="openStockDrawer('{r.symbol}', '{clean_name}', '{mkt}', '{r.score}', '{ret_disp}', '{factors_encoded}')" style="cursor:pointer;">
               <td class="rank sticky-col sticky-rank">#{r.rank}</td>
@@ -1287,9 +1307,22 @@ def build_html(
               <td>{r.card_factor}</td>
               <td>{r.latr_factor}</td>
               <td>{r.inst_foreign_sector}</td>
+              <td>{r.supply_chain}</td>
+              <td>{r.sentiment}</td>
+              <td>{r.factor_neutralized}</td>
+              <td>{r.vol_target}</td>
+              <td>{r.microstructure}</td>
+              <td>{r.accruals_quality}</td>
+              <td>{r.short_squeeze}</td>
+              <td>{r.valueup_catalyst}</td>
+              <td>{r.trend_efficiency}</td>
+              <td>{r.gamma_squeeze}</td>
+              <td>{r.insider_buying}</td>
+              <td>{r.darkpool}</td>
+              <td>{r.earnings_tone_drift}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="31" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="36" class="empty">데이터 없음</td></tr>'
 
         ensemble_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -1320,6 +1353,19 @@ def build_html(
             <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
             <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
             <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
+            <th title="Supply Chain Momentum 전방 공급망 전이">Supply</th>
+            <th title="NLP Sentiment FinBERT 공시/뉴스 감성">NLP</th>
+            <th title="Fama-French Multi-Factor Style Neutralized 순수 알파">Neutral</th>
+            <th title="Dynamic Volatility Targeting 리스크 파리티">Vol-T</th>
+            <th title="Microstructure Imbalance 호가/동시호가 갭">Micro</th>
+            <th title="Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">Accrual</th>
+            <th title="Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">S-Sq</th>
+            <th title="Value-Up Catalyst 저PBR 및 총주주환원율">ValueUp</th>
+            <th title="Kaufman Trend Efficiency 고순도 추세 필터">TrendEff</th>
+            <th title="Gamma Squeeze 옵션 델타/감마 가속도">GammaSq</th>
+            <th title="Insider Buying 임원/대주주 내부자 매수">Insider</th>
+            <th title="High-Frequency Darkpool / Block Order Flow">Darkpool</th>
+            <th title="Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">ToneDrift</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -1850,12 +1896,20 @@ def build_html(
     neutralized_panels = _build_simple_panels(factor_neutralized_rows or [], "neutralized", "순수 알파 스코어")
     voltarget_panels   = _build_simple_panels(vol_target_rows or [],   "voltarget",   "변동성 타겟 스코어")
     microstructure_panels = _build_simple_panels(microstructure_rows or [], "microstructure", "미시구조 스코어")
+    accruals_panels       = _build_simple_panels(accruals_quality_rows or [], "accruals", "회계 품질 스코어")
+    shortsqueeze_panels   = _build_simple_panels(short_squeeze_rows or [], "shortsqueeze", "숏스퀴즈 스코어")
+    valueup_panels        = _build_simple_panels(valueup_catalyst_rows or [], "valueup", "Value-Up 스코어")
+    trendeff_panels       = _build_simple_panels(trend_efficiency_rows or [], "trendeff", "추세 효율성 스코어")
+    gammasqueeze_panels   = _build_simple_panels(gamma_squeeze_rows or [], "gammasqueeze", "감마 스퀴즈 스코어")
+    insider_panels        = _build_simple_panels(insider_buying_rows or [], "insider", "내부자 매수 스코어")
+    darkpool_panels       = _build_simple_panels(darkpool_rows or [], "darkpool", "다크풀 수급 스코어")
+    tonedrift_panels      = _build_simple_panels(earnings_tone_drift_rows or [], "tonedrift", "어닝 톤 드리프트 스코어")
 
-    # JSON strings for Chart.js
-    hrp_labels_json = json.dumps(chart_labels, ensure_ascii=False)
-    hrp_weights_json = json.dumps(chart_weights)
-    mkt_labels_json = json.dumps(list(market_weights.keys()), ensure_ascii=False)
-    mkt_weights_json = json.dumps([round(v, 2) for v in market_weights.values()])
+    # JSON strings for Chart.js safely serialized to prevent XSS
+    hrp_labels_json = _safe_json(chart_labels)
+    hrp_weights_json = _safe_json(chart_weights)
+    mkt_labels_json = _safe_json(list(market_weights.keys()))
+    mkt_weights_json = _safe_json([round(v, 2) for v in market_weights.values()])
 
     # ── Full HTML ──
     return f"""<!DOCTYPE html>
@@ -2521,6 +2575,14 @@ def build_html(
   <button class="tab" onclick="switchTab(this,'neutralized')">🛡️ Factor Neutralized</button>
   <button class="tab" onclick="switchTab(this,'voltarget')">🎯 Vol Targeting</button>
   <button class="tab" onclick="switchTab(this,'microstructure')">⚡ Microstructure</button>
+  <button class="tab" onclick="switchTab(this,'accruals')">⚖️ Accruals Quality</button>
+  <button class="tab" onclick="switchTab(this,'shortsqueeze')">💥 Short Squeeze</button>
+  <button class="tab" onclick="switchTab(this,'valueup')">💎 Value-Up Yield</button>
+  <button class="tab" onclick="switchTab(this,'trendeff')">📈 Trend Efficiency</button>
+  <button class="tab" onclick="switchTab(this,'gammasqueeze')">🎯 Gamma Squeeze</button>
+  <button class="tab" onclick="switchTab(this,'insider')">👥 Insider Buying</button>
+  <button class="tab" onclick="switchTab(this,'darkpool')">🌊 Darkpool &amp; HFT</button>
+  <button class="tab" onclick="switchTab(this,'tonedrift')">🗣️ Tone Drift</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
@@ -2821,6 +2883,126 @@ def build_html(
     </div>
     <div id="microstructure-panels">
     {microstructure_panels}
+    </div>
+  </div>
+
+  <!-- ══ Accruals Quality Tab ══ -->
+  <div class="tab-panel" id="panel-accruals">
+    <div class="filter-bar" id="filter-accruals">
+      <button class="filter-btn active" onclick="filterMarket(this,'accruals')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="accruals-panels">
+    {accruals_panels}
+    </div>
+  </div>
+
+  <!-- ══ Short Squeeze Tab ══ -->
+  <div class="tab-panel" id="panel-shortsqueeze">
+    <div class="filter-bar" id="filter-shortsqueeze">
+      <button class="filter-btn active" onclick="filterMarket(this,'shortsqueeze')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="shortsqueeze-panels">
+    {shortsqueeze_panels}
+    </div>
+  </div>
+
+  <!-- ══ Value-Up Yield Tab ══ -->
+  <div class="tab-panel" id="panel-valueup">
+    <div class="filter-bar" id="filter-valueup">
+      <button class="filter-btn active" onclick="filterMarket(this,'valueup')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="valueup-panels">
+    {valueup_panels}
+    </div>
+  </div>
+
+  <!-- ══ Trend Efficiency Tab ══ -->
+  <div class="tab-panel" id="panel-trendeff">
+    <div class="filter-bar" id="filter-trendeff">
+      <button class="filter-btn active" onclick="filterMarket(this,'trendeff')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="trendeff-panels">
+    {trendeff_panels}
+    </div>
+  </div>
+
+  <!-- ══ Gamma Squeeze Tab ══ -->
+  <div class="tab-panel" id="panel-gammasqueeze">
+    <div class="filter-bar" id="filter-gammasqueeze">
+      <button class="filter-btn active" onclick="filterMarket(this,'gammasqueeze')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="gammasqueeze-panels">
+    {gammasqueeze_panels}
+    </div>
+  </div>
+
+  <!-- ══ Insider Buying Tab ══ -->
+  <div class="tab-panel" id="panel-insider">
+    <div class="filter-bar" id="filter-insider">
+      <button class="filter-btn active" onclick="filterMarket(this,'insider')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="insider-panels">
+    {insider_panels}
+    </div>
+  </div>
+
+  <!-- ══ Darkpool & HFT Tab ══ -->
+  <div class="tab-panel" id="panel-darkpool">
+    <div class="filter-bar" id="filter-darkpool">
+      <button class="filter-btn active" onclick="filterMarket(this,'darkpool')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="darkpool-panels">
+    {darkpool_panels}
+    </div>
+  </div>
+
+  <!-- ══ Earnings Tone Drift Tab ══ -->
+  <div class="tab-panel" id="panel-tonedrift">
+    <div class="filter-bar" id="filter-tonedrift">
+      <button class="filter-btn active" onclick="filterMarket(this,'tonedrift')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="tonedrift-panels">
+    {tonedrift_panels}
     </div>
   </div>
 
@@ -3363,7 +3545,7 @@ def main(args_list: Optional[list[str]] = None):
                 "elas": elas
             })
 
-    scenario_universe_json = json.dumps(scen_universe, ensure_ascii=False)
+    scenario_universe_json = _safe_json(scen_universe)
 
     # ── Backtest summary: dynamic table rows from backtest_summary.json ──
     backtest_rows_html = ""
@@ -3447,9 +3629,17 @@ def main(args_list: Optional[list[str]] = None):
         factor_neutralized_rows,
         vol_target_rows,
         microstructure_rows,
-        scenario_universe_json,
-        backtest_rows_html,
-        backtest_note_html,
+        accruals_quality_rows=accruals_quality_rows,
+        short_squeeze_rows=short_squeeze_rows,
+        valueup_catalyst_rows=valueup_catalyst_rows,
+        trend_efficiency_rows=trend_efficiency_rows,
+        gamma_squeeze_rows=gamma_squeeze_rows,
+        insider_buying_rows=insider_buying_rows,
+        darkpool_rows=darkpool_rows,
+        earnings_tone_drift_rows=earnings_tone_drift_rows,
+        scenario_universe_json=scenario_universe_json,
+        backtest_rows_html=backtest_rows_html,
+        backtest_note_html=backtest_note_html,
         history_html=history_html,
     )
 

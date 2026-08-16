@@ -306,8 +306,8 @@ class PortfolioAllocator:
         else:
             vols = np.full(n_assets, 0.02)
 
-        # Raw Kelly score: mu_i / sigma_i^2
-        raw_kelly = (mu / (vols ** 2))
+        # Raw Kelly score: kelly_fraction * (mu_i / sigma_i^2)
+        raw_kelly = float(kelly_fraction) * (mu / (vols ** 2))
         total_k = np.sum(raw_kelly)
 
         if total_k <= 1e-8:
@@ -508,6 +508,7 @@ class PortfolioAllocator:
 
         vol_clean = max(0.005, volatility_20d)
 
+        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * w_i * sigma_i) / (2 * gamma) ]^(1/3)
         cubic_term = (3.0 * cost_rate * target_weight * vol_clean) / (2.0 * max(1e-4, gamma))
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
