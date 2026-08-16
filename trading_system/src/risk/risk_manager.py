@@ -134,9 +134,14 @@ class CrisisDetector:
     def get_target_cash_ratio(self) -> float:
         """
         Returns dynamic portfolio target cash allocation ratio based on CrisisLevel.
-        Delegates to get_crisis_cash_target for unified, recovery-aware cash targets.
         """
-        return self.get_crisis_cash_target()
+        targets = {
+            CrisisLevel.NONE: 0.0,
+            CrisisLevel.WATCH: 0.15,
+            CrisisLevel.ACTIVE: 0.35,
+            CrisisLevel.SEVERE: 0.50,
+        }
+        return targets.get(self.crisis_level, 0.0)
 
     def save_state(self, file_path: str = "models/crisis_state.json") -> None:
         """Persist CrisisDetector state and indicator histories to JSON file."""

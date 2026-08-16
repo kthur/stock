@@ -140,21 +140,22 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
             analyzer = SentimentAnalyzer()
             res = analyzer.analyze(text)
             if isinstance(res, dict):
-                raw_score = float(res.get('score', 0.0))
                 pos_val = float(res.get('positive', 0.0))
                 neg_val = float(res.get('negative', 0.0))
-                pos_count = int(pos_val * 5.0)
-                neg_count = int(neg_val * 5.0)
-                confidence = float(min(1.0, max(0.2, pos_val + neg_val)))
-                summary = "BULLISH" if raw_score >= 0.20 else ("BEARISH" if raw_score <= -0.20 else "NEUTRAL")
-                return FilingSentimentResult(
-                    symbol=symbol,
-                    sentiment_score=raw_score,
-                    tone_confidence=confidence,
-                    positive_keywords_count=pos_count,
-                    negative_keywords_count=neg_count,
-                    summary_tone=summary
-                )
+                if pos_val > 0.0 or neg_val > 0.0:
+                    raw_score = float(res.get('score', 0.0))
+                    pos_count = int(pos_val * 5.0)
+                    neg_count = int(neg_val * 5.0)
+                    confidence = float(min(1.0, max(0.2, pos_val + neg_val)))
+                    summary = "BULLISH" if raw_score >= 0.20 else ("BEARISH" if raw_score <= -0.20 else "NEUTRAL")
+                    return FilingSentimentResult(
+                        symbol=symbol,
+                        sentiment_score=raw_score,
+                        tone_confidence=confidence,
+                        positive_keywords_count=pos_count,
+                        negative_keywords_count=neg_count,
+                        summary_tone=summary
+                    )
         except Exception:
             pass
 

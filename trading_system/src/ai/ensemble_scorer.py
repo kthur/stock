@@ -827,23 +827,25 @@ class EnsembleScoringEngine:
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
+            if sharpe < -0.50:
+                # Hard gate pruning for severely underperforming strategies
+                scores[strategy] = 0.0
+                continue
+
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
-            # Convex Sharpe Elasticity Multiplier for high performing strategies & Asymmetric Downside Penalty
-            # Evaluated on unclipped sharpe to allow outperforming strategies to receive full allocation boosts
-            if sharpe >= 1.50:
+            # Convex Sharpe Elasticity Multiplier for high performing strategies
+            if clipped_sharpe >= 1.50:
                 multiplier *= 1.25
-            elif sharpe >= 1.00:
+            elif clipped_sharpe >= 1.00:
                 multiplier *= 1.15
-            elif sharpe >= 0.50:
+            elif clipped_sharpe >= 0.50:
                 multiplier *= 1.08
-            elif sharpe < 0.0:
-                # Asymmetric downside risk mitigation: reduce allocation to underperforming signals
-                downside_penalty = 1.0 / (1.0 + abs(sharpe) * 0.40)
+            elif clipped_sharpe < 0.0:
+                # Asymmetric downside risk mitigation for mild underperformance
+                downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.40)
                 multiplier *= downside_penalty
             scores[strategy] = base_w * multiplier
-
-
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
         # differ up to ~5x, so multiplier-only capping is not enough). Damping the
@@ -873,8 +875,11 @@ class EnsembleScoringEngine:
         if self._prev_weights is not None:
             smoothed = {}
             for k, target_w in dynamic_weights.items():
-                prev_w = self._prev_weights.get(k, target_w)
-                smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
+                if target_w == 0.0:
+                    smoothed[k] = 0.0
+                else:
+                    prev_w = self._prev_weights.get(k, target_w)
+                    smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
 
             total_w = sum(smoothed.values())
             if total_w > 0:

@@ -266,7 +266,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         prices_dict: Dict[str, List[float]],
         min_correlation: float = 0.70,
         max_pvalue: float = 0.10,
-        min_half_life: float = 2.0,
+        min_half_life: float = 0.5,
         max_half_life: float = 40.0,
         min_zscore: float = 2.0,
         sector_map: Optional[Dict[str, str]] = None,
@@ -414,67 +414,34 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             spreads = Y_hist - (slopes[:, None] * X_hist + intercepts[:, None])
 
             dy = spreads[:, 1:] - spreads[:, :-1]
-            if dy.shape[1] >= 10:
-                # Augmented Dickey-Fuller (ADF) with 1 lag difference: dy_t = beta * y_{t-1} + gamma * dy_{t-1} + c
-                dy_target = dy[:, 1:]
-                y_lag_target = spreads[:, 1:-1]
-                dy_lag = dy[:, :-1]
+            y_lag = spreads[:, :-1]
+            yl_mean = np.mean(y_lag, axis=1, keepdims=True)
+            dy_mean = np.mean(dy, axis=1, keepdims=True)
+            yl_diff = y_lag - yl_mean
+            dy_diff = dy - dy_mean
+            var_yl = np.sum(yl_diff**2, axis=1)
+            cov_yldy = np.sum(yl_diff * dy_diff, axis=1)
+            var_yl = np.where(var_yl < 1e-8, 1e-6, var_yl)
+            beta = cov_yldy / var_yl
 
-                dy_mean = np.mean(dy_target, axis=1, keepdims=True)
-                yl_mean = np.mean(y_lag_target, axis=1, keepdims=True)
-                dyl_mean = np.mean(dy_lag, axis=1, keepdims=True)
-
-                Y_c = dy_target - dy_mean
-                X1_c = y_lag_target - yl_mean
-                X2_c = dy_lag - dyl_mean
-
-                # Vectorized 2x2 Gram matrix inversion per pair
-                s11 = np.sum(X1_c**2, axis=1)
-                s22 = np.sum(X2_c**2, axis=1)
-                s12 = np.sum(X1_c * X2_c, axis=1)
-                sy1 = np.sum(Y_c * X1_c, axis=1)
-                sy2 = np.sum(Y_c * X2_c, axis=1)
-
-                det = s11 * s22 - s12**2
-                det = np.where(det < 1e-8, 1e-6, det)
-
-                beta = (s22 * sy1 - s12 * sy2) / det
-                gamma = (s11 * sy2 - s12 * sy1) / det
-
-                res_dy = Y_c - beta[:, None] * X1_c - gamma[:, None] * X2_c
-                T_sub = float(dy_target.shape[1])
-                inv_c11 = s22 / det
-                s_err = np.sqrt(np.maximum(np.sum(res_dy**2, axis=1) / max(1.0, T_sub - 3.0), 1e-12) * inv_c11)
-                s_err = np.where(s_err < 1e-12, 1e-6, s_err)
-                t_stats = beta / s_err
-            else:
-                y_lag = spreads[:, :-1]
-                yl_mean = np.mean(y_lag, axis=1, keepdims=True)
-                dy_mean = np.mean(dy, axis=1, keepdims=True)
-                yl_diff = y_lag - yl_mean
-                dy_diff = dy - dy_mean
-                var_yl = np.sum(yl_diff**2, axis=1)
-                cov_yldy = np.sum(yl_diff * dy_diff, axis=1)
-                var_yl = np.where(var_yl < 1e-8, 1e-6, var_yl)
-                beta = cov_yldy / var_yl
-
-                res_dy = dy_diff - beta[:, None] * yl_diff
-                T_sub = float(dy.shape[1])
-                s_err = np.sqrt(np.maximum(np.sum(res_dy**2, axis=1) / max(1.0, T_sub - 2.0), 1e-12) / var_yl)
-                s_err = np.where(s_err < 1e-12, 1e-6, s_err)
-                t_stats = beta / s_err
+            res_dy = dy_diff - beta[:, None] * yl_diff
+            T_sub = float(dy.shape[1])
+            s_err = np.sqrt(np.maximum(np.sum(res_dy**2, axis=1) / max(1.0, T_sub - 2.0), 1e-12) / var_yl)
+            s_err = np.where(s_err < 1e-12, 1e-6, s_err)
+            t_stats = beta / s_err
 
             p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
-            # AR(1) coefficient phi = 1 + beta: phi in (0,1) → stable mean reversion;
-            # phi <= 0 → oscillatory fast mean reversion (use |phi| to keep half-life real)
-            phi = np.clip(1.0 + beta, 1e-6, 0.999999)
+            # Ornstein-Uhlenbeck continuous / discrete half-life:
+            # For monotonic reversion (1 + beta > 0): -ln(2)/ln(1 + beta)
+            # For fast oscillatory reversion (1 + beta <= 0): ln(2)/(-beta)
             half_lives = np.where(
                 beta < 0.0,
-                -np.log(2.0) / np.log(phi),
+                np.where(1.0 + beta > 1e-4, -np.log(2.0) / np.log(np.clip(1.0 + beta, 1e-4, 0.999999)), np.log(2.0) / np.maximum(-beta, 1e-5)),
                 999.0,
             )
 
-            pass_mask = (p_vals <= eff_max_pvalue) & (half_lives > 0) & (half_lives <= max_half_life)
+            pass_mask = (p_vals <= eff_max_pvalue) & (half_lives >= min_half_life) & (half_lives <= max_half_life)
+            logger.info(f"DEBUG: p_vals={p_vals}, half_lives={half_lives}, min_hl={min_half_life}, max_hl={max_half_life}, eff_pval={eff_max_pvalue}, pass_mask={pass_mask}")
 
             final_idx = np.where(pass_mask)[0]
             for idx in final_idx:
@@ -551,10 +518,10 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                     found_pairs = []
 
 
-        found_pairs = found_pairs[:500]
-
         if found_pairs:
             logger.info(f"StatArb found {len(found_pairs)} active cointegrated pair(s).")
+        else:
+            logger.info(f"StatArb returning 0 pairs (total cand: {len(i_arr) if 'i_arr' in locals() else 0}).")
         return found_pairs
 
     @staticmethod

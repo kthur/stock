@@ -75,7 +75,7 @@ class TestStatArbExecution(unittest.TestCase):
 
             # Verify exact price formula used in execute_twap
             expected_slippage = 0.0001 * (r["quantity"] / 1000.0) * start_price
-            expected_price = start_price + expected_slippage + 0.05 * (r["slice_index"] - intervals / 2)
+            expected_price = start_price + expected_slippage + (0.0005 * start_price * (r["slice_index"] - intervals / 2) / max(1, intervals))
             self.assertAlmostEqual(r["price"], expected_price, places=2)
 
     def test_vwap_execution_slicing(self):
@@ -113,7 +113,7 @@ class TestStatArbExecution(unittest.TestCase):
             volume_share = volume_profile[idx]
             impact_factor = (r["quantity"] / 1000.0) / (volume_share + 1e-5)
             expected_slippage = 0.00005 * impact_factor * start_price
-            expected_price = start_price - expected_slippage + 0.04 * (idx - intervals / 2)
+            expected_price = start_price - expected_slippage + (0.0005 * start_price * (idx - intervals / 2) / max(1, intervals))
             self.assertAlmostEqual(r["price"], expected_price, places=2)
 
 

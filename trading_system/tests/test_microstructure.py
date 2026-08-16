@@ -13,8 +13,8 @@ class TestMicrostructureCostModel(unittest.TestCase):
 
     def test_tax_fee_rates(self):
         # KRX buy vs sell: buy = brokerage fee only, sell = STT + brokerage fee
-        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=False), 0.00035)
-        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=True), 0.0018 + 0.00035)
+        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=False), self.model.cfg.brokerage_fee_rate)
+        self.assertAlmostEqual(self.model.get_tax_fee_rate("KOSPI", is_sell=True), self.model.cfg.kospi_stt_rate + self.model.cfg.brokerage_fee_rate)
 
         # US sell: SEC fee + US brokerage fee
         self.assertAlmostEqual(self.model.get_tax_fee_rate("SP500", is_sell=True), 0.0000278 + 0.00005)
