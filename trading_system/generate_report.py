@@ -1282,44 +1282,45 @@ def build_html(
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
                 clean_name = r.name.replace("'", "").replace('"', '')
+                drawer_call = f"openStockDrawer('{r.symbol}', '{clean_name}', '{mkt}', '{r.score}', '{ret_disp}', '{factors_encoded}')"
                 rows_html += f"""
-            <tr onclick="openStockDrawer('{r.symbol}', '{clean_name}', '{mkt}', '{r.score}', '{ret_disp}', '{factors_encoded}')" style="cursor:pointer;">
+            <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 31대 전략 상세 보기">
               <td class="rank sticky-col sticky-rank">#{r.rank}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
-              <td class="name sticky-col sticky-name">{r.name}</td>
+              <td class="name sticky-col sticky-name">{r.name}<span class="row-chevron" aria-hidden="true">›</span></td>
               <td class="score">{r.score}</td>
               <td class="{rc}">{ret_disp}</td>
-              <td>{r.reg}</td>
-              <td>{r.surge}</td>
-              <td>{r.lead_lag}</td>
-              <td>{r.vcp_rule}</td>
-              <td>{r.vcp_ml}</td>
-              <td>{r.lstm}</td>
-              <td>{r.stat_arb}</td>
-              <td>{r.sector_rotation}</td>
-              <td>{r.rim_valuation}</td>
-              <td>{r.event_driven}</td>
-              <td>{r.mq_factor}</td>
-              <td>{r.iv_skew}</td>
-              <td>{r.order_flow}</td>
-              <td>{r.short_term_reversal}</td>
-              <td>{r.arm_factor}</td>
-              <td>{r.card_factor}</td>
-              <td>{r.latr_factor}</td>
-              <td>{r.inst_foreign_sector}</td>
-              <td>{r.supply_chain}</td>
-              <td>{r.sentiment}</td>
-              <td>{r.factor_neutralized}</td>
-              <td>{r.vol_target}</td>
-              <td>{r.microstructure}</td>
-              <td>{r.accruals_quality}</td>
-              <td>{r.short_squeeze}</td>
-              <td>{r.valueup_catalyst}</td>
-              <td>{r.trend_efficiency}</td>
-              <td>{r.gamma_squeeze}</td>
-              <td>{r.insider_buying}</td>
-              <td>{r.darkpool}</td>
-              <td>{r.earnings_tone_drift}</td>
+              <td class="col-strat">{r.reg}</td>
+              <td class="col-strat">{r.surge}</td>
+              <td class="col-strat">{r.lead_lag}</td>
+              <td class="col-strat">{r.vcp_rule}</td>
+              <td class="col-strat">{r.vcp_ml}</td>
+              <td class="col-strat">{r.lstm}</td>
+              <td class="col-strat">{r.stat_arb}</td>
+              <td class="col-strat">{r.sector_rotation}</td>
+              <td class="col-strat">{r.rim_valuation}</td>
+              <td class="col-strat">{r.event_driven}</td>
+              <td class="col-strat">{r.mq_factor}</td>
+              <td class="col-strat">{r.iv_skew}</td>
+              <td class="col-strat">{r.order_flow}</td>
+              <td class="col-strat">{r.short_term_reversal}</td>
+              <td class="col-strat">{r.arm_factor}</td>
+              <td class="col-strat">{r.card_factor}</td>
+              <td class="col-strat">{r.latr_factor}</td>
+              <td class="col-strat">{r.inst_foreign_sector}</td>
+              <td class="col-strat">{r.supply_chain}</td>
+              <td class="col-strat">{r.sentiment}</td>
+              <td class="col-strat">{r.factor_neutralized}</td>
+              <td class="col-strat">{r.vol_target}</td>
+              <td class="col-strat">{r.microstructure}</td>
+              <td class="col-strat">{r.accruals_quality}</td>
+              <td class="col-strat">{r.short_squeeze}</td>
+              <td class="col-strat">{r.valueup_catalyst}</td>
+              <td class="col-strat">{r.trend_efficiency}</td>
+              <td class="col-strat">{r.gamma_squeeze}</td>
+              <td class="col-strat">{r.insider_buying}</td>
+              <td class="col-strat">{r.darkpool}</td>
+              <td class="col-strat">{r.earnings_tone_drift}</td>
             </tr>"""
         else:
             rows_html = '<tr><td colspan="36" class="empty">데이터 없음</td></tr>'
@@ -1330,42 +1331,42 @@ def build_html(
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th class="sticky-col sticky-rank" title="종목 순위">순위</th>
-            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭">종목명</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블</th>
-            <th title="20일(20D) Horizon 기준 미시구조 거래비용 차감 후 순예상수익률 (%)">예상수익률 (20D)</th>
-            <th title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀</th>
-            <th title="Surge 분류기 20% 이상 급등 확률">Surge</th>
-            <th title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L</th>
-            <th title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R</th>
-            <th title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M</th>
-            <th title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM</th>
-            <th title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb</th>
-            <th title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R</th>
-            <th title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM</th>
-            <th title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event</th>
-            <th title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ</th>
-            <th title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk</th>
-            <th title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow</th>
-            <th title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev</th>
-            <th title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM</th>
-            <th title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD</th>
-            <th title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR</th>
-            <th title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F</th>
-            <th title="Supply Chain Momentum 전방 공급망 전이">Supply</th>
-            <th title="NLP Sentiment FinBERT 공시/뉴스 감성">NLP</th>
-            <th title="Fama-French Multi-Factor Style Neutralized 순수 알파">Neutral</th>
-            <th title="Dynamic Volatility Targeting 리스크 파리티">Vol-T</th>
-            <th title="Microstructure Imbalance 호가/동시호가 갭">Micro</th>
-            <th title="Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">Accrual</th>
-            <th title="Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">S-Sq</th>
-            <th title="Value-Up Catalyst 저PBR 및 총주주환원율">ValueUp</th>
-            <th title="Kaufman Trend Efficiency 고순도 추세 필터">TrendEff</th>
-            <th title="Gamma Squeeze 옵션 델타/감마 가속도">GammaSq</th>
-            <th title="Insider Buying 임원/대주주 내부자 매수">Insider</th>
-            <th title="High-Frequency Darkpool / Block Order Flow">Darkpool</th>
-            <th title="Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">ToneDrift</th>
+            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
+            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
+            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
+            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20일(20D) Horizon 기준 미시구조 거래비용 차감 후 순예상수익률 (%)">예상수익률 (20D) ↕</th>
+            <th class="col-strat" title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀 ↕</th>
+            <th class="col-strat" title="Surge 분류기 20% 이상 급등 확률">Surge ↕</th>
+            <th class="col-strat" title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L ↕</th>
+            <th class="col-strat" title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R ↕</th>
+            <th class="col-strat" title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M ↕</th>
+            <th class="col-strat" title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM ↕</th>
+            <th class="col-strat" title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb ↕</th>
+            <th class="col-strat" title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R ↕</th>
+            <th class="col-strat" title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM ↕</th>
+            <th class="col-strat" title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event ↕</th>
+            <th class="col-strat" title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ ↕</th>
+            <th class="col-strat" title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk ↕</th>
+            <th class="col-strat" title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow ↕</th>
+            <th class="col-strat" title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev ↕</th>
+            <th class="col-strat" title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM ↕</th>
+            <th class="col-strat" title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD ↕</th>
+            <th class="col-strat" title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR ↕</th>
+            <th class="col-strat" title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F ↕</th>
+            <th class="col-strat" title="Supply Chain Momentum 전방 공급망 전이">Supply ↕</th>
+            <th class="col-strat" title="NLP Sentiment FinBERT 공시/뉴스 감성">NLP ↕</th>
+            <th class="col-strat" title="Fama-French Multi-Factor Style Neutralized 순수 알파">Neutral ↕</th>
+            <th class="col-strat" title="Dynamic Volatility Targeting 리스크 파리티">Vol-T ↕</th>
+            <th class="col-strat" title="Microstructure Imbalance 호가/동시호가 갭">Micro ↕</th>
+            <th class="col-strat" title="Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">Accrual ↕</th>
+            <th class="col-strat" title="Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">S-Sq ↕</th>
+            <th class="col-strat" title="Value-Up Catalyst 저PBR 및 총주주환원율">ValueUp ↕</th>
+            <th class="col-strat" title="Kaufman Trend Efficiency 고순도 추세 필터">TrendEff ↕</th>
+            <th class="col-strat" title="Gamma Squeeze 옵션 델타/감마 가속도">GammaSq ↕</th>
+            <th class="col-strat" title="Insider Buying 임원/대주주 내부자 매수">Insider ↕</th>
+            <th class="col-strat" title="High-Frequency Darkpool / Block Order Flow">Darkpool ↕</th>
+            <th class="col-strat" title="Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">ToneDrift ↕</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -1374,7 +1375,17 @@ def build_html(
 
     weights_html = ""
     for k, v in ensemble.weights.items():
-        weights_html += f'<div class="weight-item"><span class="wk">{k}</span><span class="wv">{v}</span></div>'
+        val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else 0.0
+        bar_w = min(100, int(val_pct * 12.0))
+        high_cls = " style='font-weight:700; color:#38bdf8;'" if val_pct >= 4.0 else ""
+        weights_html += f'''
+        <div class="weight-item">
+          <div class="wk-wrap">
+            <span class="wk"{high_cls}>{k}</span>
+            <div class="weight-mini-track"><div class="weight-mini-bar" style="width:{bar_w}%"></div></div>
+          </div>
+          <span class="wv"{high_cls}>{v}</span>
+        </div>'''
 
     rationale_html = ""
     if ensemble.decision_rationale:
@@ -1394,9 +1405,12 @@ def build_html(
                 card_content += f'<div style="font-size:11px; color:var(--muted); margin-bottom:3px; line-height:1.3;">{line}</div>'
 
         rationale_html = f"""
-    <div class="card rationale-card" style="margin-top: 15px; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
-      <h3 style="color: #38bdf8; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">🧠 <span>2D Regime &amp; Strategy Rationale</span></h3>
-      <div style="max-height:360px; overflow-y:auto; padding-right:4px;">{card_content}</div>
+    <div class="card rationale-card collapsible-card" style="margin-top: 15px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+      <div class="collapsible-header" onclick="toggleSection('rationale-body', 'rationale-icon')" style="padding: 12px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--surface2); user-select: none;">
+        <h3 style="color: #38bdf8; margin: 0; font-size: 13px; display:flex; align-items:center; gap:6px;">🧠 <span>2D Regime &amp; Strategy Rationale</span></h3>
+        <span id="rationale-icon" style="color: var(--accent); font-size: 11px; font-weight: 600;">▼ 접기</span>
+      </div>
+      <div id="rationale-body" style="padding: 12px; max-height: 380px; overflow-y: auto; overscroll-behavior: contain;">{card_content}</div>
     </div>"""
 
     # Fallback detection: pipeline defaults are shown to users as "기본값" so a
@@ -1432,7 +1446,7 @@ def build_html(
         dec_corr = ensemble.decoupling_corr or "-"
         dec_class = "neg" if "DECOUPLING" in dec_status else "pos"
         dec_cell = (
-            f'<div class="macro-item tooltip-wrapper">'
+            f'<div class="macro-item tooltip-wrapper" tabindex="0" onclick="toggleTooltip(this, event)" role="button" aria-label="한미 증시 동조화 지표 설명">'
             f'<span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태 <span class="info-icon">ℹ️</span></span>'
             f'<span class="mv {dec_class}">{dec_status} (상관: {dec_corr})</span>'
             f'<div class="tooltip-content">{tooltip_text}</div>'
@@ -1440,7 +1454,7 @@ def build_html(
         )
     else:
         dec_cell = (
-            f'<div class="macro-item tooltip-wrapper">'
+            f'<div class="macro-item tooltip-wrapper" tabindex="0" onclick="toggleTooltip(this, event)" role="button" aria-label="한미 증시 동조화 지표 설명">'
             f'<span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태 <span class="info-icon">ℹ️</span></span>'
             f'<span class="mv">미분석</span>'
             f'<div class="tooltip-content">{tooltip_text}</div>'
@@ -1874,7 +1888,7 @@ def build_html(
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>{col_header}</th>
+            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>{col_header} ↕</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -1918,7 +1932,7 @@ def build_html(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📈 Stock Prediction Dashboard | KRX &amp; SP500</title>
-<meta name="description" content="AI 기반 한국·미국 주식 예측 대시보드 — XGBoost 앙상블, Surge 분류기, VCP 패턴, Lead-Lag 전략">
+<meta name="description" content="AI 기반 한국·미국 주식 3,379종목 31대 다변화 전략(XGBoost 회귀, Surge 분류기, Strict LSTM, VCP 패턴, Lead-Lag, Stat-Arb, RIM 등) 앙상블 대시보드">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -1960,6 +1974,7 @@ def build_html(
   .tooltip-wrapper {{
     position: relative;
     cursor: pointer;
+    outline: none;
   }}
   .info-icon {{
     font-size: 11px;
@@ -1985,7 +2000,7 @@ def build_html(
     line-height: 1.55;
     transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out, transform 0.2s ease-in-out;
     transform: translateY(-5px);
-    pointer-events: none;
+    pointer-events: auto;
     white-space: normal;
   }}
   .tooltip-wrapper .tooltip-content::after {{
@@ -1997,7 +2012,9 @@ def build_html(
     border-style: solid;
     border-color: transparent transparent #1f2937 transparent;
   }}
-  .tooltip-wrapper:hover .tooltip-content {{
+  .tooltip-wrapper:hover .tooltip-content,
+  .tooltip-wrapper.active .tooltip-content,
+  .tooltip-wrapper:focus .tooltip-content {{
     visibility: visible;
     opacity: 1;
     transform: translateY(0);
@@ -2005,9 +2022,9 @@ def build_html(
 
   /* Tabs */
   .tabs {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }}
-  .tab {{ padding: 14px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; }}
-  .tab:hover {{ color: var(--text); }}
-  .tab.active {{ color: var(--accent); border-bottom-color: var(--accent); }}
+  .tab {{ padding: 14px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; outline: none; }}
+  .tab:hover, .tab:focus-visible {{ color: var(--text); }}
+  .tab.active {{ color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }}
 
   /* Content */
   .content {{ padding: 24px 32px; }}
@@ -2016,22 +2033,30 @@ def build_html(
 
   /* Market filter */
   .filter-bar {{ display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }}
-  .filter-btn {{ padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 500; transition: all .15s; }}
-  .filter-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
-  .filter-btn.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+  .filter-btn {{ padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 500; transition: all .15s; outline: none; }}
+  .filter-btn:hover, .filter-btn:focus-visible {{ border-color: var(--accent); color: var(--accent); }}
+  .filter-btn.active {{ background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }}
 
   /* Market panel */
-  .market-panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; transition: all .2s; }}
+  .market-panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: visible; transition: all .2s; }}
   .market-title {{ padding: 12px 16px; font-size: 14px; font-weight: 600; background: var(--surface2); border-bottom: 1px solid var(--border); }}
 
   /* Table */
   html {{ scroll-padding-top: 60px; }}
   .table-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }}
   table {{ width: 100%; border-collapse: collapse; min-width: 550px; }}
-  thead th {{ position: sticky; top: 48px; background: var(--surface2); z-index: 10; padding: 10px 12px; text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }}
+  thead th {{ position: sticky; top: 48px; background: var(--surface2); z-index: 10; padding: 10px 12px; text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; transition: color .15s; }}
+  thead th:hover {{ color: var(--accent); }}
   tbody td {{ padding: 10px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; }}
   tbody tr:last-child td {{ border-bottom: none; }}
-  tbody tr:hover {{ background: #1c2128; }}
+  
+  /* Clickable Table Rows with Affordance */
+  .clickable-row {{ cursor: pointer; transition: background 0.15s ease; outline: none; }}
+  .clickable-row:hover {{ background: #1c2633 !important; }}
+  .clickable-row:focus-visible {{ outline: 2px solid var(--accent); background: #1c2633; }}
+  .row-chevron {{ display: inline-block; margin-left: 6px; color: var(--accent); font-size: 14px; font-weight: bold; opacity: 0.75; transition: transform .15s, opacity .15s; }}
+  .clickable-row:hover .row-chevron {{ transform: translateX(3px); opacity: 1; }}
+
   .rank {{ color: var(--muted); font-size: 12px; }}
   .symbol {{ font-family: monospace; font-weight: 600; color: var(--accent); }}
   .name {{ max-width: 180px; overflow: hidden; text-overflow: ellipsis; color: var(--text); }}
@@ -2062,8 +2087,8 @@ def build_html(
   .table-wrap th.sticky-name {{ z-index: 12; }}
   .table-wrap .sticky-rank {{ left: 0; width: 58px; min-width: 58px; max-width: 58px; padding-left: 4px; padding-right: 4px; text-align: center; }}
   .table-wrap .sticky-symbol {{ left: 58px; width: 92px; min-width: 92px; max-width: 92px; padding-left: 8px; padding-right: 8px; }}
-  .table-wrap .sticky-name {{ left: 150px; min-width: 130px; max-width: 160px; padding-left: 8px; padding-right: 8px; border-right: 2px solid var(--border); box-shadow: 3px 0 6px rgba(0,0,0,0.4); }}
-  tbody tr:hover td.sticky-col {{ background: #1c2128; }}
+  .table-wrap .sticky-name {{ left: 150px; min-width: 130px; max-width: 170px; padding-left: 8px; padding-right: 8px; border-right: 2px solid var(--border); box-shadow: 3px 0 6px rgba(0,0,0,0.4); }}
+  tbody tr:hover td.sticky-col, .clickable-row:hover td.sticky-col {{ background: #1c2633; }}
 
   /* Prob bar */
   .prob-bar {{ display: flex; align-items: center; gap: 8px; min-width: 140px; }}
@@ -2076,21 +2101,25 @@ def build_html(
   .chk.no {{ background: #f8514920; color: var(--red); border: 1px solid #f8514940; }}
   .contraction {{ font-size: 12px; color: var(--muted); max-width: 200px; }}
 
-  /* Weights */
-  .weights-section {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }}
-  .weights-title {{ font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }}
-  .weight-item {{ display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }}
+  /* Weights & Sidebar with Visual Progress Bars */
+  .weights-section {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }}
+  .weights-title {{ font-size: 13px; font-weight: 600; color: var(--text); padding: 12px 14px; background: var(--surface2); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }}
+  .weight-item {{ display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }}
   .weight-item:last-child {{ border-bottom: none; }}
-  .wk {{ color: var(--text); }}
-  .wv {{ font-weight: 700; color: var(--accent); }}
+  .wk-wrap {{ display: flex; flex-direction: column; gap: 3px; flex: 1; margin-right: 12px; }}
+  .wk {{ color: var(--text); font-size: 11.5px; }}
+  .weight-mini-track {{ width: 100%; height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }}
+  .weight-mini-bar {{ height: 100%; background: var(--accent); border-radius: 2px; }}
+  .wv {{ font-weight: 700; color: var(--accent); font-size: 12px; }}
 
   /* Row 1: Ensemble + Strategy split layout */
-  .row1-wrapper {{ display: grid; grid-template-columns: 280px 1fr; gap: 20px; padding: 20px 32px; border-bottom: 1px solid var(--border); }}
+  .row1-wrapper {{ display: grid; grid-template-columns: 300px 1fr; gap: 20px; padding: 20px 32px; border-bottom: 1px solid var(--border); }}
   @media (max-width: 1024px) {{ .row1-wrapper {{ grid-template-columns: 1fr; }} }}
   .strategy-sidebar {{ display: flex; flex-direction: column; gap: 0; }}
   .ensemble-main {{ min-width: 0; }}
   .ensemble-main-header {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }}
   .ensemble-main-title {{ font-size: 15px; font-weight: 700; color: var(--text); }}
+  .table-guide-banner {{ background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #bae6fd; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }}
 
   /* Row 2: Individual strategy tabs */
   .row2-wrapper {{ padding: 0; }}
@@ -2098,7 +2127,8 @@ def build_html(
 
   /* Horizon tabs */
   .hz-tabs {{ display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }}
-  .hz-tab {{ padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 500; }}
+  .hz-tab {{ padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 500; outline: none; }}
+  .hz-tab:hover, .hz-tab:focus-visible {{ border-color: var(--accent); color: var(--accent); }}
   .hz-tab.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
 
   /* Leader section */
@@ -2112,10 +2142,18 @@ def build_html(
     .macro-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
     .tabs {{ position: sticky; top: 0; z-index: 100; background: #161b22ee; backdrop-filter: blur(8px); -webkit-overflow-scrolling: touch; padding: 0 8px; }}
     .tab {{ padding: 10px 14px; font-size: 13px; }}
-    thead th, tbody td {{ padding: 8px 6px; font-size: 11px; }}
+    thead th, tbody td {{ padding: 8px 6px; font-size: 12px; }}
     .table-wrap {{ -webkit-overflow-scrolling: touch; }}
     .filter-bar {{ overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }}
     .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 4px 10px; }}
+
+    /* C-1 Mobile Table Optimization: Hide 31 strategy columns to eliminate extreme scroll, keep core 5 columns */
+    .col-strat {{ display: none !important; }}
+    .table-wrap table {{ min-width: 100% !important; }}
+    .table-wrap .sticky-name {{ max-width: 130px; border-right: 1px solid var(--border); box-shadow: 2px 0 4px rgba(0,0,0,0.3); }}
+    
+    /* Collapsible Sidebar Default on Mobile */
+    .mobile-collapsed-body {{ display: none; }}
   }}
 
   /* Strategy Info Guide Modal & Accordion */
@@ -2194,7 +2232,7 @@ def build_html(
   <div class="strat-guide-card">
     <div class="strat-guide-header" onclick="toggleStratGuide()">
       <div class="strat-guide-title">📖 31대 다변화 전략 핵심 가이드 (Strategy Overview)</div>
-      <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold;">▼ 보기</span>
+      <span id="strat-guide-icon" style="color:var(--accent); font-weight:bold; font-size:12px;">▶ 보기</span>
     </div>
     <div id="strat-guide-body" style="display: none;">
       <div class="strat-grid">
@@ -2247,30 +2285,38 @@ def build_html(
   <div id="search-status" style="font-size: 13px; color: var(--accent); font-weight: 600;"></div>
 </div>
 
-<nav class="tabs main-system-tabs" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
-  <button class="tab active" onclick="switchTab(this,'ensemble')">🏆 31대 앙상블 TOP 종목</button>
-  <button class="tab" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
-  <button class="tab" onclick="switchTab(this,'backtest')">📊 Backtest</button>
-  <button class="tab" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
-  <button class="tab" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
-  <button class="tab" onclick="switchTab(this,'history')">📜 파이프라인 이력 &amp; 비교</button>
+<nav class="tabs main-system-tabs" role="tablist" aria-label="메인 대시보드 탭" style="margin-bottom: 16px; border-bottom: 2px solid var(--border);">
+  <button class="tab active" role="tab" id="tab-ensemble" aria-selected="true" aria-controls="panel-ensemble" onclick="switchTab(this,'ensemble')">🏆 31대 앙상블 TOP 종목</button>
+  <button class="tab" role="tab" id="tab-portfolio" aria-selected="false" aria-controls="panel-portfolio" onclick="switchTab(this,'portfolio')">💼 Portfolio (HRP)</button>
+  <button class="tab" role="tab" id="tab-backtest" aria-selected="false" aria-controls="panel-backtest" onclick="switchTab(this,'backtest')">📊 Backtest</button>
+  <button class="tab" role="tab" id="tab-regime" aria-selected="false" aria-controls="panel-regime" onclick="switchTab(this,'regime')">🎯 Regime Info</button>
+  <button class="tab" role="tab" id="tab-scenario" aria-selected="false" aria-controls="panel-scenario" onclick="switchTab(this,'scenario')">🔮 Scenario Simulator (시나리오 시뮬레이터)</button>
+  <button class="tab" role="tab" id="tab-history" aria-selected="false" aria-controls="panel-history" onclick="switchTab(this,'history')">📜 파이프라인 이력 &amp; 비교</button>
 </nav>
 
 <div class="content main-system-content" style="padding:0; margin-bottom: 24px;">
   <!-- ══ 31대 앙상블 TOP 종목 Tab Panel ══ -->
-  <div class="tab-panel active" id="panel-ensemble">
+  <div class="tab-panel active" id="panel-ensemble" role="tabpanel" aria-labelledby="tab-ensemble">
     <div class="row1-wrapper">
       <!-- 좌: 전략 사이드바 -->
       <div class="strategy-sidebar">
         <div class="weights-section">
-          <div class="weights-title">⚙️ 전략 가중치 (31 Strategies)</div>
-          {weights_html if weights_html else '<span style="color:var(--muted)">데이터 없음</span>'}
+          <div class="weights-title" onclick="toggleSection('weights-body', 'weights-icon')">
+            <span>⚙️ 전략 가중치 (31 Strategies)</span>
+            <span id="weights-icon" style="color:var(--accent); font-size:11px; font-weight:600;">▼ 접기</span>
+          </div>
+          <div id="weights-body">
+            {weights_html if weights_html else '<span style="color:var(--muted); padding:12px; display:block;">데이터 없음</span>'}
+          </div>
         </div>
         {rationale_html}
       </div>
 
       <!-- 우: 앙상블 종목 결과 -->
       <div class="ensemble-main">
+        <div class="table-guide-banner">
+          <span>💡</span> <span><strong>종목 행(Row)</strong>을 클릭하거나 <strong>Enter</strong>키를 누르면 <strong>31대 다변화 전략 상세 분해 Drawer</strong>가 열립니다.</span>
+        </div>
         <div class="ensemble-main-header">
           <span class="ensemble-main-title">🏆 31대 앙상블 TOP 종목 리스트</span>
           <div class="filter-bar" id="filter-ensemble" style="margin:0">
@@ -2290,7 +2336,7 @@ def build_html(
   </div>
 
   <!-- ══ Portfolio (HRP) Tab Panel ══ -->
-  <div class="tab-panel" id="panel-portfolio">
+  <div class="tab-panel" id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
     <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
       <div class="macro-grid">
         <div class="macro-item"><span class="ml">총 자본금</span><span class="mv">{portfolio_data.total_capital or '1,000,000,000 KRW/USD'}</span></div>
@@ -3027,17 +3073,52 @@ function toggleStratGuide() {{
   const icon = document.getElementById('strat-guide-icon');
   if (body.style.display === 'none') {{
     body.style.display = 'block';
-    icon.textContent = '▲ 접기';
+    icon.textContent = '▼ 접기';
   }} else {{
     body.style.display = 'none';
-    icon.textContent = '▼ 보기';
+    icon.textContent = '▶ 보기';
   }}
 }}
 
+function toggleSection(bodyId, iconId) {{
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(iconId);
+  if (!body) return;
+  const isHidden = window.getComputedStyle(body).display === 'none';
+  if (isHidden) {{
+    body.style.display = 'block';
+    if (icon) icon.textContent = '▼ 접기';
+  }} else {{
+    body.style.display = 'none';
+    if (icon) icon.textContent = '▶ 보기';
+  }}
+}}
+
+function toggleTooltip(wrapper, event) {{
+  if (event) event.stopPropagation();
+  const wasActive = wrapper.classList.contains('active');
+  document.querySelectorAll('.tooltip-wrapper.active').forEach(w => w.classList.remove('active'));
+  if (!wasActive) {{
+    wrapper.classList.add('active');
+  }}
+}}
+
+document.addEventListener('click', function(e) {{
+  if (!e.target.closest('.tooltip-wrapper')) {{
+    document.querySelectorAll('.tooltip-wrapper.active').forEach(w => w.classList.remove('active'));
+  }}
+}});
+
 function switchTab(btn, id) {{
   const nav = btn.closest('nav');
-  if (nav) nav.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (nav) {{
+    nav.querySelectorAll('.tab').forEach(t => {{
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    }});
+  }}
   btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
 
   // Determine container (main-system-content or row2-content or document)
   let container = nav ? nav.nextElementSibling : null;
@@ -3272,31 +3353,56 @@ document.addEventListener('DOMContentLoaded', function() {{
   // Initial trigger
   updateScenarioSim();
   initSortableTables();
+  initDrawerTouchSwipe();
 }});
 
 function filterStockTables() {{
   const input = document.getElementById('stock-search-input');
   if (!input) return;
   const query = input.value.toLowerCase().trim();
-  const rows = document.querySelectorAll('tbody tr');
-  let matchCount = 0;
-  rows.forEach(row => {{
-    if (!query) {{
-      row.style.display = '';
-      matchCount++;
-    }} else {{
-      const text = row.innerText.toLowerCase();
-      if (text.includes(query)) {{
+  let totalMatches = 0;
+
+  // Process all table bodies across all panels
+  document.querySelectorAll('table tbody').forEach(tbody => {{
+    const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
+    let panelMatches = 0;
+
+    rows.forEach(row => {{
+      if (row.querySelector('.empty')) return;
+      if (!query) {{
         row.style.display = '';
-        matchCount++;
+        panelMatches++;
+        totalMatches++;
       }} else {{
-        row.style.display = 'none';
+        const text = row.innerText.toLowerCase();
+        if (text.includes(query)) {{
+          row.style.display = '';
+          panelMatches++;
+          totalMatches++;
+        }} else {{
+          row.style.display = 'none';
+        }}
       }}
+    }});
+
+    // Manage Empty State message per table
+    let emptyRow = tbody.querySelector('.search-empty-row');
+    if (query && panelMatches === 0 && rows.length > 0 && !rows[0].querySelector('.empty')) {{
+      if (!emptyRow) {{
+        emptyRow = document.createElement('tr');
+        emptyRow.className = 'search-empty-row';
+        emptyRow.innerHTML = '<td colspan="100" class="empty" style="padding:20px; color:var(--muted); font-size:12px;">🔍 일치하는 검색 결과가 없습니다.</td>';
+        tbody.appendChild(emptyRow);
+      }}
+      emptyRow.style.display = '';
+    }} else if (emptyRow) {{
+      emptyRow.style.display = 'none';
     }}
   }});
+
   const status = document.getElementById('search-status');
   if (status) {{
-    status.textContent = query ? `🔍 ${{matchCount}}개 종목 검색됨` : '';
+    status.textContent = query ? (totalMatches > 0 ? `🔍 ${{totalMatches}}개 종목 일치` : '🔍 일치하는 종목 없음') : '';
   }}
 }}
 
@@ -3313,7 +3419,7 @@ function initSortableTables() {{
 function sortTable(table, colIdx) {{
   const tbody = table.querySelector('tbody');
   if (!tbody) return;
-  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const rows = Array.from(tbody.querySelectorAll('tr:not(.search-empty-row)'));
   if (rows.length === 0 || rows[0].querySelector('.empty')) return;
   
   let asc = table.getAttribute('data-sort-col') == colIdx && table.getAttribute('data-sort-order') === 'asc';
@@ -3335,12 +3441,12 @@ function sortTable(table, colIdx) {{
   table.setAttribute('data-sort-order', asc ? 'desc' : 'asc');
   
   table.querySelectorAll('thead th').forEach((th, i) => {{
-    let baseText = th.innerText.replace(/ [▲▼]/g, '');
+    let baseText = th.innerText.replace(/ [▲▼↕]/g, '');
     if (i === colIdx) {{
       th.innerText = baseText + (asc ? ' ▲' : ' ▼');
       th.style.color = 'var(--accent)';
     }} else {{
-      th.innerText = baseText;
+      th.innerText = baseText + ' ↕';
       th.style.color = 'var(--muted)';
     }}
   }});
@@ -3375,14 +3481,15 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
       for (const [key, val] of Object.entries(factors)) {{
         const numVal = parseFloat(val) || 0;
         const barW = Math.min(100, Math.max(0, numVal));
+        const color = numVal >= 70 ? '#2ea043' : (numVal >= 40 ? '#58a6ff' : '#8b949e');
         html += `
-          <div style="background:var(--surface2); padding:8px 10px; border-radius:6px;">
-            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+          <div style="background:var(--surface2); padding:9px 12px; border-radius:6px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
               <span style="color:var(--text); font-weight:500;">${{key}}</span>
-              <span style="color:var(--accent); font-weight:600;">${{val}}</span>
+              <span style="color:${{color}}; font-weight:700;">${{val}}</span>
             </div>
-            <div style="height:4px; background:var(--border); border-radius:2px; overflow:hidden;">
-              <div style="height:100%; width:${{barW}}%; background:var(--accent);"></div>
+            <div style="height:5px; background:var(--border); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:${{barW}}%; background:${{color}}; border-radius:3px;"></div>
             </div>
           </div>`;
       }}
@@ -3392,6 +3499,7 @@ function openStockDrawer(symbol, name, market, score, expectedReturn, factorObjS
     }}
   }}
   
+  document.body.style.overflow = 'hidden';
   overlay.style.display = 'block';
   setTimeout(() => {{
     drawer.style.right = '0px';
@@ -3407,18 +3515,42 @@ function closeStockDrawer() {{
     overlay.style.opacity = '0';
     setTimeout(() => {{ overlay.style.display = 'none'; }}, 300);
   }}
+  document.body.style.overflow = '';
+}}
+
+function initDrawerTouchSwipe() {{
+  const drawer = document.getElementById('stock-drawer');
+  if (!drawer) return;
+  let startX = 0;
+  let currentX = 0;
+  
+  drawer.addEventListener('touchstart', function(e) {{
+    startX = e.touches[0].clientX;
+    currentX = startX;
+  }}, {{ passive: true }});
+  
+  drawer.addEventListener('touchmove', function(e) {{
+    currentX = e.touches[0].clientX;
+  }}, {{ passive: true }});
+  
+  drawer.addEventListener('touchend', function() {{
+    const diffX = currentX - startX;
+    if (diffX > 75) {{
+      closeStockDrawer();
+    }}
+  }});
 }}
 </script>
 
 <!-- Stock Detail Drawer -->
 <div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:1000; transition:opacity .3s;"></div>
-<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:420px; max-width:90vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:24px; overflow-y:auto; transition:right .3s ease; box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
+<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:440px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border);">
     <div>
       <h2 id="drawer-stock-name" style="font-size:20px; font-weight:700; color:var(--text);">종목 상세</h2>
       <div id="drawer-stock-meta" style="font-size:13px; color:var(--accent); font-family:monospace; margin-top:2px;">CODE</div>
     </div>
-    <button onclick="closeStockDrawer()" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer;">&times;</button>
+    <button onclick="closeStockDrawer()" aria-label="닫기" style="background:none; border:none; color:var(--muted); font-size:26px; cursor:pointer; padding:6px 12px; line-height:1;">&times;</button>
   </div>
   
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
@@ -3438,7 +3570,7 @@ function closeStockDrawer() {{
   </div>
 
   <div style="display:flex; gap:10px;">
-    <a id="drawer-naver-link" href="#" target="_blank" class="filter-btn active" style="flex:1; text-align:center; text-decoration:none; padding:10px;">🇳 외부 증권 상세 보기</a>
+    <a id="drawer-naver-link" href="#" target="_blank" class="filter-btn active" style="flex:1; text-align:center; text-decoration:none; padding:12px; font-size:13px;">🇳 외부 증권 상세 보기</a>
   </div>
 </div>
 
