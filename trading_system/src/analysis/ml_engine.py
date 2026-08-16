@@ -420,7 +420,13 @@ class MLEngine:
 
         # Time Series Split for Cross Validation
         from sklearn.metrics import log_loss
-        from sklearn.model_selection import TimeSeriesSplit
+        try:
+            from src.ai.prediction_model import DateAwareTimeSeriesSplit
+        except ImportError:
+            try:
+                from trading_system.src.ai.prediction_model import DateAwareTimeSeriesSplit
+            except ImportError:
+                from sklearn.model_selection import TimeSeriesSplit as DateAwareTimeSeriesSplit
 
         def objective(trial):
             params = {
@@ -462,7 +468,7 @@ class MLEngine:
                 rf_params = {k: v for k, v in params.items() if k in ["n_estimators", "max_depth"]}
                 clf = RandomForestClassifier(**rf_params, random_state=42)
 
-            tscv = TimeSeriesSplit(n_splits=3)
+            tscv = DateAwareTimeSeriesSplit(n_splits=3, gap=5)
             losses = []
 
             for train_index, test_index in tscv.split(X):

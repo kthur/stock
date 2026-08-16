@@ -289,7 +289,7 @@ def parse_ensemble(text: str) -> EnsembleData:
             if idx2 != -1:
                 data.decision_rationale = text[idx1:idx2].strip()
             else:
-                data.decision_rationale = text[idx1:idx1+3000].strip()
+                data.decision_rationale = text[idx1:idx1+8000].strip()
             break
 
     # Parse Dual Market Decoupling Info

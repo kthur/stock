@@ -172,7 +172,7 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
     yf_sym = _yf_ticker(symbol, market)
     url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{yf_sym}"
     params = {
-        "modules": "incomeStatementHistory,balanceSheetHistory,defaultKeyStatistics,summaryDetail"
+        "modules": "incomeStatementHistoryQuarterly,incomeStatementHistory,balanceSheetHistoryQuarterly,balanceSheetHistory,defaultKeyStatistics,summaryDetail"
     }
     headers = {
         "User-Agent": DEFAULT_USER_AGENT
@@ -202,8 +202,18 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                         return None
 
                     data = result[0]
-                    history = data.get("incomeStatementHistory", {}).get("incomeStatementHistory", [])
-                    if not history:
+                    history_q = data.get("incomeStatementHistoryQuarterly", {}).get("incomeStatementHistory", [])
+                    history_a = data.get("incomeStatementHistory", {}).get("incomeStatementHistory", [])
+
+                    if history_q:
+                        history = history_q
+                        is_quarterly = True
+                        scale_factor = 1.0
+                    elif history_a:
+                        history = history_a
+                        is_quarterly = False
+                        scale_factor = 0.25
+                    else:
                         return None
 
                     rows = []
@@ -221,11 +231,11 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                         rows.append({
                             "date_align": dt,
                             "date_available": (dt + pd.Timedelta(days=60)).strftime('%Y-%m-%d'),
-                            "period_type": "quarterly",
-                            "revenue": float(rev),
-                            "operating_income": float(op_inc),
-                            "net_income": float(net_inc),
-                            "eps": float(eps)
+                            "period_type": "quarterly" if is_quarterly else "annual",
+                            "revenue": float(rev) * scale_factor,
+                            "operating_income": float(op_inc) * scale_factor,
+                            "net_income": float(net_inc) * scale_factor,
+                            "eps": float(eps) * scale_factor
                         })
 
                     if not rows:

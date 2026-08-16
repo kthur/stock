@@ -3029,6 +3029,19 @@ def execute_prediction_pipeline():
         aq_engine = AccrualsQualityEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
         accruals_quality_df = aq_engine.calculate_scores(universe['symbol'].tolist(), features_df=_fund_input, prices_dict=infer_data_dict)
+        aq_output_path = os.path.join(result_dir, "accruals_quality_predictions.txt")
+        if not accruals_quality_df.empty:
+            aq_write_df = pd.merge(accruals_quality_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in accruals_quality_df.columns else accruals_quality_df
+            aq_write_df = aq_write_df.sort_values(by='accruals_quality_score', ascending=False)
+            with open(aq_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 24: Accruals Quality Anomaly Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(aq_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Accruals Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(aq_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['accruals_quality_score'] * 100.0 if row['accruals_quality_score'] <= 1.0 else row['accruals_quality_score']:>14.1f}%\n")
     except Exception as _aq_e:
         logger.warning(f"Accruals quality strategy computation failed: {_aq_e}")
         accruals_quality_df = pd.DataFrame()
@@ -3039,6 +3052,19 @@ def execute_prediction_pipeline():
         sq_engine = ShortInterestSqueezeEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
         short_squeeze_df = sq_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict, features_df=_fund_input)
+        sq_output_path = os.path.join(result_dir, "short_squeeze_predictions.txt")
+        if not short_squeeze_df.empty:
+            sq_write_df = pd.merge(short_squeeze_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in short_squeeze_df.columns else short_squeeze_df
+            sq_write_df = sq_write_df.sort_values(by='short_squeeze_score', ascending=False)
+            with open(sq_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 25: Short Interest & Squeeze Catalyst Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(sq_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Squeeze Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(sq_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['short_squeeze_score'] * 100.0 if row['short_squeeze_score'] <= 1.0 else row['short_squeeze_score']:>14.1f}%\n")
     except Exception as _sq_e:
         logger.warning(f"Short squeeze strategy computation failed: {_sq_e}")
         short_squeeze_df = pd.DataFrame()
@@ -3049,6 +3075,19 @@ def execute_prediction_pipeline():
         vu_engine = ValueUpCatalystEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
         valueup_catalyst_df = vu_engine.calculate_scores(universe['symbol'].tolist(), features_df=_fund_input, prices_dict=infer_data_dict)
+        vu_output_path = os.path.join(result_dir, "valueup_catalyst_predictions.txt")
+        if not valueup_catalyst_df.empty:
+            vu_write_df = pd.merge(valueup_catalyst_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in valueup_catalyst_df.columns else valueup_catalyst_df
+            vu_write_df = vu_write_df.sort_values(by='valueup_catalyst_score', ascending=False)
+            with open(vu_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 26: Value-Up & Shareholder Yield Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(vu_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'ValueUp Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(vu_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['valueup_catalyst_score'] * 100.0 if row['valueup_catalyst_score'] <= 1.0 else row['valueup_catalyst_score']:>14.1f}%\n")
     except Exception as _vu_e:
         logger.warning(f"Value-Up catalyst strategy computation failed: {_vu_e}")
         valueup_catalyst_df = pd.DataFrame()
@@ -3059,6 +3098,19 @@ def execute_prediction_pipeline():
         te_engine = TrendEfficiencyEngine(cfg)
         _fund_input = df_rim_input if 'df_rim_input' in locals() else None
         trend_efficiency_df = te_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict, features_df=_fund_input)
+        te_output_path = os.path.join(result_dir, "trend_efficiency_predictions.txt")
+        if not trend_efficiency_df.empty:
+            te_write_df = pd.merge(trend_efficiency_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in trend_efficiency_df.columns else trend_efficiency_df
+            te_write_df = te_write_df.sort_values(by='trend_efficiency_score', ascending=False)
+            with open(te_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 27: Kaufman Trend Efficiency Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(te_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Trend Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(te_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['trend_efficiency_score'] * 100.0 if row['trend_efficiency_score'] <= 1.0 else row['trend_efficiency_score']:>14.1f}%\n")
     except Exception as _te_e:
         logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
         trend_efficiency_df = pd.DataFrame()
@@ -3068,6 +3120,19 @@ def execute_prediction_pipeline():
         from src.core.gamma_squeeze import OptionsGammaSqueezeEngine
         gamma_engine = OptionsGammaSqueezeEngine(cfg)
         gamma_squeeze_df = gamma_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+        gs_output_path = os.path.join(result_dir, "gamma_squeeze_predictions.txt")
+        if not gamma_squeeze_df.empty:
+            gs_write_df = pd.merge(gamma_squeeze_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in gamma_squeeze_df.columns else gamma_squeeze_df
+            gs_write_df = gs_write_df.sort_values(by='gamma_squeeze_score', ascending=False)
+            with open(gs_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 28: Options Gamma Squeeze Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(gs_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Gamma Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(gs_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['gamma_squeeze_score'] * 100.0 if row['gamma_squeeze_score'] <= 1.0 else row['gamma_squeeze_score']:>14.1f}%\n")
     except Exception as _gs_e:
         logger.warning(f"Gamma squeeze strategy computation failed: {_gs_e}")
         gamma_squeeze_df = pd.DataFrame()
@@ -3077,6 +3142,19 @@ def execute_prediction_pipeline():
         from src.core.insider_buying import InsiderBuyingEngine
         insider_engine = InsiderBuyingEngine(cfg)
         insider_buying_df = insider_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+        ib_output_path = os.path.join(result_dir, "insider_buying_predictions.txt")
+        if not insider_buying_df.empty:
+            ib_write_df = pd.merge(insider_buying_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in insider_buying_df.columns else insider_buying_df
+            ib_write_df = ib_write_df.sort_values(by='insider_buying_score', ascending=False)
+            with open(ib_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 29: Insider Buying Catalyst Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(ib_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Insider Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(ib_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['insider_buying_score'] * 100.0 if row['insider_buying_score'] <= 1.0 else row['insider_buying_score']:>14.1f}%\n")
     except Exception as _ib_e:
         logger.warning(f"Insider buying strategy computation failed: {_ib_e}")
         insider_buying_df = pd.DataFrame()
@@ -3089,6 +3167,19 @@ def execute_prediction_pipeline():
             universe['symbol'].tolist(), prices_dict=infer_data_dict
         )
         logger.info(f"[Strategy 30] Earnings Tone Drift computed: {len(earnings_tone_drift_df)} rows")
+        et_output_path = os.path.join(result_dir, "earnings_tone_drift_predictions.txt")
+        if not earnings_tone_drift_df.empty:
+            et_write_df = pd.merge(earnings_tone_drift_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in earnings_tone_drift_df.columns else earnings_tone_drift_df
+            et_write_df = et_write_df.sort_values(by='earnings_tone_drift_score', ascending=False)
+            with open(et_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 30: Earnings Tone Drift NLP Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(et_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Tone Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(et_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['earnings_tone_drift_score'] * 100.0 if row['earnings_tone_drift_score'] <= 1.0 else row['earnings_tone_drift_score']:>14.1f}%\n")
     except Exception as _et_e:
         logger.warning(f"Earnings tone drift strategy computation failed: {_et_e}")
         earnings_tone_drift_df = pd.DataFrame()
@@ -3110,6 +3201,20 @@ def execute_prediction_pipeline():
                 'darkpool_score': 0.50
             })
             logger.info("[Strategy 31] Darkpool using neutral 0.50 default for all symbols")
+
+        dp_output_path = os.path.join(result_dir, "hft_order_flow_predictions.txt")
+        if not darkpool_df.empty:
+            dp_write_df = pd.merge(darkpool_df, universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'name' not in darkpool_df.columns else darkpool_df
+            dp_write_df = dp_write_df.sort_values(by='darkpool_score', ascending=False)
+            with open(dp_output_path, "w", encoding="utf-8") as f:
+                f.write("=== Strategy 31: HFT Order Flow & Dark Pool Predictions ===\n")
+                f.write(f"Date: {kst_now_str}\n")
+                f.write(f"Total symbols evaluated: {len(dp_write_df)}\n\n")
+                f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'HFT Score':<16}\n")
+                f.write("-" * 65 + "\n")
+                for rank, (_, row) in enumerate(dp_write_df.head(100).iterrows(), 1):
+                    name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['darkpool_score'] * 100.0 if row['darkpool_score'] <= 1.0 else row['darkpool_score']:>14.1f}%\n")
     except Exception as _dp_e:
         logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
         darkpool_df = pd.DataFrame()
