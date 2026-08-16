@@ -471,8 +471,8 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                     return df_right
                 if df_right.empty:
                     return df_left
-                # Merge along axis=1 (columns/tickers)
-                return pd.concat([df_left, df_right], axis=1)
+                # Merge along axis=1 (columns/tickers) with outer join for index alignment
+                return pd.concat([df_left, df_right], axis=1, join='outer')
 
             try:
                 df = _download_with_recovery(yf_tickers, fetch_start)
@@ -1103,10 +1103,14 @@ def execute_prediction_pipeline():
     _pipeline_start_time = time.time()
     logger.info("Starting consolidated market indicator and prediction pipeline...")
 
+    # Ensure result directory exists early
+    result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
+    os.makedirs(result_dir, exist_ok=True)
+
     # 1. Load configurations from TradingConfig (.env)
     cfg = TradingConfig()
     cfg.validate()
-    logger.info(f"Loaded config: DB={cfg.db_path}, Broker={cfg.broker_type}, Mock Trading={cfg.mock_trading}")
+    logger.info(f"Loaded config: DB={cfg.db_path}, Broker={cfg.broker_type}, Mock Trading={cfg.mock_trading}, ResultDir={result_dir}")
 
     # Auto-download GitHub DB cache if configured
     if os.environ.get("DOWNLOAD_DB_FROM_GITHUB", "false").lower() == "true":
@@ -1430,10 +1434,11 @@ def execute_prediction_pipeline():
             market_dfs = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
 
         # S8 fix: ThreadPoolExecutor avoids pickle serialization overhead of ProcessPool.
-        # XGBoost/LightGBM release the GIL during training, so threads are efficient here.
+        # Limit worker count to min(4, _CPU_WORKERS) to prevent XGBoost thread oversubscription
+        _train_workers = max(1, min(4, _CPU_WORKERS))
         with storage.pipeline_stage("train_regression"):
             _train_failures = []
-            with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            with ThreadPoolExecutor(max_workers=_train_workers) as pool:
                 futures = {}
                 for m_name, m_df in market_dfs.items():
                     if not m_df.empty:
@@ -1451,7 +1456,7 @@ def execute_prediction_pipeline():
 
         with storage.pipeline_stage("train_surge"):
             _surge_failures = []
-            with ThreadPoolExecutor(max_workers=_CPU_WORKERS) as pool:
+            with ThreadPoolExecutor(max_workers=_train_workers) as pool:
                 futures = {}
                 for m_name, m_df in market_dfs.items():
                     if not m_df.empty:
@@ -1473,7 +1478,8 @@ def execute_prediction_pipeline():
 
             # 7d. Train VCP ML surge models (4 markets, parallel inside)
             vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
-             # 7e. Fit Isotonic Regression calibrators on training data for score alignment
+        
+        # 7e. Fit Isotonic Regression calibrators on training data for score alignment
         if not df_train.empty and 'Close' in df_train.columns:
             try:
                 import joblib
@@ -1482,29 +1488,32 @@ def execute_prediction_pipeline():
                 df_calib_base = df_train.copy()
                 if 'date' in df_calib_base.columns:
                     df_calib_base = df_calib_base.sort_values('date')
-                df_calib_base['future_return_20d'] = df_calib_base.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x - 1)
+                df_calib_base['future_return_20d'] = df_calib_base.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x.replace(0, np.nan) - 1)
                 valid_calib_df = df_calib_base.dropna(subset=['future_return_20d'])
-                if len(valid_calib_df) > 200:
-                    holdout_size = int(len(valid_calib_df) * 0.3)
-                    val_holdout = valid_calib_df.iloc[-holdout_size:]
-                    val_holdout_latest = val_holdout.groupby('symbol').last().reset_index() if 'symbol' in val_holdout.columns else val_holdout
-                    _val_dict = {sym: grp for sym, grp in val_holdout_latest.groupby('symbol')} if 'symbol' in val_holdout_latest.columns else {}
+                if len(valid_calib_df) > 200 and 'symbol' in valid_calib_df.columns:
+                    holdout_symbols = valid_calib_df['symbol'].unique()
+                    # Feed full historical time-series per symbol to compute indicators cleanly
+                    _val_dict = {sym: grp for sym, grp in df_calib_base[df_calib_base['symbol'].isin(holdout_symbols)].groupby('symbol')}
                     if _val_dict:
                         reg_preds, surge_preds = model.predict_all(
                             _val_dict, indicator_train, symbol_market,
                             storage=storage, fundamentals_cache=train_fund_cache if 'train_fund_cache' in locals() else None)
                     else:
                         reg_preds, surge_preds = pd.DataFrame(), pd.DataFrame()
-                    if not reg_preds.empty and not surge_preds.empty and len(reg_preds) == len(val_holdout_latest):
-                        y_true = (val_holdout_latest['future_return_20d'] >= 0.15).astype(float).values
+                    
+                    val_holdout_latest = valid_calib_df.groupby('symbol').last().reset_index()
+                    common_syms = [s for s in val_holdout_latest['symbol'] if s in reg_preds.index and s in surge_preds.index] if not reg_preds.empty and not surge_preds.empty else []
+                    if len(common_syms) >= 20:
+                        y_eval_df = val_holdout_latest.set_index('symbol').loc[common_syms]
+                        y_true = (y_eval_df['future_return_20d'] >= 0.15).astype(float).values
                         calib_scores = {
-                            'regression': reg_preds.get(20, pd.Series(0.5, index=val_holdout_latest.index)).values,
-                            'surge': surge_preds.get('surge_20d', pd.Series(0.5, index=val_holdout_latest.index)).values,
+                            'regression': reg_preds.loc[common_syms].get(20, pd.Series(0.5, index=common_syms)).values,
+                            'surge': surge_preds.loc[common_syms].get('surge_20d', pd.Series(0.5, index=common_syms)).values,
                         }
                         scorer_calib.fit_calibrators(calib_scores, y_true)
                         calib_path = Path(model.model_dir) / "calibrators.pkl"
                         joblib.dump(scorer_calib._calibrators, str(calib_path))
-                        logger.info(f"Fitted and saved Isotonic calibrators on out-of-sample holdout ({len(val_holdout_latest)} symbols) to {calib_path}")
+                        logger.info(f"Fitted and saved Isotonic calibrators on out-of-sample holdout ({len(common_syms)} symbols) to {calib_path}")
             except Exception as _calib_e:
                 logger.warning(f"Isotonic calibration fitting skipped: {_calib_e}")
         del df_train
@@ -1601,6 +1610,11 @@ def execute_prediction_pipeline():
     # If skip-inference is enabled, stop pipeline here (only fetch and cache data)
     if cfg.skip_inference:
         logger.info("SKIP_INFERENCE is enabled. Pipeline completed successfully after caching data.")
+        try:
+            storage.close()
+            price_db.close()
+        except Exception:
+            pass
         return pd.DataFrame(), "Pipeline completed successfully after caching data (skip-inference)."
 
     # Wait for inference fundamentals fetch to complete before merging
@@ -3189,10 +3203,10 @@ def execute_prediction_pipeline():
             return default
 
     def _safe_yield(val, default: float) -> float:
-        """Like _safe_float but treats 0.0 as invalid (yields are never truly 0)."""
+        """Parse yield safely, rejecting only NaN, infinite, or out-of-bound values."""
         try:
             v = float(val)
-            if pd.isna(v) or np.isnan(v) or abs(v) < 0.001:
+            if pd.isna(v) or np.isnan(v) or np.isinf(v) or v < -10.0 or v > 100.0:
                 return default
             return v
         except Exception:

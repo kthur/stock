@@ -87,7 +87,7 @@ class ShortTermReversalEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=['symbol', 'reversal_score'])
         cur_price = close_2d.iloc[-1]
         price_5d_ago = close_2d.iloc[-6]
-        ret_5d = (cur_price / price_5d_ago) - 1.0
+        ret_5d = ((cur_price / price_5d_ago.replace(0, np.nan)) - 1.0).fillna(0.0)
 
         # Vectorized consecutive down days working backwards from latest day (day -1)
         diffs_last5 = close_2d.iloc[-6:].diff(axis=0).iloc[1:]  # 5 rows x N cols
@@ -109,7 +109,7 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         dist_lower_band = (cur_price - lower_band) / (std_20 + 1e-8)
 
         # First green bounce bonus with volume confirmation to prioritize turnaround over falling knives
-        ret_1d = (cur_price / close_2d.iloc[-2]) - 1.0
+        ret_1d = ((cur_price / close_2d.iloc[-2].replace(0, np.nan)) - 1.0).fillna(0.0)
 
         # Calculate volume surge if available
         vol_cols = {}

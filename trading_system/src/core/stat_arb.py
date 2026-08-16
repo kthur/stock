@@ -56,9 +56,9 @@ def _extract_15d_features(s_close: Any, val: Any = None) -> np.ndarray:
     skew = float(np.mean(z**3))
     kurt = float(np.mean(z**4))
 
-    r5 = float(prices[-1] / prices[-min(5, len(prices))] - 1.0)
-    r20 = float(prices[-1] / prices[-min(20, len(prices))] - 1.0)
-    r60 = float(prices[-1] / prices[-min(60, len(prices))] - 1.0)
+    r5 = float(prices[-1] / max(prices[-min(5, len(prices))], 1e-5) - 1.0)
+    r20 = float(prices[-1] / max(prices[-min(20, len(prices))], 1e-5) - 1.0)
+    r60 = float(prices[-1] / max(prices[-min(60, len(prices))], 1e-5) - 1.0)
 
     neg_returns = returns[returns < 0]
     down_std = float(np.std(neg_returns)) if len(neg_returns) > 0 else std_r

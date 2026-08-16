@@ -236,9 +236,9 @@ class CrisisDetector:
                 composite = max(composite, 0.25)
             elif isinstance(vix, (float, int)) and not np.isnan(vix):
                 if vix >= 40.0:
-                    composite = max(composite, 0.60)
+                    composite = max(composite, 0.75)
                 elif vix >= 30.0:
-                    composite = max(composite, 0.30)
+                    composite = max(composite, 0.50)
 
             previous = self.crisis_level
             if composite >= 0.70:

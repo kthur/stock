@@ -262,11 +262,13 @@ def calculate_hrp_weights(
         # Apply Ledoit-Wolf covariance shrinkage
         cov_matrix = shrink_covariance_matrix(cov_matrix, shrink_factor=0.15)
 
-        # Replace non-finite entries with column-wise means of the valid entries.
-        # Filling with a tiny constant (e.g. 1e-8) creates fake zero-variance
-        # ("risk-free") assets that HRP then over-allocates to.
+        # Replace non-finite entries safely.
+        # Avoid filling diagonal with a tiny constant (e.g. 1e-4) which makes missing data look "risk-free",
+        # causing HRP inverse-variance to over-allocate to missing assets.
         if not np.all(np.isfinite(cov_matrix)):
             finite_mask = np.isfinite(cov_matrix)
+            diag_finite = np.diag(cov_matrix)[np.isfinite(np.diag(cov_matrix))]
+            safe_diag_default = float(np.nanmedian(diag_finite)) if len(diag_finite) > 0 and np.nanmedian(diag_finite) > 0 else 0.04  # ~20% vol
             with np.errstate(invalid="ignore", divide="ignore"):
                 col_fill = np.where(
                     finite_mask.any(axis=0),
@@ -274,11 +276,13 @@ def calculate_hrp_weights(
                     0.0,
                 )
             cov_matrix = np.where(finite_mask, cov_matrix, col_fill)
-            np.fill_diagonal(cov_matrix, np.nan_to_num(np.diag(cov_matrix), nan=1e-4))
+            np.fill_diagonal(cov_matrix, np.nan_to_num(np.diag(cov_matrix), nan=safe_diag_default))
 
         # Standard deviation & correlation matrix
         vols = np.sqrt(np.abs(np.diag(cov_matrix)))
-        vols = np.where((vols < 1e-8) | ~np.isfinite(vols), 1e-4, vols)
+        diag_vols = vols[np.isfinite(vols) & (vols >= 1e-4)]
+        median_vol = float(np.median(diag_vols)) if len(diag_vols) > 0 else 0.20
+        vols = np.where((vols < 1e-4) | ~np.isfinite(vols), median_vol, vols)
         outer_vols = np.outer(vols, vols)
         corr = cov_matrix / outer_vols
         corr = np.nan_to_num(corr, nan=0.0)

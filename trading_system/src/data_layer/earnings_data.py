@@ -50,6 +50,7 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     # "now" than the last fiscal year end, so RIM / accrual features react
     # faster to fresh earnings. Fall back to annual when quarterly is missing.
     financials = None
+    is_quarterly = True
     try:
         financials = ticker.quarterly_financials
     except Exception as _q_err:
@@ -58,6 +59,7 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     if financials is None or (hasattr(financials, 'empty') and financials.empty):
         try:
             financials = ticker.financials
+            is_quarterly = False
         except Exception as _a_err:
             logger.debug(f"Annual financials fetch failed for {yf_sym}: {_a_err}.")
             financials = None
@@ -69,19 +71,23 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     fin = fin.sort_index()
 
     result = pd.DataFrame(index=fin.index)
+    # 60-day regulatory filing lag enforcement
+    result['date_available'] = (fin.index + pd.Timedelta(days=60)).strftime('%Y-%m-%d')
+    result['period_type'] = 'quarterly' if is_quarterly else 'annual'
 
+    scale_factor = 1.0 if is_quarterly else 0.25  # Normalize annual flow figures to quarterly run-rate
     rev_cols = [c for c in ['Total Revenue', 'Revenue'] if c in fin.columns]
-    result['revenue'] = fin[rev_cols[0]] if rev_cols else 0.0
+    result['revenue'] = (fin[rev_cols[0]] * scale_factor) if rev_cols else 0.0
 
     oi_cols = [c for c in ['Operating Income', 'Operating Income (Loss)'] if c in fin.columns]
-    result['operating_income'] = fin[oi_cols[0]] if oi_cols else 0.0
+    result['operating_income'] = (fin[oi_cols[0]] * scale_factor) if oi_cols else 0.0
 
     ni_cols = [c for c in ['Net Income', 'Net Income (Loss)'] if c in fin.columns]
-    result['net_income'] = fin[ni_cols[0]] if ni_cols else 0.0
+    result['net_income'] = (fin[ni_cols[0]] * scale_factor) if ni_cols else 0.0
 
     eps_cols = [c for c in ['Diluted EPS', 'Basic EPS'] if c in fin.columns]
     if eps_cols:
-        result['eps'] = fin[eps_cols[0]]
+        result['eps'] = fin[eps_cols[0]] * (1.0 if is_quarterly else 0.25)
     else:
         result['eps'] = 0.0
 
@@ -211,8 +217,11 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                         net_inc = item.get("netIncome", {}).get("raw", 0.0)
                         eps = item.get("basicEps", {}).get("raw", item.get("dilutedEps", {}).get("raw", 0.0))
 
+                        dt = pd.to_datetime(end_date_str)
                         rows.append({
-                            "date_align": pd.to_datetime(end_date_str),
+                            "date_align": dt,
+                            "date_available": (dt + pd.Timedelta(days=60)).strftime('%Y-%m-%d'),
+                            "period_type": "quarterly",
                             "revenue": float(rev),
                             "operating_income": float(op_inc),
                             "net_income": float(net_inc),

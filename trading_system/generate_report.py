@@ -284,10 +284,12 @@ def parse_ensemble(text: str) -> EnsembleData:
         if header in text:
             idx1 = text.find(header)
             idx2 = text.find("--- Applied Ensemble Strategy Weights", idx1)
+            if idx2 == -1:
+                idx2 = text.find("===============", idx1 + len(header))
             if idx2 != -1:
                 data.decision_rationale = text[idx1:idx2].strip()
             else:
-                data.decision_rationale = text[idx1:idx1+800].strip()
+                data.decision_rationale = text[idx1:idx1+3000].strip()
             break
 
     # Parse Dual Market Decoupling Info

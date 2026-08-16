@@ -760,25 +760,13 @@ class EnsembleScoringEngine:
 
             diag_penalties = np.diag(inv_sqrt_C)
             mean_p = np.mean(diag_penalties) if np.mean(diag_penalties) > 0 else 1.0
-            norm_penalties = np.clip(diag_penalties / mean_p, 0.3, 3.0)
+            norm_penalties = np.clip(diag_penalties / mean_p, 0.4, 2.5)
 
             penalized_weights = dict(weights)
             for col, p_factor in zip(corr_matrix.columns, norm_penalties):
                 strategy_id = col_to_sid.get(col)
                 if strategy_id and strategy_id in penalized_weights and penalized_weights[strategy_id] > 0:
                     penalized_weights[strategy_id] *= (1.0 / float(p_factor))
-
-            # Pairwise differential adjustment for collinear pairs above threshold
-            cols = list(corr_matrix.columns)
-            for i in range(len(cols)):
-                for j in range(i + 1, len(cols)):
-                    c1, c2 = cols[i], cols[j]
-                    s1, s2 = col_to_sid.get(c1), col_to_sid.get(c2)
-                    if s1 and s2 and s1 in penalized_weights and s2 in penalized_weights:
-                        r_val = float(corr_matrix.loc[c1, c2])
-                        if pd.notna(r_val) and r_val > correlation_threshold:
-                            target_s = s2 if penalized_weights[s1] >= penalized_weights[s2] else s1
-                            penalized_weights[target_s] *= (1.0 - (r_val - correlation_threshold) * penalty_factor)
 
             total = sum(penalized_weights.values())
             if total > 0:
@@ -854,10 +842,9 @@ class EnsembleScoringEngine:
         max_total_ratio = 20.0
         _vals = np.array([v for v in scores.values() if v > 0.0], dtype=float)
         if len(_vals) > 0:
-            _vmin, _vmax = float(_vals.min()), float(_vals.max())
-            if _vmin > 0.0 and _vmax / _vmin > max_total_ratio:
-                _alpha = float(np.log(max_total_ratio) / np.log(_vmax / _vmin))
-                scores = {k: (scores[k] ** _alpha if scores[k] > 0.0 else 0.0) for k in scores}
+            _vmax = float(_vals.max())
+            _vmin_floor = _vmax / max_total_ratio
+            scores = {k: (max(v, _vmin_floor) if v > 0.0 else 0.0) for k, v in scores.items()}
 
         total_score = sum(scores.values())
         if total_score == 0.0:

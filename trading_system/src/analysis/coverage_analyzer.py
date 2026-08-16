@@ -131,13 +131,19 @@ class StrategyCoverageAnalyzer:
             # Dynamic missingness reason calculation by inspecting underlying data
             reasons = {}
             if missing_cnt > 0:
-                missing_mask = ~valid_mask
                 if 'symbol' in target_df.columns:
-                    missing_syms = set(target_df.loc[missing_mask, 'symbol'])
-                elif 'symbol' in ensemble_df.columns:
-                    missing_syms = set(ensemble_df.loc[missing_mask, 'symbol'])
+                    valid_syms = set(target_df.loc[valid_mask, 'symbol'])
                 else:
-                    missing_syms = set(ensemble_df.index[missing_mask])
+                    valid_syms = set(target_df.index[valid_mask])
+
+                if 'symbol' in ensemble_df.columns:
+                    all_ens_syms = set(ensemble_df['symbol'])
+                else:
+                    all_ens_syms = set(ensemble_df.index)
+
+                missing_syms = all_ens_syms - valid_syms
+                if not missing_syms and 'symbol' in target_df.columns:
+                    missing_syms = set(target_df.loc[~valid_mask, 'symbol'])
 
                 no_price_cnt = 0
                 no_fund_cnt = 0

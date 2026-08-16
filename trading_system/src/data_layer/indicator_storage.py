@@ -663,7 +663,15 @@ class MarketIndicatorStorage:
         try:
             with self._connect() as conn:
                 df = pd.read_sql(
-                    "SELECT symbol, price FROM global_indicators WHERE date = (SELECT MAX(date) FROM global_indicators)",
+                    """
+                    SELECT g.symbol, g.price 
+                    FROM global_indicators g
+                    INNER JOIN (
+                        SELECT symbol, MAX(date) AS max_date 
+                        FROM global_indicators 
+                        GROUP BY symbol
+                    ) m ON g.symbol = m.symbol AND g.date = m.max_date
+                    """,
                     conn
                 )
                 if not df.empty and 'symbol' in df.columns and 'price' in df.columns:

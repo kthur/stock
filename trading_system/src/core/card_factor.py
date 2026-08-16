@@ -119,7 +119,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                 macro_impact = ((usdkrw_chg * 0.3) + (wti_chg * 0.3) + (vix_val * 0.4)) * beta * 10.0
                 divergence = stock_ret - macro_impact
 
-                card_score = 1.0 / (1.0 + np.exp(divergence * 0.1))
+                card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.1, -50.0, 50.0)))
                 if np.isnan(card_score) or np.isinf(card_score):
                     card_score = 0.5
                 else:

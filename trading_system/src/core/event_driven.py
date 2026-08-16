@@ -194,8 +194,8 @@ class EventDrivenEngine(BaseStrategyEngine):
                     if len(c) >= 6 and len(v) >= 6:
                         avg_vol = float(v.iloc[-6:-1].mean())
                         cur_vol = float(v.iloc[-1])
-                        v_ratio = (cur_vol / avg_vol) if avg_vol > 0 else 1.0
-                        ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
+                        p_base = float(c.iloc[-6])
+                        ret_5d = float((c.iloc[-1] / p_base) - 1.0) if p_base > 0 else 0.0
                         # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
                         breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
                         continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 1.50 * ret_5d + breakout_bonus, -0.2, 0.45)

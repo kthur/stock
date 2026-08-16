@@ -14,10 +14,17 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error, roc_auc_score
 import xgboost as xgb
 import optuna
+
+try:
+    from src.ai.prediction_model import DateAwareTimeSeriesSplit
+except ImportError:
+    try:
+        from trading_system.src.ai.prediction_model import DateAwareTimeSeriesSplit
+    except ImportError:
+        from sklearn.model_selection import TimeSeriesSplit as DateAwareTimeSeriesSplit
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +96,7 @@ class OptunaStrategyTuner:
             self.tuned_params['cat'] = default_cat
             return {'xgb': default_xgb, 'lgb': default_lgb, 'cat': default_cat}
 
-        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
 
         # 1. XGBoost Regressor
         def xgb_objective(trial):
@@ -179,7 +186,7 @@ class OptunaStrategyTuner:
             self.tuned_params['surge_cat'] = default_surge_cat
             return {'surge_xgb': default_surge_xgb, 'surge_lgb': default_surge_lgb, 'surge_cat': default_surge_cat}
 
-        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
 
         def surge_objective(trial):
             params = {
@@ -361,8 +368,8 @@ class OptunaStrategyTuner:
                     curr_p = float(close.iloc[-5])
                     near_pivot = (curr_p / (high_52w + 1e-8)) >= near_high
                     if decreasing and near_pivot:
-                        # Compute actual 5-day forward return after pattern detection
-                        fwd_ret = (float(close.iloc[-1]) - curr_p) / curr_p
+                        # Compute actual 5-day forward return after pattern detection with zero guard
+                        fwd_ret = (float(close.iloc[-1]) - curr_p) / (curr_p + 1e-8) if curr_p > 0 else 0.0
                         forward_returns.append(fwd_ret)
             return float(np.mean(forward_returns)) if forward_returns else 0.0
 
@@ -397,7 +404,7 @@ class OptunaStrategyTuner:
             self.tuned_params['vcp_ml'] = default_vcp_ml
             return default_vcp_ml
 
-        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
 
         def vcp_ml_objective(trial):
             max_depth = trial.suggest_int('max_depth', 3, 6)

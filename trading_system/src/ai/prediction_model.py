@@ -1389,7 +1389,7 @@ class OnDevicePredictionModel:
         df['_vol_scale'] = vol_20d
 
         for h in self.horizons:
-            raw_ret = df['Close'].shift(-h) / df['Close'] - 1
+            raw_ret = (df['Close'].shift(-h) / df['Close'].replace(0, np.nan) - 1).replace([np.inf, -np.inf], np.nan)
             df[f'target_{h}d'] = raw_ret / vol_20d
 
         for h in self.surge_horizons:
@@ -2247,7 +2247,10 @@ class OnDevicePredictionModel:
 
                 if preds:
                     total_w = sum(weights)
-                    pred = sum(p * (w / total_w) for p, w in zip(preds, weights))
+                    if total_w > 0:
+                        pred = sum(p * (w / total_w) for p, w in zip(preds, weights))
+                    else:
+                        pred = float(np.mean(preds))
                     # Inverse-transform Sharpe-scaled prediction back to raw return
                     from src.ai.target_transform import inverse_transform_sharpe
                     vol_val = float(latest['vol_20d'].iloc[0]) if 'vol_20d' in latest.columns else 0.01
