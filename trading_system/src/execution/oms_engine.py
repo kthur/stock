@@ -5,9 +5,11 @@ Execution & OMS Module:
 """
 
 import re
+import math
 import sqlite3
 import datetime
 import logging
+import numpy as np
 from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
@@ -51,15 +53,21 @@ class ExecutionOMSEngine:
                     target_amount REAL NOT NULL,
                     target_price REAL NOT NULL,
                     quantity INTEGER,
+                    execution_strategy TEXT DEFAULT 'DIRECT',
+                    slice_count INTEGER DEFAULT 1,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
             """)
-            # Migration: legacy DBs created before the quantity column
+            # Migration: legacy DBs created before the quantity/execution columns
             try:
                 cols = [r[1] for r in cursor.execute("PRAGMA table_info(order_plans)").fetchall()]
                 if cols and "quantity" not in cols:
                     cursor.execute("ALTER TABLE order_plans ADD COLUMN quantity INTEGER")
+                if cols and "execution_strategy" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN execution_strategy TEXT DEFAULT 'DIRECT'")
+                if cols and "slice_count" not in cols:
+                    cursor.execute("ALTER TABLE order_plans ADD COLUMN slice_count INTEGER DEFAULT 1")
             except Exception:
                 pass
             cursor.execute("""
@@ -224,6 +232,19 @@ class ExecutionOMSEngine:
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 
+                # Institutional Execution Strategy Routing (ADV Participation Slicing)
+                adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
+                part_ratio = target_amount / max(adv_val, 1.0)
+                if part_ratio > 0.03:
+                    exec_strategy = "VWAP"
+                    slice_count = min(10, max(3, int(np.ceil(part_ratio / 0.01))))
+                elif part_ratio > 0.01:
+                    exec_strategy = "TWAP"
+                    slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
+                else:
+                    exec_strategy = "DIRECT"
+                    slice_count = 1
+
                 plan_entry = {
                     "order_id": order_id,
                     "symbol": sym,
@@ -234,6 +255,8 @@ class ExecutionOMSEngine:
                     "target_amount": round(target_amount, 2),
                     "target_price": round(target_price, 2),
                     "quantity": quantity,
+                    "execution_strategy": exec_strategy,
+                    "slice_count": slice_count,
                     "status": status,
                     "created_at": now_str
                 }
@@ -241,9 +264,9 @@ class ExecutionOMSEngine:
 
                 cursor.execute("""
                     INSERT OR REPLACE INTO order_plans
-                    (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, status, now_str))
+                    (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, status, now_str))
 
             conn.commit()
         finally:

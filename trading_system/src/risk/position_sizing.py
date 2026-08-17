@@ -328,11 +328,14 @@ class PortfolioAllocator:
                 df_candidates['hrp_weight'] = 1.0
                 df_candidates['weight'] = df_candidates['market_budget'] * self.max_total_allocation
         elif use_kelly:
-            # Kelly formula: f* = kelly_fraction × (net_return / var_20d)
+            # Kelly formula: f* = kelly_fraction × (net_return / var_20d) × vol_scale
             vol_floor = 0.005
             vols = np.where(df_candidates['volatility'] < vol_floor, vol_floor, df_candidates['volatility'])
             var_20d = 20.0 * (vols ** 2)
-            df_candidates['raw_score'] = kelly_fraction * (df_candidates['net_return'] / var_20d)
+            # Target Volatility Scaling (15% target annualized vol anchoring)
+            ann_vol = vols * np.sqrt(252)
+            vol_scale = np.clip(0.15 / np.maximum(ann_vol, 0.05), 0.30, 2.0)
+            df_candidates['raw_score'] = kelly_fraction * (df_candidates['net_return'] / var_20d) * vol_scale
         else:
             df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
 
