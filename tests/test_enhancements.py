@@ -3,6 +3,7 @@ Unit tests for the 5 quantitative system enhancements.
 """
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from trading_system.src.ai.cpcv_stress_tester import CPCVCombinatorialSplitter, HistoricalStressTester
@@ -84,3 +85,29 @@ def test_llm_sentiment_engine():
     res2 = engine.analyze_filing_text("AAPL", "The company reported earnings surprise and announced a share buyback.")
     assert res2.sentiment_score > 0
     assert res2.summary_tone == "BULLISH"
+
+    # Test batch_analyze_filings
+    filings = [
+        {"stock_code": "005930", "report_nm": "최고실적 달성 및 흑자전환", "rcept_dt": "20260815"},
+        {"stock_code": "000660", "report_nm": "영업이익감소 및 적자전환", "rcept_dt": "20260815"},
+    ]
+    batch_res = engine.batch_analyze_filings(filings)
+    assert "005930" in batch_res
+    assert "000660" in batch_res
+    assert batch_res["005930"].sentiment_score > 0
+    assert batch_res["000660"].sentiment_score < 0
+
+    # Test compute_scores with filings
+    universe = pd.DataFrame([
+        {"symbol": "005930", "name": "삼성전자", "market": "KOSPI"},
+        {"symbol": "000660", "name": "SK하이닉스", "market": "KOSPI"},
+        {"symbol": "035420", "name": "NAVER", "market": "KOSPI"},
+    ])
+    scores_df = engine.compute_scores(universe=universe, filings=filings)
+    assert len(scores_df) == 3
+    assert not pd.isna(scores_df.loc[scores_df["symbol"] == "005930", "sentiment_score"].values[0])
+    assert not pd.isna(scores_df.loc[scores_df["symbol"] == "000660", "sentiment_score"].values[0])
+    # Symbol without filings should be NaN (as per Bug A-2 fix)
+    assert pd.isna(scores_df.loc[scores_df["symbol"] == "035420", "sentiment_score"].values[0])
+    # Top rank should be positive sentiment symbol
+    assert scores_df.iloc[0]["symbol"] == "005930"

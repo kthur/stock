@@ -202,6 +202,36 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
             summary_tone=summary,
         )
 
+    def batch_analyze_filings(self, filings: Any) -> dict[str, FilingSentimentResult]:
+        """Analyzes a list of DART or SEC filings in batch and returns a map of symbol -> FilingSentimentResult."""
+        results: dict[str, FilingSentimentResult] = {}
+        if not filings:
+            return results
+
+        filings_list = filings if isinstance(filings, list) else [filings]
+        for item in filings_list:
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("stock_code") or item.get("symbol") or "").strip()
+            if not symbol:
+                continue
+            text = str(item.get("report_nm") or item.get("title") or item.get("content") or item.get("summary") or "").strip()
+            filing_date = str(item.get("rcept_dt") or item.get("date") or item.get("filing_date") or "").strip()
+
+            if not text:
+                continue
+
+            res = self.analyze_filing_text(symbol, text)
+            res.filing_date = filing_date
+            if symbol not in results or abs(res.sentiment_score) > abs(results[symbol].sentiment_score):
+                results[symbol] = res
+                # Also store without leading zeros or with zfill for robust lookup
+                if symbol.isdigit():
+                    results[symbol.zfill(6)] = res
+                    results[symbol.lstrip('0') or '0'] = res
+
+        return results
+
     def compute_scores(
         self,
         prices_dict: Any = None,
@@ -214,6 +244,12 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
 
         universe = kwargs.get("universe", kwargs.get("universe_df"))
         filings_map = kwargs.get("filings_map") or {}
+        sentiment_map = kwargs.get("sentiment_map") or {}
+        filings = kwargs.get("filings") or kwargs.get("eff_filings")
+
+        # Auto-compute sentiment map from raw filings if provided and sentiment_map is empty
+        if not sentiment_map and filings:
+            sentiment_map = self.batch_analyze_filings(filings)
 
         if universe is None or not isinstance(universe, pd.DataFrame):
             if isinstance(prices_dict, dict):
@@ -231,18 +267,30 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=["symbol", "name", "market", "sentiment_score"])
 
         filings_dict = filings_map if isinstance(filings_map, dict) else {}
+        sent_dict = sentiment_map if isinstance(sentiment_map, dict) else {}
 
         for _, row in universe.iterrows():
             sym = str(row["symbol"]).strip()
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KRX"))
 
-            text = filings_dict.get(sym, filings_dict.get(sym.zfill(6), ""))
-            if text:
-                res = self.analyze_filing_text(sym, text)
-                score = float(np.clip(0.5 + res.sentiment_score * 0.4, 0.0, 1.0))
-            else:
-                score = np.nan
+            score = np.nan
+
+            # 1. Check pre-computed sentiment_map
+            sent_res = sent_dict.get(sym) or sent_dict.get(sym.zfill(6)) or sent_dict.get(sym.lstrip('0'))
+            if sent_res is not None:
+                if isinstance(sent_res, FilingSentimentResult):
+                    score = float(np.clip(0.5 + sent_res.sentiment_score * 0.4, 0.0, 1.0))
+                elif isinstance(sent_res, (int, float)):
+                    s_val = float(sent_res)
+                    score = s_val if 0.0 <= s_val <= 1.0 else float(np.clip(0.5 + s_val * 0.4, 0.0, 1.0))
+
+            # 2. Check filings text map if not resolved yet
+            if pd.isna(score):
+                text = filings_dict.get(sym) or filings_dict.get(sym.zfill(6)) or filings_dict.get(sym.lstrip('0'), "")
+                if text:
+                    res = self.analyze_filing_text(sym, str(text))
+                    score = float(np.clip(0.5 + res.sentiment_score * 0.4, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,
@@ -250,7 +298,6 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                 "market": mkt,
                 "sentiment_score": round(score, 4) if pd.notna(score) else np.nan,
             })
-
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:

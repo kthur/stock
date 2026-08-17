@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from .base_strategy import BaseStrategyEngine, make_score_dataframe
 
 logger = logging.getLogger(__name__)

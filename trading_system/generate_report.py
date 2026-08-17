@@ -665,7 +665,7 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
         if m:
             score_val = m.group(5).strip()
             if "nan" in score_val.lower() or "none" in score_val.lower():
-                score_val = "0.0"
+                score_val = "50.0" if score_col == "sentiment_score" else "0.0"
             rows.append(SimpleStrategyRow(
                 rank=int(m.group(1)),
                 symbol=m.group(2),

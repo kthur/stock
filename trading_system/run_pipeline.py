@@ -2983,12 +2983,29 @@ def execute_prediction_pipeline():
     # Strategy 20: NLP & FinBERT Sentiment Catalyst Engine
     try:
         from src.core.llm_sentiment_engine import DARTSECSentimentEngine
-        sent_engine = DARTSECSentimentEngine()
-        sentiment_df = sent_engine.compute_scores(universe)
+        sent_engine = DARTSECSentimentEngine(db_storage=storage if 'storage' in locals() else None)
+        
+        # Build filings_map from eff_filings if available
+        filings_map: dict[str, str] = {}
+        if 'eff_filings' in locals() and eff_filings:
+            for item in eff_filings:
+                if isinstance(item, dict):
+                    sym = str(item.get('stock_code') or item.get('symbol') or '').strip()
+                    txt = str(item.get('report_nm') or item.get('title') or item.get('content') or '').strip()
+                    if sym and txt:
+                        filings_map[sym] = (filings_map.get(sym, '') + ' ' + txt).strip()
+
+        sentiment_df = sent_engine.compute_scores(
+            universe=universe,
+            filings_map=filings_map,
+            sentiment_map=sentiment_map if ('sentiment_map' in locals() and sentiment_map) else None,
+            filings=eff_filings if ('eff_filings' in locals() and eff_filings) else None,
+            prices_dict=infer_data_dict if ('infer_data_dict' in locals() and infer_data_dict) else None
+        )
         sent_output_path = os.path.join(result_dir, "sentiment_predictions.txt")
         if not sentiment_df.empty:
             sent_merged = sentiment_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in sentiment_df.columns else sentiment_df
-            sent_merged = sent_merged.sort_values(by='sentiment_score', ascending=False)
+            sent_merged = sent_merged.sort_values(by='sentiment_score', ascending=False, na_position='last')
             with open(sent_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 20: NLP & FinBERT Sentiment Catalyst Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
@@ -2997,7 +3014,11 @@ def execute_prediction_pipeline():
                 f.write("-" * 60 + "\n")
                 for rank, (_, row) in enumerate(sent_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    sent_val = row['sentiment_score'] * 100.0 if row['sentiment_score'] <= 1.0 else row['sentiment_score']
+                    raw_s = row['sentiment_score']
+                    if pd.isna(raw_s):
+                        sent_val = 50.0
+                    else:
+                        sent_val = float(raw_s) * 100.0 if float(raw_s) <= 1.0 else float(raw_s)
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{sent_val:>12.1f}%\n")
             logger.info(f"Saved Sentiment predictions ({len(sent_merged)} symbols) to {sent_output_path}")
             for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
@@ -3011,7 +3032,11 @@ def execute_prediction_pipeline():
                     _mf.write("-" * 50 + "\n")
                     for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
                         name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                        sent_val = row['sentiment_score'] * 100.0 if row['sentiment_score'] <= 1.0 else row['sentiment_score']
+                        raw_s = row['sentiment_score']
+                        if pd.isna(raw_s):
+                            sent_val = 50.0
+                        else:
+                            sent_val = float(raw_s) * 100.0 if float(raw_s) <= 1.0 else float(raw_s)
                         _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{sent_val:>12.1f}%\n")
     except Exception as _sent_e:
         logger.warning(f"Sentiment strategy computation failed: {_sent_e}")
@@ -3440,13 +3465,18 @@ def execute_prediction_pipeline():
         logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
         darkpool_df = pd.DataFrame()
 
-    # Extract LSTM predictions if present in regression results (20d horizon)
-    lstm_df_for_ens = None
-    if res_df is not None and not res_df.empty:
-        res_20 = res_df[res_df['horizon'] == 20] if 'horizon' in res_df.columns else res_df
-        l_col = 'pred_lstm' if 'pred_lstm' in res_20.columns else ('lstm_score' if 'lstm_score' in res_20.columns else None)
-        if l_col:
-            lstm_df_for_ens = res_20[['symbol', l_col]].rename(columns={l_col: 'lstm_score'})
+    # Strategy 6: Strict Causal LSTM deep learning predictions
+    logger.info("Computing Strategy 6: Strict Causal LSTM predictions...")
+    try:
+        if hasattr(model, "predict_lstm"):
+            lstm_df_for_ens = model.predict_lstm(infer_data_dict, horizon=20)
+        else:
+            from src.ai.ml_strategy_adapters import LSTMStrategyAdapter
+            lstm_adapter = LSTMStrategyAdapter(model_instance=model, config=cfg)
+            lstm_df_for_ens = lstm_adapter.compute_scores(infer_data_dict)
+    except Exception as _lstm_err:
+        logger.warning(f"LSTM prediction inference failed: {_lstm_err}. Using empty DataFrame.")
+        lstm_df_for_ens = pd.DataFrame(columns=['symbol', 'lstm_score'])
 
     # default target horizon is 20d (31-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
