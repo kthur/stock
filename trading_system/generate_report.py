@@ -93,6 +93,8 @@ class EnsembleData:
     wti: str = ""
     gold: str = ""
     weights: dict = field(default_factory=dict)
+    us_weights: dict = field(default_factory=dict)
+    kr_weights: dict = field(default_factory=dict)
     markets: list[EnsembleMarket] = field(default_factory=list)
     decision_rationale: str = ""
     coverage_report: str = ""
@@ -263,27 +265,41 @@ def parse_ensemble(text: str) -> EnsembleData:
         m = re.match(r"Gold \(GLD ETF\).*:\s*(.+)", line)
         if m:
             data.gold = _clean_macro(m.group(1), "$220.00", "gold")
-    # Parse weights block
-    in_weights_block = False
+    # Parse weights blocks (US, KR, and General Ensemble)
+    current_target_dict = None
     for line in text.splitlines():
         line_s = line.strip()
-        if "Applied Ensemble Strategy Weights" in line_s:
-            in_weights_block = True
+        if "Applied US Strategy Weights" in line_s:
+            current_target_dict = data.us_weights
             continue
-        if in_weights_block:
-            if line_s.startswith("---"):
-                in_weights_block = False
-            elif ":" in line_s and line_s.endswith("%"):
-                parts = line_s.split(":", 1)
-                k_str = parts[0].strip()
-                v_str = parts[1].strip()
-                data.weights[k_str] = v_str
+        elif "Applied KR Strategy Weights" in line_s:
+            current_target_dict = data.kr_weights
+            continue
+        elif "Applied Ensemble Strategy Weights" in line_s:
+            current_target_dict = data.weights
+            continue
+        elif line_s.startswith("---") and ("Applied" not in line_s):
+            current_target_dict = None
+            continue
+
+        if current_target_dict is not None and ":" in line_s and line_s.endswith("%"):
+            parts = line_s.split(":", 1)
+            k_str = parts[0].strip()
+            v_str = parts[1].strip()
+            current_target_dict[k_str] = v_str
+
+    if not data.us_weights and data.weights:
+        data.us_weights = dict(data.weights)
+    if not data.kr_weights and data.weights:
+        data.kr_weights = dict(data.weights)
+    if not data.weights and data.us_weights:
+        data.weights = dict(data.us_weights)
 
     # Extract Decision Rationale Block
     for header in ["[2D Market Regime & Strategy Decision Rationale]", "[Dual Market Regime & Strategy Decision Rationale]"]:
         if header in text:
             idx1 = text.find(header)
-            idx2 = text.find("--- Applied Ensemble Strategy Weights", idx1)
+            idx2 = text.find("--- Applied", idx1)
             if idx2 == -1:
                 idx2 = text.find("===============", idx1 + len(header))
             if idx2 != -1:
@@ -910,15 +926,15 @@ MARKET_FLAGS = {
 }
 
 REGIME_INFO = {
-    "BULL":              ("🟢 BULL",              "#2ea043"),
-    "BEAR":              ("🔴 BEAR",              "#f85149"),
-    "SIDEWAYS":          ("🟡 SIDEWAYS",          "#d29922"),
-    "BULL_LOW_VOL":      ("🟢 BULL (Low Vol)",    "#2ea043"),
-    "BULL_HIGH_VOL":     ("🟢 BULL (High Vol)",   "#3fb950"),
-    "BEAR_LOW_VOL":      ("🔴 BEAR (Low Vol)",    "#f85149"),
-    "BEAR_HIGH_VOL":     ("🔴 BEAR (High Vol)",   "#da3633"),
-    "SIDEWAYS_LOW_VOL":  ("🟡 SIDEWAYS (Low Vol)", "#d29922"),
-    "SIDEWAYS_HIGH_VOL": ("🟡 SIDEWAYS (High Vol)","#e3b341"),
+    "BULL":              ("🟢 BULL",                  "#2ea043"),
+    "BEAR":              ("🔴 BEAR",                  "#f85149"),
+    "SIDEWAYS":          ("🟡 SIDEWAYS",              "#d29922"),
+    "BULL_LOW_VOL":      ("🟢 BULL_LOW_VOL (저변동 강세)",    "#2ea043"),
+    "BULL_HIGH_VOL":     ("🟢 BULL_HIGH_VOL (고변동 강세)",   "#3fb950"),
+    "BEAR_LOW_VOL":      ("🔴 BEAR_LOW_VOL (저변동 약세)",    "#f85149"),
+    "BEAR_HIGH_VOL":     ("🔴 BEAR_HIGH_VOL (고변동 약세)",   "#da3633"),
+    "SIDEWAYS_LOW_VOL":  ("🟡 SIDEWAYS_LOW_VOL (저변동 횡보)", "#d29922"),
+    "SIDEWAYS_HIGH_VOL": ("🟡 SIDEWAYS_HIGH_VOL (고변동 횡보)", "#e3b341"),
 }
 
 def safe_float(val: str) -> float:
@@ -1200,6 +1216,8 @@ def build_history_section(result_dir: Path) -> str:
 
 
 
+generate_html = None  # Defined below as alias to build_html
+
 def build_html(
     ensemble: EnsembleData,
     surge_date: str, surge_sections: list[SurgeSection],
@@ -1240,17 +1258,20 @@ def build_html(
     history_html: str = "",
 ) -> str:
     now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
-    def resolve_regime_info(reg_name: str, fallback_label: str) -> tuple[str, str]:
+    def resolve_regime_info(reg_name: str, fallback_label: str = "BULL_LOW_VOL") -> tuple[str, str]:
         r = (reg_name or "").strip().upper()
         if r in REGIME_INFO:
             return REGIME_INFO[r]
-        elif "BULL" in r:
+        for key in ["BULL_LOW_VOL", "BULL_HIGH_VOL", "BEAR_LOW_VOL", "BEAR_HIGH_VOL", "SIDEWAYS_LOW_VOL", "SIDEWAYS_HIGH_VOL"]:
+            if key in r:
+                return REGIME_INFO[key]
+        if "BULL" in r:
             return f"🟢 {r}", "#2ea043"
         elif "BEAR" in r:
             return f"🔴 {r}", "#f85149"
         elif "SIDEWAYS" in r:
             return f"🟡 {r}", "#d29922"
-        return REGIME_INFO.get(fallback_label, ("🟢 BULL", "#2ea043"))
+        return REGIME_INFO.get(fallback_label, ("🟢 BULL_LOW_VOL", "#2ea043"))
 
     us_regime_raw = ensemble.us_regime or ensemble.regime or "BULL_LOW_VOL"
     kr_regime_raw = ensemble.kr_regime or ensemble.regime or "SIDEWAYS_LOW_VOL"
@@ -1380,19 +1401,58 @@ def build_html(
       </div>
     </div>"""
 
-    weights_html = ""
-    for k, v in ensemble.weights.items():
-        val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else 0.0
-        bar_w = min(100, int(val_pct * 12.0))
-        high_cls = " style='font-weight:700; color:#38bdf8;'" if val_pct >= 4.0 else ""
-        weights_html += f'''
-        <div class="weight-item">
-          <div class="wk-wrap">
-            <span class="wk"{high_cls}>{k}</span>
-            <div class="weight-mini-track"><div class="weight-mini-bar" style="width:{bar_w}%"></div></div>
-          </div>
-          <span class="wv"{high_cls}>{v}</span>
-        </div>'''
+    def _render_weights_html(w_dict: dict) -> str:
+        if not w_dict:
+            return '<span style="color:var(--muted); padding:12px; display:block;">데이터 없음</span>'
+        out_html = '<div class="weights-grid">'
+        for k, v in w_dict.items():
+            val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else 0.0
+            bar_w = min(100, int(val_pct * 12.0))
+            high_cls = " style='font-weight:700; color:#38bdf8;'" if val_pct >= 4.0 else ""
+            out_html += f'''
+            <div class="weight-item">
+              <div class="wk-wrap">
+                <span class="wk"{high_cls}>{k}</span>
+                <div class="weight-mini-track"><div class="weight-mini-bar" style="width:{bar_w}%"></div></div>
+              </div>
+              <span class="wv"{high_cls}>{v}</span>
+            </div>'''
+        out_html += '</div>'
+        return out_html
+
+    us_weights_html = _render_weights_html(ensemble.us_weights or ensemble.weights)
+    kr_weights_html = _render_weights_html(ensemble.kr_weights or ensemble.weights)
+    weights_html = _render_weights_html(ensemble.weights)
+
+    regimes_table_data = [
+        ("BULL_LOW_VOL", "🟢", "고수익 + 저변동성", [3, 10, 3, 3, 8, 6, 3, 6, 4, 6, 6, 2, 3, 2, 6, 4, 5, 7, 3, 3, 3, 3, 3], "공격적 돌파 &amp; 모멘텀 추종"),
+        ("BULL_HIGH_VOL", "🟢", "고수익 + 고변동성", [3, 12, 3, 3, 8, 6, 3, 5, 4, 6, 6, 2, 3, 3, 5, 4, 5, 5, 3, 3, 3, 3, 3], "신중한 모멘텀 &amp; 리스크 관리"),
+        ("SIDEWAYS_LOW_VOL", "🟡", "횡보 + 저변동성", [7, 3, 5, 3, 5, 7, 9, 6, 7, 6, 6, 3, 4, 4, 6, 6, 6, 7, 3, 3, 3, 3, 3], "섹터 순환매 &amp; 내재가치/Stat-Arb"),
+        ("SIDEWAYS_HIGH_VOL", "🟡", "횡보 + 고변동성", [7, 3, 5, 3, 5, 5, 11, 6, 7, 6, 6, 3, 4, 4, 5, 7, 6, 7, 3, 3, 3, 3, 3], "잔차 평균회귀 &amp; 가치주 차익거래"),
+        ("BEAR_LOW_VOL", "🔴", "음수 수익 + 저변동성", [16, 2, 2, 2, 2, 3, 9, 5, 11, 4, 7, 4, 3, 5, 6, 7, 6, 6, 3, 3, 3, 3, 3], "방어적 펀더멘탈 &amp; RIM 가치 안전마진"),
+        ("BEAR_HIGH_VOL", "🔴", "음수 수익 + 고변동성", [17, 0, 2, 2, 2, 3, 11, 3, 11, 4, 7, 4, 3, 6, 5, 8, 6, 5, 3, 3, 3, 3, 3], "최고 수준의 자본 보존 (현금 70%)"),
+    ]
+    regime_matrix_rows_html = ""
+    us_clean = us_regime_raw.strip().upper()
+    kr_clean = kr_regime_raw.strip().upper()
+    for reg_key, icon, desc, pct_list, goal in regimes_table_data:
+        is_us = reg_key in us_clean
+        is_kr = reg_key in kr_clean
+        badges = []
+        if is_us:
+            badges.append('<span style="background:#2ea04330; color:#3fb950; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:6px; border:1px solid #3fb95060;">🇺🇸 US 현재</span>')
+        if is_kr:
+            badges.append('<span style="background:#388bfd30; color:#58a6ff; font-size:11px; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:6px; border:1px solid #58a6ff60;">🇰🇷 KR 현재</span>')
+        badge_str = " ".join(badges)
+        row_style = ' style="background: rgba(56, 139, 253, 0.15); border-left: 3px solid #38bdf8;"' if (is_us or is_kr) else ""
+        cols_td = "".join(f"<td>{p}%</td>" for p in pct_list)
+        regime_matrix_rows_html += f"""
+            <tr{row_style}>
+              <td>{icon} <strong>{reg_key}</strong>{badge_str}</td>
+              <td>{desc}</td>
+              {cols_td}
+              <td>{goal}</td>
+            </tr>"""
 
     rationale_html = ""
     if ensemble.decision_rationale:
@@ -2275,6 +2335,7 @@ def build_html(
   <div class="header-meta">
     <span class="badge" style="color: {us_color}; border-color: {us_color}; background: {us_color}20;">🇺🇸 US: {us_label}</span>
     <span class="badge" style="color: {kr_color}; border-color: {kr_color}; background: {kr_color}20;">🇰🇷 KR: {kr_label}</span>
+    {f'<span class="badge" style="color:#e3b341; border-color:#e3b341; background:#e3b34120;">⚡ Decoupled ({ensemble.decoupling_status})</span>' if ensemble.decoupling_status and ensemble.decoupling_status != "COUPLED" else '<span class="badge" style="color:#38bdf8; border-color:#38bdf8; background:#38bdf820;">🔗 Coupled (S&P500 ⟷ KOSPI)</span>'}
     <span class="badge badge-date">📅 {report_date}</span>
     <span class="badge badge-updated">🔄 생성: {now_kst}</span>
   </div>
@@ -2465,13 +2526,29 @@ def build_html(
   <!-- ══ Regime & Strategy Tab Panel ══ -->
   <div class="tab-panel" id="panel-regime">
     <div class="weights-section">
-      <div class="weights-title">🎯 현재 감지된 시장 레짐 및 가중치</div>
-      <div class="macro-grid" style="margin-bottom: 12px;">
-        <div class="macro-item"><span class="ml">US 레짐</span><span class="mv badge" style="color:{us_color};border-color:{us_color};background:{us_color}20;">🇺🇸 {us_label}</span></div>
-        <div class="macro-item"><span class="ml">KR 레짐</span><span class="mv badge" style="color:{kr_color};border-color:{kr_color};background:{kr_color}20;">🇰🇷 {kr_label}</span></div>
-        <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">{ensemble.max_allocation or '50.0%'}</span></div>
+      <div class="weights-title">🎯 현재 감지된 시장 레짐 및 시장별 동적 가중치</div>
+      <div class="macro-grid" style="margin-bottom: 16px;">
+        <div class="macro-item"><span class="ml">US 레짐 (S&P500)</span><span class="mv badge" style="color:{us_color};border-color:{us_color};background:{us_color}20;">🇺🇸 {us_label}</span></div>
+        <div class="macro-item"><span class="ml">KR 레짐 (KOSPI)</span><span class="mv badge" style="color:{kr_color};border-color:{kr_color};background:{kr_color}20;">🇰🇷 {kr_label}</span></div>
+        <div class="macro-item"><span class="ml">시장 상관성 (20d)</span><span class="mv">{ensemble.decoupling_corr or '0.85'}</span></div>
+        <div class="macro-item"><span class="ml">디커플링 상태</span><span class="mv">{ensemble.decoupling_status or 'COUPLED'}</span></div>
+        <div class="macro-item"><span class="ml">허용 배분</span><span class="mv">{ensemble.max_allocation or '85.0%'}</span></div>
       </div>
-      {weights_html}
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+        <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+            🇺🇸 <span>미국 시장 동적 전략 가중치 ({us_regime_raw})</span>
+          </div>
+          {us_weights_html}
+        </div>
+        <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+            🇰🇷 <span>한국 시장 동적 전략 가중치 ({kr_regime_raw})</span>
+          </div>
+          {kr_weights_html}
+        </div>
+      </div>
     </div>
 
     <div class="section-title">🌐 2D Market Regime Dynamic Matrix (Direction × Volatility - 31 Strategies)</div>
@@ -2484,42 +2561,7 @@ def build_html(
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>🟢 <strong>BULL_LOW_VOL</strong></td>
-              <td>고수익 + 저변동성</td>
-              <td>3%</td><td>10%</td><td>3%</td><td>3%</td><td>8%</td><td>6%</td><td>3%</td><td>6%</td><td>4%</td><td>6%</td><td>6%</td><td>2%</td><td>3%</td><td>2%</td><td>6%</td><td>4%</td><td>5%</td><td>7%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>공격적 돌파 &amp; 모멘텀 추종</td>
-            </tr>
-            <tr>
-              <td>🟢 <strong>BULL_HIGH_VOL</strong></td>
-              <td>고수익 + 고변동성</td>
-              <td>3%</td><td>12%</td><td>3%</td><td>3%</td><td>8%</td><td>6%</td><td>3%</td><td>5%</td><td>4%</td><td>6%</td><td>6%</td><td>2%</td><td>3%</td><td>3%</td><td>5%</td><td>4%</td><td>5%</td><td>5%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>신중한 모멘텀 &amp; 리스크 관리</td>
-            </tr>
-            <tr style="background: #388bfd15;">
-              <td>🟡 <strong>SIDEWAYS_LOW_VOL</strong></td>
-              <td>횡보 + 저변동성 (현재)</td>
-              <td>7%</td><td>3%</td><td>5%</td><td>3%</td><td>5%</td><td>7%</td><td>9%</td><td>6%</td><td>7%</td><td>6%</td><td>6%</td><td>3%</td><td>4%</td><td>4%</td><td>6%</td><td>6%</td><td>6%</td><td>7%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>섹터 순환매 &amp; 내재가치/Stat-Arb</td>
-            </tr>
-            <tr>
-              <td>🟡 <strong>SIDEWAYS_HIGH_VOL</strong></td>
-              <td>횡보 + 고변동성</td>
-              <td>7%</td><td>3%</td><td>5%</td><td>3%</td><td>5%</td><td>5%</td><td>11%</td><td>6%</td><td>7%</td><td>6%</td><td>6%</td><td>3%</td><td>4%</td><td>4%</td><td>5%</td><td>7%</td><td>6%</td><td>7%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>잔차 평균회귀 &amp; 가치주 차익거래</td>
-            </tr>
-            <tr>
-              <td>🔴 <strong>BEAR_LOW_VOL</strong></td>
-              <td>음수 수익 + 저변동성</td>
-              <td>16%</td><td>2%</td><td>2%</td><td>2%</td><td>2%</td><td>3%</td><td>9%</td><td>5%</td><td>11%</td><td>4%</td><td>7%</td><td>4%</td><td>3%</td><td>5%</td><td>6%</td><td>7%</td><td>6%</td><td>6%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>방어적 펀더멘탈 &amp; RIM 가치 안전마진</td>
-            </tr>
-            <tr>
-              <td>🔴 <strong>BEAR_HIGH_VOL</strong></td>
-              <td>음수 수익 + 고변동성</td>
-              <td>17%</td><td>0%</td><td>2%</td><td>2%</td><td>2%</td><td>3%</td><td>11%</td><td>3%</td><td>11%</td><td>4%</td><td>7%</td><td>4%</td><td>3%</td><td>6%</td><td>5%</td><td>8%</td><td>6%</td><td>5%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td><td>3%</td>
-              <td>최고 수준의 자본 보존 (현금 70%)</td>
-            </tr>
+            {regime_matrix_rows_html}
           </tbody>
         </table>
       </div>
@@ -3652,6 +3694,9 @@ function initDrawerTouchSwipe() {{
 </body>
 </html>
 """
+
+
+generate_html = build_html
 
 
 # ─────────────────────────────────────────────

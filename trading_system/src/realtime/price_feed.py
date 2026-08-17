@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 _KR_MARKET_SUFFIX = {
     "KOSPI": ".KS",
     "KOSDAQ": ".KQ",
-    "KONEX": ".KS",
     "KRX": ".KS",
 }
 
@@ -152,7 +151,7 @@ class RealtimePriceFeed:
         if not self.has_kiwoom:
             return quotes
         for sym in symbols:
-            if market_of.get(sym, "KOSPI") not in ("KOSPI", "KOSDAQ", "KONEX"):
+            if market_of.get(sym, "KOSPI") not in ("KOSPI", "KOSDAQ"):
                 continue
             try:
                 import math

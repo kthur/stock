@@ -575,7 +575,7 @@ class MarketIndicatorStorage:
                             russell_tuples
                         )
 
-                # KRX (KOSPI, KOSDAQ, KONEX)
+                # KRX (KOSPI, KOSDAQ)
                 krx_tuples = []
                 for _, row in krx.iterrows():
                     code_raw = str(row['Code']).strip()
@@ -583,6 +583,8 @@ class MarketIndicatorStorage:
                     if code_str in excluded or code_raw in excluded:
                         continue
                     mkt = str(row.get('Market', 'KRX')).upper()
+                    if mkt == 'KONEX':
+                        continue
                     sec = str(row.get('Sector') or row.get('Dept') or row.get('Industry') or '')
                     ind = str(row.get('Industry') or '')
                     krx_tuples.append((code_str, row['Name'], mkt, sec, ind))

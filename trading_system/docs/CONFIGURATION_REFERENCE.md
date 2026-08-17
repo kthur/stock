@@ -32,7 +32,7 @@ STOCK_PRICE_FRESHNESS_DAYS=none
 | 변수명 | 기본값 | 타입 | 설명 |
 |--------|--------|------|------|
 | `UPDATE_INTERVAL` | `0` | 정수 | 종목 데이터 수집 간 대기 시간 (초). 0 = 대기 없음 |
-| `INFERENCE_TARGET` | `ALL` | 콤마 구분 | 추론 대상 시장 (`SP500,NASDAQ,RUSSELL2000,KOSPI,KOSDAQ,KONEX` 또는 `KRX`, `ALL`) |
+| `INFERENCE_TARGET` | `ALL` | 콤마 구분 | 추론 대상 시장 (`SP500,NASDAQ,RUSSELL2000,KOSPI,KOSDAQ` 또는 `KRX`, `ALL`) |
 | `BACKTEST_YEARS` | `5` | 정수/`all` | 백테스트 기간 (년). `all` = 전체 데이터 |
 
 ---

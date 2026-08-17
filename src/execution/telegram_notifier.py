@@ -98,13 +98,13 @@ class TelegramNotifier:
             score = float(row["ensemble_score"]) * 100.0
 
             close_val = float(row.get("close", row.get("Close", 0.0)))
-            price_str = f"{close_val:,.0f} KRW" if mkt in ("KOSPI", "KOSDAQ", "KONEX") and close_val > 0 else (f"${close_val:,.2f}" if close_val > 0 else "N/A")
+            price_str = f"{close_val:,.0f} KRW" if mkt in ("KOSPI", "KOSDAQ") and close_val > 0 else (f"${close_val:,.2f}" if close_val > 0 else "N/A")
 
             # Risk boundaries (Target +15%, Stop Loss -5%)
             tp_val = close_val * 1.15 if close_val > 0 else 0.0
             sl_val = close_val * 0.95 if close_val > 0 else 0.0
-            tp_str = f"{tp_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ", "KONEX") and tp_val > 0 else (f"${tp_val:,.2f}" if tp_val > 0 else "N/A")
-            sl_str = f"{sl_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ", "KONEX") and sl_val > 0 else (f"${sl_val:,.2f}" if sl_val > 0 else "N/A")
+            tp_str = f"{tp_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ") and tp_val > 0 else (f"${tp_val:,.2f}" if tp_val > 0 else "N/A")
+            sl_str = f"{sl_val:,.0f}" if mkt in ("KOSPI", "KOSDAQ") and sl_val > 0 else (f"${sl_val:,.2f}" if sl_val > 0 else "N/A")
 
             lines.append(f"*{rank}. {name} ({sym})* [{mkt}]")
             lines.append(f"  • *Score*: `{score:.1f}%` | *Price*: `{price_str}`")

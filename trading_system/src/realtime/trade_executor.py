@@ -61,7 +61,7 @@ class TradeExecutor:
     def _round_lot(self, qty: int, market: str = "KOSPI") -> int:
         if qty <= 0:
             return 0
-        lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ", "KONEX") else self.lot_size_us
+        lot = self.lot_size_krx if market in ("KOSPI", "KOSDAQ") else self.lot_size_us
         if lot <= 1:
             return qty
         remainder = qty % lot
@@ -123,7 +123,7 @@ class TradeExecutor:
                                   executed=False, mode="dry_run" if self.dry_run else "live",
                                   message="new buys blocked by crisis detector")
 
-        is_krx = market in ("KOSPI", "KOSDAQ", "KONEX")
+        is_krx = market in ("KOSPI", "KOSDAQ")
         if is_krx:
             q_val = self._round_lot(q_val, market=market)
             if q_val <= 0:

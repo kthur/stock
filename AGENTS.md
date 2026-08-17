@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-통합 주식 자동매매 및 예측 시스템. 3,379개 종목(한국 KOSPI/KOSDAQ/KONEX + 미국 SP500/NASDAQ/RUSSELL2000)을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
+통합 주식 자동매매 및 예측 시스템. 한국(KOSPI, KOSDAQ) 및 미국(SP500, NASDAQ, RUSSELL2000) 5대 시장을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영 및 2D/Dual 시장 레짐 기반 앙상블, 포트폴리오 최적화, 자율 주문 실행(OMS)을 수행합니다:
 
 | # | 전략 | 방식 | 출력 |
 |---|------|------|------|
@@ -198,7 +198,7 @@ flowchart TB
 
 ### Markets
 
-market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ`, `KONEX` (FinanceDataReader 원본 그대로 저장)
+market 컬럼 값: `SP500`, `NASDAQ`, `RUSSELL2000`, `KOSPI`, `KOSDAQ` (FinanceDataReader 원본 그대로 저장)
 
 ### Pipeline 출력 파일
 

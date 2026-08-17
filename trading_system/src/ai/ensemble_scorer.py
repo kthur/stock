@@ -978,11 +978,11 @@ class EnsembleScoringEngine:
         return "\n".join(lines)
 
     def calculate_ensemble_score(self,
-                                 regime: Union[int, str],
-                                 regression_df: pd.DataFrame,
-                                 surge_df: pd.DataFrame,
-                                 lead_lag_df: pd.DataFrame,
-                                 vcp_ml_df: pd.DataFrame,
+                                 regime: Union[int, str] = 'BULL_LOW_VOL',
+                                 regression_df: Optional[pd.DataFrame] = None,
+                                 surge_df: Optional[pd.DataFrame] = None,
+                                 lead_lag_df: Optional[pd.DataFrame] = None,
+                                 vcp_ml_df: Optional[pd.DataFrame] = None,
                                  vcp_rule_df: Optional[Union[pd.DataFrame, list]] = None,
                                  vcp_patterns_df: Optional[Union[pd.DataFrame, list]] = None,
                                  lstm_df: Optional[pd.DataFrame] = None,
@@ -1015,12 +1015,68 @@ class EnsembleScoringEngine:
                                  sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                                  target_horizon: int = 20,
                                  gamma: float = 1.0,
-                                 held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
+                                 held_symbols: Optional[Union[Set[str], List[str]]] = None,
+                                 us_regime: Optional[Union[int, str]] = None,
+                                 kr_regime: Optional[Union[int, str]] = None,
+                                 decoupling_status: Optional[str] = None,
+                                 dual_regimes: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
         """
-        Calculates 30-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Calculates 31-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
+        Supports dual market regime weighting for US (SP500/NASDAQ/RUSSELL2000) and KR (KOSPI/KOSDAQ).
         """
         v_rule_input = vcp_patterns_df if vcp_patterns_df is not None else vcp_rule_df
-        weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, regime, gamma=gamma)
+
+        # Resolve dual market regimes
+        if dual_regimes:
+            us_regime = us_regime if us_regime is not None else dual_regimes.get('us_regime', {}).get('combo_2d_label')
+            kr_regime = kr_regime if kr_regime is not None else dual_regimes.get('kr_regime', {}).get('combo_2d_label')
+            decoupling_status = decoupling_status if decoupling_status is not None else dual_regimes.get('decoupling_status', 'COUPLED')
+
+        eff_us_regime = us_regime if us_regime is not None else (regime if regime is not None else 'BULL_LOW_VOL')
+        eff_kr_regime = kr_regime if kr_regime is not None else (regime if regime is not None else 'SIDEWAYS_LOW_VOL')
+        eff_decoupling = decoupling_status if decoupling_status is not None else 'COUPLED'
+
+        us_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_us_regime, gamma=gamma)
+        kr_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_kr_regime, gamma=gamma)
+
+        # Apply Decoupling Alpha Tilts if active
+        if eff_decoupling == 'DECOUPLING_US_BULL_KR_BEAR':
+            # US Bull: amplify momentum & breakout
+            for st in ['surge', 'vcp_ml', 'trend_efficiency', 'gamma_squeeze']:
+                if st in us_weights:
+                    us_weights[st] += 0.015
+            # KR Bear: amplify defensive valuation, foreign flow, supply chain & reversal
+            for st in ['rim_valuation', 'valueup_catalyst', 'order_flow', 'supply_chain', 'short_term_reversal']:
+                if st in kr_weights:
+                    kr_weights[st] += 0.015
+
+            us_sum = sum(us_weights.values())
+            if us_sum > 0:
+                us_weights = {k: v / us_sum for k, v in us_weights.items()}
+            kr_sum = sum(kr_weights.values())
+            if kr_sum > 0:
+                kr_weights = {k: v / kr_sum for k, v in kr_weights.items()}
+
+        elif eff_decoupling == 'DECOUPLING_KR_BULL_US_BEAR':
+            # KR Bull: amplify sector rotation & valueup
+            for st in ['sector_rotation', 'valueup_catalyst', 'mq_factor']:
+                if st in kr_weights:
+                    kr_weights[st] += 0.02
+            # US Bear: amplify factor neutralized & vol targeting
+            for st in ['factor_neutralized', 'vol_target', 'stat_arb']:
+                if st in us_weights:
+                    us_weights[st] += 0.02
+
+            us_sum = sum(us_weights.values())
+            if us_sum > 0:
+                us_weights = {k: v / us_sum for k, v in us_weights.items()}
+            kr_sum = sum(kr_weights.values())
+            if kr_sum > 0:
+                kr_weights = {k: v / kr_sum for k, v in kr_weights.items()}
+
+        self.us_strategy_weights = us_weights
+        self.kr_strategy_weights = kr_weights
+        self.strategy_weights = us_weights
 
         return self.combine_predictions(
             reg_df=regression_df,
@@ -1054,8 +1110,13 @@ class EnsembleScoringEngine:
             insider_buying_df=insider_buying_df,
             darkpool_df=darkpool_df,
             earnings_tone_drift_df=earnings_tone_drift_df,
-            weights=weights,
+            weights=us_weights,
+            us_weights=us_weights,
+            kr_weights=kr_weights,
             regime=regime,
+            us_regime=eff_us_regime,
+            kr_regime=eff_kr_regime,
+            decoupling_status=eff_decoupling,
             target_horizon=target_horizon,
             sentiment_blacklist=sentiment_blacklist,
             held_symbols=held_symbols
@@ -1094,7 +1155,12 @@ class EnsembleScoringEngine:
                             darkpool_df: Optional[pd.DataFrame] = None,
                             earnings_tone_drift_df: Optional[pd.DataFrame] = None,
                             weights: Optional[Dict[str, float]] = None,
+                            us_weights: Optional[Dict[str, float]] = None,
+                            kr_weights: Optional[Dict[str, float]] = None,
                             regime: Union[int, str] = 'BULL_LOW_VOL',
+                            us_regime: Optional[Union[int, str]] = None,
+                            kr_regime: Optional[Union[int, str]] = None,
+                            decoupling_status: Optional[str] = None,
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
@@ -1659,7 +1725,7 @@ class EnsembleScoringEngine:
                     if valid_mask.any():
                         merged.loc[valid_mask, col] = self.calibrate_scores(strategy_name, merged.loc[valid_mask, col].values)
 
-        # Dynamic Weight Renormalization & Missingness-Aware Coverage Penalization
+        # Dynamic Weight Renormalization & Missingness-Aware Coverage Penalization (Market-Specific Dual Weights)
         total_score_series = pd.Series(0.0, index=merged.index)
         total_weight_series = pd.Series(0.0, index=merged.index)
         valid_count_series = pd.Series(0.0, index=merged.index)
@@ -1667,15 +1733,28 @@ class EnsembleScoringEngine:
         present_strategy_cols = [score_col for _, score_col in strategy_cols if score_col in merged.columns and merged[score_col].notna().any()]
         num_present_strats = max(float(len(present_strategy_cols)), 1.0)
 
+        eff_us_weights = us_weights if us_weights is not None else (weights if weights is not None else self.REGIME_2D_WEIGHTS.get('BULL_LOW_VOL', {}))
+        eff_kr_weights = kr_weights if kr_weights is not None else (weights if weights is not None else self.REGIME_2D_WEIGHTS.get('SIDEWAYS_LOW_VOL', {}))
+
+        # Identify KR vs US symbols for dual-regime weights
+        is_kr = pd.Series(False, index=merged.index)
+        if 'market' in merged.columns:
+            is_kr = merged['market'].astype(str).str.upper().isin(['KOSPI', 'KOSDAQ'])
+        elif 'symbol' in merged.columns:
+            is_kr = merged['symbol'].astype(str).str.match(r'^\d{6}$') | merged['symbol'].astype(str).str.endswith(('.KS', '.KQ'))
+
         default_strat_w = 1.0 / max(float(len(strategy_cols)), 1.0)
         for strat_name, score_col in strategy_cols:
-            w = weights.get(strat_name, default_strat_w)
+            w_us = eff_us_weights.get(strat_name, default_strat_w)
+            w_kr = eff_kr_weights.get(strat_name, default_strat_w)
+            w_series = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
+
             if score_col in merged.columns:
                 # Fix Task 1: Valid 0.0 scores must NOT be discarded as missing data.
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
                 clean_score = np.where(valid_mask, merged[score_col], 0.0)
-                total_score_series += clean_score * w
-                total_weight_series += w * valid_mask.astype(float)
+                total_score_series += clean_score * w_series
+                total_weight_series += w_series * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
 
         # Avoid division by zero: if no strategy scores exist, score is 0.0
@@ -1970,7 +2049,7 @@ class EnsembleScoringEngine:
                 min_us_turnover = getattr(self.config, 'min_daily_volume_sp500', 1_000_000.0) if self.config else 1_000_000.0
                 if vol <= 0:
                     return True
-                if mkt in ['KOSPI', 'KOSDAQ', 'KONEX'] and turnover > 0 and turnover < min_krx_turnover:
+                if mkt in ['KOSPI', 'KOSDAQ'] and turnover > 0 and turnover < min_krx_turnover:
                     return True
                 if mkt in ['SP500', 'NASDAQ', 'RUSSELL2000'] and turnover > 0 and turnover < min_us_turnover:
                     return True

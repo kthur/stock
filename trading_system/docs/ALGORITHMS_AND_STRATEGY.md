@@ -3,7 +3,7 @@
 > **Version**: 5.0  
 > **Last Updated**: 2026-08-17 (KST)  
 > **Source Modules**: `trading_system/src/core/*.py`, `src/ai/`, `src/risk/`, `src/execution/`  
-> **Target Universe**: 3,379개 종목 (KOSPI, KOSDAQ, KONEX, S&P 500, NASDAQ, RUSSELL 2000)
+> **Target Universe**: 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장
 
 ---
 

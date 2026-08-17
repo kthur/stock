@@ -1874,7 +1874,12 @@ def execute_prediction_pipeline():
     current_regime = regime_detector.predict_regime(indicator_infer)
     regime_2d_info = regime_detector.predict_2d_regime(indicator_infer)
     current_2d_regime = regime_2d_info['combo_label']
-    logger.info(f"==> CURRENT MARKET REGIME DETECTED: {current_regime_label} (Code: {current_regime}), 2D: {current_2d_regime}")
+
+    decoupling_info = regime_detector.predict_dual_market_regime(indicator_infer)
+    us_2d_regime = decoupling_info['us_regime']['combo_2d_label']
+    kr_2d_regime = decoupling_info['kr_regime']['combo_2d_label']
+    decoupling_status = decoupling_info.get('decoupling_status', 'COUPLED')
+    logger.info(f"==> CURRENT MARKET REGIME DETECTED: {current_regime_label} (Code: {current_regime}), 2D: {current_2d_regime} | US: {us_2d_regime}, KR: {kr_2d_regime} ({decoupling_status})")
 
     # Adjust maximum total allocation based on regime
     if current_regime == 0:  # BEAR
@@ -3481,6 +3486,10 @@ def execute_prediction_pipeline():
     # default target horizon is 20d (31-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
         regime=current_2d_regime,
+        us_regime=us_2d_regime if 'us_2d_regime' in locals() else current_2d_regime,
+        kr_regime=kr_2d_regime if 'kr_2d_regime' in locals() else current_2d_regime,
+        decoupling_status=decoupling_status if 'decoupling_status' in locals() else 'COUPLED',
+        dual_regimes=decoupling_info if 'decoupling_info' in locals() else None,
         regression_df=res_df,
         surge_df=surge_df,
         lead_lag_df=lead_lag_df,
@@ -4031,7 +4040,10 @@ def execute_prediction_pipeline():
 
         f.write(f"{decision_rationale_text}\n\n")
 
-        f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
+        us_weights_map = getattr(scorer, 'us_strategy_weights', ensemble_weights) or ensemble_weights
+        kr_weights_map = getattr(scorer, 'kr_strategy_weights', ensemble_weights) or ensemble_weights
+
+        f.write(f"--- Applied US Strategy Weights ({len(us_weights_map)} Strategies) [US: {us_2d_regime}] ---\n")
         _STRAT_DISPLAY_MAP = [
             ("regression", "XGBoost Regression Fundamentals"),
             ("surge", "Surge Classifier (XGBoost)"),
@@ -4065,6 +4077,18 @@ def execute_prediction_pipeline():
             ("darkpool", "HFT Order Flow & Dark Pool"),
             ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
         ]
+        for _skey, _sname in _STRAT_DISPLAY_MAP:
+            _w_pct = us_weights_map.get(_skey, 0.0) * 100.0
+            f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
+        f.write("\n")
+
+        f.write(f"--- Applied KR Strategy Weights ({len(kr_weights_map)} Strategies) [KR: {kr_2d_regime}] ---\n")
+        for _skey, _sname in _STRAT_DISPLAY_MAP:
+            _w_pct = kr_weights_map.get(_skey, 0.0) * 100.0
+            f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
+        f.write("\n")
+
+        f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
         for _skey, _sname in _STRAT_DISPLAY_MAP:
             _w_pct = ensemble_weights.get(_skey, 0.0) * 100.0
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")

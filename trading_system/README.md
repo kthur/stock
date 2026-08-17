@@ -45,7 +45,7 @@ copy trading_system\.env.example trading_system\.env
 
 ### 1. 통합 예측 파이프라인 (핵심)
 
-31대 전략 모델을 기반으로 3,379개 종목(KOSPI, KOSDAQ, KONEX, S&P 500, NASDAQ, RUSSELL 2000)의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 포트폴리오 최적화(HRP & EVT-CVaR), 미시구조 거래비용 차감을 수행합니다.
+31대 전략 모델을 기반으로 한국(KOSPI, KOSDAQ) 및 미국(S&P 500, NASDAQ, RUSSELL 2000) 5대 시장의 예측 결과를 생성하고 2D 시장 레짐 기반 동적 앙상블, 포트폴리오 최적화(HRP & EVT-CVaR), 미시구조 거래비용 차감을 수행합니다.
 
 #### CLI 옵션
 
@@ -70,7 +70,7 @@ copy trading_system\.env.example trading_system\.env
 .venv\Scripts\python trading_system/run_pipeline.py --target KRX --skip-training
 ```
 
-> **`--target KRX`** = KOSPI + KOSDAQ + KONEX
+> **`--target KRX`** = KOSPI + KOSDAQ
 
 ### 2. 파이프라인 출력 파일 (`result/` 또는 `trading_system/`)
 
