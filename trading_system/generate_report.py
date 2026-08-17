@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from src.data_layer.data_validator import DataValidator
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 
 
-def _safe_json(obj: any) -> str:
+def _safe_json(obj: Any) -> str:
     """Safely serialize JSON for embedding directly in HTML script blocks without XSS risk."""
     return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
 

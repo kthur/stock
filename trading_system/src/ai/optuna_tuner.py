@@ -22,9 +22,9 @@ try:
     from src.ai.prediction_model import DateAwareTimeSeriesSplit
 except ImportError:
     try:
-        from trading_system.src.ai.prediction_model import DateAwareTimeSeriesSplit
+        from trading_system.src.ai.prediction_model import DateAwareTimeSeriesSplit  # type: ignore[no-redef]
     except ImportError:
-        from sklearn.model_selection import TimeSeriesSplit as DateAwareTimeSeriesSplit
+        from sklearn.model_selection import TimeSeriesSplit as DateAwareTimeSeriesSplit  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
