@@ -532,7 +532,7 @@ class PortfolioAllocator:
     ) -> float:
         """
         Calculates Leland optimal no-trade buffer threshold delta_i:
-        delta_i = [ (3 * c_i * w_target_i * sigma_i) / (2 * gamma_risk) ]^(1/3)
+        delta_i = [ (3 * c_i * w_target_i * sigma_i^2) / (2 * gamma_risk) ]^(1/3)
         clamped to [delta_floor, delta_cap].
         """
         gamma = risk_aversion if risk_aversion is not None else self.risk_aversion
@@ -540,9 +540,10 @@ class PortfolioAllocator:
             return self.delta_floor
 
         vol_clean = max(0.005, volatility_20d)
+        ann_variance = 252.0 * (vol_clean ** 2)
 
-        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * w_i * sigma_i) / (2 * gamma) ]^(1/3)
-        cubic_term = (3.0 * cost_rate * target_weight * vol_clean) / (2.0 * max(1e-4, gamma))
+        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * w_i * sigma_ann^2) / (2 * gamma) ]^(1/3)
+        cubic_term = (3.0 * cost_rate * target_weight * ann_variance) / (2.0 * max(1e-4, gamma))
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor

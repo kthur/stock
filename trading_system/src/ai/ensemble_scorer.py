@@ -28,8 +28,9 @@ logger = logging.getLogger(__name__)
 
 class EnsembleScoringEngine:
     """
-    Ensembles 5 strategy predictions (Regression, Surge Classifier, Lead-Lag, VCP Rule Detector, VCP ML Predictor)
-    using 2D regime matrix weights and dynamic exponential Sharpe weighting.
+    Ensembles 31 multi-factor strategy predictions across 3 horizon tiers
+    using 2D regime matrix weights, factor orthogonalization (PCA-ZCA & Gram-Schmidt),
+    and dynamic exponential Sharpe weighting.
     """
 
     # 3-Tier Multi-Horizon Alpha Signal Decomposition (Slow: 1M~1Y, Medium: 5D~20D, Fast: 1D~3D)

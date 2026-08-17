@@ -903,7 +903,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     _all_tickers = {**_INDICATOR_TICKERS, **_ECOS_ONLY_TICKERS}
 
     combined = {}
-    with ThreadPoolExecutor(max_workers=len(_all_tickers)) as pool:
+    with ThreadPoolExecutor(max_workers=min(_IO_WORKERS, max(1, len(_all_tickers)))) as pool:
         futures = {pool.submit(_fetch_one, t, c): c for t, c in _all_tickers.items()}
         for f in as_completed(futures):
             try:

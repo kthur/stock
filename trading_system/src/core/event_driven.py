@@ -7,6 +7,7 @@ momentum scores based on disclosure types (earnings surprises, stock splits, buy
 import logging
 import urllib.request
 import json
+import re
 from typing import Dict, List, Optional, Any
 import numpy as np
 import pandas as pd
@@ -240,15 +241,39 @@ class EventDrivenEngine(BaseStrategyEngine):
         if eff_filings:
             for item in eff_filings:
                 stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
-                report_nm = item.get('report_nm', '')
+                report_nm = str(item.get('report_nm', ''))
+                flr_nm = str(item.get('flr_nm', ''))
+                combined_text = f"{report_nm} {flr_nm}"
 
-                if '전환청구권행사' in report_nm or '신주인수권행사' in report_nm or '전환가액' in report_nm:
+                if any(kw in report_nm for kw in ('전환청구권행사', '신주인수권행사', '전환가액', '신주인수권부사채', '전환사채')):
+                    parsed_ratio = None
+                    if 'dilution_ratio' in item:
+                        try:
+                            parsed_ratio = float(item['dilution_ratio'])
+                            if parsed_ratio > 1.0:
+                                parsed_ratio = parsed_ratio / 100.0
+                        except (ValueError, TypeError):
+                            parsed_ratio = None
+
+                    if parsed_ratio is None:
+                        match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*%', combined_text)
+                        if match:
+                            try:
+                                parsed_ratio = float(match.group(1)) / 100.0
+                            except (ValueError, TypeError):
+                                parsed_ratio = None
+
+                    dilution_ratio = parsed_ratio if parsed_ratio is not None else self.default_cb_dilution_ratio
+
                     for sym in symbols:
                         sym_clean = sym.split('.')[0].zfill(6)
                         if stock_code and stock_code == sym_clean:
-                            res[sym]['cb_bw_ratio'] = self.default_cb_dilution_ratio  # Dilution ratio (> 5.0% threshold)
-                            res[sym]['is_overhang_blacklisted'] = True
-                            logger.info(f"[CB/BW OVERHANG SANDBOX] Blacklisted {sym} due to dilution risk in filing: {report_nm}")
+                            res[sym]['cb_bw_ratio'] = max(res[sym]['cb_bw_ratio'], dilution_ratio)
+                            if dilution_ratio > 0.05:
+                                res[sym]['is_overhang_blacklisted'] = True
+                                logger.info(f"[CB/BW OVERHANG SANDBOX] Blacklisted {sym} due to dilution risk ({dilution_ratio*100:.1f}%) in filing: {report_nm}")
+                            else:
+                                logger.debug(f"[CB/BW OVERHANG SANDBOX] Minor dilution ({dilution_ratio*100:.1f}%) for {sym}, not blacklisted.")
 
         # 2. Margin Loan Rate Penalty (> 9.0%)
         if margin_rate_dict:

@@ -55,8 +55,11 @@ class TestKellySizing(unittest.TestCase):
         aapl_sharpe = res_sharpe[res_sharpe['symbol'] == 'AAPL'].iloc[0]
         res_sharpe[res_sharpe['symbol'] == 'MSFT'].iloc[0]
 
-        # Kelly raw score = f* = kelly_fraction * (net_return / var_20d) where var_20d = 20 * vol^2
-        expected_kelly_raw = 0.5 * aapl_kelly['net_return'] / (20.0 * (aapl_kelly['volatility'] ** 2))
+        # Kelly raw score = f* = kelly_fraction * (net_return / var_20d) * vol_scale where var_20d = 20 * vol^2
+        vols = max(0.005, aapl_kelly['volatility'])
+        ann_vol = vols * np.sqrt(252)
+        vol_scale = np.clip(0.15 / np.maximum(ann_vol, 0.05), 0.30, 2.0)
+        expected_kelly_raw = 0.5 * (aapl_kelly['net_return'] / (20.0 * (vols ** 2))) * vol_scale
         self.assertAlmostEqual(aapl_kelly['raw_score'], expected_kelly_raw, places=4)
 
         # Sharpe raw score = net_return / (volatility * sqrt(20))

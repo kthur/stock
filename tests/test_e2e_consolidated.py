@@ -696,9 +696,9 @@ class TestE2EConsolidated(unittest.TestCase):
         predictor = VCPSurgePredictor(model_dir=self.tmp_model_dir)
         prices_dict = {"AAPL": self.generate_vcp_data(500)}
         universe = pd.DataFrame([{"symbol": "AAPL", "market": "SP500"}])
-        # predict without training
+        # predict without training (should run calibrated fallback heuristic safely without error)
         res = predictor.predict(prices_dict, universe)
-        self.assertTrue(res.empty)
+        self.assertFalse(res.empty)
 
     # Support Boundary
     def test_t2_gmm_detector_insufficient_data(self):

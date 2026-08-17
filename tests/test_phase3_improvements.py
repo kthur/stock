@@ -10,14 +10,16 @@ def test_cb_bw_overhang_and_margin_risk_sandbox():
     """Verify CB/BW dilution overhang detection blacklists symbols and margin rate >9% applies penalty."""
     engine = EventDrivenEngine()
     
-    symbols = ['005930', '000660', '035420']
+    symbols = ['005930', '000660', '035420', '035720']
     mock_filings = [
-        {'stock_code': '000660', 'report_nm': '전환청구권행사 (CB 전환 6% 희석)'}
+        {'stock_code': '000660', 'report_nm': '전환청구권행사 (CB 전환 6% 희석)'},
+        {'stock_code': '035720', 'report_nm': '전환청구권행사 (소규모 전환 1.5% 희석)'},
     ]
     margin_rates = {
         '005930': 4.5,
         '000660': 6.0,
-        '035420': 11.0  # > 9.0% threshold -> excess 2.0% -> penalty = 1.0 - 0.10 = 0.90
+        '035420': 11.0,  # > 9.0% threshold -> excess 2.0% -> penalty = 1.0 - 0.10 = 0.90
+        '035720': 5.0
     }
 
     res = engine.evaluate_cb_bw_overhang_and_margin_risk(
@@ -26,11 +28,15 @@ def test_cb_bw_overhang_and_margin_risk_sandbox():
         margin_rate_dict=margin_rates
     )
 
-    # 1. 000660 should be blacklisted due to CB conversion notice
+    # 1. 000660 should be blacklisted due to >5% CB conversion notice (6%)
     assert res['000660']['is_overhang_blacklisted'] is True
     assert res['000660']['cb_bw_ratio'] > 0.05
 
-    # 2. 035420 margin penalty check (rate = 11.0% -> penalty = 0.90)
+    # 2. 035720 should NOT be blacklisted due to minor dilution (1.5%)
+    assert res['035720']['is_overhang_blacklisted'] is False
+    assert pytest.approx(res['035720']['cb_bw_ratio'], abs=1e-3) == 0.015
+
+    # 3. 035420 margin penalty check (rate = 11.0% -> penalty = 0.90)
     assert res['035420']['is_overhang_blacklisted'] is False
     assert pytest.approx(res['035420']['margin_penalty'], abs=1e-3) == 0.90
     assert res['005930']['margin_penalty'] == 1.0
