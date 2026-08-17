@@ -1428,8 +1428,6 @@ def execute_prediction_pipeline():
                 if not m_df.empty:
                     logger.info(f"Training data for {m_name}: {len(m_df)} rows, {m_df['symbol'].nunique()} symbols")
                 market_dfs[m_name] = m_df
-            del train_data_dict
-            gc.collect()
         else:
             market_dfs = {m: pd.DataFrame() for m in ['sp500', 'nasdaq', 'russell2000', 'kospi', 'kosdaq']}
 
@@ -1476,8 +1474,19 @@ def execute_prediction_pipeline():
             if not df_train.empty and len(df_train) > 1000:
                 model.compute_lead_lag(df_train, indicator_df=indicator_train, symbol_to_market=symbol_market)
 
-            # 7d. Train VCP ML surge models (4 markets, parallel inside)
+            # 7d. Train VCP ML surge models (5 markets, parallel inside)
             vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
+            if 'train_data_dict' in locals() and train_data_dict:
+                try:
+                    logger.info("Training VCP ML surge models across markets...")
+                    vcp_ml.train(train_data_dict, indicator_train, universe)
+                    vcp_ml.save_models()
+                    logger.info("VCP ML surge models trained and saved successfully.")
+                except Exception as _vcp_err:
+                    logger.error(f"VCP ML training failed: {_vcp_err}")
+                    _notify_telegram(f"⚠️ VCP ML 모델 학습 실패: {_vcp_err}")
+                del train_data_dict
+                gc.collect()
         
         # 7e. Fit Isotonic Regression calibrators on training data for score alignment
         if not df_train.empty and 'Close' in df_train.columns:
@@ -2779,11 +2788,17 @@ def execute_prediction_pipeline():
                     'revenue_growth': _rev_g,
                     'per': None,
                 }
-        arm_scores = arm_engine.compute_scores(_arm_fund, infer_data_dict)
-        arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
+        arm_scores = arm_engine.compute_scores(prices_dict=infer_data_dict, fundamentals_dict=_arm_fund)
+        if isinstance(arm_scores, pd.DataFrame):
+            arm_df = arm_scores
+        elif isinstance(arm_scores, dict):
+            arm_df = pd.DataFrame([{'symbol': k, 'arm_score': v} for k, v in arm_scores.items()])
+        else:
+            arm_df = pd.DataFrame()
         arm_output_path = os.path.join(result_dir, "arm_factor_predictions.txt")
         if not arm_df.empty:
-            arm_merged = arm_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='arm_score', ascending=False)
+            arm_merged = arm_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in arm_df.columns else arm_df
+            arm_merged = arm_merged.sort_values(by='arm_score', ascending=False)
             with open(arm_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 15: Analyst Revision Momentum (ARM) Factor Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
@@ -2792,7 +2807,8 @@ def execute_prediction_pipeline():
                 f.write("-" * 58 + "\n")
                 for rank, (_, row) in enumerate(arm_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['arm_score']*100:>10.1f}%\n")
+                    sc_val = row['arm_score'] * 100.0 if row['arm_score'] <= 1.0 else row['arm_score']
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{sc_val:>10.1f}%\n")
             logger.info(f"Saved ARM factor predictions ({len(arm_merged)} symbols) to {arm_output_path}")
             for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = arm_merged[arm_merged['market'] == _m]
@@ -2805,7 +2821,8 @@ def execute_prediction_pipeline():
                     _mf.write("-" * 48 + "\n")
                     for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
                         name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['arm_score']*100:>10.1f}%\n")
+                        sc_val = row['arm_score'] * 100.0 if row['arm_score'] <= 1.0 else row['arm_score']
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{sc_val:>10.1f}%\n")
     except Exception as _arm_e:
         logger.warning(f"ARM factor computation failed: {_arm_e}")
         arm_df = pd.DataFrame()
@@ -2814,11 +2831,17 @@ def execute_prediction_pipeline():
     try:
         from src.core.card_factor import CARDFactorEngine
         card_engine = CARDFactorEngine()
-        card_scores = card_engine.compute_scores(indicator_infer if 'indicator_infer' in locals() else pd.DataFrame(), infer_data_dict)
-        card_df = pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in card_scores.items()])
+        card_scores = card_engine.compute_scores(prices_dict=infer_data_dict, indicators_df=indicator_infer if 'indicator_infer' in locals() else pd.DataFrame())
+        if isinstance(card_scores, pd.DataFrame):
+            card_df = card_scores
+        elif isinstance(card_scores, dict):
+            card_df = pd.DataFrame([{'symbol': k, 'card_score': v} for k, v in card_scores.items()])
+        else:
+            card_df = pd.DataFrame()
         card_output_path = os.path.join(result_dir, "card_factor_predictions.txt")
         if not card_df.empty:
-            card_merged = card_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='card_score', ascending=False)
+            card_merged = card_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in card_df.columns else card_df
+            card_merged = card_merged.sort_values(by='card_score', ascending=False)
             with open(card_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 16: Cross-Asset Regime Divergence (CARD) Factor Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
@@ -2827,7 +2850,8 @@ def execute_prediction_pipeline():
                 f.write("-" * 60 + "\n")
                 for rank, (_, row) in enumerate(card_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['card_score']*100:>12.1f}%\n")
+                    sc_val = row['card_score'] * 100.0 if row['card_score'] <= 1.0 else row['card_score']
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{sc_val:>12.1f}%\n")
             logger.info(f"Saved CARD factor predictions ({len(card_merged)} symbols) to {card_output_path}")
             for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
                 _m_df = card_merged[card_merged['market'] == _m]
@@ -2840,7 +2864,8 @@ def execute_prediction_pipeline():
                     _mf.write("-" * 50 + "\n")
                     for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
                         name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['card_score']*100:>12.1f}%\n")
+                        sc_val = row['card_score'] * 100.0 if row['card_score'] <= 1.0 else row['card_score']
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{sc_val:>12.1f}%\n")
     except Exception as _card_e:
         logger.warning(f"CARD factor computation failed: {_card_e}")
         card_df = pd.DataFrame()

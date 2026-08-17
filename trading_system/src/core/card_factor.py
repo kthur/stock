@@ -15,7 +15,7 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
         display_name="Cross-Asset Regime Divergence",
         score_column="card_score",
         category="factor",
-        output_file="card_predictions.txt",
+        output_file="card_factor_predictions.txt",
         requires_indicators=True,
         default_regime_weights={
             "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.05, "BULL_HIGH_VOL": 0.04, "BULL_LOW_VOL": 0.04

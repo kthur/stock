@@ -24,7 +24,7 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
         display_name="Analyst Revision Momentum",
         score_column="arm_score",
         category="factor",
-        output_file="arm_predictions.txt",
+        output_file="arm_factor_predictions.txt",
         requires_fundamentals=True,
         default_regime_weights={
             "BEAR": 0.05, "BEAR_HIGH_VOL": 0.05, "SIDEWAYS_LOW_VOL": 0.05, "BULL_HIGH_VOL": 0.06, "BULL_LOW_VOL": 0.05
