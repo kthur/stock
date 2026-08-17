@@ -2067,6 +2067,8 @@ def build_html(
   html {{ scroll-padding-top: 52px; }}
   .table-wrap {{ 
     overflow-x: auto; 
+    overflow-y: auto;
+    max-height: 750px;
     -webkit-overflow-scrolling: touch; 
     max-width: 100%; 
     position: relative;
@@ -2084,7 +2086,7 @@ def build_html(
   }}
   thead th {{ 
     position: sticky; 
-    top: 48px; 
+    top: 0; 
     background: var(--surface2); 
     z-index: 10; 
     padding: 11px 12px; 
@@ -2129,7 +2131,7 @@ def build_html(
   }}
   .table-wrap th.sticky-col {{
     position: sticky;
-    top: 48px;
+    top: 0;
     z-index: 15;
     background: var(--surface2);
   }}
@@ -2197,8 +2199,8 @@ def build_html(
     .macro-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
     .tabs {{ padding: 0 8px; height: 44px; }}
     .tab {{ padding: 11px 12px; font-size: 13px; }}
-    thead th {{ top: 44px; padding: 8px 6px; font-size: 12px; }}
-    .table-wrap th.sticky-col {{ top: 44px; }}
+    thead th {{ top: 0; padding: 8px 6px; font-size: 12px; }}
+    .table-wrap th.sticky-col {{ top: 0; }}
     tbody td {{ padding: 8px 6px; font-size: 12px; }}
     .table-wrap {{ -webkit-overflow-scrolling: touch; }}
     .filter-bar {{ overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }}

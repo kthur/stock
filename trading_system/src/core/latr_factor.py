@@ -1,8 +1,8 @@
 import logging
 import pandas as pd
 import numpy as np
-from typing import Dict
-from .base_strategy import BaseStrategyEngine
+from typing import Dict, Any, Optional
+from .base_strategy import BaseStrategyEngine, make_score_dataframe
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,15 @@ class LATRFactorEngine(BaseStrategyEngine):
         self.lookback_window = lookback_window
         self.target_drawdown = target_drawdown
 
-    def compute_scores(self, prices_dict: Dict[str, pd.DataFrame], fundamentals_dict=None, indicators_df=None, **kwargs) -> Dict[str, float]:
+    def compute_scores(self, prices_dict: Dict[str, pd.DataFrame], fundamentals_dict=None, indicators_df=None, **kwargs) -> Any:
         """
         Computes LATR factor scores in [0.0, 1.0] for all symbols.
+        Returns ScoreDataFrame with columns ['symbol', 'latr_score'] supporting dict indexing.
         """
         scores = {}
+        if not prices_dict or not isinstance(prices_dict, dict):
+            return make_score_dataframe([], 'latr_score')
+
         for sym, df in prices_dict.items():
             try:
                 if df is None or len(df) < 20:
@@ -86,12 +90,13 @@ class LATRFactorEngine(BaseStrategyEngine):
                 scores[sym] = 0.5
 
         if not scores:
-            return {}
+            return make_score_dataframe([], 'latr_score')
 
         vals = np.array(list(scores.values()))
         p1, p99 = np.percentile(vals, 1), np.percentile(vals, 99)
         if p99 == p1:
-            return {k: 0.5 for k in scores.keys()}
+            return make_score_dataframe({k: 0.5 for k in scores.keys()}, 'latr_score')
         range_v = p99 - p1
 
-        return {k: float(np.clip((v - p1) / range_v, 0.0, 1.0)) for k, v in scores.items()}
+        norm_scores = {k: float(np.clip((v - p1) / range_v, 0.0, 1.0)) for k, v in scores.items()}
+        return make_score_dataframe(norm_scores, 'latr_score')

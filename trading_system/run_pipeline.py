@@ -2850,7 +2850,10 @@ def execute_prediction_pipeline():
         from src.core.latr_factor import LATRFactorEngine
         latr_engine = LATRFactorEngine()
         latr_scores = latr_engine.compute_scores(infer_data_dict)
-        latr_df = pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in latr_scores.items()])
+        if isinstance(latr_scores, dict):
+            latr_df = pd.DataFrame([{'symbol': k, 'latr_score': v} for k, v in latr_scores.items()])
+        else:
+            latr_df = latr_scores
         latr_output_path = os.path.join(result_dir, "latr_factor_predictions.txt")
         if not latr_df.empty:
             latr_merged = latr_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left').sort_values(by='latr_score', ascending=False)

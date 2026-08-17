@@ -154,10 +154,14 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
     res = linregress(y_lag, dy)
     lam = res.slope
 
-    if lam >= 0 or lam <= -1.0:
+    if lam >= 0:
         return 999.0
 
-    denom = np.log(1.0 + lam)
+    if 1.0 + lam > 1e-4:
+        denom = np.log(np.clip(1.0 + lam, 1e-4, 0.999999))
+    else:
+        denom = np.log(np.clip(abs(1.0 + lam), 1e-4, 0.999999))
+
     if denom == 0 or np.isnan(denom):
         return 999.0
 
@@ -266,7 +270,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         prices_dict: Dict[str, List[float]],
         min_correlation: float = 0.70,
         max_pvalue: float = 0.10,
-        min_half_life: float = 0.5,
+        min_half_life: float = 0.0,
         max_half_life: float = 40.0,
         min_zscore: float = 2.0,
         sector_map: Optional[Dict[str, str]] = None,
