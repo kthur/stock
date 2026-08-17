@@ -1,5 +1,0 @@
-=== VCP (Volatility Contraction Pattern) Results ===
-Date: 2026-07-29 09:35
-Total VCP patterns found: 0
-
-데이터 없음

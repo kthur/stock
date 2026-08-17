@@ -128,3 +128,11 @@ opencode.json
 
 # Temporary scratch
 scratch/
+
+# Matrix split result directories and legacy artifacts
+result-*/
+merged-results/
+github-pages/
+trading_system/result_split/
+realtime_state.db
+trading_system/realtime_state.db
