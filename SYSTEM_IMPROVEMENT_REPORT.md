@@ -1,29 +1,28 @@
 # Stock Trading System: Deep Audit & Quantitative Enhancement Report
 
-**System Version**: Integrated Multi-Asset Quantitative Trading Engine (v2.0)  
+**System Version**: Integrated Multi-Asset Quantitative Trading Engine (v3.0)  
 **Target Markets**: KOSPI, KOSDAQ, KONEX (Korea) / S&P 500, NASDAQ, RUSSELL 2000 (US) — 3,379 Symbols  
-**Auditor / Specialist**: Worker 1 (System Improvement Report Specialist)  
-**Date**: 2026-08-05  
+**Auditor / Specialist**: System Improvement & Quantitative Audit Team  
+**Date**: 2026-08-17 (KST)  
 
 ---
 
 ## Executive Summary
 
-This report synthesizes findings from three deep domain audits: Financial Engineering, Software Architecture & Pipeline Concurrency, and Dashboard UI/UX & GHA Artifact Verifier. The Stock Trading System operates an institutional-grade quantitative architecture governing **3,379 symbols** across 6 global markets. 
+This report synthesizes findings from deep domain audits: Financial Engineering, Software Architecture & Pipeline Concurrency, Portfolio Optimization, and Dashboard UI/UX. The Stock Trading System operates an institutional-grade quantitative architecture governing **3,379 symbols** across 6 global markets. 
 
-The core engine integrates **18 multi-factor quantitative strategies** conditioned on a **2D market regime matrix (6 combo states)**, 3D macro modifiers, dynamic exponential Sharpe ratio reweighting with EMA smoothing ($\alpha=0.20$), factor decorrelation via Gram-Schmidt / PCA-ZCA symmetric whitening, hybrid Isotonic probability calibration, EVT-CVaR tail risk budgeting, Quad-Factor Neutral Quadratic Programming (QP), and microstructure cost deduction (STT tax, SEC fees, dynamic bid-ask spread, Kyle/Almgren-Chriss market impact with realized slippage feedback).
+The core engine integrates **31 multi-factor quantitative strategies** conditioned on a **2D market regime matrix (6 combo states)**, 3D macro modifiers, dynamic exponential Sharpe ratio reweighting with EMA smoothing ($\alpha=0.20$), factor decorrelation via Gram-Schmidt / PCA-ZCA symmetric whitening, hybrid Isotonic probability calibration, EVT-CVaR tail risk budgeting, Hierarchical Risk Parity (HRP) with Ledoit-Wolf covariance shrinkage ($\delta=0.15$), Leland dynamic no-trade buffer bands, Quad-Factor Neutral Quadratic Programming (QP), and microstructure cost deduction (STT tax, SEC fees, dynamic bid-ask spread, Kyle/Almgren-Chriss market impact with realized slippage feedback).
 
-The system pipeline achieves computational scalability by decoupling weekend model training (`training.yml`) from daily split-market inference (`pipeline.yml`), utilizing 5-matrix GitHub Actions (GHA) runner parallelization to eliminate Out-Of-Memory (OOM) failures and reduce wall-clock runtime from >150 minutes to ~20–30 minutes. Database concurrency is secured via SQLite WAL mode, 5,000ms busy timeouts, and python `threading.Lock()` write mutexes. The visual layer (`gh-pages/index.html`) delivers a responsive dashboard with live macro indicator protection via `DataValidator`.
-
-This report provides detailed quantitative formulations, architectural evaluations, UI/UX assessments, actionable code implementations for verifier/pipeline resilience, and an end-to-end Mermaid architectural diagram.
+The system pipeline achieves computational scalability by decoupling weekend model training (`training.yml`) from daily split-market inference (`pipeline.yml`), utilizing 5-matrix GitHub Actions (GHA) runner parallelization to eliminate Out-Of-Memory (OOM) failures and reduce wall-clock runtime from >150 minutes to ~20–30 minutes. Database concurrency is secured via SQLite WAL mode, 5,000ms busy timeouts, and python `threading.Lock()` write mutexes. The visual layer (`gh-pages/index.html`) delivers a responsive dashboard with 31 strategy panels, an interactive scenario simulator, and live macro indicator protection via `DataValidator`. All test suites have been unified into `tests/` with 1,124+ tests passing at 100%.
 
 ---
 
 ## 1. Deep Financial Engineering Audit
 
-### 1.1 18-Strategy Multi-Factor Model
+### 1.1 31-Strategy Multi-Factor Model
 
-The quantitative signal generation layer combines 18 distinct strategy subsystems across fundamental, technical, statistical arbitrage, options microstructure, analyst revision, and machine learning models:
+The quantitative signal generation layer combines 31 distinct strategy subsystems across fundamental, technical, statistical arbitrage, options microstructure, analyst revision, supply chain, NLP sentiment, and machine learning models:
+
 
 | # | Strategy Name | Output Signal Range | Key Mathematical Formulation & Input Drivers | File Location |
 |---|---------------|---------------------|----------------------------------------------|---------------|

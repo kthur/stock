@@ -1,6 +1,6 @@
 # 📈 Stock Trading System — 통합 주식 자동매매 및 예측 파이프라인
 
-한국(KOSPI/KOSDAQ) 및 미국(S&P 500) 시장의 **3,379개 종목**을 대상으로 **18대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영하고 2D 시장 레짐 기반 동적 앙상블, 리스크 관리 및 포트폴리오 최적화를 구동하는 통합 예측 파이프라인입니다.
+한국(KOSPI/KOSDAQ/KONEX) 및 미국(S&P 500/NASDAQ/RUSSELL 2000) 시장의 **3,379개 종목**을 대상으로 **31대 다변화 전략(Multi-Factor & Multi-Model)**을 병행 운영하고 2D 시장 레짐 기반 동적 앙상블, 리스크 관리 및 포트폴리오 최적화를 구동하는 통합 예측 및 자율 매매 파이프라인입니다.
 
 자동 업데이트되는 라이브 웹 대시보드: **[https://kthur.github.io/stock/](https://kthur.github.io/stock/)**
 
@@ -11,61 +11,76 @@
 ```mermaid
 flowchart TD
     subgraph DataLayer ["1. 데이터 레이어 (Data & Feature Layer)"]
-        FDR["FinanceDataReader\n(KOSPI, KOSDAQ, S&P 500)"]
-        YF["yfinance / FRED\n(VIX, TNX, USDKRW, Oil, Gold)"]
-        DART["DART / Consens / Option\n(재무, DART, 풋콜 IV)"]
+        FDR["FinanceDataReader\n(KOSPI, KOSDAQ, KONEX, S&P 500, NASDAQ, RUSSELL 2000)"]
+        YF["yfinance / FRED\n(VIX, TNX, USDKRW, Oil, Gold, DXY)"]
+        DART["DART / SEC / Consensus / Options\n(재무 60d Lag, 공시, 풋콜 IV, 컨센서스)"]
         
-        DB[("StockPriceDB & MarketIndicatorStorage\n(SQLite WAL Engine, Lock Mutex)")]
+        DB[("StockPriceDB & MarketIndicatorStorage\n(SQLite WAL Engine, Thread-safe Write Lock Mutex)")]
         
         FDR --> DB
         YF --> DB
         DART --> DB
     end
 
-    subgraph AlphaEngine ["2. 18대 다변화 알파 엔진 (18-Strategy Multi-Factor Engine)"]
+    subgraph AlphaEngine ["2. 31대 다변화 알파 엔진 (31-Strategy Multi-Factor Engine)"]
         direction TB
         S1["1. XGBoost 회귀 (1~200d)"]
         S2["2. Surge 분류기 (20%↑)"]
-        S3["3. Lead-Lag 2-Tier Shift"]
-        S4["4. VCP 패턴 (규칙)"]
-        S5["5. VCP ML (XGBoost)"]
-        S6["6. Strict Causal LSTM"]
-        S7["7. Stat-Arb Log 공적분"]
-        S8["8. Sector Rotation 모멘텀"]
-        S9["9. RIM Valuation 적정가"]
-        S10["10. Event-Driven 촉매"]
+        S3["3. Lead-Lag 2-Tier Shift (+1d US)"]
+        S4["4. VCP 패턴 (Minervini 규칙)"]
+        S5["5. VCP ML (시장별 XGBoost)"]
+        S6["6. Strict Causal LSTM (무누출 시계열 DL)"]
+        S7["7. Stat-Arb Log 공적분 (잔차 Z-score)"]
+        S8["8. Sector Rotation 모멘텀 & 수급"]
+        S9["9. RIM Valuation 잔여이익 가치평가"]
+        S10["10. Event-Driven 공시/실적 촉매"]
         S11["11. Momentum Quality (MQ)"]
-        S12["12. Options IV Skew 점수"]
+        S12["12. Options IV Skew 역발상"]
         S13["13. Order Flow Imbalance (MFI)"]
-        S14["14. Short-Term Reversal"]
-        S15["15. Analyst Revision (ARM)"]
-        S16["16. Cross-Asset Divergence (CARD)"]
+        S14["14. Short-Term Reversal 과매도 반등"]
+        S15["15. Analyst Revision Momentum (ARM)"]
+        S16["16. Cross-Asset Regime Divergence (CARD)"]
         S17["17. Liquidity Tail Risk (LATR)"]
         S18["18. Inst & Foreign Sector 수급"]
+        S19["19. Supply Chain Momentum 가치사슬 전이"]
+        S20["20. NLP FinBERT Sentiment 촉매"]
+        S21["21. Multi-Factor Style Neutralizer (FF5)"]
+        S22["22. Dynamic Volatility Targeting (RP 12%)"]
+        S23["23. Microstructure Imbalance 호가/오버나이트"]
+        S24["24. Accruals Quality 회계품질 이상치"]
+        S25["25. Short Interest & Squeeze 촉매"]
+        S26["26. Value-Up & Shareholder Yield"]
+        S27["27. Kaufman Trend Efficiency (KER/Hurst)"]
+        S28["28. Gamma Squeeze 옵션 미결제약정"]
+        S29["29. Insider Buying 대주주/임원 매수"]
+        S30["30. Earnings Tone Drift 어닝콜 감성"]
+        S31["31. High-Frequency Execution 마이크로스프레드"]
     end
 
-    subgraph RiskRegime ["3. 시장 레짐 & 리스크 관리 (Regime & Risk Engine)"]
-        Regime["2D Market Regime Detector\n(수익률 & 변동성 6대 레짐)"]
-        Risk["RiskManager & CrisisDetector\n(거시 위기 단계 / 유동성 게이팅)"]
+    subgraph RiskRegime ["3. 시장 레짐 & 통계적 직교화 (Regime & Statistical Hygiene)"]
+        Regime["2D Market Regime Detector\n(수익률 & 변동성 6대 레짐: Bull/Sideways/Bear x Low/High Vol)"]
+        Ortho["Factor Decorrelation & Whitening\n(PCA-ZCA Whitening & Gram-Schmidt Decorrelation)"]
+        Risk["RiskManager & CrisisDetector\n(거시 위기 4단계 / VIX·USDKRW 유동성 게이팅)"]
     end
 
-    subgraph EnsembleOpt ["4. 동적 앙상블 & 포트폴리오 최적화 (Ensemble & Optimization)"]
-        Calib["Isotonic Calibration\n(확률 보정)"]
-        Ensemble["EnsembleScoringEngine\n(18대 전략 동적 가중치 + Gram-Schmidt 직교화)"]
-        Cost["미시구조 거래비용 모델\n(STT, SEC, Spread, Market Impact 차감)"]
-        Alloc["Risk Parity & Portfolio Allocator\n(Covariance Shrinkage, HRP 배분)"]
+    subgraph EnsembleOpt ["4. 동적 앙상블 & 포트폴리오 최적화 (Ensemble & Portfolio Allocation)"]
+        Calib["Isotonic & Platt Calibration\n(확률 단조 보정 & Winsorization)"]
+        Ensemble["EnsembleScoringEngine\n(31대 전략 동적 가중치 + 결측 적응형 재정규화)"]
+        Cost["미시구조 거래비용 모델\n(STT 세금, SEC Fee, 동적 스프레드, Kyle 시장충격)"]
+        Alloc["Hierarchical Risk Parity (HRP) & EVT-CVaR\n(Ledoit-Wolf Shrinkage, Leland No-Trade Buffer Bands)"]
         
         Calib --> Ensemble
         Regime --> Ensemble
+        Ortho --> Ensemble
         Risk --> Ensemble
         Ensemble --> Cost
         Cost --> Alloc
     end
 
-    subgraph OutputExecution ["5. 파이프라인 출력 & 실행 (Output & Execution)"]
-        Files["TXT/CSV 예측 리포트\n(ensemble_predictions.txt 외)"]
-        Dash["GitHub Pages HTML 대시보드\n(index.html - KST 타임존)"]
-        OMS["Execution OMS Slicer\n(TWAP/VWAP, trade_logs.db)"]
+    subgraph OutputExecution ["5. 파이프라인 출력 & 실행 (Output & Execution OMS)"]
+        Files["TXT/CSV 예측 리포트 (KST)\n(ensemble_predictions.txt, coverage_report.txt 외)"]
+        Dash["GitHub Pages HTML 대시보드\n(index.html - 31개 전략 탭, 시나리오 시뮬레이터)"]
+        OMS["Execution OMS Engine & Slippage Feedback\n(6 Safety Gates, Kill Switch, trade_logs.db)"]
         
         Alloc --> Files
         Alloc --> Dash
@@ -78,63 +93,69 @@ flowchart TD
 
 ---
 
-## 🎯 18대 다변화 전략 개요
+## 🎯 31대 다변화 전략 완전 명세
 
-| # | 전략 | 방식 | 주요 특징 및 출력 파일 |
-|---|------|------|------------------------|
-| **1** | XGBoost 회귀 | 8개 horizon(1~200d) 예상수익률 예측 | 펀더멘탈 + 매크로 23개 피처 (`pipeline_result.txt`) |
-| **2** | Surge 분류기 | 4개 horizon(1/3/5/20d) 20%↑ 급등 확률 | Class Weight 캡 ≤20.0 (`surge_predictions.txt`) |
-| **3** | Lead-Lag 분석 | 2-Tier 업종 지수/대형주 시차 상관성 | US ETF 1일 Lag Shift 시차 추종 (`lead_lag_predictions.txt`) |
-| **4** | VCP 패턴 (규칙) | 변동성 수축 + 거래량 감소 + 고점 근접 | Mark Minervini 4단계 변동성 수축 (`vcp_patterns.txt`) |
-| **5** | VCP ML | 시장별 XGBClassifier 기반 VCP 급등 | 11개 VCP 정밀 패턴 피처 (`vcp_ml_predictions.txt`) |
-| **6** | Strict Causal LSTM | 시점 분리 롤링 정규화 기반 시계열 DL | 미소 시점 데이터 누수 방지 딥러닝 앙상블 피처 결합 |
-| **7** | Stat-Arb Cointegration | 잔차 평균회귀 Log 가격 Z-score 차익거래 | 공적분 페어 스캐닝 (`stat_arb_predictions.txt`) |
-| **8** | Sector Rotation | KRX/GICS 업종 1M/3M 상대모멘텀 | 순환매 수급 및 상대모멘텀 스코어링 결합 |
-| **9** | RIM Valuation | 잔여이익 모델 기반 정밀 가치평가 | 적정주가 대비 할인율/괴리율 평가 (터미널 Value 보정) |
-| **10** | Event-Driven | 공시/실적 깜짝실적/자사주 취득 촉매 | DART 공시 감지 및 거래량 3배 수치화 |
-| **11** | Momentum Quality (MQ) | 12M-1M 모멘텀 - 1M 단기 반전 노이즈 제거 | 영업이익률/ROE 퀄리티 결합 모멘텀 |
-| **12** | Options IV Skew | yfinance 풋/콜 풋옵션 IV Skew 및 비율 | 공포 지수 반대 매수 스코어링 결합 |
-| **13** | Order Flow Imbalance | 외인/기관 순매수 수급 가속도 (MFI) | 자금 유입 가속도 및 수급 불균형 |
-| **14** | Short-Term Reversal | 3~5일 연속 과매도/볼린저 하단 이탈 | 펀더멘탈 안전장치 결합 평균회귀 |
-| **15** | Analyst Revision (ARM) | 컨센서스 EPS/목표주가 수정 모멘텀 | 실적 컨센서스 상향 조정 속도 측정 |
-| **16** | Cross-Asset Divergence (CARD)| 주식-환율-유가-금리 크로스에셋 괴리율 | 이탈 괴리율 역발상 스코어링 |
-| **17** | Liquidity Tail Risk (LATR) | 52주 낙폭 + 유동성 서지 - 꼬리위험 | 위험 자산 페널티 차감 유동성 팩터 |
-| **18** | Inst & Foreign Sector | 외인/투신 2개월 수급 누적 & 업종 주도주 | 기관/외인 수급 가속도 & 주도주 상관성 (`inst_foreign_sector_predictions.txt`) |
+| # | 전략명 | 방식 | 주요 수학적 특징 및 출력 파일 |
+|---|--------|------|-------------------------------|
+| **1** | **XGBoost 회귀** | GBDT 앙상블 | 8개 horizon(1~200d) 예상수익률 예측, 펀더멘탈+매크로 23개 피처 (`pipeline_result.txt`) |
+| **2** | **Surge 분류기** | XGBClassifier | 4개 horizon(1/3/5/20d) 20%↑ 급등 확률, Class Weight 캡 $\le 20.0$ (`surge_predictions.txt`) |
+| **3** | **Lead-Lag 분석** | 시차 상관행렬 | 2-Tier 업종 지수/대형주 리더-팔로워, US ETF 1일 Lag Shift 반영 (`lead_lag_predictions.txt`) |
+| **4** | **VCP 패턴 (규칙)** | Mark Minervini 규칙 | 3~4단계 변동성 수축 + 거래량 급감($<50\%$) + 피봇 고점 근접 (`vcp_patterns.txt`) |
+| **5** | **VCP ML 분류기** | XGBClassifier | 시장별 12개 VCP 패턴 벡터 피처 기반 급등 확률 (`vcp_ml_predictions.txt`) |
+| **6** | **Strict Causal LSTM** | 시계열 딥러닝 | 롤링 z-score 정규화 기반 룩어헤드 방지 순차 시계열 예측 (`lstm_predictions.txt`) |
+| **7** | **Stat-Arb Cointegration** | Engle-Granger 2단계 | Log 가격 공적분 잔차 Z-score 차익거래 페어 스캐닝 ($Z < -2.0$) (`stat_arb_predictions.txt`) |
+| **8** | **Sector Rotation** | 상대 모멘텀 | KRX/GICS 업종 1M/3M 상대강도 + 기관/외인 수급 가속도 결합 (`sector_predictions.txt`) |
+| **9** | **RIM Valuation** | 잔여이익 모델 | 자기자본비용($k_e$) 및 영구성장률 반영 적정주가 안전마진 평가 (`rim_predictions.txt`) |
+| **10** | **Event-Driven** | 공시/실적 촉매 | DART 공시, 실적 서프라이즈($>15\%$), 자사주 취득, $3\times$ 거래량 촉매 (`event_driven_predictions.txt`) |
+| **11** | **Momentum Quality (MQ)** | 퀄리티 모멘텀 | 12M-1M 모멘텀 - 1M 단기 반전 노이즈 제거 + 영업이익률/ROE 퀄리티 (`mq_factor_predictions.txt`) |
+| **12** | **Options IV Skew** | 내재변동성 스큐 | 풋/콜 옵션 IV Skew ($\text{IV}_{\text{put}} - \text{IV}_{\text{call}}$) 공포 역발상 매수 (`iv_skew_predictions.txt`) |
+| **13** | **Order Flow Imbalance** | MFI 수급 흐름 | 외인/기관 순매수 가속도 및 자금 흐름 불균형 스코어 (`order_flow_predictions.txt`) |
+| **14** | **Short-Term Reversal** | 단기 평균회귀 | 3~5일 연속 과매도 ($RSI_{14} < 30$, 볼린저 하단 이탈 $z < -2.0$) 반등 (`short_term_reversal_predictions.txt`) |
+| **15** | **Analyst Revision (ARM)** | 컨센서스 수정 | 컨센서스 EPS/목표주가 1M/3M 상향 조정 속도 측정 (`arm_factor_predictions.txt`) |
+| **16** | **Cross-Asset Divergence (CARD)** | 크로스에셋 괴리 | 주식-환율(USDKRW)-유가(WTI)-금리(US10Y) 매크로 괴리율 역발상 매수 (`card_factor_predictions.txt`) |
+| **17** | **Liquidity Tail Risk (LATR)** | 꼬리위험 보정 | 52주 고점 낙폭($DD_{52w}$) + 유동성 서지 - EVT $\text{CVaR}_{95\%}$ 하방위험 (`latr_factor_predictions.txt`) |
+| **18** | **Inst & Foreign Sector** | 수급 상관성 | 기관/외인 60일 누적 수급 가속도 & 업종 주도주 상관성 (`inst_foreign_sector_predictions.txt`) |
+| **19** | **Supply Chain Momentum** | 공급망 온기 전이 | 전방 대표기업(삼성전자/애플 등) 수익률 ➔ 협력업체 공급망 시차 온기 전이 (`supply_chain_predictions.txt`) |
+| **20** | **NLP Sentiment Catalyst** | FinBERT 텍스트 감성 | DART/SEC 공시 요약, 기업 뉴스, 어닝콜 FinBERT 감성 퀀트 스코어링 (`sentiment_predictions.txt`) |
+| **21** | **Multi-Factor Style Neutralizer** | Fama-French 5-Factor | 시총/가치/수익성/투자 팩터 노출 제거 순수 알파($\|\rho\| < 0.15$) (`factor_neutralized_predictions.txt`) |
+| **22** | **Dynamic Volatility Targeting** | 리스크 파리티 | 실산출 변동성 vs 목표 변동성(연 12%) 스코어링 (`vol_target_predictions.txt`) |
+| **23** | **Microstructure Imbalance** | 오더북 불균형 | 호가창 매수/매도 잔량 불균형 & 종가 동시호가 수급 오버나이트 갭 (`microstructure_predictions.txt`) |
+| **24** | **Accruals Quality Anomaly** | 발생액 퀄리티 | 순이익 대비 영업현금흐름(OCF) 괴리율 회계적 품질 점수 |
+| **25** | **Short Interest & Squeeze** | 숏스퀴즈 촉매 | 공매도 잔고 비율 + Days-to-Cover + 5D 상승 모멘텀 숏스퀴즈 |
+| **26** | **Value-Up & Shareholder Yield** | 주주환원 밸류업 | PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주 소각) |
+| **27** | **Kaufman Trend Efficiency** | 추세 효율성 | 5D/10D/20D KER(Kaufman Efficiency Ratio) + Hurst Exponent 고순도 추세 |
+| **28** | **Gamma Squeeze** | 감마 스퀴즈 | 옵션 미결제약정(OI) 및 콜옵션 델타 가속도 기반 숏/델타 스퀴즈 |
+| **29** | **Insider Buying** | 내부자 매수 | 임원/대주주 내부자 장내 매수 공시 수치화 및 자금 유입 감지 |
+| **30** | **Earnings Tone Drift** | 어닝콜 톤 분석 | 실적 발표 콘퍼런스콜 텍스트 톤 변화 감성 퀀트 |
+| **31** | **High-Frequency Execution** | HFT 마이크로스프레드 | 호가 불균형 & 틱 스프레드 마이크로구조 고빈도 모멘텀 |
 
 ---
 
-## 🛡️ 시스템 정밀 감사 및 개선 내역 (Phase 1 ~ Phase 4)
+## 🛡️ 시스템 아키텍처 및 퀀트 엔지니어링 핵심
 
-본 시스템은 금융공학 및 퀀트 시스템 감사(Phase 1~4)를 거쳐 다음과 같은 정밀 보정이 적용되어 있습니다:
+### 1. 2D 레짐 & 통계적 직교화 (Statistical Hygiene)
+- **2D 시장 레짐 매트릭스**: KOSPI/S&P500 20일 추세($\pm 1\%$)와 20일 변동성(15%/25%)을 결합한 6대 레짐(`BULL_LOW_VOL`, `BULL_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BEAR_LOW_VOL`, `BEAR_HIGH_VOL`)을 실시간 판정하여 전략 가중치를 동적으로 할당합니다.
+- **다중공선성 제거 & 팩터 직교화**: 상관관계 높은 알파 신호의 과적합을 방지하기 위해 **PCA-ZCA 대칭 화이트닝(Symmetric Whitening)** 및 **Gram-Schmidt 직교화**를 적용합니다.
+- **결측 적응형 재정규화 (Missingness-Aware Renormalization)**: 옵션/재무 데이터 등이 누락된 종목에 대해 유효한 신호만으로 가중치를 동적으로 재정규화하며, 커버리지 비율($<40\%$) 미달 시 페널티를 적용합니다.
 
-- **Phase 1 (긴급 시스템 정비)**:
-  - 18대 전체 전략 앙상블(`ensemble_scorer.py`) 통합 및 구문 안정화.
-  - SQLite WAL 매니저 및 `StockPriceDB` 쓰기 뮤텍스(`_write_lock`) 적용으로 DB Lock 예외 방지.
-  - `RiskManager` 및 `CrisisDetector` 파이프라인 연동 (거시 위기 시 점수 자동 제어).
-  - Config 최소 거래대금(50억 원) 및 거래량(100만 주) 유동성 게이트 적용.
-- **Phase 2 (데이터 무결성 & 시점이탈 제거)**:
-  - 재무 데이터 공시일 기준 60일 시차(`+60 days`) 적용으로 Lookahead Bias 제거.
-  - Lead-Lag 미국 지수 1일 Lag Shift 적용.
-  - Stat-Arb Log 주가 공적분 회귀 변환.
-- **Phase 3 (퀀트 수식 & HPO 최적화)**:
-  - RIM 가치평가 모델 Terminal Value 중복 할인 보정.
-  - LATR 팩터 꼬리위험/낙폭 부호 및 페널티 정상화.
-  - Optuna VCP HPO 목적함수를 5일 전방 수익률(Forward Return) 기반으로 재설계.
-- **Phase 4 (거래 미시구조 & 실전 실행 비용)**:
-  - 증권거래세(STT), 미국 SEC 수수료, 호가 갭(Spread), ADV 거래대금 시장 충격 비용(Market Impact) 모델링.
-  - 포트폴리오 추천순위를 순예상수익률(`ensemble_expected_return`) 기준으로 내림차순 정렬.
-  - Intermediate GC 도입으로 메모리 힙 최적화.
+### 2. 포트폴리오 최적화 & 미시구조 거래비용
+- **Hierarchical Risk Parity (HRP)**: Lopez de Prado의 머신러닝 계층적 트리 클러스터링과 Ledoit-Wolf 공분산 축소($\delta=0.15$)를 결합하여 안정적인 위험 배분을 수행합니다.
+- **EVT-CVaR 극단값 꼬리위험 예산**: Generalized Pareto Distribution (GPD) Peaks-Over-Threshold (POT) 3단계 계층 구조로 95% CVaR를 엄밀하게 계산합니다.
+- **Leland 동적 No-Trade 버퍼 밴드**: 불필요한 리밸런싱 턴오버를 줄이기 위해 종목별 거래비용과 변동성을 고려한 버퍼 밴드($\delta_i \in [0.5\%, 5.0\%]$)를 적용, 거래 비용을 60% 이상 절감합니다.
+- **실전 미시구조 비용 차감**: KOSPI 0.15% / KOSDAQ 0.18% 증권거래세, US SEC 수수료, 동적 스프레드, Kyle/Almgren-Chriss 제곱근 시장 충격 모델을 차감하여 **순예상수익률(Net Expected Return)**을 산출합니다.
+
+### 3. Execution OMS & 6대 안전 게이트
+- **실시간 슬리피지 피드백**: `trade_logs.db`에 기록된 체결 오차를 분석하여 비용 승수($k_{\text{cost}}$) 및 충격 지수($\alpha$)를 자동 피드백 보정합니다.
+- **6대 주문 안전 게이트**: 거시 위기 SEVERE 단계 매수 차단, 킬 스위치(Kill Switch) 하드웨어 차단, 심볼 정규식 검증, 가격 이상치 필터, 10주 단위 라운딩, 단일 포지션 상한(10%/20%)을 적용합니다.
 
 ---
 
 ## 🕒 타임존 및 결측 분석 (KST & Strategy Coverage)
 
 - **KST (Asia/Seoul, UTC+9) 표준화**:
-  - GHA Workflow (`pipeline.yml`), 파이프라인 및 HTML 리포트 타임스탬프가 **KST** 기준으로 통일 표기됩니다.
-- **2D Market Regime & Decision Rationale**:
-  - 6가지 2D 레짐(`BULL_LOW_VOL`, `BEAR_HIGH_VOL` 등) 판정 사유 및 18대 전략 동적 가중치 산출 근거를 텍스트 및 대시보드로 수록.
+  - GHA Workflow (`pipeline.yml`), 파이프라인 및 HTML 대시보드 타임스탬프가 **KST** 기준으로 통일 표기됩니다.
 - **Strategy Data Coverage & Missingness Analyzer**:
-  - `StrategyCoverageAnalyzer` 모듈이 18대 전략별 정상 스코어 산출 종목 수 및 결측 사유(`NO_PRICE_DATA`, `NO_FUNDAMENTAL`, `NO_OPTIONS_DATA` 등)를 추적하여 `strategy_data_coverage_report.txt`로 생성합니다.
+  - `StrategyCoverageAnalyzer` 모듈이 31대 전략별 정상 스코어 산출 종목 수 및 결측 사유(`INSUFFICIENT_PRICE_HISTORY`, `NO_FUNDAMENTAL_DATA`, `LOW_EARNINGS_QUALITY`, `NO_OPTIONS_CHAIN`, `NO_COINTEGRATED_PAIR` 등)를 추적하여 `strategy_data_coverage_report.txt`로 생성합니다.
 
 ---
 
@@ -155,13 +176,13 @@ copy trading_system\.env.example trading_system\.env
 ### 2. 파이프라인 실행 (CLI)
 
 ```powershell
-# 기본 실행 (전 시장, 전략 학습 포함)
+# 기본 실행 (전체 3,379 종목 유니버스, 31대 전략 앙상블 실행)
 .venv\Scripts\python trading_system/run_pipeline.py
 
 # 특정 시장만 추론 (학습은 전체 유니버스 유지)
 .venv\Scripts\python trading_system/run_pipeline.py --target KOSPI
 .venv\Scripts\python trading_system/run_pipeline.py --target SP500
-.venv\Scripts\python trading_system/run_pipeline.py --target KRX   # KOSPI+KOSDAQ
+.venv\Scripts\python trading_system/run_pipeline.py --target KRX   # KOSPI + KOSDAQ
 
 # 기존 모델 재사용 (학습 건너뛰기 — 빠른 재예측)
 .venv\Scripts\python trading_system/run_pipeline.py --skip-training
@@ -173,37 +194,52 @@ copy trading_system\.env.example trading_system\.env
 ### 3. 대시보드 리포트 생성 및 확인
 
 ```powershell
-# HTML 대시보드 리포트 생성
+# HTML 대시보드 리포트 생성 (31개 전략 패널 및 시나리오 시뮬레이터 포함)
 .venv\Scripts\python trading_system/generate_report.py --out gh-pages/index.html
 
-# 브라우저에서 https://kthur.github.io/stock/ 또는 로컬 index.html 열기
+# 브라우저에서 https://kthur.github.io/stock/ 또는 로컬 gh-pages/index.html 열기
 ```
 
 ---
 
 ## 📂 출력 파일 구조
 
-파이프라인 완료 후 `trading_system/` 에 생성됩니다:
+파이프라인 완료 후 `trading_system/` (또는 `trading_system/result/`)에 생성됩니다:
 
 | 파일 | 형식 | 설명 |
 |------|------|------|
-| `ensemble_predictions.txt` | 텍스트 요약 | **18대 전략 동적 앙상블 TOP 20** 및 Decision Rationale |
-| `strategy_data_coverage_report.txt` | 텍스트 보고서 | **18대 전략 데이터 커버리지 & 결측 사유 분석** |
-| `pipeline_result.txt` | 텍스트 요약 | TOP10/시장/horizon (1d/5d/20d/60d) 예상수익률 |
-| `pipeline_result.csv` | CSV | 전체 종목 원본 데이터 (기계 가독) |
-| `surge_predictions.txt` | 텍스트 | horizon별 급등 확률 TOP20 |
+| `ensemble_predictions.txt` | 텍스트 요약 | **31대 전략 동적 앙상블 TOP 100** 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 텍스트 보고서 | **31대 전략 데이터 커버리지 & 결측 사유 분석** |
+| `pipeline_result.txt` | 텍스트 요약 | XGBoost 회귀 모델 시장별/horizon별 예상수익률 TOP10 |
+| `pipeline_result.csv` | CSV | 전체 종목 원본 예측 데이터 (기계 가독) |
+| `surge_predictions.txt` | 텍스트 | 4개 horizon별 20%↑ 급등 확률 TOP20 |
 | `lead_lag_predictions.txt` | 텍스트 | Leader-Follower 상관 점수 |
-| `vcp_patterns.txt` | 텍스트 | VCP 패턴 감지 종목 |
+| `vcp_patterns.txt` | 텍스트 | VCP 패턴 감지 종목 리스트 |
 | `vcp_ml_predictions.txt` | 텍스트 | VCP ML surge 확률 TOP10 |
-| `stat_arb_predictions.txt` | 텍스트 | 공적분 잔차 Z-score 차익거래 페어 |
-| `inst_foreign_sector_predictions.txt` | 텍스트 | 기관/외인 수급 가속도 & 업종 주도주 스코어 |
+| `stat_arb_predictions.txt` | 텍스트 | 공적분 잔차 Z-score 차익거래 페어 및 신호 |
+| `sector_predictions.txt` | 텍스트 | 업종 상대 모멘텀 & 순환매 점수 |
+| `rim_predictions.txt` | 텍스트 | 잔여이익 모델(RIM) 적정가치 평가 |
+| `event_driven_predictions.txt` | 텍스트 | DART 공시/실적/자사주 촉매 스코어 |
+| `mq_factor_predictions.txt` | 텍스트 | 모멘텀 퀄리티(MQ) 팩터 점수 |
+| `iv_skew_predictions.txt` | 텍스트 | 옵션 내재변동성(IV) 스큐 역발상 점수 |
+| `order_flow_predictions.txt` | 텍스트 | MFI 외인/기관 순매수 수급 가속도 |
+| `short_term_reversal_predictions.txt` | 텍스트 | 단기 과매도 평균회귀 반등 신호 |
+| `arm_factor_predictions.txt` | 텍스트 | 애널리스트 추정치 수정 모멘텀 |
+| `card_factor_predictions.txt` | 텍스트 | 크로스에셋 괴리율 스코어 |
+| `latr_factor_predictions.txt` | 텍스트 | 유동성 조정 꼬리위험(LATR) 점수 |
+| `inst_foreign_sector_predictions.txt` | 텍스트 | 기관/외인 60일 누적 수급 & 업종 주도주 |
+| `supply_chain_predictions.txt` | 텍스트 | 공급망 가치사슬 시차 온기 전이 점수 |
+| `sentiment_predictions.txt` | 텍스트 | FinBERT 텍스트 감성 촉매 스코어 |
+| `factor_neutralized_predictions.txt` | 텍스트 | Fama-French 5-Factor 중립 순수 알파 |
+| `vol_target_predictions.txt` | 텍스트 | 동적 변동성 타겟팅 리스크 파리티 점수 |
+| `microstructure_predictions.txt` | 텍스트 | 호가 불균형 & 종가 오버나이트 수급 |
 
 ---
 
 ## 🧪 테스트 스위트 실행
 
 ```powershell
-# 18대 전략 및 결측 분석 / KST 타임존 전체 pytest
+# 통합 단일 tests/ 디렉토리 기준 1,124+ 전체 pytest 실행
 .venv\Scripts\python -m pytest tests/ -v
 ```
 
@@ -216,4 +252,3 @@ copy trading_system\.env.example trading_system\.env
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 TELEGRAM_CHAT_ID=your_chat_id_here
 ```
-

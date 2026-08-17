@@ -1,37 +1,37 @@
 # 주식 자동매매 시스템 전체 구조 및 알고리즘 명세서
 
-> **Version**: 4.1  
-> **Last Updated**: 2026-07-30 (KST)  
+> **Version**: 5.0  
+> **Last Updated**: 2026-08-17 (KST)  
 > **Python**: 3.10+  
-> **Database**: SQLite (WAL & Write Mutex)
+> **Database**: SQLite (WAL & Thread-safe Write Mutex)
 
 > [!IMPORTANT]
-> 이 문서는 현재 운영 중인 아키텍처를 설명합니다:
-> - **17대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 17대 ML/규칙/수급/옵션/이벤트/크로스에셋/유동성 팩터 전략 앙상블 및 RiskManager 파이프라인 (현재 주력)
-> - **이벤트 기반 아키텍처** (`trading_system.py`): 실시간 자동매매 시스템 (레거시/보조)
+> 이 문서는 현재 운영 중인 통합 프로덕션 아키텍처를 설명합니다:
+> - **31대 다변화 파이프라인 아키텍처** (`run_pipeline.py`): 31대 ML/시계열DL/규칙/수급/옵션/이벤트/공급망/FinBERT감성/Fama-French 5-Factor/변동성타겟팅/미시구조 팩터 전략 앙상블, 2D 시장 레짐 판정, 포트폴리오 최적화(HRP & EVT-CVaR), 실전 미시구조 거래비용 모델 및 RiskManager 위기 제어 파이프라인
+> - **이벤트 기반 자율 매매 아키텍처** (`trading_system.py`, `src/execution/`): 실시간 오더북/OMS 및 체결 슬리피지 피드백 엔진 (`trade_logs.db`)
 
 ---
 
 ## 목차
 
 1. [프로젝트 개요](#1-프로젝트-개요)
-2. [파이프라인 아키텍처 (현재 주력)](#2-파이프라인-아키텍처-현재-주력)
-3. [이벤트 기반 아키텍처 (레거시)](#3-이벤트-기반-아키텍처-레거시)
+2. [31대 전략 파이프라인 아키텍처](#2-31대-전략-파이프라인-아키텍처)
+3. [이벤트 기반 자율 매매 아키텍처](#3-이벤트-기반-자율-매매-아키텍처)
 4. [설치 및 설정](#4-설치-및-설정)
 5. [실행 방법](#5-실행-방법)
 6. [핵심 모듈별 동작 구조](#6-핵심-모듈별-동작-구조)
-6. [전략 엔진 상세](#6-전략-엔진-상세)
-7. [기술적 지표 목록](#7-기술적-지표-목록)
-8. [리스크 관리](#8-리스크-관리)
-9. [포지션 사이징](#9-포지션-사이징)
-10. [머신러닝/딥러닝](#10-머신러닝딥러닝)
-11. [포트폴리오 최적화](#11-포트폴리오-최적화)
-12. [시장 레짐 및 스타일 로테이션](#12-시장-레짐-및-스타일-로테이션)
-13. [브로커 연동](#13-브로커-연동)
-14. [텔레그램 봇 명령어](#14-텔레그램-봇-명령어)
-15. [데이터베이스 스키마](#15-데이터베이스-스키마)
-16. [테스트](#16-테스트)
-17. [전체 파라미터 일람](#17-전체-파라미터-일람)
+7. [전략 엔진 상세](#6-전략-엔진-상세)
+8. [기술적 지표 목록](#7-기술적-지표-목록)
+9. [리스크 관리](#8-리스크-관리)
+10. [포지션 사이징](#9-포지션-사이징)
+11. [머신러닝/딥러닝](#10-머신러닝딥러닝)
+12. [포트폴리오 최적화](#11-포트폴리오-최적화)
+13. [시장 레짐 및 스타일 로테이션](#12-시장-레짐-및-스타일-로테이션)
+14. [브로커 연동](#13-브로커-연동)
+15. [텔레그램 봇 명령어](#14-텔레그램-봇-명령어)
+16. [데이터베이스 스키마](#15-데이터베이스-스키마)
+17. [테스트](#16-테스트)
+18. [전체 파라미터 일람](#17-전체-파라미터-일람)
 
 ---
 
@@ -39,36 +39,26 @@
 
 ### 1.1 목적
 
-미국 주식(S&P 500) 및 한국 주식(KRX)을 대상으로 하는 **자동매매 시스템**입니다.
-실시간 시세 수집 → AI/ML 분석 → 신호 생성 → 리스크 검증 → 자동 주문 실행 → 성과 분석의 전 과정을 자동화합니다.
+한국 주식(KOSPI, KOSDAQ, KONEX) 및 미국 주식(S&P 500, NASDAQ, RUSSELL 2000) **3,379개 종목**을 대상으로 하는 **기관급 통합 정량적(Quantitative) 트레이딩 및 AI 예측 시스템**입니다.
+실시간 매크로/펀더멘탈/시세 수집 → 31대 알파 팩터 산출 → 통계적 직교화 및 2D 레짐 앙상블 → HRP/EVT-CVaR 포트폴리오 최적화 → 거래비용 차감 → 6대 안전 게이트 주문 실행 → 슬리피지 피드백 루프의 전 과정을 완전 자동화합니다.
 
 ### 1.2 핵심 특징
 
 | 특징 | 설명 |
 |------|------|
-| **이벤트 기반 아키텍처** | EventBus를 통한 Pub/Sub 느슨한 결합 |
-| **9개 하이브리드 신호** | 기술적/ML/RL/감성/거시경제/LLM 등 융합 |
-| **On-device XGBoost** | 클라우드 의존 없이 로컬에서 예측 (1/5/10/20/30/60일) |
-| **8개 증권사 연동** | 키움, 한국투자, 대신, NH, 한화, LS, 미래에셋 + 모의 |
-| **3가지 RL 에이전트** | PPO(stable-baselines3), DQN(PyTorch), Adaptive Heuristic |
-| **텔레그램 풀 명령어** | 20개 명령어로 상태 조회/주문/분석/예측 |
-| **Plotly Dash 대시보드** | 실시간 포트폴리오, 성과, 백테스트, 거시지표 |
-| **4단계 위기 관리** | VIX + DD + 거래량 + 거시경제 통합 위기 점수 |
-
-### 1.3 의존성
-
-```
-fastapi, numpy, pandas, scikit-learn, xgboost, lightgbm,
-torch, stable-baselines3, gymnasium, yfinance, FinanceDataReader,
-dash, plotly, reportlab, openai, google-generativeai,
-python-telegram-bot, aiosqlite, python-dotenv
-```
+| **31대 다변화 전략** | GBDT 회귀/분류, 시계열 LSTM, 공적분 차익거래, 펀더멘탈(RIM/발생액/밸류업), 수급/오더북, 옵션 IV/Gamma, 감성(FinBERT), Fama-French 중립화 등 다각화 |
+| **통계적 위생 (Hygiene)** | PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화, VIF 팩터 노이즈 억제, 결측 적응형 재정규화 |
+| **2D 시장 레짐 동적 앙상블** | 6대 국면(Bull/Sideways/Bear x Low/High Vol) 실시간 판정 및 전략 가중치 동적 재할당 |
+| **포트폴리오 최적화** | Hierarchical Risk Parity (HRP) + Ledoit-Wolf 공분산 축소 + EVT-CVaR 꼬리위험 예산 + Leland No-Trade 버퍼 밴드 |
+| **실전 미시구조 거래비용** | 한국 STT(0.15%/0.18%), 미국 SEC 수수료, 동적 스프레드, Kyle 제곱근 시장충격 차감 |
+| **Execution OMS & 피드백** | 6대 안전 게이트(Severe 위기 차단, 킬 스위치 등) + `trade_logs.db` 실체결 슬리피지 파라미터 적응 루프 |
+| **SQLite WAL 동시성 보호** | WAL 저널 모드, busy_timeout 5,000ms, `threading.Lock()` 쓰기 뮤텍스 완비 |
 
 ---
 
-## 2. 파이프라인 아키텍처 (현재 주력)
+## 2. 31대 전략 파이프라인 아키텍처
 
-**Source**: `run_pipeline.py` (41KB, ~898 lines)
+**Source**: `run_pipeline.py`
 
 ### 2.1 전체 데이터 흐름
 
@@ -84,8 +74,8 @@ python-telegram-bot, aiosqlite, python-dotenv
                          │
     ┌────────────────────▼───────────────────┐
     │  2. GlobalMarketClient                 │
-    │     VIX, TNX, USDKRW, SP500, DXY      │
-    │     WTI, KOSPI, KOSDAQ 수집            │
+    │     VIX, TNX, USDKRW, SP500, DXY,     │
+    │     WTI, Gold, KOSPI, KOSDAQ 수집       │
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
@@ -95,15 +85,15 @@ python-telegram-bot, aiosqlite, python-dotenv
                          │
     ┌────────────────────▼───────────────────┐
     │  4. 종목 유니버스 로드                  │
-    │     3,379 종목 (KOSPI/KOSDAQ/SP500/NASDAQ/RUSSELL2000) │
-    │     SP500)                             │
+    │     3,379 종목 (KOSPI/KOSDAQ/KONEX/    │
+    │     SP500/NASDAQ/RUSSELL2000)          │
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
     │  5-6. 학습 데이터 준비                  │
     │   ThreadPoolExecutor (CPU 코어 수)      │
-    │   fetch_data_fdr() 병렬 실행            │
-    │   + 펀더멘탈 백그라운드 스레드           │
+    │   + 60일 Filing Lag 적용 펀더멘탈        │
+    │   + float32 메모리 다운캐스팅           │
     └────────────────────┬───────────────────┘
                          │
          ┌───────────────┼───────────────┐
@@ -111,13 +101,13 @@ python-telegram-bot, aiosqlite, python-dotenv
     ┌─────────┐    ┌──────────┐    ┌──────────┐
     │ 7a. 회귀│    │7b. Surge │    │7c.Lead-Lag│
     │ 학습    │    │ 분류기   │    │ 행렬      │
-    │ (시장별)│    │ (시장별) │    │ (TOP50)   │
+    │ (시장별)│    │ (시장별) │    │ (+1d US) │
     └─────────┘    └──────────┘    └──────────┘
          └───────────────┼───────────────┘
                          │
     ┌────────────────────▼───────────────────┐
-    │  7d. VCP ML 분류기 학습                 │
-    │      4 시장 × 4 horizon = 16 모델       │
+    │  7d. VCP ML 분류기 / LSTM 학습          │
+    │  7e. Isotonic & Platt 확률 보정기 학습 │
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
@@ -126,39 +116,60 @@ python-telegram-bot, aiosqlite, python-dotenv
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
-    │  10. 예측 실행                          │
-    │      회귀 + Surge + VCP 규칙 + Lead-Lag │
-    │      + VCP ML                          │
+    │  10. 31대 알파 전략 예측 및 스코어링     │
+    │      회귀 + Surge + VCP + LSTM + StatArb│
+    │      + Sector + RIM + Event + MQ + IV   │
+    │      + OF + Reversal + ARM + CARD + LATR│
+    │      + InstFor + SupplyChain + Sentiment│
+    │      + Neutral + VolT + Micro + Accrual │
+    │      + ShortSq + ValueUp + Trend + Gamma│
+    │      + Insider + ToneDrift + Darkpool   │
     └────────────────────┬───────────────────┘
                          │
     ┌────────────────────▼───────────────────┐
-    │  11-12. 결과 저장                       │
-    │   ai_predictions.db + 5개 출력 파일    │
+    │  11. 2D 레짐 앙상블 & 포트폴리오 배분   │
+    │      PCA-ZCA Whitening & Gram-Schmidt   │
+    │      + 미시구조 거래비용 차감           │
+    │      + HRP & EVT-CVaR 자산 배분         │
+    │      + Leland No-Trade 버퍼 밴드 필터   │
+    └────────────────────┬───────────────────┘
+                         │
+    ┌────────────────────▼───────────────────┐
+    │  12. 결과 영속화 및 대시보드 리포트 생성 │
+    │   ai_predictions.db + TXT 리포트 생성  │
+    │   + gh-pages/index.html 생성 (KST)     │
     └─────────────────────────────────────────┘
 ```
 
-### 2.2 스레딩 모델
+### 2.2 스레딩 모델 및 리소스 제어
 
 | 컨텍스트 | 방식 | 용도 |
 |----------|------|------|
-| 데이터 수집 | `ThreadPoolExecutor(max_workers=CPU수)` | 3,379 종목 병렬 fetch |
-| 펀더멘탈 수집 | `threading.Thread` (백그라운드) | 학습/추론 중 비동기 수집 |
-| 모델 학습 | `ProcessPoolExecutor(max_workers=4)` | 시장별 병렬 학습 |
-| VCP ML 학습 | `ThreadPoolExecutor` | 시장별 병렬 VCP 학습 |
+| 데이터 수집 | `ThreadPoolExecutor(max_workers=32)` | 네트워크 I/O 병렬 fetch, 5초 타임아웃 |
+| 피처 계산 | `ThreadPoolExecutor(max_workers=CPU*2)` | CPU 바운드 기술적 지표 & 피처 추출 |
+| 펀더멘탈 수집 | `threading.Thread` (백그라운드) | 60일 Filing Lag 적용 비동기 배치 수집 |
+| 모델 학습 | `ProcessPoolExecutor` / `ThreadPoolExecutor` | 시장별 GBDT / ML 독립 훈련 |
+| DB 동시성 제어 | `threading.Lock()` 쓰기 뮤텍스 | SQLite WAL 모드 다중 스레드 충돌 원천 방지 |
 
-> [!WARNING]
-> SQLite는 WAL 모드 없이 다중 스레드 쓰기 시 `database is locked` 에러 발생 가능.
-> 알려진 이슈: [KNOWN_ISSUES.md](KNOWN_ISSUES.md#s6-sqlite-동시-쓰기-미보호)
+### 2.3 주요 출력 파일
 
-### 2.3 출력 파일
-
-| 파일 | 전략 | 포맷 |
+| 파일 | 전략 | 내용 |
 |------|------|------|
-| `pipeline_result.txt` | XGBoost 회귀 | 시장별 TOP종목, horizon별 예상수익률 |
-| `surge_predictions.txt` | Surge 분류기 | 시장×horizon별 TOP20, 급등확률 |
-| `lead_lag_predictions.txt` | Lead-Lag | Leader별 TOP20 follower |
-| `vcp_patterns.txt` | VCP 규칙 | VCP Score ≥ 50 종목 |
-| `vcp_ml_predictions.txt` | VCP ML | 시장별 TOP10, 급등확률 |
+| `ensemble_predictions.txt` | 31대 동적 앙상블 | 31대 전략 동적 앙상블 TOP 100 및 Decision Rationale (KST) |
+| `strategy_data_coverage_report.txt` | 데이터 결측 분석 | 31대 전략별 데이터 커버리지 및 6대 결측 사유 분석 |
+| `pipeline_result.txt` | XGBoost 회귀 | 시장별 TOP 종목, 8개 horizon별 예상수익률 요약 |
+| `surge_predictions.txt` | Surge 분류기 | 4개 horizon별 20%↑ 급등 확률 TOP20 |
+| `lead_lag_predictions.txt` | Lead-Lag 시차 | Leader-Follower 상관 점수 (+1d US Lag Shift) |
+| `vcp_patterns.txt` | VCP 패턴 규칙 | Mark Minervini 변동성 수축 패턴 검출 종목 |
+| `vcp_ml_predictions.txt` | VCP ML | 시장별 VCP 기반 surge 확률 TOP10 |
+| `stat_arb_predictions.txt` | Stat-Arb | Log 주가 공적분 잔차 Z-score 차익거래 페어 |
+| `inst_foreign_sector_predictions.txt` | Inst & Foreign | 기관/외인 60일 누적 수급 가속도 & 주도주 상관성 |
+| `supply_chain_predictions.txt` | Supply Chain | 전방 대형주 시차 온기 전이 점수 |
+| `sentiment_predictions.txt` | Sentiment | FinBERT 텍스트 감성 촉매 스코어 |
+| `factor_neutralized_predictions.txt` | Factor Neutral | Fama-French 5-Factor 중립 순수 알파 |
+| `vol_target_predictions.txt` | Vol Targeting | 동적 변동성 타겟팅 리스크 파리티 점수 |
+| `microstructure_predictions.txt` | Microstructure | 호가 불균형 & 종가 오버나이트 갭 점수 |
+
 
 ---
 

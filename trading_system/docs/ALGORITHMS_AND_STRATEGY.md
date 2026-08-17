@@ -1,368 +1,214 @@
-# 🧠 핵심 알고리즘 및 전략 명세서
+# 🧠 31대 다변화 전략 및 퀀트 알고리즘 완전 명세서
 
-> **Version**: 4.1 — 2026-07-30 기준 17대 전략 다변화 앙상블 및 리스크 제어 시스템 반영  
-> **Source**: `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/core/*.py`, `src/risk/risk_manager.py`
-
----
-
-## 목차
-
-1. [전략 1: XGBoost 회귀 (수익률 예측)](#1-전략-1-xgboost-회귀-수익률-예측)
-2. [전략 2: Surge 분류기 (급등 확률)](#2-전략-2-surge-분류기-급등-확률)
-3. [전략 3: Lead-Lag 분석 (1일 Lag Shift 보정)](#3-전략-3-lead-lag-분석)
-4. [전략 4: VCP 규칙 기반 패턴](#4-전략-4-vcp-규칙-기반-패턴)
-5. [전략 5: VCP ML 분류기](#5-전략-5-vcp-ml-분류기)
-6. [전략 6: Strict Causal LSTM](#6-전략-6-strict-causal-lstm)
-7. [전략 7: Stat-Arb Log 공적분 차익거래](#7-전략-7-stat-arb-log-공적분-차익거래)
-8. [전략 8: Sector Rotation 상대모멘텀](#8-전략-8-sector-rotation-상대모멘텀)
-9. [전략 9: RIM Valuation (Terminal Value 중복 할인 보정)](#9-전략-9-rim-valuation)
-10. [전략 10: Event-Driven 공시 촉매](#10-전략-10-event-driven-공시-촉매)
-11. [전략 11: Momentum Quality (MQ)](#11-전략-11-momentum-quality-mq)
-12. [전략 12: Options IV Skew](#12-전략-12-options-iv-skew)
-13. [전략 13: Order Flow Imbalance (MFI)](#13-전략-13-order-flow-imbalance-mfi)
-14. [전략 14: Short-Term Reversal](#14-전략-14-short-term-reversal)
-15. [전략 15: Analyst Revision Momentum (ARM)](#15-전략-15-analyst-revision-momentum-arm)
-16. [전략 16: Cross-Asset Regime Divergence (CARD)](#16-전략-16-cross-asset-regime-divergence-card)
-17. [전략 17: Liquidity-Adjusted Tail Risk (LATR - 부호 보정)](#17-전략-17-liquidity-adjusted-tail-risk-latr)
-18. [17대 전략 2D 레짐 앙상블 & 실전 미시구조 거래비용 모델](#18-17대-전략-2d-레짐-앙상블--실전-미시구조-거래비용-모델)
-19. [자율 매매 에이전트 & RiskManager 위기 제어 규칙](#19-자율-매매-에이전트--riskmanager-위기-제어-규칙)
+> **Version**: 5.0  
+> **Last Updated**: 2026-08-17 (KST)  
+> **Source Modules**: `trading_system/src/core/*.py`, `src/ai/`, `src/risk/`, `src/execution/`  
+> **Target Universe**: 3,379개 종목 (KOSPI, KOSDAQ, KONEX, S&P 500, NASDAQ, RUSSELL 2000)
 
 ---
 
-## 1. 전략 1: XGBoost 회귀 (수익률 예측)
+## 📑 목차
 
-**파일**: `src/ai/prediction_model.py` — `OnDevicePredictionModel`
-
-### 1.1 개요
-
-시장별(SP500/NASDAQ/RUSSELL2000/KOSPI/KOSDAQ) XGBoost + LightGBM + CatBoost **앙상블 회귀** 모델을 학습하여, 각 종목의 **8개 시간 horizon별 예상 수익률**을 예측합니다.
-
-### 1.2 예측 Horizon
-
-| Horizon | 설명 |
-|---------|------|
-| 1일 | 단기 스캘핑 |
-| 5일 | 단기 스윙 |
-| 10일 | 중단기 |
-| 20일 | 1개월 |
-| 30일 | 중기 |
-| 60일 | 분기 |
-| 120일 | 반기 |
-| 200일 | 장기 |
-
-### 1.3 앙상블 구조
-
-세 모델(XGBoost, LightGBM, CatBoost)의 예측값을 **동적 가중 평균**으로 합산합니다:
-
-$$\hat{y} = w_{\text{xgb}} \cdot \hat{y}_{\text{xgb}} + w_{\text{lgb}} \cdot \hat{y}_{\text{lgb}} + w_{\text{cat}} \cdot \hat{y}_{\text{cat}}$$
-
-- 가중치는 검증 세트 R² 점수 기반으로 시장·horizon별 자동 계산
-- 기본 가중치: XGBoost 0.4, LightGBM 0.3, CatBoost 0.3
-
-### 1.4 XGBoost 하이퍼파라미터
-
-| 파라미터 | 값 | 설명 |
-|----------|-----|------|
-| `n_estimators` | 500 | 부스팅 라운드 |
-| `max_depth` | 5 | 트리 깊이 |
-| `learning_rate` | 0.05 | 학습률 |
-| `subsample` | 0.8 | 행 샘플링 비율 |
-| `colsample_bytree` | 0.8 | 열 샘플링 비율 |
-| `reg_lambda` | 1.0 | L2 정규화 |
-| `early_stopping_rounds` | 50 | 조기 종료 |
-
-### 1.5 타겟 변수
-
-$$\text{target}_{h} = \frac{\text{Close}_{t+h}}{\text{Close}_{t}} - 1$$
-
-극단값 클리핑: $[-0.5\sqrt{h},\ +0.5\sqrt{h}]$
-
-### 1.6 Train/Validation 분리
-
-시계열 특성을 반영한 **날짜 기준 분리** (80% 학습 / 20% 검증):
-
-```
-cutoff = dates.quantile(0.80)
-train_idx = dates <= cutoff
-val_idx = dates > cutoff
-```
+1. [31대 다변화 전략 종합 일람](#1-31대-다변화-전략-종합-일람)
+2. [머신러닝 & 시계열 딥러닝 엔진 (전략 1~6)](#2-머신러닝--시계열-딥러닝-엔진-전략-16)
+3. [차익거래 & 펀더멘탈 가치평가 엔진 (전략 7~10)](#3-차익거래--펀더멘탈-가치평가-엔진-전략-710)
+4. [모멘텀 & 퀀트 팩터 엔진 (전략 11~18)](#4-모멘텀--퀀트-팩터-엔진-전략-1118)
+5. [공급망, 감성 & 대체 데이터 엔진 (전략 19~23)](#5-공급망-감성--대체-데이터-엔진-전략-1923)
+6. [회계 품질 & 특수 촉매 엔진 (전략 24~31)](#6-회계-품질--특수-촉매-엔진-전략-2431)
+7. [통계적 직교화 및 팩터 억제 (Statistical Hygiene)](#7-통계적-직교화-및-팩터-억제-statistical-hygiene)
+8. [2D 시장 레짐 & 동적 앙상블 가중치](#8-2d-시장-레짐--동적-앙상블-가중치)
+9. [포트폴리오 최적화 & EVT-CVaR 꼬리위험 예산](#9-포트폴리오-최적화--evt-cvar-꼬리위험-예산)
+10. [실전 미시구조 거래비용 및 슬리피지 피드백](#10-실전-미시구조-거래비용-및-슬리피지-피드백)
+11. [Execution OMS 6대 주문 안전 게이트](#11-execution-oms-6대-주문-안전-게이트)
 
 ---
 
-## 2. 전략 2: Surge 분류기 (급등 확률)
+## 1. 31대 다변화 전략 종합 일람
 
-**파일**: `src/ai/prediction_model.py` — `train_surge()` / `predict_surge()`
-
-### 2.1 개요
-
-각 종목이 특정 기간 내 **20% 이상 급등**할 확률을 예측하는 **이진 분류** 모델입니다.
-
-### 2.2 Surge Horizon 및 레이블
-
-| Horizon | 레이블 조건 |
-|---------|------------|
-| 1일 | 1일 수익률 ≥ 20% → 1 |
-| 3일 | 3일 수익률 ≥ 20% → 1 |
-| 5일 | 5일 수익률 ≥ 20% → 1 |
-| 20일 | 20일 수익률 ≥ 20% → 1 |
-
-### 2.3 클래스 불균형 처리
-
-급등은 매우 드문 이벤트이므로, `scale_pos_weight`를 자동 계산하여 양성 클래스에 가중치를 부여합니다:
-
-$$\text{scale\_pos\_weight} = \min\left(\frac{N_{\text{neg}}}{N_{\text{pos}}},\ 500\right)$$
-
-### 2.4 Surge XGBClassifier 하이퍼파라미터
-
-| 파라미터 | 값 | 설명 |
-|----------|-----|------|
-| `max_depth` | 4 | (회귀보다 1단계 낮음) |
-| `min_child_weight` | 10 | 리프 최소 샘플 |
-| `max_delta_step` | 5 | 로짓 업데이트 제한 (불균형 안정화) |
-| `scale_pos_weight` | 자동 계산 (≤ 500) | 클래스 불균형 보정 |
-
-### 2.5 최적 임계치 탐색
-
-예측 확률 → 이진 결정 변환 시, 검증 세트에서 F1 점수를 최대화하는 임계치를 그리드 탐색합니다:
-
-```
-thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
-```
-
-### 2.6 출력
-
-시장별·horizon별 **TOP20** 급등 확률 종목을 `surge_predictions.txt`에 출력합니다.
+| # | 전략명 | 분류 | 핵심 수식 / 메커니즘 | 주요 입력 데이터 | 출력 파일 |
+|---|--------|------|----------------------|------------------|-----------|
+| **1** | **XGBoost 회귀** | ML 회귀 | 8개 horizon GBDT 앙상블 $\hat{r}_h \in [-1, 1]$ | OHLCV, 23개 기술/재무 피처 | `pipeline_result.txt` |
+| **2** | **Surge 분류기** | ML 분류 | $P(\text{Return} \ge 20\%)$ (Class weight $\le 20$) | 4개 horizon, 변동성/모멘텀 | `surge_predictions.txt` |
+| **3** | **Lead-Lag 분석** | 시차 상관 | 2-Tier 리더-팔로워 상관행렬 (+1d US 시차) | 지수/ETF/대형주 일별 수익률 | `lead_lag_predictions.txt` |
+| **4** | **VCP 패턴 (규칙)** | 기술적 패턴 | Minervini 4단계 변동성 수축 & 거래량 급감 | 일봉 고저가, 20d 거래량 MA | `vcp_patterns.txt` |
+| **5** | **VCP ML 분류기** | ML 분류 | 12개 패턴 벡터 피처 기반 XGBClassifier | 수축률, 단조성, ATR 정규화 | `vcp_ml_predictions.txt` |
+| **6** | **Strict Causal LSTM** | 딥러닝 시계열 | 롤링 z-score 정규화 기반 룩어헤드 방지 LSTM | 60일 윈도우 순차 OHLCV | `lstm_predictions.txt` |
+| **7** | **Stat-Arb Cointegration**| 통계적 차익 | Engle-Granger Log 주가 잔차 $Z < -2.0$ | 페어별 일간 종가 시계열 | `stat_arb_predictions.txt` |
+| **8** | **Sector Rotation** | 상대 모멘텀 | 1M/3M 업종 상대강도 + 기관/외인 수급 가속도 | KRX/GICS 섹터 지수, 순매수 | `sector_predictions.txt` |
+| **9** | **RIM Valuation** | 잔여이익 모델 | $V_0 = B_0 + \sum \frac{(\text{ROE}-k_e)B_{t-1}}{(1+k_e)^t}$ 적정가 | BPS, ROE, 요구수익률($k_e$) | `rim_predictions.txt` |
+| **10** | **Event-Driven** | 이벤트 촉매 | DART 공시, 서프라이즈($>15\%$), $3\times$ 거래량 | OpenDART 공시, 컨센서스 | `event_driven_predictions.txt` |
+| **11** | **Momentum Quality** | 팩터 모멘텀 | $(R_{12M} - R_{1M}) \times (\text{OP Margin} \times \text{ROE})$ | 12M-1M 수익률, 재무제표 | `mq_factor_predictions.txt` |
+| **12** | **Options IV Skew** | 옵션 미시구조 | $\text{IV}_{\text{put}} - \text{IV}_{\text{call}}$ 공포 역발상 매수 | yfinance 옵션 체인 IV | `iv_skew_predictions.txt` |
+| **13** | **Order Flow Imbalance** | 수급 흐름 | 외인/기관 순매수 가속도 (MFI 차분) | 거래소 투자자별 순매수 | `order_flow_predictions.txt` |
+| **14** | **Short-Term Reversal** | 평균 회귀 | 3~5일 연속 하락 과매도 ($RSI < 30, z < -2$) | 일봉 종가, 볼린저 밴드 | `short_term_reversal_predictions.txt` |
+| **15** | **Analyst Revision** | 컨센서스 수정 | $\Delta \text{EPS}_{\text{consensus}} / \text{EPS}_{\text{prior}}$ 상향 속도 | FnGuide / Refinitiv 컨센서스 | `arm_factor_predictions.txt` |
+| **16** | **Cross-Asset Divergence**| 매크로 괴리 | 주식 vs 환율/유가/금리 매크로 이탈 괴리율 | USD/KRW, WTI, US10Y | `card_factor_predictions.txt` |
+| **17** | **Liquidity Tail Risk** | 유동성/꼬리위험| $DD_{52w} + \text{VolumeSurge} - \text{CVaR}_{95\%}$ | 52주 고점 낙폭, EVT tail | `latr_factor_predictions.txt` |
+| **18** | **Inst & Foreign Sector**| 수급 주도주 | 기관/외인 60일 누적 순매수 & 주도주 상관성 | 투자자별 누적 순매수 대금 | `inst_foreign_sector_predictions.txt` |
+| **19** | **Supply Chain Momentum**| 가치사슬 전이 | 전방 대표기업 수익률 $\to$ 협력사 시차 온기 | 서플라이 체인 관계도, 수익률 | `supply_chain_predictions.txt` |
+| **20** | **NLP Sentiment Catalyst**| FinBERT 감성 | DART/SEC 공시 및 뉴스 FinBERT 감성 점수 | 공시 요약, 뉴스 헤드라인 | `sentiment_predictions.txt` |
+| **21** | **Style Neutralizer** | 팩터 중립화 | Fama-French 5-Factor 잔차화 ($\|\rho\| < 0.15$) | 시총, PBR, OP, 자산성장률 | `factor_neutralized_predictions.txt` |
+| **22** | **Dynamic Vol Target** | 리스크 파리티 | 실산출 변동성 vs 목표 변동성(12%) 비중 스코어 | 20일/60일 실현 변동성 | `vol_target_predictions.txt` |
+| **23** | **Microstructure Imbalance**| 호가창/동시호가 | 호가 잔량 불균형(OFI) & 동시호가 오버나이트 갭 | 5단계 호가잔량, 시초가 갭 | `microstructure_predictions.txt` |
+| **24** | **Accruals Quality** | 회계 이상치 | $(\text{NetIncome} - \text{OCF}) / \text{TotalAssets}$ | 현금흐름표, 당기순이익 | 앙상블 결합 |
+| **25** | **Short Squeeze** | 숏스퀴즈 | Short Interest + Days-to-Cover + 5D 모멘텀 | 공매도 잔고, 대차잔고 | 앙상블 결합 |
+| **26** | **Value-Up Catalyst** | 주주환원 | PBR < 1.0 + 순현금/시총 + 총주주환원율 | 배당성향, 자사주 소각 | 앙상블 결합 |
+| **27** | **Kaufman Trend Eff** | 추세 효율성 | 5D/10D/20D KER + Hurst Exponent ($H > 0.5$) | 일봉 방향성 변위 / 총이동거리 | 앙상블 결합 |
+| **28** | **Gamma Squeeze** | 감마 스퀴즈 | 옵션 미결제약정(OI) 및 콜옵션 델타 가속도 | 풋콜 OI, 델타/감마 익스포저 | 앙상블 결합 |
+| **29** | **Insider Buying** | 내부자 매수 | 대주주/임원 장내 매수 공시 및 지분 변동률 | DART/SEC 내부자 지분 공시 | 앙상블 결합 |
+| **30** | **Earnings Tone Drift** | 어닝콜 톤 분석 | 실적발표 콘퍼런스콜 텍스트 긍/부정 어조 변화 | 어닝콜 스크립트 텍스트 | 앙상블 결합 |
+| **31** | **High-Frequency Exec** | HFT 마이크로 | 다크풀 블록체결 & 틱 스프레드 마이크로구조 | 다크풀 거래량, 틱 스프레드 | 앙상블 결합 |
 
 ---
 
-## 3. 전략 3: Lead-Lag 분석
+## 2. 머신러닝 & 시계열 딥러닝 엔진 (전략 1~6)
 
-**파일**: `src/ai/prediction_model.py` — `train_lead_lag()` / `predict_lead_lag()`
+### 2.1 전략 1: XGBoost Multi-Horizon Regression (`prediction_model.py`)
+- **목적**: 8개 시간 horizon ($1\text{d}, 3\text{d}, 5\text{d}, 10\text{d}, 20\text{d}, 60\text{d}, 120\text{d}, 200\text{d}$)에 대한 기대수익률 $\hat{r}_h$ 동시 예측.
+- **모델 앙상블**: XGBoost(0.40) + LightGBM(0.30) + CatBoost(0.30) 블렌딩.
+- **타겟 스케일링**:
+  $$M_h = \begin{cases} 0.15 & (h \le 5\text{d}) \\ 0.25 & (h \le 20\text{d}) \\ 0.40 & (h \le 60\text{d}) \\ 0.80 & (h \le 200\text{d}) \end{cases}, \quad S_{\text{reg}} = \operatorname{clip}\left(\frac{\hat{r}_h}{M_h}, 0.0, 1.0\right)$$
+- **피처 엔지니어링**: 기술적 지표(EMA, RSI, MACD, BB, ATR) + 거시경제(VIX, TNX, USDKRW, Oil) + 펀더멘탈(PER, PBR, ROE, 영업이익률 등 23개 피처).
 
-### 3.1 개요
+### 2.2 전략 2: Surge Classifier (`prediction_model.py`)
+- **목적**: $h \in \{1\text{d}, 3\text{d}, 5\text{d}, 20\text{d}\}$ 기간 내 $+20\%$ 이상 급등 확률 예측.
+- **불균형 가중치 캡**:
+  $$\text{scale\_pos\_weight} = \min\left(\frac{N_{\text{neg}}}{N_{\text{pos}}}, 20.0\right)$$
+- 극단적인 가중치 폭주를 방지하여 정밀도(Precision)를 유지.
 
-시가총액 상위 50개 종목(leader)의 최근 움직임과 다른 종목(follower)의 과거 수익률 간 **시차 상관관계(lag-1 correlation)**를 분석하여, leader의 움직임을 뒤따를 가능성이 높은 종목을 발굴합니다.
+### 2.3 전략 3: Cross-Border Lead-Lag Matrix (`cross_border_lead_lag.py`)
+- **2-Tier 구조**: Tier 1 (업종 대표 ETF 및 글로벌 대형주), Tier 2 (개별 추종주).
+- **시차 보정**: 미국 시장 지표/ETF는 한국 시장 대비 **+1일 Lag Shift**를 적용하여 시차 룩어헤드 방지.
+- **스코어링**: 상관계수 $\rho_{ij}$와 리더의 5일 가속도를 결합하여 후행 점수 산출.
 
-### 3.2 알고리즘
+### 2.4 전략 4 & 5: Mark Minervini VCP Rule & ML (`vcp_detector.py`, `vcp_ml_predictor.py`)
+- **규칙 탐지기**: 3~4회 연속 변동성 수축 (예: $20\% \to 10\% \to 5\% \to 2\%$), 거래량 20일 MA 대비 $50\%$ 미만 건조화(Dry-up), 피봇 저항선 근접($<2\%$).
+- **VCP ML**: 12개 패턴 벡터 피처(`range_5v20`, `vol_20v60`, `monotonic_decay`, `pivot_proximity`)를 학습한 XGBClassifier.
 
-1. **Leader 선정**: 시가총액 상위 50개 종목
-2. **상관 행렬 계산**: 각 leader의 수익률과 모든 종목의 1일 뒤 수익률 간 Pearson 상관 계수
-3. **Follower 점수**: 상관계수 × leader 최근 수익률
-
-$$\text{score}_{\text{follower}} = \sum_{i \in \text{leaders}} \rho_i \times r_i^{\text{recent}}$$
-
-4. **필터**: leader 최근 수익률이 1% 이하인 경우 제외
-
-### 3.3 출력
-
-Leader별 상위 20개 follower 종목을 `lead_lag_predictions.txt`에 출력합니다.
-
----
-
-## 4. 전략 4: VCP 규칙 기반 패턴
-
-**파일**: `src/ai/vcp_detector.py` — `VCPDetector`
-
-### 4.1 개요
-
-**Volatility Contraction Pattern (VCP)**은 Mark Minervini의 트레이딩 전략으로, 변동성이 점진적으로 수축하고 거래량이 감소하면서 주가가 고점 근처에 위치하는 패턴을 감지합니다.
-
-### 4.2 감지 조건
-
-| 조건 | 설명 | 점수 |
-|------|------|------|
-| 변동성 수축 감소 | 5d > 10d > 20d > 40d > 60d 범위 단조감소 | 25점 |
-| 거래량 감소 | 20일 평균 거래량 < 60일 평균 × 0.85 | 15점 |
-| 50일 이평 근접 | 현재가와 MA50 거리 5% 이내 | 15점 |
-| 200일 이평 상방 | 현재가 > MA200 | 15점 |
-| 고점 근접 | 52주 고점의 85% 이상 | 15점 |
-| 지지선 확인 | 최근 저점이 상승 추세 | 15점 |
-| 패턴 지속 | 2개 이상 수축 사이클 확인 | 20점 |
-
-### 4.3 VCP Score
-
-$$\text{VCP Score} = \min\left(\sum w_i \times \text{condition}_i,\ 100\right)$$
-
-### 4.4 출력
-
-VCP Score ≥ 50 이상인 종목을 `vcp_patterns.txt`에 출력합니다.
+### 2.5 전략 6: Strict Causal LSTM (`lstm_predictor.py`)
+- **아키텍처**: 2-layer LSTM + Dropout(0.2) + Linear Output Head.
+- **인과적 정규화 (Causal Normalization)**: 전체 시계열 평균 대신 각 시점 $t$ 이전의 60일 롤링 윈도우 $\mu_{t-60:t}, \sigma_{t-60:t}$만을 사용하여 Z-score 정규화. 미래 데이터 누출(Data Leakage) 완전 차단.
 
 ---
 
-## 5. 전략 5: VCP ML 분류기
+## 3. 차익거래 & 펀더멘탈 가치평가 엔진 (전략 7~10)
 
-**파일**: `src/ai/vcp_ml_predictor.py` — `VCPSurgePredictor`
+### 3.1 전략 7: Stat-Arb Log Cointegration (`stat_arb.py`)
+- **Engle-Granger 2단계 회귀**: raw price $P$ 대신 Log 가격 $\ln P$를 사용하여 스케일 불변성 확보:
+  $$\ln P_{A, t} = \alpha + \beta \ln P_{B, t} + \epsilon_t$$
+- **ADF 공적분 검정**: 잔차 $\epsilon_t$에 대해 ADF 검정 통과($p < 0.05$) 및 반감기(Half-Life) $\tau \in [3, 30]$일 필터링.
+- **신호**: 잔차 Z-score $Z_t = \frac{\epsilon_t - \mu_\epsilon}{\sigma_\epsilon} < -2.0$ 시 매수 진입.
 
-### 5.1 개요
+### 3.2 전략 8: Sector Rotation Relative Momentum (`sector_rotation.py`)
+- 11개 KRX/GICS 섹터 지수의 1M/3M 상대수익률 및 기관/외인 순매수 가속도를 합성하여 주도 업종 스코어링.
 
-VCP 패턴 관련 11개 피처를 사용하여, **4개 시장 × 4개 horizon = 16개** XGBClassifier로 VCP 패턴 이후 급등 확률을 예측합니다.
+### 3.3 전략 9: RIM Valuation Model (`rim_valuation.py`)
+- **잔여이익 가치평가**:
+  $$V_0 = B_0 + \sum_{t=1}^5 \frac{(\text{ROE}_t - k_e) B_{t-1}}{(1 + k_e)^t} + \frac{(\text{ROE}_5 - k_e) B_4 \cdot \omega}{(1 + k_e - \omega)(1 + k_e)^5}$$
+- **보정 사항**: 자기자본비용 $k_e$ 할인 시 Terminal Value 중복 할인 오류 제거, 음수 영업이익/순이익 기업 필터링.
 
-### 5.2 VCP ML 피처 (11개)
-
-| 피처 | 수식 | 설명 |
-|------|------|------|
-| `range_5v20` | range(5d) / range(20d) | 단기/중기 변동성 비율 |
-| `range_10v20` | range(10d) / range(20d) | 10일/20일 변동성 비율 |
-| `range_20v40` | range(20d) / range(40d) | 중기 변동성 수축도 |
-| `range_40v60` | range(40d) / range(60d) | 장기 변동성 수축도 |
-| `vol_20v60` | vol_avg(20d) / vol_avg(60d) | 거래량 수축 비율 |
-| `dist_ma50` | (close - MA50) / MA50 | 50일 이평선 거리 |
-| `dist_ma200` | (close - MA200) / MA200 | 200일 이평선 거리 |
-| `range_pos_10d` | 최근 10일 양봉 비율 | 단기 추세 강도 |
-| `range_pos_20d` | 최근 20일 양봉 비율 | 중기 추세 강도 |
-| `atr_14d_norm` | ATR(14) / close | 정규화된 변동성 |
-| `monotonic` | 범위 단조감소 여부 (0/1) | VCP 패턴 적합성 |
-
-### 5.3 학습 구조
-
-```
-5 시장 (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ)
-  × 4 horizon (1, 3, 5, 20일)
-  = 16개 독립 XGBClassifier
-```
-
-각 모델은 해당 시장의 종목 데이터만으로 학습합니다.
-
-### 5.4 출력
-
-시장별 VCP 기반 급등 확률 **TOP10** 종목을 `vcp_ml_predictions.txt`에 출력합니다.
+### 3.4 전략 10: Event-Driven Catalyst Engine (`event_driven.py`)
+- OpenDART 실시간 공시(유상증자, 무상증자, 전환사채, 주주총회, 자사주 취득/소각) 파싱.
+- 컨센서스 대비 어닝 서프라이즈 $>15\%$, 일일 거래량 $3\times$ 서지 결합 촉매 스코어링.
 
 ---
 
-## 6. 피처 명세
+## 4. 모멘텀 & 퀀트 팩터 엔진 (전략 11~18)
 
-### 6.1 기본 피처 (FEATURES)
-
-| 카테고리 | 피처 | 설명 |
-|----------|------|------|
-| **수익률** | `ret_1d`, `ret_5d`, `ret_20d`, `ret_60d` | 기간별 수익률 |
-| **이동평균** | `dist_sma_20` | SMA(20) 대비 거리 |
-| **변동성** | `vol_20d` | 20일 변동성 |
-| **시장 정규화** | `norm_market_cap`, `norm_floating_value`, `norm_volume` | 일별 시장 대비 정규화 |
-| **펀더멘탈** | `operating_margin`, `revenue_to_market_cap`, `dividend_yield`, `net_profit_margin`, `eps_yield`, `eps_growth_1y` | 재무 지표 |
-| **기술적 지표** | `rsi_14`, `rsi_5`, `macd`, `macd_signal`, `macd_hist_norm` | RSI, MACD |
-| **볼린저** | `bb_upper_dist`, `bb_lower_dist`, `bb_width` | 볼린저 밴드 |
-| **추가 기술적** | `atr_14`, `roc_10`, `roc_20`, `adx_14` | ATR, ROC, ADX |
-| **추세** | `higher_high`, `higher_low`, `distance_from_52w_high`, `ema_crossover` | 추세 지표 |
-| **스토캐스틱** | `stoch_k`, `stoch_d`, `stoch_rsi_k`, `stoch_rsi_d` | 스토캐스틱 |
-| **일목균형표** | `tenkan_sen`, `kijun_sen` | 일목균형표 |
-| **거래량** | `volume_ratio` | 거래량 비율 |
-| **VCP** | `range_5v20` ~ `vcp_score` (12개) | VCP 관련 피처 |
-| **래그** | `ret_1d_lag1`, `ret_5d_lag1` | 지연 수익률 |
-
-### 6.2 글로벌 피처 (GLOBAL_FEATURES — 8개)
-
-| 피처 | 소스 | 설명 |
-|------|------|------|
-| `vix_change` | ^VIX | 공포지수 변화율 |
-| `us10y` | ^TNX | 미국 10년 국채 수익률 |
-| `usdkrw_change` | USD/KRW | 원·달러 환율 변화율 |
-| `sp500_change` | ^GSPC | S&P500 지수 변화율 |
-| `dxy_change` | DX-Y.NYB | 달러 인덱스 변화율 |
-| `wti_change` | CL=F | WTI 원유 변화율 |
-| `kospi_change` | ^KS11 | KOSPI 변화율 |
-| `kosdaq_change` | ^KQ11 | KOSDAQ 변화율 |
+- **전략 11 (MQ Factor)**: $12\text{M}-1\text{M}$ 장기 모멘텀에서 1M 단기 반전 노이즈를 차감하고 영업이익률 $\times$ ROE 퀄리티 결합.
+- **전략 12 (Options IV Skew)**: 풋/콜 IV 괴리율($\text{IV}_{\text{put}} - \text{IV}_{\text{call}}$) 및 Put/Call Volume Ratio 극단값 역발상(Contrarian) 매수.
+- **전략 13 (Order Flow Imbalance)**: 외인/기관 순매수 대금 가속도 및 자금유입강도(MFI) 지표 결합.
+- **전략 14 (Short-Term Reversal)**: 3~5일 연속 음봉 과매도($RSI_{14} < 30$, 볼린저 하단 이탈 $z < -2.0$) 기술적 반등 스코어링.
+- **전략 15 (Analyst Revision)**: 애널리스트 컨센서스 EPS 및 목표주가 1M/3M 상향 조정 속도.
+- **전략 16 (Cross-Asset Divergence)**: 주식 지수와 환율(USD/KRW), 국제유가(WTI), 미국 10년물 금리(US10Y) 크로스에셋 괴리율 스코어링.
+- **전략 17 (Liquidity-Adjusted Tail Risk)**: 52주 고점 대비 낙폭($DD_{52w}$) + 거래량 서지 지수에서 EVT $\text{CVaR}_{95\%}$ 하방 꼬리위험 페널티 차감.
+- **전략 18 (Inst & Foreign Sector)**: 외인/투신 60일 누적 순매수 강도 및 업종 주도주 상관성 점수.
 
 ---
 
-## 7. 모델 학습 및 저장
+## 5. 공급망, 감성 & 대체 데이터 엔진 (전략 19~23)
 
-### 7.1 학습 프로세스
-
-1. 시장별 종목 데이터 수집 (ThreadPoolExecutor)
-2. 피처 엔지니어링 + 글로벌 지표 병합
-3. 시장별 정규화 (일별 시장 총합 대비 비율)
-4. 날짜 기준 Train/Val 분리 (80/20)
-5. XGBoost + LightGBM + CatBoost 각각 학습
-6. 앙상블 가중치 계산 (Val R² 기반)
-7. 모델 파일 저장
-
-### 7.2 저장 형식
-
-```
-trading_system/models/
-├── xgb_regression_{market}_{horizon}d.json     # XGBoost 회귀
-├── lgb_regression_{market}_{horizon}d.txt      # LightGBM 회귀
-├── cat_regression_{market}_{horizon}d.cbm      # CatBoost 회귀
-├── xgb_surge_{market}_{horizon}d.json          # XGBoost Surge
-├── lgb_surge_{market}_{horizon}d.txt           # LightGBM Surge
-├── cat_surge_{market}_{horizon}d.cbm           # CatBoost Surge
-├── vcp_xgb_{market}_{horizon}d.json            # VCP ML
-├── ensemble_weights.json                       # 앙상블 가중치
-└── tuned_params.json                           # 튜닝된 하이퍼파라미터
-```
-
-### 7.3 XGBoost 2.1.4 호환성 Workaround
-
-XGBoost 2.1.4에서 `model.save_model()` 호출 시 `_get_type()` → `TypeError` 버그가 있어,
-**Booster 직접 저장** 방식을 사용합니다:
-
-```python
-# 저장
-model.get_booster().save_model(str(model_path))
-
-# 로드
-booster = xgb.Booster()
-booster.load_model(str(model_path))
-wrapper = xgb.XGBRegressor()
-wrapper._Booster = booster
-wrapper._estimator_type = 'regressor'
-```
+- **전략 19 (Supply Chain Momentum)**: 전방 완성품 대기업(예: 삼성전자, 현대차, 애플) 1D/3D 급등 시 1~3일 시차를 두고 부품/장비 공급망 협력사로 온기가 전이되는 모멘텀 파급 스코어링.
+- **전략 20 (NLP Sentiment Catalyst)**: DART/SEC 공시 요약문 및 뉴스 텍스트를 FinBERT 모델로 감성 분류하여 긍정/부정 스코어 산출.
+- **전략 21 (Multi-Factor Style Neutralizer)**: Fama-French 5-Factor(Market, SMB, HML, RMW, CMA)에 대한 회귀 잔차를 추출하여 순수 종목 고유 알파($\|\rho\| < 0.15$) 산출.
+- **전략 22 (Dynamic Volatility Targeting)**: 실현 변동성과 포트폴리오 목표 변동성(연 12%)을 비교하여 리스크 파리티 비중 스코어링.
+- **전략 23 (Microstructure Imbalance)**: 호가창 매수/매도 잔량 불균형(Order Book Imbalance) 및 장 마감 동시호가 수급 오버나이트 갭 점수.
 
 ---
 
-## 8. 자율 매매 에이전트 & 퀀트 고도화 규칙
+## 6. 회계 품질 & 특수 촉매 엔진 (전략 24~31)
 
-**파일**: `src/ai/trading_agent.py` — `TradingAgent`
+- **전략 24 (Accruals Quality Anomaly)**: 순이익과 영업활동현금흐름(OCF) 간의 발생액 괴리율 $\frac{\text{Net Income} - \text{OCF}}{\text{Total Assets}}$ 회계적 투명성 점수.
+- **전략 25 (Short Interest & Squeeze)**: 공매도 잔고 비율, Days-to-Cover, 5일 상승 모멘텀을 결합한 숏스퀴즈 발생 확률.
+- **전략 26 (Value-Up & Shareholder Yield)**: 저PBR(<1.0) + 순현금/시총 비율 + 총주주환원율(배당수익률 + 자사주 소각률).
+- **전략 27 (Kaufman Trend Efficiency)**: Kaufman Efficiency Ratio (KER) 및 Hurst Exponent ($H > 0.5$) 기반 고순도 추세 필터.
+- **전략 28 (Gamma Squeeze)**: 옵션 미결제약정(OI) 집중 구간 및 콜옵션 델타 가속도 기반 델타/감마 헤지 스퀴즈.
+- **전략 29 (Insider Buying)**: 임원 및 주요주주 내부자 장내 매수 공시 수치화.
+- **전략 30 (Earnings Tone Drift)**: 콘퍼런스콜 어닝콜 질의응답 텍스트 톤 변화 감성 퀀트.
+- **전략 31 (High-Frequency Darkpool & Microspread)**: 다크풀 대량 블록딜 체결 및 틱 스프레드 마이크로구조 모멘텀.
 
-자율 매매 에이전트는 생성된 투자 시그널을 바탕으로 계좌 자산을 보호하고 리스크를 제한하기 위해 5가지 운영 규칙과 4가지 핵심 퀀트 고도화 알고리즘을 수행합니다.
+---
 
-### 8.1 5대 운영 규칙 (Operational Rules)
+## 7. 통계적 직교화 및 팩터 억제 (Statistical Hygiene)
 
-1. **위험 관리 (Rule 1)**
-   - 단일 거래에 대한 최대 손실 금액이 총 자본금의 2%를 초과할 수 없도록 제한합니다.
-   - 켈리 공식 또는 수동 비중으로 계산된 주문 수량이 리스크 한도를 초과할 경우, 리스크 캡 내로 들어오도록 수량을 자동으로 동적 축소(Downsizing)합니다.
+### 7.1 PCA-ZCA 대칭 화이트닝 & Gram-Schmidt 직교화
+- **PCA-ZCA 대칭 화이트닝**:
+  $$C = V \Lambda V^T, \quad C^{-1/2} = V \Lambda^{-1/2} V^T, \quad X_{\text{decorr}} = \bar{X} \cdot C^{-1/2}$$
+  - 순서 편향 없이 모든 팩터 간 상관관계를 $0.0$으로 정규 직교화.
+- **순차 Gram-Schmidt**: 레짐 가중치 순으로 정렬 후 선행 요인에 대한 사영(Projection) 성분 제거.
 
-2. **시장 상황 및 감성 필터 (Rule 2)**
-   - 뉴스 감성 수집기(`NewsSentimentFetcher`)를 통해 조회된 최근 1시간 뉴스 감성 점수 평균이 **-0.2 이하**인 경우 매수를 차단합니다.
-   - 공포지수(VIX)가 **30.0 이상**으로 급등하여 시장 불확실성이 극에 달할 경우 신규 매수를 차단합니다.
+### 7.2 결측 적응형 동적 재정규화 (Missingness-Aware Renormalization)
+- 특정 종목에 데이터(옵션, 재무 등)가 결측된 경우, 유효한 전략 집합 $V_i$에 대해 가중치를 재스케일링:
+  $$S_{\text{linear}, i} = \frac{\sum_{k \in V_i} w_k \cdot s_{k, i}}{\sum_{k \in V_i} w_k}$$
+- 커버리지 비율 $\frac{|V_i|}{K} < 0.40$ 미달 시 신뢰도 페널티 부과.
 
-3. **통계적 우위 검증 (Rule 3)**
-   - `TradeJournal`에 기록된 최근 90일 동안의 매도 거래 횟수가 **5회 이상**일 경우, 승률이 **55% 이상**이고 수학적 기대값(Mathematical Edge)이 양수 (\(> 0\))인 경우에만 신규 시그널을 통과시킵니다.
-   - 데이터 수(거래 횟수)가 5회 미만일 때는 기본 백테스트 우위 사전 확률(Priors)을 사용해 검증합니다.
+---
 
-4. **의사결정 보고 (Rule 4)**
-   - 매수, 매도, 청산 결정을 내리기 전, 거래 방향, 수량, 진입 단가, 손절가, 익절가 및 결정의 구체적인 통계적/정량적 판단 근거를 요약하여 보고서 형식으로 Telegram 알림 시스템을 통해 전송합니다.
+## 8. 2D 시장 레짐 & 동적 앙상블 가중치
 
-5. **비상 대응 프로토콜 (Rule 5)**
-   - 시장 지수(KOSPI, S&P500 등)의 일중 등락율이 **5.0% 이상**으로 급변하는 서킷 브레이커 수준의 사태 발생 시, 모든 대기(Pending) 주문을 즉시 취소하고 보유 중인 모든 주식 포지션을 시장가로 전량 즉시 청산하여 현금화합니다.
+### 8.1 6대 2D 레짐 매트릭스
+20일 벤치마크 추세($\pm 1\%$)와 20일 실현 변동성(15% / 25%)을 결합:
+1. `BULL_LOW_VOL`: 모멘텀, VCP ML, Surge 가중치 극대화
+2. `BULL_HIGH_VOL`: Gamma Squeeze, Vol Target 가중치 강화
+3. `SIDEWAYS_LOW_VOL`: Stat-Arb, RIM Valuation, Value-Up 가중치 강화
+4. `SIDEWAYS_HIGH_VOL`: Short-Term Reversal, Stat-Arb 가중치 강화
+5. `BEAR_LOW_VOL`: Accruals Quality, RIM Valuation 방어 팩터 강화
+6. `BEAR_HIGH_VOL`: Short Squeeze, 현금 비중 극대화 & 리스크 게이팅
 
-### 8.2 4대 퀀트 고도화 알고리즘 (Quant Enhancements)
+---
 
-#### Q1. ATR 동적 트레일링 스탑 (Trailing Stop)
-기존의 고정 -5% 손절선을 대체하여, 최근 14일간의 변동성 평균인 ATR(Average True Range)을 활용합니다.
-- **최고가 추적**: 진입 이후 기록된 최고가(\(\text{HighestPrice}\))를 지속적으로 모니터링합니다.
-- **동적 손절선**: \(\text{HighestPrice} - 2.5 \times \text{ATR}_{14}\)로 설정되며, 최고가가 갱신될 때마다 동적으로 함께 올라갑니다. 가격이 이 선 아래로 떨어지면 즉각 매도 청산합니다.
-- 고정 익절선(진입가 +15%)은 병행 운영하여 확정 이익을 조기 실현합니다.
+## 9. 포트폴리오 최적화 & EVT-CVaR 꼬리위험 예산
 
-#### Q2. Pearson 상관관계 기반 포트폴리오 다각화 (Diversification)
-상승 섹터에 대한 과집중(Overweight) 리스크를 최소화하기 위해 신규 진입 종목과 기존 포트폴리오 보유 종목들 간의 동조화를 검사합니다.
-- **수익률 계산**: 진입 후보 종목과 기존 보유 종목들의 최근 60영업일 일간 수익률 시계열을 가져옵니다.
-- **상관계수 산출**: Pearson 상관계수(\(\rho\))를 행렬 형태로 구합니다.
-- **동적 액션**:
-  - \(\rho \ge 0.85\): 동조화가 극도로 심한 종목으로 판정하여 진입을 완전히 보류합니다 (`BLOCK`).
-  - \(0.70 \le \rho < 0.85\): 동조화가 의심되는 종목으로 판정하여 투자 비중(수량)을 절반으로 감축하여 진입합니다 (`HALVE`).
-  - \(\rho < 0.70\): 상관관계가 낮으므로 다각화에 적합한 것으로 판정하여 정상 수량으로 진입합니다 (`OK`).
+### 9.1 Hierarchical Risk Parity (HRP) & Ledoit-Wolf 축소
+- 자산 간 상관거리 $d_{ij} = \sqrt{\frac{1 - \rho_{ij}}{2}}$ 기반 계층적 군집 트리(Tree) 생성.
+- Ledoit-Wolf 수축 공분산 행렬 $\Sigma_{\text{shrunk}} = (1 - \delta)\Sigma + \delta \nu I$ ($\delta = 0.15$)을 적용하여 역행렬 불안정성 제거.
 
-#### Q3. 위기 단계별 동적 리스크 캡 (Crisis Dynamic Cap)
-VIX 지수를 기준으로 계산된 시장 위기 점수(Crisis Score) 및 위기 레벨(Crisis Level)에 따라 단일 거래에 허용하는 리스크 캡(자본금 대비 비율)을 차등 적용합니다:
-- **NONE** (평온): 리스크 한도 **2.0%**
-- **WATCH** (주의): 리스크 한도 **1.5%**
-- **ACTIVE** (위기): 리스크 한도 **1.0%**
-- **SEVERE** (심각): 신규 매수 수량을 0으로 제한 (**진입 전면 차단**)
+### 9.2 EVT-CVaR 3단계 계층 예산
+- Peaks-Over-Threshold (POT) 기반 Generalized Pareto Distribution (GPD) 적합 $\to$ Cornish-Fisher $\to$ Empirical 3단계 폴백으로 95% CVaR 산출 및 포트폴리오 꼬리위험 통제.
 
-#### Q4. 실효 매매비용 및 슬리피지 내재화 (Net PnL Internalization)
-실제 트레이딩 환경에서의 수수료, 세금 및 시장 충격(슬리피지)을 매수/매도 실효 단가에 반영하여 정밀한 Net PnL을 산출합니다:
-- **매수 실효가**: \(\text{Price}_{\text{buy\_net}} = \text{Price} \times (1 + \text{Fee}_{\text{buy\_pct}} + \text{Slippage}_{\text{pct}}) = \text{Price} \times 1.00215\) (수수료 0.015%, 슬리피지 0.2% 가정)
-- **매도 실효가**: \(\text{Price}_{\text{sell\_net}} = \text{Price} \times (1 - \text{Fee}_{\text{sell\_pct}} - \text{Tax}_{\text{pct}} - \text{Slippage}_{\text{pct}}) = \text{Price} \times 0.99545\) (수수료/거래세 0.255%, 슬리피지 0.2% 가정)
-- **Net PnL**: \(( \text{Price}_{\text{sell\_net}} - \text{Price}_{\text{buy\_net}} ) \times \text{Quantity}\)
+### 9.3 Leland 동적 No-Trade 버퍼 밴드
+- 불필요한 잦은 매매를 방지하기 위해 종목별 마찰비용과 변동성을 반영한 버퍼 밴드 $\delta_i \in [0.5\%, 5.0\%]$ 적용:
+  $$w_{i, \text{current}} \in [w_{i, \text{target}} - \delta_i, \; w_{i, \text{target}} + \delta_i] \implies \text{HOLD}$$
+
+---
+
+## 10. 실전 미시구조 거래비용 및 슬리피지 피드백
+
+### 10.1 시장별 거래비용 모델
+- **KOSPI**: 증권거래세 0.15% + 브로커 수수료 0.03% + 동적 스프레드 $S_i$ + Kyle 시장 충격
+- **KOSDAQ**: 증권거래세 0.18% + 브로커 수수료 0.03% + 동적 스프레드 $S_i$ + Kyle 시장 충격
+- **S&P 500 / NASDAQ**: SEC Fee 0.003% + 브로커 수수료 0.005% + 동적 스프레드 + 시장 충격
+
+### 10.2 슬리피지 피드백 루프
+- `trade_logs.db`에 저장된 실체결 가격과 주문 시점 호가를 비교하여 비용 승수 $k_{\text{cost}}$ 및 시장충격 지수 $\alpha$를 자동 업데이트.
+
+---
+
+## 11. Execution OMS 6대 주문 안전 게이트
+
+1. **Gate 1 (거시 위기 게이트)**: `CrisisLevel.SEVERE` 판정 시 신규 매수 주문 100% 차단.
+2. **Gate 2 (하드웨어 킬 스위치)**: `KILL_SWITCH` 파일 또는 환경변수 감지 시 모든 신규 주문 즉시 차단.
+3. **Gate 3 (심볼 정규식 검증)**: 유효하지 않은 문자열(JSON dict 문자열, 공백 등) 차단.
+4. **Gate 4 (가격 유효 경계)**: $1.0 \le P \le 100,000,000$ 범위 외 주문 거부.
+5. **Gate 5 (단위 라운딩)**: 한국 시장 10주 단위 (소수점 주문 불가) 자동 라운딩.
+6. **Gate 6 (포지션 집중도 상한)**: 단일 종목 최대 비중 10% (집중 허용 시 20%), 단일 섹터 최대 25% 하드 캡.
