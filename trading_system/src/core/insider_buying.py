@@ -96,6 +96,8 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                     matching_items = filings_by_code.get(sym_raw)
                 if not matching_items:
                     continue
+
+                for item in matching_items:
                     report_nm = str(item.get('report_nm', ''))
                     insider_role = str(item.get('insider_role', 'EXECUTIVE')).upper()
                     trans_type = str(item.get('trans_type', 'BUY')).upper()
