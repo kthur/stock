@@ -66,12 +66,11 @@ jobs:
         env:
           LOG_LEVEL: INFO
           TZ: 'Asia/Seoul'
-          REALTIME_STATE_DB: realtime_state.db
+          REALTIME_STATE_DB: trading_system/realtime_state.db
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        working-directory: trading_system
         run: |
-          .venv/bin/python realtime_monitor.py --once --dry-run 2>&1
+          .venv/bin/python trading_system/realtime_monitor.py --once --dry-run 2>&1
 
       - name: Notify Telegram on Monitor Alert
         if: failure()
