@@ -594,4 +594,4 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
 
         except Exception as e:
             logger.warning(f"[StatArbEngine] compute_scores failed: {e}")
-            return pd.DataFrame(columns=["symbol", "stat_arb_score"])
+            return pd.DataFrame(columns=["symbol", "stat_arb_score", "long_only_mode"])
