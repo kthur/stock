@@ -65,16 +65,14 @@ jobs:
 
 
     - name: Run unit tests
-      working-directory: trading_system
       env:
         STOCK_PRICE_FRESHNESS_DAYS: none
-        PYTHONPATH: .
+        PYTHONPATH: trading_system:trading_system/src:.
       run: |
-        python -m coverage run --source=src -m pytest tests/ -v
+        python -m coverage run --source=trading_system/src -m pytest tests/ -v
 
     - name: Generate coverage report
       if: always()
-      working-directory: trading_system
       run: |
         if [ -f .coverage ]; then
           python -m coverage report
