@@ -123,12 +123,12 @@ class IVSkewEngine(BaseStrategyEngine):
                             ret_20 = ret.tail(20)
                             down_ret = ret_20[ret_20 < 0]
                             up_ret = ret_20[ret_20 > 0]
-                            down_vol = float(down_ret.std()) if len(down_ret) >= 2 else 0.01
-                            up_vol = float(up_ret.std()) if len(up_ret) >= 2 else 0.01
+                            down_vol = float(down_ret.std()) if len(down_ret) >= 2 else (float(np.abs(down_ret.iloc[0])) if len(down_ret) == 1 else 0.005)
+                            up_vol = float(up_ret.std()) if len(up_ret) >= 2 else (float(np.abs(up_ret.iloc[0])) if len(up_ret) == 1 else 0.005)
                             if np.isnan(down_vol) or down_vol <= 0:
-                                down_vol = 0.01
+                                down_vol = 0.005
                             if np.isnan(up_vol) or up_vol <= 0:
-                                up_vol = 0.01
+                                up_vol = 0.005
                             skew_ratio = down_vol / up_vol
                             ret_skew = float(ret.tail(20).skew()) if len(ret) >= 20 else 0.0
                             if np.isnan(ret_skew):
