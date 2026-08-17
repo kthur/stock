@@ -620,7 +620,7 @@ def main():
     merge_portfolio_allocation(result_dir, target_dirs)
     merge_backtest_summary(result_dir, target_dirs)
 
-    # Merge remaining 17 strategy individual outputs
+    # Merge remaining strategy individual outputs (all 31 strategies)
     merge_generic_strategy_files(result_dir, target_dirs, "lstm_predictions.txt", "Strict Causal LSTM Time-Series Deep Learning Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "sector_predictions.txt", "Sector Rotation Momentum & Macro Sensitivity Report")
     merge_generic_strategy_files(result_dir, target_dirs, "rim_predictions.txt", "RIM Intrinsic Valuation Predictions")
@@ -639,6 +639,14 @@ def main():
     merge_generic_strategy_files(result_dir, target_dirs, "factor_neutralized_predictions.txt", "Multi-Factor Style Neutralized Pure Alpha Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "vol_target_predictions.txt", "Dynamic Volatility Targeting Risk Parity Predictions")
     merge_generic_strategy_files(result_dir, target_dirs, "microstructure_predictions.txt", "Order Book Microstructure Imbalance Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "accruals_quality_predictions.txt", "Accruals Quality Accounting Anomaly Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "short_squeeze_predictions.txt", "Short Interest & Squeeze Catalyst Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "valueup_catalyst_predictions.txt", "Value-Up & Shareholder Yield Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "trend_efficiency_predictions.txt", "Kaufman Trend Efficiency Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "gamma_squeeze_predictions.txt", "Options Gamma Squeeze Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "insider_buying_predictions.txt", "Executive & Insider Buying Catalyst Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "hft_order_flow_predictions.txt", "HFT Order Flow & Dark Pool Predictions")
+    merge_generic_strategy_files(result_dir, target_dirs, "earnings_tone_drift_predictions.txt", "Earnings Tone Drift NLP Quant Predictions")
 
     print("All prediction files successfully merged.")
 

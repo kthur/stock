@@ -2922,15 +2922,32 @@ def execute_prediction_pipeline():
         supply_chain_df = sc_engine.compute_scores(infer_data_dict, universe)
         sc_output_path = os.path.join(result_dir, "supply_chain_predictions.txt")
         if not supply_chain_df.empty:
+            sc_merged = supply_chain_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in supply_chain_df.columns else supply_chain_df
+            sc_merged = sc_merged.sort_values(by='supply_chain_score', ascending=False)
             with open(sc_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 19: Supply Chain Lead-Lag Momentum Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(supply_chain_df)}\n\n")
+                f.write(f"Total symbols evaluated: {len(sc_merged)}\n\n")
                 f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'SC Score':<14}\n")
                 f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(supply_chain_df.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(sc_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['supply_chain_score']:>12.1f}%\n")
+                    sc_val = row['supply_chain_score'] * 100.0 if row['supply_chain_score'] <= 1.0 else row['supply_chain_score']
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{sc_val:>12.1f}%\n")
+            logger.info(f"Saved Supply Chain predictions ({len(sc_merged)} symbols) to {sc_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = sc_merged[sc_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"supply_chain_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Supply Chain Momentum Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'SC Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        sc_val = row['supply_chain_score'] * 100.0 if row['supply_chain_score'] <= 1.0 else row['supply_chain_score']
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{sc_val:>12.1f}%\n")
     except Exception as _sc_e:
         logger.warning(f"Supply chain strategy computation failed: {_sc_e}")
         supply_chain_df = pd.DataFrame()
@@ -2942,15 +2959,32 @@ def execute_prediction_pipeline():
         sentiment_df = sent_engine.compute_scores(universe)
         sent_output_path = os.path.join(result_dir, "sentiment_predictions.txt")
         if not sentiment_df.empty:
+            sent_merged = sentiment_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in sentiment_df.columns else sentiment_df
+            sent_merged = sent_merged.sort_values(by='sentiment_score', ascending=False)
             with open(sent_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 20: NLP & FinBERT Sentiment Catalyst Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(sentiment_df)}\n\n")
+                f.write(f"Total symbols evaluated: {len(sent_merged)}\n\n")
                 f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Sent Score':<14}\n")
                 f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(sentiment_df.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(sent_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['sentiment_score']:>12.1f}%\n")
+                    sent_val = row['sentiment_score'] * 100.0 if row['sentiment_score'] <= 1.0 else row['sentiment_score']
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{sent_val:>12.1f}%\n")
+            logger.info(f"Saved Sentiment predictions ({len(sent_merged)} symbols) to {sent_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = sent_merged[sent_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"sentiment_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Sentiment Catalyst Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Sent Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        sent_val = row['sentiment_score'] * 100.0 if row['sentiment_score'] <= 1.0 else row['sentiment_score']
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{sent_val:>12.1f}%\n")
     except Exception as _sent_e:
         logger.warning(f"Sentiment strategy computation failed: {_sent_e}")
         sentiment_df = pd.DataFrame()
@@ -2967,18 +3001,39 @@ def execute_prediction_pipeline():
         )
         fn_output_path = os.path.join(result_dir, "factor_neutralized_predictions.txt")
         if not factor_neutralized_df.empty:
+            fn_merged = factor_neutralized_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in factor_neutralized_df.columns else factor_neutralized_df
+            _scol = 'factor_neutralized_score' if 'factor_neutralized_score' in fn_merged.columns else 'neutralized_score'
+            fn_merged = fn_merged.sort_values(by=_scol, ascending=False)
             with open(fn_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 21: Multi-Factor Style Neutralized Pure Alpha Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(factor_neutralized_df)}\n\n")
+                f.write(f"Total symbols evaluated: {len(fn_merged)}\n\n")
                 f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'FN Score':<14}\n")
                 f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(factor_neutralized_df.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(fn_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     score_val = row.get('factor_neutralized_score', row.get('neutralized_score', 0.0))
                     if pd.isna(score_val):
                         score_val = 0.0
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{score_val * 100.0 if score_val <= 1.0 else score_val:>12.1f}%\n")
+                    fn_val = score_val * 100.0 if score_val <= 1.0 else score_val
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{fn_val:>12.1f}%\n")
+            logger.info(f"Saved Factor Neutralized predictions ({len(fn_merged)} symbols) to {fn_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = fn_merged[fn_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"factor_neutralized_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Factor Neutralized Alpha Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'FN Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        score_val = row.get('factor_neutralized_score', row.get('neutralized_score', 0.0))
+                        if pd.isna(score_val):
+                            score_val = 0.0
+                        fn_val = score_val * 100.0 if score_val <= 1.0 else score_val
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{fn_val:>12.1f}%\n")
     except Exception as _fn_e:
         logger.warning(f"Multi-factor neutralizer strategy computation failed: {_fn_e}")
         factor_neutralized_df = pd.DataFrame()
@@ -2990,15 +3045,32 @@ def execute_prediction_pipeline():
         vol_target_df = vt_engine.compute_scores(infer_data_dict, universe)
         vt_output_path = os.path.join(result_dir, "vol_target_predictions.txt")
         if not vol_target_df.empty:
+            vt_merged = vol_target_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in vol_target_df.columns else vol_target_df
+            vt_merged = vt_merged.sort_values(by='vol_target_score', ascending=False)
             with open(vt_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 22: Dynamic Volatility Targeting Risk Parity Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(vol_target_df)}\n\n")
+                f.write(f"Total symbols evaluated: {len(vt_merged)}\n\n")
                 f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'VT Score':<14}\n")
                 f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(vol_target_df.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(vt_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['vol_target_score']:>12.1f}%\n")
+                    vt_val = row['vol_target_score'] * 100.0 if row['vol_target_score'] <= 1.0 else row['vol_target_score']
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{vt_val:>12.1f}%\n")
+            logger.info(f"Saved Volatility Targeting predictions ({len(vt_merged)} symbols) to {vt_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = vt_merged[vt_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"vol_target_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Volatility Targeting Risk Parity ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'VT Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        vt_val = row['vol_target_score'] * 100.0 if row['vol_target_score'] <= 1.0 else row['vol_target_score']
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{vt_val:>12.1f}%\n")
     except Exception as _vt_e:
         logger.warning(f"Volatility targeting strategy computation failed: {_vt_e}")
         vol_target_df = pd.DataFrame()
@@ -3010,15 +3082,32 @@ def execute_prediction_pipeline():
         microstructure_df = micro_engine.compute_scores(infer_data_dict, universe)
         micro_output_path = os.path.join(result_dir, "microstructure_predictions.txt")
         if not microstructure_df.empty:
+            micro_merged = microstructure_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in microstructure_df.columns else microstructure_df
+            micro_merged = micro_merged.sort_values(by='microstructure_score', ascending=False)
             with open(micro_output_path, "w", encoding="utf-8") as f:
                 f.write("=== Strategy 23: Order Book Microstructure Imbalance Predictions ===\n")
                 f.write(f"Date: {kst_now_str}\n")
-                f.write(f"Total symbols evaluated: {len(microstructure_df)}\n\n")
+                f.write(f"Total symbols evaluated: {len(micro_merged)}\n\n")
                 f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Market':<10}{'Micro Score':<14}\n")
                 f.write("-" * 60 + "\n")
-                for rank, (_, row) in enumerate(microstructure_df.head(100).iterrows(), 1):
+                for rank, (_, row) in enumerate(micro_merged.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
-                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['microstructure_score']:>12.1f}%\n")
+                    micro_val = row['microstructure_score'] * 100.0 if row['microstructure_score'] <= 1.0 else row['microstructure_score']
+                    f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{micro_val:>12.1f}%\n")
+            logger.info(f"Saved Microstructure predictions ({len(micro_merged)} symbols) to {micro_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = micro_merged[micro_merged['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"microstructure_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Microstructure Imbalance Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Micro Score':<14}\n")
+                    _mf.write("-" * 50 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        micro_val = row['microstructure_score'] * 100.0 if row['microstructure_score'] <= 1.0 else row['microstructure_score']
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{micro_val:>12.1f}%\n")
     except Exception as _micro_e:
         logger.warning(f"Microstructure strategy computation failed: {_micro_e}")
         microstructure_df = pd.DataFrame()
@@ -3042,6 +3131,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(aq_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['accruals_quality_score'] * 100.0 if row['accruals_quality_score'] <= 1.0 else row['accruals_quality_score']:>14.1f}%\n")
+            logger.info(f"Saved Accruals Quality predictions ({len(aq_write_df)} symbols) to {aq_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = aq_write_df[aq_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"accruals_quality_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Accruals Quality Anomaly Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Accruals Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['accruals_quality_score'] * 100.0 if row['accruals_quality_score'] <= 1.0 else row['accruals_quality_score']:>14.1f}%\n")
     except Exception as _aq_e:
         logger.warning(f"Accruals quality strategy computation failed: {_aq_e}")
         accruals_quality_df = pd.DataFrame()
@@ -3065,6 +3167,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(sq_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['short_squeeze_score'] * 100.0 if row['short_squeeze_score'] <= 1.0 else row['short_squeeze_score']:>14.1f}%\n")
+            logger.info(f"Saved Short Squeeze predictions ({len(sq_write_df)} symbols) to {sq_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = sq_write_df[sq_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"short_squeeze_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Short Interest & Squeeze Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Squeeze Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['short_squeeze_score'] * 100.0 if row['short_squeeze_score'] <= 1.0 else row['short_squeeze_score']:>14.1f}%\n")
     except Exception as _sq_e:
         logger.warning(f"Short squeeze strategy computation failed: {_sq_e}")
         short_squeeze_df = pd.DataFrame()
@@ -3088,6 +3203,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(vu_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['valueup_catalyst_score'] * 100.0 if row['valueup_catalyst_score'] <= 1.0 else row['valueup_catalyst_score']:>14.1f}%\n")
+            logger.info(f"Saved Value-Up Catalyst predictions ({len(vu_write_df)} symbols) to {vu_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = vu_write_df[vu_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"valueup_catalyst_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Value-Up & Shareholder Yield ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'ValueUp Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['valueup_catalyst_score'] * 100.0 if row['valueup_catalyst_score'] <= 1.0 else row['valueup_catalyst_score']:>14.1f}%\n")
     except Exception as _vu_e:
         logger.warning(f"Value-Up catalyst strategy computation failed: {_vu_e}")
         valueup_catalyst_df = pd.DataFrame()
@@ -3111,6 +3239,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(te_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['trend_efficiency_score'] * 100.0 if row['trend_efficiency_score'] <= 1.0 else row['trend_efficiency_score']:>14.1f}%\n")
+            logger.info(f"Saved Trend Efficiency predictions ({len(te_write_df)} symbols) to {te_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = te_write_df[te_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"trend_efficiency_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Kaufman Trend Efficiency Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Trend Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['trend_efficiency_score'] * 100.0 if row['trend_efficiency_score'] <= 1.0 else row['trend_efficiency_score']:>14.1f}%\n")
     except Exception as _te_e:
         logger.warning(f"Trend efficiency strategy computation failed: {_te_e}")
         trend_efficiency_df = pd.DataFrame()
@@ -3133,6 +3274,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(gs_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['gamma_squeeze_score'] * 100.0 if row['gamma_squeeze_score'] <= 1.0 else row['gamma_squeeze_score']:>14.1f}%\n")
+            logger.info(f"Saved Gamma Squeeze predictions ({len(gs_write_df)} symbols) to {gs_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = gs_write_df[gs_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"gamma_squeeze_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Options Gamma Squeeze Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Gamma Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['gamma_squeeze_score'] * 100.0 if row['gamma_squeeze_score'] <= 1.0 else row['gamma_squeeze_score']:>14.1f}%\n")
     except Exception as _gs_e:
         logger.warning(f"Gamma squeeze strategy computation failed: {_gs_e}")
         gamma_squeeze_df = pd.DataFrame()
@@ -3155,6 +3309,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(ib_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['insider_buying_score'] * 100.0 if row['insider_buying_score'] <= 1.0 else row['insider_buying_score']:>14.1f}%\n")
+            logger.info(f"Saved Insider Buying predictions ({len(ib_write_df)} symbols) to {ib_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = ib_write_df[ib_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"insider_buying_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Executive & Insider Buying Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Insider Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['insider_buying_score'] * 100.0 if row['insider_buying_score'] <= 1.0 else row['insider_buying_score']:>14.1f}%\n")
     except Exception as _ib_e:
         logger.warning(f"Insider buying strategy computation failed: {_ib_e}")
         insider_buying_df = pd.DataFrame()
@@ -3180,6 +3347,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(et_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['earnings_tone_drift_score'] * 100.0 if row['earnings_tone_drift_score'] <= 1.0 else row['earnings_tone_drift_score']:>14.1f}%\n")
+            logger.info(f"Saved Earnings Tone Drift predictions ({len(et_write_df)} symbols) to {et_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = et_write_df[et_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"earnings_tone_drift_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== Earnings Tone Drift NLP Predictions ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Tone Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['earnings_tone_drift_score'] * 100.0 if row['earnings_tone_drift_score'] <= 1.0 else row['earnings_tone_drift_score']:>14.1f}%\n")
     except Exception as _et_e:
         logger.warning(f"Earnings tone drift strategy computation failed: {_et_e}")
         earnings_tone_drift_df = pd.DataFrame()
@@ -3215,6 +3395,19 @@ def execute_prediction_pipeline():
                 for rank, (_, row) in enumerate(dp_write_df.head(100).iterrows(), 1):
                     name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
                     f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{str(row['market']):<10}{row['darkpool_score'] * 100.0 if row['darkpool_score'] <= 1.0 else row['darkpool_score']:>14.1f}%\n")
+            logger.info(f"Saved HFT Order Flow predictions ({len(dp_write_df)} symbols) to {dp_output_path}")
+            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+                _m_df = dp_write_df[dp_write_df['market'] == _m]
+                if _m_df.empty:
+                    continue
+                with open(os.path.join(result_dir, f"hft_order_flow_predictions_{_m}.txt"), "w", encoding="utf-8") as _mf:
+                    _mf.write(f"=== HFT Order Flow & Dark Pool ({_m}) ===\n")
+                    _mf.write(f"Date: {kst_now_str}\n\n")
+                    _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'HFT Score':<16}\n")
+                    _mf.write("-" * 55 + "\n")
+                    for rank, (_, row) in enumerate(_m_df.head(100).iterrows(), 1):
+                        name_str = str(row['name'])[:16] if pd.notna(row['name']) else "Unknown"
+                        _mf.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['darkpool_score'] * 100.0 if row['darkpool_score'] <= 1.0 else row['darkpool_score']:>14.1f}%\n")
     except Exception as _dp_e:
         logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
         darkpool_df = pd.DataFrame()
@@ -3734,6 +3927,17 @@ def execute_prediction_pipeline():
     except Exception as _oms_e:
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
 
+    def _format_strategy_pct(val, default: float = 0.0, width: int = 4) -> str:
+        if pd.isna(val):
+            v = default
+        else:
+            try:
+                v = float(val)
+            except Exception:
+                v = default
+        pct = v * 100.0 if abs(v) <= 1.0 else v
+        return f"{pct:>{width}.0f}%"
+
     with open(ensemble_output_path, "w", encoding="utf-8") as f:
         f.write(f"=== Dynamic Multi-Strategy Ensemble Predictions ({len(ensemble_weights)} Strategies) ===\n")
         f.write(f"Date: {kst_now_str}\n\n")
@@ -3823,41 +4027,50 @@ def execute_prediction_pipeline():
             f.write("\n=========================================\n")
             f.write(f"[{market}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n")
             f.write("=========================================\n")
-            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
-            f.write("-" * 176 + "\n")
+            f.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}\n")
+            f.write("-" * 280 + "\n")
             for rank, (_, row) in enumerate(m_df.head(100).iterrows(), 1):
                 name_val = row.get('name', 'Unknown')
                 name_str = str(name_val)[:16] if pd.notna(name_val) else "Unknown"
-                vcp_rule_val = row.get('vcp_rule_score', 0.0)
-                vcp_rule_val = 0.0 if pd.isna(vcp_rule_val) else vcp_rule_val
-                lstm_val = row.get('lstm_score', 0.0)
-                lstm_val = 0.0 if pd.isna(lstm_val) else lstm_val
-                sa_val = row.get('stat_arb_score', 0.0)
-                sa_val = 0.0 if pd.isna(sa_val) else sa_val
-                sec_val = row.get('sector_score', 0.0)
-                sec_val = 0.0 if pd.isna(sec_val) else sec_val
-                rim_val = row.get('rim_score', 0.0)
-                rim_val = 0.0 if pd.isna(rim_val) else rim_val
-                ev_val = row.get('event_score', 0.0)
-                ev_val = 0.0 if pd.isna(ev_val) else ev_val
-                mq_val = row.get('mq_score', 0.0)
-                mq_val = 0.0 if pd.isna(mq_val) else mq_val
-                iv_val = row.get('iv_skew_score', 0.0)
-                iv_val = 0.0 if pd.isna(iv_val) else iv_val
-                of_val = row.get('order_flow_score', 0.0)
-                of_val = 0.0 if pd.isna(of_val) else of_val
-                rev_val = row.get('reversal_score', 0.0)
-                rev_val = 0.0 if pd.isna(rev_val) else rev_val
-                arm_val = row.get('arm_score', 0.0)
-                arm_val = 0.0 if pd.isna(arm_val) else arm_val
-                card_val = row.get('card_score', 0.0)
-                card_val = 0.0 if pd.isna(card_val) else card_val
-                latr_val = row.get('latr_score', 0.0)
-                latr_val = 0.0 if pd.isna(latr_val) else latr_val
-                ifs_val = row.get('inst_foreign_sector_score', 0.0)
-                ifs_val = 0.0 if pd.isna(ifs_val) else ifs_val
 
-                f.write(f"{rank:<5}{row['symbol']:<10}{name_str:<18}{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%{row['reg_score']*100:>4.0f}%{row['surge_score']*100:>4.0f}%{row['ll_score']*100:>4.0f}%{vcp_rule_val*100:>5.0f}%{row['vcp_ml_score']*100:>5.0f}%{lstm_val*100:>4.0f}%{sa_val*100:>5.0f}%{sec_val*100:>5.0f}%{rim_val*100:>4.0f}%{ev_val*100:>5.0f}%{mq_val*100:>4.0f}%{iv_val*100:>5.0f}%{of_val*100:>4.0f}%{rev_val*100:>4.0f}%{arm_val*100:>4.0f}%{card_val*100:>5.0f}%{latr_val*100:>4.0f}%{ifs_val*100:>4.0f}%\n")
+                _reg_s = _format_strategy_pct(row.get('reg_score', 0.0), 0.0, 4)
+                _srg_s = _format_strategy_pct(row.get('surge_score', 0.0), 0.0, 4)
+                _ll_s  = _format_strategy_pct(row.get('ll_score', 0.0), 0.0, 4)
+                _vcpr_s = _format_strategy_pct(row.get('vcp_rule_score', 0.0), 0.0, 5)
+                _vcpm_s = _format_strategy_pct(row.get('vcp_ml_score', 0.0), 0.0, 5)
+                _lstm_s = _format_strategy_pct(row.get('lstm_score', 0.0), 0.0, 4)
+                _sa_s  = _format_strategy_pct(row.get('stat_arb_score', 0.0), 0.0, 5)
+                _sec_s = _format_strategy_pct(row.get('sector_score', 0.0), 0.0, 5)
+                _rim_s = _format_strategy_pct(row.get('rim_score', 0.0), 0.0, 4)
+                _ev_s  = _format_strategy_pct(row.get('event_score', 0.0), 0.0, 5)
+                _mq_s  = _format_strategy_pct(row.get('mq_score', 0.0), 0.0, 4)
+                _iv_s  = _format_strategy_pct(row.get('iv_skew_score', 0.0), 0.0, 5)
+                _of_s  = _format_strategy_pct(row.get('order_flow_score', 0.0), 0.0, 4)
+                _rev_s = _format_strategy_pct(row.get('reversal_score', 0.0), 0.0, 4)
+                _arm_s = _format_strategy_pct(row.get('arm_score', 0.0), 0.0, 4)
+                _crd_s = _format_strategy_pct(row.get('card_score', 0.0), 0.0, 5)
+                _lat_s = _format_strategy_pct(row.get('latr_score', 0.0), 0.0, 4)
+                _ifs_s = _format_strategy_pct(row.get('inst_foreign_sector_score', 0.0), 0.0, 4)
+                _sc_s  = _format_strategy_pct(row.get('supply_chain_score', 0.0), 0.0, 6)
+                _nlp_s = _format_strategy_pct(row.get('sentiment_score', 0.0), 0.0, 4)
+                _fn_s  = _format_strategy_pct(row.get('factor_neutralized_score', row.get('neutralized_score', 0.0)), 0.0, 7)
+                _vt_s  = _format_strategy_pct(row.get('vol_target_score', 0.0), 0.0, 5)
+                _mic_s = _format_strategy_pct(row.get('microstructure_score', 0.0), 0.0, 5)
+                _aq_s  = _format_strategy_pct(row.get('accruals_quality_score', 0.0), 0.0, 7)
+                _sq_s  = _format_strategy_pct(row.get('short_squeeze_score', 0.0), 0.0, 4)
+                _vu_s  = _format_strategy_pct(row.get('valueup_catalyst_score', 0.0), 0.0, 7)
+                _te_s  = _format_strategy_pct(row.get('trend_efficiency_score', 0.0), 0.0, 8)
+                _gs_s  = _format_strategy_pct(row.get('gamma_squeeze_score', 0.0), 0.0, 7)
+                _ib_s  = _format_strategy_pct(row.get('insider_buying_score', 0.0), 0.0, 7)
+                _dp_s  = _format_strategy_pct(row.get('darkpool_score', row.get('hft_score', 0.0)), 0.0, 8)
+                _et_s  = _format_strategy_pct(row.get('earnings_tone_drift_score', 0.0), 0.0, 9)
+
+                f.write(
+                    f"{rank:<5}{row['symbol']:<10}{name_str:<18}"
+                    f"{row['ensemble_score']*100:>10.1f}%{row['ensemble_expected_return']:>12.2f}%"
+                    f"{_reg_s}{_srg_s}{_ll_s}{_vcpr_s}{_vcpm_s}{_lstm_s}{_sa_s}{_sec_s}{_rim_s}{_ev_s}{_mq_s}{_iv_s}{_of_s}{_rev_s}{_arm_s}{_crd_s}{_lat_s}{_ifs_s}"
+                    f"{_sc_s}{_nlp_s}{_fn_s}{_vt_s}{_mic_s}{_aq_s}{_sq_s}{_vu_s}{_te_s}{_gs_s}{_ib_s}{_dp_s}{_et_s}\n"
+                )
             f.write("\n")
         if macro_warnings:
             f.write("--- Data Quality Notes (auto-detected) ---\n")
@@ -3879,51 +4092,48 @@ def execute_prediction_pipeline():
             _mf.write("\n=========================================\n")
             _mf.write(f"[{_m}] Top 100 Ensemble Picks (Target Horizon: 20D Expected Return)\n")
             _mf.write("=========================================\n")
-            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}\n")
-            _mf.write("-" * 176 + "\n")
+            _mf.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<18}{'Ens Score':<12}{'Exp Ret(20D)':<14}{'Reg':<5}{'Srg':<5}{'L-L':<5}{'VCP-R':<6}{'VCP-M':<6}{'LSTM':<5}{'S-Arb':<6}{'Sec-R':<6}{'RIM':<5}{'Event':<6}{'MQ':<5}{'IV-Sk':<6}{'Flow':<5}{'Rev':<5}{'ARM':<5}{'CARD':<6}{'LATR':<5}{'IFS':<5}{'Supply':<7}{'NLP':<5}{'Neutral':<8}{'Vol-T':<6}{'Micro':<6}{'Accrual':<8}{'S-Sq':<5}{'ValueUp':<8}{'TrendEff':<9}{'GammaSq':<8}{'Insider':<8}{'Darkpool':<9}{'ToneDrift':<10}\n")
+            _mf.write("-" * 280 + "\n")
             for _rank, (_, _row) in enumerate(_m_df.head(100).iterrows(), 1):
                 _name_str = str(_row['name'])[:16] if pd.notna(_row['name']) else "Unknown"
-                _vcp_r = _row.get('vcp_rule_score', 0.0)
-                _vcp_r = 0.0 if pd.isna(_vcp_r) else _vcp_r
-                _lstm = _row.get('lstm_score', 0.0)
-                _lstm = 0.0 if pd.isna(_lstm) else _lstm
-                _sa = _row.get('stat_arb_score', 0.0)
-                _sa = 0.0 if pd.isna(_sa) else _sa
-                _sec = _row.get('sector_score', 0.0)
-                _sec = 0.0 if pd.isna(_sec) else _sec
-                _rim = _row.get('rim_score', 0.0)
-                _rim = 0.0 if pd.isna(_rim) else _rim
-                _ev = _row.get('event_score', 0.0)
-                _ev = 0.0 if pd.isna(_ev) else _ev
-                _mq = _row.get('mq_score', 0.0)
-                _mq = 0.0 if pd.isna(_mq) else _mq
-                _iv = _row.get('iv_skew_score', 0.0)
-                _iv = 0.0 if pd.isna(_iv) else _iv
-                _of = _row.get('order_flow_score', 0.0)
-                _of = 0.0 if pd.isna(_of) else _of
-                _rev = _row.get('reversal_score', 0.0)
-                _rev = 0.0 if pd.isna(_rev) else _rev
-                _arm = _row.get('arm_score', 0.0)
-                _arm = 0.0 if pd.isna(_arm) else _arm
-                _card = _row.get('card_score', 0.0)
-                _card = 0.0 if pd.isna(_card) else _card
-                _latr = _row.get('latr_score', 0.0)
-                _latr = 0.0 if pd.isna(_latr) else _latr
-                _ifs = _row.get('inst_foreign_sector_score', 0.0)
-                _ifs = 0.0 if pd.isna(_ifs) else _ifs
+
+                _reg_s = _format_strategy_pct(_row.get('reg_score', 0.0), 0.0, 4)
+                _srg_s = _format_strategy_pct(_row.get('surge_score', 0.0), 0.0, 4)
+                _ll_s  = _format_strategy_pct(_row.get('ll_score', 0.0), 0.0, 4)
+                _vcpr_s = _format_strategy_pct(_row.get('vcp_rule_score', 0.0), 0.0, 5)
+                _vcpm_s = _format_strategy_pct(_row.get('vcp_ml_score', 0.0), 0.0, 5)
+                _lstm_s = _format_strategy_pct(_row.get('lstm_score', 0.0), 0.0, 4)
+                _sa_s  = _format_strategy_pct(_row.get('stat_arb_score', 0.0), 0.0, 5)
+                _sec_s = _format_strategy_pct(_row.get('sector_score', 0.0), 0.0, 5)
+                _rim_s = _format_strategy_pct(_row.get('rim_score', 0.0), 0.0, 4)
+                _ev_s  = _format_strategy_pct(_row.get('event_score', 0.0), 0.0, 5)
+                _mq_s  = _format_strategy_pct(_row.get('mq_score', 0.0), 0.0, 4)
+                _iv_s  = _format_strategy_pct(_row.get('iv_skew_score', 0.0), 0.0, 5)
+                _of_s  = _format_strategy_pct(_row.get('order_flow_score', 0.0), 0.0, 4)
+                _rev_s = _format_strategy_pct(_row.get('reversal_score', 0.0), 0.0, 4)
+                _arm_s = _format_strategy_pct(_row.get('arm_score', 0.0), 0.0, 4)
+                _crd_s = _format_strategy_pct(_row.get('card_score', 0.0), 0.0, 5)
+                _lat_s = _format_strategy_pct(_row.get('latr_score', 0.0), 0.0, 4)
+                _ifs_s = _format_strategy_pct(_row.get('inst_foreign_sector_score', 0.0), 0.0, 4)
+                _sc_s  = _format_strategy_pct(_row.get('supply_chain_score', 0.0), 0.0, 6)
+                _nlp_s = _format_strategy_pct(_row.get('sentiment_score', 0.0), 0.0, 4)
+                _fn_s  = _format_strategy_pct(_row.get('factor_neutralized_score', _row.get('neutralized_score', 0.0)), 0.0, 7)
+                _vt_s  = _format_strategy_pct(_row.get('vol_target_score', 0.0), 0.0, 5)
+                _mic_s = _format_strategy_pct(_row.get('microstructure_score', 0.0), 0.0, 5)
+                _aq_s  = _format_strategy_pct(_row.get('accruals_quality_score', 0.0), 0.0, 7)
+                _sq_s  = _format_strategy_pct(_row.get('short_squeeze_score', 0.0), 0.0, 4)
+                _vu_s  = _format_strategy_pct(_row.get('valueup_catalyst_score', 0.0), 0.0, 7)
+                _te_s  = _format_strategy_pct(_row.get('trend_efficiency_score', 0.0), 0.0, 8)
+                _gs_s  = _format_strategy_pct(_row.get('gamma_squeeze_score', 0.0), 0.0, 7)
+                _ib_s  = _format_strategy_pct(_row.get('insider_buying_score', 0.0), 0.0, 7)
+                _dp_s  = _format_strategy_pct(_row.get('darkpool_score', _row.get('hft_score', 0.0)), 0.0, 8)
+                _et_s  = _format_strategy_pct(_row.get('earnings_tone_drift_score', 0.0), 0.0, 9)
 
                 _mf.write(
                     f"{_rank:<5}{_row['symbol']:<10}{_name_str:<18}"
                     f"{_row['ensemble_score']*100:>10.1f}%{_row['ensemble_expected_return']:>12.2f}%"
-                    f"{_row['reg_score']*100:>4.0f}%{_row['surge_score']*100:>4.0f}%{_row['ll_score']*100:>4.0f}%"
-                    f"{_vcp_r*100:>5.0f}%{_row['vcp_ml_score']*100:>5.0f}%"
-                    f"{_lstm*100:>4.0f}%{_sa*100:>5.0f}%"
-                    f"{_sec*100:>5.0f}%{_rim*100:>4.0f}%"
-                    f"{_ev*100:>5.0f}%{_mq*100:>4.0f}%"
-                    f"{_iv*100:>5.0f}%{_of*100:>4.0f}%"
-                    f"{_rev*100:>4.0f}%"
-                    f"{_arm*100:>4.0f}%{_card*100:>5.0f}%{_latr*100:>4.0f}%"
-                    f"{_ifs*100:>4.0f}%\n"
+                    f"{_reg_s}{_srg_s}{_ll_s}{_vcpr_s}{_vcpm_s}{_lstm_s}{_sa_s}{_sec_s}{_rim_s}{_ev_s}{_mq_s}{_iv_s}{_of_s}{_rev_s}{_arm_s}{_crd_s}{_lat_s}{_ifs_s}"
+                    f"{_sc_s}{_nlp_s}{_fn_s}{_vt_s}{_mic_s}{_aq_s}{_sq_s}{_vu_s}{_te_s}{_gs_s}{_ib_s}{_dp_s}{_et_s}\n"
                 )
         logger.info(f"Saved ensemble predictions for {_m} to {_mkt_ens_path}")
 
