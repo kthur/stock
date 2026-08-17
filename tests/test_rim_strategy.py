@@ -1,1 +1,168 @@
-from trading_system.tests.test_rim_strategy import *
+"""
+trading_system/tests/test_rim_strategy.py
+Unit tests for Strategy #9 RIM (Residual Income Model) Valuation Engine & 9-Strategy Ensemble.
+"""
+import pandas as pd
+import numpy as np
+from src.core.rim_valuation import RIMValuationEngine
+from src.ai.ensemble_scorer import EnsembleScoringEngine
+from generate_report import parse_rim, build_html, EnsembleData, EnsembleMarket, EnsembleRow
+
+
+def test_rim_valuation_calculation():
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    # Sample stock data
+    df = pd.DataFrame([
+        {'symbol': '005930', 'market': 'KOSPI', 'Close': 70000.0, 'bps': 50000.0, 'roe': 0.15},   # High ROE vs r_e
+        {'symbol': '000660', 'market': 'KOSPI', 'Close': 120000.0, 'bps': 80000.0, 'roe': 0.08},  # Neutral ROE = r_e
+        {'symbol': '035420', 'market': 'KOSPI', 'Close': 200000.0, 'bps': 50000.0, 'roe': 0.04},  # Low ROE < r_e
+    ])
+
+    res = engine.compute_rim_scores(df)
+
+    assert len(res) == 3
+    assert 'intrinsic_value' in res.columns
+    assert 'discount_ratio' in res.columns
+    assert 'rim_score' in res.columns
+
+    # Samsung 005930: BPS=50000, ROE=0.15, r_e=0.08 => V0 = 50000 * (1 + (0.15-0.08)/0.08) = 50000 * 1.875 = 93750
+    # Discount = (93750 - 70000) / 70000 = +33.9%
+    samsung = res[res['symbol'] == '005930'].iloc[0]
+    assert samsung['intrinsic_value'] > 50000.0  # Decaying ROE excess value over BPS
+    assert samsung['rim_score'] > 0.5  # Highest discount ratio rank in KOSPI
+
+
+def test_rim_earnings_quality_filter():
+    """영업손실(-)인데 순이익(+)인 종목(일회성 이익 의존)은 RIM 점수가 NaN이어야 한다."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    df = pd.DataFrame([
+        # 정상: 영업이익 ≈ 순이익 → 이익의 질 1.0, RIM 점수 유효
+        {'symbol': '005930', 'market': 'KOSPI', 'Close': 70000.0, 'bps': 50000.0, 'roe': 0.15,
+         'operating_income': 100.0, 'net_income': 110.0},
+        # 일회성 이익 의존: 영업손실(-) + 순이익(+) → RIM 점수 무효화
+        {'symbol': '011170', 'market': 'KOSPI', 'Close': 50000.0, 'bps': 60000.0, 'roe': 0.20,
+         'operating_income': -50.0, 'net_income': 120.0},
+        # 이익의 질 낮음: 영업이익/순이익 = 0.2 < 0.5 → ROE 감쇠(0.15*0.2=0.03), 점수는 유효하나 저평
+        {'symbol': '000270', 'market': 'KOSPI', 'Close': 100000.0, 'bps': 50000.0, 'roe': 0.15,
+         'operating_income': 20.0, 'net_income': 100.0},
+    ])
+
+    res = engine.compute_rim_scores(df)
+    res = res.set_index('symbol')
+
+    assert res.loc['011170', 'rim_filter_reason'] == 'LOW_EARNINGS_QUALITY'
+    assert np.isnan(res.loc['011170', 'rim_score'])
+    assert np.isnan(res.loc['011170', 'discount_ratio'])
+    assert res.loc['011170', 'earnings_quality'] == 0.0
+
+    # 정상 종목은 그대로 유효 (eq_ratio = 100/110)
+    assert res.loc['005930', 'rim_filter_reason'] == ''
+    assert abs(res.loc['005930', 'earnings_quality'] - 100.0 / 110.0) < 1e-9
+    assert not np.isnan(res.loc['005930', 'rim_score'])
+
+    # 이익의 질 0.2 → ROE 0.15*0.2 = 0.03으로 감쇠
+    assert res.loc['000270', 'rim_filter_reason'] == 'QUALITY_ADJUSTED'
+    assert abs(res.loc['000270', 'roe'] - 0.03) < 1e-9
+
+    # 정상 종목의 ROE는 감쇠되지 않음 (net_income > 0, eq_ratio = 1.0)
+    assert abs(res.loc['005930', 'roe'] - 0.15) < 1e-9
+
+
+def test_rim_preferred_share_exclusion():
+    """우선주(삼성전자우 005935, 미래에셋증권2우B 00680K 등)는 RIM 점수가 NaN이어야 한다."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    df = pd.DataFrame([
+        {'symbol': '005930', 'market': 'KOSPI', 'Close': 70000.0, 'bps': 50000.0, 'roe': 0.15},
+        {'symbol': '005935', 'market': 'KOSPI', 'Close': 60000.0, 'bps': 50000.0, 'roe': 0.15},  # 삼성전자우
+        {'symbol': '00680K', 'market': 'KOSPI', 'Close': 5000.0, 'bps': 8000.0, 'roe': 0.10},   # 미래에셋증권2우B
+    ])
+
+    res = engine.compute_rim_scores(df).set_index('symbol')
+
+    # 보통주는 정상 산출
+    assert not np.isnan(res.loc['005930', 'rim_score'])
+    assert res.loc['005930', 'rim_filter_reason'] == ''
+
+    # 우선주는 RIM 점수 및 내재가치 NaN 무효화
+    assert res.loc['005935', 'rim_filter_reason'] == 'PREFERRED_SHARE'
+    assert np.isnan(res.loc['005935', 'rim_score'])
+    assert np.isnan(res.loc['005935', 'intrinsic_value'])
+
+    assert res.loc['00680K', 'rim_filter_reason'] == 'PREFERRED_SHARE'
+    assert np.isnan(res.loc['00680K', 'rim_score'])
+    assert np.isnan(res.loc['00680K', 'intrinsic_value'])
+
+
+def test_ensemble_scorer_9_strategies():
+    scorer = EnsembleScoringEngine()
+
+    reg_df = pd.DataFrame([{'symbol': '005930', 20: 0.10}, {'symbol': 'AAPL', 20: 0.15}])
+    surge_df = pd.DataFrame([{'symbol': '005930', 'surge_20d': 0.8}, {'symbol': 'AAPL', 'surge_20d': 0.9}])
+    ll_df = pd.DataFrame([{'symbol': '005930', 'lead_lag_score': 0.5}, {'symbol': 'AAPL', 'lead_lag_score': 0.7}])
+    vr_df = pd.DataFrame([{'symbol': '005930', 'vcp_score': 80}, {'symbol': 'AAPL', 'vcp_score': 90}])
+    vml_df = pd.DataFrame([{'symbol': '005930', 'vcp_20d': 0.6}, {'symbol': 'AAPL', 'vcp_20d': 0.75}])
+    lstm_df = pd.DataFrame([{'symbol': '005930', 'lstm_score': 0.7}, {'symbol': 'AAPL', 'lstm_score': 0.85}])
+    sa_df = pd.DataFrame([{'symbol': '005930', 'stat_arb_score': 0.65}, {'symbol': 'AAPL', 'stat_arb_score': 0.80}])
+    sec_df = pd.DataFrame([{'symbol': '005930', 'sector_score': 0.70}, {'symbol': 'AAPL', 'sector_score': 0.85}])
+    rim_df = pd.DataFrame([{'symbol': '005930', 'rim_score': 0.90}, {'symbol': 'AAPL', 'rim_score': 0.95}])
+
+    res = scorer.calculate_ensemble_score(
+        regime='BEAR',
+        regression_df=reg_df,
+        surge_df=surge_df,
+        lead_lag_df=ll_df,
+        vcp_rule_df=vr_df,
+        vcp_ml_df=vml_df,
+        lstm_df=lstm_df,
+        stat_arb_df=sa_df,
+        sector_df=sec_df,
+        rim_df=rim_df,
+    )
+
+    assert len(res) == 2
+    assert 'rim_score' in res.columns
+    assert 'ensemble_score' in res.columns
+    assert (res['ensemble_score'] >= 0.0).all() and (res['ensemble_score'] <= 1.0).all()
+
+
+def test_parse_rim_and_build_html():
+    raw_txt = """=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===
+Date: 2026-07-26 18:00
+Total symbols evaluated: 2
+
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  RIM Score
+-----------------------------------------------------------------------------------------------
+1    005930    삼성전자            KOSPI     70000.00    93750.00      +33.9%     100.0%
+2    AAPL      Apple Inc.          SP500     180.00      240.00        +33.3%     50.0%
+"""
+    date_str, rows = parse_rim(raw_txt)
+
+    assert date_str == "2026-07-26 18:00"
+    assert len(rows) == 2
+
+    ensemble = EnsembleData(
+        date="2026-07-26",
+        regime="SIDEWAYS",
+        markets=[
+            EnsembleMarket(market="KOSPI", rows=[EnsembleRow(1, "005930", "삼성전자", "85%", "5.2%", "40%", "10%", "20%", "15%", "10%", "15%", "15%", "10%", "15%")]),
+        ],
+    )
+
+    html = build_html(
+        ensemble,
+        surge_date="2026-07-26", surge_sections=[],
+        vcp_date="2026-07-26", vcp_rows=[],
+        lag_date="2026-07-26", follower_rows=[], leader_rows=[],
+        vcp_ml_sections=[], reg_sections=[],
+        portfolio_data=None,
+        stat_arb_rows=[],
+        sector_rows=[],
+        rim_rows=rows
+    )
+
+    assert "💎 RIM Valuation" in html
+    assert 'id="panel-rim"' in html
+    assert "17 Strategies" in html or "14 Strategies" in html or "Strategies" in html

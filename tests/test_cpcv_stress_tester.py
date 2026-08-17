@@ -1,12 +1,11 @@
 import numpy as np
 import pandas as pd
-import pytest
-from src.ai.cpcv_stress_tester import (
+from trading_system.src.ai.cpcv_stress_tester import (
     CPCVStressTester,
     StressTestReport,
     run_historical_stress_test,
 )
-from src.risk.risk_manager import RiskManager, RiskLevel
+from trading_system.src.risk.risk_manager import RiskManager, RiskLevel
 
 
 def test_generate_purged_folds_combinatorics():
@@ -19,7 +18,6 @@ def test_generate_purged_folds_combinatorics():
     for train_idx, test_idx, test_blocks in folds:
         assert len(train_idx) > 0
         assert len(test_idx) > 0
-        # Train and test must be completely disjoint
         assert len(np.intersect1d(train_idx, test_idx)) == 0
 
 
@@ -68,7 +66,6 @@ def test_pbo_calculation():
     assert len(res["logits"]) == 15
     assert len(res["ranks"]) == 15
 
-    # Check finite logit values
     for logit in res["logits"]:
         assert np.isfinite(logit)
 
@@ -113,7 +110,6 @@ def test_risk_manager_stress_integration():
     assert risk_mgr.stress_test_passed is True
     assert risk_mgr.stress_test_adjustment_factor == 1.0
 
-    # Test passing reports
     pass_report = StressTestReport(
         scenario="2008_CRISIS",
         mdd=0.15,
@@ -130,7 +126,6 @@ def test_risk_manager_stress_integration():
     assert risk_mgr.stress_test_passed is True
     assert risk_mgr.stress_test_adjustment_factor == 1.0
 
-    # Test failing report
     fail_report = StressTestReport(
         scenario="2008_CRISIS",
         mdd=0.45,
@@ -147,21 +142,22 @@ def test_risk_manager_stress_integration():
     assert risk_mgr.stress_test_passed is False
     assert risk_mgr.stress_test_adjustment_factor == 0.75
 
-    # Check position quantity reduction when failed
     normal_max = risk_mgr.calculate_max_position_size(100.0)
     adjusted_pos = risk_mgr.get_risk_adjusted_position_size(100, RiskLevel.LOW)
-    assert adjusted_pos == 75  # 100 * 1.0 * 0.75
+    assert adjusted_pos == 75
 
     # Explicitly verify calculate_position_sizing scales by exactly 0.75x (not 0.5625x) when stress test fails
     risk_mgr.stress_test_adjustment_factor = 1.0
+    # risk_config.json may override max_position_size_pct locally; pin it for deterministic math
+    risk_mgr.max_position_size_pct = 0.25
     unpenalized_qty = risk_mgr.calculate_position_sizing("AAPL", entry_price=100.0, stop_loss_price=95.0)
-    assert unpenalized_qty == 2000
+    assert unpenalized_qty == 2500
 
     risk_mgr.stress_test_adjustment_factor = 0.75
     failed_qty = risk_mgr.calculate_position_sizing("AAPL", entry_price=100.0, stop_loss_price=95.0)
-    expected_0_75_quantity = int(unpenalized_qty * 0.75)  # 2,000 * 0.75 = 1500 (not 1125)
+    expected_0_75_quantity = int(unpenalized_qty * 0.75)  # 2,500 * 0.75 = 1875
     assert failed_qty == expected_0_75_quantity
-    assert failed_qty == 1500
+    assert failed_qty == 1875
 
 
 def test_cpcv_inf_nan_finiteness_guard():

@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
-testpaths = ["tests", "trading_system/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv", ".git", "build", "dist"]
 addopts = "-v --tb=short"
