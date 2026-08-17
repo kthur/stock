@@ -111,19 +111,16 @@ class MacroPredictor:
         }
 
         # Save metrics to cache file using atomic write
-        _METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp_metrics_path = _METRICS_PATH.with_suffix(".tmp.json")
-        try:
-            with open(tmp_metrics_path, "w", encoding="utf-8") as f:
-                json.dump(metrics, f, indent=4)
-            tmp_metrics_path.replace(_METRICS_PATH)
-        except Exception as e:
-            if tmp_metrics_path.exists():
-                try:
-                    tmp_metrics_path.unlink()
-                except Exception:
-                    pass
-            logger.error(f"Failed to save macro model metrics to JSON: {e}")
+        target_paths = {_METRICS_PATH, Path("data") / "macro_model_metrics.json", _PROJECT_ROOT.parent / "data" / "macro_model_metrics.json"}
+        for t_path in target_paths:
+            try:
+                t_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_metrics_path = t_path.with_suffix(".tmp.json")
+                with open(tmp_metrics_path, "w", encoding="utf-8") as f:
+                    json.dump(metrics, f, indent=4)
+                tmp_metrics_path.replace(t_path)
+            except Exception as e:
+                logger.debug(f"Failed to save macro metrics to {t_path}: {e}")
 
         return metrics
 
