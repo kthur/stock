@@ -498,7 +498,8 @@ class VCPSurgePredictor:
 
         has_models = bool(self.models or self.lgb_models or self.cat_models)
         if not has_models:
-            logger.warning("No VCP ML models loaded on disk. Proceeding with heuristic VCP features fallback.")
+            logger.warning("No VCP ML models loaded on disk.")
+            return pd.DataFrame()
 
         from src.ai.prediction_model import case_insensitive_get
 
