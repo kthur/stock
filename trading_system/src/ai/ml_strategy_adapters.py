@@ -221,13 +221,18 @@ class LSTMStrategyAdapter(BaseStrategyEngine):
         indicators_df: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        if self.model_instance is not None and hasattr(self.model_instance, "predict_all"):
-            preds = self.model_instance.predict_all(prices_dict)
-            if isinstance(preds, pd.DataFrame):
-                if "lstm_score" not in preds.columns and "score" in preds.columns:
-                    preds = preds.rename(columns={"score": "lstm_score"})
-                return preds
-        return pd.DataFrame(columns=["symbol", "lstm_score"])
+        if self.model_instance is not None:
+            if hasattr(self.model_instance, "predict_lstm"):
+                return self.model_instance.predict_lstm(prices_dict)
+            if hasattr(self.model_instance, "predict_all"):
+                preds = self.model_instance.predict_all(prices_dict)
+                if isinstance(preds, pd.DataFrame):
+                    if "lstm_score" not in preds.columns and "score" in preds.columns:
+                        preds = preds.rename(columns={"score": "lstm_score"})
+                    return preds
+        from src.ai.prediction_model import OnDevicePredictionModel
+        fallback_model = OnDevicePredictionModel(config=self.config)
+        return fallback_model.predict_lstm(prices_dict)
 
 
 @register_strategy(

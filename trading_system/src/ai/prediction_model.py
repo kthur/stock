@@ -2496,6 +2496,100 @@ class OnDevicePredictionModel:
                     res_df[h] = vals.clip(lower=-5.0, upper=5.0)
         return res_df
 
+    def predict_lstm(self, prices_dict: Dict[str, pd.DataFrame], horizon: int = 20) -> pd.DataFrame:
+        """Run Strict Causal LSTM deep learning time-series predictions.
+
+        Args:
+            prices_dict: Dictionary mapping symbol to OHLCV DataFrame
+            horizon: Target prediction horizon (default 20d)
+
+        Returns:
+            DataFrame with ['symbol', 'lstm_score']
+        """
+        if not prices_dict or not isinstance(prices_dict, dict):
+            return pd.DataFrame(columns=['symbol', 'lstm_score'])
+
+        # 1. Prepare 20-day returns sequences
+        symbols = list(prices_dict.keys())
+        valid_symbols = []
+        sequences = []
+        momentum_fallbacks = []
+
+        for sym in symbols:
+            df_p = prices_dict.get(sym)
+            if df_p is None or len(df_p) < 20:
+                continue
+
+            c_col = 'Close' if 'Close' in df_p.columns else ('close' if 'close' in df_p.columns else None)
+            if not c_col:
+                continue
+
+            c_series = df_p[c_col]
+            if isinstance(c_series, pd.DataFrame):
+                c_series = c_series.iloc[:, 0]
+            c_series = c_series.dropna()
+
+            if len(c_series) < 20:
+                continue
+
+            # Calculate daily returns for last 20 bars
+            daily_rets = c_series.pct_change().dropna().tail(20).values
+            if len(daily_rets) != 20 or np.isnan(daily_rets).any():
+                continue
+
+            # Rolling causal momentum metrics:
+            # Exponentially weighted return with decay
+            weights = np.exp(np.linspace(-2.0, 0.0, 20))
+            weights /= weights.sum()
+            ew_ret = float(np.sum(daily_rets * weights))
+            vol_20 = float(np.std(daily_rets) + 1e-6)
+            sharpe_like = ew_ret / vol_20
+
+            valid_symbols.append(sym)
+            sequences.append(daily_rets.reshape(20, 1))
+            momentum_fallbacks.append(sharpe_like)
+
+        if not valid_symbols:
+            return pd.DataFrame(columns=['symbol', 'lstm_score'])
+
+        # 2. Check for loaded PyTorch LSTM models
+        lstm_model = None
+        for mkt_models in self.lstm_models.values():
+            if isinstance(mkt_models, dict):
+                m = mkt_models.get(horizon) or mkt_models.get(20)
+                if m is not None and getattr(m, 'is_trained', False):
+                    lstm_model = m
+                    break
+
+        if lstm_model is not None:
+            try:
+                X_batch = np.array(sequences, dtype=np.float32)
+                preds = lstm_model.predict(X_batch)
+                if hasattr(preds, "ravel"):
+                    preds = preds.ravel()
+                elif isinstance(preds, (list, tuple)):
+                    preds = np.array(preds).ravel()
+                raw_scores = np.nan_to_num(preds, nan=0.0, posinf=0.0, neginf=0.0)
+            except Exception as e:
+                logger.warning(f"PyTorch LSTM batch prediction failed: {e}. Falling back to causal momentum.")
+                raw_scores = np.array(momentum_fallbacks, dtype=np.float32)
+        else:
+            raw_scores = np.array(momentum_fallbacks, dtype=np.float32)
+
+        # 3. Cross-sectional percentile rank normalization into [0.05, 0.95]
+        s_series = pd.Series(raw_scores, index=valid_symbols)
+        if len(s_series) > 1 and s_series.std() > 1e-6:
+            ranks = s_series.rank(pct=True)
+            norm_scores = (0.05 + ranks * 0.90).clip(0.05, 0.95)
+        else:
+            norm_scores = pd.Series(0.50, index=valid_symbols)
+
+        df_out = pd.DataFrame({
+            'symbol': valid_symbols,
+            'lstm_score': norm_scores.values
+        })
+        return df_out.sort_values(by='lstm_score', ascending=False).reset_index(drop=True)
+
     def _predict_surge(self, symbols_list, market_list,
                        latest_features_list) -> pd.DataFrame:
         """Run surge predictions on pre-computed features (batch optimized)."""
