@@ -2,7 +2,14 @@
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv", ".git", "build", "dist"]
+pythonpath = ["trading_system", "."]
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m not slow')",
+    "unit: marks tests as fast unit tests",
+    "integration: marks tests requiring external APIs or DB",
+    "adversarial: marks stress/adversarial tests",
+]
 
 [tool.mypy]
 python_version = "3.12"

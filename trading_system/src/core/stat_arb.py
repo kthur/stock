@@ -565,11 +565,21 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                 symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) - score_delta
 
         if not symbol_deltas:
-            return pd.DataFrame(columns=['symbol', 'stat_arb_score'])
+            return pd.DataFrame(columns=['symbol', 'stat_arb_score', 'long_only_mode'])
 
-        symbol_scores = {s: float(np.clip(0.5 + delta, 0.05, 0.95)) for s, delta in symbol_deltas.items()}
-        df = pd.DataFrame(list(symbol_scores.items()), columns=['symbol', 'stat_arb_score'])
-        return df[['symbol', 'stat_arb_score']]
+        symbol_scores = []
+        for s, delta in symbol_deltas.items():
+            is_krx = str(s).isdigit() or str(s).endswith(('.KS', '.KQ'))
+            # Long-only KRX adaptation: delta < 0 is an Exit/De-allocation signal
+            clamped_score = float(np.clip(0.5 + delta, 0.05, 0.95))
+            symbol_scores.append({
+                'symbol': s,
+                'stat_arb_score': clamped_score,
+                'long_only_mode': is_krx
+            })
+
+        df = pd.DataFrame(symbol_scores)
+        return df[['symbol', 'stat_arb_score', 'long_only_mode']]
 
     def compute_scores(
         self,

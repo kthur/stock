@@ -32,6 +32,24 @@ class EnsembleScoringEngine:
     using 2D regime matrix weights and dynamic exponential Sharpe weighting.
     """
 
+    # 3-Tier Multi-Horizon Alpha Signal Decomposition (Slow: 1M~1Y, Medium: 5D~20D, Fast: 1D~3D)
+    ALPHA_HORIZON_TIERS = {
+        'slow': [
+            'regression', 'rim_valuation', 'factor_neutralized', 'valueup_catalyst',
+            'accruals_quality', 'mq_factor', 'arm_factor', 'card_factor', 'latr_factor',
+            'vol_target', 'iv_skew', 'earnings_tone_drift',
+        ],
+        'medium': [
+            'vcp_rule', 'vcp_ml', 'surge', 'lead_lag', 'stat_arb', 'sector_rotation',
+            'lstm', 'sentiment', 'inst_foreign_sector', 'supply_chain',
+            'gamma_squeeze', 'short_squeeze', 'insider_buying', 'trend_efficiency', 'event_driven',
+        ],
+        'fast': [
+            'microstructure', 'order_flow', 'short_term_reversal', 'darkpool',
+        ],
+    }
+    TIER_WEIGHTS = {'slow': 0.50, 'medium': 0.35, 'fast': 0.15}
+
     # Dynamic Weight Configuration per 1D Market Regime (0: BEAR, 1: SIDEWAYS, 2: BULL)
     # Dynamic Weight Configuration per 1D Market Regime (30 Strategies)
     REGIME_WEIGHTS = {
@@ -1765,6 +1783,40 @@ class EnsembleScoringEngine:
         coverage_ratio = valid_count_series / num_present_strats
         coverage_penalty = np.where(coverage_ratio < 0.40, 0.5 + 0.5 * (coverage_ratio / 0.40), 1.0)
         linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
+
+        # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
+        slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]
+        med_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['medium'] and sc in merged.columns]
+        fast_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['fast'] and sc in merged.columns]
+
+        if slow_cols or med_cols or fast_cols:
+            def _calc_tier_score(cols_list):
+                if not cols_list:
+                    return None
+                sub_df = merged[cols_list]
+                v_mask = sub_df.notna() & np.isfinite(sub_df)
+                v_counts = v_mask.sum(axis=1)
+                sub_sums = np.where(v_mask, sub_df.values, 0.0).sum(axis=1)
+                return np.where(v_counts > 0, sub_sums / np.maximum(v_counts, 1), np.nan)
+
+            s_slow = _calc_tier_score(slow_cols)
+            s_med = _calc_tier_score(med_cols)
+            s_fast = _calc_tier_score(fast_cols)
+
+            if s_slow is not None:
+                merged['slow_alpha_score'] = np.nan_to_num(s_slow, nan=0.5)
+            if s_med is not None:
+                merged['medium_alpha_score'] = np.nan_to_num(s_med, nan=0.5)
+            if s_fast is not None:
+                merged['fast_alpha_score'] = np.nan_to_num(s_fast, nan=0.5)
+                fast_tilt = np.clip(merged['fast_alpha_score'] - 0.50, -0.15, 0.15)
+                if len(merged) >= 5 and 'slow_alpha_score' in merged.columns and 'medium_alpha_score' in merged.columns:
+                    hierarchical_score = (
+                        self.TIER_WEIGHTS['slow'] * merged['slow_alpha_score'] +
+                        self.TIER_WEIGHTS['medium'] * merged['medium_alpha_score']
+                    ) * (1.0 + fast_tilt)
+                    hierarchical_score = hierarchical_score.clip(0.0, 1.0)
+                    linear_score = pd.Series(0.70 * linear_score + 0.30 * hierarchical_score, index=merged.index).clip(0.0, 1.0)
 
         # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend
         explicit_weights_provided = (weights is not None and len(weights) > 0 and len(merged) < 5)

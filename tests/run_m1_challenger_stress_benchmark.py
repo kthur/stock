@@ -206,22 +206,22 @@ def run_benchmark():
         tiny_results.append({"N": n, "passed": passed, "has_nan": has_nan, "in_bounds": in_bounds})
         print(f"  N={n:2d}: Len={len(res)}, HasNaN={has_nan}, InBounds={in_bounds} -> {'PASS' if passed else 'FAIL'}")
 
-    # Asymmetric 6-market singletons
+    # Asymmetric 5-market singletons
     universe_singletons = pd.DataFrame({
-        "symbol": ["KOSPI_1", "KOSDAQ_1", "KONEX_1", "SP500_1", "NASDAQ_1", "RUSSELL_1"],
-        "market": ["KOSPI", "KOSDAQ", "KONEX", "SP500", "NASDAQ", "RUSSELL2000"],
-        "market_cap": [1e12, 5e11, 1e10, 1e11, 2e11, 5e10],
-        "per": [10.0, 15.0, 20.0, 25.0, 30.0, 12.0],
-        "pbr": [1.0, 1.5, 2.0, 2.5, 3.0, 1.2],
-        "roe": [12.0, 10.0, 8.0, 15.0, 18.0, 9.0],
-        "asset_growth_yoy": [0.05, 0.1, 0.02, 0.08, 0.12, 0.04],
-        "momentum_12m": [0.1, 0.15, -0.05, 0.2, 0.25, 0.05],
-        "score": [0.6, 0.7, 0.4, 0.8, 0.9, 0.5],
+        "symbol": ["KOSPI_1", "KOSDAQ_1", "SP500_1", "NASDAQ_1", "RUSSELL_1"],
+        "market": ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"],
+        "market_cap": [1e12, 5e11, 1e11, 2e11, 5e10],
+        "per": [10.0, 15.0, 25.0, 30.0, 12.0],
+        "pbr": [1.0, 1.5, 2.5, 3.0, 1.2],
+        "roe": [12.0, 10.0, 15.0, 18.0, 9.0],
+        "asset_growth_yoy": [0.05, 0.1, 0.08, 0.12, 0.04],
+        "momentum_12m": [0.1, 0.15, 0.2, 0.25, 0.05],
+        "score": [0.6, 0.7, 0.8, 0.9, 0.5],
     })
     res_sing = engine.compute_scores(universe=universe_singletons)
-    sing_passed = (len(res_sing) == 6) and (not res_sing["factor_neutralized_score"].isna().any()) and bool(np.all(res_sing["factor_neutralized_score"] == 0.5))
-    tiny_results.append({"case": "6-market singletons", "passed": sing_passed})
-    print(f"  6-market Singletons: Len={len(res_sing)}, All 0.5 fallback={sing_passed} -> {'PASS' if sing_passed else 'FAIL'}")
+    sing_passed = (len(res_sing) == 5) and (not res_sing["factor_neutralized_score"].isna().any()) and bool(np.all(res_sing["factor_neutralized_score"] == 0.5))
+    tiny_results.append({"case": "5-market singletons", "passed": sing_passed})
+    print(f"  5-market Singletons: Len={len(res_sing)}, All 0.5 fallback={sing_passed} -> {'PASS' if sing_passed else 'FAIL'}")
 
     results["tiny_universes"] = tiny_results
 

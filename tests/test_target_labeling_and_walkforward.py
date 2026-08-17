@@ -35,15 +35,14 @@ def test_walk_forward_time_series_split():
 
 def test_dynamic_surge_threshold_market_multiplier():
     horizon_thresholds = {1: 0.03, 3: 0.05, 5: 0.08, 20: 0.15}
-    markets = ["SP500", "KOSPI", "KOSDAQ", "KONEX"]
-    multipliers = {"SP500": 0.7, "KOSPI": 1.0, "KOSDAQ": 1.25, "KONEX": 1.5}
+    markets = ["SP500", "KOSPI", "KOSDAQ", "RUSSELL2000"]
+    multipliers = {"SP500": 0.7, "KOSPI": 1.0, "KOSDAQ": 1.25, "RUSSELL2000": 1.3}
     
     for m in markets:
         mult = multipliers[m]
         h1_thresh = horizon_thresholds[1] * mult
-        # SP500 threshold (0.021) should be lower than KONEX (0.045)
         assert h1_thresh > 0.0
         if m == "SP500":
             assert h1_thresh < 0.03
-        elif m == "KONEX":
-            assert h1_thresh > 0.04
+        elif m == "RUSSELL2000":
+            assert h1_thresh > 0.035

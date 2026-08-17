@@ -1,7 +1,7 @@
 """Base Abstract Strategy Engine definition for Stock Trading System."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 
 
@@ -65,7 +65,7 @@ class ScoreDataFrame(pd.DataFrame):
         return super().__getitem__(item)
 
 
-def make_score_dataframe(rows: list, score_column: str) -> pd.DataFrame:
+def make_score_dataframe(rows: Union[List[Dict[str, Any]], Dict[str, Any], Any], score_column: str) -> pd.DataFrame:
     """Helper to construct a ScoreDataFrame from rows list or dict."""
     if not rows:
         return ScoreDataFrame(columns=["symbol", score_column])

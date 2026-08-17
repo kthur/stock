@@ -90,6 +90,11 @@ class TradingConfig:
     # 포트폴리오 자본금 단일 소스 (KRW, GHA/OMS/HRP 모두 여기에서 읽음)
     portfolio_capital_krw: float = 100_000_000.0  # 1억 원
 
+    # Net Alpha Hurdle Rate & Price Limit Parameters (OMS Safety Gate #7)
+    oms_net_alpha_safety_margin: float = 0.0010  # 0.10% KRX 안전 마진
+    oms_limit_up_lock_threshold: float = 0.295   # 29.5% 이상 시 상한가 잠금으로 간주
+
+
     # 실시간 장중 모니터링 (realtime_monitor.py)
     realtime_interval_min: int = 15          # 폴링 간격 (분)
     realtime_dry_run: bool = True            # 실매매 없이 모의 실행

@@ -26,9 +26,9 @@ class PortfolioOptimizer:
         safe_sec_w = float(default_max_sector_weight) if (default_max_sector_weight is not None and np.isfinite(default_max_sector_weight)) else 0.30
         self.default_max_sector_weight = max(0.01, min(1.0, safe_sec_w))
 
-    def calculate_covariance_matrix(self, returns_df: pd.DataFrame, shrinkage: Optional[float] = None) -> pd.DataFrame:
+    def calculate_covariance_matrix(self, returns_df: pd.DataFrame, shrinkage: Optional[float] = None, tail_stress_weight: float = 0.0) -> pd.DataFrame:
         """
-        Calculate covariance matrix with dynamic Ledoit-Wolf shrinkage for optimal estimation stability.
+        Calculate covariance matrix with dynamic Ledoit-Wolf shrinkage and optional lower tail dependence stress.
         """
         if returns_df.empty or len(returns_df) < 5:
             n_assets = len(returns_df.columns) if not returns_df.empty else 1
@@ -41,7 +41,11 @@ class PortfolioOptimizer:
                 from sklearn.covariance import LedoitWolf
                 lw = LedoitWolf()
                 lw.fit(clean_returns.values)
-                return pd.DataFrame(lw.covariance_, index=returns_df.columns, columns=returns_df.columns)
+                cov_mat = lw.covariance_
+                if tail_stress_weight > 0:
+                    from src.risk.portfolio_allocator import PortfolioAllocator
+                    cov_mat = PortfolioAllocator.compute_tail_stress_cov(clean_returns.values, cov_mat, stress_weight=tail_stress_weight)
+                return pd.DataFrame(cov_mat, index=returns_df.columns, columns=returns_df.columns)
             except Exception:
                 pass
 
@@ -51,6 +55,9 @@ class PortfolioOptimizer:
         n_assets = cov_sample.shape[0]
         prior = np.eye(n_assets) * np.trace(cov_sample.values) / max(n_assets, 1)
         shrunk_cov = (1.0 - safe_shrinkage) * cov_sample.values + safe_shrinkage * prior
+        if tail_stress_weight > 0 and len(clean_returns) >= 5:
+            from src.risk.portfolio_allocator import PortfolioAllocator
+            shrunk_cov = PortfolioAllocator.compute_tail_stress_cov(clean_returns.values, shrunk_cov, stress_weight=tail_stress_weight)
         return pd.DataFrame(shrunk_cov, index=returns_df.columns, columns=returns_df.columns)
 
     def optimize_risk_parity(

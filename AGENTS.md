@@ -46,7 +46,7 @@
 1. Load config (TradingConfig)
 2. Fetch global indicators (VIX, TNX, USDKRW, WTI, Gold, DXY 등)
 3. Store market indicators (SQLite WAL & Write Mutex)
-4. Load/update stock universe (3,379 symbols: KOSPI, KOSDAQ, KONEX, SP500, NASDAQ, RUSSELL2000)
+4. Load/update stock universe (KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000)
 5. Fetch indicator history (train + inference)
 6. Prepare training data (ThreadPoolExecutor + fundamental fetch 60d lag + float32 memory downcast)
 7. Train:

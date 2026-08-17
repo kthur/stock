@@ -52,6 +52,31 @@ class PortfolioAllocator:
         self.rebalance_mode = str(rebalance_mode).lower() if rebalance_mode is not None else "boundary"
         self.min_tail_samples = max(2, int(min_tail_samples)) if min_tail_samples is not None else 15
 
+    @staticmethod
+    def compute_tail_stress_cov(returns_matrix: np.ndarray, base_cov: np.ndarray, tail_quantile: float = 0.10, stress_weight: float = 0.30) -> np.ndarray:
+        """
+        Computes tail-stressed covariance matrix reflecting lower tail dependence in crisis regimes.
+        Blends standard Ledoit-Wolf covariance with lower tail joint covariance matrix.
+        """
+        if returns_matrix is None or len(returns_matrix) < 10 or returns_matrix.shape[1] < 2:
+            return base_cov
+
+        N, K = returns_matrix.shape
+        mkt_ret = np.mean(returns_matrix, axis=1)
+        tail_cutoff = np.quantile(mkt_ret, tail_quantile)
+        tail_mask = mkt_ret <= tail_cutoff
+
+        if tail_mask.sum() >= 3:
+            tail_returns = returns_matrix[tail_mask]
+            tail_cov = np.cov(tail_returns, rowvar=False)
+            if tail_cov.shape == base_cov.shape and np.all(np.isfinite(tail_cov)):
+                k_eff = float(np.clip(stress_weight, 0.0, 0.70))
+                stressed_cov = (1.0 - k_eff) * base_cov + k_eff * tail_cov
+                w_diag = np.diag(np.diag(stressed_cov))
+                return stressed_cov + 1e-6 * w_diag
+
+        return base_cov
+
     # =========================================================================
     # OBJECTIVE 1: EVT-CVaR LOSS BUDGET CONSTRAINTS & 3-TIER FALLBACK HIERARCHY
     # =========================================================================
@@ -107,75 +132,79 @@ class PortfolioAllocator:
         exceedances = losses[losses > u] - u
         n_u = len(exceedances)
 
-        # Check if Tier 1 GPD preconditions are met
-        if n_u >= self.min_tail_samples and u > -1e-6:
-            try:
-                # Fit GPD with location fixed at 0 (floc=0)
-                xi, _, beta = genpareto.fit(exceedances, floc=0)
-                xi = float(xi)
-                beta = float(beta)
+        # Base Fallback: Tier 3 Empirical Quantile
+        var_emp = float(np.quantile(losses, confidence))
+        worse_losses = losses[losses >= var_emp]
+        cvar_emp = float(np.mean(worse_losses)) if len(worse_losses) > 0 else var_emp
 
-                if beta > 1e-8 and xi < 0.95 and not np.isnan(xi) and not np.isnan(beta):
-                    # Clamp xi shape parameter for numerical safety
-                    xi_clamped = min(xi, 0.50)
-
-                    tail_ratio = (N / n_u) * (1.0 - confidence)
-
-                    if abs(xi_clamped) < 1e-4:
-                        var_evt = u - beta * np.log(tail_ratio)
-                        cvar_evt = var_evt + beta
-                    else:
-                        var_evt = u + (beta / xi_clamped) * (np.power(tail_ratio, -xi_clamped) - 1.0)
-                        cvar_evt = (var_evt + beta - xi_clamped * u) / (1.0 - xi_clamped)
-
-                    return {
-                        "var": float(max(0.0, var_evt)),
-                        "cvar": float(max(0.0, cvar_evt)),
-                        "xi": xi_clamped,
-                        "beta": beta,
-                        "method": "evt_gpd"
-                    }
-            except Exception as e:
-                logger.debug(f"EVT-GPD fitting non-convergent, falling back to Tier 2/3: {e}")
-
-        # Tier 2: Cornish-Fisher Expansion Fallback
+        # Tier 2: Cornish-Fisher Expansion
+        var_cf, cvar_cf = var_emp, cvar_emp
+        cf_valid = False
         try:
             mu_l = float(np.mean(losses))
             sigma_l = float(np.std(losses, ddof=1))
             if sigma_l > 1e-8:
                 s_loss = float(skew(losses))
                 k_loss = float(kurtosis(losses))  # excess kurtosis
-
                 z_a = float(norm.ppf(confidence))
                 z_cf = z_a + (s_loss / 6.0) * (z_a**2 - 1.0) + (k_loss / 24.0) * (z_a**3 - 3.0 * z_a) - (s_loss**2 / 36.0) * (2.0 * z_a**3 - 5.0 * z_a)
                 z_cf = float(np.clip(z_cf, 0.5, 6.0))
-
-                var_cf = mu_l + sigma_l * z_cf
+                var_cf = max(0.0, mu_l + sigma_l * z_cf)
                 pdf_cf = norm.pdf(z_cf)
-                cvar_cf = mu_l + sigma_l * (pdf_cf / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * z_cf**3 + (k_loss / 24.0) * (z_cf**4 - 2.0 * z_cf**2 - 1.0))
-
-                if not np.isnan(cvar_cf) and not np.isinf(cvar_cf) and cvar_cf > 0:
-                    return {
-                        "var": float(max(0.0, var_cf)),
-                        "cvar": float(max(0.0, cvar_cf)),
-                        "xi": 0.0,
-                        "beta": 0.0,
-                        "method": "cornish_fisher"
-                    }
+                cvar_cf_raw = mu_l + sigma_l * (pdf_cf / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * z_cf**3 + (k_loss / 24.0) * (z_cf**4 - 2.0 * z_cf**2 - 1.0))
+                if np.isfinite(cvar_cf_raw) and cvar_cf_raw > 0:
+                    cvar_cf = max(0.0, float(cvar_cf_raw))
+                    cf_valid = True
         except Exception:
             pass
 
-        # Tier 3: Empirical Quantile Tail Averaging Fallback
-        var_emp = float(np.quantile(losses, confidence))
-        worse_losses = losses[losses >= var_emp]
-        cvar_emp = float(np.mean(worse_losses)) if len(worse_losses) > 0 else var_emp
+        # Tier 1: EVT-GPD Fit
+        var_evt, cvar_evt = var_cf, cvar_cf
+        xi_val, beta_val = 0.0, 0.0
+        gpd_valid = False
+        if n_u >= 3 and u > -1e-6:
+            try:
+                xi, _, beta = genpareto.fit(exceedances, floc=0)
+                xi = float(xi)
+                beta = float(beta)
+                if beta > 1e-8 and xi < 0.95 and np.isfinite(xi) and np.isfinite(beta):
+                    xi_clamped = min(xi, 0.50)
+                    tail_ratio = (N / n_u) * (1.0 - confidence)
+                    if abs(xi_clamped) < 1e-4:
+                        var_evt = u - beta * np.log(tail_ratio)
+                        cvar_evt = var_evt + beta
+                    else:
+                        var_evt = u + (beta / xi_clamped) * (np.power(tail_ratio, -xi_clamped) - 1.0)
+                        cvar_evt = (var_evt + beta - xi_clamped * u) / (1.0 - xi_clamped)
+                    if np.isfinite(var_evt) and np.isfinite(cvar_evt):
+                        var_evt = max(0.0, float(var_evt))
+                        cvar_evt = max(0.0, float(cvar_evt))
+                        xi_val, beta_val = xi_clamped, beta
+                        gpd_valid = True
+            except Exception as e:
+                logger.debug(f"EVT-GPD fitting non-convergent: {e}")
+
+        # Continuous Sigmoid Blending Kernel (eliminates step discontinuity at n_u = 15)
+        if gpd_valid:
+            lambda_gpd = 1.0 / (1.0 + np.exp(-0.5 * (n_u - self.min_tail_samples)))
+            var_smooth = lambda_gpd * var_evt + (1.0 - lambda_gpd) * var_cf
+            cvar_smooth = lambda_gpd * cvar_evt + (1.0 - lambda_gpd) * cvar_cf
+            used_method = "evt_gpd_sigmoid_blended" if (0.01 < lambda_gpd < 0.99) else ("evt_gpd" if lambda_gpd >= 0.99 else "cornish_fisher")
+        elif cf_valid:
+            var_smooth = var_cf
+            cvar_smooth = cvar_cf
+            used_method = "cornish_fisher"
+        else:
+            var_smooth = var_emp
+            cvar_smooth = cvar_emp
+            used_method = "empirical_fallback"
 
         return {
-            "var": float(max(0.0, var_emp)),
-            "cvar": float(max(0.0, cvar_emp)),
-            "xi": 0.0,
-            "beta": 0.0,
-            "method": "empirical_fallback"
+            "var": float(max(0.0, var_smooth)),
+            "cvar": float(max(0.0, cvar_smooth)),
+            "xi": float(xi_val),
+            "beta": float(beta_val),
+            "method": used_method
         }
 
     def estimate_portfolio_evt_cvar(
@@ -233,6 +262,9 @@ class PortfolioAllocator:
             cov_shrunk = np.cov(returns_matrix, rowvar=False) if len(returns_matrix) > 1 else np.eye(n_assets) * 0.0004
             if cov_shrunk.ndim == 0:
                 cov_shrunk = np.array([[float(cov_shrunk)]])
+
+        # Lower tail dependence stress covariance blending
+        cov_shrunk = self.compute_tail_stress_cov(returns_matrix, cov_shrunk)
 
         def objective(w):
             ret = np.dot(w, mu)

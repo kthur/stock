@@ -255,7 +255,7 @@ class TestMultiFactorNeutralizerStressChallenger(unittest.TestCase):
     def test_asymmetric_multi_market_singletons(self):
         """Test asymmetric multi-market where some markets have exactly 1 symbol."""
         symbols = [f"SYM_{i}" for i in range(100)]
-        markets = ["KOSPI"] * 95 + ["SP500", "NASDAQ", "RUSSELL2000", "KOSDAQ", "KONEX"]
+        markets = ["KOSPI"] * 96 + ["SP500", "NASDAQ", "RUSSELL2000", "KOSDAQ"]
         universe = pd.DataFrame({
             "symbol": symbols,
             "market": markets,

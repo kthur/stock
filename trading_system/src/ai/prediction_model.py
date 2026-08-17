@@ -208,9 +208,10 @@ class OnDevicePredictionModel:
     ]
     ALL_FEATURES = FEATURES + GLOBAL_FEATURES
 
-    def __init__(self, model_dir: Optional[str] = None):
+    def __init__(self, model_dir: Optional[str] = None, config: Optional[Any] = None):
         from pathlib import Path
         import threading
+        self.config = config
         self._save_lock = threading.Lock()
         self.lstm_models: Dict[str, Dict[int, Any]] = {}
         self.models: Dict[str, Dict[int, xgb.XGBRegressor]] = {}

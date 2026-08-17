@@ -69,7 +69,7 @@ class MicrostructureCostModel:
         if adv_val <= 0 or amt <= 0:
             return 0.0005  # 5 bps fallback
         participation_rate = min(1.0, amt / adv_val)
-        daily_vol = max(0.005, vol / math.sqrt(252.0))
+        daily_vol = vol / math.sqrt(252.0)
         impact = self.cfg.market_impact_gamma * daily_vol * math.sqrt(participation_rate)
         return float(impact)
 

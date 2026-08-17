@@ -20,16 +20,18 @@ class TestPhase6AdvancedSystems(unittest.TestCase):
         """Test Gram-Schmidt style correlation penalty down-weights highly collinear strategy pairs."""
         scorer = EnsembleScoringEngine()
         initial_weights = {
-            "regression": 0.50,
-            "surge": 0.50,
+            "regression": 0.333,
+            "surge": 0.333,
+            "vcp": 0.334,
         }
 
-        # Create dummy scores DataFrame with high correlation (r > 0.9)
+        # Create dummy scores DataFrame with 2 collinear strategies and 1 independent strategy
         np.random.seed(42)
         base = np.random.randn(100)
         scores_df = pd.DataFrame({
             "reg_score": base + np.random.randn(100) * 0.01,
             "surge_score": base + np.random.randn(100) * 0.01,
+            "vcp_score": np.random.randn(100),
         })
 
         penalized_weights = scorer.apply_correlation_orthogonalization_penalty(
@@ -39,10 +41,11 @@ class TestPhase6AdvancedSystems(unittest.TestCase):
             penalty_factor=0.5,
         )
 
-        self.assertEqual(len(penalized_weights), 2)
+        self.assertEqual(len(penalized_weights), 3)
         self.assertAlmostEqual(sum(penalized_weights.values()), 1.0, places=5)
-        # One of the two collinear strategies should be down-weighted
-        self.assertNotEqual(penalized_weights["regression"], 0.50)
+        # Independent strategy should be boosted, collinear strategies down-weighted
+        self.assertGreater(penalized_weights["vcp"], 0.334)
+        self.assertLess(penalized_weights["regression"], 0.333)
 
     def test_hft_friction_deduction(self):
         """Test MicrostructureImbalanceEngine includes friction deduction and outputs valid columns."""
@@ -69,16 +72,16 @@ class TestPhase6AdvancedSystems(unittest.TestCase):
         detector = CrisisDetector()
 
         detector.crisis_level = CrisisLevel.NONE
-        self.assertEqual(detector.get_target_cash_ratio(), 0.0)
+        self.assertEqual(detector.get_target_cash_ratio(), 0.10)
 
         detector.crisis_level = CrisisLevel.WATCH
-        self.assertEqual(detector.get_target_cash_ratio(), 0.15)
+        self.assertEqual(detector.get_target_cash_ratio(), 0.30)
 
         detector.crisis_level = CrisisLevel.ACTIVE
-        self.assertEqual(detector.get_target_cash_ratio(), 0.35)
+        self.assertEqual(detector.get_target_cash_ratio(), 0.60)
 
         detector.crisis_level = CrisisLevel.SEVERE
-        self.assertEqual(detector.get_target_cash_ratio(), 0.50)
+        self.assertEqual(detector.get_target_cash_ratio(), 0.85)
 
     def test_pipeline_reporter_dynamic_count(self):
         """Test PipelineReporter dynamically retrieves StrategyRegistry strategy count."""

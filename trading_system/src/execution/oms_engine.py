@@ -169,16 +169,59 @@ class ExecutionOMSEngine:
                     continue
 
                 order_id = f"ORD_{sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
-                action = "BUY"
+                raw_action = str(pred.get("action", "BUY") or "BUY").upper()
                 name = str(pred.get("name", "") or "")
                 market = str(pred.get("market", "") or "")
+                is_krx = str(market).upper() in ["KOSPI", "KOSDAQ"] or sym.isdigit() or sym.endswith((".KS", ".KQ"))
+
+                # Gate 7.1: KRX Long-Only Synthetic Short / Cash Overlay Filter
+                if is_krx and raw_action in ["SELL_SHORT", "SHORT"]:
+                    action = "CASH_OVERLAY"
+                    status = "HEDGE_FLAG"
+                else:
+                    action = "BUY"
+                    status = "PENDING"
+
+                # Gate 7.2: KRX Upper Limit Lock (±30% Price Limit Gate)
+                change_pct = pred.get("change_pct") or pred.get("daily_return")
+                try:
+                    if change_pct is not None and float(change_pct) >= 0.295 and action == "BUY":
+                        logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{float(change_pct):.2%}), skipping buy.")
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+                # Gate 7.3: KRX STT / Transaction Cost Net Alpha Hurdle Check
+                if is_krx and action == "BUY" and ("expected_return" in pred or "ensemble_expected_return" in pred):
+                    try:
+                        from src.risk.portfolio_allocator import PortfolioAllocator
+                        allocator = PortfolioAllocator()
+                        adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
+                        vol_val = float(pred.get("volatility_20d", 0.02) or 0.02)
+                        friction_cost = allocator.estimate_transaction_cost_rate(
+                            symbol=sym,
+                            market=market or "KOSPI",
+                            target_weight=weight,
+                            portfolio_value=tot_cap,
+                            volatility_20d=vol_val,
+                            adv=adv_val,
+                            is_sell=False
+                        )
+                        raw_exp_ret = float(pred.get("expected_return", pred.get("ensemble_expected_return", 0.0)) or 0.0)
+                        exp_ret_frac = raw_exp_ret / 100.0
+                        safety_margin = 0.0010  # 0.10% safety margin
+                        if exp_ret_frac < (friction_cost + safety_margin):
+                            logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({friction_cost:.4%}), skipping.")
+                            continue
+                    except Exception as _fe:
+                        logger.debug(f"[OMS GATE 7] Hurdle check exception for {sym}: {_fe}")
 
                 raw_quantity = int(target_amount // target_price)
-                if str(market).upper() in ["KOSPI", "KOSDAQ"]:
+                if is_krx:
                     quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
                 else:
                     quantity = raw_quantity
-                if quantity <= 0:
+                if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 
                 plan_entry = {
@@ -191,7 +234,7 @@ class ExecutionOMSEngine:
                     "target_amount": round(target_amount, 2),
                     "target_price": round(target_price, 2),
                     "quantity": quantity,
-                    "status": "PENDING",
+                    "status": status,
                     "created_at": now_str
                 }
                 order_plans.append(plan_entry)
@@ -200,7 +243,7 @@ class ExecutionOMSEngine:
                     INSERT OR REPLACE INTO order_plans
                     (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, status, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, "PENDING", now_str))
+                """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, status, now_str))
 
             conn.commit()
         finally:

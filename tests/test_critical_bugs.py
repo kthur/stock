@@ -67,7 +67,6 @@ def test_bug_a5_microstructure_stt_and_daily_vol():
     model = MicrostructureCostModel()
     assert math.isclose(model.get_tax_fee_rate("KOSPI", is_sell=True), 0.0018, abs_tol=1e-5)
     assert math.isclose(model.get_tax_fee_rate("KOSDAQ", is_sell=True), 0.0021, abs_tol=1e-5)
-    assert math.isclose(model.get_tax_fee_rate("KONEX", is_sell=True), 0.0011, abs_tol=1e-5)
     assert math.isclose(model.get_tax_fee_rate("SP500", is_sell=True), 0.0000778, abs_tol=1e-6)
 
     # Market impact should use daily vol volatility / sqrt(252)

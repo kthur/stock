@@ -18,14 +18,14 @@ _DEFAULT_INDICATORS_DB = _TRADING_SYSTEM_ROOT / "market_indicators.db"
 
 
 def _is_krx_symbol(symbol: str) -> bool:
-    """Return True for KRX-listed symbols (KOSPI/KOSDAQ/KONEX).
+    """Return True for KRX-listed symbols (KOSPI/KOSDAQ).
 
-    KRX symbols carry a `.KS`/`.KQ`/`.KX` suffix (Yahoo style) or are bare
+    KRX symbols carry a `.KS`/`.KQ` suffix (Yahoo style) or are bare
     numeric codes up to 6 digits (FinanceDataReader style). Everything else is treated
     as a US market symbol (SP500/NASDAQ/RUSSELL2000).
     """
     s = str(symbol).upper().strip()
-    if s.endswith((".KS", ".KQ", ".KX")):
+    if s.endswith((".KS", ".KQ")):
         return True
     if s.isdigit() and 1 <= len(s) <= 6:
         return True
@@ -583,7 +583,7 @@ class MarketIndicatorStorage:
                     if code_str in excluded or code_raw in excluded:
                         continue
                     mkt = str(row.get('Market', 'KRX')).upper()
-                    if mkt == 'KONEX':
+                    if mkt not in ('KOSPI', 'KOSDAQ'):
                         continue
                     sec = str(row.get('Sector') or row.get('Dept') or row.get('Industry') or '')
                     ind = str(row.get('Industry') or '')

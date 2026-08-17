@@ -97,44 +97,43 @@ class TradeLogger:
         async with self._init_lock:
             if self._db_initialized:
                 return
-            async with self._conn_mgr._lock:
-                conn = await self._conn_mgr.get()
-                conn.row_factory = sqlite3.Row
-                cursor = await conn.cursor()
+            conn = await self._conn_mgr.get()
+            conn.row_factory = sqlite3.Row
+            cursor = await conn.cursor()
 
-                # 주문 테이블
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS orders (
-                        order_id TEXT PRIMARY KEY,
-                        symbol TEXT,
-                        order_type TEXT,
-                        quantity INTEGER,
-                        price REAL,
-                        status TEXT,
-                        filled_quantity INTEGER DEFAULT 0,
-                        created_at TIMESTAMP,
-                        executed_at TIMESTAMP
-                    )
-                """)
+            # 주문 테이블
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS orders (
+                    order_id TEXT PRIMARY KEY,
+                    symbol TEXT,
+                    order_type TEXT,
+                    quantity INTEGER,
+                    price REAL,
+                    status TEXT,
+                    filled_quantity INTEGER DEFAULT 0,
+                    created_at TIMESTAMP,
+                    executed_at TIMESTAMP
+                )
+            """)
 
-                # 체결 기록 테이블
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS executions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        order_id TEXT,
-                        symbol TEXT,
-                        quantity INTEGER,
-                        price REAL,
-                        executed_at TIMESTAMP,
-                        FOREIGN KEY(order_id) REFERENCES orders(order_id)
-                    )
-                """)
+            # 체결 기록 테이블
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS executions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id TEXT,
+                    symbol TEXT,
+                    quantity INTEGER,
+                    price REAL,
+                    executed_at TIMESTAMP,
+                    FOREIGN KEY(order_id) REFERENCES orders(order_id)
+                )
+            """)
 
-                await cursor.execute("CREATE INDEX IF NOT EXISTS idx_executions_order_id ON executions(order_id);")
-                await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_sym_date ON orders(symbol, created_at DESC);")
-                await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
+            await cursor.execute("CREATE INDEX IF NOT EXISTS idx_executions_order_id ON executions(order_id);")
+            await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_sym_date ON orders(symbol, created_at DESC);")
+            await cursor.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);")
 
-                await conn.commit()
+            await conn.commit()
             self._db_initialized = True
             self.logger.info(f"Database initialized at {self.db_path}")
 
@@ -220,22 +219,21 @@ class AssetHistoryDB:
         async with self._init_lock:
             if self._db_initialized:
                 return
-            async with self._conn_mgr._lock:
-                conn = await self._get_conn()
-                cursor = await conn.cursor()
+            conn = await self._get_conn()
+            cursor = await conn.cursor()
 
-                # 자산 스냅샷 테이블
-                await cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS asset_snapshots (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        cash REAL,
-                        total_value REAL,
-                        holdings TEXT,
-                        timestamp TIMESTAMP
-                    )
-                """)
+            # 자산 스냅샷 테이블
+            await cursor.execute("""
+                CREATE TABLE IF NOT EXISTS asset_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cash REAL,
+                    total_value REAL,
+                    holdings TEXT,
+                    timestamp TIMESTAMP
+                )
+            """)
 
-                await conn.commit()
+            await conn.commit()
             self._db_initialized = True
             self.logger.info(f"Asset history DB initialized at {self.db_path}")
 
@@ -454,9 +452,9 @@ class StockPriceDB:
             )
             self._local.conn.execute("PRAGMA journal_mode=WAL")
             self._local.conn.execute("PRAGMA busy_timeout=30000")
-            self._local.conn.execute("PRAGMA cache_size=-500000")  # 500MB page cache
+            self._local.conn.execute("PRAGMA cache_size=-32000")  # 32MB page cache per thread
             self._local.conn.execute("PRAGMA temp_store=MEMORY")
-            self._local.conn.execute("PRAGMA mmap_size=2000000000") # 2GB memory mapped I/O
+            self._local.conn.execute("PRAGMA mmap_size=268435456") # 256MB memory mapped I/O
         return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self):
@@ -466,9 +464,9 @@ class StockPriceDB:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA busy_timeout=30000")
 
-                conn.execute("PRAGMA cache_size=-500000")
+                conn.execute("PRAGMA cache_size=-32000")
                 conn.execute("PRAGMA temp_store=MEMORY")
-                conn.execute("PRAGMA mmap_size=2000000000")
+                conn.execute("PRAGMA mmap_size=268435456")
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS stock_prices (
                         symbol TEXT NOT NULL,
