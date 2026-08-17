@@ -664,11 +664,11 @@ class MarketIndicatorStorage:
             with self._connect() as conn:
                 df = pd.read_sql(
                     """
-                    SELECT g.symbol, g.price 
+                    SELECT g.symbol, g.price
                     FROM global_indicators g
                     INNER JOIN (
-                        SELECT symbol, MAX(date) AS max_date 
-                        FROM global_indicators 
+                        SELECT symbol, MAX(date) AS max_date
+                        FROM global_indicators
                         GROUP BY symbol
                     ) m ON g.symbol = m.symbol AND g.date = m.max_date
                     """,
