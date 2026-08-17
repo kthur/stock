@@ -661,7 +661,7 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
             date = m.group(1).strip()
             continue
         # Matches: rank  symbol  name (anything)  market  score%
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-+]?(?:[\d.]+|nan|NaN|None))%$", line)
+        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)\s+([-+]?(?:[\d.]+|nan|NaN|None))%?$", line)
         if m:
             score_val = m.group(5).strip()
             if "nan" in score_val.lower() or "none" in score_val.lower():
@@ -674,6 +674,10 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
                 score=score_val + "%",
             ))
     return date, rows
+
+
+def parse_lstm(text: str) -> tuple[str, list[SimpleStrategyRow]]:
+    return _parse_simple_strategy(text, "lstm_score")
 
 
 def parse_event_driven(text: str) -> tuple[str, list[SimpleStrategyRow]]:
@@ -1204,6 +1208,7 @@ def build_html(
     vcp_ml_sections: Optional[list[SurgeSection]] = None,
     reg_sections: Optional[list[RegSection]] = None,
     portfolio_data: Optional[PortfolioAllocationData] = None,
+    lstm_rows: Optional[list[SimpleStrategyRow]] = None,
     stat_arb_rows: Optional[list[StatArbRow]] = None,
     sector_rows: Optional[list[SectorRow]] = None,
     rim_rows: Optional[list[RimRow]] = None,
@@ -1898,6 +1903,7 @@ def build_html(
     </div>"""
         return panels_html
 
+    lstm_panels  = _build_simple_panels(lstm_rows or [],   "lstm",  "LSTM 스코어")
     event_panels = _build_simple_panels(event_rows or [], "event", "이벤트 스코어")
     mq_panels    = _build_simple_panels(mq_rows or [],    "mq",    "MQ 스코어")
     iv_panels    = _build_simple_panels(iv_rows or [],    "iv",    "IV Skew 스코어")
@@ -2651,12 +2657,13 @@ def build_html(
 
 <nav class="tabs">
   <button class="tab active" onclick="switchTab(this,'surge')">⚡ Surge</button>
-  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation (섹터 로테이션)</button>
   <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
   <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
   <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
   <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
+  <button class="tab" onclick="switchTab(this,'lstm')">🧠 Strict LSTM</button>
   <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
+  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
   <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
   <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
   <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
@@ -2725,6 +2732,21 @@ def build_html(
           <tbody>{leader_rows_html if leader_rows_html else '<tr><td colspan="4" class="empty">데이터 없음</td></tr>'}</tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ══ Strict LSTM Tab ══ -->
+  <div class="tab-panel" id="panel-lstm">
+    <div class="filter-bar" id="filter-lstm">
+      <button class="filter-btn active" onclick="filterMarket(this,'lstm')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="lstm-panels">
+    {lstm_panels}
     </div>
   </div>
 
@@ -3656,6 +3678,7 @@ def main(args_list: Optional[list[str]] = None):
     lag_date, follower_rows, leader_rows = parse_lead_lag(_read(result_dir / "lead_lag_predictions.txt"))
     vcp_ml_date, vcp_ml_sections = parse_vcp_ml(_read(result_dir / "vcp_ml_predictions.txt"))
     reg_date, reg_sections = parse_regression(_read(result_dir / "pipeline_result.txt"))
+    lstm_date, lstm_rows = parse_lstm(_read(result_dir / "lstm_predictions.txt"))
     stat_arb_date, stat_arb_rows = parse_stat_arb(_read(result_dir / "stat_arb_predictions.txt"))
     sector_date, sector_rows = parse_sector(_read(result_dir / "sector_predictions.txt"))
     rim_date, rim_rows = parse_rim(_read(result_dir / "rim_predictions.txt"))
@@ -3680,7 +3703,8 @@ def main(args_list: Optional[list[str]] = None):
     te_date, trend_efficiency_rows = parse_trend_efficiency(_read(result_dir / "trend_efficiency_predictions.txt"))
     gs_date, gamma_squeeze_rows = parse_gamma_squeeze(_read(result_dir / "gamma_squeeze_predictions.txt"))
     ib_date, insider_buying_rows = parse_insider_buying(_read(result_dir / "insider_buying_predictions.txt"))
-    dp_date, darkpool_rows = parse_darkpool(_read(result_dir / "darkpool_predictions.txt"))
+    dp_text = _read(result_dir / "darkpool_predictions.txt") or _read(result_dir / "hft_order_flow_predictions.txt")
+    dp_date, darkpool_rows = parse_darkpool(dp_text)
     etd_date, earnings_tone_drift_rows = parse_earnings_tone_drift(_read(result_dir / "earnings_tone_drift_predictions.txt"))
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
@@ -3795,6 +3819,7 @@ def main(args_list: Optional[list[str]] = None):
         lag_date, follower_rows, leader_rows,
         vcp_ml_sections, reg_sections,
         portfolio_data,
+        lstm_rows,
         stat_arb_rows,
         sector_rows,
         rim_rows,

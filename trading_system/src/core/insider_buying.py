@@ -54,6 +54,9 @@ class InsiderBuyingEngine(BaseStrategyEngine):
         symbols = symbols or []
         return self.compute_insider_buying_scores(symbols=symbols, **kwargs)
 
+    def calculate_scores(self, symbols: List[str], prices_dict: Optional[Dict[str, pd.DataFrame]] = None, **kwargs: Any) -> pd.DataFrame:
+        return self.compute_insider_buying_scores(symbols=symbols, **kwargs)
+
     def compute_insider_buying_scores(
         self,
         symbols: List[str],

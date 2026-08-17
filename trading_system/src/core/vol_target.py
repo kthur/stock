@@ -52,7 +52,12 @@ class VolTargetingEngine(BaseStrategyEngine):
     ) -> Any:
         """Compute volatility targeting risk parity score for universe symbols."""
         df_prices = kwargs.get("df_prices", prices_dict)
-        universe = kwargs.get("universe", kwargs.get("universe_df", pd.DataFrame()))
+        universe = kwargs.get("universe", kwargs.get("universe_df", None))
+        if universe is None or (isinstance(universe, pd.DataFrame) and universe.empty):
+            if isinstance(fundamentals_dict, pd.DataFrame) and not fundamentals_dict.empty:
+                universe = fundamentals_dict
+            elif isinstance(prices_dict, dict) and prices_dict:
+                universe = pd.DataFrame({'symbol': list(prices_dict.keys()), 'name': list(prices_dict.keys()), 'market': 'ALL'})
 
         if df_prices is None or universe is None or universe.empty:
             return pd.DataFrame(columns=["symbol", "name", "market", "vol_target_score"])

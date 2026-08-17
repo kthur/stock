@@ -49,6 +49,9 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
         symbols = list(prices_dict.keys()) if prices_dict else []
         return self.compute_gamma_squeeze_scores(symbols=symbols, prices_dict=prices_dict, **kwargs)
 
+    def calculate_scores(self, symbols: List[str], prices_dict: Optional[Dict[str, pd.DataFrame]] = None, **kwargs: Any) -> pd.DataFrame:
+        return self.compute_gamma_squeeze_scores(symbols=symbols, prices_dict=prices_dict, **kwargs)
+
     def compute_gamma_squeeze_scores(
         self,
         symbols: List[str],

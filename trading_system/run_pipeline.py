@@ -3770,24 +3770,43 @@ def execute_prediction_pipeline():
         f.write(f"{decision_rationale_text}\n\n")
 
         f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
-        f.write(f"  XGBoost Regression Fundamentals   : {ensemble_weights.get('regression', 0.0)*100:.1f}%\n")
-        f.write(f"  Surge Classifier (XGBoost)        : {ensemble_weights.get('surge', 0.0)*100:.1f}%\n")
-        f.write(f"  Index & Sector Lead-Lag Flow      : {ensemble_weights.get('lead_lag', 0.0)*100:.1f}%\n")
-        f.write(f"  VCP Rule Pattern Detector         : {ensemble_weights.get('vcp_rule', 0.0)*100:.1f}%\n")
-        f.write(f"  VCP Machine Learning Predictor    : {ensemble_weights.get('vcp_ml', 0.0)*100:.1f}%\n")
-        f.write(f"  Strict Causal LSTM Deep Learning  : {ensemble_weights.get('lstm', 0.0)*100:.1f}%\n")
-        f.write(f"  Stat-Arb Cointegration Mean Rev   : {ensemble_weights.get('stat_arb', 0.0)*100:.1f}%\n")
-        f.write(f"  Sector Rotation Relative Momentum : {ensemble_weights.get('sector_rotation', 0.0)*100:.1f}%\n")
-        f.write(f"  RIM Valuation (Residual Income)   : {ensemble_weights.get('rim_valuation', 0.0)*100:.1f}%\n")
-        f.write(f"  Event-Driven Disclosure Catalyst  : {ensemble_weights.get('event_driven', 0.0)*100:.1f}%\n")
-        f.write(f"  Momentum Quality (MQ) Factor      : {ensemble_weights.get('mq_factor', 0.0)*100:.1f}%\n")
-        f.write(f"  Options Put/Call IV Skew          : {ensemble_weights.get('iv_skew', 0.0)*100:.1f}%\n")
-        f.write(f"  Order Flow Imbalance (MFI)        : {ensemble_weights.get('order_flow', 0.0)*100:.1f}%\n")
-        f.write(f"  Short-Term Mean Reversal          : {ensemble_weights.get('short_term_reversal', 0.0)*100:.1f}%\n")
-        f.write(f"  Analyst Revision Momentum (ARM)   : {ensemble_weights.get('arm_factor', 0.0)*100:.1f}%\n")
-        f.write(f"  Cross-Asset Regime Divergence(CARD): {ensemble_weights.get('card_factor', 0.0)*100:.1f}%\n")
-        f.write(f"  Liq-Adj Tail Risk (LATR)          : {ensemble_weights.get('latr_factor', 0.0)*100:.1f}%\n")
-        f.write(f"  Inst & Foreign Sector Flow        : {ensemble_weights.get('inst_foreign_sector', 0.0)*100:.1f}%\n\n")
+        _STRAT_DISPLAY_MAP = [
+            ("regression", "XGBoost Regression Fundamentals"),
+            ("surge", "Surge Classifier (XGBoost)"),
+            ("lead_lag", "Index & Sector Lead-Lag Flow"),
+            ("vcp_rule", "VCP Rule Pattern Detector"),
+            ("vcp_ml", "VCP Machine Learning Predictor"),
+            ("lstm", "Strict Causal LSTM Deep Learning"),
+            ("stat_arb", "Stat-Arb Cointegration Mean Rev"),
+            ("sector_rotation", "Sector Rotation Relative Momentum"),
+            ("rim_valuation", "RIM Valuation (Residual Income)"),
+            ("event_driven", "Event-Driven Disclosure Catalyst"),
+            ("mq_factor", "Momentum Quality (MQ) Factor"),
+            ("iv_skew", "Options Put/Call IV Skew"),
+            ("order_flow", "Order Flow Imbalance (MFI)"),
+            ("short_term_reversal", "Short-Term Mean Reversal"),
+            ("arm_factor", "Analyst Revision Momentum (ARM)"),
+            ("card_factor", "Cross-Asset Regime Divergence(CARD)"),
+            ("latr_factor", "Liq-Adj Tail Risk (LATR)"),
+            ("inst_foreign_sector", "Inst & Foreign Sector Flow"),
+            ("supply_chain", "Supply Chain Spillover Momentum"),
+            ("sentiment", "NLP FinBERT Sentiment Catalyst"),
+            ("factor_neutralized", "Multi-Factor Style Neutral Alpha"),
+            ("vol_target", "Dynamic Volatility Targeting"),
+            ("microstructure", "Microstructure Order Imbalance"),
+            ("accruals_quality", "Accruals Quality Accounting Pure"),
+            ("short_squeeze", "Short Interest & Squeeze Catalyst"),
+            ("valueup_catalyst", "Value-Up & Shareholder Yield"),
+            ("trend_efficiency", "Kaufman Trend Efficiency Filter"),
+            ("gamma_squeeze", "Options Gamma & Delta Squeeze"),
+            ("insider_buying", "Executive & Insider Buying Catalyst"),
+            ("darkpool", "HFT Order Flow & Dark Pool"),
+            ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
+        ]
+        for _skey, _sname in _STRAT_DISPLAY_MAP:
+            _w_pct = ensemble_weights.get(_skey, 0.0) * 100.0
+            f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
+        f.write("\n")
 
         # 2. Recommendations per market
         f.write("--- Top 20 Recommendations by Market ---\n")
