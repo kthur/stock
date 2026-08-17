@@ -1292,20 +1292,37 @@ def build_html(
                 ret_disp = f"▲ {r.expected_return}" if r.expected_return.startswith('+') else (f"▼ {r.expected_return}" if r.expected_return.startswith('-') else r.expected_return)
                 symbol_link = make_stock_link(r.symbol, mkt)
                 factors_dict = {
-                    "Reg Regression": r.reg, "Surge Classifier": r.surge, "Lead-Lag Flow": r.lead_lag,
-                    "VCP Rule": r.vcp_rule, "VCP ML": r.vcp_ml, "Strict LSTM": r.lstm,
-                    "Stat-Arb Z-Score": r.stat_arb, "Sector Rotation": r.sector_rotation,
-                    "RIM Valuation": r.rim_valuation, "Event-Driven": r.event_driven,
-                    "MQ Factor": r.mq_factor, "IV Skew": r.iv_skew, "Order Flow": r.order_flow,
-                    "Short Reversal": r.short_term_reversal, "ARM Factor": r.arm_factor,
-                    "CARD Factor": r.card_factor, "LATR Factor": r.latr_factor,
-                    "Inst & Foreign Sector": r.inst_foreign_sector, "Supply Chain": r.supply_chain,
-                    "NLP Sentiment": r.sentiment, "Factor Neutralized": r.factor_neutralized,
-                    "Vol Targeting": r.vol_target, "Microstructure": r.microstructure,
-                    "Accruals Quality": r.accruals_quality, "Short Squeeze": r.short_squeeze,
-                    "Value-Up Yield": r.valueup_catalyst, "Trend Efficiency": r.trend_efficiency,
-                    "Gamma Squeeze": r.gamma_squeeze, "Insider Buying": r.insider_buying,
-                    "Darkpool & HFT": r.darkpool, "Tone Drift": r.earnings_tone_drift
+                    "1. XGBoost 회귀": r.reg,
+                    "2. Surge 분류기": r.surge,
+                    "3. Lead-Lag": r.lead_lag,
+                    "4. VCP 패턴 (Rule)": r.vcp_rule,
+                    "5. VCP ML": r.vcp_ml,
+                    "6. Strict LSTM": r.lstm,
+                    "7. Stat-Arb": r.stat_arb,
+                    "8. Sector Rotation": r.sector_rotation,
+                    "9. RIM Valuation": r.rim_valuation,
+                    "10. Event-Driven": r.event_driven,
+                    "11. MQ Factor": r.mq_factor,
+                    "12. Options IV Skew": r.iv_skew,
+                    "13. Order Flow": r.order_flow,
+                    "14. Short-Term Reversal": r.short_term_reversal,
+                    "15. ARM Factor": r.arm_factor,
+                    "16. CARD Factor": r.card_factor,
+                    "17. LATR Factor": r.latr_factor,
+                    "18. Inst & Foreign Sector": r.inst_foreign_sector,
+                    "19. Supply Chain": r.supply_chain,
+                    "20. NLP Sentiment": r.sentiment,
+                    "21. Factor Neutralized": r.factor_neutralized,
+                    "22. Vol Targeting": r.vol_target,
+                    "23. Microstructure": r.microstructure,
+                    "24. Accruals Quality": r.accruals_quality,
+                    "25. Short Squeeze": r.short_squeeze,
+                    "26. Value-Up Yield": r.valueup_catalyst,
+                    "27. Trend Efficiency": r.trend_efficiency,
+                    "28. Gamma Squeeze": r.gamma_squeeze,
+                    "29. Insider Buying": r.insider_buying,
+                    "30. Darkpool & HFT": r.darkpool,
+                    "31. Tone Drift": r.earnings_tone_drift,
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
@@ -1364,37 +1381,37 @@ def build_html(
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
             <th title="20일(20D) Horizon 기준 미시구조 거래비용 차감 후 순예상수익률 (%)">예상수익률 (20D) ↕</th>
-            <th class="col-strat" title="XGBoost 회귀 1~200일 horizon 예상수익률 점수">회귀 ↕</th>
-            <th class="col-strat" title="Surge 분류기 20% 이상 급등 확률">Surge ↕</th>
-            <th class="col-strat" title="Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">L-L ↕</th>
-            <th class="col-strat" title="Rule-based Volatility Contraction Pattern 패턴 검출">VCP-R ↕</th>
-            <th class="col-strat" title="Machine Learning 기반 VCP 패턴 돌파 성공 확률">VCP-M ↕</th>
-            <th class="col-strat" title="Strict Causal LSTM 딥러닝 모멘텀 스코어">LSTM ↕</th>
-            <th class="col-strat" title="Statistical Arbitrage 공적분 평균회귀 Z-Score">S-Arb ↕</th>
-            <th class="col-strat" title="Sector Rotation 상대모멘텀 및 순환매 수급">Sec-R ↕</th>
-            <th class="col-strat" title="Residual Income Model 잔여이익 가치평가 및 안전마진">RIM ↕</th>
-            <th class="col-strat" title="Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">Event ↕</th>
-            <th class="col-strat" title="Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">MQ ↕</th>
-            <th class="col-strat" title="Options Put/Call Implied Volatility Skew 역발상 점수">IV-Sk ↕</th>
-            <th class="col-strat" title="Order Flow Imbalance 외인/기관 순매수 수급 가속도">Flow ↕</th>
-            <th class="col-strat" title="Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">Rev ↕</th>
-            <th class="col-strat" title="Analyst Revision Momentum EPS/목표가 상향 조정">ARM ↕</th>
-            <th class="col-strat" title="Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">CARD ↕</th>
-            <th class="col-strat" title="Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">LATR ↕</th>
-            <th class="col-strat" title="Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">I&amp;F ↕</th>
-            <th class="col-strat" title="Supply Chain Momentum 전방 공급망 전이">Supply ↕</th>
-            <th class="col-strat" title="NLP Sentiment FinBERT 공시/뉴스 감성">NLP ↕</th>
-            <th class="col-strat" title="Fama-French Multi-Factor Style Neutralized 순수 알파">Neutral ↕</th>
-            <th class="col-strat" title="Dynamic Volatility Targeting 리스크 파리티">Vol-T ↕</th>
-            <th class="col-strat" title="Microstructure Imbalance 호가/동시호가 갭">Micro ↕</th>
-            <th class="col-strat" title="Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">Accrual ↕</th>
-            <th class="col-strat" title="Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">S-Sq ↕</th>
-            <th class="col-strat" title="Value-Up Catalyst 저PBR 및 총주주환원율">ValueUp ↕</th>
-            <th class="col-strat" title="Kaufman Trend Efficiency 고순도 추세 필터">TrendEff ↕</th>
-            <th class="col-strat" title="Gamma Squeeze 옵션 델타/감마 가속도">GammaSq ↕</th>
-            <th class="col-strat" title="Insider Buying 임원/대주주 내부자 매수">Insider ↕</th>
-            <th class="col-strat" title="High-Frequency Darkpool / Block Order Flow">Darkpool ↕</th>
-            <th class="col-strat" title="Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">ToneDrift ↕</th>
+            <th class="col-strat" title="1. XGBoost 회귀 1~200일 horizon 예상수익률 점수">1. 회귀 ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 20% 이상 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Index &amp; Sector Lead-Lag flow 선행주 시차 상관성">3. L-Lag ↕</th>
+            <th class="col-strat" title="4. Rule-based Volatility Contraction Pattern 패턴 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. Machine Learning 기반 VCP 패턴 돌파 성공 확률">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal LSTM 딥러닝 모멘텀 스코어">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Statistical Arbitrage 공적분 평균회귀 Z-Score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 및 순환매 수급">8. Sec-R ↕</th>
+            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
+            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
+            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
+            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
+            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
+            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
+            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
+            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
+            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
+            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
+            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
+            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
+            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
+            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
+            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
+            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
+            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
+            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
+            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
+            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
+            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
+            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
+            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
@@ -1404,8 +1421,51 @@ def build_html(
     def _render_weights_html(w_dict: dict) -> str:
         if not w_dict:
             return '<span style="color:var(--muted); padding:12px; display:block;">데이터 없음</span>'
+        
+        canonical_priority = [
+            ("reg", 1), ("회귀", 1),
+            ("srg", 2), ("surge", 2), ("급등", 2),
+            ("lead", 3), ("선행", 3),
+            ("vcp_rule", 4), ("vcp-r", 4), ("vcp rule", 4),
+            ("vcp_ml", 5), ("vcp-m", 5), ("vcp ml", 5),
+            ("vcp", 4),
+            ("lstm", 6),
+            ("stat_arb", 7), ("s-arb", 7), ("공적분", 7),
+            ("sector", 8), ("sec-r", 8), ("섹터", 8),
+            ("rim", 9), ("가치", 9),
+            ("event", 10), ("공시", 10),
+            ("mq", 11), ("모멘텀", 11),
+            ("iv", 12), ("옵션", 12),
+            ("flow", 13), ("수급", 13),
+            ("reversal", 14), ("rev", 14), ("반전", 14),
+            ("arm", 15), ("컨센", 15),
+            ("card", 16), ("괴리", 16),
+            ("latr", 17), ("tail", 17),
+            ("inst", 18), ("ifs", 18), ("외인", 18),
+            ("supply", 19), ("공급망", 19),
+            ("sentiment", 20), ("nlp", 20), ("감성", 20),
+            ("neutral", 21), ("중립", 21),
+            ("vol", 22), ("변동성", 22),
+            ("micro", 23), ("호가", 23),
+            ("accrual", 24), ("발생액", 24),
+            ("squeeze", 25), ("숏스퀴즈", 25),
+            ("value", 26), ("밸류업", 26),
+            ("trend", 27), ("추세", 27),
+            ("gamma", 28), ("감마", 28),
+            ("insider", 29), ("내부자", 29),
+            ("darkpool", 30), ("hft", 30), ("다크풀", 30),
+            ("tone", 31), ("drift", 31), ("어조", 31)
+        ]
+        def get_priority(name: str) -> int:
+            n_lower = name.lower()
+            for key, prio in canonical_priority:
+                if key in n_lower:
+                    return prio
+            return 999
+
+        sorted_items = sorted(w_dict.items(), key=lambda item: get_priority(item[0]))
         out_html = '<div class="weights-grid">'
-        for k, v in w_dict.items():
+        for k, v in sorted_items:
             val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else 0.0
             bar_w = min(100, int(val_pct * 12.0))
             high_cls = " style='font-weight:700; color:#38bdf8;'" if val_pct >= 4.0 else ""
@@ -2361,7 +2421,7 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">3. Lead-Lag</div><div class="strat-card-desc">업종 지수/대형 선행주 대비 후행 반응 종목 시차 포착</div></div>
         <div class="strat-card-item"><div class="strat-card-name">4. VCP 패턴 (Rule)</div><div class="strat-card-desc">변동성 수축(VCP) + 거래량 감축 규칙 기반 파동 검출</div></div>
         <div class="strat-card-item"><div class="strat-card-name">5. VCP ML</div><div class="strat-card-desc">시장별 특화 XGBoost로 VCP 패턴 성패 확률 수치화</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">6. Causal LSTM</div><div class="strat-card-desc">시점 분리 정규화 시계열 딥러닝 종목 모멘텀 추적</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">6. Strict Causal LSTM</div><div class="strat-card-desc">시점 분리 정규화 시계열 딥러닝 종목 모멘텀 추적</div></div>
         <div class="strat-card-item"><div class="strat-card-name">7. Stat-Arb</div><div class="strat-card-desc">공적분 잔차 평균회귀 Z-score 기반 횡보장 차익거래</div></div>
         <div class="strat-card-item"><div class="strat-card-name">8. Sector Rotation</div><div class="strat-card-desc">KRX/GICS 업종 상대모멘텀 및 순환매 수급 스코어링</div></div>
         <div class="strat-card-item"><div class="strat-card-name">9. RIM Valuation</div><div class="strat-card-desc">잔여이익 모델 기반 정밀 가치평가 및 안전마진 측정</div></div>
@@ -2369,7 +2429,7 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">11. MQ Factor</div><div class="strat-card-desc">12M-1M 노이즈 제거 모멘텀 + 영업이익률/ROE 퀄리티</div></div>
         <div class="strat-card-item"><div class="strat-card-name">12. Options IV Skew</div><div class="strat-card-desc">yfinance 풋/콜 IV Skew 및 공포 역발상 매수 점수</div></div>
         <div class="strat-card-item"><div class="strat-card-name">13. Order Flow</div><div class="strat-card-desc">외인/기관 순매수 수급 가속도 (MFI) 추적</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">14. ST Reversal</div><div class="strat-card-desc">3~5일 연속 과매도/볼린저 하단 이탈 단기 반등 포착</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">14. Short-Term Reversal</div><div class="strat-card-desc">3~5일 연속 과매도/볼린저 하단 이탈 단기 반등 포착</div></div>
         <div class="strat-card-item"><div class="strat-card-name">15. ARM Factor</div><div class="strat-card-desc">증권가 컨센서스(EPS/목표가) 상향 조정 및 실적 서프라이즈</div></div>
         <div class="strat-card-item"><div class="strat-card-name">16. CARD Factor</div><div class="strat-card-desc">주식-원자재-환율 이탈 괴리율 역발상 매수 점수</div></div>
         <div class="strat-card-item"><div class="strat-card-name">17. LATR Factor</div><div class="strat-card-desc">52주 고점 낙폭(DD) + 유동성 서지 + 하방 꼬리위험 반등</div></div>
@@ -2382,10 +2442,10 @@ def build_html(
         <div class="strat-card-item"><div class="strat-card-name">24. Accruals Quality</div><div class="strat-card-desc">당기순이익 대비 영업현금흐름(OCF) 괴리율 회계 품질 점수</div></div>
         <div class="strat-card-item"><div class="strat-card-name">25. Short Squeeze</div><div class="strat-card-desc">공매도 잔고 비율 + Days-to-Cover + 모멘텀 숏스퀴즈 촉매</div></div>
         <div class="strat-card-item"><div class="strat-card-name">26. Value-Up Yield</div><div class="strat-card-desc">PBR 1배 미만 + 순현금/시총 + 총주주환원율(배당+자사주소각)</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">27. Kaufman Efficiency</div><div class="strat-card-desc">5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">27. Kaufman Trend Efficiency</div><div class="strat-card-desc">5D/10D/20D KER(트렌드 효율성) + Hurst Exponent 고순도 추세</div></div>
         <div class="strat-card-item"><div class="strat-card-name">28. Gamma Squeeze</div><div class="strat-card-desc">옵션 델타/감마 헤징 수급 폭발 및 숏가속도 갭 상승 포착</div></div>
         <div class="strat-card-item"><div class="strat-card-name">29. Insider Buying</div><div class="strat-card-desc">임원/주요주주 경영진 내부자 순매수 촉매 수치화</div></div>
-        <div class="strat-card-item"><div class="strat-card-name">30. Dark Pool Flow</div><div class="strat-card-desc">장외 다크풀 대량 거래 및 동시호가 수급 은닉 자금 추적</div></div>
+        <div class="strat-card-item"><div class="strat-card-name">30. Darkpool &amp; HFT</div><div class="strat-card-desc">장외 다크풀 대량 거래 및 동시호가 수급 은닉 자금 추적</div></div>
         <div class="strat-card-item"><div class="strat-card-name">31. Earnings Tone Drift</div><div class="strat-card-desc">실적발표 텍스트 FinBERT 어조(Tone) 변화 및 60D 어닝 드리프트</div></div>
       </div>
     </div>
@@ -2700,62 +2760,53 @@ def build_html(
 <div class="strategy-tabs-label">📊 개별 전략 상세 (Individual Strategies)</div>
 
 <nav class="tabs">
-  <button class="tab active" onclick="switchTab(this,'surge')">⚡ Surge</button>
-  <button class="tab" onclick="switchTab(this,'vcpml')">🤖 VCP ML</button>
-  <button class="tab" onclick="switchTab(this,'regression')">📈 Regression</button>
-  <button class="tab" onclick="switchTab(this,'vcp')">📐 VCP Rule</button>
-  <button class="tab" onclick="switchTab(this,'leadlag')">🔗 Lead-Lag</button>
-  <button class="tab" onclick="switchTab(this,'lstm')">🧠 Strict LSTM</button>
-  <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ Stat-Arb</button>
-  <button class="tab" onclick="switchTab(this,'sector')">🔄 Sector Rotation</button>
-  <button class="tab" onclick="switchTab(this,'rim')">💎 RIM Valuation</button>
-  <button class="tab" onclick="switchTab(this,'event')">📰 Event-Driven</button>
-  <button class="tab" onclick="switchTab(this,'mq')">🔬 MQ Factor</button>
-  <button class="tab" onclick="switchTab(this,'iv')">📊 IV Skew</button>
-  <button class="tab" onclick="switchTab(this,'flow')">🌊 Order Flow</button>
-  <button class="tab" onclick="switchTab(this,'reversal')">↩️ ST Reversal</button>
-  <button class="tab" onclick="switchTab(this,'arm')">📈 ARM</button>
-  <button class="tab" onclick="switchTab(this,'card')">🌐 CARD</button>
-  <button class="tab" onclick="switchTab(this,'latr')">⚡ LATR</button>
-  <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 외인/투신 수급</button>
-  <button class="tab" onclick="switchTab(this,'supplychain')">🔗 Supply Chain</button>
-  <button class="tab" onclick="switchTab(this,'sentiment')">🧠 NLP Sentiment</button>
-  <button class="tab" onclick="switchTab(this,'neutralized')">🛡️ Factor Neutralized</button>
-  <button class="tab" onclick="switchTab(this,'voltarget')">🎯 Vol Targeting</button>
-  <button class="tab" onclick="switchTab(this,'microstructure')">⚡ Microstructure</button>
-  <button class="tab" onclick="switchTab(this,'accruals')">⚖️ Accruals Quality</button>
-  <button class="tab" onclick="switchTab(this,'shortsqueeze')">💥 Short Squeeze</button>
-  <button class="tab" onclick="switchTab(this,'valueup')">💎 Value-Up Yield</button>
-  <button class="tab" onclick="switchTab(this,'trendeff')">📈 Trend Efficiency</button>
-  <button class="tab" onclick="switchTab(this,'gammasqueeze')">🎯 Gamma Squeeze</button>
-  <button class="tab" onclick="switchTab(this,'insider')">👥 Insider Buying</button>
-  <button class="tab" onclick="switchTab(this,'darkpool')">🌊 Darkpool &amp; HFT</button>
-  <button class="tab" onclick="switchTab(this,'tonedrift')">🗣️ Tone Drift</button>
+  <button class="tab active" onclick="switchTab(this,'regression')">📈 1. Regression</button>
+  <button class="tab" onclick="switchTab(this,'surge')">⚡ 2. Surge</button>
+  <button class="tab" onclick="switchTab(this,'leadlag')">🔗 3. Lead-Lag</button>
+  <button class="tab" onclick="switchTab(this,'vcp')">📐 4. VCP Rule</button>
+  <button class="tab" onclick="switchTab(this,'vcpml')">🤖 5. VCP ML</button>
+  <button class="tab" onclick="switchTab(this,'lstm')">🧠 6. Strict LSTM</button>
+  <button class="tab" onclick="switchTab(this,'stat-arb')">⚖️ 7. Stat-Arb</button>
+  <button class="tab" onclick="switchTab(this,'sector')">🔄 8. Sector Rotation</button>
+  <button class="tab" onclick="switchTab(this,'rim')">💎 9. RIM Valuation</button>
+  <button class="tab" onclick="switchTab(this,'event')">📰 10. Event-Driven</button>
+  <button class="tab" onclick="switchTab(this,'mq')">🔬 11. MQ Factor</button>
+  <button class="tab" onclick="switchTab(this,'iv')">📊 12. IV Skew</button>
+  <button class="tab" onclick="switchTab(this,'flow')">🌊 13. Order Flow</button>
+  <button class="tab" onclick="switchTab(this,'reversal')">↩️ 14. ST Reversal</button>
+  <button class="tab" onclick="switchTab(this,'arm')">📈 15. ARM</button>
+  <button class="tab" onclick="switchTab(this,'card')">🌐 16. CARD</button>
+  <button class="tab" onclick="switchTab(this,'latr')">⚡ 17. LATR</button>
+  <button class="tab" onclick="switchTab(this,'ifs')">🏛️ 18. 외인/투신 수급</button>
+  <button class="tab" onclick="switchTab(this,'supplychain')">🔗 19. Supply Chain</button>
+  <button class="tab" onclick="switchTab(this,'sentiment')">🧠 20. NLP Sentiment</button>
+  <button class="tab" onclick="switchTab(this,'neutralized')">🛡️ 21. Factor Neutralized</button>
+  <button class="tab" onclick="switchTab(this,'voltarget')">🎯 22. Vol Targeting</button>
+  <button class="tab" onclick="switchTab(this,'microstructure')">⚡ 23. Microstructure</button>
+  <button class="tab" onclick="switchTab(this,'accruals')">⚖️ 24. Accruals Quality</button>
+  <button class="tab" onclick="switchTab(this,'shortsqueeze')">💥 25. Short Squeeze</button>
+  <button class="tab" onclick="switchTab(this,'valueup')">💎 26. Value-Up Yield</button>
+  <button class="tab" onclick="switchTab(this,'trendeff')">📈 27. Trend Efficiency</button>
+  <button class="tab" onclick="switchTab(this,'gammasqueeze')">🎯 28. Gamma Squeeze</button>
+  <button class="tab" onclick="switchTab(this,'insider')">👥 29. Insider Buying</button>
+  <button class="tab" onclick="switchTab(this,'darkpool')">🌊 30. Darkpool &amp; HFT</button>
+  <button class="tab" onclick="switchTab(this,'tonedrift')">🗣️ 31. Tone Drift</button>
 </nav>
 
 <div class="content row2-content" style="padding: 24px 32px;">
-  <!-- ══ Surge Tab ══ -->
-  <div class="tab-panel active" id="panel-surge">
+  <!-- ══ 1. Regression Tab ══ -->
+  <div class="tab-panel active" id="panel-regression">
+    <div class="hz-tabs">{reg_tabs_nav}</div>
+    {reg_tabs_content}
+  </div>
+
+  <!-- ══ 2. Surge Tab ══ -->
+  <div class="tab-panel" id="panel-surge">
     <div class="hz-tabs">{surge_tabs_nav}</div>
     {surge_tabs_content}
   </div>
 
-  <!-- ══ VCP Tab ══ -->
-  <div class="tab-panel" id="panel-vcp">
-    <div class="filter-bar" id="filter-vcp">
-      <button class="filter-btn active" onclick="filterMarket(this,'vcp')" data-mkt="all">전체</button>
-      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="SP500">🇺🇸 SP500</button>
-      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
-      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-    </div>
-    <div id="vcp-panels">
-    {vcp_panels}
-    </div>
-  </div>
-
-  <!-- ══ Lead-Lag Tab ══ -->
+  <!-- ══ 3. Lead-Lag Tab ══ -->
   <div class="tab-panel" id="panel-leadlag">
     <div class="filter-bar" id="filter-leadlag">
       <button class="filter-btn active" onclick="filterMarket(this,'leadlag')" data-mkt="all">전체</button>
@@ -2779,7 +2830,28 @@ def build_html(
     </div>
   </div>
 
-  <!-- ══ Strict LSTM Tab ══ -->
+  <!-- ══ 4. VCP Pattern (Rule) Tab ══ -->
+  <div class="tab-panel" id="panel-vcp">
+    <div class="filter-bar" id="filter-vcp">
+      <button class="filter-btn active" onclick="filterMarket(this,'vcp')" data-mkt="all">전체</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="SP500">🇺🇸 SP500</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+      <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+    </div>
+    <div id="vcp-panels">
+    {vcp_panels}
+    </div>
+  </div>
+
+  <!-- ══ 5. VCP ML Tab ══ -->
+  <div class="tab-panel" id="panel-vcpml">
+    <div class="hz-tabs">{vcp_ml_tabs_nav}</div>
+    {vcp_ml_tabs_content}
+  </div>
+
+  <!-- ══ 6. Strict LSTM Tab ══ -->
   <div class="tab-panel" id="panel-lstm">
     <div class="filter-bar" id="filter-lstm">
       <button class="filter-btn active" onclick="filterMarket(this,'lstm')" data-mkt="all">전체</button>
@@ -3154,7 +3226,7 @@ def build_html(
     </div>
   </div>
 
-  <!-- ══ Earnings Tone Drift Tab ══ -->
+  <!-- ══ 31. Earnings Tone Drift Tab ══ -->
   <div class="tab-panel" id="panel-tonedrift">
     <div class="filter-bar" id="filter-tonedrift">
       <button class="filter-btn active" onclick="filterMarket(this,'tonedrift')" data-mkt="all">전체</button>
@@ -3167,18 +3239,6 @@ def build_html(
     <div id="tonedrift-panels">
     {tonedrift_panels}
     </div>
-  </div>
-
-  <!-- ══ VCP ML Tab ══ -->
-  <div class="tab-panel" id="panel-vcpml">
-    <div class="hz-tabs">{vcp_ml_tabs_nav}</div>
-    {vcp_ml_tabs_content}
-  </div>
-
-  <!-- ══ Regression Tab ══ -->
-  <div class="tab-panel" id="panel-regression">
-    <div class="hz-tabs">{reg_tabs_nav}</div>
-    {reg_tabs_content}
   </div>
 
 </div><!-- end .content -->
