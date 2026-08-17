@@ -96,13 +96,13 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                     matching_items = filings_by_code.get(sym_raw)
                 if not matching_items:
                     continue
-                for item in matching_items:
                     report_nm = str(item.get('report_nm', ''))
                     insider_role = str(item.get('insider_role', 'EXECUTIVE')).upper()
                     trans_type = str(item.get('trans_type', 'BUY')).upper()
+                    combined_role_text = f"{insider_role} {report_nm}"
 
                     if trans_type in buy_keywords:
-                        boost = 0.35 if any(role in insider_role for role in high_level_roles) else 0.20
+                        boost = 0.35 if any(role in combined_role_text for role in high_level_roles) else 0.20
                         # Accumulate multiple insider buys up to 0.98 cap
                         scores_map[sym] = float(np.clip(scores_map[sym] + boost, 0.0, 0.98))
                         logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {scores_map[sym]:.2f})")
