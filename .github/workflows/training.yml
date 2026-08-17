@@ -88,7 +88,7 @@ jobs:
           SKIP_TRAINING: 'False'
           SKIP_INFERENCE: 'True'
           FORCE_CPU: '1'
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           KOREABANK_ECOS_KEY: ${{ secrets.KOREABANK_ECOS_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -124,7 +124,7 @@ jobs:
       - name: Notify Telegram on Failure
         if: failure()
         run: |
-          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}"
           CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
           if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
             RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

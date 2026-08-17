@@ -67,16 +67,16 @@ jobs:
           LOG_LEVEL: INFO
           TZ: 'Asia/Seoul'
           REALTIME_STATE_DB: realtime_state.db
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         working-directory: trading_system
         run: |
           .venv/bin/python realtime_monitor.py --once --dry-run 2>&1
 
-      - name: Notify Telegram on Failure
+      - name: Notify Telegram on Monitor Alert
         if: failure()
         run: |
-          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}"
           CHAT="${{ secrets.TELEGRAM_CHAT_ID }}"
           if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
             RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
