@@ -73,7 +73,8 @@ class PortfolioAllocator:
                 k_eff = float(np.clip(stress_weight, 0.0, 0.70))
                 stressed_cov = (1.0 - k_eff) * base_cov + k_eff * tail_cov
                 w_diag = np.diag(np.diag(stressed_cov))
-                return stressed_cov + 1e-6 * w_diag
+                res: np.ndarray = np.asarray(stressed_cov + 1e-6 * w_diag)
+                return res
 
         return base_cov
 

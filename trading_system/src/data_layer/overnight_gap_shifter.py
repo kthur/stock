@@ -8,7 +8,7 @@ Pre-Market Overnight Gap Shifter Module:
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 

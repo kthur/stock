@@ -2,7 +2,7 @@ import json
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional, List, cast
+from typing import Optional, List, Any, cast
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class MetaEnsembleLearner:
                         logger.info(f"Loaded MetaEnsembleLearner model from {self.model_path} ({len(self.feature_names)} features)")
                         return True
                     else:
-                        logger.warning(f"MetaEnsembleLearner model file feature mismatch, resetting for refit.")
+                        logger.warning("MetaEnsembleLearner model file feature mismatch, resetting for refit.")
             except Exception as e:
                 logger.warning(f"Failed to load MetaEnsembleLearner model: {e}")
         return False

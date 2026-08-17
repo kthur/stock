@@ -88,7 +88,7 @@ class ARMFactorEngine(BaseStrategyEngine):
                     eps_growth = _safe_float(f_data.get('eps_growth'), 0.0)
                     rev_growth = _safe_float(f_data.get('revenue_growth'), 0.0)
                     per = _safe_float(f_data.get('per'), 15.0)
-                    per_penalty = max(0.0, per) * 0.01
+                    per_penalty = min(0.30, max(0.0, per - 15.0) * 0.003)
                     arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - per_penalty
 
                 price_mom = 0.0

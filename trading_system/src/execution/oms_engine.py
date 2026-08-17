@@ -131,7 +131,6 @@ class ExecutionOMSEngine:
             logger.warning("[OMS ENGINE] SEVERE crisis level - skipping ALL order plan generation.")
             return order_plans
 
-        import math
         try:
             tot_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
         except (ValueError, TypeError):
@@ -284,7 +283,6 @@ class ExecutionOMSEngine:
         """
         Records trade execution and calculates real-time slippage in basis points (bps).
         """
-        import math
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
             pt = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 0.0
