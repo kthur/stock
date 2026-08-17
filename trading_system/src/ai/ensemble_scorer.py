@@ -637,7 +637,17 @@ class EnsembleScoringEngine:
                     if np.isnan(mean_ret):
                         mean_ret = 0.0
                     sharpe = ((mean_ret - rf_daily) / std_ret) * np.sqrt(252)
-                    sharpes[strategy] = float(sharpe)
+
+                    # Downside semi-deviation Sortino calculation for asymmetric risk penalty
+                    downside_diff = np.minimum(0.0, recent.values - rf_daily)
+                    downside_std = float(np.sqrt(np.mean(downside_diff ** 2)))
+                    if np.isnan(downside_std) or downside_std < 1e-8:
+                        downside_std = std_ret
+                    sortino = ((mean_ret - rf_daily) / downside_std) * np.sqrt(252)
+
+                    # Hybrid Risk-Adjusted Score (60% Sharpe, 40% Sortino)
+                    risk_adj = 0.60 * sharpe + 0.40 * sortino
+                    sharpes[strategy] = float(np.clip(risk_adj, -10.0, 10.0))
                 else:
                     sharpes[strategy] = 0.0
             except Exception as e:
