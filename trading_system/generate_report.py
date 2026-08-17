@@ -2023,8 +2023,22 @@ def build_html(
   }}
 
   /* Tabs */
-  .tabs {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }}
-  .tab {{ padding: 14px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; outline: none; }}
+  .tabs {{ 
+    position: sticky; 
+    top: 0; 
+    z-index: 100; 
+    background: #161b22f2; 
+    backdrop-filter: blur(8px); 
+    border-bottom: 1px solid var(--border); 
+    padding: 0 32px; 
+    display: flex; 
+    gap: 0; 
+    overflow-x: auto; 
+    height: 48px;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
+  }}
+  .tab {{ padding: 13px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; outline: none; }}
   .tab:hover, .tab:focus-visible {{ color: var(--text); }}
   .tab.active {{ color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }}
 
@@ -2043,13 +2057,46 @@ def build_html(
   .market-panel {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: visible; transition: all .2s; }}
   .market-title {{ padding: 12px 16px; font-size: 14px; font-weight: 600; background: var(--surface2); border-bottom: 1px solid var(--border); }}
 
-  /* Table */
-  html {{ scroll-padding-top: 60px; }}
-  .table-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }}
-  table {{ width: 100%; border-collapse: collapse; min-width: 550px; }}
-  thead th {{ position: sticky; top: 48px; background: var(--surface2); z-index: 10; padding: 10px 12px; text-align: left; font-size: 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; transition: color .15s; }}
+  /* Table & Sticky Header Architecture */
+  html {{ scroll-padding-top: 52px; }}
+  .table-wrap {{ 
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch; 
+    max-width: 100%; 
+    position: relative;
+    background: var(--surface);
+  }}
+  table {{ 
+    width: 100%; 
+    border-collapse: separate; 
+    border-spacing: 0; 
+    min-width: 550px; 
+  }}
+  thead {{ 
+    position: relative; 
+    z-index: 10; 
+  }}
+  thead th {{ 
+    position: sticky; 
+    top: 48px; 
+    background: var(--surface2); 
+    z-index: 10; 
+    padding: 11px 12px; 
+    text-align: left; 
+    font-size: 12px; 
+    color: var(--muted); 
+    font-weight: 600; 
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); 
+    white-space: nowrap; 
+    cursor: pointer; 
+    user-select: none; 
+    transition: color .15s; 
+    box-sizing: border-box;
+  }}
   thead th:hover {{ color: var(--accent); }}
-  tbody td {{ padding: 10px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; }}
+  tbody {{ position: relative; z-index: 1; }}
+  tbody td {{ padding: 10px 12px; border-bottom: 1px solid #21262d; white-space: nowrap; box-sizing: border-box; }}
   tbody tr:last-child td {{ border-bottom: none; }}
   
   /* Clickable Table Rows with Affordance */
@@ -2077,7 +2124,7 @@ def build_html(
   .table-wrap th.sticky-col {{
     position: sticky;
     top: 48px;
-    z-index: 12;
+    z-index: 15;
     background: var(--surface2);
   }}
   /* Rank > Symbol > Name z-index stacking to prevent overlap */
@@ -2142,9 +2189,11 @@ def build_html(
     .header h1 {{ font-size: 18px; }}
     .row1-wrapper {{ grid-template-columns: 1fr; gap: 12px; padding: 12px; }}
     .macro-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }}
-    .tabs {{ position: sticky; top: 0; z-index: 100; background: #161b22ee; backdrop-filter: blur(8px); -webkit-overflow-scrolling: touch; padding: 0 8px; }}
-    .tab {{ padding: 10px 14px; font-size: 13px; }}
-    thead th, tbody td {{ padding: 8px 6px; font-size: 12px; }}
+    .tabs {{ padding: 0 8px; height: 44px; }}
+    .tab {{ padding: 11px 12px; font-size: 13px; }}
+    thead th {{ top: 44px; padding: 8px 6px; font-size: 12px; }}
+    .table-wrap th.sticky-col {{ top: 44px; }}
+    tbody td {{ padding: 8px 6px; font-size: 12px; }}
     .table-wrap {{ -webkit-overflow-scrolling: touch; }}
     .filter-bar {{ overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }}
     .filter-btn {{ flex-shrink: 0; font-size: 11px; padding: 4px 10px; }}
