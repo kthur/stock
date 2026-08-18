@@ -502,23 +502,26 @@ class StockPriceDB:
                 self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert aborted.")
                 return 0
 
-        cols = {str(c).lower(): c for c in df.columns}
-        has_open = "open" in cols
-        has_high = "high" in cols
-        has_low = "low" in cols
-        has_close = "close" in cols
-        has_vol = "volume" in cols
+        # Pre-resolve column indices for ultra-fast itertuples extraction
+        col_list = list(df.columns)
+        lower_cols = [str(c).lower() for c in col_list]
+        open_pos = lower_cols.index("open") if "open" in lower_cols else None
+        high_pos = lower_cols.index("high") if "high" in lower_cols else None
+        low_pos = lower_cols.index("low") if "low" in lower_cols else None
+        close_pos = lower_cols.index("close") if "close" in lower_cols else None
+        vol_pos = lower_cols.index("volume") if "volume" in lower_cols else None
 
         import math
         records = []
-        for idx, row in df.iterrows():
+        for row in df.itertuples(index=True):
+            idx = row[0]
             d_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
             try:
-                op = float(row[cols["open"]]) if has_open else 0.0
-                hi = float(row[cols["high"]]) if has_high else 0.0
-                lo = float(row[cols["low"]]) if has_low else 0.0
-                cl = float(row[cols["close"]]) if has_close else 0.0
-                vol_f = float(row[cols["volume"]]) if has_vol else 0.0
+                op = float(row[open_pos + 1]) if open_pos is not None else 0.0
+                hi = float(row[high_pos + 1]) if high_pos is not None else 0.0
+                lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
+                cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
+                vol_f = float(row[vol_pos + 1]) if vol_pos is not None else 0.0
                 vol = int(vol_f) if math.isfinite(vol_f) and vol_f >= 0 else 0
 
                 if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
@@ -531,7 +534,7 @@ class StockPriceDB:
                     lo = min(lo, op, cl, hi)
                     if hi <= 0.0 or lo <= 0.0 or hi < lo:
                         continue
-            except (ValueError, TypeError, KeyError):
+            except (ValueError, TypeError, IndexError):
                 continue
             records.append((symbol, d_str, op, hi, lo, cl, vol))
         if not records:

@@ -527,14 +527,15 @@ class MarketIndicatorStorage:
                 # S&P 500
                 if not sp500.empty and 'Symbol' in sp500.columns:
                     sp500_tuples = []
-                    for _, row in sp500.iterrows():
-                        sym = str(row['Symbol']).strip()
+                    for row in sp500.itertuples(index=False):
+                        r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(sp500.columns, row))
+                        sym = str(r_dict.get('Symbol', '')).strip()
                         if not sym:
                             continue
                         sp500_set.add(sym)
-                        sec = str(row.get('Sector') or row.get('GICS Sector') or row.get('GICS_Sector') or '')
-                        ind = str(row.get('Industry') or row.get('GICS Sub-Industry') or row.get('GICS_Sub_Industry') or '')
-                        name = str(row.get('Name') or sym)
+                        sec = str(r_dict.get('Sector') or r_dict.get('GICS Sector') or r_dict.get('GICS_Sector') or '')
+                        ind = str(r_dict.get('Industry') or r_dict.get('GICS Sub-Industry') or r_dict.get('GICS_Sub_Industry') or '')
+                        name = str(r_dict.get('Name') or sym)
                         sp500_tuples.append((sym, name, 'SP500', sec, ind))
                     if sp500_tuples:
                         conn.executemany(
@@ -545,13 +546,14 @@ class MarketIndicatorStorage:
                 # NASDAQ (Preserve SP500 classification for dual-listed S&P 500 stocks)
                 if not nasdaq.empty and 'Symbol' in nasdaq.columns:
                     nasdaq_tuples = []
-                    for _, row in nasdaq.iterrows():
-                        sym = str(row['Symbol']).strip()
+                    for row in nasdaq.itertuples(index=False):
+                        r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(nasdaq.columns, row))
+                        sym = str(r_dict.get('Symbol', '')).strip()
                         if not sym or sym in sp500_set:
                             continue
-                        sec = str(row.get('Sector') or row.get('Industry') or '')
-                        ind = str(row.get('Industry') or '')
-                        name = str(row.get('Name') or sym)
+                        sec = str(r_dict.get('Sector') or r_dict.get('Industry') or '')
+                        ind = str(r_dict.get('Industry') or '')
+                        name = str(r_dict.get('Name') or sym)
                         nasdaq_tuples.append((sym, name, 'NASDAQ', sec, ind))
                     if nasdaq_tuples:
                         conn.executemany(
@@ -562,12 +564,13 @@ class MarketIndicatorStorage:
                 # RUSSELL2000 (Preserve SP500 classification)
                 if not russell2000.empty and 'Ticker' in russell2000.columns:
                     russell_tuples = []
-                    for _, row in russell2000.iterrows():
-                        sym = str(row.get('Ticker') or '').strip()
+                    for row in russell2000.itertuples(index=False):
+                        r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(russell2000.columns, row))
+                        sym = str(r_dict.get('Ticker') or '').strip()
                         if not sym or sym in ('-', 'nan') or not sym.isalpha() or sym in sp500_set:
                             continue
-                        sec = str(row.get('Sector') or '')
-                        name = str(row.get('Name') or sym)
+                        sec = str(r_dict.get('Sector') or '')
+                        name = str(r_dict.get('Name') or sym)
                         russell_tuples.append((sym, name, 'RUSSELL2000', sec, ''))
                     if russell_tuples:
                         conn.executemany(
@@ -577,17 +580,19 @@ class MarketIndicatorStorage:
 
                 # KRX (KOSPI, KOSDAQ)
                 krx_tuples = []
-                for _, row in krx.iterrows():
-                    code_raw = str(row['Code']).strip()
+                for row in krx.itertuples(index=False):
+                    r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(krx.columns, row))
+                    code_raw = str(r_dict.get('Code', '')).strip()
                     code_str = code_raw.zfill(6) if code_raw.isdigit() and len(code_raw) <= 6 else code_raw
                     if code_str in excluded or code_raw in excluded:
                         continue
-                    mkt = str(row.get('Market', 'KRX')).upper()
+                    mkt = str(r_dict.get('Market', 'KRX')).upper()
                     if mkt not in ('KOSPI', 'KOSDAQ'):
                         continue
-                    sec = str(row.get('Sector') or row.get('Dept') or row.get('Industry') or '')
-                    ind = str(row.get('Industry') or '')
-                    krx_tuples.append((code_str, row['Name'], mkt, sec, ind))
+                    sec = str(r_dict.get('Sector') or r_dict.get('Dept') or r_dict.get('Industry') or '')
+                    ind = str(r_dict.get('Industry') or '')
+                    name = str(r_dict.get('Name') or code_str)
+                    krx_tuples.append((code_str, name, mkt, sec, ind))
                 if krx_tuples:
                     conn.executemany(
                         "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
@@ -610,10 +615,12 @@ class MarketIndicatorStorage:
             val_data = date_str
             d_str = datetime.now().strftime("%Y-%m-%d")
             if isinstance(val_data, pd.DataFrame):
-                for idx, row in val_data.iterrows():
+                close_pos = list(val_data.columns).index('Close') if 'Close' in val_data.columns else None
+                for row in val_data.itertuples(index=True):
+                    idx = row[0]
                     cur_d = idx.strftime("%Y-%m-%d") if hasattr(idx, 'strftime') else str(idx)
-                    raw_val = row.get('Close')
-                    price = float(raw_val) if raw_val is not None else 0.0
+                    raw_val = row[close_pos + 1] if close_pos is not None else (row[1] if len(row) > 1 else None)
+                    price = float(raw_val) if raw_val is not None and pd.notna(raw_val) else 0.0
                     rows.append((cur_d, symbol, symbol, price, 0.0))
             elif isinstance(val_data, dict):
                 raw_val = val_data.get('price') if val_data.get('price') is not None else val_data.get('Close')
@@ -678,9 +685,12 @@ class MarketIndicatorStorage:
                 )
                 if not df.empty and 'symbol' in df.columns and 'price' in df.columns:
                     result: Dict[str, float] = {}
-                    for _, row in df.iterrows():
-                        if self._indicator_value_ok(row['symbol'], None, row['price']):
-                            result[row['symbol']] = float(row['price'])
+                    for row in df.itertuples(index=False):
+                        r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
+                        sym_val = str(r_dict.get('symbol', ''))
+                        price_val = r_dict.get('price')
+                        if self._indicator_value_ok(sym_val, None, price_val):
+                            result[sym_val] = float(price_val)
                     return result
         except Exception as e:
             logger.warning(f"Failed to fetch latest global indicators from DB: {e}")
@@ -711,11 +721,14 @@ class MarketIndicatorStorage:
         if df_preds.empty:
             return
         rows = []
-        for _, row in df_preds.iterrows():
-            sym = row['symbol']
+        for row in df_preds.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_preds.columns, row))
+            sym = r_dict.get('symbol')
+            if not sym:
+                continue
             for h in [1, 5, 10, 20, 30, 60, 120, 200]:
-                if h in row and pd.notna(row[h]):
-                    rows.append((date_str, sym, h, float(row[h])))
+                if h in r_dict and pd.notna(r_dict[h]):
+                    rows.append((date_str, str(sym), h, float(r_dict[h])))
         if not rows:
             return
 
@@ -805,17 +818,18 @@ class MarketIndicatorStorage:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         records = []
-        for _, row in df_fundamentals.iterrows():
+        for row in df_fundamentals.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_fundamentals.columns, row))
             records.append((
-                str(row['symbol']),
-                str(row['date'])[:10],
-                float(row['revenue']) if pd.notna(row['revenue']) else 0.0,
-                float(row['operating_income']) if pd.notna(row['operating_income']) else 0.0,
-                float(row.get('net_income', 0.0)) if pd.notna(row.get('net_income', 0.0)) else 0.0,
-                float(row.get('eps', 0.0)) if pd.notna(row.get('eps', 0.0)) else 0.0,
-                float(row.get('shares_outstanding', 0.0)) if pd.notna(row.get('shares_outstanding', 0.0)) else 0.0,
-                float(row['dividend_per_share']) if pd.notna(row['dividend_per_share']) else 0.0,
-                float(row.get('book_value')) if pd.notna(row.get('book_value')) else None,
+                str(r_dict.get('symbol', '')),
+                str(r_dict.get('date', ''))[:10],
+                float(r_dict.get('revenue', 0.0)) if pd.notna(r_dict.get('revenue')) else 0.0,
+                float(r_dict.get('operating_income', 0.0)) if pd.notna(r_dict.get('operating_income')) else 0.0,
+                float(r_dict.get('net_income', 0.0)) if pd.notna(r_dict.get('net_income', 0.0)) else 0.0,
+                float(r_dict.get('eps', 0.0)) if pd.notna(r_dict.get('eps', 0.0)) else 0.0,
+                float(r_dict.get('shares_outstanding', 0.0)) if pd.notna(r_dict.get('shares_outstanding', 0.0)) else 0.0,
+                float(r_dict.get('dividend_per_share', 0.0)) if pd.notna(r_dict.get('dividend_per_share')) else 0.0,
+                float(r_dict.get('book_value')) if pd.notna(r_dict.get('book_value')) else None,
             ))
 
         def _do_write():
@@ -879,17 +893,22 @@ class MarketIndicatorStorage:
             (date, market_type, market_cap_sum, floating_value_sum, volume_sum)
             VALUES (?, ?, ?, ?, ?)
         """
-        with self._write_lock:
-            with self._connect() as conn:
-                for date_str, row in df_baselines.iterrows():
-                    conn.execute(sql, (
-                        str(date_str)[:10],
-                        market_type,
-                        float(row['market_cap_sum']),
-                        float(row['floating_value_sum']),
-                        float(row['volume_sum'])
-                    ))
-                conn.commit()
+        records = []
+        for row in df_baselines.itertuples(index=True):
+            date_str = row[0]
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_baselines.columns, row[1:]))
+            records.append((
+                str(date_str)[:10],
+                market_type,
+                float(r_dict.get('market_cap_sum', 0.0)) if pd.notna(r_dict.get('market_cap_sum')) else 0.0,
+                float(r_dict.get('floating_value_sum', 0.0)) if pd.notna(r_dict.get('floating_value_sum')) else 0.0,
+                float(r_dict.get('volume_sum', 0.0)) if pd.notna(r_dict.get('volume_sum')) else 0.0
+            ))
+        if records:
+            with self._write_lock:
+                with self._connect() as conn:
+                    conn.executemany(sql, records)
+                    conn.commit()
 
     def fundamentals_exist(self, symbol: str) -> bool:
         """Check if fundamentals data already exists in DB for a symbol."""
@@ -948,21 +967,26 @@ class MarketIndicatorStorage:
             (date, symbol, {_cols_sql})
             VALUES (?, ?, {_placeholders})
         """
-        with self._write_lock:
-            with self._connect() as conn:
-                for _, row in ensemble_df.iterrows():
-                    sym = row.get('symbol')
-                    if pd.isna(sym) or str(sym) == 'nan' or sym == '':
-                        continue
-                    vals = []
-                    for c in _score_cols:
-                        v = row.get(c, None)
-                        try:
-                            vals.append(float(v) if v is not None and not pd.isna(v) else None)
-                        except (TypeError, ValueError):
-                            vals.append(None)
-                    conn.execute(sql, (date_str, str(sym), *vals))
-                conn.commit()
+        records = []
+        for row in ensemble_df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(ensemble_df.columns, row))
+            sym = r_dict.get('symbol')
+            if pd.isna(sym) or str(sym) == 'nan' or sym == '':
+                continue
+            vals = []
+            for c in _score_cols:
+                v = r_dict.get(c, None)
+                try:
+                    vals.append(float(v) if v is not None and not pd.isna(v) else None)
+                except (TypeError, ValueError):
+                    vals.append(None)
+            records.append((date_str, str(sym), *vals))
+
+        if records:
+            with self._write_lock:
+                with self._connect() as conn:
+                    conn.executemany(sql, records)
+                    conn.commit()
         # Also persist into ensemble_prediction_history table
         try:
             auto_run_id = f"auto_{date_str.replace('-', '')}"
@@ -1295,24 +1319,29 @@ class MarketIndicatorStorage:
             ({", ".join(col_names)})
             VALUES ({placeholders})
         """
-        with self._write_lock:
-            with self._connect() as conn:
-                for _, row in ensemble_df.iterrows():
-                    sym = row.get('symbol')
-                    if pd.isna(sym) or str(sym) == 'nan' or sym == '':
-                        continue
-                    vals: List[Any] = [run_id, date_str, str(sym)]
-                    for c in all_cols:
-                        v = row.get(c, None)
-                        if c == 'regime':
-                            vals.append(str(v) if v is not None and not pd.isna(v) else '')
-                        else:
-                            try:
-                                vals.append(float(v) if v is not None and not pd.isna(v) else None)
-                            except (TypeError, ValueError):
-                                vals.append(None)
-                    conn.execute(sql, tuple(vals))
-                conn.commit()
+        records = []
+        for row in ensemble_df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(ensemble_df.columns, row))
+            sym = r_dict.get('symbol')
+            if pd.isna(sym) or str(sym) == 'nan' or sym == '':
+                continue
+            vals: List[Any] = [run_id, date_str, str(sym)]
+            for c in all_cols:
+                v = r_dict.get(c, None)
+                if c == 'regime':
+                    vals.append(str(v) if v is not None and not pd.isna(v) else '')
+                else:
+                    try:
+                        vals.append(float(v) if v is not None and not pd.isna(v) else None)
+                    except (TypeError, ValueError):
+                        vals.append(None)
+            records.append(tuple(vals))
+
+        if records:
+            with self._write_lock:
+                with self._connect() as conn:
+                    conn.executemany(sql, records)
+                    conn.commit()
 
     def save_strategy_weights(self, run_id: str, weights_dict: Dict[str, float], regime: str = "") -> None:
         """Save strategy weight snapshot into strategy_weight_history."""

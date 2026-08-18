@@ -254,17 +254,18 @@ class RIMValuationEngine(BaseStrategyEngine):
                 f"{n_adjusted} ROE-adjusted, {n_preferred} preferred shares invalidated"
             )
 
-        # Vectorized calculation per market with dynamic r_e
+        # Fast itertuples calculation per market with dynamic r_e
         v0_list = []
         discount_list = []
 
-        for idx, row in df.iterrows():
-            if row.get('rim_filter_reason') == 'PREFERRED_SHARE':
+        for row in df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
+            if r_dict.get('rim_filter_reason') == 'PREFERRED_SHARE':
                 v0_list.append(np.nan)
                 discount_list.append(np.nan)
                 continue
 
-            mkt = row.get('market', 'KOSPI')
+            mkt = r_dict.get('market', 'KOSPI')
             if us10y_yield is not None:
                 r_e = self.derive_required_return(mkt, us10y_yield)
             elif required_return is not None and required_return > 0:
@@ -272,9 +273,13 @@ class RIMValuationEngine(BaseStrategyEngine):
             else:
                 r_e = self.default_required_return
 
-            b = float(row['bps']) if pd.notna(row['bps']) else np.nan
-            r = float(row['roe']) if pd.notna(row['roe']) else r_e
-            p = float(row['Close']) if pd.notna(row['Close']) else np.nan
+            b_val = r_dict.get('bps')
+            r_val = r_dict.get('roe')
+            p_val = r_dict.get('Close')
+
+            b = float(b_val) if pd.notna(b_val) else np.nan
+            r = float(r_val) if pd.notna(r_val) else r_e
+            p = float(p_val) if pd.notna(p_val) else np.nan
 
             v0 = self.calculate_intrinsic_value(b, r, required_return=r_e)
             v0_list.append(v0)
