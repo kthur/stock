@@ -131,6 +131,16 @@ class ExecutionOMSEngine:
             logger.warning("[OMS ENGINE] SEVERE crisis level - skipping ALL order plan generation.")
             return order_plans
 
+        if total_capital is None or total_capital == 100000000.0:
+            try:
+                from src.config import TradingConfig
+                cfg_inst = TradingConfig()
+                cfg_cap = getattr(cfg_inst, "portfolio_capital_krw", None)
+                if cfg_cap and math.isfinite(float(cfg_cap)) and float(cfg_cap) > 0:
+                    total_capital = float(cfg_cap)
+            except Exception:
+                pass
+
         try:
             tot_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
         except (ValueError, TypeError):

@@ -302,7 +302,18 @@ class TradingConfig:
                 pass
         if "PORTFOLIO_CAPITAL_KRW" in os.environ:
             try:
-                self.portfolio_capital_krw = float(os.environ["PORTFOLIO_CAPITAL_KRW"])
+                cap_val = float(os.environ["PORTFOLIO_CAPITAL_KRW"])
+                if math.isfinite(cap_val) and cap_val > 0:
+                    self.portfolio_capital_krw = cap_val
+                    self.initial_cash = cap_val
+            except ValueError:
+                pass
+        elif "INITIAL_CASH" in os.environ:
+            try:
+                cap_val = float(os.environ["INITIAL_CASH"])
+                if math.isfinite(cap_val) and cap_val > 0:
+                    self.initial_cash = cap_val
+                    self.portfolio_capital_krw = cap_val
             except ValueError:
                 pass
         if "REALTIME_INTERVAL_MIN" in os.environ:
