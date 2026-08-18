@@ -423,6 +423,16 @@ class CrisisDetector:
             return 0.15 + (1.0 - 0.15) * progress
         return base
 
+    def get_crisis_risk_multiplier(self) -> float:
+        """위기 시 1회 거래당 최대 허용 손실 비율(Risk) 축소 배수"""
+        multipliers = {
+            CrisisLevel.NONE: 1.0,
+            CrisisLevel.WATCH: 0.75,
+            CrisisLevel.ACTIVE: 0.50,
+            CrisisLevel.SEVERE: 0.25,
+        }
+        return multipliers.get(self.crisis_level, 1.0)
+
     def get_crisis_stop_multiplier(self) -> float:
         """위기 시 손절가를 더 타이트하게 설정"""
         multipliers = {
@@ -992,7 +1002,7 @@ class RiskManager:
                     kelly_pct *= vol_scaler
             max_value = self.portfolio_value * kelly_pct
         else:
-            scaled_max_loss_pct = self.max_loss_per_trade_pct
+            scaled_max_loss_pct = self.max_loss_per_trade_pct * self.crisis_detector.get_crisis_risk_multiplier()
             max_loss = self.portfolio_value * scaled_max_loss_pct
             max_value = max_loss * (entry_price / risk_per_share)
 

@@ -152,11 +152,9 @@ class TradingConfig:
         if "DB_PATH" in os.environ:
             self.db_path = os.environ["DB_PATH"]
         if "TRAIN_SAMPLE_SP500" in os.environ:
-            val = os.environ["TRAIN_SAMPLE_SP500"].strip()
-            self.train_sample_sp500 = int(val) if val.isdigit() else val
+            self.train_sample_sp500 = os.environ["TRAIN_SAMPLE_SP500"]
         if "TRAIN_SAMPLE_KRX" in os.environ:
-            val = os.environ["TRAIN_SAMPLE_KRX"].strip()
-            self.train_sample_krx = int(val) if val.isdigit() else val
+            self.train_sample_krx = os.environ["TRAIN_SAMPLE_KRX"]
         if "TRAIN_START_DATE" in os.environ:
             self.train_start_date = os.environ["TRAIN_START_DATE"]
         if "TRAIN_SEED" in os.environ:
@@ -389,8 +387,6 @@ class TradingConfig:
 
     @property
     def parsed_authorized_user_ids(self) -> list:
-        if getattr(self, '_parsed_authorized_user_ids', None) is not None:
-            return self._parsed_authorized_user_ids
         return self._parse_authorized_ids()
 
     def resolve_sample_size(self, value: Any, universe_size: int) -> int:
