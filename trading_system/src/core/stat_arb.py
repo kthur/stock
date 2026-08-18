@@ -203,6 +203,76 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
         t_stat, p_val = _estimate_adf_pvalue(spread)
         return t_stat, p_val, slope
 
+    def estimate_kalman_dynamic_hedge_ratio(
+        self,
+        y1: np.ndarray,
+        y2: np.ndarray,
+        delta_w: float = 1e-4,
+        v_e: float = 1e-3
+    ) -> Dict[str, Any]:
+        """
+        State-Space 2-State Kalman Filter for dynamic hedge ratio and intercept estimation:
+        State vector theta_t = [alpha_t, beta_t]^T
+        Transition: theta_t = theta_{t-1} + w_t,  Q = delta_w / (1 - delta_w) * I
+        Observation: y_{1,t} = H_t theta_t + v_t, H_t = [1, y_{2,t}], R = v_e
+        Detects structural breaks when normalized innovation |e_t| / sqrt(F_t) > 3.5.
+        """
+        N = min(len(y1), len(y2))
+        if N < 10:
+            slope, intercept, _, _, _ = linregress(y2, y1)
+            return {
+                'beta_t': float(slope),
+                'alpha_t': float(intercept),
+                'spread': np.array(y1) - (slope * np.array(y2) + intercept),
+                'is_structural_break': False,
+                'innovation_z': 0.0
+            }
+
+        # Initialize State and Covariance
+        theta = np.zeros(2, dtype=np.float64)
+        P = np.eye(2, dtype=np.float64) * 1.0
+        Q = np.eye(2, dtype=np.float64) * (delta_w / (1.0 - delta_w))
+        R = float(v_e)
+
+        betas = np.zeros(N, dtype=np.float64)
+        alphas = np.zeros(N, dtype=np.float64)
+        spread = np.zeros(N, dtype=np.float64)
+        innovations = np.zeros(N, dtype=np.float64)
+
+        for t in range(N):
+            # 1. State Prediction
+            P = P + Q
+
+            # 2. Measurement Prediction
+            H = np.array([1.0, float(y2[t])], dtype=np.float64)
+            y_pred = float(np.dot(H, theta))
+            e = float(y1[t]) - y_pred  # Innovation
+            F = float(np.dot(H, np.dot(P, H)) + R)  # Innovation variance
+
+            # 3. Kalman Gain
+            K = np.dot(P, H) / max(F, 1e-12)
+
+            # 4. State Update
+            theta = theta + K * e
+            P = P - np.outer(K, H).dot(P)
+
+            alphas[t] = theta[0]
+            betas[t] = theta[1]
+            spread[t] = e
+            innovations[t] = e / np.sqrt(max(F, 1e-12))
+
+        latest_innov_z = float(abs(innovations[-1]))
+        is_break = bool(latest_innov_z > 3.5)
+
+        return {
+            'beta_t': float(betas[-1]),
+            'alpha_t': float(alphas[-1]),
+            'spread': spread,
+            'is_structural_break': is_break,
+            'innovation_z': latest_innov_z,
+            'betas_series': betas
+        }
+
     def compute_half_life(self, spread: np.ndarray) -> float:
         return _estimate_half_life(spread)
 

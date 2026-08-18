@@ -158,7 +158,7 @@ class ExecutionOMSEngine:
         current_holdings: Optional[Dict[str, float]] = None,
         use_leland_buffer: bool = True,
         regime_label: str = "BULL",
-        max_adv_ratio: float = 0.015
+        max_adv_ratio: float = 0.05
     ) -> List[Dict[str, Any]]:
         """
         Generates actionable order execution plans based on predictions and Risk Parity weights.

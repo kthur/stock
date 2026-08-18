@@ -76,13 +76,32 @@ class RIMValuationEngine(BaseStrategyEngine):
         self.decay_rate = decay_rate
         self.retention_ratio = retention_ratio
 
-    def derive_required_return(self, market: str = "KOSPI", us10y_yield: Optional[float] = None) -> float:
+    def derive_required_return(
+        self,
+        market: str = "KOSPI",
+        us10y_yield: Optional[float] = None,
+        vix_val: Optional[float] = None,
+        credit_spread: Optional[float] = None
+    ) -> float:
         """
-        Derives dynamic required return r_e based on US 10Y Treasury Yield + Equity Risk Premium (ERP).
+        Derives dynamic countercyclical required return r_e = R_f + ERP_dynamic.
+        Expands ERP during high VIX / credit distress to prevent the Value Trap during market crashes.
         """
         base_rf = (us10y_yield / 100.0) if (us10y_yield is not None and us10y_yield > 0) else 0.04
-        erp = 0.05 if market == 'SP500' else 0.06
-        dynamic_re = np.clip(base_rf + erp, 0.06, 0.15)
+        base_erp = 0.05 if market in ['SP500', 'NASDAQ'] else 0.06
+
+        # Dynamic Countercyclical ERP expansion (VIX > 20 expands ERP by up to +4%)
+        vix_expansion = 0.0
+        if vix_val is not None and np.isfinite(vix_val) and vix_val > 20.0:
+            vix_expansion = float(np.clip((vix_val - 20.0) * 0.0025, 0.0, 0.04))
+
+        # High Yield Credit Spread adjustment (Spread > 4.0% expands ERP by up to +3%)
+        spread_expansion = 0.0
+        if credit_spread is not None and np.isfinite(credit_spread) and credit_spread > 4.0:
+            spread_expansion = float(np.clip((credit_spread - 4.0) * 0.01, 0.0, 0.03))
+
+        dynamic_erp = base_erp + vix_expansion + spread_expansion
+        dynamic_re = np.clip(base_rf + dynamic_erp, 0.06, 0.18)
         return float(dynamic_re)
 
     def calculate_intrinsic_value(
@@ -138,10 +157,12 @@ class RIMValuationEngine(BaseStrategyEngine):
         symbol_market_map: Optional[Dict[str, str]] = None,
         required_return: Optional[float] = None,
         us10y_yield: Optional[float] = None,
+        vix_val: Optional[float] = None,
+        credit_spread: Optional[float] = None,
     ) -> pd.DataFrame:
         """
         Computes RIM intrinsic values and percentile scores using finite-horizon decaying ROE model
-        with 유보금 (retained earnings) accumulation.
+        with 유보금 (retained earnings) accumulation and countercyclical dynamic ERP.
         Missing fundamental BPS yields NaN rim_score for dynamic ensemble weight renormalization.
         """
         if features_df is None or features_df.empty:
@@ -266,8 +287,8 @@ class RIMValuationEngine(BaseStrategyEngine):
                 continue
 
             mkt = r_dict.get('market', 'KOSPI')
-            if us10y_yield is not None:
-                r_e = self.derive_required_return(mkt, us10y_yield)
+            if us10y_yield is not None or vix_val is not None:
+                r_e = self.derive_required_return(mkt, us10y_yield=us10y_yield, vix_val=vix_val, credit_spread=credit_spread)
             elif required_return is not None and required_return > 0:
                 r_e = required_return
             else:

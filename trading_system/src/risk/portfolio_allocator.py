@@ -726,10 +726,21 @@ class PortfolioAllocator:
         clamped_spread = min(max(dynamic_spread, spread_min), spread_max * slip_mult)
         half_spread = 0.5 * clamped_spread
 
-        # Square-root market impact formula with slippage feedback scaling
+        # Square-root market impact formula with asymmetric sell LOB thinning and ADV capacity penalty
         order_val = max(1.0, target_weight * portfolio_value)
         participation = order_val / adv_clean
         impact_one_way = impact_coeff * slip_mult * vol_clean * np.sqrt(participation)
+
+        # Asymmetric Sell LOB Thinning: Bid liquidity evaporates during market panics
+        if is_sell is True and vol_clean > 0.020:
+            sell_lob_factor = 1.0 + 1.5 * ((vol_clean - 0.020) / 0.020)
+            impact_one_way *= min(sell_lob_factor, 2.50)
+
+        # Institutional AUM Capacity Congestion Penalty (>5% of 20-day ADV)
+        if participation > 0.05:
+            capacity_penalty = 1.50 * ((participation - 0.05) ** 1.5) * slip_mult
+            impact_one_way += capacity_penalty
+
         if participation > 0.10:
             impact_one_way += 0.50 * (participation - 0.10) * slip_mult
 

@@ -1972,6 +1972,7 @@ class EnsembleScoringEngine:
                 merged['medium_alpha_score'] = np.nan_to_num(s_med, nan=0.5)
             if s_fast is not None:
                 merged['fast_alpha_score'] = np.nan_to_num(s_fast, nan=0.5)
+                merged['fast_alpha_intraday_eligible'] = (merged['fast_alpha_score'] >= 0.70)
                 fast_tilt = np.clip(merged['fast_alpha_score'] - 0.50, -0.15, 0.15)
                 if len(merged) >= 5 and 'slow_alpha_score' in merged.columns and 'medium_alpha_score' in merged.columns:
                     hierarchical_score = (
