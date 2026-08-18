@@ -188,23 +188,25 @@ class ExecutionOMSEngine:
 
         # Continuous crisis regime scaling (0.15 to 1.0)
         crisis_mult = 1.0
-        try:
-            from src.risk.risk_manager import RiskManager
-            rm = RiskManager()
-            if hasattr(rm, 'crisis_detector'):
-                crisis_mult = rm.crisis_detector.get_crisis_position_multiplier()
-        except Exception:
-            pass
-
         cl_upper = str(crisis_level).upper()
         if cl_upper == "ACTIVE":
-            crisis_mult = min(crisis_mult, 0.40)
+            crisis_mult = 0.40
         elif cl_upper == "WATCH":
-            crisis_mult = min(crisis_mult, 0.70)
+            crisis_mult = 0.70
         elif cl_upper == "RECOVERY":
-            crisis_mult = min(crisis_mult, 0.50)
+            crisis_mult = 0.50
+        elif cl_upper == "AUTO":
+            try:
+                from src.risk.risk_manager import RiskManager
+                rm = RiskManager()
+                if hasattr(rm, 'crisis_detector'):
+                    crisis_mult = rm.crisis_detector.get_crisis_position_multiplier()
+            except Exception:
+                crisis_mult = 1.0
+        else:
+            crisis_mult = 1.0
 
-        if total_capital is None or total_capital == 100000000.0:
+        if total_capital is None:
             try:
                 from src.config import TradingConfig
                 cfg_inst = TradingConfig()
@@ -212,7 +214,7 @@ class ExecutionOMSEngine:
                 if cfg_cap and math.isfinite(float(cfg_cap)) and float(cfg_cap) > 0:
                     total_capital = float(cfg_cap)
             except Exception:
-                pass
+                total_capital = 100000000.0
 
         try:
             tot_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
@@ -338,12 +340,16 @@ class ExecutionOMSEngine:
                 except (ValueError, TypeError):
                     pass
 
-                # Gate 7.5: ADV Capacity Cap (1.5% ADV max order value)
-                adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
-                max_adv_amount = max(100_000.0, max_adv_ratio * adv_val)
-                if target_amount > max_adv_amount:
-                    logger.info(f"[OMS ADV CAPACITY] {sym} target amount {target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
-                    target_amount = max_adv_amount
+                # Gate 7.5: ADV Capacity Cap (max_adv_ratio of ADV max order value)
+                adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
+                if adv_in_pred is not None and float(adv_in_pred) > 0:
+                    adv_val = float(adv_in_pred)
+                    max_adv_amount = max(100_000.0, max_adv_ratio * adv_val)
+                    if target_amount > max_adv_amount:
+                        logger.info(f"[OMS ADV CAPACITY] {sym} target amount {target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
+                        target_amount = max_adv_amount
+                else:
+                    adv_val = 1_000_000_000.0
 
                 raw_quantity = int(target_amount // target_price)
                 if is_krx:
