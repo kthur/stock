@@ -177,8 +177,10 @@ class StrategyCoverageAnalyzer:
                 if low_eq_cnt > 0:
                     reasons['LOW_EARNINGS_QUALITY'] = low_eq_cnt
                 if other_cnt > 0:
-                    if strat == 'iv_skew':
+                    if strat in ['iv_skew', 'gamma_squeeze']:
                         reasons['NO_OPTIONS_CHAIN'] = other_cnt
+                    elif strat == 'darkpool':
+                        reasons['NON_US_MARKET_SCOPE'] = other_cnt
                     elif strat == 'stat_arb':
                         reasons['NO_COINTEGRATED_PAIR'] = other_cnt
                     else:

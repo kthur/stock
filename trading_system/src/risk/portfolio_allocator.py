@@ -55,10 +55,17 @@ class PortfolioAllocator:
         self.min_tail_samples = max(2, int(min_tail_samples)) if min_tail_samples is not None else 15
 
     @staticmethod
-    def compute_tail_stress_cov(returns_matrix: np.ndarray, base_cov: np.ndarray, tail_quantile: float = 0.10, stress_weight: float = 0.30) -> np.ndarray:
+    def compute_tail_stress_cov(
+        returns_matrix: np.ndarray,
+        base_cov: np.ndarray,
+        tail_quantile: float = 0.10,
+        stress_weight: float = 0.30,
+        use_clayton_copula: bool = True
+    ) -> np.ndarray:
         """
         Computes tail-stressed covariance matrix reflecting lower tail dependence in crisis regimes.
-        Blends standard Ledoit-Wolf covariance with lower tail joint covariance matrix.
+        Blends standard Ledoit-Wolf covariance with lower tail joint covariance matrix and
+        Clayton Copula asymmetric lower-tail dependence.
         """
         if returns_matrix is None or len(returns_matrix) < 10 or returns_matrix.shape[1] < 2:
             return base_cov
@@ -74,6 +81,19 @@ class PortfolioAllocator:
             if tail_cov.shape == base_cov.shape and np.all(np.isfinite(tail_cov)):
                 k_eff = float(np.clip(stress_weight, 0.0, 0.70))
                 stressed_cov = (1.0 - k_eff) * base_cov + k_eff * tail_cov
+
+                # Asymmetric Downside Clayton Copula adjustment (lower tail correlation boost)
+                if use_clayton_copula:
+                    stds = np.sqrt(np.maximum(np.diag(stressed_cov), 1e-8))
+                    outer_std = np.outer(stds, stds)
+                    outer_std = np.where(outer_std > 0, outer_std, 1e-8)
+                    corr = np.clip(stressed_cov / outer_std, -1.0, 1.0)
+                    # Clayton lower-tail dependence coefficient lambda_L
+                    lambda_l = 0.25
+                    asym_corr = (1.0 - lambda_l) * corr + lambda_l * np.ones_like(corr)
+                    np.fill_diagonal(asym_corr, 1.0)
+                    stressed_cov = asym_corr * outer_std
+
                 w_diag = np.diag(np.diag(stressed_cov))
                 res: np.ndarray = np.asarray(stressed_cov + 1e-6 * w_diag)
                 return res
@@ -305,6 +325,104 @@ class PortfolioAllocator:
 
         if not res.success:
             logger.warning(f"EVT-CVaR constrained optimization status: {res.message}. Normalizing initial weights.")
+            weights = init_weights
+        else:
+            weights = res.x / np.sum(res.x)
+
+        return {sym: float(w) for sym, w in zip(symbols, weights)}
+
+    def optimize_turnover_regularized_portfolio(
+        self,
+        expected_returns: pd.Series,
+        returns_df: pd.DataFrame,
+        previous_weights: Optional[Dict[str, float]] = None,
+        turnover_penalty_l1: float = 0.05,
+        turnover_penalty_l2: float = 0.02,
+        max_weight: Optional[float] = None,
+        sector_map: Optional[Dict[str, str]] = None,
+        max_sector_weight: Optional[float] = None,
+    ) -> Dict[str, float]:
+        """
+        Convex Portfolio Optimization with Explicit Turnover Cost Regularization:
+        Objective:
+            min_w [ -w^T mu + (lambda/2) w^T Sigma w + gamma_1 sum(c_i |w_i - w_prev_i|) + (gamma_2 / 2) ||w - w_prev||^2 ]
+        subject to:
+            sum(w_i) = 1.0,  0 <= w_i <= max_weight,  sum_{i in Sector_k} w_i <= max_sector_weight.
+        Eliminates portfolio churning on noisy marginal alpha changes while maximizing net realized compound CAGR.
+        """
+        if max_weight is None:
+            max_weight = self.default_max_weight
+        if max_sector_weight is None:
+            max_sector_weight = self.default_max_sector_weight
+
+        symbols = list(expected_returns.index)
+        n_assets = len(symbols)
+        if n_assets == 0:
+            return {}
+        if n_assets == 1:
+            return {symbols[0]: 1.0}
+
+        returns_sub = returns_df[symbols] if (not returns_df.empty and all(s in returns_df.columns for s in symbols)) else pd.DataFrame()
+        if returns_sub.empty or len(returns_sub) < 5:
+            return {sym: 1.0 / n_assets for sym in symbols}
+
+        returns_matrix = returns_sub.values
+        mu = np.nan_to_num(expected_returns.values.astype(float), nan=0.0)
+
+        # Ledoit-Wolf Shrinkage Covariance
+        try:
+            from sklearn.covariance import LedoitWolf
+            cov_shrunk = LedoitWolf().fit(returns_matrix).covariance_
+        except Exception:
+            cov_shrunk = np.cov(returns_matrix, rowvar=False) if len(returns_matrix) > 1 else np.eye(n_assets) * 0.0004
+
+        cov_shrunk = self.compute_tail_stress_cov(returns_matrix, cov_shrunk)
+
+        # Build w_prev vector
+        w_prev_vec = np.zeros(n_assets, dtype=float)
+        if previous_weights:
+            for i, sym in enumerate(symbols):
+                w_prev_vec[i] = float(previous_weights.get(sym, 0.0))
+
+        gamma_1 = float(max(0.0, turnover_penalty_l1))
+        gamma_2 = float(max(0.0, turnover_penalty_l2))
+
+        def objective(w):
+            ret = np.dot(w, mu)
+            var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (n_assets, n_assets) else float(np.var(np.dot(returns_matrix, w), ddof=1))
+            turnover_l1 = float(np.sum(np.abs(w - w_prev_vec)))
+            turnover_l2 = float(np.sum((w - w_prev_vec) ** 2))
+            total_obj = -ret + (0.5 * self.risk_aversion * var_p) + (gamma_1 * turnover_l1) + (0.5 * gamma_2 * turnover_l2)
+            return total_obj
+
+        init_weights = w_prev_vec if (np.sum(w_prev_vec) > 0.90 and np.all(w_prev_vec >= 0)) else np.ones(n_assets) / n_assets
+        init_weights = init_weights / np.sum(init_weights)
+
+        eff_max_w = max(max_weight, 1.05 / n_assets)
+        bounds = tuple((0.0, eff_max_w) for _ in range(n_assets))
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0}]
+
+        # Add sector capacity constraints if sector_map is provided
+        if sector_map:
+            sectors = set(sector_map.values())
+            for sec in sectors:
+                sec_indices = [i for i, s in enumerate(symbols) if sector_map.get(s) == sec]
+                if sec_indices:
+                    constraints.append({
+                        'type': 'ineq',
+                        'fun': lambda w, idxs=sec_indices: max_sector_weight - np.sum(w[idxs])
+                    })
+
+        res = minimize(
+            objective,
+            init_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 500, 'ftol': 1e-7}
+        )
+
+        if not res.success:
             weights = init_weights
         else:
             weights = res.x / np.sum(res.x)

@@ -199,11 +199,14 @@ class PortfolioOptimizer:
         risk_aversion: float = 1.0,
         max_weight: Optional[float] = None,
         max_cvar_limit: Optional[float] = None,
-        cvar_confidence: float = 0.99
+        cvar_confidence: float = 0.99,
+        previous_weights: Optional[Dict[str, float]] = None,
+        turnover_penalty: float = 0.0
     ) -> Dict[str, float]:
         """
         Mean-Variance Optimization balancing expected net return vs portfolio variance,
-        optionally constrained by EVT-CVaR loss budget limit (EVT_CVaR(w) <= max_cvar_limit).
+        optionally constrained by EVT-CVaR loss budget limit (EVT_CVaR(w) <= max_cvar_limit)
+        and regularized by explicit turnover drag penalty.
         """
         if max_weight is None:
             max_weight = self.default_max_weight
@@ -219,10 +222,17 @@ class PortfolioOptimizer:
         cov_matrix = self.calculate_covariance_matrix(returns_sub).values
         mu = expected_returns.values
 
+        w_prev_vec = np.zeros(n_assets)
+        if previous_weights:
+            w_prev_vec = np.array([float(previous_weights.get(s, 0.0)) for s in symbols])
+
         def mvo_objective(weights):
             ret = np.dot(weights, mu)
             vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
             utility = ret - 0.5 * risk_aversion * (vol ** 2)
+            if turnover_penalty > 0:
+                t_drag = float(turnover_penalty) * np.sum(np.abs(weights - w_prev_vec))
+                utility -= t_drag
             return -utility
 
         init_weights = np.ones(n_assets) / n_assets

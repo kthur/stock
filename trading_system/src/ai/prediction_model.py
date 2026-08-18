@@ -1397,6 +1397,15 @@ class OnDevicePredictionModel:
         for h in self.surge_horizons:
             raw_ret = (df['Close'].shift(-h) / df['Close'] - 1).replace([np.inf, -np.inf], np.nan)
             df[f'raw_surge_target_{h}d'] = raw_ret
+            # Optional Triple Barrier path-dependent label
+            if 'High' in df.columns and 'Low' in df.columns and len(df) > h + 20:
+                try:
+                    from src.ai.triple_barrier import apply_triple_barrier
+                    tb_res = apply_triple_barrier(df[['High', 'Low', 'Close']], pt_sl=(1.5, 1.0), num_days=h, vol_lookback=20)
+                    if not tb_res.empty and 'label' in tb_res.columns:
+                        df[f'tb_target_{h}d'] = tb_res['label'].reindex(df.index)
+                except Exception:
+                    pass
         return df
 
     def prepare_training_data(self, prices_dict: Dict[str, pd.DataFrame],

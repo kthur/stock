@@ -29,9 +29,12 @@ class ExecutionOMSEngine:
     """
     def __init__(self, db_path: str = "trade_logs.db"):
         self.db_path = str(db_path) if db_path is not None else "trade_logs.db"
+        self._mem_conn = sqlite3.connect(":memory:") if self.db_path == ":memory:" else None
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
+        if self.db_path == ":memory:" and self._mem_conn is not None:
+            return self._mem_conn
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.execute("PRAGMA journal_mode = WAL;")
         conn.execute("PRAGMA busy_timeout = 30000;")
@@ -85,7 +88,53 @@ class ExecutionOMSEngine:
             """)
             conn.commit()
         finally:
-            conn.close()
+            if self.db_path != ":memory:":
+                conn.close()
+
+    @staticmethod
+    def round_to_tick_size(price: float, market: str = "KOSPI") -> float:
+        """
+        Rounds target execution price to exact exchange tick size:
+        KRX (KOSPI/KOSDAQ):
+          - price < 2,000 KRW: tick = 1 KRW
+          - 2,000 <= price < 5,000 KRW: tick = 5 KRW
+          - 5,000 <= price < 20,000 KRW: tick = 10 KRW
+          - 20,000 <= price < 50,000 KRW: tick = 50 KRW
+          - 50,000 <= price < 200,000 KRW: tick = 100 KRW
+          - 200,000 <= price < 500,000 KRW: tick = 500 KRW
+          - price >= 500,000 KRW: tick = 1,000 KRW
+        US (SP500/NASDAQ/RUSSELL2000):
+          - price >= $1.00: tick = $0.01 (penny)
+          - price < $1.00: tick = $0.0001 (sub-penny)
+        """
+        if not math.isfinite(price) or price <= 0:
+            return price
+
+        mkt = str(market).upper()
+        if mkt in ["KOSPI", "KOSDAQ"] or "KRW" in mkt:
+            if price < 2000.0:
+                tick = 1.0
+            elif price < 5000.0:
+                tick = 5.0
+            elif price < 20000.0:
+                tick = 10.0
+            elif price < 50000.0:
+                tick = 50.0
+            elif price < 200000.0:
+                tick = 100.0
+            elif price < 500000.0:
+                tick = 500.0
+            else:
+                tick = 1000.0
+            return float(round(round(price / tick) * tick, 2))
+        else:
+            # US / Global
+            if price >= 1.0:
+                tick = 0.01
+                return float(round(round(price / tick) * tick, 2))
+            else:
+                tick = 0.0001
+                return float(round(round(price / tick) * tick, 4))
 
     def _validate_symbol(self, sym: Any) -> str:
         """Returns a clean symbol string or empty string if the symbol is invalid."""
@@ -203,10 +252,11 @@ class ExecutionOMSEngine:
                 if not (_MIN_PRICE_BOUND <= target_price <= _MAX_PRICE_BOUND):
                     continue
 
-                order_id = f"ORD_{sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
                 raw_action = str(pred.get("action", "BUY") or "BUY").upper()
                 name = str(pred.get("name", "") or "")
                 market = str(pred.get("market", "") or "")
+                target_price = self.round_to_tick_size(target_price, market=market)
+                order_id = f"ORD_{sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
                 is_krx = str(market).upper() in ["KOSPI", "KOSDAQ"] or sym.isdigit() or sym.endswith((".KS", ".KQ"))
 
                 # Gate 7.1: KRX Long-Only Synthetic Short / Cash Overlay Filter
@@ -251,6 +301,16 @@ class ExecutionOMSEngine:
                     except Exception as _fe:
                         logger.debug(f"[OMS GATE 7] Hurdle check exception for {sym}: {_fe}")
 
+                # Gate 7.4: Dynamic Adverse Opening Gap Filter (-3 sigma shock protection)
+                try:
+                    vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
+                    gap_ret = float(change_pct or 0.0)
+                    if action == "BUY" and gap_ret <= -3.0 * max(vol_20d, 0.015):
+                        logger.warning(f"[OMS GATE 7.4] {sym} adverse gap {gap_ret:.2%} <= -3sigma, skipping toxic order flow.")
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
                 raw_quantity = int(target_amount // target_price)
                 if is_krx:
                     quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
@@ -259,11 +319,11 @@ class ExecutionOMSEngine:
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 
-                # Institutional Execution Strategy Routing (ADV Participation Slicing)
+                # Institutional Execution Strategy Routing (ADV Participation Slicing & U-shaped Volume Profile)
                 adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
                 part_ratio = target_amount / max(adv_val, 1.0)
                 if part_ratio > 0.03:
-                    exec_strategy = "VWAP"
+                    exec_strategy = "DYNAMIC_VWAP"
                     slice_count = min(10, max(3, int(np.ceil(part_ratio / 0.01))))
                 elif part_ratio > 0.01:
                     exec_strategy = "TWAP"
@@ -297,7 +357,8 @@ class ExecutionOMSEngine:
 
             conn.commit()
         finally:
-            conn.close()
+            if self.db_path != ":memory:":
+                conn.close()
         return order_plans
 
     def record_execution(
@@ -362,7 +423,8 @@ class ExecutionOMSEngine:
 
             conn.commit()
         finally:
-            conn.close()
+            if self.db_path != ":memory:":
+                conn.close()
 
         return {
             "order_id": order_id,

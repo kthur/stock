@@ -15,6 +15,14 @@ from .correlation_monitor import StrategyCorrelationMonitor
 from .factor_suppression import RegimeFactorSuppressionEngine
 from .factor_orthogonalizer import FactorOrthogonalizerEngine
 
+try:
+    from ..analysis.dsr_validator import DeflatedSharpeRatioValidator
+except Exception:
+    try:
+        from src.analysis.dsr_validator import DeflatedSharpeRatioValidator
+    except Exception:
+        DeflatedSharpeRatioValidator = None
+
 
 
 logger = logging.getLogger(__name__)
@@ -428,6 +436,7 @@ class EnsembleScoringEngine:
         self.factor_suppression = RegimeFactorSuppressionEngine()
         self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
         self.orthogonalizer_enabled = True
+        self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=31, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
 
         # Milestone 4: Slippage execution feedback attributes
         self.slippage_metrics: Optional[Any] = None
@@ -819,7 +828,9 @@ class EnsembleScoringEngine:
         gamma: float = 1.0,
         vix_val: Optional[float] = None,
         factor_ic_dict: Optional[Dict[str, float]] = None,
-        factor_crowding_penalties: Optional[Dict[str, float]] = None
+        factor_crowding_penalties: Optional[Dict[str, float]] = None,
+        pruning_threshold: Optional[float] = -0.50,
+        smooth_downside_mode: bool = False
     ) -> Dict[str, float]:
         """
         Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy,
@@ -858,7 +869,7 @@ class EnsembleScoringEngine:
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
-            if sharpe < -0.50:
+            if pruning_threshold is not None and sharpe < pruning_threshold and not smooth_downside_mode:
                 # Hard gate pruning for severely underperforming strategies
                 scores[strategy] = 0.0
                 continue
@@ -874,8 +885,12 @@ class EnsembleScoringEngine:
                 multiplier *= 1.08
             elif clipped_sharpe < 0.0:
                 # Asymmetric downside risk mitigation for mild underperformance
-                downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.40)
-                multiplier *= downside_penalty
+                if smooth_downside_mode:
+                    smooth_downside = float(1.0 / (1.0 + np.exp(-1.5 * (clipped_sharpe + 0.5))))
+                    multiplier = max(0.02, multiplier * smooth_downside)
+                else:
+                    downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.40)
+                    multiplier *= downside_penalty
 
             # 20D Factor Momentum (Information Coefficient Tilting)
             ic_mult = 1.0
@@ -883,12 +898,31 @@ class EnsembleScoringEngine:
                 ic_val = float(np.clip(factor_ic_dict[strategy], -1.0, 1.0))
                 ic_mult = float(1.0 + 0.20 * np.tanh(2.0 * ic_val))
 
+            # Deflated Sharpe Ratio (DSR) selection bias correction (Lopez de Prado 2014)
+            dsr_mult = 1.0
+            if self._dsr_validator is not None and not all_zero and sharpe > 0.0:
+                try:
+                    dsr_res = self._dsr_validator.compute_dsr(
+                        observed_sr=sharpe,
+                        n_trials=len(base_weights) * 8,
+                        var_sharpe=float(np.var(list(clean_sharpes.values()))) if len(clean_sharpes) > 1 else 0.50,
+                        t_observations=252
+                    )
+                    dsr_prob = float(dsr_res.get('dsr_probability', 0.50))
+                    if dsr_prob >= 0.95:
+                        dsr_mult = 1.10
+                    elif dsr_prob < 0.50:
+                        # Soft damping for multiple-testing spurious noise
+                        dsr_mult = max(0.60, float(0.60 + 0.40 * (dsr_prob / 0.50)))
+                except Exception as e:
+                    logger.debug(f"DSR computation bypassed for {strategy}: {e}")
+
             # Factor Crowding Damper (penalizes crowded strategies with collapsing residual variance)
             crowd_penalty = 0.0
             if factor_crowding_penalties and strategy in factor_crowding_penalties:
                 crowd_penalty = float(np.clip(factor_crowding_penalties[strategy], 0.0, 0.50))
 
-            scores[strategy] = base_w * multiplier * ic_mult * (1.0 - crowd_penalty)
+            scores[strategy] = base_w * multiplier * ic_mult * dsr_mult * (1.0 - crowd_penalty)
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
         # differ up to ~5x, so multiplier-only capping is not enough). Damping the
@@ -1900,8 +1934,14 @@ class EnsembleScoringEngine:
         ] and sc in merged.columns]
         core_valid_count = merged[core_strat_cols].notna().sum(axis=1) if core_strat_cols else valid_count_series
 
+        # Market-aware denominator to avoid penalizing Korean stocks for US-specific alternative factors
+        us_only_strats = {'iv_skew', 'gamma_squeeze', 'darkpool', 'short_squeeze'}
+        kr_present_strats = max(1, len([sc for sn, sc in strategy_cols if sn not in us_only_strats]))
+        us_present_strats = max(1, num_present_strats)
+        effective_num_strats = np.where(is_kr, kr_present_strats, us_present_strats)
+
         # Apply smooth coverage factor: only penalize when core strategy quorum (<3) AND overall coverage (<25%) are critically low
-        coverage_ratio = valid_count_series / num_present_strats
+        coverage_ratio = valid_count_series / np.maximum(effective_num_strats, 1.0)
         coverage_penalty = np.where((core_valid_count < 3) & (coverage_ratio < 0.25), 0.70 + 0.30 * (coverage_ratio / 0.25), 1.0)
         linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
 

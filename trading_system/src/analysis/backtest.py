@@ -336,6 +336,7 @@ class BacktestEngine:
         volatility_sizing: bool = False,
         atr_trailing_stop_mult: float = 0.0,
         ensemble_scores: Optional[pd.DataFrame] = None,
+        delisting_recovery_rate: Optional[float] = None,
     ) -> BacktestResult:
         """
         백테스트 실행
@@ -740,9 +741,13 @@ class BacktestEngine:
             total_value = capital + position_value
             equity_curve.append(total_value)
 
-        # 최종 청산 (남은 포지션 강제 종가 정리)
+        # 최종 청산 (남은 포지션 강제 종가 정리 / 상장폐지 이벤트 처리)
+        is_delisting = (delisting_recovery_rate is not None)
+        exit_reason_final = "DELISTING" if is_delisting else "FINAL"
+        recovery_mult = float(np.clip(delisting_recovery_rate, 0.0, 2.0)) if is_delisting else 1.0
+
         if position > 0:
-            final_price = price_bars[-1].close
+            final_price = price_bars[-1].close * recovery_mult
             pnl = (final_price - entry_price) * position
             fees = position * final_price * active_fee
             capital += position * final_price * (1 - self._trade_cost(position, final_price, bar.volume))
@@ -756,11 +761,11 @@ class BacktestEngine:
                 pnl=pnl - fees,
                 pnl_pct=((final_price - entry_price) / entry_price) * 100,
                 direction="LONG",
-                exit_reason="FINAL",
+                exit_reason=exit_reason_final,
             )
             trades.append(trade)
         elif position < 0 and allow_short:
-            final_price = price_bars[-1].close
+            final_price = price_bars[-1].close * recovery_mult
             qty = abs(position)
             pnl = (entry_price - final_price) * qty
             fees = qty * final_price * active_fee
@@ -775,7 +780,7 @@ class BacktestEngine:
                 pnl=pnl - fees,
                 pnl_pct=((entry_price - final_price) / entry_price) * 100,
                 direction="SHORT",
-                exit_reason="FINAL",
+                exit_reason=exit_reason_final,
             )
             trades.append(trade)
 

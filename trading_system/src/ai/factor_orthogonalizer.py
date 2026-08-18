@@ -29,7 +29,8 @@ class FactorOrthogonalizerEngine:
         score_df: pd.DataFrame,
         strategy_cols: List[str],
         weights: Optional[Dict[str, float]] = None,
-        method: Optional[str] = None
+        method: Optional[str] = None,
+        scaling_method: Optional[str] = None
     ) -> pd.DataFrame:
         eff_method = method or self.default_method
         valid_cols = [c for c in strategy_cols if c in score_df.columns]
@@ -43,7 +44,12 @@ class FactorOrthogonalizerEngine:
         nan_mask = np.isnan(X_raw)
         has_nans = nan_mask.any()
         if has_nans:
-            col_means = np.nanmean(X_raw, axis=0)
+            # Handle potential completely empty columns safely
+            col_means = np.zeros(K, dtype=np.float64)
+            for j in range(K):
+                col_j = X_raw[:, j]
+                valid_j = col_j[~np.isnan(col_j)]
+                col_means[j] = float(np.mean(valid_j)) if len(valid_j) > 0 else 0.5
             col_means = np.nan_to_num(col_means, nan=0.5)
             X_clean = X_raw.copy()
             inds = np.where(nan_mask)
@@ -55,7 +61,13 @@ class FactorOrthogonalizerEngine:
         col_stds = np.std(X_clean, axis=0)
         col_stds = np.where(col_stds < 1e-8, 1e-6, col_stds)
 
-        if eff_method == 'gram_schmidt':
+        use_dispersion = (
+            scaling_method == 'dispersion' or
+            'dispersion' in str(eff_method).lower() or
+            scaling_method == 'sigmoid'
+        )
+
+        if str(eff_method).startswith('gram_schmidt'):
             X_ortho = self._gram_schmidt(X_clean, valid_cols, weights, col_means, col_stds)
         else:
             X_ortho = self._pca_zca_symmetric(X_clean, col_means, col_stds)
@@ -64,7 +76,13 @@ class FactorOrthogonalizerEngine:
             X_ortho[nan_mask] = np.nan
 
         out_df = score_df.copy()
-        if len(out_df) >= 5:
+        if use_dispersion:
+            # Sigmoid-Tanh Dispersion-Preserving Conviction Scaling
+            # Preserves relative distance, fat tails, and non-uniform conviction without flat rank collapse
+            X_centered = (X_ortho - col_means) / col_stds
+            X_disp = col_means + col_stds * np.tanh(X_centered)
+            out_df[valid_cols] = np.clip(X_disp, 0.0, 1.0)
+        elif len(out_df) >= 5:
             ranks = pd.DataFrame(X_ortho, index=out_df.index, columns=valid_cols).rank(pct=True)
             out_df[valid_cols] = ranks.values
         else:
