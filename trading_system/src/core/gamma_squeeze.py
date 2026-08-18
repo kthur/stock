@@ -103,11 +103,12 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                             # Gamma Breakout Ignition Bonus (Strong momentum + volume surge + near 20d high)
                             gamma_ignition_bonus = 0.12 if (proximity >= 0.97 and (ret_5d >= 0.08 or ret_3d >= 0.05) and vol_surge >= 1.8) else 0.0
 
-                            # Squeeze score formula
+                            # Squeeze score formula with fallback dampening to prevent pure momentum duplication
                             squeeze_raw = 0.35 * proximity + 0.30 * max(0.0, ret_5d * 5.0) + 0.25 * min(2.0, vol_surge) / 2.0 + 0.10 * max(0.0, ret_3d * 6.0) + gamma_ignition_bonus
-                            score = float(np.clip(squeeze_raw, 0.0, 1.0))
+                            # Attenuate fallback towards neutral (0.5) when actual options GEX is absent
+                            score = float(np.clip(0.50 + (squeeze_raw - 0.50) * 0.50, 0.0, 1.0))
 
-            # 2. Live Options Chain GEX override if available
+            # 2. Live Options Chain GEX override if available (Full strength for US options)
             if options_chain_dict and sym in options_chain_dict:
                 opt_data = options_chain_dict[sym]
                 call_wall = opt_data.get('call_wall_strike', 0.0)

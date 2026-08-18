@@ -91,16 +91,17 @@ class OrderFlowEngine(BaseStrategyEngine):
                 ret = close.pct_change().dropna()
                 vol_sub = volume.iloc[-len(ret):]
 
-                # Directional Money Flow Volume (MFI)
-                positive_flow = np.where(ret > 0, ret * vol_sub, 0.0).sum()
-                negative_flow = np.where(ret < 0, abs(ret) * vol_sub, 0.0).sum()
-                total_flow = positive_flow + negative_flow + 1e-12
-
-                mfi_ratio = positive_flow / total_flow
+                # Directional Money Flow Volume (14-day Rolling MFI)
+                ret_14 = ret.tail(14)
+                vol_14 = vol_sub.tail(14)
+                pos_flow = np.where(ret_14 > 0, ret_14 * vol_14, 0.0).sum()
+                neg_flow = np.where(ret_14 < 0, abs(ret_14) * vol_14, 0.0).sum()
+                tot_flow = pos_flow + neg_flow + 1e-12
+                mfi_ratio = float(pos_flow / tot_flow)
 
                 # OBV (On-Balance Volume) 10-day slope trend
-                obv = (np.sign(ret) * vol_sub).cumsum()
-                obv_trend = float((obv.iloc[-1] - obv.iloc[0]) / (abs(obv.iloc[0]) + 1e-6)) if len(obv) >= 10 else 0.0
+                obv_slice = (np.sign(ret.tail(20)) * vol_sub.tail(20)).cumsum()
+                obv_trend = float((obv_slice.iloc[-1] - obv_slice.iloc[-10]) / (abs(obv_slice.iloc[-10]) + 1e-6)) if len(obv_slice) >= 10 else 0.0
 
                 # Volume Acceleration Ratio (5d avg volume / 20d avg volume)
                 vol_5d = float(volume.iloc[-5:].mean()) if len(volume) >= 5 else float(volume.iloc[-1])

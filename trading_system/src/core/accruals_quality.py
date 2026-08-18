@@ -99,8 +99,19 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             df_rows.get('operating_cash_flow', df_rows.get('ocf', df_rows.get('cash_flow_operating', pd.Series(np.nan, index=sym_strs)))),
             errors='coerce'
         )
-        # Do not artificially impute missing OCF with operating_income * 0.9.
-        # Stocks missing real OCF will be assigned neutral score (0.50).
+
+        # Balance Sheet Accruals fallback if real OCF is missing but operating items are present
+        missing_ocf_mask = ocf.isna() & net_inc.notna()
+        if np.any(missing_ocf_mask):
+            ca_change = pd.to_numeric(df_rows.get('current_assets_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
+            cl_change = pd.to_numeric(df_rows.get('current_liabilities_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
+            deprec = pd.to_numeric(df_rows.get('depreciation', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
+            op_inc = pd.to_numeric(df_rows.get('operating_income', df_rows.get('ebit', pd.Series(np.nan, index=sym_strs))), errors='coerce')
+            
+            # Traditional Balance Sheet Accruals OCF proxy: OCF ≈ Operating Income + Depreciation - ΔWorking Capital
+            wc_change = ca_change - cl_change
+            bs_ocf_est = op_inc + deprec - wc_change
+            ocf = pd.Series(np.where(missing_ocf_mask & op_inc.notna(), bs_ocf_est, ocf), index=sym_strs)
 
         assets = pd.to_numeric(
             df_rows.get('total_assets', df_rows.get('assets', df_rows.get('book_value', pd.Series(np.nan, index=sym_strs)))),

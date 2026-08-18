@@ -36,9 +36,11 @@ class PortfolioAllocator:
         delta_floor: float = 0.005,
         delta_cap: float = 0.050,
         rebalance_mode: str = "boundary",
-        min_tail_samples: int = 15
+        min_tail_samples: int = 15,
+        target_horizon: int = 20
     ):
         self.config = config
+        self.target_horizon = int(target_horizon) if target_horizon is not None else 20
         safe_max_w = float(default_max_weight) if (default_max_weight is not None and np.isfinite(default_max_weight)) else 0.20
         self.default_max_weight = max(0.01, min(1.0, safe_max_w))
         safe_sec_w = float(default_max_sector_weight) if (default_max_sector_weight is not None and np.isfinite(default_max_sector_weight)) else 0.35
@@ -128,8 +130,11 @@ class PortfolioAllocator:
                 "method": "gaussian_fallback_small_n"
             }
 
-        # Threshold u selection (e.g. 90th percentile of losses)
-        u = float(np.quantile(losses, quantile_threshold))
+        # Adaptive threshold u selection: max of quantile and mean + 1.5 sigma to prevent noise fitting in quiet regimes
+        sigma_l = float(np.std(losses, ddof=1)) if N > 1 else 0.01
+        u_quantile = float(np.quantile(losses, quantile_threshold))
+        u_volatility = float(np.mean(losses) + 1.5 * sigma_l)
+        u = max(u_quantile, u_volatility)
         exceedances = losses[losses > u] - u
         n_u = len(exceedances)
 
@@ -311,7 +316,8 @@ class PortfolioAllocator:
         expected_returns: pd.Series,
         volatilities: Optional[pd.Series] = None,
         max_weight: Optional[float] = None,
-        kelly_fraction: float = 0.25
+        kelly_fraction: float = 0.25,
+        risk_free_rate: float = 0.035
     ) -> Dict[str, float]:
         """
         Allocates portfolio weights using Fractional Kelly (Quarter-Kelly) Sizing:
@@ -330,9 +336,12 @@ class PortfolioAllocator:
 
         cap = max_weight or self.default_max_weight
 
-        # Clean expected returns (annualized or horizon percentage)
-        mu = np.nan_to_num(expected_returns.values.astype(float), nan=0.0, posinf=0.0, neginf=0.0)
-        mu = np.maximum(0.0, mu)
+        # Clean expected returns (handle horizon vs annualized excess returns)
+        raw_mu = np.nan_to_num(expected_returns.values.astype(float), nan=0.0, posinf=0.0, neginf=0.0)
+        # Determine horizon scaling: if mu mean < 0.20, assume 20d horizon return and scale rf accordingly
+        rf_scaled = risk_free_rate * (self.target_horizon / 252.0) if np.mean(raw_mu) < 0.50 else risk_free_rate
+        excess_mu = np.maximum(0.0, raw_mu - rf_scaled)
+
         if volatilities is not None and not volatilities.empty:
             raw_vols = volatilities.reindex(symbols).fillna(0.02).values.astype(float)
             raw_vols = np.nan_to_num(raw_vols, nan=0.02, posinf=0.02, neginf=0.02)
@@ -340,36 +349,16 @@ class PortfolioAllocator:
         else:
             vols = np.full(n_assets, 0.02)
 
-        # Raw Kelly score: kelly_fraction * (mu_i / sigma_i^2)
-        raw_kelly = float(kelly_fraction) * (mu / (vols ** 2))
+        # Raw Kelly score: kelly_fraction * (excess_mu / sigma_i^2)
+        raw_kelly = float(kelly_fraction) * (excess_mu / (vols ** 2))
         total_k = np.sum(raw_kelly)
 
         if total_k <= 1e-8:
             equal_w = 1.0 / float(n_assets)
             return {sym: float(min(equal_w, cap)) for sym in symbols}
 
-        # Normalize and scale by fractional kelly
+        # Normalize to 1.0
         norm_w = raw_kelly / total_k
-        # Kelly Conviction Boost, Ultra Conviction & Lower-Tail Attenuation for alpha signals
-        if len(norm_w) >= 4 and np.std(norm_w) > 1e-8:
-            p95 = np.percentile(norm_w, 95)
-            p90 = np.percentile(norm_w, 90)
-            p75 = np.percentile(norm_w, 75)
-            p25 = np.percentile(norm_w, 25)
-
-            ultra_mask = norm_w >= p95
-            super_mask = (norm_w >= p90) & (~ultra_mask)
-            top_mask = (norm_w >= p75) & (norm_w < p90)
-            low_mask = norm_w < p25
-
-            if np.any(ultra_mask):
-                norm_w[ultra_mask] *= 1.16
-            if np.any(super_mask):
-                norm_w[super_mask] *= 1.12
-            if np.any(top_mask):
-                norm_w[top_mask] *= 1.08
-            if np.any(low_mask):
-                norm_w[low_mask] *= 0.92
 
         # Iterative water-filling projection to guarantee weights <= cap and sum(weights) == 1.0
         eff_cap = max(cap, 1.0 / n_assets)
@@ -451,11 +440,13 @@ class PortfolioAllocator:
         portfolio_value: float = 100_000_000.0,
         volatility_20d: float = 0.020,
         adv: float = 1_000_000_000.0,
-        is_sell: Optional[bool] = None
+        is_sell: Optional[bool] = None,
+        slippage_multiplier: float = 1.0
     ) -> float:
         """
         Estimates asset-specific one-way transaction cost rate (c_i):
         c_i = Tax & Fees + 0.5 * Spread + Market Impact
+        incorporating dynamic slippage feedback multiplier from real execution logs.
 
         Specific Rules:
         - KOSPI: Sell STT tax = 0.15% (0.0015), Brokerage fee = 0.03% (0.0003). Base spread = 0.06%.
@@ -466,6 +457,8 @@ class PortfolioAllocator:
         """
         market_upper = str(market).upper()
         is_us_stock = market_upper in ('SP500', 'NASDAQ', 'RUSSELL2000') or (symbol.isalpha() and len(symbol) <= 5)
+
+        slip_mult = max(0.5, float(slippage_multiplier))
 
         if market_upper in ['KOSDAQ', 'KQ'] or symbol.endswith('.KQ'):
             stt_tax = 0.0018
@@ -517,21 +510,21 @@ class PortfolioAllocator:
         base_vol = 0.015 if is_sp500 else 0.020
         vol_clean = max(volatility_20d, 0.005)
 
-        # Dynamic spread formula: S_i = base_spread * (ADV_ref / ADV_i)^0.25 * (sigma_i / sigma_0)^0.50
+        # Dynamic spread formula with real-time slippage multiplier scaling
         adv_ratio = adv_ref / adv_clean
         vol_ratio = vol_clean / base_vol
-        dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
+        dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50) * slip_mult
         if np.isnan(dynamic_spread) or np.isinf(dynamic_spread):
-            dynamic_spread = base_spread
-        clamped_spread = min(max(dynamic_spread, spread_min), spread_max)
+            dynamic_spread = base_spread * slip_mult
+        clamped_spread = min(max(dynamic_spread, spread_min), spread_max * slip_mult)
         half_spread = 0.5 * clamped_spread
 
-        # Square-root market impact formula
+        # Square-root market impact formula with slippage feedback scaling
         order_val = max(1.0, target_weight * portfolio_value)
         participation = order_val / adv_clean
-        impact_one_way = impact_coeff * vol_clean * np.sqrt(participation)
+        impact_one_way = impact_coeff * slip_mult * vol_clean * np.sqrt(participation)
         if participation > 0.10:
-            impact_one_way += 0.50 * (participation - 0.10)
+            impact_one_way += 0.50 * (participation - 0.10) * slip_mult
 
         total_cost_rate = tax_fee + half_spread + impact_one_way
         return float(total_cost_rate)
@@ -571,7 +564,9 @@ class PortfolioAllocator:
         volatility_map: Dict[str, float],
         adv_map: Dict[str, float],
         portfolio_value: float = 100_000_000.0,
-        rebalance_mode: Optional[str] = None
+        rebalance_mode: Optional[str] = None,
+        slippage_multiplier: float = 1.0,
+        slippage_map: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
         """
         Evaluates dynamic buffer bands [w_target - delta_i, w_target + delta_i]:
@@ -594,6 +589,7 @@ class PortfolioAllocator:
             mkt = market_map.get(sym, "KOSPI")
             vol = volatility_map.get(sym, 0.020)
             adv = adv_map.get(sym, 1_000_000_000.0)
+            sym_slip = (slippage_map.get(sym, slippage_multiplier) if slippage_map else slippage_multiplier)
 
             cost_rate = self.estimate_transaction_cost_rate(
                 symbol=sym,
@@ -602,7 +598,8 @@ class PortfolioAllocator:
                 portfolio_value=portfolio_value,
                 volatility_20d=vol,
                 adv=adv,
-                is_sell=(w_curr > w_targ)
+                is_sell=(w_curr > w_targ),
+                slippage_multiplier=sym_slip
             )
 
             delta_i = self.calculate_dynamic_buffer_band(

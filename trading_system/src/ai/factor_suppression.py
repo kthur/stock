@@ -113,7 +113,8 @@ class RegimeFactorSuppressionEngine:
         corr_matrix: pd.DataFrame,
         regime_label: str,
         theta: float = 0.65,
-        lambda_penalty: float = 1.0
+        lambda_penalty: float = 1.0,
+        consensus_precision: Optional[Dict[str, float]] = None
     ) -> Dict[str, float]:
         """
         Computes strategy-level dampening penalty factor P_i(R) in [0, 1].
@@ -163,6 +164,14 @@ class RegimeFactorSuppressionEngine:
 
             denom = np.sqrt(1.0 + lambda_penalty * weighted_excess_sq_sum)
             penalty_i = float(1.0 / denom)
+
+            # Consensus Precision Relief: Prevent over-suppression when strategy has high precision
+            if consensus_precision and strat_i in consensus_precision:
+                prec = float(consensus_precision[strat_i])
+                if prec > 0.55:
+                    relief = min(0.60, (prec - 0.55) * 2.0)
+                    penalty_i = penalty_i + (1.0 - penalty_i) * relief
+
             penalties[strat_i] = round(penalty_i, 6)
 
         return penalties

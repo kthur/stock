@@ -194,6 +194,11 @@ class SupplyChainEngine(BaseStrategyEngine):
         returns_3d = close_pivot.pct_change(3).iloc[-1] if len(close_pivot) >= 4 else pd.Series(dtype=float)
         returns_5d = close_pivot.pct_change(5).iloc[-1] if len(close_pivot) >= 6 else pd.Series(dtype=float)
 
+        # Lagged returns (t-1) for cross-timezone spillover (US Leader -> KRX Supplier)
+        returns_1d_lag1 = close_pivot.pct_change(1).shift(1).iloc[-1] if len(close_pivot) >= 3 else returns_1d
+        returns_3d_lag1 = close_pivot.pct_change(3).shift(1).iloc[-1] if len(close_pivot) >= 5 else returns_3d
+        returns_5d_lag1 = close_pivot.pct_change(5).shift(1).iloc[-1] if len(close_pivot) >= 7 else returns_5d
+
         def clean_sym(s: str) -> str:
             raw = s.split(".")[0].strip()
             return raw.zfill(6) if raw.isdigit() else raw
@@ -203,6 +208,7 @@ class SupplyChainEngine(BaseStrategyEngine):
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KRX"))
             c_key = clean_sym(sym)
+            is_kr_target = (c_key.isdigit() or str(mkt).upper() in ['KOSPI', 'KOSDAQ', 'KRX'])
 
             customers = self.customer_map.get(c_key, self.customer_map.get(sym, []))
             if not customers:
@@ -238,10 +244,17 @@ class SupplyChainEngine(BaseStrategyEngine):
 
                 cust_rets = []
                 for c_sym, c_weight in zip(customers, weights):
-                    if c_sym in returns_1d and pd.notna(returns_1d.get(c_sym)):
-                        r1 = float(returns_1d.get(c_sym))
-                        r3 = float(returns_3d.get(c_sym, r1)) if pd.notna(returns_3d.get(c_sym, np.nan)) else r1
-                        r5 = float(returns_5d.get(c_sym, r1)) if pd.notna(returns_5d.get(c_sym, np.nan)) else r1
+                    is_us_customer = (c_sym.isalpha() and len(c_sym) <= 5)
+                    # Cross-timezone lag shift: If KR target & US customer, use t-1 lagged returns to prevent lookahead
+                    use_lag = is_kr_target and is_us_customer
+                    r1_series = returns_1d_lag1 if use_lag else returns_1d
+                    r3_series = returns_3d_lag1 if use_lag else returns_3d
+                    r5_series = returns_5d_lag1 if use_lag else returns_5d
+
+                    if c_sym in r1_series and pd.notna(r1_series.get(c_sym)):
+                        r1 = float(r1_series.get(c_sym))
+                        r3 = float(r3_series.get(c_sym, r1)) if pd.notna(r3_series.get(c_sym, np.nan)) else r1
+                        r5 = float(r5_series.get(c_sym, r1)) if pd.notna(r5_series.get(c_sym, np.nan)) else r1
                     else:
                         # Fallback to US tech proxy for US leaders not present in prices_dict
                         is_us_leader = c_sym.upper() in ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'ASML', 'TSM', 'GOOGL', 'META']

@@ -88,8 +88,12 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
             return df_out[['symbol', 'trend_efficiency_score']]
 
-        # Date-aligned price matrix
-        close_2d = pd.DataFrame(valid_cols).ffill().tail(21)
+        # Full price matrix for extended Hurst calculation (up to 120 days)
+        close_full = pd.DataFrame(valid_cols).ffill()
+        n_hurst_obs = min(120, len(close_full))
+        close_hurst = close_full.tail(n_hurst_obs)
+
+        close_2d = close_full.tail(21)
         if len(close_2d) < 21:
             df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
             return df_out[['symbol', 'trend_efficiency_score']]
@@ -110,14 +114,18 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         base_p = close_2d.iloc[-21].replace(0, 1e-8)
         ret_20d = (close_2d.iloc[-1] / base_p) - 1.0
 
-        # R/S Hurst Exponent over 20 days
-        diffs = close_2d.diff().iloc[1:]
-        mean_diff = diffs.mean(axis=0)
-        deviations = (diffs - mean_diff).cumsum(axis=0)
-        r_range = deviations.max(axis=0) - deviations.min(axis=0)
-        s_std = diffs.std(axis=0, ddof=1).replace(0, 1e-8)
-        rs = np.maximum(r_range / s_std, 1e-4)
-        hurst = np.clip(np.log(rs) / np.log(20.0), 0.1, 0.9)
+        # R/S Hurst Exponent over extended lookback window (up to 120 days, min 20)
+        h_len = len(close_hurst)
+        if h_len >= 20:
+            diffs_h = close_hurst.diff().iloc[1:]
+            mean_diff_h = diffs_h.mean(axis=0)
+            dev_h = (diffs_h - mean_diff_h).cumsum(axis=0)
+            r_range_h = dev_h.max(axis=0) - dev_h.min(axis=0)
+            s_std_h = diffs_h.std(axis=0, ddof=1).replace(0, 1e-8)
+            rs_h = np.maximum(r_range_h / s_std_h, 1e-4)
+            hurst = np.clip(np.log(rs_h) / np.log(float(max(20, h_len))), 0.1, 0.9)
+        else:
+            hurst = np.full(len(close_2d.columns), 0.50)
 
         # Signed trend score: High KER + High Hurst on uptrend yields high score; downtrend penalizes
         # High conviction persistent trend accelerator (KER > 0.50 and Hurst > 0.55 on strong uptrend)

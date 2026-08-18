@@ -123,7 +123,8 @@ class EventDrivenEngine(BaseStrategyEngine):
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
         filings: Optional[List[Dict[str, Any]]] = None,
         price_db=None,
-        sentiment_map: Optional[Dict[str, Any]] = None
+        sentiment_map: Optional[Dict[str, Any]] = None,
+        as_of_date: Optional[str] = None
     ) -> pd.DataFrame:
         """
         Computes Event-Driven momentum scores per symbol.
@@ -138,7 +139,13 @@ class EventDrivenEngine(BaseStrategyEngine):
         # Process DART filings if provided or fetched
         eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
         if eff_filings:
+            clean_as_of = str(as_of_date).replace('-', '')[:8] if as_of_date else None
             for item in eff_filings:
+                # Filing timestamp gating: skip future or post-close filings relative to as_of_date
+                rcept_dt = str(item.get('rcept_dt', '')).replace('-', '').strip()[:8]
+                if clean_as_of and rcept_dt and rcept_dt > clean_as_of:
+                    continue
+
                 stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
                 corp_code = str(item.get('corp_code', '')).strip()
                 report_nm = item.get('report_nm', '')

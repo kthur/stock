@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, cast
 
 import aiosqlite
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -556,9 +557,46 @@ class StockPriceDB:
         self.logger.info(f"Upserted {count} price rows for {symbol}")
         return count
 
+    @staticmethod
+    def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:
+        """
+        Validates price series for unadjusted split anomalies or erroneous data feeds.
+        Interpolates transient spikes/drops > max_daily_jump (65%) across all OHLC columns
+        and enforces strict OHLC boundary invariants (Low <= Open, Close <= High).
+        """
+        if df.empty or len(df) < 5 or 'Close' not in df.columns:
+            return df
+
+        df_clean = df.copy()
+        close = df_clean['Close']
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+
+        pct_chg = close.pct_change().abs()
+        anomalies = pct_chg > max_daily_jump
+        if anomalies.any():
+            # Check for transient single-day spike/drop that reverts immediately
+            next_pct_chg = close.pct_change(-1).abs()
+            transient_spikes = anomalies & (next_pct_chg > (max_daily_jump * 0.8))
+            if transient_spikes.any():
+                logger.warning(f"Detected {transient_spikes.sum()} transient price anomalies. Interpolating clean OHLC values.")
+                for col in ['Close', 'Open', 'High', 'Low']:
+                    if col in df_clean.columns:
+                        df_clean.loc[transient_spikes, col] = np.nan
+                        df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
+
+        # Enforce OHLC consistency invariants
+        if 'High' in df_clean.columns and 'Low' in df_clean.columns and 'Close' in df_clean.columns:
+            open_series = df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close']
+            df_clean['High'] = np.maximum(df_clean['High'], np.maximum(open_series, df_clean['Close']))
+            df_clean['Low'] = np.minimum(df_clean['Low'], np.minimum(open_series, df_clean['Close']))
+            df_clean['Low'] = df_clean['Low'].clip(lower=1e-4)
+
+        return df_clean
+
     def get_prices(self, symbol: str, start_date: Optional[str] = None,
                    end_date: Optional[str] = None) -> pd.DataFrame:
-        """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame, 컬럼명 대문자)"""
+        """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame, 컬럼명 대문자, 이상치 자동 보정)"""
         symbol = normalize_symbol(symbol)
         conn = self._get_conn()
         query = "SELECT date, open, high, low, close, volume FROM stock_prices WHERE symbol = ?"
@@ -575,6 +613,7 @@ class StockPriceDB:
         if not df.empty:
             df.set_index("date", inplace=True)
             df.columns = [col.capitalize() for col in df.columns]
+            df = self.validate_and_clean_price_series(df)
         else:
             df = pd.DataFrame(columns=['Open', 'High', 'Low', 'Close', 'Volume'])
             df.index = pd.DatetimeIndex([], name='date')

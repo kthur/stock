@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Any, List, Dict, Tuple
 
 
 import numpy as np
@@ -130,13 +130,11 @@ def calculate_black_litterman_weights(
     Views: Q = predicted_returns, P = Identity
     Uncertainty: Omega = diagonal of cov_matrix * omega_scale
     Updates expected returns and covariance matrix, then solves for tangency portfolio.
+    Combines market equilibrium prior returns with strategy views and dynamic meta conviction.
     """
-    # Guard against invalid inputs
-    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
-        logger.error("Invalid covariance matrix for Black-Litterman: not a numpy array.")
+    if cov_matrix is None or predicted_returns is None:
         return np.array([])
 
-    risk_aversion = float(risk_aversion) if (risk_aversion is not None and np.isfinite(risk_aversion)) else 2.5
     tau = max(1e-4, float(tau)) if (tau is not None and np.isfinite(tau)) else 0.05
     omega_scale = max(1e-4, float(omega_scale)) if (omega_scale is not None and np.isfinite(omega_scale)) else 0.1
     risk_free_rate = float(risk_free_rate) if (risk_free_rate is not None and np.isfinite(risk_free_rate)) else 0.02
@@ -169,8 +167,13 @@ def calculate_black_litterman_weights(
             logger.warning("Length of predicted_returns does not match cov_matrix. Using flat returns.")
             Q = np.zeros(n)
 
-        # Uncertainty Omega (diagonal of covariance matrix scaled)
-        Omega = np.diag(np.maximum(np.diag(cov_matrix) * omega_scale, 1e-8))
+        # Uncertainty Omega (diagonal of covariance matrix scaled by dynamic meta conviction)
+        if meta_convictions is not None and len(meta_convictions) == n:
+            conv_scale = np.clip(np.asarray(meta_convictions, dtype=float), 0.10, 1.50)
+            diag_omega = (np.diag(cov_matrix) * omega_scale) / conv_scale
+            Omega = np.diag(np.maximum(diag_omega, 1e-8))
+        else:
+            Omega = np.diag(np.maximum(np.diag(cov_matrix) * omega_scale, 1e-8))
 
         # Solve for posterior expected returns and covariance matrix
         # A = (tau * Sigma + Omega)
@@ -407,11 +410,13 @@ def apply_portfolio_constraints(
     symbols: Optional[list] = None,
     sectors: Optional[list] = None,
     max_single_stock_weight: float = 0.10,
-    max_sector_weight: float = 0.25
+    max_sector_weight: float = 0.25,
+    factor_loadings: Optional[Any] = None,
+    max_factor_exposure: float = 0.35
 ) -> np.ndarray:
     """
-    Applies single stock cap (default 10.0%) and sector cap (default 25.0%) constraints
-    with iterative redistribution.
+    Applies single stock cap (default 10.0%), sector cap (default 25.0%),
+    and optional multi-factor exposure constraints (default |beta| <= 0.35) with iterative redistribution.
     """
     if weights is None or len(weights) == 0:
         return np.array([])
@@ -456,6 +461,30 @@ def apply_portfolio_constraints(
                 w[under_mask] += excess_total * (w[under_mask] / np.sum(w[under_mask]))
             else:
                 break
+
+    # 3. Factor exposure capping (e.g. Beta, Size, Value <= max_factor_exposure)
+    if factor_loadings is not None:
+        try:
+            import pandas as pd
+            if isinstance(factor_loadings, pd.DataFrame) and not factor_loadings.empty:
+                f_df = factor_loadings.reindex(symbols).fillna(0.0) if symbols else factor_loadings.fillna(0.0)
+                f_mat = f_df.values
+                if f_mat.shape[0] == n:
+                    for _ in range(5):
+                        exposures = w @ f_mat
+                        breaches = np.abs(exposures) > max_factor_exposure
+                        if not np.any(breaches):
+                            break
+                        for f_idx in np.where(breaches)[0]:
+                            target_scale = max_factor_exposure / max(1e-6, abs(exposures[f_idx]))
+                            f_col = f_mat[:, f_idx]
+                            high_loading = np.abs(f_col) > np.median(np.abs(f_col))
+                            w[high_loading] *= target_scale
+                        sum_w = np.sum(w)
+                        if sum_w > 1e-12:
+                            w /= sum_w
+        except Exception as _fe:
+            logger.debug(f"Factor constraint application skipped: {_fe}")
 
     w = np.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0)
     w = np.clip(w, 0.0, 1.0)

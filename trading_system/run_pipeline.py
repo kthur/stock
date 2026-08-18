@@ -3086,7 +3086,8 @@ def execute_prediction_pipeline():
         darkpool_df=darkpool_df,
         earnings_tone_drift_df=earnings_tone_drift_df,
         rolling_sharpes=rolling_sharpes,
-        target_horizon=20
+        target_horizon=20,
+        prices_dict=infer_data_dict if 'infer_data_dict' in locals() else None
     )
 
     # Pre-Market Overnight Gap Shifter calibration for KRX markets
@@ -3098,7 +3099,7 @@ def execute_prediction_pipeline():
         krx_gap = gap_shifter.compute_opening_gap_estimate(on_factors)
         if abs(krx_gap) >= 0.20 and ensemble_df is not None and not ensemble_df.empty:
             logger.info(f"[OVERNIGHT GAP SHIFTER] Estimated KRX opening gap: {krx_gap:+.2f}% (SPY: {on_factors.get('spy_return', 0.0):+.2f}%, USD/KRW: {on_factors.get('usdkrw_change', 0.0):+.2f}%)")
-            ensemble_df = gap_shifter.apply_gap_shift_to_scores(ensemble_df, krx_gap, market='KOSPI')
+            ensemble_df = gap_shifter.apply_gap_shift_to_scores(ensemble_df, krx_gap, market='KRX')
     except Exception as _ge:
         logger.debug(f"[OVERNIGHT GAP SHIFTER] Bypassed: {_ge}")
 

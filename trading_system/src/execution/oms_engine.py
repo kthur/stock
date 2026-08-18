@@ -131,6 +131,24 @@ class ExecutionOMSEngine:
             logger.warning("[OMS ENGINE] SEVERE crisis level - skipping ALL order plan generation.")
             return order_plans
 
+        # Continuous crisis regime scaling (0.15 to 1.0)
+        crisis_mult = 1.0
+        try:
+            from src.risk.risk_manager import RiskManager
+            rm = RiskManager()
+            if hasattr(rm, 'crisis_detector'):
+                crisis_mult = rm.crisis_detector.get_crisis_position_multiplier()
+        except Exception:
+            pass
+
+        cl_upper = str(crisis_level).upper()
+        if cl_upper == "ACTIVE":
+            crisis_mult = min(crisis_mult, 0.40)
+        elif cl_upper == "WATCH":
+            crisis_mult = min(crisis_mult, 0.70)
+        elif cl_upper == "RECOVERY":
+            crisis_mult = min(crisis_mult, 0.50)
+
         if total_capital is None or total_capital == 100000000.0:
             try:
                 from src.config import TradingConfig
@@ -145,7 +163,7 @@ class ExecutionOMSEngine:
             tot_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
         except (ValueError, TypeError):
             tot_cap = 100000000.0
-        tot_cap = max(0.0, tot_cap)
+        tot_cap = max(0.0, tot_cap) * max(0.15, min(1.0, float(crisis_mult)))
 
         conn = self._get_conn()
         try:

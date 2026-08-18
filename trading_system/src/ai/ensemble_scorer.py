@@ -631,8 +631,15 @@ class EnsembleScoringEngine:
                 if len(s) >= max(2, min_obs):
 
                     recent = s.tail(window)
-                    mean_ret = float(recent.mean())
-                    std_ret = float(recent.std())
+                    if len(recent) >= 10:
+                        # EWMA with half-life 12 days for responsive alpha decay tracking
+                        ewm = recent.ewm(halflife=12, min_periods=5)
+                        mean_ret = float(ewm.mean().iloc[-1])
+                        std_ret = float(ewm.std().iloc[-1])
+                    else:
+                        mean_ret = float(recent.mean())
+                        std_ret = float(recent.std())
+
                     if np.isnan(std_ret) or std_ret < 1e-8:
                         std_ret = 1e-6
                     if np.isnan(mean_ret):
@@ -1102,7 +1109,8 @@ class EnsembleScoringEngine:
                                  us_regime: Optional[Union[int, str]] = None,
                                  kr_regime: Optional[Union[int, str]] = None,
                                  decoupling_status: Optional[str] = None,
-                                 dual_regimes: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+                                 dual_regimes: Optional[Dict[str, Any]] = None,
+                                 prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
         """
         Calculates 31-Strategy Dynamic Weighted Ensemble Score [0, 1] per stock.
         Supports dual market regime weighting for US (SP500/NASDAQ/RUSSELL2000) and KR (KOSPI/KOSDAQ).
@@ -1202,7 +1210,8 @@ class EnsembleScoringEngine:
             decoupling_status=eff_decoupling,
             target_horizon=target_horizon,
             sentiment_blacklist=sentiment_blacklist,
-            held_symbols=held_symbols
+            held_symbols=held_symbols,
+            prices_dict=prices_dict
         )
 
     def combine_predictions(self,
@@ -1246,9 +1255,10 @@ class EnsembleScoringEngine:
                             decoupling_status: Optional[str] = None,
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
-                            held_symbols: Optional[Union[Set[str], List[str]]] = None) -> pd.DataFrame:
+                            held_symbols: Optional[Union[Set[str], List[str]]] = None,
+                            prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
         """
-        Merges 27 strategy prediction DataFrames and computes weighted ensemble score.
+        Merges 31 strategy prediction DataFrames and computes weighted ensemble score.
         """
         if reg_df is None:
             reg_df = pd.DataFrame()
@@ -1431,6 +1441,7 @@ class EnsembleScoringEngine:
             r_col = 'rim_score' if 'rim_score' in r_val_df.columns else (num_cols[-1] if num_cols else r_val_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in r_val_df.columns]
             r_val_df = r_val_df[['symbol'] + meta_cols + [r_col]].rename(columns={r_col: 'rim_score'})
+            r_val_df['rim_score'] = r_val_df['rim_score'].clip(0.0, 1.0)
         else:
             r_val_df = pd.DataFrame(columns=['symbol', 'rim_score'])
 
@@ -1441,6 +1452,7 @@ class EnsembleScoringEngine:
             ev_col = 'event_score' if 'event_score' in ev_df.columns else (num_cols[-1] if num_cols else ev_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in ev_df.columns]
             ev_df = ev_df[['symbol'] + meta_cols + [ev_col]].rename(columns={ev_col: 'event_score'})
+            ev_df['event_score'] = ev_df['event_score'].clip(0.0, 1.0)
         else:
             ev_df = pd.DataFrame(columns=['symbol', 'event_score'])
 
@@ -1451,6 +1463,7 @@ class EnsembleScoringEngine:
             m_col = 'mq_score' if 'mq_score' in m_df.columns else (num_cols[-1] if num_cols else m_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in m_df.columns]
             m_df = m_df[['symbol'] + meta_cols + [m_col]].rename(columns={m_col: 'mq_score'})
+            m_df['mq_score'] = m_df['mq_score'].clip(0.0, 1.0)
         else:
             m_df = pd.DataFrame(columns=['symbol', 'mq_score'])
 
@@ -1461,6 +1474,7 @@ class EnsembleScoringEngine:
             iv_col = 'iv_skew_score' if 'iv_skew_score' in iv_df.columns else (num_cols[-1] if num_cols else iv_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in iv_df.columns]
             iv_df = iv_df[['symbol'] + meta_cols + [iv_col]].rename(columns={iv_col: 'iv_skew_score'})
+            iv_df['iv_skew_score'] = iv_df['iv_skew_score'].clip(0.0, 1.0)
         else:
             iv_df = pd.DataFrame(columns=['symbol', 'iv_skew_score'])
 
@@ -1471,6 +1485,7 @@ class EnsembleScoringEngine:
             of_col = 'order_flow_score' if 'order_flow_score' in of_df.columns else (num_cols[-1] if num_cols else of_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in of_df.columns]
             of_df = of_df[['symbol'] + meta_cols + [of_col]].rename(columns={of_col: 'order_flow_score'})
+            of_df['order_flow_score'] = of_df['order_flow_score'].clip(0.0, 1.0)
         else:
             of_df = pd.DataFrame(columns=['symbol', 'order_flow_score'])
 
@@ -1481,6 +1496,7 @@ class EnsembleScoringEngine:
             rev_col = 'reversal_score' if 'reversal_score' in rev_df.columns else (num_cols[-1] if num_cols else rev_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in rev_df.columns]
             rev_df = rev_df[['symbol'] + meta_cols + [rev_col]].rename(columns={rev_col: 'reversal_score'})
+            rev_df['reversal_score'] = rev_df['reversal_score'].clip(0.0, 1.0)
         else:
             rev_df = pd.DataFrame(columns=['symbol', 'reversal_score'])
 
@@ -1491,6 +1507,7 @@ class EnsembleScoringEngine:
             a_col = 'arm_score' if 'arm_score' in a_df.columns else (num_cols[-1] if num_cols else a_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in a_df.columns]
             a_df = a_df[['symbol'] + meta_cols + [a_col]].rename(columns={a_col: 'arm_score'})
+            a_df['arm_score'] = a_df['arm_score'].clip(0.0, 1.0)
         else:
             a_df = pd.DataFrame(columns=['symbol', 'arm_score'])
 
@@ -1501,6 +1518,7 @@ class EnsembleScoringEngine:
             c_col = 'card_score' if 'card_score' in c_df.columns else (num_cols[-1] if num_cols else c_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in c_df.columns]
             c_df = c_df[['symbol'] + meta_cols + [c_col]].rename(columns={c_col: 'card_score'})
+            c_df['card_score'] = c_df['card_score'].clip(0.0, 1.0)
         else:
             c_df = pd.DataFrame(columns=['symbol', 'card_score'])
 
@@ -1511,6 +1529,7 @@ class EnsembleScoringEngine:
             la_col = 'latr_score' if 'latr_score' in la_df.columns else (num_cols[-1] if num_cols else la_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in la_df.columns]
             la_df = la_df[['symbol'] + meta_cols + [la_col]].rename(columns={la_col: 'latr_score'})
+            la_df['latr_score'] = la_df['latr_score'].clip(0.0, 1.0)
         else:
             la_df = pd.DataFrame(columns=['symbol', 'latr_score'])
 
@@ -1521,6 +1540,7 @@ class EnsembleScoringEngine:
             ifs_col = 'inst_foreign_sector_score' if 'inst_foreign_sector_score' in ifs_df.columns else (num_cols[-1] if num_cols else ifs_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in ifs_df.columns]
             ifs_df = ifs_df[['symbol'] + meta_cols + [ifs_col]].rename(columns={ifs_col: 'inst_foreign_sector_score'})
+            ifs_df['inst_foreign_sector_score'] = ifs_df['inst_foreign_sector_score'].clip(0.0, 1.0)
         else:
             ifs_df = pd.DataFrame(columns=['symbol', 'inst_foreign_sector_score'])
 
@@ -1533,6 +1553,7 @@ class EnsembleScoringEngine:
             sc_df = sc_df[['symbol'] + meta_cols + [sc_col]].rename(columns={sc_col: 'supply_chain_score'})
             if sc_df['supply_chain_score'].max() > 1.0:
                 sc_df['supply_chain_score'] = sc_df['supply_chain_score'] / 100.0
+            sc_df['supply_chain_score'] = sc_df['supply_chain_score'].clip(0.0, 1.0)
         else:
             sc_df = pd.DataFrame(columns=['symbol', 'supply_chain_score'])
 
@@ -1545,6 +1566,7 @@ class EnsembleScoringEngine:
             sent_df = sent_df[['symbol'] + meta_cols + [sent_col]].rename(columns={sent_col: 'sentiment_score'})
             if sent_df['sentiment_score'].max() > 1.0:
                 sent_df['sentiment_score'] = sent_df['sentiment_score'] / 100.0
+            sent_df['sentiment_score'] = sent_df['sentiment_score'].clip(0.0, 1.0)
         else:
             sent_df = pd.DataFrame(columns=['symbol', 'sentiment_score'])
 
@@ -1557,6 +1579,7 @@ class EnsembleScoringEngine:
             fn_df = fn_df[['symbol'] + meta_cols + [fn_col]].rename(columns={fn_col: 'factor_neutralized_score'})
             if fn_df['factor_neutralized_score'].max() > 1.0:
                 fn_df['factor_neutralized_score'] = fn_df['factor_neutralized_score'] / 100.0
+            fn_df['factor_neutralized_score'] = fn_df['factor_neutralized_score'].clip(0.0, 1.0)
         else:
             fn_df = pd.DataFrame(columns=['symbol', 'factor_neutralized_score'])
 
@@ -1569,6 +1592,7 @@ class EnsembleScoringEngine:
             vt_df = vt_df[['symbol'] + meta_cols + [vt_col]].rename(columns={vt_col: 'vol_target_score'})
             if vt_df['vol_target_score'].max() > 1.0:
                 vt_df['vol_target_score'] = vt_df['vol_target_score'] / 100.0
+            vt_df['vol_target_score'] = vt_df['vol_target_score'].clip(0.0, 1.0)
         else:
             vt_df = pd.DataFrame(columns=['symbol', 'vol_target_score'])
 
@@ -1581,6 +1605,7 @@ class EnsembleScoringEngine:
             micro_df = micro_df[['symbol'] + meta_cols + [micro_col]].rename(columns={micro_col: 'microstructure_score'})
             if micro_df['microstructure_score'].max() > 1.0:
                 micro_df['microstructure_score'] = micro_df['microstructure_score'] / 100.0
+            micro_df['microstructure_score'] = micro_df['microstructure_score'].clip(0.0, 1.0)
         else:
             micro_df = pd.DataFrame(columns=['symbol', 'microstructure_score'])
 
@@ -1593,6 +1618,7 @@ class EnsembleScoringEngine:
             aq_df = aq_df[['symbol'] + meta_cols + [aq_col]].rename(columns={aq_col: 'accruals_quality_score'})
             if aq_df['accruals_quality_score'].max() > 1.0:
                 aq_df['accruals_quality_score'] = aq_df['accruals_quality_score'] / 100.0
+            aq_df['accruals_quality_score'] = aq_df['accruals_quality_score'].clip(0.0, 1.0)
         else:
             aq_df = pd.DataFrame(columns=['symbol', 'accruals_quality_score'])
 
@@ -1605,6 +1631,7 @@ class EnsembleScoringEngine:
             sq_df = sq_df[['symbol'] + meta_cols + [sq_col]].rename(columns={sq_col: 'short_squeeze_score'})
             if sq_df['short_squeeze_score'].max() > 1.0:
                 sq_df['short_squeeze_score'] = sq_df['short_squeeze_score'] / 100.0
+            sq_df['short_squeeze_score'] = sq_df['short_squeeze_score'].clip(0.0, 1.0)
         else:
             sq_df = pd.DataFrame(columns=['symbol', 'short_squeeze_score'])
 
@@ -1617,6 +1644,7 @@ class EnsembleScoringEngine:
             vu_df = vu_df[['symbol'] + meta_cols + [vu_col]].rename(columns={vu_col: 'valueup_catalyst_score'})
             if vu_df['valueup_catalyst_score'].max() > 1.0:
                 vu_df['valueup_catalyst_score'] = vu_df['valueup_catalyst_score'] / 100.0
+            vu_df['valueup_catalyst_score'] = vu_df['valueup_catalyst_score'].clip(0.0, 1.0)
         else:
             vu_df = pd.DataFrame(columns=['symbol', 'valueup_catalyst_score'])
 
@@ -1629,6 +1657,7 @@ class EnsembleScoringEngine:
             te_df = te_df[['symbol'] + meta_cols + [te_col]].rename(columns={te_col: 'trend_efficiency_score'})
             if te_df['trend_efficiency_score'].max() > 1.0:
                 te_df['trend_efficiency_score'] = te_df['trend_efficiency_score'] / 100.0
+            te_df['trend_efficiency_score'] = te_df['trend_efficiency_score'].clip(0.0, 1.0)
         else:
             te_df = pd.DataFrame(columns=['symbol', 'trend_efficiency_score'])
 
@@ -1641,6 +1670,7 @@ class EnsembleScoringEngine:
             gs_df = gs_df[['symbol'] + meta_cols + [gs_col]].rename(columns={gs_col: 'gamma_squeeze_score'})
             if gs_df['gamma_squeeze_score'].max() > 1.0:
                 gs_df['gamma_squeeze_score'] = gs_df['gamma_squeeze_score'] / 100.0
+            gs_df['gamma_squeeze_score'] = gs_df['gamma_squeeze_score'].clip(0.0, 1.0)
         else:
             gs_df = pd.DataFrame(columns=['symbol', 'gamma_squeeze_score'])
 
@@ -1653,6 +1683,7 @@ class EnsembleScoringEngine:
             ib_df = ib_df[['symbol'] + meta_cols + [ib_col]].rename(columns={ib_col: 'insider_buying_score'})
             if ib_df['insider_buying_score'].max() > 1.0:
                 ib_df['insider_buying_score'] = ib_df['insider_buying_score'] / 100.0
+            ib_df['insider_buying_score'] = ib_df['insider_buying_score'].clip(0.0, 1.0)
         else:
             ib_df = pd.DataFrame(columns=['symbol', 'insider_buying_score'])
 
@@ -1665,6 +1696,7 @@ class EnsembleScoringEngine:
             dp_df = dp_df[['symbol'] + meta_cols + [dp_col]].rename(columns={dp_col: 'darkpool_score'})
             if dp_df['darkpool_score'].max() > 1.0:
                 dp_df['darkpool_score'] = dp_df['darkpool_score'] / 100.0
+            dp_df['darkpool_score'] = dp_df['darkpool_score'].clip(0.0, 1.0)
         else:
             dp_df = pd.DataFrame(columns=['symbol', 'darkpool_score'])
 
@@ -1677,6 +1709,7 @@ class EnsembleScoringEngine:
             etd_df = etd_df[['symbol'] + meta_cols + [etd_col]].rename(columns={etd_col: 'earnings_tone_drift_score'})
             if etd_df['earnings_tone_drift_score'].max() > 1.0:
                 etd_df['earnings_tone_drift_score'] = etd_df['earnings_tone_drift_score'] / 100.0
+            etd_df['earnings_tone_drift_score'] = etd_df['earnings_tone_drift_score'].clip(0.0, 1.0)
         else:
             etd_df = pd.DataFrame(columns=['symbol', 'earnings_tone_drift_score'])
 
@@ -2216,22 +2249,42 @@ class EnsembleScoringEngine:
                 optimizer = PortfolioOptimizer(default_max_weight=0.20, default_max_sector_weight=0.35)
 
                 top_syms = top_candidates['symbol'].tolist()
-                # Construct realistic 60-day historical time-series return matrix with market factor + idiosyncratic noise
-                n_periods = 60
-                mkt_seed = 42
-                mkt_rng = np.random.RandomState(mkt_seed)
-                mkt_returns = mkt_rng.normal(0.0004, 0.012, n_periods)
+                returns_matrix_df: Optional[pd.DataFrame] = None
 
-                ret_dict = {}
-                for sym in top_syms:
-                    row_s = top_candidates[top_candidates['symbol'] == sym].iloc[0]
-                    exp_r_daily = float(row_s.get('ensemble_expected_return', 0.0)) / (20.0 * 100.0)
-                    sym_seed = int(abs(hash(str(sym)))) % (2**31)
-                    sym_rng = np.random.RandomState(sym_seed)
-                    idio_noise = sym_rng.normal(0.0, 0.015, n_periods)
-                    ret_dict[sym] = exp_r_daily + 0.8 * mkt_returns + idio_noise
+                # 1. Attempt extracting real historical 60-day return series from prices_dict
+                if prices_dict and isinstance(prices_dict, dict):
+                    real_returns = {}
+                    for sym in top_syms:
+                        df_p = prices_dict.get(sym)
+                        if df_p is not None and not df_p.empty:
+                            close_col = 'Close' if 'Close' in df_p.columns else ('close' if 'close' in df_p.columns else None)
+                            if close_col:
+                                ret_s = df_p[close_col].pct_change().dropna()
+                                if len(ret_s) >= 10:
+                                    real_returns[sym] = ret_s.tail(60)
 
-                returns_matrix_df = pd.DataFrame(ret_dict)
+                    if len(real_returns) >= 2 and all(sym in real_returns for sym in top_syms):
+                        df_real = pd.DataFrame(real_returns).dropna()
+                        if len(df_real) >= 15:
+                            returns_matrix_df = df_real
+
+                # 2. Fallback to realistic factor model simulation if prices_dict is unavailable or incomplete
+                if returns_matrix_df is None or returns_matrix_df.empty:
+                    n_periods = 60
+                    mkt_seed = 42
+                    mkt_rng = np.random.RandomState(mkt_seed)
+                    mkt_returns = mkt_rng.normal(0.0004, 0.012, n_periods)
+
+                    ret_dict = {}
+                    for sym in top_syms:
+                        row_s = top_candidates[top_candidates['symbol'] == sym].iloc[0]
+                        exp_r_daily = float(row_s.get('ensemble_expected_return', 0.0)) / (20.0 * 100.0)
+                        sym_seed = int(abs(hash(str(sym)))) % (2**31)
+                        sym_rng = np.random.RandomState(sym_seed)
+                        idio_noise = sym_rng.normal(0.0, 0.015, n_periods)
+                        ret_dict[sym] = exp_r_daily + 0.8 * mkt_returns + idio_noise
+
+                    returns_matrix_df = pd.DataFrame(ret_dict)
 
                 expected_ret_series = top_candidates.set_index('symbol')['ensemble_expected_return']
                 raw_weights = optimizer.optimize_return_tilted_risk_parity(

@@ -1303,7 +1303,8 @@ class OnDevicePredictionModel:
         ret_vol_20d = df['ret_1d'].rolling(20, min_periods=1).std().fillna(0.02)
         dp_ratio = 0.35 + 0.1 * (vol_ratio_20d - 1.0) - 0.05 * (df['ret_1d'].abs() / (ret_vol_20d + 1e-5))
         df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
-        df['block_trade_net_usd'] = (volume * close * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)
+        fx_conv = 1350.0 if is_krx_symbol else 1.0
+        df['block_trade_net_usd'] = ((volume * close / fx_conv) * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)
 
         # Merge global indicator history by date index BEFORE calculating macro sensitivities
         # KRX symbols: US-origin indicators must be lagged by 1 business day
