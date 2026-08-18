@@ -805,13 +805,20 @@ class EnsembleScoringEngine:
             logger.warning(f"[EnsembleScorer] Correlation penalty calculation failed: {e}")
             return weights
 
-    def compute_dynamic_weights_from_sharpe(self, rolling_sharpes: Dict[str, float],
-                                            regime: Union[int, str],
-                                            gamma: float = 1.0,
-                                            vix_val: Optional[float] = None) -> Dict[str, float]:
+    def compute_dynamic_weights_from_sharpe(
+        self,
+        rolling_sharpes: Dict[str, float],
+        regime: Union[int, str],
+        gamma: float = 1.0,
+        vix_val: Optional[float] = None,
+        factor_ic_dict: Optional[Dict[str, float]] = None,
+        factor_crowding_penalties: Optional[Dict[str, float]] = None
+    ) -> Dict[str, float]:
         """
-        Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy.
-        Formula: w_i_dynamic = base_w_i * exp(gamma * Sharpe_i) / sum(base_w_j * exp(gamma * Sharpe_j))
+        Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy,
+        20D rolling Information Coefficient (IC) factor momentum, and Factor Crowding Damper.
+        Formula: w_i_dynamic = base_w_i * exp(gamma * Sharpe_i) * (1 + 0.20*tanh(2*IC_i)) * (1 - Crowd_i)
+                 normalized so sum(w_j_dynamic) = 1.0
 
         Cold-start behaviour: when no strategy has realized outcomes yet, the regime
         base weights are returned unchanged. Arbitrary "seed" Sharpes would present
@@ -862,7 +869,19 @@ class EnsembleScoringEngine:
                 # Asymmetric downside risk mitigation for mild underperformance
                 downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.40)
                 multiplier *= downside_penalty
-            scores[strategy] = base_w * multiplier
+
+            # 20D Factor Momentum (Information Coefficient Tilting)
+            ic_mult = 1.0
+            if factor_ic_dict and strategy in factor_ic_dict:
+                ic_val = float(np.clip(factor_ic_dict[strategy], -1.0, 1.0))
+                ic_mult = float(1.0 + 0.20 * np.tanh(2.0 * ic_val))
+
+            # Factor Crowding Damper (penalizes crowded strategies with collapsing residual variance)
+            crowd_penalty = 0.0
+            if factor_crowding_penalties and strategy in factor_crowding_penalties:
+                crowd_penalty = float(np.clip(factor_crowding_penalties[strategy], 0.0, 0.50))
+
+            scores[strategy] = base_w * multiplier * ic_mult * (1.0 - crowd_penalty)
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
         # differ up to ~5x, so multiplier-only capping is not enough). Damping the
@@ -1830,20 +1849,27 @@ class EnsembleScoringEngine:
             w_series = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
 
             if score_col in merged.columns:
-                # Fix Task 1: Valid 0.0 scores must NOT be discarded as missing data.
+                # Available-Factor Re-normalization: Valid 0.0 scores are preserved, missing/NaN values are excluded from the denominator.
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
                 clean_score = np.where(valid_mask, merged[score_col], 0.0)
                 total_score_series += clean_score * w_series
                 total_weight_series += w_series * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
 
-        # Avoid division by zero: if no strategy scores exist, score is 0.0
+        # Avoid division by zero: normalize by the sum of available valid factor weights
         safe_weight_series = total_weight_series.replace(0.0, np.nan)
         linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
 
-        # Apply coverage factor relative to present strategy DataFrames
+        # Core Strategy Quorum Check (price/volume/momentum/trend models that all stocks can possess)
+        core_strat_cols = [sc for sn, sc in strategy_cols if sn in [
+            'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml', 'lstm',
+            'stat_arb', 'sector_rotation', 'short_term_reversal', 'trend_efficiency'
+        ] and sc in merged.columns]
+        core_valid_count = merged[core_strat_cols].notna().sum(axis=1) if core_strat_cols else valid_count_series
+
+        # Apply smooth coverage factor: only penalize when core strategy quorum (<3) AND overall coverage (<25%) are critically low
         coverage_ratio = valid_count_series / num_present_strats
-        coverage_penalty = np.where(coverage_ratio < 0.40, 0.5 + 0.5 * (coverage_ratio / 0.40), 1.0)
+        coverage_penalty = np.where((core_valid_count < 3) & (coverage_ratio < 0.25), 0.70 + 0.30 * (coverage_ratio / 0.25), 1.0)
         linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)

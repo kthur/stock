@@ -944,4 +944,39 @@ class PortfolioAllocator:
             logger.warning(f"[DVT CASH OVERLAY] Failed to compute DVT weights: {e}")
             return dict(target_weights), 0.0
 
+    # =========================================================================
+    # OBJECTIVE 6: CLOSED-LOOP REALIZED SLIPPAGE FEEDBACK SIZING HAIRCUT
+    # =========================================================================
+
+    def apply_slippage_feedback_haircut(
+        self,
+        weights_dict: Dict[str, float],
+        realized_slippage_map: Optional[Dict[str, float]] = None,
+        max_slippage_bps_threshold: float = 30.0
+    ) -> Dict[str, float]:
+        """
+        Applies dynamic position haircut based on realized execution slippage from trade_logs.db.
+        If an asset's realized slippage exceeds threshold (e.g. 30 bps = 0.30%),
+        its allocation is scaled down by kappa_slip = max(0.50, 1.0 - (excess_bps / 100.0) * 2.0).
+        """
+        if not weights_dict or not realized_slippage_map:
+            return dict(weights_dict)
+
+        adjusted_weights = {}
+        for sym, w in weights_dict.items():
+            slip_bps = float(realized_slippage_map.get(sym, 0.0))
+            if slip_bps > max_slippage_bps_threshold:
+                excess_bps = slip_bps - max_slippage_bps_threshold
+                haircut = max(0.50, 1.0 - (excess_bps / 100.0) * 2.0)
+                adj_w = w * haircut
+                adjusted_weights[sym] = float(adj_w)
+                logger.info(
+                    f"[SLIPPAGE SIZING HAIRCUT] Symbol {sym}: Realized Slippage {slip_bps:.1f} bps > {max_slippage_bps_threshold} bps threshold "
+                    f"-> Haircut multiplier {haircut:.2f} applied (Weight: {w:.3f} -> {adj_w:.3f})"
+                )
+            else:
+                adjusted_weights[sym] = float(w)
+
+        return adjusted_weights
+
 
