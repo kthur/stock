@@ -7,6 +7,34 @@ on:
   schedule:
     - cron: '0 16 * * *'
   workflow_dispatch:
+    inputs:
+      target_market:
+        description: 'DB 프리시딩 대상 시장 / 국가 선택 (Select Target Market / Country for Preseed)'
+        required: true
+        default: 'ALL'
+        type: choice
+        options:
+          - 'ALL'
+          - 'CORE_5'
+          - 'KOSPI'
+          - 'KOSDAQ'
+          - 'SP500'
+          - 'NASDAQ'
+          - 'RUSSELL2000'
+          - 'CHINA'
+          - 'JAPAN'
+          - 'INDIA'
+          - 'EUROPE'
+          - 'VIETNAM'
+          - 'TAIWAN'
+          - 'AUSTRALIA'
+          - 'BRAZIL'
+          - 'HKEX'
+          - 'SINGAPORE'
+          - 'CANADA'
+          - 'ASIA_DEV'
+          - 'ASIA_EMG'
+          - 'COMMODITY'
 
 concurrency:
   group: preseed-${{ github.ref }}
@@ -76,6 +104,7 @@ jobs:
           TRAIN_START_DATE: '2006-01-01'
           PRESEED_MODE: 'True'
           FORCE_UNIVERSE_REFRESH: 'true'
+          INFERENCE_TARGET: ${{ inputs.target_market || 'ALL' }}
         run: |
           source .venv/bin/activate
           python trading_system/run_pipeline.py --skip-training --skip-inference
