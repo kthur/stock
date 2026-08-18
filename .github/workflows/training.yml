@@ -100,9 +100,9 @@ jobs:
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          # Shared across matrix targets — DB holds ALL markets' history
-          key: stock-prices-db-${{ steps.date.outputs.date }}
+          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
+            stock-prices-db-${{ matrix.target }}-
             stock-prices-db-
 
       - name: Cache market_indicators.db (Restore and Save)
@@ -110,8 +110,9 @@ jobs:
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: market-indicators-db-${{ steps.date.outputs.date }}
+          key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
           restore-keys: |
+            market-indicators-db-${{ matrix.target }}-
             market-indicators-db-
 
       - name: Cache AI models (Save after training)

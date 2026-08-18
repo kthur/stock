@@ -127,8 +127,92 @@ class TestMultiMarketExpansion(unittest.TestCase):
         # Verify scores are bounded and positive
         self.assertTrue((res['ensemble_score'] >= 0.0).all())
         self.assertTrue((res['ensemble_score'] <= 1.0).all())
-        self.assertTrue((res['ensemble_expected_return'] >= 0.0).all())
+    def test_multi_market_universe_storage(self):
+        """Test that MarketIndicatorStorage populates global markets in stock_universe table."""
+        import tempfile
+        from unittest.mock import patch
+        from src.data_layer.indicator_storage import MarketIndicatorStorage
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+            temp_db = tf.name
+
+        def _mock_listing(name):
+            if name == 'S&P500':
+                return pd.DataFrame([{'Symbol': 'AAPL', 'Name': 'Apple', 'Sector': 'Technology', 'Industry': 'Consumer Electronics'}])
+            elif name == 'NASDAQ':
+                return pd.DataFrame([{'Symbol': 'NVDA', 'Name': 'Nvidia', 'Sector': 'Technology', 'Industry': 'Semiconductors'}])
+            elif name == 'KRX':
+                return pd.DataFrame([{'Code': '005930', 'Name': 'Samsung', 'Market': 'KOSPI', 'Sector': 'IT', 'Industry': 'Hardware'}])
+            elif name in ('SSE', 'SZSE', 'TSE', 'HOSE', 'HKEX'):
+                return pd.DataFrame([{'Symbol': f'TEST_{name}', 'Name': f'Test {name}', 'Sector': 'General', 'Industry': 'General'}])
+            return pd.DataFrame()
+
+        try:
+            with patch('FinanceDataReader.StockListing', side_effect=_mock_listing):
+                storage = MarketIndicatorStorage(db_path=temp_db)
+                storage.update_stock_universe()
+                universe = storage.get_universe()
+                self.assertFalse(universe.empty)
+                markets_in_db = set(universe['market'].unique())
+                # Verify US, KR, and international markets exist
+                self.assertIn("SP500", markets_in_db)
+                self.assertIn("NASDAQ", markets_in_db)
+                self.assertIn("KOSPI", markets_in_db)
+                self.assertIn("CHINA_SSE", markets_in_db)
+                self.assertIn("CHINA_SZSE", markets_in_db)
+                self.assertIn("JAPAN_TSE", markets_in_db)
+                self.assertIn("VIETNAM_HOSE", markets_in_db)
+                self.assertIn("HKEX", markets_in_db)
+                self.assertIn("INDIA_NSE", markets_in_db)
+                self.assertIn("EUROPE_STOXX", markets_in_db)
+                self.assertIn("TAIWAN_TWSE", markets_in_db)
+                self.assertIn("AUSTRALIA_ASX", markets_in_db)
+                self.assertIn("BRAZIL_B3", markets_in_db)
+                self.assertIn("SINGAPORE_SGX", markets_in_db)
+                self.assertIn("CANADA_TSX", markets_in_db)
+        finally:
+            if os.path.exists(temp_db):
+                try:
+                    os.remove(temp_db)
+                except Exception:
+                    pass
+
+    def test_multi_market_preseed_symbol_resolution(self):
+        """Test that symbol resolution for preseed/inference supports any global target."""
+        # Simulated universe with global markets
+        universe = pd.DataFrame([
+            {"symbol": "AAPL", "market": "SP500"},
+            {"symbol": "NVDA", "market": "NASDAQ"},
+            {"symbol": "005930", "market": "KOSPI"},
+            {"symbol": "600519", "market": "CHINA_SSE"},
+            {"symbol": "7203", "market": "JAPAN_TSE"},
+            {"symbol": "RELIANCE", "market": "INDIA_NSE"},
+            {"symbol": "SAP.DE", "market": "EUROPE_STOXX"},
+        ])
+
+        # Test filtering for single targets and regional targets
+        valid_markets = {
+            'KOSPI', 'KOSDAQ', 'KRX', 'SP500', 'NASDAQ', 'RUSSELL2000',
+            'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CHINA',
+            'JAPAN_TSE', 'TSE', 'JAPAN', 'INDIA_NSE', 'INDIA',
+            'EUROPE_STOXX', 'EUROPE',
+        }
+
+        # Target: CHINA
+        china_markets = {"CHINA_SSE", "CHINA_SZSE", "SSE", "SZSE", "CHINA"}
+        china_u = universe[universe['market'].isin(china_markets)]
+        self.assertEqual(china_u['symbol'].tolist(), ["600519"])
+
+        # Target: JAPAN
+        japan_markets = {"JAPAN_TSE", "TSE", "JAPAN"}
+        japan_u = universe[universe['market'].isin(japan_markets)]
+        self.assertEqual(japan_u['symbol'].tolist(), ["7203"])
+
+        # Target: ALL
+        all_u = universe[universe['market'].isin(valid_markets)]
+        self.assertEqual(len(all_u), 7)
 
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1226,7 +1226,11 @@ def execute_prediction_pipeline():
         _targets = [t.strip() for t in _target_env_raw.split(",") if t.strip()]
         _allowed_markets: list[str] = []
         for _t in _targets:
-            if _t == "SP500":
+            if _t in ("ALL", "GLOBAL"):
+                _allowed_markets.extend(valid_markets)
+            elif _t in ("CORE_5", "CORE5"):
+                _allowed_markets.extend(("SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"))
+            elif _t == "SP500":
                 _allowed_markets.append("SP500")
             elif _t == "NASDAQ":
                 _allowed_markets.append("NASDAQ")
@@ -1613,25 +1617,13 @@ def execute_prediction_pipeline():
         gc.collect()
 
     # 8. Fetch fundamentals for all inference symbols (non-blocking background)
-    target_env = os.environ.get("INFERENCE_TARGET", "SP500,NASDAQ,RUSSELL2000,KRX").strip().upper()
-    targets = [t.strip() for t in target_env.split(",") if t.strip()]
-
-    selected_symbols = []
-    if "SP500" in targets:
-        selected_symbols.extend(sp500_symbols)
-    if "NASDAQ" in targets:
-        selected_symbols.extend(nasdaq_symbols)
-    if "RUSSELL2000" in targets or "RUSSELL" in targets:
-        selected_symbols.extend(russell_symbols)
-    if "KRX" in targets:
-        selected_symbols.extend(krx_symbols)
-    elif any(k in targets for k in ["KOSPI", "KOSDAQ"]):
-        if "KOSPI" in targets:
-            selected_symbols.extend(kospi_symbols)
-        if "KOSDAQ" in targets:
-            selected_symbols.extend(kosdaq_symbols)
-
-    all_symbols = selected_symbols if selected_symbols else (sp500_symbols + nasdaq_symbols + russell_symbols + krx_symbols)
+    # Universe has already been filtered by INFERENCE_TARGET at the beginning of the pipeline.
+    # Derive all_symbols directly from the active universe to support all 16 global markets
+    # (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ, CHINA, JAPAN, INDIA, EUROPE, VIETNAM, TAIWAN, AUSTRALIA, BRAZIL, HKEX, SINGAPORE, CANADA).
+    all_symbols = universe['symbol'].tolist() if not universe.empty else []
+    if not all_symbols:
+        logger.warning("Active universe symbol list is empty. Falling back to default symbols.")
+        all_symbols = sp500_symbols + nasdaq_symbols + russell_symbols + krx_symbols
 
     # Exclude halted (거래정지) and administrative (관리종목) KRX stocks from all predictions
     excluded_krx = _get_excluded_krx_symbols()
@@ -1642,11 +1634,12 @@ def execute_prediction_pipeline():
 
     if cfg.debug_mode:
         debug_symbols = []
-        for m_syms in [sp500_symbols, nasdaq_symbols, russell_symbols, kospi_symbols, kosdaq_symbols]:
-            active_m = [s for s in m_syms if s in all_symbols]
+        for mkt, grp in universe.groupby('market'):
+            active_m = [s for s in grp['symbol'].tolist() if s in all_symbols]
             debug_symbols.extend(active_m[:3])
-        all_symbols = debug_symbols
-        logger.info(f"[DEBUG MODE] Sampled {len(all_symbols)} symbols for fast pipeline dry run")
+        if debug_symbols:
+            all_symbols = debug_symbols
+        logger.info(f"[DEBUG MODE] Sampled {len(all_symbols)} symbols across {len(set(universe['market']))} markets for fast pipeline dry run")
 
     # Do not start inference fundamentals thread when skipping inference
     # (avoids orphaned non-daemon thread that would keep the process alive after early return)
@@ -1664,7 +1657,7 @@ def execute_prediction_pipeline():
     with ThreadPoolExecutor(max_workers=_IO_WORKERS) as executor:
         future_to_sym = {}
         for sym in all_symbols:
-            sym_market = symbol_market.get(sym, 'SP500' if sym in sp500_symbols else 'KRX')
+            sym_market = symbol_market.get(sym, 'SP500')
             future_to_sym[executor.submit(fetch_data_fdr, sym, sym_market, start_date_infer, price_db, freshness, update_interval)] = sym
 
         count = 0
@@ -4111,10 +4104,9 @@ Examples:
     )
     parser.add_argument(
         "--target",
-        choices=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KRX"],
         default=None,
         metavar="MARKET",
-        help="Market to run inference on: SP500 / NASDAQ / RUSSELL2000 / KOSPI / KOSDAQ / KRX "
+        help="Market to run inference/preseed on: SP500 / NASDAQ / RUSSELL2000 / KOSPI / KOSDAQ / CHINA / JAPAN / INDIA / EUROPE / VIETNAM / TAIWAN / AUSTRALIA / BRAZIL / HKEX / SINGAPORE / CANADA / ASIA_DEV / ASIA_EMG / COMMODITY / ALL "
              "(default: reads INFERENCE_TARGET env var, or all markets)",
     )
     parser.add_argument(
