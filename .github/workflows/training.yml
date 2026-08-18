@@ -7,18 +7,70 @@ on:
   schedule:
     - cron: '30 11 * * 6'
   workflow_dispatch:
+    inputs:
+      target_market:
+        description: '학습 대상 시장 / 국가 선택 (Select Target Market / Country for Training)'
+        required: true
+        default: 'CORE_5'
+        type: choice
+        options:
+          - 'CORE_5'
+          - 'ALL'
+          - 'KOSPI'
+          - 'KOSDAQ'
+          - 'SP500'
+          - 'NASDAQ'
+          - 'RUSSELL2000'
+          - 'CHINA'
+          - 'JAPAN'
+          - 'INDIA'
+          - 'EUROPE'
+          - 'VIETNAM'
+          - 'TAIWAN'
+          - 'AUSTRALIA'
+          - 'BRAZIL'
+          - 'HKEX'
+          - 'SINGAPORE'
+          - 'CANADA'
+          - 'ASIA_DEV'
+          - 'ASIA_EMG'
+          - 'COMMODITY'
 
 concurrency:
   group: training-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          TARGET="${{ inputs.target_market || 'CORE_5' }}"
+          echo "Selected target market input: $TARGET"
+          if [ "$TARGET" = "CORE_5" ]; then
+            echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "ALL" ]; then
+            echo 'matrix=["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN", "AUSTRALIA", "BRAZIL", "HKEX", "SINGAPORE", "CANADA"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "ASIA_DEV" ]; then
+            echo 'matrix=["JAPAN", "TAIWAN", "HKEX", "SINGAPORE"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "ASIA_EMG" ]; then
+            echo 'matrix=["CHINA", "INDIA", "VIETNAM"]' >> $GITHUB_OUTPUT
+          elif [ "$TARGET" = "COMMODITY" ]; then
+            echo 'matrix=["AUSTRALIA", "BRAZIL", "CANADA"]' >> $GITHUB_OUTPUT
+          else
+            echo "matrix=[\"$TARGET\"]" >> $GITHUB_OUTPUT
+          fi
+
   run-training:
+    needs: setup-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target: [SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ]
+        target: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
     timeout-minutes: 350
 
     steps:
