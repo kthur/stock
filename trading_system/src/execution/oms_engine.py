@@ -300,18 +300,22 @@ class ExecutionOMSEngine:
         except (ValueError, TypeError):
             pt, pe = 0.0, 0.0
 
-        if pt <= 0:
-            slippage_bps = 0.0
-        else:
-            # Slippage in basis points (1 bps = 0.01%)
-            raw_slip = ((pe - pt) / pt) * 10000.0
-            slippage_bps = raw_slip if math.isfinite(raw_slip) else 0.0
-
-        q_vol = max(0, int(executed_volume)) if executed_volume is not None else 0
-
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
+
+            # Determine side from order_plans for directional slippage (BUY: pe > pt is adverse; SELL: pe < pt is adverse)
+            action_row = cursor.execute("SELECT action FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
+            action = str(action_row[0]).upper() if action_row and action_row[0] else "BUY"
+            side_sign = 1.0 if action in ["BUY", "LONG"] else -1.0
+
+            if pt <= 0:
+                slippage_bps = 0.0
+            else:
+                raw_slip = side_sign * ((pe - pt) / pt) * 10000.0
+                slippage_bps = raw_slip if math.isfinite(raw_slip) else 0.0
+
+            q_vol = max(0, int(executed_volume)) if executed_volume is not None else 0
 
             cursor.execute("""
                 INSERT INTO execution_logs
@@ -323,7 +327,7 @@ class ExecutionOMSEngine:
             cursor.execute("""
                 SELECT COALESCE(SUM(executed_volume), 0) FROM execution_logs WHERE order_id = ?
             """, (order_id,))
-            total_executed = cursor.execute("SELECT COALESCE(SUM(executed_volume), 0) FROM execution_logs WHERE order_id = ?", (order_id,)).fetchone()[0]
+            total_executed = cursor.fetchone()[0]
 
             # Fetch target quantity from order_plans
             row = cursor.execute("SELECT quantity FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()

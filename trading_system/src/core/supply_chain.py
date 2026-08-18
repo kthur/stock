@@ -46,16 +46,16 @@ LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
     "003670": ["373220", "006400"],             # POSCO Future M -> Cathode/Anode
     "096770": ["373220", "F"],                  # SK Innovation -> SK On
     "278280": ["373220", "006400"],             # Chunbo -> Electrolyte Additive
-    "137310": ["373220", "006400"],             # Cosmax / Cosmo AM&T
-    "091990": ["005930", "373220"],             # Celltrion Healthcare
+    "137310": ["373220", "006400"],             # Cosmo AM&T -> Cathode
+    "068270": ["JNJ", "PFE", "NVO"],            # Celltrion -> Global Bio / Pharma
     # Automotive OEM & Tier-1 Suppliers -> Hyundai / Kia / Tesla
-    "053800": ["TSLA", "TM"],                   # Hyundai Motor -> Global Auto
-    "000270": ["053800", "TSLA"],               # Kia -> Hyundai / Global EV
-    "012330": ["053800", "000270"],             # Hyundai Mobis -> Hyundai / Kia
-    "018880": ["053800", "000270", "F"],        # Hanon Systems -> Thermal Mgmt
-    "204320": ["053800", "000270"],             # HL Mando -> Chassis / ADAS
-    "005830": ["053800", "000270"],             # DB Insurance / SL Corp -> Lighting
-    "011210": ["053800", "000270"],             # Hyundai Wia -> Powertrain
+    "005380": ["TSLA", "TM"],                   # Hyundai Motor -> Global Auto
+    "000270": ["005380", "TSLA"],               # Kia -> Hyundai / Global EV
+    "012330": ["005380", "000270"],             # Hyundai Mobis -> Hyundai / Kia
+    "018880": ["005380", "000270", "F"],        # Hanon Systems -> Thermal Mgmt
+    "204320": ["005380", "000270"],             # HL Mando -> Chassis / ADAS
+    "005850": ["005380", "000270"],             # SL Corp -> Auto Lighting
+    "011210": ["005380", "000270"],             # Hyundai Wia -> Powertrain
     # US AI / Cloud Hardware Value Chain -> Megacap Tech Leaders
     "NVDA": ["AAPL", "MSFT", "GOOGL", "AMZN", "META"], # Nvidia -> Hyperscalers
     "AMD": ["MSFT", "GOOGL", "AMZN", "META"],          # AMD -> Cloud Hyperscalers

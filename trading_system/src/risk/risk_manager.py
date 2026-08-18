@@ -269,6 +269,19 @@ class CrisisDetector:
                     if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
                         self.crisis_level = CrisisLevel.ACTIVE
 
+            # Track crisis duration and recovery transitions
+            if self.crisis_level in (CrisisLevel.ACTIVE, CrisisLevel.SEVERE):
+                self._days_in_crisis += 1
+                self._days_since_crisis_ended = 0
+                self._recovery_start_day = None
+                self._recovery_mode = False
+            else:
+                self._days_since_crisis_ended += 1
+                safe_vix = float(vix) if (vix is not None and isinstance(vix, (int, float)) and np.isfinite(vix)) else 20.0
+                safe_dd = float(dd) if (dd is not None and np.isfinite(dd)) else 0.0
+                self._check_recovery(safe_vix, safe_dd)
+                if self._recovery_mode:
+                    self._recovery_days = (self._recovery_days or 0) + 1
 
         if self.crisis_level != previous:
             vix_str = f"{float(vix):.1f}" if (vix is not None and isinstance(vix, (int, float)) and np.isfinite(vix)) else "N/A"
@@ -979,14 +992,7 @@ class RiskManager:
                     kelly_pct *= vol_scaler
             max_value = self.portfolio_value * kelly_pct
         else:
-            crisis_risk_mult_map = {
-                CrisisLevel.NONE: 1.0,
-                CrisisLevel.WATCH: 0.75,
-                CrisisLevel.ACTIVE: 0.50,
-                CrisisLevel.SEVERE: 0.25
-            }
-            risk_mult = crisis_risk_mult_map.get(self.crisis_detector.crisis_level, 1.0)
-            scaled_max_loss_pct = self.max_loss_per_trade_pct * risk_mult
+            scaled_max_loss_pct = self.max_loss_per_trade_pct
             max_loss = self.portfolio_value * scaled_max_loss_pct
             max_value = max_loss * (entry_price / risk_per_share)
 

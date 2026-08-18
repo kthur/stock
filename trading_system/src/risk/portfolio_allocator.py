@@ -282,7 +282,8 @@ class PortfolioAllocator:
             return max_cvar - cvar_val
 
         init_weights = np.ones(n_assets) / n_assets
-        bounds = tuple((0.0, max_weight) for _ in range(n_assets))
+        eff_max_w = max(max_weight, 1.05 / n_assets)
+        bounds = tuple((0.0, eff_max_w) for _ in range(n_assets))
         constraints = [
             {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},
             {'type': 'ineq', 'fun': cvar_constraint}
@@ -370,13 +371,26 @@ class PortfolioAllocator:
             if np.any(low_mask):
                 norm_w[low_mask] *= 0.92
 
-        clamped_w = np.clip(norm_w, 0.0, cap)
-        sum_c = np.sum(clamped_w)
-        if sum_c > 0:
-            final_w = clamped_w / sum_c
-        else:
-            final_w = np.ones(n_assets) / n_assets
+        # Iterative water-filling projection to guarantee weights <= cap and sum(weights) == 1.0
+        eff_cap = max(cap, 1.0 / n_assets)
+        cur_w = np.clip(norm_w, 0.0, eff_cap)
+        for _ in range(10):
+            cur_sum = np.sum(cur_w)
+            if abs(cur_sum - 1.0) < 1e-6 or cur_sum <= 0:
+                break
+            excess = 1.0 - cur_sum
+            uncapped_mask = cur_w < (eff_cap - 1e-6)
+            if not np.any(uncapped_mask):
+                cur_w = cur_w / cur_sum
+                break
+            uncapped_sum = np.sum(cur_w[uncapped_mask])
+            if uncapped_sum > 0:
+                additions = excess * (cur_w[uncapped_mask] / uncapped_sum)
+                cur_w[uncapped_mask] = np.clip(cur_w[uncapped_mask] + additions, 0.0, eff_cap)
+            else:
+                cur_w[uncapped_mask] += excess / np.sum(uncapped_mask)
 
+        final_w = cur_w if np.sum(cur_w) > 0 else np.ones(n_assets) / n_assets
         return {sym: float(w) for sym, w in zip(symbols, final_w)}
 
     def allocate_volatility_targeted_kelly(
@@ -766,31 +780,34 @@ class PortfolioAllocator:
             conn.execute("PRAGMA journal_mode = WAL;")
             conn.execute("PRAGMA busy_timeout = 30000;")
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('trade_logs', 'orders');")
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('execution_logs', 'order_plans', 'trade_logs', 'orders');")
             tables = [r[0] for r in cursor.fetchall()]
 
             if not tables:
                 conn.close()
                 return 1.0
 
-            tbl = 'trade_logs' if 'trade_logs' in tables else 'orders'
-            cursor.execute(f"PRAGMA table_info({tbl});")  # nosec B608
-            cols = [r[1] for r in cursor.fetchall()]
-
-            p_col = 'order_price' if 'order_price' in cols else ('price' if 'price' in cols else None)
-            exec_col = 'executed_price' if 'executed_price' in cols else ('price' if 'price' in cols else None)
-
-            if not p_col or not exec_col:
-                conn.close()
-                return 1.0
-
-            if p_col == exec_col and tbl == 'orders':
-                # Join orders and executions
+            if 'execution_logs' in tables and 'order_plans' in tables:
+                df = pd.read_sql_query(
+                    "SELECT o.target_price AS order_price, e.executed_price AS executed_price "
+                    "FROM order_plans o JOIN execution_logs e ON o.order_id = e.order_id "
+                    "WHERE o.target_price > 0 AND e.executed_price > 0 LIMIT 500;", conn
+                )
+            elif 'orders' in tables and 'executions' in tables:
                 df = pd.read_sql_query(
                     "SELECT o.price AS order_price, e.price AS executed_price "
-                    "FROM orders o JOIN executions e ON o.order_id = e.order_id LIMIT 500;", conn
+                    "FROM orders o JOIN executions e ON o.order_id = e.order_id "
+                    "WHERE o.price > 0 AND e.price > 0 LIMIT 500;", conn
                 )
             else:
+                tbl = 'trade_logs' if 'trade_logs' in tables else tables[0]
+                cursor.execute(f"PRAGMA table_info({tbl});")  # nosec B608
+                cols = [r[1] for r in cursor.fetchall()]
+                p_col = 'order_price' if 'order_price' in cols else ('price' if 'price' in cols else ('target_price' if 'target_price' in cols else None))
+                exec_col = 'executed_price' if 'executed_price' in cols else ('price' if 'price' in cols else None)
+                if not p_col or not exec_col:
+                    conn.close()
+                    return 1.0
                 df = pd.read_sql_query(
                     f"SELECT {p_col} AS order_price, {exec_col} AS executed_price FROM {tbl} LIMIT 500;",  # nosec B608
                     conn

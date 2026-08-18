@@ -369,7 +369,7 @@ class VCPSurgePredictor:
 
             m_df['date'] = pd.to_datetime(m_df['date'])
             cutoff = m_df['date'].quantile(0.8)
-            embargo_days = pd.Timedelta(days=20)
+            embargo_days = pd.Timedelta(days=32)
             train_idx = m_df['date'] <= (cutoff - embargo_days)
             val_idx = m_df['date'] > cutoff
             if val_idx.sum() < 50:

@@ -50,7 +50,8 @@ class MetaLabeler:
         if not self.is_fitted or X.empty:
             return np.full(len(X), 0.5)
 
-        clean_X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        num_X = X.select_dtypes(include=[np.number]) if isinstance(X, pd.DataFrame) else X
+        clean_X = num_X.replace([np.inf, -np.inf], 0.0).fillna(0.0)
         try:
             probs = self.model.predict_proba(clean_X)[:, 1]
             return probs
@@ -61,12 +62,17 @@ class MetaLabeler:
     def predict_conviction_multiplier(self, X: pd.DataFrame, min_conviction: float = 0.20, max_conviction: float = 1.50) -> np.ndarray:
         """
         Computes continuous position sizing conviction multiplier based on meta win probability:
-        multiplier = clip(2 * P(win) - 1, min_conviction, max_conviction) if P(win) >= probability_threshold else 0.0
+        Maps [P_threshold, 1.0] linearly to [min_conviction, max_conviction].
+        Returns 0.0 if P(win) < probability_threshold.
         """
         probs = self.predict_probability(X)
+        denom = max(1e-6, 1.0 - self.probability_threshold)
+        ratio = np.clip((probs - self.probability_threshold) / denom, 0.0, 1.0)
+        scaled_conviction = min_conviction + ratio * (max_conviction - min_conviction)
+        
         conviction = np.where(
             probs >= self.probability_threshold,
-            np.clip(2.0 * probs - 1.0, min_conviction, max_conviction),
+            scaled_conviction,
             0.0
         )
         return conviction
@@ -80,8 +86,9 @@ class MetaLabeler:
 
         probs = self.predict_probability(X)
         filtered = primary_signals.copy()
-        mask = probs < self.probability_threshold
-        filtered.iloc[mask] = 0
+        if len(probs) == len(filtered):
+            mask = probs < self.probability_threshold
+            filtered.iloc[mask] = 0
         return filtered
 
     def filter_and_size_predictions(
@@ -94,10 +101,29 @@ class MetaLabeler:
     ) -> list:
         """
         Filters out low win-probability predictions and scales expected returns / scores
-        proportional to meta-labeler conviction.
+        proportional to meta-labeler conviction using vectorized batch inference.
         """
         if not predictions or not self.is_fitted or features_df.empty:
             return predictions
+
+        # Extract symbols present in both predictions and features_df
+        valid_symbols = [
+            pred.get(symbol_col) for pred in predictions 
+            if isinstance(pred, dict) and pred.get(symbol_col) in features_df.index
+        ]
+        
+        if not valid_symbols:
+            return predictions
+
+        # Vectorized batch inference (single XGBoost call for all symbols)
+        batch_features = features_df.loc[valid_symbols]
+        batch_probs = self.predict_probability(batch_features)
+        denom = max(1e-6, 1.0 - self.probability_threshold)
+        ratios = np.clip((batch_probs - self.probability_threshold) / denom, 0.0, 1.0)
+        batch_convictions = np.where(batch_probs >= self.probability_threshold, 0.20 + ratios * 1.30, 0.0)
+
+        sym_prob_map = dict(zip(valid_symbols, batch_probs))
+        sym_conv_map = dict(zip(valid_symbols, batch_convictions))
 
         sized_predictions = []
         for pred in predictions:
@@ -106,13 +132,12 @@ class MetaLabeler:
                 continue
 
             sym = pred.get(symbol_col)
-            if not sym or sym not in features_df.index:
+            if not sym or sym not in sym_prob_map:
                 sized_predictions.append(pred)
                 continue
 
-            row_features = features_df.loc[[sym]]
-            conviction = float(self.predict_conviction_multiplier(row_features)[0])
-            prob_win = float(self.predict_probability(row_features)[0])
+            prob_win = float(sym_prob_map[sym])
+            conviction = float(sym_conv_map[sym])
 
             p_copy = dict(pred)
             p_copy['meta_win_prob'] = round(prob_win, 4)

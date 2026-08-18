@@ -169,10 +169,15 @@ class RIMValuationEngine(BaseStrategyEngine):
 
         # Handle BPS: Set to NaN if missing or non-positive
         if 'bps' not in df.columns:
-            if 'book_value' in df.columns and 'shares_outstanding' in df.columns:
-                df['bps'] = (df['book_value'] / df['shares_outstanding']).replace([np.inf, -np.inf], np.nan)
+            if 'book_value' in df.columns:
+                bv = pd.to_numeric(df['book_value'], errors='coerce').fillna(0.0)
+                shares = pd.to_numeric(df.get('shares_outstanding', 0.0), errors='coerce').fillna(0.0)
+                # If book_value represents aggregate total equity (> 1,000,000) and shares exist, divide by shares
+                is_aggregate_equity = (bv > 1_000_000.0) & (shares > 0)
+                calculated_bps = np.where(is_aggregate_equity, bv / np.maximum(shares, 1.0), bv)
+                df['bps'] = pd.Series(calculated_bps, index=df.index).replace([np.inf, -np.inf, 0.0], np.nan)
             elif 'eps' in df.columns and 'roe' in df.columns:
-                df['bps'] = (df['eps'] / df['roe']).replace([np.inf, -np.inf], np.nan)
+                df['bps'] = (df['eps'] / df['roe']).replace([np.inf, -np.inf, 0.0], np.nan)
             else:
                 df['bps'] = np.nan
         df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)

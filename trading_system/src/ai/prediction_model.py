@@ -1866,8 +1866,8 @@ class OnDevicePredictionModel:
             n_splits, gap = 0, 0
 
         use_wf = n_splits >= 2
+        tscv_surge = TimeSeriesSplit(n_splits=n_splits, gap=gap) if use_wf else None
         if use_wf:
-            TimeSeriesSplit(n_splits=n_splits, gap=gap)
             logger.info(f"{market} surge: Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
         else:
             logger.info(f"{market} surge: Dataset too small for walk-forward ({_n} rows). Training on full data.")

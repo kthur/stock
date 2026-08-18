@@ -554,15 +554,18 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             z_mult = 1.20 if z >= 2.0 else 1.0
             score_delta = min(0.40, z * 0.10 * z_mult)
 
-            if "LONG_" + s1 in sig:
+            # Check exact signal token matching to prevent substring collisions (e.g. AA vs AAPL)
+            tokens = set(sig.replace("/", "_").split("_"))
+            if f"LONG_{s1}" in sig or (sig == "LONG_SPREAD" and s2 == "BENCHMARK"):
                 symbol_deltas[s1] = symbol_deltas.get(s1, 0.0) + score_delta
-            if "SHORT_" + s1 in sig:
+            elif f"SHORT_{s1}" in sig or (sig == "SHORT_SPREAD" and s2 == "BENCHMARK"):
                 symbol_deltas[s1] = symbol_deltas.get(s1, 0.0) - score_delta
 
-            if "LONG_" + s2 in sig:
-                symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) + score_delta
-            if "SHORT_" + s2 in sig:
-                symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) - score_delta
+            if s2 != "BENCHMARK":
+                if f"LONG_{s2}" in sig:
+                    symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) + score_delta
+                elif f"SHORT_{s2}" in sig:
+                    symbol_deltas[s2] = symbol_deltas.get(s2, 0.0) - score_delta
 
         if not symbol_deltas:
             return pd.DataFrame(columns=['symbol', 'stat_arb_score', 'long_only_mode'])

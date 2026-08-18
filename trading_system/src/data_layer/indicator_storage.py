@@ -965,7 +965,8 @@ class MarketIndicatorStorage:
                 conn.commit()
         # Also persist into ensemble_prediction_history table
         try:
-            self.save_ensemble_history(ensemble_df, date_str)
+            auto_run_id = f"auto_{date_str.replace('-', '')}"
+            self.save_ensemble_history(auto_run_id, ensemble_df, date_str)
         except Exception as e:
             logger.debug(f"Failed to auto-persist into ensemble_prediction_history: {e}")
 
@@ -1041,22 +1042,24 @@ class MarketIndicatorStorage:
             if closes.empty:
                 continue
 
-            if is_us:
-                if not isinstance(closes.index, pd.DatetimeIndex):
-                    closes.index = pd.to_datetime(closes.index)
-                avail = closes[closes.index < pd.Timestamp(d)]
-                if len(avail) < 1:
-                    continue
-                rest = closes[closes.index >= avail.index[-1]]
-                if len(rest) < 2:
-                    continue
-                entry = float(avail.iloc[-1])
-                rest_closes = rest.values
-            else:
-                if len(closes) < 2:
-                    continue
-                entry = float(closes.iloc[0])
-                rest_closes = closes.values
+            if not isinstance(closes.index, pd.DatetimeIndex):
+                closes.index = pd.to_datetime(closes.index)
+            
+            # Slice prices from prediction date d onwards for forward performance evaluation
+            pred_dt = pd.Timestamp(d)
+            target_slice = closes[closes.index >= pred_dt]
+            if len(target_slice) < 2:
+                # If date d itself is not yet in closes or at end, try closest prior date entry
+                prior_slice = closes[closes.index <= pred_dt]
+                if len(prior_slice) >= 1:
+                    entry_dt = prior_slice.index[-1]
+                    target_slice = closes[closes.index >= entry_dt]
+
+            if len(target_slice) < 2:
+                continue
+
+            entry = float(target_slice.iloc[0])
+            rest_closes = target_slice.values
 
             if entry <= 0:
                 continue

@@ -71,10 +71,13 @@ class LATRFactorEngine(BaseStrategyEngine):
                 # 3. Tail Risk (5th percentile daily return over 60D)
                 daily_rets = close.pct_change().dropna()
                 tail_risk = float(np.percentile(daily_rets.tail(60), 5)) if len(daily_rets) >= 20 else -0.03
+                tail_penalty = float(min(2.0, abs(tail_risk) / 0.035))
 
-                # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price))
-                dollar_vol = (vol.tail(20) * close.tail(20)).replace(0, 1.0)
-                amihud_illiq = float((daily_rets.abs().tail(20) / dollar_vol).mean() * 1e6)
+                # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price)) with cross-market USD normalization
+                is_kr = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
+                fx_norm = 1350.0 if is_kr else 1.0
+                turnover_usd = (vol.tail(20) * close.tail(20) / fx_norm).replace(0, 1.0)
+                amihud_illiq = float((daily_rets.abs().tail(20) / turnover_usd).mean() * 1e6)
 
                 # Monotonic drawdown score for panic bounce opportunity (scaled by target drawdown)
                 dd_score = float(np.clip(dd_pct / max(0.01, self.target_drawdown), 0.0, 1.25))
@@ -83,7 +86,7 @@ class LATRFactorEngine(BaseStrategyEngine):
                 panic_bounce_bonus = 0.12 if (vol_surge >= 2.5 and dd_score >= 0.80) else 0.0
 
                 # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty - illiquidity penalty
-                latr_score = (dd_score * 0.40) + (min(vol_surge, 3.0) * 0.35) - (abs(tail_risk) * 0.15) - (min(amihud_illiq, 2.0) * 0.10) + panic_bounce_bonus
+                latr_score = (dd_score * 0.40) + (min(vol_surge, 3.0) * 0.35) - (tail_penalty * 0.15) - (min(amihud_illiq, 2.0) * 0.10) + panic_bounce_bonus
                 scores[sym] = float(latr_score)
             except Exception as e:
                 logger.warning(f"[LATR FACTOR] Error computing score for {sym}: {e}")

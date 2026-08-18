@@ -89,19 +89,33 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         price_5d_ago = close_2d.iloc[-6]
         ret_5d = ((cur_price / price_5d_ago.replace(0, np.nan)) - 1.0).fillna(0.0)
 
-        # Vectorized consecutive down days working backwards from latest day (day -1)
+        # Vectorized consecutive down days
         diffs_last5 = close_2d.iloc[-6:].diff(axis=0).iloc[1:]  # 5 rows x N cols
-        is_down = (diffs_last5 < 0).values  # (5, N) boolean array
+        is_down = (diffs_last5 < 0).values  # (5, N) boolean array: index 4 is today, 3 is yesterday
+
+        # Consecutive down days ending on today (index 4)
         cond5 = is_down[4]
-        consec = np.where(cond5, 1.0, 0.0)
+        consec_today = np.where(cond5, 1.0, 0.0)
         cond4 = cond5 & is_down[3]
-        consec = np.where(cond4, consec + 1.0, consec)
+        consec_today = np.where(cond4, consec_today + 1.0, consec_today)
         cond3 = cond4 & is_down[2]
-        consec = np.where(cond3, consec + 1.0, consec)
+        consec_today = np.where(cond3, consec_today + 1.0, consec_today)
         cond2 = cond3 & is_down[1]
-        consec = np.where(cond2, consec + 1.0, consec)
+        consec_today = np.where(cond2, consec_today + 1.0, consec_today)
         cond1 = cond2 & is_down[0]
-        consec = np.where(cond1, consec + 1.0, consec)
+        consec_today = np.where(cond1, consec_today + 1.0, consec_today)
+
+        # Consecutive down days ending on yesterday (index 3) for turnaround bounce detection
+        p_cond4 = is_down[3]
+        consec_prior = np.where(p_cond4, 1.0, 0.0)
+        p_cond3 = p_cond4 & is_down[2]
+        consec_prior = np.where(p_cond3, consec_prior + 1.0, consec_prior)
+        p_cond2 = p_cond3 & is_down[1]
+        consec_prior = np.where(p_cond2, consec_prior + 1.0, consec_prior)
+        p_cond1 = p_cond2 & is_down[0]
+        consec_prior = np.where(p_cond1, consec_prior + 1.0, consec_prior)
+
+        consec = np.maximum(consec_today, consec_prior)
 
         sma_20 = close_2d.mean(axis=0)
         std_20 = close_2d.std(axis=0, ddof=1)
@@ -130,7 +144,7 @@ class ShortTermReversalEngine(BaseStrategyEngine):
             vol_surge = pd.Series(False, index=close_2d.columns)
 
         bounce_bonus = np.where(
-            (consec >= 2.0) & (ret_1d > 0.0),
+            (consec_prior >= 2.0) & (ret_1d > 0.0),
             np.where(vol_surge, 0.25, 0.15),
             0.0
         )

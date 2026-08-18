@@ -1804,7 +1804,7 @@ def execute_prediction_pipeline():
                                     'z_score': round(float(z), 2),
                                     'correlation': 0.85,
                                     'beta': 1.0,
-                                    'signal': 'LONG_SPREAD' if z <= -2.0 else ('SHORT_SPREAD' if z >= 2.0 else 'NEUTRAL'),
+                                    'signal': f'LONG_{sym}_SHORT_BENCHMARK' if z <= -2.0 else (f'SHORT_{sym}_LONG_BENCHMARK' if z >= 2.0 else 'NEUTRAL'),
                                     'market': mkt
                                 })
                     except Exception as e:
@@ -2712,7 +2712,19 @@ def execute_prediction_pipeline():
             for _sym, _fd in infer_fund_cache.items():
                 if _fd is None or len(_fd) == 0:
                     continue
-                _fd_sorted = _fd.sort_values('date') if 'date' in _fd.columns else _fd
+                # Enforce 60-day filing lag to prevent lookahead bias
+                _cur_dt = pd.to_datetime(date_str) if 'date_str' in locals() and date_str else pd.Timestamp.now()
+                if 'date_available' in _fd.columns:
+                    _fd_valid = _fd[pd.to_datetime(_fd['date_available']) <= _cur_dt]
+                elif 'date' in _fd.columns:
+                    _fd_valid = _fd[pd.to_datetime(_fd['date']) + pd.Timedelta(days=60) <= _cur_dt]
+                else:
+                    _fd_valid = _fd
+
+                if _fd_valid.empty:
+                    continue
+
+                _fd_sorted = _fd_valid.sort_values('date') if 'date' in _fd_valid.columns else _fd_valid
                 _last = _fd_sorted.iloc[-1]
                 _eps_g = 0.0
                 _rev_g = 0.0
@@ -3021,9 +3033,6 @@ def execute_prediction_pipeline():
     except Exception as _dp_e:
         logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
         darkpool_df = pd.DataFrame()
-    except Exception as _dp_e:
-        logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
-        darkpool_df = pd.DataFrame()
 
     # Strategy 6: Strict Causal LSTM deep learning predictions
     logger.info("Computing Strategy 6: Strict Causal LSTM predictions...")
@@ -3084,7 +3093,8 @@ def execute_prediction_pipeline():
     try:
         from src.data_layer.overnight_gap_shifter import OvernightGapShifter
         gap_shifter = OvernightGapShifter()
-        on_factors = gap_shifter.fetch_overnight_factors(indicator_df if 'indicator_df' in locals() else None)
+        on_indicator_df = indicator_infer if 'indicator_infer' in locals() else (indicator_df if 'indicator_df' in locals() else None)
+        on_factors = gap_shifter.fetch_overnight_factors(on_indicator_df)
         krx_gap = gap_shifter.compute_opening_gap_estimate(on_factors)
         if abs(krx_gap) >= 0.20 and ensemble_df is not None and not ensemble_df.empty:
             logger.info(f"[OVERNIGHT GAP SHIFTER] Estimated KRX opening gap: {krx_gap:+.2f}% (SPY: {on_factors.get('spy_return', 0.0):+.2f}%, USD/KRW: {on_factors.get('usdkrw_change', 0.0):+.2f}%)")
@@ -3493,7 +3503,11 @@ def execute_prediction_pipeline():
         from src.risk.position_sizing import PortfolioAllocator
         allocator = PortfolioAllocator()
         top_preds = ensemble_df.head(20).set_index('symbol')['ensemble_expected_return'].to_dict()
-        bl_alloc_df = allocator.allocate_black_litterman(prices_dict=infer_data_dict, predicted_returns=top_preds)
+        bl_alloc_df = allocator.allocate_black_litterman(
+            prices_dict=infer_data_dict, 
+            predicted_returns=top_preds,
+            total_portfolio_value=getattr(cfg, 'portfolio_capital_krw', 100_000_000.0)
+        )
         if not bl_alloc_df.empty:
             bl_path = os.path.join(result_dir, "portfolio_allocation_black_litterman.txt")
             with open(bl_path, "w", encoding="utf-8") as f_bl:
@@ -3551,7 +3565,8 @@ def execute_prediction_pipeline():
         _crisis_lvl_str = "NORMAL"
         if 'crisis_lvl' in locals() and crisis_lvl is not None:
             _crisis_lvl_str = getattr(crisis_lvl, 'value', str(crisis_lvl))
-        weight_dict = dict(zip(ensemble_df_merged['symbol'], ensemble_df_merged.get('portfolio_weight', 0.05)))
+        p_weights = ensemble_df_merged['portfolio_weight'] if 'portfolio_weight' in ensemble_df_merged.columns else pd.Series(0.05, index=ensemble_df_merged.index)
+        weight_dict = dict(zip(ensemble_df_merged['symbol'], p_weights))
         order_plans = oms_engine.generate_order_plan(
             top_picks_dicts, weight_dict,
             total_capital=cfg.portfolio_capital_krw,
@@ -3820,7 +3835,8 @@ def execute_prediction_pipeline():
     # NOTE: 'market' must be included so the Layer-1 Market Budget is applied per
     # market; without it every symbol defaulted to KOSPI and the top-down layer
     # silently degenerated into a single-market budget.
-    ensemble_for_alloc = ensemble_df[['symbol', 'market', 'ensemble_expected_return']].rename(
+    src_ens = ensemble_df_merged if 'ensemble_df_merged' in locals() and not ensemble_df_merged.empty else ensemble_df
+    ensemble_for_alloc = src_ens[['symbol', 'market', 'ensemble_expected_return']].rename(
         columns={'ensemble_expected_return': 20}
     )
     allocator = PortfolioAllocator(target_horizon=20, max_total_allocation=max_alloc)

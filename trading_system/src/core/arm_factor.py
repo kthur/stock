@@ -99,9 +99,10 @@ class ARMFactorEngine(BaseStrategyEngine):
                     if col:
                         close = df[col].dropna()
                         if len(close) >= 20 and float(close.iloc[-20]) > 0:
-                            price_mom = float((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20] * 100)
+                            price_ret_20d = float((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20])
+                            price_mom = float(np.clip(price_ret_20d, -0.50, 0.50))
 
-                arm_raw += (price_mom * 0.2)
+                arm_raw += (price_mom * 0.20)
                 raw_scores[sym] = arm_raw
             except Exception as e:
                 logger.debug(f"[ARM FACTOR] Error computing score for {sym}: {e}")

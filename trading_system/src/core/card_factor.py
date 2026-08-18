@@ -72,10 +72,17 @@ class CARDFactorEngine(BaseStrategyEngine):
         # Extract latest macro indicators with safe scaling (supports raw or change keys)
         usdkrw_chg = _safe_macro('usdkrw_change') or _safe_macro('usdkrw_pct') or 0.0
         wti_chg = _safe_macro('wti_change') or _safe_macro('wti_pct') or 0.0
-        vix_val = _safe_macro('vix_change') or _safe_macro('vix') or 0.0
-
-        if abs(vix_val) > 5.0:
-            vix_val = (vix_val - 20.0) / 20.0
+        
+        # Determine whether we have raw VIX level (e.g. 25.0) or percentage change (e.g. +5.0%)
+        vix_raw = _safe_macro('vix') or _safe_macro('vix_raw')
+        vix_change = _safe_macro('vix_change') or _safe_macro('vix_pct')
+        if vix_raw and vix_raw > 0:
+            vix_val = (vix_raw - 20.0) / 20.0
+        elif vix_change:
+            # If percentage in 0-100 scale, normalize to decimal
+            vix_val = (vix_change / 100.0) if abs(vix_change) > 1.0 else vix_change
+        else:
+            vix_val = 0.0
 
         sector_beta = {
             'Semiconductor': 1.5, 'IT': 1.3, 'Automotive': 1.1,

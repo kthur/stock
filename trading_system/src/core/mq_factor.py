@@ -89,10 +89,11 @@ class MQFactorEngine(BaseStrategyEngine):
                     effective_days = max(1, len(close) - 21)
 
                 raw_mom = (p_t21 / p_base - 1.0) if p_base > 0 else 0.0
-                if effective_days < 231 and raw_mom > -0.8:
-                    price_mom = float(np.clip(((1.0 + raw_mom) ** (231.0 / effective_days)) - 1.0, -0.95, 5.0))
+                if 60 <= effective_days < 231 and raw_mom > -0.8:
+                    power = min(3.0, 231.0 / effective_days)
+                    price_mom = float(np.clip(((1.0 + raw_mom) ** power) - 1.0, -0.95, 2.0))
                 else:
-                    price_mom = float(np.clip(raw_mom, -0.95, 5.0))
+                    price_mom = float(np.clip(raw_mom, -0.95, 2.0))
 
                 records.append({
                     'symbol': sym,

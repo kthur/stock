@@ -188,15 +188,23 @@ def calculate_black_litterman_weights(
         if not np.all(np.isfinite(mu_bl)) or not np.all(np.isfinite(cov_bl)):
             raise ValueError("Calculated BL expected returns or covariance contain NaN/Inf.")
 
-        # Optimize weights (maximize Sharpe ratio)
+        # Optimize weights (maximize Sharpe ratio or Quadratic Utility if excess return is negative)
+        eq_ret = float(np.mean(mu_bl))
+        is_negative_excess = (eq_ret <= risk_free_rate)
+        lambda_aversion = 2.5
+
         def objective(w):
             w = np.asarray(w)
             port_ret = float(w @ mu_bl)
-            port_vol = float(np.sqrt(w @ cov_bl @ w))
-            if port_vol < 1e-8:
-                return 0.0
-            # Maximize Sharpe ratio: minimize negative Sharpe ratio
-            return - (port_ret - risk_free_rate) / port_vol
+            port_var = float(w @ cov_bl @ w)
+            port_vol = float(np.sqrt(max(1e-8, port_var)))
+            
+            if is_negative_excess:
+                # Quadratic utility maximization: max (w^T mu - 0.5 * lambda * w^T Sigma w)
+                return - (port_ret - 0.5 * lambda_aversion * port_var)
+            else:
+                # Maximize Sharpe ratio: minimize negative Sharpe ratio
+                return - (port_ret - risk_free_rate) / port_vol
 
         w0 = np.full(n, 1.0 / n)
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
@@ -431,15 +439,23 @@ def apply_portfolio_constraints(
         sec_series = pd.Series(sectors)
         for _ in range(10):
             df_w = pd.DataFrame({'weight': w, 'sector': sec_series})
-            sec_sums = df_w.groupby('sector')['weight'].transform('sum')
-            over_sec = sec_sums > max_sector_weight
-            if not np.any(over_sec):
+            sec_sums = df_w.groupby('sector')['weight'].sum()
+            over_sectors = sec_sums[sec_sums > max_sector_weight + 1e-6]
+            if over_sectors.empty:
                 break
-            scale_factors = np.where(over_sec, max_sector_weight / np.maximum(sec_sums, 1e-12), 1.0)
-            w *= scale_factors
-            sum_w = np.sum(w)
-            if sum_w > 1e-12:
-                w /= sum_w
+            
+            excess_total = 0.0
+            for sec, total_s in over_sectors.items():
+                scale = max_sector_weight / total_s
+                sec_mask = (sec_series == sec).values
+                excess_total += float(np.sum(w[sec_mask] * (1.0 - scale)))
+                w[sec_mask] *= scale
+
+            under_mask = ~sec_series.isin(over_sectors.index).values
+            if np.any(under_mask) and np.sum(w[under_mask]) > 1e-12:
+                w[under_mask] += excess_total * (w[under_mask] / np.sum(w[under_mask]))
+            else:
+                break
 
     w = np.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0)
     w = np.clip(w, 0.0, 1.0)
