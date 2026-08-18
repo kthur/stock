@@ -866,4 +866,65 @@ class PortfolioAllocator:
             "risk_pct": float(risk_pct)
         }
 
+    # =========================================================================
+    # OBJECTIVE 5: DYNAMIC VOLATILITY TARGETING (DVT) MACRO CASH OVERLAY
+    # =========================================================================
+
+    def compute_dynamic_volatility_target_weights(
+        self,
+        target_weights: Dict[str, float],
+        returns_matrix: Optional[np.ndarray] = None,
+        target_annual_vol: float = 0.12,
+        min_gross_exposure: float = 0.20,
+        max_gross_exposure: float = 1.00
+    ) -> Tuple[Dict[str, float], float]:
+        """
+        Computes portfolio gross exposure and cash buffer ratio based on realized portfolio volatility:
+        Gross Exposure = clip(target_annual_vol / max(realized_vol_annual, 0.04), min_gross, max_gross)
+        Cash Buffer Ratio = 1.0 - Gross Exposure
+
+        Returns:
+            Tuple of (scaled_weights_dict, cash_buffer_ratio)
+        """
+        if not target_weights:
+            return {}, 1.0
+
+        if returns_matrix is None or len(returns_matrix) < 15 or returns_matrix.shape[1] != len(target_weights):
+            return dict(target_weights), 0.0
+
+        try:
+            w_vec = np.array(list(target_weights.values()), dtype=np.float64)
+            w_sum = np.sum(w_vec)
+            if w_sum > 0:
+                w_norm = w_vec / w_sum
+            else:
+                return dict(target_weights), 0.0
+
+            port_daily_ret = returns_matrix @ w_norm
+
+            # RiskMetrics EWMA conditional volatility (lambda = 0.94 / span = 20)
+            n_obs = len(port_daily_ret)
+            weights_ewma = np.exp(-np.arange(n_obs)[::-1] / 20.0)
+            weights_ewma /= np.sum(weights_ewma)
+
+            realized_var_daily = float(np.sum(weights_ewma * (port_daily_ret ** 2)))
+            realized_vol_annual = float(np.sqrt(max(1e-8, realized_var_daily * 252.0)))
+
+            gross_exposure = float(np.clip(
+                target_annual_vol / max(realized_vol_annual, 0.04),
+                min_gross_exposure,
+                max_gross_exposure
+            ))
+            cash_ratio = max(0.0, 1.0 - gross_exposure)
+
+            scaled_weights = {k: float(v * gross_exposure) for k, v in target_weights.items()}
+            logger.info(
+                f"[DVT CASH OVERLAY] Realized Ann Vol={realized_vol_annual:.2%}, Target Vol={target_annual_vol:.2%}, "
+                f"Gross Exposure={gross_exposure:.2%}, Cash Buffer={cash_ratio:.2%}"
+            )
+            return scaled_weights, cash_ratio
+        except Exception as e:
+            logger.warning(f"[DVT CASH OVERLAY] Failed to compute DVT weights: {e}")
+            return dict(target_weights), 0.0
+
 

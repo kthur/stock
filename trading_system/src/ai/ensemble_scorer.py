@@ -929,6 +929,41 @@ class EnsembleScoringEngine:
         """Backward-compatible alias for compute_dynamic_weights_from_sharpe."""
         return self.compute_dynamic_weights_from_sharpe(rolling_sharpes, regime, gamma=gamma, vix_val=vix_val)
 
+    def compute_dynamic_tier_weights_from_ir(
+        self,
+        tier_returns: Dict[str, Union[List[float], pd.Series]],
+        base_tier_weights: Optional[Dict[str, float]] = None,
+        gamma: float = 0.5
+    ) -> Dict[str, float]:
+        """
+        Dynamically calculates 3-Tier Multi-Horizon weights based on recent rolling Information Ratio (IR).
+        IR_tier = (mean(ret_tier)) / (std(ret_tier) + 1e-6) * sqrt(252)
+        """
+        base = base_tier_weights or self.TIER_WEIGHTS
+        if not tier_returns:
+            return dict(base)
+
+        ir_scores = {}
+        for tier_name, rets in tier_returns.items():
+            s = pd.Series(rets).dropna()
+            if len(s) >= 10:
+                mean_a = float(s.mean())
+                std_a = float(s.std())
+                ir = (mean_a / max(std_a, 1e-6)) * np.sqrt(252)
+                ir_scores[tier_name] = float(np.clip(ir, -2.0, 2.0))
+            else:
+                ir_scores[tier_name] = 0.0
+
+        scores = {}
+        for t_name, b_w in base.items():
+            ir_val = ir_scores.get(t_name, 0.0)
+            scores[t_name] = b_w * float(np.exp(gamma * ir_val))
+
+        s_sum = sum(scores.values())
+        if s_sum > 0:
+            return {k: v / s_sum for k, v in scores.items()}
+        return dict(base)
+
     def get_regime_reasoning_summary(self, regime: Union[int, str], rolling_sharpes: Optional[Dict[str, float]] = None, decoupling_info: Optional[Dict[str, Any]] = None) -> str:
 
         """

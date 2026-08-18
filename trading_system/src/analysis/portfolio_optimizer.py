@@ -234,14 +234,47 @@ def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: float = 0.15
     return shrunk_cov
 
 
+def compute_tail_stressed_covariance(
+    cov_matrix: np.ndarray,
+    returns_matrix: Optional[np.ndarray] = None,
+    tail_quantile: float = 0.10,
+    stress_blend: float = 0.30
+) -> np.ndarray:
+    """
+    Blends Ledoit-Wolf regularized covariance with Lower-Tail joint covariance matrix
+    to protect portfolio during market contagion / drawdown regimes.
+    """
+    if returns_matrix is None or len(returns_matrix) < 20 or returns_matrix.shape[1] < 2:
+        return cov_matrix
+
+    try:
+        mkt_returns = np.mean(returns_matrix, axis=1)
+        threshold = np.quantile(mkt_returns, tail_quantile)
+        tail_mask = mkt_returns <= threshold
+
+        if np.sum(tail_mask) >= 5:
+            tail_cov = np.cov(returns_matrix[tail_mask], rowvar=False)
+            if tail_cov.shape == cov_matrix.shape and np.all(np.isfinite(tail_cov)):
+                k_eff = float(np.clip(stress_blend, 0.0, 0.70))
+                stressed = (1.0 - k_eff) * cov_matrix + k_eff * tail_cov
+                np.fill_diagonal(stressed, np.diag(stressed) + 1e-6)
+                return stressed
+    except Exception as e:
+        logger.debug(f"Tail-stressed covariance calculation fallback: {e}")
+
+    return cov_matrix
+
+
 def calculate_hrp_weights(
     cov_matrix: np.ndarray,
     symbols: Optional[list] = None,
-    sectors: Optional[list] = None
+    sectors: Optional[list] = None,
+    returns_matrix: Optional[np.ndarray] = None,
+    tail_stress: bool = True
 ) -> np.ndarray:
     """
     Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
-    1. Distance matrix computation from correlation matrix.
+    1. Distance matrix computation from correlation matrix (with optional Tail-Stressed Covariance).
     2. Hierarchical clustering (single linkage).
     3. Quasi-diagonalization & Recursive Bisection.
     """
@@ -261,6 +294,10 @@ def calculate_hrp_weights(
 
         # Apply Ledoit-Wolf covariance shrinkage
         cov_matrix = shrink_covariance_matrix(cov_matrix, shrink_factor=0.15)
+
+        # Apply Tail Stress Covariance if returns_matrix is provided
+        if tail_stress and returns_matrix is not None:
+            cov_matrix = compute_tail_stressed_covariance(cov_matrix, returns_matrix=returns_matrix)
 
         # Replace non-finite entries safely.
         # Avoid filling diagonal with a tiny constant (e.g. 1e-4) which makes missing data look "risk-free",

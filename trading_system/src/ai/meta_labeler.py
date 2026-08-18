@@ -58,6 +58,19 @@ class MetaLabeler:
             logger.error(f"MetaLabeler predict_proba failed: {e}")
             return np.full(len(X), 0.5)
 
+    def predict_conviction_multiplier(self, X: pd.DataFrame, min_conviction: float = 0.20, max_conviction: float = 1.50) -> np.ndarray:
+        """
+        Computes continuous position sizing conviction multiplier based on meta win probability:
+        multiplier = clip(2 * P(win) - 1, min_conviction, max_conviction) if P(win) >= probability_threshold else 0.0
+        """
+        probs = self.predict_probability(X)
+        conviction = np.where(
+            probs >= self.probability_threshold,
+            np.clip(2.0 * probs - 1.0, min_conviction, max_conviction),
+            0.0
+        )
+        return conviction
+
     def filter_signals(self, X: pd.DataFrame, primary_signals: pd.Series) -> pd.Series:
         """
         Filters primary signals: keeps signal if meta probability >= threshold, else 0.
@@ -70,3 +83,84 @@ class MetaLabeler:
         mask = probs < self.probability_threshold
         filtered.iloc[mask] = 0
         return filtered
+
+    def filter_and_size_predictions(
+        self,
+        predictions: list,
+        features_df: pd.DataFrame,
+        symbol_col: str = 'symbol',
+        score_col: str = 'ensemble_score',
+        return_col: str = 'expected_return'
+    ) -> list:
+        """
+        Filters out low win-probability predictions and scales expected returns / scores
+        proportional to meta-labeler conviction.
+        """
+        if not predictions or not self.is_fitted or features_df.empty:
+            return predictions
+
+        sized_predictions = []
+        for pred in predictions:
+            if not isinstance(pred, dict):
+                sized_predictions.append(pred)
+                continue
+
+            sym = pred.get(symbol_col)
+            if not sym or sym not in features_df.index:
+                sized_predictions.append(pred)
+                continue
+
+            row_features = features_df.loc[[sym]]
+            conviction = float(self.predict_conviction_multiplier(row_features)[0])
+            prob_win = float(self.predict_probability(row_features)[0])
+
+            p_copy = dict(pred)
+            p_copy['meta_win_prob'] = round(prob_win, 4)
+            p_copy['meta_conviction'] = round(conviction, 4)
+
+            if conviction <= 0.0:
+                p_copy['meta_action'] = 'FILTER_OUT'
+                p_copy['action'] = 'PASS'
+            else:
+                p_copy['meta_action'] = 'EXECUTE'
+                if return_col in p_copy:
+                    try:
+                        p_copy[return_col] = float(p_copy[return_col]) * conviction
+                    except (ValueError, TypeError):
+                        pass
+                if score_col in p_copy:
+                    try:
+                        p_copy[score_col] = float(p_copy[score_col]) * min(1.2, conviction)
+                    except (ValueError, TypeError):
+                        pass
+
+            sized_predictions.append(p_copy)
+
+        return sized_predictions
+
+    def save_model(self, model_path: str) -> None:
+        """Saves trained MetaLabeler model to disk."""
+        if not self.is_fitted:
+            return
+        try:
+            from pathlib import Path
+            p = Path(model_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            self.model.save_model(str(p))
+            logger.info(f"MetaLabeler saved to {model_path}")
+        except Exception as e:
+            logger.error(f"Failed to save MetaLabeler model: {e}")
+
+    def load_model(self, model_path: str) -> bool:
+        """Loads trained MetaLabeler model from disk."""
+        try:
+            from pathlib import Path
+            p = Path(model_path)
+            if p.exists():
+                self.model.load_model(str(p))
+                self.is_fitted = True
+                logger.info(f"MetaLabeler loaded from {model_path}")
+                return True
+        except Exception as e:
+            logger.warning(f"Failed to load MetaLabeler from {model_path}: {e}")
+        return False
