@@ -1513,3 +1513,116 @@ class PortfolioAllocator:
         clamped_w /= np.sum(clamped_w)
 
         return {sym: float(w) for sym, w in zip(symbols, clamped_w)}
+
+    # =========================================================================
+    # OBJECTIVE 10: SYNTHETIC BETA INVERSE HEDGE OVERLAY & ADV CAPACITY
+    # =========================================================================
+
+    @staticmethod
+    def compute_portfolio_beta(
+        weights: Dict[str, float],
+        beta_map: Optional[Dict[str, float]] = None,
+        default_beta: float = 1.0
+    ) -> float:
+        """
+        Computes weighted systematic portfolio beta against benchmark index.
+        """
+        if not weights:
+            return 1.0
+        b_map = beta_map or {}
+        tot_w = sum(weights.values())
+        if tot_w <= 0:
+            return 1.0
+
+        port_beta = sum(w * float(b_map.get(sym, default_beta)) for sym, w in weights.items()) / tot_w
+        return float(port_beta)
+
+    @staticmethod
+    def compute_synthetic_inverse_hedge(
+        portfolio_weights: Dict[str, float],
+        market: str = "KOSPI",
+        regime_label: str = "BULL",
+        beta_map: Optional[Dict[str, float]] = None,
+        cash_ratio: float = 0.0,
+        max_hedge_ratio: float = 0.80
+    ) -> Dict[str, Any]:
+        """
+        Calculates synthetic inverse hedge allocation in Bear / Crisis regimes.
+        Allocates to designated benchmark inverse instruments:
+          - KRX (KOSPI/KOSDAQ): '114800' (KODEX 200 선물인버스2X, -2x leverage)
+          - US (SP500/NASDAQ/RUSSELL2000): 'PSQ' or 'SH'
+        """
+        is_bear = "BEAR" in str(regime_label).upper() or "CRISIS" in str(regime_label).upper()
+        if not is_bear or not portfolio_weights:
+            return {
+                "hedge_required": False,
+                "hedge_symbol": None,
+                "hedge_weight": 0.0,
+                "net_portfolio_beta": PortfolioAllocator.compute_portfolio_beta(portfolio_weights, beta_map),
+                "gross_long_weight": sum(portfolio_weights.values())
+            }
+
+        port_beta = PortfolioAllocator.compute_portfolio_beta(portfolio_weights, beta_map)
+        gross_long = sum(portfolio_weights.values())
+        invested_equity = max(0.0, 1.0 - cash_ratio) * gross_long
+
+        m_upper = str(market).upper()
+        if m_upper in ("KOSPI", "KOSDAQ", "KRX"):
+            hedge_symbol = "114800"  # KODEX 200선물인버스2X (-2x)
+            inv_leverage = 2.0
+        elif m_upper in ("NASDAQ",):
+            hedge_symbol = "PSQ"
+            inv_leverage = 1.0
+        else:
+            hedge_symbol = "SH"
+            inv_leverage = 1.0
+
+        target_hedge_w = (port_beta * invested_equity) / inv_leverage
+        hedge_w = float(np.clip(target_hedge_w, 0.0, max_hedge_ratio))
+        net_beta = port_beta * invested_equity - (hedge_w * inv_leverage)
+
+        return {
+            "hedge_required": True,
+            "hedge_symbol": hedge_symbol,
+            "hedge_weight": hedge_w,
+            "hedge_leverage": inv_leverage,
+            "portfolio_beta_before": port_beta,
+            "net_portfolio_beta": float(net_beta),
+            "gross_long_weight": gross_long
+        }
+
+    @staticmethod
+    def apply_adv_capacity_constraint(
+        target_weights: Dict[str, float],
+        adv_map: Dict[str, float],
+        total_capital: float = 100_000_000.0,
+        max_adv_ratio: float = 0.015
+    ) -> Dict[str, float]:
+        """
+        Enforces non-linear Kyle-Almgren market capacity bounds based on 20-day ADV.
+        Capped at max_adv_ratio (default 1.5% of ADV) with square-root impact penalty damping.
+        """
+        if not target_weights or total_capital <= 0:
+            return dict(target_weights)
+
+        constrained = {}
+        for sym, w in target_weights.items():
+            trade_val = w * total_capital
+            adv = float(adv_map.get(sym, 1_000_000_000.0))
+            if adv > 0:
+                max_val = max_adv_ratio * adv
+                if trade_val > max_val:
+                    excess_ratio = trade_val / max_val
+                    penalty = float(np.exp(-1.5 * (excess_ratio - 1.0)))
+                    damped_val = max_val + (trade_val - max_val) * penalty
+                    constrained[sym] = float(damped_val / total_capital)
+                else:
+                    constrained[sym] = float(w)
+            else:
+                constrained[sym] = float(w)
+
+        tot = sum(constrained.values())
+        if tot > 1.0:
+            constrained = {k: v / tot for k, v in constrained.items()}
+        return constrained
+

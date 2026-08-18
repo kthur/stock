@@ -1008,7 +1008,7 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
 
     # M2 전월 대비 변화율: 통화 팽창/수축 방향성 신호
     if 'kr_m2_supply' in result.columns:
-        result['kr_m2_mom'] = result['kr_m2_supply'].pct_change().fillna(0.0) * 100
+        result['kr_m2_mom'] = result['kr_m2_supply'].pct_change(fill_method=None).fillna(0.0) * 100
 
 
     # ④ 인플레이션 충격 복합 지표 (유가 + 환율 동시 상승 = 수입물가 이중 충격)

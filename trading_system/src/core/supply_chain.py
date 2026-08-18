@@ -297,3 +297,59 @@ class SupplyChainEngine(BaseStrategyEngine):
         if not res_df.empty:
             res_df = res_df.sort_values(by="supply_chain_score", ascending=False).reset_index(drop=True)
         return res_df
+
+    def compute_graph_diffusion_momentum(
+        self,
+        returns_series: pd.Series,
+        max_hops: int = 2,
+        damping_factor: float = 0.50
+    ) -> pd.Series:
+        """
+        Computes multi-hop Graph Convolutional Diffusion momentum across supplier networks:
+        H^(l+1) = sigma( D^-1/2 (A + I) D^-1/2 H^l )
+        """
+        if returns_series.empty:
+            return returns_series
+
+        all_syms = list(set(returns_series.index) | set(self.customer_map.keys()))
+        sym_to_idx = {s: i for i, s in enumerate(all_syms)}
+        N = len(all_syms)
+
+        # Adjacency Matrix A
+        A = np.zeros((N, N), dtype=float)
+        for supp, custs in self.customer_map.items():
+            if supp in sym_to_idx:
+                s_idx = sym_to_idx[supp]
+                for c in custs:
+                    if c in sym_to_idx:
+                        c_idx = sym_to_idx[c]
+                        A[s_idx, c_idx] = 1.0
+
+        # Renormalization Trick: A_tilde = A + I
+        A_tilde = A + np.eye(N)
+        deg = np.sum(A_tilde, axis=1)
+        deg_inv_sqrt = np.power(np.maximum(deg, 1.0), -0.5)
+        D_inv_sqrt = np.diag(deg_inv_sqrt)
+
+        # Normalized Graph Diffusion Operator
+        A_norm = D_inv_sqrt @ A_tilde @ D_inv_sqrt
+
+        # Initial Signal vector H0
+        H = np.zeros(N, dtype=float)
+        for s, r in returns_series.items():
+            if s in sym_to_idx:
+                H[sym_to_idx[s]] = float(r) if pd.notna(r) else 0.0
+
+        # Multi-hop diffusion
+        diffused_H = H.copy()
+        current_H = H.copy()
+        for hop in range(1, max_hops + 1):
+            current_H = (damping_factor ** hop) * (A_norm @ current_H)
+            diffused_H += current_H
+
+        diffused_series = pd.Series(
+            [float(diffused_H[sym_to_idx[s]]) for s in returns_series.index],
+            index=returns_series.index
+        )
+        return diffused_series
+

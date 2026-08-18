@@ -272,7 +272,9 @@ class TestE2EConsolidated(unittest.TestCase):
         df_train = self.model.prepare_training_data(prices_dict)
         # Inject artificial surge events into target_5d so train_surge has positive samples
         idx_pos = list(range(0, len(df_train), 20))
-        df_train.iloc[idx_pos, df_train.columns.get_loc('target_5d')] = 0.30
+        target_col_idx = df_train.columns.get_loc('target_5d')
+        target_dtype = df_train['target_5d'].dtype
+        df_train.iloc[idx_pos, target_col_idx] = np.array(0.30, dtype=target_dtype)
         self.model.train_surge(df_train, market="sp500", save_after=True)
         # Actual save path is xgb_surge_model_{market}_{h}d.json
         surge_xgb_path = Path(self.tmp_model_dir) / "xgb_surge_model_sp500_5d.json"
@@ -304,7 +306,9 @@ class TestE2EConsolidated(unittest.TestCase):
         df_train = self.model.prepare_training_data(prices_dict)
         # Inject artificial surge events
         idx_pos = list(range(0, len(df_train), 20))
-        df_train.iloc[idx_pos, df_train.columns.get_loc('target_5d')] = 0.30
+        target_col_idx = df_train.columns.get_loc('target_5d')
+        target_dtype = df_train['target_5d'].dtype
+        df_train.iloc[idx_pos, target_col_idx] = np.array(0.30, dtype=target_dtype)
         self.model.train_surge(df_train, market="sp500", save_after=True)
         # surge_models is keyed by market and horizon (int)
         self.assertIn("sp500", self.model.surge_models)

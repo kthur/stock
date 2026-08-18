@@ -2460,3 +2460,68 @@ class EnsembleScoringEngine:
 
         return merged
 
+    @staticmethod
+    def apply_dynamic_ir_gating(
+        base_weights: Dict[str, float],
+        strategy_ic_or_ir_map: Optional[Dict[str, float]] = None,
+        ir_cutoff: float = 0.0,
+        steepness: float = 0.20
+    ) -> Dict[str, float]:
+        """
+        Applies Bayesian Dynamic Information Ratio (IR) Gating to ensemble weights.
+        Strategies with rolling IR <= ir_cutoff are pruned to 0.0% weight to eliminate noise dilution.
+        Positive IR strategies are smoothly scaled via Gaussian CDF: Phi((IR - 0.5) / steepness).
+        """
+        if not base_weights:
+            return {}
+        if not strategy_ic_or_ir_map:
+            return dict(base_weights)
+
+        from scipy.stats import norm
+        gated_weights = {}
+        for strat, w in base_weights.items():
+            ir_val = strategy_ic_or_ir_map.get(strat, 1.0)
+            if ir_val <= ir_cutoff:
+                gated_weights[strat] = 0.0
+            else:
+                prob_scale = float(norm.cdf((ir_val - 0.50) / max(steepness, 1e-4)))
+                gated_weights[strat] = float(w * max(0.10, prob_scale))
+
+        tot = sum(gated_weights.values())
+        if tot > 0:
+            return {k: float(v / tot) for k, v in gated_weights.items()}
+        return dict(base_weights)
+
+    @staticmethod
+    def apply_premarket_delta_modifier(
+        base_scores_df: pd.DataFrame,
+        overnight_macro_delta: Optional[float] = None,
+        premarket_imbalance_map: Optional[Dict[str, float]] = None,
+        gamma_overnight: float = 0.35
+    ) -> pd.DataFrame:
+        """
+        Applies Pre-Market Delta modifier to fast-tier and momentum scores before market open.
+        Captures overnight macro gaps (e.g. SOX index / FX) and pre-market auction imbalances (동시호가).
+        """
+        if base_scores_df is None or base_scores_df.empty:
+            return base_scores_df
+
+        df_mod = base_scores_df.copy()
+        macro_mult = 1.0 + gamma_overnight * (overnight_macro_delta or 0.0)
+        macro_mult = float(np.clip(macro_mult, 0.70, 1.30))
+
+        imb_map = premarket_imbalance_map or {}
+        if 'ensemble_score' in df_mod.columns:
+            adjusted_scores = []
+            for idx, row in df_mod.iterrows():
+                sym = row.get('symbol', idx)
+                raw_score = float(row.get('ensemble_score', 0.5))
+                sym_imb = float(imb_map.get(sym, 0.0))
+                imb_mult = float(np.clip(1.0 + gamma_overnight * sym_imb, 0.80, 1.20))
+                adj = float(np.clip(raw_score * macro_mult * imb_mult, 0.0, 1.0))
+                adjusted_scores.append(adj)
+            df_mod['ensemble_score'] = adjusted_scores
+
+        return df_mod
+
+

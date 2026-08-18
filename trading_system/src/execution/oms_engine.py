@@ -156,7 +156,9 @@ class ExecutionOMSEngine:
         total_capital: float = 100000000.0,  # 100,000,000 KRW default
         crisis_level: str = "NORMAL",
         current_holdings: Optional[Dict[str, float]] = None,
-        use_leland_buffer: bool = True
+        use_leland_buffer: bool = True,
+        regime_label: str = "BULL",
+        max_adv_ratio: float = 0.015
     ) -> List[Dict[str, Any]]:
         """
         Generates actionable order execution plans based on predictions and Risk Parity weights.
@@ -336,6 +338,13 @@ class ExecutionOMSEngine:
                 except (ValueError, TypeError):
                     pass
 
+                # Gate 7.5: ADV Capacity Cap (1.5% ADV max order value)
+                adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
+                max_adv_amount = max(100_000.0, max_adv_ratio * adv_val)
+                if target_amount > max_adv_amount:
+                    logger.info(f"[OMS ADV CAPACITY] {sym} target amount {target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
+                    target_amount = max_adv_amount
+
                 raw_quantity = int(target_amount // target_price)
                 if is_krx:
                     quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
@@ -345,7 +354,6 @@ class ExecutionOMSEngine:
                     continue
 
                 # Institutional Execution Strategy Routing (ADV Participation Slicing & U-shaped Volume Profile)
-                adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
                 part_ratio = target_amount / max(adv_val, 1.0)
                 if part_ratio > 0.03:
                     exec_strategy = "DYNAMIC_VWAP"
@@ -379,6 +387,45 @@ class ExecutionOMSEngine:
                     (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, status, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (order_id, sym, name, market, action, round(weight, 4), round(target_amount, 2), round(target_price, 2), quantity, exec_strategy, slice_count, status, now_str))
+
+            # Gate 8: Synthetic Beta Inverse Hedge Overlay (Bear / Crisis regime)
+            if "BEAR" in str(regime_label).upper() or "CRISIS" in str(regime_label).upper():
+                try:
+                    from src.risk.portfolio_allocator import PortfolioAllocator
+                    first_market = str(top_predictions[0].get("market", "KOSPI")) if top_predictions else "KOSPI"
+                    hedge_info = PortfolioAllocator.compute_synthetic_inverse_hedge(
+                        portfolio_weights=portfolio_weights,
+                        market=first_market,
+                        regime_label=regime_label
+                    )
+                    if hedge_info.get("hedge_required") and hedge_info.get("hedge_weight", 0.0) > 0:
+                        h_sym = hedge_info["hedge_symbol"]
+                        h_weight = hedge_info["hedge_weight"]
+                        h_amount = tot_cap * h_weight
+                        h_order_id = f"ORD_HEDGE_{h_sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
+                        h_entry = {
+                            "order_id": h_order_id,
+                            "symbol": h_sym,
+                            "name": "INVERSE_HEDGE_OVERLAY",
+                            "market": first_market,
+                            "action": "BUY_HEDGE",
+                            "target_weight": round(h_weight, 4),
+                            "target_amount": round(h_amount, 2),
+                            "target_price": 10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ"] else 50.0,
+                            "quantity": int(h_amount // (10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ"] else 50.0)),
+                            "execution_strategy": "DIRECT",
+                            "slice_count": 1,
+                            "status": "HEDGE_ACTIVE",
+                            "created_at": now_str
+                        }
+                        order_plans.append(h_entry)
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO order_plans
+                            (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, status, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", first_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "HEDGE_ACTIVE", now_str))
+                except Exception as _hedge_e:
+                    logger.warning(f"[OMS HEDGE OVERLAY] Hedge order plan generation skipped: {_hedge_e}")
 
             conn.commit()
         finally:
