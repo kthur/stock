@@ -182,3 +182,137 @@ class FactorOrthogonalizerEngine:
         return cast(np.ndarray, C_shrunk + self.ridge_epsilon * np.eye(K))
 
 
+class CrossSectionalFactorNeutralizer:
+    """
+    Pre-Ensemble Cross-Sectional Factor Neutralizer.
+    Orthogonalizes raw alpha factor scores across symbols against Market Beta, Size,
+    Volatility, and Sector risk exposures via Weighted Generalized Least Squares (GLS).
+    """
+
+    def __init__(
+        self,
+        risk_factors: Optional[List[str]] = None,
+        mad_threshold: float = 3.0,
+        ridge_epsilon: float = 1e-6
+    ):
+        self.risk_factors = risk_factors or ["beta", "log_mcap", "volatility_60d"]
+        self.mad_threshold = float(mad_threshold)
+        self.ridge_epsilon = float(ridge_epsilon)
+
+    def winsorize_mad(self, series: pd.Series) -> pd.Series:
+        """Applies Median Absolute Deviation (MAD) winsorization to eliminate fat-tail outlier distortions."""
+        valid = series.dropna()
+        if len(valid) < 5:
+            return series
+        med = float(valid.median())
+        mad = float((valid - med).abs().median() * 1.4826)
+        if mad < 1e-8:
+            return series
+        lower = med - self.mad_threshold * mad
+        upper = med + self.mad_threshold * mad
+        return series.clip(lower=lower, upper=upper)
+
+    def neutralize_cross_section(
+        self,
+        scores: pd.Series,
+        factor_loadings: Optional[pd.DataFrame] = None,
+        sector_series: Optional[pd.Series] = None,
+        weights: Optional[pd.Series] = None
+    ) -> pd.Series:
+        """
+        Neutralizes a single strategy score series across the symbol cross-section.
+        """
+        if scores is None or len(scores) < 4:
+            return scores
+
+        # Winsorize raw factor inputs
+        clean_scores = self.winsorize_mad(scores)
+        valid_idx = clean_scores.dropna().index
+        if len(valid_idx) < 4:
+            return scores
+
+        y = clean_scores.loc[valid_idx].to_numpy(dtype=np.float64)
+        N = len(valid_idx)
+
+        # Build Design Matrix B
+        cols_to_concat = [pd.Series(1.0, index=valid_idx, name="intercept")]
+        if factor_loadings is not None and not factor_loadings.empty:
+            avail_factors = [f for f in self.risk_factors if f in factor_loadings.columns]
+            if avail_factors:
+                f_df = factor_loadings.loc[valid_idx, avail_factors].fillna(0.0)
+                # Standardize factor loadings
+                f_std = (f_df - f_df.mean()) / (f_df.std().replace(0.0, 1.0) + 1e-6)
+                cols_to_concat.append(f_std)
+
+        if sector_series is not None and len(sector_series) > 0:
+            sec_aligned = sector_series.loc[valid_idx].fillna("UNKNOWN")
+            if sec_aligned.nunique() > 1:
+                dummies = pd.get_dummies(sec_aligned, drop_first=True, dtype=float)
+                cols_to_concat.append(dummies)
+
+        B_df = pd.concat(cols_to_concat, axis=1)
+        B = B_df.to_numpy(dtype=np.float64)
+        K_cols = B.shape[1]
+
+        # Weights matrix W (e.g. sqrt(MarketCap) or Identity)
+        if weights is not None and len(weights) > 0:
+            w_aligned = weights.loc[valid_idx].fillna(1.0).to_numpy(dtype=np.float64)
+            w_aligned = np.clip(w_aligned, 1e-4, np.inf)
+            W_diag = np.sqrt(w_aligned)
+            W_diag /= (np.mean(W_diag) + 1e-8)
+        else:
+            W_diag = np.ones(N, dtype=np.float64)
+
+        # WLS Projection: (B^T W B + eps I)^(-1) B^T W y
+        B_weighted = B * W_diag[:, np.newaxis]
+        y_weighted = y * W_diag
+        BtWB = np.dot(B.T, B_weighted) + self.ridge_epsilon * np.eye(K_cols)
+
+        try:
+            beta_hat = np.linalg.solve(BtWB, np.dot(B.T, y_weighted))
+        except np.linalg.LinAlgError:
+            beta_hat = np.dot(np.linalg.pinv(BtWB), np.dot(B.T, y_weighted))
+
+        fitted = np.dot(B, beta_hat)
+        residuals = y - fitted
+
+        res_std = np.std(residuals)
+        if res_std > 1e-8:
+            z_scores = residuals / res_std
+            # Map back to [0.0, 1.0] using Sigmoid dispersion preservation
+            pure_scores = 1.0 / (1.0 + np.exp(-z_scores))
+        else:
+            pure_scores = np.full(N, 0.5, dtype=np.float64)
+
+        result = scores.copy()
+        result.loc[valid_idx] = pure_scores
+        return result
+
+    def neutralize_dataframe(
+        self,
+        score_df: pd.DataFrame,
+        strategy_cols: List[str],
+        factor_loadings: Optional[pd.DataFrame] = None,
+        sector_col: Optional[str] = None,
+        weights_col: Optional[str] = None
+    ) -> pd.DataFrame:
+        """Neutralizes all specified strategy columns in a DataFrame."""
+        if score_df is None or score_df.empty:
+            return score_df
+
+        out_df = score_df.copy()
+        sector_s = out_df[sector_col] if (sector_col and sector_col in out_df.columns) else None
+        weight_s = out_df[weights_col] if (weights_col and weights_col in out_df.columns) else None
+
+        for col in strategy_cols:
+            if col in out_df.columns:
+                out_df[col] = self.neutralize_cross_section(
+                    scores=out_df[col],
+                    factor_loadings=factor_loadings,
+                    sector_series=sector_s,
+                    weights=weight_s
+                )
+        return out_df
+
+
+

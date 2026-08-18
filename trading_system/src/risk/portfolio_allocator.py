@@ -100,6 +100,95 @@ class PortfolioAllocator:
 
         return base_cov
 
+    @staticmethod
+    def compute_downside_semi_cov(
+        returns_matrix: np.ndarray,
+        base_cov: Optional[np.ndarray] = None,
+        target_return: float = 0.0,
+        shrinkage_intensity: float = 0.20
+    ) -> np.ndarray:
+        """
+        Computes Downside Semi-Covariance Matrix (Sigma^-) for Sortino optimization.
+        Only penalizes joint downside fluctuations:
+        Sigma^-_{ij} = (1/T) sum min(r_{i,t} - target, 0) * min(r_{j,t} - target, 0).
+        Shrinks towards equicorrelation lower-tail target for numerical stability.
+        """
+        if returns_matrix is None or len(returns_matrix) < 5 or returns_matrix.shape[1] < 2:
+            return base_cov if base_cov is not None else np.eye(2)
+
+        N, K = returns_matrix.shape
+        # Downside deviations below target return
+        downside_diff = np.minimum(returns_matrix - target_return, 0.0)
+
+        # Sample semi-covariance
+        semi_cov = np.dot(downside_diff.T, downside_diff) / max(N - 1, 1)
+
+        # Ensure positive semi-definiteness via regularization
+        if base_cov is not None and base_cov.shape == semi_cov.shape:
+            k_shrink = float(np.clip(shrinkage_intensity, 0.0, 0.50))
+            blended_semi = (1.0 - k_shrink) * semi_cov + k_shrink * base_cov
+        else:
+            blended_semi = semi_cov
+
+        diag_stds = np.sqrt(np.maximum(np.diag(blended_semi), 1e-8))
+        reg_target = np.outer(diag_stds, diag_stds) * 0.5
+        np.fill_diagonal(reg_target, np.diag(blended_semi))
+
+        delta = float(np.clip(shrinkage_intensity, 0.05, 0.30))
+        shrunk_semi = (1.0 - delta) * blended_semi + delta * reg_target
+
+        # Add small diagonal jitter for non-singularity
+        shrunk_semi += 1e-6 * np.eye(K)
+        return np.asarray(shrunk_semi, dtype=np.float64)
+
+    @staticmethod
+    def calculate_continuous_fractional_kelly(
+        expected_returns: Optional[np.ndarray],
+        covariance_matrix: np.ndarray,
+        weights: np.ndarray,
+        target_annual_vol: float = 0.12,
+        kelly_fraction: float = 0.25,
+        risk_free_rate: float = 0.035,
+        min_gross_exposure: float = 0.10,
+        max_gross_exposure: float = 1.00
+    ) -> Tuple[float, np.ndarray]:
+        """
+        Calculates optimal continuous portfolio gross exposure using Quarter-Kelly and Target Volatility.
+        """
+        if weights is None or len(weights) == 0:
+            return 1.0, np.array([])
+
+        w_sum = np.sum(weights)
+        if w_sum > 0:
+            w_norm = weights / w_sum
+        else:
+            w_norm = weights
+
+        daily_rf = risk_free_rate / 252.0
+        port_var = float(w_norm.T @ covariance_matrix @ w_norm)
+        port_vol_annual = float(np.sqrt(max(1e-8, port_var * 252.0)))
+
+        # Target Volatility Scale
+        vol_scale = target_annual_vol / max(port_vol_annual, 0.02)
+
+        # Portfolio expected excess return
+        if expected_returns is not None and len(expected_returns) == len(w_norm):
+            port_ret_excess = float(w_norm.T @ (expected_returns - daily_rf))
+            if port_var > 1e-8 and port_ret_excess > 0:
+                kelly_scale = kelly_fraction * (port_ret_excess / port_var)
+            else:
+                kelly_scale = 0.25
+        else:
+            kelly_scale = 1.0
+
+        optimal_exposure = float(np.clip(
+            min(vol_scale, kelly_scale),
+            min_gross_exposure,
+            max_gross_exposure
+        ))
+        scaled_weights = weights * optimal_exposure
+        return optimal_exposure, scaled_weights
+
     # =========================================================================
     # OBJECTIVE 1: EVT-CVaR LOSS BUDGET CONSTRAINTS & 3-TIER FALLBACK HIERARCHY
     # =========================================================================

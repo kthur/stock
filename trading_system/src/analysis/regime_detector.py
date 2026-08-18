@@ -1,4 +1,5 @@
 import logging
+from typing import Optional, Dict, List, Any
 import numpy as np
 import pandas as pd
 from sklearn.mixture import GaussianMixture
@@ -294,6 +295,50 @@ class MarketRegimeDetector:
         except Exception as e:
             logger.error(f"Error computing regime transition probabilities: {e}")
             return default_res
+
+    def predict_soft_blended_weights(
+        self,
+        indicator_df: pd.DataFrame,
+        base_weights_by_regime: Optional[dict] = None
+    ) -> dict[str, float]:
+        """
+        Computes continuous soft-blended strategy weights across regimes using posterior probabilities.
+        w_final = P(Bear) * w_bear + P(Sideways) * w_sideways + P(Bull) * w_bull.
+        Prevents discrete whipsaws and reduces rebalancing turnover drag.
+        """
+        probs = self.predict_regime_transition_probabilities(indicator_df)
+        p_bear = probs.get('p_bear', 0.10)
+        p_sideways = probs.get('p_sideways', 0.20)
+        p_bull = probs.get('p_bull', 0.70)
+
+        total_p = p_bear + p_sideways + p_bull
+        if total_p > 0:
+            p_bear /= total_p
+            p_sideways /= total_p
+            p_bull /= total_p
+
+        if not base_weights_by_regime:
+            return {'bear': p_bear, 'sideways': p_sideways, 'bull': p_bull}
+
+        w_bear = base_weights_by_regime.get(0, {})
+        w_sideways = base_weights_by_regime.get(1, {})
+        w_bull = base_weights_by_regime.get(2, {})
+
+        all_keys = set(w_bear.keys()) | set(w_sideways.keys()) | set(w_bull.keys())
+        blended_weights = {}
+        for k in all_keys:
+            val = (
+                p_bear * float(w_bear.get(k, 0.0)) +
+                p_sideways * float(w_sideways.get(k, 0.0)) +
+                p_bull * float(w_bull.get(k, 0.0))
+            )
+            blended_weights[k] = float(val)
+
+        w_sum = sum(blended_weights.values())
+        if w_sum > 0:
+            blended_weights = {k: v / w_sum for k, v in blended_weights.items()}
+
+        return blended_weights
 
     def _predict_rule_based_fallback(self, indicator_df: pd.DataFrame) -> int:
         """Rule-based fallback detector when GMM is not fitted or fails."""

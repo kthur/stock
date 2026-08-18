@@ -436,5 +436,49 @@ class ExecutionOMSEngine:
         }
 
 
+class AlmgrenChrissScheduler:
+    """
+    Almgren-Chriss (2000) Optimal Execution Trajectory Scheduler.
+    Computes optimal VWAP/TWAP order slicing to minimize transaction costs and timing risk.
+    """
+    @staticmethod
+    def compute_trajectory(
+        total_quantity: int,
+        adv: float,
+        daily_volatility: float,
+        strategy_tier: str = "medium",
+        n_slices: int = 6
+    ) -> List[int]:
+        """
+        Computes share allocation across n_slices based on Almgren-Chriss hyperbolic schedule.
+        """
+        if total_quantity <= 0 or n_slices <= 1:
+            return [total_quantity]
+
+        urgency_map = {"fast": 1.0e-3, "medium": 1.0e-5, "slow": 1.0e-7}
+        lambda_urg = urgency_map.get(str(strategy_tier).lower(), 1.0e-5)
+        eta = 0.5 * (max(daily_volatility, 0.01) / max(adv, 1.0))
+        kappa = np.sqrt(lambda_urg * (daily_volatility ** 2) / max(eta, 1e-8))
+
+        t = np.linspace(0, 1, n_slices + 1)
+        if kappa > 1e-4:
+            traj = np.sinh(kappa * (1.0 - t)) / np.sinh(kappa)
+        else:
+            traj = 1.0 - t
+
+        diffs = -np.diff(traj)
+        diffs = np.maximum(diffs, 0.0)
+        diffs_sum = np.sum(diffs)
+        if diffs_sum > 0:
+            alloc = np.round((diffs / diffs_sum) * total_quantity).astype(int)
+        else:
+            alloc = np.full(n_slices, total_quantity // n_slices, dtype=int)
+
+        # Reconcile rounding discrepancy to exact total_quantity
+        diff_total = total_quantity - int(np.sum(alloc))
+        alloc[-1] += diff_total
+        return [int(x) for x in alloc]
+
+
 # Module level alias for backward compatibility
 OMSEngine = ExecutionOMSEngine
