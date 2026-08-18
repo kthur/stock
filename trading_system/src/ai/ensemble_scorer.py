@@ -21,7 +21,7 @@ except Exception:
     try:
         from src.analysis.dsr_validator import DeflatedSharpeRatioValidator
     except Exception:
-        DeflatedSharpeRatioValidator = None
+        DeflatedSharpeRatioValidator = None  # type: ignore[assignment, misc]
 
 
 
@@ -1888,14 +1888,16 @@ class EnsembleScoringEngine:
             if us_weights is not None:
                 eff_us_weights = {k: us_weights.get(k, 1.0) * weights.get(k, 1.0) for k in weights}
                 s_us = sum(eff_us_weights.values())
-                if s_us > 0: eff_us_weights = {k: v / s_us for k, v in eff_us_weights.items()}
+                if s_us > 0:
+                    eff_us_weights = {k: v / s_us for k, v in eff_us_weights.items()}
             else:
                 eff_us_weights = weights
 
             if kr_weights is not None:
                 eff_kr_weights = {k: kr_weights.get(k, 1.0) * weights.get(k, 1.0) for k in weights}
                 s_kr = sum(eff_kr_weights.values())
-                if s_kr > 0: eff_kr_weights = {k: v / s_kr for k, v in eff_kr_weights.items()}
+                if s_kr > 0:
+                    eff_kr_weights = {k: v / s_kr for k, v in eff_kr_weights.items()}
             else:
                 eff_kr_weights = weights
         else:
@@ -2210,6 +2212,117 @@ class EnsembleScoringEngine:
         q_order[m_other_us] = order_size_sp500
         adv_ref[m_other_us] = 1_000_000.0
         impact_coeff[m_other_us] = impact_coeff_sp500
+
+        # International Market Microstructure Friction Profiles
+        m_china = mkt_col.isin(['CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CHINA']) | sym_col.str.endswith(('.SS', '.SZ'))
+        stt_tax[m_china] = 0.0005
+        brokerage_fee[m_china] = 0.0003
+        base_spread[m_china] = getattr(self.config, 'base_spread_china', 0.0008) if self.config else 0.0008
+        spread_min[m_china] = 0.0002
+        spread_max[m_china] = 0.0150
+        q_order[m_china] = 50_000.0
+        adv_ref[m_china] = 1_000_000.0
+        impact_coeff[m_china] = 0.60
+
+        m_japan = mkt_col.isin(['JAPAN_TSE', 'TSE', 'JAPAN', 'NIKKEI', 'TOPIX']) | sym_col.str.endswith('.T')
+        stt_tax[m_japan] = 0.0
+        brokerage_fee[m_japan] = 0.0003
+        base_spread[m_japan] = getattr(self.config, 'base_spread_japan', 0.0004) if self.config else 0.0004
+        spread_min[m_japan] = 0.0001
+        spread_max[m_japan] = 0.0080
+        q_order[m_japan] = 50_000.0
+        adv_ref[m_japan] = 1_000_000.0
+        impact_coeff[m_japan] = 0.50
+
+        m_india = mkt_col.isin(['INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'INDIA']) | sym_col.str.endswith(('.NS', '.BO'))
+        stt_tax[m_india] = 0.0010
+        brokerage_fee[m_india] = 0.0005
+        base_spread[m_india] = getattr(self.config, 'base_spread_india', 0.0008) if self.config else 0.0008
+        spread_min[m_india] = 0.0002
+        spread_max[m_india] = 0.0150
+        q_order[m_india] = 30_000.0
+        adv_ref[m_india] = 500_000.0
+        impact_coeff[m_india] = 0.65
+
+        m_europe = mkt_col.isin(['EUROPE_STOXX', 'EUROPE', 'STOXX', 'DAX', 'FTSE', 'CAC']) | sym_col.str.endswith(('.DE', '.PA', '.AS', '.L', '.SW', '.MI'))
+        stt_tax[m_europe] = 0.0010
+        brokerage_fee[m_europe] = 0.0003
+        base_spread[m_europe] = getattr(self.config, 'base_spread_europe', 0.0005) if self.config else 0.0005
+        spread_min[m_europe] = 0.0001
+        spread_max[m_europe] = 0.0100
+        q_order[m_europe] = 50_000.0
+        adv_ref[m_europe] = 1_000_000.0
+        impact_coeff[m_europe] = 0.50
+
+        m_vietnam = mkt_col.isin(['VIETNAM_HOSE', 'HOSE', 'VIETNAM', 'VN30']) | sym_col.str.endswith('.VN')
+        stt_tax[m_vietnam] = 0.0015
+        brokerage_fee[m_vietnam] = 0.0010
+        base_spread[m_vietnam] = getattr(self.config, 'base_spread_vietnam', 0.0020) if self.config else 0.0020
+        spread_min[m_vietnam] = 0.0005
+        spread_max[m_vietnam] = 0.0300
+        q_order[m_vietnam] = 20_000.0
+        adv_ref[m_vietnam] = 300_000.0
+        impact_coeff[m_vietnam] = 0.85
+
+        m_taiwan = mkt_col.isin(['TAIWAN_TWSE', 'TWSE', 'TAIWAN']) | sym_col.str.endswith(('.TW', '.TWO'))
+        stt_tax[m_taiwan] = 0.0030
+        brokerage_fee[m_taiwan] = 0.0003
+        base_spread[m_taiwan] = getattr(self.config, 'base_spread_taiwan', 0.0006) if self.config else 0.0006
+        spread_min[m_taiwan] = 0.0002
+        spread_max[m_taiwan] = 0.0120
+        q_order[m_taiwan] = 40_000.0
+        adv_ref[m_taiwan] = 800_000.0
+        impact_coeff[m_taiwan] = 0.55
+
+        m_australia = mkt_col.isin(['AUSTRALIA_ASX', 'ASX', 'AUSTRALIA']) | sym_col.str.endswith('.AX')
+        stt_tax[m_australia] = 0.0
+        brokerage_fee[m_australia] = 0.0003
+        base_spread[m_australia] = getattr(self.config, 'base_spread_australia', 0.0005) if self.config else 0.0005
+        spread_min[m_australia] = 0.0001
+        spread_max[m_australia] = 0.0100
+        q_order[m_australia] = 50_000.0
+        adv_ref[m_australia] = 800_000.0
+        impact_coeff[m_australia] = 0.50
+
+        m_brazil = mkt_col.isin(['BRAZIL_B3', 'B3', 'BRAZIL']) | sym_col.str.endswith('.SA')
+        stt_tax[m_brazil] = 0.0
+        brokerage_fee[m_brazil] = 0.0008
+        base_spread[m_brazil] = getattr(self.config, 'base_spread_brazil', 0.0015) if self.config else 0.0015
+        spread_min[m_brazil] = 0.0004
+        spread_max[m_brazil] = 0.0250
+        q_order[m_brazil] = 30_000.0
+        adv_ref[m_brazil] = 500_000.0
+        impact_coeff[m_brazil] = 0.70
+
+        m_hkex = mkt_col.isin(['HKEX', 'HONGKONG']) | sym_col.str.endswith('.HK')
+        stt_tax[m_hkex] = 0.0010
+        brokerage_fee[m_hkex] = 0.0003
+        base_spread[m_hkex] = getattr(self.config, 'base_spread_hkex', 0.0006) if self.config else 0.0006
+        spread_min[m_hkex] = 0.0002
+        spread_max[m_hkex] = 0.0120
+        q_order[m_hkex] = 50_000.0
+        adv_ref[m_hkex] = 1_000_000.0
+        impact_coeff[m_hkex] = 0.55
+
+        m_singapore = mkt_col.isin(['SINGAPORE_SGX', 'SGX', 'SINGAPORE']) | sym_col.str.endswith('.SI')
+        stt_tax[m_singapore] = 0.0
+        brokerage_fee[m_singapore] = 0.0003
+        base_spread[m_singapore] = getattr(self.config, 'base_spread_singapore', 0.0006) if self.config else 0.0006
+        spread_min[m_singapore] = 0.0002
+        spread_max[m_singapore] = 0.0100
+        q_order[m_singapore] = 40_000.0
+        adv_ref[m_singapore] = 500_000.0
+        impact_coeff[m_singapore] = 0.55
+
+        m_canada = mkt_col.isin(['CANADA_TSX', 'TSX', 'CANADA']) | sym_col.str.endswith('.TO')
+        stt_tax[m_canada] = 0.0
+        brokerage_fee[m_canada] = 0.0003
+        base_spread[m_canada] = getattr(self.config, 'base_spread_canada', 0.0004) if self.config else 0.0004
+        spread_min[m_canada] = 0.0001
+        spread_max[m_canada] = 0.0080
+        q_order[m_canada] = 50_000.0
+        adv_ref[m_canada] = 800_000.0
+        impact_coeff[m_canada] = 0.50
 
         min_adv = np.where(is_us_stock, 10_000.0, 10_000_000.0)
         adv = np.where(turnover > 0, np.maximum(turnover, min_adv), adv_ref)

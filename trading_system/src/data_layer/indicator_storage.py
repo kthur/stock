@@ -361,6 +361,7 @@ class MarketIndicatorStorage:
                 ("stock_fundamentals", "book_value", "REAL DEFAULT 0"),
                 ("stock_universe", "sector", "TEXT DEFAULT ''"),
                 ("stock_universe", "industry", "TEXT DEFAULT ''"),
+                ("stock_universe", "currency", "TEXT DEFAULT 'USD'"),
                 ("ensemble_prediction_history", "actual_return_1d", "REAL"),
                 ("ensemble_prediction_history", "actual_return_5d", "REAL"),
                 ("ensemble_prediction_history", "actual_return_20d", "REAL"),
@@ -689,7 +690,7 @@ class MarketIndicatorStorage:
                         r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
                         sym_val = str(r_dict.get('symbol', ''))
                         price_val = r_dict.get('price')
-                        if self._indicator_value_ok(sym_val, None, price_val):
+                        if self._indicator_value_ok(sym_val, None, price_val) and price_val is not None:
                             result[sym_val] = float(price_val)
                     return result
         except Exception as e:
@@ -820,6 +821,7 @@ class MarketIndicatorStorage:
         records = []
         for row in df_fundamentals.itertuples(index=False):
             r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_fundamentals.columns, row))
+            bv_val = r_dict.get('book_value')
             records.append((
                 str(r_dict.get('symbol', '')),
                 str(r_dict.get('date', ''))[:10],
@@ -829,7 +831,7 @@ class MarketIndicatorStorage:
                 float(r_dict.get('eps', 0.0)) if pd.notna(r_dict.get('eps', 0.0)) else 0.0,
                 float(r_dict.get('shares_outstanding', 0.0)) if pd.notna(r_dict.get('shares_outstanding', 0.0)) else 0.0,
                 float(r_dict.get('dividend_per_share', 0.0)) if pd.notna(r_dict.get('dividend_per_share')) else 0.0,
-                float(r_dict.get('book_value')) if pd.notna(r_dict.get('book_value')) else None,
+                float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else None,
             ))
 
         def _do_write():
@@ -1068,7 +1070,7 @@ class MarketIndicatorStorage:
 
             if not isinstance(closes.index, pd.DatetimeIndex):
                 closes.index = pd.to_datetime(closes.index)
-            
+
             # Slice prices from prediction date d onwards for forward performance evaluation
             pred_dt = pd.Timestamp(d)
             target_slice = closes[closes.index >= pred_dt]

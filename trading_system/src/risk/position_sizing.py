@@ -294,30 +294,40 @@ class PortfolioAllocator:
         if use_hrp:
             from src.analysis.portfolio_optimizer import calculate_hrp_weights
             symbols = df_candidates['symbol'].tolist()
-            returns_matrix = []
-            for s in symbols:
-                df_p = prices_dict[s]
-                c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
-                r = c.pct_change().tail(60).dropna()
-                returns_matrix.append(r)
-            df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
-            if len(returns_matrix) > 1:
-                # NaN-safe covariance: pad with per-asset mean (NOT 0.0).
-                # Zero-filling short-history names produces fake zero variance,
-                # which HRP treats as "risk-free" and grossly over-weights them.
-                raw_ret = pd.concat(returns_matrix, axis=1)
-                common = raw_ret.dropna(how='any')
-                if len(common) >= 10:
-                    ret_df = common
+            try:
+                from src.risk.fx_adjusted_covariance import FXAdjustedCovarianceEngine
+                cand_prices = {s: prices_dict[s] for s in symbols if s in prices_dict}
+                mkt_map = dict(zip(df_candidates['symbol'], df_candidates['market']))
+                cov_df, ret_df = FXAdjustedCovarianceEngine.compute_fx_adjusted_covariance(
+                    prices_dict=cand_prices,
+                    market_map=mkt_map,
+                    lookback_days=60
+                )
+                if not cov_df.empty and cov_df.shape[0] == len(symbols):
+                    cov_mat = cov_df.values
                 else:
-                    ret_df = raw_ret.fillna(raw_ret.mean())
-                    # Mean-filling deflates the variance of short-history columns,
-                    # which HRP would misread as low risk. Add tiny jitter so the
-                    # filled runs keep a realistic scale (never constant columns).
-                    col_std = raw_ret.std().fillna(0.0).values + 1e-6
-                    rng = np.random.default_rng(0)
-                    ret_df = ret_df + rng.normal(0.0, 1e-4 * col_std, size=ret_df.shape)
-                cov_mat = ret_df.cov().values
+                    raise ValueError("Incomplete covariance matrix from FX engine")
+            except Exception:
+                returns_matrix = []
+                for s in symbols:
+                    df_p = prices_dict[s]
+                    c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
+                    r = c.pct_change(fill_method=None).tail(60).dropna()
+                    returns_matrix.append(r)
+                if len(returns_matrix) > 1:
+                    raw_ret = pd.concat(returns_matrix, axis=1)
+                    ret_df = raw_ret.ffill().bfill().dropna()
+                    if len(ret_df) < 10:
+                        ret_df = raw_ret.fillna(raw_ret.mean())
+                        col_std = raw_ret.std().fillna(0.0).values + 1e-6
+                        rng = np.random.default_rng(0)
+                        ret_df = ret_df + rng.normal(0.0, 1e-4 * col_std, size=ret_df.shape)
+                    cov_mat = ret_df.cov().values
+                else:
+                    cov_mat = np.eye(len(symbols)) * 0.0004
+
+            df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
+            if len(symbols) > 1 and 'cov_mat' in locals() and cov_mat.shape == (len(symbols), len(symbols)):
                 if np.any(np.isnan(cov_mat)):
                     np.fill_diagonal(cov_mat, np.nan_to_num(np.diag(cov_mat), nan=1e-4))
                 hrp_w = calculate_hrp_weights(cov_mat)

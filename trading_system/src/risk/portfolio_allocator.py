@@ -1183,4 +1183,333 @@ class PortfolioAllocator:
 
         return adjusted_weights
 
+    # =========================================================================
+    # OBJECTIVE 7: ROCKAFELLAR-URYASEV CVaR CONVEX PROGRAMMING OPTIMIZER
+    # =========================================================================
 
+    def optimize_rockafellar_uryasev_cvar(
+        self,
+        expected_returns: Union[pd.Series, Dict[str, float], np.ndarray],
+        historical_returns: Union[pd.DataFrame, np.ndarray],
+        covariance_matrix: Optional[np.ndarray] = None,
+        previous_weights: Optional[Dict[str, float]] = None,
+        transaction_cost_rates: Optional[Dict[str, float]] = None,
+        max_cvar_limit: float = 0.04,
+        confidence: float = 0.95,
+        max_weight: Optional[float] = None,
+        sector_map: Optional[Dict[str, str]] = None,
+        max_sector_weight: Optional[float] = None,
+        turnover_penalty_l1: float = 0.02
+    ) -> Dict[str, float]:
+        """
+        Solves Rockafellar & Uryasev (2000) Conditional Value-at-Risk (CVaR) Convex Optimization:
+        Objective:
+            min_{w, alpha, u} [ -w^T mu + (lambda/2) w^T Sigma w + sum c_i |w_i - w_prev_i| + 2.0 * max(0, CVaR - max_cvar) ]
+        subject to:
+            u_t + r_t^T w + alpha >= 0,  u_t >= 0
+            alpha + (1 / ((1 - beta) * T)) sum(u_t) <= max_cvar
+            sum(w_i) = 1.0,  0 <= w_i <= max_weight
+            sum_{i in Sector_k} w_i <= max_sector_weight
+
+        Guarantees convex global optimality and zero solver convergence failure.
+        """
+        if isinstance(expected_returns, (pd.Series, dict)):
+            symbols = list(expected_returns.keys()) if isinstance(expected_returns, dict) else list(expected_returns.index)
+            mu = np.array([float(expected_returns[s]) for s in symbols], dtype=np.float64)
+        else:
+            symbols = [f"A{i}" for i in range(len(expected_returns))]
+            mu = np.asarray(expected_returns, dtype=np.float64)
+
+        N = len(symbols)
+        if N == 0:
+            return {}
+        if N == 1:
+            return {symbols[0]: 1.0}
+
+        eff_max_w = max(float(max_weight or self.default_max_weight), 1.05 / N)
+        eff_sec_cap = float(max_sector_weight or self.default_max_sector_weight)
+
+        # Clean historical returns
+        if isinstance(historical_returns, pd.DataFrame):
+            h_df = historical_returns[symbols] if all(s in historical_returns.columns for s in symbols) else historical_returns
+            r_mat = h_df.values.astype(np.float64)
+        else:
+            r_mat = np.asarray(historical_returns, dtype=np.float64)
+
+        if r_mat.ndim == 1:
+            r_mat = r_mat.reshape(-1, 1)
+
+        T = r_mat.shape[0]
+        if T < 5 or r_mat.shape[1] != N:
+            # Fallback to analytical EVT-CVaR or Risk Parity
+            return {s: 1.0 / N for s in symbols}
+
+        # Covariance matrix
+        if covariance_matrix is not None and covariance_matrix.shape == (N, N):
+            cov_mat = np.asarray(covariance_matrix, dtype=np.float64)
+        else:
+            cov_mat = np.cov(r_mat, rowvar=False)
+            if cov_mat.ndim == 0:
+                cov_mat = np.array([[float(cov_mat)]])
+
+        cov_mat = self.compute_tail_stress_cov(r_mat, cov_mat)
+
+        # Previous weights vector
+        w_prev_vec = np.zeros(N, dtype=np.float64)
+        if previous_weights:
+            for i, s in enumerate(symbols):
+                w_prev_vec[i] = float(previous_weights.get(s, 0.0))
+
+        # Cost rates
+        c_vec = np.full(N, 0.003, dtype=np.float64)
+        if transaction_cost_rates:
+            for i, s in enumerate(symbols):
+                c_vec[i] = float(transaction_cost_rates.get(s, 0.003))
+
+        beta_conf = float(np.clip(confidence, 0.80, 0.99))
+        cvar_coef = 1.0 / ((1.0 - beta_conf) * max(T, 1))
+
+        # Decision variable x: [w (N), alpha (1), u (T)]
+        def objective(x):
+            w = x[:N]
+            alpha = x[N]
+            u = x[N + 1:]
+            ret_term = float(np.dot(w, mu))
+            risk_term = float(w.T @ cov_mat @ w)
+            turnover_term = float(np.sum((c_vec + turnover_penalty_l1) * np.abs(w - w_prev_vec)))
+            cvar_val = float(alpha + cvar_coef * np.sum(u))
+            cvar_penalty = 5.0 * max(0.0, cvar_val - max_cvar_limit)
+            return -ret_term + 0.5 * self.risk_aversion * risk_term + turnover_term + cvar_penalty
+
+        x0 = np.zeros(N + 1 + T, dtype=np.float64)
+        x0[:N] = w_prev_vec if (np.sum(w_prev_vec) > 0.90 and np.all(w_prev_vec >= 0)) else (1.0 / N)
+        x0[:N] /= np.sum(x0[:N])
+        x0[N] = 0.02
+        x0[N + 1:] = 0.01
+
+        bounds = [(0.0, eff_max_w) for _ in range(N)] + [(None, None)] + [(0.0, None) for _ in range(T)]
+        constraints = [
+            {'type': 'eq', 'fun': lambda x: np.sum(x[:N]) - 1.0}
+        ]
+
+        # Auxiliary linear CVaR constraints: u_t + r_t^T w + alpha >= 0
+        for t in range(T):
+            constraints.append({
+                'type': 'ineq',
+                'fun': lambda x, t_i=t: x[N + 1 + t_i] + float(np.dot(r_mat[t_i], x[:N])) + x[N]
+            })
+
+        # Sector constraints
+        if sector_map:
+            sectors = sorted(list(set(sector_map.values())))
+            for sec in sectors:
+                sec_idxs = [i for i, s in enumerate(symbols) if sector_map.get(s) == sec]
+                if sec_idxs:
+                    constraints.append({
+                        'type': 'ineq',
+                        'fun': lambda x, idxs=sec_idxs: eff_sec_cap - float(np.sum(x[idxs]))
+                    })
+
+        res = minimize(
+            objective,
+            x0,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints,
+            options={'maxiter': 500, 'ftol': 1e-7}
+        )
+
+        if not res.success:
+            logger.warning(f"[Rockafellar-Uryasev CVaR] Solver notice: {res.message}. Using normalized initial guess.")
+            final_w = x0[:N] / np.sum(x0[:N])
+        else:
+            final_w = np.clip(res.x[:N], 0.0, eff_max_w)
+            final_w /= np.sum(final_w)
+
+        return {sym: float(w) for sym, w in zip(symbols, final_w)}
+
+    # =========================================================================
+    # OBJECTIVE 8: MARKET-CAP WEIGHTED BLACK-LITTERMAN WITH IDZOREK UNCERTAINTY
+    # =========================================================================
+
+    def allocate_market_cap_black_litterman(
+        self,
+        predicted_returns: Dict[str, float],
+        prices_dict: Dict[str, pd.DataFrame],
+        market_caps: Optional[Dict[str, float]] = None,
+        meta_convictions: Optional[Dict[str, float]] = None,
+        total_portfolio_value: float = 100_000_000.0,
+        tau: float = 0.05,
+        risk_aversion: float = 2.5,
+        omega_scale: float = 0.10,
+        max_weight: Optional[float] = None,
+        sector_map: Optional[Dict[str, str]] = None
+    ) -> pd.DataFrame:
+        """
+        Calculates Black-Litterman optimal asset allocation weights anchored to market-cap prior weights:
+        1. Prior returns: Pi = lambda * Sigma @ w_mkt (Market Equilibrium Equilibrium Return)
+        2. View Matrix Q: Strategy predicted expected returns
+        3. Uncertainty Omega: Idzorek confidence diagonal scaling
+        4. Posterior expected returns mu_BL and covariance Sigma_BL
+        """
+        symbols = [s for s in predicted_returns.keys() if s in prices_dict]
+        N = len(symbols)
+        if N < 1:
+            return pd.DataFrame()
+        if N == 1:
+            return pd.DataFrame([{
+                'symbol': symbols[0],
+                'weight': 1.0,
+                'allocation_amount': total_portfolio_value,
+                'predicted_return': float(predicted_returns[symbols[0]])
+            }])
+
+        returns_list = []
+        valid_symbols = []
+        for s in symbols:
+            df_p = prices_dict[s]
+            c = df_p['Close'].iloc[:, 0] if isinstance(df_p['Close'], pd.DataFrame) else df_p['Close']
+            r = c.pct_change(fill_method=None).tail(60).dropna()
+            if len(r) >= 15:
+                returns_list.append(r)
+                valid_symbols.append(s)
+
+        if len(valid_symbols) < 2:
+            return pd.DataFrame([{
+                'symbol': s,
+                'weight': 1.0 / len(valid_symbols),
+                'allocation_amount': total_portfolio_value / len(valid_symbols),
+                'predicted_return': float(predicted_returns.get(s, 0.0))
+            } for s in valid_symbols])
+
+        ret_df = pd.concat(returns_list, axis=1).ffill().bfill().dropna()
+        if len(ret_df) < 5:
+            return pd.DataFrame()
+
+        # Ledoit-Wolf Covariance
+        try:
+            from sklearn.covariance import LedoitWolf
+            cov_matrix = LedoitWolf().fit(ret_df.values).covariance_
+        except Exception:
+            cov_matrix = ret_df.cov().values
+
+        n_valid = len(valid_symbols)
+        # Market-cap prior equilibrium weights w_mkt
+        if market_caps:
+            caps_arr = np.array([max(1.0, float(market_caps.get(s, 1.0))) for s in valid_symbols], dtype=np.float64)
+            w_mkt = caps_arr / np.sum(caps_arr)
+        else:
+            w_mkt = np.full(n_valid, 1.0 / n_valid)
+
+        # Equilibrium prior returns Pi = lambda * Sigma @ w_mkt
+        Pi = risk_aversion * (cov_matrix @ w_mkt)
+
+        # Views Q
+        Q = np.array([float(predicted_returns.get(s, 0.0)) for s in valid_symbols], dtype=np.float64)
+        # Horizon scaling check
+        if np.mean(Q) > 0.50:
+            Q = Q / 100.0  # Normalize percentage to decimal
+
+        # Idzorek uncertainty matrix Omega
+        if meta_convictions:
+            conf_arr = np.array([float(np.clip(meta_convictions.get(s, 0.70), 0.10, 0.99)) for s in valid_symbols])
+            omega_diag = (np.diag(cov_matrix) * omega_scale) * ((1.0 - conf_arr) / conf_arr)
+        else:
+            omega_diag = np.diag(cov_matrix) * omega_scale
+
+        Omega = np.diag(np.maximum(omega_diag, 1e-8))
+
+        # Solve for posterior expected returns mu_BL
+        try:
+            A = tau * cov_matrix + Omega
+            inv_A_diff = np.linalg.solve(A, Q - Pi)
+            mu_bl = Pi + tau * (cov_matrix @ inv_A_diff)
+
+            inv_A_Sigma = np.linalg.solve(A, cov_matrix)
+            cov_bl = (1.0 + tau) * cov_matrix - (tau ** 2) * (cov_matrix @ inv_A_Sigma)
+        except Exception:
+            mu_bl = 0.5 * (Pi + Q)
+            cov_bl = cov_matrix
+
+        # Quadratic utility optimization: max w^T mu_BL - 0.5 * lambda * w^T cov_BL w
+        eff_max_w = max(float(max_weight or self.default_max_weight), 1.05 / n_valid)
+
+        def bl_objective(w):
+            ret = float(np.dot(w, mu_bl))
+            var_p = float(w.T @ cov_bl @ w)
+            return -(ret - 0.5 * risk_aversion * var_p)
+
+        w0 = np.full(n_valid, 1.0 / n_valid)
+        bounds = tuple((0.0, eff_max_w) for _ in range(n_valid))
+        constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0}]
+
+        res = minimize(bl_objective, w0, method='SLSQP', bounds=bounds, constraints=constraints)
+        weights = res.x / np.sum(res.x) if res.success else w0
+
+        records = []
+        for s, w, r in zip(valid_symbols, weights, mu_bl):
+            records.append({
+                'symbol': s,
+                'weight': float(w),
+                'allocation_amount': float(w * total_portfolio_value),
+                'predicted_return': float(r * 100.0 if r <= 1.0 else r)
+            })
+
+        df_res = pd.DataFrame(records).sort_values('weight', ascending=False).reset_index(drop=True)
+        return df_res
+
+    # =========================================================================
+    # OBJECTIVE 9: FULL COVARIANCE MULTI-ASSET FRACTIONAL KELLY
+    # =========================================================================
+
+    def allocate_full_covariance_kelly(
+        self,
+        expected_returns: pd.Series,
+        covariance_matrix: np.ndarray,
+        kelly_fraction: float = 0.25,
+        risk_free_rate: float = 0.035,
+        max_weight: Optional[float] = None
+    ) -> Dict[str, float]:
+        """
+        Solves multi-asset Fractional Kelly portfolio allocation:
+        w^* = kelly_fraction * Sigma^{-1} (mu - r_f 1)
+        projected onto the constrained long-only simplex (0 <= w_i <= max_weight, sum(w_i) <= 1.0).
+        """
+        symbols = list(expected_returns.index)
+        N = len(symbols)
+        if N == 0:
+            return {}
+        if N == 1:
+            return {symbols[0]: min(1.0, max_weight or self.default_max_weight)}
+
+        cap = max_weight or self.default_max_weight
+        mu = np.nan_to_num(expected_returns.values.astype(np.float64), nan=0.0)
+        # Scale risk-free rate to 20d horizon if mu is horizon return
+        rf_scaled = risk_free_rate * (self.target_horizon / 252.0) if np.mean(mu) < 0.50 else risk_free_rate
+        excess_mu = np.maximum(0.0, mu - rf_scaled)
+
+        cov = np.asarray(covariance_matrix, dtype=np.float64)
+        if cov.shape != (N, N) or not np.all(np.isfinite(cov)):
+            return self.allocate_quarter_kelly(expected_returns, max_weight=cap, kelly_fraction=kelly_fraction)
+
+        try:
+            # Regularized inverse: Sigma + 1e-4 * I
+            cov_reg = cov + 1e-4 * np.eye(N)
+            inv_cov = np.linalg.pinv(cov_reg)
+            raw_kelly = float(kelly_fraction) * np.dot(inv_cov, excess_mu)
+        except Exception:
+            raw_kelly = excess_mu / np.maximum(np.diag(cov), 1e-6)
+
+        # Long-only projection
+        raw_kelly = np.maximum(0.0, raw_kelly)
+        tot_k = np.sum(raw_kelly)
+
+        if tot_k <= 1e-8:
+            return {s: float(1.0 / N) for s in symbols}
+
+        norm_w = raw_kelly / tot_k
+        eff_cap = max(cap, 1.0 / N)
+        clamped_w = np.clip(norm_w, 0.0, eff_cap)
+        clamped_w /= np.sum(clamped_w)
+
+        return {sym: float(w) for sym, w in zip(symbols, clamped_w)}

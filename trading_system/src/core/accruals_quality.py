@@ -107,7 +107,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             cl_change = pd.to_numeric(df_rows.get('current_liabilities_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
             deprec = pd.to_numeric(df_rows.get('depreciation', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
             op_inc = pd.to_numeric(df_rows.get('operating_income', df_rows.get('ebit', pd.Series(np.nan, index=sym_strs))), errors='coerce')
-            
+
             # Traditional Balance Sheet Accruals OCF proxy: OCF ≈ Operating Income + Depreciation - ΔWorking Capital
             wc_change = ca_change - cl_change
             bs_ocf_est = op_inc + deprec - wc_change

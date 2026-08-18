@@ -152,12 +152,66 @@ def is_empty_result(result):
     return False
 
 
-# yfinance suffix mapping for Korean stock markets
-_KR_MARKET_SUFFIX = {
+# yfinance suffix mapping for global stock markets
+_MARKET_SUFFIX_MAP = {
     'KOSPI': '.KS',
     'KOSDAQ': '.KQ',
     'KRX': '.KS',
+    'CHINA_SSE': '.SS',
+    'SSE': '.SS',
+    'CHINA_SZSE': '.SZ',
+    'SZSE': '.SZ',
+    'JAPAN_TSE': '.T',
+    'TSE': '.T',
+    'VIETNAM_HOSE': '.VN',
+    'HOSE': '.VN',
+    'INDIA_NSE': '.NS',
+    'NSE': '.NS',
+    'INDIA_BSE': '.BO',
+    'BSE': '.BO',
+    'TAIWAN_TWSE': '.TW',
+    'TWSE': '.TW',
+    'AUSTRALIA_ASX': '.AX',
+    'ASX': '.AX',
+    'BRAZIL_B3': '.SA',
+    'B3': '.SA',
+    'HKEX': '.HK',
+    'SINGAPORE_SGX': '.SI',
+    'SGX': '.SI',
+    'CANADA_TSX': '.TO',
+    'TSX': '.TO',
 }
+_KR_MARKET_SUFFIX = _MARKET_SUFFIX_MAP  # backward compatibility alias
+
+
+def format_canonical_yf_symbol(symbol: str, market: str) -> str:
+    """Format symbol for yfinance downloading based on market and international ticker conventions."""
+    m = str(market).strip().upper()
+    s = str(symbol).strip()
+    known_suffixes = ('.KS', '.KQ', '.SS', '.SZ', '.T', '.VN', '.NS', '.BO', '.DE', '.PA', '.AS', '.L', '.SW', '.MI', '.TW', '.TWO', '.AX', '.SA', '.HK', '.SI', '.TO')
+    if any(s.upper().endswith(sfx) for sfx in known_suffixes):
+        return s
+
+    if m in ('KOSPI', 'KOSDAQ', 'KRX'):
+        canonical = s.zfill(6) if s.isdigit() and len(s) <= 6 else s
+        suffix = _MARKET_SUFFIX_MAP.get(m, '.KS')
+        return f"{canonical}{suffix}"
+
+    if m in _MARKET_SUFFIX_MAP:
+        suffix = _MARKET_SUFFIX_MAP[m]
+        if m == 'HKEX' and s.isdigit() and len(s) <= 5:
+            return f"{s.zfill(4)}{suffix}"
+        return f"{s}{suffix}"
+
+    if m in ('SP500', 'NASDAQ', 'RUSSELL2000', 'NYSE', 'AMEX', 'US'):
+        return s.replace('.', '-')
+
+    # Fallback: if purely numeric and no explicit market specified, assume KRX
+    if s.isdigit() and len(s) <= 6:
+        return f"{s.zfill(6)}.KS"
+
+    return s
+
 
 
 def _fetch_naver_direct(symbol: str, start_date: str) -> pd.DataFrame:
@@ -263,13 +317,8 @@ def _fetch_data_fdr_network(symbol: str, market: str, start_date: str) -> pd.Dat
 
     # Symbol normalization
     is_krx = market in ('KOSPI', 'KOSDAQ', 'KRX') or (symbol.isdigit() and len(symbol) <= 6)
-    if is_krx:
-        canonical_symbol = symbol.zfill(6) if symbol.isdigit() and len(symbol) <= 6 else symbol
-        suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
-        yf_symbol = f"{canonical_symbol}{suffix}"
-    else:
-        canonical_symbol = symbol
-        yf_symbol = symbol.replace('.', '-')
+    canonical_symbol = symbol.zfill(6) if is_krx and symbol.isdigit() and len(symbol) <= 6 else symbol
+    yf_symbol = format_canonical_yf_symbol(canonical_symbol, market)
 
     result = None
     tier_source = None
@@ -394,12 +443,7 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
             yf_tickers = []
             for sym in batch:
                 market = symbol_market.get(sym, 'SP500')
-                if market in ('SP500', 'NYSE', 'NASDAQ', 'RUSSELL2000') or not (sym.isdigit() and len(sym) <= 6):
-                    yf_ticker = sym.replace('.', '-')
-                else:
-                    clean_sym = sym.zfill(6) if sym.isdigit() and len(sym) <= 6 else sym
-                    suffix = _KR_MARKET_SUFFIX.get(market, '.KS')
-                    yf_ticker = f"{clean_sym}{suffix}"
+                yf_ticker = format_canonical_yf_symbol(sym, market)
                 yf_tickers.append(yf_ticker)
                 ticker_to_sym[yf_ticker] = sym
 
@@ -1158,13 +1202,25 @@ def execute_prediction_pipeline():
     if 'market' not in universe.columns:
         universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
 
-    # Enforce active 5 markets only: KOSPI, KOSDAQ, SP500, NASDAQ, RUSSELL2000
-    valid_markets = {'KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000'}
+    # Enforce active global markets (US, KR, CN, JP, IN, EU, VN, TW, AU, BR, HK, SG, CA)
+    valid_markets = {
+        'KOSPI', 'KOSDAQ', 'KRX',
+        'SP500', 'NASDAQ', 'RUSSELL2000', 'NYSE', 'AMEX', 'US',
+        'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CHINA',
+        'JAPAN_TSE', 'TSE', 'JAPAN',
+        'INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'INDIA',
+        'EUROPE_STOXX', 'EUROPE', 'STOXX', 'DAX', 'FTSE', 'CAC',
+        'VIETNAM_HOSE', 'HOSE', 'VIETNAM',
+        'TAIWAN_TWSE', 'TWSE', 'TAIWAN',
+        'AUSTRALIA_ASX', 'ASX', 'AUSTRALIA',
+        'BRAZIL_B3', 'B3', 'BRAZIL',
+        'HKEX', 'HONGKONG',
+        'SINGAPORE_SGX', 'SGX', 'SINGAPORE',
+        'CANADA_TSX', 'TSX', 'CANADA',
+    }
     universe = universe[universe['market'].astype(str).str.upper().isin(valid_markets)]
 
-    # Single-market pipeline runs (GHA matrix): restrict universe to the target market(s)
-    # so each job predicts only its own market (prevents foreign symbols leaking into
-    # [NASDAQ]/[RUSSELL2000] sections of the ensemble report).
+    # Single-market or regional pipeline runs (GHA matrix / CLI target)
     _target_env_raw = os.environ.get("INFERENCE_TARGET", "").strip().upper()
     if _target_env_raw:
         _targets = [t.strip() for t in _target_env_raw.split(",") if t.strip()]
@@ -1182,6 +1238,36 @@ def execute_prediction_pipeline():
                 _allowed_markets.append("KOSDAQ")
             elif _t == "KRX":
                 _allowed_markets.extend(("KOSPI", "KOSDAQ"))
+            elif _t in ("CHINA", "CN"):
+                _allowed_markets.extend(("CHINA_SSE", "CHINA_SZSE", "SSE", "SZSE"))
+            elif _t in ("JAPAN", "JP"):
+                _allowed_markets.extend(("JAPAN_TSE", "TSE"))
+            elif _t in ("INDIA", "IN"):
+                _allowed_markets.extend(("INDIA_NSE", "INDIA_BSE", "NSE", "BSE"))
+            elif _t in ("EUROPE", "EU"):
+                _allowed_markets.extend(("EUROPE_STOXX", "STOXX", "DAX", "FTSE", "CAC"))
+            elif _t in ("VIETNAM", "VN"):
+                _allowed_markets.extend(("VIETNAM_HOSE", "HOSE"))
+            elif _t in ("TAIWAN", "TW"):
+                _allowed_markets.extend(("TAIWAN_TWSE", "TWSE"))
+            elif _t in ("AUSTRALIA", "AU"):
+                _allowed_markets.extend(("AUSTRALIA_ASX", "ASX"))
+            elif _t in ("BRAZIL", "BR"):
+                _allowed_markets.extend(("BRAZIL_B3", "B3"))
+            elif _t in ("HONGKONG", "HK", "HKEX"):
+                _allowed_markets.append("HKEX")
+            elif _t in ("SINGAPORE", "SG"):
+                _allowed_markets.extend(("SINGAPORE_SGX", "SGX"))
+            elif _t in ("CANADA", "CA"):
+                _allowed_markets.extend(("CANADA_TSX", "TSX"))
+            elif _t == "ASIA_DEV":
+                _allowed_markets.extend(("JAPAN_TSE", "TSE", "TAIWAN_TWSE", "TWSE", "HKEX", "SINGAPORE_SGX", "SGX"))
+            elif _t == "ASIA_EMG":
+                _allowed_markets.extend(("CHINA_SSE", "CHINA_SZSE", "SSE", "SZSE", "INDIA_NSE", "NSE", "VIETNAM_HOSE", "HOSE"))
+            elif _t == "COMMODITY":
+                _allowed_markets.extend(("AUSTRALIA_ASX", "ASX", "BRAZIL_B3", "B3", "CANADA_TSX", "TSX"))
+            elif _t in valid_markets:
+                _allowed_markets.append(_t)
         if _allowed_markets:
             _allowed_set = set(_allowed_markets)
             _filtered = universe[universe['market'].astype(str).str.upper().isin(_allowed_set)]
@@ -3568,12 +3654,15 @@ def execute_prediction_pipeline():
             _crisis_lvl_str = getattr(crisis_lvl, 'value', str(crisis_lvl))
         p_weights = ensemble_df_merged['portfolio_weight'] if 'portfolio_weight' in ensemble_df_merged.columns else pd.Series(0.05, index=ensemble_df_merged.index)
         weight_dict = dict(zip(ensemble_df_merged['symbol'], p_weights))
+        curr_holdings = oms_engine.get_current_holdings_from_db()
         order_plans = oms_engine.generate_order_plan(
             top_picks_dicts, weight_dict,
             total_capital=cfg.portfolio_capital_krw,
             crisis_level=_crisis_lvl_str,
+            current_holdings=curr_holdings,
+            use_leland_buffer=True
         )
-        logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db (crisis_level={_crisis_lvl_str})")
+        logger.info(f"[OMS ENGINE] Generated & saved {len(order_plans)} order execution plans to trade_logs.db (crisis_level={_crisis_lvl_str}, current_holdings={len(curr_holdings)})")
     except Exception as _oms_e:
         logger.warning(f"[OMS ENGINE] Order plan generation skipped: {_oms_e}")
 

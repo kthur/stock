@@ -276,10 +276,9 @@ class RIMValuationEngine(BaseStrategyEngine):
             b_val = r_dict.get('bps')
             r_val = r_dict.get('roe')
             p_val = r_dict.get('Close')
-
-            b = float(b_val) if pd.notna(b_val) else np.nan
-            r = float(r_val) if pd.notna(r_val) else r_e
-            p = float(p_val) if pd.notna(p_val) else np.nan
+            b = float(b_val) if (b_val is not None and pd.notna(b_val)) else np.nan
+            r = float(r_val) if (r_val is not None and pd.notna(r_val)) else r_e
+            p = float(p_val) if (p_val is not None and pd.notna(p_val)) else np.nan
 
             v0 = self.calculate_intrinsic_value(b, r, required_return=r_e)
             v0_list.append(v0)

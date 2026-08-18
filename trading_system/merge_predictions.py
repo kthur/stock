@@ -21,6 +21,13 @@ ALL_31_STRATEGIES = [
 ]
 _STRATEGY_COUNT = len(ALL_31_STRATEGIES)
 
+KNOWN_MARKETS = [
+    "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ",
+    "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
+    "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
+    "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX"
+]
+
 
 
 def get_file_content(path: Path) -> str:
@@ -98,13 +105,14 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
-        for market in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
+        for market in KNOWN_MARKETS:
             mkt_dir = target_dirs.get(market)
             if mkt_dir is None:
                 continue
             file_path = mkt_dir / f"ensemble_predictions_{market}.txt"
             if not file_path.exists():
-                print(f"  Warning: {file_path} not found, skipping recommendations for {market}.")
+                file_path = result_dir / f"ensemble_predictions_{market}.txt"
+            if not file_path.exists():
                 continue
 
             content = get_file_content(file_path)
@@ -149,7 +157,7 @@ def merge_surge_predictions(result_dir: Path, target_dirs: dict) -> None:
         header = f"=== Surge Detection Results (>= 20% return) ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
     horizons = ["1", "3", "5", "20"]
-    markets = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
+    markets = [m for m in KNOWN_MARKETS if m in target_dirs] or KNOWN_MARKETS
 
     sections_written = 0
     buffer = [header]
@@ -217,7 +225,7 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict) -> None:
         header = f"=== VCP ML Surge Predictions ===\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
 
     horizons = ["1", "3", "5", "20"]
-    markets = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
+    markets = [m for m in KNOWN_MARKETS if m in target_dirs] or KNOWN_MARKETS
 
     sections_written = 0
     buffer = [header]
@@ -229,6 +237,8 @@ def merge_vcp_ml_predictions(result_dir: Path, target_dirs: dict) -> None:
         if mkt_dir is None:
             continue
         file_path = mkt_dir / f"vcp_ml_predictions_{mkt}.txt"
+        if not file_path.exists():
+            file_path = result_dir / f"vcp_ml_predictions_{mkt}.txt"
         if not file_path.exists():
             file_path = result_dir / "vcp_ml_predictions.txt"
         if file_path.exists():
@@ -270,17 +280,20 @@ def merge_vcp_patterns(result_dir: Path, target_dirs: dict) -> None:
 
     # Pre-read contents to avoid open('w') truncation bug
     contents_cache = {}
-    for mkt in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
+    markets = [m for m in KNOWN_MARKETS if m in target_dirs] or KNOWN_MARKETS
+    for mkt in markets:
         path = target_dirs.get(mkt)
         if not path:
             continue
         file_path = path / f"vcp_patterns_{mkt}.txt"
         if not file_path.exists():
+            file_path = result_dir / f"vcp_patterns_{mkt}.txt"
+        if not file_path.exists():
             file_path = result_dir / "vcp_patterns.txt"
         if file_path.exists():
             contents_cache[mkt] = get_file_content(file_path)
 
-    for mkt in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
+    for mkt in markets:
         content = contents_cache.get(mkt, "")
         if not content or "데이터 없음" in content or "No data" in content:
             continue
@@ -332,11 +345,14 @@ def merge_lead_lag_predictions(result_dir: Path, target_dirs: dict) -> None:
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(header)
 
-        for mkt in ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]:
+        markets = [m for m in KNOWN_MARKETS if m in target_dirs] or KNOWN_MARKETS
+        for mkt in markets:
             mkt_dir = target_dirs.get(mkt)
             if mkt_dir is None:
                 continue
             file_path = mkt_dir / f"lead_lag_predictions_{mkt}.txt"
+            if not file_path.exists():
+                file_path = result_dir / f"lead_lag_predictions_{mkt}.txt"
             if not file_path.exists():
                 continue
 
@@ -588,7 +604,7 @@ def main():
     result_dir = base_dir / "result"
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    markets = ["SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ"]
+    markets = KNOWN_MARKETS
     target_dirs: dict[str, Path] = {}
     for m in markets:
         # Prefer market-specific split directory; fall back to unified result dir

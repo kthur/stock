@@ -56,6 +56,25 @@ LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
     "204320": ["005380", "000270"],             # HL Mando -> Chassis / ADAS
     "005850": ["005380", "000270"],             # SL Corp -> Auto Lighting
     "011210": ["005380", "000270"],             # Hyundai Wia -> Powertrain
+    # Global Technology & Semiconductor Supply Chain (TW, JP, EU, US, KR)
+    "2330.TW": ["NVDA", "AAPL", "AMD", "QCOM"],         # TSMC -> Global Tech Giants
+    "2454.TW": ["AAPL", "005930", "QCOM"],              # MediaTek -> Handset Ecosystem
+    "2317.TW": ["AAPL", "NVDA", "TSLA"],                # Hon Hai (Foxconn) -> Apple/Nvidia
+    "8035.T": ["2330.TW", "005930", "000660", "INTC"],  # Tokyo Electron -> Fabs
+    "6857.T": ["NVDA", "2330.TW", "000660"],            # Advantest -> AI Testers
+    "6758.T": ["AAPL", "MSFT", "SONY"],                 # Sony -> Image Sensors / Gaming
+    "6981.T": ["AAPL", "005930"],                       # Murata -> MLCC to Apple/Samsung
+    "ASML.AS": ["2330.TW", "005930", "000660", "INTC"], # ASML Holding -> Lithography Fabs
+    "SAP.DE": ["MSFT", "ORCL", "CRM"],                  # SAP -> Enterprise Cloud
+    # Global EV, Battery & Material Supply Chain (CN, JP, KR, AU, BR)
+    "300750.SZ": ["TSLA", "BMW", "005380"],             # CATL -> Global EV
+    "002594.SZ": ["TSLA"],                              # BYD -> Global Auto/Battery
+    "7203.T": ["TSLA"],                                 # Toyota -> Global Auto
+    "BHP.AX": ["005490", "POSCO", "VALE"],              # BHP -> Global Steel & Energy
+    "RIO.AX": ["005490", "BHP"],                        # Rio Tinto -> Global Metals
+    "VALE3.SA": ["005490", "BHP", "PKX"],               # Vale -> Global Iron Ore
+    "D05.SI": ["SGX", "HSBA.L"],                        # DBS Bank -> Asian Financial Flow
+    "VNM.VN": ["005930"],                               # Vinamilk -> Consumer Flow
     # US AI / Cloud Hardware Value Chain -> Megacap Tech Leaders
     "NVDA": ["AAPL", "MSFT", "GOOGL", "AMZN", "META"], # Nvidia -> Hyperscalers
     "AMD": ["MSFT", "GOOGL", "AMZN", "META"],          # AMD -> Cloud Hyperscalers

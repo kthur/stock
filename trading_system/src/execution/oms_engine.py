@@ -10,7 +10,7 @@ import sqlite3
 import datetime
 import logging
 import numpy as np
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,8 @@ class ExecutionOMSEngine:
         portfolio_weights: Dict[str, float],
         total_capital: float = 100000000.0,  # 100,000,000 KRW default
         crisis_level: str = "NORMAL",
+        current_holdings: Optional[Dict[str, float]] = None,
+        use_leland_buffer: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Generates actionable order execution plans based on predictions and Risk Parity weights.
@@ -162,6 +164,8 @@ class ExecutionOMSEngine:
         Safety gates (never disable these):
         - `crisis_level == "SEVERE"` blocks ALL order plan generation.
         - Kill switch (KILL_SWITCH file / KILL_SWITCH env / engage()) blocks ALL order plan generation.
+        - Leland Dynamic Buffer Band Gating: if current_weight is within [target - delta, target + delta],
+          skips order creation to suppress unnecessary turnover and transaction drag.
         - Symbols failing `_validate_symbol` are skipped (protects against dict-string
           symbol corruption from upstream strategy outputs).
         - Plans without an explicit, in-bounds `close_price`/`target_price` are skipped
@@ -233,6 +237,27 @@ class ExecutionOMSEngine:
                     continue
                 if not (0.0 < weight <= 1.0):
                     continue
+
+                # Gate: Leland Dynamic Buffer Band (No-Trade Zone) Gating
+                if use_leland_buffer and current_holdings is not None:
+                    curr_w = float(current_holdings.get(sym, 0.0))
+                    try:
+                        from src.risk.portfolio_allocator import PortfolioAllocator
+                        p_alloc = PortfolioAllocator()
+                        mkt = str(pred.get("market", "KOSPI"))
+                        vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
+                        c_rate = p_alloc.estimate_transaction_cost_rate(
+                            symbol=sym, market=mkt, target_weight=weight,
+                            portfolio_value=tot_cap, volatility_20d=vol_20d
+                        )
+                        delta_i = p_alloc.calculate_dynamic_buffer_band(
+                            symbol=sym, target_weight=weight, cost_rate=c_rate, volatility_20d=vol_20d
+                        )
+                        if abs(curr_w - weight) <= delta_i:
+                            logger.info(f"[OMS LELAND BUFFER] Symbol {sym}: Current weight {curr_w:.3f} within ±{delta_i:.3f} of target {weight:.3f} -> skipping redundant trade (Hold)")
+                            continue
+                    except Exception as _leland_e:
+                        logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
 
                 target_amount = tot_cap * weight
                 if not (0.0 < target_amount <= tot_cap):
@@ -434,6 +459,31 @@ class ExecutionOMSEngine:
             "executed_volume": executed_volume,
             "executed_at": now_str
         }
+
+    def get_current_holdings_from_db(self) -> Dict[str, float]:
+        """Queries recent target_weight or executed allocations from trade_logs.db."""
+        conn = self._get_conn()
+        holdings: Dict[str, float] = {}
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT symbol, target_weight FROM order_plans
+                WHERE status IN ('EXECUTED', 'PENDING', 'PARTIALLY_FILLED')
+                ORDER BY created_at DESC
+            """)
+            rows = cursor.fetchall()
+            for sym, w in rows:
+                if sym not in holdings and w is not None:
+                    try:
+                        holdings[sym] = float(w)
+                    except (ValueError, TypeError):
+                        continue
+        except Exception as e:
+            logger.debug(f"[OMS ENGINE] Failed to fetch current holdings from DB: {e}")
+        finally:
+            if self.db_path != ":memory:":
+                conn.close()
+        return holdings
 
 
 class AlmgrenChrissScheduler:

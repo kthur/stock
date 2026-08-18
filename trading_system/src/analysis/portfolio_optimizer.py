@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Any, List, Dict, Tuple
+from typing import Optional, Any
 
 
 import numpy as np
@@ -123,6 +123,7 @@ def calculate_black_litterman_weights(
     tau: float = 0.05,
     omega_scale: float = 0.1,
     risk_free_rate: float = 0.02,
+    meta_convictions: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Computes optimal portfolio weights using the Black-Litterman model.
@@ -201,7 +202,7 @@ def calculate_black_litterman_weights(
             port_ret = float(w @ mu_bl)
             port_var = float(w @ cov_bl @ w)
             port_vol = float(np.sqrt(max(1e-8, port_var)))
-            
+
             if is_negative_excess:
                 # Quadratic utility maximization: max (w^T mu - 0.5 * lambda * w^T Sigma w)
                 return - (port_ret - 0.5 * lambda_aversion * port_var)
@@ -448,7 +449,7 @@ def apply_portfolio_constraints(
             over_sectors = sec_sums[sec_sums > max_sector_weight + 1e-6]
             if over_sectors.empty:
                 break
-            
+
             excess_total = 0.0
             for sec, total_s in over_sectors.items():
                 scale = max_sector_weight / total_s

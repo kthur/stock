@@ -143,6 +143,61 @@ class TestTradingConfig(unittest.TestCase):
         self.assertEqual(cfg_env.base_spread_nasdaq, 0.0005)
         self.assertEqual(cfg_env.base_spread_russell2000, 0.0012)
 
+    def test_international_market_config(self):
+        """Test international market cost models, currency mappings, and flag indicators."""
+        cfg = TradingConfig()
+        # Verify spreads
+        self.assertAlmostEqual(cfg.get_base_spread("CHINA_SSE"), 0.0008)
+        self.assertAlmostEqual(cfg.get_base_spread("JAPAN_TSE"), 0.0004)
+        self.assertAlmostEqual(cfg.get_base_spread("INDIA_NSE"), 0.0008)
+        self.assertAlmostEqual(cfg.get_base_spread("EUROPE_STOXX"), 0.0005)
+        self.assertAlmostEqual(cfg.get_base_spread("VIETNAM_HOSE"), 0.0020)
+        self.assertAlmostEqual(cfg.get_base_spread("TAIWAN_TWSE"), 0.0006)
+        self.assertAlmostEqual(cfg.get_base_spread("AUSTRALIA_ASX"), 0.0005)
+        self.assertAlmostEqual(cfg.get_base_spread("BRAZIL_B3"), 0.0015)
+        self.assertAlmostEqual(cfg.get_base_spread("HKEX"), 0.0006)
+        self.assertAlmostEqual(cfg.get_base_spread("SINGAPORE_SGX"), 0.0006)
+        self.assertAlmostEqual(cfg.get_base_spread("CANADA_TSX"), 0.0004)
+
+        # Verify taxes
+        self.assertAlmostEqual(cfg.get_stt_tax("KOSPI"), 0.0015)
+        self.assertAlmostEqual(cfg.get_stt_tax("KOSDAQ"), 0.0018)
+        self.assertAlmostEqual(cfg.get_stt_tax("CHINA_SSE"), 0.0005)
+        self.assertAlmostEqual(cfg.get_stt_tax("JAPAN_TSE"), 0.0)
+        self.assertAlmostEqual(cfg.get_stt_tax("INDIA_NSE"), 0.0010)
+        self.assertAlmostEqual(cfg.get_stt_tax("TAIWAN_TWSE"), 0.0030)
+        self.assertAlmostEqual(cfg.get_stt_tax("HKEX"), 0.0010)
+
+        # Verify currencies
+        self.assertEqual(cfg.get_market_currency("KOSPI"), "KRW")
+        self.assertEqual(cfg.get_market_currency("SP500"), "USD")
+        self.assertEqual(cfg.get_market_currency("CHINA_SSE"), "CNY")
+        self.assertEqual(cfg.get_market_currency("JAPAN_TSE"), "JPY")
+        self.assertEqual(cfg.get_market_currency("INDIA_NSE"), "INR")
+        self.assertEqual(cfg.get_market_currency("EUROPE_STOXX"), "EUR")
+        self.assertEqual(cfg.get_market_currency("VIETNAM_HOSE"), "VND")
+        self.assertEqual(cfg.get_market_currency("TAIWAN_TWSE"), "TWD")
+        self.assertEqual(cfg.get_market_currency("AUSTRALIA_ASX"), "AUD")
+        self.assertEqual(cfg.get_market_currency("BRAZIL_B3"), "BRL")
+        self.assertEqual(cfg.get_market_currency("HKEX"), "HKD")
+        self.assertEqual(cfg.get_market_currency("SINGAPORE_SGX"), "SGD")
+        self.assertEqual(cfg.get_market_currency("CANADA_TSX"), "CAD")
+
+        # Verify flags
+        self.assertEqual(cfg.get_market_flag("KOSPI"), "🇰🇷")
+        self.assertEqual(cfg.get_market_flag("SP500"), "🇺🇸")
+        self.assertEqual(cfg.get_market_flag("CHINA_SSE"), "🇨🇳")
+        self.assertEqual(cfg.get_market_flag("JAPAN_TSE"), "🇯🇵")
+        self.assertEqual(cfg.get_market_flag("INDIA_NSE"), "🇮🇳")
+        self.assertEqual(cfg.get_market_flag("EUROPE_STOXX"), "🇪🇺")
+        self.assertEqual(cfg.get_market_flag("VIETNAM_HOSE"), "🇻🇳")
+        self.assertEqual(cfg.get_market_flag("TAIWAN_TWSE"), "🇹🇼")
+        self.assertEqual(cfg.get_market_flag("AUSTRALIA_ASX"), "🇦🇺")
+        self.assertEqual(cfg.get_market_flag("BRAZIL_B3"), "🇧🇷")
+        self.assertEqual(cfg.get_market_flag("HKEX"), "🇭🇰")
+        self.assertEqual(cfg.get_market_flag("SINGAPORE_SGX"), "🇸🇬")
+        self.assertEqual(cfg.get_market_flag("CANADA_TSX"), "🇨🇦")
+
 
 if __name__ == "__main__":
     unittest.main()

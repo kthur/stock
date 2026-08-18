@@ -69,7 +69,7 @@ class MetaLabeler:
         denom = max(1e-6, 1.0 - self.probability_threshold)
         ratio = np.clip((probs - self.probability_threshold) / denom, 0.0, 1.0)
         scaled_conviction = min_conviction + ratio * (max_conviction - min_conviction)
-        
+
         conviction = np.where(
             probs >= self.probability_threshold,
             scaled_conviction,
@@ -108,10 +108,10 @@ class MetaLabeler:
 
         # Extract symbols present in both predictions and features_df
         valid_symbols = [
-            pred.get(symbol_col) for pred in predictions 
+            pred.get(symbol_col) for pred in predictions
             if isinstance(pred, dict) and pred.get(symbol_col) in features_df.index
         ]
-        
+
         if not valid_symbols:
             return predictions
 

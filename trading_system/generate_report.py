@@ -920,9 +920,43 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
 MARKET_FLAGS = {
     "KOSPI": "🇰🇷",
     "KOSDAQ": "🇰🇷",
+    "KRX": "🇰🇷",
     "SP500": "🇺🇸",
     "NASDAQ": "🇺🇸",
     "RUSSELL2000": "🇺🇸",
+    "CHINA_SSE": "🇨🇳",
+    "CHINA_SZSE": "🇨🇳",
+    "SSE": "🇨🇳",
+    "SZSE": "🇨🇳",
+    "CHINA": "🇨🇳",
+    "JAPAN_TSE": "🇯🇵",
+    "TSE": "🇯🇵",
+    "JAPAN": "🇯🇵",
+    "INDIA_NSE": "🇮🇳",
+    "INDIA_BSE": "🇮🇳",
+    "INDIA": "🇮🇳",
+    "EUROPE_STOXX": "🇪🇺",
+    "EUROPE": "🇪🇺",
+    "VIETNAM_HOSE": "🇻🇳",
+    "HOSE": "🇻🇳",
+    "VIETNAM": "🇻🇳",
+    "TAIWAN_TWSE": "🇹🇼",
+    "TWSE": "🇹🇼",
+    "TAIWAN": "🇹🇼",
+    "AUSTRALIA_ASX": "🇦🇺",
+    "ASX": "🇦🇺",
+    "AUSTRALIA": "🇦🇺",
+    "BRAZIL_B3": "🇧🇷",
+    "B3": "🇧🇷",
+    "BRAZIL": "🇧🇷",
+    "HKEX": "🇭🇰",
+    "HONGKONG": "🇭🇰",
+    "SINGAPORE_SGX": "🇸🇬",
+    "SGX": "🇸🇬",
+    "SINGAPORE": "🇸🇬",
+    "CANADA_TSX": "🇨🇦",
+    "TSX": "🇨🇦",
+    "CANADA": "🇨🇦",
 }
 
 REGIME_INFO = {
@@ -3463,7 +3497,21 @@ document.addEventListener('DOMContentLoaded', function() {{
     const limit = (currentScenarioMarket === 'all') ? 30 : 20;
     const finalResults = results.slice(0, limit);
 
-    const mktFlags = {{ KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸' }};
+    const mktFlags = {{
+      KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', KRX: '🇰🇷',
+      SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸', US: '🇺🇸',
+      CHINA_SSE: '🇨🇳', CHINA_SZSE: '🇨🇳', SSE: '🇨🇳', SZSE: '🇨🇳', CHINA: '🇨🇳',
+      JAPAN_TSE: '🇯🇵', TSE: '🇯🇵', JAPAN: '🇯🇵', NIKKEI: '🇯🇵',
+      INDIA_NSE: '🇮🇳', INDIA_BSE: '🇮🇳', NSE: '🇮🇳', BSE: '🇮🇳', INDIA: '🇮🇳',
+      EUROPE_STOXX: '🇪🇺', EUROPE: '🇪🇺', STOXX: '🇪🇺', DAX: '🇩🇪', FTSE: '🇬🇧', CAC: '🇫🇷',
+      VIETNAM_HOSE: '🇻🇳', HOSE: '🇻🇳', VIETNAM: '🇻🇳',
+      TAIWAN_TWSE: '🇹🇼', TWSE: '🇹🇼', TAIWAN: '🇹🇼',
+      AUSTRALIA_ASX: '🇦🇺', ASX: '🇦🇺', AUSTRALIA: '🇦🇺',
+      BRAZIL_B3: '🇧🇷', B3: '🇧🇷', BRAZIL: '🇧🇷',
+      HKEX: '🇭🇰', HONGKONG: '🇭🇰',
+      SINGAPORE_SGX: '🇸🇬', SGX: '🇸🇬', SINGAPORE: '🇸🇬',
+      CANADA_TSX: '🇨🇦', TSX: '🇨🇦', CANADA: '🇨🇦'
+    }};
 
     let html = '';
     if (finalResults.length === 0) {{

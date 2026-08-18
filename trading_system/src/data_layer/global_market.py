@@ -19,15 +19,24 @@ GLOBAL_INDICES: Dict[str, str] = {
     "^GSPC": "S&P 500",
     "^IXIC": "NASDAQ",
     "^DJI": "Dow Jones",
+    "^RUT": "Russell 2000",
     "^KS11": "KOSPI",
+    "^KQ11": "KOSDAQ",
     "^N225": "Nikkei 225",
     "^HSI": "Hang Seng",
     "^FTSE": "FTSE 100",
+    "000300.SS": "CSI 300",
     "000001.SS": "Shanghai Composite",
     "^BSESN": "BSE Sensex",
+    "^NSEI": "Nifty 50",
     "^AXJO": "ASX 200",
     "^GDAXI": "DAX",
     "^FCHI": "CAC 40",
+    "^STOXX50E": "Euro Stoxx 50",
+    "^TWII": "TAIEX (Taiwan)",
+    "^BVSP": "Bovespa (Brazil)",
+    "^STI": "Straits Times (Singapore)",
+    "^GSPTSE": "S&P/TSX (Canada)",
     "^VIX": "CBOE Volatility",
 }
 
@@ -38,6 +47,13 @@ FX_PAIRS: Dict[str, str] = {
     "GBPUSD=X": "GBP/USD",
     "USDCAD=X": "USD/CAD",
     "USDCNY=X": "USD/CNY",
+    "USDINR=X": "USD/INR",
+    "USDVND=X": "USD/VND",
+    "USDTWD=X": "USD/TWD",
+    "USDAUD=X": "USD/AUD",
+    "USDBRL=X": "USD/BRL",
+    "USDHKD=X": "USD/HKD",
+    "USDSGD=X": "USD/SGD",
 }
 
 # 추가 거시경제 지표: 금리, 원자재, 달러인덱스, 한국 국채

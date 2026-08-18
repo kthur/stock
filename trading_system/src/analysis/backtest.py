@@ -744,7 +744,7 @@ class BacktestEngine:
         # 최종 청산 (남은 포지션 강제 종가 정리 / 상장폐지 이벤트 처리)
         is_delisting = (delisting_recovery_rate is not None)
         exit_reason_final = "DELISTING" if is_delisting else "FINAL"
-        recovery_mult = float(np.clip(delisting_recovery_rate, 0.0, 2.0)) if is_delisting else 1.0
+        recovery_mult = float(np.clip(delisting_recovery_rate, 0.0, 2.0)) if delisting_recovery_rate is not None else 1.0
 
         if position > 0:
             final_price = price_bars[-1].close * recovery_mult

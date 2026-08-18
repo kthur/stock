@@ -84,8 +84,20 @@ class TradingConfig:
     base_spread_nasdaq: float = 0.0003          # NASDAQ 기준 스프레드 (0.03%)
     base_spread_russell2000: float = 0.0008     # RUSSELL2000 기준 스프레드 (0.08%)
     base_spread_sp500: float = 0.0002           # SP500 기준 스프레드 (0.02%)
+    base_spread_china: float = 0.0008           # CHINA (SSE/SZSE) 기준 스프레드 (0.08%)
+    base_spread_japan: float = 0.0004           # JAPAN (TSE) 기준 스프레드 (0.04%)
+    base_spread_india: float = 0.0008           # INDIA (NSE/BSE) 기준 스프레드 (0.08%)
+    base_spread_europe: float = 0.0005          # EUROPE (STOXX/DAX/FTSE) 기준 스프레드 (0.05%)
+    base_spread_vietnam: float = 0.0020         # VIETNAM (HOSE) 기준 스프레드 (0.20%)
+    base_spread_taiwan: float = 0.0006          # TAIWAN (TWSE) 기준 스프레드 (0.06%)
+    base_spread_australia: float = 0.0005       # AUSTRALIA (ASX) 기준 스프레드 (0.05%)
+    base_spread_brazil: float = 0.0015          # BRAZIL (B3) 기준 스프레드 (0.15%)
+    base_spread_hkex: float = 0.0006            # HONG KONG (HKEX) 기준 스프레드 (0.06%)
+    base_spread_singapore: float = 0.0006       # SINGAPORE (SGX) 기준 스프레드 (0.06%)
+    base_spread_canada: float = 0.0004          # CANADA (TSX) 기준 스프레드 (0.04%)
     default_volatility_krx: float = 0.020       # KRX 기본 일일 변동성 (2.0%)
     default_volatility_sp500: float = 0.015     # SP500 기본 일일 변동성 (1.5%)
+    default_volatility_global: float = 0.018    # 글로벌 기본 일일 변동성 (1.8%)
 
     # 포트폴리오 자본금 단일 소스 (KRW, GHA/OMS/HRP 모두 여기에서 읽음)
     portfolio_capital_krw: float = 100_000_000.0  # 1억 원
@@ -413,6 +425,140 @@ class TradingConfig:
     def get_update_interval(self) -> int:
         return int(str(self.update_interval).strip())
 
+
+    def get_base_spread(self, market: str) -> float:
+        """Return baseline bid-ask spread ratio for a given market."""
+        mkt = str(market).strip().upper()
+        if mkt in ('KOSPI', 'KRX'):
+            return self.base_spread_kospi
+        if mkt == 'KOSDAQ':
+            return self.base_spread_kosdaq
+        if mkt == 'NASDAQ':
+            return self.base_spread_nasdaq
+        if mkt in ('RUSSELL2000', 'RUSSELL'):
+            return self.base_spread_russell2000
+        if mkt in ('SP500', 'S&P500', 'NYSE', 'US'):
+            return self.base_spread_sp500
+        if mkt in ('CHINA', 'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CSI300'):
+            return self.base_spread_china
+        if mkt in ('JAPAN', 'JAPAN_TSE', 'TSE', 'NIKKEI', 'TOPIX'):
+            return self.base_spread_japan
+        if mkt in ('INDIA', 'INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'NIFTY50', 'SENSEX'):
+            return self.base_spread_india
+        if mkt in ('EUROPE', 'EUROPE_STOXX', 'STOXX', 'DAX', 'FTSE', 'CAC'):
+            return self.base_spread_europe
+        if mkt in ('VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'VN30', 'HNX'):
+            return self.base_spread_vietnam
+        if mkt in ('TAIWAN', 'TAIWAN_TWSE', 'TWSE', 'TAIEX'):
+            return self.base_spread_taiwan
+        if mkt in ('AUSTRALIA', 'AUSTRALIA_ASX', 'ASX', 'ASX200'):
+            return self.base_spread_australia
+        if mkt in ('BRAZIL', 'BRAZIL_B3', 'B3', 'IBOVESPA'):
+            return self.base_spread_brazil
+        if mkt in ('HKEX', 'HONGKONG', 'HANGSENG'):
+            return self.base_spread_hkex
+        if mkt in ('SINGAPORE', 'SINGAPORE_SGX', 'SGX', 'STI'):
+            return self.base_spread_singapore
+        if mkt in ('CANADA', 'CANADA_TSX', 'TSX'):
+            return self.base_spread_canada
+        return self.base_spread_sp500
+
+    def get_stt_tax(self, market: str) -> float:
+        """Return sell-side securities transaction tax (STT) / Stamp duty for a given market."""
+        mkt = str(market).strip().upper()
+        if mkt == 'KOSDAQ':
+            return 0.0018
+        if mkt in ('KOSPI', 'KRX'):
+            return 0.0015
+        if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'NYSE', 'US'):
+            return 0.00003  # SEC fee proxy
+        if mkt in ('CHINA', 'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CSI300'):
+            return 0.0005  # China 0.05% stamp duty
+        if mkt in ('JAPAN', 'JAPAN_TSE', 'TSE', 'NIKKEI'):
+            return 0.0     # Japan: No transaction tax
+        if mkt in ('INDIA', 'INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'NIFTY50'):
+            return 0.0010  # India: 0.1% STT on equity delivery
+        if mkt in ('EUROPE', 'EUROPE_STOXX', 'STOXX', 'DAX', 'FTSE', 'CAC'):
+            return 0.0010  # Europe average financial transaction tax / Stamp duty
+        if mkt in ('VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'VN30'):
+            return 0.0015  # Vietnam 0.1% transfer tax + local surcharge
+        if mkt in ('TAIWAN', 'TAIWAN_TWSE', 'TWSE', 'TAIEX'):
+            return 0.0030  # Taiwan: 0.3% Securities Transaction Tax
+        if mkt in ('AUSTRALIA', 'AUSTRALIA_ASX', 'ASX'):
+            return 0.0     # Australia: No transaction tax
+        if mkt in ('BRAZIL', 'BRAZIL_B3', 'B3'):
+            return 0.0     # Brazil: No transaction tax
+        if mkt in ('HKEX', 'HONGKONG', 'HANGSENG'):
+            return 0.0010  # Hong Kong: 0.10% Stamp Duty
+        if mkt in ('SINGAPORE', 'SINGAPORE_SGX', 'SGX'):
+            return 0.0     # Singapore: No transaction tax
+        if mkt in ('CANADA', 'CANADA_TSX', 'TSX'):
+            return 0.0     # Canada: No transaction tax
+        return 0.0001
+
+    def get_brokerage_fee(self, market: str) -> float:
+        """Return one-way estimated brokerage fee ratio for a given market."""
+        mkt = str(market).strip().upper()
+        if mkt in ('KOSPI', 'KOSDAQ', 'KRX'):
+            return 0.0003
+        if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US'):
+            return 0.00005
+        if mkt in ('VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'BRAZIL', 'BRAZIL_B3'):
+            return 0.0010
+        return 0.0005
+
+    def get_market_currency(self, market: str) -> str:
+        """Return base currency for a given market."""
+        mkt = str(market).strip().upper()
+        if mkt in ('KOSPI', 'KOSDAQ', 'KRX'):
+            return 'KRW'
+        if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US', 'NYSE', 'AMEX'):
+            return 'USD'
+        if mkt in ('CHINA', 'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CSI300'):
+            return 'CNY'
+        if mkt in ('JAPAN', 'JAPAN_TSE', 'TSE', 'NIKKEI', 'TOPIX'):
+            return 'JPY'
+        if mkt in ('INDIA', 'INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'NIFTY50'):
+            return 'INR'
+        if mkt in ('EUROPE', 'EUROPE_STOXX', 'STOXX', 'DAX', 'CAC'):
+            return 'EUR'
+        if mkt in ('FTSE', 'UK'):
+            return 'GBP'
+        if mkt in ('VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'VN30'):
+            return 'VND'
+        if mkt in ('TAIWAN', 'TAIWAN_TWSE', 'TWSE', 'TAIEX'):
+            return 'TWD'
+        if mkt in ('AUSTRALIA', 'AUSTRALIA_ASX', 'ASX'):
+            return 'AUD'
+        if mkt in ('BRAZIL', 'BRAZIL_B3', 'B3'):
+            return 'BRL'
+        if mkt in ('HKEX', 'HONGKONG'):
+            return 'HKD'
+        if mkt in ('SINGAPORE', 'SINGAPORE_SGX', 'SGX'):
+            return 'SGD'
+        if mkt in ('CANADA', 'CANADA_TSX', 'TSX'):
+            return 'CAD'
+        return 'USD'
+
+    def get_market_flag(self, market: str) -> str:
+        """Return country flag emoji for a given market."""
+        mkt = str(market).strip().upper()
+        flags = {
+            'KOSPI': '🇰🇷', 'KOSDAQ': '🇰🇷', 'KRX': '🇰🇷',
+            'SP500': '🇺🇸', 'NASDAQ': '🇺🇸', 'RUSSELL2000': '🇺🇸', 'US': '🇺🇸',
+            'CHINA_SSE': '🇨🇳', 'CHINA_SZSE': '🇨🇳', 'SSE': '🇨🇳', 'SZSE': '🇨🇳', 'CHINA': '🇨🇳',
+            'JAPAN_TSE': '🇯🇵', 'TSE': '🇯🇵', 'JAPAN': '🇯🇵', 'NIKKEI': '🇯🇵',
+            'INDIA_NSE': '🇮🇳', 'INDIA_BSE': '🇮🇳', 'NSE': '🇮🇳', 'BSE': '🇮🇳', 'INDIA': '🇮🇳',
+            'EUROPE_STOXX': '🇪🇺', 'EUROPE': '🇪🇺', 'STOXX': '🇪🇺', 'DAX': '🇩🇪', 'FTSE': '🇬🇧', 'CAC': '🇫🇷',
+            'VIETNAM_HOSE': '🇻🇳', 'HOSE': '🇻🇳', 'VIETNAM': '🇻🇳',
+            'TAIWAN_TWSE': '🇹🇼', 'TWSE': '🇹🇼', 'TAIWAN': '🇹🇼',
+            'AUSTRALIA_ASX': '🇦🇺', 'ASX': '🇦🇺', 'AUSTRALIA': '🇦🇺',
+            'BRAZIL_B3': '🇧🇷', 'B3': '🇧🇷', 'BRAZIL': '🇧🇷',
+            'HKEX': '🇭🇰', 'HONGKONG': '🇭🇰',
+            'SINGAPORE_SGX': '🇸🇬', 'SGX': '🇸🇬', 'SINGAPORE': '🇸🇬',
+            'CANADA_TSX': '🇨🇦', 'TSX': '🇨🇦', 'CANADA': '🇨🇦',
+        }
+        return flags.get(mkt, '🌐')
 
     def validate(self) -> None:
         if self.initial_cash <= 0:

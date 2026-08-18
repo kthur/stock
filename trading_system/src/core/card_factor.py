@@ -72,7 +72,7 @@ class CARDFactorEngine(BaseStrategyEngine):
         # Extract latest macro indicators with safe scaling (supports raw or change keys)
         usdkrw_chg = _safe_macro('usdkrw_change') or _safe_macro('usdkrw_pct') or 0.0
         wti_chg = _safe_macro('wti_change') or _safe_macro('wti_pct') or 0.0
-        
+
         # Determine whether we have raw VIX level (e.g. 25.0) or percentage change (e.g. +5.0%)
         vix_raw = _safe_macro('vix') or _safe_macro('vix_raw')
         vix_change = _safe_macro('vix_change') or _safe_macro('vix_pct')

@@ -86,8 +86,15 @@ class DeltaBetaHedgeEngine:
         us_count = len(symbols) - kr_count
         is_us_portfolio = us_count > kr_count
 
-        hedge_etf = 'SH' if is_us_portfolio else '252670.KS'
-        inverse_beta = -1.0 if is_us_portfolio else -2.0
+        # Volatility Drag Mitigation: Use 1X Inverse (114800.KS) in moderate bear/watch regimes,
+        # and 2X Inverse (252670.KS) only in SEVERE or BEAR_HIGH_VOL crisis to avoid compounding decay.
+        is_high_stress = (crisis_level == "SEVERE") or (regime in ["BEAR_HIGH_VOL", "CRISIS_SEVERE", "CRISIS_ACTIVE"])
+        if is_us_portfolio:
+            hedge_etf = 'SPXU' if is_high_stress else 'SH'
+            inverse_beta = -3.0 if is_high_stress else -1.0
+        else:
+            hedge_etf = '252670.KS' if is_high_stress else '114800.KS'
+            inverse_beta = -2.0 if is_high_stress else -1.0
 
         # 2. Determine Target Portfolio Beta based on Crisis & Regime
         target_beta = port_beta
