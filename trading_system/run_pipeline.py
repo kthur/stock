@@ -185,9 +185,29 @@ _KR_MARKET_SUFFIX = _MARKET_SUFFIX_MAP  # backward compatibility alias
 
 
 def format_canonical_yf_symbol(symbol: str, market: str) -> str:
-    """Format symbol for yfinance downloading based on market and international ticker conventions."""
+    """Format symbol for yfinance downloading based on market and international ticker conventions.
+
+    HKEX normalization: HK ticker codes must be 4-digit zero-padded integers (e.g. "1281.HK",
+    "0700.HK"). Leading zeros beyond 4 digits (e.g. "01281" from fdr.StockListing) are stripped
+    via int() conversion so that yfinance receives the canonical form.
+    """
     m = str(market).strip().upper()
     s = str(symbol).strip()
+
+    # ── HKEX: normalize BEFORE the generic suffix early-return ──────────────
+    # Handles both bare codes ("01281", "700") and already-suffixed ("01281.HK")
+    # regardless of whether market is explicit or inferred from the .HK suffix.
+    is_hk_market = (m == 'HKEX')
+    is_hk_suffix = s.upper().endswith('.HK')
+    if is_hk_market or is_hk_suffix:
+        numeric_part = s.split('.')[0]  # "01281.HK" → "01281", "1281" → "1281"
+        if numeric_part.isdigit():
+            # int() strips leading zeros; :04d re-pads to minimum 4 digits
+            return f"{int(numeric_part):04d}.HK"
+        # Non-numeric HK symbol (e.g. "HSBA.HK") — keep as-is with suffix
+        return s if is_hk_suffix else f"{s}.HK"
+    # ────────────────────────────────────────────────────────────────────────
+
     known_suffixes = ('.KS', '.KQ', '.SS', '.SZ', '.T', '.VN', '.NS', '.BO', '.DE', '.PA', '.AS', '.L', '.SW', '.MI', '.TW', '.TWO', '.AX', '.SA', '.HK', '.SI', '.TO')
     if any(s.upper().endswith(sfx) for sfx in known_suffixes):
         return s
@@ -199,8 +219,6 @@ def format_canonical_yf_symbol(symbol: str, market: str) -> str:
 
     if m in _MARKET_SUFFIX_MAP:
         suffix = _MARKET_SUFFIX_MAP[m]
-        if m == 'HKEX' and s.isdigit() and len(s) <= 5:
-            return f"{s.zfill(4)}{suffix}"
         return f"{s}{suffix}"
 
     if m in ('SP500', 'NASDAQ', 'RUSSELL2000', 'NYSE', 'AMEX', 'US'):
