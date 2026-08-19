@@ -11,7 +11,7 @@ import logging
 import datetime
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 
 from .base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta
@@ -85,7 +85,6 @@ class IndexRebalanceEngine(BaseStrategyEngine):
         results = []
         rebal_info = self.is_near_rebalance_window()
         is_active_window = rebal_info["in_window"]
-        days_to_eff = rebal_info["days_to_rebalance"]
 
         # Market Cap & Liquidity Ranking
         mcap_col = "market_cap" if "market_cap" in df_uni.columns else ("marcap" if "marcap" in df_uni.columns else None)

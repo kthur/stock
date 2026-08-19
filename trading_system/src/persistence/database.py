@@ -409,6 +409,49 @@ def normalize_symbol(symbol: str) -> str:
     return s
 
 
+class DataValidator:
+    """
+    Domain-level data validator for cleaning and enforcing invariants on market series.
+    Separates data validation and sanitization domain logic from persistence mechanisms.
+    """
+    @staticmethod
+    def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:
+        """
+        Validates price series for unadjusted split anomalies or erroneous data feeds.
+        Interpolates transient spikes/drops > max_daily_jump (65%) across all OHLC columns
+        and enforces strict OHLC boundary invariants (Low <= Open, Close <= High).
+        """
+        if df.empty or len(df) < 5 or 'Close' not in df.columns:
+            return df
+
+        df_clean = df.copy()
+        close = df_clean['Close']
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+
+        pct_chg = close.pct_change().abs()
+        anomalies = pct_chg > max_daily_jump
+        if anomalies.any():
+            # Check for transient single-day spike/drop that reverts immediately
+            next_pct_chg = close.pct_change(-1).abs()
+            transient_spikes = anomalies & (next_pct_chg > (max_daily_jump * 0.8))
+            if transient_spikes.any():
+                logger.warning(f"Detected {transient_spikes.sum()} transient price anomalies. Interpolating clean OHLC values.")
+                for col in ['Close', 'Open', 'High', 'Low']:
+                    if col in df_clean.columns:
+                        df_clean.loc[transient_spikes, col] = np.nan
+                        df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
+
+        # Enforce OHLC consistency invariants
+        if 'High' in df_clean.columns and 'Low' in df_clean.columns and 'Close' in df_clean.columns:
+            open_series = df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close']
+            df_clean['High'] = np.maximum(df_clean['High'], np.maximum(open_series, df_clean['Close']))
+            df_clean['Low'] = np.minimum(df_clean['Low'], np.minimum(open_series, df_clean['Close']))
+            df_clean['Low'] = df_clean['Low'].clip(lower=1e-4)
+
+        return df_clean
+
+
 class StockPriceDB:
     """주가 데이터 SQLite 캐시 (OHLCV + 거래량) — 외부 API 재호출 방지
 
@@ -562,40 +605,8 @@ class StockPriceDB:
 
     @staticmethod
     def validate_and_clean_price_series(df: pd.DataFrame, max_daily_jump: float = 0.65) -> pd.DataFrame:
-        """
-        Validates price series for unadjusted split anomalies or erroneous data feeds.
-        Interpolates transient spikes/drops > max_daily_jump (65%) across all OHLC columns
-        and enforces strict OHLC boundary invariants (Low <= Open, Close <= High).
-        """
-        if df.empty or len(df) < 5 or 'Close' not in df.columns:
-            return df
-
-        df_clean = df.copy()
-        close = df_clean['Close']
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
-
-        pct_chg = close.pct_change().abs()
-        anomalies = pct_chg > max_daily_jump
-        if anomalies.any():
-            # Check for transient single-day spike/drop that reverts immediately
-            next_pct_chg = close.pct_change(-1).abs()
-            transient_spikes = anomalies & (next_pct_chg > (max_daily_jump * 0.8))
-            if transient_spikes.any():
-                logger.warning(f"Detected {transient_spikes.sum()} transient price anomalies. Interpolating clean OHLC values.")
-                for col in ['Close', 'Open', 'High', 'Low']:
-                    if col in df_clean.columns:
-                        df_clean.loc[transient_spikes, col] = np.nan
-                        df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
-
-        # Enforce OHLC consistency invariants
-        if 'High' in df_clean.columns and 'Low' in df_clean.columns and 'Close' in df_clean.columns:
-            open_series = df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close']
-            df_clean['High'] = np.maximum(df_clean['High'], np.maximum(open_series, df_clean['Close']))
-            df_clean['Low'] = np.minimum(df_clean['Low'], np.minimum(open_series, df_clean['Close']))
-            df_clean['Low'] = df_clean['Low'].clip(lower=1e-4)
-
-        return df_clean
+        """Delegate to DataValidator for backwards compatibility and clean SRP separation."""
+        return DataValidator.validate_and_clean_price_series(df, max_daily_jump=max_daily_jump)
 
     def get_prices(self, symbol: str, start_date: Optional[str] = None,
                    end_date: Optional[str] = None) -> pd.DataFrame:

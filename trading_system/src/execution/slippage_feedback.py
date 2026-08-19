@@ -145,7 +145,16 @@ class SlippageFeedbackEngine:
                     recommended_market_impact_multiplier=1.0,
                 )
 
-            avg_slip = float(np.mean(valid_slippages))
+            # Robust estimation: MAD (Median Absolute Deviation) filtering for anomalous fills/splits
+            arr = np.array(valid_slippages, dtype=float)
+            med = float(np.median(arr))
+            mad = float(np.median(np.abs(arr - med)))
+            if mad > 1e-4 and len(arr) >= 5:
+                filtered = arr[np.abs(arr - med) <= 3.5 * mad]
+                avg_slip = float(np.mean(filtered)) if len(filtered) > 0 else med
+            else:
+                avg_slip = med
+
             max_slip = float(np.max(valid_slippages))
             if not math.isfinite(avg_slip):
                 avg_slip = self.default_slippage_bps

@@ -330,12 +330,17 @@ class ExecutionOMSEngine:
                     action = "BUY"
                     status = "PENDING"
 
-                # Gate 7.2: KRX Upper Limit Lock (±30% Price Limit Gate)
+                # Gate 7.2: KRX Upper/Lower Limit Lock (±30% Price Limit & Liquidity Vanishing Gate)
                 change_pct = pred.get("change_pct") or pred.get("daily_return")
                 try:
-                    if change_pct is not None and float(change_pct) >= 0.295 and action == "BUY":
-                        logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{float(change_pct):.2%}), skipping buy.")
-                        continue
+                    if change_pct is not None:
+                        c_flt = float(change_pct)
+                        if c_flt >= 0.295 and action == "BUY":
+                            logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_flt:.2%}), skipping buy execution.")
+                            continue
+                        elif c_flt <= -0.295:
+                            logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_flt:.2%}) - complete liquidity freeze; skipping new entry and tagging emergency monitoring.")
+                            continue
                 except (ValueError, TypeError):
                     pass
 

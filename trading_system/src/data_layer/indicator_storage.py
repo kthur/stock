@@ -31,6 +31,125 @@ def _is_krx_symbol(symbol: str) -> bool:
         return True
     return False
 
+# Benchmark fallbacks for global markets (India, Europe, Taiwan, Australia, Brazil, Singapore, Canada)
+GLOBAL_BENCHMARK_FALLBACKS = [
+    # India (NSE)
+    ("RELIANCE", "Reliance Industries", "INDIA_NSE", "Energy", "Oil & Gas"),
+    ("TCS", "Tata Consultancy", "INDIA_NSE", "Technology", "IT Services"),
+    ("HDFCBANK", "HDFC Bank", "INDIA_NSE", "Financials", "Banking"),
+    ("INFY", "Infosys", "INDIA_NSE", "Technology", "IT Services"),
+    ("ICICIBANK", "ICICI Bank", "INDIA_NSE", "Financials", "Banking"),
+    ("SBIN", "State Bank of India", "INDIA_NSE", "Financials", "Banking"),
+    ("BHARTIARTL", "Bharti Airtel", "INDIA_NSE", "Communication", "Telecom"),
+    ("ITC", "ITC Limited", "INDIA_NSE", "Consumer Staples", "Tobacco"),
+    ("KOTAKBANK", "Kotak Mahindra", "INDIA_NSE", "Financials", "Banking"),
+    ("LT", "Larsen & Toubro", "INDIA_NSE", "Industrials", "Construction"),
+    # Europe (STOXX)
+    ("SAP.DE", "SAP SE", "EUROPE_STOXX", "Technology", "Software"),
+    ("MC.PA", "LVMH", "EUROPE_STOXX", "Consumer Discretionary", "Luxury"),
+    ("ASML.AS", "ASML Holding", "EUROPE_STOXX", "Technology", "Semiconductors"),
+    ("AZN.L", "AstraZeneca", "EUROPE_STOXX", "Healthcare", "Pharmaceuticals"),
+    ("NESN.SW", "Nestle", "EUROPE_STOXX", "Consumer Staples", "Food"),
+    ("NOVN.SW", "Novartis", "EUROPE_STOXX", "Healthcare", "Pharmaceuticals"),
+    ("ROG.SW", "Roche", "EUROPE_STOXX", "Healthcare", "Pharmaceuticals"),
+    ("TTE.PA", "TotalEnergies", "EUROPE_STOXX", "Energy", "Oil & Gas"),
+    ("SIE.DE", "Siemens", "EUROPE_STOXX", "Industrials", "Conglomerate"),
+    ("AIR.PA", "Airbus", "EUROPE_STOXX", "Industrials", "Aerospace"),
+    # Taiwan (TWSE)
+    ("2330", "TSMC", "TAIWAN_TWSE", "Technology", "Semiconductors"),
+    ("2317", "Hon Hai (Foxconn)", "TAIWAN_TWSE", "Technology", "Hardware"),
+    ("2454", "MediaTek", "TAIWAN_TWSE", "Technology", "Semiconductors"),
+    ("2308", "Delta Electronics", "TAIWAN_TWSE", "Technology", "Electronics"),
+    ("2881", "Fubon Financial", "TAIWAN_TWSE", "Financials", "Banking"),
+    ("2882", "Cathay Financial", "TAIWAN_TWSE", "Financials", "Banking"),
+    ("2382", "Quanta Computer", "TAIWAN_TWSE", "Technology", "Hardware"),
+    ("2412", "Chunghwa Telecom", "TAIWAN_TWSE", "Communication", "Telecom"),
+    ("2886", "Mega Financial", "TAIWAN_TWSE", "Financials", "Banking"),
+    ("1303", "Nan Ya Plastics", "TAIWAN_TWSE", "Materials", "Chemicals"),
+    # Australia (ASX)
+    ("BHP", "BHP Group", "AUSTRALIA_ASX", "Materials", "Mining"),
+    ("CBA", "Commonwealth Bank", "AUSTRALIA_ASX", "Financials", "Banking"),
+    ("CSL", "CSL Limited", "AUSTRALIA_ASX", "Healthcare", "Biotechnology"),
+    ("NAB", "National Australia Bank", "AUSTRALIA_ASX", "Financials", "Banking"),
+    ("WBC", "Westpac", "AUSTRALIA_ASX", "Financials", "Banking"),
+    ("ANZ", "ANZ Bank", "AUSTRALIA_ASX", "Financials", "Banking"),
+    ("FMG", "Fortescue Metals", "AUSTRALIA_ASX", "Materials", "Mining"),
+    ("WES", "Wesfarmers", "AUSTRALIA_ASX", "Consumer Discretionary", "Retail"),
+    ("MQG", "Macquarie Group", "AUSTRALIA_ASX", "Financials", "Investment Banking"),
+    ("RIO", "Rio Tinto", "AUSTRALIA_ASX", "Materials", "Mining"),
+    # Brazil (B3)
+    ("VALE3", "Vale S.A.", "BRAZIL_B3", "Materials", "Mining"),
+    ("PETR4", "Petrobras", "BRAZIL_B3", "Energy", "Oil & Gas"),
+    ("ITUB4", "Itaú Unibanco", "BRAZIL_B3", "Financials", "Banking"),
+    ("BBDC4", "Banco Bradesco", "BRAZIL_B3", "Financials", "Banking"),
+    ("ABEV3", "Ambev", "BRAZIL_B3", "Consumer Staples", "Beverages"),
+    ("B3SA3", "B3 S.A.", "BRAZIL_B3", "Financials", "Exchange"),
+    ("RENT3", "Localiza", "BRAZIL_B3", "Industrials", "Car Rental"),
+    ("WEGE3", "WEG S.A.", "BRAZIL_B3", "Industrials", "Electrical Equipment"),
+    ("BBAS3", "Banco do Brasil", "BRAZIL_B3", "Financials", "Banking"),
+    ("SUZB3", "Suzano", "BRAZIL_B3", "Materials", "Paper & Forest"),
+    # Singapore (SGX)
+    ("D05", "DBS Group", "SINGAPORE_SGX", "Financials", "Banking"),
+    ("O39", "OCBC Bank", "SINGAPORE_SGX", "Financials", "Banking"),
+    ("U11", "UOB", "SINGAPORE_SGX", "Financials", "Banking"),
+    ("Z74", "Singtel", "SINGAPORE_SGX", "Communication", "Telecom"),
+    ("C6L", "Singapore Airlines", "SINGAPORE_SGX", "Industrials", "Airlines"),
+    ("BN4", "Keppel Corp", "SINGAPORE_SGX", "Industrials", "Conglomerate"),
+    ("G13", "Genting Singapore", "SINGAPORE_SGX", "Consumer Discretionary", "Gaming"),
+    ("BS6", "Yangzijiang Shipbuilding", "SINGAPORE_SGX", "Industrials", "Shipbuilding"),
+    ("A17U", "CapitaLand Ascendas REIT", "SINGAPORE_SGX", "Real Estate", "REIT"),
+    ("C38U", "CapitaLand Integrated Commercial Trust", "SINGAPORE_SGX", "Real Estate", "REIT"),
+    # Canada (TSX)
+    ("RY", "Royal Bank of Canada", "CANADA_TSX", "Financials", "Banking"),
+    ("TD", "Toronto-Dominion Bank", "CANADA_TSX", "Financials", "Banking"),
+    ("ENB", "Enbridge", "CANADA_TSX", "Energy", "Oil & Gas Midstream"),
+    ("CNQ", "Canadian Natural Resources", "CANADA_TSX", "Energy", "Oil & Gas"),
+    ("CP", "Canadian Pacific Kansas City", "CANADA_TSX", "Industrials", "Railroads"),
+    ("CNR", "Canadian National Railway", "CANADA_TSX", "Industrials", "Railroads"),
+    ("BNS", "Bank of Nova Scotia", "CANADA_TSX", "Financials", "Banking"),
+    ("BMO", "Bank of Montreal", "CANADA_TSX", "Financials", "Banking"),
+    ("TRI", "Thomson Reuters", "CANADA_TSX", "Technology", "Information Services"),
+    ("SHOP", "Shopify", "CANADA_TSX", "Technology", "E-Commerce"),
+]
+
+
+class MacroIndicatorStore:
+    """Specialized component for global macro indicators (VIX, TNX, USDKRW, WTI, Gold, DXY)."""
+    def __init__(self, parent_storage: 'MarketIndicatorStorage'):
+        self.parent = parent_storage
+
+    def save_indicators(self, data: Any, date_str: Any = None) -> Any:
+        return self.parent.save_indicators(data, date_str)
+
+    def get_latest_indicators(self) -> Dict[str, float]:
+        return self.parent.get_latest_global_indicators()
+
+
+class StockUniverseManager:
+    """Specialized component for multi-market stock universe listing and classification."""
+    def __init__(self, parent_storage: 'MarketIndicatorStorage'):
+        self.parent = parent_storage
+
+    def update_stock_universe(self) -> None:
+        self.parent.update_stock_universe()
+
+    def get_stock_universe(self, market: Optional[str] = None) -> List[str]:
+        df = self.parent.get_universe(market)
+        return df['symbol'].tolist() if not df.empty and 'symbol' in df.columns else []
+
+
+class FundamentalCacheStore:
+    """Specialized component for stock fundamental balance sheet and income caching."""
+    def __init__(self, parent_storage: 'MarketIndicatorStorage'):
+        self.parent = parent_storage
+
+    def save_fundamentals(self, df_or_symbol: Any, date_str: Optional[str] = None, **kwargs: Any) -> None:
+        if isinstance(df_or_symbol, pd.DataFrame):
+            self.parent.save_fundamentals(df_or_symbol)
+
+    def get_fundamentals(self, symbol: str) -> pd.DataFrame:
+        return self.parent.get_fundamentals(symbol)
+
 
 class MarketIndicatorStorage:
     # NYSE fallback would otherwise return ~3.3k symbols (double the real RUSSELL2000);
@@ -65,6 +184,10 @@ class MarketIndicatorStorage:
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
         self._write_lock = threading.Lock()
         self._init_db()
+        # Modular sub-stores for clean SRP delegation
+        self.macro_store = MacroIndicatorStore(self)
+        self.universe_mgr = StockUniverseManager(self)
+        self.fundamental_store = FundamentalCacheStore(self)
 
     @contextmanager
     def _connect(self):
@@ -633,88 +756,9 @@ class MarketIndicatorStorage:
                 _add_intl_listing("Hong Kong HKEX", "HKEX", "HKEX")
 
                 # Benchmark fallbacks for remaining global markets (India, Europe, Taiwan, Australia, Brazil, Singapore, Canada)
-                global_fallbacks = [
-                    # India (NSE)
-                    ("RELIANCE", "Reliance Industries", "INDIA_NSE", "Energy", "Oil & Gas"),
-                    ("TCS", "Tata Consultancy", "INDIA_NSE", "Technology", "IT Services"),
-                    ("HDFCBANK", "HDFC Bank", "INDIA_NSE", "Financials", "Banking"),
-                    ("INFY", "Infosys", "INDIA_NSE", "Technology", "IT Services"),
-                    ("ICICIBANK", "ICICI Bank", "INDIA_NSE", "Financials", "Banking"),
-                    ("SBIN", "State Bank of India", "INDIA_NSE", "Financials", "Banking"),
-                    ("BHARTIARTL", "Bharti Airtel", "INDIA_NSE", "Communication", "Telecom"),
-                    ("ITC", "ITC Limited", "INDIA_NSE", "Consumer Staples", "Tobacco"),
-                    ("KOTAKBANK", "Kotak Mahindra", "INDIA_NSE", "Financials", "Banking"),
-                    ("LT", "Larsen & Toubro", "INDIA_NSE", "Industrials", "Construction"),
-                    # Europe (STOXX)
-                    ("SAP.DE", "SAP SE", "EUROPE_STOXX", "Technology", "Software"),
-                    ("MC.PA", "LVMH", "EUROPE_STOXX", "Consumer Discretionary", "Luxury"),
-                    ("ASML.AS", "ASML Holding", "EUROPE_STOXX", "Technology", "Semiconductors"),
-                    ("AZN.L", "AstraZeneca", "EUROPE_STOXX", "Healthcare", "Pharmaceuticals"),
-                    ("NESN.SW", "Nestle", "EUROPE_STOXX", "Consumer Staples", "Food"),
-                    ("NOVN.SW", "Novartis", "EUROPE_STOXX", "Healthcare", "Pharmaceuticals"),
-                    ("ROG.SW", "Roche", "EUROPE_STOXX", "Healthcare", "Pharmaceuticals"),
-                    ("TTE.PA", "TotalEnergies", "EUROPE_STOXX", "Energy", "Oil & Gas"),
-                    ("SIE.DE", "Siemens", "EUROPE_STOXX", "Industrials", "Conglomerate"),
-                    ("AIR.PA", "Airbus", "EUROPE_STOXX", "Industrials", "Aerospace"),
-                    # Taiwan (TWSE)
-                    ("2330", "TSMC", "TAIWAN_TWSE", "Technology", "Semiconductors"),
-                    ("2317", "Hon Hai (Foxconn)", "TAIWAN_TWSE", "Technology", "Hardware"),
-                    ("2454", "MediaTek", "TAIWAN_TWSE", "Technology", "Semiconductors"),
-                    ("2308", "Delta Electronics", "TAIWAN_TWSE", "Technology", "Electronics"),
-                    ("2881", "Fubon Financial", "TAIWAN_TWSE", "Financials", "Banking"),
-                    ("2882", "Cathay Financial", "TAIWAN_TWSE", "Financials", "Banking"),
-                    ("2382", "Quanta Computer", "TAIWAN_TWSE", "Technology", "Hardware"),
-                    ("2412", "Chunghwa Telecom", "TAIWAN_TWSE", "Communication", "Telecom"),
-                    ("2886", "Mega Financial", "TAIWAN_TWSE", "Financials", "Banking"),
-                    ("1303", "Nan Ya Plastics", "TAIWAN_TWSE", "Materials", "Chemicals"),
-                    # Australia (ASX)
-                    ("BHP", "BHP Group", "AUSTRALIA_ASX", "Materials", "Mining"),
-                    ("CBA", "Commonwealth Bank", "AUSTRALIA_ASX", "Financials", "Banking"),
-                    ("CSL", "CSL Limited", "AUSTRALIA_ASX", "Healthcare", "Biotechnology"),
-                    ("NAB", "National Australia Bank", "AUSTRALIA_ASX", "Financials", "Banking"),
-                    ("WBC", "Westpac", "AUSTRALIA_ASX", "Financials", "Banking"),
-                    ("ANZ", "ANZ Bank", "AUSTRALIA_ASX", "Financials", "Banking"),
-                    ("FMG", "Fortescue Metals", "AUSTRALIA_ASX", "Materials", "Mining"),
-                    ("WES", "Wesfarmers", "AUSTRALIA_ASX", "Consumer Discretionary", "Retail"),
-                    ("MQG", "Macquarie Group", "AUSTRALIA_ASX", "Financials", "Investment Banking"),
-                    ("RIO", "Rio Tinto", "AUSTRALIA_ASX", "Materials", "Mining"),
-                    # Brazil (B3)
-                    ("VALE3", "Vale S.A.", "BRAZIL_B3", "Materials", "Mining"),
-                    ("PETR4", "Petrobras", "BRAZIL_B3", "Energy", "Oil & Gas"),
-                    ("ITUB4", "Itaú Unibanco", "BRAZIL_B3", "Financials", "Banking"),
-                    ("BBDC4", "Banco Bradesco", "BRAZIL_B3", "Financials", "Banking"),
-                    ("ABEV3", "Ambev", "BRAZIL_B3", "Consumer Staples", "Beverages"),
-                    ("B3SA3", "B3 S.A.", "BRAZIL_B3", "Financials", "Exchange"),
-                    ("RENT3", "Localiza", "BRAZIL_B3", "Industrials", "Car Rental"),
-                    ("WEGE3", "WEG S.A.", "BRAZIL_B3", "Industrials", "Electrical Equipment"),
-                    ("BBAS3", "Banco do Brasil", "BRAZIL_B3", "Financials", "Banking"),
-                    ("SUZB3", "Suzano", "BRAZIL_B3", "Materials", "Paper & Forest"),
-                    # Singapore (SGX)
-                    ("D05", "DBS Group", "SINGAPORE_SGX", "Financials", "Banking"),
-                    ("O39", "OCBC Bank", "SINGAPORE_SGX", "Financials", "Banking"),
-                    ("U11", "UOB", "SINGAPORE_SGX", "Financials", "Banking"),
-                    ("Z74", "Singtel", "SINGAPORE_SGX", "Communication", "Telecom"),
-                    ("C6L", "Singapore Airlines", "SINGAPORE_SGX", "Industrials", "Airlines"),
-                    ("BN4", "Keppel Corp", "SINGAPORE_SGX", "Industrials", "Conglomerate"),
-                    ("G13", "Genting Singapore", "SINGAPORE_SGX", "Consumer Discretionary", "Gaming"),
-                    ("BS6", "Yangzijiang Shipbuilding", "SINGAPORE_SGX", "Industrials", "Shipbuilding"),
-                    ("A17U", "CapitaLand Ascendas REIT", "SINGAPORE_SGX", "Real Estate", "REIT"),
-                    ("C38U", "CapitaLand Integrated Commercial Trust", "SINGAPORE_SGX", "Real Estate", "REIT"),
-                    # Canada (TSX)
-                    ("RY", "Royal Bank of Canada", "CANADA_TSX", "Financials", "Banking"),
-                    ("TD", "Toronto-Dominion Bank", "CANADA_TSX", "Financials", "Banking"),
-                    ("ENB", "Enbridge", "CANADA_TSX", "Energy", "Oil & Gas Midstream"),
-                    ("CNQ", "Canadian Natural Resources", "CANADA_TSX", "Energy", "Oil & Gas"),
-                    ("CP", "Canadian Pacific Kansas City", "CANADA_TSX", "Industrials", "Railroads"),
-                    ("CNR", "Canadian National Railway", "CANADA_TSX", "Industrials", "Railroads"),
-                    ("BNS", "Bank of Nova Scotia", "CANADA_TSX", "Financials", "Banking"),
-                    ("BMO", "Bank of Montreal", "CANADA_TSX", "Financials", "Banking"),
-                    ("TRI", "Thomson Reuters", "CANADA_TSX", "Technology", "Information Services"),
-                    ("SHOP", "Shopify", "CANADA_TSX", "Technology", "E-Commerce"),
-                ]
                 conn.executemany(
                     "INSERT OR REPLACE INTO stock_universe (symbol, name, market, sector, industry) VALUES (?, ?, ?, ?, ?)",
-                    global_fallbacks
+                    GLOBAL_BENCHMARK_FALLBACKS
                 )
                 conn.commit()
         logger.info("Stock universe updated successfully with sector information.")

@@ -7,6 +7,7 @@ Portfolio Allocator Module:
 """
 
 import logging
+import math
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Tuple, Any, Union
@@ -82,14 +83,24 @@ class PortfolioAllocator:
                 k_eff = float(np.clip(stress_weight, 0.0, 0.70))
                 stressed_cov = (1.0 - k_eff) * base_cov + k_eff * tail_cov
 
-                # Asymmetric Downside Clayton Copula adjustment (lower tail correlation boost)
+                # Asymmetric Downside Clayton Copula adjustment (dynamically estimated lower tail dependence)
                 if use_clayton_copula:
                     stds = np.sqrt(np.maximum(np.diag(stressed_cov), 1e-8))
                     outer_std = np.outer(stds, stds)
                     outer_std = np.where(outer_std > 0, outer_std, 1e-8)
                     corr = np.clip(stressed_cov / outer_std, -1.0, 1.0)
-                    # Clayton lower-tail dependence coefficient lambda_L
-                    lambda_l = 0.25
+
+                    # Dynamic empirical Clayton lower-tail dependence coefficient lambda_L estimation
+                    # Derived from joint lower quantile co-exceedance rate across assets
+                    try:
+                        tail_rets_std = (tail_returns - np.mean(tail_returns, axis=0)) / np.maximum(np.std(tail_returns, axis=0), 1e-6)
+                        joint_tail_prob = np.mean(tail_rets_std < -1.0, axis=0)  # Fraction of severe simultaneous down moves
+                        mean_tail_coincidence = float(np.mean(joint_tail_prob))
+                        # Non-linear mapping to Clayton lambda_L in [0.10, 0.70]
+                        lambda_l = float(np.clip(0.10 + mean_tail_coincidence * 1.5, 0.10, 0.70))
+                    except Exception:
+                        lambda_l = 0.25
+
                     asym_corr = (1.0 - lambda_l) * corr + lambda_l * np.ones_like(corr)
                     np.fill_diagonal(asym_corr, 1.0)
                     stressed_cov = asym_corr * outer_std
@@ -151,16 +162,16 @@ class PortfolioAllocator:
         try:
             from src.data_layer.indicator_storage import MarketIndicatorStorage
             storage = MarketIndicatorStorage()
-            indicators = storage.get_latest_indicators()
+            indicators = storage.get_latest_global_indicators()
             if indicators:
                 if mkt in ["SP500", "NASDAQ", "RUSSELL2000", "US"]:
                     # TNX is CBOE 10-Year Treasury Yield (e.g. 4.25 means 4.25%)
-                    tnx_val = indicators.get("TNX")
+                    tnx_val = indicators.get("^TNX") or indicators.get("TNX")
                     if tnx_val is not None and math.isfinite(float(tnx_val)) and float(tnx_val) > 0:
                         return float(tnx_val) / 100.0
                 else:
                     # KRX market - CD 91d / KORIBOR rate (or USDKRW interest differential proxy)
-                    cd_val = indicators.get("CD91") or indicators.get("KRW_CD") or indicators.get("TNX")
+                    cd_val = indicators.get("CD91") or indicators.get("KRW_CD") or indicators.get("^TNX") or indicators.get("TNX")
                     if cd_val is not None and math.isfinite(float(cd_val)) and float(cd_val) > 0:
                         return float(cd_val) / 100.0
         except Exception:
@@ -185,21 +196,21 @@ class PortfolioAllocator:
                 cols = {str(c).lower(): c for c in df_or_series.columns}
                 h_col, l_col, c_col, o_col = cols.get("high"), cols.get("low"), cols.get("close"), cols.get("open")
                 if h_col and l_col and c_col and o_col and len(df_or_series) >= 5:
-                    h = pd.to_numeric(df_or_series[h_col], errors="coerce").values
-                    l = pd.to_numeric(df_or_series[l_col], errors="coerce").values
-                    c = pd.to_numeric(df_or_series[c_col], errors="coerce").values
-                    o = pd.to_numeric(df_or_series[o_col], errors="coerce").values
-                    valid = (h > 0) & (l > 0) & (c > 0) & (o > 0) & (h >= l)
+                    h_arr = pd.to_numeric(df_or_series[h_col], errors="coerce").values
+                    l_arr = pd.to_numeric(df_or_series[l_col], errors="coerce").values
+                    c_arr = pd.to_numeric(df_or_series[c_col], errors="coerce").values
+                    o_arr = pd.to_numeric(df_or_series[o_col], errors="coerce").values
+                    valid = (h_arr > 0) & (l_arr > 0) & (c_arr > 0) & (o_arr > 0) & (h_arr >= l_arr)
                     if np.sum(valid) >= 5:
-                        h, l, c, o = h[valid], l[valid], c[valid], o[valid]
+                        h_arr, l_arr, c_arr, o_arr = h_arr[valid], l_arr[valid], c_arr[valid], o_arr[valid]
                         # Garman-Klass intraday variance
-                        log_hl = np.log(h / l)
-                        log_co = np.log(c / o)
+                        log_hl = np.log(h_arr / l_arr)
+                        log_co = np.log(c_arr / o_arr)
                         gk_var = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
                         gk_vol = float(np.sqrt(max(1e-8, np.mean(gk_var[-20:]))))
 
                         # RiskMetrics EWMA
-                        ret = np.diff(np.log(c))
+                        ret = np.diff(np.log(c_arr))
                         ewma_var = ret[0] ** 2 if len(ret) > 0 else 0.0004
                         for r in ret[1:]:
                             ewma_var = lambda_ewma * ewma_var + (1.0 - lambda_ewma) * (r ** 2)

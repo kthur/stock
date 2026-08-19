@@ -81,6 +81,7 @@ class NonLinearMetaLearner:
             self.is_fitted = True
             logger.info(f"[META LEARNER] Successfully fitted Monotonic LightGBM on {len(X_mat)} samples across {X_mat.shape[1]} factors.")
         except Exception as e:
+            logger.debug(f"[META LEARNER] LightGBM fitting not available ({e}), trying HistGradientBoostingRegressor.")
             # Fallback to Scikit-Learn HistGradientBoostingRegressor with monotonic_cst
             try:
                 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -134,24 +135,23 @@ class NonLinearMetaLearner:
                 linear_score = np.mean(X_mat, axis=1)
 
             # Quadratic synergy term: (s_order_flow * s_valuation) interaction simulation
-            dispersion = np.std(X_mat, axis=1)
             synergy_boost = 0.15 * (np.max(X_mat, axis=1) * linear_score)
             combined = 0.85 * linear_score + synergy_boost
-            return np.clip(combined, 0.0, 1.0)
+            return np.asarray(np.clip(combined, 0.0, 1.0), dtype=np.float64)
 
         try:
             raw_pred = self.model.predict(X_mat)
             # Map raw predicted returns to normalized percentile score [0.0, 1.0]
             if len(raw_pred) > 1:
                 ranks = pd.Series(raw_pred).rank(pct=True).values
-                return np.clip(ranks, 0.0, 1.0)
+                return np.asarray(np.clip(ranks, 0.0, 1.0), dtype=np.float64)
             else:
                 # Sigmoid scaling for single instance
                 score = 1.0 / (1.0 + np.exp(-raw_pred[0] * 5.0))
-                return np.array([float(np.clip(score, 0.0, 1.0))])
+                return np.array([float(np.clip(score, 0.0, 1.0))], dtype=np.float64)
         except Exception as e:
             logger.warning(f"[META LEARNER] Prediction failed ({e}), using fallback linear combination.")
-            return np.clip(np.mean(X_mat, axis=1), 0.0, 1.0)
+            return np.asarray(np.clip(np.mean(X_mat, axis=1), 0.0, 1.0), dtype=np.float64)
 
     def extract_factor_synergies(
         self,

@@ -57,6 +57,8 @@ coverage.xml
 # Local output / logs
 output.txt
 *.log
+*.log.*
+trading_system/logs/
 
 # Environments
 .env

@@ -192,7 +192,7 @@ class PortfolioAllocator:
         sym_col = next((c for c in predictions_df.columns if str(c).lower() in ('symbol', 'ticker')), 'symbol')
         records = []
         for row in predictions_df.itertuples(index=False):
-            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(predictions_df.columns, row))
+            r_dict = dict(zip(predictions_df.columns, row))
             sym = r_dict.get(sym_col)
             if not sym:
                 continue

@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import numpy as np
 import pandas as pd
 from src.ai.ensemble_scorer import EnsembleScoringEngine
@@ -44,16 +44,16 @@ def test_market_aware_coverage_ratio_fairness():
     data = {
         'symbol': ['005930', 'AAPL'],
         'market': ['KOSPI', 'SP500'],
-        'pred_regression': [0.5, 0.5],
-        'pred_surge': [0.5, 0.5],
-        'pred_lead_lag': [0.5, 0.5],
-        'pred_vcp_rule': [0.5, 0.5],
-        'pred_vcp_ml': [0.5, 0.5],
-        'pred_lstm': [0.5, 0.5],
-        'pred_stat_arb': [0.5, 0.5],
-        'pred_sector_rotation': [0.5, 0.5],
-        'pred_short_term_reversal': [0.5, 0.5],
-        'pred_trend_efficiency': [0.5, 0.5],
+        'reg_score': [0.65, 0.65],
+        'surge_score': [0.60, 0.60],
+        'll_score': [0.55, 0.55],
+        'vcp_rule_score': [0.70, 0.70],
+        'vcp_ml_score': [0.65, 0.65],
+        'lstm_score': [0.58, 0.58],
+        'stat_arb_score': [0.52, 0.52],
+        'sector_score': [0.60, 0.60],
+        'reversal_score': [0.55, 0.55],
+        'trend_efficiency_score': [0.62, 0.62],
     }
     df = pd.DataFrame(data)
 

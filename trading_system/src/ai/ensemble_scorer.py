@@ -525,7 +525,8 @@ class EnsembleScoringEngine:
         strategy_scores: Dict[str, np.ndarray],
         true_labels: np.ndarray,
     ) -> None:
-        """Fit per-strategy hybrid calibrators (Isotonic for N>=50, Platt Scaling for 20<=N<50).
+        """Fit per-strategy hybrid calibrators (Isotonic for N>=100, Regularized Platt Scaling for 50<=N<100).
+        Protects against small-sample over-distortion for N < 50.
 
         Args:
             strategy_scores: dict of {strategy_name: 1-D score array (N,)}
@@ -544,24 +545,25 @@ class EnsembleScoringEngine:
                     y = y[:min_len]
                 mask = np.isfinite(s) & np.isfinite(y)
                 n_samples = mask.sum()
-                if n_samples < 20:
-                    logger.warning(f"Calibrator for '{strategy}': too few samples ({n_samples}), skipping.")
+                if n_samples < 50:
+                    logger.info(f"Calibrator for '{strategy}': sample count ({n_samples} < 50) insufficient for robust fitting; preserving uncalibrated raw score.")
                     continue
 
                 if len(np.unique(y[mask])) < 2:
                     logger.warning(f"Calibrator for '{strategy}': target labels have single-class zero variance, skipping.")
                     continue
 
-                if n_samples >= 50:
+                if n_samples >= 100:
                     cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
                     cal.fit(s[mask], y[mask])
                     self._calibrators[strategy] = ('isotonic', cal)
                     logger.info(f"Fitted Isotonic calibrator for strategy '{strategy}' on {n_samples} samples.")
                 else:
-                    cal = LogisticRegression(C=1.0, max_iter=100)
+                    # Regularized logistic regression (C=0.1) to avoid small-sample extreme odds distortion
+                    cal = LogisticRegression(C=0.1, max_iter=100, solver='lbfgs')
                     cal.fit(s[mask].reshape(-1, 1), y[mask])
                     self._calibrators[strategy] = ('platt', cal)
-                    logger.info(f"Fitted Platt Scaling (Logistic) calibrator for strategy '{strategy}' on {n_samples} samples.")
+                    logger.info(f"Fitted L2-Regularized Platt Scaling (Logistic) calibrator for strategy '{strategy}' on {n_samples} samples.")
             except Exception as e:
                 logger.warning(f"Calibrator fitting failed for '{strategy}': {e}")
 
@@ -2122,8 +2124,11 @@ class EnsembleScoringEngine:
             regime_elasticity = 0.85
         else:
             regime_elasticity = 1.0
-
-        raw_exp_ret = merged['ensemble_score'] * float(self._return_multiplier) * horizon_scale * regime_elasticity
+        # Power-law convex transformation: concentrates alpha on high-conviction momentum tails (Power Law / Pareto skewness)
+        # while compressing noisy [0.45, 0.55] signals toward neutral.
+        score_centered = np.clip(merged['ensemble_score'].values - 0.50, -0.50, 0.50)
+        convex_score = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.25) * 0.50 + 0.50
+        raw_exp_ret = convex_score * float(self._return_multiplier) * horizon_scale * regime_elasticity
 
         # Microstructure execution model: Sell-side STT tax, SEC fees, dynamic Bid-Ask spread,
         # and Kyle/Almgren-Chriss Square-Root Market Impact Cost modeling.
@@ -2345,7 +2350,7 @@ class EnsembleScoringEngine:
         cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
         max_cost_cap = np.where(ov_mask, 0.20, 0.05)
         cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
-        merged['ensemble_expected_return'] = (raw_exp_ret - cost_series * 100.0).clip(lower=0.0, upper=50.0)
+        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - cost_series * 100.0, 0.0, 50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:
@@ -2611,14 +2616,15 @@ class EnsembleScoringEngine:
         Applies Non-Linear Monotonic GBDT Meta-Learner to extract cross-factor synergies.
         """
         if factor_scores_df is None or factor_scores_df.empty:
-            return np.array([])
+            return np.array([], dtype=np.float64)
 
         try:
             from src.ai.meta_learner import NonLinearMetaLearner
             learner = meta_learner or NonLinearMetaLearner()
-            return learner.predict(factor_scores_df, fallback_linear_weights=fallback_weights)
+            pred = learner.predict(factor_scores_df, fallback_linear_weights=fallback_weights)
+            return np.asarray(pred, dtype=np.float64)
         except Exception:
-            return np.clip(np.mean(factor_scores_df.values, axis=1), 0.0, 1.0)
+            return np.asarray(np.clip(np.mean(factor_scores_df.values, axis=1), 0.0, 1.0), dtype=np.float64)
 
 
 

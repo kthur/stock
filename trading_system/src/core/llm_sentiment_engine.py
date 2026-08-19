@@ -3,9 +3,11 @@ LLM/NLP DART & SEC Filing Sentiment Engine
 Extracts sentiment and tone scores from DART/SEC filings using LLM/FinBERT-style NLP rules.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -71,16 +73,25 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
     NEGATIVE_WORDS_EN = {"going concern", "sec investigation", "accounting restatement", "default risk", "downgraded guidance", "class action", "litigation", "net loss"}
     NEGATION_WORDS_EN = {"cancel", "cancelled", "withdrawn", "failed", "unlikely", "delayed", "missed", "lawsuit", "investigation", "rejected"}
 
-    def __init__(self, db_storage=None):
+    def __init__(self, db_storage=None, model_name: Optional[str] = None):
         self.db_storage = db_storage
+        self.model_name = model_name
+        self._hf_pipeline = None
+        if model_name:
+            try:
+                from transformers import pipeline
+                self._hf_pipeline = pipeline("text-classification", model=model_name)
+                logger.info(f"Loaded Transformer NLP model: {model_name}")
+            except Exception as e:
+                logger.debug(f"Transformers pipeline initialization skipped: {e}. Using robust lexicon.")
 
     def _score_offline_lexicon(self, text: str, symbol: str = "", market: str = "KOSPI", **kwargs) -> Any:
         if not text:
             score = 0.5
         else:
             text_lower = text.lower()
-            pos_count = 0
-            neg_count = 0
+            pos_count = 0.0
+            neg_count = 0.0
 
             # Scan Korean positive words with window-based negation detection (±25 chars)
             for w in self.POSITIVE_WORDS_KO:

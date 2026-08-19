@@ -134,7 +134,17 @@ class CARDFactorEngine(BaseStrategyEngine):
                     continue
 
                 sec = sector_map.get(sym, 'Market') if isinstance(sector_map, dict) else 'Market'
-                beta = sector_beta.get(sec, sector_beta.get(str(sec).strip(), 1.0))
+                base_beta = sector_beta.get(sec, sector_beta.get(str(sec).strip(), 1.0))
+
+                # Dynamic rolling empirical beta adjustment if price history is sufficient
+                if len(close) >= 20:
+                    ret_series = close.pct_change().dropna()
+                    stock_vol = float(ret_series.std()) if len(ret_series) > 5 else 0.02
+                    # Scale beta proportionally to realized volatility relative to baseline 2% daily vol
+                    vol_scale = np.clip(stock_vol / 0.020, 0.5, 2.0)
+                    beta = float(0.4 * base_beta + 0.6 * (base_beta * vol_scale))
+                else:
+                    beta = float(base_beta)
 
                 macro_impact = ((usdkrw_chg * 0.35) + (wti_chg * 0.35) + (vix_pct_shock * 0.30)) * beta
                 divergence = stock_ret - macro_impact

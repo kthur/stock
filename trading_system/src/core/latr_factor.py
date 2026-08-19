@@ -41,21 +41,42 @@ class LATRFactorEngine(BaseStrategyEngine):
         if not prices_dict or not isinstance(prices_dict, dict):
             return make_score_dataframe([], 'latr_score')
 
+        # Extract real-time or indicator USD/KRW rate with safe fallback
+        usdkrw_rate = 1350.0
+        if indicators_df is not None:
+            if isinstance(indicators_df, dict) and 'usdkrw' in indicators_df:
+                try:
+                    usdkrw_rate = float(indicators_df['usdkrw'])
+                except (ValueError, TypeError):
+                    pass
+            elif isinstance(indicators_df, pd.DataFrame) and 'usdkrw' in indicators_df.columns and not indicators_df['usdkrw'].dropna().empty:
+                try:
+                    usdkrw_rate = float(indicators_df['usdkrw'].dropna().iloc[-1])
+                except (ValueError, TypeError):
+                    pass
+        elif 'usdkrw' in kwargs:
+            try:
+                usdkrw_rate = float(kwargs['usdkrw'])
+            except (ValueError, TypeError):
+                pass
+        if usdkrw_rate <= 500.0 or usdkrw_rate >= 3000.0 or np.isnan(usdkrw_rate):
+            usdkrw_rate = 1350.0
+
         for sym, df in prices_dict.items():
             try:
-                if df is None or len(df) < 20:
+                if df is None or df.empty or len(df) < 5:
                     scores[sym] = 0.5
                     continue
 
-                c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
-                v_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
-                if not c_col or not v_col:
+                col_c = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
+                col_v = 'volume' if 'volume' in df.columns else ('Volume' if 'Volume' in df.columns else None)
+                if not col_c or not col_v:
                     scores[sym] = 0.5
                     continue
 
-                close = df[c_col].dropna()
-                vol = df[v_col].dropna()
-                if len(close) < 20 or len(vol) < 20:
+                close = df[col_c].dropna()
+                vol = df[col_v].dropna()
+                if len(close) < 5 or len(vol) < 5:
                     scores[sym] = 0.5
                     continue
 
@@ -75,7 +96,7 @@ class LATRFactorEngine(BaseStrategyEngine):
 
                 # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price)) with cross-market USD normalization
                 is_kr = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
-                fx_norm = 1350.0 if is_kr else 1.0
+                fx_norm = usdkrw_rate if is_kr else 1.0
                 turnover_usd = (vol.tail(20) * close.tail(20) / fx_norm).replace(0, 1.0)
                 amihud_illiq = float((daily_rets.abs().tail(20) / turnover_usd).mean() * 1e6)
 

@@ -129,9 +129,9 @@ class FXAdjustedCovarianceEngine:
         lambda_+ = sigma^2 * (1 + sqrt(N/T))^2
         """
         if cov_matrix is None or cov_matrix.size == 0:
-            return cov_matrix
+            return np.asarray(cov_matrix, dtype=np.float64) if cov_matrix is not None else np.empty((0, 0), dtype=np.float64)
         if n_assets <= 1 or t_obs <= n_assets:
-            return cov_matrix
+            return np.asarray(cov_matrix, dtype=np.float64)
 
         try:
             # 1. Convert covariance to correlation matrix and standard deviations
@@ -175,10 +175,10 @@ class FXAdjustedCovarianceEngine:
 
             # 6. Reconstruct denoised covariance matrix
             denoised_cov = stds[:, None] * denoised_corr * stds[None, :]
-            return denoised_cov
+            return np.asarray(denoised_cov, dtype=np.float64)
         except Exception as e:
             logger.debug(f"[RMT DENOISE] Fallback to original covariance: {e}")
-            return cov_matrix
+            return np.asarray(cov_matrix, dtype=np.float64)
 
     @staticmethod
     def compute_fx_adjusted_covariance(

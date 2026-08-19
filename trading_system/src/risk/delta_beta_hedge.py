@@ -28,7 +28,8 @@ class DeltaBetaHedgeEngine:
         portfolio_weights: Dict[str, float],
         symbol_betas: Dict[str, float],
         crisis_level: str = "NONE",
-        regime: str = "BULL_LOW_VOL"
+        regime: str = "BULL_LOW_VOL",
+        usdkrw_vol: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Calculates optimal Inverse ETF hedge allocation to neutralize portfolio market beta.

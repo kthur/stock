@@ -1841,6 +1841,16 @@ class OnDevicePredictionModel:
         if save_after:
             self.save_models()
 
+        # Explicit garbage collection and CUDA cache cleanup to prevent memory spikes
+        import gc
+        gc.collect()
+        if _HAS_CUDA:
+            try:
+                import torch
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+
     def train_surge(self, df_train: pd.DataFrame, market: str = "sp500", save_after: bool = True):
         """Train XGBoost, LightGBM, and CatBoost classifiers for surge detection.
 

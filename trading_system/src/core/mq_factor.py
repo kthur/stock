@@ -111,10 +111,10 @@ class MQFactorEngine(BaseStrategyEngine):
 
         # Merge fundamental features if available
         if (features_df is None or features_df.empty) and fundamentals_dict and isinstance(fundamentals_dict, dict):
-            fund_rows = []
+            fund_rows: list[dict[str, Any]] = []
             for s, fd in fundamentals_dict.items():
                 if isinstance(fd, dict):
-                    row = {"symbol": s}
+                    row: dict[str, Any] = {"symbol": s}
                     row["operating_margin"] = fd.get("operating_margin", fd.get("op_margin", np.nan))
                     row["roe"] = fd.get("roe", np.nan)
                     row["eps_growth_1y"] = fd.get("eps_growth_1y", fd.get("eps_growth", np.nan))

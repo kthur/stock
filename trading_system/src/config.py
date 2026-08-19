@@ -16,6 +16,69 @@ else:
 logger = logging.getLogger(__name__)
 
 
+# Declarative Market Cost & Properties Registry
+MARKET_COST_REGISTRY = {
+    'KOSPI': {'spread_bps': 0.0006, 'stt': 0.0015, 'brokerage': 0.0003, 'aliases': ('KRX',)},
+    'KOSDAQ': {'spread_bps': 0.0010, 'stt': 0.0018, 'brokerage': 0.0003, 'aliases': ()},
+    'NASDAQ': {'spread_bps': 0.0003, 'stt': 0.00003, 'brokerage': 0.00005, 'aliases': ()},
+    'RUSSELL2000': {'spread_bps': 0.0008, 'stt': 0.00003, 'brokerage': 0.00005, 'aliases': ('RUSSELL',)},
+    'SP500': {'spread_bps': 0.0002, 'stt': 0.00003, 'brokerage': 0.00005, 'aliases': ('S&P500', 'NYSE', 'US', 'AMEX')},
+    'CHINA_SSE': {'spread_bps': 0.0008, 'stt': 0.0005, 'brokerage': 0.0005, 'aliases': ('CHINA', 'SSE', 'CSI300')},
+    'CHINA_SZSE': {'spread_bps': 0.0008, 'stt': 0.0005, 'brokerage': 0.0005, 'aliases': ('SZSE',)},
+    'JAPAN_TSE': {'spread_bps': 0.0004, 'stt': 0.0, 'brokerage': 0.0005, 'aliases': ('JAPAN', 'TSE', 'NIKKEI', 'TOPIX')},
+    'INDIA_NSE': {'spread_bps': 0.0008, 'stt': 0.0010, 'brokerage': 0.0005, 'aliases': ('INDIA', 'NSE', 'NIFTY50')},
+    'INDIA_BSE': {'spread_bps': 0.0008, 'stt': 0.0010, 'brokerage': 0.0005, 'aliases': ('BSE', 'SENSEX')},
+    'EUROPE_STOXX': {'spread_bps': 0.0005, 'stt': 0.0010, 'brokerage': 0.0005, 'aliases': ('EUROPE', 'STOXX', 'DAX', 'FTSE', 'CAC')},
+    'VIETNAM_HOSE': {'spread_bps': 0.0020, 'stt': 0.0015, 'brokerage': 0.0010, 'aliases': ('VIETNAM', 'HOSE', 'VN30', 'HNX')},
+    'TAIWAN_TWSE': {'spread_bps': 0.0006, 'stt': 0.0030, 'brokerage': 0.0005, 'aliases': ('TAIWAN', 'TWSE', 'TAIEX')},
+    'AUSTRALIA_ASX': {'spread_bps': 0.0005, 'stt': 0.0, 'brokerage': 0.0005, 'aliases': ('AUSTRALIA', 'ASX', 'ASX200')},
+    'BRAZIL_B3': {'spread_bps': 0.0015, 'stt': 0.0, 'brokerage': 0.0010, 'aliases': ('BRAZIL', 'B3', 'IBOVESPA')},
+    'HKEX': {'spread_bps': 0.0006, 'stt': 0.0010, 'brokerage': 0.0005, 'aliases': ('HONGKONG', 'HANGSENG')},
+    'SINGAPORE_SGX': {'spread_bps': 0.0006, 'stt': 0.0, 'brokerage': 0.0005, 'aliases': ('SINGAPORE', 'SGX', 'STI')},
+    'CANADA_TSX': {'spread_bps': 0.0004, 'stt': 0.0, 'brokerage': 0.0005, 'aliases': ('CANADA', 'TSX')},
+}
+
+def _build_market_lookup_table():
+    lookup = {}
+    for canonical, info in MARKET_COST_REGISTRY.items():
+        lookup[canonical] = info
+        for alias in info.get('aliases', ()):
+            lookup[alias] = info
+    return lookup
+
+_MARKET_LOOKUP = _build_market_lookup_table()
+
+
+def _get_env_str(key: str, default: str) -> str:
+    return os.environ.get(key, default)
+
+
+def _get_env_bool(key: str, default: bool) -> bool:
+    if key in os.environ:
+        return os.environ[key].lower() in ("true", "1", "yes", "y")
+    return default
+
+
+def _get_env_int(key: str, default: int) -> int:
+    if key in os.environ:
+        try:
+            return int(os.environ[key])
+        except ValueError:
+            logger.warning(f"Invalid {key} in env, keeping default {default}")
+    return default
+
+
+def _get_env_float(key: str, default: float) -> float:
+    if key in os.environ:
+        try:
+            v = float(os.environ[key])
+            if math.isfinite(v):
+                return v
+        except ValueError:
+            logger.warning(f"Invalid {key} in env, keeping default {default}")
+    return default
+
+
 @dataclass
 class TradingConfig:
     initial_cash: float = 100_000_000.0
@@ -152,219 +215,87 @@ class TradingConfig:
         return BrokerType[norm].value
 
     def __post_init__(self):
-        # Override fields with env variables if set in os.environ
-        # This ensures dynamic env evaluation at instantiation time
-        if "DEBUG_MODE" in os.environ:
-            self.debug_mode = os.environ["DEBUG_MODE"].lower() == "true"
-        if "MOCK_TRADING_ENABLED" in os.environ:
-            self.mock_trading = os.environ["MOCK_TRADING_ENABLED"].lower() == "true"
+        # Override fields with env variables dynamically using structured helpers
+        self.debug_mode = _get_env_bool("DEBUG_MODE", self.debug_mode)
+        self.mock_trading = _get_env_bool("MOCK_TRADING_ENABLED", self.mock_trading)
         if "BROKER_TYPE" in os.environ:
             self.broker_type = os.environ["BROKER_TYPE"]
         self.broker_type = self._normalize_broker_type(self.broker_type)
-        if "DB_PATH" in os.environ:
-            self.db_path = os.environ["DB_PATH"]
+
+        self.db_path = _get_env_str("DB_PATH", self.db_path)
         if "TRAIN_SAMPLE_SP500" in os.environ:
             self.train_sample_sp500 = os.environ["TRAIN_SAMPLE_SP500"]
         if "TRAIN_SAMPLE_KRX" in os.environ:
             self.train_sample_krx = os.environ["TRAIN_SAMPLE_KRX"]
-        if "TRAIN_START_DATE" in os.environ:
-            self.train_start_date = os.environ["TRAIN_START_DATE"]
-        if "TRAIN_SEED" in os.environ:
-            try:
-                self.train_seed = int(os.environ["TRAIN_SEED"])
-            except ValueError:
-                logger.warning("Invalid TRAIN_SEED in env, keeping default")
-        if "STOCK_PRICE_FRESHNESS_DAYS" in os.environ:
-            try:
-                self.stock_price_freshness_days = int(os.environ["STOCK_PRICE_FRESHNESS_DAYS"])
-            except ValueError:
-                logger.warning("Invalid STOCK_PRICE_FRESHNESS_DAYS in env, keeping default")
-        if "UPDATE_INTERVAL" in os.environ:
-            try:
-                self.update_interval = int(os.environ["UPDATE_INTERVAL"])
-            except ValueError:
-                logger.warning("Invalid UPDATE_INTERVAL in env, keeping default")
-        if "SKIP_TRAINING" in os.environ:
-            self.skip_training = os.environ["SKIP_TRAINING"].lower() == "true"
-        if "SKIP_INFERENCE" in os.environ:
-            self.skip_inference = os.environ["SKIP_INFERENCE"].lower() == "true"
-        if "FUNDAMENTAL_CACHE_EXPIRY_DAYS" in os.environ:
-            try:
-                self.fundamental_cache_expiry_days = int(os.environ["FUNDAMENTAL_CACHE_EXPIRY_DAYS"])
-            except ValueError:
-                logger.warning("Invalid FUNDAMENTAL_CACHE_EXPIRY_DAYS in env, keeping default")
+        self.train_start_date = _get_env_str("TRAIN_START_DATE", self.train_start_date)
+        self.train_seed = _get_env_int("TRAIN_SEED", self.train_seed)
+        self.stock_price_freshness_days = _get_env_int("STOCK_PRICE_FRESHNESS_DAYS", self.stock_price_freshness_days)
+        self.update_interval = _get_env_int("UPDATE_INTERVAL", self.update_interval)
+        self.skip_training = _get_env_bool("SKIP_TRAINING", self.skip_training)
+        self.skip_inference = _get_env_bool("SKIP_INFERENCE", self.skip_inference)
+        self.fundamental_cache_expiry_days = _get_env_int("FUNDAMENTAL_CACHE_EXPIRY_DAYS", self.fundamental_cache_expiry_days)
+
         if "BACKTEST_YEARS" in os.environ:
             try:
                 self.backtest_years = float(os.environ["BACKTEST_YEARS"]) if "." in os.environ["BACKTEST_YEARS"] else int(os.environ["BACKTEST_YEARS"])
             except ValueError:
                 logger.warning("Invalid BACKTEST_YEARS in env, keeping default")
-        if "STOCK_PRICE_DB_PATH" in os.environ:
-            self.stock_price_db_path = os.environ["STOCK_PRICE_DB_PATH"]
-        if "OPENAI_API_KEY" in os.environ:
-            self.openai_api_key = os.environ["OPENAI_API_KEY"]
-        if "OPENAI_MODEL" in os.environ:
-            self.openai_model = os.environ["OPENAI_MODEL"]
-        if "TELEGRAM_BOT_TOKEN" in os.environ:
-            self.telegram_bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
-        if "TELEGRAM_AUTHORIZED_USER_IDS" in os.environ:
-            self.telegram_authorized_user_ids = os.environ["TELEGRAM_AUTHORIZED_USER_IDS"]
-        if "KIS_MOCK_APP_KEY" in os.environ:
-            self.kis_mock_app_key = os.environ["KIS_MOCK_APP_KEY"]
-        if "KIS_MOCK_APP_SECRET" in os.environ:
-            self.kis_mock_app_secret = os.environ["KIS_MOCK_APP_SECRET"]
-        if "KIS_MOCK_ACCOUNT" in os.environ:
-            self.kis_mock_account = os.environ["KIS_MOCK_ACCOUNT"]
-        if "DART_API_KEY" in os.environ:
-            self.dart_api_key = os.environ["DART_API_KEY"]
-        if "ECOS_API_KEY" in os.environ:
-            self.ecos_api_key = os.environ["ECOS_API_KEY"]
-        elif "KOREABANK_ECOS_KEY" in os.environ:
-            self.ecos_api_key = os.environ["KOREABANK_ECOS_KEY"]
-        if "FRED_API_KEY" in os.environ:
-            self.fred_api_key = os.environ["FRED_API_KEY"]
-        if "VCP_NEAR_PIVOT_PCT" in os.environ:
+
+        self.stock_price_db_path = _get_env_str("STOCK_PRICE_DB_PATH", self.stock_price_db_path)
+        self.openai_api_key = _get_env_str("OPENAI_API_KEY", self.openai_api_key)
+        self.openai_model = _get_env_str("OPENAI_MODEL", self.openai_model)
+        self.telegram_bot_token = _get_env_str("TELEGRAM_BOT_TOKEN", self.telegram_bot_token)
+        self.telegram_authorized_user_ids = _get_env_str("TELEGRAM_AUTHORIZED_USER_IDS", self.telegram_authorized_user_ids)
+        self.kis_mock_app_key = _get_env_str("KIS_MOCK_APP_KEY", self.kis_mock_app_key)
+        self.kis_mock_app_secret = _get_env_str("KIS_MOCK_APP_SECRET", self.kis_mock_app_secret)
+        self.kis_mock_account = _get_env_str("KIS_MOCK_ACCOUNT", self.kis_mock_account)
+        self.dart_api_key = _get_env_str("DART_API_KEY", self.dart_api_key)
+
+        ecos_val = os.environ.get("ECOS_API_KEY") or os.environ.get("KOREABANK_ECOS_KEY")
+        if ecos_val:
+            self.ecos_api_key = ecos_val
+        self.fred_api_key = _get_env_str("FRED_API_KEY", self.fred_api_key)
+
+        # Quantitative & VCP thresholds
+        self.vcp_near_pivot_pct = _get_env_float("VCP_NEAR_PIVOT_PCT", self.vcp_near_pivot_pct)
+        self.vcp_min_score_threshold = _get_env_float("VCP_MIN_SCORE_THRESHOLD", self.vcp_min_score_threshold)
+        self.vcp_volume_surge_ratio = _get_env_float("VCP_VOLUME_SURGE_RATIO", self.vcp_volume_surge_ratio)
+        self.sentiment_risk_threshold = _get_env_float("SENTIMENT_RISK_THRESHOLD", self.sentiment_risk_threshold)
+        self.ensemble_return_multiplier = _get_env_float("ENSEMBLE_RETURN_MULTIPLIER", self.ensemble_return_multiplier)
+        self.order_size_krx = _get_env_float("ORDER_SIZE_KRX", self.order_size_krx)
+        self.order_size_sp500 = _get_env_float("ORDER_SIZE_SP500", self.order_size_sp500)
+        self.market_impact_coeff_krx = _get_env_float("MARKET_IMPACT_COEFF_KRX", self.market_impact_coeff_krx)
+        self.market_impact_coeff_sp500 = _get_env_float("MARKET_IMPACT_COEFF_SP500", self.market_impact_coeff_sp500)
+
+        # Baseline Spreads
+        self.base_spread_kospi = _get_env_float("BASE_SPREAD_KOSPI", self.base_spread_kospi)
+        self.base_spread_kosdaq = _get_env_float("BASE_SPREAD_KOSDAQ", self.base_spread_kosdaq)
+        self.base_spread_nasdaq = _get_env_float("BASE_SPREAD_NASDAQ", self.base_spread_nasdaq)
+        self.base_spread_russell2000 = _get_env_float("BASE_SPREAD_RUSSELL2000", self.base_spread_russell2000)
+        self.base_spread_sp500 = _get_env_float("BASE_SPREAD_SP500", self.base_spread_sp500)
+        self.default_volatility_krx = _get_env_float("DEFAULT_VOLATILITY_KRX", self.default_volatility_krx)
+        self.default_volatility_sp500 = _get_env_float("DEFAULT_VOLATILITY_SP500", self.default_volatility_sp500)
+
+        # Capital & Realtime Trading parameters
+        cap_val = os.environ.get("PORTFOLIO_CAPITAL_KRW") or os.environ.get("INITIAL_CASH")
+        if cap_val:
             try:
-                v = float(os.environ["VCP_NEAR_PIVOT_PCT"])
-                if math.isfinite(v):
-                    self.vcp_near_pivot_pct = v
+                c_flt = float(cap_val)
+                if math.isfinite(c_flt) and c_flt > 0:
+                    self.portfolio_capital_krw = c_flt
+                    self.initial_cash = c_flt
             except ValueError:
                 pass
-        if "VCP_MIN_SCORE_THRESHOLD" in os.environ:
-            try:
-                v = float(os.environ["VCP_MIN_SCORE_THRESHOLD"])
-                if math.isfinite(v):
-                    self.vcp_min_score_threshold = v
-            except ValueError:
-                pass
-        if "VCP_VOLUME_SURGE_RATIO" in os.environ:
-            try:
-                v = float(os.environ["VCP_VOLUME_SURGE_RATIO"])
-                if math.isfinite(v):
-                    self.vcp_volume_surge_ratio = v
-            except ValueError:
-                pass
-        if "SENTIMENT_RISK_THRESHOLD" in os.environ:
-            try:
-                v = float(os.environ["SENTIMENT_RISK_THRESHOLD"])
-                if math.isfinite(v):
-                    self.sentiment_risk_threshold = v
-            except ValueError:
-                pass
-        if "ENSEMBLE_RETURN_MULTIPLIER" in os.environ:
-            try:
-                v = float(os.environ["ENSEMBLE_RETURN_MULTIPLIER"])
-                if math.isfinite(v):
-                    self.ensemble_return_multiplier = v
-            except ValueError:
-                pass
-        if "ORDER_SIZE_KRX" in os.environ:
-            try:
-                self.order_size_krx = float(os.environ["ORDER_SIZE_KRX"])
-            except ValueError:
-                pass
-        if "ORDER_SIZE_SP500" in os.environ:
-            try:
-                self.order_size_sp500 = float(os.environ["ORDER_SIZE_SP500"])
-            except ValueError:
-                pass
-        if "MARKET_IMPACT_COEFF_KRX" in os.environ:
-            try:
-                self.market_impact_coeff_krx = float(os.environ["MARKET_IMPACT_COEFF_KRX"])
-            except ValueError:
-                pass
-        if "MARKET_IMPACT_COEFF_SP500" in os.environ:
-            try:
-                self.market_impact_coeff_sp500 = float(os.environ["MARKET_IMPACT_COEFF_SP500"])
-            except ValueError:
-                pass
-        if "BASE_SPREAD_KOSPI" in os.environ:
-            try:
-                self.base_spread_kospi = float(os.environ["BASE_SPREAD_KOSPI"])
-            except ValueError:
-                pass
-        if "BASE_SPREAD_KOSDAQ" in os.environ:
-            try:
-                self.base_spread_kosdaq = float(os.environ["BASE_SPREAD_KOSDAQ"])
-            except ValueError:
-                pass
-        if "BASE_SPREAD_NASDAQ" in os.environ:
-            try:
-                self.base_spread_nasdaq = float(os.environ["BASE_SPREAD_NASDAQ"])
-            except ValueError:
-                pass
-        if "BASE_SPREAD_RUSSELL2000" in os.environ:
-            try:
-                self.base_spread_russell2000 = float(os.environ["BASE_SPREAD_RUSSELL2000"])
-            except ValueError:
-                pass
-        if "BASE_SPREAD_SP500" in os.environ:
-            try:
-                self.base_spread_sp500 = float(os.environ["BASE_SPREAD_SP500"])
-            except ValueError:
-                pass
-        if "DEFAULT_VOLATILITY_KRX" in os.environ:
-            try:
-                self.default_volatility_krx = float(os.environ["DEFAULT_VOLATILITY_KRX"])
-            except ValueError:
-                pass
-        if "DEFAULT_VOLATILITY_SP500" in os.environ:
-            try:
-                self.default_volatility_sp500 = float(os.environ["DEFAULT_VOLATILITY_SP500"])
-            except ValueError:
-                pass
-        if "PORTFOLIO_CAPITAL_KRW" in os.environ:
-            try:
-                cap_val = float(os.environ["PORTFOLIO_CAPITAL_KRW"])
-                if math.isfinite(cap_val) and cap_val > 0:
-                    self.portfolio_capital_krw = cap_val
-                    self.initial_cash = cap_val
-            except ValueError:
-                pass
-        elif "INITIAL_CASH" in os.environ:
-            try:
-                cap_val = float(os.environ["INITIAL_CASH"])
-                if math.isfinite(cap_val) and cap_val > 0:
-                    self.initial_cash = cap_val
-                    self.portfolio_capital_krw = cap_val
-            except ValueError:
-                pass
-        if "REALTIME_INTERVAL_MIN" in os.environ:
-            try:
-                self.realtime_interval_min = int(os.environ["REALTIME_INTERVAL_MIN"])
-            except ValueError:
-                pass
+
+        self.realtime_interval_min = _get_env_int("REALTIME_INTERVAL_MIN", getattr(self, "realtime_interval_min", 5))
         if "REALTIME_DRY_RUN" in os.environ:
             self.realtime_dry_run = os.environ["REALTIME_DRY_RUN"].lower() not in ("false", "0", "no")
-        if "REALTIME_STOP_LOSS_PCT" in os.environ:
-            try:
-                self.realtime_stop_loss_pct = float(os.environ["REALTIME_STOP_LOSS_PCT"])
-            except ValueError:
-                pass
-        if "REALTIME_TAKE_PROFIT_PCT" in os.environ:
-            try:
-                self.realtime_take_profit_pct = float(os.environ["REALTIME_TAKE_PROFIT_PCT"])
-            except ValueError:
-                pass
-        if "REALTIME_VIX_THRESHOLD" in os.environ:
-            try:
-                self.realtime_vix_threshold = float(os.environ["REALTIME_VIX_THRESHOLD"])
-            except ValueError:
-                pass
-        if "REALTIME_USDKRW_THRESHOLD" in os.environ:
-            try:
-                self.realtime_usdkrw_threshold = float(os.environ["REALTIME_USDKRW_THRESHOLD"])
-            except ValueError:
-                pass
-        if "REALTIME_MAX_ORDER_VALUE_KRW" in os.environ:
-            try:
-                self.realtime_max_order_value_krw = float(os.environ["REALTIME_MAX_ORDER_VALUE_KRW"])
-            except ValueError:
-                pass
-        if "REALTIME_SIGNAL_REVERSAL_THRESHOLD" in os.environ:
-            try:
-                self.realtime_signal_reversal_threshold = float(os.environ["REALTIME_SIGNAL_REVERSAL_THRESHOLD"])
-            except ValueError:
-                pass
+        self.realtime_stop_loss_pct = _get_env_float("REALTIME_STOP_LOSS_PCT", getattr(self, "realtime_stop_loss_pct", 0.03))
+        self.realtime_take_profit_pct = _get_env_float("REALTIME_TAKE_PROFIT_PCT", getattr(self, "realtime_take_profit_pct", 0.07))
+        self.realtime_vix_threshold = _get_env_float("REALTIME_VIX_THRESHOLD", getattr(self, "realtime_vix_threshold", 30.0))
+        self.realtime_usdkrw_threshold = _get_env_float("REALTIME_USDKRW_THRESHOLD", getattr(self, "realtime_usdkrw_threshold", 1450.0))
+        self.realtime_max_order_value_krw = _get_env_float("REALTIME_MAX_ORDER_VALUE_KRW", getattr(self, "realtime_max_order_value_krw", 10_000_000.0))
+        self.realtime_signal_reversal_threshold = _get_env_float("REALTIME_SIGNAL_REVERSAL_THRESHOLD", getattr(self, "realtime_signal_reversal_threshold", 0.35))
         if "REALTIME_TRADE_ENABLED" in os.environ:
             self.realtime_trade_enabled = os.environ["REALTIME_TRADE_ENABLED"].lower() in ("true", "1", "yes")
         if "KIWOOM_ACCOUNT" in os.environ:
@@ -425,10 +356,10 @@ class TradingConfig:
     def get_update_interval(self) -> int:
         return int(str(self.update_interval).strip())
 
-
     def get_base_spread(self, market: str) -> float:
-        """Return baseline bid-ask spread ratio for a given market."""
+        """Return baseline bid-ask spread ratio for a given market from declarative registry."""
         mkt = str(market).strip().upper()
+        # Direct override attributes take precedence for core markets
         if mkt in ('KOSPI', 'KRX'):
             return self.base_spread_kospi
         if mkt == 'KOSDAQ':
@@ -439,66 +370,26 @@ class TradingConfig:
             return self.base_spread_russell2000
         if mkt in ('SP500', 'S&P500', 'NYSE', 'US'):
             return self.base_spread_sp500
-        if mkt in ('CHINA', 'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CSI300'):
-            return self.base_spread_china
-        if mkt in ('JAPAN', 'JAPAN_TSE', 'TSE', 'NIKKEI', 'TOPIX'):
-            return self.base_spread_japan
-        if mkt in ('INDIA', 'INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'NIFTY50', 'SENSEX'):
-            return self.base_spread_india
-        if mkt in ('EUROPE', 'EUROPE_STOXX', 'STOXX', 'DAX', 'FTSE', 'CAC'):
-            return self.base_spread_europe
-        if mkt in ('VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'VN30', 'HNX'):
-            return self.base_spread_vietnam
-        if mkt in ('TAIWAN', 'TAIWAN_TWSE', 'TWSE', 'TAIEX'):
-            return self.base_spread_taiwan
-        if mkt in ('AUSTRALIA', 'AUSTRALIA_ASX', 'ASX', 'ASX200'):
-            return self.base_spread_australia
-        if mkt in ('BRAZIL', 'BRAZIL_B3', 'B3', 'IBOVESPA'):
-            return self.base_spread_brazil
-        if mkt in ('HKEX', 'HONGKONG', 'HANGSENG'):
-            return self.base_spread_hkex
-        if mkt in ('SINGAPORE', 'SINGAPORE_SGX', 'SGX', 'STI'):
-            return self.base_spread_singapore
-        if mkt in ('CANADA', 'CANADA_TSX', 'TSX'):
-            return self.base_spread_canada
+
+        info = _MARKET_LOOKUP.get(mkt)
+        if info and 'spread_bps' in info:
+            return float(info['spread_bps'])
         return self.base_spread_sp500
 
     def get_stt_tax(self, market: str) -> float:
         """Return sell-side securities transaction tax (STT) / Stamp duty for a given market."""
         mkt = str(market).strip().upper()
-        if mkt == 'KOSDAQ':
-            return 0.0018
-        if mkt in ('KOSPI', 'KRX'):
-            return 0.0015
-        if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'NYSE', 'US'):
-            return 0.00003  # SEC fee proxy
-        if mkt in ('CHINA', 'CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CSI300'):
-            return 0.0005  # China 0.05% stamp duty
-        if mkt in ('JAPAN', 'JAPAN_TSE', 'TSE', 'NIKKEI'):
-            return 0.0     # Japan: No transaction tax
-        if mkt in ('INDIA', 'INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'NIFTY50'):
-            return 0.0010  # India: 0.1% STT on equity delivery
-        if mkt in ('EUROPE', 'EUROPE_STOXX', 'STOXX', 'DAX', 'FTSE', 'CAC'):
-            return 0.0010  # Europe average financial transaction tax / Stamp duty
-        if mkt in ('VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'VN30'):
-            return 0.0015  # Vietnam 0.1% transfer tax + local surcharge
-        if mkt in ('TAIWAN', 'TAIWAN_TWSE', 'TWSE', 'TAIEX'):
-            return 0.0030  # Taiwan: 0.3% Securities Transaction Tax
-        if mkt in ('AUSTRALIA', 'AUSTRALIA_ASX', 'ASX'):
-            return 0.0     # Australia: No transaction tax
-        if mkt in ('BRAZIL', 'BRAZIL_B3', 'B3'):
-            return 0.0     # Brazil: No transaction tax
-        if mkt in ('HKEX', 'HONGKONG', 'HANGSENG'):
-            return 0.0010  # Hong Kong: 0.10% Stamp Duty
-        if mkt in ('SINGAPORE', 'SINGAPORE_SGX', 'SGX'):
-            return 0.0     # Singapore: No transaction tax
-        if mkt in ('CANADA', 'CANADA_TSX', 'TSX'):
-            return 0.0     # Canada: No transaction tax
+        info = _MARKET_LOOKUP.get(mkt)
+        if info and 'stt' in info:
+            return float(info['stt'])
         return 0.0001
 
     def get_brokerage_fee(self, market: str) -> float:
         """Return one-way estimated brokerage fee ratio for a given market."""
         mkt = str(market).strip().upper()
+        info = _MARKET_LOOKUP.get(mkt)
+        if info and 'brokerage' in info:
+            return float(info['brokerage'])
         if mkt in ('KOSPI', 'KOSDAQ', 'KRX'):
             return 0.0003
         if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US'):

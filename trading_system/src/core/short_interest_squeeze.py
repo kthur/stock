@@ -119,11 +119,15 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                 # Formula: Short Interest Ratio * DTC * (1 + max(0, ret_5d * 3))
                 # Add squeeze ignition multiplier when momentum turns positive with heavy DTC
                 ignite_mult = 1.35 if (ret_5d > 0.02 and float(dtc) >= 3.0) else 1.0
-                raw_squeeze = float(short_ratio) * float(dtc) * (1.0 + max(0.0, float(ret_5d) * 3.0)) * ignite_mult
+
+                # Hard-To-Borrow (HTB) & Borrow Fee Drag Modeling (Special Rate & Recall risk)
+                borrow_fee_drag = 0.85 if (float(short_ratio) > 0.35 or float(dtc) > 10.0) else 1.0
+                raw_squeeze = float(short_ratio) * float(dtc) * (1.0 + max(0.0, float(ret_5d) * 3.0)) * ignite_mult * borrow_fee_drag
                 results[sym_str] = raw_squeeze
 
         # Build output DataFrame and normalize
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
+        df_out['raw_score'] = pd.to_numeric(df_out['raw_score'], errors='coerce')
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 0:

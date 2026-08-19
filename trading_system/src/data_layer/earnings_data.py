@@ -389,26 +389,21 @@ def fetch_and_store_fundamentals_batch(
         logger.info(f"Streamed and stored fundamentals for {stored}/{total_fetch} symbols in DB")
         return stored
 
-    # Run execution with thread safety for event loop context
-    import threading
-    import queue
-
-    q: queue.Queue = queue.Queue()
-
-    def worker():
+    # Run execution with robust event loop isolation to avoid nested event loop conflicts
+    try:
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            val = loop.run_until_complete(_async_batch_fetch_and_store())
-            loop.close()
-            q.put((True, val))
-        except Exception as e:
-            q.put((False, e))
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
 
-    t = threading.Thread(target=worker)
-    t.start()
-    t.join()
-    success, res = q.get()
-    if success:
-        return int(res)
-    raise res
+        if running_loop is None:
+            return int(asyncio.run(_async_batch_fetch_and_store()))
+        else:
+            # If an event loop is already active in current thread, execute cleanly in dedicated worker thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(lambda: asyncio.run(_async_batch_fetch_and_store()))
+                return int(future.result())
+    except Exception as e:
+        logger.error(f"Error in batch fundamental fetch execution: {e}")
+        raise

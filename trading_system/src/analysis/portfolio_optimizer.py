@@ -27,23 +27,29 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
         return np.array([1.0])
 
     # Extract standard deviations (volatility) for fallback
-    diag_vol = np.sqrt(np.diag(cov_matrix))
-    diag_vol = np.where(np.isnan(diag_vol) | (diag_vol < 1e-8), 1e-8, diag_vol)
+    diag_vol = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-8))
+
+    # Check for non-finite values in covariance matrix
+    if not np.all(np.isfinite(cov_matrix)):
+        logger.error("Covariance matrix contains NaN or Inf values.")
+        return np.array([])
+
+    # Apply Tikhonov regularization (epsilon * I) to prevent ill-conditioning
+    cond_num = np.linalg.cond(cov_matrix) if n <= 200 else 1.0
+    if cond_num > 1e4:
+        logger.debug(f"High covariance condition number ({cond_num:.1e}); applying Tikhonov regularization.")
+    reg_cov = cov_matrix + 1e-6 * np.eye(n)
 
     weights = None
 
     try:
-        # Check for non-finite values in covariance matrix
-        if not np.all(np.isfinite(cov_matrix)):
-            raise ValueError("Covariance matrix contains NaN or Inf values.")
-
         # Formulation B: Log-barrier optimization
         def objective(x):
             x = np.asarray(x)
             if np.any(x <= 1e-12):
                 return 1e10
             # 0.5 * x^T * Sigma * x - sum(log(x))
-            return 0.5 * float(x.T @ cov_matrix @ x) - float(np.sum(np.log(x)))
+            return 0.5 * float(x.T @ reg_cov @ x) - float(np.sum(np.log(x)))
 
         # Initial guess: equal weight scaled
         x0 = np.full(n, 1.0 / n)
