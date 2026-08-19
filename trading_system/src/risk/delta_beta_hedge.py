@@ -8,8 +8,9 @@ severe or bear market regimes (BEAR_HIGH_VOL / CRISIS_ACTIVE / CRISIS_SEVERE).
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -125,4 +126,55 @@ class DeltaBetaHedgeEngine:
             'hedge_etf_symbol': hedge_etf,
             'hedge_weight': float(hedge_weight),
             'net_asset_weights': net_asset_weights
+        }
+
+    @staticmethod
+    def calculate_optimal_fx_overlay(
+        us_portfolio_weight: float,
+        usdkrw_series: Optional[pd.Series] = None,
+        us_yield: float = 0.0425,
+        kr_yield: float = 0.0350,
+        regime: str = "BULL_LOW_VOL"
+    ) -> Dict[str, Any]:
+        """
+        Calculates Dynamic Covered Interest Parity (CIP) and USD/KRW Momentum FX Forward Hedge Ratio.
+        Protects Korean investors holding US equities against USD downside drag while retaining USD upside in crisis.
+        """
+        if us_portfolio_weight <= 0.01:
+            return {"fx_hedge_ratio": 0.0, "fx_hedge_weight": 0.0, "status": "NO_US_EXPOSURE"}
+
+        # 1. USD/KRW Trend Momentum
+        is_usd_downtrend = False
+        if usdkrw_series is not None and len(usdkrw_series) >= 20:
+            try:
+                s = pd.to_numeric(usdkrw_series, errors='coerce').dropna()
+                ma20 = s.tail(20).mean()
+                curr_fx = s.iloc[-1]
+                if curr_fx < ma20:
+                    is_usd_downtrend = True
+            except Exception:
+                pass
+
+        # 2. Rate Differential (Carry Cost)
+        rate_diff = us_yield - kr_yield
+
+        # 3. Dynamic Hedge Ratio:
+        # In severe crisis / high vol, keep USD unhedged (hedge_ratio = 0%) because USD acts as flight-to-safety asset.
+        # In USD downtrend & normal market, hedge 50% to 80% to protect against currency drag.
+        is_crisis = regime in ["BEAR_HIGH_VOL", "CRISIS_ACTIVE", "CRISIS_SEVERE", "SEVERE"]
+        if is_crisis:
+            hedge_ratio = 0.0  # Keep USD Long for safe-haven protection
+        elif is_usd_downtrend:
+            hedge_ratio = 0.80 if rate_diff < 0 else 0.50
+        else:
+            hedge_ratio = 0.20
+
+        fx_hedge_weight = float(np.clip(us_portfolio_weight * hedge_ratio, 0.0, 1.0))
+        return {
+            "us_portfolio_weight": float(us_portfolio_weight),
+            "fx_hedge_ratio": float(hedge_ratio),
+            "fx_hedge_weight": float(fx_hedge_weight),
+            "is_usd_downtrend": bool(is_usd_downtrend),
+            "rate_diff_bps": float(rate_diff * 10000.0),
+            "status": "ACTIVE_FX_OVERLAY"
         }

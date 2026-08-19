@@ -2527,4 +2527,98 @@ class EnsembleScoringEngine:
 
         return df_mod
 
+    # =========================================================================
+    # OBJECTIVE 12: MULTI-HORIZON DECAY FILTERING & NON-LINEAR META-LEARNING
+    # =========================================================================
+
+    STRATEGY_HALF_LIVES: Dict[str, float] = {
+        "microstructure": 0.5,
+        "hft": 0.5,
+        "darkpool_hft": 0.5,
+        "short_term_reversal": 1.5,
+        "order_flow": 2.0,
+        "gamma_squeeze": 2.0,
+        "iv_skew": 2.5,
+        "lead_lag": 5.0,
+        "event_driven": 5.0,
+        "surge": 5.0,
+        "supply_chain": 7.0,
+        "vcp_ml": 8.0,
+        "vcp_pattern": 8.0,
+        "stat_arb": 10.0,
+        "sector_rotation": 10.0,
+        "sentiment": 10.0,
+        "card_factor": 12.0,
+        "arm_factor": 15.0,
+        "short_squeeze": 15.0,
+        "insider_buying": 15.0,
+        "index_rebalance": 20.0,
+        "regression": 20.0,
+        "mq_factor": 20.0,
+        "factor_neutralized": 25.0,
+        "latr_factor": 30.0,
+        "trend_efficiency": 30.0,
+        "vol_target": 30.0,
+        "rim_valuation": 45.0,
+        "accruals_quality": 45.0,
+        "value_up": 60.0,
+        "tone_drift": 60.0,
+    }
+
+    @classmethod
+    def apply_exponential_decay_filter(
+        cls,
+        current_scores: pd.DataFrame,
+        previous_scores: Optional[pd.DataFrame] = None,
+        custom_half_lives: Optional[Dict[str, float]] = None
+    ) -> pd.DataFrame:
+        """
+        Applies multi-horizon continuous exponential convolutional decay filtering:
+        s_tilde_k(t) = alpha_k * s_k(t) + (1 - alpha_k) * s_tilde_k(t-1)
+        where alpha_k = 1 - exp(-ln(2) / tau_k).
+        Prevents turnover churning in slow-tier factors while preserving fast-tier responsiveness.
+        """
+        if current_scores is None or current_scores.empty:
+            return current_scores
+        if previous_scores is None or previous_scores.empty:
+            return current_scores.copy()
+
+        df_filtered = current_scores.copy()
+        half_lives = custom_half_lives or cls.STRATEGY_HALF_LIVES
+
+        sym_col = 'symbol' if 'symbol' in df_filtered.columns else None
+        if sym_col and sym_col in previous_scores.columns:
+            prev_indexed = previous_scores.set_index(sym_col)
+            curr_indexed = df_filtered.set_index(sym_col)
+
+            for col in curr_indexed.columns:
+                if col in prev_indexed.columns and pd.api.types.is_numeric_dtype(curr_indexed[col]):
+                    tau = half_lives.get(col, 10.0)
+                    alpha = 1.0 - float(np.exp(-np.log(2.0) / max(tau, 0.1)))
+                    prev_s = prev_indexed[col].reindex(curr_indexed.index).fillna(curr_indexed[col])
+                    curr_indexed[col] = alpha * curr_indexed[col] + (1.0 - alpha) * prev_s
+
+            df_filtered = curr_indexed.reset_index()
+        return df_filtered
+
+    @staticmethod
+    def apply_nonlinear_meta_ensemble(
+        factor_scores_df: pd.DataFrame,
+        meta_learner: Optional[Any] = None,
+        fallback_weights: Optional[Dict[str, float]] = None
+    ) -> np.ndarray:
+        """
+        Applies Non-Linear Monotonic GBDT Meta-Learner to extract cross-factor synergies.
+        """
+        if factor_scores_df is None or factor_scores_df.empty:
+            return np.array([])
+
+        try:
+            from src.ai.meta_learner import NonLinearMetaLearner
+            learner = meta_learner or NonLinearMetaLearner()
+            return learner.predict(factor_scores_df, fallback_linear_weights=fallback_weights)
+        except Exception:
+            return np.clip(np.mean(factor_scores_df.values, axis=1), 0.0, 1.0)
+
+
 

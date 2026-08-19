@@ -142,6 +142,85 @@ class PortfolioAllocator:
         return np.asarray(shrunk_semi, dtype=np.float64)
 
     @staticmethod
+    def get_dynamic_risk_free_rate(market: str = "US", horizon_days: int = 20) -> float:
+        """
+        Dynamically fetches real-time risk-free rate (r_f) from MarketIndicatorStorage (TNX / DGS3MO / CD91).
+        Defaults gracefully to 3.5% (0.035) annual if unavailable.
+        """
+        mkt = str(market).upper()
+        try:
+            from src.data_layer.indicator_storage import MarketIndicatorStorage
+            storage = MarketIndicatorStorage()
+            indicators = storage.get_latest_indicators()
+            if indicators:
+                if mkt in ["SP500", "NASDAQ", "RUSSELL2000", "US"]:
+                    # TNX is CBOE 10-Year Treasury Yield (e.g. 4.25 means 4.25%)
+                    tnx_val = indicators.get("TNX")
+                    if tnx_val is not None and math.isfinite(float(tnx_val)) and float(tnx_val) > 0:
+                        return float(tnx_val) / 100.0
+                else:
+                    # KRX market - CD 91d / KORIBOR rate (or USDKRW interest differential proxy)
+                    cd_val = indicators.get("CD91") or indicators.get("KRW_CD") or indicators.get("TNX")
+                    if cd_val is not None and math.isfinite(float(cd_val)) and float(cd_val) > 0:
+                        return float(cd_val) / 100.0
+        except Exception:
+            pass
+        return 0.035
+
+    @staticmethod
+    def calculate_hybrid_volatility(
+        df_or_series: Any,
+        lambda_ewma: float = 0.94,
+        min_vol: float = 0.005
+    ) -> float:
+        """
+        Calculates forward volatility blending Garman-Klass intraday OHLC volatility
+        and RiskMetrics Exponentially Weighted Moving Average (EWMA, lambda=0.94).
+        Eliminates the 20-day sample standard deviation 'ghost effect'.
+        """
+        if df_or_series is None:
+            return 0.02
+        try:
+            if isinstance(df_or_series, pd.DataFrame) and not df_or_series.empty:
+                cols = {str(c).lower(): c for c in df_or_series.columns}
+                h_col, l_col, c_col, o_col = cols.get("high"), cols.get("low"), cols.get("close"), cols.get("open")
+                if h_col and l_col and c_col and o_col and len(df_or_series) >= 5:
+                    h = pd.to_numeric(df_or_series[h_col], errors="coerce").values
+                    l = pd.to_numeric(df_or_series[l_col], errors="coerce").values
+                    c = pd.to_numeric(df_or_series[c_col], errors="coerce").values
+                    o = pd.to_numeric(df_or_series[o_col], errors="coerce").values
+                    valid = (h > 0) & (l > 0) & (c > 0) & (o > 0) & (h >= l)
+                    if np.sum(valid) >= 5:
+                        h, l, c, o = h[valid], l[valid], c[valid], o[valid]
+                        # Garman-Klass intraday variance
+                        log_hl = np.log(h / l)
+                        log_co = np.log(c / o)
+                        gk_var = 0.5 * (log_hl ** 2) - (2.0 * np.log(2.0) - 1.0) * (log_co ** 2)
+                        gk_vol = float(np.sqrt(max(1e-8, np.mean(gk_var[-20:]))))
+
+                        # RiskMetrics EWMA
+                        ret = np.diff(np.log(c))
+                        ewma_var = ret[0] ** 2 if len(ret) > 0 else 0.0004
+                        for r in ret[1:]:
+                            ewma_var = lambda_ewma * ewma_var + (1.0 - lambda_ewma) * (r ** 2)
+                        ewma_vol = float(np.sqrt(max(1e-8, ewma_var)))
+
+                        hybrid_vol = 0.50 * gk_vol + 0.50 * ewma_vol
+                        return float(max(min_vol, hybrid_vol))
+            elif isinstance(df_or_series, (pd.Series, np.ndarray, list)):
+                s = np.asarray(df_or_series, dtype=float)
+                s = s[np.isfinite(s)]
+                if len(s) >= 5:
+                    ret = np.diff(np.log(s)) if np.all(s > 0) else np.diff(s)
+                    ewma_var = ret[0] ** 2 if len(ret) > 0 else 0.0004
+                    for r in ret[1:]:
+                        ewma_var = lambda_ewma * ewma_var + (1.0 - lambda_ewma) * (r ** 2)
+                    return float(max(min_vol, np.sqrt(ewma_var)))
+        except Exception:
+            pass
+        return 0.02
+
+    @staticmethod
     def calculate_continuous_fractional_kelly(
         expected_returns: Optional[np.ndarray],
         covariance_matrix: np.ndarray,
@@ -1636,4 +1715,78 @@ class PortfolioAllocator:
         if tot > 1.0:
             constrained = {k: v / tot for k, v in constrained.items()}
         return constrained
+
+    # =========================================================================
+    # OBJECTIVE 11: EXTREME VALUE CLAYTON COPULA TAIL-RISK CALIBRATION
+    # =========================================================================
+
+    @staticmethod
+    def compute_clayton_copula_tail_dependence(
+        returns_matrix: np.ndarray,
+        theta: float = 2.0
+    ) -> np.ndarray:
+        """
+        Computes pairwise lower tail dependence matrix Lambda_L using Archimedean Clayton Copula:
+        lambda_L = 2^(-1 / theta)
+        """
+        N = returns_matrix.shape[1] if returns_matrix.ndim == 2 else 0
+        if N <= 1:
+            return np.ones((N, N), dtype=float)
+
+        q05 = np.nanpercentile(returns_matrix, 5.0, axis=0)
+        tail_indicator = (returns_matrix <= q05).astype(float)
+
+        co_tail = np.dot(tail_indicator.T, tail_indicator) / max(1, returns_matrix.shape[0])
+        p_indiv = np.mean(tail_indicator, axis=0)
+
+        lambda_L = np.zeros((N, N), dtype=float)
+        for i in range(N):
+            for j in range(N):
+                if i == j:
+                    lambda_L[i, j] = 1.0
+                else:
+                    p_cond = co_tail[i, j] / max(p_indiv[i], 1e-4)
+                    theoretical_l = float(2.0 ** (-1.0 / max(theta, 0.1)))
+                    lambda_L[i, j] = float(np.clip(0.5 * p_cond + 0.5 * theoretical_l, 0.0, 1.0))
+
+        return lambda_L
+
+    @staticmethod
+    def compute_clayton_copula_tail_risk_weights(
+        target_weights: Dict[str, float],
+        returns_df: Optional[pd.DataFrame] = None,
+        theta: float = 2.0,
+        tail_penalty_strength: float = 0.50
+    ) -> Dict[str, float]:
+        """
+        Penalizes portfolio weights for assets with severe joint downside tail co-movement
+        to eliminate catastrophic correlation breakdowns during market panics.
+        """
+        if not target_weights or returns_df is None or returns_df.empty:
+            return dict(target_weights)
+
+        symbols = [s for s in target_weights.keys() if s in returns_df.columns]
+        if len(symbols) < 2:
+            return dict(target_weights)
+
+        ret_mat = returns_df[symbols].dropna().values.astype(np.float64)
+        if len(ret_mat) < 15:
+            return dict(target_weights)
+
+        lambda_L = PortfolioAllocator.compute_clayton_copula_tail_dependence(ret_mat, theta=theta)
+
+        avg_tail_dep = np.mean(lambda_L, axis=1)
+        w_vec = np.array([target_weights[s] for s in symbols], dtype=float)
+
+        tail_multiplier = np.exp(-tail_penalty_strength * (avg_tail_dep - np.mean(avg_tail_dep)))
+        penalized_w = w_vec * tail_multiplier
+        penalized_w = np.maximum(0.0, penalized_w)
+        tot_pen = np.sum(penalized_w) or 1.0
+        penalized_w /= tot_pen
+
+        res = dict(target_weights)
+        for s, w_adj in zip(symbols, penalized_w):
+            res[s] = float(w_adj)
+        return res
+
 

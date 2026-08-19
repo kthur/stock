@@ -282,13 +282,16 @@ def calculate_hrp_weights(
     symbols: Optional[list] = None,
     sectors: Optional[list] = None,
     returns_matrix: Optional[np.ndarray] = None,
-    tail_stress: bool = True
+    tail_stress: bool = True,
+    linkage_method: str = "ward",
+    use_rmt_denoising: bool = True
 ) -> np.ndarray:
     """
     Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
-    1. Distance matrix computation from correlation matrix (with optional Tail-Stressed Covariance).
-    2. Hierarchical clustering (single linkage).
-    3. Quasi-diagonalization & Recursive Bisection.
+    Enhanced with:
+    1. RMT Marchenko-Pastur Spectral Denoising.
+    2. Ward / Complete hierarchical clustering (eliminates single-linkage chaining artifacts).
+    3. Quasi-diagonalization & Hierarchical Recursive Bisection.
     """
     if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
         logger.error("Invalid covariance matrix for HRP: not a numpy array.")
@@ -307,13 +310,23 @@ def calculate_hrp_weights(
         # Apply Ledoit-Wolf covariance shrinkage
         cov_matrix = shrink_covariance_matrix(cov_matrix, shrink_factor=0.15)
 
+        # Apply RMT Marchenko-Pastur Denoising if sufficient historical sample available
+        if use_rmt_denoising and returns_matrix is not None and returns_matrix.shape[0] > n and n >= 3:
+            try:
+                from src.risk.fx_adjusted_covariance import FXAdjustedCovarianceEngine
+                cov_matrix = FXAdjustedCovarianceEngine.denoise_covariance_marchenko_pastur(
+                    cov_matrix=cov_matrix,
+                    t_obs=returns_matrix.shape[0],
+                    n_assets=n
+                )
+            except Exception as _rmt_e:
+                logger.debug(f"[HRP] RMT Denoising fallback: {_rmt_e}")
+
         # Apply Tail Stress Covariance if returns_matrix is provided
         if tail_stress and returns_matrix is not None:
             cov_matrix = compute_tail_stressed_covariance(cov_matrix, returns_matrix=returns_matrix)
 
         # Replace non-finite entries safely.
-        # Avoid filling diagonal with a tiny constant (e.g. 1e-4) which makes missing data look "risk-free",
-        # causing HRP inverse-variance to over-allocate to missing assets.
         if not np.all(np.isfinite(cov_matrix)):
             finite_mask = np.isfinite(cov_matrix)
             diag_finite = np.diag(cov_matrix)[np.isfinite(np.diag(cov_matrix))]
@@ -342,9 +355,15 @@ def calculate_hrp_weights(
         dist = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr)))
         np.fill_diagonal(dist, 0.0)
 
-        # Linkage matrix
+        # Linkage matrix: Ward / Complete avoids seriation chaining
         dist_condensed = squareform(dist, checks=False)
-        link = linkage(dist_condensed, method='single')
+        method_choice = str(linkage_method).lower()
+        if method_choice not in ["ward", "complete", "average", "single"]:
+            method_choice = "ward"
+        try:
+            link = linkage(dist_condensed, method=method_choice)
+        except Exception:
+            link = linkage(dist_condensed, method="average")
 
         # Quasi-diagonalization
         def get_quasi_diag(link_mat, num_items):

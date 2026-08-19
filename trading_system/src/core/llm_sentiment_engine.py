@@ -65,9 +65,11 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
 
     POSITIVE_WORDS_KO = {"흑자전환", "최고실적", "수주계약", "자사주소각", "영업이익증가", "기술이전", "특허취득", "매출상향", "실적개선", "무상증자", "자기주식소각"}
     NEGATIVE_WORDS_KO = {"적자전환", "감감계약", "횡령", "배임", "소송", "회계감사거절", "영업이익감소", "유상증자", "부도", "실적 감소", "실적감소", "감자"}
+    NEGATION_WORDS_KO = {"철회", "취소", "실패", "불투명", "무산", "지연", "불발", "의혹", "하향", "미달", "부정적", "소송", "제동", "차질", "난항"}
 
     POSITIVE_WORDS_EN = {"record revenue", "earnings surprise", "share buyback", "upgraded guidance", "patent granted", "contract win", "revenue growth", "profit margin"}
     NEGATIVE_WORDS_EN = {"going concern", "sec investigation", "accounting restatement", "default risk", "downgraded guidance", "class action", "litigation", "net loss"}
+    NEGATION_WORDS_EN = {"cancel", "cancelled", "withdrawn", "failed", "unlikely", "delayed", "missed", "lawsuit", "investigation", "rejected"}
 
     def __init__(self, db_storage=None):
         self.db_storage = db_storage
@@ -77,13 +79,64 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
             score = 0.5
         else:
             text_lower = text.lower()
-            pos_count = sum(1 for w in self.POSITIVE_WORDS_KO if w in text) + sum(1 for w in self.POSITIVE_WORDS_EN if w in text_lower)
-            neg_count = sum(1 for w in self.NEGATIVE_WORDS_KO if w in text) + sum(1 for w in self.NEGATIVE_WORDS_EN if w in text_lower)
+            pos_count = 0
+            neg_count = 0
+
+            # Scan Korean positive words with window-based negation detection (±25 chars)
+            for w in self.POSITIVE_WORDS_KO:
+                start_idx = 0
+                while True:
+                    idx = text.find(w, start_idx)
+                    if idx == -1:
+                        break
+                    window = text[max(0, idx - 25): min(len(text), idx + len(w) + 25)]
+                    is_negated = any(neg in window for neg in self.NEGATION_WORDS_KO)
+                    if is_negated:
+                        neg_count += 1.5  # Inverted fake-positive is penalized as a negative shock
+                    else:
+                        pos_count += 1.0
+                    start_idx = idx + len(w)
+
+            # Scan Korean negative words
+            for w in self.NEGATIVE_WORDS_KO:
+                start_idx = 0
+                while True:
+                    idx = text.find(w, start_idx)
+                    if idx == -1:
+                        break
+                    neg_count += 1.0
+                    start_idx = idx + len(w)
+
+            # Scan English positive words with negation detection
+            for w in self.POSITIVE_WORDS_EN:
+                start_idx = 0
+                while True:
+                    idx = text_lower.find(w, start_idx)
+                    if idx == -1:
+                        break
+                    window = text_lower[max(0, idx - 30): min(len(text_lower), idx + len(w) + 30)]
+                    is_negated = any(neg in window for neg in self.NEGATION_WORDS_EN)
+                    if is_negated:
+                        neg_count += 1.5
+                    else:
+                        pos_count += 1.0
+                    start_idx = idx + len(w)
+
+            # Scan English negative words
+            for w in self.NEGATIVE_WORDS_EN:
+                start_idx = 0
+                while True:
+                    idx = text_lower.find(w, start_idx)
+                    if idx == -1:
+                        break
+                    neg_count += 1.0
+                    start_idx = idx + len(w)
+
             total = pos_count + neg_count
             if total == 0:
                 score = 0.5
             else:
-                score = float(np.clip(0.5 + (pos_count - neg_count) / float(2 * (total + 1)), 0.0, 1.0))
+                score = float(np.clip(0.5 + (pos_count - neg_count) / float(2.0 * (total + 1.0)), 0.0, 1.0))
 
         if symbol:
             comp = 0.6 * score + 0.4 * kwargs.get('catalyst_surprise_score', 0.5)

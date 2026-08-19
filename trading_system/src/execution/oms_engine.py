@@ -21,6 +21,40 @@ _SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-^]*$")
 _MIN_PRICE_BOUND = 1.0
 _MAX_PRICE_BOUND = 100_000_000.0
 
+STRATEGY_ALPHA_HALF_LIVES: Dict[str, float] = {
+    'microstructure': 0.5,
+    'darkpool': 1.0,
+    'surge': 1.0,
+    'gamma_squeeze': 2.0,
+    'short_term_reversal': 3.0,
+    'order_flow': 3.0,
+    'iv_skew': 5.0,
+    'lead_lag': 5.0,
+    'stat_arb': 7.0,
+    'sector_rotation': 10.0,
+    'event_driven': 10.0,
+    'sentiment': 10.0,
+    'lstm': 10.0,
+    'vcp_ml': 10.0,
+    'vcp_rule': 10.0,
+    'mq_factor': 15.0,
+    'trend_efficiency': 15.0,
+    'regression': 20.0,
+    'factor_neutralized': 20.0,
+    'vol_target': 20.0,
+    'arm_factor': 20.0,
+    'card_factor': 20.0,
+    'latr_factor': 20.0,
+    'supply_chain': 20.0,
+    'inst_foreign_sector': 20.0,
+    'short_squeeze': 15.0,
+    'accruals_quality': 30.0,
+    'insider_buying': 30.0,
+    'earnings_tone_drift': 30.0,
+    'valueup_catalyst': 45.0,
+    'rim_valuation': 60.0,
+}
+
 
 class ExecutionOMSEngine:
     """
@@ -359,11 +393,28 @@ class ExecutionOMSEngine:
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 
-                # Institutional Execution Strategy Routing (ADV Participation Slicing & U-shaped Volume Profile)
+                # Strategy Alpha Half-Life (tau_alpha) Adaptive Execution Strategy Routing
+                # Fast alpha (<= 2d) requires fast execution (FAST_VWAP) to avoid alpha decay.
+                # Slow alpha (>= 25d) uses patient execution (PATIENT_TWAP) with smaller slice sizes to minimize market impact.
+                hl_list = []
+                for strat_key, strat_hl in STRATEGY_ALPHA_HALF_LIVES.items():
+                    if strat_key in pred or f"{strat_key}_score" in pred or f"{strat_key}_prob" in pred or f"{strat_key}_20d" in pred:
+                        hl_list.append(strat_hl)
+                avg_half_life = float(np.mean(hl_list)) if hl_list else 10.0
+
                 part_ratio = target_amount / max(adv_val, 1.0)
-                if part_ratio > 0.03:
+                if avg_half_life <= 2.0 and part_ratio > 0.01:
+                    exec_strategy = "FAST_VWAP"
+                    slice_count = min(6, max(2, int(np.ceil(part_ratio / 0.005))))
+                elif avg_half_life >= 25.0 and part_ratio > 0.01:
+                    exec_strategy = "MIDPOINT_PEG"
+                    slice_count = min(12, max(4, int(np.ceil(part_ratio / 0.005))))
+                elif part_ratio > 0.03:
                     exec_strategy = "DYNAMIC_VWAP"
                     slice_count = min(10, max(3, int(np.ceil(part_ratio / 0.01))))
+                elif avg_half_life >= 15.0:
+                    exec_strategy = "MIDPOINT_PEG"
+                    slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
                 elif part_ratio > 0.01:
                     exec_strategy = "TWAP"
                     slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
@@ -538,6 +589,38 @@ class ExecutionOMSEngine:
                 conn.close()
         return holdings
 
+    @staticmethod
+    def calculate_peg_limit_price(
+        target_price: float,
+        bid_price: Optional[float] = None,
+        ask_price: Optional[float] = None,
+        spread: Optional[float] = None,
+        alpha_urgency: float = 0.50,
+        action: str = "BUY"
+    ) -> float:
+        """
+        Calculates optimal limit price for Midpoint Pegged passive maker order routing.
+        Saves half-spread and captures maker rebates when alpha urgency is low/medium.
+        """
+        tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
+        if tp <= 0:
+            return tp
+
+        spr = spread if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
+        p_bid = bid_price if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
+        p_ask = ask_price if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        p_mid = (p_bid + p_ask) / 2.0
+
+        is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE"]
+        if alpha_urgency <= 0.40:
+            peg_price = p_bid if is_buy else p_ask
+        elif alpha_urgency <= 0.75:
+            peg_price = p_mid
+        else:
+            peg_price = p_ask if is_buy else p_bid
+
+        return float(peg_price)
+
 
 class AlmgrenChrissScheduler:
     """
@@ -582,6 +665,39 @@ class AlmgrenChrissScheduler:
         alloc[-1] += diff_total
         return [int(x) for x in alloc]
 
+    @staticmethod
+    def calculate_peg_limit_price(
+        target_price: float,
+        bid_price: Optional[float] = None,
+        ask_price: Optional[float] = None,
+        spread: Optional[float] = None,
+        alpha_urgency: float = 0.50,
+        action: str = "BUY"
+    ) -> float:
+        """
+        Calculates optimal limit price for Midpoint Pegged passive maker order routing.
+        Saves half-spread and captures maker rebates when alpha urgency is low/medium.
+        """
+        tp = float(target_price) if (target_price is not None and math.isfinite(float(target_price))) else 1000.0
+        if tp <= 0:
+            return tp
+
+        spr = spread if (spread is not None and spread > 0) else max(tp * 0.002, 1.0)
+        p_bid = bid_price if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
+        p_ask = ask_price if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
+        p_mid = (p_bid + p_ask) / 2.0
+
+        is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE"]
+        if alpha_urgency <= 0.40:
+            peg_price = p_bid if is_buy else p_ask
+        elif alpha_urgency <= 0.75:
+            peg_price = p_mid
+        else:
+            peg_price = p_ask if is_buy else p_bid
+
+        return float(peg_price)
+
 
 # Module level alias for backward compatibility
 OMSEngine = ExecutionOMSEngine
+

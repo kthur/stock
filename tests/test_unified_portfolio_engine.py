@@ -219,3 +219,112 @@ class TestDeltaBetaHedgeVolatilityDrag:
         )
         assert res_sev["hedge_etf_symbol"] == "252670.KS"
         assert res_sev["hedge_weight"] > 0.0
+
+
+class TestRMTMarchenkoPasturDenoising:
+    def test_marchenko_pastur_denoising_properties(self):
+        np.random.seed(42)
+        n_assets = 10
+        t_obs = 30
+        # Generate correlated synthetic returns
+        raw_mat = np.random.normal(0, 0.02, (t_obs, n_assets))
+        cov_raw = np.cov(raw_mat, rowvar=False)
+
+        cov_denoised = FXAdjustedCovarianceEngine.denoise_covariance_marchenko_pastur(
+            cov_matrix=cov_raw,
+            t_obs=t_obs,
+            n_assets=n_assets
+        )
+
+        assert cov_denoised.shape == (n_assets, n_assets)
+        # All eigenvalues must be positive (positive definite)
+        eigenvals = np.linalg.eigvals(cov_denoised)
+        assert np.all(eigenvals > 0)
+        # Diagonal variances must be strictly positive
+        assert np.all(np.diag(cov_denoised) > 0)
+
+
+class TestDynamicMacroTermStructure:
+    def test_dynamic_rf_retrieval(self):
+        rf_us = PortfolioAllocator.get_dynamic_risk_free_rate(market="US")
+        rf_kr = PortfolioAllocator.get_dynamic_risk_free_rate(market="KOSPI")
+
+        assert isinstance(rf_us, float)
+        assert isinstance(rf_kr, float)
+        assert 0.01 <= rf_us <= 0.15
+        assert 0.01 <= rf_kr <= 0.15
+
+
+class TestHybridVolatilityModel:
+    def test_garman_klass_and_ewma_hybrid_volatility(self):
+        dates = pd.date_range("2026-01-01", periods=30)
+        np.random.seed(42)
+        c = 100.0 * np.exp(np.cumsum(np.random.normal(0.0005, 0.015, 30)))
+        h = c * (1.0 + np.abs(np.random.normal(0, 0.01, 30)))
+        l = c * (1.0 - np.abs(np.random.normal(0, 0.01, 30)))
+        o = (h + l) / 2.0
+        df = pd.DataFrame({"open": o, "high": h, "low": l, "close": c}, index=dates)
+
+        vol = PortfolioAllocator.calculate_hybrid_volatility(df, lambda_ewma=0.94)
+        assert isinstance(vol, float)
+        assert 0.005 <= vol <= 0.20
+
+
+class TestWardLinkageHERCHRP:
+    def test_ward_linkage_hrp_weights(self):
+        from src.analysis.portfolio_optimizer import calculate_hrp_weights
+        np.random.seed(42)
+        cov = np.array([
+            [0.0004, 0.0002, 0.00005],
+            [0.0002, 0.0005, 0.00008],
+            [0.00005, 0.00008, 0.0003]
+        ])
+        weights_ward = calculate_hrp_weights(cov, linkage_method="ward")
+        weights_complete = calculate_hrp_weights(cov, linkage_method="complete")
+
+        assert len(weights_ward) == 3
+        assert len(weights_complete) == 3
+        assert math.isclose(np.sum(weights_ward), 1.0, rel_tol=1e-3)
+        assert math.isclose(np.sum(weights_complete), 1.0, rel_tol=1e-3)
+
+
+class TestAlphaHalfLifeOMSRouting:
+    def test_alpha_half_life_routing(self):
+        engine = ExecutionOMSEngine(db_path=":memory:")
+        # Fast alpha (surge)
+        fast_pred = [{"symbol": "005930", "market": "KOSPI", "close_price": 70000.0, "adv": 50_000_000.0, "surge_prob": 0.85}]
+        # Slow alpha (rim_valuation)
+        slow_pred = [{"symbol": "000660", "market": "KOSPI", "close_price": 120000.0, "adv": 50_000_000.0, "rim_valuation_score": 0.90}]
+
+        fast_plans = engine.generate_order_plan(fast_pred, {"005930": 0.08}, total_capital=100_000_000.0)
+        slow_plans = engine.generate_order_plan(slow_pred, {"000660": 0.08}, total_capital=100_000_000.0)
+
+        assert fast_plans[0]["execution_strategy"] == "FAST_VWAP"
+        assert slow_plans[0]["execution_strategy"] in ["PATIENT_TWAP", "MIDPOINT_PEG"]
+
+
+class TestDynamicFXOverlay:
+    def test_cip_and_momentum_fx_forward_overlay(self):
+        dates = pd.date_range("2026-01-01", periods=30)
+        # Upward trending FX
+        fx_up = pd.Series(np.linspace(1300, 1400, 30), index=dates)
+        res_up = DeltaBetaHedgeEngine.calculate_optimal_fx_overlay(
+            us_portfolio_weight=0.50,
+            usdkrw_series=fx_up,
+            us_yield=0.045,
+            kr_yield=0.035,
+            regime="BULL_LOW_VOL"
+        )
+        assert res_up["fx_hedge_ratio"] == 0.20  # Mild hedge during dollar appreciation
+
+        # Downward trending FX
+        fx_down = pd.Series(np.linspace(1400, 1300, 30), index=dates)
+        res_down = DeltaBetaHedgeEngine.calculate_optimal_fx_overlay(
+            us_portfolio_weight=0.50,
+            usdkrw_series=fx_down,
+            us_yield=0.035,
+            kr_yield=0.038,
+            regime="BULL_LOW_VOL"
+        )
+        assert res_down["fx_hedge_ratio"] == 0.80  # Strong hedge during dollar depreciation
+

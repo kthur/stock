@@ -115,16 +115,83 @@ class FXAdjustedCovarianceEngine:
         return krw_returns
 
     @staticmethod
+    def denoise_covariance_marchenko_pastur(
+        cov_matrix: np.ndarray,
+        t_obs: int,
+        n_assets: int,
+        noise_spread_factor: float = 1.0
+    ) -> np.ndarray:
+        """
+        Applies Random Matrix Theory (RMT) Marchenko-Pastur Spectral Denoising (1967, Lopez de Prado 2020).
+        Replaces noise eigenvalues (lambda <= lambda_+) with constant residual average eigenvalue,
+        preserving true signal eigenvectors and eliminating spurious high-dimensional correlation spikes.
+
+        lambda_+ = sigma^2 * (1 + sqrt(N/T))^2
+        """
+        if cov_matrix is None or cov_matrix.size == 0:
+            return cov_matrix
+        if n_assets <= 1 or t_obs <= n_assets:
+            return cov_matrix
+
+        try:
+            # 1. Convert covariance to correlation matrix and standard deviations
+            stds = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-8))
+            inv_stds = 1.0 / stds
+            corr = inv_stds[:, None] * cov_matrix * inv_stds[None, :]
+            corr = np.nan_to_num(corr, nan=0.0)
+            np.fill_diagonal(corr, 1.0)
+
+            # 2. Eigen-decomposition of correlation matrix
+            eigenvals, eigenvecs = np.linalg.eigh(corr)
+            # Sort in descending order
+            idx = np.argsort(eigenvals)[::-1]
+            eigenvals = eigenvals[idx]
+            eigenvecs = eigenvecs[:, idx]
+
+            # 3. Marchenko-Pastur Upper Bound
+            q = float(t_obs) / float(n_assets)
+            # Estimate residual variance sigma^2 from smallest eigenvalues
+            sigma_sq = 1.0
+            lambda_plus = sigma_sq * (1.0 + np.sqrt(1.0 / q)) ** 2 * float(noise_spread_factor)
+
+            # 4. Constant Residual Eigenvalue Shrinkage
+            is_noise = eigenvals <= lambda_plus
+            if np.any(is_noise) and not np.all(is_noise):
+                noise_mean = float(np.mean(eigenvals[is_noise]))
+                denoised_eigenvals = eigenvals.copy()
+                denoised_eigenvals[is_noise] = noise_mean
+            else:
+                denoised_eigenvals = eigenvals.copy()
+
+            # Ensure all eigenvalues are positive
+            denoised_eigenvals = np.maximum(denoised_eigenvals, 1e-6)
+
+            # 5. Reconstruct denoised correlation matrix
+            denoised_corr = eigenvecs @ np.diag(denoised_eigenvals) @ eigenvecs.T
+            # Rescale diagonal to 1.0
+            diag_inv_sqrt = 1.0 / np.sqrt(np.maximum(np.diag(denoised_corr), 1e-8))
+            denoised_corr = diag_inv_sqrt[:, None] * denoised_corr * diag_inv_sqrt[None, :]
+            np.fill_diagonal(denoised_corr, 1.0)
+
+            # 6. Reconstruct denoised covariance matrix
+            denoised_cov = stds[:, None] * denoised_corr * stds[None, :]
+            return denoised_cov
+        except Exception as e:
+            logger.debug(f"[RMT DENOISE] Fallback to original covariance: {e}")
+            return cov_matrix
+
+    @staticmethod
     def compute_fx_adjusted_covariance(
         prices_dict: Dict[str, pd.DataFrame],
         usdkrw_series: Optional[pd.Series] = None,
         market_map: Optional[Dict[str, str]] = None,
         lookback_days: int = 60,
-        tail_stress_weight: float = 0.30
+        tail_stress_weight: float = 0.30,
+        use_rmt_denoising: bool = True
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Calculates the regularized FX-adjusted covariance matrix with Ledoit-Wolf shrinkage
-        and asymmetric lower-tail stress blending.
+        Calculates the regularized FX-adjusted covariance matrix with Ledoit-Wolf shrinkage,
+        RMT Marchenko-Pastur spectral denoising, and asymmetric lower-tail stress blending.
 
         Returns:
             Tuple of (cov_df, krw_adjusted_returns_df)
@@ -147,9 +214,10 @@ class FXAdjustedCovarianceEngine:
             return pd.DataFrame([[var_val]], index=symbols, columns=symbols), krw_returns
 
         mat = krw_returns.values
+        t_obs = len(mat)
         # Fallback if too few rows
-        if len(mat) < 5:
-            diag_vals = np.var(mat, axis=0, ddof=1) if len(mat) > 1 else np.full(n_assets, 0.0004)
+        if t_obs < 5:
+            diag_vals = np.var(mat, axis=0, ddof=1) if t_obs > 1 else np.full(n_assets, 0.0004)
             diag_vals = np.where(np.isnan(diag_vals) | (diag_vals < 1e-6), 0.0004, diag_vals)
             cov_mat = np.diag(diag_vals)
             return pd.DataFrame(cov_mat, index=symbols, columns=symbols), krw_returns
@@ -162,6 +230,14 @@ class FXAdjustedCovarianceEngine:
             cov_shrunk = np.cov(mat, rowvar=False)
             if cov_shrunk.ndim == 0:
                 cov_shrunk = np.array([[float(cov_shrunk)]])
+
+        # RMT Marchenko-Pastur Spectral Denoising
+        if use_rmt_denoising and t_obs > n_assets and n_assets >= 3:
+            cov_shrunk = FXAdjustedCovarianceEngine.denoise_covariance_marchenko_pastur(
+                cov_matrix=cov_shrunk,
+                t_obs=t_obs,
+                n_assets=n_assets
+            )
 
         # Asymmetric Lower-Tail Contagion Stress Blend
         if tail_stress_weight > 0 and len(mat) >= 10:
