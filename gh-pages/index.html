@@ -341,7 +341,7 @@
     <span class="badge" style="color: #2ea043; border-color: #2ea043; background: #2ea04320;">🇰🇷 KR: 🟢 BULL_LOW_VOL (저변동 강세)</span>
     <span class="badge" style="color:#38bdf8; border-color:#38bdf8; background:#38bdf820;">🔗 Coupled (S&P500 ⟷ KOSPI)</span>
     <span class="badge badge-date">📅 2026-08-16 10:22 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-19 02:34 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-20 01:53 KST</span>
   </div>
 </div>
 
@@ -5456,43 +5456,13 @@
     
     <div class="macro-strip" style="margin-bottom: 20px; border-radius: 8px;">
       <div class="macro-grid">
-        <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">2회</span></div>
+        <div class="macro-item"><span class="ml">추적된 실행</span><span class="mv pos">4회</span></div>
         <div class="macro-item"><span class="ml">이력 보존 정책</span><span class="mv">180일 (자동 Pruning)</span></div>
         <div class="macro-item"><span class="ml">비교 분석 엔진</span><span class="mv">31대 Multi-Factor Ensemble</span></div>
       </div>
     </div>
 
     
-        <div class="market-panel" style="margin-bottom: 20px; padding: 16px;">
-          <h3 class="market-title" style="margin: -16px -16px 16px -16px; border-radius: 8px 8px 0 0;">📈 TOP 5 종목 최근 앙상블 점수 변동 추이 (Score Trend)</h3>
-          <div style="position: relative; height: 260px;">
-            <canvas id="scoreTrendChart"></canvas>
-          </div>
-        </div>
-        <script>
-        document.addEventListener("DOMContentLoaded", function() {
-          var ctx = document.getElementById("scoreTrendChart");
-          if (ctx && typeof Chart !== "undefined") {
-            new Chart(ctx, {
-              type: "line",
-              data: {
-                labels: ["2026-08-15", "2026-08-16"],
-                datasets: [{"label": "230360", "data": [0.6122, 0.9229], "borderColor": "#58a6ff", "backgroundColor": "#58a6ff", "fill": false, "tension": 0.2}, {"label": "057050", "data": [0.5572, 0.8472], "borderColor": "#2ea043", "backgroundColor": "#2ea043", "fill": false, "tension": 0.2}, {"label": "032980", "data": [0.4583, 0.8015], "borderColor": "#d29922", "backgroundColor": "#d29922", "fill": false, "tension": 0.2}, {"label": "PG", "data": [0.4583, 0.7471], "borderColor": "#f85149", "backgroundColor": "#f85149", "fill": false, "tension": 0.2}, {"label": "CLX", "data": [0.4583, 0.6966], "borderColor": "#a371f7", "backgroundColor": "#a371f7", "fill": false, "tension": 0.2}]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: "#e6edf3" } } },
-                scales: {
-                  x: { ticks: { color: "#8b949e" }, grid: { color: "#30363d" } },
-                  y: { ticks: { color: "#8b949e" }, grid: { color: "#30363d" }, min: 0, max: 1 }
-                }
-              }
-            });
-          }
-        });
-        </script>
-        
 
     <div class="market-panel" style="margin-bottom: 20px;">
       <h3 class="market-title">📜 최근 파이프라인 실행 히스토리 (Pipeline Run History)</h3>
@@ -5504,7 +5474,9 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td class='symbol'>run_20260816_101424_842296_local</td><td>2026-08-16</td><td><span class='badge badge-date'>manual (local)</span></td><td><span class='pos'>● SUCCESS</span></td><td>BULL_HIGH_VOL</td><td>3234 종목</td><td>7.9m</td></tr>
+            <tr><td class='symbol'>run_20260819_084027_045424_local</td><td>2026-08-19</td><td><span class='badge badge-date'>manual (local)</span></td><td><span class='score'>● RUNNING</span></td><td>-</td><td>0 종목</td><td>-</td></tr>
+<tr><td class='symbol'>run_20260819_083923_969724_local</td><td>2026-08-19</td><td><span class='badge badge-date'>manual (local)</span></td><td><span class='score'>● RUNNING</span></td><td>-</td><td>0 종목</td><td>-</td></tr>
+<tr><td class='symbol'>run_20260816_101424_842296_local</td><td>2026-08-16</td><td><span class='badge badge-date'>manual (local)</span></td><td><span class='pos'>● SUCCESS</span></td><td>BULL_HIGH_VOL</td><td>3234 종목</td><td>7.9m</td></tr>
 <tr><td class='symbol'>run_20260815_002104_205934_local</td><td>2026-08-15</td><td><span class='badge badge-date'>manual (local)</span></td><td><span class='pos'>● SUCCESS</span></td><td>BULL_HIGH_VOL</td><td>3234 종목</td><td>2.9m</td></tr>
           </tbody>
         </table>
@@ -23451,7 +23423,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const limit = (currentScenarioMarket === 'all') ? 30 : 20;
     const finalResults = results.slice(0, limit);
 
-    const mktFlags = { KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸' };
+    const mktFlags = {
+      KOSPI: '🇰🇷', KOSDAQ: '🇰🇷', KRX: '🇰🇷',
+      SP500: '🇺🇸', NASDAQ: '🇺🇸', RUSSELL2000: '🇺🇸', US: '🇺🇸',
+      CHINA_SSE: '🇨🇳', CHINA_SZSE: '🇨🇳', SSE: '🇨🇳', SZSE: '🇨🇳', CHINA: '🇨🇳',
+      JAPAN_TSE: '🇯🇵', TSE: '🇯🇵', JAPAN: '🇯🇵', NIKKEI: '🇯🇵',
+      INDIA_NSE: '🇮🇳', INDIA_BSE: '🇮🇳', NSE: '🇮🇳', BSE: '🇮🇳', INDIA: '🇮🇳',
+      EUROPE_STOXX: '🇪🇺', EUROPE: '🇪🇺', STOXX: '🇪🇺', DAX: '🇩🇪', FTSE: '🇬🇧', CAC: '🇫🇷',
+      VIETNAM_HOSE: '🇻🇳', HOSE: '🇻🇳', VIETNAM: '🇻🇳',
+      TAIWAN_TWSE: '🇹🇼', TWSE: '🇹🇼', TAIWAN: '🇹🇼',
+      AUSTRALIA_ASX: '🇦🇺', ASX: '🇦🇺', AUSTRALIA: '🇦🇺',
+      BRAZIL_B3: '🇧🇷', B3: '🇧🇷', BRAZIL: '🇧🇷',
+      HKEX: '🇭🇰', HONGKONG: '🇭🇰',
+      SINGAPORE_SGX: '🇸🇬', SGX: '🇸🇬', SINGAPORE: '🇸🇬',
+      CANADA_TSX: '🇨🇦', TSX: '🇨🇦', CANADA: '🇨🇦'
+    };
 
     let html = '';
     if (finalResults.length === 0) {

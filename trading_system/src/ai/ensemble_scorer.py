@@ -545,15 +545,15 @@ class EnsembleScoringEngine:
                     y = y[:min_len]
                 mask = np.isfinite(s) & np.isfinite(y)
                 n_samples = mask.sum()
-                if n_samples < 50:
-                    logger.info(f"Calibrator for '{strategy}': sample count ({n_samples} < 50) insufficient for robust fitting; preserving uncalibrated raw score.")
+                if n_samples < 20:
+                    logger.info(f"Calibrator for '{strategy}': sample count ({n_samples} < 20) insufficient for robust fitting; preserving uncalibrated raw score.")
                     continue
 
                 if len(np.unique(y[mask])) < 2:
                     logger.warning(f"Calibrator for '{strategy}': target labels have single-class zero variance, skipping.")
                     continue
 
-                if n_samples >= 100:
+                if n_samples >= 50:
                     cal = IsotonicRegression(out_of_bounds="clip", increasing=True)
                     cal.fit(s[mask], y[mask])
                     self._calibrators[strategy] = ('isotonic', cal)
@@ -942,12 +942,13 @@ class EnsembleScoringEngine:
             return base_weights
         dynamic_weights = {k: v / total_score for k, v in scores.items()}
 
-        # Detect regime transition to accelerate EMA weight smoothing (alpha = 1.0 on shift)
+        # Detect regime transition or explicit factor tilting to accelerate EMA weight smoothing
         current_regime_str = str(regime)
         is_regime_shift = (self._prev_regime is not None) and (str(self._prev_regime) != current_regime_str)
+        has_explicit_tilting = bool(factor_ic_dict or factor_crowding_penalties)
         self._prev_regime = regime
 
-        eff_alpha = 1.0 if is_regime_shift else self.alpha_smoothing
+        eff_alpha = 1.0 if (is_regime_shift or has_explicit_tilting) else self.alpha_smoothing
 
         # Apply EMA Weight Smoothing to prevent regime transition whipsaws
         if self._prev_weights is not None:
