@@ -341,8 +341,32 @@ class RIMValuationEngine(BaseStrategyEngine):
     ) -> pd.DataFrame:
         try:
             features_df = kwargs.get("features_df", kwargs.get("universe", pd.DataFrame()))
-            if features_df.empty and isinstance(prices_dict, pd.DataFrame):
-                features_df = prices_dict
+            if features_df is None or (isinstance(features_df, pd.DataFrame) and features_df.empty):
+                if isinstance(prices_dict, pd.DataFrame):
+                    features_df = prices_dict.copy()
+                elif fundamentals_dict and isinstance(fundamentals_dict, dict):
+                    rows = []
+                    for sym, f_data in fundamentals_dict.items():
+                        r = dict(f_data) if isinstance(f_data, dict) else {}
+                        r["symbol"] = sym
+                        if prices_dict and isinstance(prices_dict, dict) and sym in prices_dict:
+                            p_df = prices_dict[sym]
+                            if isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                                c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
+                                if c_col:
+                                    r["Close"] = float(p_df[c_col].dropna().iloc[-1])
+                        rows.append(r)
+                    if rows:
+                        features_df = pd.DataFrame(rows)
+                elif prices_dict and isinstance(prices_dict, dict):
+                    rows = []
+                    for sym, p_df in prices_dict.items():
+                        if isinstance(p_df, pd.DataFrame) and not p_df.empty:
+                            c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
+                            if c_col:
+                                rows.append({"symbol": sym, "Close": float(p_df[c_col].dropna().iloc[-1])})
+                    if rows:
+                        features_df = pd.DataFrame(rows)
             return self.compute_rim_scores(features_df)
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")

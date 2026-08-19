@@ -368,17 +368,28 @@ class MarketRegimeDetector:
         dir_label = ["BEAR", "SIDEWAYS", "BULL"][dir_code] if 0 <= dir_code <= 2 else "SIDEWAYS"
 
         try:
+            is_high_vol = False
+            # 1. Forward-looking VIX shock check (VIX level >= 20.0 or VIX surge >= 15%)
+            if not indicator_df.empty:
+                vix_cols = ['vix', 'vix_raw', 'vix_close', 'vix_change']
+                for vc in vix_cols:
+                    if vc in indicator_df.columns and not indicator_df[vc].dropna().empty:
+                        v_last = float(indicator_df[vc].dropna().iloc[-1])
+                        if (vc in ['vix', 'vix_raw', 'vix_close'] and v_last >= 20.0) or (vc == 'vix_change' and v_last >= 15.0):
+                            is_high_vol = True
+                        break
+
+            # 2. Historical realized rolling volatility check
             if not indicator_df.empty and 'sp500_change' in indicator_df.columns:
                 sp500 = indicator_df['sp500_change'].dropna()
                 if len(sp500) >= self.rolling_window:
                     recent_vol = float(sp500.tail(self.rolling_window).std())
                     hist_vols = sp500.rolling(self.rolling_window).std().dropna()
                     hist_vol_median = float(hist_vols.median()) if not hist_vols.empty else 1.0
-                    vol_label = "HIGH_VOL" if recent_vol > hist_vol_median else "LOW_VOL"
-                else:
-                    vol_label = "LOW_VOL"
-            else:
-                vol_label = "LOW_VOL"
+                    if recent_vol > hist_vol_median:
+                        is_high_vol = True
+
+            vol_label = "HIGH_VOL" if is_high_vol else "LOW_VOL"
         except Exception as e:
             logger.warning(f"Error computing 2D regime volatility: {e}. Defaulting to LOW_VOL.")
             vol_label = "LOW_VOL"

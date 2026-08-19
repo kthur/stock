@@ -47,7 +47,7 @@ class MQFactorEngine(BaseStrategyEngine):
     ) -> pd.DataFrame:
         try:
             features_df = kwargs.get("features_df")
-            return self.compute_mq_scores(prices_dict, features_df=features_df)
+            return self.compute_mq_scores(prices_dict, features_df=features_df, fundamentals_dict=fundamentals_dict)
         except Exception as e:
             logger.warning(f"[MQFactorEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "mq_score"])
@@ -55,7 +55,8 @@ class MQFactorEngine(BaseStrategyEngine):
     def compute_mq_scores(
         self,
         prices_dict: Dict[str, pd.DataFrame],
-        features_df: Optional[pd.DataFrame] = None
+        features_df: Optional[pd.DataFrame] = None,
+        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> pd.DataFrame:
         """
         Computes composite MQ Factor scores for a set of symbols.
@@ -109,6 +110,19 @@ class MQFactorEngine(BaseStrategyEngine):
         res_df = pd.DataFrame(records)
 
         # Merge fundamental features if available
+        if (features_df is None or features_df.empty) and fundamentals_dict and isinstance(fundamentals_dict, dict):
+            fund_rows = []
+            for s, fd in fundamentals_dict.items():
+                if isinstance(fd, dict):
+                    row = {"symbol": s}
+                    row["operating_margin"] = fd.get("operating_margin", fd.get("op_margin", np.nan))
+                    row["roe"] = fd.get("roe", np.nan)
+                    row["eps_growth_1y"] = fd.get("eps_growth_1y", fd.get("eps_growth", np.nan))
+                    row["net_profit_margin"] = fd.get("net_profit_margin", fd.get("npm", np.nan))
+                    fund_rows.append(row)
+            if fund_rows:
+                features_df = pd.DataFrame(fund_rows)
+
         if features_df is not None and not features_df.empty:
             f_df = features_df.copy()
             if 'symbol' not in f_df.columns and f_df.index.name == 'symbol':

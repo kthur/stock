@@ -176,6 +176,11 @@ class SupplyChainEngine(BaseStrategyEngine):
                 universe = fundamentals_dict
             elif isinstance(prices_dict, pd.DataFrame):
                 universe = prices_dict
+            elif isinstance(df_prices, dict) and df_prices:
+                universe = pd.DataFrame([
+                    {"symbol": s, "name": s, "market": "KOSPI" if str(s).isdigit() else "SP500"}
+                    for s in df_prices.keys()
+                ])
             else:
                 return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 

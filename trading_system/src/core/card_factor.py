@@ -73,21 +73,34 @@ class CARDFactorEngine(BaseStrategyEngine):
         usdkrw_chg = _safe_macro('usdkrw_change') or _safe_macro('usdkrw_pct') or 0.0
         wti_chg = _safe_macro('wti_change') or _safe_macro('wti_pct') or 0.0
 
-        # Determine whether we have raw VIX level (e.g. 25.0) or percentage change (e.g. +5.0%)
+        # Standardize VIX shock to percentage scale matching FX and commodities
         vix_raw = _safe_macro('vix') or _safe_macro('vix_raw')
         vix_change = _safe_macro('vix_change') or _safe_macro('vix_pct')
         if vix_raw and vix_raw > 0:
-            vix_val = (vix_raw - 20.0) / 20.0
+            vix_pct_shock = ((vix_raw - 20.0) / 20.0) * 10.0  # Normalized % shock proxy
         elif vix_change:
-            # If percentage in 0-100 scale, normalize to decimal
-            vix_val = (vix_change / 100.0) if abs(vix_change) > 1.0 else vix_change
+            vix_pct_shock = vix_change if abs(vix_change) > 1.0 else (vix_change * 100.0)
         else:
-            vix_val = 0.0
+            vix_pct_shock = 0.0
 
         sector_beta = {
-            'Semiconductor': 1.5, 'IT': 1.3, 'Automotive': 1.1,
-            'Steel': 0.8, 'Chemical': 0.9, 'Finance': 0.7,
-            'Energy': 1.4, 'Shipbuilding': 1.2, 'Market': 1.0
+            # GICS Sectors (US & Global)
+            'Information Technology': 1.4, 'IT': 1.3, 'Technology': 1.4, 'Semiconductor': 1.5,
+            'Financials': 0.8, 'Finance': 0.7, 'Financial Services': 0.8,
+            'Energy': 1.4, 'Oil & Gas': 1.4,
+            'Materials': 1.1, 'Chemical': 0.9, 'Steel': 0.8,
+            'Industrials': 1.1, 'Automotive': 1.1, 'Shipbuilding': 1.2,
+            'Consumer Discretionary': 1.2, 'Consumer Staples': 0.6,
+            'Health Care': 0.7, 'Healthcare': 0.7, 'Biotechnology': 1.2,
+            'Communication Services': 1.1, 'Communication': 1.0,
+            'Utilities': 0.5, 'Real Estate': 0.7,
+            # KRX Sectors (Korean)
+            '전기전자': 1.4, '반도체': 1.5, 'IT하드웨어': 1.3, 'IT소프트웨어': 1.2,
+            '화학': 0.9, '철강및금속': 0.8, '기계': 1.1, '운수장비': 1.1,
+            '운수창고': 1.0, '유통업': 0.9, '건설업': 0.8, '통신업': 0.6,
+            '금융업': 0.7, '증권': 1.2, '보험': 0.7, '은행': 0.7,
+            '의약품': 0.8, '의료정밀': 0.9, '음식료품': 0.6, '섬유의복': 0.7,
+            '전기가스업': 0.5, '서비스업': 1.0, '제조업': 1.0, 'Market': 1.0
         }
 
         from .base_strategy import make_score_dataframe
@@ -121,9 +134,9 @@ class CARDFactorEngine(BaseStrategyEngine):
                     continue
 
                 sec = sector_map.get(sym, 'Market') if isinstance(sector_map, dict) else 'Market'
-                beta = sector_beta.get(sec, 1.0)
+                beta = sector_beta.get(sec, sector_beta.get(str(sec).strip(), 1.0))
 
-                macro_impact = ((usdkrw_chg * 0.3) + (wti_chg * 0.3) + (vix_val * 0.4)) * beta * 10.0
+                macro_impact = ((usdkrw_chg * 0.35) + (wti_chg * 0.35) + (vix_pct_shock * 0.30)) * beta
                 divergence = stock_ret - macro_impact
 
                 card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.1, -50.0, 50.0)))
