@@ -227,10 +227,11 @@ class SupplyChainEngine(BaseStrategyEngine):
             raw = s.split(".")[0].strip()
             return raw.zfill(6) if raw.isdigit() else raw
 
-        for _, row in universe.iterrows():
-            sym = str(row["symbol"]).strip()
-            name = str(row.get("name", sym))
-            mkt = str(row.get("market", "KRX"))
+        for row in universe.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe.columns, row))
+            sym = str(r_dict.get("symbol", "")).strip()
+            name = str(r_dict.get("name", sym))
+            mkt = str(r_dict.get("market", "KRX"))
             c_key = clean_sym(sym)
             is_kr_target = (c_key.isdigit() or str(mkt).upper() in ['KOSPI', 'KOSDAQ', 'KRX'])
 

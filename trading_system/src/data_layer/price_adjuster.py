@@ -67,11 +67,11 @@ class CorporateActionAdjuster:
                 prior_mask = df.index < idx
                 price_cols = [c for c in df.columns if str(c).lower() in ["open", "high", "low", "close", "adj close"]]
                 for pc in price_cols:
-                    df[pc] = pd.to_numeric(df[pc], errors='coerce')
+                    df[pc] = pd.to_numeric(df[pc], errors='coerce').astype(float)
                 df.loc[prior_mask, price_cols] = df.loc[prior_mask, price_cols] * r
                 vol_cols = [c for c in df.columns if str(c).lower() == "volume"]
                 if vol_cols:
-                    df[vol_cols[0]] = pd.to_numeric(df[vol_cols[0]], errors='coerce')
+                    df[vol_cols[0]] = pd.to_numeric(df[vol_cols[0]], errors='coerce').astype(float)
                     df.loc[prior_mask, vol_cols[0]] = df.loc[prior_mask, vol_cols[0]] / r
 
         return df

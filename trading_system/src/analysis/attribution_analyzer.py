@@ -131,10 +131,11 @@ class StrategyAttributionAnalyzer:
         lines.append(f"{'Rank':<5} {'Strategy Name':<25} {'Avg Score':<12} {'Coverage':<12} {'Alpha Contrib':<15}")
         lines.append("-" * 72)
 
-        for idx, row in summary_df.iterrows():
+        for idx, row in enumerate(summary_df.itertuples(index=False)):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(summary_df.columns, row))
             lines.append(
-                f"{idx+1:<5} {row['strategy_name']:<25} {row['avg_score']:<12.4f} "
-                f"{row['coverage_pct']:>6.1f}%       {row['alpha_contrib']:>10.4f}"
+                f"{idx+1:<5} {r_dict['strategy_name']:<25} {r_dict['avg_score']:<12.4f} "
+                f"{r_dict['coverage_pct']:>6.1f}%       {r_dict['alpha_contrib']:>10.4f}"
             )
 
         lines.append("\n[Alpha Driver Summary]")

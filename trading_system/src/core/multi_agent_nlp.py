@@ -71,10 +71,11 @@ class MultiAgentNLPEngine:
         Calculates Strategy #35 Multi-Agent NLP scores across universe.
         """
         results = []
-        for _, row in universe_df.iterrows():
-            sym = str(row['symbol'])
-            name = str(row.get('name', ''))
-            mkt = str(row.get('market', ''))
+        for row in universe_df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe_df.columns, row))
+            sym = str(r_dict.get('symbol', ''))
+            name = str(r_dict.get('name', ''))
+            mkt = str(r_dict.get('market', ''))
 
             cached = filing_sentiment_cache.get(sym) if filing_sentiment_cache else None
             if cached and isinstance(cached, dict):

@@ -51,10 +51,11 @@ class GNNSupplyChainLeadLagEngine:
                 if len(c_clean) >= 2:
                     returns_1d[sym] = (c_clean[-1] - c_clean[-2]) / c_clean[-2]
 
-        for _, row in universe_df.iterrows():
-            sym = str(row['symbol'])
-            name = str(row.get('name', ''))
-            mkt = str(row.get('market', ''))
+        for row in universe_df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe_df.columns, row))
+            sym = str(r_dict.get('symbol', ''))
+            name = str(r_dict.get('name', ''))
+            mkt = str(r_dict.get('market', ''))
 
             suppliers = supply_chain_graph.get(sym, []) if supply_chain_graph else []
             follower_ret = returns_1d.get(sym, 0.0)

@@ -46,16 +46,17 @@ class PipelineReporter:
                 f.write(f"Generated: {date_kst}\n\n")
                 if ensemble_df is not None and not ensemble_df.empty:
                     top_picks = ensemble_df.head(20)
-                    for rank, (_, row) in enumerate(top_picks.iterrows(), 1):
-                        sym = str(row.get("symbol", "") or "").strip()
-                        name = str(row.get("name", sym) or sym).strip()
+                    for rank, row in enumerate(top_picks.itertuples(index=False), 1):
+                        r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(top_picks.columns, row))
+                        sym = str(r_dict.get("symbol", "") or "").strip()
+                        name = str(r_dict.get("name", sym) or sym).strip()
                         try:
-                            s_raw = float(row.get("ensemble_score", 0.0))
+                            s_raw = float(r_dict.get("ensemble_score", 0.0) or 0.0)
                             score = s_raw if math.isfinite(s_raw) else 0.0
                         except (ValueError, TypeError):
                             score = 0.0
                         try:
-                            r_raw = float(row.get("ensemble_expected_return", 0.0))
+                            r_raw = float(r_dict.get("ensemble_expected_return", 0.0) or 0.0)
                             ret = r_raw if math.isfinite(r_raw) else 0.0
                         except (ValueError, TypeError):
                             ret = 0.0

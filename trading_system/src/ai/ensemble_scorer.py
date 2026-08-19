@@ -2514,10 +2514,12 @@ class EnsembleScoringEngine:
         imb_map = premarket_imbalance_map or {}
         if 'ensemble_score' in df_mod.columns:
             adjusted_scores = []
-            for idx, row in df_mod.iterrows():
-                sym = row.get('symbol', idx)
-                raw_score = float(row.get('ensemble_score', 0.5))
-                sym_imb = float(imb_map.get(sym, 0.0))
+            for row in df_mod.itertuples(index=True):
+                idx = row[0]
+                r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_mod.columns, row[1:]))
+                sym = r_dict.get('symbol', idx)
+                raw_score = float(r_dict.get('ensemble_score', 0.5) or 0.5)
+                sym_imb = float(imb_map.get(sym, 0.0) or 0.0)
                 imb_mult = float(np.clip(1.0 + gamma_overnight * sym_imb, 0.80, 1.20))
                 adj = float(np.clip(raw_score * macro_mult * imb_mult, 0.0, 1.0))
                 adjusted_scores.append(adj)

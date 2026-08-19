@@ -24,10 +24,11 @@ class KoreanStockList:
             logger.info("Fetching KRX stock listing...")
             df = fdr.StockListing("KRX")
 
-            for _, row in df.iterrows():
-                code = row["Code"]
-                name = row["Name"]
-                market = row["Market"]
+            for row in df.itertuples(index=False):
+                r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
+                code = r_dict.get("Code", "")
+                name = r_dict.get("Name", "")
+                market = str(r_dict.get("Market", ""))
 
                 if "KOSPI" in market:
                     symbol = f"{code}.KS"

@@ -768,12 +768,14 @@ def generate_horizon_callback(h):
             merged = df_horizon.merge(universe, on='symbol', how='left')
 
             data = []
-            for _, row in merged.iterrows():
+            for row in merged.itertuples(index=False):
+                r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(merged.columns, row))
+                exp_ret = r_dict.get('expected_return', 0.0)
                 data.append({
-                    "symbol": row['symbol'],
-                    "name": row['name'] if pd.notna(row['name']) else "Unknown",
-                    "market": row['market'] if pd.notna(row['market']) else "Unknown",
-                    "expected_return": f"+{row['expected_return']*100:.2f}%"
+                    "symbol": r_dict.get('symbol', ''),
+                    "name": r_dict.get('name') if pd.notna(r_dict.get('name')) else "Unknown",
+                    "market": r_dict.get('market') if pd.notna(r_dict.get('market')) else "Unknown",
+                    "expected_return": f"+{exp_ret*100:.2f}%" if isinstance(exp_ret, (int, float)) else str(exp_ret)
                 })
             return data
         except Exception as e:
@@ -799,7 +801,7 @@ def run_scoring_in_background():
     global _scoring_status
     _scoring_status = "Scoring Running (Fetching prices & calculating scores)..."
     try:
-        from scripts.post_market_scoring import main as run_scoring_main
+        from src.scripts.post_market_scoring import main as run_scoring_main
         import sys
         orig_argv = sys.argv
         sys.argv = ['post_market_scoring.py']
@@ -848,15 +850,16 @@ def update_post_market_rankings_table(n):
             return []
 
         data = []
-        for _, row in df.iterrows():
+        for row in df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
             data.append({
-                "rank": int(row["rank"]),
-                "symbol": row["symbol"],
-                "name": row["name"],
-                "composite_score": f"{row['composite_score']:.4f}",
-                "technical_score": f"{row['technical_score']:.4f}",
-                "ai_score": f"{row['ai_score']:.4f}",
-                "sentiment_score": f"{row['sentiment_score']:.4f}",
+                "rank": int(r_dict.get("rank", 0)),
+                "symbol": r_dict.get("symbol", ""),
+                "name": r_dict.get("name", ""),
+                "composite_score": f"{float(r_dict.get('composite_score', 0.0)):.4f}",
+                "technical_score": f"{float(r_dict.get('technical_score', 0.0)):.4f}",
+                "ai_score": f"{float(r_dict.get('ai_score', 0.0)):.4f}",
+                "sentiment_score": f"{float(r_dict.get('sentiment_score', 0.0)):.4f}",
             })
         return data
     except Exception as e:

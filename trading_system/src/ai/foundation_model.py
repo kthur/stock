@@ -77,10 +77,11 @@ class PatchTSTFoundationModel:
         Calculates Strategy #34 PatchTST Foundation Model scores across all stocks in universe.
         """
         results = []
-        for _, row in universe_df.iterrows():
-            sym = str(row['symbol'])
-            name = str(row.get('name', ''))
-            mkt = str(row.get('market', ''))
+        for row in universe_df.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe_df.columns, row))
+            sym = str(r_dict.get('symbol', ''))
+            name = str(r_dict.get('name', ''))
+            mkt = str(r_dict.get('market', ''))
 
             df_p = price_dict.get(sym)
             if df_p is None or df_p.empty or len(df_p) < 20:

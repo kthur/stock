@@ -471,15 +471,23 @@ class MarketDataHandler:
         if ohlcv_cols:
             df[ohlcv_cols] = df[ohlcv_cols].ffill()
         price_bars: List[Any] = []
-        for date_idx, row in df.iterrows():
+        col_names = list(df.columns)
+        open_pos = col_names.index(cols["open"]) if "open" in cols else None
+        high_pos = col_names.index(cols["high"]) if "high" in cols else None
+        low_pos = col_names.index(cols["low"]) if "low" in cols else None
+        close_pos = col_names.index(cols["close"]) if "close" in cols else None
+        vol_pos = col_names.index(cols["volume"]) if "volume" in cols else None
+
+        for row in df.itertuples(index=True):
+            date_idx = row[0]
             pydt = date_idx.to_pydatetime() if hasattr(date_idx, "to_pydatetime") else pd.to_datetime(date_idx).to_pydatetime()
             try:
-                op = float(row[cols["open"]]) if "open" in cols else 0.0
-                hi = float(row[cols["high"]]) if "high" in cols else 0.0
-                lo = float(row[cols["low"]]) if "low" in cols else 0.0
-                cl = float(row[cols["close"]]) if "close" in cols else 0.0
-                vol = int(float(row[cols["volume"]])) if "volume" in cols else 0
-            except (ValueError, TypeError, KeyError):
+                op = float(row[open_pos + 1]) if open_pos is not None else 0.0
+                hi = float(row[high_pos + 1]) if high_pos is not None else 0.0
+                lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
+                cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
+                vol = int(float(row[vol_pos + 1])) if vol_pos is not None else 0
+            except (ValueError, TypeError, IndexError):
                 continue
             price_bars.append(PriceBar(
                 timestamp=pydt,

@@ -127,13 +127,14 @@ class TelegramNotifier:
             except (ValueError, TypeError):
                 return default
 
-        for rank, (_, row) in enumerate(top_df.iterrows(), 1):
-            sym = str(row["symbol"]).strip()
-            name = str(row.get("name", sym)).strip()
-            mkt = str(row.get("market", "KRX")).strip()
-            score = _safe_float(row["ensemble_score"]) * 100.0
+        for rank, row in enumerate(top_df.itertuples(index=False), 1):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(top_df.columns, row))
+            sym = str(r_dict.get("symbol", "")).strip()
+            name = str(r_dict.get("name", sym)).strip()
+            mkt = str(r_dict.get("market", "KRX")).strip()
+            score = _safe_float(r_dict.get("ensemble_score", 0.0)) * 100.0
 
-            close_val = _safe_float(row.get("close", row.get("Close", 0.0)))
+            close_val = _safe_float(r_dict.get("close", r_dict.get("Close", 0.0)))
             price_str = f"{close_val:,.0f} KRW" if mkt in ("KOSPI", "KOSDAQ") and close_val > 0 else (f"${close_val:,.2f}" if close_val > 0 else "N/A")
 
             # Risk boundaries (Target +15%, Stop Loss -5%)

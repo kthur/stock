@@ -269,10 +269,11 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
         filings_dict = filings_map if isinstance(filings_map, dict) else {}
         sent_dict = sentiment_map if isinstance(sentiment_map, dict) else {}
 
-        for _, row in universe.iterrows():
-            sym = str(row["symbol"]).strip()
-            name = str(row.get("name", sym))
-            mkt = str(row.get("market", "KRX"))
+        for row in universe.itertuples(index=False):
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe.columns, row))
+            sym = str(r_dict.get("symbol", "")).strip()
+            name = str(r_dict.get("name", sym))
+            mkt = str(r_dict.get("market", "KRX"))
 
             score = np.nan
 

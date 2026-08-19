@@ -248,15 +248,17 @@ class GlobalMarketClient:
         if hist is None or hist.empty:
             return []
         records: List[Dict[str, Any]] = []
-        for idx, row in hist.iterrows():
+        for row in hist.itertuples(index=True):
+            idx = row[0]
+            r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(hist.columns, row[1:]))
             records.append(
                 {
                     "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
-                    "open": float(row.get("Open", 0)),
-                    "high": float(row.get("High", 0)),
-                    "low": float(row.get("Low", 0)),
-                    "close": float(row.get("Close", 0)),
-                    "volume": int(row.get("Volume", 0)),
+                    "open": float(r_dict.get("Open", 0) or 0),
+                    "high": float(r_dict.get("High", 0) or 0),
+                    "low": float(r_dict.get("Low", 0) or 0),
+                    "close": float(r_dict.get("Close", 0) or 0),
+                    "volume": int(float(r_dict.get("Volume", 0) or 0)),
                 }
             )
         return records

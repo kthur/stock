@@ -1077,9 +1077,11 @@ def _market_symbols(universe: pd.DataFrame) -> dict:
 def _fmt_top(df: pd.DataFrame, horizon: int, symbol_to_name: dict, symbol_to_market: dict, count: int = 10) -> list:
     """Format top-N predictions for a single market segment."""
     lines = []
-    for rank, (_, row) in enumerate(df.head(count).iterrows(), 1):
-        sym = row['symbol']
-        ret = row[horizon] * 100
+    for rank, row in enumerate(df.head(count).itertuples(index=False), 1):
+        r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
+        sym = r_dict.get('symbol', '')
+        raw_ret = r_dict.get(horizon, 0.0)
+        ret = float(raw_ret) * 100 if pd.notna(raw_ret) else 0.0
         name = symbol_to_name.get(sym, "Unknown")
         marker = symbol_to_market.get(sym, "")
         lines.append(f"  {rank}. [{marker}] {sym} ({name}): +{ret:.2f}%")
@@ -2432,12 +2434,11 @@ def execute_prediction_pipeline():
             risk_threshold=cfg.sentiment_risk_threshold,
             crawl_naver_news=cfg.sentiment_crawl_naver_news,
         )
-        # Evaluate top-100 KRX candidates from ensemble preview (by reg_score)
-        _krx_universe_syms = [
-            row['symbol'] for _, row in universe.iterrows()
-            if row.get('market', '') in ('KOSPI', 'KOSDAQ')
-            and str(row['symbol']).isdigit()
-        ]
+        if 'market' in universe.columns and 'symbol' in universe.columns:
+            _krx_mask = universe['market'].isin(['KOSPI', 'KOSDAQ']) & universe['symbol'].astype(str).str.isdigit()
+            _krx_universe_syms = universe.loc[_krx_mask, 'symbol'].astype(str).tolist()
+        else:
+            _krx_universe_syms = []
         # Prioritise by regression score if available, else use order
         if not res_df.empty and 'symbol' in res_df.columns:
             _reg_top = res_df.sort_values(by=20 if 20 in res_df.columns else res_df.columns[-1],

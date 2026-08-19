@@ -31,10 +31,11 @@ class MarketScanner:
             df_top = df.head(self.scan_pool_size)
 
             tickers = {}
-            for _, row in df_top.iterrows():
-                code = row["Code"]
-                name = row["Name"]
-                market = row["Market"]
+            for row in df_top.itertuples(index=False):
+                r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_top.columns, row))
+                code = r_dict.get("Code", "")
+                name = r_dict.get("Name", "")
+                market = str(r_dict.get("Market", ""))
 
                 if "KOSPI" in market:
                     symbol = f"{code}.KS"
