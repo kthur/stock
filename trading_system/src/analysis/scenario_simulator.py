@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
 
@@ -155,30 +155,16 @@ class ScenarioSimulationEngine:
 
         return df_res
 
-    def _normalize_gics(self, raw_sec: str) -> str:
-        if not raw_sec or not isinstance(raw_sec, str):
+    def _normalize_gics(self, raw_sec: str, symbol: Optional[str] = None, name: Optional[str] = None) -> str:
+        try:
+            from src.core.sector_rotation import SectorRotationEngine
+            return SectorRotationEngine.normalize_sector(raw_sec, symbol=symbol, name=name)
+        except Exception:
+            if not raw_sec or not isinstance(raw_sec, str):
+                return 'Consumer Staples'
+            if raw_sec in self.SECTOR_MACRO_ELASTICITY:
+                return raw_sec
             return 'Consumer Staples'
-        if raw_sec in self.SECTOR_MACRO_ELASTICITY:
-            return raw_sec
-        if '전기전자' in raw_sec or '반도체' in raw_sec or 'IT' in raw_sec:
-            return 'Information Technology'
-        if '자동차' in raw_sec or '운수장비' in raw_sec or '유통' in raw_sec:
-            return 'Consumer Discretionary'
-        if '제약' in raw_sec or '바이오' in raw_sec or '의약' in raw_sec:
-            return 'Health Care'
-        if '금융' in raw_sec or '은행' in raw_sec or '증권' in raw_sec or '보험' in raw_sec:
-            return 'Financials'
-        if '화학' in raw_sec or '철강' in raw_sec or '광물' in raw_sec:
-            return 'Materials'
-        if '에너지' in raw_sec or '정유' in raw_sec:
-            return 'Energy'
-        if '기계' in raw_sec or '건설' in raw_sec or '조선' in raw_sec:
-            return 'Industrials'
-        if '음식료' in raw_sec or '식품' in raw_sec:
-            return 'Consumer Staples'
-        if '전기가스' in raw_sec or '전력' in raw_sec:
-            return 'Utilities'
-        return 'Consumer Staples'
 
     def _build_rationale(
         self,

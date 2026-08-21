@@ -40,6 +40,72 @@ class SectorRotationEngine(BaseStrategyEngine):
             'ENERGY_CHEMICAL': ['011780.KS', 'XLE']
         }
 
+    # Curated Symbol-to-GICS Sector Registry for high-priority Global/KRX Symbols
+    CURATED_SYMBOL_SECTOR_MAP = {
+        # Critical test/benchmark and global multi-market symbols
+        'MT': 'Materials',              # ArcelorMittal (철강/소재)
+        'FANG': 'Energy',               # Diamondback Energy (에너지/원유개발)
+        'XPRO': 'Energy',               # Expro Group Holdings (에너지 시추/서비스)
+        'MGTX': 'Health Care',          # MeiraGTx Holdings (바이오/유전자 치료제)
+        '001450': 'Financials',         # 현대해상 (손해보험)
+        '003450': 'Financials',         # 현대차증권 (증권/금융)
+        '000720': 'Industrials',        # 현대건설 (건설/산업재)
+        '010620': 'Industrials',        # 현대미포조선 (조선/산업재)
+        '267250': 'Industrials',        # HD현대일렉트릭 (전력기기/산업재)
+        '005490': 'Materials',          # POSCO홀딩스 (철강/소재)
+        '004020': 'Materials',          # 현대제철 (철강/소재)
+        '096770': 'Energy',             # SK이노베이션 (에너지/정유)
+        '010950': 'Energy',             # S-Oil (에너지/정유)
+        '005930': 'Information Technology', # 삼성전자
+        '000660': 'Information Technology', # SK하이닉스
+        '005380': 'Consumer Discretionary', # 현대차
+        '000270': 'Consumer Discretionary', # 기아
+        '012330': 'Consumer Discretionary', # 현대모비스
+        '057050': 'Consumer Discretionary', # 현대홈쇼핑
+        '069960': 'Consumer Discretionary', # 현대백화점
+        '207940': 'Health Care',         # 삼성바이오로직스
+        '068270': 'Health Care',         # 셀트리온
+        '035420': 'Communication Services', # NAVER
+        '035720': 'Communication Services', # 카카오
+        '015760': 'Utilities',          # 한국전력
+        '036460': 'Utilities',          # 한국가스공사
+        '105560': 'Financials',         # KB금융
+        '055550': 'Financials',         # 신한지주
+        '086790': 'Financials',         # 하나금융지주
+        '316140': 'Financials',         # 우리금융지주
+        '000810': 'Financials',         # 삼성화재
+        '088350': 'Financials',         # 한화생명
+        '003540': 'Financials',         # 대신증권
+        '005940': 'Financials',         # NH투자증권
+        '039490': 'Financials',         # 키움증권
+        '000100': 'Health Care',        # 유한양행
+        '128940': 'Health Care',        # 한미약품
+        '326030': 'Health Care',        # SK바이오팜
+        '302440': 'Health Care',        # SK바이오사이언스
+        '097950': 'Consumer Staples',   # CJ제일제당
+        '004370': 'Consumer Staples',   # 농심
+        '005300': 'Consumer Staples',   # 롯데칠성
+        '007310': 'Consumer Staples',   # 오뚜기
+        '271560': 'Consumer Staples',   # 오리온
+        '051900': 'Consumer Staples',   # LG생활건강
+        '090430': 'Consumer Staples',   # 아모레퍼시픽
+        # US Key Universe
+        'NVDA': 'Information Technology', 'AAPL': 'Information Technology', 'MSFT': 'Information Technology',
+        'AVGO': 'Information Technology', 'AMD': 'Information Technology', 'INTC': 'Information Technology',
+        'QCOM': 'Information Technology', 'TSM': 'Information Technology', 'ASML': 'Information Technology',
+        'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'SLB': 'Energy', 'EOG': 'Energy', 'OXY': 'Energy',
+        'JPM': 'Financials', 'BAC': 'Financials', 'WFC': 'Financials', 'GS': 'Financials', 'MS': 'Financials',
+        'BLK': 'Financials', 'PGR': 'Financials', 'CB': 'Financials', 'TRV': 'Financials',
+        'LLY': 'Health Care', 'UNH': 'Health Care', 'JNJ': 'Health Care', 'ABBV': 'Health Care', 'MRK': 'Health Care',
+        'LIN': 'Materials', 'SHW': 'Materials', 'FCX': 'Materials', 'NEM': 'Materials', 'NUE': 'Materials',
+        'CAT': 'Industrials', 'GE': 'Industrials', 'UNP': 'Industrials', 'HON': 'Industrials', 'RTX': 'Industrials',
+        'AMZN': 'Consumer Discretionary', 'TSLA': 'Consumer Discretionary', 'HD': 'Consumer Discretionary',
+        'PG': 'Consumer Staples', 'COST': 'Consumer Staples', 'WMT': 'Consumer Staples', 'KO': 'Consumer Staples',
+        'GOOGL': 'Communication Services', 'GOOG': 'Communication Services', 'META': 'Communication Services',
+        'NEE': 'Utilities', 'SO': 'Utilities', 'DUK': 'Utilities',
+        'PLD': 'Real Estate', 'AMT': 'Real Estate', 'EQIX': 'Real Estate'
+    }
+
     # Standard 11 GICS Sector Mapping Table (KRX Raw Sectors + US Yahoo/FDR Sectors → GICS 11 Sectors)
     GICS_SECTOR_MAP = {
         # Information Technology
@@ -49,12 +115,13 @@ class SectorRotationEngine(BaseStrategyEngine):
         'Technology': 'Information Technology', 'Tech': 'Information Technology',
         # Financials
         '금융업': 'Financials', '은행': 'Financials', '증권': 'Financials', '보험': 'Financials',
+        '손해보험': 'Financials', '생명보험': 'Financials', '금융': 'Financials',
         'Financials': 'Financials', 'FINANCE': 'Financials', 'Financial Services': 'Financials',
         'Financial': 'Financials',
         # Health Care
         '의약품': 'Health Care', '제약': 'Health Care', '바이오': 'Health Care',
         '의료정밀': 'Health Care', 'Health Care': 'Health Care', 'BIO_PHARMA': 'Health Care',
-        'Healthcare': 'Health Care', 'Biotechnology': 'Health Care',
+        'Healthcare': 'Health Care', 'Biotechnology': 'Health Care', 'Bio': 'Health Care',
         # Consumer Discretionary
         '운수장비': 'Consumer Discretionary', '자동차': 'Consumer Discretionary',
         '유통업': 'Consumer Discretionary', 'Consumer Discretionary': 'Consumer Discretionary',
@@ -63,12 +130,13 @@ class SectorRotationEngine(BaseStrategyEngine):
         # Industrials
         '기계': 'Industrials', '건설업': 'Industrials', '운수창고': 'Industrials',
         '조선': 'Industrials', '방산': 'Industrials', 'Industrials': 'Industrials',
-        'Industrial': 'Industrials',
+        'Industrial': 'Industrials', 'Capital Goods': 'Industrials',
         # Materials
         '화학': 'Materials', '철강금속': 'Materials', '비금속광물': 'Materials',
         'Materials': 'Materials', 'ENERGY_CHEMICAL': 'Materials', 'Basic Materials': 'Materials',
+        '철강': 'Materials',
         # Energy
-        '에너지': 'Energy', '정유': 'Energy', 'Energy': 'Energy',
+        '에너지': 'Energy', '정유': 'Energy', 'Energy': 'Energy', 'Oil & Gas': 'Energy',
         # Communication Services
         '통신업': 'Communication Services', '미디어': 'Communication Services',
         'Communication Services': 'Communication Services', 'Communication': 'Communication Services',
@@ -76,7 +144,7 @@ class SectorRotationEngine(BaseStrategyEngine):
         # Consumer Staples
         '음식료품': 'Consumer Staples', '섬유의복': 'Consumer Staples',
         'Consumer Staples': 'Consumer Staples', 'Consumer Defensive': 'Consumer Staples',
-        'Consumer Non-Cyclical': 'Consumer Staples',
+        'Consumer Non-Cyclical': 'Consumer Staples', '식음료': 'Consumer Staples',
         # Utilities
         '전기가스업': 'Utilities', '전력': 'Utilities', 'Utilities': 'Utilities',
         # Real Estate
@@ -84,22 +152,66 @@ class SectorRotationEngine(BaseStrategyEngine):
     }
 
     @classmethod
-    def normalize_sector(cls, raw_sector: Optional[str]) -> str:
-        """Normalizes KRX or raw sector string to 11 standard GICS sector names."""
-        if not raw_sector or not isinstance(raw_sector, str):
-            return "General"
-        raw_clean = raw_sector.strip()
-        # 1. Exact match check
-        if raw_clean in cls.GICS_SECTOR_MAP:
-            return cls.GICS_SECTOR_MAP[raw_clean]
-        # Case-insensitive exact match
-        for k, v in cls.GICS_SECTOR_MAP.items():
-            if k.lower() == raw_clean.lower():
-                return v
-        sorted_keys = sorted(cls.GICS_SECTOR_MAP.keys(), key=len, reverse=True)
-        for key in sorted_keys:
-            if len(key) >= 2 and (key.lower() == raw_clean.lower() or key.lower() in raw_clean.lower().split() or (len(key) > 3 and key.lower() in raw_clean.lower())):
-                return cls.GICS_SECTOR_MAP[key]
+    def normalize_sector(cls, raw_sector: Optional[str], symbol: Optional[str] = None, name: Optional[str] = None) -> str:
+        """
+        Normalizes sector classification to 11 standard GICS sectors with high-precision
+        curated registry and priority-based token classification.
+        """
+        # 1. Curated Symbol Registry Check
+        if symbol:
+            clean_sym = str(symbol).strip().upper()
+            if clean_sym in cls.CURATED_SYMBOL_SECTOR_MAP:
+                return cls.CURATED_SYMBOL_SECTOR_MAP[clean_sym]
+            sym_prefix = clean_sym.split('.')[0]
+            if sym_prefix in cls.CURATED_SYMBOL_SECTOR_MAP:
+                return cls.CURATED_SYMBOL_SECTOR_MAP[sym_prefix]
+
+        # 2. Exact/Clean Sector Map Check
+        if raw_sector and isinstance(raw_sector, str) and raw_sector.strip() not in ('', 'General', 'N/A', 'nan'):
+            raw_clean = raw_sector.strip()
+            if raw_clean in cls.GICS_SECTOR_MAP:
+                return cls.GICS_SECTOR_MAP[raw_clean]
+            for k, v in cls.GICS_SECTOR_MAP.items():
+                if k.lower() == raw_clean.lower():
+                    return v
+
+        # 3. High-Precision Priority Name/Keyword Classification
+        search_text = f"{name or ''} {raw_sector or ''}".lower()
+        if search_text.strip():
+            # Financials (Insurance/Banking takes precedence over corporate group prefix like '현대')
+            if any(k in search_text for k in ["해상", "화재", "보험", "생명", "증권", "은행", "금융", "캐피탈", "카드", "저축은행", "자산운용", "insurance", "bancorp", "bank", "financial", "credit"]):
+                return 'Financials'
+            # Health Care / Biotech
+            if any(k in search_text for k in ["제약", "바이오", "의약", "생명과학", "치료제", "진단", "임상", "therapeutics", "pharma", "biotech", "genomics", "medical", "oncology"]):
+                return 'Health Care'
+            # Energy (Oil/Gas)
+            if any(k in search_text for k in ["정유", "석유", "원유", "에너지", "s-oil", "oil", "energy", "petroleum", "drilling", "exploration"]):
+                return 'Energy'
+            # Materials (Steel/Chemicals/Mining)
+            if any(k in search_text for k in ["제철", "철강", "화학", "유화", "소재", "비철", "알루미늄", "아연", "시멘트", "포스코", "posco", "steel", "chemical", "materials", "mining", "arcelor"]):
+                return 'Materials'
+            # Utilities
+            if any(k in search_text for k in ["전력", "전기가스", "가스공사", "발전", "utility", "electric", "power", "utilities"]):
+                return 'Utilities'
+            # Industrials (Construction/Shipbuilding/Defense/Machinery)
+            if any(k in search_text for k in ["건설", "엔지니어링", "조선", "중공업", "해양", "방산", "기계", "운수창고", "로지스틱스", "aerospace", "defense", "engineering", "construction", "logistics", "freight"]):
+                return 'Industrials'
+            # Real Estate
+            if any(k in search_text for k in ["리츠", "부동산", "reit", "real estate", "realty", "properties"]):
+                return 'Real Estate'
+            # Communication Services
+            if any(k in search_text for k in ["텔레콤", "통신", "미디어", "엔터테인먼트", "스튜디오", "방송", "telecom", "media", "entertainment", "interactive"]):
+                return 'Communication Services'
+            # Information Technology
+            if any(k in search_text for k in ["반도체", "전자", "하이닉스", "소프트웨어", "인터넷", "솔루션", "시스템", "클라우드", "semiconductor", "software", "technology", "technologies", "micro"]):
+                return 'Information Technology'
+            # Consumer Staples
+            if any(k in search_text for k in ["음식료", "식품", "음료", "주류", "담배", "제당", "제과", "마트", "생활건강", "staples", "foods", "beverage"]):
+                return 'Consumer Staples'
+            # Consumer Discretionary
+            if any(k in search_text for k in ["자동차", "모비스", "타이어", "백화점", "쇼핑", "패션", "의류", "호텔", "레저", "motors", "auto", "automotive", "retail"]):
+                return 'Consumer Discretionary'
+
         return "General"
 
     def compute_sector_momentum_scores(

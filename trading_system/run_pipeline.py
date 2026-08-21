@@ -3860,20 +3860,26 @@ def execute_prediction_pipeline():
             ("darkpool", "HFT Order Flow & Dark Pool"),
             ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
         ]
+        us_sum = sum(us_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP)
+        us_scale = (1.0 / us_sum) if us_sum > 0 else 1.0
         for _skey, _sname in _STRAT_DISPLAY_MAP:
-            _w_pct = us_weights_map.get(_skey, 0.0) * 100.0
+            _w_pct = (us_weights_map.get(_skey, 0.0) * us_scale) * 100.0
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 
+        kr_sum = sum(kr_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP)
+        kr_scale = (1.0 / kr_sum) if kr_sum > 0 else 1.0
         f.write(f"--- Applied KR Strategy Weights ({len(kr_weights_map)} Strategies) [KR: {kr_2d_regime}] ---\n")
         for _skey, _sname in _STRAT_DISPLAY_MAP:
-            _w_pct = kr_weights_map.get(_skey, 0.0) * 100.0
+            _w_pct = (kr_weights_map.get(_skey, 0.0) * kr_scale) * 100.0
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 
+        ens_sum = sum(ensemble_weights.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP)
+        ens_scale = (1.0 / ens_sum) if ens_sum > 0 else 1.0
         f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
         for _skey, _sname in _STRAT_DISPLAY_MAP:
-            _w_pct = ensemble_weights.get(_skey, 0.0) * 100.0
+            _w_pct = (ensemble_weights.get(_skey, 0.0) * ens_scale) * 100.0
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 

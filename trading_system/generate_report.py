@@ -314,6 +314,11 @@ def parse_ensemble(text: str) -> EnsembleData:
     if m_dec:
         data.decoupling_corr = m_dec.group(1).strip()
         data.decoupling_status = m_dec.group(2).strip()
+        try:
+            if float(data.decoupling_corr) < 0.40 and data.decoupling_status == "COUPLED":
+                data.decoupling_status = "DECOUPLED"
+        except (ValueError, TypeError):
+            pass
 
     m_us = re.search(r"US Market Regime \(S&P500\)\s*:\s*(.+)", text)
     if m_us:
@@ -1596,18 +1601,27 @@ def build_html(
             return 999
 
         sorted_items = sorted(w_dict.items(), key=lambda item: get_priority(item[0]))
-        out_html = '<div class="weights-grid">'
+        raw_vals = []
         for k, v in sorted_items:
             val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else 0.0
-            bar_w = min(100, int(val_pct * 12.0))
-            high_cls = " style='font-weight:700; color:#38bdf8;'" if val_pct >= 4.0 else ""
+            raw_vals.append((k, val_pct))
+        
+        tot_raw = sum(v for _, v in raw_vals)
+        scale = (100.0 / tot_raw) if (tot_raw > 0 and abs(tot_raw - 100.0) > 0.05) else 1.0
+
+        out_html = '<div class="weights-grid">'
+        for k, val_pct in raw_vals:
+            norm_val_pct = val_pct * scale
+            v_disp = f"{norm_val_pct:.1f}%"
+            bar_w = min(100, int(norm_val_pct * 12.0))
+            high_cls = " style='font-weight:700; color:#38bdf8;'" if norm_val_pct >= 4.0 else ""
             out_html += f'''
             <div class="weight-item">
               <div class="wk-wrap">
                 <span class="wk"{high_cls}>{k}</span>
                 <div class="weight-mini-track"><div class="weight-mini-bar" style="width:{bar_w}%"></div></div>
               </div>
-              <span class="wv"{high_cls}>{v}</span>
+              <span class="wv"{high_cls}>{v_disp}</span>
             </div>'''
         out_html += '</div>'
         return out_html
@@ -1703,7 +1717,7 @@ def build_html(
     if ensemble.decoupling_status:
         dec_status = ensemble.decoupling_status
         dec_corr = ensemble.decoupling_corr or "-"
-        dec_class = "neg" if "DECOUPLING" in dec_status else "pos"
+        dec_class = "neg" if any(k in dec_status.upper() for k in ["DECOUP", "DECOUPLING", "DECOUPLED"]) else "pos"
         dec_cell = (
             f'<div class="macro-item tooltip-wrapper" tabindex="0" onclick="toggleTooltip(this, event)" role="button" aria-label="한미 증시 동조화 지표 설명">'
             f'<span class="ml">🇺🇸/🇰🇷 한·미 동조화 상태 <span class="info-icon">ℹ️</span></span>'
@@ -3831,7 +3845,19 @@ document.addEventListener('DOMContentLoaded', function() {{
     document.getElementById('val-rate').innerText = mRate.toFixed(1) + '%';
     document.getElementById('val-vix').innerText = (mVix >= 0 ? '+' : '') + mVix.toFixed(0) + '%';
 
-    const secValues = {{ semi: sSemi, auto: sAuto, energy: sEnergy, fin: sFin, staples: sStaples }};
+    const secValues = {{
+      semi: sSemi,
+      auto: sAuto,
+      energy: sEnergy,
+      materials: sEnergy,
+      fin: sFin,
+      reit: sFin,
+      staples: sStaples,
+      bio: sStaples,
+      industrials: sAuto,
+      utilities: sStaples,
+      comm: sSemi
+    }};
     const results = [];
 
     // Filter universe by active market tab if specified
@@ -4301,33 +4327,31 @@ def main(args_list: Optional[list[str]] = None):
     etd_date, earnings_tone_drift_rows = parse_earnings_tone_drift(_read(result_dir / "earnings_tone_drift_predictions.txt"))
 
     # Build stock universe for Scenario Simulator (TOP stocks per market)
+    from src.core.sector_rotation import SectorRotationEngine
+
+    GICS_ELASTICITY_MAP = {
+        'Information Technology': {'key': 'semi', 'elas': {'fx': 0.6, 'wti': -0.2, 'rate': -0.4, 'vix': -0.3}},
+        'Health Care': {'key': 'bio', 'elas': {'fx': 0.1, 'wti': -0.1, 'rate': -0.5, 'vix': 0.2}},
+        'Financials': {'key': 'fin', 'elas': {'fx': -0.2, 'wti': 0.1, 'rate': 0.7, 'vix': -0.2}},
+        'Energy': {'key': 'energy', 'elas': {'fx': -0.1, 'wti': 0.9, 'rate': 0.2, 'vix': -0.1}},
+        'Materials': {'key': 'materials', 'elas': {'fx': 0.2, 'wti': 0.6, 'rate': 0.1, 'vix': -0.3}},
+        'Industrials': {'key': 'industrials', 'elas': {'fx': 0.5, 'wti': -0.4, 'rate': 0.0, 'vix': -0.3}},
+        'Consumer Discretionary': {'key': 'auto', 'elas': {'fx': 0.4, 'wti': -0.3, 'rate': -0.3, 'vix': -0.4}},
+        'Consumer Staples': {'key': 'staples', 'elas': {'fx': -0.4, 'wti': -0.5, 'rate': 0.1, 'vix': 0.3}},
+        'Utilities': {'key': 'utilities', 'elas': {'fx': -0.6, 'wti': -0.7, 'rate': -0.3, 'vix': 0.4}},
+        'Communication Services': {'key': 'comm', 'elas': {'fx': -0.1, 'wti': -0.1, 'rate': -0.2, 'vix': 0.1}},
+        'Real Estate': {'key': 'reit', 'elas': {'fx': -0.2, 'wti': -0.2, 'rate': -0.8, 'vix': -0.2}},
+    }
+
     scen_universe = []
     for m in ensemble.markets:
         mkt = m.market
         for r in m.rows[:50]:
-            # Determine sector elasticity key and GICS normalized name
             raw_sec = getattr(r, 'sector_rotation', 'General')
-            gics = "Consumer Staples"
-            key = "staples"
-            elas = {"fx": -0.4, "wti": -0.5, "rate": 0.1, "vix": 0.3}
-
-            name_lower = r.name.lower()
-            if any(k in name_lower for k in ["전자", "하이닉스", "반도체", "samsung", "sk", "nvda", "amd", "apple", "msft", "it"]):
-                gics = "Information Technology"
-                key = "semi"
-                elas = {"fx": 0.6, "wti": -0.2, "rate": -0.4, "vix": -0.3}
-            elif any(k in name_lower for k in ["자동차", "현대", "기아", "모비스", "이차전지", "에코프로", "lg에너지", "tsla"]):
-                gics = "Consumer Discretionary"
-                key = "auto"
-                elas = {"fx": 0.4, "wti": -0.3, "rate": -0.3, "vix": -0.4}
-            elif any(k in name_lower for k in ["화학", "s-oil", "oil", "에너지", "포스코", "posco", "철강", "xom", "cvx"]):
-                gics = "Energy/Materials"
-                key = "energy"
-                elas = {"fx": 0.2, "wti": 0.7, "rate": 0.1, "vix": -0.2}
-            elif any(k in name_lower for k in ["금융", "은행", "증권", "보험", "kb", "신한", "하나", "jpm", "bac"]):
-                gics = "Financials"
-                key = "fin"
-                elas = {"fx": -0.2, "wti": 0.1, "rate": 0.7, "vix": -0.2}
+            gics = SectorRotationEngine.normalize_sector(raw_sec, symbol=r.symbol, name=r.name)
+            sec_cfg = GICS_ELASTICITY_MAP.get(gics, GICS_ELASTICITY_MAP['Consumer Staples'])
+            key = sec_cfg['key']
+            elas = sec_cfg['elas']
 
             # Parse score string (e.g. "68.5%") to float [0, 1]
             try:

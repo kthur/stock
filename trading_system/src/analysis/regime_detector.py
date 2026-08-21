@@ -533,12 +533,14 @@ class MarketRegimeDetector:
         except Exception as ex:
             logger.warning(f"Error computing KR market regime: {ex}")
 
-        # Determine Decoupling Status
+        # Determine Decoupling Status (Directional Divergence or Low Correlation < 0.40)
         us_dir = us_regime['direction_label']
         if us_dir == "BULL" and kr_dir_label == "BEAR":
             decoupling_status = "DECOUPLING_US_BULL_KR_BEAR"
         elif us_dir == "BEAR" and kr_dir_label == "BULL":
             decoupling_status = "DECOUPLING_KR_BULL_US_BEAR"
+        elif corr_20d < 0.40:
+            decoupling_status = "DECOUPLED"
         else:
             decoupling_status = "COUPLED"
 

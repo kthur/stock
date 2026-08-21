@@ -1987,10 +1987,20 @@ class EnsembleScoringEngine:
                 merged['fast_alpha_intraday_eligible'] = (merged['fast_alpha_score'] >= 0.70)
                 fast_tilt = np.clip(merged['fast_alpha_score'] - 0.50, -0.15, 0.15)
                 if len(merged) >= 5 and 'slow_alpha_score' in merged.columns and 'medium_alpha_score' in merged.columns:
+                    w_slow = self.TIER_WEIGHTS.get('slow', 0.50)
+                    w_med = self.TIER_WEIGHTS.get('medium', 0.35)
+                    w_fast = self.TIER_WEIGHTS.get('fast', 0.15)
+                    tier_sum = w_slow + w_med + w_fast
+                    if tier_sum > 0:
+                        w_slow /= tier_sum
+                        w_med /= tier_sum
+                        w_fast /= tier_sum
+                    fast_score = merged['fast_alpha_score'] if 'fast_alpha_score' in merged.columns else 0.50
                     hierarchical_score = (
-                        self.TIER_WEIGHTS['slow'] * merged['slow_alpha_score'] +
-                        self.TIER_WEIGHTS['medium'] * merged['medium_alpha_score']
-                    ) * (1.0 + fast_tilt)
+                        w_slow * merged['slow_alpha_score'] +
+                        w_med * merged['medium_alpha_score'] +
+                        w_fast * fast_score
+                    )
                     hierarchical_score = hierarchical_score.clip(0.0, 1.0)
                     linear_score = pd.Series(0.70 * linear_score + 0.30 * hierarchical_score, index=merged.index).clip(0.0, 1.0)
 

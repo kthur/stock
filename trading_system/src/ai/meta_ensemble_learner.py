@@ -57,8 +57,8 @@ class MetaEnsembleLearner:
                     data = json.load(f)
                     loaded_weights = np.array(data.get('weights', []), dtype=float)
                     loaded_features = data.get('feature_names', [])
-                    # Verify feature count match
-                    if len(loaded_weights) == len(loaded_features) and len(loaded_weights) > 0:
+                    # Verify feature count matches current 31-strategy feature space
+                    if len(loaded_weights) == len(STRATEGY_SCORE_COLS) and len(loaded_features) == len(STRATEGY_SCORE_COLS):
                         self.weights = loaded_weights
                         self.intercept = float(data.get('intercept', 0.0))
                         self.feature_names = loaded_features
@@ -66,9 +66,11 @@ class MetaEnsembleLearner:
                         logger.info(f"Loaded MetaEnsembleLearner model from {self.model_path} ({len(self.feature_names)} features)")
                         return True
                     else:
-                        logger.warning("MetaEnsembleLearner model file feature mismatch, resetting for refit.")
+                        logger.warning(f"MetaEnsembleLearner model feature space mismatch ({len(loaded_weights)} loaded vs {len(STRATEGY_SCORE_COLS)} expected), resetting for fresh 31-strategy fit.")
+                        self.is_fitted = False
             except Exception as e:
                 logger.warning(f"Failed to load MetaEnsembleLearner model: {e}")
+                self.is_fitted = False
         return False
 
     def save_model(self) -> None:
