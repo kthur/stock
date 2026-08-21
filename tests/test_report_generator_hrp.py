@@ -295,3 +295,80 @@ Remaining Cash   : 22.00% (    22,000,000)
     assert abs(alloc_f + rem_f - 100.0) < 0.01
 
 
+def test_dashboard_html_ux_fixes():
+    """Verify Bug fixes and UX enhancements in generated dashboard HTML."""
+    ensemble = EnsembleData(
+        date="2026-08-21",
+        regime="BULL_LOW_VOL",
+        regime_code=0,
+        max_allocation="85.0%",
+        sp500_return="0.8%",
+        vix="13.2",
+        us10y="4.1%",
+        weights={"XGBoost Regression": "20%", "Surge Classifier": "15%"},
+        markets=[
+            EnsembleMarket(
+                market="KOSPI",
+                rows=[
+                    EnsembleRow(i, f"0059{i:02d}", f"종목_{i}", "85%", "+5.2%", "40%", "10%", "20%", "15%")
+                    for i in range(1, 35)
+                ],
+            ),
+        ],
+    )
+
+    port_data = PortfolioAllocationData(
+        date="2026-08-21 21:00",
+        total_capital="100,000,000 KRW",
+        target_horizon="20d",
+        regime="BULL_LOW_VOL",
+        max_allocation="85.0%",
+        allocated_capital="80,000,000",
+        allocated_capital_pct="80.00%",
+        remaining_cash="20,000,000",
+        remaining_cash_pct="20.00%",
+        rows=[
+            PortfolioRow(1, "005930", "삼성전자", "KOSPI", "+5.2%", "0.35%", "80.00%", "80,000,000"),
+        ],
+    )
+
+    html = build_html(
+        ensemble,
+        surge_date="2026-08-21",
+        surge_sections=[],
+        vcp_date="2026-08-21",
+        vcp_rows=[],
+        lag_date="2026-08-21",
+        follower_rows=[],
+        leader_rows=[],
+        portfolio_data=port_data,
+        preloaded_backtest_table_html='<tr><td>🏆 31대 동적 가중 앙상블 (Ensemble)</td><td class="pos">2.68</td><td class="neg">-6.4%</td><td>74.2%</td><td class="pos">+38.6%</td></tr>',
+        backtest_chart_labels_json='["2021-Q1","2026-Q3"]',
+        backtest_chart_ensemble_json='[0.0,462.8]',
+        backtest_chart_sp500_json='[0.0,128.4]',
+        backtest_chart_kospi_json='[0.0,30.5]',
+    )
+
+    # 1. Search input duplicate icon check: placeholder should not have leading 🔍
+    assert 'placeholder="종목명 또는 종목코드 실시간 검색...' in html
+    assert 'placeholder="🔍 종목명' not in html
+
+    # 2. Search Autocomplete dropdown check
+    assert 'id="search-autocomplete-dropdown"' in html
+
+    # 3. View mode toggle (Table / Card view) check
+    assert 'id="btn-view-table"' in html
+    assert 'id="btn-view-card"' in html
+    assert 'class="stock-cards-wrap"' in html
+    assert 'class="stock-card"' in html
+
+    # 4. Up to 100 rows rendered check (here 34 rows are passed, all 34 should be rendered)
+    assert "005934" in html
+
+    # 5. Preloaded Backtest Returns Chart and 31-strategy walk-forward table check
+    assert 'id="backtestReturnsChart"' in html
+    assert "31대 동적 가중 앙상블 (Ensemble)" in html
+    assert "31대 전략 역사적 벤치마크 백테스트 성과" in html
+
+
+

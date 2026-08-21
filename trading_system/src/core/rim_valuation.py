@@ -16,14 +16,32 @@ Decaying ROE Finite-Horizon Formula (유보금 반영):
 Discount Ratio = (V_0 - Price) / Price
 Scoring: percentile rank [0.0, 1.0] per market.
 
-Earnings Quality Filter (이익의 질 필터):
-  순이익에 일회성 이익(영업외수익, 자산매각 등)이 섞이면 ROE가 과대평가되어
-  본업 경쟁력이 낮은 기업도 높은 RIM 점수를 받을 수 있다. 이를 방지하기 위해
-  operating_income / net_income 비율로 이익의 질을 계산한다.
-    - earnings_quality = clip(operating_income / net_income, 0, 1)
-    - 지속가능 ROE = ROE × earnings_quality
-    - 영업손실(-)인데 순이익(+)이면(일회성 이익으로 순이익 달성) rim_score를 NaN 처리
-      (이익의 질 0 → RIM 부적합, 앙상블 가중치 자동 재정규화)
+─── Value Trap Protection (퀀트 가치 함정 방지) ───────────────────────────────
+
+1. Earnings Quality Filter (이익의 질 필터):
+   순이익에 일회성 이익(영업외수익, 자산매각 등)이 섞이면 ROE가 과대평가되어
+   본업 경쟁력이 낮은 기업도 높은 RIM 점수를 받을 수 있다. 이를 방지하기 위해
+   operating_income / net_income 비율로 이익의 질을 계산한다.
+     - earnings_quality = clip(operating_income / net_income, 0, 1)
+     - 지속가능 ROE = ROE × earnings_quality
+     - 영업손실(-)인데 순이익(+)이면(일회성 이익으로 순이익 달성) rim_score를 NaN 처리
+       (이익의 질 0 → RIM 부적합, 앙상블 가중치 자동 재정규화)
+
+2. Extreme ROE Normalization (극단 ROE 정규화):
+   일회성 염가매수차익, 자산매각 등으로 ROE가 비정상 급등할 때, 영업이익 기반
+   지속가능 ROE로 대체하거나 절대 상한 ABSOLUTE_ROE_CAP으로 클리핑한다.
+     - 조건: ROE > EXTREME_ROE_THRESHOLD(20%) 이고 EQ(이익의 질) < 0.4
+       → roe_normalized = min(operating_income / book_value, ABSOLUTE_ROE_CAP)
+     - 무조건 적용: roe_raw를 ABSOLUTE_ROE_CAP(25%)으로 상한 제한
+   이를 통해 웅진형 '적정가 10,538원, 할인율 390%' 같은 이상치를 방지한다.
+
+3. Holding Company Discount (지주사 SOTP 할인):
+   지주사는 자회사 NAV 이중 카운팅(Double Counting)으로 장부 BPS가 부풀려진다.
+   추가적으로 인수금융 레버리지(순부채)가 RIM 공식에 미반영된다. 이를 보정하기 위해:
+     - BPS_adjusted = BPS - (net_debt / shares_outstanding)  # 순부채 차감
+     - V0_adjusted  = BPS_adjusted + (V0_raw - BPS_raw) × (1 - HOLDING_CO_DISCOUNT)
+       where HOLDING_CO_DISCOUNT = 0.40  # 40% 이중 카운팅 할인
+   지주사 판별: 종목명 패턴('지주', '홀딩스', 'Holdings') 또는 GICS sector_code 기반.
 """
 import logging
 import re
@@ -33,11 +51,35 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# ── 이익의 질 필터 ─────────────────────────────────────────────────────────────
 # 영업이익/순이익 비율이 이 값 미만이면 순이익의 상당 부분이 영업외/일회성 항목으로
 # 판단하여 ROE를 감쇠한다. (0.5 = 순이익의 절반 이상이 영업 이익에서 발생해야 정상)
 EARNINGS_QUALITY_MIN_RATIO = 0.5
 
-# 우선주 심볼 판별 (KOSPI/KOSDAQ):
+# ── 극단 ROE 정규화 (Value Trap 방지) ──────────────────────────────────────────
+# ROE가 이 값을 초과하면서 이익의 질이 낮으면 영업이익 기반 ROE로 대체
+EXTREME_ROE_THRESHOLD = 0.20   # 20%: ROE > 20% & EQ < 0.4 → 영업이익 기반 정규화
+# ROE 절대 상한: 어떤 기업도 이 값을 초과하는 ROE를 RIM에 사용할 수 없음
+# (초과분은 비지속 가능한 일회성 이익으로 간주)
+ABSOLUTE_ROE_CAP = 0.25        # 25%: 업종 불문 영구 ROE 상한
+# EQ 임계치: ROE가 극단 임계 초과 시 이 값 미만이면 영업이익 기반 ROE로 강제 대체
+EXTREME_EQ_THRESHOLD = 0.40    # 40%: 순이익의 60% 이상이 비영업 → 대체
+
+# ── 지주사 SOTP 할인 ──────────────────────────────────────────────────────────
+# 지주사 이중 카운팅(Double Counting) NAV 할인율
+HOLDING_CO_DISCOUNT = 0.40     # 40%: 지주사 초과이익(BPS 초과분)에 적용
+# 종목명 기반 지주사 패턴 (대소문자 무관)
+_HOLDING_CO_NAME_RE = re.compile(
+    r"(지주|홀딩스|holding|holdings|그룹|지배구조|HD\b)", re.IGNORECASE
+)
+# GICS/KRX 업종코드: 지주사로 분류되는 코드 목록
+_HOLDING_CO_SECTOR_CODES = frozenset({
+    "6020",   # KRX: 지주회사
+    "CGLC",   # GICS: Capital Markets (일부 지주 혼재)
+    "20202020",  # GICS: Diversified Financial Services (지주 포함)
+})
+
+# ── 우선주 심볼 판별 ──────────────────────────────────────────────────────────
 #   - 6자리 코드 마지막 자리 5~9: 005935(삼성전자우), 000025(한진칼우) 등
 #   - 6자리 + K/L 접미사: 00680K(미래에셋증권2우B), 33626L(두산퓨얼셀2우B) 등
 _KRX_PREFERRED_RE = re.compile(r"^(?:\d{5}[56789KL]|\d{6}[KL])$")
@@ -46,6 +88,20 @@ _KRX_PREFERRED_RE = re.compile(r"^(?:\d{5}[56789KL]|\d{6}[KL])$")
 def is_preferred_share(symbol: str) -> bool:
     """True if the symbol is a Korean preferred share (우선주)."""
     return bool(_KRX_PREFERRED_RE.match(str(symbol).strip().upper()))
+
+
+def _is_holding_company(name: Optional[str], sector_code: Optional[str]) -> bool:
+    """True if the stock is classified as a holding company (지주사).
+
+    Criteria (OR logic):
+    1. 종목명에 지주·홀딩스·Holdings 등 패턴 포함
+    2. GICS/KRX 업종코드가 지주사 코드 목록에 해당
+    """
+    if name and _HOLDING_CO_NAME_RE.search(str(name)):
+        return True
+    if sector_code and str(sector_code).strip() in _HOLDING_CO_SECTOR_CODES:
+        return True
+    return False
 
 
 from src.core.base_strategy import BaseStrategyEngine
@@ -66,7 +122,13 @@ from src.core.strategy_registry import register_strategy, StrategyMeta
     )
 )
 class RIMValuationEngine(BaseStrategyEngine):
-    def __init__(self, default_required_return: float = 0.08, decay_rate: float = 0.10, retention_ratio: float = 0.6, config: Optional[Any] = None):
+    def __init__(
+        self,
+        default_required_return: float = 0.08,
+        decay_rate: float = 0.10,
+        retention_ratio: float = 0.6,
+        config: Optional[Any] = None,
+    ):
         """
         :param default_required_return: Baseline required rate of return (r_e), default 8.0%
         :param decay_rate: ROE persistence decay rate per year (0.10 = 10% decay toward r_e)
@@ -81,7 +143,7 @@ class RIMValuationEngine(BaseStrategyEngine):
         market: str = "KOSPI",
         us10y_yield: Optional[float] = None,
         vix_val: Optional[float] = None,
-        credit_spread: Optional[float] = None
+        credit_spread: Optional[float] = None,
     ) -> float:
         """
         Derives dynamic countercyclical required return r_e = R_f + ERP_dynamic.
@@ -104,6 +166,88 @@ class RIMValuationEngine(BaseStrategyEngine):
         dynamic_re = np.clip(base_rf + dynamic_erp, 0.06, 0.18)
         return float(dynamic_re)
 
+    def normalize_roe(
+        self,
+        roe_raw: float,
+        earnings_quality: float,
+        operating_income: Optional[float],
+        book_value: Optional[float],
+    ) -> tuple[float, bool]:
+        """Normalize an extreme ROE to a sustainable level to prevent Value Trap distortions.
+
+        Two-stage normalization applied in order:
+          Stage 1 — Nonrecurring income replacement:
+            If ROE > EXTREME_ROE_THRESHOLD (20%) AND earnings_quality < EXTREME_EQ_THRESHOLD (0.4),
+            the raw ROE is replaced with the operating-income-based sustainable ROE:
+              roe_op = operating_income / book_value
+            This prevents inflated ROEs from one-off gains (e.g., bargain-purchase gains,
+            asset disposals) from driving intrinsic values to unrealistic levels.
+          Stage 2 — Absolute cap:
+            roe_normalized = min(roe_after_stage1, ABSOLUTE_ROE_CAP=0.25)
+            No company is allowed a perpetual ROE assumption above 25%.
+
+        Returns:
+            (roe_normalized, was_normalized: bool)
+        """
+        was_normalized = False
+        roe = roe_raw
+
+        # Stage 1: 비경상 이익 대체 (영업이익 기반 ROE)
+        if (
+            roe > EXTREME_ROE_THRESHOLD
+            and earnings_quality < EXTREME_EQ_THRESHOLD
+            and operating_income is not None
+            and np.isfinite(operating_income)
+            and book_value is not None
+            and np.isfinite(book_value)
+            and book_value > 0
+        ):
+            roe_op = operating_income / book_value
+            # 영업이익 기반 ROE가 음수이거나 원래보다 높은 경우 보수적으로 처리
+            roe_op = float(np.clip(roe_op, 0.0, EXTREME_ROE_THRESHOLD))
+            if roe_op < roe:
+                roe = roe_op
+                was_normalized = True
+
+        # Stage 2: 절대 상한 (25%)
+        if roe > ABSOLUTE_ROE_CAP:
+            roe = ABSOLUTE_ROE_CAP
+            was_normalized = True
+
+        return roe, was_normalized
+
+    def apply_holding_company_discount(
+        self,
+        bps: float,
+        v0_raw: float,
+        net_debt_per_share: float,
+    ) -> tuple[float, float]:
+        """Apply SOTP discount for holding companies (지주사 이중 카운팅 할인).
+
+        Adjustments:
+          1. BPS_adjusted = max(BPS - net_debt_per_share, BPS * 0.3)
+             → 순부채 차감 (단, BPS의 30% 미만으로는 내리지 않음)
+          2. V0_adjusted  = BPS_adjusted + (V0_raw - BPS_raw) × (1 - HOLDING_CO_DISCOUNT)
+             → 초과이익(BPS 초과분)에 40% 할인 적용
+
+        Returns:
+            (bps_adjusted, v0_adjusted)
+        """
+        net_debt = float(net_debt_per_share) if np.isfinite(net_debt_per_share) else 0.0
+
+        # 순부채 차감 (BPS의 30% 하한 유지)
+        bps_adjusted = max(bps - net_debt, bps * 0.30)
+
+        # 초과이익 부분에 지주사 할인 적용
+        excess_income_pv = v0_raw - bps  # BPS 초과분 (RIM 핵심 가치)
+        if excess_income_pv > 0:
+            v0_adjusted = bps_adjusted + excess_income_pv * (1.0 - HOLDING_CO_DISCOUNT)
+        else:
+            # 초과이익 없으면 BPS 조정분만 반영
+            v0_adjusted = bps_adjusted + excess_income_pv
+
+        return bps_adjusted, v0_adjusted
+
     def calculate_intrinsic_value(
         self,
         bps: float,
@@ -115,6 +259,8 @@ class RIMValuationEngine(BaseStrategyEngine):
         Computes RIM intrinsic value V_0 per share.
         Uses finite-horizon decaying ROE with retained earnings (유보금) accumulation.
         Returns np.nan if BPS is invalid or non-positive.
+
+        Note: roe passed here should already be normalized via normalize_roe().
         """
         r_e = required_return if (required_return is not None and required_return > 0) else self.default_required_return
 
@@ -124,7 +270,7 @@ class RIMValuationEngine(BaseStrategyEngine):
         if np.isnan(roe):
             roe = r_e  # Neutral assumption: ROE = r_e => V_0 = BPS
         else:
-            roe = max(-0.5, min(0.5, float(roe)))
+            roe = max(-0.5, min(float(ABSOLUTE_ROE_CAP), float(roe)))
 
         if self.decay_rate <= 0:
             # Constant ROE Perpetuity Formula (legacy, no 유보금):
@@ -163,11 +309,21 @@ class RIMValuationEngine(BaseStrategyEngine):
         """
         Computes RIM intrinsic values and percentile scores using finite-horizon decaying ROE model
         with 유보금 (retained earnings) accumulation and countercyclical dynamic ERP.
+
+        Value Trap mitigations applied (in order):
+          1. Earnings quality filter: op_income/net_income < 0.5 → ROE decay
+          2. Extreme ROE normalization: ROE > 20% & EQ < 0.4 → operating-income-based ROE
+          3. Absolute ROE cap: ROE capped at 25% unconditionally
+          4. Holding company discount: 40% discount on excess earnings, net debt deducted from BPS
+
         Missing fundamental BPS yields NaN rim_score for dynamic ensemble weight renormalization.
         """
         if features_df is None or features_df.empty:
             logger.warning("Empty features_df provided to RIMValuationEngine.")
-            return pd.DataFrame(columns=['symbol', 'market', 'Close', 'bps', 'roe', 'intrinsic_value', 'discount_ratio', 'rim_score'])
+            return pd.DataFrame(columns=[
+                'symbol', 'market', 'Close', 'bps', 'roe', 'roe_raw', 'roe_normalized',
+                'intrinsic_value', 'discount_ratio', 'rim_score',
+            ])
 
         df = features_df.copy()
         if 'symbol' not in df.columns and df.index.name == 'symbol':
@@ -212,7 +368,7 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Only fill NaN BPS with Close*0.8 when fundamentals exist for that stock but BPS is temporarily missing
         # Never invent BPS from price alone — that creates an artificial -20% discount for all symbols
 
-        # Handle ROE and clip to realistic limits [-0.5, +0.5] (-50% to +50%) to prevent overflow
+        # Handle ROE: store raw value first, then clip for safety in downstream ops
         if 'roe' not in df.columns:
             if 'eps' in df.columns and 'bps' in df.columns:
                 with np.errstate(divide='ignore', invalid='ignore'):
@@ -220,11 +376,15 @@ class RIMValuationEngine(BaseStrategyEngine):
             else:
                 df['roe'] = np.nan
         df['roe'] = df['roe'].replace([np.inf, -np.inf], np.nan).fillna(self.default_required_return)
+        # Store true raw ROE BEFORE any clipping — needed for normalize_roe() to detect extreme values
+        df['roe_raw'] = df['roe'].copy()
+        # Initial safety clip: prevents numerical overflow in downstream ops.
+        # The absolute cap of ABSOLUTE_ROE_CAP is enforced later by normalize_roe().
         df['roe'] = df['roe'].clip(-0.5, 0.5)
 
-        # ---- Earnings Quality Filter (이익의 질 필터) ----
+        # ── Earnings Quality Filter (이익의 질 필터) ────────────────────────────
         # 순이익이 영업이익보다 크게 높으면(일회성 이익 포함) ROE를 감쇠하고,
-        # 영업손실인데 순이익이 양수이면(전적으로 영업외/일회성 이익) RIM 점수를 무효화한다.
+        # 영업손실(-) & 순이익 양수(+): 전적으로 일회성/영업외 이익 → RIM 부적합
         df['earnings_quality'] = 1.0
         df['rim_filter_reason'] = ''
         has_op_inc = 'operating_income' in df.columns
@@ -260,30 +420,115 @@ class RIMValuationEngine(BaseStrategyEngine):
             # 영업손실 또는 순손실 → 지속가능 이익 없음으로 간주
             df.loc[op_loss | suspicious, 'roe'] = 0.0
 
-        # ---- Preferred Share Filter (우선주 필터) ----
+        # ── Extreme ROE Normalization (Value Trap 방지) ─────────────────────────
+        # 조건: ROE > 20%(EXTREME_ROE_THRESHOLD) & EQ < 0.4(EXTREME_EQ_THRESHOLD)
+        # → 영업이익 기반 ROE로 대체 + 절대 상한 25%(ABSOLUTE_ROE_CAP) 강제 적용
+        df['roe_normalized'] = False  # 정규화 적용 여부 플래그
+        has_bv = 'book_value' in df.columns
+
+        def _apply_roe_normalization(row) -> tuple:
+            # Use roe_raw (original, pre-EQ-filter value) so Stage 1 correctly detects
+            # extreme ROEs that EQ filter may have already partially decayed.
+            roe_raw_val = row.get('roe_raw', row['roe'])
+            eq = row.get('earnings_quality', 1.0)
+            op_inc_val = row.get('operating_income', None) if has_op_inc else None
+            bv_val = row.get('book_value', None) if has_bv else None
+
+            roe_out, normalized = self.normalize_roe(
+                roe_raw=float(roe_raw_val) if pd.notna(roe_raw_val) else row['roe'],
+                earnings_quality=float(eq) if pd.notna(eq) else 1.0,
+                operating_income=float(op_inc_val) if (op_inc_val is not None and pd.notna(op_inc_val)) else None,
+                book_value=float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else None,
+            )
+            # The normalized ROE replaces the current working roe (already EQ-decayed).
+            # Take the minimum to be conservative: don't allow normalize_roe to *increase* roe.
+            final_roe = min(roe_out, row['roe']) if normalized else row['roe']
+            # However if Stage 2 (absolute cap) alone fired, still apply the cap
+            if not normalized and row['roe'] > ABSOLUTE_ROE_CAP:
+                final_roe = ABSOLUTE_ROE_CAP
+                normalized = True
+            return final_roe, normalized
+
+        # Only apply to rows that are not already invalidated
+        valid_for_norm = ~df['rim_filter_reason'].isin(['OPERATING_LOSS', 'LOW_EARNINGS_QUALITY'])
+        if valid_for_norm.any():
+            norm_results = df[valid_for_norm].apply(_apply_roe_normalization, axis=1)
+            df.loc[valid_for_norm, 'roe'] = norm_results.apply(lambda x: x[0])
+            norm_flags = norm_results.apply(lambda x: x[1])
+            df.loc[valid_for_norm & norm_flags, 'roe_normalized'] = True
+            df.loc[valid_for_norm & norm_flags & (df['rim_filter_reason'] == ''), 'rim_filter_reason'] = 'EXTREME_ROE_NORMALIZED'
+            # QUALITY_ADJUSTED + normalized → upgrade label
+            df.loc[valid_for_norm & norm_flags & (df['rim_filter_reason'] == 'QUALITY_ADJUSTED'), 'rim_filter_reason'] = 'QUALITY_ADJUSTED+ROE_NORMALIZED'
+
+        n_normalized = int(df['roe_normalized'].sum())
+        if n_normalized:
+            logger.info(f"Extreme ROE normalization applied to {n_normalized} symbols (ROE capped/replaced)")
+
+        # ── Preferred Share Filter (우선주 필터) ─────────────────────────────────
         pref_mask = df['symbol'].apply(is_preferred_share)
         if pref_mask.any():
             df.loc[pref_mask, 'rim_filter_reason'] = 'PREFERRED_SHARE'
 
+        # ── Holding Company Detection (지주사 판별) ────────────────────────────
+        has_name = 'name' in df.columns
+        has_sector = 'sector_code' in df.columns
+        df['holding_co_flag'] = False
+
+        if has_name or has_sector:
+            df['holding_co_flag'] = df.apply(
+                lambda r: _is_holding_company(
+                    name=str(r['name']) if has_name and pd.notna(r.get('name')) else None,
+                    sector_code=str(r['sector_code']) if has_sector and pd.notna(r.get('sector_code')) else None,
+                ),
+                axis=1,
+            )
+        n_holding = int(df['holding_co_flag'].sum())
+        if n_holding:
+            logger.info(f"Holding company discount will be applied to {n_holding} symbols")
+
+        # ── Net Debt Per Share (순부채/주당) ─────────────────────────────────────
+        df['net_debt_per_share'] = 0.0
+        has_total_debt = 'total_debt' in df.columns
+        has_cash = 'cash_equivalents' in df.columns
+        has_shares = 'shares_outstanding' in df.columns
+
+        if has_total_debt or has_cash:
+            total_debt = pd.to_numeric(df['total_debt'], errors='coerce').fillna(0.0) if has_total_debt else pd.Series(0.0, index=df.index)
+            cash = pd.to_numeric(df['cash_equivalents'], errors='coerce').fillna(0.0) if has_cash else pd.Series(0.0, index=df.index)
+            net_debt = (total_debt - cash).clip(lower=0.0)  # 순현금 보유 시 0 처리 (BPS 감소 없음)
+
+            if has_shares:
+                shares = pd.to_numeric(df['shares_outstanding'], errors='coerce').replace([0.0, np.inf, -np.inf], np.nan)
+                df['net_debt_per_share'] = (net_debt / shares).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            elif 'bps' in df.columns:
+                # 주식 수 없으면 BPS 대비 비율로 추정 (보수적 상한 80%)
+                bps_num = pd.to_numeric(df['bps'], errors='coerce').replace([0.0, np.inf, -np.inf], np.nan)
+                # net_debt_per_share를 aggregate_equity / bps 로 환산하는 것은 불가 → 0 처리
+                df['net_debt_per_share'] = 0.0
+
+        # ── Log filter statistics ─────────────────────────────────────────────
         n_op_loss = int(df['rim_filter_reason'].eq('OPERATING_LOSS').sum())
         n_suspicious = int(df['rim_filter_reason'].eq('LOW_EARNINGS_QUALITY').sum())
-        n_adjusted = int(df['rim_filter_reason'].eq('QUALITY_ADJUSTED').sum())
+        n_adjusted = int(df['rim_filter_reason'].str.startswith('QUALITY_ADJUSTED').sum())
         n_preferred = int(df['rim_filter_reason'].eq('PREFERRED_SHARE').sum())
-        if n_op_loss or n_suspicious or n_adjusted or n_preferred:
+        if n_op_loss or n_suspicious or n_adjusted or n_preferred or n_normalized:
             logger.info(
-                f"Earnings quality & distress filter: {n_op_loss} operating loss, {n_suspicious} low quality, "
-                f"{n_adjusted} ROE-adjusted, {n_preferred} preferred shares invalidated"
+                f"RIM filters: {n_op_loss} operating loss, {n_suspicious} low quality (NaN), "
+                f"{n_adjusted} ROE-quality-adjusted, {n_normalized} extreme-ROE-normalized, "
+                f"{n_preferred} preferred shares invalidated"
             )
 
-        # Fast itertuples calculation per market with dynamic r_e
+        # ── Intrinsic Value Calculation ───────────────────────────────────────
         v0_list = []
         discount_list = []
+        bps_adj_list = []
 
         for row in df.itertuples(index=False):
             r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
             if r_dict.get('rim_filter_reason') == 'PREFERRED_SHARE':
                 v0_list.append(np.nan)
                 discount_list.append(np.nan)
+                bps_adj_list.append(np.nan)
                 continue
 
             mkt = r_dict.get('market', 'KOSPI')
@@ -300,19 +545,36 @@ class RIMValuationEngine(BaseStrategyEngine):
             b = float(b_val) if (b_val is not None and pd.notna(b_val)) else np.nan
             r = float(r_val) if (r_val is not None and pd.notna(r_val)) else r_e
             p = float(p_val) if (p_val is not None and pd.notna(p_val)) else np.nan
+            nd_ps = float(r_dict.get('net_debt_per_share', 0.0) or 0.0)
 
-            v0 = self.calculate_intrinsic_value(b, r, required_return=r_e)
+            # Raw RIM intrinsic value (with normalized ROE already applied)
+            v0_raw = self.calculate_intrinsic_value(b, r, required_return=r_e)
+
+            # Holding company SOTP discount
+            is_hc = bool(r_dict.get('holding_co_flag', False))
+            if is_hc and pd.notna(v0_raw) and pd.notna(b) and b > 0:
+                b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, nd_ps)
+            else:
+                b_adj = b
+                v0 = v0_raw
+
             v0_list.append(v0)
+            bps_adj_list.append(b_adj)
 
             if pd.notna(p) and p > 0 and pd.notna(v0) and v0 > 0:
                 disc = (v0 - p) / p
+                # Clip extreme discount ratios to prevent rank pollution
+                # (> +500% or < -90% are artifacts of data issues, not real value)
+                disc = float(np.clip(disc, -0.90, 5.00))
             else:
                 disc = np.nan
             discount_list.append(disc)
 
         df['intrinsic_value'] = v0_list
         df['discount_ratio'] = discount_list
+        df['bps_adjusted'] = bps_adj_list
 
+        # ── Percentile Scoring ────────────────────────────────────────────────
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market with boundary clipping
         invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
         if 'bps' in df.columns:
@@ -336,8 +598,13 @@ class RIMValuationEngine(BaseStrategyEngine):
             df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
             logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (distress, low quality or preferred share)")
 
-        out_cols = ['symbol', 'market', 'Close', 'bps', 'roe', 'earnings_quality', 'rim_filter_reason',
-                    'intrinsic_value', 'discount_ratio', 'rim_score']
+        out_cols = [
+            'symbol', 'market', 'Close', 'bps', 'bps_adjusted',
+            'roe_raw', 'roe', 'roe_normalized',
+            'earnings_quality', 'holding_co_flag', 'net_debt_per_share',
+            'rim_filter_reason',
+            'intrinsic_value', 'discount_ratio', 'rim_score',
+        ]
         return df[[c for c in out_cols if c in df.columns]]
 
     def compute_scores(
@@ -379,4 +646,3 @@ class RIMValuationEngine(BaseStrategyEngine):
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "rim_score"])
-

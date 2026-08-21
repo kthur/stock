@@ -2608,30 +2608,76 @@ def execute_prediction_pipeline():
                         # Fallback BPS from eps when book_value unavailable
                         no_bps = fund_df['bps'].isna() & fund_df['eps'].notna()
                         fund_df.loc[no_bps, 'bps'] = fund_df.loc[no_bps, 'eps'] / 0.08
-                        # Merge into rim_input (operating_income/net_income for earnings quality filter)
-                        merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income']
-                        df_rim_input = df_rim_input.merge(fund_df[merge_cols], on='symbol', how='left')
+                        # Merge into rim_input:
+                        # - operating_income/net_income: earnings quality filter
+                        # - book_value: normalize_roe() needs book_value for op_income/book_value ratio
+                        # - total_debt, cash_equivalents, shares_outstanding: holding-co net-debt deduction
+                        merge_cols = ['symbol', 'bps', 'roe', 'operating_income', 'net_income', 'book_value']
+                        for _extra_col in ['total_debt', 'cash_equivalents', 'shares_outstanding']:
+                            if _extra_col in fund_df.columns:
+                                merge_cols.append(_extra_col)
+                        merge_cols = list(dict.fromkeys(merge_cols))  # deduplicate, preserve order
+                        df_rim_input = df_rim_input.merge(
+                            fund_df[[c for c in merge_cols if c in fund_df.columns]], on='symbol', how='left'
+                        )
+                        # Pass name for holding-company name-pattern detection (지주·홀딩스 등)
+                        if 'name' not in df_rim_input.columns and 'name' in universe.columns:
+                            df_rim_input = df_rim_input.merge(universe[['symbol', 'name']], on='symbol', how='left')
+                        # Pass sector_code for GICS/KRX holding-company sector classification
+                        if 'sector_code' not in df_rim_input.columns and 'sector_code' in universe.columns:
+                            df_rim_input = df_rim_input.merge(universe[['symbol', 'sector_code']], on='symbol', how='left')
                         logger.info(f"Merged fundamental BPS/ROE for RIM: {fund_df['bps'].notna().sum()}/{len(df_rim_input)} symbols have BPS")
             except Exception as _fund_e:
                 logger.warning(f"Fundamental data merge for RIM skipped: {_fund_e}")
         rim_df = rim_engine.compute_rim_scores(df_rim_input, symbol_market_map=symbol_market)
         rim_output_path = os.path.join(result_dir, "rim_predictions.txt")
         if not rim_df.empty:
-            rim_merged = rim_df.merge(universe[['symbol', 'name']], on='symbol', how='left')
+            # Merge name for display (may already be present if 'name' was passed to RIM engine)
+            rim_merged = rim_df.merge(universe[['symbol', 'name']], on='symbol', how='left', suffixes=('', '_u'))
+            if 'name_u' in rim_merged.columns:
+                rim_merged['name'] = rim_merged['name'].fillna(rim_merged.pop('name_u'))
             rim_merged = rim_merged.sort_values(by='rim_score', ascending=False)
 
             def _write_rim_file(f_out, df_rim):
                 f_out.write("=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===\n")
                 f_out.write(f"Date: {date_str}\n")
-                f_out.write(f"Total symbols evaluated: {len(df_rim)}\n\n")
-                f_out.write(f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}{'EQ':<7}{'RIM Score':<12}\n")
-                f_out.write("-" * 102 + "\n")
+                f_out.write(f"Total symbols evaluated: {len(df_rim)}\n")
+                f_out.write("Filters: EQ=Earnings Quality | [ADJ]=Extreme ROE normalized | [HC]=Holding Co. discount\n\n")
+                f_out.write(
+                    f"{'Rank':<5}{'Symbol':<10}{'Name':<20}{'Market':<10}"
+                    f"{'Price':<12}{'Intrinsic V0':<14}{'Discount %':<12}"
+                    f"{'ROE_raw':<9}{'ROE_adj':<9}{'EQ':<6}{'Filter':<32}{'RIM Score':<12}\n"
+                )
+                f_out.write("-" * 142 + "\n")
                 for rank, (_, row) in enumerate(df_rim.head(100).iterrows(), 1):
-                    name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                    disc_pct = row.get('discount_ratio', 0.0) * 100.0
+                    name_str = str(row.get('name', 'Unknown'))[:18] if pd.notna(row.get('name')) else "Unknown"
+                    disc_val = row.get('discount_ratio', np.nan)
+                    disc_str = f"{disc_val*100:>9.1f}%" if pd.notna(disc_val) else "       nan%"
                     eq = row.get('earnings_quality', 1.0)
                     eq_str = f"{eq*100:.0f}%" if pd.notna(eq) else "N/A"
-                    f_out.write(f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['Close']:<12.2f}{row['intrinsic_value']:<14.2f}{disc_pct:>10.1f}%{eq_str:>7}{row['rim_score']*100:>10.1f}%\n")
+                    roe_raw = row.get('roe_raw', np.nan)
+                    roe_adj = row.get('roe', np.nan)
+                    roe_raw_str = f"{roe_raw*100:.1f}%" if pd.notna(roe_raw) else "  N/A"
+                    roe_adj_str = f"{roe_adj*100:.1f}%" if pd.notna(roe_adj) else "  N/A"
+                    filter_reason = str(row.get('rim_filter_reason', ''))
+                    hc_flag = bool(row.get('holding_co_flag', False))
+                    tag_parts = []
+                    if 'ROE_NORMALIZED' in filter_reason or 'QUALITY_ADJUSTED' in filter_reason:
+                        tag_parts.append('[ADJ]')
+                    if hc_flag:
+                        tag_parts.append('[HC]')
+                    if filter_reason not in ('', 'QUALITY_ADJUSTED', 'EXTREME_ROE_NORMALIZED', 'QUALITY_ADJUSTED+ROE_NORMALIZED'):
+                        tag_parts.append(filter_reason[:22])
+                    filter_str = ' '.join(tag_parts)[:30]
+                    rim_score_val = row.get('rim_score', np.nan)
+                    rim_score_str = f"{rim_score_val*100:.1f}%" if pd.notna(rim_score_val) else "   nan%"
+                    intrinsic = row.get('intrinsic_value', np.nan)
+                    intrinsic_str = f"{intrinsic:<14.2f}" if pd.notna(intrinsic) else f"{'nan':<14}"
+                    f_out.write(
+                        f"{rank:<5}{row['symbol']:<10}{name_str:<20}{row['market']:<10}"
+                        f"{row['Close']:<12.2f}{intrinsic_str}{disc_str}"
+                        f"{roe_raw_str:>8} {roe_adj_str:>8} {eq_str:>5}  {filter_str:<32}{rim_score_str:>10}\n"
+                    )
 
             with open(rim_output_path, "w", encoding="utf-8") as f:
                 _write_rim_file(f, rim_merged)
