@@ -878,7 +878,7 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
         m = re.match(r"Target Horizon:\s*(.+)", line)
         if m:
             data.target_horizon = m.group(1).strip()
-        m = re.match(r"Current Market Regime Detected:\s*(\w+)", line)
+        m = re.match(r"Current Market Regime Detected:\s*([A-Za-z0-9_]+)", line)
         if m:
             data.regime = m.group(1).strip()
         m = re.match(r"Maximum Total Allocation Allowed:\s*(.+)", line)
@@ -911,6 +911,52 @@ def parse_portfolio_allocation(text: str, ensemble: Optional[EnsembleData] = Non
 
     if not data.rows:
         return _generate_fallback_portfolio(ensemble)
+
+    # ── Self-healing normalization & reconciliation ──
+    # 1. Parse max allocation target
+    max_alloc_val = 85.0
+    if data.max_allocation:
+        m_alloc = re.search(r"([\d.]+)%", data.max_allocation)
+        if m_alloc:
+            max_alloc_val = min(100.0, max(5.0, float(m_alloc.group(1))))
+
+    # 2. Parse total capital numeric value for amount reconciliation
+    cap_val = 100_000_000.0
+    if data.total_capital:
+        m_cap = re.search(r"[\d,]+", data.total_capital)
+        if m_cap:
+            try:
+                cap_val = float(m_cap.group().replace(",", ""))
+            except ValueError:
+                pass
+
+    # 3. Sum row weights
+    sum_row_weights = sum(safe_float(r.weight) for r in data.rows)
+
+    # 4. If row weights overflow > 100% (e.g. un-normalized cross-market merge), re-normalize
+    if sum_row_weights > 100.0:
+        scale = max_alloc_val / sum_row_weights
+        for r in data.rows:
+            old_w = safe_float(r.weight)
+            new_w = old_w * scale
+            new_amt = int(round(cap_val * (new_w / 100.0)))
+            r.weight = f"{new_w:.2f}%"
+            r.amount = f"{new_amt:,}"
+        sum_row_weights = sum(safe_float(r.weight) for r in data.rows)
+
+    # 5. Set / reconcile allocated_capital_pct
+    if not data.allocated_capital_pct or safe_float(data.allocated_capital_pct) > 100.0:
+        data.allocated_capital_pct = f"{sum_row_weights:.2f}%"
+        alloc_amt = int(round(cap_val * (sum_row_weights / 100.0)))
+        data.allocated_capital = f"{alloc_amt:,}"
+
+    # 6. Reconcile remaining_cash_pct to guarantee: allocated + cash == 100.0%
+    alloc_f = safe_float(data.allocated_capital_pct)
+    rem_f = max(0.0, round(100.0 - alloc_f, 2))
+    rem_amt = max(0, int(round(cap_val * (rem_f / 100.0))))
+    data.remaining_cash_pct = f"{rem_f:.2f}%"
+    if not data.remaining_cash or data.remaining_cash == "0":
+        data.remaining_cash = f"{rem_amt:,}"
 
     return data
 
@@ -1666,7 +1712,11 @@ def build_html(
             else:
                 market_weights["SP500"] += w_float
 
-        rem_cash_val = safe_float(portfolio_data.remaining_cash_pct) if portfolio_data.remaining_cash_pct else max(0.0, 100.0 - sum(chart_weights))
+        sum_alloc_w = sum(chart_weights)
+        rem_cash_val = safe_float(portfolio_data.remaining_cash_pct) if portfolio_data.remaining_cash_pct else max(0.0, 100.0 - sum_alloc_w)
+        if sum_alloc_w + rem_cash_val > 100.0 or rem_cash_val <= 0:
+            rem_cash_val = max(0.0, round(100.0 - sum_alloc_w, 2))
+
         if rem_cash_val > 0:
             market_weights["CASH"] = round(rem_cash_val, 2)
             chart_labels.append("Remaining Cash")

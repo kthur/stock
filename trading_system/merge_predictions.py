@@ -428,9 +428,10 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
 
     The daily GHA pipeline runs per-market, so each market job writes its own
     portfolio_allocation_{MARKET}.txt (each sized against the full portfolio
-    capital). This merge concatenates all market allocations into a single
-    portfolio_allocation.txt so the GitHub Pages HRP section is never empty
-    (previously it fell back to fabricated weights).
+    capital). This merge combines all market allocations into a single
+    portfolio_allocation.txt, properly re-normalizing weights against the global
+    target max allocation and total capital to prevent multi-market weight overflow,
+    and recording mathematically consistent Allocated Capital and Remaining Cash.
     """
     merged_path = result_dir / "portfolio_allocation.txt"
 
@@ -440,8 +441,8 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
         r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$"
     )
 
-    all_rows: list[tuple] = []  # (weight_pct, symbol, name, market, exp_ret, vol, weight, amount)
-    total_capital = "100,000,000"
+    all_rows: list[tuple] = []  # (weight_pct, symbol, name, market, exp_ret, vol, weight_str, amount_str)
+    total_capital = "100,000,000 KRW"
     target_horizon = "20d"
     max_alloc = "85.0%"
     regime = "SIDEWAYS"
@@ -491,14 +492,56 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
         sym = row[1]
         if sym not in dedup or row[0] > dedup[sym][0]:
             dedup[sym] = row
-    all_rows = sorted(dedup.values(), key=lambda r: r[0], reverse=True)
-    allocated_pct = sum(r[0] for r in all_rows)
-    allocated_amount = 0.0
-    for r in all_rows:
-        try:
-            allocated_amount += float(r[7].replace(",", ""))
-        except ValueError:
-            pass
+    dedup_rows = sorted(dedup.values(), key=lambda r: r[0], reverse=True)
+
+    # Parse total capital numeric value
+    cap_num_match = re.search(r"[\d,]+", total_capital)
+    total_cap_num = float(cap_num_match.group().replace(",", "")) if cap_num_match else 100_000_000.0
+
+    # Parse target max allocation percentage
+    alloc_pct_match = re.search(r"([\d.]+)%", max_alloc)
+    target_max_alloc_pct = float(alloc_pct_match.group(1)) if alloc_pct_match else 85.0
+    target_max_alloc_pct = max(5.0, min(100.0, target_max_alloc_pct))
+
+    # Re-normalize weights across all markets to ensure total allocation <= target_max_alloc_pct
+    raw_sum_pct = sum(r[0] for r in dedup_rows)
+    norm_rows: list[tuple] = []
+
+    if raw_sum_pct > target_max_alloc_pct and raw_sum_pct > 0:
+        scale = target_max_alloc_pct / raw_sum_pct
+        for r in dedup_rows:
+            scaled_w_pct = r[0] * scale
+            scaled_amount = int(round(total_cap_num * (scaled_w_pct / 100.0)))
+            norm_rows.append((
+                scaled_w_pct,
+                r[1],  # symbol
+                r[2],  # name
+                r[3],  # market
+                r[4],  # exp_ret
+                r[5],  # vol
+                f"{scaled_w_pct:.2f}%",
+                f"{scaled_amount:,}"
+            ))
+    else:
+        for r in dedup_rows:
+            scaled_w_pct = r[0]
+            scaled_amount = int(round(total_cap_num * (scaled_w_pct / 100.0)))
+            norm_rows.append((
+                scaled_w_pct,
+                r[1],
+                r[2],
+                r[3],
+                r[4],
+                r[5],
+                f"{scaled_w_pct:.2f}%",
+                f"{scaled_amount:,}"
+            ))
+
+    norm_rows = sorted(norm_rows, key=lambda r: r[0], reverse=True)
+    allocated_pct = sum(r[0] for r in norm_rows)
+    allocated_amount = sum(float(r[7].replace(",", "")) for r in norm_rows)
+    remaining_pct = max(0.0, 100.0 - allocated_pct)
+    remaining_amount = max(0.0, total_cap_num - allocated_amount)
 
     from datetime import timezone, timedelta
     kst_now = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M KST")
@@ -511,15 +554,14 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
         out.write(f"Target Horizon: {target_horizon}\n\n")
         out.write(f"Current Market Regime Detected: {regime}\n")
         out.write(f"Maximum Total Allocation Allowed: {max_alloc}\n\n")
-        out.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
-        out.write("-" * 92 + "\n")
-        for rank, (w_pct, sym, name, mkt, exp_ret, vol, weight, amount) in enumerate(all_rows, 1):
-            out.write(f"{rank:<4}{sym:<10}{name[:18]:<20}{mkt:<10}{exp_ret:>8}{vol:>11}{weight:>9}{amount:>14}\n")
-        out.write("-" * 92 + "\n")
-        out.write(f"Allocated Capital: {allocated_pct:.2f}% ({allocated_amount:,.0f})\n")
-        out.write("Note: each market job sizes against the same total capital; the merged table is a\n")
-        out.write("      cross-market view, not a single jointly-optimized portfolio.\n")
-    print(f"Merged portfolio allocation -> {merged_path} ({len(all_rows)} rows)")
+        out.write(f"{'No.':<4} {'Symbol':<12} {'Name':<20} {'Market':<14} {'Return':<10} {'Volatility':<12} {'Weight':<10} {'Amount':<15}\n")
+        out.write("-" * 96 + "\n")
+        for rank, (w_pct, sym, name, mkt, exp_ret, vol, weight, amount) in enumerate(norm_rows, 1):
+            out.write(f"{rank:<4} {sym:<12} {name[:18]:<20} {mkt:<14} {exp_ret:>10} {vol:>12} {weight:>10} {amount:>15}\n")
+        out.write("-" * 96 + "\n")
+        out.write(f"Allocated Capital: {allocated_pct:.2f}% ({int(allocated_amount):>14,d})\n")
+        out.write(f"Remaining Cash   : {remaining_pct:.2f}% ({int(remaining_amount):>14,d})\n")
+    print(f"Merged portfolio allocation -> {merged_path} ({len(norm_rows)} rows, Allocated: {allocated_pct:.2f}%, Cash: {remaining_pct:.2f}%)")
 
 
 def merge_backtest_summary(result_dir: Path, target_dirs: dict) -> None:

@@ -4015,16 +4015,16 @@ def execute_prediction_pipeline():
             f.write(f"Current Market Regime Detected: {current_regime_label} (Code: {current_regime})\n")
             f.write(f"Maximum Total Allocation Allowed: {max_alloc*100:.1f}%\n\n")
 
-            f.write(f"{'No.':<4}{'Symbol':<10}{'Name':<20}{'Market':<10}{'Return':<10}{'Volatility':<12}{'Weight':<10}{'Amount':<15}\n")
-            f.write("-" * 92 + "\n")
+            f.write(f"{'No.':<4} {'Symbol':<12} {'Name':<20} {'Market':<14} {'Return':<10} {'Volatility':<12} {'Weight':<10} {'Amount':<15}\n")
+            f.write("-" * 96 + "\n")
             for rank, (_, row) in enumerate(alloc_df.iterrows(), 1):
                 name_str = str(row['name'])[:18] if pd.notna(row['name']) else "Unknown"
-                f.write(f"{rank:<4}{row['symbol']:<10}{name_str:<20}{row['market']:<10}{row['predicted_return']:>8.2f}%{row['volatility']*100:>11.2f}%{row['weight']*100:>9.2f}%{row['allocation_amount']:>14,.0f}\n")
+                f.write(f"{rank:<4} {row['symbol']:<12} {name_str:<20} {str(row['market']):<14} {row['predicted_return']:>9.2f}% {row['volatility']*100:>11.2f}% {row['weight']*100:>9.2f}% {row['allocation_amount']:>14,.0f}\n")
 
             allocated_weight = alloc_df['weight'].sum()
             cash_weight = 1.0 - allocated_weight
             cash_amount = cash_weight * cfg.portfolio_capital_krw
-            f.write("-" * 92 + "\n")
+            f.write("-" * 96 + "\n")
             f.write(f"Allocated Capital: {allocated_weight*100:>5.2f}% ({alloc_df['allocation_amount'].sum():>14,.0f})\n")
             f.write(f"Remaining Cash   : {cash_weight*100:>5.2f}% ({cash_amount:>14,.0f})\n")
         logger.info(f"Saved portfolio allocation recommendations to {alloc_output_path}")

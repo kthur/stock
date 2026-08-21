@@ -181,22 +181,117 @@ def test_build_html_contains_hrp_and_regime_tabs():
     assert len(html.encode("utf-8")) > 20000
 
 
-def test_generated_report_size_and_no_empty_warning():
+def test_parse_portfolio_allocation_overflow_normalization():
+    """Verify that an overflowing portfolio (e.g. sum of rows > 100%) is safely re-normalized."""
+    overflow_text = """=== Portfolio Allocation Recommendations (Ensemble HRP, Merged Across Markets) ===
+Date: 2026-08-10 21:32
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+
+Current Market Regime Detected: BULL
+Maximum Total Allocation Allowed: 85.0%
+
+No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+--------------------------------------------------------------------------------------------
+1   EA        Electronic Arts     SP500        7.55%      0.16%   80.00%    80,000,000
+2   AES       AES Corporation     SP500        7.91%      0.34%   80.00%    80,000,000
+3   004080    신흥                  KOSPI        7.62%      0.15%   80.00%    80,000,000
+4   034950    한국기업평가              KOSDAQ       6.57%      0.62%   80.00%    80,000,000
+5   018120    진로발효                KOSDAQ       7.11%      0.42%   69.88%    69,880,000
+--------------------------------------------------------------------------------------------
+Allocated Capital: 389.88% (389,880,000)
+"""
+    data = parse_portfolio_allocation(overflow_text)
+    assert data is not None
+    assert len(data.rows) == 5
+
+    # Rows should be re-normalized to sum to <= 85.0%
+    row_sum = sum(float(r.weight.replace("%", "")) for r in data.rows)
+    assert abs(row_sum - 85.0) < 0.1
+
+    # Allocated capital pct should be <= 85.0%
+    alloc_pct = float(data.allocated_capital_pct.replace("%", ""))
+    assert abs(alloc_pct - 85.0) < 0.1
+
+    # Remaining cash pct should be >= 15.0% and sum to 100.0%
+    rem_pct = float(data.remaining_cash_pct.replace("%", ""))
+    assert abs(alloc_pct + rem_pct - 100.0) < 0.01
+
+
+def test_parse_portfolio_allocation_missing_remaining_cash():
+    """Verify that if Remaining Cash is missing from input text, it is auto-reconciled."""
+    sample_text = """=== Portfolio Allocation Recommendations ===
+Date: 2026-08-16 10:22
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL
+Maximum Total Allocation Allowed: 85.0%
+
+No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+--------------------------------------------------------------------------------------------
+1   EA        Electronic Arts     SP500        12.99%       0.24%    15.00%    15,000,000
+2   057050    현대홈쇼핑               KOSPI        18.57%      89.82%    15.00%    15,000,000
+--------------------------------------------------------------------------------------------
+Allocated Capital: 30.00% (    30,000,000)
+"""
+    data = parse_portfolio_allocation(sample_text)
+    assert data.allocated_capital_pct == "30.00%"
+    assert data.remaining_cash_pct == "70.00%"
+    assert data.remaining_cash == "70,000,000"
+
+
+def test_merge_portfolio_allocation_multi_market(tmp_path):
+    """Verify merge_portfolio_allocation re-normalizes 5 market files to <= max_alloc and writes cash balance."""
     try:
-        from trading_system.generate_report import main
+        from trading_system.merge_predictions import merge_portfolio_allocation
     except ModuleNotFoundError:
-        from generate_report import main
+        from merge_predictions import merge_portfolio_allocation
 
-    result_dir = Path("trading_system/result")
-    if not result_dir.exists():
-        result_dir = Path("result")
-    out_file = Path("gh-pages/index.html")
+    target_dirs = {}
+    markets = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]
+    for m in markets:
+        m_dir = tmp_path / f"result_{m}"
+        m_dir.mkdir(parents=True, exist_ok=True)
+        content = f"""=== Portfolio Allocation Recommendations ===
+Date: 2026-08-21 21:00
+Total Capital: 100,000,000 KRW
+Target Horizon: 20d
+Current Market Regime Detected: BULL
+Maximum Total Allocation Allowed: 85.0%
 
-    if result_dir.exists():
-        main([])
-        assert out_file.exists()
-        content = out_file.read_text(encoding="utf-8")
-        assert len(content.encode("utf-8")) > 50000
-        assert "Stock Prediction Dashboard" in content
-        assert "Portfolio (HRP)" in content
+No. Symbol    Name                Market    Return    Volatility  Weight    Amount         
+--------------------------------------------------------------------------------------------
+1   SYM_{m}_1 Stock_{m}_1          {m:<10}  8.00%      0.20%    40.00%    40,000,000
+2   SYM_{m}_2 Stock_{m}_2          {m:<10}  7.50%      0.25%    38.00%    38,000,000
+--------------------------------------------------------------------------------------------
+Allocated Capital: 78.00% (    78,000,000)
+Remaining Cash   : 22.00% (    22,000,000)
+"""
+        (m_dir / f"portfolio_allocation_{m}.txt").write_text(content, encoding="utf-8")
+        target_dirs[m] = m_dir
+
+    result_dir = tmp_path / "merged_result"
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    merge_portfolio_allocation(result_dir, target_dirs)
+
+    merged_file = result_dir / "portfolio_allocation.txt"
+    assert merged_file.exists()
+    merged_text = merged_file.read_text(encoding="utf-8")
+
+    # Verify header and consistency
+    assert "Allocated Capital:" in merged_text
+    assert "Remaining Cash   :" in merged_text
+
+    # Parse with report generator parser
+    data = parse_portfolio_allocation(merged_text)
+    assert len(data.rows) == 10  # 2 per market * 5 markets
+
+    alloc_f = float(data.allocated_capital_pct.replace("%", ""))
+    rem_f = float(data.remaining_cash_pct.replace("%", ""))
+
+    # Allocated capital must be <= 85.0% (not 5 * 78% = 390%)
+    assert alloc_f <= 85.01
+    assert abs(alloc_f + rem_f - 100.0) < 0.01
+
 
