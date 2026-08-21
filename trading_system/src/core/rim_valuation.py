@@ -313,16 +313,24 @@ class RIMValuationEngine(BaseStrategyEngine):
         df['intrinsic_value'] = v0_list
         df['discount_ratio'] = discount_list
 
-        # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market
-        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).fillna(0.5)
+        # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market with boundary clipping
+        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
+        if 'bps' in df.columns:
+            bps_numeric = pd.to_numeric(df['bps'], errors='coerce')
+            invalid_mask = invalid_mask | bps_numeric.isna() | (bps_numeric <= 0)
+
+        # Distressed companies have NaN discount ratio so they do not pollute percentile ranking
+        df.loc[invalid_mask, 'discount_ratio'] = np.nan
+
+        # Rank valid stocks per market
+        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
 
         # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
-        invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
         mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & (~invalid_mask)
         if mos_mask.any():
             df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
 
-        # 영업손실, 순손실, 일회성 이익 의존 및 우선주 종목은 RIM 점수 무효화
+        # 영업손실, 순손실, 일회성 이익 의존, 우선주 및 자본잠식 종목은 RIM 점수 무효화 (NaN 유지)
         # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
         if invalid_mask.any():
             df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan

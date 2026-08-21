@@ -7,7 +7,7 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import aiosqlite
 import numpy as np
@@ -76,20 +76,31 @@ class _DBConnection:
                 self._conn = None
 
 
-class TradeLogger:
-    """주문 및 체결 로그 저장 (aiosqlite 기반 비동기 구현)"""
+class AsyncDBBase:
+    """Base class for aiosqlite asynchronous database repositories."""
 
-    def __init__(self, db_path: str = "trade_logs.db"):
+    def __init__(self, db_path: Union[str, Path]):
         self.db_path = Path(db_path)
         self.logger = logger
         self._db_initialized = False
         self._init_lock = asyncio.Lock()
         self._conn_mgr = _DBConnection(self.db_path)
 
-    async def _get_conn(self):
+    async def _get_conn(self) -> aiosqlite.Connection:
         conn = await self._conn_mgr.get()
         conn.row_factory = sqlite3.Row
         return conn
+
+    async def close(self) -> None:
+        """데이터베이스 연결 종료"""
+        await self._conn_mgr.close()
+
+
+class TradeLogger(AsyncDBBase):
+    """주문 및 체결 로그 저장 (aiosqlite 기반 비동기 구현)"""
+
+    def __init__(self, db_path: str = "trade_logs.db"):
+        super().__init__(db_path)
 
     async def _init_database(self):
         """데이터베이스 초기화 (비동기 지연 초기화)"""
@@ -98,8 +109,7 @@ class TradeLogger:
         async with self._init_lock:
             if self._db_initialized:
                 return
-            conn = await self._conn_mgr.get()
-            conn.row_factory = sqlite3.Row
+            conn = await self._get_conn()
             cursor = await conn.cursor()
 
             # 주문 테이블
@@ -198,20 +208,11 @@ class TradeLogger:
         await self._conn_mgr.close()
 
 
-class AssetHistoryDB:
+class AssetHistoryDB(AsyncDBBase):
     """자산 이력 저장 (aiosqlite 기반 비동기 구현)"""
 
     def __init__(self, db_path: str = "asset_history.db"):
-        self.db_path = Path(db_path)
-        self.logger = logger
-        self._db_initialized = False
-        self._init_lock = asyncio.Lock()
-        self._conn_mgr = _DBConnection(self.db_path)
-
-    async def _get_conn(self):
-        conn = await self._conn_mgr.get()
-        conn.row_factory = sqlite3.Row
-        return conn
+        super().__init__(db_path)
 
     async def _init_database(self):
         """데이터베이스 초기화 (비동기 지연 초기화)"""
@@ -263,25 +264,12 @@ class AssetHistoryDB:
                 result.append(record)
             return result
 
-    async def close(self) -> None:
-        """데이터베이스 연결 종료"""
-        await self._conn_mgr.close()
 
-
-class AIPredictionDB:
+class AIPredictionDB(AsyncDBBase):
     """AI 투자 예측 기록 및 자체 평가 (aiosqlite 기반 비동기 구현)"""
 
     def __init__(self, db_path: str = "ai_predictions.db"):
-        self.db_path = Path(db_path)
-        self.logger = logger
-        self._db_initialized = False
-        self._init_lock = asyncio.Lock()
-        self._conn_mgr = _DBConnection(self.db_path)
-
-    async def _get_conn(self):
-        conn = await self._conn_mgr.get()
-        conn.row_factory = sqlite3.Row
-        return conn
+        super().__init__(db_path)
 
     async def _init_database(self):
         if self._db_initialized:
@@ -431,6 +419,7 @@ class DataValidator:
 
         pct_chg = close.pct_change().abs()
         anomalies = pct_chg > max_daily_jump
+        transient_spikes = pd.Series(False, index=df_clean.index)
         if anomalies.any():
             # Check for transient single-day spike/drop that reverts immediately
             next_pct_chg = close.pct_change(-1).abs()
@@ -441,12 +430,51 @@ class DataValidator:
                     if col in df_clean.columns:
                         df_clean.loc[transient_spikes, col] = np.nan
                         df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
+                        
+            # Update close series after potential transient spike interpolation
+            close = df_clean['Close']
+            
+        # Detect stock splits (permanent drops > 25% that don't revert) with crash guard & volume confirmation
+        split_candidates = (close.pct_change() < -0.25) & (~transient_spikes)
+        if split_candidates.any():
+            split_dates = split_candidates[split_candidates].index
+            for date in split_dates:
+                # Get index of the date
+                idx = df_clean.index.get_loc(date)
+                if isinstance(idx, slice):
+                    idx = idx.start
+                elif isinstance(idx, np.ndarray):
+                    idx = np.where(idx)[0][0]
+                    
+                if idx > 0:
+                    prev_close = df_clean['Close'].iloc[idx-1]
+                    curr_close = df_clean['Close'].iloc[idx]
+                    if prev_close > 0:
+                        ratio = curr_close / prev_close
+                        # Standard split ratio check (e.g. 1:2, 1:3, 1:4, 1:5, 1:10, 2:3, 3:4)
+                        is_standard_split_ratio = any(abs(ratio - r) / r < 0.08 for r in [0.5, 0.3333, 0.25, 0.2, 0.1, 0.05, 0.6667, 0.75])
+                        
+                        # Volume expansion confirmation (>1.25x volume expansion or zero-volume recovery)
+                        has_vol_confirmation = True
+                        if 'Volume' in df_clean.columns and len(df_clean['Volume']) > idx:
+                            vol_prev = float(df_clean['Volume'].iloc[idx-1])
+                            vol_curr = float(df_clean['Volume'].iloc[idx])
+                            if vol_prev > 0 and vol_curr > 0:
+                                has_vol_confirmation = (vol_curr / vol_prev) >= 1.25
+                        
+                        if is_standard_split_ratio and has_vol_confirmation:
+                            logger.warning(f"Detected stock split around {date} with ratio {ratio:.4f}. Adjusting historical data.")
+                            for col in ['Open', 'High', 'Low', 'Close']:
+                                if col in df_clean.columns:
+                                    df_clean.iloc[:idx, df_clean.columns.get_loc(col)] *= ratio
+                            if 'Volume' in df_clean.columns:
+                                df_clean.iloc[:idx, df_clean.columns.get_loc('Volume')] /= ratio
 
         # Enforce OHLC consistency invariants
         if 'High' in df_clean.columns and 'Low' in df_clean.columns and 'Close' in df_clean.columns:
             open_series = df_clean['Open'] if 'Open' in df_clean.columns else df_clean['Close']
-            df_clean['High'] = np.maximum(df_clean['High'], np.maximum(open_series, df_clean['Close']))
-            df_clean['Low'] = np.minimum(df_clean['Low'], np.minimum(open_series, df_clean['Close']))
+            df_clean['High'] = np.fmax(df_clean['High'], np.fmax(open_series, df_clean['Close']))
+            df_clean['Low'] = np.fmin(df_clean['Low'], np.fmin(open_series, df_clean['Close']))
             df_clean['Low'] = df_clean['Low'].clip(lower=1e-4)
 
         return df_clean
@@ -586,12 +614,16 @@ class StockPriceDB:
         def _do_update():
             with self._write_lock:
                 conn = self._get_conn()
-                conn.executemany("""
-                    INSERT OR REPLACE INTO stock_prices
-                    (symbol, date, open, high, low, close, volume, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                """, records)
-                conn.commit()
+                try:
+                    conn.executemany("""
+                        INSERT OR REPLACE INTO stock_prices
+                        (symbol, date, open, high, low, close, volume, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    """, records)
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
 
         try:
             from src.data_layer.hybrid_storage import execute_sqlite_with_retry

@@ -126,7 +126,7 @@ class MarketRegimeDetector:
 
         return features
 
-    def train(self, indicator_df: pd.DataFrame) -> None:
+    def train(self, indicator_df: pd.DataFrame, max_lookback: int = 756) -> None:
         """Trains the GMM on historical global indicators and maps components to regimes."""
         if indicator_df.empty or len(indicator_df) < 30:
             logger.warning(f"Insufficient indicator data for training GMM regime detector: {len(indicator_df)}")
@@ -139,6 +139,10 @@ class MarketRegimeDetector:
             # Drop initial rows if they contain NaNs
             valid_mask = np.isfinite(X).all(axis=1)
             X_valid = X[valid_mask]
+
+            # Use recent rolling lookback window to adapt dynamically to modern macroeconomic regimes
+            if len(X_valid) > max_lookback:
+                X_valid = X_valid[-max_lookback:]
 
             if len(X_valid) < 20:
                 raise ValueError("Insufficient finite data points for GMM training.")

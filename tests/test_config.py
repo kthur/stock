@@ -43,7 +43,7 @@ class TestTradingConfig(unittest.TestCase):
         self.assertTrue(cfg.debug_mode)
         self.assertFalse(cfg.mock_trading)
         self.assertEqual(cfg.broker_type, "kiwoom")
-        self.assertEqual(cfg.train_sample_sp500, "20")
+        self.assertEqual(cfg.train_sample_sp500, 20)
         self.assertTrue(cfg.skip_training)
         self.assertEqual(cfg.fundamental_cache_expiry_days, 45)
 

@@ -183,6 +183,86 @@ class ExecutionOMSEngine:
             return ""
         return clean_sym
 
+    def _get_latest_price(
+        self,
+        symbol: str,
+        prices_dict: Optional[Dict[str, Any]] = None,
+        top_predictions: Optional[List[Dict[str, Any]]] = None
+    ) -> float:
+        """
+        Retrieves the latest / current market price for a symbol from:
+        1. prices_dict (DataFrame, dict, or scalar price)
+        2. top_predictions list
+        3. StockPriceDB / SQLite storage cache
+        Returns 0.0 if not found or invalid.
+        """
+        if not symbol:
+            return 0.0
+
+        # 1. Check prices_dict
+        if prices_dict and isinstance(prices_dict, dict):
+            candidates = [symbol, symbol.upper(), symbol.lower()]
+            if symbol.endswith((".KS", ".KQ")):
+                candidates.append(symbol.split(".")[0])
+            else:
+                candidates.extend([f"{symbol}.KS", f"{symbol}.KQ"])
+
+            for sym_key in candidates:
+                if sym_key in prices_dict:
+                    val = prices_dict[sym_key]
+                    if isinstance(val, (int, float)) and math.isfinite(float(val)) and float(val) > 0:
+                        return float(val)
+                    if hasattr(val, "empty") and not val.empty:
+                        for col in ["Close", "close", "Adj Close", "adj_close", "Price", "price"]:
+                            if hasattr(val, "columns") and col in val.columns:
+                                try:
+                                    s = val[col].dropna()
+                                    if len(s) > 0 and math.isfinite(float(s.iloc[-1])) and float(s.iloc[-1]) > 0:
+                                        return float(s.iloc[-1])
+                                except Exception:
+                                    pass
+                    if isinstance(val, dict):
+                        for k in ["close_price", "target_price", "close", "price", "current_price"]:
+                            if k in val and val[k] is not None:
+                                try:
+                                    p = float(val[k])
+                                    if math.isfinite(p) and p > 0:
+                                        return p
+                                except (ValueError, TypeError):
+                                    pass
+
+        # 2. Check top_predictions
+        if top_predictions:
+            sym_clean = symbol.split(".")[0]
+            for pred in top_predictions:
+                if isinstance(pred, dict):
+                    p_sym = str(pred.get("symbol", "") or "")
+                    if p_sym in (symbol, f"{symbol}.KS", f"{symbol}.KQ", sym_clean):
+                        for k in ["close_price", "target_price", "close", "price", "current_price"]:
+                            if pred.get(k) is not None:
+                                try:
+                                    p = float(pred[k])
+                                    if math.isfinite(p) and p > 0:
+                                        return p
+                                except (ValueError, TypeError):
+                                    pass
+
+        # 3. Check StockPriceDB SQLite cache
+        try:
+            from src.persistence.database import StockPriceDB
+            db = StockPriceDB()
+            df = db.get_prices(symbol, limit=1)
+            if df is not None and not df.empty:
+                for col in ["Close", "close", "Adj Close"]:
+                    if col in df.columns:
+                        p = float(df[col].iloc[-1])
+                        if math.isfinite(p) and p > 0:
+                            return p
+        except Exception:
+            pass
+
+        return 0.0
+
     def generate_order_plan(
         self,
         top_predictions: List[Dict[str, Any]],
@@ -192,7 +272,9 @@ class ExecutionOMSEngine:
         current_holdings: Optional[Dict[str, float]] = None,
         use_leland_buffer: bool = True,
         regime_label: str = "BULL",
-        max_adv_ratio: float = 0.05
+        max_adv_ratio: float = 0.05,
+        prices_dict: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Generates actionable order execution plans based on predictions and Risk Parity weights.
@@ -216,9 +298,9 @@ class ExecutionOMSEngine:
             logger.critical("[OMS ENGINE] KILL SWITCH ACTIVE - skipping ALL order plan generation.")
             return order_plans
 
-        if str(crisis_level).upper() == "SEVERE":
-            logger.warning("[OMS ENGINE] SEVERE crisis level - skipping ALL order plan generation.")
-            return order_plans
+        is_severe = str(crisis_level).upper() == "SEVERE"
+        if is_severe:
+            logger.warning("[OMS ENGINE] SEVERE crisis level - skipping BUY orders, allowing SELL/liquidate orders.")
 
         # Continuous crisis regime scaling (0.15 to 1.0)
         crisis_mult = 1.0
@@ -273,7 +355,15 @@ class ExecutionOMSEngine:
                     weight = float(weight_raw) if (weight_raw is not None and math.isfinite(float(weight_raw))) else 0.0
                 except (ValueError, TypeError):
                     continue
-                if not (0.0 < weight <= 1.0):
+                
+                raw_action = str(pred.get("action", "BUY") or "BUY").upper()
+                if is_severe:
+                    if raw_action == "BUY" and weight > 0:
+                        continue
+                    weight = 0.0
+                    raw_action = "SELL"
+                    
+                if not is_severe and not (0.0 < weight <= 1.0) and raw_action != "SELL":
                     continue
 
                 # Gate: Leland Dynamic Buffer Band (No-Trade Zone) Gating
@@ -298,7 +388,7 @@ class ExecutionOMSEngine:
                         logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
 
                 target_amount = tot_cap * weight
-                if not (0.0 < target_amount <= tot_cap):
+                if not is_severe and raw_action != "SELL" and not (0.0 < target_amount <= tot_cap):
                     continue
 
                 close_price = pred.get("close_price")
@@ -315,7 +405,6 @@ class ExecutionOMSEngine:
                 if not (_MIN_PRICE_BOUND <= target_price <= _MAX_PRICE_BOUND):
                     continue
 
-                raw_action = str(pred.get("action", "BUY") or "BUY").upper()
                 name = str(pred.get("name", "") or "")
                 market = str(pred.get("market", "") or "")
                 target_price = self.round_to_tick_size(target_price, market=market)
@@ -326,6 +415,9 @@ class ExecutionOMSEngine:
                 if is_krx and raw_action in ["SELL_SHORT", "SHORT"]:
                     action = "CASH_OVERLAY"
                     status = "HEDGE_FLAG"
+                elif raw_action == "SELL":
+                    action = "SELL"
+                    status = "PENDING"
                 else:
                     action = "BUY"
                     status = "PENDING"
@@ -348,6 +440,20 @@ class ExecutionOMSEngine:
                 if is_krx and action == "BUY" and ("expected_return" in pred or "ensemble_expected_return" in pred):
                     try:
                         from src.risk.portfolio_allocator import PortfolioAllocator
+                        try:
+                            from src.execution.slippage_feedback import SlippageFeedbackEngine
+                            slip_res = SlippageFeedbackEngine(db_path=self.db_path).calculate_realized_slippage()
+                            if hasattr(slip_res, "cost_scaling_factor"):
+                                slip_mult = float(slip_res.cost_scaling_factor)
+                            elif hasattr(slip_res, "recommended_market_impact_multiplier"):
+                                slip_mult = float(slip_res.recommended_market_impact_multiplier)
+                            elif isinstance(slip_res, (int, float)):
+                                slip_mult = float(slip_res)
+                            else:
+                                slip_mult = 1.0
+                        except Exception:
+                            slip_mult = 1.0
+                            
                         allocator = PortfolioAllocator()
                         adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
                         vol_val = float(pred.get("volatility_20d", 0.02) or 0.02)
@@ -358,7 +464,8 @@ class ExecutionOMSEngine:
                             portfolio_value=tot_cap,
                             volatility_20d=vol_val,
                             adv=adv_val,
-                            is_sell=False
+                            is_sell=False,
+                            slippage_multiplier=slip_mult
                         )
                         raw_exp_ret = float(pred.get("expected_return", pred.get("ensemble_expected_return", 0.0)) or 0.0)
                         exp_ret_frac = raw_exp_ret / 100.0
@@ -465,6 +572,17 @@ class ExecutionOMSEngine:
                         h_weight = hedge_info["hedge_weight"]
                         h_amount = tot_cap * h_weight
                         h_order_id = f"ORD_HEDGE_{h_sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
+                        hedge_price = self._get_latest_price(h_sym, prices_dict=prices_dict, top_predictions=top_predictions)
+                        if hedge_price <= 0.0:
+                            hedge_price = 10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() else 50.0
+                        hedge_price = self.round_to_tick_size(hedge_price, market=first_market)
+
+                        raw_h_qty = int(h_amount // hedge_price) if hedge_price > 0 else 0
+                        if str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit():
+                            h_quantity = (raw_h_qty // 10) * 10 if raw_h_qty >= 10 else raw_h_qty
+                        else:
+                            h_quantity = raw_h_qty
+
                         h_entry = {
                             "order_id": h_order_id,
                             "symbol": h_sym,
@@ -473,8 +591,8 @@ class ExecutionOMSEngine:
                             "action": "BUY_HEDGE",
                             "target_weight": round(h_weight, 4),
                             "target_amount": round(h_amount, 2),
-                            "target_price": 10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ"] else 50.0,
-                            "quantity": int(h_amount // (10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ"] else 50.0)),
+                            "target_price": round(hedge_price, 2),
+                            "quantity": h_quantity,
                             "execution_strategy": "DIRECT",
                             "slice_count": 1,
                             "status": "HEDGE_ACTIVE",

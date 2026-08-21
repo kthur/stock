@@ -1,21 +1,14 @@
-# Progress Report
+# Progress Tracker - Worker M4
 
-Last visited: 2026-07-25T01:39:20Z
+Last visited: 2026-08-21T10:27:30Z
+Status: Completed Implementation & Verification
 
-## Completed
-- [x] Initialized workspace directory `.agents/teamwork_preview_worker_m4/`
-- [x] Created `ORIGINAL_REQUEST.md` and `BRIEFING.md`
-- [x] Implemented Sector Risk Cap (max 30% total exposure per sector) across `RiskManager`, `PortfolioAllocator`, `TradingAgent`, and `TradingSystem`
-- [x] Refactored ATR Dynamic Trailing Stop evaluation in `TradingSystem` to delegate to `RiskManager.check_trailing_stop_signal()` / `calculate_trailing_stop_price()` and synchronized trigger prices with `OrderManagementSystem`
-- [x] Implemented real order cancellation (`cancel_order`) and order status inquiry (`get_order_status`) in `KoreaInvestmentConnector` and `KoreaInvestmentBroker`
-- [x] Added pre-order execution safety guards: limit price sanity bounds (max ±3% deviation) and single order max value cap (max 50,000,000 KRW)
-- [x] Created comprehensive unit tests in `trading_system/tests/test_kis_safety_and_atr.py` and verified all 5 tests pass
-- [x] Verified existing risk, agent, portfolio, and system tests pass (82/82 passed)
-- [x] Written `changes.md` and `handoff.md`
-- [x] Sent completion message to parent
-
-## In Progress
-- None
-
-## Next Steps
-- None
+## Tasks
+- [x] Read referenced documents: ORIGINAL_REQUEST.md, system_improvement_report_v5.md (Domain 4: V5-24 ~ V5-25), explorer survey handoff.md
+- [x] Inspect existing `trading_system/src/execution/oms_engine.py` and `trading_system/src/execution/slippage_feedback.py`
+- [x] Inspect existing tests `tests/test_portfolio_optimizer_and_oms.py`, `tests/test_slippage_feedback.py`, `tests/test_adaptive_execution_feedback.py`, `tests/test_krx_overnight_and_hurdle.py`, `tests/test_challenger_m4_2.py`
+- [x] Implement V5-24: fix `calculate_realized_slippage(*args, **kwargs)` signature and `SlippageMetrics` dataclass unpacking in `oms_engine.py:440-455` and `slippage_feedback.py:56`
+- [x] Implement V5-25: dynamic hedge sizing with `_get_latest_price()` for inverse ETF hedge orders in `oms_engine.py:570-600`
+- [x] Run pytest on test suites and verify 100% pass (22/22 tests passing)
+- [x] Run isolation verification script for V5-24 and V5-25 (all assertions passed)
+- [x] Write handoff.md and send message to parent

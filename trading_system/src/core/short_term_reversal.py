@@ -69,7 +69,10 @@ class ShortTermReversalEngine(BaseStrategyEngine):
                 continue
             try:
                 df_sorted = df.sort_index(ascending=True) if hasattr(df.index, 'is_monotonic_increasing') and not df.index.is_monotonic_increasing else df
-                close = df_sorted['Close']
+                close_col = 'Close' if 'Close' in df_sorted.columns else ('close' if 'close' in df_sorted.columns else None)
+                if not close_col:
+                    continue
+                close = df_sorted[close_col]
                 if isinstance(close, pd.DataFrame):
                     close = close.iloc[:, 0]
                 close = close.dropna()
@@ -81,8 +84,8 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         if not valid_cols:
             return pd.DataFrame(columns=['symbol', 'reversal_score'])
 
-        # Align all series on Date Index, forward-fill missing dates, and take last 20 trading days
-        close_2d = pd.DataFrame(valid_cols).ffill().tail(20)
+        # Align all series on Date Index, sort chronologically, forward-fill missing dates, and take last 20 trading days
+        close_2d = pd.DataFrame(valid_cols).sort_index().ffill().tail(20)
         if len(close_2d) < 6:
             return pd.DataFrame(columns=['symbol', 'reversal_score'])
         cur_price = close_2d.iloc[-1]
@@ -178,7 +181,6 @@ class ShortTermReversalEngine(BaseStrategyEngine):
                 # Penalize loss-making distress stocks (operating margin < -0.10)
                 res_df.loc[res_df['operating_margin'] < -0.10, 'oversold_metric'] -= 1.0
 
-        # Percentile rank oversold metric -> reversal_score [0, 1]
-        res_df['reversal_score'] = res_df['oversold_metric'].rank(pct=True, ascending=True)
-        res_df['reversal_score'] = res_df['reversal_score'].clip(0.0, 1.0)
+        # Percentile rank oversold metric -> reversal_score [0, 1] with boundary clipping
+        res_df['reversal_score'] = res_df['oversold_metric'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         return res_df[['symbol', 'reversal_score']]

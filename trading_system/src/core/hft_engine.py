@@ -185,6 +185,11 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 universe = fundamentals_dict
             elif isinstance(prices_dict, pd.DataFrame) and not prices_dict.empty:
                 universe = prices_dict
+            elif isinstance(prices_dict, dict) and prices_dict:
+                universe = pd.DataFrame({
+                    "symbol": list(prices_dict.keys()),
+                    "market": ["KRX" if str(s).isdigit() else "SP500" for s in prices_dict.keys()]
+                })
             else:
                 universe = pd.DataFrame()
 
@@ -237,15 +242,17 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 bid_ask_imbalance = 0.0
                 auction_volume_accel = 1.0
 
-            # High-conviction Overnight Gap Edge Bonus (Top close location & surging auction volume)
-            gap_bonus = 0.10 if (bid_ask_imbalance >= 0.80 and auction_volume_accel >= 1.80) else 0.0
+            # High-conviction Overnight Gap Edge Bonus (smooth continuous sigmoidal transition)
+            sig_imb = 1.0 / (1.0 + np.exp(-10.0 * (bid_ask_imbalance - 0.80)))
+            sig_acc = 1.0 / (1.0 + np.exp(-5.0 * (auction_volume_accel - 1.80)))
+            gap_bonus = 0.10 * sig_imb * sig_acc
 
             # Score normalized to [0.0, 1.0] scale centered at 0.50
             net_score = float(np.clip(0.5 + bid_ask_imbalance * 0.30 + (auction_volume_accel - 1.0) * 0.15 + gap_bonus, 0.0, 1.0))
 
-            # HFT Order Flow Momentum Booster for high-conviction order imbalance
-            if net_score >= 0.75:
-                net_score = float(np.clip(net_score * 1.10, 0.0, 1.0))
+            # HFT Order Flow Momentum Booster for high-conviction order imbalance (smooth transition)
+            smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (net_score - 0.75)))
+            net_score = float(np.clip(net_score * smooth_boost, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,

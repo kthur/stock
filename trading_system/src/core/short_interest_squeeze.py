@@ -109,10 +109,15 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                             c_series = p_df[close_col].dropna()
                             if len(v_series) >= 20 and len(c_series) >= 20:
                                 vol_surge = v_series.iloc[-1] / (v_series.iloc[-20:-1].mean() + 1e-5)
-                                ret_20d = float((c_series.iloc[-1] / c_series.iloc[-20]) - 1.0)
-                                # High volume surge + positive recent bounce = squeeze proxy
-                                proxy_score = float(vol_surge * np.clip(1.0 + ret_5d * 3.0 + ret_20d * 1.5, 0.2, 4.0))
-                                results[sym_str] = proxy_score
+                                ret_20d = float((c_series.iloc[-1] / c_series.iloc[-20]) - 1.0) if len(c_series) >= 20 and c_series.iloc[-20] > 0 else 0.0
+                                # High volume surge + positive recent bounce = squeeze proxy (calibrated to [0.0, 0.50] scale)
+                                proxy_score = float(
+                                    0.15 * max(-0.2, min(0.5, ret_5d))
+                                    + 0.10 * (min(3.0, vol_surge) / 3.0)
+                                    + 0.10 * max(-0.2, min(0.5, ret_20d))
+                                    + 0.05
+                                )
+                                results[sym_str] = float(np.clip(proxy_score, 0.0, 1.0))
                                 continue
                 results[sym_str] = np.nan
             else:
@@ -131,7 +136,7 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 0:
-            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
+            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
             df_out.loc[valid_mask, 'short_squeeze_score'] = ranks.clip(0.05, 0.95)
         else:
             df_out['short_squeeze_score'] = 0.50

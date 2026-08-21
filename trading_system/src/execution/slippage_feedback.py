@@ -53,7 +53,7 @@ class SlippageFeedbackEngine:
             safe_slip = 5.0
         self.default_slippage_bps = max(0.0, min(1000.0, safe_slip))
 
-    def calculate_realized_slippage(self) -> SlippageMetrics:
+    def calculate_realized_slippage(self, *args, **kwargs) -> SlippageMetrics:
         """Reads trade_logs.db and returns realized slippage metrics in basis points (bps)."""
         if not Path(self.db_path).exists():
             return SlippageMetrics(
@@ -145,12 +145,13 @@ class SlippageFeedbackEngine:
                     recommended_market_impact_multiplier=1.0,
                 )
 
-            # Robust estimation: MAD (Median Absolute Deviation) filtering for anomalous fills/splits
+            # Robust estimation: MAD (Median Absolute Deviation) scaled by 1.4826 for normal consistency
             arr = np.array(valid_slippages, dtype=float)
             med = float(np.median(arr))
             mad = float(np.median(np.abs(arr - med)))
-            if mad > 1e-4 and len(arr) >= 5:
-                filtered = arr[np.abs(arr - med) <= 3.5 * mad]
+            mad_sigma = mad * 1.4826
+            if mad_sigma > 1e-4 and len(arr) >= 5:
+                filtered = arr[np.abs(arr - med) <= 3.5 * mad_sigma]
                 avg_slip = float(np.mean(filtered)) if len(filtered) > 0 else med
             else:
                 avg_slip = med

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from typing import cast
+from typing import cast, Optional, Union, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,19 +17,29 @@ logger = logging.getLogger(__name__)
 
 class LSTMNetwork(nn.Module):
     """
-    Standard PyTorch LSTM architecture.
+    Enhanced PyTorch LSTM architecture with LayerNorm and Dropout.
     Takes input of shape (batch_size, sequence_length, input_size)
     Outputs predicted return of shape (batch_size, output_size)
     """
 
-    def __init__(self, input_size: int = 1, hidden_size: int = 32, num_layers: int = 1, output_size: int = 1):
+    def __init__(self, input_size: int = 1, hidden_size: int = 32, num_layers: int = 2, dropout: float = 0.2, output_size: int = 1):
         super(LSTMNetwork, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.use_layer_norm = input_size > 1
+        if self.use_layer_norm:
+            self.layer_norm = nn.LayerNorm(input_size)
+        self.lstm = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0.0
+        )
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         # x: (batch, seq_len, input_size)
-        out, _ = self.lstm(x)
+        x_norm = self.layer_norm(x) if self.use_layer_norm else x
+        out, _ = self.lstm(x_norm)
         # Take the output of the last time step
         last_step_out = out[:, -1, :]
         pred = self.fc(last_step_out)
@@ -48,15 +58,18 @@ class LSTMPredictor:
         self.epochs = epochs
         self.lr = lr
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = LSTMNetwork(input_size=input_size, hidden_size=hidden_size, num_layers=1, output_size=1).to(self.device)
+        self.model = LSTMNetwork(input_size=input_size, hidden_size=hidden_size, num_layers=2, dropout=0.2, output_size=1).to(self.device)
         self.is_trained = False
 
-    def train_model(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
+    def train_model(self, X_train: np.ndarray, y_train: np.ndarray, val_split: float = 0.15, max_grad_norm: float = 1.0, date_labels: Optional[np.ndarray] = None) -> None:
         """
-        Trains the LSTM model.
+        Trains the LSTM model with gradient clipping, LR scheduling, and early stopping.
         Args:
             X_train: numpy array of shape (n_samples, sequence_length) or (n_samples, sequence_length, 1)
             y_train: numpy array of shape (n_samples,) or (n_samples, 1)
+            val_split: fraction of data used for validation/early stopping
+            max_grad_norm: maximum gradient norm for clipping
+            date_labels: optional date timestamps for date-aware panel split
         """
         if len(X_train) < 5:
             logger.warning(f"Too few samples for training LSTM: {len(X_train)}")
@@ -69,41 +82,106 @@ class LSTMPredictor:
             if y_train.ndim == 1:
                 y_train = np.expand_dims(y_train, axis=-1)
 
+            # Clean NaNs and Infs in training data
+            X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
+            y_train = np.nan_to_num(y_train, nan=0.0, posinf=0.0, neginf=0.0)
+
+            # Chronological split for validation if enough samples
+            n_total = len(X_train)
+            if n_total >= 30 and val_split > 0:
+                if date_labels is not None and len(date_labels) == n_total:
+                    unique_dates = np.sort(np.unique(date_labels))
+                    cutoff_idx = int(len(unique_dates) * (1.0 - val_split))
+                    cutoff_date = unique_dates[cutoff_idx]
+                    tr_mask = date_labels < cutoff_date
+                    val_mask = date_labels >= cutoff_date
+                    X_tr, y_tr = X_train[tr_mask], y_train[tr_mask]
+                    X_val, y_val = X_train[val_mask], y_train[val_mask]
+                else:
+                    embargo = max(1, int(n_total * 0.02))
+                    n_train = int(n_total * (1.0 - val_split))
+                    X_tr, y_tr = X_train[:n_train], y_train[:n_train]
+                    X_val, y_val = X_train[n_train + embargo:], y_train[n_train + embargo:]
+            else:
+                X_tr, y_tr = X_train, y_train
+                X_val, y_val = None, None
+
             # Convert to PyTorch Tensors
             float_dtype = getattr(torch, 'float32', getattr(torch, 'float', None))
-            X_tensor = torch.tensor(X_train, dtype=float_dtype).to(self.device)
-            y_tensor = torch.tensor(y_train, dtype=float_dtype).to(self.device)
+            X_tr_tensor = torch.tensor(X_tr, dtype=float_dtype).to(self.device)
+            y_tr_tensor = torch.tensor(y_tr, dtype=float_dtype).to(self.device)
+
+            if X_val is not None and len(X_val) > 0:
+                X_val_tensor = torch.tensor(X_val, dtype=float_dtype).to(self.device)
+                y_val_tensor = torch.tensor(y_val, dtype=float_dtype).to(self.device)
+            else:
+                X_val_tensor, y_val_tensor = None, None
 
             criterion = nn.MSELoss()
-            optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+            optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
+            scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode='min', factor=0.5, patience=2, min_lr=1e-5
+            )
 
-            self.model.train()
-            batch_size = min(64, len(X_train))
-            dataset_size = len(X_train)
+            batch_size = min(64, len(X_tr))
+            dataset_size = len(X_tr)
+            best_val_loss = float('inf')
+            best_state = None
+            patience_counter = 0
+            max_patience = 4
 
             for epoch in range(self.epochs):
-                # Simple shuffle and batching
+                self.model.train()
                 permutation = torch.randperm(dataset_size)
                 epoch_loss = 0.0
                 num_batches = 0
 
                 for i in range(0, dataset_size, batch_size):
-                    indices = permutation[i:i+batch_size]
-                    batch_x, batch_y = X_tensor[indices], y_tensor[indices]
+                    indices = permutation[i : i + batch_size]
+                    batch_x, batch_y = X_tr_tensor[indices], y_tr_tensor[indices]
 
                     optimizer.zero_grad()
                     outputs = self.model(batch_x)
                     loss = criterion(outputs, batch_y)
                     loss.backward()
-                    optimizer.step()
 
+                    # Gradient clipping to prevent exploding gradients
+                    if max_grad_norm > 0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=max_grad_norm)
+
+                    optimizer.step()
                     epoch_loss += loss.item()
                     num_batches += 1
 
-                logger.debug(f"LSTM Epoch {epoch+1}/{self.epochs} - Loss: {epoch_loss / max(num_batches, 1):.6f}")
+                avg_train_loss = epoch_loss / max(num_batches, 1)
+
+                # Validation step
+                if X_val_tensor is not None:
+                    self.model.eval()
+                    with torch.no_grad():
+                        val_outputs = self.model(X_val_tensor)
+                        val_loss = criterion(val_outputs, y_val_tensor).item()
+
+                    scheduler.step(val_loss)
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        best_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                        patience_counter = 0
+                    else:
+                        patience_counter += 1
+                        if patience_counter >= max_patience:
+                            logger.debug(f"Early stopping at epoch {epoch+1}")
+                            break
+                else:
+                    scheduler.step(avg_train_loss)
+
+            if best_state is not None:
+                self.model.load_state_dict({k: v.to(self.device) for k, v in best_state.items()})
 
             self.is_trained = True
-            logger.info("LSTM Model trained successfully.")
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.info("LSTM Model trained successfully with gradient clipping and adaptive scheduler.")
 
         except Exception as e:
             logger.error(f"Error during LSTM training: {e}")

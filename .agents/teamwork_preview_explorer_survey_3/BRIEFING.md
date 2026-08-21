@@ -1,40 +1,46 @@
-# BRIEFING — 2026-08-14T09:26:15Z
+# BRIEFING — 2026-08-21T10:14:45Z
 
 ## Mission
-Investigate 2D Market Regime Engine, EnsembleScoringEngine, Dynamic Exponential Sharpe Multiplier with EMA smoothing, Backtesting runner, Pytest test suite, and run_pipeline.py/index.html generation.
+Survey Domain 3 Part B (V5-26 to V5-31), Domain 4 (V5-24 to V5-25), Domain 5 (V5-32), and test suite status for stock trading system improvements v5.
 
 ## 🔒 My Identity
 - Archetype: explorer
-- Roles: investigation, synthesis
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3
-- Original parent: 644fa09c-3631-4b51-bf49-e7616ad72a36
-- Milestone: explorer-survey-3
+- Roles: survey, code analysis, evidence chain generation, handoff report
+- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\
+- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
+- Milestone: Survey Phase Complete
 
 ## 🔒 Key Constraints
-- Read-only investigation — do NOT implement changes to source code
-- Focus on 2D Market Regime, Ensemble Scoring, Dynamic Sharpe Multiplier, Backtester, Pytest suite, Pipeline outputs & Dashboard
-- Produce structured analysis.md and handoff.md in own folder
+- Read-only investigation — do NOT implement changes in source tree
+- Strict adherence to system_improvement_report_v5.md and ORIGINAL_REQUEST.md
+- Produce structured 5-component handoff report in handoff.md
+- Send message to parent upon completion
 
 ## Current Parent
-- Conversation ID: 644fa09c-3631-4b51-bf49-e7616ad72a36
-- Updated: 2026-08-14T09:26:15Z
+- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
+- Updated: 2026-08-21T10:14:45Z
 
 ## Investigation State
-- **Explored paths**: `src/analysis/regime_detector.py`, `src/ai/ensemble_scorer.py`, `src/ai/factor_orthogonalizer.py`, `src/ai/factor_suppression.py`, `src/core/multi_factor_neutralizer.py`, `src/risk/risk_manager.py`, `src/analysis/backtest.py`, `src/analysis/walk_forward_backtester.py`, `trading_system/run_pipeline.py`, `trading_system/generate_report.py`, `tests/`
+- **Explored paths**:
+  - `trading_system/src/execution/oms_engine.py` (V5-24, V5-25)
+  - `trading_system/src/execution/slippage_feedback.py` (V5-24)
+  - `trading_system/src/core/iv_skew.py` (V5-26)
+  - `trading_system/src/core/vol_target.py` (V5-27)
+  - `trading_system/src/core/accruals_quality.py` (V5-28)
+  - `trading_system/src/core/card_factor.py`, `arm_factor.py`, `mq_factor.py`, `hft_engine.py` (V5-29)
+  - `trading_system/src/core/insider_buying.py` (V5-30)
+  - `trading_system/src/config.py` (V5-31)
+  - `trading_system/run_pipeline.py` (V5-32)
 - **Key findings**:
-  - 2D Regime GMM 10-feature classifier with 6 states + Fast Shock overrides (VIX>30, S&P1d<-3%).
-  - 31 Strategy catalog with 2D weight matrix, PCA ZCA symmetric orthogonalization, and cluster-based factor suppression.
-  - Dynamic Sharpe Multiplier $\exp(\gamma \cdot \text{clip}(\text{Sharpe}, -L, L))$ with underperformance pruning ($\text{Sharpe} < -0.50$) and power ratio damping ($R \le 20$).
-  - Adaptive EMA smoothing ($\alpha = 0.2$ steady-state, $\alpha = 1.0$ on regime transition) with disk persistence in `models/prev_weights.json`.
-  - Microstructure friction model deducting STT/SEC taxes, dynamic spread, and Almgren-Chriss square-root impact.
-  - Full pytest test suite of 1,554 tests (730 in `tests/`, 824 in `trading_system/tests/`). 17/17 sample suite tests verified passing.
-- **Unexplored areas**: None. Complete investigation finished.
+  - All 9 tasks (V5-24 to V5-32) verified with exact code line numbers and mathematical root causes.
+  - Test suite baseline verified (1,226 items).
+- **Unexplored areas**: None in assigned scope.
 
 ## Key Decisions Made
-- Fully documented all architectural components, mathematical formulas, test verification commands, and operational procedures in `analysis.md` and `handoff.md`.
+- All findings structured into 5-component handoff report at `D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\analysis.md` — Deep dive report
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md` — 5-component handoff report
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\progress.md` — Liveness progress log
-- `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\DISPATCH.md` — Turn message log
+- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\DISPATCH.md — Dispatch log
+- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\BRIEFING.md — Persistent working memory
+- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\progress.md — Liveness & progress tracker
+- D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_3\handoff.md — Final survey report

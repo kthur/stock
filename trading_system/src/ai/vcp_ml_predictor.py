@@ -368,7 +368,8 @@ class VCPSurgePredictor:
             kw_cat: Dict[str, Any] = dict(self._surge_cat_kwargs)
 
             m_df['date'] = pd.to_datetime(m_df['date'])
-            cutoff = m_df['date'].quantile(0.8)
+            unique_dates = pd.Series(m_df['date'].dropna().unique()).sort_values()
+            cutoff = unique_dates.quantile(0.8) if len(unique_dates) > 1 else m_df['date'].max()
             embargo_days = pd.Timedelta(days=32)
             train_idx = m_df['date'] <= (cutoff - embargo_days)
             val_idx = m_df['date'] > cutoff
@@ -607,6 +608,7 @@ class VCPSurgePredictor:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
                                 if coef is not None and intercept is not None and coef > 0:
+                                    # Align with LogisticRegression fit on raw blend_prob in [0, 1]
                                     z = np.clip(coef * blend_prob + intercept, -10, 10)
                                     calib_p = 1.0 / (1.0 + np.exp(-z))
                                     # Prevent numeric collapse to 0.0 while preserving model ranking

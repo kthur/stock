@@ -280,7 +280,14 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                     residual = y_m - y_pred
                 except Exception as e:
                     logger.warning(f"QR decomposition failed for market {mkt}: {e}")
-                    residual = y_m - np.mean(y_m)
+                    # Ridge regression fallback for ill-conditioned design matrices
+                    ridge_eye = 1e-4 * np.eye(X_m.shape[1])
+                    beta_ridge = np.linalg.solve(np.dot(X_m.T, X_m) + ridge_eye, np.dot(X_m.T, y_m))
+                    residual = y_m - np.dot(X_m, beta_ridge)
+            elif N_m > 1:
+                # SVD pseudoinverse projection for under-determined cross-sections (N_m < 6)
+                beta_pinv = np.linalg.pinv(X_m) @ y_m
+                residual = y_m - np.dot(X_m, beta_pinv)
             else:
                 residual = y_m - np.mean(y_m)
 

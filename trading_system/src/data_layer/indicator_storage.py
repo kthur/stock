@@ -195,7 +195,7 @@ class MarketIndicatorStorage:
         conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA cache_size=-50000")  # 50MB page cache
+        conn.execute("PRAGMA cache_size=-10000")  # 10MB page cache per connection
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA busy_timeout=30000")  # 30s retry on locked DB
         conn.execute("PRAGMA foreign_keys = ON")
@@ -324,8 +324,11 @@ class MarketIndicatorStorage:
                 if _ec not in _ens_existing:
                     try:
                         conn.execute(f"ALTER TABLE ensemble_predictions ADD COLUMN {_ec} REAL")
-                    except Exception:
-                        pass
+                    except sqlite3.OperationalError as ex:
+                        if "duplicate column name" not in str(ex).lower():
+                            logger.warning(f"ALTER TABLE ensemble_predictions ADD COLUMN {_ec} warning: {ex}")
+                    except Exception as ex:
+                        logger.error(f"Migration error on column {_ec}: {ex}")
             # Create table for stock fundamentals
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS stock_fundamentals (
@@ -552,8 +555,11 @@ class MarketIndicatorStorage:
                 except Exception as _e:
                     logger.warning(f"[PipelineRun] Failed to log stage end for '{stage}' (id={row_id}): {_e}")
 
-    def update_stock_universe(self):
+    def update_stock_universe(self, survivorship_bias_aware: bool = False):
         """Fetch and update S&P 500, NASDAQ, RUSSELL2000 and KRX (KOSPI, KOSDAQ) stocks"""
+        logger.warning("WARNING: Universe constructed from current listings only. Survivorship bias present in historical training data.")
+        # TODO: Integrate point-in-time database (CRSP/Norgate) to eliminate survivorship bias
+        
         def _retry_fetch(label, fn, attempts=3):
             """Retry a universe listing fetch (transient rate-limit/network failures)."""
             last_err = None
@@ -762,7 +768,15 @@ class MarketIndicatorStorage:
                 )
                 conn.commit()
         logger.info("Stock universe updated successfully with sector information.")
-
+        if survivorship_bias_aware:
+            with self._connect() as conn:
+                try:
+                    count_val = conn.execute("SELECT COUNT(*) FROM stock_universe").fetchone()[0]
+                    min_date = conn.execute("SELECT MIN(date) FROM stock_prices").fetchone()[0]
+                    max_date = conn.execute("SELECT MAX(date) FROM stock_prices").fetchone()[0]
+                    logger.info(f"Survivorship Bias Metrics: Universe Size: {count_val}, Date Range: {min_date} to {max_date}")
+                except Exception as e:
+                    logger.warning(f"Could not calculate survivorship metrics: {e}")
     def save_indicators(self, data: Any, date_str: Any = None):
         """
         Save global indicators using batch executemany.

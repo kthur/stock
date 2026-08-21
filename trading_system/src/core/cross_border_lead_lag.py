@@ -58,9 +58,9 @@ class CrossBorderLeadLagEngine:
 
         # Default fallback US tech return if US ticker prices aren't loaded explicitly
         if not us_returns:
-            avg_us_tech_ret = 0.0  # Neutral default (no phantom momentum)
-        else:
-            avg_us_tech_ret = float(np.mean(list(us_returns.values())))
+            return {sym: 0.5 for sym in prices_dict.keys() if sym not in self.US_LEADERS}
+
+        avg_us_tech_ret = float(np.mean(list(us_returns.values())))
 
         scores: Dict[str, float] = {}
 
@@ -84,7 +84,12 @@ class CrossBorderLeadLagEngine:
                 leaders = self.SECTOR_LEADER_MAP.get(sec, self.SECTOR_LEADER_MAP['General'])
 
                 # Measure US leader shock vs KR stock recent momentum
-                leader_rets = [us_returns.get(leader_sym, avg_us_tech_ret) for leader_sym in leaders]
+                avail_leaders = [l_sym for l_sym in leaders if l_sym in us_returns]
+                if not avail_leaders:
+                    scores[sym] = 0.5
+                    continue
+
+                leader_rets = [us_returns[l_sym] for l_sym in avail_leaders]
                 mean_leader_ret = float(np.mean(leader_rets))
 
                 # Lag divergence: US leader rose but KR stock hasn't caught up yet -> Buying Opportunity

@@ -950,6 +950,20 @@ class TestE2EConsolidated(unittest.TestCase):
         self.assertTrue(res['is_vcp'])
         self.assertGreaterEqual(res['vcp_score'], 50.0)
 
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            if hasattr(cls, 'price_storage') and cls.price_storage:
+                cls.price_storage.close()
+        except Exception:
+            pass
+        for path in [TEST_INDICATOR_DB_PATH, TEST_PRICES_DB_PATH]:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()

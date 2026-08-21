@@ -376,7 +376,15 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
 
             prices = p.values.astype(np.float64)
             log_p = np.log(np.maximum(prices, 1e-5))
-            feats = _extract_15d_features(p, val)
+            # Extract clustering features strictly up to T-1 to prevent execution boundary leakage
+            p_hist = p.iloc[:-1] if len(p) > 30 else p
+            if hasattr(val, 'iloc') and len(val) > 30:
+                val_hist = val.iloc[:-1]
+            elif isinstance(val, (list, np.ndarray)) and len(val) > 30:
+                val_hist = val[:-1]
+            else:
+                val_hist = val
+            feats = _extract_15d_features(p_hist, val_hist)
 
             valid_symbols.append(sym)
             log_price_dict[sym] = log_p

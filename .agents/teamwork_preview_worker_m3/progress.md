@@ -1,13 +1,25 @@
-# Progress Log
+﻿# Progress Log - Worker M3
 
-Last visited: 2026-07-29T14:39:30Z
-
-## Status
-- [x] Initialized workspace and briefing
-- [x] Inspect existing codebase for backtest engine and risk management
-- [x] Implement required backtest metrics (annualized Sharpe, MDD, win rate, profit factor, gross/net returns) & centralized cost calculation (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%)
-- [x] Implement multi-factor strategy allocation and 14-strategy ensemble score inputs in BacktestEngine (`run_ensemble_backtest` & `run_multi_factor_portfolio_backtest`)
-- [x] Verify & enhance risk management modules (`risk_manager.py`, `position_sizing.py`, `portfolio_risk.py`, liquidity screening, Kelly position sizing, ATR trailing stops, 30% sector cap, KIS execution limits)
-- [x] Add unit tests for backtest metrics, market rates, ensemble backtesting, and liquidity screening
-- [x] Document all changes and test outputs in handoff.md
-- [ ] Send summary message back to parent orchestrator
+- Last visited: 2026-08-21T19:26:30+09:00
+- Initialized workspace and briefing.
+- Read ORIGINAL_REQUEST.md, system_improvement_report_v5.md, and survey handoffs.
+- Verified baseline tests (267/267 passed).
+- Implemented all 17 assigned tasks (V5-13 to V5-23, V5-26 to V5-31) in Domain 3 across assigned files:
+  - V5-13: card_factor.py: fix res_rows NameError fallback -> scores[sym] = 0.5
+  - V5-14: gamma_squeeze.py: add **kwargs to compute_gamma_squeeze_scores
+  - V5-15: hft_engine.py: fallback DataFrame with valid symbols when prices_dict is dict
+  - V5-16: short_interest_squeeze.py: calibrate proxy score scaling to [0.0, 0.50] / [0.0, 1.0]
+  - V5-17: cross_border_lead_lag.py: neutral fallback when US leaders missing to avoid alpha inversion
+  - V5-18: order_flow.py: normalize OBV slope by 10-day volume sum
+  - V5-19: rim_valuation.py: invalidate distressed & negative equity companies before ranking
+  - V5-20: event_driven.py: match DART filings against both stock_code and corp_code
+  - V5-21: multi_factor_neutralizer.py: add Ridge regression fallback and SVD pseudoinverse projection
+  - V5-22: database.py: add crash guard and volume confirmation before split adjustments
+  - V5-23: short_term_reversal.py: case-insensitive close/Close column resolution
+  - V5-26: iv_skew.py: downside/upside semi-variance around MAR = 0.0
+  - V5-27: vol_target.py: restore full dynamic range [0.05, 0.95]
+  - V5-28: accruals_quality.py: handle single-stock N=1 boundary with 0.50 (+ bonus) fallback
+  - V5-29: card_factor.py, arm_factor.py, mq_factor.py, hft_engine.py: replace discrete step jumps with smooth continuous transitions
+  - V5-30: insider_buying.py: require explicit buy/sell keywords before attributing transaction type
+  - V5-31: config.py: properly cast TRAIN_SAMPLE_SP500 and TRAIN_SAMPLE_KRX to int or 'all'
+- Awaiting test completion.

@@ -94,8 +94,10 @@ class PortfolioAllocator:
                     # Derived from joint lower quantile co-exceedance rate across assets
                     try:
                         tail_rets_std = (tail_returns - np.mean(tail_returns, axis=0)) / np.maximum(np.std(tail_returns, axis=0), 1e-6)
-                        joint_tail_prob = np.mean(tail_rets_std < -1.0, axis=0)  # Fraction of severe simultaneous down moves
-                        mean_tail_coincidence = float(np.mean(joint_tail_prob))
+                        # Fraction of assets crashing per day (cross-sectional)
+                        joint_tail_prob = np.mean(tail_rets_std < -1.0, axis=1)
+                        # Frequency of days where >50% of assets crash simultaneously
+                        mean_tail_coincidence = float(np.mean(joint_tail_prob > 0.5))
                         # Non-linear mapping to Clayton lambda_L in [0.10, 0.70]
                         lambda_l = float(np.clip(0.10 + mean_tail_coincidence * 1.5, 0.10, 0.70))
                     except Exception:
@@ -103,10 +105,15 @@ class PortfolioAllocator:
 
                     asym_corr = (1.0 - lambda_l) * corr + lambda_l * np.ones_like(corr)
                     np.fill_diagonal(asym_corr, 1.0)
+                    # Higham / Eigendecomposition spectral projection to guarantee PSD
+                    c_evals, c_evecs = np.linalg.eigh(asym_corr)
+                    c_evals = np.maximum(c_evals, 1e-4)
+                    asym_corr = c_evecs @ np.diag(c_evals) @ c_evecs.T
+                    d_inv = 1.0 / np.sqrt(np.diag(asym_corr))
+                    asym_corr = asym_corr * np.outer(d_inv, d_inv)
                     stressed_cov = asym_corr * outer_std
 
-                w_diag = np.diag(np.diag(stressed_cov))
-                res: np.ndarray = np.asarray(stressed_cov + 1e-6 * w_diag)
+                res: np.ndarray = np.asarray(stressed_cov + 1e-5 * np.eye(K))
                 return res
 
         return base_cov
@@ -655,7 +662,7 @@ class PortfolioAllocator:
             return {sym: float(min(equal_w, cap)) for sym in symbols}
 
         # Normalize to 1.0
-        norm_w = raw_kelly / total_k
+        norm_w = raw_kelly / max(1.0, total_k)  # Only scale down if gross exposure > 100%
 
         # Iterative water-filling projection to guarantee weights <= cap and sum(weights) == 1.0
         eff_cap = max(cap, 1.0 / n_assets)
@@ -857,8 +864,8 @@ class PortfolioAllocator:
         vol_clean = max(0.005, volatility_20d)
         ann_variance = 252.0 * (vol_clean ** 2)
 
-        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * w_i * sigma_ann^2) / (2 * gamma) ]^(1/3)
-        cubic_term = (3.0 * cost_rate * target_weight * ann_variance) / (2.0 * max(1e-4, gamma))
+        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * w_i * sigma_ann^2) / (4 * gamma) ]^(1/3)
+        cubic_term = (3.0 * cost_rate * target_weight * ann_variance) / (4.0 * max(1e-4, gamma))
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor

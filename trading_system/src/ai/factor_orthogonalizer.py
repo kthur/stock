@@ -146,10 +146,12 @@ class FactorOrthogonalizerEngine:
         # Eigen-decomposition of symmetric correlation matrix
         eigenvalues, eigenvectors = np.linalg.eigh(C_shrunk)
 
-        # Dynamic condition number regularization for ill-conditioned correlation matrices
+        # Continuous Ridge Regularization & Floor to prevent null-space amplification (N < K)
         max_eig = float(np.max(eigenvalues)) if len(eigenvalues) > 0 else 1.0
-        min_allowed_eig = max(max_eig / 1e6, self.ridge_epsilon)
-        eigenvalues = np.maximum(eigenvalues, min_allowed_eig)
+        mean_eig = float(np.mean(eigenvalues)) if len(eigenvalues) > 0 else 1.0
+        ridge_floor = max(0.01 * mean_eig, self.ridge_epsilon)
+        # Soft shrinkage towards mean eigenvalue + ridge floor
+        eigenvalues = np.maximum(eigenvalues, 0.0) + ridge_floor
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(lambda^(-1/2)) * V^T
         inv_sqrt_lambda = np.diag(1.0 / np.sqrt(eigenvalues))
@@ -239,13 +241,13 @@ class CrossSectionalFactorNeutralizer:
         if factor_loadings is not None and not factor_loadings.empty:
             avail_factors = [f for f in self.risk_factors if f in factor_loadings.columns]
             if avail_factors:
-                f_df = factor_loadings.loc[valid_idx, avail_factors].fillna(0.0)
+                f_df = factor_loadings.reindex(index=valid_idx, columns=avail_factors).fillna(0.0)
                 # Standardize factor loadings
                 f_std = (f_df - f_df.mean()) / (f_df.std().replace(0.0, 1.0) + 1e-6)
                 cols_to_concat.append(f_std)
 
         if sector_series is not None and len(sector_series) > 0:
-            sec_aligned = sector_series.loc[valid_idx].fillna("UNKNOWN")
+            sec_aligned = sector_series.reindex(valid_idx).fillna("UNKNOWN")
             if sec_aligned.nunique() > 1:
                 dummies = pd.get_dummies(sec_aligned, drop_first=True, dtype=float)
                 cols_to_concat.append(dummies)
@@ -256,22 +258,22 @@ class CrossSectionalFactorNeutralizer:
 
         # Weights matrix W (e.g. sqrt(MarketCap) or Identity)
         if weights is not None and len(weights) > 0:
-            w_aligned = weights.loc[valid_idx].fillna(1.0).to_numpy(dtype=np.float64)
+            w_aligned = weights.reindex(valid_idx).fillna(1.0).to_numpy(dtype=np.float64)
             w_aligned = np.clip(w_aligned, 1e-4, np.inf)
             W_diag = np.sqrt(w_aligned)
             W_diag /= (np.mean(W_diag) + 1e-8)
         else:
             W_diag = np.ones(N, dtype=np.float64)
 
-        # WLS Projection: (B^T W B + eps I)^(-1) B^T W y
+        # WLS Projection: (B_weighted^T B_weighted + eps I)^(-1) B_weighted^T y_weighted
         B_weighted = B * W_diag[:, np.newaxis]
         y_weighted = y * W_diag
-        BtWB = np.dot(B.T, B_weighted) + self.ridge_epsilon * np.eye(K_cols)
+        BtWB = np.dot(B_weighted.T, B_weighted) + self.ridge_epsilon * np.eye(K_cols)
 
         try:
-            beta_hat = np.linalg.solve(BtWB, np.dot(B.T, y_weighted))
+            beta_hat = np.linalg.solve(BtWB, np.dot(B_weighted.T, y_weighted))
         except np.linalg.LinAlgError:
-            beta_hat = np.dot(np.linalg.pinv(BtWB), np.dot(B.T, y_weighted))
+            beta_hat = np.dot(np.linalg.pinv(BtWB), np.dot(B_weighted.T, y_weighted))
 
         fitted = np.dot(B, beta_hat)
         residuals = y - fitted

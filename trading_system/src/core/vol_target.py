@@ -43,6 +43,16 @@ class VolTargetingEngine(BaseStrategyEngine):
         self.target_vol_annual = target_vol_annual
         self.config = config
 
+    def _scale_score(self, current_vol: float, target_vol: Optional[float] = None) -> float:
+        """
+        Scale single-asset volatility score using dynamic logistic transfer.
+        """
+        t_vol = target_vol if target_vol is not None else self.target_vol_annual
+        c_vol = max(float(current_vol), 0.02)
+        target_weights = float(t_vol) / c_vol
+        vol_ratio = target_weights - 1.0
+        return float(np.clip(1.0 / (1.0 + np.exp(-3.0 * np.clip(vol_ratio, -2.0, 2.0))), 0.0, 1.0))
+
     def compute_scores(
         self,
         prices_dict: Any = None,
@@ -106,14 +116,15 @@ class VolTargetingEngine(BaseStrategyEngine):
 
         # Fully vectorized computation across all universe symbols (O(1) Pandas vectorized)
         sym_series = universe["symbol"].astype(str).str.strip()
-        vols = sym_series.map(realized_vol).fillna(0.25).clip(lower=0.05)
+        vols = sym_series.map(realized_vol).fillna(0.25).clip(lower=0.02)
         inv_vols = 1.0 / vols
         if len(inv_vols) > 1 and inv_vols.std() > 1e-6:
-            pct_rank = inv_vols.rank(pct=True)
-            scores = (0.20 + pct_rank * 0.60).clip(0.0, 1.0).round(4)
+            pct_rank = inv_vols.rank(pct=True).clip(0.02, 0.98)
+            scores = (0.05 + pct_rank * 0.90).clip(0.0, 1.0).round(4)
         else:
             target_weights = self.target_vol_annual / vols
-            scores = (target_weights * 0.50).clip(0.0, 1.0).round(4)
+            vol_ratio = target_weights - 1.0
+            scores = (1.0 / (1.0 + np.exp(-3.0 * np.clip(vol_ratio, -2.0, 2.0)))).clip(0.0, 1.0).round(4)
 
         res_df = pd.DataFrame({
             "symbol": sym_series,

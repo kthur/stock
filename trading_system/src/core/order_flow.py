@@ -99,9 +99,10 @@ class OrderFlowEngine(BaseStrategyEngine):
                 tot_flow = pos_flow + neg_flow + 1e-12
                 mfi_ratio = float(pos_flow / tot_flow)
 
-                # OBV (On-Balance Volume) 10-day slope trend
+                # OBV (On-Balance Volume) 10-day slope trend normalized by 10-day volume sum
                 obv_slice = (np.sign(ret.tail(20)) * vol_sub.tail(20)).cumsum()
-                obv_trend = float((obv_slice.iloc[-1] - obv_slice.iloc[-10]) / (abs(obv_slice.iloc[-10]) + 1e-6)) if len(obv_slice) >= 10 else 0.0
+                vol_10d_sum = float(vol_sub.tail(10).sum())
+                obv_trend = float((obv_slice.iloc[-1] - obv_slice.iloc[-10]) / max(vol_10d_sum, 1.0)) if len(obv_slice) >= 10 else 0.0
 
                 # Volume Acceleration Ratio (5d avg volume / 20d avg volume)
                 vol_5d = float(volume.iloc[-5:].mean()) if len(volume) >= 5 else float(volume.iloc[-1])
@@ -158,7 +159,7 @@ class OrderFlowEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=['symbol', 'order_flow_score'])
 
         res_df = pd.DataFrame(records)
-        raw_ranks = res_df['mfi_ratio'].rank(pct=True, ascending=True)
+        raw_ranks = res_df['mfi_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         # Smart Money Dual Inflow Booster for top 15% high-demand order flow leaders
         smart_money_mask = raw_ranks >= 0.85
         enhanced_score = np.where(smart_money_mask, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks)

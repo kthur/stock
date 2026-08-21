@@ -39,7 +39,7 @@ class LATRFactorEngine(BaseStrategyEngine):
         """
         scores = {}
         if not prices_dict or not isinstance(prices_dict, dict):
-            return make_score_dataframe([], 'latr_score')
+            return make_score_dataframe({}, 'latr_score')
 
         # Extract real-time or indicator USD/KRW rate with safe fallback
         usdkrw_rate = 1350.0
@@ -114,7 +114,7 @@ class LATRFactorEngine(BaseStrategyEngine):
                 scores[sym] = 0.5
 
         if not scores:
-            return make_score_dataframe([], 'latr_score')
+            return make_score_dataframe({}, 'latr_score')
 
         vals = np.array(list(scores.values()))
         p1, p99 = np.percentile(vals, 1), np.percentile(vals, 99)

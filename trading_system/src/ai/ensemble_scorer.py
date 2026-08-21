@@ -541,6 +541,7 @@ class EnsembleScoringEngine:
                 y = np.asarray(true_labels, dtype=float)
                 if len(s) != len(y):
                     min_len = min(len(s), len(y))
+                    logger.warning(f"Calibrator for '{strategy}': array length mismatch (scores={len(s)}, true_labels={len(y)}). Truncating to min_len={min_len}")
                     s = s[:min_len]
                     y = y[:min_len]
                 mask = np.isfinite(s) & np.isfinite(y)
@@ -647,20 +648,25 @@ class EnsembleScoringEngine:
                         ewm = recent.ewm(halflife=12, min_periods=5)
                         mean_ret = float(ewm.mean().iloc[-1])
                         std_ret = float(ewm.std().iloc[-1])
+
+                        # EWMA downside semi-deviation Sortino calculation for consistent risk penalty
+                        downside_diff = np.minimum(0.0, recent - rf_daily)
+                        ewm_downside_var = float(pd.Series(downside_diff ** 2, index=recent.index).ewm(halflife=12, min_periods=5).mean().iloc[-1])
+                        downside_std = float(np.sqrt(max(ewm_downside_var, 0.0)))
                     else:
                         mean_ret = float(recent.mean())
                         std_ret = float(recent.std())
+                        downside_diff = np.minimum(0.0, recent.values - rf_daily)
+                        downside_std = float(np.sqrt(np.mean(downside_diff ** 2)))
 
-                    if np.isnan(std_ret) or std_ret < 1e-8:
-                        std_ret = 1e-6
+                    min_std_floor = max(0.02 / np.sqrt(252), 1e-4)
+                    if np.isnan(std_ret) or std_ret < min_std_floor:
+                        std_ret = min_std_floor
                     if np.isnan(mean_ret):
                         mean_ret = 0.0
                     sharpe = ((mean_ret - rf_daily) / std_ret) * np.sqrt(252)
 
-                    # Downside semi-deviation Sortino calculation for asymmetric risk penalty
-                    downside_diff = np.minimum(0.0, recent.values - rf_daily)
-                    downside_std = float(np.sqrt(np.mean(downside_diff ** 2)))
-                    if np.isnan(downside_std) or downside_std < 1e-8:
+                    if np.isnan(downside_std) or downside_std < min_std_floor:
                         downside_std = std_ret
                     sortino = ((mean_ret - rf_daily) / downside_std) * np.sqrt(252)
 
@@ -927,15 +933,14 @@ class EnsembleScoringEngine:
             scores[strategy] = base_w * multiplier * ic_mult * dsr_mult * (1.0 - crowd_penalty)
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
-        # differ up to ~5x, so multiplier-only capping is not enough). Damping the
-        # scores with a power < 1 preserves ordering while keeping any single
-        # strategy from dominating the ensemble.
+        # differ up to ~5x, so multiplier-only capping is not enough).
         max_total_ratio = 20.0
+        min_total_ratio = 1.0 / max_total_ratio  # 0.05
         _vals = np.array([v for v in scores.values() if v > 0.0], dtype=float)
         if len(_vals) > 0:
             _vmax = float(_vals.max())
-            _vmin_floor = _vmax / max_total_ratio
-            scores = {k: (max(v, _vmin_floor) if v > 0.0 else 0.0) for k, v in scores.items()}
+            _vmin_floor = _vmax * min_total_ratio
+            scores = {k: (max(v, _vmin_floor, base_weights.get(k, 0.0) * 0.20) if v > 0.0 else 0.0) for k, v in scores.items()}
 
         total_score = sum(scores.values())
         if total_score == 0.0:
@@ -950,8 +955,12 @@ class EnsembleScoringEngine:
 
         eff_alpha = 1.0 if (is_regime_shift or has_explicit_tilting) else self.alpha_smoothing
 
-        # Apply EMA Weight Smoothing to prevent regime transition whipsaws
-        if self._prev_weights is not None:
+        # Apply EMA Weight Smoothing only when strategy spaces match to prevent cross-space dimension leakage
+        strategy_space_matches = (
+            self._prev_weights is not None
+            and set(self._prev_weights.keys()) == set(dynamic_weights.keys())
+        )
+        if strategy_space_matches and eff_alpha < 1.0:
             smoothed = {}
             for k, target_w in dynamic_weights.items():
                 if target_w == 0.0:

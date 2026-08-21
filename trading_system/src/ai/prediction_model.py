@@ -155,7 +155,7 @@ class DateAwareTimeSeriesSplit:
 
         test_size = max(1, (n_dates - self.gap) // (self.n_splits + 1))
         for i in range(self.n_splits):
-            train_end_idx = n_dates - (self.n_splits - i) * test_size - self.gap
+            train_end_idx = (i + 1) * test_size
             test_start_idx = train_end_idx + self.gap
             test_end_idx = test_start_idx + test_size
             if train_end_idx <= 0 or test_start_idx >= n_dates:
@@ -772,22 +772,38 @@ class OnDevicePredictionModel:
                 if isinstance(shares_out, pd.Series):
                     mcap_val = close * shares_out
                     fallback_mcap_mask = shares_out.isna() | (shares_out <= 0)
-                    df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * volume)
+                    default_shares = metadata.get('shares_outstanding')
+                    if default_shares is not None and pd.notna(default_shares) and default_shares > 0:
+                        df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * float(default_shares))
+                    else:
+                        df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * volume)
                 else:
                     if shares_out is None or pd.isna(shares_out) or shares_out <= 0:
-                        df_copy['market_cap'] = close * volume
+                        default_shares = metadata.get('shares_outstanding')
+                        if default_shares is not None and pd.notna(default_shares) and default_shares > 0:
+                            df_copy['market_cap'] = close * float(default_shares)
+                        else:
+                            df_copy['market_cap'] = close * volume
                     else:
-                        df_copy['market_cap'] = close * shares_out
+                        df_copy['market_cap'] = close * float(shares_out)
 
                 if isinstance(float_sh, pd.Series):
                     floating_val = close * float_sh
                     fallback_mask = float_sh.isna() | (float_sh <= 0)
-                    df_copy['floating_value'] = floating_val.where(~fallback_mask, close * volume)
+                    default_float = metadata.get('floating_shares')
+                    if default_float is not None and pd.notna(default_float) and default_float > 0:
+                        df_copy['floating_value'] = floating_val.where(~fallback_mask, close * float(default_float))
+                    else:
+                        df_copy['floating_value'] = floating_val.where(~fallback_mask, close * volume)
                 else:
                     if float_sh is None or pd.isna(float_sh) or float_sh <= 0:
-                        df_copy['floating_value'] = close * volume
+                        default_float = metadata.get('floating_shares')
+                        if default_float is not None and pd.notna(default_float) and default_float > 0:
+                            df_copy['floating_value'] = close * float(default_float)
+                        else:
+                            df_copy['floating_value'] = close * volume
                     else:
-                        df_copy['floating_value'] = close * float_sh
+                        df_copy['floating_value'] = close * float(float_sh)
 
                 if is_kr:
                     kr_group[sym] = df_copy

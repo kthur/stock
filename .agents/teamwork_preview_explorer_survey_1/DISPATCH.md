@@ -1,27 +1,17 @@
-# Explorer 1 Survey Dispatch
+## 2026-08-21T10:10:47Z
+You are Survey Explorer 1 for the stock trading system.
+Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\
 
-## Objective
-Investigate the 31 strategy engines in the codebase (located in `src/core/`, `src/ai/`, etc.) focusing on alpha scoring, noise filtering, and signal precision for Surge, VCP, Stat-Arb, Sector Rotation, and all 31 strategies.
+Read:
+1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (Authoritative request)
+2. D:\Finance\code\stock\system_improvement_report_v5.md (Authoritative specification)
 
-## Scope & Inputs
-- `d:\Finance\code\stock\ORIGINAL_REQUEST.md`
-- `d:\Finance\code\stock\AGENTS.md`
-- `src/ai/prediction_model.py`
-- `src/core/` strategy files
-- `trading_system/run_pipeline.py`
+Your scope:
+Survey Domain 1 (AI/ML & Prediction Integrity: V5-01 through V5-06) and Domain 2 (Portfolio & Risk Engineering: V5-07 through V5-12).
 
-## Instructions
-1. Read `ORIGINAL_REQUEST.md`.
-2. Inspect how the 31 strategies are currently implemented, registered, and scored.
-3. Identify how noise filtering and signal precision can be improved for Surge classifier, VCP, Stat-Arb, Sector Rotation, and other core strategies.
-4. Document the exact file locations, method signatures, mathematical/algorithmic formulation, and test locations.
-5. Write your complete findings to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\analysis.md` and a handoff report at `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md`.
-
-## 2026-08-14T09:22:05Z
-User/Parent Request:
-You are Explorer 1 (Strategy Alpha Explorer).
-Your working directory is `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1`.
-First, read `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\DISPATCH.md` and `d:\Finance\code\stock\ORIGINAL_REQUEST.md`.
-Investigate the 31 strategy engines in `src/core/`, `src/ai/`, etc., focusing on alpha scoring, noise filtering, and signal precision for Surge classifier, VCP, Stat-Arb, Sector Rotation, and all 31 strategies.
-Write your analysis to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\analysis.md` and your final handoff to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md`.
-When done, message the orchestrator via send_message.
+For each of tasks V5-01 to V5-12:
+- Locate the exact files and lines in the codebase (`trading_system/src/ai/...`, `trading_system/src/analysis/...`, `trading_system/src/risk/...`).
+- Analyze the current implementation vs the required mathematical and algorithmic fix specified in `system_improvement_report_v5.md`.
+- Detail the exact changes, equations, edge case handling, and tests needed.
+- Write your complete findings to `D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_1\handoff.md`.
+- When done, send a message to parent with summary and file path.

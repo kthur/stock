@@ -1,58 +1,55 @@
-# BRIEFING — 2026-07-29T14:39:30Z
+﻿# BRIEFING — 2026-08-21T19:21:00+09:00
 
 ## Mission
-Fixes and enhancements for Requirement R2 (Backtest Engine & Risk Management System): Sharpe, MDD, Win rate, Profit factor, transaction costs (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%), 14-strategy ensemble score support in BacktestEngine, liquidity screening, Kelly position sizing, ATR trailing stops, 30% sector caps, and KIS execution limits.
+Implement tasks V5-13 ~ V5-23, V5-26 ~ V5-31 in Domain 3 for Stock Trading System within assigned file write boundaries.
 
 ## 🔒 My Identity
-- Archetype: implementer
+- Archetype: teamwork_preview_worker_m3
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m3
-- Original parent: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Milestone: Milestone 3
+- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_worker_m3
+- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
+- Milestone: Domain 3 Strategy & Core Fixes
 
 ## 🔒 Key Constraints
-- ALWAYS use `.venv\Scripts\python.exe` on Windows to run builds, tests, or python scripts.
-- DO NOT CHEAT or hardcode test results.
-- Write to d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\ only for agent metadata.
-- Send summary message to parent upon completion.
+- Exclusive write boundaries:
+  - trading_system/src/core/card_factor.py
+  - trading_system/src/core/gamma_squeeze.py
+  - trading_system/src/core/hft_engine.py
+  - trading_system/src/core/short_interest_squeeze.py
+  - trading_system/src/core/cross_border_lead_lag.py
+  - trading_system/src/core/order_flow.py
+  - trading_system/src/core/rim_valuation.py
+  - trading_system/src/core/event_driven.py
+  - trading_system/src/core/multi_factor_neutralizer.py
+  - trading_system/src/core/short_term_reversal.py
+  - trading_system/src/core/iv_skew.py
+  - trading_system/src/core/vol_target.py
+  - trading_system/src/core/accruals_quality.py
+  - trading_system/src/core/arm_factor.py
+  - trading_system/src/core/mq_factor.py
+  - trading_system/src/core/insider_buying.py
+  - trading_system/src/persistence/database.py
+  - trading_system/src/config.py
+- Do NOT modify files outside boundary.
+- Mandatory integrity mandate: No hardcoding test results, genuine logic only.
 
 ## Current Parent
-- Conversation ID: b0c9cad7-b1c0-41d5-bc8e-0a8d236ebdcb
-- Updated: 2026-07-29T14:39:30Z
+- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
+- Updated: 2026-08-21T19:21:00+09:00
 
 ## Task Summary
-- **What to build**: Fixes and enhancements to `trading_system/src/analysis/backtest.py` and risk management modules (`risk_manager.py`, `position_sizing.py`, `portfolio_risk.py`, etc.).
-- **Success criteria**: All metrics (Sharpe ratio, MDD, Win rate, Profit factor, Net returns matching exact costs: KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%), multi-factor & 14-strategy ensemble support, risk management screening/Kelly/ATR/sector cap/KIS limits operating robustly.
-- **Interface contracts**: `PROJECT.md` & `AGENTS.md`.
-
-## Key Decisions Made
-- Implemented `MARKET_TRANSACTION_COSTS` dictionary and `get_market_cost_rate()` in `BacktestEngine` for market cost enforcement (KONEX 1.30%, KOSDAQ 1.00%, KOSPI 0.85%, SP500 0.60%).
-- Updated `BacktestResult` to calculate and report `gross_return`, `gross_return_pct`, `net_return`, `net_return_pct`, `sharpe_ratio`, `max_drawdown`, `win_rate`, `profit_factor`.
-- Added `run_ensemble_backtest` and `run_multi_factor_portfolio_backtest` methods in `BacktestEngine` to interface with `EnsembleScoringEngine` 14-strategy dynamic scores.
-- Implemented `screen_liquidity` and `is_illiquid_or_preferred` in `RiskManager` to filter preferred stocks (`우`), SPACs, and zero volume symbols.
-- Added `portfolio_risk.py` module to re-export Risk Parity, HRP, and risk-off evaluation helpers.
-- Added unit tests for centralized transaction rates, backtest metrics, 14-strategy ensemble backtesting, and liquidity screening.
+- **What to build**: Fix 17 issues (V5-13 to V5-23, V5-26 to V5-31) in Domain 3 across core strategy engines, persistence layer, and config.
+- **Success criteria**: All targeted unit/integration tests pass, smooth continuous scoring where required, safe error handling, no regressions.
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/src/analysis/backtest.py`: Added market cost rate mapping, gross/net return reporting in `BacktestResult`, `run_ensemble_backtest`, `run_multi_factor_portfolio_backtest`.
-  - `trading_system/src/risk/risk_manager.py`: Added `screen_liquidity` and `is_illiquid_or_preferred` methods.
-  - `trading_system/src/risk/portfolio_risk.py`: Created portfolio risk module.
-  - `trading_system/tests/test_backtest.py`: Added tests for market cost rates, metrics, and ensemble backtests.
-  - `trading_system/tests/test_risk_manager.py`: Added tests for liquidity screening.
-- **Build status**: Complete
-- **Pending issues**: None
+- **Files modified**: None yet
+- **Build status**: Pending
+- **Pending issues**: Investigating requirements
 
 ## Quality Status
-- **Build/test result**: All unit tests written & updated
+- **Build/test result**: Pending
 - **Lint status**: Clean
-- **Tests added/modified**: `test_backtest.py`, `test_risk_manager.py`
+- **Tests added/modified**: Pending
 
 ## Loaded Skills
 - None
-
-## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\ORIGINAL_REQUEST.md` — Original request text
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\BRIEFING.md` — Agent briefing state
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\progress.md` — Progress log
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m3\handoff.md` — Handoff report

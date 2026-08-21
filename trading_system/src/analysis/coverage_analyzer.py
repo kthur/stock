@@ -37,7 +37,8 @@ class StrategyCoverageAnalyzer:
         fund_cols = [
             'bps', 'roe', 'operating_margin', 'net_profit_margin',
             'revenue', 'operating_income', 'net_income', 'eps',
-            'book_value', 'dividend_per_share'
+            'book_value', 'dividend_per_share', 'revenue_to_market_cap',
+            'dividend_yield', 'eps_yield', 'eps_growth_1y'
         ]
 
         sym_str = str(sym)
@@ -162,10 +163,10 @@ class StrategyCoverageAnalyzer:
 
                     if not has_price:
                         no_price_cnt += 1
-                    elif strat == 'rim_valuation' and self._has_symbol_fundamental_data(features_df, sym_str):
+                    elif strat in ['rim_valuation', 'rim'] and self._has_symbol_fundamental_data(features_df, sym_str):
                         # Fundamentals exist but RIM score is NaN → 이익의 질(영업손실+순이익 양수) 필터로 제외됨
                         low_eq_cnt += 1
-                    elif strat in ['rim_valuation', 'mq_factor'] and not self._has_symbol_fundamental_data(features_df, sym_str):
+                    elif strat in ['rim_valuation', 'rim', 'mq_factor', 'mq', 'arm_factor', 'arm', 'accruals_quality', 'accruals', 'valueup_catalyst', 'value_up'] and not self._has_symbol_fundamental_data(features_df, sym_str):
                         no_fund_cnt += 1
                     else:
                         other_cnt += 1
@@ -177,11 +178,14 @@ class StrategyCoverageAnalyzer:
                 if low_eq_cnt > 0:
                     reasons['LOW_EARNINGS_QUALITY'] = low_eq_cnt
                 if other_cnt > 0:
-                    if strat in ['iv_skew', 'gamma_squeeze']:
+                    options_strats = {'iv_skew', 'gamma_squeeze'}
+                    us_strats = {'darkpool', 'darkpool_hft'}
+                    pair_strats = {'stat_arb'}
+                    if strat in options_strats:
                         reasons['NO_OPTIONS_CHAIN'] = other_cnt
-                    elif strat == 'darkpool':
+                    elif strat in us_strats:
                         reasons['NON_US_MARKET_SCOPE'] = other_cnt
-                    elif strat == 'stat_arb':
+                    elif strat in pair_strats:
                         reasons['NO_COINTEGRATED_PAIR'] = other_cnt
                     else:
                         reasons['STRATEGY_SIGNAL_NEUTRAL'] = other_cnt

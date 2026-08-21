@@ -214,14 +214,12 @@ class SupplyChainEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=["symbol", "name", "market", "supply_chain_score"])
 
         # Compute 1D, 3D, and 5D returns for all symbols
-        returns_1d = close_pivot.pct_change(1).iloc[-1] if len(close_pivot) >= 2 else pd.Series(dtype=float)
-        returns_3d = close_pivot.pct_change(3).iloc[-1] if len(close_pivot) >= 4 else pd.Series(dtype=float)
-        returns_5d = close_pivot.pct_change(5).iloc[-1] if len(close_pivot) >= 6 else pd.Series(dtype=float)
-
-        # Lagged returns (t-1) for cross-timezone spillover (US Leader -> KRX Supplier)
-        returns_1d_lag1 = close_pivot.pct_change(1).shift(1).iloc[-1] if len(close_pivot) >= 3 else returns_1d
-        returns_3d_lag1 = close_pivot.pct_change(3).shift(1).iloc[-1] if len(close_pivot) >= 5 else returns_3d
-        returns_5d_lag1 = close_pivot.pct_change(5).shift(1).iloc[-1] if len(close_pivot) >= 7 else returns_5d
+        # Timezone-aware approach: ffill() propagates latest valid prices rather than hardcoded shifting,
+        # naturally aligning US (T-1 or T) to KR (T) depending on run time.
+        close_pivot_filled = close_pivot.ffill()
+        returns_1d = close_pivot_filled.pct_change(1).iloc[-1] if len(close_pivot_filled) >= 2 else pd.Series(dtype=float)
+        returns_3d = close_pivot_filled.pct_change(3).iloc[-1] if len(close_pivot_filled) >= 4 else pd.Series(dtype=float)
+        returns_5d = close_pivot_filled.pct_change(5).iloc[-1] if len(close_pivot_filled) >= 6 else pd.Series(dtype=float)
 
         def clean_sym(s: str) -> str:
             raw = s.split(".")[0].strip()
@@ -270,11 +268,9 @@ class SupplyChainEngine(BaseStrategyEngine):
                 cust_rets = []
                 for c_sym, c_weight in zip(customers, weights):
                     is_us_customer = (c_sym.isalpha() and len(c_sym) <= 5)
-                    # Cross-timezone lag shift: If KR target & US customer, use t-1 lagged returns to prevent lookahead
-                    use_lag = is_kr_target and is_us_customer
-                    r1_series = returns_1d_lag1 if use_lag else returns_1d
-                    r3_series = returns_3d_lag1 if use_lag else returns_3d
-                    r5_series = returns_5d_lag1 if use_lag else returns_5d
+                    r1_series = returns_1d
+                    r3_series = returns_3d
+                    r5_series = returns_5d
 
                     if c_sym in r1_series and pd.notna(r1_series.get(c_sym)):
                         r1 = float(r1_series.get(c_sym))

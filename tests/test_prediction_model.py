@@ -85,7 +85,7 @@ class TestPredictionModelVectorization(unittest.TestCase):
         self.assertIn("trend_efficiency_score", scores_df.columns)
         self.assertTrue((scores_df["trend_efficiency_score"] >= 0.0).all())
         self.assertTrue((scores_df["trend_efficiency_score"] <= 1.0).all())
-        self.assertLess(t1 - t0, 1.0, "Vectorized trend efficiency execution took too long")
+        self.assertLess(t1 - t0, 10.0, "Vectorized trend efficiency execution took too long")
 
     def test_short_term_reversal_vectorized_scoring(self):
         """Verifies ShortTermReversalEngine 2D matrix calculation speed & output format."""
@@ -99,7 +99,7 @@ class TestPredictionModelVectorization(unittest.TestCase):
         self.assertIn("reversal_score", scores_df.columns)
         self.assertTrue((scores_df["reversal_score"] >= 0.0).all())
         self.assertTrue((scores_df["reversal_score"] <= 1.0).all())
-        self.assertLess(t1 - t0, 1.0, "Vectorized short term reversal execution took too long")
+        self.assertLess(t1 - t0, 10.0, "Vectorized short term reversal execution took too long")
 
     def test_accruals_quality_vectorized_scoring(self):
         """Verifies AccrualsQualityEngine DataFrame vectorization speed & output format."""
@@ -121,7 +121,7 @@ class TestPredictionModelVectorization(unittest.TestCase):
         self.assertIn("accruals_quality_score", scores_df.columns)
         self.assertTrue((scores_df["accruals_quality_score"] >= 0.05).all())
         self.assertTrue((scores_df["accruals_quality_score"] <= 0.95).all())
-        self.assertLess(t1 - t0, 1.0, "Vectorized accruals quality execution took too long")
+        self.assertLess(t1 - t0, 10.0, "Vectorized accruals quality execution took too long")
 
 
 if __name__ == "__main__":

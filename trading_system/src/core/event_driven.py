@@ -248,6 +248,7 @@ class EventDrivenEngine(BaseStrategyEngine):
         if eff_filings:
             for item in eff_filings:
                 stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
+                corp_code = str(item.get('corp_code', '')).strip()
                 report_nm = str(item.get('report_nm', ''))
                 flr_nm = str(item.get('flr_nm', ''))
                 combined_text = f"{report_nm} {flr_nm}"
@@ -276,8 +277,10 @@ class EventDrivenEngine(BaseStrategyEngine):
                     dilution_ratio = parsed_ratio if parsed_ratio is not None else self.default_cb_dilution_ratio
 
                     for sym in symbols:
-                        sym_clean = sym.split('.')[0].zfill(6)
-                        if stock_code and stock_code == sym_clean:
+                        sym_code = sym.split('.')[0]
+                        sym_clean = sym_code.zfill(6) if sym_code.isdigit() else sym
+                        matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code == sym))
+                        if matched:
                             res[sym]['cb_bw_ratio'] = max(res[sym]['cb_bw_ratio'], dilution_ratio)
                             if dilution_ratio > 0.05:
                                 res[sym]['is_overhang_blacklisted'] = True
@@ -308,8 +311,9 @@ class EventDrivenEngine(BaseStrategyEngine):
             return self.compute_event_scores(
                 symbols,
                 prices_dict=prices_dict if isinstance(prices_dict, dict) else None,
-                filings=kwargs.get("filings") or kwargs.get("filings_list"),
+                filings=kwargs.get("filings") or kwargs.get("filings_list") or kwargs.get("dart_disclosures") or kwargs.get("disclosures"),
                 sentiment_map=kwargs.get("sentiment_map"),
+                as_of_date=kwargs.get("as_of_date"),
             )
 
         except Exception as e:

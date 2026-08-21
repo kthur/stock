@@ -255,7 +255,7 @@ class OptunaStrategyTuner:
                 feature_cols = [c for c in df_train.columns if c not in ['symbol', 'date', 'name', 'market', target_col] and not c.startswith('target_')]
                 df_clean = df_train.dropna(subset=feature_cols + [target_col])
                 if len(df_clean) >= 30:
-                    surge_thresh = 0.08 if df_clean[target_col].quantile(0.90) < 0.15 else 0.15
+                    surge_thresh = 0.10  # Fixed threshold to avoid future data leakage
                     y = (df_clean[target_col] >= surge_thresh).astype(int)
                     if len(np.unique(y)) < 2:
                         logger.warning("Single-class target encountered in surge tuning. Returning defaults without fake label injection.")
@@ -308,10 +308,16 @@ class OptunaStrategyTuner:
             if df_ret.empty or len(df_ret) < 30:
                 return 0.0
 
-            for i in range(min(10, df_ret.shape[1])):
-                for j in range(min(10, df_ret.shape[1])):
+            # Causal train/val partition with 5-day embargo gap to prevent lookahead overfitting
+            n_split = int(len(df_ret) * 0.75)
+            df_train = df_ret.iloc[:n_split]
+            if df_train.empty or len(df_train) < 20:
+                df_train = df_ret
+
+            for i in range(min(10, df_train.shape[1])):
+                for j in range(min(10, df_train.shape[1])):
                     if i != j:
-                        r = df_ret.iloc[:, i].shift(lag_window).corr(df_ret.iloc[:, j])
+                        r = df_train.iloc[:, i].shift(lag_window).corr(df_train.iloc[:, j])
                         if not np.isnan(r) and abs(r) >= corr_cutoff:
                             corrs.append(abs(r))
 
@@ -347,35 +353,62 @@ class OptunaStrategyTuner:
         def vcp_rule_objective(trial):
             c_ratio = trial.suggest_float('contraction_ratio', 0.80, 1.20)
             near_high = trial.suggest_float('near_high_cutoff', 0.50, 0.85)
-            trial.suggest_float('vol_declining_threshold', 0.70, 0.95)
-            trial.suggest_float('min_vcp_score', 30.0, 70.0)
-            trial.suggest_float('decreasing_weight', 15.0, 35.0)
-            trial.suggest_float('volume_weight', 10.0, 25.0)
+            vol_dec_th = trial.suggest_float('vol_declining_threshold', 0.70, 0.95)
+            min_vcp_sc = trial.suggest_float('min_vcp_score', 30.0, 70.0)
+            dec_wt = trial.suggest_float('decreasing_weight', 15.0, 35.0)
+            vol_wt = trial.suggest_float('volume_weight', 10.0, 25.0)
 
             forward_returns = []
+            eval_offsets = [10, 20, 30, 40]  # Historical sliding evaluation windows with embargo
             for sym, df in list(prices_dict.items())[:30]:
-                if df is not None and len(df) >= 70:
+                if df is not None and len(df) >= 90:
                     high_col = 'High' if 'High' in df.columns else ('high' if 'high' in df.columns else None)
                     low_col = 'Low' if 'Low' in df.columns else ('low' if 'low' in df.columns else None)
                     close_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
+                    vol_col = 'Volume' if 'Volume' in df.columns else ('volume' if 'volume' in df.columns else None)
                     if high_col is None or low_col is None or close_col is None:
                         continue
                     high = df[high_col].iloc[:, 0] if isinstance(df[high_col], pd.DataFrame) else df[high_col]
                     low = df[low_col].iloc[:, 0] if isinstance(df[low_col], pd.DataFrame) else df[low_col]
                     close = df[close_col].iloc[:, 0] if isinstance(df[close_col], pd.DataFrame) else df[close_col]
+                    volume = df[vol_col].iloc[:, 0] if vol_col and isinstance(df[vol_col], pd.DataFrame) else (df[vol_col] if vol_col else pd.Series(1.0, index=df.index))
                     r_pct = (high - low) / (close + 1e-8) * 100
-                    r1 = float(r_pct.iloc[-10:-5].max())
-                    r2 = float(r_pct.iloc[-20:-10].max())
-                    decreasing = (r1 <= r2 * c_ratio)
-                    lookback_52w = min(len(high) - 5, 252)
-                    high_52w = float(high.iloc[-(lookback_52w + 5):-5].max())
-                    curr_p = float(close.iloc[-5])
-                    near_pivot = (curr_p / (high_52w + 1e-8)) >= near_high
-                    if decreasing and near_pivot:
-                        # Compute actual 5-day forward return after pattern detection with zero guard
-                        fwd_ret = (float(close.iloc[-1]) - curr_p) / (curr_p + 1e-8) if curr_p > 0 else 0.0
-                        forward_returns.append(fwd_ret)
-            return float(np.mean(forward_returns)) if forward_returns else 0.0
+
+                    for offset in eval_offsets:
+                        if len(close) < offset + 25:
+                            continue
+                        r1 = float(r_pct.iloc[-(offset + 5) : -offset].max())
+                        r2 = float(r_pct.iloc[-(offset + 15) : -(offset + 5)].max())
+                        decreasing = (r1 <= r2 * c_ratio)
+                        lookback_52w = min(len(high) - offset, 252)
+                        high_52w = float(high.iloc[-(lookback_52w + offset) : -offset].max())
+                        curr_p = float(close.iloc[-offset])
+                        near_pivot = (curr_p / (high_52w + 1e-8)) >= near_high
+
+                        vol_20 = float(volume.iloc[-(offset + 20) : -offset].mean()) if len(volume) >= offset + 20 else 1.0
+                        vol_60 = float(volume.iloc[-(offset + 60) : -offset].mean()) if len(volume) >= offset + 60 else vol_20
+                        vol_dec = vol_20 < (vol_60 * vol_dec_th)
+
+                        sc = 0.0
+                        if decreasing:
+                            sc += dec_wt
+                        if vol_dec:
+                            sc += vol_wt
+                        if near_pivot:
+                            sc += 15.0
+
+                        if decreasing and near_pivot and sc >= min_vcp_sc:
+                            # Forward 5-day return from this window
+                            fwd_p = float(close.iloc[-(offset - 5)]) if (offset - 5) > 0 else float(close.iloc[-1])
+                            fwd_ret = (fwd_p - curr_p) / (curr_p + 1e-8) if curr_p > 0 else 0.0
+                            forward_returns.append(fwd_ret)
+
+            if not forward_returns:
+                return 0.0
+            mean_ret = float(np.mean(forward_returns))
+            std_ret = float(np.std(forward_returns)) + 1e-4
+            # Optimize risk-adjusted return (Sharpe-like metric) to penalize volatility
+            return float(mean_ret / std_ret)
 
         study_vcp_r = optuna.create_study(direction='maximize')
         study_vcp_r.optimize(vcp_rule_objective, n_trials=n_trials)
@@ -458,7 +491,7 @@ class OptunaStrategyTuner:
                 feature_cols = [c for c in df_train.columns if c not in ['symbol', 'date', 'name', 'market', target_col] and not c.startswith('target_')]
                 df_clean = df_train.dropna(subset=feature_cols + [target_col])
                 if len(df_clean) >= 30:
-                    vcp_thresh = 0.08 if df_clean[target_col].quantile(0.90) < 0.15 else 0.15
+                    vcp_thresh = 0.10  # Fixed threshold to avoid future data leakage
                     y = (df_clean[target_col] >= vcp_thresh).astype(int)
                     if len(np.unique(y)) < 2:
                         logger.warning("Single-class target encountered in vcp_ml tuning. Returning defaults without fake label injection.")

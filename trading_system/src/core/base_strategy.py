@@ -1,82 +1,163 @@
-"""Base Abstract Strategy Engine definition for Stock Trading System."""
+"""
+src/core/base_strategy.py
+Base Strategy Engine abstract class for quantitative factor strategy engines.
+Provides unified OHLCV extraction, rank-normalization, ScoreDataFrame, and missing data handling.
+"""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+import logging
+from typing import Dict, List, Optional, Any, Union
+import numpy as np
 import pandas as pd
 
-
-class BaseStrategyEngine(ABC):
-    """Abstract Base Class for all multi-factor and quantitative strategy engines."""
-
-    @abstractmethod
-    def compute_scores(
-        self,
-        prices_dict: Dict[str, pd.DataFrame],
-        fundamentals_dict: Optional[Dict[str, Dict[str, Any]]] = None,
-        indicators_df: Optional[pd.DataFrame] = None,
-        **kwargs: Any,
-    ) -> pd.DataFrame:
-        """Compute strategy scores for given price history and metadata.
-
-        Args:
-            prices_dict: Dictionary mapping symbol to OHLCV DataFrame.
-            fundamentals_dict: Optional fundamental metrics dict per symbol.
-            indicators_df: Optional macro market indicators DataFrame.
-
-        Returns:
-            pd.DataFrame with ['symbol', 'score'] (or strategy specific score column)
-            normalized to [0.0, 1.0].
-        """
-        pass
+logger = logging.getLogger(__name__)
 
 
 class ScoreDataFrame(pd.DataFrame):
-    """Custom DataFrame subclass providing dict-like access for legacy test compatibility."""
+    """DataFrame subclass supporting both DataFrame operations and dict-like symbol indexing/comparison."""
     @property
     def _constructor(self):
         return ScoreDataFrame
 
-    def __contains__(self, item: Any) -> bool:
-        if super().__contains__(item):
-            return True
-        if "symbol" in self.columns and item in self["symbol"].values:
-            return True
-        return False
+    def __getitem__(self, key):
+        if isinstance(key, str) and key in self.columns:
+            return super().__getitem__(key)
+        if isinstance(key, str) and 'symbol' in self.columns and len(self.columns) >= 2:
+            match = self[self['symbol'] == key]
+            if not match.empty:
+                score_cols = [c for c in self.columns if c != 'symbol']
+                if score_cols:
+                    return match[score_cols[0]].iloc[0]
+        return super().__getitem__(key)
 
-    def __eq__(self, other: Any) -> Any:
+    def __contains__(self, key):
+        if isinstance(key, str) and 'symbol' in self.columns:
+            if key in self['symbol'].values:
+                return True
+        return super().__contains__(key)
+
+    def __eq__(self, other):
         if isinstance(other, dict):
-            if len(other) == 0:
-                return self.empty
-            if "symbol" in self.columns:
-                val_cols = [c for c in self.columns if c != "symbol"]
-                if val_cols:
-                    cur_dict = self.set_index("symbol")[val_cols[0]].to_dict()
-                    return cur_dict == other
+            if not other and self.empty:
+                return True
+            if not other and not self.empty:
+                return False
+            if 'symbol' in self.columns:
+                score_cols = [c for c in self.columns if c != 'symbol']
+                if score_cols:
+                    d = dict(zip(self['symbol'], self[score_cols[0]]))
+                    return d == other
             return False
         return super().__eq__(other)
 
-    def __getitem__(self, item: Any) -> Any:
-        if isinstance(item, str) and item not in self.columns and "symbol" in self.columns:
-            match = self[self["symbol"] == item]
-            if not match.empty:
-                val_cols = [c for c in self.columns if c != "symbol"]
-                if val_cols:
-                    return float(match[val_cols[0]].iloc[0])
-        return super().__getitem__(item)
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except (KeyError, IndexError):
+            return default
 
 
-def make_score_dataframe(rows: Union[List[Dict[str, Any]], Dict[str, Any], Any], score_column: str) -> pd.DataFrame:
-    """Helper to construct a ScoreDataFrame from rows list or dict."""
-    if not rows:
-        return ScoreDataFrame(columns=["symbol", score_column])
-    if isinstance(rows, dict):
-        rows = [{"symbol": k, score_column: v} for k, v in rows.items()]
-    df = ScoreDataFrame(rows)
-    if "symbol" not in df.columns:
-        df["symbol"] = ""
-    if score_column not in df.columns:
-        df[score_column] = 0.5
+def make_score_dataframe(
+    scores: Union[Dict[str, float], List[Dict[str, Any]]],
+    score_column: str = "score"
+) -> ScoreDataFrame:
+    """Creates a ScoreDataFrame with ['symbol', score_column]."""
+    if isinstance(scores, dict):
+        data = [{'symbol': k, score_column: v} for k, v in scores.items()]
+    elif isinstance(scores, list):
+        data = scores
     else:
-        df[score_column] = pd.to_numeric(df[score_column], errors="coerce").fillna(0.5).clip(0.0, 1.0)
+        data = []
+    df = ScoreDataFrame(data)
+    if 'symbol' not in df.columns:
+        df['symbol'] = []
+    if score_column not in df.columns:
+        df[score_column] = []
     return df
 
+
+def safe_pct_rank(series: pd.Series, min_clip: float = 0.05, max_clip: float = 0.95) -> pd.Series:
+    """Percentile ranks a pandas series safely clipping between min_clip and max_clip."""
+    if series.empty or series.nunique() <= 1:
+        return pd.Series(0.5, index=series.index)
+    ranks = series.rank(pct=True)
+    return ranks.clip(lower=min_clip, upper=max_clip)
+
+
+class BaseStrategyEngine(ABC):
+    """
+    Abstract Base Class for multi-factor quantitative strategy engines.
+    """
+
+    def __init__(self, name: str = "BaseStrategy", config: Optional[Any] = None):
+        self.name = name
+        self.config = config
+
+    @staticmethod
+    def extract_ohlcv(
+        symbol: str,
+        prices_dict: Dict[str, pd.DataFrame],
+        min_bars: int = 5
+    ) -> Optional[pd.DataFrame]:
+        """
+        Safely extracts and standardizes OHLCV DataFrame for a symbol.
+        Standardizes column casing (Open, High, Low, Close, Volume) and cleans NaNs.
+        """
+        if not prices_dict or symbol not in prices_dict:
+            return None
+
+        df = prices_dict[symbol]
+        if df is None or df.empty or len(df) < min_bars:
+            return None
+
+        try:
+            df_copy = df.copy()
+            if isinstance(df_copy.columns, pd.MultiIndex):
+                df_copy.columns = df_copy.columns.droplevel(1)
+
+            col_map = {c: str(c).capitalize() for c in df_copy.columns if str(c).lower() in ['open', 'high', 'low', 'close', 'volume']}
+            df_copy = df_copy.rename(columns=col_map)
+
+            if 'Close' not in df_copy.columns:
+                return None
+
+            return df_copy
+        except Exception as e:
+            logger.debug(f"Error extracting OHLCV for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def normalize_scores_series(
+        raw_scores: Union[pd.Series, Dict[str, float]],
+        min_clip: float = 0.05,
+        max_clip: float = 0.95,
+        neutral_fill: float = 0.50
+    ) -> Dict[str, float]:
+        """
+        Applies percentile rank normalization to raw scores, clipping between [min_clip, max_clip].
+        """
+        if isinstance(raw_scores, dict):
+            if not raw_scores:
+                return {}
+            s = pd.Series(raw_scores, dtype=float)
+        else:
+            s = raw_scores.copy()
+
+        if s.empty:
+            return {}
+
+        valid_mask = s.notna() & np.isfinite(s)
+        if valid_mask.sum() < 2:
+            return {k: neutral_fill for k in s.index}
+
+        ranked = s[valid_mask].rank(pct=True)
+        scaled = np.clip(ranked, min_clip, max_clip)
+
+        result = s.to_dict()
+        for k in s.index:
+            if k in scaled.index:
+                result[k] = float(scaled[k])
+            else:
+                result[k] = float(neutral_fill)
+
+        return result

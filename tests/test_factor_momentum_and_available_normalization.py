@@ -59,6 +59,8 @@ def test_available_factor_normalization():
 
 def test_factor_momentum_and_crowding_damper():
     scorer = EnsembleScoringEngine()
+    # Clear persisted EMA weights to prevent state contamination from prior tests
+    scorer._prev_weights = {}
 
     rolling_sharpes = {
         'surge': 1.8,

@@ -403,7 +403,7 @@ def fetch_and_store_fundamentals_batch(
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(lambda: asyncio.run(_async_batch_fetch_and_store()))
-                return int(future.result())
+                return int(future.result(timeout=600))
     except Exception as e:
         logger.error(f"Error in batch fundamental fetch execution: {e}")
         raise

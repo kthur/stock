@@ -1,26 +1,18 @@
-# Explorer 2 Survey Dispatch
+## 2026-08-21T10:10:47Z
 
-## 2026-08-14T09:22:05Z
-You are Explorer 2 (Factor Neutralization Explorer).
-Your working directory is `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2`.
-First, read `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\DISPATCH.md` and `d:\Finance\code\stock\ORIGINAL_REQUEST.md`.
-Investigate `src/core/factor_neutralized.py`, Gram-Schmidt orthogonalization, Fama-French 5-Factor exposure removal, and pure alpha guarantee (|rho| < 0.15).
-Write your analysis to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\analysis.md` and your final handoff to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md`.
-When done, message the orchestrator via send_message.
+You are Survey Explorer 2 for the stock trading system.
+Your working directory is: D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\
 
-## Objective
-Investigate the Style Neutralizer Engine and Fama-French Factor Neutralization across the 3,379 universe stocks. Focus on Gram-Schmidt orthogonalization, 5-Factor (Size, Value, Profitability, Investment, Momentum) exposure removal, and guaranteeing pure alpha with residual correlation |rho| < 0.15.
+Read:
+1. D:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md (Authoritative request)
+2. D:\Finance\code\stock\system_improvement_report_v5.md (Authoritative specification)
 
-## Scope & Inputs
-- `d:\Finance\code\stock\ORIGINAL_REQUEST.md`
-- `d:\Finance\code\stock\AGENTS.md`
-- `src/core/factor_neutralized.py`
-- `src/ai/ensemble_scorer.py`
-- `tests/test_factor_neutralized.py` or related factor tests
+Your scope:
+Survey Domain 3 Part A (31 Strategy Engines & Data Layer: V5-13 through V5-23).
 
-## Instructions
-1. Read `ORIGINAL_REQUEST.md`.
-2. Inspect `src/core/factor_neutralized.py` and how factor neutralization is integrated into the pipeline/ensemble.
-3. Check current Gram-Schmidt orthogonalization / OLS residualization implementation, factor definition, and how to strictly guarantee |rho| < 0.15 across all 5 Fama-French factors.
-4. Document the exact formulas, code structure, potential edge cases (e.g. missing factor data, degenerate covariance matrix, small sample size), and required tests.
-5. Write your complete findings to `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\analysis.md` and a handoff report at `d:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md`.
+For each of tasks V5-13 to V5-23:
+- Locate the exact files and lines in the codebase (	rading_system/src/core/..., 	rading_system/src/persistence/...).
+- Analyze current code vs required fix in system_improvement_report_v5.md (e.g. CARD fallback NameError, gamma squeeze kwargs, microstructure HFT empty dataframe, short squeeze scaling, split-runner lead-lag, OBV trend division-by-zero, RIM distressed companies, DART 8-digit corp_code, multi-factor neutralizer ridge, stock split false positive in crash, short-term reversal case sensitivity).
+- Detail the exact changes, logic, and tests needed.
+- Write your complete findings to D:\Finance\code\stock\.agents\teamwork_preview_explorer_survey_2\handoff.md.
+- When done, send a message to parent with summary and file path.

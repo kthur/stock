@@ -143,7 +143,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 0:
-            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True)
+            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
             base_score = ranks.clip(0.05, 0.95)
             # Value-Up Super Premium Booster for top 15% high-conviction shareholder yield champions
             super_valueup_mask = base_score >= 0.85

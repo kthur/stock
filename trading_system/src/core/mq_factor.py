@@ -134,18 +134,18 @@ class MQFactorEngine(BaseStrategyEngine):
                 f_subset = f_df[existing_cols].groupby('symbol').last().reset_index()
                 res_df = res_df.merge(f_subset, on='symbol', how='left')
 
-        # Rank components to percentile scores [0, 1]
-        res_df['price_mom_rank'] = res_df['price_mom'].rank(pct=True, ascending=True)
+        # Rank components to percentile scores [0, 1] with boundary clipping
+        res_df['price_mom_rank'] = res_df['price_mom'].rank(pct=True, ascending=True).clip(0.02, 0.98)
 
         quality_terms = []
         if 'operating_margin' in res_df.columns:
-            res_df['op_margin_rank'] = res_df['operating_margin'].rank(pct=True, ascending=True).fillna(0.5)
+            res_df['op_margin_rank'] = res_df['operating_margin'].rank(pct=True, ascending=True).clip(0.02, 0.98).fillna(0.5)
             quality_terms.append('op_margin_rank')
         if 'eps_growth_1y' in res_df.columns:
-            res_df['eps_growth_rank'] = res_df['eps_growth_1y'].rank(pct=True, ascending=True).fillna(0.5)
+            res_df['eps_growth_rank'] = res_df['eps_growth_1y'].rank(pct=True, ascending=True).clip(0.02, 0.98).fillna(0.5)
             quality_terms.append('eps_growth_rank')
         if 'roe' in res_df.columns:
-            res_df['roe_rank'] = res_df['roe'].rank(pct=True, ascending=True).fillna(0.5)
+            res_df['roe_rank'] = res_df['roe'].rank(pct=True, ascending=True).clip(0.02, 0.98).fillna(0.5)
             quality_terms.append('roe_rank')
 
         if quality_terms:
@@ -165,10 +165,10 @@ class MQFactorEngine(BaseStrategyEngine):
             if distress_mask.any():
                 res_df.loc[distress_mask, 'mq_score'] = (res_df.loc[distress_mask, 'mq_score'] * 0.60).clip(0.0, 1.0)
 
-            # High-Conviction Momentum Quality Super Alpha Booster (Top 15% Quality Momentum Leaders)
-            high_mq_mask = (res_df['mq_score'] >= 0.75) & (~distress_mask)
-            if high_mq_mask.any():
-                res_df.loc[high_mq_mask, 'mq_score'] = (res_df.loc[high_mq_mask, 'mq_score'] * 1.10).clip(0.0, 1.0)
+            # High-Conviction Momentum Quality Super Alpha Booster (smooth continuous sigmoid)
+            smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (res_df['mq_score'] - 0.75)))
+            boost_multiplier = np.where(distress_mask, 1.0, smooth_boost)
+            res_df['mq_score'] = (res_df['mq_score'] * boost_multiplier).clip(0.0, 1.0)
         else:
             res_df['mq_score'] = res_df['price_mom_rank']
 

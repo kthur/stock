@@ -1,63 +1,54 @@
-# BRIEFING — 2026-08-14T09:31:30Z
+# BRIEFING — 2026-08-21T19:25:30+09:00
 
 ## Mission
-Implement Milestone 1 (F1: Interface & Imputation, F2: Fama-French 5-Factor Pure Alpha QR Residualization, F3: Pure Alpha |rho| < 0.15 Hard SLA Gate, F4: Strategy Alpha Precision & Noise Filtering) for Strategy 21 and the pipeline.
+Implement Domain 1: Multi-Factor & Mathematical Foundations (V5-01 ~ V5-06) for the Stock Trading System.
 
 ## 🔒 My Identity
-- Archetype: implementer
-- Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\teamwork_preview_worker_m1
-- Original parent: 644fa09c-3631-4b51-bf49-e7616ad72a36
-- Milestone: M1 (31-Strategy Alpha Precision & Pure Alpha Neutralization)
+- Archetype: Worker
+- Roles: implementer, qa
+- Working directory: D:\Finance\code\stock\.agents\teamwork_preview_worker_m1\
+- Original parent: 6ca0b715-13b6-471b-8297-997f4c66f01d
+- Milestone: M1 (Domain 1: V5-01 ~ V5-06)
 
 ## 🔒 Key Constraints
-- DO NOT CHEAT. All implementations must be genuine.
-- Thin QR decomposition and orthogonal projection with secondary Gram-Schmidt deflation gate for |rho| < 0.15.
-- Polymorphic prices_dict / universe handling and 100% symbol retention via per-market median imputation.
-- Dual column output: 'factor_neutralized_score' and 'neutralized_score'.
-- Safe pipeline wiring and text report generation in run_pipeline.py.
-- Comprehensive 6-tier test suite in tests/test_factor_neutralized_sla.py.
-- Full pytest test suite passing with 0 regressions.
+- Exclusive write boundaries:
+  - `trading_system/src/ai/factor_orthogonalizer.py`
+  - `trading_system/src/ai/factor_suppression.py`
+  - `trading_system/src/ai/ensemble_scorer.py`
+  - `trading_system/src/ai/optuna_tuner.py`
+  - `trading_system/src/ai/vcp_ml_predictor.py`
+- Do NOT modify files outside write boundary.
+- Mandatory integrity: Genuine implementation, no hardcoding, real tests.
 
 ## Current Parent
-- Conversation ID: 644fa09c-3631-4b51-bf49-e7616ad72a36
-- Updated: 2026-08-14T09:31:30Z
+- Conversation ID: 6ca0b715-13b6-471b-8297-997f4c66f01d
+- Updated: 2026-08-21T19:25:30+09:00
 
 ## Task Summary
-- **What to build**:
-  1. `trading_system/src/core/multi_factor_neutralizer.py`
-  2. `trading_system/run_pipeline.py`
-  3. `tests/test_factor_neutralized_sla.py`
-- **Success criteria**:
-  - |rho| < 0.15 factor correlation SLA verified
-  - >= 95% universe coverage retained under missing data
-  - All unit/integration tests pass (100% pass on test_factor_neutralized_sla.py, test_critical_bugs.py, test_factor_orthogonalization.py, full test suite)
-- **Interface contracts**: PROJECT.md § Interface Contracts
-- **Code layout**: PROJECT.md § Code Layout
+- **What to build**: Implemented 6 core fixes across Domain 1 AI/ML modules:
+  1. V5-01: Continuous ridge shrinkage & floor on eigenvalues in PCA-ZCA whitening to prevent null-space noise explosion ($N < K$).
+  2. V5-02: Fixed WLS projection $B_{\text{weighted}}^T B_{\text{weighted}}$ and $B_{\text{weighted}}^T y_{\text{weighted}}$ normal equations and `.reindex(valid_idx)` index alignment in CrossSectionalFactorNeutralizer.
+  3. V5-03: Added active strategy aliases (`rim`, `value_up`, `vcp`, `vcp_patterns`, `darkpool_hft`, `tone_drift`, `hft`) to `CLUSTER_MAP` in factor suppression.
+  4. V5-04: Enforced dynamic Sharpe weight bounding floor `min_total_ratio = 0.05` alongside `max_total_ratio = 20.0` in EnsembleScoringEngine.
+  5. V5-05: Connected objective function to all 6 hyperparameters (including volume declining and scoring thresholds) in Optuna VCP rule tuning.
+  6. V5-06: Fixed Platt Scaling domain alignment ($z = \text{coef} \cdot p + \text{intercept}$) in VCPSurgePredictor.
+- **Success criteria**: 100% test pass across orthogonalization, suppression, HPO, ensemble, and VCP ML predictors.
 
 ## Change Tracker
 - **Files modified**:
-  - `trading_system/src/core/multi_factor_neutralizer.py` (pending)
-  - `trading_system/run_pipeline.py` (pending)
-  - `tests/test_factor_neutralized_sla.py` (pending creation)
-- **Build status**: Initializing
-- **Pending issues**: None
+  - `trading_system/src/ai/factor_orthogonalizer.py`: V5-01 continuous ridge shrinkage & V5-02 WLS normal equations / reindex.
+  - `trading_system/src/ai/factor_suppression.py`: V5-03 active strategy aliases in CLUSTER_MAP.
+  - `trading_system/src/ai/ensemble_scorer.py`: V5-04 dynamic Sharpe weight bounding floor (_vmin_floor).
+  - `trading_system/src/ai/optuna_tuner.py`: V5-05 connected VCP rule detector objective with all 6 hyperparameters.
+  - `trading_system/src/ai/vcp_ml_predictor.py`: V5-06 linear probability Platt scaling inference.
+- **Build status**: 51/51 unit & empirical stress tests passed.
+- **Pending issues**: None.
 
 ## Quality Status
-- **Build/test result**: Not yet executed
+- **Build/test result**: PASS (51/51 tests pass)
 - **Lint status**: Clean
-- **Tests added/modified**: `tests/test_factor_neutralized_sla.py`
-
-## Loaded Skills
-- None
-
-## Key Decisions Made
-- Use thin QR decomposition X_m = Q_m R_m with economic projection for O(N K) efficiency.
-- Cross-sectional per-market median imputation for missing fundamentals.
-- Post-residualization Pearson correlation check with secondary Gram-Schmidt deflation if |rho| >= 0.15.
-- Backward-compatible dual column naming: `factor_neutralized_score` and `neutralized_score`.
-- Deterministic deactivation when neither factors nor price history nor scores exist (satisfies `test_bug_a3`).
+- **Tests verified**: `tests/test_factor_orthogonalization.py`, `tests/test_factor_ortho_empirical_stress.py`, `tests/test_factor_ortho_forensics.py`, `tests/test_isotonic_sharpe_calibration.py`, `tests/test_correlation_suppression.py`, `tests/test_hpo_and_2d_ensemble.py`, `tests/test_vcp_ml_fallback.py`, `tests/test_vcp_realtime_trigger.py`.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\progress.md` — Progress tracker
-- `d:\Finance\code\stock\.agents\teamwork_preview_worker_m1\handoff.md` — Final handoff report
+- `progress.md` — Liveness & task execution progress
+- `handoff.md` — Final completion report

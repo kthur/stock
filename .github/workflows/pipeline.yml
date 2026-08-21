@@ -92,10 +92,13 @@ jobs:
           uv venv --seed .venv --python 3.12
           if [ -f trading_system/requirements.lock ]; then
             uv pip install -r trading_system/requirements.lock
+          elif [ -f pyproject.toml ]; then
+            uv pip install -e .
           elif [ -f trading_system/pyproject.toml ]; then
             uv pip install ./trading_system
           else
-            uv pip install pandas numpy xgboost lightgbm catboost scikit-learn yfinance FinanceDataReader beautifulsoup4 lxml optuna pyyaml pytest requests
+            echo "CRITICAL: No lockfile or pyproject.toml found for deterministic build."
+            exit 1
           fi
 
       - name: Create logs directory
@@ -110,8 +113,9 @@ jobs:
         id: db-cache
         with:
           path: trading_system/stock_prices.db
-          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          key: stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-${{ github.run_id }}
           restore-keys: |
+            stock-prices-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-
             stock-prices-db-${{ matrix.target }}-
             stock-prices-db-
 
@@ -120,8 +124,9 @@ jobs:
         id: indicators-cache
         with:
           path: trading_system/market_indicators.db
-          key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}
+          key: market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-${{ github.run_id }}
           restore-keys: |
+            market-indicators-db-${{ matrix.target }}-${{ steps.date.outputs.date }}-
             market-indicators-db-${{ matrix.target }}-
             market-indicators-db-
 

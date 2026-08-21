@@ -1,15 +1,16 @@
 # Progress — Worker M1
 
-**Last visited**: 2026-08-14T09:31:30Z
-**Status**: IN_PROGRESS
+**Current Status**: Domain 1 tasks (V5-01 ~ V5-06) fully implemented & verified
+**Last visited**: 2026-08-21T19:25:30+09:00
 
-## Steps
-- [x] Read DISPATCH.md, ORIGINAL_REQUEST.md, PROJECT.md, TEST_INFRA.md, and Explorer reports
-- [x] Create BRIEFING.md and progress.md
-- [ ] View existing `trading_system/src/core/multi_factor_neutralizer.py`, `trading_system/run_pipeline.py`, and related test files
-- [ ] Implement enhanced `trading_system/src/core/multi_factor_neutralizer.py`
-- [ ] Update `trading_system/run_pipeline.py`
-- [ ] Create `tests/test_factor_neutralized_sla.py`
-- [ ] Execute `pytest` on `tests/test_factor_neutralized_sla.py`, `tests/test_critical_bugs.py`, `tests/test_factor_orthogonalization.py`
-- [ ] Run full regression tests
-- [ ] Write `handoff.md` and send completion message
+## Tasks
+- [x] Read ORIGINAL_REQUEST.md, system_improvement_report_v5.md (Domain 1), and explorer handoff.md
+- [x] Inspect existing test suite to ensure baseline
+- [x] V5-01: Fix PCA-ZCA whitening on rank-deficient matrices in `factor_orthogonalizer.py`
+- [x] V5-02: Fix WLS weighting & index alignment in `factor_orthogonalizer.py`
+- [x] V5-03: Add missing strategy aliases in `factor_suppression.py`
+- [x] V5-04: Add dynamic Sharpe weight floor (`min_total_ratio = 0.05`) in `ensemble_scorer.py`
+- [x] V5-05: Fix objective function & remove phantom hyperparameters in `optuna_tuner.py`
+- [x] V5-06: Fix Platt Scaling logit conversion with linear domain alignment in `vcp_ml_predictor.py`
+- [x] Run comprehensive test suite and verify 100% pass (51/51 passed)
+- [x] Write handoff.md and send message to parent

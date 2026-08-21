@@ -66,64 +66,68 @@ class ARMFactorEngine(BaseStrategyEngine):
             prc = prices_dict if isinstance(prices_dict, dict) else {}
             fund = fundamentals_dict if isinstance(fundamentals_dict, dict) else {}
 
+        from .base_strategy import make_score_dataframe
         if not prc and not fund:
-            return make_score_dataframe([], 'arm_score')
+            return make_score_dataframe({}, 'arm_score')
 
         symbols = list(set(list(prc.keys()) + list(fund.keys())))
         raw_scores = {}
 
         for sym in symbols:
-            f_data = fund.get(sym, {}) if isinstance(fund, dict) else {}
-            try:
-                eps_rev = f_data.get('eps_revision_pct')
-                tp_rev = f_data.get('tp_revision_pct')
+            # 기본 점수 0.5 (중립)
+            score = 0.5
+            p_df = prc.get(sym)
+            f_dict = fund.get(sym, {})
 
-                if eps_rev is not None or tp_rev is not None:
-                    e_rev = _safe_float(eps_rev, 0.0)
-                    t_rev = _safe_float(tp_rev, 0.0)
-                    # Both EPS and Target Price upgraded -> Confluence synergy bonus
-                    rev_bonus = 0.10 if (e_rev > 0.05 and t_rev > 0.05) else 0.0
-                    arm_raw = (e_rev * 0.5) + (t_rev * 0.5) + rev_bonus
-                else:
-                    eps_growth = _safe_float(f_data.get('eps_growth'), 0.0)
-                    rev_growth = _safe_float(f_data.get('revenue_growth'), 0.0)
-                    per = _safe_float(f_data.get('per'), 15.0)
-                    per_penalty = min(0.30, max(0.0, per - 15.0) * 0.003)
-                    arm_raw = (eps_growth * 0.4) + (rev_growth * 0.3) - per_penalty
+            # 1. Consensus Revision (EPS 추정치 변경율)
+            eps_rev = _safe_float(f_dict.get('eps_revision_pct'), default=0.0)
+            target_p_rev = _safe_float(f_dict.get('target_price_revision_pct'), default=0.0)
 
-                price_mom = 0.0
-                p_sym = prc.get(sym)
-                if p_sym is not None and isinstance(p_sym, pd.DataFrame) and not p_sym.empty:
-                    df = p_sym
-                    col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
-                    if col:
-                        close = df[col].dropna()
-                        if len(close) >= 20 and float(close.iloc[-20]) > 0:
-                            price_ret_20d = float((close.iloc[-1] - close.iloc[-20]) / close.iloc[-20])
-                            price_mom = float(np.clip(price_ret_20d, -0.50, 0.50))
+            # 2. Earnings Surprise
+            surprise = _safe_float(f_dict.get('earnings_surprise_pct'), default=0.0)
 
-                arm_raw += (price_mom * 0.20)
-                raw_scores[sym] = arm_raw
-            except Exception as e:
-                logger.debug(f"[ARM FACTOR] Error computing score for {sym}: {e}")
-                raw_scores[sym] = 0.0
+            # 3. Fundamental Growth vs Valuation
+            growth_score = 0.0
+            per = _safe_float(f_dict.get('per'), default=15.0)
+            if per > 0:
+                # PEG 스타일 (PER 대비 EPS 성장률)
+                peg_proxy = eps_rev / (per + 1e-4)
+                growth_score = float(np.clip(peg_proxy * 5.0, -0.2, 0.2))
+
+            # 복합 Revision 점수
+            revision_composite = (eps_rev * 0.40) + (target_p_rev * 0.30) + (surprise * 0.20) + (growth_score * 0.10)
+
+            # 4. Price Confirmation (최근 20일 주가 모멘텀)
+            price_mom = 0.0
+            if p_df is not None and len(p_df) >= 20:
+                col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+                if col:
+                    close = p_df[col].dropna()
+                    if len(close) >= 20 and close.iloc[-20] > 0:
+                        price_mom = float((close.iloc[-1] / close.iloc[-20]) - 1.0)
+
+            # 가격 확인 필터 (추정치 상향 + 주가 상승 = 강력한 동반 모멘텀, 부드러운 연속형 시너지)
+            syn_pos = np.maximum(0.0, np.tanh(10.0 * revision_composite)) * np.maximum(0.0, np.tanh(10.0 * price_mom))
+            syn_neg = np.maximum(0.0, np.tanh(-10.0 * revision_composite)) * np.maximum(0.0, np.tanh(-10.0 * price_mom))
+            synergy_bonus = float(0.15 * (syn_pos - syn_neg))
+
+            raw_score = 0.5 + (revision_composite * 2.0) + (price_mom * 0.5) + synergy_bonus
+            raw_scores[sym] = float(raw_score)
 
         if not raw_scores:
-            return make_score_dataframe([], 'arm_score')
+            return make_score_dataframe({}, 'arm_score')
 
         vals = np.array(list(raw_scores.values()))
         lower = np.percentile(vals, 1)
         upper = np.percentile(vals, 99)
         if upper == lower:
-            return make_score_dataframe([{'symbol': k, 'arm_score': 0.5} for k in raw_scores.keys()], 'arm_score')
+            return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
 
-        res_rows = []
+        res_scores = {}
         for k, v in raw_scores.items():
             sc = float(np.clip((v - lower) / (upper - lower), 0.0, 1.0))
-            # ARM Consensus Revision Booster for high-conviction analyst upgrades (Top 15%)
-            if sc >= 0.75:
-                sc = float(np.clip(sc * 1.10, 0.0, 1.0))
-            res_rows.append({'symbol': k, 'arm_score': sc})
+            # ARM Consensus Revision Booster for high-conviction analyst upgrades (smooth continuous)
+            smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (sc - 0.75)))
+            res_scores[k] = float(np.clip(sc * smooth_boost, 0.0, 1.0))
 
-        return make_score_dataframe(res_rows, 'arm_score')
-
+        return make_score_dataframe(res_scores, 'arm_score')

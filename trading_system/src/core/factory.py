@@ -19,6 +19,7 @@ class ServiceContainer:
     def __init__(self):
         self._services: Dict[str, Any] = {}
         self._factories: Dict[str, Callable[['ServiceContainer'], Any]] = {}
+        self._resolving: set = set()
 
     @classmethod
     def get_instance(cls) -> 'ServiceContainer':
@@ -40,13 +41,22 @@ class ServiceContainer:
         self._factories[service_name] = factory_fn
 
     def resolve(self, service_name: str) -> Any:
-        """Resolve a registered service or construct it via factory."""
+        """Resolve a registered service or construct it via factory with circular dependency protection."""
         if service_name in self._services:
             return self._services[service_name]
         if service_name in self._factories:
-            instance = self._factories[service_name](self)
-            self._services[service_name] = instance
-            return instance
+            if service_name in self._resolving:
+                raise RuntimeError(
+                    f"Circular dependency detected in ServiceContainer while resolving {service_name!r}. "
+                    f"Active resolution chain: {list(self._resolving)}"
+                )
+            self._resolving.add(service_name)
+            try:
+                instance = self._factories[service_name](self)
+                self._services[service_name] = instance
+                return instance
+            finally:
+                self._resolving.remove(service_name)
         raise KeyError(f"Service {service_name!r} is not registered in the ServiceContainer.")
 
     def has(self, service_name: str) -> bool:

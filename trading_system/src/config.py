@@ -39,8 +39,21 @@ MARKET_COST_REGISTRY = {
 }
 
 def _build_market_lookup_table():
+    registry = dict(MARKET_COST_REGISTRY)
+    env_costs = os.environ.get("MARKET_COSTS_JSON")
+    if env_costs:
+        try:
+            custom_costs = json.loads(env_costs)
+            for mkt, cfg in custom_costs.items():
+                if mkt in registry and isinstance(cfg, dict):
+                    registry[mkt].update(cfg)
+                elif isinstance(cfg, dict):
+                    registry[mkt] = cfg
+        except Exception as e:
+            logger.warning(f"Failed to parse MARKET_COSTS_JSON: {e}")
+
     lookup = {}
-    for canonical, info in MARKET_COST_REGISTRY.items():
+    for canonical, info in registry.items():
         lookup[canonical] = info
         for alias in info.get('aliases', ()):
             lookup[alias] = info
@@ -224,9 +237,23 @@ class TradingConfig:
 
         self.db_path = _get_env_str("DB_PATH", self.db_path)
         if "TRAIN_SAMPLE_SP500" in os.environ:
-            self.train_sample_sp500 = os.environ["TRAIN_SAMPLE_SP500"]
+            val = os.environ["TRAIN_SAMPLE_SP500"].strip()
+            if val.lower() == "all":
+                self.train_sample_sp500 = "all"
+            else:
+                try:
+                    self.train_sample_sp500 = int(val)
+                except ValueError:
+                    self.train_sample_sp500 = val
         if "TRAIN_SAMPLE_KRX" in os.environ:
-            self.train_sample_krx = os.environ["TRAIN_SAMPLE_KRX"]
+            val = os.environ["TRAIN_SAMPLE_KRX"].strip()
+            if val.lower() == "all":
+                self.train_sample_krx = "all"
+            else:
+                try:
+                    self.train_sample_krx = int(val)
+                except ValueError:
+                    self.train_sample_krx = val
         self.train_start_date = _get_env_str("TRAIN_START_DATE", self.train_start_date)
         self.train_seed = _get_env_int("TRAIN_SEED", self.train_seed)
         self.stock_price_freshness_days = _get_env_int("STOCK_PRICE_FRESHNESS_DAYS", self.stock_price_freshness_days)
@@ -476,3 +503,8 @@ class TradingConfig:
             logger.info("OpenAI API key configured")
         if not self.openai_api_key and not os.getenv("GOOGLE_API_KEY", ""):
             logger.warning("No LLM API key configured (OpenAI/Gemini) — AI features disabled")
+        from datetime import datetime
+        try:
+            datetime.strptime(self.train_start_date, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"train_start_date '{self.train_start_date}' must be in YYYY-MM-DD format")

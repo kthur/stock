@@ -56,12 +56,15 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
         self,
         symbols: List[str],
         prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
-        options_chain_dict: Optional[Dict[str, Any]] = None
+        options_chain_dict: Optional[Dict[str, Any]] = None,
+        **kwargs: Any
     ) -> pd.DataFrame:
         """
         Computes Gamma Squeeze acceleration score per symbol [0.0, 1.0].
         Returns DataFrame with ['symbol', 'gamma_squeeze_score'].
         """
+        if options_chain_dict is None:
+            options_chain_dict = kwargs.get('options_chain_dict')
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'gamma_squeeze_score'])
 

@@ -208,8 +208,7 @@ class CrisisDetector:
                 (tnx, self._tnx_history),
                 (dxy, self._dxy_history),
             ]:
-                if val is not None:
-                    hist.append(val)
+                hist.append(float(val) if (val is not None and isinstance(val, (int, float)) and np.isfinite(val)) else (hist[-1] if hist else 0.0))
 
             vix_score = self._score_vix(vix)
             dd_score = self._score_drawdown(dd)
@@ -310,7 +309,7 @@ class CrisisDetector:
         vix_roc = 0.0
         if len(self._vix_history) >= 5:
             past_vix = self._vix_history[-5]
-            if past_vix is not None and not np.isnan(past_vix) and past_vix > 0:
+            if past_vix is not None and isinstance(past_vix, (int, float)) and np.isfinite(past_vix) and past_vix > 0:
                 vix_roc = (fv - past_vix) / max(past_vix, 0.1)
         raw = (fv - 15.0) / 40.0
         roc_bonus = max(0.0, min(0.3, vix_roc * 0.1))
@@ -344,32 +343,43 @@ class CrisisDetector:
         return bearish_count / total
 
     def _score_macro(self, usdkrw: float | None, oil: float | None, tnx: float | None, dxy: float | None) -> float:
-        """거시경제 지표 기반 위험 점수 (0.0 ~ 1.0)"""
+        """거시경제 지표 기반 위험 점수 (0.0 ~ 1.0) - Robust Rolling Z-score approach"""
         scores: List[float] = []
 
+        def _calc_z_risk(curr: float, hist: list, neutral_level: float, level_scale: float) -> float:
+            if not hist:
+                return float(np.clip(max(0.0, (curr - neutral_level) / max(level_scale, 1e-4)), 0.0, 1.0))
+            arr = np.asarray(hist, dtype=float)
+            window = min(len(arr), 60)
+            sub_arr = arr[-window:]
+            mean_val = float(np.mean(sub_arr))
+            std_val = float(np.std(sub_arr))
+            if std_val < 1e-4:
+                std_val = max(abs(mean_val) * 0.02, 1e-4)
+
+            # Rolling Z-score (2 sigma = moderate risk, 3 sigma = extreme crisis)
+            z = (curr - mean_val) / std_val
+            z_risk = float(np.clip((z - 1.0) / 2.5, 0.0, 1.0))
+
+            # Absolute level hurdle
+            level_risk = float(np.clip(max(0.0, (curr - neutral_level) / max(level_scale, 1e-4)), 0.0, 1.0))
+            return 0.60 * z_risk + 0.40 * level_risk
+
         # USD/KRW: 원화 약세(환율 상승) → 자본유출 위험
-        if usdkrw is not None and len(self._usdkrw_history) >= 5:
-            baseline = sum(list(self._usdkrw_history)[-5:]) / 5
-            spike = (usdkrw - baseline) / max(baseline, 1.0)
-            scores.append(min(1.0, max(0, spike * 5.0)))
+        if usdkrw is not None:
+            scores.append(_calc_z_risk(usdkrw, list(self._usdkrw_history), neutral_level=1350.0, level_scale=150.0))
 
         # WTI: 유가 급등($100+) → 인플레이션 → 긴축 위험
-        if oil is not None and len(self._oil_history) >= 5:
-            oil_z = max(0, (oil - 75.0) / 75.0)
-            oil_mom = (oil - self._oil_history[-5]) / max(self._oil_history[-5], 1.0)
-            scores.append(min(1.0, oil_z + max(0, oil_mom * 2.0)))
+        if oil is not None:
+            scores.append(_calc_z_risk(oil, list(self._oil_history), neutral_level=80.0, level_scale=40.0))
 
-        # ^TNX: 금리 급등(5%+) or 급격한 상승 속도 → 시장 긴축
-        if tnx is not None and len(self._tnx_history) >= 5:
-            tnx_level = max(0, (tnx - 3.5) / 3.5)
-            tnx_mom = (tnx - self._tnx_history[-5]) / max(self._tnx_history[-5], 0.01)
-            scores.append(min(1.0, tnx_level + max(0, tnx_mom * 3.0)))
+        # ^TNX: 금리 급등(4.5%+) → 시장 긴축
+        if tnx is not None:
+            scores.append(_calc_z_risk(tnx, list(self._tnx_history), neutral_level=4.2, level_scale=1.5))
 
         # DXY: 달러 강세(105+) → 신흥국 부담
-        if dxy is not None and len(self._dxy_history) >= 5:
-            dxy_level = max(0, (dxy - 100.0) / 15.0)
-            dxy_mom = (dxy - self._dxy_history[-5]) / max(self._dxy_history[-5], 0.01)
-            scores.append(min(1.0, dxy_level + max(0, dxy_mom * 3.0)))
+        if dxy is not None:
+            scores.append(_calc_z_risk(dxy, list(self._dxy_history), neutral_level=103.0, level_scale=10.0))
 
         return sum(scores) / max(len(scores), 1)
 

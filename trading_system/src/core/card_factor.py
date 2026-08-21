@@ -53,9 +53,9 @@ class CARDFactorEngine(BaseStrategyEngine):
 
         sector_map = kwargs.get("sector_map") or {}
 
+        from .base_strategy import make_score_dataframe
         if not prices_dict or not isinstance(prices_dict, dict):
-            from .base_strategy import make_score_dataframe
-            return make_score_dataframe([], 'card_score')
+            return make_score_dataframe({}, 'card_score')
 
         def _safe_macro(col):
             if indicator_df is None:
@@ -103,34 +103,32 @@ class CARDFactorEngine(BaseStrategyEngine):
             '전기가스업': 0.5, '서비스업': 1.0, '제조업': 1.0, 'Market': 1.0
         }
 
-        from .base_strategy import make_score_dataframe
-
-        res_rows = []
+        scores = {}
         for sym, df in prices_dict.items():
             try:
                 if df is None or df.empty:
-                    res_rows.append({'symbol': sym, 'card_score': 0.5})
+                    scores[sym] = 0.5
                     continue
 
                 col = 'close' if 'close' in df.columns else ('Close' if 'Close' in df.columns else None)
                 if not col:
-                    res_rows.append({'symbol': sym, 'card_score': 0.5})
+                    scores[sym] = 0.5
                     continue
 
                 close = df[col].dropna()
                 if len(close) < 5 or float(close.iloc[-5]) <= 0:
-                    res_rows.append({'symbol': sym, 'card_score': 0.5})
+                    scores[sym] = 0.5
                     continue
 
                 c_last = float(close.iloc[-1])
                 c_prev = float(close.iloc[-5])
                 if np.isnan(c_last) or np.isnan(c_prev) or c_prev <= 0:
-                    res_rows.append({'symbol': sym, 'card_score': 0.5})
+                    scores[sym] = 0.5
                     continue
 
                 stock_ret = float((c_last - c_prev) / c_prev * 100)
                 if np.isnan(stock_ret) or np.isinf(stock_ret):
-                    res_rows.append({'symbol': sym, 'card_score': 0.5})
+                    scores[sym] = 0.5
                     continue
 
                 sec = sector_map.get(sym, 'Market') if isinstance(sector_map, dict) else 'Market'
@@ -162,12 +160,12 @@ class CARDFactorEngine(BaseStrategyEngine):
                         if (pd.notna(op_m) and float(op_m) < -0.15) or (pd.notna(roe_v) and float(roe_v) < -0.15):
                             card_score *= 0.70
 
-                    # Asymmetric Upside Booster for extreme macro divergence undervaluation
-                    if card_score >= 0.70:
-                        card_score = float(np.clip(card_score * 1.10, 0.0, 1.0))
-                res_rows.append({'symbol': sym, 'card_score': float(card_score)})
+                    # Asymmetric Upside Booster for extreme macro divergence undervaluation (smooth continuous)
+                    smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-12.0 * (card_score - 0.70)))
+                    card_score = float(np.clip(card_score * smooth_boost, 0.0, 1.0))
+                scores[sym] = float(card_score)
             except Exception as e:
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
-                res_rows.append({'symbol': sym, 'card_score': 0.5})
+                scores[sym] = 0.5
 
-        return make_score_dataframe(res_rows, 'card_score')
+        return make_score_dataframe(scores, 'card_score')

@@ -75,6 +75,21 @@ def _setup_rotating_logger() -> None:
     """Attach a RotatingFileHandler to the root logger (10MB × 5 backups)."""
     from logging.handlers import RotatingFileHandler
     from pathlib import Path
+    import json
+    
+    class JSONFormatter(logging.Formatter):
+        def format(self, record):
+            log_obj = {
+                "timestamp": self.formatTime(record, self.datefmt),
+                "level": record.levelname,
+                "name": record.name,
+                "message": record.getMessage(),
+                "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+                "market": os.environ.get("INFERENCE_TARGET", ""),
+                "symbol": getattr(record, "symbol", "")
+            }
+            return json.dumps(log_obj)
+
     log_dir = Path(__file__).parent / "logs"
     log_dir.mkdir(exist_ok=True)
     log_path = log_dir / "pipeline.log"
@@ -85,7 +100,10 @@ def _setup_rotating_logger() -> None:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
+    if os.environ.get('GITHUB_ACTIONS'):
+        file_handler.setFormatter(JSONFormatter())
+    else:
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
     logging.getLogger().addHandler(file_handler)
     logger.info(f"[P3] RotatingFileHandler attached: {log_path}")
 
@@ -142,7 +160,7 @@ def _notify_telegram(msg: str, level: str = "INFO", buttons: list | None = None)
     except Exception as e:
         logger.debug("[Telegram] Notification failed: %s", e)
 
-technical_cache = DataFrameCache()
+technical_cache = DataFrameCache(ttl=300.0, max_items=500)
 
 def is_empty_result(result):
     if result is None:
@@ -518,6 +536,9 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
                     if df_res is not None and not df_res.empty:
                         return df_res
                 except Exception as ex:
+                    if "429" in str(ex) or "Too Many Requests" in str(ex) or "Rate Limit" in str(ex):
+                        logger.warning(f"Rate limit HTTP 429 encountered in batch download. Aborting split for {len(tickers)} tickers: {ex}")
+                        raise ex
                     logger.info(f"Batch download failed after retries for {len(tickers)} tickers: {ex}. Proceeding to binary split.")
 
                 # Binary split to isolate bad tickers
@@ -574,6 +595,12 @@ def prefetch_prices_batch(symbols: list, symbol_market: dict, start_date: str,
 def fetch_data_fdr(symbol: str, market: str, start_date: str, price_db: Optional[StockPriceDB] = None,
                    freshness_days: int = 7, update_interval: int = 0) -> Optional[pd.DataFrame]:
     """Fetch price data for a single symbol using technical_cache + MarketDataHandler (Multi-tier network & DB cache)."""
+    if update_interval > 0:
+        import time
+        key = (symbol, start_date)
+        ts = technical_cache._timestamps.get(key)
+        if ts is not None and time.time() - ts > update_interval:
+            technical_cache.invalidate(symbol, start_date)
     def _fetch_fallback(s: str, d: str) -> Optional[pd.DataFrame]:
         cached_df = None
         stale = True if freshness_days >= 0 else False
@@ -1479,6 +1506,7 @@ def execute_prediction_pipeline():
                             train_data_dict[sym] = df
                     except TimeoutError:
                         logger.warning(f"[{done_count+1}/{len(train_symbols)}] Skipping {sym}: timeout (>={_PER_SYMBOL_TIMEOUT}s)")
+                        future.cancel()
                     except Exception as e:
                         logger.debug(f"Skipping {sym}: {e}")
                     done_count += 1
@@ -1486,6 +1514,8 @@ def execute_prediction_pipeline():
                     pbar.set_postfix({"loaded": len(train_data_dict), "sym": sym[:10]})
                     if done_count % 100 == 0:
                         logger.info(f"Training data fetch progress: {done_count}/{len(train_symbols)} ({len(train_data_dict)} loaded)")
+
+            executor.shutdown(wait=False, cancel_futures=True)
 
         # Wait for fundamentals fetch to complete before merging
         if train_symbols:
@@ -1502,24 +1532,43 @@ def execute_prediction_pipeline():
             logger.error(f"Failed to batch fetch training fundamentals: {e}")
             train_fund_cache = {}
 
-        # Merge fundamentals (synchronous loop to avoid SQLite multithreaded locking/deadlocks)
-        for sym in list(train_data_dict.keys()):
-            df = train_data_dict[sym]
+        # Merge fundamentals
+        def _merge_sym(sym, df):
             try:
-                merged = model.merge_fundamentals(sym, df, storage, fundamentals_cache=train_fund_cache)
-                if merged is not None:
-                    train_data_dict[sym] = merged
-                else:
-                    train_data_dict.pop(sym, None)
+                return sym, model.merge_fundamentals(sym, df, storage, fundamentals_cache=train_fund_cache)
             except Exception as e:
                 logger.debug(f"Failed to merge fundamentals for {sym}: {e}")
-                train_data_dict.pop(sym, None)
+                return sym, None
+
+        with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 1)) as pool:
+            futures = {pool.submit(_merge_sym, sym, train_data_dict[sym]): sym for sym in list(train_data_dict.keys())}
+            for future in as_completed(futures):
+                sym = futures[future]
+                merged = future.result()
+                if merged[1] is not None:
+                    train_data_dict[sym] = merged[1]
+                else:
+                    train_data_dict.pop(sym, None)
 
         try:
             df_train = model.prepare_training_data(train_data_dict, indicator_train, storage=storage)
         except Exception as _e:
             logger.error(f"prepare_training_data failed: {_e}. Proceeding with empty df_train.")
             df_train = pd.DataFrame()
+
+        # [Moved] 7d. Train VCP ML surge models before XGBoost to release memory
+        vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
+        if 'train_data_dict' in locals() and train_data_dict:
+            try:
+                logger.info("Training VCP ML surge models across markets...")
+                vcp_ml.train(train_data_dict, indicator_train, universe)
+                vcp_ml.save_models()
+                logger.info("VCP ML surge models trained and saved successfully.")
+            except Exception as _vcp_err:
+                logger.error(f"VCP ML training failed: {_vcp_err}")
+                _notify_telegram(f"⚠️ VCP ML 모델 학습 실패: {_vcp_err}")
+            del train_data_dict
+            gc.collect()
 
         # 7. Train XGBoost models per market (KOSPI/KOSDAQ/SP500/NASDAQ/RUSSELL2000)
         if not df_train.empty and 'symbol' in df_train.columns:
@@ -1581,20 +1630,6 @@ def execute_prediction_pipeline():
         with storage.pipeline_stage("train_lead_lag_vcp"):
             if not df_train.empty and len(df_train) > 1000:
                 model.compute_lead_lag(df_train, indicator_df=indicator_train, symbol_to_market=symbol_market)
-
-            # 7d. Train VCP ML surge models (5 markets, parallel inside)
-            vcp_ml = VCPSurgePredictor(model_dir=str(model.model_dir))
-            if 'train_data_dict' in locals() and train_data_dict:
-                try:
-                    logger.info("Training VCP ML surge models across markets...")
-                    vcp_ml.train(train_data_dict, indicator_train, universe)
-                    vcp_ml.save_models()
-                    logger.info("VCP ML surge models trained and saved successfully.")
-                except Exception as _vcp_err:
-                    logger.error(f"VCP ML training failed: {_vcp_err}")
-                    _notify_telegram(f"⚠️ VCP ML 모델 학습 실패: {_vcp_err}")
-                del train_data_dict
-                gc.collect()
         
         # 7e. Fit Isotonic Regression calibrators on training data for score alignment
         if not df_train.empty and 'Close' in df_train.columns:
@@ -1605,6 +1640,11 @@ def execute_prediction_pipeline():
                 df_calib_base = df_train.copy()
                 if 'date' in df_calib_base.columns:
                     df_calib_base = df_calib_base.sort_values('date')
+                
+                # Split chronologically to avoid overfitting calibrator on same data
+                split_idx = int(len(df_calib_base) * 0.8)
+                df_calib_base = df_calib_base.iloc[split_idx:].copy()
+                
                 df_calib_base['future_return_20d'] = df_calib_base.groupby('symbol')['Close'].transform(lambda x: x.shift(-20) / x.replace(0, np.nan) - 1)
                 valid_calib_df = df_calib_base.dropna(subset=['future_return_20d'])
                 if len(valid_calib_df) > 200 and 'symbol' in valid_calib_df.columns:
@@ -3255,10 +3295,23 @@ def execute_prediction_pipeline():
 
     db_macro = storage.get_latest_global_indicators() if storage is not None else {}
 
-    sp500_ret_20d = _safe_float(indicator_infer['sp500_change'].tail(20).mean(), 0.05) if 'sp500_change' in indicator_infer.columns else 0.05
-    sp500_vol_20d = _safe_float(indicator_infer['sp500_change'].tail(20).std(), 1.0) if 'sp500_change' in indicator_infer.columns else 1.0
-    kospi_ret_20d = _safe_float(indicator_infer['kospi_change'].tail(20).mean(), 0.05) if 'kospi_change' in indicator_infer.columns else 0.05
-    kospi_vol_20d = _safe_float(indicator_infer['kospi_change'].tail(20).std(), 1.2) if 'kospi_change' in indicator_infer.columns else 1.2
+    def _compute_20d_ret_vol(col_name: str, default_ret: float, default_vol: float) -> tuple:
+        if 'indicator_infer' in locals() and indicator_infer is not None and col_name in indicator_infer.columns:
+            series = indicator_infer[col_name].dropna().tail(20)
+            if not series.empty:
+                ret = _safe_float(series.mean(), default_ret)
+                vol = _safe_float(series.std(), default_vol) if len(series) > 1 else default_vol
+                # Auto-scale raw decimal returns/volatilities to percentage representation (x 100.0)
+                # In financial markets, daily volatility in percent is typically >= 0.20%, and daily return in decimal is <= 0.05
+                is_decimal = (len(series) > 1 and vol <= 0.10 and abs(ret) <= 0.20 and (vol > 1e-7 or abs(ret) > 1e-7)) or (len(series) == 1 and 1e-7 < abs(ret) <= 0.02)
+                if is_decimal:
+                    ret *= 100.0
+                    vol *= 100.0
+                return ret, vol
+        return default_ret, default_vol
+
+    sp500_ret_20d, sp500_vol_20d = _compute_20d_ret_vol('sp500_change', 0.05, 1.0)
+    kospi_ret_20d, kospi_vol_20d = _compute_20d_ret_vol('kospi_change', 0.05, 1.2)
 
     def _extract_macro_indicator(
         name: str,

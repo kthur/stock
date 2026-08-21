@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Any
+import html
 
 from src.data_layer.data_validator import DataValidator
 
@@ -1012,7 +1013,7 @@ def format_telegram_alert_summary(ensemble: EnsembleData, regime_2d: str = "SIDE
 
 
 def make_stock_link(symbol: str, market: str) -> str:
-    clean_sym = symbol.strip()
+    clean_sym = html.escape(symbol.strip())
     raw_code = clean_sym.split('.')[0]
     if market in ['KOSPI', 'KOSDAQ']:
         return f'<a href="https://m.stock.naver.com/domestic/stock/{raw_code}/total" target="_blank" class="stock-link">{clean_sym}</a>'
@@ -1360,13 +1361,13 @@ def build_html(
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
-                clean_name = r.name.replace("'", "").replace('"', '')
+                clean_name = html.escape(r.name).replace("'", "\\'").replace('"', '&quot;')
                 drawer_call = f"openStockDrawer('{r.symbol}', '{clean_name}', '{mkt}', '{r.score}', '{ret_disp}', '{factors_encoded}')"
                 rows_html += f"""
             <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 31대 전략 상세 보기">
               <td class="rank sticky-col sticky-rank">#{r.rank}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
-              <td class="name sticky-col sticky-name">{r.name}<span class="row-chevron" aria-hidden="true">›</span></td>
+              <td class="name sticky-col sticky-name">{html.escape(r.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
               <td class="score">{r.score}</td>
               <td class="{rc}">{ret_disp}</td>
               <td class="col-strat">{r.reg}</td>
@@ -1650,7 +1651,7 @@ def build_html(
             <tr>
               <td class="rank">#{port_r.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{port_r.name}</td>
+              <td class="name">{html.escape(port_r.name)}</td>
               <td>{MARKET_FLAGS.get(port_r.market, '')} {port_r.market}</td>
               <td class="{rc}">{port_r.expected_return}</td>
               <td>{port_r.volatility}</td>
@@ -1697,7 +1698,7 @@ def build_html(
               <tr>
                 <td class="rank">#{sr.rank}</td>
                 <td class="symbol">{symbol_link}</td>
-                <td class="name">{sr.name}</td>
+                <td class="name">{html.escape(sr.name)}</td>
                 <td>
                   <div class="prob-bar">
                     <div class="prob-fill" style="width:{bar_w}%;background:{color}"></div>
@@ -1744,7 +1745,7 @@ def build_html(
             <tr>
               <td class="rank">#{vr.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{vr.name}</td>
+              <td class="name">{html.escape(vr.name)}</td>
               <td><span style="color:{score_color};font-weight:600">{vr.score}</span></td>
               <td>{vr.current_range}</td>
               <td class="contraction">{vr.contraction}</td>
@@ -1783,7 +1784,7 @@ def build_html(
             <tr>
               <td class="rank">#{lr.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{lr.name}</td>
+              <td class="name">{html.escape(lr.name)}</td>
               <td class="{rc}">{lr.score}</td>
             </tr>"""
         if not rows_html:
@@ -1808,7 +1809,7 @@ def build_html(
         <tr>
           <td class="rank">#{ldr.rank}</td>
           <td class="symbol">{symbol_link}</td>
-          <td class="name">{ldr.name}</td>
+          <td class="name">{html.escape(ldr.name)}</td>
           <td class="{rc}">{ldr.score}</td>
         </tr>"""
 
@@ -1837,7 +1838,7 @@ def build_html(
             <tr>
               <td class="rank">#{vml.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{vml.name}</td>
+              <td class="name">{html.escape(vml.name)}</td>
               <td>
                 <div class="prob-bar">
                   <div class="prob-fill" style="width:{bar_w}%;background:{color}"></div>
@@ -1896,7 +1897,7 @@ def build_html(
             <tr>
               <td class="rank">#{reg_row.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{reg_row.name}</td>
+              <td class="name">{html.escape(reg_row.name)}</td>
               <td class="{rc}">{reg_row.expected_return}</td>
             </tr>"""
             if not rows_html:
@@ -1936,7 +1937,7 @@ def build_html(
             z_class = "pos" if z_val > 0 else "neg"
             stat_arb_rows_html += f"""
             <tr>
-              <td class="symbol"><strong>{sa_r.pair}</strong></td>
+              <td class="symbol"><strong>{html.escape(sa_r.pair)}</strong></td>
               <td class="{z_class}">{sa_r.z_score}</td>
               <td>{sa_r.correlation}</td>
               <td>{sa_r.beta}</td>
@@ -1958,7 +1959,7 @@ def build_html(
             <tr>
               <td class="rank">#{sec_r.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{sec_r.name}</td>
+              <td class="name">{html.escape(sec_r.name)}</td>
               <td>{MARKET_FLAGS.get(sec_r.market, '')} {sec_r.market}</td>
               <td><span class="badge">{sec_r.sector}</span></td>
               <td class="pos">{sec_r.score}</td>
@@ -1993,7 +1994,7 @@ def build_html(
             <tr>
               <td class="rank">#{rim_r.rank}</td>
               <td class="symbol">{symbol_link}</td>
-              <td class="name">{rim_r.name}</td>
+              <td class="name">{html.escape(rim_r.name)}</td>
               <td>{rim_r.price}</td>
               <td class="pos">{rim_r.intrinsic_value}</td>
               <td class="{disc_class}">{rim_r.discount}</td>
@@ -2036,7 +2037,7 @@ def build_html(
             <tr>
               <td class="rank">#{row.rank}</td>
               <td class="symbol">{sym_link}</td>
-              <td class="name">{row.name}</td>
+              <td class="name">{html.escape(row.name)}</td>
               <td>{MARKET_FLAGS.get(row.market, "")} {row.market}</td>
               <td class="{score_class}">{score_val}</td>
             </tr>"""

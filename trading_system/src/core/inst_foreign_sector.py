@@ -213,8 +213,8 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         # Final Composite Score: 60% Combined Accumulation + 40% Sector Correlation / Lead-Lag Potential
         acc_df['raw_composite'] = 0.60 * acc_df['accumulation_score'] + 0.40 * acc_df['sector_corr_score']
 
-        # Rank-normalize to [0, 1]
-        raw_ranks = acc_df['raw_composite'].rank(pct=True, ascending=True)
+        # Rank-normalize to [0, 1] with boundary clipping
+        raw_ranks = acc_df['raw_composite'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         # Institutional Leader Acceleration Booster for top 15% accumulated leaders
         inst_leader_mask = raw_ranks >= 0.85
         enhanced_score = np.where(inst_leader_mask, (raw_ranks * 1.08).clip(0.0, 0.98), raw_ranks)

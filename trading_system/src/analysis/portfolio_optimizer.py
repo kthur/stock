@@ -34,11 +34,13 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
         logger.error("Covariance matrix contains NaN or Inf values.")
         return np.array([])
 
-    # Apply Tikhonov regularization (epsilon * I) to prevent ill-conditioning
+    # Apply adaptive Tikhonov regularization (epsilon * I) to prevent ill-conditioning
     cond_num = np.linalg.cond(cov_matrix) if n <= 200 else 1.0
     if cond_num > 1e4:
         logger.debug(f"High covariance condition number ({cond_num:.1e}); applying Tikhonov regularization.")
-    reg_cov = cov_matrix + 1e-6 * np.eye(n)
+    cov_trace = float(np.trace(cov_matrix)) / max(n, 1)
+    adaptive_eps = max(1e-6, 1e-5 * cov_trace) if np.isfinite(cov_trace) and cov_trace > 0 else 1e-6
+    reg_cov = cov_matrix + adaptive_eps * np.eye(n)
 
     weights = None
 
@@ -169,10 +171,13 @@ def calculate_black_litterman_weights(
         Pi = risk_aversion * (cov_matrix @ w_eq)
 
         # Views Q (predicted returns)
-        Q = np.asarray(predicted_returns)
+        Q = np.asarray(predicted_returns, dtype=float)
         if len(Q) != n:
             logger.warning("Length of predicted_returns does not match cov_matrix. Using flat returns.")
             Q = np.zeros(n)
+        # Normalize units: if Q is in percentage (> 0.5 mean), scale to decimal matching Pi
+        if np.nanmean(np.abs(Q)) > 0.50:
+            Q = Q / 100.0
 
         # Uncertainty Omega (diagonal of covariance matrix scaled by dynamic meta conviction)
         if meta_convictions is not None and len(meta_convictions) == n:
@@ -199,8 +204,6 @@ def calculate_black_litterman_weights(
             raise ValueError("Calculated BL expected returns or covariance contain NaN/Inf.")
 
         # Optimize weights (maximize Sharpe ratio or Quadratic Utility if excess return is negative)
-        eq_ret = float(np.mean(mu_bl))
-        is_negative_excess = (eq_ret <= risk_free_rate)
         lambda_aversion = 2.5
 
         def objective(w):
@@ -209,7 +212,7 @@ def calculate_black_litterman_weights(
             port_var = float(w @ cov_bl @ w)
             port_vol = float(np.sqrt(max(1e-8, port_var)))
 
-            if is_negative_excess:
+            if port_ret <= risk_free_rate:
                 # Quadratic utility maximization: max (w^T mu - 0.5 * lambda * w^T Sigma w)
                 return - (port_ret - 0.5 * lambda_aversion * port_var)
             else:
@@ -247,7 +250,8 @@ def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: float = 0.15
     n = cov_matrix.shape[0]
     if n <= 1:
         return cov_matrix
-    diag_target = np.diag(np.diag(cov_matrix))
+    mean_var = np.mean(np.diag(cov_matrix))
+    diag_target = mean_var * np.eye(n)
     shrunk_cov = (1.0 - shrink_factor) * cov_matrix + shrink_factor * diag_target
     return shrunk_cov
 
@@ -401,19 +405,20 @@ def calculate_hrp_weights(
 
                 # Variance of left & right clusters
                 cov_left = cov_matrix[np.ix_(c_left, c_left)]
-                vols_left = np.maximum(np.sqrt(np.diag(cov_left)), 1e-8)
+                vols_left = np.maximum(np.sqrt(np.maximum(np.diag(cov_left), 1e-8)), 1e-4)
                 inv_vol_left = 1.0 / (vols_left ** 2)
-                w_left = inv_vol_left / np.sum(inv_vol_left)
-                var_left = float(w_left @ cov_left @ w_left)
+                w_left = inv_vol_left / max(float(np.sum(inv_vol_left)), 1e-12)
+                var_left = max(float(w_left @ cov_left @ w_left), 1e-8)
 
                 cov_right = cov_matrix[np.ix_(c_right, c_right)]
-                vols_right = np.maximum(np.sqrt(np.diag(cov_right)), 1e-8)
+                vols_right = np.maximum(np.sqrt(np.maximum(np.diag(cov_right), 1e-8)), 1e-4)
                 inv_vol_right = 1.0 / (vols_right ** 2)
-                w_right = inv_vol_right / np.sum(inv_vol_right)
-                var_right = float(w_right @ cov_right @ w_right)
+                w_right = inv_vol_right / max(float(np.sum(inv_vol_right)), 1e-12)
+                var_right = max(float(w_right @ cov_right @ w_right), 1e-8)
 
                 # Allocation factor alpha
                 alpha = 1.0 - var_left / (var_left + var_right + 1e-12)
+                alpha = float(np.clip(alpha, 0.01, 0.99))
 
                 weights[c_left] *= alpha
                 weights[c_right] *= (1.0 - alpha)

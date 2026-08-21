@@ -130,15 +130,18 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio, 'conversion_bonus': conversion_bonus})
         valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
 
-        if valid_mask.sum() > 0:
+        if valid_mask.sum() > 1:
             # Rank score: inverted because lower accrual_ratio -> higher earnings quality
             # Percentile rank: 1 - percentile_rank(accrual_ratio)
-            ranks = df_acc.loc[valid_mask, 'accrual_ratio'].rank(pct=True, ascending=True)
+            ranks = df_acc.loc[valid_mask, 'accrual_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
             base_score = (1.0 - ranks + df_acc.loc[valid_mask, 'conversion_bonus']).clip(0.05, 0.95)
             # Accruals Quality Alpha Boost for top 15% high-cashflow sustainable earnings stocks
             high_quality_mask = base_score >= 0.85
             enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
             df_acc.loc[valid_mask, 'accruals_quality_score'] = enhanced_score
+        elif valid_mask.sum() == 1:
+            bonus = float(df_acc.loc[valid_mask, 'conversion_bonus'].iloc[0])
+            df_acc.loc[valid_mask, 'accruals_quality_score'] = min(0.50 + bonus, 0.95)
         else:
             df_acc['accruals_quality_score'] = 0.50
 
