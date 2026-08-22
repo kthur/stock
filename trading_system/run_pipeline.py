@@ -1130,13 +1130,36 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
 
 
 
+def _get_target_markets_to_save(df: pd.DataFrame = None, universe: pd.DataFrame = None) -> list[str]:
+    """Return all unique market identifiers to save individual reports for."""
+    markets = set()
+    if df is not None and not df.empty and 'market' in df.columns:
+        markets.update(df['market'].dropna().unique())
+    if universe is not None and not universe.empty and 'market' in universe.columns:
+        markets.update(universe['market'].dropna().unique())
+    target_env = os.environ.get("INFERENCE_TARGET", "").strip().upper()
+    if target_env:
+        for t in target_env.split(','):
+            t_clean = t.strip()
+            if t_clean and t_clean not in ['ALL', 'CORE_5', 'ASIA_DEV', 'ASIA_EMG', 'COMMODITY']:
+                markets.add(t_clean)
+    if not markets:
+        markets = {'KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000'}
+    return sorted(markets)
+
+
 def _market_symbols(universe: pd.DataFrame) -> dict:
     """Return dict of {market: set(symbols)} for all known markets."""
     markets = {}
-    if universe is not None and not universe.empty and 'market' not in universe.columns:
-        universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
-    for m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
-        markets[m] = set(universe[universe['market'] == m]['symbol']) if universe is not None and not universe.empty else set()
+    if universe is not None and not universe.empty:
+        if 'market' not in universe.columns:
+            universe['market'] = universe['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
+        all_mkts = sorted(set(universe['market'].dropna().unique()) | {'KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000'})
+        for m in all_mkts:
+            markets[m] = set(universe[universe['market'] == m]['symbol'])
+    else:
+        for m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+            markets[m] = set()
     return markets
 
 def _fmt_top(df: pd.DataFrame, horizon: int, symbol_to_name: dict, symbol_to_market: dict, count: int = 10) -> list:
@@ -2052,7 +2075,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             _write_stat_arb_file(f, top_stat_arb_pairs)
 
         # Per-market suffix files
-        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+        for _m in _get_target_markets_to_save(universe=universe):
             _m_pairs = [p for p in top_stat_arb_pairs if p.get('market') == _m or p['pair'][0] in set(universe[universe['market'] == _m]['symbol'])]
             _mkt_path = os.path.join(result_dir, f"stat_arb_predictions_{_m}.txt")
             with open(_mkt_path, "w", encoding="utf-8") as _mf:
@@ -2166,7 +2189,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     logger.info(f"Saved summarized pipeline result (TOP{_TOP_N}, {len(_SUMMARY_HORIZONS)} horizons) to {output_path}")
 
     # Per-market suffix files for pipeline_result (Strategy 1 / Regression)
-    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+    for _m in _get_target_markets_to_save(universe=universe):
         _m_set = market_syms.get(_m, set())
         _m_path = os.path.join(result_dir, f"pipeline_result_{_m}.txt")
         _m_sorted = res_df[res_df['symbol'].isin(_m_set)].sort_values(by=20 if 20 in res_df.columns else res_df.columns[-1], ascending=False)
@@ -2213,12 +2236,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             # Merge name/market info
             surge_df = surge_df.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left')
 
-            krx_markets = ['KOSPI', 'KOSDAQ']
+            all_surge_mkts = _get_target_markets_to_save(df=surge_df, universe=universe)
             for h in model.surge_horizons:
                 col = f'surge_{h}d'
                 if col not in surge_df.columns:
                     continue
-                for m in krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']:
+                for m in all_surge_mkts:
                     m_df = surge_df[surge_df['market'] == m].sort_values(by=col, ascending=False)
                     if m_df.empty:
                         continue
@@ -2234,7 +2257,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     # Also save per-market suffix files for surge predictions
     if not surge_df.empty:
-        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+        for _m in _get_target_markets_to_save(df=surge_df, universe=universe):
             _m_df_surge = surge_df[surge_df['market'] == _m]
             if _m_df_surge.empty:
                 continue
@@ -2289,8 +2312,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             # P1: clip correlation index to [0, 1] — values >1.0 indicate scaling issues
             lead_lag_df = lead_lag_df.copy()
             lead_lag_df['lead_lag_score'] = lead_lag_df['lead_lag_score'].clip(0.0, 1.0)
-            krx_markets = ['KOSPI', 'KOSDAQ']
-            for m in krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']:
+            all_ll_mkts = _get_target_markets_to_save(df=lead_lag_df, universe=universe)
+            for m in all_ll_mkts:
                 m_df = lead_lag_df[lead_lag_df['market'] == m].sort_values(by='lead_lag_score', ascending=False)
                 if m_df.empty:
                     continue
@@ -2336,7 +2359,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         # Also ensure name column is available
         if 'name' not in _ll_merged.columns:
             _ll_merged = _ll_merged.merge(universe[['symbol', 'name']], on='symbol', how='left')
-        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+        for _m in _get_target_markets_to_save(df=_ll_merged, universe=universe):
             _m_df = _ll_merged[_ll_merged['market'] == _m]
             if _m_df.empty:
                 continue
@@ -2362,13 +2385,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     vcp_output_path = os.path.join(result_dir, "vcp_patterns.txt")
     vcp_universe_map = {s: (n, m) for s, n, m in zip(universe['symbol'],
                         universe['name'], universe['market'])}
-    krx_markets = ['KOSPI', 'KOSDAQ']
     def _write_vcp_file(f_out, res_list, target_mkt=None):
         f_out.write("=== VCP (Volatility Contraction Pattern) Results ===\n")
         f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
         f_out.write(f"Total symbols evaluated: {len(res_list)}\n\n")
 
-        mkts = [target_mkt] if target_mkt else (krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000'])
+        all_vcp_mkts = _get_target_markets_to_save(universe=universe)
+        mkts = [target_mkt] if target_mkt else all_vcp_mkts
         for m in mkts:
             m_results = [r for r in res_list if vcp_universe_map.get(r['symbol'], ('', ''))[1] == m]
             if not m_results:
@@ -2398,7 +2421,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         _write_vcp_file(f, vcp_results)
 
     # Per-market suffix files
-    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+    for _m in _get_target_markets_to_save(universe=universe):
         _m_path = os.path.join(result_dir, f"vcp_patterns_{_m}.txt")
         _m_res = [r for r in vcp_results if vcp_universe_map.get(r['symbol'], ('', ''))[1] == _m]
         if _m_res:
@@ -2416,8 +2439,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         f.write("=== VCP ML Surge Predictions ===\n")
         f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
 
+        all_vcp_ml_mkts = _get_target_markets_to_save(df=vcp_ml_df, universe=universe)
         for h in SURGE_HORIZONS:
-            for market in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+            for market in all_vcp_ml_mkts:
                 if not vcp_ml_df.empty and 'market' in vcp_ml_df.columns and f'vcp_{h}d' in vcp_ml_df.columns:
                     m_df = vcp_ml_df[vcp_ml_df['market'] == market].sort_values(by=f'vcp_{h}d', ascending=False)
                 else:
@@ -2436,7 +2460,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     logger.info(f"Saved VCP ML predictions to {vcp_ml_output_path}")
 
     # Per-market suffix files for VCP ML (Strategy 5)
-    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+    for _m in _get_target_markets_to_save(df=vcp_ml_df, universe=universe):
         _m_path = os.path.join(result_dir, f"vcp_ml_predictions_{_m}.txt")
         if vcp_ml_df.empty:
             with open(_m_path, "w", encoding="utf-8") as _mf:
@@ -2643,7 +2667,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             logger.info(f"Saved sector rotation predictions ({len(sector_df_merged)} symbols) to {sector_output_path}")
 
             # Per-market suffix files for GHA artifact merge
-            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+            for _m in _get_target_markets_to_save(df=sector_df_merged, universe=universe):
                 _m_df = sector_df_merged[sector_df_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2773,7 +2797,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             logger.info(f"Saved RIM valuation predictions ({len(rim_merged)} symbols) to {rim_output_path}")
 
             # Per-market suffix files
-            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+            for _m in _get_target_markets_to_save(df=rim_merged, universe=universe):
                 _m_df = rim_merged[rim_merged['market'] == _m]
                 if _m_df.empty:
                     continue
@@ -2824,7 +2848,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         logger.info(f"Saved {title} ({len(merged)} symbols) to {main_path}")
 
         base_name = output_filename.replace(".txt", "")
-        for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+        for _m in _get_target_markets_to_save(df=merged, universe=universe):
             _m_df = merged[merged['market'] == _m]
             if _m_df.empty:
                 continue
@@ -3832,15 +3856,41 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     ensemble_df_merged = ensemble_clean.merge(universe[univ_cols], on='symbol', how='left')
 
     target_env = os.environ.get("INFERENCE_TARGET", "").strip().upper()
-    if target_env in ['SP500', 'NASDAQ', 'RUSSELL2000', 'KOSPI', 'KOSDAQ']:
-        # Ensure single-market pipeline run correctly maps its symbols to target_env
-        if target_env in ['NASDAQ', 'RUSSELL2000']:
-            ensemble_df_merged['market'] = target_env
-        else:
-            ensemble_df_merged['market'] = ensemble_df_merged['market'].fillna(target_env)
+    if target_env and target_env not in ['ALL', 'CORE_5', 'ASIA_DEV', 'ASIA_EMG', 'COMMODITY'] and ',' not in target_env:
+        ensemble_df_merged['market'] = ensemble_df_merged['market'].fillna(target_env)
+
+    def _infer_market_from_symbol(sym: str) -> str:
+        s = str(sym)
+        if s.isdigit() or s.endswith(('.KS', '.KQ')):
+            return 'KOSPI'
+        if s.endswith('.T'):
+            return 'JAPAN_TSE'
+        if s.endswith(('.TW', '.TWO')):
+            return 'TAIWAN_TWSE'
+        if s.endswith(('.SS', '.SZ')):
+            return 'CHINA_SSE'
+        if s.endswith(('.NS', '.BO')):
+            return 'INDIA_NSE'
+        if s.endswith(('.PA', '.DE', '.AS', '.MC', '.MI', '.BR')):
+            return 'EUROPE_STOXX'
+        if s.endswith('.VN'):
+            return 'VIETNAM_HOSE'
+        if s.endswith('.AX'):
+            return 'AUSTRALIA_ASX'
+        if s.endswith('.SA'):
+            return 'BRAZIL_B3'
+        if s.endswith('.HK'):
+            return 'HKEX'
+        if s.endswith('.SI'):
+            return 'SINGAPORE_SGX'
+        if s.endswith('.TO'):
+            return 'CANADA_TSX'
+        return 'SP500'
 
     if 'market' not in ensemble_df_merged.columns or ensemble_df_merged['market'].isna().all():
-        ensemble_df_merged['market'] = ensemble_df_merged['symbol'].map(lambda s: 'KOSPI' if str(s).isdigit() else 'SP500')
+        ensemble_df_merged['market'] = ensemble_df_merged['symbol'].map(_infer_market_from_symbol)
+    else:
+        ensemble_df_merged['market'] = ensemble_df_merged['market'].fillna(ensemble_df_merged['symbol'].map(_infer_market_from_symbol))
     if 'name' not in ensemble_df_merged.columns:
         ensemble_df_merged['name'] = ensemble_df_merged['symbol']
 
@@ -3986,15 +4036,10 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         f.write("\n")
 
         # 2. Recommendations per market
-        f.write("--- Top 20 Recommendations by Market ---\n")
-        krx_markets = ['KOSPI', 'KOSDAQ']
-        target_env = os.environ.get("INFERENCE_TARGET", "").strip().upper()
-        all_mkts = krx_markets + ['SP500', 'NASDAQ', 'RUSSELL2000']
-        active_markets = [target_env] if target_env in all_mkts else all_mkts
-        for market in active_markets:
+        f.write("--- Top Recommendations by Market ---\n")
+        all_ens_mkts = _get_target_markets_to_save(df=ensemble_df_merged, universe=universe)
+        for market in all_ens_mkts:
             m_df = ensemble_df_merged[ensemble_df_merged['market'] == market].sort_values(by='ensemble_score', ascending=False)
-            if m_df.empty:
-                m_df = ensemble_df_merged.sort_values(by='ensemble_score', ascending=False)
             if m_df.empty:
                 continue
             f.write("\n=========================================\n")
@@ -4054,7 +4099,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     logger.info(f"Saved ensemble predictions ({len(ensemble_df)} symbols) to {ensemble_output_path}")
 
     # Per-market suffix files for GHA artifact merge (merge_ensemble_predictions reads ensemble_predictions_{MARKET}.txt)
-    for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+    for _m in _get_target_markets_to_save(df=ensemble_df_merged, universe=universe):
         _m_df = ensemble_df_merged[ensemble_df_merged['market'] == _m].sort_values(by='ensemble_score', ascending=False)
         if _m_df.empty:
             continue
@@ -4129,7 +4174,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 _write_lstm_file(f, lstm_merged)
             logger.info(f"Saved LSTM deep learning predictions ({len(lstm_merged)} symbols) to {lstm_output_path}")
 
-            for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
+            for _m in _get_target_markets_to_save(df=lstm_merged, universe=universe):
                 _m_df = lstm_merged[lstm_merged['market'] == _m]
                 if _m_df.empty:
                     continue

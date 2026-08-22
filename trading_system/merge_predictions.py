@@ -448,7 +448,7 @@ def merge_portfolio_allocation(result_dir: Path, target_dirs: dict) -> None:
     merged_path = result_dir / "portfolio_allocation.txt"
 
     row_re = re.compile(
-        r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000)"
+        r"^\s*(\d+)\s+(\S+)\s+(.+?)\s+([A-Za-z0-9_]+)"
         r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([-\d.]+%|nan%|NaN%|None%)"
         r"\s+([-\d.]+%|nan%|NaN%|None%)\s+([\d,]+|\S+)$"
     )
