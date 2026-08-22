@@ -1,14 +1,20 @@
-## 2026-08-12T14:45:39Z
-You are Forensic Auditor for Milestone 1 (Data Quality & Corporate Action Sanity Gates).
-Your working directory is d:/Finance/code/stock/.agents/auditor_m1.
+## 2026-08-22T06:24:17Z
+You are auditor_m1, a teamwork_preview_auditor.
+Your working directory is d:\Finance\code\stock\.agents\auditor_m1.
+Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\ORIGINAL_REQUEST.md, PROJECT.md at d:\Finance\code\stock\PROJECT.md, and worker_m1 handoff at d:\Finance\code\stock\.agents\worker_m1\handoff.md.
 
-Task:
-Perform forensic integrity verification on code changes for Milestone 1 (`data_validator.py`, `technical_cache.py`, `database.py`, `price_adjuster.py`, `run_pipeline.py`, `test_technical_cache.py`, `test_data_validator.py`).
-Verify:
-1. Code changes perform genuine calculations (no hardcoded test results, facade logic, or cheating).
-2. `DataFrameCache` actually implements TTL eviction and date-change invalidation.
-3. `DataValidator` actually checks and filters single-day price spikes >300% and adjusts stock splits.
-4. All unit tests execute and pass cleanly (`.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v`).
-
-State your audit verdict explicitly: CLEAN or INTEGRITY VIOLATION / CHEATING DETECTED.
-Write your full forensic audit report to d:/Finance/code/stock/.agents/auditor_m1/handoff.md and send a message with your verdict.
+TASK: Forensic Integrity Audit of Milestone 1 (Requirement R1):
+1. Audit all modified files:
+   - `trading_system/src/ai/score_normalizer.py`
+   - `trading_system/src/ai/ensemble_scorer.py`
+   - `trading_system/src/core/accruals_quality.py`, `valueup_catalyst.py`, `short_interest_squeeze.py`, `trend_efficiency.py`, `insider_buying.py`, `earnings_tone_drift.py`, `iv_skew.py`
+   - `trading_system/run_pipeline.py`
+   - `tests/test_score_normalizer.py`
+2. Check for integrity violations:
+   - No hardcoded test responses or lookup tables.
+   - No dummy/facade implementations or fake stubs.
+   - Genuine percentile rank and winsorized Z-score calculation.
+   - Authentic dynamic zero-weighting and mathematical re-normalization.
+   - Genuine test assertions in `tests/test_score_normalizer.py`.
+3. Give your authoritative binary verdict: `CLEAN` or `INTEGRITY VIOLATION` with comprehensive evidence in `d:\Finance\code\stock\.agents\auditor_m1\handoff.md`.
+Communicate your verdict via send_message.

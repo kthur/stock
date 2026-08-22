@@ -1,7 +1,7 @@
 # Progress — explorer_survey_1
 
-- **Last visited**: 2026-08-22T06:11:55Z
-- **Current status**: Task Complete
+- **Last visited**: 2026-08-22T06:45:30Z
+- **Current status**: Completed & Verified
 - **Completed steps**:
   - Investigated all 31 strategies, their scales, clipping mechanisms, and missing value handling across `trading_system/src/core/`, `trading_system/src/ai/`, and `run_pipeline.py`.
   - Investigated `EnsembleScoringEngine`, `FactorOrthogonalizerEngine`, `FactorSuppressionEngine`, and `StrategyCorrelationMonitor`.
@@ -11,3 +11,4 @@
   - Produced detailed investigation and design report at `d:\Finance\code\stock\.agents\explorer_survey_1\survey_r1.md`.
   - Produced 5-component handoff report at `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md`.
   - Updated `BRIEFING.md` and `DISPATCH.md`.
+  - Ran baseline test suite verification: **1,407 passed, 4 skipped (100% PASS)** in pytest.

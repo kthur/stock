@@ -73,11 +73,16 @@ class CrossSectionalScoreNormalizer:
         if not valid_cols:
             return out_df
 
+        # Ensure float dtype on valid columns to avoid pandas incompatible dtype warnings
+        for col in valid_cols:
+            out_df[col] = pd.to_numeric(out_df[col], errors='coerce').astype(float)
+
         # Partition by market if market_col is available
         has_market = market_col is not None and market_col in out_df.columns and out_df[market_col].notna().any()
 
         if has_market:
-            market_groups = out_df.groupby(market_col).groups
+            mkt_clean_series = out_df[market_col].fillna('UNKNOWN').astype(str)
+            market_groups = out_df.groupby(mkt_clean_series, dropna=False).groups
             small_indices = []
 
             for mkt_val, group_idx in market_groups.items():
@@ -90,15 +95,13 @@ class CrossSectionalScoreNormalizer:
             # Handle small market groups via regional fallback or global fallback
             if small_indices:
                 small_df = out_df.loc[small_indices]
-                # Try region grouping first
-                region_series = small_df[market_col].map(lambda m: self.REGION_MAP.get(str(m).upper(), 'GLOBAL'))
-                for region, r_idx in small_df.groupby(region_series).groups.items():
-                    actual_idx = small_df.index[r_idx]
-                    if len(actual_idx) >= self.min_symbols_per_market:
-                        out_df.loc[actual_idx, valid_cols] = self._normalize_matrix(out_df.loc[actual_idx, valid_cols], eff_method)
-                    else:
-                        # Global fallback for remaining small groups
-                        out_df.loc[actual_idx, valid_cols] = self._normalize_matrix(out_df.loc[actual_idx, valid_cols], eff_method)
+                region_series = small_df[market_col].fillna('UNKNOWN').astype(str).map(
+                    lambda m: self.REGION_MAP.get(m.upper(), 'GLOBAL')
+                ).fillna('GLOBAL')
+                region_groups = small_df.groupby(region_series, dropna=False).groups
+                for region, actual_idx in region_groups.items():
+                    sub_small = out_df.loc[actual_idx, valid_cols]
+                    out_df.loc[actual_idx, valid_cols] = self._normalize_matrix(sub_small, eff_method)
         else:
             out_df[valid_cols] = self._normalize_matrix(out_df[valid_cols], eff_method)
 
@@ -115,6 +118,7 @@ class CrossSectionalScoreNormalizer:
             if n_valid == 0:
                 norm_df[col] = np.nan
             elif n_valid == 1:
+                # Single observation receives neutral midpoint
                 norm_df.loc[valid_mask, col] = 0.50
             else:
                 vals = s.loc[valid_mask].values

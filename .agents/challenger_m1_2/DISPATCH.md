@@ -1,36 +1,13 @@
-## 2026-08-05T13:02:47Z
+## 2026-08-22T06:24:16Z
+You are challenger_m1_2, a teamwork_preview_challenger.
+Your working directory is d:\Finance\code\stock\.agents\challenger_m1_2.
+Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\ORIGINAL_REQUEST.md, PROJECT.md at d:\Finance\code\stock\PROJECT.md, and worker_m1 handoff at d:\Finance\code\stock\.agents\worker_m1\handoff.md.
 
-<USER_REQUEST>
-You are teamwork_preview_challenger for Milestone 1: Financial Engineering & Model Optimization.
-
-Working directory: d:\Finance\code\stock\.agents\challenger_m1_2
-Dispatch file: d:\Finance\code\stock\.agents\challenger_m1_2\DISPATCH.md
-Original Request file: d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-Worker Handoff file: d:\Finance\code\stock\.agents\worker_m1_financial_eng\handoff.md
-Master Project file: d:\Finance\code\stock\.agents\orchestrator_eval_opt\PROJECT.md
-
-Please empirically stress test and verify Milestone 1 changes:
-- Run pytest suites.
-- Verify numerical stability and convergence across 6 market regimes.
-Write progress.md and handoff.md in your working directory with findings and an explicit verdict (APPROVE or REQUEST_CHANGES). Send a completion message to the parent orchestrator.
-</USER_REQUEST>
-<ADDITIONAL_METADATA>
-The current local time is: 2026-08-05T22:02:47+09:00.
-</ADDITIONAL_METADATA>
-
-## 2026-08-12T14:45:38Z
-
-<USER_REQUEST>
-You are Challenger 2 for Milestone 1 (Data Quality & Corporate Action Sanity Gates).
-Your working directory is d:/Finance/code/stock/.agents/challenger_m1_2.
-
-Task:
-Read d:/Finance/code/stock/ORIGINAL_REQUEST.md, d:/Finance/code/stock/PROJECT.md, and d:/Finance/code/stock/.agents/worker_m1_impl/handoff.md.
-Empirically test price spike filtering and database persistence integration:
-1. Verify `StockPriceDB.update_prices` rejects single-day price spikes (>300%) unless `bypass_validation=True`.
-2. Verify `DataFrameCache` auto-evicts expired items and clears cache on date change.
-3. Run existing test suite `.venv\Scripts\python.exe -m pytest trading_system/tests/ -v`.
-
-State your verdict explicitly: APPROVE or REJECT.
-Write your findings and test output to d:/Finance/code/stock/.agents/challenger_m1_2/handoff.md and send a message with your verdict.
-</USER_REQUEST>
+TASK: Adversarial Stress-Testing of Milestone 1 (Dynamic Zero-Weighting & 0.50 Purge):
+1. Empirically stress-test `EnsembleScoringEngine` and strategy engines:
+   - When 0 strategies are available for a ticker: does it handle all-NaN gracefully without crashing?
+   - When 1 out of 31 strategies is available: does its active weight equal 1.0 (100%) exactly?
+   - When 30 out of 31 strategies are missing: verify no 0.50 default value is injected into the scoring equation.
+   - Verify that strategy engines (`accruals_quality.py`, `valueup_catalyst.py`, `short_interest_squeeze.py`, `trend_efficiency.py`, `insider_buying.py`, `earnings_tone_drift.py`, `iv_skew.py`) return genuine `np.nan` on missing data instead of 0.50.
+2. Record your empirical evidence and explicit verdict (`APPROVE` or `REQUEST_CHANGES`) in `d:\Finance\code\stock\.agents\challenger_m1_2\handoff.md`.
+Communicate your verdict via send_message.

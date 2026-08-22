@@ -1,18 +1,14 @@
-## 2026-08-12T14:45:37Z
-You are Reviewer 2 for Milestone 1 (Data Quality & Corporate Action Sanity Gates).
-Your working directory is d:/Finance/code/stock/.agents/reviewer_m1_2.
+## 2026-08-22T06:24:16Z
+You are reviewer_m1_2, a teamwork_preview_reviewer.
+Your working directory is d:\Finance\code\stock\.agents\reviewer_m1_2.
+Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\ORIGINAL_REQUEST.md, PROJECT.md at d:\Finance\code\stock\PROJECT.md, and worker_m1 handoff at d:\Finance\code\stock\.agents\worker_m1\handoff.md.
 
-Task:
-Read d:/Finance/code/stock/ORIGINAL_REQUEST.md, d:/Finance/code/stock/PROJECT.md, and d:/Finance/code/stock/.agents/worker_m1_impl/handoff.md.
-Review the code changes made in:
-- `trading_system/src/data_layer/data_validator.py`
-- `trading_system/src/utils/technical_cache.py`
-- `trading_system/src/persistence/database.py`
-- `trading_system/run_pipeline.py`
-- `trading_system/tests/test_technical_cache.py`
-- `trading_system/tests/test_data_validator.py`
-
-Run unit tests via `.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py -v`.
-Check implementation details for TTL auto-eviction, date-change invalidation, and single-day price spike (>300%) handling.
-State your verdict explicitly: APPROVE or REQUEST_CHANGES.
-Write your review report to d:/Finance/code/stock/.agents/reviewer_m1_2/handoff.md and send a message with your verdict.
+TASK: Review Milestone 1 (Requirement R1: Mathematical Correctness & Regime Ensemble Integration):
+1. Inspect mathematical properties of score normalizer and ensemble weighting:
+   - Verify percentile ranking formula $((\text{Rank} - 0.5) / N)$ and winsorized Gaussian CDF mapping $\Phi(z)$.
+   - Verify that active strategy weights dynamically re-normalize without division-by-zero when all or some strategies are missing.
+   - Verify interaction with 2D market regime dynamic weights, factor suppression, and covariance shrinkage.
+2. Run tests:
+   `.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py tests/test_dual_regime_weighting.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_factor_orthogonalization.py tests/test_regime_ensemble.py -v`
+3. Record your detailed findings and explicit verdict (`APPROVE` or `REQUEST_CHANGES`) in `d:\Finance\code\stock\.agents\reviewer_m1_2\handoff.md`.
+Communicate your verdict via send_message.

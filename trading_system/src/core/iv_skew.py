@@ -122,7 +122,7 @@ class IVSkewEngine(BaseStrategyEngine):
             # 2. Fast in-memory realized price volatility & return skewness fallback (0 network calls)
             if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
-                if df is not None and len(df) >= 20:
+                if df is not None and len(df) >= 2:
                     try:
                         c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
                         if not c_col:
@@ -131,24 +131,27 @@ class IVSkewEngine(BaseStrategyEngine):
                         if isinstance(c, pd.DataFrame):
                             c = c.iloc[:, 0]
                         c = c.dropna()
-                        if len(c) >= 20:
+                        if len(c) >= 2:
                             ret = c.pct_change().dropna()
-                            ret_20 = ret.tail(20)
-                            down_diff = np.minimum(ret_20.values, 0.0)
-                            up_diff = np.maximum(ret_20.values, 0.0)
-                            down_vol = float(np.sqrt(np.mean(down_diff ** 2)))
-                            up_vol = float(np.sqrt(np.mean(up_diff ** 2)))
-                            if np.isnan(down_vol) or down_vol <= 0:
-                                down_vol = 0.005
-                            if np.isnan(up_vol) or up_vol <= 0:
-                                up_vol = 0.005
-                            skew_ratio = down_vol / up_vol
-                            ret_skew = float(ret.tail(20).skew()) if len(ret) >= 20 else 0.0
-                            if np.isnan(ret_skew):
-                                ret_skew = 0.0
-                            # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
-                            turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
-                            score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
+                            ret_window = ret.tail(20)
+                            if len(ret_window) >= 1 and float(abs(ret_window).sum()) > 1e-6:
+                                down_diff = np.minimum(ret_window.values, 0.0)
+                                up_diff = np.maximum(ret_window.values, 0.0)
+                                down_vol = float(np.sqrt(np.mean(down_diff ** 2)))
+                                up_vol = float(np.sqrt(np.mean(up_diff ** 2)))
+                                if np.isnan(down_vol) or down_vol <= 0:
+                                    down_vol = 0.005
+                                if np.isnan(up_vol) or up_vol <= 0:
+                                    up_vol = 0.005
+                                skew_ratio = down_vol / up_vol
+                                ret_skew = float(ret_window.skew()) if len(ret_window) >= 3 else 0.0
+                                if np.isnan(ret_skew):
+                                    ret_skew = 0.0
+                                # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
+                                turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
+                                score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
+                            else:
+                                score = np.nan
                     except Exception:
                         score = np.nan
 

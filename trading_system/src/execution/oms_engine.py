@@ -474,15 +474,15 @@ class ExecutionOMSEngine:
                             is_sell=False,
                             slippage_multiplier=slip_mult
                         )
-                        safety_margin = 0.0010  # 0.10% safety margin
+                        safety_margin = 0.0010  # 0.10% KRX safety margin
                         if "expected_return" in pred and pred["expected_return"] is not None:
                             raw_exp_ret = float(pred["expected_return"])
-                            exp_ret_frac = raw_exp_ret / 100.0
+                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.01 else raw_exp_ret
                             hurdle = friction_cost + safety_margin
                         else:
                             raw_exp_ret = float(pred.get("ensemble_expected_return", 0.0) or 0.0)
-                            exp_ret_frac = raw_exp_ret / 100.0
-                            hurdle = safety_margin
+                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.01 else raw_exp_ret
+                            hurdle = friction_cost + safety_margin
 
                         if exp_ret_frac < hurdle:
                             logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({hurdle:.4%}), skipping.")

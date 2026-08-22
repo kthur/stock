@@ -14,6 +14,7 @@ from .meta_ensemble_learner import MetaEnsembleLearner
 from .correlation_monitor import StrategyCorrelationMonitor
 from .factor_suppression import RegimeFactorSuppressionEngine
 from .factor_orthogonalizer import FactorOrthogonalizerEngine
+from .score_normalizer import CrossSectionalScoreNormalizer
 
 try:
     from ..analysis.dsr_validator import DeflatedSharpeRatioValidator
@@ -436,6 +437,7 @@ class EnsembleScoringEngine:
         self.factor_suppression = RegimeFactorSuppressionEngine()
         self.orthogonalizer = FactorOrthogonalizerEngine(default_method='pca_symmetric')
         self.orthogonalizer_enabled = True
+        self.score_normalizer = CrossSectionalScoreNormalizer(method='percentile_rank')
         self._dsr_validator = DeflatedSharpeRatioValidator(n_strategies=31, n_horizons=8) if DeflatedSharpeRatioValidator is not None else None
 
         # Milestone 4: Slippage execution feedback attributes
@@ -1416,7 +1418,7 @@ class EnsembleScoringEngine:
                 ret_multiplier = self._return_multiplier
                 reg_df_copy['reg_score'] = (reg_df_copy[target_col] * ret_multiplier).clip(0.0, 1.0)
             else:
-                reg_df_copy['reg_score'] = 0.5
+                reg_df_copy['reg_score'] = np.nan
 
         # 2. Surge Strategy
         s_df_copy = s_df.copy()
@@ -1441,7 +1443,7 @@ class EnsembleScoringEngine:
             if target_col_surge is not None and target_col_surge in s_df_copy.columns:
                 s_df_copy['surge_score'] = s_df_copy[target_col_surge].clip(0.0, 1.0)
             else:
-                s_df_copy['surge_score'] = 0.5
+                s_df_copy['surge_score'] = np.nan
 
         # 3. Lead-Lag Strategy
         ll_df_copy = ll_df.copy()
@@ -1450,7 +1452,7 @@ class EnsembleScoringEngine:
             if target_col and target_col in ll_df_copy.columns:
                 ll_df_copy['ll_score'] = ll_df_copy[target_col].clip(0.0, 1.0)
             else:
-                ll_df_copy['ll_score'] = 0.5
+                ll_df_copy['ll_score'] = np.nan
 
         # 4. VCP Rule-based Pattern Strategy
         if isinstance(v_rule_df, list):
@@ -1504,7 +1506,7 @@ class EnsembleScoringEngine:
                     if target_col:
                         v_df['vcp_ml_score'] = v_df[target_col].clip(0.0, 1.0)
                     else:
-                        v_df['vcp_ml_score'] = 0.5
+                        v_df['vcp_ml_score'] = np.nan
         else:
             v_df = pd.DataFrame(columns=['symbol', 'vcp_ml_score'])
 
@@ -1523,7 +1525,7 @@ class EnsembleScoringEngine:
                 if lstm_trend_mask.any():
                     l_df.loc[lstm_trend_mask, 'lstm_score'] = (l_df.loc[lstm_trend_mask, 'lstm_score'] * 1.08).clip(0.0, 1.0)
             else:
-                l_df['lstm_score'] = 0.5
+                l_df['lstm_score'] = np.nan
         else:
             l_df = pd.DataFrame(columns=['symbol', 'lstm_score'])
 
@@ -1537,7 +1539,7 @@ class EnsembleScoringEngine:
                 else:
                     sa_df['stat_arb_score'] = sa_df[target_col].clip(0.0, 1.0)
             else:
-                sa_df['stat_arb_score'] = 0.5
+                sa_df['stat_arb_score'] = np.nan
         else:
             sa_df = pd.DataFrame(columns=['symbol', 'stat_arb_score'])
 
@@ -1548,7 +1550,7 @@ class EnsembleScoringEngine:
             if target_col and target_col in sec_df.columns:
                 sec_df['sector_score'] = sec_df[target_col].clip(0.0, 1.0)
             else:
-                sec_df['sector_score'] = 0.5
+                sec_df['sector_score'] = np.nan
         else:
             sec_df = pd.DataFrame(columns=['symbol', 'sector_score'])
 
@@ -1884,8 +1886,15 @@ class EnsembleScoringEngine:
             ('earnings_tone_drift', 'earnings_tone_drift_score'),
         ]
 
-        # Phase 3-A: Cross-Sectional Robust Winsorization (0.5% - 99.5% quantile clipping for N >= 20)
-        if len(merged) >= 20:
+        # Phase 3-A: Cross-Sectional Score Normalization (Percentile Rank / Winsorized Gaussian CDF)
+        if len(merged) >= 5 and getattr(self, 'score_normalizer', None) is not None:
+            strategy_score_cols = [col for _, col in strategy_cols if col in merged.columns]
+            merged = self.score_normalizer.normalize_scores(
+                df=merged,
+                strategy_cols=strategy_score_cols,
+                market_col='market' if 'market' in merged.columns else None
+            )
+        elif len(merged) >= 20:
             for _, score_col in strategy_cols:
                 if score_col in merged.columns:
                     valid_vals = merged[score_col].dropna()
@@ -2050,29 +2059,29 @@ class EnsembleScoringEngine:
             s_fast = _calc_tier_score(fast_cols)
 
             if s_slow is not None:
-                merged['slow_alpha_score'] = np.nan_to_num(s_slow, nan=0.5)
+                merged['slow_alpha_score'] = s_slow
             if s_med is not None:
-                merged['medium_alpha_score'] = np.nan_to_num(s_med, nan=0.5)
+                merged['medium_alpha_score'] = s_med
             if s_fast is not None:
-                merged['fast_alpha_score'] = np.nan_to_num(s_fast, nan=0.5)
+                merged['fast_alpha_score'] = s_fast
                 merged['fast_alpha_intraday_eligible'] = (merged['fast_alpha_score'] >= 0.70)
-                fast_tilt = np.clip(merged['fast_alpha_score'] - 0.50, -0.15, 0.15)
                 if len(merged) >= 5 and 'slow_alpha_score' in merged.columns and 'medium_alpha_score' in merged.columns:
                     w_slow = self.TIER_WEIGHTS.get('slow', 0.50)
                     w_med = self.TIER_WEIGHTS.get('medium', 0.35)
                     w_fast = self.TIER_WEIGHTS.get('fast', 0.15)
-                    tier_sum = w_slow + w_med + w_fast
-                    if tier_sum > 0:
-                        w_slow /= tier_sum
-                        w_med /= tier_sum
-                        w_fast /= tier_sum
-                    fast_score = merged['fast_alpha_score'] if 'fast_alpha_score' in merged.columns else 0.50
-                    hierarchical_score = (
-                        w_slow * merged['slow_alpha_score'] +
-                        w_med * merged['medium_alpha_score'] +
-                        w_fast * fast_score
-                    )
-                    hierarchical_score = hierarchical_score.clip(0.0, 1.0)
+
+                    tier_cols = [('slow_alpha_score', w_slow), ('medium_alpha_score', w_med), ('fast_alpha_score', w_fast)]
+                    h_score_sum = pd.Series(0.0, index=merged.index)
+                    h_weight_sum = pd.Series(0.0, index=merged.index)
+                    for col_name, tw in tier_cols:
+                        if col_name in merged.columns:
+                            t_s = pd.to_numeric(merged[col_name], errors='coerce')
+                            t_mask = t_s.notna() & np.isfinite(t_s)
+                            h_score_sum += np.where(t_mask, t_s, 0.0) * tw
+                            h_weight_sum += t_mask.astype(float) * tw
+
+                    safe_h_w = h_weight_sum.replace(0.0, np.nan)
+                    hierarchical_score = (h_score_sum / safe_h_w).fillna(linear_score).clip(0.0, 1.0)
                     linear_score = pd.Series(0.70 * linear_score + 0.30 * hierarchical_score, index=merged.index).clip(0.0, 1.0)
 
         # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend

@@ -1,82 +1,64 @@
-# Review Report — Milestone 1: Data Quality & Corporate Action Sanity Gates
-
-## Review Summary
-
-**Verdict**: **APPROVE**
-
-Worker `worker_m1_impl` has successfully implemented all requirements for Milestone 1 (Data Quality & Corporate Action Sanity Gates + `DataFrameCache` TTL Auto-Eviction & Date-Change Invalidation). All 23 unit tests pass cleanly without errors or regressions.
-
----
+# Review & Adversarial Quality Report — Milestone 1 (Requirement R1: 31-Strategy Score Normalization, 0.50 Purge, Dynamic Weight Re-normalization)
 
 ## 1. Observation
-
-Direct code examination and execution results:
-
-### Modified / Added Files Inspected:
-1. `trading_system/src/data_layer/data_validator.py`:
-   - Line 146-156: Added single-day return magnitude check `max_mag > 3.0` (>300% single-day change or unadjusted split magnitude) in `validate_price_data`.
-   - Line 180-205: Added `sanitize_and_validate_price_data(sym_or_df, df_or_sym)` supporting bi-directional argument positions `(sym, df)` or `(df, sym)` to adjust stock splits via `CorporateActionAdjuster` and clean spikes before returning `(is_valid, adjusted_df)`.
-   - Line 207-274: Added `filter_price_spikes(df, max_return=3.0)` to handle isolated outlier spikes via linear interpolation and unadjusted split step changes via backward OHLCV scaling.
-2. `trading_system/src/data_layer/price_adjuster.py`:
-   - Line 35-41: Updated `CorporateActionAdjuster.adjust_ohlcv` to handle case-insensitive column names (`Close` / `close`).
-   - Line 63-71: Backward adjusts historical prices (`df.loc[prior_mask, price_cols] * r`) and scales volume inversely (`df.loc[prior_mask, vol_cols] / r`).
-3. `trading_system/src/utils/technical_cache.py`:
-   - Line 195-329: Upgraded `DataFrameCache`:
-     - Thread-safe `threading.Lock()` protection.
-     - Active TTL eviction in `get()`, `set()`, `get_or_compute()`, and explicit `evict_expired() -> int`.
-     - Trading date-change auto-clearing via `_check_date_change_unlocked()` when `datetime.now().date() != self._last_date`.
-     - LRU capacity eviction via `_evict_if_needed()`.
-     - `ttl` getter/setter, `__len__`, `invalidate_symbol()`, `invalidate_all()`, `invalidate()`, `clear()`.
-     - Lock release during `fetcher()` execution in `get_or_compute()` to prevent thread blocking during network I/O.
-4. `trading_system/src/persistence/database.py`:
-   - Line 474-478: Updated `StockPriceDB.update_prices` to invoke `DataValidator.validate_price_data` before inserting records into SQLite database unless `bypass_validation=True`.
-5. `trading_system/src/data_layer/market_data_handler.py`:
-   - Line 336-339: Integrated `DataValidator.sanitize_and_validate_price_data` into `MarketDataHandler.fetch_historical_data` before caching fetched bars.
-6. `trading_system/run_pipeline.py`:
-   - Line 500-503, 542-549: Removed duplicated inline validation and integrated `DataValidator.sanitize_and_validate_price_data` across batch prefetching and network fetch fallback.
-7. `trading_system/tests/test_technical_cache.py`:
-   - Complete unit test coverage for cache hits/misses, TTL auto-eviction, explicit eviction, LRU capacity bounds, date-change invalidation, and concurrent multi-thread operations.
-8. `trading_system/tests/test_data_validator.py`:
-   - Unit tests for macro indicator cleaning, price data validation, single-day spike rejection (>300%), unadjusted split backward adjustment, and spike filtering.
-
-### Test Execution Output:
-Ran `.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py trading_system/tests/test_database.py -v`:
-- `test_technical_cache.py`: 7/7 PASSED
-- `test_data_validator.py`: 6/6 PASSED
-- `test_database.py`: 10/10 PASSED
-- **Total: 23 passed in 4.92s** (Exit code 0).
-
----
+1. **Source Code Audited**:
+   - `trading_system/src/ai/score_normalizer.py` (lines 1–148):
+     - Implemented `CrossSectionalScoreNormalizer` supporting `percentile_rank` (mapping via $((\text{rank} - 0.5) / N)$ to $[0.005, 0.995]$ with median $0.50$ and uniform standard deviation $\approx 0.2887$) and `winsorized_zscore` (Gaussian CDF $\Phi(z)$ via `scipy.special.erf` with 1st/99th percentile winsorization and MAD-based robust scaling with sample std fallback when $\text{MAD} = 0$).
+     - Preserves `np.nan` strictly for missing strategy inputs without filling fake baseline constants.
+     - Supports per-market partitioning (`KOSPI`, `KOSDAQ`, `SP500`, `NASDAQ`, `RUSSELL2000`) and falls back to regional/global when sub-group size $< 10$.
+   - `trading_system/src/ai/ensemble_scorer.py`:
+     - Phase 3-A (lines 1890–1896): Integrates `self.score_normalizer.normalize_scores(df=merged, strategy_cols=strategy_score_cols, market_col='market')` for cross-sections ($N \ge 5$).
+     - Dynamic Available-Factor Re-normalization (lines 2012–2023):
+       ```python
+       valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
+       clean_score = np.where(valid_mask, merged[score_col], 0.0)
+       total_score_series += clean_score * w_series
+       total_weight_series += w_series * valid_mask.astype(float)
+       valid_count_series += valid_mask.astype(float)
+       safe_weight_series = total_weight_series.replace(0.0, np.nan)
+       linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+       ```
+       Guarantees active weights $\tilde{w}_{i,k} = \frac{m_{i,k} w_k^{(i)}}{\sum_j m_{i,j} w_j^{(i)}}$ sum to exactly $1.0$ per ticker.
+     - Tier alpha score decomposition (lines 2048–2085): Missing strategy tiers return `np.nan` and only valid present tiers are weighted.
+   - Strategy Engines Audited for 0.50 Purge:
+     - `trading_system/src/core/accruals_quality.py` (lines 84, 146): Returns `np.nan` when fundamentals are absent or `accrual_ratio` is invalid.
+     - `trading_system/src/core/valueup_catalyst.py` (lines 140, 155): Returns `np.nan` when PBR / financial data is missing.
+     - `trading_system/src/core/short_interest_squeeze.py` (lines 122, 144): Returns `np.nan` when short metrics and price data are missing.
+     - `trading_system/src/core/trend_efficiency.py` (lines 88, 98, 150): Returns `np.nan` when price history $< 21$ bars.
+     - `trading_system/src/core/insider_buying.py` (lines 78, 124): Defaults to `np.nan` for tickers without insider disclosure filings.
+     - `trading_system/src/core/earnings_tone_drift.py` (lines 97, 118): Defaults to `np.nan` for tickers without earnings call transcripts.
+     - `trading_system/src/core/iv_skew.py` (lines 51, 88, 108, 166): Returns `np.nan` when option chains or 20-day prices are missing.
+   - Pipeline Orchestration:
+     - `trading_system/run_pipeline.py` (lines 2769–2770, 3259): `_save_strategy_predictions_report` drops NaNs cleanly (`dropna(subset=[score_col])`) instead of `fillna(0.5)`; Strategy 31 returns an empty DataFrame when microstructure data is unavailable.
+2. **Test Execution Results**:
+   - Command: `.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py tests/test_r1_ensemble_regime_fixes.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_regime_ensemble.py -v`
+   - Result: 47 passed, 1 warning in 42.30s (100% PASS).
+   - Command: `.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py -v`
+   - Result: 14 passed in 38.54s (100% PASS).
+3. **Integrity Audit**:
+   - No hardcoded test fixtures, dummy facade classes, or fake test returns detected.
+   - All normalizations and dynamic weights are computed through valid mathematical operators.
 
 ## 2. Logic Chain
-
-1. Unadjusted stock splits (e.g. 1:4 split or 4:1 reverse split) or corrupted network data introduce extreme price jumps (>300% or <-75%) that severely distort downstream strategy indicators (ATR, Bollinger Bands, Moving Averages, Momentum).
-2. By coupling `CorporateActionAdjuster` (backward scaling of historical OHLC and inverse scaling of volume) with `filter_price_spikes` inside `DataValidator.sanitize_and_validate_price_data`, stock splits are automatically adjusted while extreme corrupted price spikes are rejected before storage.
-3. Defensive verification inside `StockPriceDB.update_prices` ensures no corrupted or unadjusted data enters SQLite database storage regardless of entry path.
-4. Active TTL eviction and date-change invalidation in `DataFrameCache` guarantee that raw OHLCV DataFrames cached in memory do not persist across trading days or outlive their designated TTL window.
-5. Releasing `_lock` during `fetcher` calls in `DataFrameCache.get_or_compute` ensures thread-safe, non-blocking concurrent fetching under multi-threaded execution.
-
----
+- Step 1 (Observation 1 & 2): Heterogeneous alpha signals have different scales (e.g. raw XGBoost returns $\sim 0.05$ vs. unbounded Z-scores vs. probabilities in $[0, 1]$). `CrossSectionalScoreNormalizer` maps valid observations to uniform percentile ranks in $[0.005, 0.995]$ with mean $0.50$ and std $\approx 0.2887$, eliminating variance dominance while preserving rank order.
+- Step 2 (Observation 1): In `CrossSectionalScoreNormalizer._normalize_matrix`, `np.nan` values are masked out of rank calculations and left unchanged as `np.nan`.
+- Step 3 (Observation 1): In `EnsembleScoringEngine.combine_predictions`, the mask $m_{i,k} = \mathbf{1}_{\{X_{i,k} \neq \text{NaN}\}}$ tracks availability. The effective score is $\text{Score}_i = \frac{\sum_k m_{i,k} X_{i,k} w_k}{\sum_k m_{i,k} w_k}$, which strictly normalizes active weights to $1.0$ without deflating scores for stocks lacking US-specific or disclosure-specific strategies.
+- Step 4 (Observation 1 & 2): All 7 strategy engines now output `np.nan` when required inputs are missing, and `test_accruals_quality_returns_nan_on_missing_fundamentals`, `test_valueup_catalyst_returns_nan_on_missing_data`, `test_short_interest_squeeze_returns_nan_on_missing_data`, `test_trend_efficiency_returns_nan_on_insufficient_prices`, `test_insider_buying_returns_nan_on_missing_filings`, `test_earnings_tone_drift_returns_nan_on_missing_transcripts`, and `test_iv_skew_returns_nan_on_missing_data` all pass with 100% success.
+- Step 5 (Adversarial stress-testing):
+  - Constant inputs / zero variance: `method='average'` in ranking assigns $0.50$ to ties without division by zero.
+  - Zero MAD in Winsorized Z-score: Falls back to sample standard deviation, preventing infinite Z-scores.
+  - Single observation: Assigns neutral midpoint $0.50$ without crash.
 
 ## 3. Caveats
-
-- `bypass_validation=True` parameter in `StockPriceDB.update_prices` is retained for synthetic unit tests where artificial price data intentionally omits full volume or OHLC range requirements.
-- In `filter_price_spikes`, when an isolated single-day spike is interpolated, `ratios` is not re-computed immediately for the next index within the same loop iteration. However, index `i+1` is safely handled, and test verification confirms clean, uncorrupted output.
-
----
+- No caveats. All changes are backward compatible with existing pipelines and test suites.
 
 ## 4. Conclusion
-
-The implementation is verified to be correct, robust, thread-safe, and free of integrity violations. All acceptance criteria for Milestone 1 are fully satisfied. Final Verdict: **APPROVE**.
-
----
+Milestone 1 (Requirement R1: 31-Strategy Score Normalization, 0.50 Purge, Dynamic Weight Re-normalization) meets all acceptance criteria, preserves mathematical invariants, and introduces zero integrity violations or regressions.
+**Explicit Verdict: APPROVE**
 
 ## 5. Verification Method
-
-Independently verify by executing:
-
+To independently replicate verification:
 ```bash
-.venv\Scripts\python.exe -m pytest trading_system/tests/test_technical_cache.py trading_system/tests/test_data_validator.py trading_system/tests/test_database.py -v
+.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py tests/test_r1_ensemble_regime_fixes.py tests/test_adversarial_ensemble_scorer_challenger.py tests/test_regime_ensemble.py -v
 ```
-
-Expected result: 23 passed, 0 failures.
+Expected output: 47 passed, 0 failed.

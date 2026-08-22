@@ -1003,12 +1003,17 @@ class OnDevicePredictionModel:
                             date_col = col
                             break
 
+                # Apply market-aware dynamic filing lag to fundamental dates (KRX 45d, US 40d, eliminate lookahead bias)
+                df_fun_shifted = df_fun.copy()
+                if 'date_available' not in df_fun_shifted.columns:
+                    lag_d = 45 if (str(symbol).isdigit() or str(symbol).endswith(('.KS', '.KQ'))) else 40
+                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=lag_d)
+                else:
+                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date_available'])
+
                 if date_col:
-                    # Apply 60-day conservative filing lag to fundamental dates (eliminate lookahead bias)
-                    df_fun_shifted = df_fun.copy()
-                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
                     df['date_align'] = pd.to_datetime(df[date_col])
-                    # Merge on date_available so Q4/FY fundamentals become visible only 60 days after fiscal end
+                    # Merge on date_available so fundamentals become visible according to filing lag
                     df = pd.merge_asof(
                         df.sort_values('date_align'),
                         df_fun_shifted.sort_values('date_available'),
@@ -1020,8 +1025,6 @@ class OnDevicePredictionModel:
                     df = df.drop(columns=['date_align', 'date_available', 'date_fund'], errors='ignore')
                     df = df.set_index(date_col)
                 else:
-                    df_fun_shifted = df_fun.copy()
-                    df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
                     df_idx_name = df.index.name or 'index_date'
                     df_reset = df.reset_index()
                     if df.index.name is None and 'index' in df_reset.columns:

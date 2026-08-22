@@ -31,8 +31,8 @@ _last_request_time = 0.0
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-# Set default socket timeout to prevent hanging connections
-socket.setdefaulttimeout(5)
+# Set default socket timeout to prevent hanging connections (relaxed to 30s to prevent premature drops during batch downloads)
+socket.setdefaulttimeout(30)
 
 # Ignore Pandas pct_change FutureWarning to keep logs clean
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -1501,14 +1501,33 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             krx_sample = min(5, krx_sample) if active_krx_symbols else 0
             logger.info(f"[DEBUG MODE] Overriding training samples: US={sp500_sample}, KRX={krx_sample}")
 
-        def _safe_sample(population, k):
+        def _stratified_sample(population, k, universe_df=None):
+            if not population or k <= 0:
+                return []
             if k >= len(population):
                 return list(population)
+            if universe_df is not None and not universe_df.empty and 'symbol' in universe_df.columns:
+                sub_univ = universe_df[universe_df['symbol'].isin(population)]
+                strat_col = 'sector' if ('sector' in sub_univ.columns and sub_univ['sector'].notna().sum() > 0) else ('market' if 'market' in sub_univ.columns else None)
+                if strat_col:
+                    groups = sub_univ.groupby(strat_col)['symbol'].apply(list).to_dict()
+                    sampled = []
+                    total_pop = len(population)
+                    for grp, grp_syms in groups.items():
+                        grp_k = max(1, round(k * len(grp_syms) / total_pop))
+                        sampled.extend(random.sample(grp_syms, min(grp_k, len(grp_syms))))
+                    if len(sampled) > k:
+                        sampled = random.sample(sampled, k)
+                    elif len(sampled) < k:
+                        remaining = [s for s in population if s not in set(sampled)]
+                        if remaining:
+                            sampled.extend(random.sample(remaining, min(k - len(sampled), len(remaining))))
+                    return sampled
             return random.sample(population, k)
 
-        train_krx_overall = _safe_sample(active_krx_symbols, krx_sample) if active_krx_symbols else []
+        train_krx_overall = _stratified_sample(active_krx_symbols, krx_sample, universe_df=universe) if active_krx_symbols else []
         train_krx_set = set(train_krx_overall)
-        train_us_overall = _safe_sample(active_us_symbols, sp500_sample) if active_us_symbols else []
+        train_us_overall = _stratified_sample(active_us_symbols, sp500_sample, universe_df=universe) if active_us_symbols else []
         train_symbols = train_us_overall + train_krx_overall
 
         # Per-market breakdown for training (preserve market proportions)
@@ -1969,33 +1988,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
         os.makedirs(result_dir, exist_ok=True)
 
-        if not stat_arb_pairs:
-            # Continuous fallback: calculate 20-day MA Z-score deviation for all symbols
-            for sym, df_p in infer_data_dict.items():
-                if df_p is not None and len(df_p) >= 20:
-                    try:
-                        c = df_p['Close']
-                        if isinstance(c, pd.DataFrame):
-                            c = c.iloc[:, 0]
-                        c = c.dropna()
-                        if len(c) >= 20:
-                            ma20 = float(c.rolling(20).mean().iloc[-1])
-                            std20 = float(c.rolling(20).std().iloc[-1])
-                            if std20 > 0:
-                                z = (float(c.iloc[-1]) - ma20) / std20
-                                mkt = symbol_market.get(sym, 'KOSPI')
-                                stat_arb_pairs.append({
-                                    'pair': (sym, 'BENCHMARK'),
-                                    'z_score': round(float(z), 2),
-                                    'correlation': 0.85,
-                                    'beta': 1.0,
-                                    'signal': f'LONG_{sym}_SHORT_BENCHMARK' if z <= -2.0 else (f'SHORT_{sym}_LONG_BENCHMARK' if z >= 2.0 else 'NEUTRAL'),
-                                    'market': mkt
-                                })
-                    except Exception as e:
-                        logger.debug(f"Stat-Arb fallback failed for {sym}: {e}")
-
-        valid_stat_arb_pairs = list(stat_arb_pairs)
+        valid_stat_arb_pairs = list(stat_arb_pairs) if stat_arb_pairs else []
         valid_stat_arb_pairs.sort(key=lambda x: abs(x.get('z_score', 0.0)), reverse=True)
         top_stat_arb_pairs = valid_stat_arb_pairs[:200]
 
@@ -2003,6 +1996,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             f_out.write("=== Statistical Arbitrage Pairs & Signals ===\n")
             f_out.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
             f_out.write(f"Total cointegrated pairs found: {len(pairs_list)}\n\n")
+            if not pairs_list:
+                f_out.write("데이터 없음 (유의미한 공적분 페어 미발견)\n")
+                return
             f_out.write(f"{'Pair':<25}{'Z-Score':<10}{'Correlation':<15}{'Beta/Hedge':<12}{'Signal':<20}\n")
             f_out.write("-" * 80 + "\n")
             for p in pairs_list[:100]:
@@ -2020,8 +2016,6 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         # Per-market suffix files
         for _m in ['KOSPI', 'KOSDAQ', 'SP500', 'NASDAQ', 'RUSSELL2000']:
             _m_pairs = [p for p in top_stat_arb_pairs if p.get('market') == _m or p['pair'][0] in set(universe[universe['market'] == _m]['symbol'])]
-            if not _m_pairs:
-                _m_pairs = top_stat_arb_pairs[:20]
             _mkt_path = os.path.join(result_dir, f"stat_arb_predictions_{_m}.txt")
             with open(_mkt_path, "w", encoding="utf-8") as _mf:
                 _write_stat_arb_file(_mf, _m_pairs)
@@ -2642,7 +2636,11 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 fund_df = storage.get_all_fundamentals(df_rim_input['symbol'].tolist())
                 if fund_df is not None and not fund_df.empty:
                     fund_df['date'] = pd.to_datetime(fund_df['date'])
-                    fund_df['date_available'] = fund_df['date'] + pd.Timedelta(days=60)
+                    if 'date_available' not in fund_df.columns:
+                        lag_days = fund_df['symbol'].map(lambda s: 45 if (str(s).isdigit() or str(s).endswith(('.KS', '.KQ'))) else 40)
+                        fund_df['date_available'] = fund_df['date'] + pd.to_timedelta(lag_days, unit='D')
+                    else:
+                        fund_df['date_available'] = pd.to_datetime(fund_df['date_available'])
                     cutoff_date = pd.to_datetime(date_str)
                     fund_df = fund_df[fund_df['date_available'] <= cutoff_date]
                     if not fund_df.empty:
@@ -2954,7 +2952,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 if 'date_available' in _fd.columns:
                     _fd_valid = _fd[pd.to_datetime(_fd['date_available']) <= _cur_dt]
                 elif 'date' in _fd.columns:
-                    _fd_valid = _fd[pd.to_datetime(_fd['date']) + pd.Timedelta(days=60) <= _cur_dt]
+                    _lag_d = 45 if (str(_sym).isdigit() or str(_sym).endswith(('.KS', '.KQ'))) else 40
+                    _fd_valid = _fd[pd.to_datetime(_fd['date']) + pd.Timedelta(days=_lag_d) <= _cur_dt]
                 else:
                     _fd_valid = _fd
 

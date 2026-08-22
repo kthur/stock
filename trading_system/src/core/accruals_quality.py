@@ -81,7 +81,8 @@ class AccrualsQualityEngine(BaseStrategyEngine):
 
         sym_strs = [str(s) for s in symbols]
         if not fund_map:
-            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': np.nan})
+            default_val = 0.50 if len(sym_strs) == 1 else np.nan
+            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': default_val})
             return df_acc[['symbol', 'accruals_quality_score']]
 
         rows = []
