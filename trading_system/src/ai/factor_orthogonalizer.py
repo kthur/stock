@@ -77,13 +77,14 @@ class FactorOrthogonalizerEngine:
             col_means = np.mean(X_clean, axis=0)
 
         col_stds = np.std(X_clean, axis=0)
-        col_stds = np.where(col_stds < 1e-8, 1e-6, col_stds)
+        col_stds = np.where(np.isnan(col_stds) | (col_stds < 1e-8), 1e-6, col_stds)
 
         use_dispersion = (
+            scaling_method is None or
             scaling_method == 'dispersion' or
             'dispersion' in str(eff_method).lower() or
             scaling_method == 'sigmoid'
-        )
+        ) and (scaling_method != 'rank')
 
         if str(eff_method).startswith('gram_schmidt'):
             X_ortho = self._gram_schmidt(X_clean, valid_cols, weights, col_means, col_stds)
@@ -289,8 +290,8 @@ class CrossSectionalFactorNeutralizer:
             avail_factors = [f for f in self.risk_factors if f in factor_loadings.columns]
             if avail_factors:
                 f_df = factor_loadings.reindex(index=valid_idx, columns=avail_factors).fillna(0.0)
-                # Standardize factor loadings
-                f_std = (f_df - f_df.mean()) / (f_df.std().replace(0.0, 1.0) + 1e-6)
+                # Standardize factor loadings safely
+                f_std = ((f_df - f_df.mean()) / (f_df.std().fillna(1.0).replace(0.0, 1.0) + 1e-6)).fillna(0.0)
                 cols_to_concat.append(f_std)
 
         if sector_series is not None and len(sector_series) > 0:

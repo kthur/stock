@@ -2,6 +2,7 @@
 
 import logging
 from typing import Dict, List, Optional, Any
+import numpy as np
 import pandas as pd
 import yfinance as yf
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, retry_if_exception_type
@@ -258,10 +259,12 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                         eps = item.get("basicEps", {}).get("raw", item.get("dilutedEps", {}).get("raw", 0.0))
 
                         dt = pd.to_datetime(end_date_str)
+                        is_kr = yf_sym.endswith(('.KS', '.KQ'))
+                        p_type = "quarterly" if is_quarterly else "annual"
                         rows.append({
                             "date_align": dt,
-                            "date_available": (dt + pd.Timedelta(days=60)).strftime('%Y-%m-%d'),
-                            "period_type": "quarterly" if is_quarterly else "annual",
+                            "date_available": compute_regulatory_filing_lag(dt, p_type, is_krx=is_kr),
+                            "period_type": p_type,
                             "revenue": float(rev) * scale_factor,
                             "operating_income": float(op_inc) * scale_factor,
                             "net_income": float(net_inc) * scale_factor,

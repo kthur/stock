@@ -453,12 +453,9 @@ class EnsembleScoringEngine:
         self._load_prev_weights()
 
     def _load_prev_weights(self) -> None:
-        """Load persisted EMA ensemble weights for cross-run continuity.
-
-        The persisted regime is restored together with the weights so that a
-        regime change between pipeline runs is detected as a shift (alpha=1.0)
-        instead of smoothing stale weights from a different regime.
-        """
+        """Load persisted EMA ensemble weights for cross-run continuity with market segregation."""
+        self._prev_weights: Dict[str, Dict[str, float]] = {}
+        self._prev_regime: Dict[str, str] = {}
         try:
             from pathlib import Path
             import json
@@ -466,15 +463,25 @@ class EnsembleScoringEngine:
             if weights_file.exists():
                 with open(weights_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                weights_data = data.get("weights", data) if isinstance(data, dict) else data
-                if isinstance(weights_data, dict) and weights_data:
-                    self._prev_weights = {str(k): float(v) for k, v in weights_data.items()}
-                    loaded_regime = data.get("regime") if isinstance(data, dict) else None
-                    if loaded_regime:
-                        self._prev_regime = loaded_regime
+                if isinstance(data, dict):
+                    if any(k in data for k in ("us", "kr", "global")):
+                        for mkt, mkt_data in data.items():
+                            if isinstance(mkt_data, dict):
+                                w = mkt_data.get("weights", {})
+                                if isinstance(w, dict):
+                                    self._prev_weights[mkt] = {str(k): float(v) for k, v in w.items()}
+                                reg = mkt_data.get("regime")
+                                if reg:
+                                    self._prev_regime[mkt] = str(reg)
+                    elif "weights" in data or "regime" in data:
+                        w = data.get("weights", {})
+                        if isinstance(w, dict):
+                            self._prev_weights["global"] = {str(k): float(v) for k, v in w.items()}
+                        reg = data.get("regime")
+                        if reg:
+                            self._prev_regime["global"] = str(reg)
                     logger.info(
-                        f"[EMA] Loaded previous ensemble weights from prev_weights.json "
-                        f"({len(self._prev_weights)} strategies, regime={loaded_regime})"
+                        f"[EMA] Loaded previous ensemble weights from prev_weights.json for markets: {list(self._prev_weights.keys())}"
                     )
         except Exception as e:
             logger.warning(f"Could not load prev_weights.json: {e}")
@@ -804,7 +811,8 @@ class EnsembleScoringEngine:
             if len(subset_df) < 10:
                 return weights
 
-            corr_matrix = subset_df.corr().abs()
+            corr_matrix = subset_df.corr().abs().fillna(0.0)
+            np.fill_diagonal(corr_matrix.values, 1.0)
             col_to_sid = {v: k for k, v in valid_cols.items()}
 
             # Löwdin Symmetric Orthogonalization: C^(-1/2) for order-independent penalization
@@ -840,7 +848,8 @@ class EnsembleScoringEngine:
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
         pruning_threshold: Optional[float] = -0.50,
-        smooth_downside_mode: bool = False
+        smooth_downside_mode: bool = False,
+        market: str = "global"
     ) -> Dict[str, float]:
         """
         Dynamically adjusts strategy weights using recent rolling Sharpe ratios per strategy,
@@ -855,6 +864,8 @@ class EnsembleScoringEngine:
         """
         base_weights = self.get_base_weights(regime, vix_val=vix_val)
         if not rolling_sharpes:
+            self._prev_weights[market] = dict(base_weights)
+            self._prev_regime[market] = str(regime)
             return base_weights
 
         clean_sharpes = {}
@@ -869,6 +880,8 @@ class EnsembleScoringEngine:
             logger.info(
                 "[COLD-START] No realized strategy outcomes yet — using regime base weights (dynamic Sharpe weighting inactive)."
             )
+            self._prev_weights[market] = dict(base_weights)
+            self._prev_regime[market] = str(regime)
             return base_weights
 
         # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
@@ -886,12 +899,12 @@ class EnsembleScoringEngine:
 
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
-            # Convex Sharpe Elasticity Multiplier for high performing strategies
-            if clipped_sharpe >= 1.50:
+            # Convex Sharpe Elasticity Multiplier for high performing strategies (using raw Sharpe)
+            if sharpe >= 1.50:
                 multiplier *= 1.25
-            elif clipped_sharpe >= 1.00:
+            elif sharpe >= 1.00:
                 multiplier *= 1.15
-            elif clipped_sharpe >= 0.50:
+            elif sharpe >= 0.50:
                 multiplier *= 1.08
             elif clipped_sharpe < 0.0:
                 # Asymmetric downside risk mitigation for mild underperformance
@@ -951,16 +964,18 @@ class EnsembleScoringEngine:
 
         # Detect regime transition or explicit factor tilting to accelerate EMA weight smoothing
         current_regime_str = str(regime)
-        is_regime_shift = (self._prev_regime is not None) and (str(self._prev_regime) != current_regime_str)
+        prev_w_mkt = self._prev_weights.get(market)
+        prev_reg_mkt = self._prev_regime.get(market)
+        is_regime_shift = (prev_reg_mkt is not None) and (str(prev_reg_mkt) != current_regime_str)
         has_explicit_tilting = bool(factor_ic_dict or factor_crowding_penalties)
-        self._prev_regime = regime
+        self._prev_regime[market] = current_regime_str
 
         eff_alpha = 1.0 if (is_regime_shift or has_explicit_tilting) else self.alpha_smoothing
 
         # Apply EMA Weight Smoothing only when strategy spaces match to prevent cross-space dimension leakage
         strategy_space_matches = (
-            self._prev_weights is not None
-            and set(self._prev_weights.keys()) == set(dynamic_weights.keys())
+            prev_w_mkt is not None
+            and set(prev_w_mkt.keys()) == set(dynamic_weights.keys())
         )
         if strategy_space_matches and eff_alpha < 1.0:
             smoothed = {}
@@ -968,7 +983,7 @@ class EnsembleScoringEngine:
                 if target_w == 0.0:
                     smoothed[k] = 0.0
                 else:
-                    prev_w = self._prev_weights.get(k, target_w)
+                    prev_w = prev_w_mkt.get(k, target_w)
                     smoothed[k] = eff_alpha * target_w + (1.0 - eff_alpha) * prev_w
 
             total_w = sum(smoothed.values())
@@ -976,21 +991,24 @@ class EnsembleScoringEngine:
                 smoothed = {k: v / total_w for k, v in smoothed.items()}
             dynamic_weights = smoothed
 
-        self._prev_weights = dict(dynamic_weights)
+        self._prev_weights[market] = dict(dynamic_weights)
 
-        # Persist EMA weights to disk for continuity across runs (with the regime
-        # that produced them, so cross-run regime shifts force alpha=1.0).
+        # Persist EMA weights to disk for continuity across runs
         try:
             from pathlib import Path
             import json
             models_dir = Path(__file__).resolve().parent.parent.parent / "models"
             models_dir.mkdir(exist_ok=True)
+            payload = {
+                m: {"regime": self._prev_regime.get(m), "weights": self._prev_weights.get(m, {})}
+                for m in set(list(self._prev_weights.keys()) + list(self._prev_regime.keys()))
+            }
             with open(models_dir / "prev_weights.json", "w", encoding="utf-8") as f:
-                json.dump({"regime": str(regime), "weights": self._prev_weights}, f, indent=2)
+                json.dump(payload, f, indent=2)
         except Exception as _se:
             logger.warning(f"Could not persist prev_weights.json: {_se}")
 
-        logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' (gamma={gamma}): {dynamic_weights}")
+        logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' [{market}] (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
 
     def compute_dynamic_weights(
@@ -1023,8 +1041,9 @@ class EnsembleScoringEngine:
             if len(s) >= 10:
                 mean_a = float(s.mean())
                 std_a = float(s.std())
-                ir = (mean_a / max(std_a, 1e-6)) * np.sqrt(252)
-                ir_scores[tier_name] = float(np.clip(ir, -2.0, 2.0))
+                safe_std = 1e-6 if (np.isnan(std_a) or std_a < 1e-6) else std_a
+                ir = (mean_a / safe_std) * np.sqrt(252)
+                ir_scores[tier_name] = float(np.clip(ir, -2.0, 2.0)) if np.isfinite(ir) else 0.0
             else:
                 ir_scores[tier_name] = 0.0
 
@@ -1175,8 +1194,8 @@ class EnsembleScoringEngine:
         eff_kr_regime = kr_regime if kr_regime is not None else (regime if regime is not None else 'SIDEWAYS_LOW_VOL')
         eff_decoupling = decoupling_status if decoupling_status is not None else 'COUPLED'
 
-        us_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_us_regime, gamma=gamma)
-        kr_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_kr_regime, gamma=gamma)
+        us_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_us_regime, gamma=gamma, market="us")
+        kr_weights = self.compute_dynamic_weights_from_sharpe(rolling_sharpes or {}, eff_kr_regime, gamma=gamma, market="kr")
 
         # Apply Decoupling Alpha Tilts if active
         if eff_decoupling == 'DECOUPLING_US_BULL_KR_BEAR':
@@ -1561,6 +1580,8 @@ class EnsembleScoringEngine:
             r_col = 'rim_score' if 'rim_score' in r_val_df.columns else (num_cols[-1] if num_cols else r_val_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in r_val_df.columns]
             r_val_df = r_val_df[['symbol'] + meta_cols + [r_col]].rename(columns={r_col: 'rim_score'})
+            if r_val_df['rim_score'].max() > 1.0:
+                r_val_df['rim_score'] = r_val_df['rim_score'] / 100.0
             r_val_df['rim_score'] = r_val_df['rim_score'].clip(0.0, 1.0)
         else:
             r_val_df = pd.DataFrame(columns=['symbol', 'rim_score'])
@@ -1572,6 +1593,8 @@ class EnsembleScoringEngine:
             ev_col = 'event_score' if 'event_score' in ev_df.columns else (num_cols[-1] if num_cols else ev_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in ev_df.columns]
             ev_df = ev_df[['symbol'] + meta_cols + [ev_col]].rename(columns={ev_col: 'event_score'})
+            if ev_df['event_score'].max() > 1.0:
+                ev_df['event_score'] = ev_df['event_score'] / 100.0
             ev_df['event_score'] = ev_df['event_score'].clip(0.0, 1.0)
         else:
             ev_df = pd.DataFrame(columns=['symbol', 'event_score'])
@@ -1583,6 +1606,8 @@ class EnsembleScoringEngine:
             m_col = 'mq_score' if 'mq_score' in m_df.columns else (num_cols[-1] if num_cols else m_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in m_df.columns]
             m_df = m_df[['symbol'] + meta_cols + [m_col]].rename(columns={m_col: 'mq_score'})
+            if m_df['mq_score'].max() > 1.0:
+                m_df['mq_score'] = m_df['mq_score'] / 100.0
             m_df['mq_score'] = m_df['mq_score'].clip(0.0, 1.0)
         else:
             m_df = pd.DataFrame(columns=['symbol', 'mq_score'])
@@ -1594,6 +1619,8 @@ class EnsembleScoringEngine:
             iv_col = 'iv_skew_score' if 'iv_skew_score' in iv_df.columns else (num_cols[-1] if num_cols else iv_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in iv_df.columns]
             iv_df = iv_df[['symbol'] + meta_cols + [iv_col]].rename(columns={iv_col: 'iv_skew_score'})
+            if iv_df['iv_skew_score'].max() > 1.0:
+                iv_df['iv_skew_score'] = iv_df['iv_skew_score'] / 100.0
             iv_df['iv_skew_score'] = iv_df['iv_skew_score'].clip(0.0, 1.0)
         else:
             iv_df = pd.DataFrame(columns=['symbol', 'iv_skew_score'])
@@ -1605,6 +1632,8 @@ class EnsembleScoringEngine:
             of_col = 'order_flow_score' if 'order_flow_score' in of_df.columns else (num_cols[-1] if num_cols else of_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in of_df.columns]
             of_df = of_df[['symbol'] + meta_cols + [of_col]].rename(columns={of_col: 'order_flow_score'})
+            if of_df['order_flow_score'].max() > 1.0:
+                of_df['order_flow_score'] = of_df['order_flow_score'] / 100.0
             of_df['order_flow_score'] = of_df['order_flow_score'].clip(0.0, 1.0)
         else:
             of_df = pd.DataFrame(columns=['symbol', 'order_flow_score'])
@@ -1616,6 +1645,8 @@ class EnsembleScoringEngine:
             rev_col = 'reversal_score' if 'reversal_score' in rev_df.columns else (num_cols[-1] if num_cols else rev_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in rev_df.columns]
             rev_df = rev_df[['symbol'] + meta_cols + [rev_col]].rename(columns={rev_col: 'reversal_score'})
+            if rev_df['reversal_score'].max() > 1.0:
+                rev_df['reversal_score'] = rev_df['reversal_score'] / 100.0
             rev_df['reversal_score'] = rev_df['reversal_score'].clip(0.0, 1.0)
         else:
             rev_df = pd.DataFrame(columns=['symbol', 'reversal_score'])
@@ -1627,6 +1658,8 @@ class EnsembleScoringEngine:
             a_col = 'arm_score' if 'arm_score' in a_df.columns else (num_cols[-1] if num_cols else a_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in a_df.columns]
             a_df = a_df[['symbol'] + meta_cols + [a_col]].rename(columns={a_col: 'arm_score'})
+            if a_df['arm_score'].max() > 1.0:
+                a_df['arm_score'] = a_df['arm_score'] / 100.0
             a_df['arm_score'] = a_df['arm_score'].clip(0.0, 1.0)
         else:
             a_df = pd.DataFrame(columns=['symbol', 'arm_score'])
@@ -1638,6 +1671,8 @@ class EnsembleScoringEngine:
             c_col = 'card_score' if 'card_score' in c_df.columns else (num_cols[-1] if num_cols else c_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in c_df.columns]
             c_df = c_df[['symbol'] + meta_cols + [c_col]].rename(columns={c_col: 'card_score'})
+            if c_df['card_score'].max() > 1.0:
+                c_df['card_score'] = c_df['card_score'] / 100.0
             c_df['card_score'] = c_df['card_score'].clip(0.0, 1.0)
         else:
             c_df = pd.DataFrame(columns=['symbol', 'card_score'])
@@ -1649,6 +1684,8 @@ class EnsembleScoringEngine:
             la_col = 'latr_score' if 'latr_score' in la_df.columns else (num_cols[-1] if num_cols else la_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in la_df.columns]
             la_df = la_df[['symbol'] + meta_cols + [la_col]].rename(columns={la_col: 'latr_score'})
+            if la_df['latr_score'].max() > 1.0:
+                la_df['latr_score'] = la_df['latr_score'] / 100.0
             la_df['latr_score'] = la_df['latr_score'].clip(0.0, 1.0)
         else:
             la_df = pd.DataFrame(columns=['symbol', 'latr_score'])
@@ -1660,6 +1697,8 @@ class EnsembleScoringEngine:
             ifs_col = 'inst_foreign_sector_score' if 'inst_foreign_sector_score' in ifs_df.columns else (num_cols[-1] if num_cols else ifs_df.columns[-1])
             meta_cols = [c for c in META_COLS if c in ifs_df.columns]
             ifs_df = ifs_df[['symbol'] + meta_cols + [ifs_col]].rename(columns={ifs_col: 'inst_foreign_sector_score'})
+            if ifs_df['inst_foreign_sector_score'].max() > 1.0:
+                ifs_df['inst_foreign_sector_score'] = ifs_df['inst_foreign_sector_score'] / 100.0
             ifs_df['inst_foreign_sector_score'] = ifs_df['inst_foreign_sector_score'].clip(0.0, 1.0)
         else:
             ifs_df = pd.DataFrame(columns=['symbol', 'inst_foreign_sector_score'])
@@ -1886,6 +1925,14 @@ class EnsembleScoringEngine:
             ('earnings_tone_drift', 'earnings_tone_drift_score'),
         ]
 
+        # Phase 3-Pre: Apply Isotonic / Platt Probability Calibration to raw scores if calibrators are fitted
+        if self.has_calibrators():
+            for strategy_name, col in strategy_cols:
+                if col in merged.columns and strategy_name in self._calibrators:
+                    valid_mask = merged[col].notna() & np.isfinite(merged[col])
+                    if valid_mask.any():
+                        merged.loc[valid_mask, col] = self.calibrate_scores(strategy_name, merged.loc[valid_mask, col].values)
+
         # Phase 3-A: Cross-Sectional Score Normalization (Percentile Rank / Winsorized Gaussian CDF)
         if len(merged) >= 5 and getattr(self, 'score_normalizer', None) is not None:
             strategy_score_cols = [col for _, col in strategy_cols if col in merged.columns]
@@ -1960,14 +2007,6 @@ class EnsembleScoringEngine:
             except Exception as _ce:
                 logger.warning(f"Correlation suppression calculation warning: {_ce}")
 
-        # Phase 4-A: Apply Isotonic Regression calibration if calibrators are fitted
-        if self.has_calibrators():
-            for strategy_name, col in strategy_cols:
-                if col in merged.columns and strategy_name in self._calibrators:
-                    valid_mask = merged[col].notna() & np.isfinite(merged[col])
-                    if valid_mask.any():
-                        merged.loc[valid_mask, col] = self.calibrate_scores(strategy_name, merged.loc[valid_mask, col].values)
-
         # Dynamic Weight Renormalization & Missingness-Aware Coverage Penalization (Market-Specific Dual Weights)
         total_score_series = pd.Series(0.0, index=merged.index)
         total_weight_series = pd.Series(0.0, index=merged.index)
@@ -2023,7 +2062,11 @@ class EnsembleScoringEngine:
         safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
-        linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
+        raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
+        # Missingness-Aware Coverage Shrinkage: penalize tickers with low strategy coverage
+        coverage_ratio = (valid_weight_series / safe_nom_weight).clip(0.0, 1.0)
+        coverage_factor = 0.50 + 0.50 * coverage_ratio
+        linear_score = (raw_linear_score * coverage_factor).clip(0.0, 1.0)
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
         slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]

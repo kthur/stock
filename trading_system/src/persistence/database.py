@@ -7,7 +7,7 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 import aiosqlite
 import numpy as np
@@ -66,8 +66,28 @@ class _DBConnection:
                 await self._conn.execute("PRAGMA cache_size=-32000")
                 await self._conn.execute("PRAGMA temp_store=MEMORY")
                 await self._conn.execute("PRAGMA busy_timeout=30000")
+                await self._conn.execute("PRAGMA foreign_keys=ON")
             await self._conn.execute(sql, params)
             await self._conn.commit()
+
+    async def execute_write_batch(self, operations: List[Tuple[str, tuple]]):
+        """Executes multiple write operations atomically inside a single transaction."""
+        async with self._lock:
+            if self._conn is None:
+                self._conn = await aiosqlite.connect(self.db_path)
+                await self._conn.execute("PRAGMA journal_mode=WAL")
+                await self._conn.execute("PRAGMA synchronous=NORMAL")
+                await self._conn.execute("PRAGMA cache_size=-32000")
+                await self._conn.execute("PRAGMA temp_store=MEMORY")
+                await self._conn.execute("PRAGMA busy_timeout=30000")
+                await self._conn.execute("PRAGMA foreign_keys=ON")
+            try:
+                for sql, params in operations:
+                    await self._conn.execute(sql, params)
+                await self._conn.commit()
+            except Exception:
+                await self._conn.rollback()
+                raise
 
     async def close(self):
         async with self._lock:
@@ -171,7 +191,7 @@ class TradeLogger(AsyncDBBase):
         self.logger.debug(f"Order logged: {order.order_id}")
 
     async def log_execution(self, order_id: str, symbol: str, quantity: int, price: float):
-        """체결 기록"""
+        """체결 기록 (단일 트랜잭션 원자적 커밋)"""
         await self._init_database()
         now_str = datetime.now().isoformat()
         sql_order = """
@@ -179,15 +199,15 @@ class TradeLogger(AsyncDBBase):
             (order_id, symbol, order_type, quantity, price, status, created_at)
             VALUES (?, ?, 'LIMIT', ?, ?, 'FILLED', ?)
         """
-        await self._conn_mgr.execute_write(sql_order, (order_id, symbol, quantity, price, now_str))
-
-        sql = """
+        sql_exec = """
             INSERT INTO executions
             (order_id, symbol, quantity, price, executed_at)
             VALUES (?, ?, ?, ?, ?)
         """
-        params = (order_id, symbol, quantity, price, now_str)
-        await self._conn_mgr.execute_write(sql, params)
+        await self._conn_mgr.execute_write_batch([
+            (sql_order, (order_id, symbol, quantity, price, now_str)),
+            (sql_exec, (order_id, symbol, quantity, price, now_str)),
+        ])
         self.logger.info(f"Execution logged: {symbol} x{quantity} @ {price}")
 
     async def get_trade_history(self, symbol: str | None = None, limit: int = 100) -> List[Dict]:

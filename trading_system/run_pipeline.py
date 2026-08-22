@@ -23,10 +23,6 @@ _CPU_WORKERS: int = max(1, cpu_count if cpu_count is not None else 4)
 _IO_WORKERS: int = min(32, max(16, _CPU_WORKERS * 8))
 _PER_SYMBOL_TIMEOUT = 30  # seconds per symbol before skipping
 
-# Rate limiter for network requests (shared across threads)
-_rate_lock = threading.Lock()
-_last_request_time = 0.0
-
 # Reconfigure stdout to UTF-8 to prevent UnicodeEncodeError on Windows (cp949)
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -68,6 +64,45 @@ setup_global_http_headers()
 def detect_shared_series_corruption(vix_val, wti_val, gold_val, us10y_val) -> bool:
     """P0: Detect shared-series / DB cache contamination on RAW indicator values."""
     return DataValidator.detect_shared_series_corruption(vix_val, wti_val, gold_val, us10y_val)
+
+
+def largest_remainder_round(values: list[float], target_sum: float = 100.0, decimals: int = 1) -> list[float]:
+    """
+    Distribute target_sum across values using Largest Remainder Method (Hare-Niemeyer)
+    so that the rounded values sum exactly to target_sum at specified decimal places.
+    """
+    if not values:
+        return []
+    factor = 10 ** decimals
+    total_val = sum(values)
+    if total_val <= 0:
+        n = len(values)
+        base = int((target_sum * factor) // n)
+        rem = int(round(target_sum * factor - base * n))
+        res = [base + (1 if i < rem else 0) for i in range(n)]
+        return [r / factor for r in res]
+    
+    target_int = int(round(target_sum * factor))
+    scaled = [v * (target_int / total_val) for v in values]
+    floored = [int(s) for s in scaled]
+    remainders = [(s - f, -v, i) for i, (s, f, v) in enumerate(zip(scaled, floored, values))]
+    
+    current_sum = sum(floored)
+    diff = target_int - current_sum
+    
+    if diff > 0:
+        # Sort by remainder descending, then original value descending
+        remainders.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        for j in range(diff):
+            idx = remainders[j % len(remainders)][2]
+            floored[idx] += 1
+    elif diff < 0:
+        remainders.sort(key=lambda x: (x[0], x[1]))
+        for j in range(-diff):
+            idx = remainders[j % len(remainders)][2]
+            floored[idx] = max(0, floored[idx] - 1)
+            
+    return [f / factor for f in floored]
 
 
 # P3: Rotating file logger — persists logs across terminal sessions and GHA log expiry
@@ -867,15 +902,18 @@ def _download_indicator_network(ticker: str, start_date: str) -> pd.DataFrame:
 
 # Module-level ECOS client (lazy init): reused across calls
 _ecos_client: Optional[BOKECOSClient] = None
+_ecos_lock = threading.Lock()
 
 
 def _get_ecos_client() -> BOKECOSClient:
-    """Return module-level BOKECOSClient, initializing on first call."""
+    """Return module-level BOKECOSClient, initializing on first call with thread safety."""
     global _ecos_client
     if _ecos_client is None:
-        _ecos_client = BOKECOSClient()
-        mode = "sample (rate-limited)" if _ecos_client.api_key == "sample" else "authenticated"
-        logger.info(f"[ECOS] BOKECOSClient initialized in {mode} mode")
+        with _ecos_lock:
+            if _ecos_client is None:
+                _ecos_client = BOKECOSClient()
+                mode = "sample (rate-limited)" if _ecos_client.api_key == "sample" else "authenticated"
+                logger.info(f"[ECOS] BOKECOSClient initialized in {mode} mode")
     return _ecos_client
 
 
@@ -1185,8 +1223,8 @@ def _get_excluded_krx_symbols() -> set:
                 excluded |= admin
         except Exception as e:
             logger.debug(f"Could not fetch KRX-ADMINISTRATIVE listing: {e}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Error checking excluded KRX symbols: {e}")
     return excluded
 
 
@@ -1220,8 +1258,8 @@ def execute_prediction_pipeline():
                     duration_seconds=dur_secs,
                     error_summary=str(_pipe_err)[:500]
                 )
-            except Exception:
-                pass
+            except Exception as _finish_err:
+                logger.error(f"Failed to record pipeline failure status in storage: {_finish_err}")
         raise
     finally:
         ctx = _ACTIVE_PIPELINE_CTX
@@ -2534,8 +2572,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     _result = _sentiment_filter.evaluate_symbol(_sym)
                     if _result.is_blacklisted:
                         _blacklist_map[_sym] = _result
-                except Exception:
-                    pass
+                except Exception as _eval_e:
+                    logger.debug(f"Sentiment evaluation skipped for {_sym}: {_eval_e}")
             if _blacklist_map:
                 logger.info(f"[5-A] Sentiment blacklist: {len(_blacklist_map)} symbols — "
                             f"{', '.join(list(_blacklist_map.keys())[:10])}")
@@ -3278,7 +3316,25 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             lstm_df_for_ens = lstm_adapter.compute_scores(infer_data_dict)
     except Exception as _lstm_err:
         logger.warning(f"LSTM prediction inference failed: {_lstm_err}. Using empty DataFrame.")
-        lstm_df_for_ens = pd.DataFrame(columns=['symbol', 'lstm_score'])
+    # Strategy Execution Health Gate: Check non-empty strategies
+    _all_strategy_dfs = {
+        'regression': res_df, 'surge': surge_df, 'lead_lag': lead_lag_df, 'vcp_rule': vcp_results,
+        'vcp_ml': vcp_ml_df, 'lstm': lstm_df_for_ens, 'stat_arb': stat_arb_df, 'sector': sector_df,
+        'rim': rim_df, 'event': event_df, 'mq': mq_df, 'iv_skew': iv_skew_df, 'order_flow': order_flow_df,
+        'reversal': reversal_df, 'arm': arm_df, 'card': card_df, 'latr': latr_df,
+        'inst_foreign_sector': inst_foreign_sector_df, 'supply_chain': supply_chain_df,
+        'sentiment': sentiment_df, 'factor_neutralized': factor_neutralized_df, 'vol_target': vol_target_df,
+        'microstructure': microstructure_df, 'accruals_quality': accruals_quality_df,
+        'short_squeeze': short_squeeze_df, 'valueup_catalyst': valueup_catalyst_df,
+        'trend_efficiency': trend_efficiency_df, 'gamma_squeeze': gamma_squeeze_df,
+        'insider_buying': insider_buying_df, 'darkpool': darkpool_df,
+        'earnings_tone_drift': earnings_tone_drift_df,
+    }
+    _active_strats = [name for name, df in _all_strategy_dfs.items() if df is not None and not (isinstance(df, pd.DataFrame) and df.empty)]
+    _strat_coverage = len(_active_strats) / len(_all_strategy_dfs)
+    logger.info(f"[STRATEGY HEALTH GATE] Active strategies: {len(_active_strats)}/{len(_all_strategy_dfs)} ({_strat_coverage:.1%})")
+    if _strat_coverage < 0.20:
+        _notify_telegram(f"🚨 [경고] 활성 전략 수 심각한 부족: {len(_active_strats)}/{len(_all_strategy_dfs)} ({_strat_coverage:.1%})", "CRITICAL")
 
     # default target horizon is 20d (31-Strategy Ensemble)
     ensemble_df = scorer.calculate_ensemble_score(
@@ -3909,26 +3965,23 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             ("darkpool", "HFT Order Flow & Dark Pool"),
             ("earnings_tone_drift", "Earnings Tone Drift NLP Quant"),
         ]
-        us_sum = sum(us_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP)
-        us_scale = (1.0 / us_sum) if us_sum > 0 else 1.0
-        for _skey, _sname in _STRAT_DISPLAY_MAP:
-            _w_pct = (us_weights_map.get(_skey, 0.0) * us_scale) * 100.0
+        us_vals = [us_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
+        us_rounded = largest_remainder_round(us_vals, target_sum=100.0, decimals=1)
+        for (_skey, _sname), _w_pct in zip(_STRAT_DISPLAY_MAP, us_rounded):
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 
-        kr_sum = sum(kr_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP)
-        kr_scale = (1.0 / kr_sum) if kr_sum > 0 else 1.0
+        kr_vals = [kr_weights_map.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
+        kr_rounded = largest_remainder_round(kr_vals, target_sum=100.0, decimals=1)
         f.write(f"--- Applied KR Strategy Weights ({len(kr_weights_map)} Strategies) [KR: {kr_2d_regime}] ---\n")
-        for _skey, _sname in _STRAT_DISPLAY_MAP:
-            _w_pct = (kr_weights_map.get(_skey, 0.0) * kr_scale) * 100.0
+        for (_skey, _sname), _w_pct in zip(_STRAT_DISPLAY_MAP, kr_rounded):
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 
-        ens_sum = sum(ensemble_weights.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP)
-        ens_scale = (1.0 / ens_sum) if ens_sum > 0 else 1.0
+        ens_vals = [ensemble_weights.get(_skey, 0.0) for _skey, _ in _STRAT_DISPLAY_MAP]
+        ens_rounded = largest_remainder_round(ens_vals, target_sum=100.0, decimals=1)
         f.write(f"--- Applied Ensemble Strategy Weights ({len(ensemble_weights)} Strategies) ---\n")
-        for _skey, _sname in _STRAT_DISPLAY_MAP:
-            _w_pct = (ensemble_weights.get(_skey, 0.0) * ens_scale) * 100.0
+        for (_skey, _sname), _w_pct in zip(_STRAT_DISPLAY_MAP, ens_rounded):
             f.write(f"  {_sname:<36}: {_w_pct:.1f}%\n")
         f.write("\n")
 
@@ -4330,10 +4383,11 @@ Examples:
                 _new_lines = [l.strip() for l in _cmp_raw.splitlines() if "NEW" in l or "UP" in l or "DOWN" in l][:4]
                 if _new_lines:
                     _cmp_msg = "\n\n📈 *이전 대비 TOP 종목 변동 요약:*\n" + "\n".join([f"• {l}" for l in _new_lines])
-        except Exception:
-            pass
+        except Exception as _cmp_e:
+            logger.debug(f"Could not parse run comparison: {_cmp_e}")
 
         _perf_msg = ""
+        _st = None
         try:
             from src.data_layer.indicator_storage import MarketIndicatorStorage
             _db_p = Path(__file__).parent / "market_indicators.db"
@@ -4342,8 +4396,14 @@ Examples:
                 _perf = _st.get_outcome_performance_summary(days=60)
                 if _perf.get("evaluated_5d", 0) > 0:
                     _perf_msg = f"\n🎯 *과거 예측 5D 적중률:* {_perf['hit_rate_5d']}% (평균 {'+' if _perf['avg_ret_5d'] > 0 else ''}{_perf['avg_ret_5d']}%)"
-        except Exception:
-            pass
+        except Exception as _perf_e:
+            logger.debug(f"Could not load outcome performance summary: {_perf_e}")
+        finally:
+            if _st is not None:
+                try:
+                    _st.close()
+                except Exception:
+                    pass
 
         _notify_telegram(
             f"✅ 파이프라인 완료\n"

@@ -32,6 +32,45 @@ def _safe_json(obj: Any) -> str:
     """Safely serialize JSON for embedding directly in HTML script blocks without XSS risk."""
     return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
 
+
+def largest_remainder_round(values: list[float], target_sum: float = 100.0, decimals: int = 1) -> list[float]:
+    """
+    Distribute target_sum across values using Largest Remainder Method (Hare-Niemeyer)
+    so that the rounded values sum exactly to target_sum at specified decimal places.
+    """
+    if not values:
+        return []
+    factor = 10 ** decimals
+    total_val = sum(values)
+    if total_val <= 0:
+        n = len(values)
+        base = int((target_sum * factor) // n)
+        rem = int(round(target_sum * factor - base * n))
+        res = [base + (1 if i < rem else 0) for i in range(n)]
+        return [r / factor for r in res]
+    
+    target_int = int(round(target_sum * factor))
+    scaled = [v * (target_int / total_val) for v in values]
+    floored = [int(s) for s in scaled]
+    remainders = [(s - f, -v, i) for i, (s, f, v) in enumerate(zip(scaled, floored, values))]
+    
+    current_sum = sum(floored)
+    diff = target_int - current_sum
+    
+    if diff > 0:
+        # Sort by remainder descending, then original value descending
+        remainders.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        for j in range(diff):
+            idx = remainders[j % len(remainders)][2]
+            floored[idx] += 1
+    elif diff < 0:
+        remainders.sort(key=lambda x: (x[0], x[1]))
+        for j in range(-diff):
+            idx = remainders[j % len(remainders)][2]
+            floored[idx] = max(0, floored[idx] - 1)
+            
+    return [f / factor for f in floored]
+
 # ─────────────────────────────────────────────
 # Data models
 # ─────────────────────────────────────────────
@@ -1646,17 +1685,18 @@ def build_html(
             return 999
 
         sorted_items = sorted(w_dict.items(), key=lambda item: get_priority(item[0]))
+        raw_keys = []
         raw_vals = []
         for k, v in sorted_items:
-            val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else 0.0
-            raw_vals.append((k, val_pct))
+            val_pct = float(v.replace("%", "").strip()) if isinstance(v, str) and "%" in v else (float(v) if isinstance(v, (int, float)) else 0.0)
+            raw_keys.append(k)
+            raw_vals.append(val_pct)
         
-        tot_raw = sum(v for _, v in raw_vals)
-        scale = (100.0 / tot_raw) if (tot_raw > 0 and abs(tot_raw - 100.0) > 0.05) else 1.0
+        # Apply Largest Remainder Method (Hare-Niemeyer) so sum is strictly 100.0%
+        rounded_vals = largest_remainder_round(raw_vals, target_sum=100.0, decimals=1)
 
         out_html = '<div class="weights-grid">'
-        for k, val_pct in raw_vals:
-            norm_val_pct = val_pct * scale
+        for k, norm_val_pct in zip(raw_keys, rounded_vals):
             v_disp = f"{norm_val_pct:.1f}%"
             bar_w = min(100, int(norm_val_pct * 12.0))
             high_cls = " style='font-weight:700; color:#38bdf8;'" if norm_val_pct >= 4.0 else ""
@@ -4103,18 +4143,17 @@ function filterStockTables() {{
   }});
 
   // Universal Autocomplete Dropdown Search
-  if (dropdown) {{
-    if (!query) {{
-      dropdown.style.display = 'none';
-      dropdown.innerHTML = '';
-    }} else if (typeof allStocksUniverse !== 'undefined' && allStocksUniverse.length > 0) {{
-      const matches = allStocksUniverse.filter(item => 
-        item.sym.toLowerCase().includes(query) || item.name.toLowerCase().includes(query)
-      ).slice(0, 15);
+  let universeMatchesCount = 0;
+  if (typeof allStocksUniverse !== 'undefined' && allStocksUniverse.length > 0 && query) {{
+    const allMatches = allStocksUniverse.filter(item => 
+      item.sym.toLowerCase().includes(query) || item.name.toLowerCase().includes(query)
+    );
+    universeMatchesCount = allMatches.length;
 
-      if (matches.length > 0) {{
+    if (dropdown) {{
+      if (universeMatchesCount > 0) {{
         let dropHtml = '';
-        matches.forEach(item => {{
+        allMatches.slice(0, 15).forEach(item => {{
           const retDisp = item.ret.startsWith('+') ? `▲ ${{item.ret}}` : (item.ret.startsWith('-') ? `▼ ${{item.ret}}` : item.ret);
           const cleanName = item.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
           const drawerCall = `openStockDrawer('${{item.sym}}', '${{cleanName}}', '${{item.mkt}}', '${{item.score}}', '${{retDisp}}', '${{item.factors}}')`;
@@ -4138,11 +4177,14 @@ function filterStockTables() {{
         dropdown.style.display = 'block';
       }}
     }}
+  }} else if (dropdown) {{
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
   }}
 
   const status = document.getElementById('search-status');
   if (status) {{
-    status.textContent = query ? (totalMatches > 0 ? `🔍 ${{totalMatches}}개 항목 일치` : '🔍 일치하는 종목 없음') : '';
+    status.textContent = query ? (universeMatchesCount > 0 ? `🔍 ${{universeMatchesCount}}개 항목 일치` : '🔍 일치하는 종목 없음') : '';
   }}
 }}
 
@@ -4284,8 +4326,8 @@ function initDrawerTouchSwipe() {{
 
 <!-- Stock Detail Drawer -->
 <div id="stock-drawer-overlay" onclick="closeStockDrawer()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:1000; transition:opacity .3s;"></div>
-<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:440px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+<div id="stock-drawer" style="position:fixed; top:0; right:-450px; width:440px; max-width:95vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:1001; padding:0 24px 24px 24px; overflow-y:auto; overscroll-behavior:contain; transition:right .3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow:-5px 0 25px rgba(0,0,0,0.5);">
+  <div style="position:sticky; top:0; background:var(--surface); z-index:10; display:flex; justify-content:space-between; align-items:center; padding:20px 0 12px; margin-bottom:20px; border-bottom:1px solid var(--border);">
     <div>
       <h2 id="drawer-stock-name" style="font-size:20px; font-weight:700; color:var(--text);">종목 상세</h2>
       <div id="drawer-stock-meta" style="font-size:13px; color:var(--accent); font-family:monospace; margin-top:2px;">CODE</div>

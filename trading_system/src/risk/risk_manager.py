@@ -310,7 +310,6 @@ class CrisisDetector:
 
         if fv <= 15.0:
             return 0.0
-
         vix_roc = 0.0
         if len(self._vix_history) >= 5:
             past_vix = self._vix_history[-5]
@@ -324,9 +323,9 @@ class CrisisDetector:
         dd_speed = 0.0
         if len(self._dd_history) >= 5:
             dd_speed = (dd - self._dd_history[-5]) / 5.0
-        raw = min(1.0, dd / 0.20)
-        speed_bonus = max(0, min(0.3, dd_speed * 5.0))
-        return min(1.0, raw + speed_bonus)
+        raw = max(0.0, min(1.0, dd / 0.20))
+        speed_bonus = max(0.0, min(0.3, dd_speed * 5.0))
+        return float(np.clip(raw + speed_bonus, 0.0, 1.0))
 
     def _score_volume(self, volume_ratio: float) -> float:
         if volume_ratio <= 1.0:
@@ -351,9 +350,10 @@ class CrisisDetector:
         """거시경제 지표 기반 위험 점수 (0.0 ~ 1.0) - Robust Rolling Z-score approach"""
         scores: List[float] = []
 
-        def _calc_z_risk(curr: float, hist: list, neutral_level: float, level_scale: float) -> float:
+        def _calc_z_risk(curr: float, hist: list, neutral_level: float, level_scale: float, two_sided: bool = False) -> float:
             if not hist:
-                return float(np.clip(max(0.0, (curr - neutral_level) / max(level_scale, 1e-4)), 0.0, 1.0))
+                dev = abs(curr - neutral_level) if two_sided else max(0.0, curr - neutral_level)
+                return float(np.clip(dev / max(level_scale, 1e-4), 0.0, 1.0))
             arr = np.asarray(hist, dtype=float)
             window = min(len(arr), 60)
             sub_arr = arr[-window:]
@@ -363,24 +363,25 @@ class CrisisDetector:
                 std_val = max(abs(mean_val) * 0.02, 1e-4)
 
             # Rolling Z-score (2 sigma = moderate risk, 3 sigma = extreme crisis)
-            z = (curr - mean_val) / std_val
+            z = abs(curr - mean_val) / std_val if two_sided else (curr - mean_val) / std_val
             z_risk = float(np.clip((z - 1.0) / 2.5, 0.0, 1.0))
 
             # Absolute level hurdle
-            level_risk = float(np.clip(max(0.0, (curr - neutral_level) / max(level_scale, 1e-4)), 0.0, 1.0))
+            dev = abs(curr - neutral_level) if two_sided else max(0.0, curr - neutral_level)
+            level_risk = float(np.clip(dev / max(level_scale, 1e-4), 0.0, 1.0))
             return 0.60 * z_risk + 0.40 * level_risk
 
         # USD/KRW: 원화 약세(환율 상승) → 자본유출 위험
         if usdkrw is not None:
             scores.append(_calc_z_risk(usdkrw, list(self._usdkrw_history), neutral_level=1350.0, level_scale=150.0))
 
-        # WTI: 유가 급등($100+) → 인플레이션 → 긴축 위험
+        # WTI: 유가 급등($100+) 또는 디플레이션 붕괴($30 미만)
         if oil is not None:
-            scores.append(_calc_z_risk(oil, list(self._oil_history), neutral_level=80.0, level_scale=40.0))
+            scores.append(_calc_z_risk(oil, list(self._oil_history), neutral_level=80.0, level_scale=40.0, two_sided=True))
 
-        # ^TNX: 금리 급등(4.5%+) → 시장 긴축
+        # ^TNX: 금리 급등(4.5%+) 또는 유동성 패닉 붕괴
         if tnx is not None:
-            scores.append(_calc_z_risk(tnx, list(self._tnx_history), neutral_level=4.2, level_scale=1.5))
+            scores.append(_calc_z_risk(tnx, list(self._tnx_history), neutral_level=4.2, level_scale=1.5, two_sided=True))
 
         # DXY: 달러 강세(105+) → 신흥국 부담
         if dxy is not None:
@@ -422,7 +423,8 @@ class CrisisDetector:
         base = targets.get(self.crisis_level, 0.10)
         if self._recovery_mode and self.crisis_level == CrisisLevel.NONE:
             progress = min(1.0, (self._recovery_days or 1) / 20.0)
-            return 0.10 + (base - 0.10) * (1.0 - progress)
+            prev_cash = targets.get(self._prev_crisis_level or CrisisLevel.ACTIVE, 0.60)
+            return float(0.10 + (prev_cash - 0.10) * (1.0 - progress))
         return base
 
     def get_crisis_position_multiplier(self) -> float:

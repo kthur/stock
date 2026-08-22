@@ -485,11 +485,11 @@ class ExecutionOMSEngine:
                         safety_margin = 0.0010  # 0.10% KRX safety margin
                         if "expected_return" in pred and pred["expected_return"] is not None:
                             raw_exp_ret = float(pred["expected_return"])
-                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.01 else raw_exp_ret
+                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.35 else raw_exp_ret
                             hurdle = friction_cost + safety_margin
                         else:
                             raw_exp_ret = float(pred.get("ensemble_expected_return", 0.0) or 0.0)
-                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.01 else raw_exp_ret
+                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.35 else raw_exp_ret
                             hurdle = friction_cost + safety_margin
 
                         if exp_ret_frac < hurdle:
@@ -522,10 +522,7 @@ class ExecutionOMSEngine:
 
                 effective_target_amount = target_amount if is_krx else (target_amount / fx_rate)
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
-                if is_krx:
-                    quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
-                else:
-                    quantity = raw_quantity
+                quantity = raw_quantity
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 

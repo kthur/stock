@@ -216,7 +216,11 @@ class MarketIndicatorStorage:
             raise
 
     def close(self):
-        """Close thread-local SQLite connection if open."""
+        """Close thread-local SQLite connection if open and checkpoint WAL."""
+        try:
+            self.checkpoint_wal()
+        except Exception:
+            pass
         conn = getattr(self._local, "conn", None)
         if conn is not None:
             try:
@@ -801,8 +805,10 @@ class MarketIndicatorStorage:
             with self._connect() as conn:
                 try:
                     count_val = conn.execute("SELECT COUNT(*) FROM stock_universe").fetchone()[0]
-                    min_date = conn.execute("SELECT MIN(date) FROM stock_prices").fetchone()[0]
-                    max_date = conn.execute("SELECT MAX(date) FROM stock_prices").fetchone()[0]
+                    min_date_row = conn.execute("SELECT MIN(date) FROM global_indicators").fetchone()
+                    max_date_row = conn.execute("SELECT MAX(date) FROM global_indicators").fetchone()
+                    min_date = min_date_row[0] if min_date_row else "N/A"
+                    max_date = max_date_row[0] if max_date_row else "N/A"
                     logger.info(f"Survivorship Bias Metrics: Universe Size: {count_val}, Date Range: {min_date} to {max_date}")
                 except Exception as e:
                     logger.warning(f"Could not calculate survivorship metrics: {e}")
@@ -1729,10 +1735,6 @@ class MarketIndicatorStorage:
                     conn.execute(f"DELETE FROM strategy_weight_history WHERE run_id IN ({placeholders})", tuple(old_runs))      # nosec B608
                     conn.execute(f"DELETE FROM pipeline_run_history WHERE run_id IN ({placeholders})", tuple(old_runs))         # nosec B608
                     conn.commit()
-        self.checkpoint_wal()
-
-    def close(self) -> None:
-        """Explicitly close resources and checkpoint WAL log."""
         self.checkpoint_wal()
 
 
