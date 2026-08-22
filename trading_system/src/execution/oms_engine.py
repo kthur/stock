@@ -558,6 +558,15 @@ class ExecutionOMSEngine:
                     exec_strategy = "DIRECT"
                     slice_count = 1
 
+                # Gate 7.6: VPIN Order Flow Toxicity Gate (Easley, Lopez de Prado, O'Hara 2012)
+                # If adverse informed toxic order flow is detected (vpin > 0.70),
+                # switch execution to PASSIVE_LIMIT or scale down slice size to prevent adverse selection.
+                vpin_val = float(pred.get("vpin", pred.get("microstructure_toxicity", pred.get("order_flow_toxicity", 0.0))) or 0.0)
+                if action == "BUY" and vpin_val > 0.70:
+                    logger.warning(f"[OMS GATE 7.6] {sym} High VPIN toxicity ({vpin_val:.2f} > 0.70) detected. Routing to PASSIVE_LIMIT to avoid adverse selection.")
+                    exec_strategy = "PASSIVE_LIMIT"
+                    slice_count = max(6, slice_count)
+
                 plan_entry = {
                     "order_id": order_id,
                     "symbol": sym,

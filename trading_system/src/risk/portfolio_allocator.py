@@ -467,18 +467,31 @@ class PortfolioAllocator:
         except Exception:
             pass
 
-        # Tier 1: EVT-GPD Fit
+        # Tier 1: EVT-GPD Fit with Extremal Index (theta) Clustering Adjustment (Ferro-Segers 2003)
         var_evt, cvar_evt = var_cf, cvar_cf
         xi_val, beta_val = 0.0, 0.0
         gpd_valid = False
+        theta_val = 1.0
         if n_u >= 3 and u > -1e-6:
             try:
+                # Calculate Extremal Index theta measuring volatility/loss clustering
+                exceed_indices = np.where(losses > u)[0]
+                if len(exceed_indices) >= 2:
+                    inter_arrival = np.diff(exceed_indices)
+                    if np.max(inter_arrival) > 2:
+                        denom = float(np.sum((inter_arrival - 1) * (inter_arrival - 2))) + 1e-6
+                        theta_val = float(np.clip(2.0 * (np.sum(inter_arrival - 1)**2) / denom, 0.25, 1.0))
+                    else:
+                        denom = float(np.mean(inter_arrival**2)) + 1e-6
+                        theta_val = float(np.clip(2.0 * np.mean(inter_arrival) / denom, 0.25, 1.0))
+
                 xi, _, beta = genpareto.fit(exceedances, floc=0)
                 xi = float(xi)
                 beta = float(beta)
                 if beta > 1e-8 and xi < 0.95 and np.isfinite(xi) and np.isfinite(beta):
                     xi_clamped = float(np.clip(xi, -0.50, 0.50))
-                    tail_ratio = (N / n_u) * (1.0 - confidence)
+                    # Adjust tail probability for dependent clustered exceedances
+                    tail_ratio = (N / n_u) * ((1.0 - confidence) / max(0.25, theta_val))
                     if abs(xi_clamped) < 1e-4:
                         var_evt = u - beta * np.log(tail_ratio)
                         cvar_evt = var_evt + beta

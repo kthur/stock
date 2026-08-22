@@ -281,8 +281,20 @@ class SupplyChainEngine(BaseStrategyEngine):
                         is_us_leader = c_sym.upper() in ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'ASML', 'TSM', 'GOOGL', 'META']
                         r1 = us_proxy_1d if is_us_leader else 0.0
                         r3 = r1 * 1.5
-                        r5 = r1 * 2.0
-                    spillover_ret = 0.50 * r1 + 0.30 * r3 + 0.20 * r5
+                    # Non-linear Asymmetric Bullwhip Spillover (Forrester 1961, Lee et al. 1997):
+                    # Downside customer shocks transmit immediately with panic amplification (1.35x),
+                    # while upside demand expands with CAPEX gestation smoothing.
+                    if r1 < 0:
+                        r1_eff = r1 * 1.35
+                    else:
+                        r1_eff = float(np.sign(r1) * (abs(r1) ** 0.90) * 0.95)
+
+                    if r3 < 0:
+                        r3_eff = r3 * 1.25
+                    else:
+                        r3_eff = r3 * 1.05
+
+                    spillover_ret = 0.45 * r1_eff + 0.35 * r3_eff + 0.20 * r5
                     cust_rets.append(spillover_ret * c_weight)
 
                 weighted_cust_ret = float(np.sum(cust_rets)) if cust_rets else 0.0

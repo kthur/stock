@@ -73,8 +73,8 @@ class OptunaStrategyTuner:
         tmp_target.replace(target)
         logger.info(f"Saved tuned parameters to {target}")
 
-    def tune_strategy_1_regression(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20, dates: Optional[Any] = None) -> Dict[str, Any]:
-        """Strategy 1: Regression tuning (XGBoost, LightGBM, CatBoost) using DateAwareTimeSeriesSplit."""
+    def tune_strategy_1_regression(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20, dates: Optional[Any] = None, horizon: Optional[int] = None) -> Dict[str, Any]:
+        """Strategy 1: Regression tuning (XGBoost, LightGBM, CatBoost) using Dynamic Purged & Embargoed TimeSeriesSplit."""
         logger.info("Tuning Strategy 1 (Regression)...")
         if X is not None:
             if isinstance(X, pd.Series):
@@ -96,7 +96,10 @@ class OptunaStrategyTuner:
             self.tuned_params['cat'] = default_cat
             return {'xgb': default_xgb, 'lgb': default_lgb, 'cat': default_cat}
 
-        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
+        # Dynamic Purged & Embargoed Cross-Validation (Lopez de Prado 2018):
+        # Prevents label overlap leakage across training and validation folds for long-horizon targets.
+        dynamic_gap = max(gap, (int(horizon) + 5) if horizon is not None else gap)
+        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=dynamic_gap)
         split_target = dates if dates is not None else X
 
         # 1. XGBoost Regressor
@@ -165,8 +168,8 @@ class OptunaStrategyTuner:
 
         return self.tune_strategy_1_regression(None, None, n_trials=n_trials)
 
-    def tune_strategy_2_surge(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20, dates: Optional[Any] = None) -> Dict[str, Any]:
-        """Strategy 2: Surge Classifier tuning (XGBoost, LightGBM, CatBoost)."""
+    def tune_strategy_2_surge(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20, dates: Optional[Any] = None, horizon: Optional[int] = None) -> Dict[str, Any]:
+        """Strategy 2: Surge Classifier tuning (XGBoost, LightGBM, CatBoost) using Dynamic Purged & Embargoed TimeSeriesSplit."""
         logger.info("Tuning Strategy 2 (Surge Classifier)...")
         if X is not None:
             if isinstance(X, pd.Series):
@@ -188,7 +191,8 @@ class OptunaStrategyTuner:
             self.tuned_params['surge_cat'] = default_surge_cat
             return {'surge_xgb': default_surge_xgb, 'surge_lgb': default_surge_lgb, 'surge_cat': default_surge_cat}
 
-        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
+        dynamic_gap = max(gap, (int(horizon) + 5) if horizon is not None else gap)
+        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=dynamic_gap)
         split_target = dates if dates is not None else X
 
         def surge_objective(trial):
@@ -430,8 +434,8 @@ class OptunaStrategyTuner:
         """Convenience wrapper for Strategy 4: VCP Rule Detector tuning."""
         return self.tune_strategy_4_vcp_rule(prices_dict=prices_dict, n_trials=n_trials)
 
-    def tune_strategy_5_vcp_ml(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20, dates: Optional[Any] = None) -> Dict[str, Any]:
-        """Strategy 5: VCP ML Predictor tuning (scale_pos_weight, window_step, XGBoost/LGB/CatBoost hyperparams)."""
+    def tune_strategy_5_vcp_ml(self, X: Optional[pd.DataFrame] = None, y: Optional[pd.Series] = None, n_trials: int = 10, n_splits: int = 3, gap: int = 20, dates: Optional[Any] = None, horizon: Optional[int] = None) -> Dict[str, Any]:
+        """Strategy 5: VCP ML Predictor tuning (scale_pos_weight, window_step, XGBoost/LGB/CatBoost hyperparams) with Purged & Embargoed CV."""
         logger.info("Tuning Strategy 5 (VCP ML Predictor)...")
         if X is not None:
             if isinstance(X, pd.Series):
@@ -449,7 +453,8 @@ class OptunaStrategyTuner:
             self.tuned_params['vcp_ml'] = default_vcp_ml
             return default_vcp_ml
 
-        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
+        dynamic_gap = max(gap, (int(horizon) + 5) if horizon is not None else gap)
+        tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=dynamic_gap)
         split_target = dates if dates is not None else X
 
         def vcp_ml_objective(trial):
