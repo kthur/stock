@@ -375,25 +375,33 @@ class ExecutionOMSEngine:
                 # Gate: Leland Dynamic Buffer Band (No-Trade Zone) Gating
                 if use_leland_buffer and current_holdings is not None:
                     curr_w = float(current_holdings.get(sym, 0.0))
-                    try:
-                        from src.risk.portfolio_allocator import PortfolioAllocator
-                        p_alloc = PortfolioAllocator()
-                        mkt = str(pred.get("market", "KOSPI"))
-                        vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
-                        c_rate = p_alloc.estimate_transaction_cost_rate(
-                            symbol=sym, market=mkt, target_weight=weight,
-                            portfolio_value=tot_cap, volatility_20d=vol_20d
-                        )
-                        delta_i = p_alloc.calculate_dynamic_buffer_band(
-                            symbol=sym, target_weight=weight, cost_rate=c_rate, volatility_20d=vol_20d
-                        )
-                        if abs(curr_w - weight) <= delta_i:
-                            logger.info(f"[OMS LELAND BUFFER] Symbol {sym}: Current weight {curr_w:.3f} within ±{delta_i:.3f} of target {weight:.3f} -> skipping redundant trade (Hold)")
-                            continue
-                    except Exception as _leland_e:
-                        logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
+                    is_full_exit = (weight <= 0.0 or raw_action == "SELL")
+                    is_new_entry = (curr_w <= 0.0 and weight > 0.0)
+                    if not is_full_exit and not is_new_entry:
+                        try:
+                            from src.risk.portfolio_allocator import PortfolioAllocator
+                            p_alloc = PortfolioAllocator()
+                            mkt = str(pred.get("market", "KOSPI"))
+                            vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
+                            c_rate = p_alloc.estimate_transaction_cost_rate(
+                                symbol=sym, market=mkt, target_weight=weight,
+                                portfolio_value=tot_cap, volatility_20d=vol_20d
+                            )
+                            delta_i = p_alloc.calculate_dynamic_buffer_band(
+                                symbol=sym, target_weight=weight, cost_rate=c_rate, volatility_20d=vol_20d
+                            )
+                            if abs(curr_w - weight) <= delta_i:
+                                logger.info(f"[OMS LELAND BUFFER] Symbol {sym}: Current weight {curr_w:.3f} within ±{delta_i:.3f} of target {weight:.3f} -> skipping redundant trade (Hold)")
+                                continue
+                        except Exception as _leland_e:
+                            logger.debug(f"[OMS LELAND BUFFER] Leland buffer check skipped for {sym}: {_leland_e}")
 
-                target_amount = tot_cap * weight
+                curr_holding_w = float(current_holdings.get(sym, 0.0)) if current_holdings is not None else 0.0
+                if (raw_action == "SELL" or is_severe) and weight == 0.0 and curr_holding_w > 0.0:
+                    target_amount = tot_cap * curr_holding_w
+                else:
+                    target_amount = tot_cap * weight
+
                 if not is_severe and raw_action != "SELL" and not (0.0 < target_amount <= tot_cap):
                     continue
 

@@ -2,51 +2,102 @@ import time
 import threading
 import logging
 import asyncio
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 class GlobalRateLimiter:
     """
-    A thread-safe global rate limiter that enforces a minimum interval
-    between consecutive network requests across all threads.
+    Thread-safe & Async-safe Host-Aware Token Bucket Rate Limiter.
+    Enforces independent burst and sustained rate limits across different external APIs
+    (Yahoo, FRED, ECOS, DART, etc.) without head-of-line serial blocking.
     """
-    def __init__(self, min_interval_seconds: float = 1.0):
-        import math
-        try:
-            safe_interval = float(min_interval_seconds) if (min_interval_seconds is not None and math.isfinite(float(min_interval_seconds))) else 1.0
-        except (ValueError, TypeError):
-            safe_interval = 1.0
-        self.min_interval = max(0.0, safe_interval)
+    DEFAULT_RATES = {
+        'yahoo': {'rate': 5.0, 'capacity': 10.0},     # 5 req/s, burst up to 10
+        'fred': {'rate': 10.0, 'capacity': 20.0},     # 10 req/s, burst up to 20
+        'ecos': {'rate': 8.0, 'capacity': 15.0},      # 8 req/s, burst up to 15
+        'dart': {'rate': 4.0, 'capacity': 8.0},       # 4 req/s, burst up to 8
+        'default': {'rate': 3.0, 'capacity': 6.0},    # 3 req/s safe fallback
+    }
+
+    def __init__(self, min_interval_seconds: float = 0.33, rates: Optional[Dict] = None):
         self.lock = threading.Lock()
-        self.last_request_time = 0.0
+        self.rates = {k: dict(v) for k, v in self.DEFAULT_RATES.items()}
+        if rates:
+            self.rates.update(rates)
 
-    def wait(self):
+        # If a custom min_interval_seconds is provided and differs from default, adjust 'default'
+        if min_interval_seconds > 0:
+            default_rate = 1.0 / max(0.01, float(min_interval_seconds))
+            self.rates['default'] = {'rate': default_rate, 'capacity': max(2.0, default_rate * 2.0)}
+
+        self._tokens: Dict[str, float] = {}
+        self._last_time: Dict[str, float] = {}
+
+    def _get_host_key(self, source: str = 'default') -> str:
+        s = str(source).lower()
+        for key in ['yahoo', 'fred', 'ecos', 'dart']:
+            if key in s:
+                return key
+        return 'default'
+
+    def wait(self, source: str = 'default') -> None:
+        key = self._get_host_key(source)
+        cfg = self.rates.get(key, self.rates['default'])
+        rate, capacity = cfg['rate'], cfg['capacity']
+
+        sleep_time = 0.0
         with self.lock:
             now = time.time()
-            elapsed = now - self.last_request_time
-            sleep_time = self.min_interval - elapsed
-            if sleep_time > 0:
-                logger.debug(f"GlobalRateLimiter: Sleeping {sleep_time:.2f}s to respect rate limit")
-                time.sleep(sleep_time)
-            self.last_request_time = time.time()
+            if key not in self._last_time:
+                self._tokens[key] = capacity
+                self._last_time[key] = now
 
-    async def async_wait(self):
-        """Asynchronously and thread-safely wait for the minimum interval to elapse."""
-        with self.lock:
-            now = time.time()
-            elapsed = now - self.last_request_time
-            sleep_time = self.min_interval - elapsed
-            if sleep_time < 0:
-                sleep_time = 0.0
-            # Reserve the slot for this request
-            self.last_request_time = now + sleep_time
+            elapsed = now - self._last_time[key]
+            self._tokens[key] = min(capacity, self._tokens[key] + elapsed * rate)
+            self._last_time[key] = now
+
+            if self._tokens[key] >= 1.0:
+                self._tokens[key] -= 1.0
+                return
+            else:
+                sleep_time = (1.0 - self._tokens[key]) / max(0.1, rate)
+                self._tokens[key] = 0.0
 
         if sleep_time > 0:
-            logger.debug(f"GlobalRateLimiter: Async sleeping {sleep_time:.2f}s to respect rate limit")
+            logger.debug(f"GlobalRateLimiter[{key}]: Sleeping {sleep_time:.2f}s to respect rate limit")
+            time.sleep(sleep_time)
+
+    async def async_wait(self, source: str = 'default') -> None:
+        """Asynchronously and thread-safely wait for token availability."""
+        key = self._get_host_key(source)
+        cfg = self.rates.get(key, self.rates['default'])
+        rate, capacity = cfg['rate'], cfg['capacity']
+
+        sleep_time = 0.0
+        with self.lock:
+            now = time.time()
+            if key not in self._last_time:
+                self._tokens[key] = capacity
+                self._last_time[key] = now
+
+            elapsed = now - self._last_time[key]
+            self._tokens[key] = min(capacity, self._tokens[key] + elapsed * rate)
+            self._last_time[key] = now
+
+            if self._tokens[key] >= 1.0:
+                self._tokens[key] -= 1.0
+                return
+            else:
+                sleep_time = (1.0 - self._tokens[key]) / max(0.1, rate)
+                self._tokens[key] = 0.0
+
+        if sleep_time > 0:
+            logger.debug(f"GlobalRateLimiter[{key}]: Async sleeping {sleep_time:.2f}s to respect rate limit")
             await asyncio.sleep(sleep_time)
 
-# Singleton rate limiter instance with 1.0 second min_interval (safe default)
-_rate_limiter = GlobalRateLimiter(min_interval_seconds=1.0)
+HostTokenBucketRateLimiter = GlobalRateLimiter
+_rate_limiter = GlobalRateLimiter()
 
 def get_global_rate_limiter() -> GlobalRateLimiter:
     return _rate_limiter

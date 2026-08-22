@@ -16,9 +16,10 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
     and if that fails, equal weighting.
     """
     # Guard against invalid inputs
-    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
+    if cov_matrix is None or not isinstance(cov_matrix, (np.ndarray, list)):
         logger.error("Invalid covariance matrix: not a numpy array.")
         return np.array([])
+    cov_matrix = np.asarray(cov_matrix, dtype=np.float64)
 
     n = cov_matrix.shape[0]
     if n == 0:
@@ -305,9 +306,10 @@ def calculate_hrp_weights(
     2. Ward / Complete hierarchical clustering (eliminates single-linkage chaining artifacts).
     3. Quasi-diagonalization & Hierarchical Recursive Bisection.
     """
-    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
+    if cov_matrix is None or not isinstance(cov_matrix, (np.ndarray, list)):
         logger.error("Invalid covariance matrix for HRP: not a numpy array.")
         return np.array([])
+    cov_matrix = np.asarray(cov_matrix, dtype=np.float64)
 
     n = cov_matrix.shape[0]
     if n == 0:

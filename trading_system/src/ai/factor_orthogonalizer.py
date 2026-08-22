@@ -1,3 +1,4 @@
+import functools
 import logging
 import numpy as np
 import pandas as pd
@@ -12,11 +13,28 @@ logger = logging.getLogger(__name__)
 # and your work WILL be rejected.
 
 
+def safe_matrix_precision_guard(func):
+    """Decorator ensuring that matrix calculations are performed in float64 precision."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        new_args = [
+            a.astype(np.float64) if isinstance(a, np.ndarray) and a.dtype == np.float32 else a 
+            for a in args
+        ]
+        new_kwargs = {
+            k: v.astype(np.float64) if isinstance(v, np.ndarray) and v.dtype == np.float32 else v
+            for k, v in kwargs.items()
+        }
+        res = func(*new_args, **new_kwargs)
+        return res
+    return wrapper
+
+
 class FactorOrthogonalizerEngine:
     """
-    Gram-Schmidt & PCA ZCA Symmetric Decorrelation Engine (R2).
-    Orthogonalizes 17-strategy score matrix X in R^(N x K) to reduce pairwise strategy correlation
-    below 0.3 while preserving relative variance explaining power and [0.0, 1.0] score bounds.
+    Gram-Schmidt & Equalized Spectral Residual Whitening (ESRW) Decorrelation Engine (R2).
+    Orthogonalizes multi-strategy score matrix X in R^(N x K) to reduce pairwise strategy correlation
+    while preserving directional alpha and [0.0, 1.0] score bounds without sign-inversion distortion.
     """
 
     def __init__(self, default_method: str = 'pca_symmetric', ridge_epsilon: float = 1e-6, shrinkage_alpha: float = 0.01):
@@ -127,6 +145,31 @@ class FactorOrthogonalizerEngine:
 
         return X_ortho
 
+    @safe_matrix_precision_guard
+    def _esrw_whitening(self, X_bar: np.ndarray, C_shrunk: np.ndarray) -> np.ndarray:
+        """
+        Equalized Spectral Residual Whitening (ESRW).
+        Soft-shrinks collinear noise eigenvalues towards mean eigenvalue lambda=1.0,
+        preserving leading shared momentum/value alpha while eliminating sign-inversion distortion.
+        """
+        N, K = X_bar.shape
+        C_sym = (C_shrunk + C_shrunk.T) * 0.5
+        eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
+
+        mean_eig = float(np.mean(eigenvalues)) if len(eigenvalues) > 0 else 1.0
+        shrinkage = 1.0 / (1.0 + np.exp((eigenvalues - 1.0) / 0.30))
+        lambdas_reg = (1.0 - shrinkage) * eigenvalues + shrinkage * mean_eig + self.ridge_epsilon
+
+        inv_sqrt_lambda = np.diag(1.0 / np.sqrt(np.maximum(lambdas_reg, 1e-6)))
+        W_esrw = np.dot(eigenvectors, np.dot(inv_sqrt_lambda, eigenvectors.T))
+
+        diag_signs = np.sign(np.diag(W_esrw))
+        diag_signs[diag_signs == 0] = 1.0
+        W_esrw = W_esrw * diag_signs[:, np.newaxis]
+
+        return np.dot(X_bar, W_esrw)
+
+    @safe_matrix_precision_guard
     def _pca_zca_symmetric(
         self,
         X: np.ndarray,
@@ -142,20 +185,24 @@ class FactorOrthogonalizerEngine:
 
         # Dynamic Ledoit-Wolf Shrinkage or fallback
         C_shrunk = self._compute_ledoit_wolf_covariance(X_bar, C)
+        C_sym = (C_shrunk + C_shrunk.T) * 0.5
 
         # Eigen-decomposition of symmetric correlation matrix
-        eigenvalues, eigenvectors = np.linalg.eigh(C_shrunk)
+        eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
 
         # Continuous Ridge Regularization & Floor to prevent null-space amplification (N < K)
-        max_eig = float(np.max(eigenvalues)) if len(eigenvalues) > 0 else 1.0
         mean_eig = float(np.mean(eigenvalues)) if len(eigenvalues) > 0 else 1.0
         ridge_floor = max(0.01 * mean_eig, self.ridge_epsilon)
-        # Soft shrinkage towards mean eigenvalue + ridge floor
-        eigenvalues = np.maximum(eigenvalues, 0.0) + ridge_floor
+        lambdas_reg = np.maximum(eigenvalues, 0.0) + ridge_floor
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(lambda^(-1/2)) * V^T
-        inv_sqrt_lambda = np.diag(1.0 / np.sqrt(eigenvalues))
+        inv_sqrt_lambda = np.diag(1.0 / np.sqrt(lambdas_reg))
         C_inv_sqrt = np.dot(eigenvectors, np.dot(inv_sqrt_lambda, eigenvectors.T))
+
+        # Positive diagonal alignment constraint to ensure positive factor self-affinity
+        diag_signs = np.sign(np.diag(C_inv_sqrt))
+        diag_signs[diag_signs == 0] = 1.0
+        C_inv_sqrt = C_inv_sqrt * diag_signs[:, np.newaxis]
 
         # ZCA decorrelation
         X_decorr = np.dot(X_bar, C_inv_sqrt)

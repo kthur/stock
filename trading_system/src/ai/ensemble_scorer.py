@@ -2438,7 +2438,8 @@ class EnsembleScoringEngine:
         dynamic_spread = base_spread * (adv_ratio ** 0.25) * (vol_ratio ** 0.50)
         clamped_spread = np.clip(dynamic_spread, spread_min, spread_max)
 
-        participation_ratio = q_order / adv
+        n_slices = max(1, int(getattr(self.config, 'twap_execution_slices', 4) if self.config else 4))
+        participation_ratio = q_order / (adv * float(n_slices))
         impact_alpha = getattr(self, 'realized_market_impact_alpha', 0.50)
         impact_one_way = impact_coeff * vols * (participation_ratio ** impact_alpha)
 

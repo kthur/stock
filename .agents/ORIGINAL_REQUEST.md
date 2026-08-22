@@ -40,3 +40,49 @@ Integrity mode: demo
 - [ ] `pytest tests/ -v` 실행 시 전체 테스트가 100% 성공(PASS)한다.
 - [ ] 파이프라인 스모크 실행 시 소켓 타임아웃 오류 및 NaN 크래시 없이 정상 완료된다.
 </USER_REQUEST>
+
+## 2026-08-22T08:00:05Z
+
+<USER_REQUEST>
+Perform an end-to-end quantitative, algorithmic, and architectural audit of the entire stock trading codebase (`d:\Finance\code\stock`) to diagnose all bottlenecks limiting investment returns (Sharpe, Calmar, Net Alpha) and operational stability across 5 markets (SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ), and produce an exhaustive, actionable improvement report with concrete mathematical formulas, code refactor proposals, and prioritized execution steps.
+
+Working directory: d:\Finance\code\stock
+Integrity mode: development
+
+## Requirements
+
+### R1. 31-Strategy Alpha Engine & Predictive Signal Diagnostic
+- Audit all 31 alpha and multi-factor strategies (XGBoost regression, Surge classifier, Lead-Lag 2-tier, VCP Rule/ML, Strict Causal LSTM, Stat-Arb cointegration, Sector Rotation, RIM, Event-Driven, MQ Factor, IV Skew, Order Flow Imbalance, Short-Term Reversal, ARM, CARD, LATR, Microstructure, Accruals Quality, Short Squeeze, Value-Up, Trend Efficiency, Gamma Squeeze, Insider Buying, Tone Drift, Darkpool HFT, etc.).
+- Identify factor decay, lookahead risks, horizon mismatches (1d~200d), sample weighting biases, feature collinearity, and regime-conditional breakdown.
+
+### R2. Factor Orthogonalization & Dynamic Regime Ensemble Audit
+- Examine the `FactorOrthogonalizerEngine` (PCA-ZCA symmetric whitening, Gram-Schmidt decorrelation), `FactorSuppressionEngine` (VIF & 2D regime noise filtering), and `EnsembleScoringEngine`.
+- Evaluate how multi-factor signals are combined across 6 macro/market regimes (Bull/Bear/Sideways x High/Low Vol), identifying signal dilution or cancellation issues.
+
+### R3. Portfolio Optimization, Tail Risk Budgeting & Cost Modeling
+- Review `PortfolioOptimizer` (HRP, Ledoit-Wolf shrinkage) and `PortfolioAllocator` (EVT-CVaR extreme value tail risk budgeting, Leland no-trade dynamic buffer bands).
+- Audit the microstructure transaction cost model (STT tax, SEC fees, bid-ask spread, Kyle's lambda market impact) and slippage feedback loop (`trade_logs.db`) for unrealistic friction over-penalization or under-penalization.
+
+### R4. Pipeline Operations, Concurrency, and Data Ingestion Stability
+- Audit `trading_system/run_pipeline.py`, `MarketIndicatorStorage`, `StockPriceDB` (SQLite WAL mode and write mutexes), async fundamental data fetching (60-day filing lag), float32 memory optimizations, and CI/CD GitHub Actions 5-matrix workflow.
+- Identify concurrency bottlenecks, rate-limiting risks, data missingness root causes, and pipeline runtime optimization vectors.
+
+### R5. Comprehensive Improvement Report & Actionable Implementation Roadmap
+- Produce a detailed, high-quality technical report (`IMPROVEMENT_ROADMAP.md` or comprehensive report) containing:
+  1. Executive Summary & Core Bottleneck Assessment
+  2. Strategy-by-Strategy Alpha Enhancement Proposals (with explicit mathematical formulas & feature additions)
+  3. Ensemble & Portfolio Construction Enhancements
+  4. Operational Architecture & Execution OMS Optimizations
+  5. Prioritized Action Matrix (Critical / High / Medium / Low) with estimated Sharpe/return impact and implementation complexity.
+
+## Acceptance Criteria
+
+### Diagnostic Depth & Coverage
+- [ ] Complete diagnostic coverage of all 31 strategies and system layers without omitting any core factor or execution component.
+- [ ] Explicit identification of return drags (e.g. signal dilution, friction miscalibration, regime lag, missing data handling).
+
+### Technical Rigor & Actionability
+- [ ] Every proposed improvement includes clear technical rationale, concrete mathematical formulation or pseudocode, and targeted files.
+- [ ] Preserves all existing system constraints (KST timezone, 5-market multi-asset universe, SQLite WAL integrity, 6 OMS safety gates).
+- [ ] Generates a structured markdown report ready for implementation by engineering and quant teams.
+</USER_REQUEST>

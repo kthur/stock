@@ -176,8 +176,10 @@ class TradingConfig:
     default_volatility_sp500: float = 0.015     # SP500 기본 일일 변동성 (1.5%)
     default_volatility_global: float = 0.018    # 글로벌 기본 일일 변동성 (1.8%)
 
-    # 포트폴리오 자본금 단일 소스 (KRW, GHA/OMS/HRP 모두 여기에서 읽음)
+    # 포트폴리오 자본금 단일 소스 (KRW / USD, GHA/OMS/HRP 모두 여기에서 읽음)
     portfolio_capital_krw: float = 100_000_000.0  # 1억 원
+    portfolio_capital_usd: float = 100_000.0      # $100,000 USD
+    twap_execution_slices: int = 4                # TWAP 분할 주문 분할수 (Market Impact 완화)
 
     # Net Alpha Hurdle Rate & Price Limit Parameters (OMS Safety Gate #7)
     oms_net_alpha_safety_margin: float = 0.0010  # 0.10% KRX 안전 마진
