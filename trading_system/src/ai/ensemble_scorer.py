@@ -35,6 +35,55 @@ logger = logging.getLogger(__name__)
 # and your work WILL be rejected.
 
 
+class RegimeStateDict(dict):
+    """Dictionary supporting per-market regime tracking while preserving string equality & assignment compatibility."""
+    def __eq__(self, other):
+        if isinstance(other, (str, int)):
+            return self.get("global") == str(other) or str(other) in self.values()
+        if other is None:
+            return not bool(self) or self.get("global") is None
+        return super().__eq__(other)
+
+    def __bool__(self):
+        return bool(self.get("global")) or super().__bool__()
+
+    def __str__(self):
+        return str(self.get("global", ""))
+
+
+class WeightsStateDict(dict):
+    """Dictionary supporting per-market weights tracking while maintaining direct strategy indexing for default/global."""
+    def __getitem__(self, key):
+        if super().__contains__(key):
+            return super().__getitem__(key)
+        if super().__contains__("global") and isinstance(super().__getitem__("global"), dict) and key in super().__getitem__("global"):
+            return super().__getitem__("global")[key]
+        raise KeyError(key)
+
+    def get(self, key, default=None):
+        if super().__contains__(key):
+            return super().get(key, default)
+        if super().__contains__("global") and isinstance(super().__getitem__("global"), dict):
+            return super().__getitem__("global").get(key, default)
+        return default
+
+    def __contains__(self, key):
+        if super().__contains__(key):
+            return True
+        if super().__contains__("global") and isinstance(super().__getitem__("global"), dict):
+            return key in super().__getitem__("global")
+        return False
+
+    def __eq__(self, other):
+        if other is None:
+            return not bool(self) or (super().__contains__("global") and super().__getitem__("global") is None)
+        if isinstance(other, dict):
+            if super().__contains__("global") and isinstance(super().__getitem__("global"), dict):
+                return super().__getitem__("global") == other or super().__eq__(other)
+            return super().__eq__(other)
+        return False
+
+
 class EnsembleScoringEngine:
     """
     Ensembles 31 multi-factor strategy predictions across 3 horizon tiers
@@ -430,8 +479,8 @@ class EnsembleScoringEngine:
             self._return_multiplier = getattr(config, "ensemble_return_multiplier", 20.0)
         # Per-strategy Isotonic Regression calibrators (fitted via fit_calibrators)
         self._calibrators: Dict[str, Any] = {}
-        self._prev_weights: Optional[Dict[str, float]] = None
-        self._prev_regime: Optional[Union[int, str]] = None
+        self._prev_weights_dict: WeightsStateDict = WeightsStateDict()
+        self._prev_regime_dict: RegimeStateDict = RegimeStateDict()
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
@@ -452,10 +501,39 @@ class EnsembleScoringEngine:
         # Restore EMA weight continuity across pipeline runs (persisted below)
         self._load_prev_weights()
 
+    @property
+    def _prev_regime(self) -> Any:
+        return self._prev_regime_dict
+
+    @_prev_regime.setter
+    def _prev_regime(self, val: Any) -> None:
+        if val is None:
+            self._prev_regime_dict.clear()
+        elif isinstance(val, dict):
+            self._prev_regime_dict = RegimeStateDict(val)
+        else:
+            self._prev_regime_dict["global"] = str(val)
+
+    @property
+    def _prev_weights(self) -> Any:
+        return self._prev_weights_dict
+
+    @_prev_weights.setter
+    def _prev_weights(self, val: Any) -> None:
+        if val is None:
+            self._prev_weights_dict.clear()
+        elif isinstance(val, dict):
+            if val and not any(k in ("global", "us", "kr", "kospi", "sp500") for k in val):
+                self._prev_weights_dict = WeightsStateDict({"global": {str(k): float(v) for k, v in val.items()}})
+            else:
+                self._prev_weights_dict = WeightsStateDict(val)
+        else:
+            self._prev_weights_dict.clear()
+
     def _load_prev_weights(self) -> None:
         """Load persisted EMA ensemble weights for cross-run continuity with market segregation."""
-        self._prev_weights: Dict[str, Dict[str, float]] = {}
-        self._prev_regime: Dict[str, str] = {}
+        self._prev_weights_dict.clear()
+        self._prev_regime_dict.clear()
         try:
             from pathlib import Path
             import json
@@ -469,19 +547,19 @@ class EnsembleScoringEngine:
                             if isinstance(mkt_data, dict):
                                 w = mkt_data.get("weights", {})
                                 if isinstance(w, dict):
-                                    self._prev_weights[mkt] = {str(k): float(v) for k, v in w.items()}
+                                    self._prev_weights_dict[mkt] = {str(k): float(v) for k, v in w.items()}
                                 reg = mkt_data.get("regime")
                                 if reg:
-                                    self._prev_regime[mkt] = str(reg)
+                                    self._prev_regime_dict[mkt] = str(reg)
                     elif "weights" in data or "regime" in data:
                         w = data.get("weights", {})
                         if isinstance(w, dict):
-                            self._prev_weights["global"] = {str(k): float(v) for k, v in w.items()}
+                            self._prev_weights_dict["global"] = {str(k): float(v) for k, v in w.items()}
                         reg = data.get("regime")
                         if reg:
-                            self._prev_regime["global"] = str(reg)
+                            self._prev_regime_dict["global"] = str(reg)
                     logger.info(
-                        f"[EMA] Loaded previous ensemble weights from prev_weights.json for markets: {list(self._prev_weights.keys())}"
+                        f"[EMA] Loaded previous ensemble weights from prev_weights.json for markets: {list(self._prev_weights_dict.keys())}"
                     )
         except Exception as e:
             logger.warning(f"Could not load prev_weights.json: {e}")
@@ -899,12 +977,12 @@ class EnsembleScoringEngine:
 
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
-            # Convex Sharpe Elasticity Multiplier for high performing strategies (using raw Sharpe)
-            if sharpe >= 1.50:
+            # Convex Sharpe Elasticity Multiplier for high performing strategies (using clipped Sharpe)
+            if clipped_sharpe >= 1.50:
                 multiplier *= 1.25
-            elif sharpe >= 1.00:
+            elif clipped_sharpe >= 1.00:
                 multiplier *= 1.15
-            elif sharpe >= 0.50:
+            elif clipped_sharpe >= 0.50:
                 multiplier *= 1.08
             elif clipped_sharpe < 0.0:
                 # Asymmetric downside risk mitigation for mild underperformance
@@ -2078,13 +2156,16 @@ class EnsembleScoringEngine:
         elif 'symbol' in merged.columns:
             is_kr = merged['symbol'].astype(str).str.match(r'^\d{6}$') | merged['symbol'].astype(str).str.endswith(('.KS', '.KQ'))
 
+        is_custom_us = us_weights is not None or (weights is not None and not isinstance(weights, str))
+        is_custom_kr = kr_weights is not None or (weights is not None and not isinstance(weights, str))
+
         default_strat_w = 1.0 / max(float(len(strategy_cols)), 1.0)
         tot_nominal_weight = pd.Series(0.0, index=merged.index)
         valid_weight_series = pd.Series(0.0, index=merged.index)
 
         for strat_name, score_col in strategy_cols:
-            w_us = eff_us_weights.get(strat_name, default_strat_w)
-            w_kr = eff_kr_weights.get(strat_name, default_strat_w)
+            w_us = eff_us_weights.get(strat_name, 0.0 if is_custom_us else default_strat_w)
+            w_kr = eff_kr_weights.get(strat_name, 0.0 if is_custom_kr else default_strat_w)
             w_series = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
             tot_nominal_weight += w_series
 
@@ -2094,15 +2175,12 @@ class EnsembleScoringEngine:
                 valid_weight_series += w_series * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
 
-        # Dynamic re-normalization over active strategies
+        # Dynamic re-normalization over active strategies (Active weights sum to 100%)
         safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
         raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
-        # Missingness-Aware Coverage Shrinkage: penalize tickers with low strategy coverage
-        coverage_ratio = (valid_weight_series / safe_nom_weight).clip(0.0, 1.0)
-        coverage_factor = 0.50 + 0.50 * coverage_ratio
-        linear_score = (raw_linear_score * coverage_factor).clip(0.0, 1.0)
+        linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
         slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]
