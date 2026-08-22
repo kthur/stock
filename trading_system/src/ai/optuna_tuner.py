@@ -509,10 +509,51 @@ class OptunaStrategyTuner:
 
         return self.tune_strategy_5_vcp_ml(None, None, n_trials=n_trials)
 
+    @staticmethod
+    def compute_deflated_sharpe_ratio(
+        returns_series: pd.Series,
+        n_trials: int = 100,
+        annualization_factor: float = 252.0
+    ) -> float:
+        """
+        Computes Deflated Sharpe Ratio (DSR) based on Bailey & Lopez de Prado (2014).
+        Corrects for selection bias under multi-trial HPO search.
+        """
+        clean_rets = pd.to_numeric(returns_series, errors='coerce').dropna()
+        N = len(clean_rets)
+        if N < 10:
+            return 0.50
+
+        mu = float(clean_rets.mean())
+        std = float(clean_rets.std(ddof=1))
+        if std < 1e-8:
+            return 0.50
+
+        sr = (mu / std) * np.sqrt(annualization_factor)
+        gamma_3 = float(clean_rets.skew()) if N >= 20 else 0.0
+        gamma_4 = float(clean_rets.kurtosis() + 3.0) if N >= 20 else 3.0
+
+        # Asymptotic variance of estimated Sharpe ratio
+        sr_daily = mu / std
+        var_sr = (1.0 - gamma_3 * sr_daily + ((gamma_4 - 1.0) / 4.0) * (sr_daily ** 2)) / float(N)
+        var_sr = max(1e-8, var_sr)
+        std_sr = np.sqrt(var_sr) * np.sqrt(annualization_factor)
+
+        # Expected maximum Sharpe ratio under n_trials independent trials
+        k = max(2, n_trials)
+        euler_mascheroni = 0.5772156649
+        sqrt_2log_k = np.sqrt(2.0 * np.log(k))
+        sr_star = (sqrt_2log_k + euler_mascheroni / max(1e-4, sqrt_2log_k)) * 0.50
+
+        from scipy.stats import norm
+        z = (sr - sr_star) / max(1e-6, std_sr)
+        dsr = float(norm.cdf(z))
+        return float(np.clip(dsr, 0.01, 0.99))
+
     def tune_regime_2d_weights(self, strategy_returns_by_regime: Optional[Dict[str, Dict[str, pd.Series]]] = None, n_trials: int = 20) -> Dict[str, Dict[str, float]]:
         """
         Optuna optimization for 2D regime ensemble weights across 6 regime combo states.
-        Maximizes composite Sharpe ratio per regime combo state.
+        Maximizes Deflated Sharpe Ratio (DSR) penalized composite Sharpe ratio using unconstrained Softmax logits.
         """
         logger.info("Tuning 2D Regime Ensemble Weights using Optuna...")
         regime_combos = [
@@ -562,9 +603,11 @@ class OptunaStrategyTuner:
                 continue
 
             def regime_objective(trial):
-                raw_w = {s: trial.suggest_float(f'w_{s}', 0.005, 0.20) for s in valid_strats}
-                tot = sum(raw_w.values())
-                norm_w = {s: w / tot for s, w in raw_w.items()}
+                logits = {s: trial.suggest_float(f'theta_{s}', -2.0, 2.0) for s in valid_strats}
+                max_l = max(logits.values())
+                exp_l = {s: np.exp(v - max_l) for s, v in logits.items()}
+                tot_exp = sum(exp_l.values())
+                norm_w = {s: v / tot_exp for s, v in exp_l.items()}
 
                 combo_series = sum(combo_returns[s] * norm_w[s] for s in valid_strats).dropna()
                 if len(combo_series) < 5 or combo_series.std() < 1e-8:
@@ -572,7 +615,9 @@ class OptunaStrategyTuner:
                 m_ret = float(combo_series.mean())
                 s_ret = float(combo_series.std())
                 if m_ret > 0:
-                    score = (m_ret / (s_ret + 1e-8)) * np.sqrt(252)
+                    sr = (m_ret / (s_ret + 1e-8)) * np.sqrt(252)
+                    dsr = OptunaStrategyTuner.compute_deflated_sharpe_ratio(combo_series, n_trials=n_trials)
+                    score = sr * (0.70 + 0.30 * dsr)
                 else:
                     score = (m_ret - 0.5 * 2.5 * (s_ret ** 2)) * 252.0
                 return float(score) if np.isfinite(score) else 0.0
@@ -580,9 +625,11 @@ class OptunaStrategyTuner:
             study = optuna.create_study(direction='maximize')
             study.optimize(regime_objective, n_trials=n_trials)
             raw_best = study.best_params
-            raw_w = {s: raw_best[f'w_{s}'] for s in valid_strats}
-            tot = sum(raw_w.values())
-            best_weights[combo] = {s: round(raw_w[s] / tot, 4) for s in valid_strats}
+            best_logits = {s: raw_best[f'theta_{s}'] for s in valid_strats}
+            max_l = max(best_logits.values())
+            exp_l = {s: np.exp(v - max_l) for s, v in best_logits.items()}
+            tot_exp = sum(exp_l.values())
+            best_weights[combo] = {s: round(float(exp_l[s] / tot_exp), 4) for s in valid_strats}
 
         self.tuned_params['regime_2d_weights'] = best_weights
         return best_weights
@@ -739,5 +786,9 @@ class AlphaDecayTracker:
         tot = weights_arr.sum()
         final_w = weights_arr / tot if tot > 0 else weights_arr
         return {s: round(float(w), 4) for s, w in zip(adjusted.keys(), final_w)}
+
+
+compute_deflated_sharpe_ratio = OptunaStrategyTuner.compute_deflated_sharpe_ratio
+
 
 

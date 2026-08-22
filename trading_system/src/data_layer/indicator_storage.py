@@ -185,6 +185,7 @@ class MarketIndicatorStorage:
         self.db_path = db_path
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
         self._write_lock = threading.Lock()
+        self._local = threading.local()
         self._init_db()
         # Modular sub-stores for clean SRP delegation
         self.macro_store = MacroIndicatorStore(self)
@@ -193,18 +194,26 @@ class MarketIndicatorStorage:
 
     @contextmanager
     def _connect(self):
-        """Open a WAL-mode connection context manager that automatically closes connections on exit."""
-        conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA cache_size=-10000")  # 10MB page cache per connection
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA busy_timeout=30000")  # 30s retry on locked DB
-        conn.execute("PRAGMA foreign_keys = ON")
+        """Thread-local SQLite connection context with WAL mode and connection recycling."""
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA cache_size=-10000")  # 10MB page cache per connection
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA busy_timeout=30000")  # 30s retry on locked DB
+            conn.execute("PRAGMA foreign_keys = ON")
+            self._local.conn = conn
+
         try:
             yield conn
-        finally:
-            conn.close()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
 
     def checkpoint_wal(self):
         """Truncate WAL log file to prevent file bloat."""

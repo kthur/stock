@@ -239,6 +239,8 @@ class CrisisDetector:
                 elif vix >= 30.0:
                     composite = max(composite, 0.50)
 
+            self.last_composite_score = float(composite)
+
             previous = self.crisis_level
             if composite >= 0.70:
                 self.crisis_level = CrisisLevel.SEVERE
@@ -435,6 +437,29 @@ class CrisisDetector:
             progress = min(1.0, (self._recovery_days or 1) / 20.0)
             return 0.15 + (1.0 - 0.15) * progress
         return base
+
+    def get_smooth_crisis_position_multiplier(self, composite_score: Optional[float] = None) -> float:
+        """
+        Computes Continuous Sigmoid Crisis Gating Multiplier:
+          g(z) = 1.0 - (1.0 - g_min) / (1.0 + exp(-kappa * (z - z0)))
+        Smooths exposure scaling and eliminates discontinuous liquidation cliffs (e.g. 1.0 -> 0.40).
+        """
+        z = composite_score if composite_score is not None else getattr(self, "last_composite_score", 0.0)
+        z = float(np.clip(z, 0.0, 1.0))
+        kappa = 10.0
+        z0 = 0.45
+        g_min = 0.15
+        sigmoid_val = 1.0 / (1.0 + np.exp(-kappa * (z - z0)))
+        smooth_mult = 1.0 - (1.0 - g_min) * sigmoid_val
+        return float(np.clip(smooth_mult, g_min, 1.0))
+
+    def get_smooth_crisis_cash_target(self, composite_score: Optional[float] = None) -> float:
+        """
+        Continuous Sigmoid Cash Target:
+          cash_target = 1.0 - smooth_position_multiplier + 0.10
+        """
+        pos_mult = self.get_smooth_crisis_position_multiplier(composite_score)
+        return float(np.clip(1.0 - pos_mult + 0.10, 0.10, 0.90))
 
     def get_crisis_risk_multiplier(self) -> float:
         """위기 시 1회 거래당 최대 허용 손실 비율(Risk) 축소 배수"""
