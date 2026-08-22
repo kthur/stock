@@ -2004,40 +2004,33 @@ class EnsembleScoringEngine:
             is_kr = merged['symbol'].astype(str).str.match(r'^\d{6}$') | merged['symbol'].astype(str).str.endswith(('.KS', '.KQ'))
 
         default_strat_w = 1.0 / max(float(len(strategy_cols)), 1.0)
+        tot_nominal_weight = pd.Series(0.0, index=merged.index)
+        valid_weight_series = pd.Series(0.0, index=merged.index)
+
         for strat_name, score_col in strategy_cols:
             w_us = eff_us_weights.get(strat_name, default_strat_w)
             w_kr = eff_kr_weights.get(strat_name, default_strat_w)
             w_series = pd.Series(np.where(is_kr, w_kr, w_us), index=merged.index)
+            tot_nominal_weight += w_series
 
             if score_col in merged.columns:
-                # Available-Factor Re-normalization: Valid 0.0 scores are preserved, missing/NaN values are excluded from the denominator.
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
-                clean_score = np.where(valid_mask, merged[score_col], 0.0)
-                total_score_series += clean_score * w_series
-                total_weight_series += w_series * valid_mask.astype(float)
+                # Prior-Anchored Imputation: Impute neutral 0.50 for missing factor scores
+                imputed_score = np.where(valid_mask, merged[score_col], 0.50)
+                total_score_series += imputed_score * w_series
+                valid_weight_series += w_series * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
+            else:
+                total_score_series += 0.50 * w_series
 
-        # Avoid division by zero: normalize by the sum of available valid factor weights
-        safe_weight_series = total_weight_series.replace(0.0, np.nan)
-        linear_score = (total_score_series / safe_weight_series).fillna(0.0).clip(0.0, 1.0)
+        # Normalize by nominal weight sum
+        safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
+        raw_linear_score = (total_score_series / safe_nom_weight).fillna(0.50).clip(0.0, 1.0)
 
-        # Core Strategy Quorum Check (price/volume/momentum/trend models that all stocks can possess)
-        core_strat_cols = [sc for sn, sc in strategy_cols if sn in [
-            'regression', 'surge', 'lead_lag', 'vcp_rule', 'vcp_ml', 'lstm',
-            'stat_arb', 'sector_rotation', 'short_term_reversal', 'trend_efficiency'
-        ] and sc in merged.columns]
-        core_valid_count = merged[core_strat_cols].notna().sum(axis=1) if core_strat_cols else valid_count_series
-
-        # Market-aware denominator to avoid penalizing Korean stocks for US-specific alternative factors
-        us_only_strats = {'iv_skew', 'gamma_squeeze', 'darkpool', 'short_squeeze'}
-        kr_present_strats = max(1, len([sc for sn, sc in strategy_cols if sn not in us_only_strats]))
-        us_present_strats = max(1, num_present_strats)
-        effective_num_strats = np.where(is_kr, kr_present_strats, us_present_strats)
-
-        # Apply smooth coverage factor: only penalize when core strategy quorum (<3) AND overall coverage (<25%) are critically low
-        coverage_ratio = valid_count_series / np.maximum(effective_num_strats, 1.0)
-        coverage_penalty = np.where((core_valid_count < 3) & (coverage_ratio < 0.25), 0.70 + 0.30 * (coverage_ratio / 0.25), 1.0)
-        linear_score = pd.Series(linear_score * coverage_penalty, index=merged.index).clip(0.0, 1.0)
+        # Bayesian Coverage Shrinkage: smooth regularization against sparse missingness
+        coverage_ratio = (valid_weight_series / safe_nom_weight).clip(0.0, 1.0)
+        coverage_factor = 1.0 - 0.10 * (1.0 - coverage_ratio)
+        linear_score = (raw_linear_score * coverage_factor).clip(0.0, 1.0)
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
         slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]

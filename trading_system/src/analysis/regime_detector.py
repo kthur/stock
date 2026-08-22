@@ -371,6 +371,36 @@ class MarketRegimeDetector:
         dir_code = self.predict_regime(indicator_df)
         dir_label = ["BEAR", "SIDEWAYS", "BULL"][dir_code] if 0 <= dir_code <= 2 else "SIDEWAYS"
 
+        # Dual-Speed Fast/Slow Shock Detector:
+        # Detect V-bottom recovery shocks: 3-day index rebound >= +3.0% and VIX 3-day drop <= -15.0%
+        is_fast_rebound = False
+        try:
+            if not indicator_df.empty:
+                sp_col = next((c for c in ['sp500_change', 'sp500_ret', 'sp500_return', 'sp500_pct_change'] if c in indicator_df.columns), None)
+                if sp_col:
+                    sp_series = pd.to_numeric(indicator_df[sp_col], errors='coerce').dropna()
+                    if len(sp_series) >= 3:
+                        ret_3d = float(sp_series.tail(3).sum())
+                        vix_col = next((c for c in ['vix', 'vix_raw', 'vix_close', 'vix_change'] if c in indicator_df.columns), None)
+                        vix_drop = False
+                        if vix_col:
+                            vix_series = pd.to_numeric(indicator_df[vix_col], errors='coerce').dropna()
+                            if len(vix_series) >= 3:
+                                v_start = float(vix_series.iloc[-3])
+                                v_end = float(vix_series.iloc[-1])
+                                if v_start > 0:
+                                    vix_chg_3d = (v_end - v_start) / v_start
+                                    vix_drop = (vix_chg_3d <= -0.15)
+                        if ret_3d >= 3.0 and (vix_drop or ret_3d >= 4.5):
+                            is_fast_rebound = True
+        except Exception as _e_fast:
+            logger.debug(f"[DUAL-SPEED REGIME] Fast rebound check error: {_e_fast}")
+
+        if is_fast_rebound and dir_label == "BEAR":
+            logger.info("[DUAL-SPEED REGIME] Fast V-bottom rebound trigger activated: Upgrading BEAR -> BULL.")
+            dir_code = 2
+            dir_label = "BULL"
+
         try:
             is_high_vol = False
             # 1. Forward-looking VIX shock check (VIX level >= 20.0 or VIX surge >= 15%)

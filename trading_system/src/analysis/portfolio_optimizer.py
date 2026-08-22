@@ -244,18 +244,31 @@ def calculate_black_litterman_weights(
     return calculate_risk_parity_weights(cov_matrix)
 
 
-def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: float = 0.15) -> np.ndarray:
-    """Ledoit-Wolf style covariance shrinkage towards diagonal variance target.
-    Stabilizes covariance matrix and mitigates sample noise in portfolio optimization.
+def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: Optional[float] = None) -> np.ndarray:
+    """
+    Analytical Ledoit-Wolf optimal covariance shrinkage towards diagonal variance target F = mean(diag(S)) * I.
+    Stabilizes covariance matrix, mitigates sample noise, and minimizes Frobenius loss in portfolio optimization.
     """
     if cov_matrix is None or not isinstance(cov_matrix, np.ndarray) or cov_matrix.size == 0:
         return cov_matrix
     n = cov_matrix.shape[0]
     if n <= 1:
         return cov_matrix
-    mean_var = np.mean(np.diag(cov_matrix))
-    diag_target = mean_var * np.eye(n)
-    shrunk_cov = (1.0 - shrink_factor) * cov_matrix + shrink_factor * diag_target
+
+    mean_var = float(np.mean(np.diag(cov_matrix)))
+    diag_target = mean_var * np.eye(n, dtype=np.float64)
+
+    if shrink_factor is not None:
+        delta = float(np.clip(shrink_factor, 0.0, 1.0))
+    else:
+        # Analytical Frobenius-norm Ledoit-Wolf Shrinkage Intensity Estimation
+        d2 = float(np.sum((cov_matrix - diag_target) ** 2))
+        if d2 < 1e-12:
+            return cov_matrix
+        asy_var = float(np.sum(np.diag(cov_matrix) ** 2)) / float(max(n, 1))
+        delta = float(np.clip(asy_var / (d2 + asy_var), 0.05, 0.40))
+
+    shrunk_cov = (1.0 - delta) * cov_matrix + delta * diag_target
     return shrunk_cov
 
 

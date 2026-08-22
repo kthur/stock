@@ -12,10 +12,50 @@ logger = logging.getLogger(__name__)
 # and your work WILL be rejected.
 
 
+def solve_single_stage_entropy_allocation(
+    R: np.ndarray,
+    w0: np.ndarray,
+    tau_entropy: float = 0.05,
+    gamma_anchor: float = 1.0,
+    w_min: float = 0.005,
+    max_iter: int = 150
+) -> np.ndarray:
+    """
+    Solves Single-Stage Convex Information-Entropy Redundancy Allocation Program on Simplex Delta^(K-1):
+        min_w  [ 0.5 * w^T R w - tau_entropy * sum(ln(w_i)) + gamma_anchor * ||w - w0||^2 ]
+        subject to w_i >= w_min, sum(w_i) = 1.0.
+    Directly penalizes multicollinear factor redundancy while ensuring strategy diversification
+    and anchoring to macro regime weights w0 without triple-penalty alpha destruction.
+    """
+    K = len(w0)
+    if K <= 1:
+        return np.ones(K) if K == 1 else np.array([])
+
+    # Clean correlation matrix and ensure symmetry
+    R_sym = (R + R.T) * 0.5
+    np.fill_diagonal(R_sym, 1.0)
+    w = np.copy(w0).astype(np.float64)
+    w = np.maximum(w, w_min)
+    w = w / np.sum(w)
+
+    lr = 0.02
+    for _ in range(max_iter):
+        grad = np.dot(R_sym, w) - (tau_entropy / np.maximum(w, 1e-6)) + 2.0 * gamma_anchor * (w - w0)
+        w_new = w - lr * grad
+        w_new = np.maximum(w_new, w_min)
+        w_new = w_new / np.sum(w_new)
+
+        if np.max(np.abs(w_new - w)) < 1e-6:
+            break
+        w = w_new
+
+    return w
+
+
 class RegimeFactorSuppressionEngine:
     """
-    Implements 2D regime-based factor noise suppression penalties targeting
-    multicollinear strategy redundancy.
+    Implements 2D regime-based factor noise suppression penalties and Single-Stage
+    Entropy Redundancy Allocation targeting multicollinear strategy redundancy.
 
     Penalty Formulation:
       E_ij = max(0, |rho_ij| - theta(R))
@@ -183,7 +223,8 @@ class RegimeFactorSuppressionEngine:
         regime_label: str,
         theta: Optional[float] = None,
         lambda_penalty: Optional[float] = None,
-        tuned_params: Optional[Dict[str, Any]] = None
+        tuned_params: Optional[Dict[str, Any]] = None,
+        use_entropy_allocation: bool = False
     ) -> Dict[str, float]:
         """
         Applies regime-specific correlation factor noise dampening penalties to base strategy weights.
@@ -200,6 +241,26 @@ class RegimeFactorSuppressionEngine:
         default_t, default_l = self._get_regime_params(regime_label, tuned_params=tuned_params)
         eff_theta = theta if theta is not None else default_t
         eff_lambda = lambda_penalty if lambda_penalty is not None else default_l
+
+        if use_entropy_allocation:
+            try:
+                # Single-Stage Information-Entropy Redundancy Allocation
+                strats = [s for s in base_weights.keys() if s in corr_matrix.columns]
+                if len(strats) >= 2:
+                    w0_vec = np.array([float(base_weights[s]) for s in strats], dtype=np.float64)
+                    w0_vec = w0_vec / max(np.sum(w0_vec), 1e-8)
+                    R_sub = corr_matrix.loc[strats, strats].to_numpy(dtype=np.float64)
+                    
+                    opt_w = solve_single_stage_entropy_allocation(
+                        R=R_sub,
+                        w0=w0_vec,
+                        tau_entropy=0.05,
+                        gamma_anchor=1.0 / max(0.1, eff_lambda),
+                        w_min=0.005
+                    )
+                    return {s: float(w) for s, w in zip(strats, opt_w)}
+            except Exception as _ent_e:
+                logger.debug(f"[ENTROPY ALLOCATION] Fallback to standard penalty model: {_ent_e}")
 
         penalties = self.compute_penalties(
             corr_matrix=corr_matrix,

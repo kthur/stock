@@ -480,42 +480,73 @@ class PortfolioAllocator:
         # Lower tail dependence stress covariance blending
         cov_shrunk = self.compute_tail_stress_cov(returns_matrix, cov_shrunk)
 
-        def objective(w):
+        # Rockafellar & Uryasev (2000) Globally Convex Auxiliary CVaR Formulation:
+        # min -w^T mu + (lambda/2) w^T Sigma w + kappa * CVaR(w)
+        # s.t. u_t + r_t^T w + alpha >= 0, u_t >= 0, sum(w_i) = 1.0, 0 <= w_i <= max_w
+        T_full, N = returns_matrix.shape
+        T = min(T_full, 252)
+        rets_T = returns_matrix[-T:]
+        beta_inv = 1.0 / max(1e-4, (1.0 - confidence) * float(T))
+
+        def ru_objective(x):
+            w = x[:N]
+            alpha = x[N]
+            u = x[N+1:]
             ret = np.dot(w, mu)
-            p_rets = np.dot(returns_matrix, w)
-            downside_losses = np.minimum(0.0, p_rets)
-            semi_var = float(np.mean(downside_losses ** 2))
-            var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (n_assets, n_assets) else float(np.var(p_rets, ddof=1))
-            # Sortino-guided Downside Risk Penalty
-            total_risk = 0.5 * self.risk_aversion * (0.6 * var_p + 0.4 * semi_var)
-            return -(ret - total_risk)
+            var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (N, N) else float(np.var(np.dot(rets_T, w), ddof=1))
+            cvar_term = alpha + beta_inv * float(np.sum(u))
+            return -ret + 0.5 * self.risk_aversion * var_p + 1.0 * max(0.0, cvar_term - max_cvar)
 
-        def cvar_constraint(w):
-            cvar_val = self.estimate_portfolio_evt_cvar(w, returns_matrix, confidence)
-            return max_cvar - cvar_val
+        eff_max_w = max(max_weight, 1.05 / N)
+        bounds_ru = [(0.0, eff_max_w)] * N + [(-1.0, 1.0)] + [(0.0, None)] * T
 
-        init_weights = np.ones(n_assets) / n_assets
-        eff_max_w = max(max_weight, 1.05 / n_assets)
-        bounds = tuple((0.0, eff_max_w) for _ in range(n_assets))
-        constraints = [
-            {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},
-            {'type': 'ineq', 'fun': cvar_constraint}
+        constraints_ru = [
+            {'type': 'eq', 'fun': lambda x: np.sum(x[:N]) - 1.0},
+            {'type': 'ineq', 'fun': lambda x: max_cvar - (x[N] + beta_inv * np.sum(x[N+1:]))},
+            {'type': 'ineq', 'fun': lambda x: x[N+1:] + np.dot(rets_T, x[:N]) + x[N]}
         ]
 
+        init_w = np.ones(N) / N
+        init_alpha = 0.02
+        init_loss = -np.dot(rets_T, init_w)
+        init_u = np.maximum(0.0, init_loss - init_alpha)
+        init_x = np.concatenate([init_w, [init_alpha], init_u])
+
         res = minimize(
-            objective,
-            init_weights,
+            ru_objective,
+            init_x,
             method='SLSQP',
-            bounds=bounds,
-            constraints=constraints,
+            bounds=bounds_ru,
+            constraints=constraints_ru,
             options={'maxiter': 500, 'ftol': 1e-6}
         )
 
-        if not res.success:
-            logger.warning(f"EVT-CVaR constrained optimization status: {res.message}. Normalizing initial weights.")
-            weights = init_weights
+        if not res.success or np.sum(res.x[:N]) <= 0:
+            # Fallback to standard QP with EVT-CVaR verification
+            def std_objective(w):
+                ret = np.dot(w, mu)
+                var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (N, N) else float(np.var(np.dot(returns_matrix, w), ddof=1))
+                return -(ret - 0.5 * self.risk_aversion * var_p)
+
+            def std_cvar_constraint(w):
+                cvar_val = self.estimate_portfolio_evt_cvar(w, returns_matrix, confidence)
+                return max_cvar - cvar_val
+
+            res_std = minimize(
+                std_objective,
+                init_w,
+                method='SLSQP',
+                bounds=tuple((0.0, eff_max_w) for _ in range(N)),
+                constraints=[
+                    {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},
+                    {'type': 'ineq', 'fun': std_cvar_constraint}
+                ],
+                options={'maxiter': 200, 'ftol': 1e-6}
+            )
+            weights = res_std.x / np.sum(res_std.x) if res_std.success else init_w
         else:
-            weights = res.x / np.sum(res.x)
+            weights = np.maximum(0.0, res.x[:N])
+            weights = weights / np.sum(weights)
 
         return {sym: float(w) for sym, w in zip(symbols, weights)}
 
