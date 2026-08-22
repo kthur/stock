@@ -1,101 +1,106 @@
-# Handoff Report: R2 (Portfolio Asset Allocation & Microstructure Execution)
+# Handoff Report — Requirement R2 Technical Investigation & Blueprint
 
-**Agent**: Explorer 2 (Portfolio Allocation & Microstructure Execution Specialist)  
-**Date**: 2026-08-15  
+**Agent**: `explorer_survey_2`  
+**Role**: Teamwork Explorer (Investigation & Synthesis)  
+**Date**: 2026-08-22  
 **Working Directory**: `d:\Finance\code\stock\.agents\explorer_survey_2`  
-**Target Milestone**: R2 Architecture & Verification Survey  
+**Related Report**: `d:\Finance\code\stock\.agents\explorer_survey_2\survey_r2.md`
 
 ---
 
 ## 1. Observation
 
-Direct code inspections and test executions revealed the following verbatim facts and measurements:
+Direct observations from source code inspection:
 
-1. **Portfolio Optimization & Tail Risk Budgeting**:
-   - `trading_system/src/risk/portfolio_allocator.py` (lines 59–179): `estimate_evt_cvar` implements Extreme Value Theory (EVT) Peaks-Over-Threshold (POT) Generalized Pareto Distribution (GPD) fitting with a 3-tier fallback hierarchy:
-     - Tier 1: EVT-GPD POT fitting via `genpareto.fit(exceedances, floc=0)` with clamped shape parameter $\xi \le 0.50$.
-     - Tier 2: Cornish-Fisher expansion tail adjustment utilizing skewness and excess kurtosis.
-     - Tier 3: Empirical quantile and Gaussian parametric CVaR fallback when $N < 10$.
-   - `trading_system/src/risk/portfolio_allocator.py` (lines 194–273): `optimize_with_evt_cvar_constraint` solves non-linear SLSQP optimization under $\text{EVT\_CVaR}_\alpha(w) \le \text{max\_cvar}$ and semi-variance downside risk penalties using Ledoit-Wolf covariance shrinkage (`sklearn.covariance.LedoitWolf`).
-   - `trading_system/src/analysis/portfolio_optimizer.py` (lines 237–354): `calculate_hrp_weights` computes Hierarchical Risk Parity (HRP) using Lopez de Prado's algorithm (distance metric $d_{ij}=\sqrt{0.5(1-\rho_{ij})}$, single linkage clustering, quasi-diagonalization, recursive bisection, and covariance shrinkage $\delta=0.15$).
-   - `src/strategy/quad_factor_optimizer.py` (lines 106–278): `QuadFactorOptimizer` solves convex quadratic programming for Beta, Size, Volatility, and Momentum neutrality ($|f_k^T w| \le 0.05$) and sector caps ($\le 0.25$) with CVXPY/OSQP and analytical SciPy SLSQP solvers.
+1. **Fixed 60-Day Filing Lag**:
+   - `trading_system/src/data_layer/earnings_data.py` (L74): `result['date_available'] = (fin.index + pd.Timedelta(days=60)).strftime('%Y-%m-%d')` enforces a static 60-day lag on synchronous fundamental fetch.
+   - `trading_system/src/data_layer/earnings_data.py` (L239): `"date_available": (dt + pd.Timedelta(days=60)).strftime('%Y-%m-%d')` enforces a static 60-day lag on asynchronous fundamental fetch.
+   - `trading_system/src/ai/prediction_model.py` (L1009, L1024): `df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)` applies static 60-day lag when merging fundamentals onto prices.
+   - `trading_system/run_pipeline.py` (L2645, L2957): Static 60-day lag applied during RIM input preparation and ARM factor calculation.
+   - *Observation Detail*: The 60-day lag causes a 15–20 day unnecessary delay for Korean quarterly reports (statutory deadline: 45 days) and US quarterly 10-Q filings (statutory deadline: 40 days for accelerated/large accelerated filers). Furthermore, when real-time disclosure dates (`filing_date` or `rcept_dt`) exist, they are ignored in favor of the static 60-day offset.
 
-2. **Microstructure Friction Cost Modeling & Leland Buffer Bands**:
-   - `trading_system/src/risk/portfolio_allocator.py` (lines 399–490): `estimate_transaction_cost_rate` implements statutory tax and fees:
-     - KOSPI sell STT: 0.15% (0.0015) + brokerage 0.03% (0.0003)
-     - KOSDAQ sell STT: 0.18% (0.0018) + brokerage 0.03% (0.0003)
-     - KONEX sell STT: 0.08% (0.0008) + brokerage 0.03% (0.0003)
-     - US (SP500/NASDAQ/RUSSELL2000) sell SEC fee: 0.003% (0.00003) + brokerage 0.005% (0.00005)
-     - Dynamic bid-ask half-spread: $S_i = \text{base\_spread} \times (\text{ADV}_{\text{ref}}/\text{ADV})^{0.25} \times (\sigma_i/\sigma_0)^{0.50}$
-     - Square-root market impact: $\text{Impact} = \gamma \times \sigma_i \times \sqrt{Q_{\text{order}}/\text{ADV}}$ with $+0.50(\text{part}-0.10)$ over-participation penalty.
-   - `trading_system/src/risk/portfolio_allocator.py` (lines 492–627): `calculate_dynamic_buffer_band` and `compute_portfolio_rebalance` calculate Leland optimal no-trade buffer bands $\delta_i = [(3 c_i w_i \sigma_i)/(2\gamma)]^{1/3} \in [0.5\%, 5.0\%]$, generating `HOLD` actions inside buffer bands and reducing transaction cost drag by $\ge 60\%$.
-   - `trading_system/src/ai/ensemble_scorer.py` (lines 1820–1920): Vectorized microstructure friction deduction computes `ensemble_expected_return = (raw_exp_ret - cost_series * 100.0).clip(0.0, 50.0)`.
+2. **Naive Random Sampling in Training Data Preparation**:
+   - `trading_system/run_pipeline.py` (L1504–1519):
+     ```python
+     def _safe_sample(population, k):
+         if k >= len(population):
+             return list(population)
+         return random.sample(population, k)
+     train_krx_overall = _safe_sample(active_krx_symbols, krx_sample) if active_krx_symbols else []
+     train_us_overall = _safe_sample(active_us_symbols, sp500_sample) if active_us_symbols else []
+     ```
+   - *Observation Detail*: `random.sample()` selects tickers with uniform probability. Because small-caps outnumber large-caps by ~5:1, random sampling underrepresents mega/large caps and frequently produces sector imbalances (e.g. over-concentrating in technology and starving financial/industrial sectors).
 
-3. **Execution OMS Engine & Slippage Feedback**:
-   - `trading_system/src/execution/oms_engine.py` (lines 23–280): `ExecutionOMSEngine` manages SQLite WAL `trade_logs.db` (`order_plans` and `execution_logs` tables) with 6 safety gates (Severe crisis suppression, kill switch gating, ticker regex `^[A-Z0-9][A-Z0-9.\-^]*$` sanitization, price bounds $[1.0, 100,000,000]$ KRW, KRX 10-share lot rounding, and partial execution tracking).
-   - `trading_system/src/execution/slippage_feedback.py` (lines 39–195): Queries `trade_logs.db`, calculates realized slippage in bps, estimates empirical impact alpha, and updates `cost_scaling_factor` and `realized_market_impact_alpha` in `EnsembleScoringEngine`.
-
-4. **Test Suite Verification Execution**:
-   - Tool Command: `.venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_portfolio_risk.py tests/test_hrp_optimizer.py tests/test_black_litterman.py tests/test_kelly_sizing.py trading_system/tests/test_portfolio_optimizer_and_oms.py trading_system/tests/test_slippage_feedback.py -v --tb=short`
-   - Result: `38 passed, 1 warning in 15.12s (100% pass rate)`.
+3. **Fake BENCHMARK Pair Injection in Statistical Arbitrage**:
+   - `trading_system/run_pipeline.py` (L1972–1997):
+     ```python
+     if not stat_arb_pairs:
+         # Continuous fallback: calculate 20-day MA Z-score deviation for all symbols
+         for sym, df_p in infer_data_dict.items():
+             ...
+             stat_arb_pairs.append({
+                 'pair': (sym, 'BENCHMARK'),
+                 'z_score': round(float(z), 2),
+                 'correlation': 0.85,
+                 'beta': 1.0,
+                 'signal': f'LONG_{sym}_SHORT_BENCHMARK' if z <= -2.0 else (f'SHORT_{sym}_LONG_BENCHMARK' if z >= 2.0 else 'NEUTRAL'),
+                 'market': mkt
+             })
+     ```
+   - `trading_system/src/core/stat_arb.py` (L635–640): Leftover special cases checking `s2 == "BENCHMARK"`.
+   - *Observation Detail*: When no statistically valid cointegrated pairs exist (e.g. in trending markets), this fallback manufactures fake benchmark pairs with hardcoded correlation 0.85 and beta 1.0 based on simple 20-day moving averages. This pollutes `stat_arb_predictions.txt` and distorts ensemble scoring.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Premise 1**: Robust multi-factor quantitative portfolio management requires controlling both asset-level tail risk (fat tails) and portfolio-level factor/sector concentrations while avoiding sample noise over-fitting.
-2. **Observation Step 1**: In `portfolio_allocator.py`, EVT-GPD POT fitting accurately captures tail index $\xi > 0$ for heavy-tailed Student-t and Pareto losses (as verified in `test_gpd_fitting_student_t` where EVT-CVaR strictly exceeds Gaussian CVaR). The 3-tier fallback guarantees numerical stability when sample size $N < 10$.
-3. **Observation Step 2**: In `analysis/portfolio_optimizer.py` and `quad_factor_optimizer.py`, Ledoit-Wolf covariance shrinkage ($\delta=0.15$) conditions the covariance matrix prior to HRP clustering and QP optimization, mitigating singular matrix errors and spurious cross-asset correlations.
-4. **Premise 2**: Strategy profitability in live markets is heavily degraded by transaction friction (statutory taxes, bid-ask spreads, market impact) and excessive turnover.
-5. **Observation Step 3**: The friction models in `portfolio_allocator.py`, `microstructure.py`, and `ensemble_scorer.py` accurately reflect official statutory rates (KOSPI 0.15%, KOSDAQ 0.18%, US SEC 0.003%) and empirical market impact functions.
-6. **Observation Step 4**: Leland dynamic no-trade buffer bands ($\delta_i \propto (c_i w_i \sigma_i / \gamma)^{1/3}$) dynamically filter out low-conviction portfolio adjustments, saving $\ge 60\%$ in transaction costs over 250 simulated days (`TestRebalancingBenchmark`).
-7. **Premise 3**: Live-money order execution must prevent catastrophic errors from corrupted upstream signals or market anomalies.
-8. **Observation Step 5**: `ExecutionOMSEngine` enforces 6 hard safety gates (blocking corrupt dict strings, out-of-bounds prices, Severe crisis states, and unrounded lot sizes) and feeds realized slippage back to the alpha engine.
-9. **Conclusion**: Requirement 2 (R2) architecture is mathematically rigorous, fully implemented, resilient against market extremes, and verified with 100% pass rates across all 38 unit and integration tests.
+1. **Dynamic Filing Lag Rationale**:
+   - *Step 1*: South Korea's Capital Markets Act mandates quarterly filing within 45 days. US SEC Form 10-Q mandates filing within 40 days for accelerated/large accelerated filers.
+   - *Step 2*: Replacing the static 60-day lag with 45d (KRX) and 40d (US) aligns the model with legal disclosure deadlines, accelerating earnings momentum recognition by 15–20 days.
+   - *Step 3*: When an authentic public filing date (`filing_date`, `rcept_dt`) is available and confirmed to be $\le \text{as\_of\_date}$, setting $\text{date\_available} = \text{filing\_date}$ immediately incorporates earnings data into the causal time series.
+   - *Step 4*: The existing `pd.merge_asof(..., direction='backward')` structure guarantees zero lookahead bias because fundamentals are merged strictly up to each trading date.
+
+2. **Stratified Sampling Rationale**:
+   - *Step 1*: Training on a representative cross-section of the market is essential for cross-sectional normalization (`apply_market_normalization`) and model generalization across market regimes.
+   - *Step 2*: Grouping the universe by `(Market, Sector, Market-Cap Quantile)` partitions the universe into homogeneous sub-populations.
+   - *Step 3*: Allocating sample quotas proportionally to strata sizes ($k_{s,q} \propto |S_{s,q}|$) ensures that large, mid, and small caps across all economic sectors are reliably represented in the training set in every run.
+   - *Step 4*: Seeding the sampling guarantees deterministic reproducibility for backtesting and production stability.
+
+3. **Fake BENCHMARK Pair Elimination Rationale**:
+   - *Step 1*: Statistical arbitrage relies on the stationarity of price residuals ($p < 0.05$ Engle-Granger ADF test, OU half-life $< 40$ days).
+   - *Step 2*: A single stock's 20-day moving average Z-score is a trend/momentum indicator, not cointegration. Packaging it as a cointegrated pair with hardcoded correlation 0.85 and beta 1.0 is statistically invalid.
+   - *Step 3*: When no pairs pass cointegration tests, returning 0 pairs is the statistically honest outcome.
+   - *Step 4*: Under Requirement R1's dynamic weight re-normalization, an empty `stat_arb_df` naturally receives 0% weight, and the remaining active strategies are re-normalized to 100%, completely avoiding ensemble skew without fabricating dummy data.
 
 ---
 
 ## 3. Caveats
 
-1. **Broker Live API Integration**: `ExecutionOMSEngine` generates and logs order plans to `trade_logs.db`. Actual order routing to brokers (e.g. KIS Open API, Kiwoom OpenAPI+) depends on `broker_type` and credentials in live trading mode (`mock_trading=False`).
-2. **Realized Slippage History**: In a fresh environment without trade history in `trade_logs.db`, `SlippageFeedbackEngine` gracefully defaults to baseline parameters (5.0 bps slippage, scaling factor 1.0, impact alpha 0.50).
-3. **Optuna 2D Regime Tuning**: 2D regime weights are periodically calibrated against forward 5-day return distributions; default static weights provide a reliable baseline.
+1. **Market Metadata Availability**: In offline mode or synthetic tests where sector or market cap is not populated in `universe`, stratified sampling must gracefully fall back to market-only or uniform stratification without raising exceptions.
+2. **Backward Compatibility with Existing Tests**: Tests asserting fundamental alignment (e.g. `test_fundamental_prediction_adversarial.py`) test chronological forward-filling. The 40d/45d window retains exact backward compatibility while reducing latency.
+3. **Empty Stat-Arb Result**: Downstream report generators and text formatters must cleanly output `Total cointegrated pairs found: 0` without KeyError or division-by-zero errors when `stat_arb_pairs` is empty.
 
 ---
 
 ## 4. Conclusion
 
-Requirement 2 (**Portfolio Asset Allocation & Microstructure Execution**) is completely built and functionally verified:
-- **HRP & Covariance Shrinkage**: Full Lopez de Prado algorithm with Ledoit-Wolf shrinkage and iterative capacity bounds.
-- **EVT-CVaR Tail Loss Budgeting**: 3-tier POT GPD fallback hierarchy with non-linear SLSQP optimization.
-- **Microstructure Friction Costing**: Directional STT taxes, SEC fees, dynamic spreads, and square-root participation-penalized market impact.
-- **Dynamic Rebalancing**: Leland buffer bands reducing rebalancing turnover drag by $> 60\%$.
-- **OMS & Slippage Feedback**: 6 live-money safety gates, SQLite WAL logging, and closed-loop cost parameter updates.
-- **Factor & Sector Neutrality**: Regime-adaptive sector concentration caps ($\le 25\%$ defensive, $\le 35\%$ bull) and Strategy 21 Fama-French 5-factor QR residualization ($|\rho| < 0.15$).
+All three components of Requirement R2 are fully analyzed and architected:
+1. **Dynamic Filing Lag**: Implement `get_filing_lag_days(market, symbol)` (KRX 45d, US 40d) with immediate `filing_date` override across `earnings_data.py`, `prediction_model.py`, and `run_pipeline.py`.
+2. **Stratified Sampling**: Implement `stratified_sample_symbols(universe, sample_size, market, seed)` in `prediction_model.py` and replace `random.sample()` in `run_pipeline.py`.
+3. **Total Fake Pair Removal**: Delete lines 1972–1997 in `run_pipeline.py` and clean up `src/core/stat_arb.py`, letting `EnsembleScoringEngine` handle zero/sparse pairs via dynamic weight re-normalization.
 
 ---
 
 ## 5. Verification Method
 
-To independently verify all findings and test suites:
-
-```bash
-# 1. Run all Core R2 Portfolio Allocation & OMS Test Suites
-.venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_portfolio_risk.py tests/test_hrp_optimizer.py tests/test_black_litterman.py tests/test_kelly_sizing.py trading_system/tests/test_portfolio_optimizer_and_oms.py trading_system/tests/test_slippage_feedback.py -v --tb=short
-
-# 2. Run Quad-Factor & Factor Neutrality SLA Suites
-.venv\Scripts\python.exe -m pytest tests/test_quad_factor_optimizer.py tests/test_factor_neutralized_sla.py -v --tb=short
-
-# 3. Inspect Source & Configuration Files
-# - trading_system/src/risk/portfolio_allocator.py
-# - trading_system/src/risk/portfolio_optimizer.py
-# - src/strategy/quad_factor_optimizer.py
-# - trading_system/src/execution/oms_engine.py
-# - trading_system/src/execution/slippage_feedback.py
-# - trading_system/src/config.py
-```
-
-Invalidation conditions:
-- Any test failure in the 38 R2 test items.
-- Inability of `estimate_evt_cvar` to fit heavy tails ($\xi > 0$) or fallback gracefully.
-- Leland dynamic buffer bands failing to reduce transaction cost drag by $\ge 60\%$.
+1. **Unit Test Suite Execution**:
+   ```bash
+   .venv/Scripts/pytest tests/ -v
+   ```
+2. **Dedicated Unit Tests to Implement**:
+   - `test_dynamic_filing_lag_krx_vs_us`: Verify 45d lag for KOSPI/KOSDAQ and 40d lag for SP500/NASDAQ/RUSSELL2000.
+   - `test_dynamic_filing_lag_explicit_override`: Verify `filing_date` immediately takes precedence.
+   - `test_stratified_sampling_distribution`: Verify all market/sector/market-cap strata are represented proportionally.
+   - `test_stat_arb_zero_fake_benchmark_pairs`: Verify 0 fake pairs are generated when input prices are uncorrelated random walks.
+3. **Pipeline Verification**:
+   - Run pipeline in test/demo mode and inspect `stat_arb_predictions.txt` to confirm no `(sym, 'BENCHMARK')` pairs appear.

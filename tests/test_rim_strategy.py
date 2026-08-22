@@ -371,3 +371,144 @@ def test_rim_small_cap_and_high_nominal_bps_scaling():
     assert res_kr.loc['003240', 'intrinsic_value'] > 1_000_000.0
 
 
+def test_rim_empty_and_missing_columns_graceful():
+    """Verify compute_rim_scores handles empty DataFrames, None, and partial columns without throwing exceptions."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    # 1. None and empty DataFrame
+    res_none = engine.compute_rim_scores(None)
+    assert isinstance(res_none, pd.DataFrame) and res_none.empty
+
+    res_empty = engine.compute_rim_scores(pd.DataFrame())
+    assert isinstance(res_empty, pd.DataFrame) and res_empty.empty
+
+    # 2. US symbol with book_value but missing shares_outstanding
+    df_no_shares = pd.DataFrame([
+        {'symbol': 'AAPL', 'market': 'NASDAQ', 'Close': 150.0, 'book_value': 50000.0}
+    ])
+    res_no_shares = engine.compute_rim_scores(df_no_shares)
+    assert len(res_no_shares) == 1
+    assert 'rim_score' in res_no_shares.columns
+    # Without shares_outstanding, aggregate book_value is not per-share BPS -> NaN
+    assert np.isnan(res_no_shares.iloc[0]['bps'])
+    assert np.isnan(res_no_shares.iloc[0]['rim_score'])
+
+    # 3. Minimal DataFrame with only symbol and Close
+    df_min = pd.DataFrame([
+        {'symbol': '005930', 'Close': 70000.0}
+    ])
+    res_min = engine.compute_rim_scores(df_min)
+    assert len(res_min) == 1
+    assert res_min.iloc[0]['market'] == 'KOSPI'
+    assert np.isnan(res_min.iloc[0]['rim_score'])
+
+    # 4. DataFrame without symbol column
+    df_no_sym = pd.DataFrame([
+        {'Close': 100.0, 'bps': 80.0, 'roe': 0.10}
+    ])
+    res_no_sym = engine.compute_rim_scores(df_no_sym)
+    assert len(res_no_sym) == 1
+    assert not res_no_sym.empty
+
+
+def test_rim_gating_of_fake_bps():
+    """Verify that when authentic BPS is missing, RIM does NOT fabricate BPS from eps/roe or eps/0.08, returning clean NaN."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    # Cyclical low-P/E stock with missing book_value but high EPS
+    # In legacy code, eps 3000 / 0.08 fabricated BPS of 37,500 KRW, producing +275% discount
+    df = pd.DataFrame([
+        {
+            'symbol': 'CYCLIC01',
+            'market': 'KOSPI',
+            'Close': 10000.0,
+            'eps': 3000.0,
+            'roe': 0.10,
+            # No 'bps' and no 'book_value'
+        },
+        {
+            'symbol': 'VALID01',
+            'market': 'KOSPI',
+            'Close': 10000.0,
+            'bps': 12000.0,
+            'roe': 0.10,
+        }
+    ])
+
+    res = engine.compute_rim_scores(df).set_index('symbol')
+
+    # CYCLIC01 must be NaN (no fabricated BPS or >200% phantom discount)
+    assert np.isnan(res.loc['CYCLIC01', 'bps'])
+    assert np.isnan(res.loc['CYCLIC01', 'intrinsic_value'])
+    assert np.isnan(res.loc['CYCLIC01', 'discount_ratio'])
+    assert np.isnan(res.loc['CYCLIC01', 'rim_score'])
+
+    # VALID01 must be calculated properly
+    assert res.loc['VALID01', 'bps'] == 12000.0
+    assert not np.isnan(res.loc['VALID01', 'intrinsic_value'])
+    assert not np.isnan(res.loc['VALID01', 'rim_score'])
+
+
+def test_parse_rim_12_columns_and_5_markets_html():
+    """Verify 12-column RIM parsing and multi-market HTML rendering for all 5 target markets."""
+    sample_text = """=== Strategy 9: RIM (Residual Income Model) Valuation Predictions ===
+Date: 2026-08-22 09:00 KST
+Total symbols evaluated: 5
+Filters: EQ=Earnings Quality | [ADJ]=Extreme ROE normalized | [HC]=Holding Co. discount
+
+Rank Symbol    Name                Market    Price       Intrinsic V0  Discount %  ROE_raw  ROE_adj     EQ  Filter                          RIM Score
+--------------------------------------------------------------------------------------------------------------------------------------------------
+1    005930    삼성전자            KOSPI     70000.00    93750.00          +33.9%    15.0%    15.0%   100%  [ADJ]                               95.0%
+2    035420    NAVER               KOSDAQ    200000.00   220000.00         +10.0%    12.0%    12.0%   100%                                      85.0%
+3    AAPL      Apple Inc.          SP500     180.00      240.00            +33.3%    25.0%    20.0%    85%  [ADJ]                               90.0%
+4    NVDA      NVIDIA Corp         NASDAQ    120.00      150.00            +25.0%    30.0%    25.0%    90%  [ADJ]                               88.0%
+5    IWM01     Russell Small       RUSSELL2000 50.00     60.00             +20.0%    10.0%    10.0%   100%                                      70.0%
+"""
+    date_str, rows = parse_rim(sample_text)
+    assert date_str == "2026-08-22 09:00 KST"
+    assert len(rows) == 5
+
+    # Check 12-column fields populated
+    samsung = rows[0]
+    assert samsung.symbol == "005930"
+    assert samsung.market == "KOSPI"
+    assert samsung.price == "70000.00"
+    assert samsung.intrinsic_value == "93750.00"
+    assert samsung.discount == "+33.9%"
+    assert samsung.roe_raw == "15.0%"
+    assert samsung.roe_adj == "15.0%"
+    assert samsung.eq == "100%"
+    assert samsung.filter_tags == "[ADJ]"
+    assert samsung.score == "95.0%"
+
+    # Build HTML and verify table rows for all 5 markets
+    ensemble = EnsembleData(
+        date="2026-08-22",
+        regime="SIDEWAYS",
+        markets=[
+            EnsembleMarket(market="KOSPI", rows=[EnsembleRow(1, "005930", "삼성전자", "85%", "5.2%", "40%", "10%", "20%", "15%", "10%", "15%", "15%", "10%", "15%")]),
+        ],
+    )
+
+    html_out = build_html(
+        ensemble,
+        surge_date="2026-08-22", surge_sections=[],
+        vcp_date="2026-08-22", vcp_rows=[],
+        lag_date="2026-08-22", follower_rows=[], leader_rows=[],
+        vcp_ml_sections=[], reg_sections=[],
+        portfolio_data=None,
+        stat_arb_rows=[],
+        sector_rows=[],
+        rim_rows=rows
+    )
+
+    assert "💎 RIM Valuation" in html_out
+    for mkt in ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]:
+        assert f'data-market="{mkt}"' in html_out
+    assert "삼성전자" in html_out
+    assert "Apple Inc." in html_out
+    assert "NVIDIA Corp" in html_out
+    assert "Russell Small" in html_out
+
+
+

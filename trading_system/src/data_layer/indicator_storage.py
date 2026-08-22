@@ -342,6 +342,10 @@ class MarketIndicatorStorage:
                     eps REAL DEFAULT 0,
                     shares_outstanding REAL DEFAULT 0,
                     dividend_per_share REAL DEFAULT 0,
+                    book_value REAL DEFAULT 0,
+                    bps REAL DEFAULT 0,
+                    total_debt REAL DEFAULT 0,
+                    cash_equivalents REAL DEFAULT 0,
                     PRIMARY KEY (symbol, date)
                 )
             ''')
@@ -486,8 +490,11 @@ class MarketIndicatorStorage:
                 ("stock_fundamentals", "net_income", "REAL DEFAULT 0"),
                 ("stock_fundamentals", "eps", "REAL DEFAULT 0"),
                 ("stock_fundamentals", "shares_outstanding", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "dividend_per_share", "REAL DEFAULT 0"),
                 ("stock_fundamentals", "book_value", "REAL DEFAULT 0"),
                 ("stock_fundamentals", "bps", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "total_debt", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "cash_equivalents", "REAL DEFAULT 0"),
                 ("stock_universe", "sector", "TEXT DEFAULT ''"),
                 ("stock_universe", "industry", "TEXT DEFAULT ''"),
                 ("stock_universe", "currency", "TEXT DEFAULT 'USD'"),
@@ -991,23 +998,18 @@ class MarketIndicatorStorage:
         """
         if df_fundamentals.empty:
             return
-        has_bps = 'bps' in df_fundamentals.columns
-        if has_bps:
-            sql = """
-                INSERT OR REPLACE INTO stock_fundamentals
-                (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value, bps)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-        else:
-            sql = """
-                INSERT OR REPLACE INTO stock_fundamentals
-                (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
+        sql = """
+            INSERT OR REPLACE INTO stock_fundamentals
+            (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value, bps, total_debt, cash_equivalents)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
         records = []
         for row in df_fundamentals.itertuples(index=False):
             r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_fundamentals.columns, row))
             bv_val = r_dict.get('book_value')
+            bps_val = r_dict.get('bps')
+            debt_val = r_dict.get('total_debt')
+            cash_val = r_dict.get('cash_equivalents')
             rec = [
                 str(r_dict.get('symbol', '')),
                 str(r_dict.get('date', ''))[:10],
@@ -1017,11 +1019,11 @@ class MarketIndicatorStorage:
                 float(r_dict.get('eps', 0.0)) if pd.notna(r_dict.get('eps', 0.0)) else 0.0,
                 float(r_dict.get('shares_outstanding', 0.0)) if pd.notna(r_dict.get('shares_outstanding', 0.0)) else 0.0,
                 float(r_dict.get('dividend_per_share', 0.0)) if pd.notna(r_dict.get('dividend_per_share')) else 0.0,
-                float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else None,
+                float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else 0.0,
+                float(bps_val) if (bps_val is not None and pd.notna(bps_val)) else 0.0,
+                float(debt_val) if (debt_val is not None and pd.notna(debt_val)) else 0.0,
+                float(cash_val) if (cash_val is not None and pd.notna(cash_val)) else 0.0,
             ]
-            if has_bps:
-                bps_val = r_dict.get('bps')
-                rec.append(float(bps_val) if (bps_val is not None and pd.notna(bps_val)) else None)
             records.append(tuple(rec))
 
         def _do_write():
@@ -1053,7 +1055,11 @@ class MarketIndicatorStorage:
     def get_all_fundamentals(self, symbols: list[str]) -> pd.DataFrame:
         """Batch retrieve historical fundamentals for a list of symbols (chunked to prevent parameter limit errors)."""
         if not symbols:
-            return pd.DataFrame(columns=['symbol', 'date', 'revenue', 'operating_income', 'net_income', 'eps', 'shares_outstanding', 'dividend_per_share', 'book_value'])
+            return pd.DataFrame(columns=[
+                'symbol', 'date', 'revenue', 'operating_income', 'net_income', 'eps',
+                'shares_outstanding', 'dividend_per_share', 'book_value', 'bps',
+                'total_debt', 'cash_equivalents'
+            ])
 
         # Split into chunks of 900 to fit under SQLite query parameter limit (999)
         chunk_size = 900

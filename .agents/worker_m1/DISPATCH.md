@@ -1,31 +1,34 @@
-## 2026-08-21T16:31:44Z
-You are worker_m1 (Domain 5 Implementation Worker: V6-32 ~ V6-35).
-Your working directory is: d:\Finance\code\stock\.agents\worker_m1\
-
-Mandatory inputs to read before starting:
-1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. d:\Finance\code\stock\system_improvement_report_v6.md (Sections 1.1, 1.2, 6.1~6.5 for Domain 5: V6-32 ~ V6-35)
-3. d:\Finance\code\stock\.agents\explorer_1\analysis.md (Domain 5 section)
-4. d:\Finance\code\stock\AGENTS.md
-
-Exclusive Write Ownership:
-- `src/config.py`
-- `trading_system/run_pipeline.py`
-- `scripts/generate_run_snapshot.py`
-- `src/data_layer/indicator_storage.py`
-- Any related Domain 5 tests under `tests/`
+## 2026-08-22T06:12:54Z
+You are worker_m1, a teamwork_preview_worker.
+Your working directory is d:\Finance\code\stock\.agents\worker_m1.
+Read ORIGINAL_REQUEST.md at d:\Finance\code\stock\ORIGINAL_REQUEST.md, PROJECT.md at d:\Finance\code\stock\PROJECT.md, and the R1 investigation report at d:\Finance\code\stock\.agents\explorer_survey_1\survey_r1.md.
 
 MANDATORY INTEGRITY WARNING:
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
 
-Tasks:
-- V6-32: Add `import json` at the top of `src/config.py` so `_build_market_lookup_table()` parses `MARKET_COSTS_JSON` correctly without `NameError`.
-- V6-33: Wrap `execute_prediction_pipeline()` in `trading_system/run_pipeline.py` with top-level `try...except...finally` to ensure pipeline status recovery (`status="FAILED"`) and guaranteed SQLite connection cleanup.
-- V6-34: In `scripts/generate_run_snapshot.py`, replace fragile whitespace split parser with regex/structured parsing that accurately parses table columns, strategy scores, and metadata without fabricating uniform 0.50 fallbacks.
-- V6-35: Unify KST timezone formatting in `indicator_storage.py` and ensure missing env variables in `TradingConfig` are properly mapped.
-
-Verification:
-- Run pytest for domain 5 tests and verify they pass: `.venv\Scripts\python.exe -m pytest tests/test_config.py tests/test_pipeline.py -q`
-- Run the full suite if possible or relevant tests.
-- Write your report to `d:\Finance\code\stock\.agents\worker_m1\handoff.md`.
-- Send a completion message with summary of modified files, test results, and status.
+TASK: Implement Milestone 1 (Requirement R1: 31-Strategy Score Normalization, 0.50 Purge, Dynamic Weight Re-normalization):
+1. Build `CrossSectionalScoreNormalizer` in `trading_system/src/ai/score_normalizer.py`:
+   - Implement methods for cross-sectional normalization: `percentile_rank` and `winsorized_zscore` (Winsorize 1st/99th percentiles, calculate Z-score, apply Gaussian CDF $\Phi(z)$ to map to $[0, 1]$).
+   - Group by market (with combined region/global fallback if sample size $N < 10$).
+   - Strictly preserve `NaN` for missing strategies so downstream masks know the factor was not computed.
+2. Integrate into `trading_system/src/ai/ensemble_scorer.py`:
+   - Apply `CrossSectionalScoreNormalizer` to all 31 strategy inputs.
+   - Enforce dynamic zero-weighting: for ticker $i$, if strategy $k$ is missing/NaN, its effective weight is 0.
+   - Re-normalize active weights per ticker: $\tilde{w}_{i,k} = \frac{m_{i,k} w_k^{(i)}}{\sum_j m_{i,j} w_j^{(i)}}$ such that the sum of active weights for each stock is strictly 1.0.
+3. Purge artificial `0.50` default fallbacks across strategy engines:
+   - `trading_system/src/core/accruals_quality.py`
+   - `trading_system/src/core/valueup_catalyst.py`
+   - `trading_system/src/core/short_interest_squeeze.py`
+   - `trading_system/src/core/trend_efficiency.py`
+   - `trading_system/src/core/insider_buying.py`
+   - `trading_system/src/core/earnings_tone_drift.py`
+   - `trading_system/src/core/iv_skew.py`
+   - `trading_system/run_pipeline.py` (any `fillna(0.5)` for strategy scores)
+   - `trading_system/src/ai/ensemble_scorer.py` (missing column fallbacks)
+   Ensure they output genuine `np.nan` on missing data.
+4. Testing & Verification:
+   - Create thorough unit tests in `tests/test_score_normalizer.py`.
+   - Run tests: `.venv/Scripts/python.exe -m pytest tests/test_score_normalizer.py tests/test_ensemble_scorer.py tests/test_dynamic_weights.py -v`.
+   - Ensure all affected and existing unit tests pass 100%.
+5. Document all changes, files modified, test commands, and passing output in `d:\Finance\code\stock\.agents\worker_m1\handoff.md`.
+Communicate completion via send_message to your parent.

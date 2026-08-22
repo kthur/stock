@@ -217,6 +217,61 @@ class TestMarketIndicatorStorage(unittest.TestCase):
         """V6-33/V6-35: Verify MarketIndicatorStorage.close() cleanly executes without error."""
         self.storage.close()
 
+    def test_sqlite_auto_migration_legacy_db(self):
+        """Verify MarketIndicatorStorage auto-migrates legacy SQLite database missing book_value, bps, total_debt, cash_equivalents."""
+        import sqlite3
+        legacy_db_path = os.path.join(self.test_dir, "legacy_indicators.db")
+        # Create a database with old schema
+        with sqlite3.connect(legacy_db_path) as conn:
+            conn.execute('''
+                CREATE TABLE stock_fundamentals (
+                    symbol TEXT,
+                    date TEXT,
+                    revenue REAL,
+                    operating_income REAL,
+                    PRIMARY KEY (symbol, date)
+                )
+            ''')
+            conn.commit()
+
+        # Initialize storage on legacy db, which runs _init_db and migrations
+        legacy_storage = MarketIndicatorStorage(db_path=legacy_db_path)
+
+        # Verify all migrated columns exist
+        with legacy_storage._connect() as conn:
+            info = conn.execute("PRAGMA table_info('stock_fundamentals')").fetchall()
+            col_names = [col[1] for col in info]
+            self.assertIn("book_value", col_names)
+            self.assertIn("bps", col_names)
+            self.assertIn("total_debt", col_names)
+            self.assertIn("cash_equivalents", col_names)
+            self.assertIn("net_income", col_names)
+            self.assertIn("eps", col_names)
+            self.assertIn("shares_outstanding", col_names)
+            self.assertIn("dividend_per_share", col_names)
+
+        # Test writing and reading data with new columns
+        df_new = pd.DataFrame([{
+            "symbol": "MIGRATE_SYM",
+            "date": "2026-08-22",
+            "revenue": 1000.0,
+            "operating_income": 200.0,
+            "net_income": 180.0,
+            "eps": 5.0,
+            "shares_outstanding": 100.0,
+            "book_value": 500.0,
+            "bps": 5.0,
+            "total_debt": 100.0,
+            "cash_equivalents": 50.0,
+        }])
+        legacy_storage.save_fundamentals(df_new)
+        res = legacy_storage.get_fundamentals("MIGRATE_SYM")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res.iloc[0]["bps"], 5.0)
+        self.assertEqual(res.iloc[0]["total_debt"], 100.0)
+        self.assertEqual(res.iloc[0]["cash_equivalents"], 50.0)
+        legacy_storage.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,15 +1,21 @@
 ## Current Status
-Last visited: 2026-08-15T13:57:25Z
+Last visited: 2026-08-22T06:13:00Z
 
 ## Iteration Status
 Current iteration: 1 / 32
 
 ## Checklist
-- [x] Initialized orchestrator workspace & state files (DISPATCH.md, BRIEFING.md, progress.md, plan.md)
-- [x] Step 0: Parallel Survey (3 Explorers) across R1, R2, R3/R4
-- [x] Synthesize Survey -> Created PROJECT.md (Architecture, Feature Inventory F01–F15, Milestones M1–M4, Interface Contracts, Code Layout)
-- [ ] Step 1: Milestone M1 (Alpha Strategies & Ensemble Scorer R1) [IN_PROGRESS]
-- [ ] Step 2: Milestone M2 (Portfolio Allocation & Microstructure Execution R2) [PLANNED]
-- [ ] Step 3: Milestone M3 (Pipeline Performance, Memory & WAL Concurrency R3) [PLANNED]
-- [ ] Step 4: Milestone M4 (Comprehensive Test Suite Passing & Git Commit/Push R4) [PLANNED]
-- [ ] Step 5: Final Review & Sentinel Handoff
+- [x] Initialized orchestrator workspace & state files (DISPATCH.md, BRIEFING.md, plan.md, context.md, GATE_STATUS.md)
+- [x] Started heartbeat cron (task-31)
+- [x] Milestone 0: Parallel Survey across R1, R2, R3, R4 (3 Explorers complete)
+- [x] Synthesized Survey findings into PROJECT.md
+- [ ] Milestone 1: R1 Score Normalization & Missing Strategy Zero-Weighting [IN_PROGRESS]
+  - [ ] worker_m1 (F01, F02, F03 Implementation & Tests)
+  - [ ] reviewer_m1_1 & reviewer_m1_2
+  - [ ] challenger_m1_1 & challenger_m1_2
+  - [ ] auditor_m1
+  - [ ] Gate M1
+- [ ] Milestone 2: R2 Pipeline Refinement (Filing lag 45d/40d, Stratified Sampling, Stat-Arb Fake Benchmark Removal) [PLANNED]
+- [ ] Milestone 3: R3 Stability, Timeout & Exception Handling [PLANNED]
+- [ ] Milestone 4: R4 Full Test Suite (1,124+ tests) 100% Pass & Zero Lookahead Verification [PLANNED]
+- [ ] Final Acceptance & Handoff to Sentinel [PLANNED]

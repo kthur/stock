@@ -1,13 +1,10 @@
-# Progress Log
+# Progress Log — explorer_survey_2
 
-Last visited: 2026-08-15T13:57:00Z
-Status: Completed
+Last visited: 2026-08-22T15:12:15+09:00
 
-## Tasks
 - [x] Initialized DISPATCH.md, BRIEFING.md, and progress.md
-- [x] Survey files in `src/risk/`, `src/ai/`, `src/config.py`, `src/core/`, `src/strategy/`, `src/execution/` related to portfolio allocation, HRP, covariance shrinkage, Leland dynamic bands, EVT-CVaR, and Quad-Factor QP optimization
-- [x] Survey transaction cost models (STT, SEC fees, dynamic spread, Kyle/Almgren-Chriss impact) and OMS execution logging (`trade_logs.db`)
-- [x] Run and survey `tests/test_portfolio_allocator.py` and 8 related test suites (38/38 tests passing 100% in 15.12s)
-- [x] Document detailed survey findings, mathematical formulations, test results, gaps, and recommendations in `d:\Finance\code\stock\.agents\explorer_survey_2\analysis.md`
-- [x] Document 5-component handoff report in `d:\Finance\code\stock\.agents\explorer_survey_2\handoff.md`
-- [x] Send completion message to orchestrator
+- [x] Task 1: Investigate Dynamic Market Filing Lag (KRX 45d, US 40d, override with public filing date)
+- [x] Task 2: Investigate Stratified Sampling in `prepare_training_data`
+- [x] Task 3: Investigate Fake BENCHMARK Pairs removal in Stat-Arb
+- [x] Task 4: Identify all affected source files, functions, models, tests
+- [x] Task 5: Synthesize into survey_r2.md and handoff.md, notify parent

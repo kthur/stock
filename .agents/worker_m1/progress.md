@@ -1,15 +1,18 @@
-# Progress Log - worker_m1
+# Progress - worker_m1
 
-Last visited: 2026-08-22T01:43:00+09:00
+Last visited: 2026-08-22T06:13:00Z
+Status: In Progress
 
-## Status
-- [x] Initialized workspace and briefing
-- [x] Read mandatory input documents (ORIGINAL_REQUEST.md, system_improvement_report_v6.md, explorer_1/analysis.md, AGENTS.md)
-- [x] Investigate target files (config.py, run_pipeline.py, generate_run_snapshot.py, indicator_storage.py, tests)
-- [x] Implement V6-32 (json import, env mappings in config.py)
-- [x] Implement V6-33 (run_pipeline.py top-level exception handling & cleanup)
-- [x] Implement V6-34 (generate_run_snapshot.py structured parsing without fake 0.50 fallbacks)
-- [x] Implement V6-35 (indicator_storage.py KST timezone format unification & config env overrides)
-- [x] Add/update unit tests for Domain 5 (`test_config.py`, `test_indicator_storage.py`, `test_pipeline_integration.py`, `test_run_snapshot.py`)
-- [x] Run test suite and verify (43/43 passing)
-- [x] Write handoff.md and send completion message
+## Completed Tasks
+- [x] Initialized DISPATCH.md and BRIEFING.md
+
+## Current Step
+- Reading survey_r1.md, ORIGINAL_REQUEST.md, PROJECT.md, and relevant source files.
+
+## Next Steps
+- [ ] Implement `CrossSectionalScoreNormalizer` in `trading_system/src/ai/score_normalizer.py`.
+- [ ] Integrate score normalization & dynamic weight re-normalization in `trading_system/src/ai/ensemble_scorer.py`.
+- [ ] Purge 0.50 default fallbacks in strategy core files and `run_pipeline.py`.
+- [ ] Write unit tests in `tests/test_score_normalizer.py`.
+- [ ] Run pytest on test suite.
+- [ ] Write handoff.md and send_message to parent.

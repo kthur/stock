@@ -94,7 +94,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 return default
 
         for sym in symbols:
-            score = 0.50  # Base neutral score
+            score = np.nan
 
             if transcript_map:
                 sym_raw = str(sym).split('.')[0]

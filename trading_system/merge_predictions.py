@@ -71,7 +71,7 @@ def merge_pipeline_result(result_dir: Path, target_dirs: dict) -> None:
 
             content = get_file_content(file_path)
             for line in content.splitlines():
-                if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols:") or not line.strip():
+                if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols") or not line.strip():
                     continue
                 if "데이터 없음" in line or "No data" in line:
                     continue
@@ -388,6 +388,7 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
     # Pre-read source content BEFORE opening output file to avoid
     # self-referencing bug where fallback reads the same file being truncated.
     data_lines: list[str] = []
+    header_lines: list[str] = []
     all_fallbacks_self_ref = True
 
     for market, path in target_dirs.items():
@@ -401,9 +402,15 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
         all_fallbacks_self_ref = False
         content = get_file_content(file_path)
         for line in content.splitlines():
-            if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols:") or not line.strip():
+            if line.startswith("===") or line.startswith("Date:") or line.startswith("Total symbols") or not line.strip():
                 continue
             if "데이터 없음" in line or "No data" in line:
+                continue
+            # Header lines (Filters:, column headers with Rank, divider dashes)
+            if line.startswith("Filters:") or line.startswith("Rank ") or line.startswith("---") or line.startswith("───"):
+                prefix = line[:5]
+                if not any(h.startswith(prefix) for h in header_lines):
+                    header_lines.append(line + "\n")
                 continue
             data_lines.append(line + "\n")
 
@@ -420,6 +427,9 @@ def merge_generic_strategy_files(result_dir: Path, target_dirs: dict, filename: 
     with open(merged_path, "w", encoding="utf-8") as out:
         out.write(f"=== {title} ===\n")
         out.write(f"Date: {kst_now}\n\n")
+        if header_lines:
+            out.writelines(header_lines)
+            out.write("\n")
         out.writelines(data_lines)
 
 

@@ -1,94 +1,46 @@
-# Handoff Report — Explorer 1 (R1: 31 Quantitative Alpha Engines & Dynamic Ensemble Scoring)
+# Handoff Report — Requirement R1 Survey & Technical Investigation
 
 ## 1. Observation
-
-1. **Strategy Registry & Dynamic Registration:**
-   - In `trading_system/src/core/strategy_registry.py` (lines 79-105), 25 strategy modules are auto-discovered and dynamically imported.
-   - In `trading_system/src/ai/ml_strategy_adapters.py` (lines 13-293), ML strategies (`regression`, `surge`, `vcp_ml`, `lead_lag`, `vcp_rule`, `lstm`, `sentiment`, `darkpool`) are registered using `@register_strategy`.
-   - In `trading_system/src/ai/correlation_monitor.py` (lines 14-59), `ALL_31_STRATEGIES` and `STRATEGY_SCORE_COL_MAP` define all 31 strategies and their corresponding score columns:
-     `'regression': 'reg_score'`, `'surge': 'surge_score'`, `'lead_lag': 'll_score'`, `'vcp_rule': 'vcp_rule_score'`, `'vcp_ml': 'vcp_ml_score'`, `'lstm': 'lstm_score'`, `'stat_arb': 'stat_arb_score'`, `'sector_rotation': 'sector_score'`, `'rim_valuation': 'rim_score'`, `'event_driven': 'event_score'`, `'mq_factor': 'mq_score'`, `'iv_skew': 'iv_skew_score'`, `'order_flow': 'order_flow_score'`, `'short_term_reversal': 'reversal_score'`, `'arm_factor': 'arm_score'`, `'card_factor': 'card_score'`, `'latr_factor': 'latr_score'`, `'inst_foreign_sector': 'inst_foreign_sector_score'`, `'supply_chain': 'supply_chain_score'`, `'sentiment': 'sentiment_score'`, `'factor_neutralized': 'factor_neutralized_score'`, `'vol_target': 'vol_target_score'`, `'microstructure': 'microstructure_score'`, `'accruals_quality': 'accruals_quality_score'`, `'short_squeeze': 'short_squeeze_score'`, `'valueup_catalyst': 'valueup_catalyst_score'`, `'trend_efficiency': 'trend_efficiency_score'`, `'gamma_squeeze': 'gamma_squeeze_score'`, `'insider_buying': 'insider_buying_score'`, `'darkpool': 'darkpool_score'`, `'earnings_tone_drift': 'earnings_tone_drift_score'`.
-
-2. **Ensemble Scoring Engine Ingestion:**
-   - In `trading_system/src/ai/ensemble_scorer.py` (lines 1078-1549), `combine_predictions` accepts all 31 strategy DataFrames and maps score columns with robust numerical fallbacks and clipping to `[0.0, 1.0]`.
-   - In `trading_system/src/ai/ensemble_scorer.py` (lines 38-338), `REGIME_WEIGHTS` and `REGIME_2D_WEIGHTS` (`BEAR_LOW_VOL`, `BEAR_HIGH_VOL`, `SIDEWAYS_LOW_VOL`, `SIDEWAYS_HIGH_VOL`, `BULL_LOW_VOL`, `BULL_HIGH_VOL`) explicitly define baseline weight vectors for all 31 strategies summing to 1.00.
-
-3. **Lookahead Bias Prevention:**
-   - In `trading_system/src/ai/prediction_model.py` (lines 955-968):
-     ```python
-     df_fun_shifted['date_available'] = pd.to_datetime(df_fun_shifted['date']) + pd.Timedelta(days=60)
-     df = pd.merge_asof(
-         df.sort_values('date_align'),
-         df_fun_shifted.sort_values('date_available'),
-         left_on='date_align',
-         right_on='date_available',
-         direction='backward',
-         suffixes=('', '_fund')
-     )
-     ```
-   - In `trading_system/src/ai/prediction_model.py` (lines 1015-1045 and line 1261):
-     `df = self._merge_indicator_history(df, indicator_df, shift_us_indicators=is_krx_symbol)` shifts US macro indicators by 1 day (`shift(1)`) for KRX symbols.
-
-4. **Collinearity Reduction & Factor Suppression:**
-   - In `trading_system/src/ai/factor_orthogonalizer.py` (lines 27-68, 108-142), `orthogonalize` implements PCA ZCA symmetric whitening with Ledoit-Wolf shrinkage and Modified Gram-Schmidt decorrelation.
-   - In `trading_system/src/ai/correlation_monitor.py` (lines 102-180), `update_correlation` calculates EMA-smoothed Spearman rank correlation and `compute_vif` calculates VIF using ridge-regularized matrix inversion.
-   - In `trading_system/src/ai/factor_suppression.py` (lines 111-200), `suppress_weights` computes 2D regime noise dampening penalties $P_i(R)$ based on excess correlation and cluster multipliers.
-
-5. **Pipeline Orchestration & Output Generation:**
-   - In `trading_system/run_pipeline.py` (lines 2195-3120), all 31 strategies are sequentially computed with dedicated exception guards and saved to individual text reports as well as merged into `ensemble_predictions.txt`.
-   - In `trading_system/run_pipeline.py` (lines 3444-3498), `StrategyCoverageAnalyzer` audits data coverage across all strategies and writes `strategy_data_coverage_report.txt`.
-
----
+- **Ensemble Scorer Pipeline**: In `trading_system/src/ai/ensemble_scorer.py` (lines 1330–1835), raw predictions from 31 strategies are collected with heterogeneous transformations:
+  - Regression (line 1417): `(reg_df_copy[target_col] * ret_multiplier).clip(0.0, 1.0)` with `_return_multiplier = 20.0`.
+  - Surge Classifier (line 1442): `s_df_copy[target_col_surge].clip(0.0, 1.0)`.
+  - Strict Causal LSTM (line 1517): `(l_df[target_col] * self._return_multiplier).clip(0.0, 1.0)`.
+  - Stat-Arb (line 1536): `(np.abs(sa_df[target_col]) / 3.0).clip(0.0, 1.0)`.
+  - Missing column fallbacks (lines 1419, 1444, 1453, 1507, 1526, 1540, 1551): Assign hardcoded `0.5` directly to the DataFrame.
+- **Factor Orthogonalizer**: In `trading_system/src/ai/factor_orthogonalizer.py` (lines 44–90), PCA ZCA and Gram-Schmidt process raw inputs whose column variances and means vary widely, and restore original scales via $X_{\text{ortho}, k} = \mu_k + \frac{u_k}{\sigma(u_k)} \cdot \sigma_k$.
+- **Hardcoded 0.50 Fallbacks in Strategy Engines**:
+  - `src/core/accruals_quality.py` line 148: `df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].fillna(0.50).astype(float)`
+  - `src/core/valueup_catalyst.py` line 157: `df_out['valueup_catalyst_score'] = df_out['valueup_catalyst_score'].fillna(0.50).astype(float)`
+  - `src/core/short_interest_squeeze.py` line 146: `df_out['short_squeeze_score'] = df_out['short_squeeze_score'].fillna(0.50).astype(float)`
+  - `src/core/trend_efficiency.py` line 152: `df_out['trend_efficiency_score'] = df_out['trend_efficiency_score'].fillna(0.50).astype(float)`
+  - `src/core/insider_buying.py` line 78: `scores_map = {sym: 0.50 for sym in symbols}`
+  - `src/core/earnings_tone_drift.py` line 97: `score = 0.50`
+  - `run_pipeline.py` line 3261: `'darkpool_score': 0.50`
+  - `run_pipeline.py` line 2769: `merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce').fillna(0.5)`
+- **Dynamic Weighting Mechanism**: In `ensemble_scorer.py` (lines 2003–2014), the denominator `total_weight_series` accumulates weights only when `merged[score_col].notna() & np.isfinite()`. Injecting `0.50` causes missing signals to be treated as valid, destroying the ticker-level re-normalization.
 
 ## 2. Logic Chain
-
-1. **Strategy Completeness (Step 1 $\to$ Conclusion):**
-   - Observation 1 and 2 demonstrate that every single one of the 31 quantitative alpha strategies has a dedicated implementation, a registered metadata definition, a designated output report file, and a configured weight across all 6 market regime states.
-   - In `ensemble_scorer.py`, `combine_predictions` validates, winsorizes, orthogonalizes, calibrates, and normalizes all 31 strategy signals into a unified ensemble score and expected return.
-   - Therefore, the 31-strategy engine requirement is 100% fulfilled without missing components or stubbed implementations.
-
-2. **Lookahead Bias Defense (Step 2 $\to$ Conclusion):**
-   - Observation 3 confirms that financial fundamentals undergo a mandatory 60-day calendar shift with backward `merge_asof` matching, preventing future quarterly information leakage.
-   - Cross-timezone shifts guarantee that Asian trading sessions do not access contemporaneous US market closes that occur after Asian market close.
-   - Therefore, lookahead bias is strictly eliminated across all 31 strategies.
-
-3. **Statistical Robustness & Missing Data Handling (Step 4 & 5 $\to$ Conclusion):**
-   - Observation 4 confirms that multicollinearity is controlled via PCA ZCA orthogonalization, VIF filters, and regime factor suppression.
-   - Valid 0.0 scores are preserved, while sparse symbols are penalized via a missingness-aware coverage factor.
-   - In combination with Isotonic Regression calibration and 0.5%–99.5% winsorization, the scoring pipeline maintains high numerical stability.
-
----
+1. **Observation 1 & 2 $\to$ Variance Domination**: Strategies with large standard deviations and clipped bimodal extremes (Regression, LSTM) contribute disproportionately to the linear sum variance $\text{Var}(S) = \sum w_k^2 \text{Var}(X_k)$, overpowering low-mean/low-variance signals like Surge probability.
+2. **Observation 3 & 4 $\to$ Re-normalization Failure**: Because missing signals are populated with `0.50` instead of `np.nan`, `valid_mask` evaluates to `True`. As a result, the missing strategy is not zero-weighted, injecting an artificial $0.50 \cdot w_k$ component that pulls high-conviction alphas down and inflates low-conviction stocks.
+3. **Synthesis $\to$ Solution**:
+   - Applying `CrossSectionalScoreNormalizer` (percentile rank $U(0, 1)$ or winsorized Gaussian CDF $\Phi(Z) \in [0, 1]$) per market prior to orthogonalization homogenizes all 31 strategy variances to a common scale.
+   - Purging all `.fillna(0.50)` and default `0.50` mappings across core engines allows `valid_mask` to properly identify missing signals, zero-out their weights, and re-normalize active weights so $\sum_{k \in \text{Active}(i)} \tilde{w}_{i,k} = 1.0$.
 
 ## 3. Caveats
-
-1. **Strategy 31 (Darkpool / HFT Execution):**
-   - Live US dark pool ATS block-trade feeds require external proprietary data feeds; currently, Strategy 31 uses order book closing auction imbalance + overnight gap edge as a proxy when live feeds are unavailable.
-2. **`factor_suppression.py` Cluster Mapping:**
-   - While `factor_suppression.py` functions correctly by treating unmapped strategies as `'OTHER'`, expanding the static `CLUSTER_MAP` dictionary to explicitly include strategies 18–31 will ensure maximum intra-cluster penalty granularity.
-
----
+- For markets or subsets with very small sample sizes ($N < 10$), per-market percentile ranking has discrete step increments. The normalizer must fallback to combined regional (KR vs US) or global cross-sections.
+- Invalidation masks (such as RIM's operating loss or negative BPS filter) must continue to output strict `NaN` to participate seamlessly in dynamic zero-weighting.
 
 ## 4. Conclusion
+Requirement R1 requires two coordinated modifications:
+1. Implementation and insertion of `CrossSectionalScoreNormalizer` in `src/ai/score_normalizer.py` and `EnsembleScoringEngine.combine_predictions`.
+2. Removal of artificial `0.50` defaults in `accruals_quality.py`, `valueup_catalyst.py`, `short_interest_squeeze.py`, `trend_efficiency.py`, `insider_buying.py`, `earnings_tone_drift.py`, `iv_skew.py`, `run_pipeline.py`, and `ensemble_scorer.py`.
 
-The 31 Quantitative Alpha Engine and Dynamic Ensemble Scoring system (`kthur/stock`) is fully implemented, statistically rigorous, and operational. All 31 strategies are integrated into `ensemble_scorer.py` and `run_pipeline.py`, with complete lookahead bias prevention, orthogonalization, outlier winsorization, isotonic score calibration, and missingness-aware dynamic renormalization.
-
----
+The full technical specification is detailed in `survey_r1.md`.
 
 ## 5. Verification Method
-
-To independently verify all findings:
-
-1. **Unit & Integration Test Suite:**
-   ```bash
-   .venv\Scripts\python.exe -m pytest tests/ -v --tb=short
-   ```
-2. **Strategy Registry & Strategy Count Verification:**
-   ```bash
-   .venv\Scripts\python.exe -c "from src.core.strategy_registry import get_registry; reg = get_registry(); reg.auto_discover(['src.core', 'src.ai']); print('Total strategies:', reg.get_strategy_count()); assert reg.get_strategy_count() >= 25"
-   ```
-3. **Inspect Core Implementation Files:**
-   - `trading_system/src/ai/ensemble_scorer.py` (lines 1078–1999)
-   - `trading_system/src/ai/prediction_model.py` (lines 955–975, 1015–1045)
-   - `trading_system/src/ai/factor_orthogonalizer.py` (lines 27–142)
-   - `trading_system/src/ai/factor_suppression.py` (lines 111–200)
-   - `trading_system/run_pipeline.py` (lines 2195–3500)
-   - `trading_system/src/analysis/coverage_analyzer.py` (lines 87–216)
+- Inspect `d:\Finance\code\stock\.agents\explorer_survey_1\survey_r1.md`.
+- Run unit test suite: `.venv\Scripts\pytest tests/ -v`.
+- Verify new test cases covering:
+  - `test_cross_sectional_score_normalizer_uniform_variance`
+  - `test_dynamic_zero_weighting_no_05_pollution`
+  - `test_strategy_engines_return_genuine_nans`

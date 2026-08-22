@@ -81,7 +81,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
 
         sym_strs = [str(s) for s in symbols]
         if not fund_map:
-            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': 0.50})
+            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': np.nan})
             return df_acc[['symbol', 'accruals_quality_score']]
 
         rows = []
@@ -143,8 +143,8 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             bonus = float(df_acc.loc[valid_mask, 'conversion_bonus'].iloc[0])
             df_acc.loc[valid_mask, 'accruals_quality_score'] = min(0.50 + bonus, 0.95)
         else:
-            df_acc['accruals_quality_score'] = 0.50
+            df_acc['accruals_quality_score'] = np.nan
 
-        df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].fillna(0.50).astype(float)
+        df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].astype(float)
 
         return df_acc[['symbol', 'accruals_quality_score']]

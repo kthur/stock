@@ -74,8 +74,8 @@ class InsiderBuyingEngine(BaseStrategyEngine):
         if not symbols:
             return pd.DataFrame(columns=['symbol', 'insider_buying_score'])
 
-        # Base neutral score
-        scores_map = {sym: 0.50 for sym in symbols}
+        # Default to NaN for symbols without insider filings
+        scores_map = {sym: np.nan for sym in symbols}
 
         if insider_filings:
             # Pre-index filings by stock code/symbol for O(M) processing
@@ -102,6 +102,7 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                 if not matching_items:
                     continue
 
+                cur_score = 0.50
                 for item in matching_items:
                     report_nm = str(item.get('report_nm', ''))
                     insider_role = str(item.get('insider_role', 'EXECUTIVE')).upper()
@@ -112,11 +113,13 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                     if raw_type in buy_keywords or any(k in report_nm for k in ['장내매수', '취득', '증가', '신규매수', '매입']):
                         boost = 0.35 if any(role in combined_role_text for role in high_level_roles) else 0.20
                         # Accumulate multiple insider buys up to 0.98 cap
-                        scores_map[sym] = float(np.clip(scores_map[sym] + boost, 0.0, 0.98))
-                        logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {scores_map[sym]:.2f})")
+                        cur_score = float(np.clip(cur_score + boost, 0.0, 0.98))
+                        logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {cur_score:.2f})")
                     elif raw_type in sell_keywords or any(k in report_nm for k in ['매도', '처분', '매각', '감소']):
                         penalty = 0.25
-                        scores_map[sym] = float(np.clip(scores_map[sym] - penalty, 0.05, 1.0))
+                        cur_score = float(np.clip(cur_score - penalty, 0.05, 1.0))
 
-        results = [{'symbol': k, 'insider_buying_score': float(v)} for k, v in scores_map.items()]
+                scores_map[sym] = cur_score
+
+        results = [{'symbol': k, 'insider_buying_score': float(v) if pd.notna(v) else np.nan} for k, v in scores_map.items()]
         return pd.DataFrame(results)

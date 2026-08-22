@@ -41,19 +41,19 @@ class IVSkewEngine(BaseStrategyEngine):
     def compute_skew_for_ticker(self, ticker: str) -> float:
         """
         Attempts to calculate Put-Call IV Skew for a given US ticker via yfinance.
-        Returns score in [0.0, 1.0]. Neutral = 0.5.
+        Returns score in [0.0, 1.0].
         """
         try:
             import yfinance as yf
             t = yf.Ticker(ticker)
             expirations = t.options
             if not expirations:
-                return 0.5
+                return np.nan
 
             # Get current stock price to filter near-the-money (ATM) options
             hist = t.history(period='5d')
             if hist.empty:
-                return 0.5
+                return np.nan
             underlying_price = float(hist['Close'].iloc[-1])
 
             # Pick nearest expiration date
@@ -62,7 +62,7 @@ class IVSkewEngine(BaseStrategyEngine):
             calls, puts = chain.calls, chain.puts
 
             if calls.empty or puts.empty:
-                return 0.5
+                return np.nan
 
             # Filter ATM options (strike within ±atm_threshold of underlying price)
             atm_calls = calls[abs(calls['strike'] - underlying_price) / underlying_price <= self.atm_threshold]
@@ -75,7 +75,7 @@ class IVSkewEngine(BaseStrategyEngine):
             put_iv = eff_puts['impliedVolatility'].median()
 
             if call_iv <= 0 or np.isnan(call_iv) or put_iv <= 0 or np.isnan(put_iv):
-                return 0.5
+                return np.nan
 
             skew_ratio = put_iv / call_iv
 
@@ -86,7 +86,7 @@ class IVSkewEngine(BaseStrategyEngine):
             return float(np.clip(score, 0.0, 1.0))
         except Exception as e:
             logger.debug(f"IV Skew calculation failed for {ticker}: {e}")
-            return 0.5
+            return np.nan
 
     def compute_iv_skew_scores(
         self,
@@ -105,7 +105,7 @@ class IVSkewEngine(BaseStrategyEngine):
         results = {}
 
         def _evaluate_one(sym: str):
-            score = 0.5
+            score = np.nan
             is_us_ticker = not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym
 
             # 1. Live options chain lookup takes priority for US tickers if explicitly enabled
@@ -113,9 +113,9 @@ class IVSkewEngine(BaseStrategyEngine):
                 try:
                     import os
                     if os.getenv("ENABLE_LIVE_OPTIONS_FETCH", "false").lower() == "true":
-                        score = self.compute_skew_for_ticker(sym)
-                        if score != 0.5:
-                            return sym, score
+                        live_score = self.compute_skew_for_ticker(sym)
+                        if pd.notna(live_score):
+                            return sym, live_score
                 except Exception:
                     pass
 
@@ -126,7 +126,7 @@ class IVSkewEngine(BaseStrategyEngine):
                     try:
                         c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
                         if not c_col:
-                            return sym, 0.5
+                            return sym, np.nan
                         c = df[c_col]
                         if isinstance(c, pd.DataFrame):
                             c = c.iloc[:, 0]
@@ -150,10 +150,9 @@ class IVSkewEngine(BaseStrategyEngine):
                             turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
                             score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
                     except Exception:
-                        score = 0.5
+                        score = np.nan
 
             return sym, score
-
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(_evaluate_one, sym): sym for sym in symbols}
@@ -164,7 +163,7 @@ class IVSkewEngine(BaseStrategyEngine):
                 except Exception as e:
                     logger.debug(f"IV Skew task error: {e}")
 
-        res_list = [{'symbol': sym, 'iv_skew_score': results.get(sym, 0.5)} for sym in symbols]
+        res_list = [{'symbol': sym, 'iv_skew_score': results.get(sym, np.nan)} for sym in symbols]
         return pd.DataFrame(res_list)
 
     def compute_scores(

@@ -152,8 +152,8 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = 0.50
         else:
-            df_out['valueup_catalyst_score'] = 0.50
+            df_out['valueup_catalyst_score'] = np.nan
 
-        df_out['valueup_catalyst_score'] = df_out['valueup_catalyst_score'].fillna(0.50).astype(float)
+        df_out['valueup_catalyst_score'] = df_out['valueup_catalyst_score'].astype(float)
 
         return df_out[['symbol', 'valueup_catalyst_score']]

@@ -1,13 +1,13 @@
-# Progress — Explorer 3 (R3 & R4: Performance, Concurrency, Tests & Deployment)
+# Progress — explorer_survey_3
 
-Last visited: 2026-08-15T22:55:15+09:00
+Last visited: 2026-08-22T06:11:00Z
+Status: Completed Survey & Analysis
 
 ## Tasks
-- [x] 1. Read ORIGINAL_REQUEST.md and check overall context
-- [x] 2. Inspect run_pipeline.py, indicator_storage.py, earnings_data.py, database.py
-- [x] 3. Run and analyze test suite (Verified `test_database_concurrency.py`: 4/4 PASSED in 10.83s)
-- [x] 4. Inspect concurrency, SQLite WAL, write locks, ThreadPoolExecutor, memory management
-- [x] 5. Inspect Git status, remote tracking, branch, modified/untracked files
-- [x] 6. Write comprehensive analysis.md
-- [x] 7. Write 5-component handoff.md
-- [x] 8. Update BRIEFING.md and send completion message to orchestrator
+- [x] Initialized DISPATCH.md & BRIEFING.md
+- [x] Part 1: Global `socket.setdefaulttimeout(5)` investigation & adaptive timeouts design
+- [x] Part 2: `FallbackMetadataDict` NaN defense & metadata pipeline investigation
+- [x] Part 3: VIX term structure & change-rate buffering in `src/risk/risk_manager.py` / `CrisisDetector`
+- [x] Part 4: R4 Baseline test suite audit, pytest execution analysis, gap identification
+- [x] Part 5: Synthesize findings into `survey_r3_r4.md`
+- [x] Part 6: Write `handoff.md` and send completion message to parent

@@ -321,13 +321,19 @@ class RIMValuationEngine(BaseStrategyEngine):
         if features_df is None or features_df.empty:
             logger.warning("Empty features_df provided to RIMValuationEngine.")
             return pd.DataFrame(columns=[
-                'symbol', 'market', 'Close', 'bps', 'roe', 'roe_raw', 'roe_normalized',
+                'symbol', 'market', 'Close', 'bps', 'bps_adjusted',
+                'roe_raw', 'roe', 'roe_normalized',
+                'earnings_quality', 'holding_co_flag', 'net_debt_per_share',
+                'rim_filter_reason',
                 'intrinsic_value', 'discount_ratio', 'rim_score',
             ])
 
         df = features_df.copy()
-        if 'symbol' not in df.columns and df.index.name == 'symbol':
-            df = df.reset_index()
+        if 'symbol' not in df.columns:
+            if df.index.name == 'symbol':
+                df = df.reset_index()
+            else:
+                df['symbol'] = [f"SYM_{i}" for i in range(len(df))]
 
         # Handle latest row per symbol if time series is passed
         if 'date' in df.columns and 'symbol' in df.columns:
@@ -341,40 +347,44 @@ class RIMValuationEngine(BaseStrategyEngine):
                 df['market'] = 'KOSPI'
 
         # Ensure Close / Price
-        if 'Close' not in df.columns:
-            df['Close'] = df.get('price', np.nan)
-
-        # Handle BPS: Set to NaN if missing or non-positive
-        if 'bps' in df.columns and df['bps'].notna().any():
-            calculated_bps = pd.to_numeric(df['bps'], errors='coerce')
-        elif 'book_value' in df.columns:
-            bv = pd.to_numeric(df['book_value'], errors='coerce').fillna(0.0)
-            shares = pd.to_numeric(df.get('shares_outstanding', 0.0), errors='coerce').fillna(0.0)
-            # When shares exist and book_value is aggregate equity, divide by shares
-            calculated_bps = np.where(shares > 0, bv / np.maximum(shares, 1.0), bv)
-        elif 'eps' in df.columns and 'roe' in df.columns:
-            calculated_bps = (df['eps'] / df['roe']).replace([np.inf, -np.inf, 0.0], np.nan)
+        if 'Close' in df.columns:
+            df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+        elif 'price' in df.columns:
+            df['Close'] = pd.to_numeric(df['price'], errors='coerce')
         else:
-            calculated_bps = np.nan
-        df['bps'] = pd.Series(calculated_bps, index=df.index).replace([np.inf, -np.inf, 0.0], np.nan)
-        df['bps'] = df['bps'].replace([np.inf, -np.inf, 0], np.nan)
-        # Fallback BPS from eps/roe when book_value is unavailable (DB default=0) and both eps & roe are strictly positive
-        nan_mask = df['bps'].isna()
-        if nan_mask.any() and 'eps' in df.columns and 'roe' in df.columns:
-            pos_mask = nan_mask & (df['eps'] > 0) & (df['roe'] > 0)
-            if pos_mask.any():
-                fallback = (df.loc[pos_mask, 'eps'] / df.loc[pos_mask, 'roe']).replace([np.inf, -np.inf], np.nan)
-                df.loc[pos_mask, 'bps'] = fallback
-        # Only fill NaN BPS with Close*0.8 when fundamentals exist for that stock but BPS is temporarily missing
-        # Never invent BPS from price alone — that creates an artificial -20% discount for all symbols
+            df['Close'] = pd.Series(np.nan, index=df.index, dtype=float)
+
+        # Handle BPS: derive ONLY from genuine bps column or book_value / shares_outstanding
+        # Absolutely NO synthetic BPS fabrication (e.g. eps / 0.08 or eps / roe)
+        bps_series = pd.Series(np.nan, index=df.index, dtype=float)
+        if 'bps' in df.columns:
+            bps_col = pd.to_numeric(df['bps'], errors='coerce').replace([np.inf, -np.inf, 0.0], np.nan)
+            bps_series = bps_col.copy()
+
+        if 'book_value' in df.columns:
+            bv = pd.to_numeric(df['book_value'], errors='coerce').replace([np.inf, -np.inf, 0.0], np.nan)
+            shares = (
+                pd.to_numeric(df['shares_outstanding'], errors='coerce').fillna(0.0)
+                if 'shares_outstanding' in df.columns
+                else pd.Series(0.0, index=df.index)
+            )
+            bv_per_share = np.where((shares > 0) & bv.notna() & (bv > 0), bv / np.maximum(shares, 1.0), np.nan)
+            bps_series = bps_series.combine_first(pd.Series(bv_per_share, index=df.index))
+
+        bps_series = bps_series.replace([np.inf, -np.inf, 0.0], np.nan)
+        df['bps'] = np.where(bps_series > 0, bps_series, np.nan)
 
         # Handle ROE: store raw value first, then clip for safety in downstream ops
-        if 'roe' not in df.columns:
-            if 'eps' in df.columns and 'bps' in df.columns:
-                with np.errstate(divide='ignore', invalid='ignore'):
-                    df['roe'] = np.where(df['bps'] > 0, df['eps'] / df['bps'], np.nan)
-            else:
-                df['roe'] = np.nan
+        if 'roe' in df.columns:
+            df['roe'] = pd.to_numeric(df['roe'], errors='coerce')
+        elif 'eps' in df.columns and 'bps' in df.columns:
+            eps_s = pd.to_numeric(df['eps'], errors='coerce')
+            bps_s = pd.to_numeric(df['bps'], errors='coerce')
+            with np.errstate(divide='ignore', invalid='ignore'):
+                df['roe'] = np.where((bps_s > 0) & eps_s.notna(), eps_s / bps_s, np.nan)
+        else:
+            df['roe'] = pd.Series(np.nan, index=df.index)
+
         df['roe'] = df['roe'].replace([np.inf, -np.inf], np.nan).fillna(self.default_required_return)
         # Store true raw ROE BEFORE any clipping — needed for normalize_roe() to detect extreme values
         df['roe_raw'] = df['roe'].copy()
@@ -391,8 +401,16 @@ class RIMValuationEngine(BaseStrategyEngine):
         has_net_inc = 'net_income' in df.columns
 
         if has_op_inc or has_net_inc:
-            op_inc = df['operating_income'].replace([np.inf, -np.inf], np.nan) if has_op_inc else pd.Series(np.nan, index=df.index)
-            net_inc = df['net_income'].replace([np.inf, -np.inf], np.nan) if has_net_inc else pd.Series(np.nan, index=df.index)
+            op_inc = (
+                pd.to_numeric(df['operating_income'], errors='coerce').replace([np.inf, -np.inf], np.nan)
+                if has_op_inc
+                else pd.Series(np.nan, index=df.index)
+            )
+            net_inc = (
+                pd.to_numeric(df['net_income'], errors='coerce').replace([np.inf, -np.inf], np.nan)
+                if has_net_inc
+                else pd.Series(np.nan, index=df.index)
+            )
 
             # earnings_quality: 0.0 ~ 1.0 (영업이익/순이익 비율, 음수 순이익은 1.0 보존)
             with np.errstate(divide='ignore', invalid='ignore'):
@@ -429,7 +447,7 @@ class RIMValuationEngine(BaseStrategyEngine):
         def _apply_roe_normalization(row) -> tuple:
             # Use roe_raw (original, pre-EQ-filter value) so Stage 1 correctly detects
             # extreme ROEs that EQ filter may have already partially decayed.
-            roe_raw_val = row.get('roe_raw', row['roe'])
+            roe_raw_val = row.get('roe_raw', row.get('roe', self.default_required_return))
             eq = row.get('earnings_quality', 1.0)
             op_inc_val = row.get('operating_income', None) if has_op_inc else None
             bv_val = row.get('book_value', None) if has_bv else None
@@ -465,7 +483,7 @@ class RIMValuationEngine(BaseStrategyEngine):
             logger.info(f"Extreme ROE normalization applied to {n_normalized} symbols (ROE capped/replaced)")
 
         # ── Preferred Share Filter (우선주 필터) ─────────────────────────────────
-        pref_mask = df['symbol'].apply(is_preferred_share)
+        pref_mask = df['symbol'].astype(str).apply(is_preferred_share)
         if pref_mask.any():
             df.loc[pref_mask, 'rim_filter_reason'] = 'PREFERRED_SHARE'
 
@@ -500,10 +518,7 @@ class RIMValuationEngine(BaseStrategyEngine):
             if has_shares:
                 shares = pd.to_numeric(df['shares_outstanding'], errors='coerce').replace([0.0, np.inf, -np.inf], np.nan)
                 df['net_debt_per_share'] = (net_debt / shares).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            elif 'bps' in df.columns:
-                # 주식 수 없으면 BPS 대비 비율로 추정 (보수적 상한 80%)
-                bps_num = pd.to_numeric(df['bps'], errors='coerce').replace([0.0, np.inf, -np.inf], np.nan)
-                # net_debt_per_share를 aggregate_equity / bps 로 환산하는 것은 불가 → 0 처리
+            else:
                 df['net_debt_per_share'] = 0.0
 
         # ── Log filter statistics ─────────────────────────────────────────────
@@ -542,21 +557,25 @@ class RIMValuationEngine(BaseStrategyEngine):
             b_val = r_dict.get('bps')
             r_val = r_dict.get('roe')
             p_val = r_dict.get('Close')
-            b = float(b_val) if (b_val is not None and pd.notna(b_val)) else np.nan
-            r = float(r_val) if (r_val is not None and pd.notna(r_val)) else r_e
-            p = float(p_val) if (p_val is not None and pd.notna(p_val)) else np.nan
+            b = float(b_val) if (b_val is not None and pd.notna(b_val) and np.isfinite(b_val)) else np.nan
+            r = float(r_val) if (r_val is not None and pd.notna(r_val) and np.isfinite(r_val)) else r_e
+            p = float(p_val) if (p_val is not None and pd.notna(p_val) and np.isfinite(p_val)) else np.nan
             nd_ps = float(r_dict.get('net_debt_per_share', 0.0) or 0.0)
 
-            # Raw RIM intrinsic value (with normalized ROE already applied)
-            v0_raw = self.calculate_intrinsic_value(b, r, required_return=r_e)
-
-            # Holding company SOTP discount
-            is_hc = bool(r_dict.get('holding_co_flag', False))
-            if is_hc and pd.notna(v0_raw) and pd.notna(b) and b > 0:
-                b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, nd_ps)
+            if np.isnan(b) or b <= 0:
+                v0 = np.nan
+                b_adj = np.nan
             else:
-                b_adj = b
-                v0 = v0_raw
+                # Raw RIM intrinsic value (with normalized ROE already applied)
+                v0_raw = self.calculate_intrinsic_value(b, r, required_return=r_e)
+
+                # Holding company SOTP discount
+                is_hc = bool(r_dict.get('holding_co_flag', False))
+                if is_hc and pd.notna(v0_raw) and pd.notna(b) and b > 0:
+                    b_adj, v0 = self.apply_holding_company_discount(b, v0_raw, nd_ps)
+                else:
+                    b_adj = b
+                    v0 = v0_raw
 
             v0_list.append(v0)
             bps_adj_list.append(b_adj)
@@ -580,9 +599,12 @@ class RIMValuationEngine(BaseStrategyEngine):
         if 'bps' in df.columns:
             bps_numeric = pd.to_numeric(df['bps'], errors='coerce')
             invalid_mask = invalid_mask | bps_numeric.isna() | (bps_numeric <= 0)
+        else:
+            invalid_mask = pd.Series(True, index=df.index)
 
-        # Distressed companies have NaN discount ratio so they do not pollute percentile ranking
+        # Distressed companies or missing BPS have NaN discount ratio so they do not pollute percentile ranking
         df.loc[invalid_mask, 'discount_ratio'] = np.nan
+        df.loc[invalid_mask, 'intrinsic_value'] = np.nan
 
         # Rank valid stocks per market
         df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)

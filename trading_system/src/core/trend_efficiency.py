@@ -85,7 +85,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
                         valid_cols[sym_str] = c_series
 
         if not valid_cols:
-            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
+            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': np.nan})
             return df_out[['symbol', 'trend_efficiency_score']]
 
         # Full price matrix for extended Hurst calculation (up to 120 days)
@@ -95,7 +95,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
 
         close_2d = close_full.tail(21)
         if len(close_2d) < 21:
-            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': 0.50})
+            df_out = pd.DataFrame({'symbol': [str(s) for s in symbols], 'trend_efficiency_score': np.nan})
             return df_out[['symbol', 'trend_efficiency_score']]
 
         change_5 = (close_2d.iloc[-1] - close_2d.iloc[-6]).abs()
@@ -147,9 +147,9 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'trend_efficiency_score'] = 0.50
         else:
-            df_out['trend_efficiency_score'] = 0.50
+            df_out['trend_efficiency_score'] = np.nan
 
-        df_out['trend_efficiency_score'] = df_out['trend_efficiency_score'].fillna(0.50).astype(float)
+        df_out['trend_efficiency_score'] = df_out['trend_efficiency_score'].astype(float)
 
         return df_out[['symbol', 'trend_efficiency_score']]
 

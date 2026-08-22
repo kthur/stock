@@ -2647,13 +2647,20 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     fund_df = fund_df[fund_df['date_available'] <= cutoff_date]
                     if not fund_df.empty:
                         fund_df = fund_df.sort_values('date').groupby('symbol').last().reset_index()
-                        # Compute BPS = book_value / shares_outstanding; 0 book_value → None (not merged)
-                        fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
-                        # Compute ROE = net_income / book_value; 0 book_value → None
-                        fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
-                        # Fallback BPS from eps when book_value unavailable
-                        no_bps = fund_df['bps'].isna() & fund_df['eps'].notna()
-                        fund_df.loc[no_bps, 'bps'] = fund_df.loc[no_bps, 'eps'] / 0.08
+                        # Compute BPS and ROE from genuine fundamentals only (no fake BPS fallback!)
+                        if 'bps' in fund_df.columns:
+                            fund_df['bps'] = pd.to_numeric(fund_df['bps'], errors='coerce').replace([float('inf'), float('-inf'), 0], None)
+                            calc_bps = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+                            fund_df['bps'] = fund_df['bps'].fillna(calc_bps)
+                        else:
+                            fund_df['bps'] = (fund_df['book_value'] / fund_df['shares_outstanding']).replace([float('inf'), float('-inf'), 0], None)
+
+                        if 'roe' in fund_df.columns:
+                            fund_df['roe'] = pd.to_numeric(fund_df['roe'], errors='coerce').replace([float('inf'), float('-inf')], None)
+                            calc_roe = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
+                            fund_df['roe'] = fund_df['roe'].fillna(calc_roe)
+                        else:
+                            fund_df['roe'] = (fund_df['net_income'] / fund_df['book_value']).replace([float('inf'), float('-inf')], None)
                         # Merge into rim_input:
                         # - operating_income/net_income: earnings quality filter
                         # - book_value: normalize_roe() needs book_value for op_income/book_value ratio
@@ -2759,8 +2766,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         merged = df_strat.merge(universe[['symbol', 'name', 'market']], on='symbol', how='left') if 'market' not in df_strat.columns else df_strat.copy()
         if 'name' not in merged.columns and 'name' in universe.columns:
             merged = merged.merge(universe[['symbol', 'name']], on='symbol', how='left')
-        merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce').fillna(0.5)
-        merged = merged.sort_values(by=score_col, ascending=False)
+        merged[score_col] = pd.to_numeric(merged[score_col], errors='coerce')
+        merged = merged.dropna(subset=[score_col]).sort_values(by=score_col, ascending=False)
 
         def _write_content(f_out, df_sub, market_label=None):
             f_out.write(f"=== {title} ===\n")
@@ -3249,11 +3256,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
             darkpool_df['darkpool_score'] = (darkpool_df['darkpool_score'] * 0.90 + 0.05).clip(0.0, 1.0)
             logger.info(f"[Strategy 31] Darkpool proxy from microstructure: {len(darkpool_df)} rows")
         else:
-            darkpool_df = pd.DataFrame({
-                'symbol': universe['symbol'].tolist(),
-                'darkpool_score': 0.50
-            })
-            logger.info("[Strategy 31] Darkpool using neutral 0.50 default for all symbols")
+            darkpool_df = pd.DataFrame(columns=['symbol', 'darkpool_score'])
+            logger.info("[Strategy 31] Microstructure data absent; darkpool proxy empty")
 
         _save_strategy_predictions_report(
             darkpool_df, "darkpool_score",

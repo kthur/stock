@@ -130,7 +130,18 @@ class RimRow:
     price: str
     intrinsic_value: str
     discount: str
-    score: str
+    score: str = ""
+    roe_raw: str = "N/A"
+    roe_adj: str = "N/A"
+    eq: str = "N/A"
+    filter_tags: str = ""
+    rim_score: str = ""
+
+    def __post_init__(self):
+        if not self.rim_score and self.score:
+            self.rim_score = self.score
+        elif not self.score and self.rim_score:
+            self.score = self.rim_score
 
 @dataclass
 class SurgeRow:
@@ -622,11 +633,42 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
         if m:
             date = m.group(1).strip()
             continue
-        # Match 9-column format: Rank Symbol Name Market Price Intrinsic Discount EQ RIM_Score
+        if not line or line.startswith("===") or line.startswith("Total symbols") or line.startswith("Filters:") or line.startswith("Rank") or line.startswith("---"):
+            continue
+        # 1. Match 12-column format:
+        # Rank Symbol Name Market Price Intrinsic Discount ROE_raw ROE_adj EQ Filter RIM_Score
+        m12 = re.match(
+            r"^(\d+)\s+(\S+)\s+(.+?)\s+(KOSPI|KOSDAQ|SP500|NASDAQ|RUSSELL2000|KONEX|[A-Za-z0-9_]+)\s+"
+            r"([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+"
+            r"([-+\d.nanNaN%]+|N/A)\s+([-+\d.nanNaN%]+|N/A)\s+([-+\d.nanNaN%]+|N/A)"
+            r"(?:\s+(.*?))?\s+([-+\d.nanNaN%]+)$",
+            line
+        )
+        if m12:
+            val_str = m12.group(12).strip()
+            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
+            filter_str = (m12.group(11) or "").strip()
+            rows.append(RimRow(
+                rank=int(m12.group(1)),
+                symbol=m12.group(2),
+                name=m12.group(3).strip(),
+                market=m12.group(4),
+                price=m12.group(5),
+                intrinsic_value=m12.group(6),
+                discount=m12.group(7),
+                roe_raw=m12.group(8),
+                roe_adj=m12.group(9),
+                eq=m12.group(10),
+                filter_tags=filter_str,
+                score=score_val,
+                rim_score=score_val,
+            ))
+            continue
+        # 2. Match 9-column format: Rank Symbol Name Market Price Intrinsic Discount EQ RIM_Score
         m9 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+(\S+)\s+([-+\d.nanNaN%]+)$", line)
         if m9:
             val_str = m9.group(9).strip()
-            score_val = val_str if val_str.endswith("%") else val_str + "%"
+            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
             rows.append(RimRow(
                 rank=int(m9.group(1)),
                 symbol=m9.group(2),
@@ -635,14 +677,16 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
                 price=m9.group(5),
                 intrinsic_value=m9.group(6),
                 discount=m9.group(7),
-                score=score_val
+                eq=m9.group(8),
+                score=score_val,
+                rim_score=score_val,
             ))
             continue
-        # Fallback to 8-column format
+        # 3. Fallback to 8-column format: Rank Symbol Name Market Price Intrinsic Discount RIM_Score
         m8 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+([-+\d.nanNaN%]+)$", line)
         if m8:
             val_str = m8.group(8).strip()
-            score_val = val_str if val_str.endswith("%") else val_str + "%"
+            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
             rows.append(RimRow(
                 rank=int(m8.group(1)),
                 symbol=m8.group(2),
@@ -651,7 +695,8 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
                 price=m8.group(5),
                 intrinsic_value=m8.group(6),
                 discount=m8.group(7),
-                score=score_val
+                score=score_val,
+                rim_score=score_val,
             ))
     return date, rows
 
@@ -2105,6 +2150,8 @@ def build_html(
             for rim_r in mkt_rim_rows:
                 symbol_link = make_stock_link(rim_r.symbol, mkt)
                 disc_class = "pos" if safe_float(rim_r.discount) > 0 else "neg"
+                filter_disp = html.escape(rim_r.filter_tags) if rim_r.filter_tags else "-"
+                score_display = rim_r.rim_score or rim_r.score
                 rows_html += f"""
             <tr>
               <td class="rank">#{rim_r.rank}</td>
@@ -2113,10 +2160,14 @@ def build_html(
               <td>{rim_r.price}</td>
               <td class="pos">{rim_r.intrinsic_value}</td>
               <td class="{disc_class}">{rim_r.discount}</td>
-              <td class="score">{rim_r.score}</td>
+              <td>{rim_r.roe_raw}</td>
+              <td>{rim_r.roe_adj}</td>
+              <td>{rim_r.eq}</td>
+              <td>{filter_disp}</td>
+              <td class="score">{score_display}</td>
             </tr>"""
         else:
-            rows_html = '<tr><td colspan="7" class="empty">데이터 없음</td></tr>'
+            rows_html = '<tr><td colspan="11" class="empty">데이터 없음</td></tr>'
 
         rim_panels += f"""
     <div class="market-panel" data-market="{mkt}">
@@ -2124,7 +2175,7 @@ def build_html(
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>RIM 스코어</th>
+            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>ROE(보고)</th><th>ROE(조정)</th><th>EQ</th><th>필터</th><th>RIM 스코어</th>
           </tr></thead>
           <tbody>{rows_html}</tbody>
         </table>
