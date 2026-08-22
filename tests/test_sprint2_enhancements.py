@@ -76,16 +76,16 @@ class TestSprint2Enhancements(unittest.TestCase):
         scorer = EnsembleScoringEngine()
 
         # Stock A (US Mega-cap): Has multiple factors with good conviction
-        # Stock B (KR Micro-cap): Has only 1 factor, missing all alternative US factors
+        # Stock B (KR Micro-cap): Has lower single-factor conviction
         reg_df = pd.DataFrame({
             "symbol": ["AAPL", "099990"],
             "market": ["SP500", "KOSDAQ"],
-            20: [0.15, 0.20],
+            "reg_score": [0.70, 0.40],
         })
         surge_df = pd.DataFrame({
             "symbol": ["AAPL"],
             "market": ["SP500"],
-            "surge_prob_20d": [0.60],
+            "surge_prob_20d": [0.65],
         })
         iv_df = pd.DataFrame({
             "symbol": ["AAPL"],
