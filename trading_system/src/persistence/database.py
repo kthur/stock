@@ -450,7 +450,7 @@ class DataValidator:
                     if col in df_clean.columns:
                         df_clean.loc[transient_spikes, col] = np.nan
                         df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
-                        
+
         # Detect reverse stock splits (permanent upward jumps > 50% that don't revert) with volume contraction
         rev_split_candidates = (close.pct_change() > 0.50) & (~transient_spikes)
         if rev_split_candidates.any():
@@ -485,7 +485,7 @@ class DataValidator:
                     idx = idx.start
                 elif isinstance(idx, np.ndarray):
                     idx = np.where(idx)[0][0]
-                    
+
                 if idx > 0:
                     prev_close = df_clean['Close'].iloc[idx-1]
                     curr_close = df_clean['Close'].iloc[idx]
@@ -493,7 +493,7 @@ class DataValidator:
                         ratio = curr_close / prev_close
                         # Standard split ratio check (e.g. 1:2, 1:3, 1:4, 1:5, 1:10, 2:3, 3:4)
                         is_standard_split_ratio = any(abs(ratio - r) / r < 0.08 for r in [0.5, 0.3333, 0.25, 0.2, 0.1, 0.05, 0.6667, 0.75])
-                        
+
                         # Volume expansion confirmation (>1.25x volume expansion or zero-volume recovery)
                         has_vol_confirmation = True
                         if 'Volume' in df_clean.columns and len(df_clean['Volume']) > idx:
@@ -501,7 +501,7 @@ class DataValidator:
                             vol_curr = float(df_clean['Volume'].iloc[idx])
                             if vol_prev > 0 and vol_curr > 0:
                                 has_vol_confirmation = (vol_curr / vol_prev) >= 1.25
-                        
+
                         if is_standard_split_ratio and has_vol_confirmation:
                             logger.warning(f"Detected stock split around {date} with ratio {ratio:.4f}. Adjusting historical data.")
                             for col in ['Open', 'High', 'Low', 'Close']:
@@ -681,7 +681,8 @@ class StockPriceDB:
         return DataValidator.validate_and_clean_price_series(df, max_daily_jump=max_daily_jump)
 
     def get_prices(self, symbol: str, start_date: Optional[str] = None,
-                   end_date: Optional[str] = None) -> pd.DataFrame:
+                   end_date: Optional[str] = None,
+                   limit: Optional[int] = None) -> pd.DataFrame:
         """DB에서 주가 데이터 조회 (시계열 정렬된 DataFrame, 컬럼명 대문자, 이상치 자동 보정)"""
         symbol = normalize_symbol(symbol)
         conn = self._get_conn()
@@ -694,8 +695,14 @@ class StockPriceDB:
             query += " AND date <= ?"
             end_param = f"{end_date} 23:59:59" if len(end_date) == 10 else end_date
             params.append(end_param)
-        query += " ORDER BY date ASC"
-        df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
+        if limit is not None and limit > 0:
+            query += f" ORDER BY date DESC LIMIT {int(limit)}"
+            df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
+            if not df.empty:
+                df = df.iloc[::-1].reset_index(drop=True)
+        else:
+            query += " ORDER BY date ASC"
+            df = pd.read_sql_query(query, conn, params=params, parse_dates=["date"])
         if not df.empty:
             df.set_index("date", inplace=True)
             df.columns = [col.capitalize() for col in df.columns]

@@ -248,9 +248,10 @@ class RegimeFactorSuppressionEngine:
                 strats = [s for s in base_weights.keys() if s in corr_matrix.columns]
                 if len(strats) >= 2:
                     w0_vec = np.array([float(base_weights[s]) for s in strats], dtype=np.float64)
-                    w0_vec = w0_vec / max(np.sum(w0_vec), 1e-8)
+                    w0_sum = float(np.sum(w0_vec))
+                    w0_vec = w0_vec / max(w0_sum, 1e-8)
                     R_sub = corr_matrix.loc[strats, strats].to_numpy(dtype=np.float64)
-                    
+
                     opt_w = solve_single_stage_entropy_allocation(
                         R=R_sub,
                         w0=w0_vec,

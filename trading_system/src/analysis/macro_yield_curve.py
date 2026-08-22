@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ class NelsonSiegelYieldCurveEngine:
         """
         tau = np.asarray(maturities_years, dtype=np.float64)
         y = np.asarray(yields_percent, dtype=np.float64)
-        
+
         if len(tau) < 3 or len(tau) != len(y):
             # Fallback estimation if incomplete maturity curve
             level = float(np.mean(y)) if len(y) > 0 else 3.50
@@ -47,14 +46,14 @@ class NelsonSiegelYieldCurveEngine:
         # Basis functions
         f_slope = (1.0 - np.exp(-lam * tau)) / (lam * tau)
         f_curv = f_slope - np.exp(-lam * tau)
-        
+
         # Design matrix X = [1, f_slope, f_curv]
         X = np.column_stack([np.ones_like(tau), f_slope, f_curv])
-        
+
         try:
             beta, residuals, rank, s = np.linalg.lstsq(X, y, rcond=None)
             level, slope, curvature = beta[0], beta[1], beta[2]
-            
+
             y_pred = X @ beta
             ss_tot = np.sum((y - np.mean(y)) ** 2)
             ss_res = np.sum((y - y_pred) ** 2)
@@ -88,7 +87,7 @@ class NelsonSiegelYieldCurveEngine:
             "5y": 5.0, "10y": 10.0, "20y": 20.0, "30y": 30.0,
             "tnx": 10.0, "irx": 0.25, "fvxb": 5.0, "tyx": 30.0
         }
-        
+
         tau_list, y_list = [], []
         for k, v in yield_curve_dict.items():
             k_clean = str(k).lower().strip()
@@ -111,8 +110,7 @@ class NelsonSiegelYieldCurveEngine:
 
         fit_res = self.fit_nelson_siegel(taus, yields)
         slope = fit_res["slope"] # Inverted when slope > 0 in standard NS (short rate > long rate) or 10Y - 2Y < 0
-        curv = fit_res["curvature"]
-        
+
         # 10Y - 2Y direct spread
         spread_10_2 = (yield_curve_dict.get("10y", yield_curve_dict.get("tnx", 4.0)) or 4.0) - \
                       (yield_curve_dict.get("2y", yield_curve_dict.get("fvxb", 3.8)) or 3.8)

@@ -105,7 +105,7 @@ class SmartOrderRouter:
             merged = False
             for alloc in allocations:
                 if alloc["venue_id"] == p_id:
-                    alloc["allocated_quantity"] += remaining_qty
+                    alloc["allocated_quantity"] = int(str(alloc["allocated_quantity"])) + remaining_qty
                     merged = True
                     break
             if not merged:

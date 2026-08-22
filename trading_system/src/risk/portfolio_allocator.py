@@ -148,7 +148,6 @@ class PortfolioAllocator:
         else:
             blended_semi = semi_cov
 
-        diag_stds = np.sqrt(np.maximum(np.diag(blended_semi), 1e-8))
         reg_target = np.diag(np.diag(blended_semi))
         np.fill_diagonal(reg_target, np.diag(blended_semi))
 
@@ -684,7 +683,7 @@ class PortfolioAllocator:
         if max_sector_weight is None:
             max_sector_weight = self.default_max_sector_weight
         if max_country_weight is None:
-            max_country_weight = float(self.config.get_max_country_weight("SP500") if hasattr(self.config, "get_max_country_weight") else 0.35)
+            max_country_weight = float(self.config.get_max_country_weight("SP500") if (self.config is not None and hasattr(self.config, "get_max_country_weight")) else 0.35)
 
         symbols = list(expected_returns.index)
         n_assets = len(symbols)
@@ -746,22 +745,25 @@ class PortfolioAllocator:
 
         # Add country capacity constraints if market_map is provided
         if market_map and max_country_weight is not None and max_country_weight < 1.0:
+            _CTRY_MAP = {
+                'SP500': 'US', 'NASDAQ': 'US', 'RUSSELL2000': 'US', 'US': 'US',
+                'KOSPI': 'KR', 'KOSDAQ': 'KR', 'KRX': 'KR',
+                'CHINA_SSE': 'CN', 'CHINA_SZSE': 'CN', 'SSE': 'CN', 'SZSE': 'CN', 'CHINA': 'CN',
+                'JAPAN_TSE': 'JP', 'TSE': 'JP', 'JAPAN': 'JP',
+                'INDIA_NSE': 'IN', 'INDIA_BSE': 'IN', 'NSE': 'IN', 'BSE': 'IN', 'INDIA': 'IN',
+                'EUROPE_STOXX': 'EU', 'EUROPE': 'EU', 'STOXX': 'EU', 'DAX': 'EU', 'CAC': 'EU', 'FTSE': 'EU',
+                'VIETNAM_HOSE': 'VN', 'HOSE': 'VN', 'VIETNAM': 'VN',
+                'TAIWAN_TWSE': 'TW', 'TWSE': 'TW', 'TAIWAN': 'TW',
+                'AUSTRALIA_ASX': 'AU', 'ASX': 'AU', 'AUSTRALIA': 'AU',
+                'BRAZIL_B3': 'BR', 'B3': 'BR', 'BRAZIL': 'BR',
+                'HKEX': 'HK', 'HONGKONG': 'HK',
+                'SINGAPORE_SGX': 'SG', 'SGX': 'SG', 'SINGAPORE': 'SG',
+                'CANADA_TSX': 'CA', 'TSX': 'CA', 'CANADA': 'CA',
+            }
+
             def _to_country(m):
                 m_u = str(m).strip().upper()
-                if m_u in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US'): return 'US'
-                if m_u in ('KOSPI', 'KOSDAQ', 'KRX'): return 'KR'
-                if m_u in ('CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CHINA'): return 'CN'
-                if m_u in ('JAPAN_TSE', 'TSE', 'JAPAN'): return 'JP'
-                if m_u in ('INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'INDIA'): return 'IN'
-                if m_u in ('EUROPE_STOXX', 'EUROPE', 'STOXX', 'DAX', 'CAC', 'FTSE'): return 'EU'
-                if m_u in ('VIETNAM_HOSE', 'HOSE', 'VIETNAM'): return 'VN'
-                if m_u in ('TAIWAN_TWSE', 'TWSE', 'TAIWAN'): return 'TW'
-                if m_u in ('AUSTRALIA_ASX', 'ASX', 'AUSTRALIA'): return 'AU'
-                if m_u in ('BRAZIL_B3', 'B3', 'BRAZIL'): return 'BR'
-                if m_u in ('HKEX', 'HONGKONG'): return 'HK'
-                if m_u in ('SINGAPORE_SGX', 'SGX', 'SINGAPORE'): return 'SG'
-                if m_u in ('CANADA_TSX', 'TSX', 'CANADA'): return 'CA'
-                return m_u
+                return _CTRY_MAP.get(m_u, m_u)
 
             country_map = {s: _to_country(m) for s, m in market_map.items()}
             countries = set(country_map.values())

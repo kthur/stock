@@ -7,7 +7,7 @@ import time
 import threading
 import traceback
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any, Dict, List, Union, Tuple
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1229,10 +1229,10 @@ def _get_excluded_krx_symbols() -> set:
 
 
 class _PipelineContext:
-    storage = None
-    price_db = None
-    current_run_id = None
-    start_time = 0.0
+    storage: Optional[Any] = None
+    price_db: Optional[Any] = None
+    current_run_id: Optional[str] = None
+    start_time: float = 0.0
 
 _ACTIVE_PIPELINE_CTX = _PipelineContext()
 
@@ -1488,7 +1488,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     if should_skip:
         logger.info("Fetching global indicator history for inference only...")
         indicator_infer = fetch_indicator_history(start_date_infer, price_db, freshness)
-        train_data_dict = {}
+        train_data_dict: dict[str, Any] = {}
         indicator_train = pd.DataFrame()
         df_train = pd.DataFrame()
     else:
@@ -1702,12 +1702,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                     if not m_df.empty:
                         logger.info(f"Training {m_name.upper()} regression model ({len(m_df)} rows)...")
                         futures[pool.submit(model.train, m_df, market=m_name, save_after=True)] = m_name
-                for f in as_completed(futures):
+                for fut in as_completed(futures):
                     try:
-                        f.result()
+                        fut.result()
                     except Exception as e:
-                        logger.error(f"Regression training failed for {futures[f]}: {e}")
-                        _train_failures.append(f"{futures[f]}: {e}")
+                        logger.error(f"Regression training failed for {futures[fut]}: {e}")
+                        _train_failures.append(f"{futures[fut]}: {e}")
             if _train_failures:
                 _notify_telegram(f"⚠️ 회귀 모델 학습 실패 ({len(_train_failures)}/{len(market_dfs)}): " + " | ".join(_train_failures[:5]))
         model.load_models()
@@ -1719,12 +1719,12 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
                 for m_name, m_df in market_dfs.items():
                     if not m_df.empty:
                         futures[pool.submit(model.train_surge, m_df, market=m_name, save_after=True)] = m_name
-                for f in as_completed(futures):
+                for fut in as_completed(futures):
                     try:
-                        f.result()
+                        fut.result()
                     except Exception as e:
-                        logger.error(f"Surge training failed for {futures[f]}: {e}")
-                        _surge_failures.append(f"{futures[f]}: {e}")
+                        logger.error(f"Surge training failed for {futures[fut]}: {e}")
+                        _surge_failures.append(f"{futures[fut]}: {e}")
             if _surge_failures:
                 _notify_telegram(f"⚠️ Surge 모델 학습 실패 ({len(_surge_failures)}/{len(market_dfs)}): " + " | ".join(_surge_failures[:5]))
         model.load_surge_models()
@@ -1893,8 +1893,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
         futures = {pool.submit(_merge_infer_one, sym, df): sym for sym, df in infer_data_dict.items()}
-        for f in as_completed(futures):
-            sym, merged = f.result()
+        for fut in as_completed(futures):
+            sym, merged = fut.result()
             if merged is not None:
                 infer_data_dict[sym] = merged
             else:
@@ -1937,9 +1937,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     vcp_results = []
     with ThreadPoolExecutor(max_workers=_CPU_WORKERS * 2) as pool:
         futures = {pool.submit(_detect_vcp, sym, df): sym for sym, df in infer_data_dict.items()}
-        for f in as_completed(futures):
+        for fut in as_completed(futures):
             try:
-                r = f.result()
+                r = fut.result()
                 if r is not None:
                     vcp_results.append(r)
             except Exception:
@@ -3383,7 +3383,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     try:
         from src.data_layer.overnight_gap_shifter import OvernightGapShifter
         gap_shifter = OvernightGapShifter()
-        on_indicator_df = indicator_infer if 'indicator_infer' in locals() else (indicator_df if 'indicator_df' in locals() else None)
+        on_indicator_df = indicator_infer if 'indicator_infer' in locals() else locals().get('indicator_df', None)
         on_factors = gap_shifter.fetch_overnight_factors(on_indicator_df)
         krx_gap = gap_shifter.compute_opening_gap_estimate(on_factors)
         if abs(krx_gap) >= 0.20 and ensemble_df is not None and not ensemble_df.empty:
@@ -3621,8 +3621,8 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         # Retrieve historical daily returns from market index data for realistic stress simulation.
         ens_returns = None
         try:
-            # Try to get historical market index returns (S&P500 proxy) from indicator storage
-            hist_indicators = storage.get_indicator_history(days=252) if 'storage' in locals() else None
+            # Try to get historical market index returns (S&P500 proxy) from indicator history
+            hist_indicators = indicator_train if ('indicator_train' in locals() and indicator_train is not None and not indicator_train.empty) else None
             if hist_indicators is not None and 'sp500_return' in hist_indicators.columns:
                 ens_returns = hist_indicators['sp500_return'].dropna().values
             elif hist_indicators is not None and 'sp500_close' in hist_indicators.columns:
@@ -3718,9 +3718,9 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         logger.warning(f"Milestone 3 CPCV & Stress Test calculation skipped: {_m3_e}")
 
     # Generate Decision Rationale Summary
-    decoupling_info = None
     try:
-        decoupling_info = regime_detector.predict_dual_market_regime(indicator_infer)
+        if 'regime_detector' in locals() and indicator_infer is not None and not indicator_infer.empty:
+            decoupling_info = regime_detector.predict_dual_market_regime(indicator_infer)
     except Exception as _dec_e:
         logger.warning(f"Dual market decoupling info computation skipped: {_dec_e}")
     decision_rationale_text = scorer.get_regime_reasoning_summary(current_2d_regime, rolling_sharpes, decoupling_info=decoupling_info)
@@ -3796,7 +3796,7 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
 
     try:
         from src.analysis.attribution_analyzer import StrategyAttributionAnalyzer
-        attr_analyzer = StrategyAttributionAnalyzer(output_dir=result_dir)
+        attr_analyzer = StrategyAttributionAnalyzer(output_dir=Path(result_dir))
         attr_analyzer.analyze_attribution(ensemble_df, weights=ensemble_weights if 'ensemble_weights' in locals() else None)
     except Exception as _attr_e:
         logger.warning(f"Strategy Attribution analysis skipped: {_attr_e}")

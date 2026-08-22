@@ -361,14 +361,14 @@ class ExecutionOMSEngine:
                     weight = float(weight_raw) if (weight_raw is not None and math.isfinite(float(weight_raw))) else 0.0
                 except (ValueError, TypeError):
                     continue
-                
+
                 raw_action = str(pred.get("action", "BUY") or "BUY").upper()
                 if is_severe:
                     if raw_action == "BUY" and weight > 0:
                         continue
                     weight = 0.0
                     raw_action = "SELL"
-                    
+
                 if not is_severe and not (0.0 < weight <= 1.0) and raw_action != "SELL":
                     continue
 
@@ -468,7 +468,7 @@ class ExecutionOMSEngine:
                                 slip_mult = 1.0
                         except Exception:
                             slip_mult = 1.0
-                            
+
                         allocator = PortfolioAllocator()
                         adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
                         vol_val = float(pred.get("volatility_20d", 0.02) or 0.02)
@@ -543,12 +543,7 @@ class ExecutionOMSEngine:
                         effective_target_amount = target_amount / fx_rate
 
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
-                if is_krx:
-                    quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
-                elif curr_iso in ('JPY', 'VND'):
-                    quantity = int(raw_quantity)
-                else:
-                    quantity = raw_quantity
+                quantity = int(raw_quantity)
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 

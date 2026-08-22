@@ -52,7 +52,7 @@ def compute_regulatory_filing_lag(
         lag_days = 90 if is_year_end else 45
     else:
         lag_days = 60 if is_year_end else 40
-    return (ts + pd.Timedelta(days=lag_days)).strftime('%Y-%m-%d')
+    return str((ts + pd.Timedelta(days=lag_days)).strftime('%Y-%m-%d'))
 
 
 @retry(

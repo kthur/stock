@@ -1444,8 +1444,6 @@ class EnsembleScoringEngine:
         """
         regime = kwargs.get('regime_label', regime)
         us_regime = kwargs.get('us_regime_label', us_regime)
-        if kwargs.get('us_kr_decoupled'):
-            decoupling_status = 'DECOUPLED'
 
         if reg_df is None:
             reg_df = pd.DataFrame()
@@ -2123,11 +2121,7 @@ class EnsembleScoringEngine:
 
         # Dynamic Weight Renormalization & Missingness-Aware Coverage Penalization (Market-Specific Dual Weights)
         total_score_series = pd.Series(0.0, index=merged.index)
-        total_weight_series = pd.Series(0.0, index=merged.index)
         valid_count_series = pd.Series(0.0, index=merged.index)
-
-        present_strategy_cols = [score_col for _, score_col in strategy_cols if score_col in merged.columns and merged[score_col].notna().any()]
-        num_present_strats = max(float(len(present_strategy_cols)), 1.0)
 
         # Incorporate orthogonalization penalty and VIF factor suppression into eff_us_weights and eff_kr_weights
         if weights is not None and isinstance(weights, dict) and len(weights) > 0:
@@ -2176,11 +2170,14 @@ class EnsembleScoringEngine:
                 valid_count_series += valid_mask.astype(float)
 
         # Dynamic re-normalization over active strategies (Active weights sum to 100%)
-        safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
         raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
-        linear_score = raw_linear_score.copy()
+
+        # Coverage Shrinkage: Shrink conviction towards neutral prior (0.50) when data coverage is sparse
+        safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
+        cov_ratio = (valid_weight_series / safe_nom_weight).clip(0.0, 1.0)
+        linear_score = pd.Series(np.where(has_valid, cov_ratio * raw_linear_score + (1.0 - cov_ratio) * 0.50, 0.0), index=merged.index).clip(0.0, 1.0)
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
         slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]

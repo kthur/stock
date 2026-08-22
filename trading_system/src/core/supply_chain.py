@@ -243,7 +243,6 @@ class SupplyChainEngine(BaseStrategyEngine):
             name = str(r_dict.get("name", sym))
             mkt = str(r_dict.get("market", "KRX"))
             c_key = clean_sym(sym)
-            is_kr_target = (c_key.isdigit() or str(mkt).upper() in ['KOSPI', 'KOSDAQ', 'KRX'])
 
             customers = self.customer_map.get(c_key, self.customer_map.get(sym, []))
             if not customers:
@@ -279,7 +278,6 @@ class SupplyChainEngine(BaseStrategyEngine):
 
                 cust_rets = []
                 for c_sym, c_weight in zip(customers, weights):
-                    is_us_customer = (c_sym.isalpha() and len(c_sym) <= 5)
                     r1_series = returns_1d
                     r3_series = returns_3d
                     r5_series = returns_5d

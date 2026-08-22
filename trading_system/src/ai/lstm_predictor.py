@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from typing import cast, Optional, Union, Dict, Any
+from typing import cast, Optional
 
 logger = logging.getLogger(__name__)
 

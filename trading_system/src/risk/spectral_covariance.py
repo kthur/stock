@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, Union
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class NonLinearSpectralCovarianceEngine:
 
         T, N = X.shape
         if T < 5 or N < 2:
-            return np.cov(X, rowvar=False) if N >= 2 else np.eye(max(1, N))
+            return np.asarray(np.cov(X, rowvar=False) if N >= 2 else np.eye(max(1, N)), dtype=np.float64)
 
         # Demean returns
         X_centered = X - np.mean(X, axis=0)
@@ -52,7 +52,7 @@ class NonLinearSpectralCovarianceEngine:
         try:
             evals, evecs = np.linalg.eigh(S)
         except Exception:
-            return S + 1e-4 * np.eye(N)
+            return np.asarray(S + 1e-4 * np.eye(N), dtype=np.float64)
 
         # Ensure sorted in ascending order
         idx_sort = np.argsort(evals)
@@ -67,11 +67,11 @@ class NonLinearSpectralCovarianceEngine:
         for i in range(N):
             lam_i = evals[i]
             z = lam_i + 1j * eta
-            
+
             # Stieltjes transform m(z)
             m_z = np.mean(1.0 / (evals - z))
             denom = np.abs(1.0 - c - c * z * m_z) ** 2
-            
+
             if denom > 1e-6:
                 d_val = float(lam_i / denom)
             else:
@@ -87,7 +87,7 @@ class NonLinearSpectralCovarianceEngine:
         Sigma_clean = evecs @ np.diag(d_shrunk) @ evecs.T
         # Symmetrize
         Sigma_clean = 0.5 * (Sigma_clean + Sigma_clean.T)
-        return Sigma_clean
+        return np.asarray(Sigma_clean, dtype=np.float64)
 
     def compute_spectral_shrunk_weights(
         self,
@@ -104,10 +104,10 @@ class NonLinearSpectralCovarianceEngine:
 
         df_rets = returns_df[symbols].dropna()
         Sigma_clean = self.denoise_covariance_matrix(df_rets)
-        
+
         N = len(symbols)
         mu = np.nan_to_num(expected_returns.values.astype(np.float64), nan=0.0)
-        
+
         try:
             inv_sigma = np.linalg.pinv(Sigma_clean + 1e-4 * np.eye(N))
             raw_w = (1.0 / max(risk_aversion, 0.1)) * np.dot(inv_sigma, mu)

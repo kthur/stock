@@ -66,7 +66,6 @@ class ARMFactorEngine(BaseStrategyEngine):
             prc = prices_dict if isinstance(prices_dict, dict) else {}
             fund = fundamentals_dict if isinstance(fundamentals_dict, dict) else {}
 
-        from .base_strategy import make_score_dataframe
         if not prc and not fund:
             return make_score_dataframe({}, 'arm_score')
 
@@ -74,8 +73,6 @@ class ARMFactorEngine(BaseStrategyEngine):
         raw_scores = {}
 
         for sym in symbols:
-            # 기본 점수 0.5 (중립)
-            score = 0.5
             p_df = prc.get(sym)
             f_dict = fund.get(sym, {})
 
@@ -99,7 +96,7 @@ class ARMFactorEngine(BaseStrategyEngine):
 
             # 4. Price Confirmation (최근 20일 주가 모멘텀)
             price_mom = 0.0
-            if p_df is not None and len(p_df) >= 20:
+            if isinstance(p_df, pd.DataFrame) and len(p_df) >= 20:
                 col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
                 if col:
                     close = p_df[col].dropna()

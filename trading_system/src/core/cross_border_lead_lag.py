@@ -60,8 +60,6 @@ class CrossBorderLeadLagEngine:
         if not us_returns:
             return {sym: 0.5 for sym in prices_dict.keys() if sym not in self.US_LEADERS}
 
-        avg_us_tech_ret = float(np.mean(list(us_returns.values())))
-
         scores: Dict[str, float] = {}
 
         for sym, df in prices_dict.items():

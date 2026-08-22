@@ -592,7 +592,7 @@ class MarketIndicatorStorage:
         """Fetch and update S&P 500, NASDAQ, RUSSELL2000 and KRX (KOSPI, KOSDAQ) stocks"""
         logger.warning("WARNING: Universe constructed from current listings only. Survivorship bias present in historical training data.")
         # TODO: Integrate point-in-time database (CRSP/Norgate) to eliminate survivorship bias
-        
+
         def _retry_fetch(label, fn, attempts=3):
             """Retry a universe listing fetch (transient rate-limit/network failures)."""
             last_err = None

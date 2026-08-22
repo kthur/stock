@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class CrossAssetImpactEngine:
 
         # Participation vector: p_i = sqrt(|Q_i| / ADV_i)
         part_ratios = np.sqrt(np.maximum(0.0, q_vals) / np.maximum(advs, 1.0))
-        
+
         # Single-asset standalone square-root impact (in bps)
         base_vector = vols * part_ratios * 10000.0
         standalone_impact = self.gamma * base_vector
@@ -79,7 +78,7 @@ class CrossAssetImpactEngine:
             corr = 0.40 * np.ones((N, N)) + 0.60 * np.eye(N)
 
         Theta = self.compute_cross_impact_matrix(vols, corr)
-        
+
         # Cross-asset price impact vector
         cross_impact_vec = np.dot(Theta, base_vector)
 

@@ -18,7 +18,7 @@ def safe_matrix_precision_guard(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         new_args = [
-            a.astype(np.float64) if isinstance(a, np.ndarray) and a.dtype == np.float32 else a 
+            a.astype(np.float64) if isinstance(a, np.ndarray) and a.dtype == np.float32 else a
             for a in args
         ]
         new_kwargs = {
@@ -168,7 +168,7 @@ class FactorOrthogonalizerEngine:
         diag_signs[diag_signs == 0] = 1.0
         W_esrw = W_esrw * diag_signs[:, np.newaxis]
 
-        return np.dot(X_bar, W_esrw)
+        return np.asarray(np.dot(X_bar, W_esrw), dtype=np.float64)
 
     @safe_matrix_precision_guard
     def _pca_zca_symmetric(

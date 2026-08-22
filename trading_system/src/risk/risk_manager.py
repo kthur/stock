@@ -130,6 +130,7 @@ class CrisisDetector:
         self._days_in_crisis = 0
         self._days_since_crisis_ended = 0
         self._recovery_days = 0
+        self._prev_crisis_level: Optional[CrisisLevel] = None
 
     def get_target_cash_ratio(self) -> float:
         """
@@ -288,6 +289,7 @@ class CrisisDetector:
                         self._recovery_days = 0
 
         if self.crisis_level != previous:
+            self._prev_crisis_level = previous
             vix_str = f"{float(vix):.1f}" if (vix is not None and isinstance(vix, (int, float)) and np.isfinite(vix)) else "N/A"
             dd_str = f"{float(dd):.2%}" if (dd is not None and np.isfinite(dd)) else "N/A"
             vol_str = f"{float(daily_volume_ratio):.1f}x" if (daily_volume_ratio is not None and np.isfinite(daily_volume_ratio)) else "N/A"

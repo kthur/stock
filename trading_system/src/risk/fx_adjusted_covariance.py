@@ -134,7 +134,7 @@ class FXAdjustedCovarianceEngine:
                     curr_fx_ret = aligned_multi_fx['EURKRW=X']
                 elif mkt in ('CHINA', 'SSE', 'SZSE', 'CHINA_SSE', 'CHINA_SZSE') and 'CNYKRW=X' in aligned_multi_fx:
                     curr_fx_ret = aligned_multi_fx['CNYKRW=X']
-                
+
                 # Compound return in base currency (KRW)
                 krw_returns[sym] = (1.0 + r_loc) * (1.0 + curr_fx_ret) - 1.0
 

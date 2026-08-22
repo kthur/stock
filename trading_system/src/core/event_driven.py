@@ -274,10 +274,10 @@ class EventDrivenEngine(BaseStrategyEngine):
                             parsed_ratio = None
 
                     if parsed_ratio is None:
-                        # Match explicit dilution keywords rather than coupon/interest rates
                         match = re.search(r'(?:지분\s*희석|비율|희석률|발행주식총수대비|주식수대비)[^0-9%]{0,20}([0-9]+(?:\.[0-9]+)?)\s*%', combined_text)
                         if not match and '전환가액' not in combined_text and '이자율' not in combined_text:
                             match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*%', combined_text)
+                        if match:
                             try:
                                 parsed_ratio = float(match.group(1)) / 100.0
                             except (ValueError, TypeError):

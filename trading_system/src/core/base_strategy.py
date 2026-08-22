@@ -4,7 +4,7 @@ Base Strategy Engine abstract class for quantitative factor strategy engines.
 Provides unified OHLCV extraction, rank-normalization, ScoreDataFrame, and missing data handling.
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
 import logging
 from typing import Dict, List, Optional, Any, Union
 import numpy as np
@@ -153,11 +153,8 @@ class BaseStrategyEngine(ABC):
         ranked = s[valid_mask].rank(pct=True)
         scaled = np.clip(ranked, min_clip, max_clip)
 
-        result = s.to_dict()
-        for k in s.index:
-            if k in scaled.index:
-                result[k] = float(scaled[k])
-            else:
-                result[k] = float(neutral_fill)
-
+        result: dict[str, float] = {
+            str(k): float(scaled[k]) if k in scaled.index else float(neutral_fill)
+            for k in s.index
+        }
         return result
