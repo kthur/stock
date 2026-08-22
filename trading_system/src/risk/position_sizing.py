@@ -21,11 +21,33 @@ class PortfolioAllocator:
     # Layer 1: 시장별 기본 속성 (변동성·유동성·거래비용 기반 예산 비율)
     # 기준: 글로벌 시장 시가총액 + 일평균거래량 비중 + 비용 조정
     MARKET_BASE_BUDGETS = {
-        'SP500':       {'vol_proxy': 0.14, 'liquidity': 0.80, 'cost': 0.006},   # 저변동·고유동·저비용
-        'NASDAQ':      {'vol_proxy': 0.18, 'liquidity': 0.70, 'cost': 0.0065},  # 중변동·고유동·저비용
-        'RUSSELL2000': {'vol_proxy': 0.24, 'liquidity': 0.45, 'cost': 0.008},   # 중고변동·중유동·중비용
-        'KOSPI':       {'vol_proxy': 0.18, 'liquidity': 0.60, 'cost': 0.0085},  # 중변동·중유동·중비용
-        'KOSDAQ':      {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.010},   # 고변동·저유동·고비용
+        'SP500':         {'vol_proxy': 0.14, 'liquidity': 0.80, 'cost': 0.006},   # 저변동·고유동·저비용
+        'NASDAQ':        {'vol_proxy': 0.18, 'liquidity': 0.70, 'cost': 0.0065},  # 중변동·고유동·저비용
+        'RUSSELL2000':   {'vol_proxy': 0.24, 'liquidity': 0.45, 'cost': 0.008},   # 중고변동·중유동·중비용
+        'KOSPI':         {'vol_proxy': 0.18, 'liquidity': 0.60, 'cost': 0.0085},  # 중변동·중유동·중비용
+        'KOSDAQ':        {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.010},   # 고변동·저유동·고비용
+        'JAPAN_TSE':     {'vol_proxy': 0.16, 'liquidity': 0.70, 'cost': 0.007},   # 일본 TSE 선진국 대형주
+        'JAPAN':         {'vol_proxy': 0.16, 'liquidity': 0.70, 'cost': 0.007},
+        'EUROPE_STOXX':  {'vol_proxy': 0.16, 'liquidity': 0.65, 'cost': 0.007},   # 유럽 유로스톡스
+        'EUROPE':        {'vol_proxy': 0.16, 'liquidity': 0.65, 'cost': 0.007},
+        'TAIWAN_TWSE':   {'vol_proxy': 0.19, 'liquidity': 0.55, 'cost': 0.009},   # 대만 IT 테크 중심
+        'TAIWAN':        {'vol_proxy': 0.19, 'liquidity': 0.55, 'cost': 0.009},
+        'CHINA_SSE':     {'vol_proxy': 0.20, 'liquidity': 0.65, 'cost': 0.008},   # 중국 본토
+        'CHINA_SZSE':    {'vol_proxy': 0.22, 'liquidity': 0.60, 'cost': 0.0085},
+        'CHINA':         {'vol_proxy': 0.20, 'liquidity': 0.65, 'cost': 0.008},
+        'INDIA_NSE':     {'vol_proxy': 0.18, 'liquidity': 0.50, 'cost': 0.008},   # 인도 Nifty
+        'INDIA':         {'vol_proxy': 0.18, 'liquidity': 0.50, 'cost': 0.008},
+        'SINGAPORE_SGX': {'vol_proxy': 0.14, 'liquidity': 0.45, 'cost': 0.006},   # 싱가포르 SGX
+        'SINGAPORE':     {'vol_proxy': 0.14, 'liquidity': 0.45, 'cost': 0.006},
+        'AUSTRALIA_ASX': {'vol_proxy': 0.16, 'liquidity': 0.50, 'cost': 0.007},   # 호주 ASX 원자재/금융
+        'AUSTRALIA':     {'vol_proxy': 0.16, 'liquidity': 0.50, 'cost': 0.007},
+        'CANADA_TSX':    {'vol_proxy': 0.15, 'liquidity': 0.55, 'cost': 0.0065},  # 캐나다 TSX
+        'CANADA':        {'vol_proxy': 0.15, 'liquidity': 0.55, 'cost': 0.0065},
+        'HKEX':          {'vol_proxy': 0.22, 'liquidity': 0.60, 'cost': 0.008},   # 홍콩 HKEX
+        'BRAZIL_B3':     {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.012},   # 브라질 B3 원자재/금융
+        'BRAZIL':        {'vol_proxy': 0.26, 'liquidity': 0.35, 'cost': 0.012},
+        'VIETNAM_HOSE':  {'vol_proxy': 0.25, 'liquidity': 0.30, 'cost': 0.014},   # 베트남 HOSE 신흥국
+        'VIETNAM':       {'vol_proxy': 0.25, 'liquidity': 0.30, 'cost': 0.014},
     }
 
     def __init__(self,

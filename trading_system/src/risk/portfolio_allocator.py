@@ -668,19 +668,23 @@ class PortfolioAllocator:
         max_weight: Optional[float] = None,
         sector_map: Optional[Dict[str, str]] = None,
         max_sector_weight: Optional[float] = None,
+        market_map: Optional[Dict[str, str]] = None,
+        max_country_weight: Optional[float] = None,
     ) -> Dict[str, float]:
         """
-        Convex Portfolio Optimization with Explicit Turnover Cost Regularization:
+        Convex Portfolio Optimization with Explicit Turnover Cost Regularization & Country Caps:
         Objective:
             min_w [ -w^T mu + (lambda/2) w^T Sigma w + gamma_1 sum(c_i |w_i - w_prev_i|) + (gamma_2 / 2) ||w - w_prev||^2 ]
         subject to:
-            sum(w_i) = 1.0,  0 <= w_i <= max_weight,  sum_{i in Sector_k} w_i <= max_sector_weight.
+            sum(w_i) = 1.0,  0 <= w_i <= max_weight,  sum_{i in Sector_k} w_i <= max_sector_weight, sum_{i in Country_c} w_i <= max_country_weight.
         Eliminates portfolio churning on noisy marginal alpha changes while maximizing net realized compound CAGR.
         """
         if max_weight is None:
             max_weight = self.default_max_weight
         if max_sector_weight is None:
             max_sector_weight = self.default_max_sector_weight
+        if max_country_weight is None:
+            max_country_weight = float(self.config.get_max_country_weight("SP500") if hasattr(self.config, "get_max_country_weight") else 0.35)
 
         symbols = list(expected_returns.index)
         n_assets = len(symbols)
@@ -734,10 +738,39 @@ class PortfolioAllocator:
             sectors = set(sector_map.values())
             for sec in sectors:
                 sec_indices = [i for i, s in enumerate(symbols) if sector_map.get(s) == sec]
-                if sec_indices:
+                if sec_indices and len(sec_indices) < n_assets:
                     constraints.append({
                         'type': 'ineq',
-                        'fun': lambda w, idxs=sec_indices: max_sector_weight - np.sum(w[idxs])
+                        'fun': lambda w, idxs=sec_indices: float(max_sector_weight) - np.sum(w[idxs])
+                    })
+
+        # Add country capacity constraints if market_map is provided
+        if market_map and max_country_weight is not None and max_country_weight < 1.0:
+            def _to_country(m):
+                m_u = str(m).strip().upper()
+                if m_u in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US'): return 'US'
+                if m_u in ('KOSPI', 'KOSDAQ', 'KRX'): return 'KR'
+                if m_u in ('CHINA_SSE', 'CHINA_SZSE', 'SSE', 'SZSE', 'CHINA'): return 'CN'
+                if m_u in ('JAPAN_TSE', 'TSE', 'JAPAN'): return 'JP'
+                if m_u in ('INDIA_NSE', 'INDIA_BSE', 'NSE', 'BSE', 'INDIA'): return 'IN'
+                if m_u in ('EUROPE_STOXX', 'EUROPE', 'STOXX', 'DAX', 'CAC', 'FTSE'): return 'EU'
+                if m_u in ('VIETNAM_HOSE', 'HOSE', 'VIETNAM'): return 'VN'
+                if m_u in ('TAIWAN_TWSE', 'TWSE', 'TAIWAN'): return 'TW'
+                if m_u in ('AUSTRALIA_ASX', 'ASX', 'AUSTRALIA'): return 'AU'
+                if m_u in ('BRAZIL_B3', 'B3', 'BRAZIL'): return 'BR'
+                if m_u in ('HKEX', 'HONGKONG'): return 'HK'
+                if m_u in ('SINGAPORE_SGX', 'SGX', 'SINGAPORE'): return 'SG'
+                if m_u in ('CANADA_TSX', 'TSX', 'CANADA'): return 'CA'
+                return m_u
+
+            country_map = {s: _to_country(m) for s, m in market_map.items()}
+            countries = set(country_map.values())
+            for ctry in countries:
+                ctry_indices = [i for i, s in enumerate(symbols) if country_map.get(s) == ctry]
+                if ctry_indices and len(ctry_indices) < n_assets:
+                    constraints.append({
+                        'type': 'ineq',
+                        'fun': lambda w, idxs=ctry_indices: float(max_country_weight) - np.sum(w[idxs])
                     })
 
         res = minimize(

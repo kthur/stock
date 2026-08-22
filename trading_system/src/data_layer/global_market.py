@@ -3,7 +3,7 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -263,5 +263,127 @@ class GlobalMarketClient:
             )
         return records
 
+    def get_cross_rate(
+        self,
+        from_curr: str,
+        to_curr: str = "KRW",
+        fallback_rates: Optional[Dict[str, float]] = None
+    ) -> float:
+        """
+        Computes triangular exchange rate from from_curr to to_curr (e.g. USD -> KRW, JPY -> KRW, EUR -> USD).
+        1 from_curr = X to_curr.
+        """
+        c_from = str(from_curr).strip().upper()
+        c_to = str(to_curr).strip().upper()
 
-__all__ = ["FX_PAIRS", "GLOBAL_INDICES", "MACRO_COMMODITIES", "GlobalMarketClient"]
+        if c_from == c_to:
+            return 1.0
+
+        # Baseline fallback rates (against USD)
+        usd_rates: Dict[str, float] = {
+            'USD': 1.0,
+            'KRW': 1350.0,
+            'JPY': 155.0,
+            'EUR': 0.92,
+            'GBP': 0.78,
+            'CNY': 7.25,
+            'INR': 83.5,
+            'VND': 25400.0,
+            'TWD': 32.5,
+            'AUD': 1.52,
+            'BRL': 5.45,
+            'HKD': 7.82,
+            'SGD': 1.35,
+            'CAD': 1.37,
+        }
+        if fallback_rates:
+            usd_rates.update(fallback_rates)
+
+        # Dynamic live rate updates from FX_PAIRS
+        try:
+            live_fx = self.get_all_fx_rates()
+            for pair_key, p_info in live_fx.items():
+                p_rate = p_info.get('rate')
+                if p_rate and math.isfinite(p_rate) and p_rate > 0:
+                    if pair_key == 'USDKRW=X':
+                        usd_rates['KRW'] = float(p_rate)
+                    elif pair_key == 'USDJPY=X':
+                        usd_rates['JPY'] = float(p_rate)
+                    elif pair_key == 'EURUSD=X':
+                        usd_rates['EUR'] = 1.0 / float(p_rate)
+                    elif pair_key == 'GBPUSD=X':
+                        usd_rates['GBP'] = 1.0 / float(p_rate)
+                    elif pair_key == 'USDCNY=X':
+                        usd_rates['CNY'] = float(p_rate)
+                    elif pair_key == 'USDINR=X':
+                        usd_rates['INR'] = float(p_rate)
+                    elif pair_key == 'USDVND=X':
+                        usd_rates['VND'] = float(p_rate)
+                    elif pair_key == 'USDTWD=X':
+                        usd_rates['TWD'] = float(p_rate)
+                    elif pair_key == 'USDAUD=X':
+                        usd_rates['AUD'] = float(p_rate)
+                    elif pair_key == 'USDBRL=X':
+                        usd_rates['BRL'] = float(p_rate)
+                    elif pair_key == 'USDHKD=X':
+                        usd_rates['HKD'] = float(p_rate)
+                    elif pair_key == 'USDSGD=X':
+                        usd_rates['SGD'] = float(p_rate)
+                    elif pair_key == 'USDCAD=X':
+                        usd_rates['CAD'] = float(p_rate)
+        except Exception as e:
+            logger.debug(f"[FX Cross] Live rate update fallback: {e}")
+
+        # Rate relative to USD: 1 USD = rate_from from_curr, 1 USD = rate_to to_curr
+        # => 1 from_curr = (rate_to / rate_from) to_curr
+        rate_from = usd_rates.get(c_from, 1.0)
+        rate_to = usd_rates.get(c_to, 1350.0 if c_to == 'KRW' else 1.0)
+
+        if rate_from <= 0:
+            return 1.0
+        return float(rate_to / rate_from)
+
+
+class MarketSessionManager:
+    """
+    Manages 24-hour follow-the-sun global market trading sessions,
+    regional market opening hours, and timezone synchronization.
+    """
+
+    MARKET_HOURS = {
+        'KRX': {'tz': 'Asia/Seoul', 'open': (9, 0), 'close': (15, 30)},
+        'KOSPI': {'tz': 'Asia/Seoul', 'open': (9, 0), 'close': (15, 30)},
+        'KOSDAQ': {'tz': 'Asia/Seoul', 'open': (9, 0), 'close': (15, 30)},
+        'TSE': {'tz': 'Asia/Tokyo', 'open': (9, 0), 'close': (15, 30)},
+        'JAPAN': {'tz': 'Asia/Tokyo', 'open': (9, 0), 'close': (15, 30)},
+        'TWSE': {'tz': 'Asia/Taipei', 'open': (9, 0), 'close': (13, 30)},
+        'SSE': {'tz': 'Asia/Shanghai', 'open': (9, 30), 'close': (15, 0)},
+        'SZSE': {'tz': 'Asia/Shanghai', 'open': (9, 30), 'close': (15, 0)},
+        'CHINA': {'tz': 'Asia/Shanghai', 'open': (9, 30), 'close': (15, 0)},
+        'HKEX': {'tz': 'Asia/Hong_Kong', 'open': (9, 30), 'close': (16, 0)},
+        'SGX': {'tz': 'Asia/Singapore', 'open': (9, 0), 'close': (17, 0)},
+        'NSE': {'tz': 'Asia/Kolkata', 'open': (9, 15), 'close': (15, 30)},
+        'HOSE': {'tz': 'Asia/Ho_Chi_Minh', 'open': (9, 0), 'close': (15, 0)},
+        'ASX': {'tz': 'Australia/Sydney', 'open': (10, 0), 'close': (16, 0)},
+        'STOXX': {'tz': 'Europe/Paris', 'open': (9, 0), 'close': (17, 30)},
+        'DAX': {'tz': 'Europe/Berlin', 'open': (9, 0), 'close': (17, 30)},
+        'FTSE': {'tz': 'Europe/London', 'open': (8, 0), 'close': (16, 30)},
+        'SP500': {'tz': 'America/New_York', 'open': (9, 30), 'close': (16, 0)},
+        'NASDAQ': {'tz': 'America/New_York', 'open': (9, 30), 'close': (16, 0)},
+        'RUSSELL2000': {'tz': 'America/New_York', 'open': (9, 30), 'close': (16, 0)},
+        'TSX': {'tz': 'America/Toronto', 'open': (9, 30), 'close': (16, 0)},
+        'B3': {'tz': 'America/Sao_Paulo', 'open': (10, 0), 'close': (17, 0)},
+    }
+
+    @staticmethod
+    def get_market_region(market: str) -> str:
+        """Categorize market into macro geographic regions (ASIA, EUROPE, AMERICAS)."""
+        mkt = str(market).strip().upper()
+        if mkt in ('KOSPI', 'KOSDAQ', 'KRX', 'JAPAN', 'TSE', 'JAPAN_TSE', 'TAIWAN', 'TWSE', 'TAIWAN_TWSE', 'CHINA', 'SSE', 'SZSE', 'CHINA_SSE', 'CHINA_SZSE', 'HKEX', 'SINGAPORE', 'SGX', 'SINGAPORE_SGX', 'INDIA', 'NSE', 'INDIA_NSE', 'VIETNAM', 'HOSE', 'VIETNAM_HOSE', 'AUSTRALIA', 'ASX', 'AUSTRALIA_ASX'):
+            return 'ASIA_PACIFIC'
+        if mkt in ('EUROPE', 'STOXX', 'EUROPE_STOXX', 'DAX', 'FTSE', 'CAC'):
+            return 'EUROPE'
+        return 'AMERICAS'
+
+
+__all__ = ["FX_PAIRS", "GLOBAL_INDICES", "MACRO_COMMODITIES", "GlobalMarketClient", "MarketSessionManager"]

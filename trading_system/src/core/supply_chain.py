@@ -60,19 +60,31 @@ LEAD_CUSTOMER_MAP: Dict[str, List[str]] = {
     "2330.TW": ["NVDA", "AAPL", "AMD", "QCOM"],         # TSMC -> Global Tech Giants
     "2454.TW": ["AAPL", "005930", "QCOM"],              # MediaTek -> Handset Ecosystem
     "2317.TW": ["AAPL", "NVDA", "TSLA"],                # Hon Hai (Foxconn) -> Apple/Nvidia
+    "2308.TW": ["NVDA", "MSFT", "TSLA"],                # Delta Electronics -> AI Power
+    "2382.TW": ["NVDA", "MSFT", "GOOGL"],               # Quanta Computer -> AI Servers
     "8035.T": ["2330.TW", "005930", "000660", "INTC"],  # Tokyo Electron -> Fabs
     "6857.T": ["NVDA", "2330.TW", "000660"],            # Advantest -> AI Testers
     "6758.T": ["AAPL", "MSFT", "SONY"],                 # Sony -> Image Sensors / Gaming
     "6981.T": ["AAPL", "005930"],                       # Murata -> MLCC to Apple/Samsung
+    "6861.T": ["7203.T", "005930", "AAPL"],             # Keyence -> Sensors / Automation
+    "4063.T": ["2330.TW", "005930", "INTC"],            # Shin-Etsu -> Silicon Wafers
+    "7741.T": ["2330.TW", "ASML", "005930"],            # HOYA -> EUV Blankmasks
     "ASML.AS": ["2330.TW", "005930", "000660", "INTC"], # ASML Holding -> Lithography Fabs
     "SAP.DE": ["MSFT", "ORCL", "CRM"],                  # SAP -> Enterprise Cloud
+    # Global IT & Auto Value Chain (India, Canada, Europe)
+    "INFY.NS": ["MSFT", "GOOGL", "AAPL"],               # Infosys -> US Tech Cloud
+    "TCS.NS": ["MSFT", "AAPL", "IBM"],                  # Tata Consultancy -> Global IT
+    "TATAMOTORS.NS": ["TSLA", "005380"],                # Tata Motors -> Global EV
+    "SHOP.TO": ["AMZN", "GOOGL"],                       # Shopify -> Global E-commerce
     # Global EV, Battery & Material Supply Chain (CN, JP, KR, AU, BR)
     "300750.SZ": ["TSLA", "BMW", "005380"],             # CATL -> Global EV
     "002594.SZ": ["TSLA"],                              # BYD -> Global Auto/Battery
     "7203.T": ["TSLA"],                                 # Toyota -> Global Auto
     "BHP.AX": ["005490", "POSCO", "VALE"],              # BHP -> Global Steel & Energy
     "RIO.AX": ["005490", "BHP"],                        # Rio Tinto -> Global Metals
+    "FMG.AX": ["005490", "BHP"],                        # Fortescue -> Global Iron Ore
     "VALE3.SA": ["005490", "BHP", "PKX"],               # Vale -> Global Iron Ore
+    "PETR4.SA": ["XOM", "CVX", "CL=F"],                 # Petrobras -> Global Oil
     "D05.SI": ["SGX", "HSBA.L"],                        # DBS Bank -> Asian Financial Flow
     "VNM.VN": ["005930"],                               # Vinamilk -> Consumer Flow
     # US AI / Cloud Hardware Value Chain -> Megacap Tech Leaders

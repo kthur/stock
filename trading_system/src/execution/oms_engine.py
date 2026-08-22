@@ -520,10 +520,33 @@ class ExecutionOMSEngine:
                 else:
                     adv_val = 1_000_000_000.0
 
-                effective_target_amount = target_amount if is_krx else (target_amount / fx_rate)
+                curr_iso = "KRW"
+                try:
+                    from src.config import TradingConfig
+                    cfg = TradingConfig()
+                    curr_iso = cfg.get_market_currency(market or "KOSPI")
+                except Exception:
+                    curr_iso = "KRW" if is_krx else "USD"
+
+                if curr_iso == "KRW":
+                    effective_target_amount = target_amount
+                elif curr_iso == "USD":
+                    effective_target_amount = target_amount / fx_rate
+                else:
+                    try:
+                        from src.data_layer.global_market import GlobalMarketClient
+                        g_client = GlobalMarketClient()
+                        rate_to_krw = g_client.get_cross_rate(from_curr=curr_iso, to_curr="KRW")
+                        rate_krw_to_curr = 1.0 / max(1e-6, rate_to_krw)
+                        effective_target_amount = target_amount * rate_krw_to_curr
+                    except Exception:
+                        effective_target_amount = target_amount / fx_rate
+
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
                 if is_krx:
                     quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
+                elif curr_iso in ('JPY', 'VND'):
+                    quantity = int(raw_quantity)
                 else:
                     quantity = raw_quantity
                 if quantity <= 0 and status != "HEDGE_FLAG":

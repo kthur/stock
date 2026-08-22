@@ -500,6 +500,80 @@ class TradingConfig:
         }
         return flags.get(mkt, '🌐')
 
+    def get_country_risk_free_rate(self, market: str) -> float:
+        """Return baseline 10Y sovereign risk-free rate for a given market."""
+        mkt = str(market).strip().upper()
+        rates = {
+            'KOSPI': 0.033, 'KOSDAQ': 0.033, 'KRX': 0.033,
+            'SP500': 0.040, 'NASDAQ': 0.040, 'RUSSELL2000': 0.040, 'US': 0.040,
+            'CHINA_SSE': 0.022, 'CHINA_SZSE': 0.022, 'SSE': 0.022, 'SZSE': 0.022, 'CHINA': 0.022,
+            'JAPAN_TSE': 0.012, 'TSE': 0.012, 'JAPAN': 0.012, 'NIKKEI': 0.012,
+            'INDIA_NSE': 0.068, 'INDIA_BSE': 0.068, 'NSE': 0.068, 'BSE': 0.068, 'INDIA': 0.068,
+            'EUROPE_STOXX': 0.024, 'EUROPE': 0.024, 'STOXX': 0.024, 'DAX': 0.024, 'CAC': 0.030,
+            'FTSE': 0.040, 'UK': 0.040,
+            'VIETNAM_HOSE': 0.030, 'HOSE': 0.030, 'VIETNAM': 0.030,
+            'TAIWAN_TWSE': 0.016, 'TWSE': 0.016, 'TAIWAN': 0.016,
+            'AUSTRALIA_ASX': 0.042, 'ASX': 0.042, 'AUSTRALIA': 0.042,
+            'BRAZIL_B3': 0.115, 'B3': 0.115, 'BRAZIL': 0.115,
+            'HKEX': 0.038, 'HONGKONG': 0.038,
+            'SINGAPORE_SGX': 0.028, 'SGX': 0.028, 'SINGAPORE': 0.028,
+            'CANADA_TSX': 0.034, 'TSX': 0.034, 'CANADA': 0.034,
+        }
+        return rates.get(mkt, 0.040)
+
+    def get_country_risk_premium(self, market: str) -> float:
+        """Return Country Risk Premium (CRP, Damodaran standard) for a given market."""
+        mkt = str(market).strip().upper()
+        crp_map = {
+            'KOSPI': 0.005, 'KOSDAQ': 0.005, 'KRX': 0.005,
+            'SP500': 0.000, 'NASDAQ': 0.000, 'RUSSELL2000': 0.000, 'US': 0.000,
+            'CHINA_SSE': 0.009, 'CHINA_SZSE': 0.009, 'SSE': 0.009, 'SZSE': 0.009, 'CHINA': 0.009,
+            'JAPAN_TSE': 0.000, 'TSE': 0.000, 'JAPAN': 0.000,
+            'INDIA_NSE': 0.020, 'INDIA_BSE': 0.020, 'NSE': 0.020, 'INDIA': 0.020,
+            'EUROPE_STOXX': 0.002, 'EUROPE': 0.002, 'DAX': 0.000, 'FTSE': 0.003,
+            'VIETNAM_HOSE': 0.035, 'HOSE': 0.035, 'VIETNAM': 0.035,
+            'TAIWAN_TWSE': 0.006, 'TWSE': 0.006, 'TAIWAN': 0.006,
+            'AUSTRALIA_ASX': 0.000, 'ASX': 0.000, 'AUSTRALIA': 0.000,
+            'BRAZIL_B3': 0.032, 'B3': 0.032, 'BRAZIL': 0.032,
+            'HKEX': 0.006, 'HONGKONG': 0.006,
+            'SINGAPORE_SGX': 0.000, 'SGX': 0.000, 'SINGAPORE': 0.000,
+            'CANADA_TSX': 0.000, 'TSX': 0.000, 'CANADA': 0.000,
+        }
+        return crp_map.get(mkt, 0.005)
+
+    def get_country_base_erp(self, market: str) -> float:
+        """Return base Equity Risk Premium (ERP) for a given market."""
+        mkt = str(market).strip().upper()
+        if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US', 'JAPAN', 'JAPAN_TSE', 'TSE', 'SINGAPORE', 'SINGAPORE_SGX', 'SGX', 'AUSTRALIA', 'AUSTRALIA_ASX', 'ASX', 'CANADA', 'CANADA_TSX', 'TSX'):
+            return 0.050
+        if mkt in ('INDIA', 'INDIA_NSE', 'NSE', 'VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'BRAZIL', 'BRAZIL_B3', 'B3'):
+            return 0.065
+        return 0.055
+
+    def get_market_timezone(self, market: str) -> str:
+        """Return primary timezone string for a given market."""
+        mkt = str(market).strip().upper()
+        tz_map = {
+            'KOSPI': 'Asia/Seoul', 'KOSDAQ': 'Asia/Seoul', 'KRX': 'Asia/Seoul',
+            'SP500': 'America/New_York', 'NASDAQ': 'America/New_York', 'RUSSELL2000': 'America/New_York', 'US': 'America/New_York',
+            'CHINA_SSE': 'Asia/Shanghai', 'CHINA_SZSE': 'Asia/Shanghai', 'SSE': 'Asia/Shanghai', 'SZSE': 'Asia/Shanghai', 'CHINA': 'Asia/Shanghai',
+            'JAPAN_TSE': 'Asia/Tokyo', 'TSE': 'Asia/Tokyo', 'JAPAN': 'Asia/Tokyo',
+            'INDIA_NSE': 'Asia/Kolkata', 'INDIA_BSE': 'Asia/Kolkata', 'NSE': 'Asia/Kolkata', 'INDIA': 'Asia/Kolkata',
+            'EUROPE_STOXX': 'Europe/Paris', 'EUROPE': 'Europe/Paris', 'STOXX': 'Europe/Paris', 'DAX': 'Europe/Berlin', 'FTSE': 'Europe/London', 'CAC': 'Europe/Paris',
+            'VIETNAM_HOSE': 'Asia/Ho_Chi_Minh', 'HOSE': 'Asia/Ho_Chi_Minh', 'VIETNAM': 'Asia/Ho_Chi_Minh',
+            'TAIWAN_TWSE': 'Asia/Taipei', 'TWSE': 'Asia/Taipei', 'TAIWAN': 'Asia/Taipei',
+            'AUSTRALIA_ASX': 'Australia/Sydney', 'ASX': 'Australia/Sydney', 'AUSTRALIA': 'Australia/Sydney',
+            'BRAZIL_B3': 'America/Sao_Paulo', 'B3': 'America/Sao_Paulo', 'BRAZIL': 'America/Sao_Paulo',
+            'HKEX': 'Asia/Hong_Kong', 'HONGKONG': 'Asia/Hong_Kong',
+            'SINGAPORE_SGX': 'Asia/Singapore', 'SGX': 'Asia/Singapore', 'SINGAPORE': 'Asia/Singapore',
+            'CANADA_TSX': 'America/Toronto', 'TSX': 'America/Toronto', 'CANADA': 'America/Toronto',
+        }
+        return tz_map.get(mkt, 'UTC')
+
+    def get_max_country_weight(self, market: str) -> float:
+        """Return maximum portfolio allocation weight cap for a given country (default 35%)."""
+        return float(os.getenv("MAX_COUNTRY_WEIGHT", "0.35"))
+
     def validate(self) -> None:
         if self.initial_cash <= 0:
             raise ValueError(f"initial_cash must be positive: {self.initial_cash}")

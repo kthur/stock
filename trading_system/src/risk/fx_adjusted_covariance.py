@@ -74,12 +74,14 @@ class FXAdjustedCovarianceEngine:
         prices_dict: Dict[str, pd.DataFrame],
         usdkrw_series: Optional[pd.Series] = None,
         market_map: Optional[Dict[str, str]] = None,
-        lookback_days: int = 60
+        lookback_days: int = 60,
+        fx_series_dict: Optional[Dict[str, pd.Series]] = None
     ) -> pd.DataFrame:
         """
-        Computes KRW-denominated daily returns for all assets.
-        For US stocks (SP500, NASDAQ, RUSSELL2000), applies the exact compound FX return:
-        R_{i, KRW} = (1 + R_{i, USD}) * (1 + R_{USDKRW}) - 1
+        Computes unified KRW-denominated daily returns for all global assets.
+        For international stocks (US, JP, CN, EU, IN, VN, TW, AU, BR, HK, SG, CA),
+        applies the exact compound FX return:
+        R_{i, KRW} = (1 + R_{i, local}) * (1 + R_{FX/KRW}) - 1
         """
         df_prices = FXAdjustedCovarianceEngine.align_price_series(prices_dict, lookback_days=lookback_days)
         if df_prices.empty or len(df_prices) < 2:
@@ -103,14 +105,38 @@ class FXAdjustedCovarianceEngine:
             except Exception as e:
                 logger.debug(f"[FX Engine] FX series alignment fallback: {e}")
 
+        # Pre-align multi-currency FX return series if provided
+        aligned_multi_fx: Dict[str, pd.Series] = {}
+        if fx_series_dict:
+            for c_pair, c_s in fx_series_dict.items():
+                if c_s is not None and len(c_s) >= 2:
+                    try:
+                        s_clean = pd.to_numeric(c_s, errors="coerce").dropna()
+                        s_clean.index = pd.to_datetime(s_clean.index)
+                        s_clean = s_clean[~s_clean.index.duplicated(keep="last")].sort_index()
+                        s_aligned = s_clean.reindex(returns_df.index).ffill().bfill()
+                        aligned_multi_fx[c_pair] = s_aligned.pct_change(fill_method=None).fillna(0.0)
+                    except Exception:
+                        pass
+
         krw_returns = returns_df.copy()
         for sym in symbols:
             mkt = str(market_map.get(sym, "")).upper()
-            is_us = mkt in ("SP500", "NASDAQ", "RUSSELL2000") or (sym.isalpha() and len(sym) <= 5 and not sym.isdigit())
-            if is_us and has_fx:
-                r_usd = returns_df[sym]
-                # Compound return in KRW
-                krw_returns[sym] = (1.0 + r_usd) * (1.0 + fx_ret) - 1.0
+            is_krx = mkt in ("KOSPI", "KOSDAQ", "KRX") or (str(sym).isdigit() and len(str(sym)) == 6)
+
+            if not is_krx and has_fx:
+                r_loc = returns_df[sym]
+                # Check for currency-specific FX series
+                curr_fx_ret = fx_ret
+                if mkt in ('JAPAN', 'TSE', 'JAPAN_TSE') and 'JPYKRW=X' in aligned_multi_fx:
+                    curr_fx_ret = aligned_multi_fx['JPYKRW=X']
+                elif mkt in ('EUROPE', 'STOXX', 'EUROPE_STOXX', 'DAX') and 'EURKRW=X' in aligned_multi_fx:
+                    curr_fx_ret = aligned_multi_fx['EURKRW=X']
+                elif mkt in ('CHINA', 'SSE', 'SZSE', 'CHINA_SSE', 'CHINA_SZSE') and 'CNYKRW=X' in aligned_multi_fx:
+                    curr_fx_ret = aligned_multi_fx['CNYKRW=X']
+                
+                # Compound return in base currency (KRW)
+                krw_returns[sym] = (1.0 + r_loc) * (1.0 + curr_fx_ret) - 1.0
 
         return krw_returns
 

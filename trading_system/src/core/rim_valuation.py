@@ -148,13 +148,55 @@ class RIMValuationEngine(BaseStrategyEngine):
         is_small_cap: bool = False,
     ) -> float:
         """
-        Derives dynamic countercyclical asset-specific required return:
-          r_{e,i} = R_f + beta_i * ERP_dynamic + size_premium
+        Derives dynamic countercyclical asset & country-specific required return:
+          r_{e,i} = R_{f,mkt} + beta_i * ERP_dynamic + CRP_mkt + size_premium
         Expands ERP during high VIX / credit distress and scales by asset beta
         to prevent the Value Trap on high-beta speculative names.
         """
-        base_rf = (us10y_yield / 100.0) if (us10y_yield is not None and us10y_yield > 0) else 0.04
-        base_erp = 0.05 if market in ['SP500', 'NASDAQ'] else 0.06
+        mkt = str(market).strip().upper()
+        # Country baseline 10Y risk-free rates
+        rf_map = {
+            'KOSPI': 0.033, 'KOSDAQ': 0.033, 'KRX': 0.033,
+            'SP500': 0.040, 'NASDAQ': 0.040, 'RUSSELL2000': 0.040, 'US': 0.040,
+            'CHINA': 0.022, 'CHINA_SSE': 0.022, 'CHINA_SZSE': 0.022, 'SSE': 0.022, 'SZSE': 0.022,
+            'JAPAN': 0.012, 'JAPAN_TSE': 0.012, 'TSE': 0.012,
+            'INDIA': 0.068, 'INDIA_NSE': 0.068, 'NSE': 0.068,
+            'EUROPE': 0.024, 'EUROPE_STOXX': 0.024, 'STOXX': 0.024, 'DAX': 0.024, 'FTSE': 0.040,
+            'VIETNAM': 0.030, 'VIETNAM_HOSE': 0.030, 'HOSE': 0.030,
+            'TAIWAN': 0.016, 'TAIWAN_TWSE': 0.016, 'TWSE': 0.016,
+            'AUSTRALIA': 0.042, 'AUSTRALIA_ASX': 0.042, 'ASX': 0.042,
+            'BRAZIL': 0.115, 'BRAZIL_B3': 0.115, 'B3': 0.115,
+            'HKEX': 0.038, 'HONGKONG': 0.038,
+            'SINGAPORE': 0.028, 'SINGAPORE_SGX': 0.028, 'SGX': 0.028,
+            'CANADA': 0.034, 'CANADA_TSX': 0.034, 'TSX': 0.034,
+        }
+        # Country Risk Premium (CRP)
+        crp_map = {
+            'KOSPI': 0.005, 'KOSDAQ': 0.005, 'KRX': 0.005,
+            'SP500': 0.000, 'NASDAQ': 0.000, 'RUSSELL2000': 0.000, 'US': 0.000,
+            'CHINA': 0.009, 'CHINA_SSE': 0.009, 'CHINA_SZSE': 0.009, 'SSE': 0.009, 'SZSE': 0.009,
+            'JAPAN': 0.000, 'JAPAN_TSE': 0.000, 'TSE': 0.000,
+            'INDIA': 0.020, 'INDIA_NSE': 0.020, 'NSE': 0.020,
+            'EUROPE': 0.002, 'EUROPE_STOXX': 0.002, 'STOXX': 0.002, 'DAX': 0.000, 'FTSE': 0.003,
+            'VIETNAM': 0.035, 'VIETNAM_HOSE': 0.035, 'HOSE': 0.035,
+            'TAIWAN': 0.006, 'TAIWAN_TWSE': 0.006, 'TWSE': 0.006,
+            'AUSTRALIA': 0.000, 'AUSTRALIA_ASX': 0.000, 'ASX': 0.000,
+            'BRAZIL': 0.032, 'BRAZIL_B3': 0.032, 'B3': 0.032,
+            'HKEX': 0.006, 'HONGKONG': 0.006,
+            'SINGAPORE': 0.000, 'SINGAPORE_SGX': 0.000, 'SGX': 0.000,
+            'CANADA': 0.000, 'CANADA_TSX': 0.000, 'TSX': 0.000,
+        }
+
+        mkt_rf = rf_map.get(mkt, 0.040)
+        base_rf = (us10y_yield / 100.0) if (us10y_yield is not None and us10y_yield > 0 and mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US')) else mkt_rf
+        crp = crp_map.get(mkt, 0.005)
+
+        if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US', 'JAPAN', 'JAPAN_TSE', 'TSE', 'SINGAPORE', 'AUSTRALIA', 'CANADA'):
+            base_erp = 0.050
+        elif mkt in ('INDIA', 'INDIA_NSE', 'NSE', 'VIETNAM', 'VIETNAM_HOSE', 'HOSE', 'BRAZIL', 'BRAZIL_B3', 'B3'):
+            base_erp = 0.065
+        else:
+            base_erp = 0.055
 
         beta_eff = float(np.clip(asset_beta, 0.50, 2.0)) if (asset_beta is not None and np.isfinite(asset_beta)) else 1.0
         size_prem = 0.010 if is_small_cap else 0.0
@@ -170,7 +212,7 @@ class RIMValuationEngine(BaseStrategyEngine):
             spread_expansion = float(np.clip((credit_spread - 4.0) * 0.01, 0.0, 0.03))
 
         dynamic_erp = base_erp + vix_expansion + spread_expansion
-        dynamic_re = np.clip(base_rf + beta_eff * dynamic_erp + size_prem, 0.06, 0.22)
+        dynamic_re = np.clip(base_rf + beta_eff * dynamic_erp + crp + size_prem, 0.05, 0.25)
         return float(dynamic_re)
 
     def normalize_roe(
