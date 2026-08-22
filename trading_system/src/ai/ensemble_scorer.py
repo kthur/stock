@@ -2173,11 +2173,7 @@ class EnsembleScoringEngine:
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
         raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
-
-        # Coverage Shrinkage: Shrink conviction towards neutral prior (0.50) when data coverage is sparse
-        safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
-        cov_ratio = (valid_weight_series / safe_nom_weight).clip(0.0, 1.0)
-        linear_score = pd.Series(np.where(has_valid, cov_ratio * raw_linear_score + (1.0 - cov_ratio) * 0.50, 0.0), index=merged.index).clip(0.0, 1.0)
+        linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
         slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]

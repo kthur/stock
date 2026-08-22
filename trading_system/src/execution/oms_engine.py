@@ -543,7 +543,12 @@ class ExecutionOMSEngine:
                         effective_target_amount = target_amount / fx_rate
 
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
-                quantity = int(raw_quantity)
+                if is_krx:
+                    quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
+                elif curr_iso in ('JPY', 'VND'):
+                    quantity = int(raw_quantity)
+                else:
+                    quantity = raw_quantity
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 

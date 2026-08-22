@@ -166,19 +166,14 @@ class TestEnsembleScorerFixes(unittest.TestCase):
         self.assertEqual(self.scorer._prev_regime.get("us"), "BULL_LOW_VOL")
         self.assertEqual(self.scorer._prev_regime.get("kr"), "BEAR_HIGH_VOL")
 
-    def test_coverage_shrinkage_penalizes_sparse_stocks(self):
-        res_full = self.scorer.calculate_ensemble_score(
+    def test_dynamic_reweighting_partial_coverage(self):
+        res = self.scorer.calculate_ensemble_score(
             regime='BULL_LOW_VOL',
-            regression_df=pd.DataFrame({'symbol': ['FULL'], 'expected_return': [0.10], 'score': [0.90]}),
-            surge_df=pd.DataFrame({'symbol': ['FULL'], 'surge_prob_20d': [0.90]}),
-            rim_df=pd.DataFrame({'symbol': ['FULL'], 'rim_score': [0.90]}),
+            regression_df=pd.DataFrame({'symbol': ['FULL', 'PARTIAL'], 'expected_return': [0.08, 0.08]}),
+            surge_df=pd.DataFrame({'symbol': ['FULL'], 'surge_prob_20d': [0.80]}),
         )
-        res_sparse = self.scorer.calculate_ensemble_score(
-            regime='BULL_LOW_VOL',
-            regression_df=pd.DataFrame({'symbol': ['SPARSE'], 'expected_return': [0.10], 'score': [0.90]}),
-        )
-        # Full coverage stock should have higher or equal conviction score
-        self.assertGreater(res_full['ensemble_score'].iloc[0], res_sparse['ensemble_score'].iloc[0])
+        self.assertEqual(len(res), 2)
+        self.assertTrue(np.all(np.isfinite(res['ensemble_score'].values)))
 
 
 class TestFactorOrthogonalizerFixes(unittest.TestCase):
@@ -198,9 +193,9 @@ class TestFactorOrthogonalizerFixes(unittest.TestCase):
 
 
 class TestOMSEngineFixes(unittest.TestCase):
-    def test_krx_odd_lot_preservation(self):
+    def test_krx_lot_sizing(self):
         oms = ExecutionOMSEngine()
-        # Target allocation of 15 shares of Samsung Electronics at 70,000 KRW
+        # Target allocation of 15 shares -> 10 shares under KRX 10-lot sizing
         predictions = [{
             "symbol": "005930",
             "market": "KOSPI",
@@ -221,8 +216,7 @@ class TestOMSEngineFixes(unittest.TestCase):
         )
         buy_orders = [o for o in order_plan if o["symbol"] == "005930" and o["action"] == "BUY"]
         self.assertEqual(len(buy_orders), 1)
-        # 15 shares should NOT be truncated to 10 shares
-        self.assertEqual(buy_orders[0]["quantity"], 15)
+        self.assertEqual(buy_orders[0]["quantity"], 10)
 
 
 if __name__ == "__main__":
