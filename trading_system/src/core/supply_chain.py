@@ -291,6 +291,7 @@ class SupplyChainEngine(BaseStrategyEngine):
                         is_us_leader = c_sym.upper() in ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'AMZN', 'ASML', 'TSM', 'GOOGL', 'META']
                         r1 = us_proxy_1d if is_us_leader else 0.0
                         r3 = r1 * 1.5
+                        r5 = r1 * 2.0
                     # Non-linear Asymmetric Bullwhip Spillover (Forrester 1961, Lee et al. 1997):
                     # Downside customer shocks transmit immediately with panic amplification (1.35x),
                     # while upside demand expands with CAPEX gestation smoothing.
