@@ -1,12 +1,16 @@
-# Progress — challenger_2
+# Progress — challenger_2 (Adversarial Data & Execution Systems Challenger)
 
-Last visited: 2026-08-15T18:38:30+09:00
+Last visited: 2026-08-22T07:21:00+09:00
 
-## Tasks
-- [x] Read required documents (ORIGINAL_REQUEST.md, PROJECT.md, explorer_survey_1/handoff.md)
-- [x] Inspect ensemble scorer implementation & calibration architecture
-- [x] Task 1: Stress test `scorer.fit_calibrators` with corrupted, missing, identical, extreme score distributions across all 31 strategies
-- [x] Task 2: Stress test PCA ZCA factor orthogonalization and Gram-Schmidt decorrelation under collinear, rank-deficient, single-asset matrices
-- [x] Task 3: Verify 2D market regime weighting and macro overrides (sum weights == 1.000, scores in [0.0, 1.0])
-- [x] Task 4: Execute all empirical tests, document findings, write handoff.md with verdict (`APPROVE`)
-- [ ] Send completion message to parent
+## Status
+- [x] Received dispatch and initialized BRIEFING.md
+- [ ] Run baseline pytest suite (`tests/test_v6_improvements.py`)
+- [ ] Adversarial stress test 1: Execution OMS & Safety Gates (FX conversion, scale norm, friction, hedge orders)
+- [ ] Adversarial stress test 2: Turnover Optimizer & Leland Buffers (Zero targets, zero current, budget boundaries, hysteresis)
+- [ ] Adversarial stress test 3: Smart Order Router (ATS darkpool routing, residual consolidation, negative shares, zero liquidity)
+- [ ] Adversarial stress test 4: Almgren-Chriss Optimal Execution Scheduler (Extreme kappa, zero vol, 1 share, 100M shares, numerical underflow)
+- [ ] Adversarial stress test 5: Data Validator & Reverse Stock Split Detection (Extreme spikes, false splits, penny stocks, zero volume, negative jumps)
+- [ ] Adversarial stress test 6: Indicator Storage & SQLite WAL (Concurrent multi-threaded writes, NaN/Inf, transaction rollbacks, table locking)
+- [ ] Compile Empirical Findings and Stress Test Results
+- [ ] Formulate Gate Verdict (APPROVE / REQUEST_CHANGES)
+- [ ] Write `handoff.md` and send completion message to parent

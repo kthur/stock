@@ -68,8 +68,10 @@ class TurnoverOptimizer:
             weight_delta = abs(raw_w - curr_w)
             amount_delta = weight_delta * cap
 
-            # Apply turnover penalty threshold: if weight change < 5% or capital change < 50k, HOLD current weight
-            if weight_delta < self.turnover_threshold_pct or amount_delta < self.min_rebalance_delta_krw:
+            # Full liquidation (raw_w == 0) and fresh entries (curr_w == 0) bypass hysteresis threshold
+            is_full_exit = (raw_w == 0.0 and curr_w > 0.0)
+            is_fresh_entry = (curr_w == 0.0 and raw_w > 0.0)
+            if not is_full_exit and not is_fresh_entry and (weight_delta < self.turnover_threshold_pct or amount_delta < self.min_rebalance_delta_krw):
                 final_w = curr_w
                 action = "HOLD"
                 total_turnover_reduced += amount_delta

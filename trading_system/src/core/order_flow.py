@@ -159,6 +159,10 @@ class OrderFlowEngine(BaseStrategyEngine):
             return pd.DataFrame(columns=['symbol', 'order_flow_score'])
 
         res_df = pd.DataFrame(records)
+        if len(res_df) == 1:
+            res_df['order_flow_score'] = 0.50
+            return res_df[['symbol', 'order_flow_score']]
+
         raw_ranks = res_df['mfi_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         # Smart Money Dual Inflow Booster for top 15% high-demand order flow leaders
         smart_money_mask = raw_ranks >= 0.85

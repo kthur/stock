@@ -135,6 +135,9 @@ class MQFactorEngine(BaseStrategyEngine):
                 res_df = res_df.merge(f_subset, on='symbol', how='left')
 
         # Rank components to percentile scores [0, 1] with boundary clipping
+        if len(res_df) == 1:
+            res_df['mq_score'] = 0.50
+            return res_df[['symbol', 'mq_score']]
         res_df['price_mom_rank'] = res_df['price_mom'].rank(pct=True, ascending=True).clip(0.02, 0.98)
 
         quality_terms = []

@@ -332,3 +332,42 @@ def test_nonrecurring_income_trap():
     if pd.notna(disc):
         assert disc <= 2.0, f"할인율 이상치 미억제: {disc*100:.1f}%"
 
+
+def test_rim_small_cap_and_high_nominal_bps_scaling():
+    """V6-17: Test small-cap equity (< $1M) and high-nominal KRX stock (> 1M KRW BPS) scaling."""
+    engine = RIMValuationEngine(default_required_return=0.08)
+
+    # 1. US Micro-cap: Total equity = $600,000 (<= 1,000,000), 100,000 shares, Price = $10.0
+    # Expected BPS = $6.0, not $600,000
+    df_us_small = pd.DataFrame([{
+        'symbol': 'US_MICRO',
+        'market': 'RUSSELL2000',
+        'Close': 10.0,
+        'book_value': 600_000.0,
+        'shares_outstanding': 100_000.0,
+        'roe': 0.10,
+        'operating_income': 60_000.0,
+        'net_income': 60_000.0,
+    }])
+    res_us = engine.compute_rim_scores(df_us_small).set_index('symbol')
+    assert res_us.loc['US_MICRO', 'bps'] == 6.0
+    assert abs(res_us.loc['US_MICRO', 'discount_ratio']) < 5.0  # reasonable discount, not +5,999,900%
+
+    # 2. KR High-Nominal Stock (e.g. 003240 Taekwang Industrial): BPS = 5,000,000 KRW (> 1,000,000)
+    # Passed with 'bps'=5_000_000 and shares=1,110,000, Price = 600,000 KRW
+    # BPS must NOT be divided by shares again (which would make it 4.5 KRW)
+    df_kr_high = pd.DataFrame([{
+        'symbol': '003240',
+        'market': 'KOSPI',
+        'Close': 600_000.0,
+        'bps': 5_000_000.0,
+        'shares_outstanding': 1_110_000.0,
+        'roe': 0.08,
+        'operating_income': 400_000_000_000.0,
+        'net_income': 440_000_000_000.0,
+    }])
+    res_kr = engine.compute_rim_scores(df_kr_high).set_index('symbol')
+    assert res_kr.loc['003240', 'bps'] == 5_000_000.0
+    assert res_kr.loc['003240', 'intrinsic_value'] > 1_000_000.0
+
+

@@ -193,7 +193,7 @@ def test_oms_quantity_conversion_and_lot_rounding(tmp_path):
     # KRX: 100M * 0.5 = 50M won @ 70000 -> 714 shares -> 710 (10-lot)
     top_predictions = [
         {"symbol": "005930", "name": "Samsung", "market": "KOSPI", "close_price": 70000},
-        # US: 100M * 0.5 = 50M won @ 250 -> 200,000 shares -> 200,000 (1-lot)
+        # US: 100M * 0.5 = 50M won / 1350 USD/KRW / $250 -> 148 shares (1-lot)
         {"symbol": "AAPL", "name": "Apple", "market": "NASDAQ", "close_price": 250.0},
     ]
     weights = {"005930": 0.5, "AAPL": 0.5}
@@ -202,7 +202,7 @@ def test_oms_quantity_conversion_and_lot_rounding(tmp_path):
     plans_by_sym = {p["symbol"]: p for p in plans}
 
     assert plans_by_sym["005930"]["quantity"] == 710
-    assert plans_by_sym["AAPL"]["quantity"] == 200000
+    assert plans_by_sym["AAPL"]["quantity"] == 148
 
     conn = sqlite3.connect(db_file)
     qty_krx = conn.execute("SELECT quantity FROM order_plans WHERE symbol='005930'").fetchone()[0]

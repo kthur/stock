@@ -97,14 +97,24 @@ class SmartOrderRouter:
 
         # Allocate any residual to primary venue
         if remaining_qty > 0 and sorted_venues:
-            primary_v = sorted_venues[0]
+            primary_v = next((v for v in sorted_venues if v.get("is_primary") or str(v.get("venue_id", "")).upper() in ["PRIMARY", "KRX", "NYSE", "NASDAQ"]), sorted_venues[0])
+            p_id = str(primary_v.get("venue_id") or "PRIMARY")
             fallback_price = _get_float(primary_v, "ask_price" if is_buy else "bid_price", 0.0)
-            allocations.append({
-                "venue_id": str(primary_v.get("venue_id") or "PRIMARY"),
-                "symbol": clean_symbol,
-                "action": act,
-                "allocated_quantity": remaining_qty,
-                "target_price": max(0.0, fallback_price)
-            })
+
+            # Merge into existing allocation if primary venue was already partially allocated
+            merged = False
+            for alloc in allocations:
+                if alloc["venue_id"] == p_id:
+                    alloc["allocated_quantity"] += remaining_qty
+                    merged = True
+                    break
+            if not merged:
+                allocations.append({
+                    "venue_id": p_id,
+                    "symbol": clean_symbol,
+                    "action": act,
+                    "allocated_quantity": remaining_qty,
+                    "target_price": max(0.0, fallback_price)
+                })
 
         return allocations

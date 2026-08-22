@@ -14,9 +14,11 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
+
+KST = timezone(timedelta(hours=9))
 
 # Ensure trading_system root and repo root are on sys.path
 _TS_DIR = Path(__file__).resolve().parent
@@ -39,11 +41,11 @@ logger = logging.getLogger(__name__)
 
 def generate_snapshot(result_dir: Path, db_path: Path, output_file: Path) -> Dict[str, Any]:
     """Build structured run_snapshot dictionary and save to output_file."""
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = datetime.now(KST).strftime("%Y-%m-%d")
     git_sha = os.environ.get("GITHUB_SHA", "local")
     trigger_type = os.environ.get("GITHUB_EVENT_NAME", "manual")
 
-    run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{git_sha[:7]}"
+    run_id = f"run_{datetime.now(KST).strftime('%Y%m%d_%H%M%S')}_{git_sha[:7]}"
     regime_detected = "UNKNOWN"
     duration_seconds = 0.0
     total_symbols = 0
@@ -121,29 +123,70 @@ def generate_snapshot(result_dir: Path, db_path: Path, output_file: Path) -> Dic
             try:
                 content = ens_txt_path.read_text(encoding="utf-8", errors="replace")
                 import re
+                score_keys = [
+                    'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score',
+                    'lstm_score', 'stat_arb_score', 'sector_score', 'rim_score', 'event_score',
+                    'mq_score', 'iv_skew_score', 'order_flow_score', 'reversal_score',
+                    'arm_score', 'card_score', 'latr_score', 'inst_foreign_sector_score',
+                    'supply_chain_score', 'sentiment_score', 'factor_neutralized_score',
+                    'vol_target_score', 'microstructure_score', 'accruals_quality_score',
+                    'short_squeeze_score', 'valueup_catalyst_score', 'trend_efficiency_score',
+                    'gamma_squeeze_score', 'insider_buying_score', 'darkpool_score',
+                    'earnings_tone_drift_score'
+                ]
+                m_reg = re.search(r"Current Market Regime Detected:\s*([^\n\r]+)", content)
+                if m_reg:
+                    regime_detected = m_reg.group(1).strip()
+
+                if not strategy_weights:
+                    weights_section = False
+                    for line in content.splitlines():
+                        if "Applied Ensemble Strategy Weights" in line:
+                            weights_section = True
+                            continue
+                        if weights_section:
+                            if line.startswith("---") or line.startswith("==="):
+                                break
+                            m_w = re.match(r"^\s*(.+?)\s*:\s*([+-]?\d+\.?\d*)%", line)
+                            if m_w:
+                                w_name, w_val = m_w.groups()
+                                try:
+                                    strategy_weights[w_name.strip()] = round(float(w_val) / 100.0, 4)
+                                except ValueError:
+                                    pass
+
                 rank = 1
                 for line in content.splitlines():
-                    if re.match(r"^\s*\d+\s+[A-Za-z0-9.]+", line):
-                        parts = line.split()
-                        if len(parts) >= 3:
-                            top_picks.append({
-                                "rank": rank,
-                                "symbol": parts[1],
-                                "ensemble_score": float(parts[2]) if parts[2].replace('.', '', 1).isdigit() else 0.5,
-                                "net_expected_return_pct": 0.0,
-                                "regime": regime_detected,
-                                "portfolio_weight": 0.0,
-                                "strategy_scores": {}
-                            })
-                            rank += 1
-                            if rank > 50:
-                                break
+                    m = re.match(r"^\s*(\d+)\.?\s+(\S+)\s+(.+?)\s+([+-]?\d+\.?\d*)%\s+([+-]?\d+\.?\d*)%", line)
+                    if m:
+                        r_num, sym, name, ens_sc_str, exp_ret_str = m.groups()
+                        rest = line[m.end():].split()
+                        strat_map = {}
+                        for idx, k in enumerate(score_keys):
+                            if idx < len(rest):
+                                val_s = rest[idx].rstrip('%')
+                                try:
+                                    strat_map[k] = round(float(val_s) / 100.0, 4)
+                                except ValueError:
+                                    pass
+                        top_picks.append({
+                            "rank": int(r_num),
+                            "symbol": sym,
+                            "ensemble_score": round(float(ens_sc_str) / 100.0, 4),
+                            "net_expected_return_pct": round(float(exp_ret_str), 2),
+                            "regime": regime_detected,
+                            "portfolio_weight": 0.0,
+                            "strategy_scores": strat_map
+                        })
+                        rank += 1
+                        if rank > 50:
+                            break
             except Exception as _txt_e:
                 logger.warning(f"Failed parsing fallback ensemble_predictions.txt: {_txt_e}")
 
     snapshot_data = {
         "version": "1.0",
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": datetime.now(KST).isoformat(timespec="seconds"),
         "run_metadata": {
             "run_id": run_id,
             "run_date": date_str,

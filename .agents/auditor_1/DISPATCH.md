@@ -1,18 +1,22 @@
-# DISPATCH HISTORY
+# Dispatch Log
 
-## 2026-08-15T09:33:26Z
+## 2026-08-22T07:20:10+09:00
+You are auditor_1 (Senior Forensic Integrity Auditor).
+Your working directory is: d:\Finance\code\stock\.agents\auditor_1\
 
-<USER_REQUEST>
-You are Forensic Auditor (auditor_1).
-Your working directory is `d:\Finance\code\stock\.agents\auditor_1`.
-You MUST read `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`, `d:\Finance\code\stock\PROJECT.md`, `d:\Finance\code\stock\.agents\worker_m1\handoff.md`, and `d:\Finance\code\stock\.agents\worker_m2\handoff.md` before starting your audit.
+Mandatory inputs to read before starting:
+1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+2. d:\Finance\code\stock\system_improvement_report_v6.md (Sections 1 through 6)
+3. d:\Finance\code\stock\TEST_READY.md
+4. Code implementations for V6-01 ~ V6-35 across all 5 domains.
 
-Audit Mission:
-Perform a comprehensive Forensic Integrity Audit across all modified code and test files (`trading_system/run_pipeline.py`, `turnover_optimizer.py`, `tests/`):
-1. Verify genuine logic: check that no test assertions or results are hardcoded into production algorithms.
-2. Verify zero lookahead leakage: confirm 60-day filing lag and 1-day US-KRX time lag shift remain strictly intact.
-3. Verify authentic data flow: confirm that no dummy or facade implementations mask broken logic.
-4. Verify execution tracing: run `.venv\Scripts\python.exe -m pytest tests/test_portfolio_allocator.py tests/test_new_27_strategies.py -v` and trace execution.
-5. Provide a rigorous verdict: `CLEAN` or `INTEGRITY VIOLATION` in `d:\Finance\code\stock\.agents\auditor_1\handoff.md`.
-When done, send a message to orchestrator.
-</USER_REQUEST>
+Your Task:
+1. Perform exhaustive forensic integrity verification across all 35 tasks (V6-01 ~ V6-35):
+   - Check for hardcoded test outputs or return values tailored solely to pass unit tests
+   - Check for dummy/facade mock implementations
+   - Check for bypassed validation logic or test assertions
+   - Verify that mathematical algorithms (log1p transform, Leland buffer, EVT POT, Rockafellar-Uryasev CVaR, Black-Litterman, Ledoit-Wolf diagonal shrinkage, Almgren-Chriss, Marchenko-Pastur noise variance) are implemented with true algorithmic fidelity
+2. Run pytest test suite: .venv\Scripts\python.exe -m pytest tests/test_v6_improvements.py -q
+3. Issue a binary Forensic Audit Verdict: CLEAN or INTEGRITY VIOLATION.
+4. Write your report to d:\Finance\code\stock\.agents\auditor_1\handoff.md.
+5. Send a completion message back.

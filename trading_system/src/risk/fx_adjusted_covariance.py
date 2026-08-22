@@ -150,8 +150,9 @@ class FXAdjustedCovarianceEngine:
 
             # 3. Marchenko-Pastur Upper Bound
             q = float(t_obs) / float(n_assets)
-            # Estimate residual variance sigma^2 from smallest eigenvalues
-            sigma_sq = 1.0
+            # Estimate residual variance sigma^2 from smallest eigenvalues (exclude market mode lambda_1)
+            sigma_sq = float(np.mean(eigenvals[1:])) if len(eigenvals) > 1 else 1.0
+            sigma_sq = max(0.10, min(1.0, sigma_sq))
             lambda_plus = sigma_sq * (1.0 + np.sqrt(1.0 / q)) ** 2 * float(noise_spread_factor)
 
             # 4. Constant Residual Eigenvalue Shrinkage

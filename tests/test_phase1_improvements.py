@@ -49,7 +49,7 @@ def test_sector_exposure_cap_bear_and_bull():
 
 def test_alpha_decay_tracker():
     """Verify AlphaDecayTracker reduces weight of degrading strategies."""
-    tracker = AlphaDecayTracker(decay_lambda=0.05)
+    tracker = AlphaDecayTracker(decay_lambda=0.05, max_weight_bound=0.50)
     
     base_weights = {
         'regression': 0.10,
@@ -71,7 +71,7 @@ def test_alpha_decay_tracker():
     
     # Regression (high Sharpe, no decay) should have higher weight than surge (negative Sharpe, high decay)
     assert adj_w['regression'] > adj_w['surge']
-    assert pytest.approx(sum(adj_w.values()), abs=1e-2) == 1.0
+    assert sum(adj_w.values()) == pytest.approx(1.0, abs=1e-2)
 
 
 def test_optuna_tuner_27_strategies_support():

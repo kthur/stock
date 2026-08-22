@@ -1190,10 +1190,51 @@ def _get_excluded_krx_symbols() -> set:
     return excluded
 
 
+class _PipelineContext:
+    storage = None
+    price_db = None
+    current_run_id = None
+    start_time = 0.0
+
+_ACTIVE_PIPELINE_CTX = _PipelineContext()
+
+
 def execute_prediction_pipeline():
     _pipeline_start_time = time.time()
+    _ACTIVE_PIPELINE_CTX.start_time = _pipeline_start_time
+    _ACTIVE_PIPELINE_CTX.storage = None
+    _ACTIVE_PIPELINE_CTX.price_db = None
+    _ACTIVE_PIPELINE_CTX.current_run_id = None
     logger.info("Starting consolidated market indicator and prediction pipeline...")
 
+    try:
+        return _execute_prediction_pipeline_core(_pipeline_start_time)
+    except Exception as _pipe_err:
+        ctx = _ACTIVE_PIPELINE_CTX
+        if ctx.current_run_id and ctx.storage is not None:
+            try:
+                dur_secs = time.time() - _pipeline_start_time
+                ctx.storage.finish_pipeline_run(
+                    run_id=ctx.current_run_id,
+                    status="FAILED",
+                    duration_seconds=dur_secs,
+                    error_summary=str(_pipe_err)[:500]
+                )
+            except Exception:
+                pass
+        raise
+    finally:
+        ctx = _ACTIVE_PIPELINE_CTX
+        try:
+            if hasattr(ctx.price_db, 'close') and ctx.price_db is not None:
+                ctx.price_db.close()
+            if hasattr(ctx.storage, 'close') and ctx.storage is not None:
+                ctx.storage.close()
+        except Exception as e:
+            logger.debug(f"DB close during pipeline cleanup: {e}")
+
+
+def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     # Ensure result directory exists early
     result_dir = os.environ.get("OUTPUT_RESULT_DIR", os.path.join(os.path.dirname(__file__), "result"))
     os.makedirs(result_dir, exist_ok=True)
@@ -1214,11 +1255,13 @@ def execute_prediction_pipeline():
     # 2. Fetch current global market indicators
     logger.info("Fetching global market indicators...")
     storage = MarketIndicatorStorage(db_path=cfg.db_path)
+    _ACTIVE_PIPELINE_CTX.storage = storage
 
     # Initialize Run History tracking
     _git_sha = os.environ.get("GITHUB_SHA", "")
     _trigger_type = os.environ.get("GITHUB_EVENT_NAME", "manual")
     current_run_id = storage.start_pipeline_run(trigger_type=_trigger_type, git_sha=_git_sha)
+    _ACTIVE_PIPELINE_CTX.current_run_id = current_run_id
     previous_run_id = storage.get_previous_run_id(current_run_id)
     logger.info(f"[RUN HISTORY] Registered current_run_id={current_run_id} (previous_run_id={previous_run_id or 'None'})")
 
@@ -1230,7 +1273,9 @@ def execute_prediction_pipeline():
         market_summary = storage.get_latest_global_indicators()
 
     # 3. Store indicators
-    date_str = datetime.now().strftime('%Y-%m-%d')
+    from datetime import timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    date_str = datetime.now(KST).strftime('%Y-%m-%d')
     with storage.pipeline_stage("global_indicators"):
         storage.save_indicators(market_summary, date_str)
     logger.info("Saved market indicators to database.")
@@ -1344,6 +1389,7 @@ def execute_prediction_pipeline():
 
     # StockPriceDB 캐시 초기화
     price_db = StockPriceDB(db_path=cfg.stock_price_db_path)
+    _ACTIVE_PIPELINE_CTX.price_db = price_db
     freshness = cfg.get_freshness_days()
 
     # 5. Fetch global indicator history for training & inference
@@ -4180,7 +4226,7 @@ def execute_prediction_pipeline():
             logger.warning(f"Verification failed: Error reading/parsing pipeline_result.txt: {e}")
 
         # Finalize pipeline run tracking in DB
-        if 'current_run_id' in locals() and current_run_id and storage is not None:
+        if current_run_id and storage is not None:
             try:
                 total_syms = len(universe) if 'universe' in locals() and universe is not None else 0
                 dur_secs = time.time() - _pipeline_start_time if '_pipeline_start_time' in locals() else 0.0
@@ -4199,17 +4245,7 @@ def execute_prediction_pipeline():
             except Exception as _fin_e:
                 logger.warning(f"[RUN HISTORY] Failed to finalize pipeline run history: {_fin_e}")
 
-        try:
-            # Pre-existing bug: variables are `price_db` and `storage` in this scope;
-            # `db`/`indicator_storage` are undefined, so DBs were silently never closed.
-            if hasattr(price_db, 'close'):
-                price_db.close()
-            if hasattr(storage, 'close'):
-                storage.close()
-        except Exception as e:
-            logger.debug(f"DB close during pipeline cleanup: {e}")
-
-    return res_df, message_text
+        return res_df, message_text
 
 
 if __name__ == "__main__":

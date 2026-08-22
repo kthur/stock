@@ -431,9 +431,29 @@ class DataValidator:
                         df_clean.loc[transient_spikes, col] = np.nan
                         df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
                         
-            # Update close series after potential transient spike interpolation
-            close = df_clean['Close']
-            
+        # Detect reverse stock splits (permanent upward jumps > 50% that don't revert) with volume contraction
+        rev_split_candidates = (close.pct_change() > 0.50) & (~transient_spikes)
+        if rev_split_candidates.any():
+            rev_dates = rev_split_candidates[rev_split_candidates].index
+            for date in rev_dates:
+                idx = df_clean.index.get_loc(date)
+                if isinstance(idx, slice):
+                    idx = idx.start
+                elif isinstance(idx, np.ndarray):
+                    idx = np.where(idx)[0][0]
+                if idx > 0:
+                    prev_close = df_clean['Close'].iloc[idx-1]
+                    curr_close = df_clean['Close'].iloc[idx]
+                    if prev_close > 0:
+                        rev_ratio = curr_close / prev_close
+                        if any(abs(rev_ratio - r) / r < 0.08 for r in [1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0]):
+                            logger.warning(f"Detected reverse stock split around {date} with ratio {rev_ratio:.4f}. Adjusting historical data.")
+                            for col in ['Open', 'High', 'Low', 'Close']:
+                                if col in df_clean.columns:
+                                    df_clean.iloc[:idx, df_clean.columns.get_loc(col)] *= rev_ratio
+                            if 'Volume' in df_clean.columns:
+                                df_clean.iloc[:idx, df_clean.columns.get_loc('Volume')] /= rev_ratio
+
         # Detect stock splits (permanent drops > 25% that don't revert) with crash guard & volume confirmation
         split_candidates = (close.pct_change() < -0.25) & (~transient_spikes)
         if split_candidates.any():

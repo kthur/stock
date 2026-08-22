@@ -1302,10 +1302,16 @@ class EnsembleScoringEngine:
                             target_horizon: int = 20,
                             sentiment_blacklist: Optional[Union[List[str], Dict[str, Any]]] = None,
                             held_symbols: Optional[Union[Set[str], List[str]]] = None,
-                            prices_dict: Optional[Dict[str, pd.DataFrame]] = None) -> pd.DataFrame:
+                            prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
+                            **kwargs) -> pd.DataFrame:
         """
         Merges 31 strategy prediction DataFrames and computes weighted ensemble score.
         """
+        regime = kwargs.get('regime_label', regime)
+        us_regime = kwargs.get('us_regime_label', us_regime)
+        if kwargs.get('us_kr_decoupled'):
+            decoupling_status = 'DECOUPLED'
+
         if reg_df is None:
             reg_df = pd.DataFrame()
         if s_df is None:
@@ -1319,6 +1325,72 @@ class EnsembleScoringEngine:
             vcp_ml_df = pd.DataFrame()
         if lstm_df is None:
             lstm_df = pd.DataFrame()
+
+        # Extract strategy columns if consolidated DataFrame is provided in reg_df
+        if not reg_df.empty and 'symbol' in reg_df.columns:
+            if s_df.empty and 'surge_score' in reg_df.columns:
+                s_df = reg_df[['symbol', 'surge_score']].copy()
+            if ll_df.empty:
+                if 'll_score' in reg_df.columns:
+                    ll_df = reg_df[['symbol', 'll_score']].copy()
+                elif 'lead_lag_score' in reg_df.columns:
+                    ll_df = reg_df[['symbol', 'lead_lag_score']].copy()
+            if (v_rule_df is None or (isinstance(v_rule_df, pd.DataFrame) and v_rule_df.empty)) and 'vcp_rule_score' in reg_df.columns:
+                v_rule_df = reg_df[['symbol', 'vcp_rule_score']].copy()
+            if vcp_ml_df.empty and 'vcp_ml_score' in reg_df.columns:
+                vcp_ml_df = reg_df[['symbol', 'vcp_ml_score']].copy()
+            if lstm_df.empty and 'lstm_score' in reg_df.columns:
+                lstm_df = reg_df[['symbol', 'lstm_score']].copy()
+            if (stat_arb_df is None or stat_arb_df.empty) and 'stat_arb_score' in reg_df.columns:
+                stat_arb_df = reg_df[['symbol', 'stat_arb_score']].copy()
+            if (sector_df is None or sector_df.empty) and 'sector_score' in reg_df.columns:
+                sector_df = reg_df[['symbol', 'sector_score']].copy()
+            if (rim_df is None or rim_df.empty) and 'rim_score' in reg_df.columns:
+                rim_df = reg_df[['symbol', 'rim_score']].copy()
+            if (event_df is None or event_df.empty) and 'event_score' in reg_df.columns:
+                event_df = reg_df[['symbol', 'event_score']].copy()
+            if (mq_df is None or mq_df.empty) and 'mq_score' in reg_df.columns:
+                mq_df = reg_df[['symbol', 'mq_score']].copy()
+            if (iv_skew_df is None or iv_skew_df.empty) and 'iv_skew_score' in reg_df.columns:
+                iv_skew_df = reg_df[['symbol', 'iv_skew_score']].copy()
+            if (order_flow_df is None or order_flow_df.empty) and 'order_flow_score' in reg_df.columns:
+                order_flow_df = reg_df[['symbol', 'order_flow_score']].copy()
+            if (reversal_df is None or reversal_df.empty) and 'reversal_score' in reg_df.columns:
+                reversal_df = reg_df[['symbol', 'reversal_score']].copy()
+            if (arm_df is None or arm_df.empty) and 'arm_score' in reg_df.columns:
+                arm_df = reg_df[['symbol', 'arm_score']].copy()
+            if (card_df is None or card_df.empty) and 'card_score' in reg_df.columns:
+                card_df = reg_df[['symbol', 'card_score']].copy()
+            if (latr_df is None or latr_df.empty) and 'latr_score' in reg_df.columns:
+                latr_df = reg_df[['symbol', 'latr_score']].copy()
+            if (inst_foreign_sector_df is None or inst_foreign_sector_df.empty) and 'inst_foreign_sector_score' in reg_df.columns:
+                inst_foreign_sector_df = reg_df[['symbol', 'inst_foreign_sector_score']].copy()
+            if (supply_chain_df is None or supply_chain_df.empty) and 'supply_chain_score' in reg_df.columns:
+                supply_chain_df = reg_df[['symbol', 'supply_chain_score']].copy()
+            if (sentiment_df is None or sentiment_df.empty) and 'sentiment_score' in reg_df.columns:
+                sentiment_df = reg_df[['symbol', 'sentiment_score']].copy()
+            if (factor_neutralized_df is None or factor_neutralized_df.empty) and 'factor_neutralized_score' in reg_df.columns:
+                factor_neutralized_df = reg_df[['symbol', 'factor_neutralized_score']].copy()
+            if (vol_target_df is None or vol_target_df.empty) and 'vol_target_score' in reg_df.columns:
+                vol_target_df = reg_df[['symbol', 'vol_target_score']].copy()
+            if (microstructure_df is None or microstructure_df.empty) and 'microstructure_score' in reg_df.columns:
+                microstructure_df = reg_df[['symbol', 'microstructure_score']].copy()
+            if (accruals_quality_df is None or accruals_quality_df.empty) and 'accruals_quality_score' in reg_df.columns:
+                accruals_quality_df = reg_df[['symbol', 'accruals_quality_score']].copy()
+            if (short_squeeze_df is None or short_squeeze_df.empty) and 'short_squeeze_score' in reg_df.columns:
+                short_squeeze_df = reg_df[['symbol', 'short_squeeze_score']].copy()
+            if (valueup_catalyst_df is None or valueup_catalyst_df.empty) and 'valueup_catalyst_score' in reg_df.columns:
+                valueup_catalyst_df = reg_df[['symbol', 'valueup_catalyst_score']].copy()
+            if (trend_efficiency_df is None or trend_efficiency_df.empty) and 'trend_efficiency_score' in reg_df.columns:
+                trend_efficiency_df = reg_df[['symbol', 'trend_efficiency_score']].copy()
+            if (gamma_squeeze_df is None or gamma_squeeze_df.empty) and 'gamma_squeeze_score' in reg_df.columns:
+                gamma_squeeze_df = reg_df[['symbol', 'gamma_squeeze_score']].copy()
+            if (insider_buying_df is None or insider_buying_df.empty) and 'insider_buying_score' in reg_df.columns:
+                insider_buying_df = reg_df[['symbol', 'insider_buying_score']].copy()
+            if (darkpool_df is None or darkpool_df.empty) and 'darkpool_score' in reg_df.columns:
+                darkpool_df = reg_df[['symbol', 'darkpool_score']].copy()
+            if (earnings_tone_drift_df is None or earnings_tone_drift_df.empty) and 'earnings_tone_drift_score' in reg_df.columns:
+                earnings_tone_drift_df = reg_df[['symbol', 'earnings_tone_drift_score']].copy()
 
         META_COLS = ['name', 'market', 'close', 'expected_return', 'expected_return_20d', 'win_rate', 'win_rate_20d']
 
@@ -1898,15 +1970,14 @@ class EnsembleScoringEngine:
         # Incorporate orthogonalization penalty and VIF factor suppression into eff_us_weights and eff_kr_weights
         if weights is not None and isinstance(weights, dict) and len(weights) > 0:
             if us_weights is not None:
-                eff_us_weights = {k: us_weights.get(k, 1.0) * weights.get(k, 1.0) for k in weights}
-                s_us = sum(eff_us_weights.values())
-                if s_us > 0:
-                    eff_us_weights = {k: v / s_us for k, v in eff_us_weights.items()}
+                eff_us_weights = dict(weights)
             else:
                 eff_us_weights = weights
 
             if kr_weights is not None:
-                eff_kr_weights = {k: kr_weights.get(k, 1.0) * weights.get(k, 1.0) for k in weights}
+                # Extract relative suppression penalty factor P_k = weights_k / us_weights_k
+                penalty_ratios = {k: (weights.get(k, 1.0) / max(us_weights.get(k, 1.0), 1e-6)) if us_weights else 1.0 for k in weights}
+                eff_kr_weights = {k: kr_weights.get(k, 1.0) * penalty_ratios.get(k, 1.0) for k in kr_weights}
                 s_kr = sum(eff_kr_weights.values())
                 if s_kr > 0:
                     eff_kr_weights = {k: v / s_kr for k, v in eff_kr_weights.items()}
@@ -2559,6 +2630,7 @@ class EnsembleScoringEngine:
     STRATEGY_HALF_LIVES: Dict[str, float] = {
         "microstructure": 0.5,
         "hft": 0.5,
+        "darkpool": 0.5,
         "darkpool_hft": 0.5,
         "short_term_reversal": 1.5,
         "order_flow": 2.0,
@@ -2570,6 +2642,7 @@ class EnsembleScoringEngine:
         "supply_chain": 7.0,
         "vcp_ml": 8.0,
         "vcp_pattern": 8.0,
+        "vcp_rule": 8.0,
         "stat_arb": 10.0,
         "sector_rotation": 10.0,
         "sentiment": 10.0,
@@ -2577,8 +2650,10 @@ class EnsembleScoringEngine:
         "arm_factor": 15.0,
         "short_squeeze": 15.0,
         "insider_buying": 15.0,
+        "inst_foreign_sector": 20.0,
         "index_rebalance": 20.0,
         "regression": 20.0,
+        "lstm": 20.0,
         "mq_factor": 20.0,
         "factor_neutralized": 25.0,
         "latr_factor": 30.0,
@@ -2587,7 +2662,9 @@ class EnsembleScoringEngine:
         "rim_valuation": 45.0,
         "accruals_quality": 45.0,
         "value_up": 60.0,
+        "valueup_catalyst": 60.0,
         "tone_drift": 60.0,
+        "earnings_tone_drift": 60.0,
     }
 
     @classmethod
@@ -2616,9 +2693,24 @@ class EnsembleScoringEngine:
             prev_indexed = previous_scores.set_index(sym_col)
             curr_indexed = df_filtered.set_index(sym_col)
 
+            score_col_to_strat = {
+                'reg_score': 'regression', 'surge_score': 'surge', 'll_score': 'lead_lag',
+                'vcp_rule_score': 'vcp_pattern', 'vcp_ml_score': 'vcp_ml', 'lstm_score': 'regression',
+                'stat_arb_score': 'stat_arb', 'sector_score': 'sector_rotation', 'rim_score': 'rim_valuation',
+                'event_score': 'event_driven', 'mq_score': 'mq_factor', 'iv_skew_score': 'iv_skew',
+                'order_flow_score': 'order_flow', 'reversal_score': 'short_term_reversal', 'arm_score': 'arm_factor',
+                'card_score': 'card_factor', 'latr_score': 'latr_factor', 'inst_foreign_sector_score': 'inst_foreign_sector',
+                'supply_chain_score': 'supply_chain', 'sentiment_score': 'sentiment', 'factor_neutralized_score': 'factor_neutralized',
+                'vol_target_score': 'vol_target', 'microstructure_score': 'microstructure', 'accruals_quality_score': 'accruals_quality',
+                'short_squeeze_score': 'short_squeeze', 'valueup_catalyst_score': 'value_up', 'trend_efficiency_score': 'trend_efficiency',
+                'gamma_squeeze_score': 'gamma_squeeze', 'insider_buying_score': 'insider_buying', 'darkpool_score': 'darkpool_hft',
+                'earnings_tone_drift_score': 'tone_drift'
+            }
+
             for col in curr_indexed.columns:
-                if col in prev_indexed.columns and pd.api.types.is_numeric_dtype(curr_indexed[col]):
-                    tau = half_lives.get(col, 10.0)
+                strat_key = score_col_to_strat.get(col, col)
+                if strat_key in half_lives and col in prev_indexed.columns and pd.api.types.is_numeric_dtype(curr_indexed[col]):
+                    tau = half_lives.get(strat_key, 10.0)
                     alpha = 1.0 - float(np.exp(-np.log(2.0) / max(tau, 0.1)))
                     prev_s = prev_indexed[col].reindex(curr_indexed.index).fillna(curr_indexed[col])
                     curr_indexed[col] = alpha * curr_indexed[col] + (1.0 - alpha) * prev_s

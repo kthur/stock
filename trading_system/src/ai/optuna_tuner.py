@@ -313,13 +313,21 @@ class OptunaStrategyTuner:
             df_train = df_ret.iloc[:n_split]
             if df_train.empty or len(df_train) < 20:
                 df_train = df_ret
+            df_val = df_ret.iloc[n_split:] if len(df_ret) > n_split + 10 else df_ret
 
-            for i in range(min(10, df_train.shape[1])):
-                for j in range(min(10, df_train.shape[1])):
+            eval_k = min(leaders_count, df_train.shape[1])
+            for i in range(eval_k):
+                for j in range(eval_k):
                     if i != j:
                         r = df_train.iloc[:, i].shift(lag_window).corr(df_train.iloc[:, j])
                         if not np.isnan(r) and abs(r) >= corr_cutoff:
-                            corrs.append(abs(r))
+                            # Evaluate out-of-sample persistence on validation split
+                            if not df_val.empty and len(df_val) >= 10:
+                                r_val = df_val.iloc[:, i].shift(lag_window).corr(df_val.iloc[:, j])
+                                if not np.isnan(r_val):
+                                    corrs.append(float(r_val))
+                            else:
+                                corrs.append(abs(r))
 
             return float(np.mean(corrs)) if corrs else 0.0
 
@@ -513,10 +521,17 @@ class OptunaStrategyTuner:
             'BULL_LOW_VOL', 'BULL_HIGH_VOL'
         ]
         try:
-            from src.core.strategy_registry import get_registry
-            strats = get_registry().get_all_ids()
+            from src.ai.ensemble_scorer import EnsembleScoringEngine
+            strats = list(EnsembleScoringEngine.REGIME_2D_WEIGHTS.get('BULL_LOW_VOL', {}).keys())
         except Exception:
             strats = []
+
+        if not strats:
+            try:
+                from src.core.strategy_registry import get_registry
+                strats = get_registry().get_all_ids()
+            except Exception:
+                strats = []
 
         if not strats:
             strats = [
@@ -526,7 +541,7 @@ class OptunaStrategyTuner:
                 'arm_factor', 'card_factor', 'latr_factor', 'inst_foreign_sector',
                 'supply_chain', 'sentiment', 'factor_neutralized', 'vol_target',
                 'microstructure', 'accruals_quality', 'short_squeeze', 'valueup_catalyst',
-                'trend_efficiency', 'gamma_squeeze', 'insider_buying', 'earnings_tone_drift', 'hft_order_flow'
+                'trend_efficiency', 'gamma_squeeze', 'insider_buying', 'darkpool', 'earnings_tone_drift'
             ]
 
         if not strategy_returns_by_regime:
@@ -539,7 +554,8 @@ class OptunaStrategyTuner:
         best_weights = {}
         for combo in regime_combos:
             combo_returns = strategy_returns_by_regime.get(combo, {})
-            valid_strats = [s for s in strats if s in combo_returns and len(combo_returns[s].dropna()) >= 10]
+            all_candidate_strats = list(dict.fromkeys(strats + list(combo_returns.keys())))
+            valid_strats = [s for s in all_candidate_strats if s in combo_returns and len(combo_returns[s].dropna()) >= 10]
             if not valid_strats:
                 from src.ai.ensemble_scorer import EnsembleScoringEngine
                 best_weights[combo] = EnsembleScoringEngine.REGIME_2D_WEIGHTS.get(combo, {})
@@ -553,8 +569,13 @@ class OptunaStrategyTuner:
                 combo_series = sum(combo_returns[s] * norm_w[s] for s in valid_strats).dropna()
                 if len(combo_series) < 5 or combo_series.std() < 1e-8:
                     return 0.0
-                sharpe = float(combo_series.mean() / (combo_series.std() + 1e-10) * np.sqrt(252))
-                return sharpe if (np.isfinite(sharpe)) else 0.0
+                m_ret = float(combo_series.mean())
+                s_ret = float(combo_series.std())
+                if m_ret > 0:
+                    score = (m_ret / (s_ret + 1e-8)) * np.sqrt(252)
+                else:
+                    score = (m_ret - 0.5 * 2.5 * (s_ret ** 2)) * 252.0
+                return float(score) if np.isfinite(score) else 0.0
 
             study = optuna.create_study(direction='maximize')
             study.optimize(regime_objective, n_trials=n_trials)
@@ -624,8 +645,13 @@ class OptunaStrategyTuner:
                 portfolio_series = sum(returns_df[s] * supp_w[s] for s in valid_strats)
                 if portfolio_series.std() < 1e-8:
                     return 0.0
-                sharpe = float(portfolio_series.mean() / portfolio_series.std() * np.sqrt(252))
-                return sharpe
+                m_ret = float(portfolio_series.mean())
+                s_ret = float(portfolio_series.std())
+                if m_ret > 0:
+                    score = (m_ret / (s_ret + 1e-8)) * np.sqrt(252)
+                else:
+                    score = (m_ret - 0.5 * 2.5 * (s_ret ** 2)) * 252.0
+                return float(score) if np.isfinite(score) else 0.0
 
             study = optuna.create_study(direction='maximize')
             study.optimize(suppression_objective, n_trials=n_trials)
@@ -700,7 +726,18 @@ class AlphaDecayTracker:
             adj_w = base_w * decay_factor * perf_factor
             adjusted[strat] = max(self.min_weight_bound, min(adj_w, self.max_weight_bound))
 
-        tot = sum(adjusted.values())
-        return {s: round(w / tot, 4) for s, w in adjusted.items()} if tot > 0 else base_weights
+        # Iterative Simplex Projection to guarantee hard bounds [min_w, max_w]
+        weights_arr = np.array(list(adjusted.values()), dtype=float)
+        for _ in range(10):
+            tot = weights_arr.sum()
+            if tot <= 0:
+                break
+            weights_arr = weights_arr / tot
+            weights_arr = np.clip(weights_arr, self.min_weight_bound, self.max_weight_bound)
+            if abs(weights_arr.sum() - 1.0) < 1e-4:
+                break
+        tot = weights_arr.sum()
+        final_w = weights_arr / tot if tot > 0 else weights_arr
+        return {s: round(float(w), 4) for s, w in zip(adjusted.keys(), final_w)}
 
 

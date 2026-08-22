@@ -65,7 +65,13 @@ class CARDFactorEngine(BaseStrategyEngine):
                 return 0.0 if (np.isnan(v) or np.isinf(v)) else v
             elif isinstance(indicator_df, pd.DataFrame):
                 if not indicator_df.empty and col in indicator_df.columns and not indicator_df[col].dropna().empty:
-                    v = float(indicator_df[col].dropna().iloc[-1])
+                    s = indicator_df[col].dropna()
+                    # If computing multi-day macro impact and history exists, take 5-day rolling change
+                    if len(s) >= 5 and ('change' in col or 'pct' in col or col in ['usdkrw', 'wti']):
+                        base_val = float(s.iloc[-5])
+                        v = float((s.iloc[-1] / base_val - 1.0) * 100.0) if (base_val > 0 and 'change' not in col and 'pct' not in col) else float(s.tail(5).sum())
+                    else:
+                        v = float(s.iloc[-1])
                     return 0.0 if (np.isnan(v) or np.isinf(v)) else v
             return 0.0
 

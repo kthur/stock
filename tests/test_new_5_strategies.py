@@ -133,3 +133,23 @@ def test_14_strategy_ensemble_integration(sample_prices_dict):
     assert "ensemble_expected_return" in ens_df.columns
     assert len(ens_df) == len(symbols)
     assert (ens_df["ensemble_score"] >= 0.0).all() and (ens_df["ensemble_score"] <= 1.0).all()
+
+
+def test_iv_skew_live_options_priority_when_enabled(monkeypatch, sample_prices_dict):
+    """V6-19: Verify that when ENABLE_LIVE_OPTIONS_FETCH=true, live options chain takes priority for US tickers."""
+    engine = IVSkewEngine()
+    monkeypatch.setenv("ENABLE_LIVE_OPTIONS_FETCH", "true")
+
+    # Mock compute_skew_for_ticker to return 0.88 for AAPL
+    def mock_compute_skew(ticker):
+        if ticker == "AAPL":
+            return 0.88
+        return 0.50
+
+    monkeypatch.setattr(engine, "compute_skew_for_ticker", mock_compute_skew)
+
+    res = engine.compute_iv_skew_scores(["AAPL"], prices_dict=sample_prices_dict)
+    assert not res.empty
+    aapl_row = res[res['symbol'] == 'AAPL'].iloc[0]
+    assert abs(aapl_row['iv_skew_score'] - 0.88) < 1e-6
+

@@ -1,55 +1,52 @@
-# BRIEFING — 2026-06-12T16:46:12+09:00
+# BRIEFING — 2026-08-22T06:58:00Z
 
 ## Mission
-Implement Milestone 2 (Model updates) as specified in SCOPE.md.
+Domain 1 Implementation: Complete genuine implementation and verification of V6-01 ~ V6-08 in AI & Modeling modules (prediction_model, ensemble_scorer, optuna_tuner, meta_ensemble_learner).
 
 ## 🔒 My Identity
-- Archetype: worker
+- Archetype: worker_m2_gen2
 - Roles: implementer, qa, specialist
-- Working directory: d:\Finance\code\stock\.agents\worker_m2_gen2
-- Original parent: c9741707-d639-4b47-b772-6d9392f7597f
-- Milestone: Milestone 2 (Model updates)
+- Working directory: d:\\Finance\\code\\stock\\.agents\\worker_m2_gen2
+- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Milestone: M2
 
 ## 🔒 Key Constraints
-- Update prediction_model.py, screener.py, macro_predictor.py.
-- Support 9-feature structure.
-- Apply cross-sectional market normalization using apply_market_normalization.
-- Ensure training and prediction run successfully.
-- Test using pytest.
+- Exclusive write ownership: src/ai/prediction_model.py, src/ai/ensemble_scorer.py, src/ai/optuna_tuner.py, src/ai/meta_ensemble_learner.py, tests/
+- Genuine implementations only, no cheating or facades.
+- All Domain 1 tests must pass.
 
 ## Current Parent
-- Conversation ID: c9741707-d639-4b47-b772-6d9392f7597f
-- Updated: yes
+- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Updated: 2026-08-22T06:58:00Z
 
 ## Task Summary
-- **What to build**: Support 9 features in OnDevicePredictionModel; update StockScreener to inject norm_market_cap, norm_floating_value, norm_volume; keep MacroPredictor feature-agnostic.
-- **Success criteria**: All prediction and macro tests pass successfully.
-- **Interface contracts**: SCOPE.md and existing codebase.
-- **Code layout**: Standard python layout in the project.
+- **What to build**: Domain 1 fixes (V6-01 to V6-08)
+- **Success criteria**: All 8 tasks implemented with mathematical rigor, 82+ Domain 1 tests passing at 100%.
 
 ## Key Decisions Made
-- Dynamically normalize single-stock inputs in `_create_features` and `predict_current` when normalized columns are absent, ensuring backward/standalone compatibility.
-- Injected both the current values and 5 historical lags of `norm_market_cap`, `norm_floating_value`, and `norm_volume` into the `StockScreener` feature matrix.
-- Pre-initialized `df_us` and `df_kr` to empty DataFrames before try/except download blocks to handle offline fallback seamlessly.
+1. V6-01: LSTM targets mapped via transform_sharpe in _prepare_lstm_data so tree and LSTM predictions share sign-log1p Sharpe metric space before inverse transform.
+2. V6-02: Added score_col_to_strat alias map covering all 31 strategies in apply_exponential_decay_filter, preserving half-life hierarchy (0.5d~60d) and excluding non-strategy columns.
+3. V6-03: Decoupled US weight squaring (eff_us_weights = dict(weights)) and transferred relative suppression penalties P_k linearly to Korean weights without regime contamination.
+4. V6-04: Market-partitioned predict_lstm batch evaluation to evaluate symbols against their market-trained LSTM models.
+5. V6-05: Normalized predict_lead_lag fallback to 1-day return mapped into [0.05, 0.95] and provided ll_score alias.
+6. V6-06: Added quadratic risk-adjusted utility (mu - 0.5 * lambda * sigma^2) * 252.0 when mu <= 0 in Optuna 2D regime & suppression objectives, and implemented 10-step bounded iterative simplex projection in AlphaDecayTracker.
+7. V6-07: Lifted 10-symbol hardcap in Lead-Lag HPO to evaluate K = min(leaders_count, N) symbols with out-of-sample validation persistence checking.
+8. V6-08: Added dictionary-based weight projection and DataFrame column reindexing in MetaEnsembleLearner for column permutation and feature alignment invariance.
+
+## Artifact Index
+- trading_system/src/ai/prediction_model.py — V6-01, V6-04, V6-05
+- trading_system/src/ai/ensemble_scorer.py — V6-02, V6-03
+- trading_system/src/ai/optuna_tuner.py — V6-06, V6-07
+- trading_system/src/ai/meta_ensemble_learner.py — V6-08
+- tests/test_v6_domain1_enhancements.py — Unit tests for V6-01 ~ V6-08
+- .agents/worker_m2_gen2/handoff.md — 5-Component Handoff Report
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/src/ai/prediction_model.py` — Upgraded OnDevicePredictionModel to 9 features.
-  - `trading_system/src/analysis/screener.py` — Injected norm features and lags into StockScreener region predictor.
-- **Build status**: Pass
+- **Files modified**: src/ai/prediction_model.py, src/ai/ensemble_scorer.py, src/ai/optuna_tuner.py, src/ai/meta_ensemble_learner.py, tests/test_v6_domain1_enhancements.py
+- **Build status**: 82 passed, 0 failed in Domain 1 suite
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (325 passed, 2 skipped)
-- **Lint status**: 0 violations
-- **Tests added/modified**: Verified all tests pass
-
-## Loaded Skills
-- None
-
-## Artifact Index
-- d:\Finance\code\stock\.agents\worker_m2_gen2\ORIGINAL_REQUEST.md — Original task description
-- d:\Finance\code\stock\.agents\worker_m2_gen2\BRIEFING.md — Current status briefing
-- d:\Finance\code\stock\.agents\worker_m2_gen2\progress.md — Step-by-step progress tracking
-- d:\Finance\code\stock\.agents\worker_m2_gen2\changes.md — Milestone 2 implementation report
-- d:\Finance\code\stock\.agents\worker_m2_gen2\handoff.md — Milestone 2 handoff report
+- **Build/test result**: PASS (82/82 Domain 1 tests passing)
+- **Lint status**: Clean, zero warnings
+- **Tests added/modified**: tests/test_v6_domain1_enhancements.py (8 test cases)

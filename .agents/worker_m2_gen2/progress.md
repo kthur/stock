@@ -1,12 +1,12 @@
-# Progress Tracker
-
-Last visited: 2026-06-12T16:46:12+09:00
-
-- [x] Initialized workspace and briefing documents
-- [x] Investigate files: prediction_model.py, screener.py, macro_predictor.py, and SCOPE.md
-- [x] Make a concrete plan
-- [x] Modify prediction_model.py
-- [x] Modify screener.py
-- [x] Modify macro_predictor.py
-- [x] Verify using pytest
-- [x] Finalize changes.md and send completion message
+# Progress Log - worker_m2_gen2
+- Status: Completed V6-01 ~ V6-08 Implementation and Verification
+- Last visited: 2026-08-22T06:58:00Z
+- Tasks:
+  - [x] V6-01: Causal LSTM Target log1p Domain Homomorphism
+  - [x] V6-02: Multi-Horizon Exponential Decay Filter 31-Strategy Schema Mapping
+  - [x] V6-03: Dual-Regime US/KR Weight Decoupling & Suppression Transfer
+  - [x] V6-04: Cross-Market Model Hijacking Resolution in predict_lstm
+  - [x] V6-05: Lead-Lag Fallback 1-Day Return Scaling Normalization
+  - [x] V6-06: Optuna 2D Regime Bear Quadratic Utility & Simplex Bounded Projection
+  - [x] V6-07: Lead-Lag HPO All-Leader Evaluation & Out-of-Sample Persistence
+  - [x] V6-08: MetaEnsembleLearner Column Permutation & Feature Reindexing Invariance

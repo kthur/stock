@@ -141,9 +141,11 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in symbols])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
-        if valid_mask.sum() > 0:
+        if valid_mask.sum() > 1:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
             df_out.loc[valid_mask, 'trend_efficiency_score'] = ranks
+        elif valid_mask.sum() == 1:
+            df_out.loc[valid_mask, 'trend_efficiency_score'] = 0.50
         else:
             df_out['trend_efficiency_score'] = 0.50
 

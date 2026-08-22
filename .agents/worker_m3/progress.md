@@ -1,10 +1,17 @@
-# Progress Log - Worker M3 (Milestone 3)
+# Progress — worker_m3 (Domain 2: V6-09 ~ V6-16)
 
-Last visited: 2026-08-15T00:26:30Z
+Last visited: 2026-08-22T01:32:00+09:00
 
-- [x] Initialized workspace and memory (DISPATCH.md, BRIEFING.md, progress.md)
-- [x] Step 1: Execute comparative backtest (`scripts/compare_backtests.py`) & unit tests (`test_backtest.py`, `test_cpcv_stress_tester.py`) - Completed (19/19 passed, CSV generated)
-- [x] Step 2: Execute full 1,600 pytest regression suite (`tests/` and `trading_system/tests/`) - Completed (1,600/1,600 passed, 0 failures, 0 errors in 238.16s)
-- [x] Step 3: Execute pipeline (`run_pipeline.py`) & verify `gh-pages/index.html` with `verify_gha_artifacts.py` - Completed (854 KB dashboard, 24/24 tabs verified)
-- [x] Step 4: Write comprehensive 5-component `handoff.md` - Completed
-- [x] Step 5: Send completion message to parent orchestrator
+## Tasks
+- [x] 1. Read mandatory input documents (`system_improvement_report_v6.md`, `explorer_2/analysis.md`, `ORIGINAL_REQUEST.md`, `AGENTS.md`)
+- [x] 2. Run existing Domain 2 tests to establish baseline
+- [x] 3. Implement V6-09: Leland buffer band boundary collapse fix
+- [x] 4. Implement V6-10: Black-Litterman smooth quadratic penalty & global formulation
+- [x] 5. Implement V6-11: EVT-POT quantile inversion & shape parameter bound fix
+- [x] 6. Implement V6-12: Rockafellar-Uryasev convex CVaR Pseudo-Huber smoothing & vectorized constraints
+- [x] 7. Implement V6-13: CrisisDetector recovery latch & WATCH defensive haircut fix
+- [x] 8. Implement V6-14: Primary missing reason frequency selector fix in coverage analyzer
+- [x] 9. Implement V6-15: Downside co-semivariance Ledoit-Wolf diagonal target shrinkage
+- [x] 10. Implement V6-16: RMT Marchenko-Pastur residual eigenvalue noise variance dynamic fix
+- [x] 11. Run all Domain 2 tests and verify 100% pass (107/107 passed)
+- [x] 12. Write handoff.md and send completion message

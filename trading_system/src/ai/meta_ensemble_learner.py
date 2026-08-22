@@ -132,7 +132,8 @@ class MetaEnsembleLearner:
                         random_state=42,
                         verbose=-1
                     )
-                    lgb_train.fit(X[mask], y[mask])
+                    X_df = strategy_df[available_cols].fillna(0.0)
+                    lgb_train.fit(X_df.iloc[mask], y[mask])
                     self._lgbm_model = lgb_train
                     logger.info(f"Fitted LightGBM meta-model on {mask.sum()} samples.")
                 except Exception as _le:
@@ -156,23 +157,21 @@ class MetaEnsembleLearner:
         X = strategy_df[available_cols].fillna(0.0).values
 
         if self.is_fitted and self.weights is not None:
-            # Match feature subsets if needed
-            if len(self.weights) == len(available_cols):
-                ridge_pred = np.dot(X, self.weights) + self.intercept
-            else:
-                # Project across common feature subset
-                w_dict = dict(zip(self.feature_names, self.weights))
-                eff_w = np.array([w_dict.get(col, 0.0) for col in available_cols], dtype=float)
-                ridge_pred = np.dot(X, eff_w) + self.intercept
+            # Explicit column name dictionary projection to prevent permutation corruption
+            w_dict = dict(zip(self.feature_names, self.weights))
+            eff_w = np.array([w_dict.get(col, 0.0) for col in available_cols], dtype=float)
+            ridge_pred = np.dot(X, eff_w) + self.intercept
 
             if self.learner_type == 'lgbm' and self._lgbm_model is not None:
                 try:
-                    raw_pred = self._lgbm_model.predict(X)
+                    X_lgb = strategy_df.reindex(columns=self.feature_names, fill_value=0.0)
+                    raw_pred = self._lgbm_model.predict(X_lgb)
                 except Exception:
                     raw_pred = ridge_pred
             elif self.learner_type == 'blended' and self._lgbm_model is not None:
                 try:
-                    lgb_pred = self._lgbm_model.predict(X)
+                    X_lgb = strategy_df.reindex(columns=self.feature_names, fill_value=0.0)
+                    lgb_pred = self._lgbm_model.predict(X_lgb)
                     raw_pred = 0.5 * ridge_pred + 0.5 * lgb_pred
                 except Exception:
                     raw_pred = ridge_pred

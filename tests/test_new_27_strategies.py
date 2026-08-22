@@ -78,18 +78,20 @@ def test_valueup_catalyst_engine():
 
 def test_trend_efficiency_engine():
     engine = TrendEfficiencyEngine()
-    symbols = ['005930']
+    symbols = ['005930', '000660']
     
     dates = pd.date_range('2026-01-01', periods=30)
     prices_dict = {
-        '005930': pd.DataFrame({'close': np.linspace(50000, 60000, 30)}, index=dates)  # Clean linear trend
+        '005930': pd.DataFrame({'close': np.linspace(50000, 60000, 30)}, index=dates),  # Clean linear trend
+        '000660': pd.DataFrame({'close': np.linspace(60000, 50000, 30)}, index=dates)   # Downtrend
     }
     
     res = engine.calculate_scores(symbols, prices_dict=prices_dict)
     assert not res.empty
     assert 'symbol' in res.columns
-    assert 'trend_efficiency_score' in res.columns
-    assert res['trend_efficiency_score'].iloc[0] > 0.50
+    assert res.loc[res['symbol'] == '005930', 'trend_efficiency_score'].iloc[0] > 0.50
+    assert res.loc[res['symbol'] == '000660', 'trend_efficiency_score'].iloc[0] <= 0.50
+    assert res.loc[res['symbol'] == '005930', 'trend_efficiency_score'].iloc[0] > res.loc[res['symbol'] == '000660', 'trend_efficiency_score'].iloc[0]
 
 
 def test_27_strategy_ensemble_integration():

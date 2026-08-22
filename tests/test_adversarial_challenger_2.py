@@ -212,7 +212,7 @@ class TestDynamicInverseETFHedgeSizing:
     def test_gate_8_us_crisis_regime_inverse_etf_precise_quantity(self, tmp_path):
         """Verify US market inverse ETF (SH @ $15.50) generates accurate share quantity."""
         oms = ExecutionOMSEngine(db_path=str(tmp_path / "trade_logs.db"))
-        total_capital = 100000.0  # $100k USD
+        total_capital = 135000000.0  # 135M KRW ($100k USD @ 1350 KRW/USD)
         portfolio_weights = {"AAPL": 0.40, "MSFT": 0.30}
         top_predictions = [
             {"symbol": "AAPL", "market": "SP500", "target_price": 220.0, "ensemble_expected_return": 0.05},
@@ -618,3 +618,99 @@ class TestStrategyFallbacksAndSingleStockHandling:
                 assert res_single is not None, f"{name} returned None on single stock dict"
             except Exception as e:
                 pytest.fail(f"{name} crashed on single stock dict: {e}")
+
+    def test_v6_20_dart_8digit_corp_code_mapping_without_stock_code(self, monkeypatch):
+        """V6-20: Verify EventDrivenEngine resolves 8-digit OpenDART corp_code to 6-digit stock code when stock_code is missing."""
+        from src.core.event_driven import EventDrivenEngine
+        from src.data_layer.dart_corp_mapper import DARTCorpMapper
+
+        engine = EventDrivenEngine(dart_api_key="")
+
+        # Mock DARTCorpMapper.get_corp_code to return 00126380 for 005930
+        monkeypatch.setattr(DARTCorpMapper, "get_corp_code", lambda self, sym: "00126380" if sym == "005930" else None)
+
+        # Filing without stock_code, only with 8-digit corp_code
+        filings = [{
+            "corp_code": "00126380",
+            "stock_code": "",
+            "report_nm": "자기주식취득결정",
+            "pblntf_ty": "B",
+            "rcept_dt": "20260820"
+        }]
+
+        dates = pd.date_range("2026-01-01", periods=20, freq="D")
+        df_price = pd.DataFrame({"Close": [70000.0] * 20, "Volume": [10000] * 20}, index=dates)
+
+        res = engine.compute_event_scores(["005930"], {"005930": df_price}, filings=filings)
+        assert not res.empty
+        score = res[res['symbol'] == '005930']['event_score'].iloc[0]
+        # Bullish buyback disclosure should boost score above neutral 0.50
+        assert score > 0.70, f"Expected buyback score > 0.70 via DART corp_code resolution, got {score}"
+
+    def test_v6_22_factor_engines_n1_neutral_score_guard(self):
+        """V6-22: Verify factor engines return neutral score (0.50) when evaluating a single stock (N=1), rather than saturating at 0.98."""
+        from src.core.mq_factor import MQFactorEngine
+        from src.core.short_interest_squeeze import ShortInterestSqueezeEngine
+        from src.core.valueup_catalyst import ValueUpCatalystEngine
+        from src.core.trend_efficiency import TrendEfficiencyEngine
+        from src.core.order_flow import OrderFlowEngine
+        from src.core.short_term_reversal import ShortTermReversalEngine
+        from src.core.inst_foreign_sector import InstForeignSectorEngine
+
+        dates = pd.date_range("2026-01-01", periods=30, freq="D")
+        df_single = pd.DataFrame({
+            "Open": np.linspace(100, 90, 30),
+            "High": np.linspace(102, 92, 30),
+            "Low": np.linspace(98, 88, 30),
+            "Close": np.linspace(100, 90, 30),
+            "Volume": np.full(30, 10000.0)
+        }, index=dates)
+        single_dict = {"005930": df_single}
+
+        # 1. MQ Factor Engine
+        res_mq = MQFactorEngine().compute_scores(single_dict)
+        assert abs(res_mq['mq_score'].iloc[0] - 0.50) < 1e-4
+
+        # 2. Short Interest Squeeze Engine
+        res_sq = ShortInterestSqueezeEngine().compute_scores(single_dict)
+        assert abs(res_sq['short_squeeze_score'].iloc[0] - 0.50) < 1e-4
+
+        # 3. Value-Up Catalyst Engine
+        res_vu = ValueUpCatalystEngine().compute_scores(single_dict)
+        assert abs(res_vu['valueup_catalyst_score'].iloc[0] - 0.50) < 1e-4
+
+        # 4. Trend Efficiency Engine
+        res_te = TrendEfficiencyEngine().compute_scores(single_dict)
+        assert abs(res_te['trend_efficiency_score'].iloc[0] - 0.50) < 1e-4
+
+        # 5. Order Flow Engine
+        res_of = OrderFlowEngine().compute_scores(single_dict)
+        assert abs(res_of['order_flow_score'].iloc[0] - 0.50) < 1e-4
+
+        # 6. Short-Term Reversal Engine
+        res_rev = ShortTermReversalEngine().compute_scores(single_dict)
+        assert abs(res_rev['reversal_score'].iloc[0] - 0.50) < 1e-4
+
+        # 7. Inst & Foreign Sector Engine
+        res_inst = InstForeignSectorEngine().compute_scores(single_dict)
+        assert abs(res_inst['inst_foreign_sector_score'].iloc[0] - 0.50) < 1e-4
+
+    def test_v6_24_reverse_stock_split_adjustment_and_volume_contraction(self):
+        """V6-24: Verify DataValidator detects reverse stock split (> +50% jump) and adjusts historical OHLC & Volume."""
+        validator = DataValidator()
+        dates = pd.date_range("2026-01-01", periods=10, freq="D")
+        # 1-for-2 reverse stock split on day 5: price doubles from 10.0 to 20.0, volume halves from 1000 to 500
+        df = pd.DataFrame({
+            "Open": [10.0]*5 + [20.0]*5,
+            "High": [10.5]*5 + [21.0]*5,
+            "Low": [9.5]*5 + [19.0]*5,
+            "Close": [10.0]*5 + [20.0]*5,
+            "Volume": [1000.0]*5 + [500.0]*5,
+        }, index=dates)
+
+        df_cleaned = validator.validate_and_clean_price_series(df)
+        # Pre-split close (first 5 days) should be scaled by 2.0 -> 20.0
+        assert abs(df_cleaned['Close'].iloc[0] - 20.0) < 1e-2
+        # Pre-split volume should be scaled by 1/2.0 -> 500.0
+        assert abs(df_cleaned['Volume'].iloc[0] - 500.0) < 1e-2
+

@@ -182,5 +182,9 @@ class ShortTermReversalEngine(BaseStrategyEngine):
                 res_df.loc[res_df['operating_margin'] < -0.10, 'oversold_metric'] -= 1.0
 
         # Percentile rank oversold metric -> reversal_score [0, 1] with boundary clipping
+        if len(res_df) == 1:
+            res_df['reversal_score'] = 0.50
+            return res_df[['symbol', 'reversal_score']]
+
         res_df['reversal_score'] = res_df['oversold_metric'].rank(pct=True, ascending=True).clip(0.02, 0.98)
         return res_df[['symbol', 'reversal_score']]

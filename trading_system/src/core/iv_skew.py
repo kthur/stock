@@ -106,7 +106,20 @@ class IVSkewEngine(BaseStrategyEngine):
 
         def _evaluate_one(sym: str):
             score = 0.5
-            # 1. Fast in-memory realized price volatility & return skewness proxy (0 network calls)
+            is_us_ticker = not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym
+
+            # 1. Live options chain lookup takes priority for US tickers if explicitly enabled
+            if is_us_ticker:
+                try:
+                    import os
+                    if os.getenv("ENABLE_LIVE_OPTIONS_FETCH", "false").lower() == "true":
+                        score = self.compute_skew_for_ticker(sym)
+                        if score != 0.5:
+                            return sym, score
+                except Exception:
+                    pass
+
+            # 2. Fast in-memory realized price volatility & return skewness fallback (0 network calls)
             if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
                 if df is not None and len(df) >= 20:
@@ -138,15 +151,6 @@ class IVSkewEngine(BaseStrategyEngine):
                             score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
                     except Exception:
                         score = 0.5
-
-            # 2. Optional live options chain lookup for US tickers only if explicitly enabled
-            if score == 0.5 and not sym.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) and '.' not in sym:
-                try:
-                    import os
-                    if os.getenv("ENABLE_LIVE_OPTIONS_FETCH", "false").lower() == "true":
-                        score = self.compute_skew_for_ticker(sym)
-                except Exception:
-                    pass
 
             return sym, score
 

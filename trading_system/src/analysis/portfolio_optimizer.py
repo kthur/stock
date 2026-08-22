@@ -203,8 +203,9 @@ def calculate_black_litterman_weights(
         if not np.all(np.isfinite(mu_bl)) or not np.all(np.isfinite(cov_bl)):
             raise ValueError("Calculated BL expected returns or covariance contain NaN/Inf.")
 
-        # Optimize weights (maximize Sharpe ratio or Quadratic Utility if excess return is negative)
+        # Problem-level regime formulation: Determine globally whether excess return is achievable
         lambda_aversion = 2.5
+        all_negative_excess = bool(np.max(mu_bl) <= risk_free_rate)
 
         def objective(w):
             w = np.asarray(w)
@@ -212,12 +213,13 @@ def calculate_black_litterman_weights(
             port_var = float(w @ cov_bl @ w)
             port_vol = float(np.sqrt(max(1e-8, port_var)))
 
-            if port_ret <= risk_free_rate:
+            if all_negative_excess:
                 # Quadratic utility maximization: max (w^T mu - 0.5 * lambda * w^T Sigma w)
                 return - (port_ret - 0.5 * lambda_aversion * port_var)
             else:
-                # Maximize Sharpe ratio: minimize negative Sharpe ratio
-                return - (port_ret - risk_free_rate) / port_vol
+                # Maximize Sharpe ratio with smooth quadratic penalty if below r_f
+                excess = port_ret - risk_free_rate
+                return - excess / port_vol if excess > 0 else (0.5 * lambda_aversion * port_var - excess * 10.0)
 
         w0 = np.full(n, 1.0 / n)
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}

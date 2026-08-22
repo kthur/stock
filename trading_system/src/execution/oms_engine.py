@@ -274,6 +274,7 @@ class ExecutionOMSEngine:
         regime_label: str = "BULL",
         max_adv_ratio: float = 0.05,
         prices_dict: Optional[Dict[str, Any]] = None,
+        usdkrw_rate: float = 1350.0,
         **kwargs
     ) -> List[Dict[str, Any]]:
         """
@@ -337,6 +338,11 @@ class ExecutionOMSEngine:
         except (ValueError, TypeError):
             tot_cap = 100000000.0
         tot_cap = max(0.0, tot_cap) * max(0.15, min(1.0, float(crisis_mult)))
+
+        try:
+            fx_rate = float(usdkrw_rate) if (usdkrw_rate is not None and math.isfinite(float(usdkrw_rate)) and float(usdkrw_rate) > 0) else 1350.0
+        except (ValueError, TypeError):
+            fx_rate = 1350.0
 
         conn = self._get_conn()
         try:
@@ -426,12 +432,13 @@ class ExecutionOMSEngine:
                 change_pct = pred.get("change_pct") or pred.get("daily_return")
                 try:
                     if change_pct is not None:
-                        c_flt = float(change_pct)
-                        if c_flt >= 0.295 and action == "BUY":
-                            logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_flt:.2%}), skipping buy execution.")
+                        raw_c = float(change_pct)
+                        c_norm = raw_c / 100.0 if abs(raw_c) >= 0.35 else raw_c
+                        if c_norm >= 0.295 and action == "BUY":
+                            logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
                             continue
-                        elif c_flt <= -0.295:
-                            logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_flt:.2%}) - complete liquidity freeze; skipping new entry and tagging emergency monitoring.")
+                        elif c_norm <= -0.295:
+                            logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}) - complete liquidity freeze; skipping new entry and tagging emergency monitoring.")
                             continue
                 except (ValueError, TypeError):
                     pass
@@ -467,11 +474,18 @@ class ExecutionOMSEngine:
                             is_sell=False,
                             slippage_multiplier=slip_mult
                         )
-                        raw_exp_ret = float(pred.get("expected_return", pred.get("ensemble_expected_return", 0.0)) or 0.0)
-                        exp_ret_frac = raw_exp_ret / 100.0
                         safety_margin = 0.0010  # 0.10% safety margin
-                        if exp_ret_frac < (friction_cost + safety_margin):
-                            logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({friction_cost:.4%}), skipping.")
+                        if "expected_return" in pred and pred["expected_return"] is not None:
+                            raw_exp_ret = float(pred["expected_return"])
+                            exp_ret_frac = raw_exp_ret / 100.0
+                            hurdle = friction_cost + safety_margin
+                        else:
+                            raw_exp_ret = float(pred.get("ensemble_expected_return", 0.0) or 0.0)
+                            exp_ret_frac = raw_exp_ret / 100.0
+                            hurdle = safety_margin
+
+                        if exp_ret_frac < hurdle:
+                            logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({hurdle:.4%}), skipping.")
                             continue
                     except Exception as _fe:
                         logger.debug(f"[OMS GATE 7] Hurdle check exception for {sym}: {_fe}")
@@ -479,7 +493,8 @@ class ExecutionOMSEngine:
                 # Gate 7.4: Dynamic Adverse Opening Gap Filter (-3 sigma shock protection)
                 try:
                     vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
-                    gap_ret = float(change_pct or 0.0)
+                    raw_gap = float(change_pct or 0.0)
+                    gap_ret = raw_gap / 100.0 if abs(raw_gap) >= 0.35 else raw_gap
                     if action == "BUY" and gap_ret <= -3.0 * max(vol_20d, 0.015):
                         logger.warning(f"[OMS GATE 7.4] {sym} adverse gap {gap_ret:.2%} <= -3sigma, skipping toxic order flow.")
                         continue
@@ -497,7 +512,8 @@ class ExecutionOMSEngine:
                 else:
                     adv_val = 1_000_000_000.0
 
-                raw_quantity = int(target_amount // target_price)
+                effective_target_amount = target_amount if is_krx else (target_amount / fx_rate)
+                raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
                 if is_krx:
                     quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
                 else:
@@ -577,8 +593,10 @@ class ExecutionOMSEngine:
                             hedge_price = 10000.0 if str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() else 50.0
                         hedge_price = self.round_to_tick_size(hedge_price, market=first_market)
 
-                        raw_h_qty = int(h_amount // hedge_price) if hedge_price > 0 else 0
-                        if str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit():
+                        is_krx_hedge = str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
+                        h_amount_local = h_amount if is_krx_hedge else (h_amount / fx_rate)
+                        raw_h_qty = int(h_amount_local // hedge_price) if hedge_price > 0 else 0
+                        if is_krx_hedge:
                             h_quantity = (raw_h_qty // 10) * 10 if raw_h_qty >= 10 else raw_h_qty
                         else:
                             h_quantity = raw_h_qty
@@ -638,7 +656,7 @@ class ExecutionOMSEngine:
             # Determine side from order_plans for directional slippage (BUY: pe > pt is adverse; SELL: pe < pt is adverse)
             action_row = cursor.execute("SELECT action FROM order_plans WHERE order_id = ?", (order_id,)).fetchone()
             action = str(action_row[0]).upper() if action_row and action_row[0] else "BUY"
-            side_sign = 1.0 if action in ["BUY", "LONG"] else -1.0
+            side_sign = 1.0 if (action.startswith("BUY") or action in ["LONG", "BUY_HEDGE"]) else -1.0
 
             if pt <= 0:
                 slippage_bps = 0.0
@@ -766,8 +784,9 @@ class AlmgrenChrissScheduler:
 
         urgency_map = {"fast": 1.0e-3, "medium": 1.0e-5, "slow": 1.0e-7}
         lambda_urg = urgency_map.get(str(strategy_tier).lower(), 1.0e-5)
-        eta = 0.5 * (max(daily_volatility, 0.01) / max(adv, 1.0))
-        kappa = np.sqrt(lambda_urg * (daily_volatility ** 2) / max(eta, 1e-8))
+        # Standardized temporary impact parameter based on participation fraction
+        eta = 0.5 * max(daily_volatility, 0.01)
+        kappa = float(np.clip(np.sqrt(lambda_urg * (daily_volatility ** 2) / max(eta, 1e-8)), 0.01, 3.0))
 
         t = np.linspace(0, 1, n_slices + 1)
         if kappa > 1e-4:
@@ -783,9 +802,19 @@ class AlmgrenChrissScheduler:
         else:
             alloc = np.full(n_slices, total_quantity // n_slices, dtype=int)
 
-        # Reconcile rounding discrepancy to exact total_quantity
+        # Safe reconciliation of integer rounding discrepancies without producing negative tranches
         diff_total = total_quantity - int(np.sum(alloc))
-        alloc[-1] += diff_total
+        if diff_total > 0:
+            for i in range(diff_total):
+                alloc[i % n_slices] += 1
+        elif diff_total < 0:
+            rem = abs(diff_total)
+            for i in range(n_slices - 1, -1, -1):
+                sub = min(alloc[i], rem)
+                alloc[i] -= sub
+                rem -= sub
+                if rem <= 0:
+                    break
         return [int(x) for x in alloc]
 
     @staticmethod

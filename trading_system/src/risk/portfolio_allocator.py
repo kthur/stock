@@ -149,7 +149,7 @@ class PortfolioAllocator:
             blended_semi = semi_cov
 
         diag_stds = np.sqrt(np.maximum(np.diag(blended_semi), 1e-8))
-        reg_target = np.outer(diag_stds, diag_stds) * 0.5
+        reg_target = np.diag(np.diag(blended_semi))
         np.fill_diagonal(reg_target, np.diag(blended_semi))
 
         delta = float(np.clip(shrinkage_intensity, 0.05, 0.30))
@@ -340,7 +340,9 @@ class PortfolioAllocator:
         sigma_l = float(np.std(losses, ddof=1)) if N > 1 else 0.01
         u_quantile = float(np.quantile(losses, quantile_threshold))
         u_volatility = float(np.mean(losses) + 1.5 * sigma_l)
-        u = max(u_quantile, u_volatility)
+        # Guarantee threshold u does not exceed target confidence quantile (u <= q_alpha)
+        u_max_allowed = float(np.quantile(losses, min(0.92, confidence - 0.02)))
+        u = min(max(u_quantile, u_volatility), u_max_allowed)
         exceedances = losses[losses > u] - u
         n_u = len(exceedances)
 
@@ -380,7 +382,7 @@ class PortfolioAllocator:
                 xi = float(xi)
                 beta = float(beta)
                 if beta > 1e-8 and xi < 0.95 and np.isfinite(xi) and np.isfinite(beta):
-                    xi_clamped = min(xi, 0.50)
+                    xi_clamped = float(np.clip(xi, -0.50, 0.50))
                     tail_ratio = (N / n_u) * (1.0 - confidence)
                     if abs(xi_clamped) < 1e-4:
                         var_evt = u - beta * np.log(tail_ratio)
@@ -923,13 +925,19 @@ class PortfolioAllocator:
                 cost_rate=cost_rate,
                 volatility_20d=vol
             )
+            # Scale delta_i relative to target weight for small allocations to prevent L_i collapsing to 0.0
+            if w_targ > 0.0:
+                delta_i = min(delta_i, w_targ * 0.40)
 
             L_i = max(0.0, w_targ - delta_i)
             U_i = w_targ + delta_i
             buffer_bands[sym] = (L_i, U_i, delta_i)
 
-            # Check inside buffer band [L_i, U_i]
-            if L_i <= w_curr <= U_i:
+            # Check inside buffer band [L_i, U_i] (Bypass for new entries w_curr==0 or full exits w_targ==0)
+            is_new_entry = (w_curr == 0.0 and w_targ > 0.0)
+            is_full_exit = (w_targ == 0.0 and w_curr > 0.0)
+
+            if (L_i <= w_curr <= U_i) and not is_new_entry and not is_full_exit:
                 new_weights[sym] = w_curr
                 skipped_count += 1
                 prevented_trade_size = abs(w_curr - w_targ) * portfolio_value
@@ -1384,7 +1392,9 @@ class PortfolioAllocator:
             u = x[N + 1:]
             ret_term = float(np.dot(w, mu))
             risk_term = float(w.T @ cov_mat @ w)
-            turnover_term = float(np.sum((c_vec + turnover_penalty_l1) * np.abs(w - w_prev_vec)))
+            # Pseudo-Huber smooth regularizer restoring C2 differentiability for SLSQP
+            smooth_diff = np.sqrt((w - w_prev_vec) ** 2 + 1e-6)
+            turnover_term = float(np.sum((c_vec + turnover_penalty_l1) * smooth_diff))
             cvar_val = float(alpha + cvar_coef * np.sum(u))
             cvar_penalty = 5.0 * max(0.0, cvar_val - max_cvar_limit)
             return -ret_term + 0.5 * self.risk_aversion * risk_term + turnover_term + cvar_penalty
@@ -1397,15 +1407,10 @@ class PortfolioAllocator:
 
         bounds = [(0.0, eff_max_w) for _ in range(N)] + [(None, None)] + [(0.0, None) for _ in range(T)]
         constraints = [
-            {'type': 'eq', 'fun': lambda x: np.sum(x[:N]) - 1.0}
+            {'type': 'eq', 'fun': lambda x: np.sum(x[:N]) - 1.0},
+            # Single vectorized auxiliary CVaR constraint
+            {'type': 'ineq', 'fun': lambda x: x[N + 1:N + 1 + T] + (r_mat @ x[:N]) + x[N]}
         ]
-
-        # Auxiliary linear CVaR constraints: u_t + r_t^T w + alpha >= 0
-        for t in range(T):
-            constraints.append({
-                'type': 'ineq',
-                'fun': lambda x, t_i=t: x[N + 1 + t_i] + float(np.dot(r_mat[t_i], x[:N])) + x[N]
-            })
 
         # Sector constraints
         if sector_map:

@@ -139,6 +139,12 @@ class EventDrivenEngine(BaseStrategyEngine):
         # Process DART filings if provided or fetched
         eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
         if eff_filings:
+            try:
+                from src.data_layer.dart_corp_mapper import DARTCorpMapper
+                mapper = DARTCorpMapper()
+            except Exception:
+                mapper = None
+
             clean_as_of = str(as_of_date).replace('-', '')[:8] if as_of_date else None
             for item in eff_filings:
                 # Filing timestamp gating: skip future or post-close filings relative to as_of_date
@@ -155,7 +161,11 @@ class EventDrivenEngine(BaseStrategyEngine):
                 for sym in symbols:
                     sym_code = sym.split('.')[0]
                     sym_clean = sym_code.zfill(6) if sym_code.isdigit() else sym
-                    matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code == sym))
+                    mapped_corp = mapper.get_corp_code(sym_clean) if (mapper and sym_clean.isdigit()) else None
+                    matched = (
+                        (stock_code and stock_code == sym_clean) or
+                        (corp_code and (corp_code == sym_clean or corp_code == sym or (mapped_corp and corp_code == mapped_corp)))
+                    )
                     if matched:
                         weight = self.EVENT_WEIGHTS.get(pblntf_ty, 0.5)
                         # Text keyword adjustments with clear directionality
@@ -268,18 +278,27 @@ class EventDrivenEngine(BaseStrategyEngine):
                         match = re.search(r'(?:지분\s*희석|비율|희석률|발행주식총수대비|주식수대비)[^0-9%]{0,20}([0-9]+(?:\.[0-9]+)?)\s*%', combined_text)
                         if not match and '전환가액' not in combined_text and '이자율' not in combined_text:
                             match = re.search(r'([0-9]+(?:\.[0-9]+)?)\s*%', combined_text)
-                        if match:
                             try:
                                 parsed_ratio = float(match.group(1)) / 100.0
                             except (ValueError, TypeError):
                                 parsed_ratio = None
 
-                    dilution_ratio = parsed_ratio if parsed_ratio is not None else self.default_cb_dilution_ratio
+                    dilution_ratio = parsed_ratio if parsed_ratio is not None else 0.08
+
+                    try:
+                        from src.data_layer.dart_corp_mapper import DARTCorpMapper
+                        mapper = DARTCorpMapper()
+                    except Exception:
+                        mapper = None
 
                     for sym in symbols:
                         sym_code = sym.split('.')[0]
                         sym_clean = sym_code.zfill(6) if sym_code.isdigit() else sym
-                        matched = (stock_code and stock_code == sym_clean) or (corp_code and (corp_code == sym_clean or corp_code == sym))
+                        mapped_corp = mapper.get_corp_code(sym_clean) if (mapper and sym_clean.isdigit()) else None
+                        matched = (
+                            (stock_code and stock_code == sym_clean) or
+                            (corp_code and (corp_code == sym_clean or corp_code == sym or (mapped_corp and corp_code == mapped_corp)))
+                        )
                         if matched:
                             res[sym]['cb_bw_ratio'] = max(res[sym]['cb_bw_ratio'], dilution_ratio)
                             if dilution_ratio > 0.05:

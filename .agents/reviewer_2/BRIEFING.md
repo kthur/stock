@@ -1,68 +1,76 @@
-# BRIEFING — 2026-08-15T09:38:00Z
+# BRIEFING — 2026-08-22T07:24:00Z
 
 ## Mission
-Conduct a rigorous, independent quality review and adversarial challenge of Milestone 1 and Milestone 2 implementations (Risk budgeting, EVT-CVaR POT-GPD, Leland dynamic buffer band rebalancing, OMS 6 safety gates, SQLite WAL concurrency, transaction taxes, coverage analyzer, etc.).
+Conduct an independent, rigorous code review and adversarial critique of all 35 tasks (V6-01 ~ V6-35) across Domains 1~5, verify mathematical/econometric soundness, execute regression test suite, and issue a formal Gate Verdict.
 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, critic
 - Working directory: d:\Finance\code\stock\.agents\reviewer_2
-- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Milestone: Review of M1 and M2
+- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Milestone: V6 Implementation Final Audit & Gate Review (V6-01 ~ V6-35)
 - Instance: 2 of 2
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
-- Evidence-based review with integrity verification (no facade/hardcoding/bypassing)
-- Check against project requirements, financial math accuracy, and safety constraints
+- Actively check for integrity violations: hardcoded test results, facade implementations, shortcuts, fabricated verification, self-certifying artifacts.
+- Rigorously verify mathematical formulations: log1p target homomorphism, Leland dynamic buffer bands, EVT POT, Rockafellar-Uryasev CVaR, Black-Litterman C1 continuity, Almgren-Chriss trajectory scheduling, Ledoit-Wolf diagonal semi-covariance shrinkage, Marchenko-Pastur dynamic noise variance, FX currency scaling in OMS.
+- Issue clear verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Updated: 2026-08-15T09:38:00Z
+- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Updated: 2026-08-22T07:24:00Z
 
 ## Review Scope
 - **Files reviewed**:
-  - `trading_system/src/risk/portfolio_allocator.py`
-  - `trading_system/src/execution/oms_engine.py`, `trading_system/src/execution/kill_switch.py`
-  - `trading_system/src/execution/turnover_optimizer.py`
-  - `trading_system/src/persistence/database.py`
-  - `trading_system/src/data_layer/hybrid_storage.py`, `trading_system/src/data_layer/indicator_storage.py`
-  - `trading_system/src/analysis/coverage_analyzer.py`
-  - `trading_system/run_pipeline.py`
-  - Test suites: `tests/test_portfolio_allocator.py`, `tests/test_critical_bugs.py`, `tests/test_m1_1_fixes.py`, `tests/test_r3_coverage_and_universe.py`, `tests/test_database_concurrency.py`, `tests/test_new_27_strategies.py`, `tests/test_isotonic_sharpe_calibration.py`, `tests/test_factor_orthogonalization.py`, `tests/test_institutional_next_level.py`, `tests/test_kelly_sizing.py`.
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `worker_m1/handoff.md`, `worker_m2/handoff.md`
-- **Review criteria**: Correctness, mathematical rigor, live-money safety gates, concurrency integrity, test pass rate.
+  - `system_improvement_report_v6.md` (V6-01 ~ V6-35)
+  - `TEST_READY.md`
+  - `tests/test_v6_improvements.py`
+  - `src/ai/prediction_model.py` (V6-01, V6-04, V6-05)
+  - `src/ai/ensemble_scorer.py` (V6-02, V6-03)
+  - `src/ai/optuna_tuner.py` (V6-06, V6-07)
+  - `src/ai/meta_ensemble_learner.py` (V6-08)
+  - `src/risk/portfolio_allocator.py` (V6-09, V6-11, V6-12, V6-15)
+  - `src/analysis/portfolio_optimizer.py` (V6-10)
+  - `src/risk/risk_manager.py` (V6-13)
+  - `src/analysis/coverage_analyzer.py` (V6-14)
+  - `src/risk/fx_adjusted_covariance.py` (V6-16)
+  - `src/data_layer/earnings_data.py` & `src/core/rim_valuation.py` (V6-17)
+  - `src/core/sector_rotation.py` (V6-18)
+  - `src/core/iv_skew.py` (V6-19)
+  - `src/core/event_driven.py` (V6-20)
+  - `src/core/card_factor.py` (V6-21)
+  - `src/core/mq_factor.py`, `src/core/short_interest_squeeze.py`, `src/core/valueup_catalyst.py`, `src/core/trend_efficiency.py` (V6-22)
+  - `src/core/stat_arb.py` (V6-23)
+  - `src/persistence/database.py` (V6-24)
+  - `src/execution/oms_engine.py` (V6-25, V6-26, V6-27, V6-28)
+  - `src/execution/turnover_optimizer.py` (V6-29)
+  - `src/execution/slippage_feedback.py` (V6-30)
+  - `src/execution/sor_router.py` (V6-31)
+  - `src/config.py` (V6-32, V6-35)
+  - `run_pipeline.py` (V6-33, V6-35)
+  - `generate_run_snapshot.py` (V6-34)
 
 ## Review Checklist
-- **Items reviewed**:
-  1. EVT-CVaR (POT GPD with 3-tier fallback): VERIFIED PASS
-  2. Leland dynamic buffer band rebalancing: VERIFIED PASS (reduces friction costs >= 60%)
-  3. OMS 6 live-money safety gates: VERIFIED PASS
-  4. SQLite WAL concurrency: VERIFIED PASS (zero lock errors across 20 threads)
-  5. Transaction tax rates: VERIFIED PASS (0.15% KOSPI, 0.18% KOSDAQ, 0.08% KONEX)
-  6. Coverage analyzer bar threshold logic: VERIFIED PASS (>= 20 bar threshold)
-  7. Turnover optimizer logging format fix: VERIFIED PASS (`%s` with `f"{...}"`)
-  8. 31-strategy Isotonic & Platt calibrator expansion: VERIFIED PASS
+- **Items reviewed**: 35 of 35 tasks (V6-01 ~ V6-35)
 - **Verdict**: APPROVE
-- **Unverified claims**: None. All core and edge claims independently verified.
+- **Unverified claims**: None (100% verified against code and test runner)
 
 ## Attack Surface
-- **Hypotheses tested**:
-  - Small sample / extreme / NaN input stability in EVT-CVaR
-  - Boundary vs target rebalance modes in Leland buffer bands
-  - Adversarial injection, corrupted symbols, extreme price anomalies, kill switch activation in OMS
-  - Multi-threaded lock contention under heavy write load in SQLite WAL
-  - Format string vulnerabilities in logging
-- **Vulnerabilities found**: None. All components have defensive validation, clamping, and fallbacks.
-- **Untested angles**: Live exchange API connectivity (out of offline scope, validated with dry-run/mock).
+- **Hypotheses tested**: 
+  - Regressor target domain mismatch (verified `transform_sharpe`)
+  - Small allocation buffer collapse (verified $\delta_i \le 0.40 w_{\text{targ}}$ and bypass)
+  - Black-Litterman negative excess gradient explosion (verified $C^1$ quadratic smoothing)
+  - EVT POT quantile inversion (verified $u \le q_\alpha$ ceiling)
+  - OMS cross-currency order explosion (verified USD/KRW denominator scaling)
+- **Vulnerabilities found**: None remaining in audited codebase
+- **Untested angles**: Extreme long-tail currency devaluations (>5,000 KRW/USD) handled safely via positive clipping.
 
 ## Key Decisions Made
-- Confirmed full compliance with PROJECT.md and ORIGINAL_REQUEST.md requirements.
-- Issued verdict: `APPROVE`.
+- Confirmed full compliance with econometric and systems engineering standards.
+- Issued formal Gate Verdict: APPROVE.
 
 ## Artifact Index
-- `.agents/reviewer_2/DISPATCH.md` — Incoming dispatch logs
-- `.agents/reviewer_2/BRIEFING.md` — Working memory and status
-- `.agents/reviewer_2/progress.md` — Liveness and step tracking
-- `.agents/reviewer_2/stress_test.py` — Adversarial test harness
-- `.agents/reviewer_2/handoff.md` — Final review report and verdict
+- `d:\Finance\code\stock\.agents\reviewer_2\BRIEFING.md` — Working memory
+- `d:\Finance\code\stock\.agents\reviewer_2\progress.md` — Progress tracker & heartbeat
+- `d:\Finance\code\stock\.agents\reviewer_2\handoff.md` — Comprehensive review & verdict report

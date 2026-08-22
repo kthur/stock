@@ -1,49 +1,55 @@
-# BRIEFING — 2026-08-15T09:40:10Z
+# BRIEFING — 2026-08-22T07:22:20Z
 
 ## Mission
-Empirically and adversarially stress-test Portfolio Allocator & Risk Engine (EVT-CVaR, Leland buffer bands, Quarter-Kelly sizing, SLSQP non-linear EVT-CVaR optimization).
+Adversarial Quantitative Stress-Testing of V6-01 ~ V6-35 improvements across degenerate inputs, crisis scenarios, and high-load simulations.
 
 ## 🔒 My Identity
-- Archetype: EMPIRICAL CHALLENGER
+- Archetype: challenger
 - Roles: critic, specialist
-- Working directory: d:\Finance\code\stock\.agents\challenger_1
-- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Milestone: Adversarial Testing - Portfolio Allocator & Risk Engine
+- Working directory: d:\Finance\code\stock\.agents\challenger_1\
+- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Milestone: V6 Verification & Adversarial Stress Testing
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (report findings/bugs in handoff)
-- Empirically verify everything via executable test scripts/code
-- Never trust claims without running tests
+- Review-only — do NOT modify implementation code directly unless authorized
+- Empirically verify everything via execution of tests, generators, and stress harnesses
+- Output explicit Gate Verdict (APPROVE or REQUEST_CHANGES)
 
 ## Current Parent
-- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Updated: 2026-08-15T09:40:10Z
+- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Updated: 2026-08-22T07:22:20Z
 
 ## Review Scope
-- **Files reviewed**: `src/risk/portfolio_allocator.py`, `src/risk/portfolio_optimizer.py`, `src/risk/risk_manager.py`, `src/analysis/portfolio_optimizer.py`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `explorer_survey_2/handoff.md`
-- **Review criteria**: Robustness against degenerate inputs, heavy tails, extreme volatility/costs, numerical stability of EVT-CVaR, SLSQP optimization, Kelly sizing, Leland buffer bands.
-
-## Key Decisions Made
-- Implemented and executed 30 adversarial stress test cases in `tests/test_challenger_portfolio_stress.py`.
-- Verified all 4 challenge dimensions empirically with strict numerical assertions.
-- Concluded with verdict `APPROVE` based on 100% pass rate across 68 risk and portfolio tests.
+- **Files to review**:
+  - `system_improvement_report_v6.md`
+  - `TEST_READY.md`
+  - `tests/test_v6_improvements.py`
+  - `tests/test_v6_adversarial_stress.py`
+  - Core implementation modules under `src/` and `trading_system/`
+- **Review criteria**: Robustness against degenerate inputs, crisis regimes, numerical stability, zero-division hazards, memory/performance.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - EVT-CVaR fails under infinite variance (Student-t df=2, Pareto b=1.2, Cauchy) -> Tested & Disproven (GPD shape clamped to 0.50, Tier 1/2/3 fallbacks operate flawlessly).
-  - Leland buffer bands collapse or diverge under 0% or 500% volatility -> Tested & Disproven (Clamping to [0.005, 0.050] and floor vol 0.005 prevent breakdown).
-  - Quarter-Kelly and SLSQP non-linear optimization produce NaN/Inf or negative weights under degenerate inputs -> Tested & Disproven (Ledoit-Wolf shrinkage, fallbacks, and boundary clipping prevent invalid outputs).
-- **Vulnerabilities found**: None in core mathematics or bounding safeguards.
-- **Untested angles**: Live real-time WebSocket market microstructure latency (outside simulation scope).
+  1. Factor engines under $N=1$ single-stock cross sections might divide by zero or saturate at 0.98. (Result: Tested via `test_adv_n1_degenerate_across_all_factor_engines` - confirmed neutral 0.50).
+  2. Leland buffer bands might block 100% liquidations or fresh position initiations. (Result: Tested via `test_adv_empty_portfolios_and_zero_weights_handling` - confirmed bypass works).
+  3. OMS engine might raise `ZeroDivisionError` or generate 1,350x explosive quantities under 0/negative FX rates. (Result: Tested via `test_adv_zero_and_extreme_fx_rates_in_oms` - fallback to default 1350.0).
+  4. CrisisDetector recovery mode might become stuck or fail to apply 0.70 WATCH haircut. (Result: Tested via `test_adv_rapid_multi_regime_flapping_and_recovery_decay`).
+  5. Singular covariance matrices might crash Black-Litterman and Risk Parity SLSQP optimizers. (Result: Tested via `test_adv_singular_collinear_covariance_in_portfolio_optimizers`).
+  6. 200-asset large-scale CVaR optimization and 100-symbol OMS order generation across 5 markets might exhaust memory or diverge. (Result: Tested via `TestAdversarialLargeScaleSimulations`).
+- **Vulnerabilities found**: None in V6 implementations; all edge cases handled robustly.
+- **Untested angles**: Full production run against live network market APIs (guarded by demo integrity mode).
 
 ## Loaded Skills
-- None
+- None required.
+
+## Key Decisions Made
+- Executed `test_v6_improvements.py` (45/45 pass).
+- Authored and executed dedicated stress testing harness `tests/test_v6_adversarial_stress.py` covering degenerate, crisis, and large-scale simulation vectors.
 
 ## Artifact Index
 - `.agents/challenger_1/DISPATCH.md` — Initial dispatch message
-- `.agents/challenger_1/BRIEFING.md` — Agent state and briefing
-- `.agents/challenger_1/progress.md` — Progress tracker
-- `.agents/challenger_1/handoff.md` — Final challenge report
-- `tests/test_challenger_portfolio_stress.py` — 30-scenario adversarial empirical test suite
+- `.agents/challenger_1/progress.md` — Liveness and execution heartbeat
+- `.agents/challenger_1/BRIEFING.md` — Situational awareness
+- `.agents/challenger_1/handoff.md` — Final handoff report
+- `tests/test_v6_adversarial_stress.py` — Quantitative stress-test suite

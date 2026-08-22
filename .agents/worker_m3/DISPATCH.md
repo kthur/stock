@@ -1,56 +1,28 @@
-# DISPATCH — Worker M3: Backtest, Pytest Regression & Pipeline Validation Specialist
+## 2026-08-21T16:31:45Z
+Worker: worker_m3
+Domain: Domain 2 Implementation Worker (V6-09 ~ V6-16)
+Working directory: d:\Finance\code\stock\.agents\worker_m3\
 
-## Task Assignment
-- Working Directory: `d:\Finance\code\stock\.agents\worker_m3`
-- Reference Files:
-  - `d:\Finance\code\stock\ORIGINAL_REQUEST.md` (MUST READ FIRST)
-  - `d:\Finance\code\stock\PROJECT.md`
-  - `d:\Finance\code\stock\TEST_INFRA.md`
-  - `d:\Finance\code\stock\.agents\explorer_m3_1\handoff.md` (Backtest details)
-  - `d:\Finance\code\stock\.agents\explorer_m3_2\handoff.md` (Pytest regression details)
-  - `d:\Finance\code\stock\.agents\explorer_m3_3\handoff.md` (Pipeline & Dashboard details)
+Mandatory inputs:
+1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+2. d:\Finance\code\stock\system_improvement_report_v6.md (Sections 3.1~3.8 for Domain 2: V6-09 ~ V6-16)
+3. d:\Finance\code\stock\.agents\explorer_2\analysis.md (Domain 2 section)
+4. d:\Finance\code\stock\AGENTS.md
 
-## Mandatory Integrity Warning
-DO NOT CHEAT. All implementations must be genuine. DO NOT hardcode test results, create dummy/facade implementations, or circumvent the intended task. A teamwork_preview_auditor will independently verify your work. Integrity violations WILL be detected and your work WILL be rejected.
+Exclusive Write Ownership:
+- `src/risk/portfolio_allocator.py`
+- `src/analysis/portfolio_optimizer.py`
+- `src/risk/risk_manager.py`
+- `src/analysis/coverage_analyzer.py`
+- `src/analysis/fx_adjusted_covariance.py`
+- Related tests in `tests/` for Domain 2
 
-## Detailed Work Instructions
-1. **Comparative Rolling Backtest Verification (F8)**:
-   - Execute comparative backtest:
-     ```powershell
-     cd d:\Finance\code\stock\trading_system
-     $env:BACKTEST_YEARS = "5"
-     ..\.venv\Scripts\python.exe scripts\compare_backtests.py
-     ```
-   - Verify generation of `trading_system/scripts/backtest_comparison_results.csv` and inspect output metrics.
-   - Run backtest unit tests:
-     ```powershell
-     cd d:\Finance\code\stock
-     .venv\Scripts\python.exe -m pytest tests/test_backtest.py tests/test_cpcv_stress_tester.py -v
-     ```
-
-2. **Full Pytest Regression Suite Execution (F9)**:
-   - Run the complete 1,600-test regression suite across `tests/` and `trading_system/tests/`:
-     ```powershell
-     .venv\Scripts\python.exe -m pytest -v --tb=short
-     ```
-   - Ensure 100% tests PASS (0 failures, 0 errors). Document exact test counts.
-
-3. **Pipeline Execution & GitHub Pages Report Verification (F10)**:
-   - Run the trading system prediction pipeline:
-     ```powershell
-     .venv\Scripts\python.exe trading_system\run_pipeline.py --debug --skip-training
-     ```
-   - Verify output prediction files in `trading_system/result/`:
-     - `ensemble_predictions.txt`
-     - `factor_neutralized_predictions.txt`
-     - `strategy_data_coverage_report.txt`
-     - `portfolio_allocation.txt`
-     - `backtest_summary.json`
-   - Verify `gh-pages/index.html` generation:
-     ```powershell
-     .venv\Scripts\python.exe trading_system\scripts\verify_gha_artifacts.py --result-dir trading_system\result --gh-pages-dir gh-pages
-     ```
-
-4. **Handoff Documentation**:
-   - Write complete results, commands executed, terminal outputs, and metric summaries to `d:\Finance\code\stock\.agents\worker_m3\handoff.md`.
-   - Send completion message to parent orchestrator.
+Tasks:
+- V6-09: Fix Leland dynamic buffer band boundary collapse (w_curr=0, w_targ=0) in `src/risk/portfolio_allocator.py` (scale \delta_i \le 0.40 w_{targ} and explicitly bypass buffer checks for w_{curr}=0 and w_{targ}=0).
+- V6-10: Fix Black-Litterman piecewise step discontinuity & gradient explosion in `src/analysis/portfolio_optimizer.py` (smooth quadratic penalty and global problem formulation).
+- V6-11: Fix EVT-POT quantile inversion (u \le q_\alpha) and non-regular GPD shape bounds (\xi \in [-0.5, 0.5]) in `src/risk/portfolio_allocator.py`.
+- V6-12: Fix Rockafellar-Uryasev convex CVaR L1 smoothing (Pseudo-Huber) & vectorized constraint callbacks in `src/risk/portfolio_allocator.py`.
+- V6-13: Fix CrisisDetector recovery latch suppressing WATCH defensive haircuts in `src/risk/risk_manager.py` (auto-reset at day 20, gate recovery multiplier strictly on `CrisisLevel.NONE`).
+- V6-14: Fix primary missing reason frequency selector distortion in `src/analysis/coverage_analyzer.py` (`max(reasons, key=reasons.get)`).
+- V6-15: Fix downside co-semivariance equicorrelation shrinkage erasing negative hedging benefits in `src/risk/portfolio_allocator.py` / `src/analysis/portfolio_optimizer.py` (Ledoit-Wolf diagonal variance target).
+- V6-16: Fix RMT Marchenko-Pastur residual eigenvalue noise variance over-shrinking in `src/analysis/fx_adjusted_covariance.py` (dynamic residual variance excluding market mode \lambda_1).

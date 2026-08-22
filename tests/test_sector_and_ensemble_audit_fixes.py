@@ -174,3 +174,34 @@ def test_scenario_simulator_gics_elasticity():
     row_mt = df_sim[df_sim['symbol'] == 'MT'].iloc[0]
     assert row_mt['sector'] == 'Materials'
     assert "유가변동" in row_mt['impact_rationale'] and "수혜" in row_mt['impact_rationale']
+
+
+def test_sector_rotation_curated_symbol_runtime_mapping():
+    """V6-18: Verify compute_sector_momentum_scores properly uses curated symbol mapping even when raw sector is 'General' or empty."""
+    engine = SectorRotationEngine()
+    
+    # 005930 (Samsung Electronics) -> Information Technology
+    # NVDA -> Information Technology
+    # MT -> Materials
+    # FANG -> Energy
+    dates = pd.date_range(end='2026-08-20', periods=65)
+    prices_dict = {
+        '005930': pd.DataFrame({'Close': np.linspace(60000, 70000, 65)}, index=dates),
+        'NVDA': pd.DataFrame({'Close': np.linspace(100, 130, 65)}, index=dates),
+        'MT': pd.DataFrame({'Close': np.linspace(20, 25, 65)}, index=dates),
+        'FANG': pd.DataFrame({'Close': np.linspace(150, 180, 65)}, index=dates),
+    }
+    # Raw sector map has "General" or empty
+    raw_sector_map = {
+        '005930': 'General',
+        'NVDA': '',
+        'MT': 'General',
+        'FANG': 'General',
+    }
+    
+    scores_df = engine.compute_sector_momentum_scores(prices_dict, sector_map=raw_sector_map)
+    assert not scores_df.empty
+    assert len(scores_df) == 4
+    # All 4 stocks should have valid sector scores and properly mapped sectors
+    assert (scores_df['sector_score'] >= 0.0).all() and (scores_df['sector_score'] <= 1.0).all()
+

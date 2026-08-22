@@ -281,6 +281,9 @@ class CrisisDetector:
                 self._check_recovery(safe_vix, safe_dd)
                 if self._recovery_mode:
                     self._recovery_days = (self._recovery_days or 0) + 1
+                    if self._recovery_days >= 20:
+                        self._recovery_mode = False
+                        self._recovery_days = 0
 
         if self.crisis_level != previous:
             vix_str = f"{float(vix):.1f}" if (vix is not None and isinstance(vix, (int, float)) and np.isfinite(vix)) else "N/A"
@@ -415,7 +418,7 @@ class CrisisDetector:
             CrisisLevel.SEVERE: 0.85,
         }
         base = targets.get(self.crisis_level, 0.10)
-        if self._recovery_mode:
+        if self._recovery_mode and self.crisis_level == CrisisLevel.NONE:
             progress = min(1.0, (self._recovery_days or 1) / 20.0)
             return 0.10 + (base - 0.10) * (1.0 - progress)
         return base
@@ -428,7 +431,7 @@ class CrisisDetector:
             CrisisLevel.SEVERE: 0.15,
         }
         base = multipliers.get(self.crisis_level, 1.0)
-        if self._recovery_mode:
+        if self._recovery_mode and self.crisis_level == CrisisLevel.NONE:
             progress = min(1.0, (self._recovery_days or 1) / 20.0)
             return 0.15 + (1.0 - 0.15) * progress
         return base

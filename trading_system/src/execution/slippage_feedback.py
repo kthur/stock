@@ -71,65 +71,68 @@ class SlippageFeedbackEngine:
             conn = sqlite3.connect(self.db_path, timeout=30.0)
             conn.execute("PRAGMA journal_mode = WAL;")
             conn.execute("PRAGMA busy_timeout = 30000;")
-            cursor = conn.cursor()
+            try:
+                cursor = conn.cursor()
 
-            # Check if order_plans / execution_logs or trade_logs exist
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [r[0] for r in cursor.fetchall()]
+                # Check if order_plans / execution_logs or trade_logs exist
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [r[0] for r in cursor.fetchall()]
 
-            slippages = []
-            mkt_slippage: dict[str, list[float]] = {
-                "KOSPI": [],
-                "KOSDAQ": [],
-                "SP500": [],
-                "NASDAQ": [],
-                "RUSSELL2000": [],
-            }
+                slippages = []
+                mkt_slippage: dict[str, list[float]] = {
+                    "KOSPI": [],
+                    "KOSDAQ": [],
+                    "SP500": [],
+                    "NASDAQ": [],
+                    "RUSSELL2000": [],
+                }
 
-            if "execution_logs" in tables and "order_plans" in tables:
-                cursor.execute("""
-                    SELECT p.market, p.action, p.target_price, e.executed_price
-                    FROM execution_logs e
-                    JOIN order_plans p ON e.order_id = p.order_id
-                    WHERE e.executed_price IS NOT NULL AND p.target_price > 0
-                """)
-                rows = cursor.fetchall()
-                import math
-                for mkt, act, p_target, p_exec in rows:
-                    try:
-                        pt = float(p_target) if (p_target is not None and math.isfinite(float(p_target))) else 0.0
-                        pe = float(p_exec) if (p_exec is not None and math.isfinite(float(p_exec))) else 0.0
-                    except (ValueError, TypeError):
-                        continue
-                    if pt > 0 and pe > 0:
-                        sign = 1.0 if str(act).strip().upper() in ["BUY", "LONG"] else -1.0
-                        slip_bps = sign * ((pe - pt) / pt) * 10000.0
-                        if math.isfinite(slip_bps):
-                            slippages.append(slip_bps)
-                            if mkt in mkt_slippage:
-                                mkt_slippage[mkt].append(slip_bps)
+                if "execution_logs" in tables and "order_plans" in tables:
+                    cursor.execute("""
+                        SELECT p.market, p.action, p.target_price, e.executed_price
+                        FROM execution_logs e
+                        JOIN order_plans p ON e.order_id = p.order_id
+                        WHERE e.executed_price IS NOT NULL AND p.target_price > 0
+                    """)
+                    rows = cursor.fetchall()
+                    import math
+                    for mkt, act, p_target, p_exec in rows:
+                        try:
+                            pt = float(p_target) if (p_target is not None and math.isfinite(float(p_target))) else 0.0
+                            pe = float(p_exec) if (p_exec is not None and math.isfinite(float(p_exec))) else 0.0
+                        except (ValueError, TypeError):
+                            continue
+                        if pt > 0 and pe > 0:
+                            act_str = str(act).strip().upper()
+                            sign = 1.0 if (act_str.startswith("BUY") or act_str in ["LONG", "BUY_HEDGE"]) else -1.0
+                            slip_bps = sign * ((pe - pt) / pt) * 10000.0
+                            if math.isfinite(slip_bps):
+                                slippages.append(slip_bps)
+                                if mkt in mkt_slippage:
+                                    mkt_slippage[mkt].append(slip_bps)
 
-            elif "trade_logs" in tables:
-                import math
-                cursor.execute(
-                    "SELECT market, side, expected_price, fill_price FROM trade_logs WHERE fill_price IS NOT NULL AND expected_price > 0"
-                )
-                rows = cursor.fetchall()
-                for mkt, side, p_exp, p_fill in rows:
-                    try:
-                        pe = float(p_exp) if (p_exp is not None and math.isfinite(float(p_exp))) else 0.0
-                        pf = float(p_fill) if (p_fill is not None and math.isfinite(float(p_fill))) else 0.0
-                    except (ValueError, TypeError):
-                        continue
-                    if pe > 0 and pf > 0:
-                        sign = 1.0 if str(side).strip().upper() in ["BUY", "LONG"] else -1.0
-                        slip_bps = sign * ((pf - pe) / pe) * 10000.0
-                        if math.isfinite(slip_bps):
-                            slippages.append(slip_bps)
-                            if mkt in mkt_slippage:
-                                mkt_slippage[mkt].append(slip_bps)
-
-            conn.close()
+                elif "trade_logs" in tables:
+                    import math
+                    cursor.execute(
+                        "SELECT market, side, expected_price, fill_price FROM trade_logs WHERE fill_price IS NOT NULL AND expected_price > 0"
+                    )
+                    rows = cursor.fetchall()
+                    for mkt, side, p_exp, p_fill in rows:
+                        try:
+                            pe = float(p_exp) if (p_exp is not None and math.isfinite(float(p_exp))) else 0.0
+                            pf = float(p_fill) if (p_fill is not None and math.isfinite(float(p_fill))) else 0.0
+                        except (ValueError, TypeError):
+                            continue
+                        if pe > 0 and pf > 0:
+                            side_str = str(side).strip().upper()
+                            sign = 1.0 if (side_str.startswith("BUY") or side_str in ["LONG", "BUY_HEDGE"]) else -1.0
+                            slip_bps = sign * ((pf - pe) / pe) * 10000.0
+                            if math.isfinite(slip_bps):
+                                slippages.append(slip_bps)
+                                if mkt in mkt_slippage:
+                                    mkt_slippage[mkt].append(slip_bps)
+            finally:
+                conn.close()
 
             valid_slippages = [s for s in slippages if math.isfinite(s)]
 

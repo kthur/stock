@@ -527,7 +527,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             )
 
             pass_mask = (p_vals <= eff_max_pvalue) & (half_lives >= min_half_life) & (half_lives <= max_half_life)
-            logger.info(f"DEBUG: p_vals={p_vals}, half_lives={half_lives}, min_hl={min_half_life}, max_hl={max_half_life}, eff_pval={eff_max_pvalue}, pass_mask={pass_mask}")
+            logger.debug(f"[StatArb Batch] Total pairs: {len(pass_mask)}, Passed ADF & Half-Life: {int(pass_mask.sum())}")
 
             final_idx = np.where(pass_mask)[0]
             for idx in final_idx:

@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import os
@@ -39,7 +40,7 @@ MARKET_COST_REGISTRY = {
 }
 
 def _build_market_lookup_table():
-    registry = dict(MARKET_COST_REGISTRY)
+    registry = {k: dict(v) for k, v in MARKET_COST_REGISTRY.items()}
     env_costs = os.environ.get("MARKET_COSTS_JSON")
     if env_costs:
         try:
@@ -289,6 +290,9 @@ class TradingConfig:
         self.vcp_volume_surge_ratio = _get_env_float("VCP_VOLUME_SURGE_RATIO", self.vcp_volume_surge_ratio)
         self.sentiment_risk_threshold = _get_env_float("SENTIMENT_RISK_THRESHOLD", self.sentiment_risk_threshold)
         self.ensemble_return_multiplier = _get_env_float("ENSEMBLE_RETURN_MULTIPLIER", self.ensemble_return_multiplier)
+        self.min_daily_volume_krx = _get_env_float("MIN_DAILY_VOLUME_KRX", self.min_daily_volume_krx)
+        self.min_daily_volume_sp500 = _get_env_float("MIN_DAILY_VOLUME_SP500", self.min_daily_volume_sp500)
+        self.slippage_krx_market_order = _get_env_float("SLIPPAGE_KRX_MARKET_ORDER", self.slippage_krx_market_order)
         self.order_size_krx = _get_env_float("ORDER_SIZE_KRX", self.order_size_krx)
         self.order_size_sp500 = _get_env_float("ORDER_SIZE_SP500", self.order_size_sp500)
         self.market_impact_coeff_krx = _get_env_float("MARKET_IMPACT_COEFF_KRX", self.market_impact_coeff_krx)
@@ -300,8 +304,24 @@ class TradingConfig:
         self.base_spread_nasdaq = _get_env_float("BASE_SPREAD_NASDAQ", self.base_spread_nasdaq)
         self.base_spread_russell2000 = _get_env_float("BASE_SPREAD_RUSSELL2000", self.base_spread_russell2000)
         self.base_spread_sp500 = _get_env_float("BASE_SPREAD_SP500", self.base_spread_sp500)
+        self.base_spread_china = _get_env_float("BASE_SPREAD_CHINA", self.base_spread_china)
+        self.base_spread_japan = _get_env_float("BASE_SPREAD_JAPAN", self.base_spread_japan)
+        self.base_spread_india = _get_env_float("BASE_SPREAD_INDIA", self.base_spread_india)
+        self.base_spread_europe = _get_env_float("BASE_SPREAD_EUROPE", self.base_spread_europe)
+        self.base_spread_vietnam = _get_env_float("BASE_SPREAD_VIETNAM", self.base_spread_vietnam)
+        self.base_spread_taiwan = _get_env_float("BASE_SPREAD_TAIWAN", self.base_spread_taiwan)
+        self.base_spread_australia = _get_env_float("BASE_SPREAD_AUSTRALIA", self.base_spread_australia)
+        self.base_spread_brazil = _get_env_float("BASE_SPREAD_BRAZIL", self.base_spread_brazil)
+        self.base_spread_hkex = _get_env_float("BASE_SPREAD_HKEX", self.base_spread_hkex)
+        self.base_spread_singapore = _get_env_float("BASE_SPREAD_SINGAPORE", self.base_spread_singapore)
+        self.base_spread_canada = _get_env_float("BASE_SPREAD_CANADA", self.base_spread_canada)
         self.default_volatility_krx = _get_env_float("DEFAULT_VOLATILITY_KRX", self.default_volatility_krx)
         self.default_volatility_sp500 = _get_env_float("DEFAULT_VOLATILITY_SP500", self.default_volatility_sp500)
+        self.default_volatility_global = _get_env_float("DEFAULT_VOLATILITY_GLOBAL", self.default_volatility_global)
+
+        # Net Alpha & Price Limit Parameters
+        self.oms_net_alpha_safety_margin = _get_env_float("OMS_NET_ALPHA_SAFETY_MARGIN", self.oms_net_alpha_safety_margin)
+        self.oms_limit_up_lock_threshold = _get_env_float("OMS_LIMIT_UP_LOCK_THRESHOLD", self.oms_limit_up_lock_threshold)
 
         # Capital & Realtime Trading parameters
         cap_val = os.environ.get("PORTFOLIO_CAPITAL_KRW") or os.environ.get("INITIAL_CASH")

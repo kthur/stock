@@ -60,5 +60,39 @@ class TestPipelineIntegration(unittest.TestCase):
         # Verify that pipeline dependencies can be mocked and tested cleanly
         self.assertTrue(True)
 
+    @patch('trading_system.run_pipeline.GlobalMarketClient')
+    def test_execute_pipeline_failure_lifecycle_and_db_cleanup(self, mock_client):
+        """V6-33: Verify that on unhandled exception in execute_prediction_pipeline, status='FAILED' is recorded and DB is closed."""
+        import tempfile
+        import shutil
+        from trading_system.run_pipeline import execute_prediction_pipeline
+        from src.data_layer.indicator_storage import MarketIndicatorStorage
+
+        temp_dir = tempfile.mkdtemp()
+        test_db = os.path.join(temp_dir, "test_market_indicators.db")
+        old_env = dict(os.environ)
+        try:
+            os.environ["DB_PATH"] = test_db
+            os.environ["OUTPUT_RESULT_DIR"] = os.path.join(temp_dir, "result")
+            # Force an exception during pipeline execution
+            mock_client.return_value.get_summary.side_effect = RuntimeError("Simulated fatal execution crash")
+            with patch('trading_system.run_pipeline.MarketIndicatorStorage.get_universe', side_effect=RuntimeError("Fatal pipeline crash")):
+                with self.assertRaises(RuntimeError):
+                    execute_prediction_pipeline()
+
+            # Verify in DB that run was recorded with status='FAILED' and error_summary
+            storage = MarketIndicatorStorage(db_path=test_db)
+            with storage._connect() as conn:
+                row = conn.execute("SELECT status, error_summary FROM pipeline_run_history ORDER BY start_time DESC LIMIT 1").fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[0], "FAILED")
+                self.assertIn("Fatal pipeline crash", row[1])
+            storage.close()
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 if __name__ == '__main__':
     unittest.main()

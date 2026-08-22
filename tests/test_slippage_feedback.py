@@ -230,3 +230,71 @@ def test_forwarder_imports():
     orig_inst = OrigEngine()
     assert type(fwd_inst.calculate_realized_slippage()) is FwdMetrics
     assert type(orig_inst.calculate_realized_slippage()) is OrigMetrics
+
+
+def test_v6_30_buy_hedge_slippage_sign_and_db_closure(tmp_path):
+    db_file = str(tmp_path / "test_buy_hedge_slippage.db")
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE order_plans (
+            order_id TEXT PRIMARY KEY, symbol TEXT NOT NULL, name TEXT, market TEXT, action TEXT,
+            target_weight REAL, target_amount REAL, target_price REAL, status TEXT, created_at TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE execution_logs (
+            execution_id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL, symbol TEXT NOT NULL,
+            target_price REAL NOT NULL, executed_price REAL NOT NULL, slippage_bps REAL NOT NULL,
+            executed_volume INTEGER NOT NULL, executed_at TEXT NOT NULL
+        )
+    """)
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # BUY_HEDGE: target=10000, executed=10050 -> adverse slippage = +50 bps
+    cursor.execute("INSERT INTO order_plans VALUES ('ORD_H1', '252670.KS', 'KODEX 200선물인버스2X', 'KOSPI', 'BUY_HEDGE', 0.1, 100000, 10000.0, 'EXECUTED', ?)", (now_str,))
+    cursor.execute("INSERT INTO execution_logs (order_id, symbol, target_price, executed_price, slippage_bps, executed_volume, executed_at) VALUES ('ORD_H1', '252670.KS', 10000.0, 10050.0, 0.0, 100, ?)", (now_str,))
+
+    # SELL: target=10000, executed=9950 -> adverse slippage = +50 bps
+    cursor.execute("INSERT INTO order_plans VALUES ('ORD_S1', '005930.KS', 'Samsung', 'KOSPI', 'SELL', 0.1, 100000, 10000.0, 'EXECUTED', ?)", (now_str,))
+    cursor.execute("INSERT INTO execution_logs (order_id, symbol, target_price, executed_price, slippage_bps, executed_volume, executed_at) VALUES ('ORD_S1', '005930.KS', 10000.0, 9950.0, 0.0, 100, ?)", (now_str,))
+
+    conn.commit()
+    conn.close()
+
+    engine = SlippageFeedbackEngine(db_path=db_file, default_slippage_bps=5.0)
+    metrics = engine.calculate_realized_slippage()
+
+    assert metrics.sample_count == 2
+    assert pytest.approx(metrics.avg_slippage_bps, abs=0.1) == 50.0
+    assert metrics.cost_scaling_factor >= 2.5
+
+
+def test_v6_30_trade_logs_buy_hedge_sign(tmp_path):
+    db_file = str(tmp_path / "test_trade_logs_hedge.db")
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE trade_logs (
+            trade_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market TEXT,
+            side TEXT,
+            expected_price REAL,
+            fill_price REAL
+        )
+    """)
+    cursor.execute("INSERT INTO trade_logs (market, side, expected_price, fill_price) VALUES ('KOSPI', 'BUY_HEDGE', 10000.0, 10030.0)")
+    cursor.execute("INSERT INTO trade_logs (market, side, expected_price, fill_price) VALUES ('SP500', 'BUY', 100.0, 100.20)")
+    conn.commit()
+    conn.close()
+
+    engine = SlippageFeedbackEngine(db_path=db_file, default_slippage_bps=5.0)
+    metrics = engine.calculate_realized_slippage()
+
+    assert metrics.sample_count == 2
+    assert metrics.market_slippage_map['KOSPI'] == pytest.approx(30.0, abs=0.1)
+    assert metrics.market_slippage_map['SP500'] == pytest.approx(20.0, abs=0.1)
+

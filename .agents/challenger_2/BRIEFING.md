@@ -1,50 +1,46 @@
-# BRIEFING — 2026-08-15T09:38:30Z
+# BRIEFING — 2026-08-22T07:21:00+09:00
 
 ## Mission
-Adversarially and empirically stress-test the 31-Strategy Ensemble & Calibration Pipeline.
+Adversarial stress testing and empirical challenge of Data & Execution Systems for V6 improvements: Execution OMS, Turnover Optimizer, Smart Order Router, Almgren-Chriss Scheduler, Data Validator Reverse Stock Split Detection, and Indicator Storage under extreme/abnormal conditions.
 
 ## 🔒 My Identity
-- Archetype: challenger
+- Archetype: empirical challenger
 - Roles: critic, specialist
-- Working directory: d:\Finance\code\stock\.agents\challenger_2
-- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Milestone: 31-Strategy Ensemble & Calibration Stress Test
-- Instance: 2 of 2
+- Working directory: D:\Finance\code\stock\.agents\challenger_2
+- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Milestone: V6 Implementation Empirical Verification
+- Instance: challenger_2
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code
-- Run verification code empirically using python in .venv
-- Test all 4 mission requirements thoroughly
+- Review and challenge only — empirical verification with code execution
+- Do NOT trust unverified claims; write reproducible stress test scripts and harnesses
+- Test failure modes, boundary conditions, edge cases, race conditions, extreme values, NaN/Inf
+- Issue explicit Gate Verdict: APPROVE or REQUEST_CHANGES
 
 ## Current Parent
-- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Updated: 2026-08-15T09:38:30Z
+- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Updated: 2026-08-22T07:21:00+09:00
 
 ## Review Scope
-- **Files to review**: `src/ai/ensemble_scorer.py`, `src/ai/factor_orthogonalizer.py`, `src/ai/factor_suppression.py`, `tests/`
-- **Interface contracts**: `PROJECT.md`, `ORIGINAL_REQUEST.md`, `explorer_survey_1/handoff.md`
-- **Review criteria**: Empirical stability, numerical edge cases, rank deficiency, extreme distributions, regime weight sum = 1.000, output bounds [0.0, 1.0].
+- **Target Subsystems**:
+  1. Execution OMS (`src/execution/order_manager.py`, Gates 1-7, USD/KRW FX conversion, return scales, friction)
+  2. Turnover Optimizer (`src/risk/portfolio_allocator.py` / `TurnoverOptimizer`, hysteresis damping, boundary exits/entries)
+  3. Smart Order Router (`src/execution/smart_router.py`, venue routing, residual consolidation, ATS safety)
+  4. Almgren-Chriss Scheduler (`src/execution/almgren_chriss.py`, non-negative tranches, $\kappa$ clamping, underflow)
+  5. Data Validator Reverse Stock Split Detection (`src/persistence/database.py` / DataValidator, OHLC backward scaling, volume filters)
+  6. Indicator Storage (`src/data_layer/indicator_storage.py`, WAL concurrency, write lock mutex, NaN/Inf values, schema robustness)
 
 ## Attack Surface
-- **Hypotheses tested**:
-  1. Calibrators handle corrupted, missing, identical, or extreme score distributions across all 31 strategies.
-  2. PCA ZCA and Gram-Schmidt decorrelate rank-1, collinear, and single-asset matrices without singular crash.
-  3. 2D/3D regime weighting, VIX overrides, and dynamic Sharpe multipliers always strictly sum to 1.000000.
-  4. End-to-end ensemble scores and returns remain bounded in [0.0, 1.0] and [0.0, 50.0] under extreme outliers.
-- **Vulnerabilities found**: None. System is resilient to zero-variance targets, rank-deficient matrices, and extreme Sharpe ratios.
-- **Untested angles**: None within R1 ensemble/calibration scope.
+- **Hypotheses tested**: [TBD - stress testing in progress]
+- **Vulnerabilities found**: [TBD]
+- **Untested angles**: [TBD]
 
 ## Loaded Skills
-- **Source**: N/A
-- **Local copy**: N/A
-- **Core methodology**: Empirical stress-testing, oracle verification, numerical adversarial test generation
+- None required
 
 ## Key Decisions Made
-- Created comprehensive test suite `tests/test_adversarial_ensemble_scorer_challenger.py` containing 17 rigorous stress tests across all 31 strategies.
-- Verified 100% pass across 49 consolidated tests and 17 acceptance tests.
-- Issued verdict: `APPROVE`.
+- Executing systematic stress harnesses across all 6 target components.
 
 ## Artifact Index
-- `d:\Finance\code\stock\.agents\challenger_2\progress.md` — Progress tracker and liveness heartbeat
-- `d:\Finance\code\stock\.agents\challenger_2\handoff.md` — 5-Component handoff report
-- `d:\Finance\code\stock\tests\test_adversarial_ensemble_scorer_challenger.py` — Adversarial stress test suite
+- `d:\Finance\code\stock\.agents\challenger_2\progress.md` — Progress tracker
+- `d:\Finance\code\stock\.agents\challenger_2\handoff.md` — Final handoff report

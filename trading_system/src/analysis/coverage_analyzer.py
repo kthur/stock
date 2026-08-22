@@ -222,7 +222,7 @@ class StrategyCoverageAnalyzer:
             m_cnt = s_info.get('missing_count', 0)
             cov = s_info.get('coverage_pct', 0.0)
             reasons = s_info.get('reasons', {})
-            top_reason = list(reasons.keys())[0] if reasons else "None (100% Valid)"
+            top_reason = max(reasons, key=reasons.get) if reasons else "None (100% Valid)"
             lines.append(f"{s_name:<22}{v_cnt:<15}{m_cnt:<15}{cov:>6.1f}%          {top_reason:<30}")
 
         return "\n".join(lines)

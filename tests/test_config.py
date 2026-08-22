@@ -198,6 +198,41 @@ class TestTradingConfig(unittest.TestCase):
         self.assertEqual(cfg.get_market_flag("SINGAPORE_SGX"), "🇸🇬")
         self.assertEqual(cfg.get_market_flag("CANADA_TSX"), "🇨🇦")
 
+    def test_market_costs_json_override(self):
+        """V6-32: Test MARKET_COSTS_JSON environment parsing via _build_market_lookup_table without NameError."""
+        import json
+        from src.config import _build_market_lookup_table
+        custom_costs = {
+            "KOSPI": {"spread_bps": 0.0003, "stt": 0.0010},
+            "CUSTOM_MKT": {"spread_bps": 0.0015, "stt": 0.0020, "brokerage": 0.0005, "aliases": ["CMKT"]}
+        }
+        os.environ["MARKET_COSTS_JSON"] = json.dumps(custom_costs)
+        lookup = _build_market_lookup_table()
+        self.assertAlmostEqual(lookup["KOSPI"]["spread_bps"], 0.0003)
+        self.assertAlmostEqual(lookup["KOSPI"]["stt"], 0.0010)
+        self.assertIn("CUSTOM_MKT", lookup)
+        self.assertIn("CMKT", lookup)
+        self.assertAlmostEqual(lookup["CMKT"]["spread_bps"], 0.0015)
+
+    def test_liquidity_and_oms_env_overrides(self):
+        """V6-35: Test environment variable overrides for liquidity, friction and OMS safety parameters."""
+        os.environ["MIN_DAILY_VOLUME_KRX"] = "800000000.0"
+        os.environ["MIN_DAILY_VOLUME_SP500"] = "2500000.0"
+        os.environ["SLIPPAGE_KRX_MARKET_ORDER"] = "0.0025"
+        os.environ["OMS_NET_ALPHA_SAFETY_MARGIN"] = "0.0015"
+        os.environ["OMS_LIMIT_UP_LOCK_THRESHOLD"] = "0.298"
+        os.environ["BASE_SPREAD_CHINA"] = "0.0012"
+        os.environ["DEFAULT_VOLATILITY_GLOBAL"] = "0.022"
+
+        cfg = TradingConfig()
+        self.assertAlmostEqual(cfg.min_daily_volume_krx, 800000000.0)
+        self.assertAlmostEqual(cfg.min_daily_volume_sp500, 2500000.0)
+        self.assertAlmostEqual(cfg.slippage_krx_market_order, 0.0025)
+        self.assertAlmostEqual(cfg.oms_net_alpha_safety_margin, 0.0015)
+        self.assertAlmostEqual(cfg.oms_limit_up_lock_threshold, 0.298)
+        self.assertAlmostEqual(cfg.base_spread_china, 0.0012)
+        self.assertAlmostEqual(cfg.default_volatility_global, 0.022)
+
 
 if __name__ == "__main__":
     unittest.main()

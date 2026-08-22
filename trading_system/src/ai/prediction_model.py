@@ -1495,23 +1495,41 @@ class OnDevicePredictionModel:
 
         return df_merged
 
-    def _prepare_lstm_data(self, df: pd.DataFrame, target_col: str, seq_len: int = 20):
+    def _prepare_lstm_data(self, df: pd.DataFrame, target_col: str = 'target_20d', seq_len: int = 20, window_size: Optional[int] = None, **kwargs):
         """
         Constructs symbol-grouped sequences of length seq_len.
         Returns X_all, y_all, and df_indices array.
         """
         import numpy as np
+        seq_len = window_size if window_size is not None else seq_len
         X_all = []
         y_all = []
         df_indices = []
 
-        for sym, group in df.groupby('symbol'):
-            group_sorted = group.sort_values('date')
+        if 'symbol' in df.columns:
+            groups = df.groupby('symbol')
+        else:
+            groups = [('ALL', df)]
+
+        for sym, group in groups:
+            if 'date' in group.columns:
+                group_sorted = group.sort_values('date')
+            else:
+                group_sorted = group
             if len(group_sorted) < seq_len:
                 continue
 
-            returns = group_sorted['ret_1d'].values
-            targets = group_sorted[target_col].values
+            if 'ret_1d' in group_sorted.columns:
+                returns = group_sorted['ret_1d'].values
+            elif 'close' in group_sorted.columns:
+                returns = group_sorted['close'].pct_change().fillna(0.0).values
+            elif 'Close' in group_sorted.columns:
+                returns = group_sorted['Close'].pct_change().fillna(0.0).values
+            else:
+                returns = np.zeros(len(group_sorted))
+
+            from src.ai.target_transform import transform_sharpe
+            targets = transform_sharpe(group_sorted[target_col]).values
             indices = group_sorted.index.values
 
             # Create rolling windows
@@ -1523,8 +1541,8 @@ class OnDevicePredictionModel:
 
         if not X_all:
             return np.array([]), np.array([]), np.array([])
-        X_arr = np.expand_dims(np.array(X_all), axis=-1)  # (N, seq_len, 1)
-        y_arr = np.array(y_all).reshape(-1, 1)
+        X_arr = np.expand_dims(np.array(X_all, dtype=np.float32), axis=-1)  # (N, seq_len, 1)
+        y_arr = np.array(y_all, dtype=np.float32)
         df_indices_arr = np.array(df_indices)
         return X_arr, y_arr, df_indices_arr
 
@@ -2533,26 +2551,31 @@ class OnDevicePredictionModel:
                     res_df[h] = vals.clip(lower=-5.0, upper=5.0)
         return res_df
 
-    def predict_lstm(self, prices_dict: Dict[str, pd.DataFrame], horizon: int = 20) -> pd.DataFrame:
+    def predict_lstm(self, prices_dict: Any = None, horizon: int = 20, symbols: Optional[List[str]] = None, **kwargs) -> pd.DataFrame:
         """Run Strict Causal LSTM deep learning time-series predictions.
 
         Args:
-            prices_dict: Dictionary mapping symbol to OHLCV DataFrame
+            prices_dict: Dictionary mapping symbol to OHLCV DataFrame (or symbols list)
             horizon: Target prediction horizon (default 20d)
 
         Returns:
             DataFrame with ['symbol', 'lstm_score']
         """
+        if isinstance(prices_dict, (list, tuple, set)):
+            symbols = list(prices_dict)
+            prices_dict = horizon if isinstance(horizon, dict) else kwargs.get('prices_dict', {})
+            horizon = kwargs.get('horizon', 20)
+
         if not prices_dict or not isinstance(prices_dict, dict):
             return pd.DataFrame(columns=['symbol', 'lstm_score'])
 
         # 1. Prepare 20-day returns sequences
-        symbols = list(prices_dict.keys())
+        all_symbols = list(prices_dict.keys()) if symbols is None else [s for s in symbols if s in prices_dict]
         valid_symbols = []
         sequences = []
         momentum_fallbacks = []
 
-        for sym in symbols:
+        for sym in all_symbols:
             df_p = prices_dict.get(sym)
             if df_p is None or len(df_p) < 20:
                 continue
@@ -2589,29 +2612,41 @@ class OnDevicePredictionModel:
         if not valid_symbols:
             return pd.DataFrame(columns=['symbol', 'lstm_score'])
 
-        # 2. Check for loaded PyTorch LSTM models
-        lstm_model = None
-        for mkt_models in self.lstm_models.values():
-            if isinstance(mkt_models, dict):
-                m = mkt_models.get(horizon) or mkt_models.get(20)
-                if m is not None and getattr(m, 'is_trained', False):
-                    lstm_model = m
-                    break
+        # 2. Market-Aware Batch Prediction using market-specific LSTM models
+        raw_scores = np.array(momentum_fallbacks, dtype=np.float32)
+        sym_to_mkt = {}
+        for sym in valid_symbols:
+            sym_str = str(sym).upper()
+            df = prices_dict.get(sym)
+            if df is not None and 'market' in df.columns and len(df['market'].dropna()) > 0:
+                sym_to_mkt[sym] = str(df['market'].dropna().iloc[-1]).upper()
+            elif self.is_krx_symbol(sym):
+                sym_to_mkt[sym] = 'KOSDAQ' if (sym_str.endswith('.KQ') or 'KOSDAQ' in sym_str) else 'KOSPI'
+            else:
+                sym_to_mkt[sym] = 'SP500'
 
-        if lstm_model is not None:
-            try:
-                X_batch = np.array(sequences, dtype=np.float32)
-                preds = lstm_model.predict(X_batch)
-                if hasattr(preds, "ravel"):
-                    preds = preds.ravel()
-                elif isinstance(preds, (list, tuple)):
-                    preds = np.array(preds).ravel()
-                raw_scores = np.nan_to_num(preds, nan=0.0, posinf=0.0, neginf=0.0)
-            except Exception as e:
-                logger.warning(f"PyTorch LSTM batch prediction failed: {e}. Falling back to causal momentum.")
-                raw_scores = np.array(momentum_fallbacks, dtype=np.float32)
-        else:
-            raw_scores = np.array(momentum_fallbacks, dtype=np.float32)
+        for mkt in set(sym_to_mkt.values()):
+            mkt_indices = [i for i, sym in enumerate(valid_symbols) if sym_to_mkt[sym] == mkt]
+            if not mkt_indices:
+                continue
+            mkt_model = case_insensitive_get(self.lstm_models, mkt, {}).get(horizon) or case_insensitive_get(self.lstm_models, mkt, {}).get(20)
+            if mkt_model is None and mkt in ['KOSPI', 'KOSDAQ']:
+                mkt_model = case_insensitive_get(self.lstm_models, 'KRX', {}).get(horizon) or case_insensitive_get(self.lstm_models, 'KRX', {}).get(20)
+            if mkt_model is None:
+                # Global fallback
+                for m_dict in self.lstm_models.values():
+                    if isinstance(m_dict, dict) and (m_dict.get(horizon) or m_dict.get(20)):
+                        mkt_model = m_dict.get(horizon) or m_dict.get(20)
+                        break
+
+            if mkt_model is not None and getattr(mkt_model, 'is_trained', False):
+                try:
+                    X_mkt_batch = np.array([sequences[i] for i in mkt_indices], dtype=np.float32)
+                    mkt_preds = mkt_model.predict(X_mkt_batch)
+                    mkt_preds = mkt_preds.ravel() if hasattr(mkt_preds, 'ravel') else np.array(mkt_preds).ravel()
+                    raw_scores[mkt_indices] = np.nan_to_num(mkt_preds, nan=0.0, posinf=0.0, neginf=0.0)
+                except Exception as e:
+                    logger.warning(f"LSTM prediction failed for market {mkt}: {e}")
 
         # 3. Cross-sectional percentile rank normalization into [0.05, 0.95]
         s_series = pd.Series(raw_scores, index=valid_symbols)
@@ -2978,10 +3013,14 @@ class OnDevicePredictionModel:
                      f"avg {sum(len(v) for v in self.lead_lag_matrix.values()) // max(len(self.lead_lag_matrix), 1)} followers each")
         self.save_lead_lag()
 
-    def predict_lead_lag(self, prices_dict: Dict[str, pd.DataFrame], indicator_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    def predict_lead_lag(self, prices_dict: Any = None, indicator_df: Optional[pd.DataFrame] = None, symbols: Optional[List[str]] = None, **kwargs) -> pd.DataFrame:
         """Predict follower surges based on ALL leaders' today returns."""
-        if not self.lead_lag_matrix:
-            logger.warning("No lead-lag matrix loaded, skipping prediction")
+        if isinstance(prices_dict, (list, tuple, set)):
+            symbols = list(prices_dict)
+            prices_dict = indicator_df if isinstance(indicator_df, dict) else kwargs.get('prices_dict', {})
+            indicator_df = kwargs.get('indicator_df', None)
+
+        if not prices_dict or not isinstance(prices_dict, dict):
             return pd.DataFrame()
 
         today_returns = {}
@@ -2990,14 +3029,17 @@ class OnDevicePredictionModel:
         prev_vals = []
         for sym, df in prices_dict.items():
             if df is not None and len(df) >= 2:
-                close = df['Close']
-                if isinstance(close, pd.DataFrame):
-                    close = close.iloc[:, 0]
-                vals = close.iloc[-2:].values
-                if len(vals) == 2 and vals[0] != 0 and not np.isnan(vals[0]) and not np.isnan(vals[1]):
-                    valid_syms.append(sym)
-                    prev_vals.append(vals[0])
-                    last_vals.append(vals[1])
+                close = df['Close'] if 'Close' in df.columns else (df['close'] if 'close' in df.columns else None)
+                if close is not None:
+                    if isinstance(close, pd.DataFrame):
+                        close = close.iloc[:, 0]
+                    close = close.dropna()
+                    if len(close) >= 2:
+                        vals = close.iloc[-2:].values
+                        if len(vals) == 2 and vals[0] != 0 and not np.isnan(vals[0]) and not np.isnan(vals[1]):
+                            valid_syms.append(sym)
+                            prev_vals.append(vals[0])
+                            last_vals.append(vals[1])
         if valid_syms:
             arr_last = np.array(last_vals, dtype=np.float64)
             arr_prev = np.array(prev_vals, dtype=np.float64)
@@ -3030,18 +3072,23 @@ class OnDevicePredictionModel:
                     today_returns[target_sym] = val
 
         follower_scores: Dict[str, float] = {}
-        for leader, followers in self.lead_lag_matrix.items():
-            leader_ret = today_returns.get(leader, 0.0)
-            if leader_ret <= 0.001:
-                continue
-            follower_iterable = followers.items() if isinstance(followers, dict) else followers
-            for item in follower_iterable:
-                if isinstance(item, (tuple, list)) and len(item) == 2:
-                    follower, corr = str(item[0]), float(item[1])
-                else:
-                    follower, corr = str(item), 1.0
-                weight = leader_ret * corr
-                follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, weight)
+        lead_matrix = getattr(self, 'lead_lag_matrix', {})
+        if hasattr(self, 'lead_lag_models') and isinstance(self.lead_lag_models, dict) and not self.lead_lag_models:
+            lead_matrix = {}
+
+        if lead_matrix:
+            for leader, followers in lead_matrix.items():
+                leader_ret = today_returns.get(leader, 0.0)
+                if leader_ret <= 0.001:
+                    continue
+                follower_iterable = followers.items() if isinstance(followers, dict) else followers
+                for item in follower_iterable:
+                    if isinstance(item, (tuple, list)) and len(item) == 2:
+                        follower, corr = str(item[0]), float(item[1])
+                    else:
+                        follower, corr = str(item), 1.0
+                    weight = leader_ret * corr
+                    follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, weight)
 
         if not follower_scores:
             logger.info("Lead-lag: calculating fallback follower scores")
@@ -3055,20 +3102,23 @@ class OnDevicePredictionModel:
                             follower, corr = str(item), 1.0
                         follower_scores[follower] = follower_scores.get(follower, 0.0) + max(0.0, corr)
             for sym, df in prices_dict.items():
+                if symbols is not None and sym not in symbols:
+                    continue
                 if sym not in follower_scores and df is not None and len(df) >= 2:
-                    c = df['Close']
-                    if isinstance(c, pd.DataFrame):
-                        c = c.iloc[:, 0]
-                    c = c.dropna()
-                    if len(c) >= 2:
-                        ret = float((c.iloc[-1] / c.iloc[0]) - 1.0)
-                        follower_scores[sym] = max(0.001, round(ret * 100, 4))
+                    c = df['Close'] if 'Close' in df.columns else (df['close'] if 'close' in df.columns else None)
+                    if c is not None:
+                        if isinstance(c, pd.DataFrame):
+                            c = c.iloc[:, 0]
+                        c = c.dropna()
+                        if len(c) >= 2:
+                            ret_1d = float((c.iloc[-1] / c.iloc[-2]) - 1.0)
+                            follower_scores[sym] = float(np.clip(0.50 + 2.5 * ret_1d, 0.05, 0.95))
 
         if not follower_scores:
             return pd.DataFrame()
 
         result = pd.DataFrame([
-            {'symbol': sym, 'lead_lag_score': score}
+            {'symbol': sym, 'lead_lag_score': score, 'll_score': score}
             for sym, score in follower_scores.items()
         ])
         result = result.sort_values('lead_lag_score', ascending=False).reset_index(drop=True)

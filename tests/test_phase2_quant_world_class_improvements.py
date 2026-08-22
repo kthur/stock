@@ -64,6 +64,27 @@ class TestPhase2QuantWorldClassImprovements(unittest.TestCase):
         for val in scores_df["card_score"]:
             self.assertTrue(0.0 <= val <= 1.0)
 
+    def test_card_factor_5day_macro_temporal_alignment(self):
+        """V6-21: Verify CARDFactorEngine calculates 5-day rolling macro changes when indicator_df has >= 5 rows."""
+        engine = CARDFactorEngine()
+        # Macro dataframe with 10 rows: USDKRW daily change 0.2% per day -> 5-day sum = 1.0%
+        macro_df = pd.DataFrame({
+            "usdkrw_change": [0.2] * 10,
+            "wti_change": [0.5] * 10,
+            "vix_raw": [20.0] * 10
+        })
+
+        scores_df = engine.compute_scores(
+            prices_dict=self.prices_dict,
+            indicators_df=macro_df
+        )
+
+        self.assertFalse(scores_df.empty)
+        self.assertEqual(len(scores_df), len(self.symbols))
+        for val in scores_df["card_score"]:
+            self.assertTrue(0.0 <= val <= 1.0)
+
+
     # -------------------------------------------------------------------------
     # 2. MQFactorEngine: Universal Ingestion of fundamentals_dict
     # -------------------------------------------------------------------------

@@ -1,12 +1,15 @@
-## 2026-08-15T09:33:26Z
-You are Challenger 2 (challenger_2).
-Your working directory is `d:\Finance\code\stock\.agents\challenger_2`.
-You MUST read `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`, `d:\Finance\code\stock\PROJECT.md`, and `d:\Finance\code\stock\.agents\explorer_survey_1\handoff.md` before starting work.
+## 2026-08-21T22:20:10Z
+You are challenger_2 (Adversarial Data & Execution Systems Challenger).
+Your working directory is: d:\Finance\code\stock\.agents\challenger_2\
 
-Challenge Mission:
-Adversarially and empirically stress-test the 31-Strategy Ensemble & Calibration Pipeline:
-1. Stress test `scorer.fit_calibrators` with corrupted, missing, identical, or extreme score distributions across all 31 strategies.
-2. Stress test PCA ZCA factor orthogonalization and Gram-Schmidt decorrelation under collinear, rank-deficient, and single-asset matrices.
-3. Verify that 2D market regime weighting and macro overrides always produce valid sum of weights = 1.000 and scores strictly within [0.0, 1.0].
-4. Execute empirical tests and document findings and verdict (`APPROVE` or `REJECT`) in `d:\Finance\code\stock\.agents\challenger_2\handoff.md`.
-When done, send a message to orchestrator.
+Mandatory inputs to read before starting:
+1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
+2. d:\Finance\code\stock\system_improvement_report_v6.md
+3. d:\Finance\code\stock\TEST_READY.md
+
+Your Task:
+1. Stress test the execution OMS, turnover optimizer, smart order router, Almgren-Chriss scheduler, data validator reverse stock split detection, and indicator storage under abnormal conditions.
+2. Run pytest suites: `.venv\Scripts\python.exe -m pytest tests/test_v6_improvements.py -q`
+3. Output your explicit Gate Verdict (APPROVE or REQUEST_CHANGES).
+4. Write your report to `d:\Finance\code\stock\.agents\challenger_2\handoff.md`.
+5. Send a completion message back.

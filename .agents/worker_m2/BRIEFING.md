@@ -1,54 +1,47 @@
-# BRIEFING — 2026-08-15T09:32:00Z
+# BRIEFING — 2026-08-22T01:31:45+09:00
 
 ## Mission
-Fix turnover_optimizer logging format string bugs and align assertions in tests (STT rate, Sortino clamp, coverage analyzer bar count).
+Implement Domain 1 tasks (V6-01 ~ V6-08) across `prediction_model.py`, `ensemble_scorer.py`, `optuna_tuner.py`, `meta_ensemble.py`, and related tests.
 
 ## 🔒 My Identity
 - Archetype: worker
-- Roles: implementer, qa
+- Roles: implementer, qa, specialist
 - Working directory: d:\Finance\code\stock\.agents\worker_m2
-- Original parent: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Milestone: M2
+- Original parent: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Milestone: Domain 1 Implementation (V6-01 ~ V6-08)
 
 ## 🔒 Key Constraints
-- Minimal change principle. Only modify assigned scope.
-- Genuine implementations, no hardcoding.
-- Exclusively owned files:
-  - `trading_system/src/execution/turnover_optimizer.py`
-  - `src/execution/turnover_optimizer.py`
-  - `tests/test_critical_bugs.py`
-  - `tests/test_m1_1_fixes.py`
-  - `tests/test_r3_coverage_and_universe.py`
+- Exclusive Write Ownership: `src/ai/prediction_model.py`, `src/ai/ensemble_scorer.py`, `src/ai/optuna_tuner.py`, `src/ai/meta_ensemble.py`, and related tests in `tests/` for Domain 1.
+- DO NOT CHEAT: Genuine implementation, no hardcoded values or bypasses.
+- All Domain 1 tests must pass.
 
 ## Current Parent
-- Conversation ID: f42f2931-57da-4e3b-aa91-2f5b4f29a74b
-- Updated: 2026-08-15T09:32:00Z
+- Conversation ID: 8fb87ee7-0f0f-48ce-a4d9-821c00077b65
+- Updated: not yet
 
 ## Task Summary
-- **What to build**: Fixed logging format bug in turnover optimizer, updated STT assertion in test_critical_bugs, updated Sortino clamp assertion in test_m1_1_fixes, fixed synthetic data bar count in test_r3_coverage_and_universe.
-- **Success criteria**: All specified tests pass without errors.
-- **Interface contracts**: PROJECT.md
-- **Code layout**: src/ and tests/
+- **What to build**: 8 specific fixes in Domain 1 (V6-01 through V6-08)
+- **Success criteria**: All 8 tasks implemented cleanly, tested with pytest, no regressions.
+- **Interface contracts**: `system_improvement_report_v6.md` Sections 2.1~2.8 and `explorer_1/analysis.md` Domain 1.
+- **Code layout**: `src/ai/`, `tests/`
+
+## Key Decisions Made
+- Starting task analysis and reading all input documents.
+
+## Artifact Index
+- `d:\Finance\code\stock\.agents\worker_m2\BRIEFING.md` — persistent memory
+- `d:\Finance\code\stock\.agents\worker_m2\progress.md` — liveness heartbeat
+- `d:\Finance\code\stock\.agents\worker_m2\handoff.md` — final handoff report
 
 ## Change Tracker
-- **Files modified**:
-  - `trading_system/src/execution/turnover_optimizer.py`: Fixed logging format `%,.0f` to `%s` using `f"{total_turnover_reduced:,.0f}"`.
-  - `src/execution/turnover_optimizer.py`: Fixed logging format `%,.0f` to `%s` using `f"{total_turnover_reduced:,.0f}"`.
-  - `tests/test_critical_bugs.py`: Updated KOSPI STT tax rate assertion to current statutory rate 0.0018 (0.15% STT + 0.03% brokerage), KOSDAQ to 0.0021, and KONEX to 0.0011.
-  - `tests/test_m1_1_fixes.py`: Updated Sortino ratio expectation to 10.0 per `AdvancedStatistics` clamping.
-  - `tests/test_r3_coverage_and_universe.py`: Set price history to 10 bars (< 20) for 000660 to properly trigger `INSUFFICIENT_PRICE_HISTORY`.
-- **Build status**: 34/34 tests passed.
+- **Files modified**: None yet
+- **Build status**: Pending
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: 100% pass across all verification suites.
-- **Lint status**: Clean
-- **Tests added/modified**: 3 test files aligned and passing.
+- **Build/test result**: Not yet run
+- **Lint status**: Not yet run
+- **Tests added/modified**: None yet
 
-## Key Decisions Made
-- Maintained exact statutory rate alignment across microstructure test assertions.
-- Preserved clamping consistency for advanced performance statistics.
-
-## Artifact Index
-- `d:\Finance\code\stock\.agents\worker_m2\handoff.md` — Final handoff report
-- `d:\Finance\code\stock\.agents\worker_m2\progress.md` — Liveness heartbeat
+## Loaded Skills
+- None

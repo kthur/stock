@@ -4,11 +4,13 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import pandas as pd
 import FinanceDataReader as fdr
+
+KST = timezone(timedelta(hours=9))
 
 logger = logging.getLogger(__name__)
 
@@ -485,6 +487,7 @@ class MarketIndicatorStorage:
                 ("stock_fundamentals", "eps", "REAL DEFAULT 0"),
                 ("stock_fundamentals", "shares_outstanding", "REAL DEFAULT 0"),
                 ("stock_fundamentals", "book_value", "REAL DEFAULT 0"),
+                ("stock_fundamentals", "bps", "REAL DEFAULT 0"),
                 ("stock_universe", "sector", "TEXT DEFAULT ''"),
                 ("stock_universe", "industry", "TEXT DEFAULT ''"),
                 ("stock_universe", "currency", "TEXT DEFAULT 'USD'"),
@@ -516,7 +519,7 @@ class MarketIndicatorStorage:
         (status='SUCCESS' or 'FAILED') with elapsed time and error details.
         """
         import time as _time
-        start_iso = datetime.now().isoformat(timespec='seconds')
+        start_iso = datetime.now(KST).isoformat(timespec='seconds')
         row_id: Optional[int] = None
         try:
             with self._write_lock:
@@ -541,7 +544,7 @@ class MarketIndicatorStorage:
         finally:
             elapsed = _time.monotonic() - t0
             status = "FAILED" if err_msg else "SUCCESS"
-            end_iso = datetime.now().isoformat(timespec='seconds')
+            end_iso = datetime.now(KST).isoformat(timespec='seconds')
             if row_id is not None:
                 try:
                     with self._write_lock:
@@ -789,7 +792,7 @@ class MarketIndicatorStorage:
             # Called as save_indicators(symbol, df_or_dict)
             symbol = data
             val_data = date_str
-            d_str = datetime.now().strftime("%Y-%m-%d")
+            d_str = datetime.now(KST).strftime("%Y-%m-%d")
             if isinstance(val_data, pd.DataFrame):
                 close_pos = list(val_data.columns).index('Close') if 'Close' in val_data.columns else None
                 for row in val_data.itertuples(index=True):
@@ -803,7 +806,7 @@ class MarketIndicatorStorage:
                 price = float(raw_val) if raw_val is not None else 0.0
                 rows.append((d_str, symbol, symbol, price, 0.0))
         elif isinstance(data, dict):
-            d_str = str(date_str or datetime.now().strftime("%Y-%m-%d"))
+            d_str = str(date_str or datetime.now(KST).strftime("%Y-%m-%d"))
             for sym, info in data.get('indices', {}).items():
                 if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
                     rows.append((d_str, info['symbol'], info['name'], info['price'], info['change_pct']))
@@ -988,16 +991,24 @@ class MarketIndicatorStorage:
         """
         if df_fundamentals.empty:
             return
-        sql = """
-            INSERT OR REPLACE INTO stock_fundamentals
-            (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
+        has_bps = 'bps' in df_fundamentals.columns
+        if has_bps:
+            sql = """
+                INSERT OR REPLACE INTO stock_fundamentals
+                (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value, bps)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        else:
+            sql = """
+                INSERT OR REPLACE INTO stock_fundamentals
+                (symbol, date, revenue, operating_income, net_income, eps, shares_outstanding, dividend_per_share, book_value)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
         records = []
         for row in df_fundamentals.itertuples(index=False):
             r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df_fundamentals.columns, row))
             bv_val = r_dict.get('book_value')
-            records.append((
+            rec = [
                 str(r_dict.get('symbol', '')),
                 str(r_dict.get('date', ''))[:10],
                 float(r_dict.get('revenue', 0.0)) if pd.notna(r_dict.get('revenue')) else 0.0,
@@ -1007,7 +1018,11 @@ class MarketIndicatorStorage:
                 float(r_dict.get('shares_outstanding', 0.0)) if pd.notna(r_dict.get('shares_outstanding', 0.0)) else 0.0,
                 float(r_dict.get('dividend_per_share', 0.0)) if pd.notna(r_dict.get('dividend_per_share')) else 0.0,
                 float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else None,
-            ))
+            ]
+            if has_bps:
+                bps_val = r_dict.get('bps')
+                rec.append(float(bps_val) if (bps_val is not None and pd.notna(bps_val)) else None)
+            records.append(tuple(rec))
 
         def _do_write():
             with self._write_lock:
@@ -1188,7 +1203,7 @@ class MarketIndicatorStorage:
                 sql += " WHERE date >= ?"
                 params.append(min_date)
             elif days and days > 0:
-                _cutoff = (datetime.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+                _cutoff = (datetime.now(KST) - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
                 sql += " WHERE date >= ?"
                 params.append(_cutoff)
             sql += " ORDER BY date ASC, symbol ASC"
@@ -1201,7 +1216,7 @@ class MarketIndicatorStorage:
                                  days: int = 60, min_date: Optional[str] = None,
                                  label_threshold: float = 0.0) -> int:
         """Backfill realized forward returns (1D, 5D, 20D) for stored ensemble predictions."""
-        cutoff_date = (datetime.now() - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff_date = (datetime.now(KST) - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
         with self._connect() as conn:
             query = """
                 SELECT DISTINCT run_id, date, symbol FROM ensemble_prediction_history
@@ -1313,7 +1328,7 @@ class MarketIndicatorStorage:
     def get_outcome_performance_summary(self, days: int = 60) -> Dict[str, Any]:
         """Compute realized outcome statistics (Hit Rate %, avg return, win rate) for predictions in last N days."""
         safe_days = max(1, int(days)) if days is not None else 60
-        cutoff_date = (datetime.now() - pd.Timedelta(days=safe_days)).strftime("%Y-%m-%d")
+        cutoff_date = (datetime.now(KST) - pd.Timedelta(days=safe_days)).strftime("%Y-%m-%d")
         sql = """
             SELECT
                 COUNT(*) as total_predictions,
@@ -1405,7 +1420,7 @@ class MarketIndicatorStorage:
         """Save or replace FilingSentimentMetrics in SQLite DB."""
         if metrics is None:
             return
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
         sym = getattr(metrics, 'symbol', '')
         f_date = getattr(metrics, 'filing_date', '')
         tone = float(getattr(metrics, 'filing_tone_score', 0.5))
@@ -1433,7 +1448,7 @@ class MarketIndicatorStorage:
         """Start a pipeline run and record it in pipeline_run_history.
         Returns generated run_id.
         """
-        now = datetime.now()
+        now = datetime.now(KST)
         git_tag = git_sha[:7] if git_sha else "local"
         run_id = f"run_{now.strftime('%Y%m%d_%H%M%S_%f')[:22]}_{git_tag}"
         run_date = now.strftime('%Y-%m-%d')
@@ -1456,7 +1471,7 @@ class MarketIndicatorStorage:
                             regime_detected: str = "",
                             error_summary: str = "") -> None:
         """Finish a pipeline run and update pipeline_run_history."""
-        end_time = datetime.now().isoformat(timespec='seconds')
+        end_time = datetime.now(KST).isoformat(timespec='seconds')
         markets_str = ",".join(markets) if markets else ""
         sql = """
             UPDATE pipeline_run_history
@@ -1475,7 +1490,7 @@ class MarketIndicatorStorage:
         if ensemble_df is None or ensemble_df.empty:
             return
         if not date_str:
-            date_str = datetime.now().strftime('%Y-%m-%d')
+            date_str = datetime.now(KST).strftime('%Y-%m-%d')
 
         score_cols = [
             'reg_score', 'surge_score', 'll_score', 'vcp_rule_score', 'vcp_ml_score',
@@ -1678,7 +1693,7 @@ class MarketIndicatorStorage:
 
     def prune_old_history(self, keep_days: int = 180) -> None:
         """Delete history records older than keep_days and run WAL checkpoint."""
-        cutoff = (datetime.now() - pd.Timedelta(days=keep_days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(KST) - pd.Timedelta(days=keep_days)).strftime("%Y-%m-%d")
         with self._write_lock:
             with self._connect() as conn:
                 old_runs = [r[0] for r in conn.execute("SELECT run_id FROM pipeline_run_history WHERE run_date < ?", (cutoff,)).fetchall()]
@@ -1688,6 +1703,10 @@ class MarketIndicatorStorage:
                     conn.execute(f"DELETE FROM strategy_weight_history WHERE run_id IN ({placeholders})", tuple(old_runs))      # nosec B608
                     conn.execute(f"DELETE FROM pipeline_run_history WHERE run_id IN ({placeholders})", tuple(old_runs))         # nosec B608
                     conn.commit()
+        self.checkpoint_wal()
+
+    def close(self) -> None:
+        """Explicitly close resources and checkpoint WAL log."""
         self.checkpoint_wal()
 
 

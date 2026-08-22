@@ -136,7 +136,14 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     except Exception:
         result['book_value'] = 0.0
 
-    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value']:
+    if 'shares_outstanding' in result.columns:
+        shares = pd.to_numeric(result['shares_outstanding'], errors='coerce').fillna(0.0)
+        bv = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
+        result['bps'] = np.where(shares > 0, bv / np.maximum(shares, 1.0), bv)
+    else:
+        result['bps'] = result.get('book_value', 0.0)
+
+    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps']:
         if col in result.columns:
             result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0.0).astype(float)
         else:
@@ -250,12 +257,16 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
 
                     book_val_obj = stats.get("bookValue") or {}
                     book_val = book_val_obj.get("raw", 0.0) if isinstance(book_val_obj, dict) else 0.0
+                    total_equity = 0.0
                     if not book_val:
                         bs_statements = data.get("balanceSheetHistory", {}).get("balanceSheetStatements", [])
                         if bs_statements:
                             total_eq = bs_statements[0].get("totalStockholderEquity", {}).get("raw", 0.0)
                             if total_eq and shares > 0:
+                                total_equity = float(total_eq)
                                 book_val = total_eq / shares
+                    elif shares > 0:
+                        total_equity = float(book_val) * shares
 
                     detail = data.get("summaryDetail") or {}
                     div_rate_obj = detail.get("dividendRate") or {}
@@ -270,9 +281,10 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
 
                     df['shares_outstanding'] = float(shares)
                     df['dividend_per_share'] = float(max(0.0, div_rate if div_rate else 0.0))
-                    df['book_value'] = float(book_val)
+                    df['book_value'] = float(total_equity if total_equity > 0 else (book_val * shares if shares > 0 else book_val))
+                    df['bps'] = float(book_val)
 
-                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'shares_outstanding', 'dividend_per_share']:
+                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'shares_outstanding', 'dividend_per_share']:
                         if col in df.columns:
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
                         else:

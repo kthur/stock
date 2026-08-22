@@ -253,7 +253,7 @@ class SectorRotationEngine(BaseStrategyEngine):
                 # Composite Momentum Score
                 mom_score = self.w_20d * ret_20d + self.w_60d * ret_60d
                 raw_sec = eff_sector_map.get(sym, "General")
-                norm_sec = self.normalize_sector(raw_sec)
+                norm_sec = self.normalize_sector(raw_sec, symbol=sym)
                 records.append({'symbol': sym, 'mom_raw': mom_score, 'sector': norm_sec})
             except Exception as e:
                 logger.debug(f"Sector mom calc failed for {sym}: {e}")
