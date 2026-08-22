@@ -476,12 +476,12 @@ class CrisisDetector:
         return multipliers.get(self.crisis_level, 1.0)
 
     def get_crisis_stop_multiplier(self) -> float:
-        """위기 시 손절가를 더 타이트하게 설정"""
+        """위기 시 고변동성/ATR 확장을 감안하여 손절 거리를 유지/확대 (Whipsaw 조기 청산 방어)"""
         multipliers = {
             CrisisLevel.NONE: 1.0,
-            CrisisLevel.WATCH: 0.80,
-            CrisisLevel.ACTIVE: 0.60,
-            CrisisLevel.SEVERE: 0.40,
+            CrisisLevel.WATCH: 1.0,
+            CrisisLevel.ACTIVE: 1.05,
+            CrisisLevel.SEVERE: 1.10,
         }
         return multipliers.get(self.crisis_level, 1.0)
 
@@ -964,14 +964,15 @@ class RiskManager:
 
     def get_vix_position_cap(self, vix: float) -> float:
         """VIX 수준에 따른 포지션 크기 상한 (Risk-Off 스위치).
-        VIX > 30 → 15%, VIX > 25 → 30%, VIX > 20 → 50%, else 100% (no cap).
+        VIX > 30 → 40%, VIX > 25 → 60%, VIX > 20 → 80%, else 100% (no cap).
+        과거 과도한 축소(15%)를 완화하여 시장 저점 반등 알파 포착.
         """
         if vix > 30:
-            return 0.15
+            return 0.40
         elif vix > 25:
-            return 0.30
+            return 0.60
         elif vix > 20:
-            return 0.50
+            return 0.80
         return 1.0
 
     def calculate_robust_kelly(
@@ -1061,9 +1062,9 @@ class RiskManager:
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price)
         position_quantity = min(position_quantity, unpenalized_max_position)
 
-        # 위기 시 포지션 크기 감축 (과도한 5중 중복 감쇄 방어: 최소 15% 바운드 유지)
+        # 위기 시 포지션 크기 감축 (과도한 5중 중복 감쇄 방어: 최소 35% 바운드 유지)
         crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
-        combined_mult = max(0.15, crisis_mult * self.stress_test_adjustment_factor)
+        combined_mult = max(0.35, crisis_mult * self.stress_test_adjustment_factor)
         if combined_mult < 1.0:
             old_qty = position_quantity
             position_quantity = max(0, int(position_quantity * combined_mult))

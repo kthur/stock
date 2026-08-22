@@ -1745,39 +1745,44 @@ class OnDevicePredictionModel:
             y_all = transform_sharpe(df_h[target_col])
 
             kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
+            if best_iters_xgb:
+                kw_no_es['n_estimators'] = max(30, int(np.median(best_iters_xgb) * 1.15))
             model_xgb = xgb.XGBRegressor(**kw_no_es)
             try:
                 model_xgb.fit(X_all, y_all)
             except Exception as ex:
                 if _is_gpu_error(ex):
-                    kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
+                    kw_xgb_cpu = {k: v for k, v in kw_no_es.items() if k not in ('device', 'device_type', 'tree_method')}
                     model_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
                     model_xgb.fit(X_all, y_all)
                 else:
                     raise ex
             self.models[market][h] = model_xgb
 
-            model_lgb = lgb.LGBMRegressor(
-                **{k: v for k, v in kw_lgb.items() if k != 'device_type'}
-                if self._has_gpu else kw_lgb
-            )
+            kw_lgb_final = {k: v for k, v in kw_lgb.items() if k != 'device_type'} if self._has_gpu else dict(kw_lgb)
+            if best_iters_lgb:
+                kw_lgb_final['n_estimators'] = max(30, int(np.median(best_iters_lgb) * 1.15))
+            model_lgb = lgb.LGBMRegressor(**kw_lgb_final)
             try:
                 model_lgb.fit(X_all, y_all)
             except Exception as ex:
                 if _is_gpu_error(ex):
-                    kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
+                    kw_lgb_cpu = {k: v for k, v in kw_lgb_final.items() if k != 'device_type'}
                     model_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
                     model_lgb.fit(X_all, y_all)
                 else:
                     raise ex
             self.lgb_models[market][h] = model_lgb
 
+            kw_cat_final = dict(kw_cat)
+            if best_iters_cat:
+                kw_cat_final['iterations'] = max(30, int(np.median(best_iters_cat) * 1.15))
             try:
-                model_cat = cb.CatBoostRegressor(**kw_cat)
+                model_cat = cb.CatBoostRegressor(**kw_cat_final)
                 model_cat.fit(X_all, y_all, verbose=False)
             except Exception as ex:
                 if _is_gpu_error(ex):
-                    kw_cat_cpu = {k: v for k, v in kw_cat.items() if k != 'task_type'}
+                    kw_cat_cpu = {k: v for k, v in kw_cat_final.items() if k != 'task_type'}
                     model_cat = cb.CatBoostRegressor(**kw_cat_cpu)
                     model_cat.fit(X_all, y_all, verbose=False)
                 else:
@@ -2786,7 +2791,7 @@ class OnDevicePredictionModel:
                                     if coef is not None and intercept is not None:
                                         z = np.clip(coef * blend_prob + intercept, -10, 10)
                                         calib_p = 1.0 / (1.0 + np.exp(-z))
-                                        blend_prob = np.maximum(calib_p, blend_prob * 0.1)
+                                        blend_prob = float(np.clip(calib_p, 0.0, 1.0))
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             # Momentum heuristic fallback when ML models are missing

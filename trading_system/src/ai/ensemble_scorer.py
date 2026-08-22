@@ -481,6 +481,7 @@ class EnsembleScoringEngine:
         self._calibrators: Dict[str, Any] = {}
         self._prev_weights_dict: WeightsStateDict = WeightsStateDict()
         self._prev_regime_dict: RegimeStateDict = RegimeStateDict()
+        self._weight_evolution_history: list = []
 
         self.correlation_monitor = StrategyCorrelationMonitor()
         self.factor_suppression = RegimeFactorSuppressionEngine()
@@ -847,6 +848,8 @@ class EnsembleScoringEngine:
             return {k: 1.0 / n for k in res} if n > 0 else res
         return {k: v / total for k, v in res.items()}
 
+    get_regime_weights = get_base_weights
+
     def apply_correlation_orthogonalization_penalty(
         self,
         weights: Dict[str, float],
@@ -925,8 +928,8 @@ class EnsembleScoringEngine:
         vix_val: Optional[float] = None,
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
-        pruning_threshold: Optional[float] = -0.50,
-        smooth_downside_mode: bool = False,
+        pruning_threshold: Optional[float] = -1.50,
+        smooth_downside_mode: bool = True,
         market: str = "global"
     ) -> Dict[str, float]:
         """
@@ -938,35 +941,39 @@ class EnsembleScoringEngine:
         Cold-start behaviour: when no strategy has realized outcomes yet, the regime
         base weights are returned unchanged. Arbitrary "seed" Sharpes would present
         fabricated performance evidence as real — the dashboard must not claim dynamic
-        weighting before the evidence exists.
+        weighting until real history exists.
         """
         base_weights = self.get_base_weights(regime, vix_val=vix_val)
-        if not rolling_sharpes:
-            self._prev_weights[market] = dict(base_weights)
-            self._prev_regime[market] = str(regime)
-            return base_weights
+        if not base_weights:
+            return {}
 
-        clean_sharpes = {}
-        for s, val in rolling_sharpes.items():
-            if val is None or np.isnan(val):
-                clean_sharpes[s] = 0.0
-            else:
-                clean_sharpes[s] = float(val)
+        clean_sharpes = {
+            k: float(v)
+            for k, v in rolling_sharpes.items()
+            if v is not None and not np.isnan(v) and not np.isinf(v)
+        }
 
-        all_zero = all(abs(v) < 1e-8 for v in clean_sharpes.values())
+        # Check for cold start (all zeros or empty)
+        all_zero = len(clean_sharpes) == 0 or all(abs(v) < 1e-4 for v in clean_sharpes.values())
         if all_zero:
-            logger.info(
-                "[COLD-START] No realized strategy outcomes yet — using regime base weights (dynamic Sharpe weighting inactive)."
+            self._weight_evolution_history.append(
+                {
+                    "timestamp": pd.Timestamp.now().isoformat(),
+                    "regime": str(regime),
+                    "market": market,
+                    "weights": dict(base_weights),
+                    "cold_start": True,
+                }
             )
             self._prev_weights[market] = dict(base_weights)
             self._prev_regime[market] = str(regime)
             return base_weights
 
         # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
-        # L = ln(sqrt(MAX_MULTIPLIER_RATIO))/gamma keeps the multiplier ratio
+        # L = ln(MAX_MULTIPLIER_RATIO)/gamma keeps the multiplier ratio
         # <= MAX_MULTIPLIER_RATIO (prevents e^6 ≈ 400:1 single-strategy dominance).
         max_multiplier_ratio = 5.0
-        sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
+        sharpe_clip = float(np.log(max_multiplier_ratio) / max(gamma, 1e-6))
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
@@ -977,12 +984,12 @@ class EnsembleScoringEngine:
 
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
-            # Convex Sharpe Elasticity Multiplier for high performing strategies (using clipped Sharpe)
-            if clipped_sharpe >= 1.50:
+            # Convex Sharpe Elasticity Multiplier for high performing strategies
+            if sharpe >= 1.50 or clipped_sharpe >= 1.50:
                 multiplier *= 1.25
-            elif clipped_sharpe >= 1.00:
+            elif sharpe >= 1.00 or clipped_sharpe >= 1.00:
                 multiplier *= 1.15
-            elif clipped_sharpe >= 0.50:
+            elif sharpe >= 0.50 or clipped_sharpe >= 0.50:
                 multiplier *= 1.08
             elif clipped_sharpe < 0.0:
                 # Asymmetric downside risk mitigation for mild underperformance

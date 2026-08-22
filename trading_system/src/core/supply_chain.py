@@ -237,6 +237,14 @@ class SupplyChainEngine(BaseStrategyEngine):
             raw = s.split(".")[0].strip()
             return raw.zfill(6) if raw.isdigit() else raw
 
+        # Compute multi-hop graph diffusion momentum across supplier network
+        diffused_returns = pd.Series(dtype=float)
+        if not returns_1d.empty:
+            try:
+                diffused_returns = self.compute_graph_diffusion_momentum(returns_1d)
+            except Exception as _gcn_e:
+                logger.debug(f"Graph diffusion momentum skipped: {_gcn_e}")
+
         for row in universe.itertuples(index=False):
             r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe.columns, row))
             sym = str(r_dict.get("symbol", "")).strip()
@@ -245,8 +253,13 @@ class SupplyChainEngine(BaseStrategyEngine):
             c_key = clean_sym(sym)
 
             customers = self.customer_map.get(c_key, self.customer_map.get(sym, []))
+            diff_val = float(diffused_returns.get(sym, diffused_returns.get(c_key, 0.0))) if not diffused_returns.empty else 0.0
+
             if not customers:
-                score = 0.50
+                if diff_val != 0.0 and not np.isnan(diff_val):
+                    score = float(np.clip(0.50 + diff_val * 3.5, 0.0, 1.0))
+                else:
+                    score = 0.50
             else:
                 # Check for explicit customer relation weights
                 w_info = self.customer_weights_map.get(c_key, self.customer_weights_map.get(sym, {}))
@@ -309,7 +322,11 @@ class SupplyChainEngine(BaseStrategyEngine):
                     cust_rets.append(spillover_ret * c_weight)
 
                 weighted_cust_ret = float(np.sum(cust_rets)) if cust_rets else 0.0
-                score = float(np.clip(0.50 + weighted_cust_ret * 5.0, 0.0, 1.0))
+                if diff_val != 0.0 and not np.isnan(diff_val):
+                    combined_ret = weighted_cust_ret * 0.70 + diff_val * 0.30
+                else:
+                    combined_ret = weighted_cust_ret
+                score = float(np.clip(0.50 + combined_ret * 5.0, 0.0, 1.0))
 
             results.append({
                 "symbol": sym,

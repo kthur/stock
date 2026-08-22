@@ -301,4 +301,5 @@ def tune_hyperparameters(n_trials: int = 3, output_dir: Optional[str] = None):
     return best_params
 
 if __name__ == "__main__":
-    tune_hyperparameters(n_trials=5)
+    n_trials = int(os.environ.get("N_TRIALS", "30"))
+    tune_hyperparameters(n_trials=n_trials)

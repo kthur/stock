@@ -3282,7 +3282,13 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     try:
         from src.core.insider_buying import InsiderBuyingEngine
         insider_engine = InsiderBuyingEngine(cfg)
-        insider_buying_df = insider_engine.calculate_scores(universe['symbol'].tolist(), prices_dict=infer_data_dict)
+        filings_to_pass = eff_filings if 'eff_filings' in locals() and eff_filings else None
+        insider_buying_df = insider_engine.calculate_scores(
+            universe['symbol'].tolist(),
+            prices_dict=infer_data_dict,
+            insider_filings=filings_to_pass,
+        )
+        logger.info(f"[Strategy 29] Insider Buying Catalyst computed: {len(insider_buying_df)} rows")
         _save_strategy_predictions_report(
             insider_buying_df, "insider_buying_score",
             "Strategy 29: Insider Buying Catalyst Predictions",
@@ -3296,8 +3302,15 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
     try:
         from src.core.earnings_tone_drift import EarningsToneDriftEngine
         tone_engine = EarningsToneDriftEngine(cfg)
+        t_map = {}
+        if 'sentiment_map' in locals() and sentiment_map:
+            for s_k, s_val in sentiment_map.items():
+                s_score = s_val if isinstance(s_val, (int, float)) else getattr(s_val, 'sentiment_score', 0.5)
+                t_map[s_k] = {'previous_quarter_tone': 0.5, 'current_quarter_tone': s_score}
         earnings_tone_drift_df = tone_engine.calculate_scores(
-            universe['symbol'].tolist(), prices_dict=infer_data_dict
+            universe['symbol'].tolist(),
+            prices_dict=infer_data_dict,
+            transcript_map=t_map if t_map else None,
         )
         logger.info(f"[Strategy 30] Earnings Tone Drift computed: {len(earnings_tone_drift_df)} rows")
         _save_strategy_predictions_report(
@@ -3309,24 +3322,22 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         logger.warning(f"Earnings tone drift strategy computation failed: {_et_e}")
         earnings_tone_drift_df = pd.DataFrame()
 
-    # Strategy 31 (Darkpool proxy): Build darkpool_df from overnight gap + microstructure extended score.
+    # Strategy 31: Dark Pool & Off-Exchange Volume Divergence Engine
     try:
-        if microstructure_df is not None and not microstructure_df.empty and 'microstructure_score' in microstructure_df.columns:
-            darkpool_df = microstructure_df[['symbol', 'microstructure_score']].copy()
-            darkpool_df = darkpool_df.rename(columns={'microstructure_score': 'darkpool_score'})
-            darkpool_df['darkpool_score'] = (darkpool_df['darkpool_score'] * 0.90 + 0.05).clip(0.0, 1.0)
-            logger.info(f"[Strategy 31] Darkpool proxy from microstructure: {len(darkpool_df)} rows")
-        else:
-            darkpool_df = pd.DataFrame(columns=['symbol', 'darkpool_score'])
-            logger.info("[Strategy 31] Microstructure data absent; darkpool proxy empty")
-
+        from src.data_layer.darkpool_tracker import DarkPoolTrackerEngine
+        dp_engine = DarkPoolTrackerEngine(cfg)
+        darkpool_df = dp_engine.calculate_scores(
+            universe['symbol'].tolist(),
+            prices_dict=infer_data_dict
+        )
+        logger.info(f"[Strategy 31] Dark Pool Volume Divergence computed: {len(darkpool_df)} rows")
         _save_strategy_predictions_report(
             darkpool_df, "darkpool_score",
             "Strategy 31: HFT Order Flow & Dark Pool Predictions",
             "hft_order_flow_predictions.txt", score_header="HFT Score", header_width=16
         )
     except Exception as _dp_e:
-        logger.warning(f"Darkpool proxy generation failed: {_dp_e}")
+        logger.warning(f"Darkpool score computation failed: {_dp_e}")
         darkpool_df = pd.DataFrame()
 
     # Strategy 6: Strict Causal LSTM deep learning predictions

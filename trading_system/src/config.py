@@ -152,8 +152,8 @@ class TradingConfig:
     slippage_krx_market_order: float = 0.0015     # KRX 시가 슬리피지 (0.15%)
 
     # Order Book Market Impact & Bid-Ask Spread Cost Parameters (R2)
-    order_size_krx: float = 50_000_000.0        # KRX 기본 주문 금액 가설 (5천만원)
-    order_size_sp500: float = 50_000.0          # SP500 기본 주문 금액 가설 ($50,000)
+    order_size_krx: float = 10_000_000.0        # KRX 기본 주문 금액 가설 (1천만원, 1억원 포트폴리오 기준)
+    order_size_sp500: float = 5_000.0          # SP500 기본 주문 금액 가설 ($5,000 USD)
     market_impact_coeff_krx: float = 0.75       # KRX 시장 충격 Square-Root 계수 Y
     market_impact_coeff_sp500: float = 0.50     # SP500 시장 충격 Square-Root 계수 Y
     base_spread_kospi: float = 0.0006           # KOSPI 기준 스프레드 (0.06%)
@@ -189,8 +189,8 @@ class TradingConfig:
     # 실시간 장중 모니터링 (realtime_monitor.py)
     realtime_interval_min: int = 15          # 폴링 간격 (분)
     realtime_dry_run: bool = True            # 실매매 없이 모의 실행
-    realtime_stop_loss_pct: float = -0.08    # 진입 대비 손절 임계 (-8%)
-    realtime_take_profit_pct: float = 0.08   # 진입 대비 익절 임계
+    realtime_stop_loss_pct: float = -0.06    # 진입 대비 비대칭 손절 임계 (-6%)
+    realtime_take_profit_pct: float = 0.14   # 진입 대비 비대칭 익절 임계 (+14%, 2.33:1 손익비)
     realtime_vix_threshold: float = 28.0     # VIX 위기 임계
     realtime_usdkrw_threshold: float = 1450.0  # USD/KRW 위기 임계
     realtime_max_order_value_krw: float = 50_000_000.0  # 주문 금액 상한

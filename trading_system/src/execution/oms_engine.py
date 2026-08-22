@@ -472,7 +472,7 @@ class ExecutionOMSEngine:
                         allocator = PortfolioAllocator()
                         adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
                         vol_val = float(pred.get("volatility_20d", 0.02) or 0.02)
-                        friction_cost = allocator.estimate_transaction_cost_rate(
+                        buy_cost = allocator.estimate_transaction_cost_rate(
                             symbol=sym,
                             market=market or "KOSPI",
                             target_weight=weight,
@@ -482,6 +482,17 @@ class ExecutionOMSEngine:
                             is_sell=False,
                             slippage_multiplier=slip_mult
                         )
+                        sell_cost = allocator.estimate_transaction_cost_rate(
+                            symbol=sym,
+                            market=market or "KOSPI",
+                            target_weight=weight,
+                            portfolio_value=tot_cap,
+                            volatility_20d=vol_val,
+                            adv=adv_val,
+                            is_sell=True,
+                            slippage_multiplier=slip_mult
+                        )
+                        friction_cost = buy_cost + sell_cost
                         safety_margin = 0.0010  # 0.10% KRX safety margin
                         if "expected_return" in pred and pred["expected_return"] is not None:
                             raw_exp_ret = float(pred["expected_return"])
@@ -503,7 +514,10 @@ class ExecutionOMSEngine:
                     vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
                     raw_gap = float(change_pct or 0.0)
                     gap_ret = raw_gap / 100.0 if abs(raw_gap) >= 0.35 else raw_gap
-                    if action == "BUY" and gap_ret <= -3.0 * max(vol_20d, 0.015):
+                    # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
+                    strat_src = str(pred.get("strategy_source", "") or pred.get("primary_strategy", "") or pred.get("strategy", "")).lower()
+                    is_reversal = "reversal" in strat_src or "short_term_reversal" in strat_src
+                    if not is_reversal and action == "BUY" and gap_ret <= -3.0 * max(vol_20d, 0.015):
                         logger.warning(f"[OMS GATE 7.4] {sym} adverse gap {gap_ret:.2%} <= -3sigma, skipping toxic order flow.")
                         continue
                 except (ValueError, TypeError):
