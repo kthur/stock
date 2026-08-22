@@ -2015,22 +2015,15 @@ class EnsembleScoringEngine:
 
             if score_col in merged.columns:
                 valid_mask = merged[score_col].notna() & np.isfinite(merged[score_col])
-                # Prior-Anchored Imputation: Impute neutral 0.50 for missing factor scores
-                imputed_score = np.where(valid_mask, merged[score_col], 0.50)
-                total_score_series += imputed_score * w_series
+                total_score_series += np.where(valid_mask, merged[score_col] * w_series, 0.0)
                 valid_weight_series += w_series * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
-            else:
-                total_score_series += 0.50 * w_series
 
-        # Normalize by nominal weight sum
+        # Dynamic re-normalization over active strategies
         safe_nom_weight = tot_nominal_weight.replace(0.0, 1.0)
-        raw_linear_score = (total_score_series / safe_nom_weight).fillna(0.50).clip(0.0, 1.0)
-
-        # Bayesian Coverage Shrinkage: smooth regularization against sparse missingness
-        coverage_ratio = (valid_weight_series / safe_nom_weight).clip(0.0, 1.0)
-        coverage_factor = 1.0 - 0.10 * (1.0 - coverage_ratio)
-        linear_score = (raw_linear_score * coverage_factor).clip(0.0, 1.0)
+        has_valid = valid_weight_series > 0
+        safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
+        linear_score = np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0)
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
         slow_cols = [sc for sn, sc in strategy_cols if sn in self.ALPHA_HORIZON_TIERS['slow'] and sc in merged.columns]

@@ -34,6 +34,20 @@ class GlobalRateLimiter:
         self._tokens: Dict[str, float] = {}
         self._last_time: Dict[str, float] = {}
 
+    @property
+    def min_interval(self) -> float:
+        default_rate = self.rates.get('default', {}).get('rate', 3.0)
+        return 1.0 / max(default_rate, 1e-4)
+
+    @min_interval.setter
+    def min_interval(self, val: float):
+        if val > 0:
+            default_rate = 1.0 / float(val)
+            self.rates['default'] = {'rate': default_rate, 'capacity': 1.0}
+            self.rates['yahoo'] = {'rate': default_rate, 'capacity': 1.0}
+            with self.lock:
+                self._tokens.clear()
+
     def _get_host_key(self, source: str = 'default') -> str:
         s = str(source).lower()
         for key in ['yahoo', 'fred', 'ecos', 'dart']:
@@ -49,20 +63,17 @@ class GlobalRateLimiter:
         sleep_time = 0.0
         with self.lock:
             now = time.time()
-            if key not in self._last_time:
+            if key not in self._last_time or key not in self._tokens:
                 self._tokens[key] = capacity
                 self._last_time[key] = now
 
-            elapsed = now - self._last_time[key]
+            elapsed = max(0.0, now - self._last_time[key])
             self._tokens[key] = min(capacity, self._tokens[key] + elapsed * rate)
             self._last_time[key] = now
 
-            if self._tokens[key] >= 1.0:
-                self._tokens[key] -= 1.0
-                return
-            else:
-                sleep_time = (1.0 - self._tokens[key]) / max(0.1, rate)
-                self._tokens[key] = 0.0
+            self._tokens[key] -= 1.0
+            if self._tokens[key] < 0.0:
+                sleep_time = -self._tokens[key] / max(0.01, rate)
 
         if sleep_time > 0:
             logger.debug(f"GlobalRateLimiter[{key}]: Sleeping {sleep_time:.2f}s to respect rate limit")

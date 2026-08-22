@@ -215,6 +215,16 @@ class MarketIndicatorStorage:
                 pass
             raise
 
+    def close(self):
+        """Close thread-local SQLite connection if open."""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            self._local.conn = None
+
     def checkpoint_wal(self):
         """Truncate WAL log file to prevent file bloat."""
         with self._write_lock:
@@ -1463,13 +1473,14 @@ class MarketIndicatorStorage:
         """Start a pipeline run and record it in pipeline_run_history.
         Returns generated run_id.
         """
+        import uuid
         now = datetime.now(KST)
         git_tag = git_sha[:7] if git_sha else "local"
-        run_id = f"run_{now.strftime('%Y%m%d_%H%M%S_%f')[:22]}_{git_tag}"
+        run_id = f"run_{now.strftime('%Y%m%d_%H%M%S_%f')[:22]}_{uuid.uuid4().hex[:6]}_{git_tag}"
         run_date = now.strftime('%Y-%m-%d')
         start_time = now.isoformat(timespec='seconds')
         sql = """
-            INSERT INTO pipeline_run_history
+            INSERT OR REPLACE INTO pipeline_run_history
             (run_id, run_date, start_time, status, trigger_type, git_sha)
             VALUES (?, ?, ?, 'RUNNING', ?, ?)
         """

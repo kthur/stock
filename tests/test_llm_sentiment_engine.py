@@ -121,8 +121,12 @@ def test_sqlite_cache_integration():
         assert m_cached.source_type == "CACHE"
         assert m_cached.composite_sentiment_score == 0.896
     finally:
+        storage.close()
         if os.path.exists(db_path):
-            os.remove(db_path)
+            try:
+                os.remove(db_path)
+            except Exception:
+                pass
 
 
 def test_event_driven_sentiment_multiplier():
