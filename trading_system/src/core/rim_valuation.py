@@ -144,13 +144,20 @@ class RIMValuationEngine(BaseStrategyEngine):
         us10y_yield: Optional[float] = None,
         vix_val: Optional[float] = None,
         credit_spread: Optional[float] = None,
+        asset_beta: Optional[float] = None,
+        is_small_cap: bool = False,
     ) -> float:
         """
-        Derives dynamic countercyclical required return r_e = R_f + ERP_dynamic.
-        Expands ERP during high VIX / credit distress to prevent the Value Trap during market crashes.
+        Derives dynamic countercyclical asset-specific required return:
+          r_{e,i} = R_f + beta_i * ERP_dynamic + size_premium
+        Expands ERP during high VIX / credit distress and scales by asset beta
+        to prevent the Value Trap on high-beta speculative names.
         """
         base_rf = (us10y_yield / 100.0) if (us10y_yield is not None and us10y_yield > 0) else 0.04
         base_erp = 0.05 if market in ['SP500', 'NASDAQ'] else 0.06
+
+        beta_eff = float(np.clip(asset_beta, 0.50, 2.0)) if (asset_beta is not None and np.isfinite(asset_beta)) else 1.0
+        size_prem = 0.010 if is_small_cap else 0.0
 
         # Dynamic Countercyclical ERP expansion (VIX > 20 expands ERP by up to +4%)
         vix_expansion = 0.0
@@ -163,7 +170,7 @@ class RIMValuationEngine(BaseStrategyEngine):
             spread_expansion = float(np.clip((credit_spread - 4.0) * 0.01, 0.0, 0.03))
 
         dynamic_erp = base_erp + vix_expansion + spread_expansion
-        dynamic_re = np.clip(base_rf + dynamic_erp, 0.06, 0.18)
+        dynamic_re = np.clip(base_rf + beta_eff * dynamic_erp + size_prem, 0.06, 0.22)
         return float(dynamic_re)
 
     def normalize_roe(

@@ -172,6 +172,60 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
 
 
 
+class KalmanPairTracker:
+    """
+    Online State-Space 2-State Kalman Filter for real-time dynamic hedge ratio tracking:
+      theta_t = [alpha_t, beta_t]^T
+      theta_t = theta_{t-1} + w_t,  Q = delta_w / (1 - delta_w) * I
+      y_{1,t} = [1, y_{2,t}] theta_t + v_t,  R = v_e
+    Guarantees zero-lookahead online tracking with innovation variance z-scoring.
+    """
+
+    def __init__(self, delta_w: float = 1e-4, v_e: float = 1e-3, break_threshold: float = 3.5):
+        self.delta_w = delta_w
+        self.v_e = v_e
+        self.break_threshold = break_threshold
+        self.theta = np.zeros(2, dtype=np.float64)
+        self.P = np.eye(2, dtype=np.float64) * 1.0
+        self.Q = np.eye(2, dtype=np.float64) * (delta_w / max(1e-6, 1.0 - delta_w))
+        self.R = float(v_e)
+        self.history: List[Dict[str, Any]] = []
+
+    def update(self, y1_val: float, y2_val: float) -> Dict[str, Any]:
+        """Performs one online step update on the arrival of new pair prices."""
+        # 1. State Prediction
+        self.P = self.P + self.Q
+
+        # 2. Measurement Prediction
+        H = np.array([1.0, float(y2_val)], dtype=np.float64)
+        y_pred = float(np.dot(H, self.theta))
+        e = float(y1_val) - y_pred
+        F = float(np.dot(H, np.dot(self.P, H)) + self.R)
+
+        # 3. Kalman Gain
+        K = np.dot(self.P, H) / max(F, 1e-12)
+
+        # 4. State Update
+        self.theta = self.theta + K * e
+        self.P = self.P - np.outer(K, H).dot(self.P)
+
+        innov_z = float(abs(e) / np.sqrt(max(F, 1e-12)))
+        is_break = bool(innov_z > self.break_threshold)
+
+        step_res = {
+            'alpha_t': float(self.theta[0]),
+            'beta_t': float(self.theta[1]),
+            'spread': float(e),
+            'innovation_z': innov_z,
+            'is_structural_break': is_break
+        }
+        self.history.append(step_res)
+        return step_res
+
+    def get_current_hedge_ratio(self) -> float:
+        return float(self.theta[1])
+
+
 from src.core.base_strategy import BaseStrategyEngine
 from src.core.strategy_registry import register_strategy, StrategyMeta
 

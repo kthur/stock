@@ -76,11 +76,23 @@ class LSTMPredictor:
             return
 
         try:
-            # Reshape inputs to (samples, seq_len, 1)
+            # Reshape inputs to (samples, seq_len, input_size)
             if X_train.ndim == 2:
                 X_train = np.expand_dims(X_train, axis=-1)
             if y_train.ndim == 1:
                 y_train = np.expand_dims(y_train, axis=-1)
+
+            # Auto-adapt input_size for multivariate sequences
+            actual_input_size = int(X_train.shape[2])
+            if actual_input_size != self.input_size:
+                self.input_size = actual_input_size
+                self.model = LSTMNetwork(
+                    input_size=actual_input_size,
+                    hidden_size=self.hidden_size,
+                    num_layers=2,
+                    dropout=0.2,
+                    output_size=1
+                ).to(self.device)
 
             # Clean NaNs and Infs in training data
             X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)

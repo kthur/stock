@@ -35,6 +35,25 @@ def is_empty_result(result):
     return False
 
 
+def compute_regulatory_filing_lag(
+    period_end_date: Any,
+    period_type: str = 'quarterly',
+    is_krx: bool = True
+) -> str:
+    """
+    Computes precise statutory regulatory filing availability date without lookahead bias:
+    - KRX (KOSPI/KOSDAQ): 45 calendar days for quarterly reports (1Q/2Q/3Q), 90 calendar days for annual report.
+    - SEC (SP500/NASDAQ/RUSSELL2000): 40 calendar days for 10-Q quarterly, 60 calendar days for 10-K annual.
+    """
+    ts = pd.to_datetime(period_end_date)
+    is_year_end = (str(period_type).lower() == 'annual') or (ts.month == 12)
+    if is_krx:
+        lag_days = 90 if is_year_end else 45
+    else:
+        lag_days = 60 if is_year_end else 40
+    return (ts + pd.Timedelta(days=lag_days)).strftime('%Y-%m-%d')
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -70,9 +89,14 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     fin = fin.sort_index()
 
     result = pd.DataFrame(index=fin.index)
-    # 60-day regulatory filing lag enforcement
-    result['date_available'] = (fin.index + pd.Timedelta(days=60)).strftime('%Y-%m-%d')
-    result['period_type'] = 'quarterly' if is_quarterly else 'annual'
+    # Jurisdiction-Aware Regulatory Filing Lag enforcement (KRX 45d/90d, SEC 40d/60d)
+    is_kr = yf_sym.endswith(('.KS', '.KQ'))
+    p_type = 'quarterly' if is_quarterly else 'annual'
+    result['date_available'] = [
+        compute_regulatory_filing_lag(dt, p_type, is_krx=is_kr)
+        for dt in fin.index
+    ]
+    result['period_type'] = p_type
 
     scale_factor = 1.0 if is_quarterly else 0.25  # Normalize annual flow figures to quarterly run-rate
     rev_cols = [c for c in ['Total Revenue', 'Revenue'] if c in fin.columns]
