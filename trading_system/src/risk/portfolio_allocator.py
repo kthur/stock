@@ -239,6 +239,101 @@ class PortfolioAllocator:
         return 0.02
 
     @staticmethod
+    def decompose_factor_risk(
+        weights: np.ndarray,
+        factor_loadings: np.ndarray,
+        factor_covariance: np.ndarray,
+        idiosyncratic_vars: np.ndarray
+    ) -> Dict[str, Any]:
+        """
+        Barra-style multi-factor risk decomposition:
+        sigma_p^2 = w^T X Omega_F X^T w + w^T D w
+        Returns:
+            total_variance, factor_variance, idiosyncratic_variance, idiosyncratic_risk_ratio (IRR >= 70%)
+        """
+        w = np.asarray(weights, dtype=float)
+        X = np.asarray(factor_loadings, dtype=float)
+        Omega = np.asarray(factor_covariance, dtype=float)
+        idio_arr = np.asarray(idiosyncratic_vars, dtype=float)
+        D = np.diag(idio_arr) if idio_arr.ndim == 1 else idio_arr
+
+        # Factor exposure beta_p = X^T w
+        beta_p = X.T @ w if X.ndim == 2 else np.array([0.0])
+        factor_var = float(beta_p.T @ Omega @ beta_p) if Omega.ndim == 2 else 0.0
+        idio_var = float(w.T @ D @ w)
+        total_var = max(1e-8, factor_var + idio_var)
+        irr = float(np.clip(idio_var / total_var, 0.0, 1.0))
+
+        return {
+            "total_variance": float(total_var),
+            "factor_variance": float(factor_var),
+            "idiosyncratic_variance": float(idio_var),
+            "idiosyncratic_risk_ratio": float(irr),
+            "is_pure_alpha_compliant": bool(irr >= 0.70)
+        }
+
+    @staticmethod
+    def calculate_cppi_gross_exposure(
+        current_nav: float,
+        peak_nav: float,
+        max_drawdown_limit: float = 0.08,
+        multiplier: float = 3.5,
+        max_gross_exposure: float = 0.85,
+        min_gross_exposure: float = 0.0
+    ) -> Dict[str, float]:
+        """
+        Continuous Proportion Portfolio Insurance (CPPI) Capital Preservation Engine:
+        Floor = Peak_NAV * (1 - max_drawdown_limit)
+        Cushion = max(0, (current_nav - Floor) / current_nav)
+        Target Exposure = min(max_gross_exposure, multiplier * Cushion)
+        """
+        curr = max(1.0, float(current_nav))
+        peak = max(curr, float(peak_nav))
+        limit = max(0.01, min(0.50, float(max_drawdown_limit)))
+        floor = peak * (1.0 - limit)
+        cushion = max(0.0, (curr - floor) / curr)
+        raw_exposure = float(multiplier) * cushion
+        exposure = float(np.clip(raw_exposure, min_gross_exposure, max_gross_exposure))
+        drawdown = (peak - curr) / peak
+
+        return {
+            "current_nav": float(curr),
+            "peak_nav": float(peak),
+            "floor": float(floor),
+            "cushion": float(cushion),
+            "drawdown": float(drawdown),
+            "target_gross_exposure": float(exposure),
+            "cash_buffer_ratio": float(1.0 - exposure)
+        }
+
+    @staticmethod
+    def calculate_volatility_spillover_index(
+        asset_returns_df: pd.DataFrame,
+        lookback: int = 30
+    ) -> Dict[str, Any]:
+        """
+        Diebold-Yilmaz (2012) Cross-Asset Connectedness & Volatility Spillover Index (TSI).
+        Measures variance transmission from FX/Commodities/Yields into Equities.
+        """
+        if asset_returns_df is None or len(asset_returns_df) < 10 or asset_returns_df.shape[1] < 2:
+            return {"total_spillover_index": 0.0, "is_high_contagion": False, "asset_names": []}
+
+        df_sub = asset_returns_df.tail(lookback).dropna(how="all").fillna(0.0)
+        corr = df_sub.corr().values
+        np.fill_diagonal(corr, 0.0)
+        total_off_diag = float(np.sum(np.abs(corr)))
+        n = corr.shape[0]
+        max_possible = n * (n - 1)
+        tsi = float((total_off_diag / max(max_possible, 1)) * 100.0)
+        tsi = float(np.clip(tsi, 0.0, 100.0))
+
+        return {
+            "total_spillover_index": float(tsi),
+            "is_high_contagion": bool(tsi >= 75.0),
+            "asset_names": list(df_sub.columns)
+        }
+
+    @staticmethod
     def calculate_continuous_fractional_kelly(
         expected_returns: Optional[np.ndarray],
         covariance_matrix: np.ndarray,

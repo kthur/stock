@@ -328,3 +328,131 @@ class TestDynamicFXOverlay:
         )
         assert res_down["fx_hedge_ratio"] == 0.80  # Strong hedge during dollar depreciation
 
+
+class TestBarraFactorRiskDecomposition:
+    def test_factor_and_idiosyncratic_risk_decomposition(self):
+        # 3 assets, 2 factors
+        weights = np.array([0.5, 0.3, 0.2])
+        factor_loadings = np.array([
+            [1.1, 0.4],
+            [0.8, -0.2],
+            [0.5, 0.9]
+        ])
+        factor_cov = np.array([
+            [0.0004, 0.0001],
+            [0.0001, 0.0003]
+        ])
+        idiosyncratic_vars = np.array([0.0002, 0.0003, 0.00025])
+
+        decomp = PortfolioAllocator.decompose_factor_risk(
+            weights=weights,
+            factor_loadings=factor_loadings,
+            factor_covariance=factor_cov,
+            idiosyncratic_vars=idiosyncratic_vars
+        )
+
+        assert "total_variance" in decomp
+        assert "factor_variance" in decomp
+        assert "idiosyncratic_variance" in decomp
+        assert "idiosyncratic_risk_ratio" in decomp
+        assert 0.0 <= decomp["idiosyncratic_risk_ratio"] <= 1.0
+        assert math.isclose(decomp["total_variance"], decomp["factor_variance"] + decomp["idiosyncratic_variance"], rel_tol=1e-3)
+
+
+class TestHERCAllocation:
+    def test_herc_hierarchical_equal_risk_weights(self):
+        from src.analysis.portfolio_optimizer import calculate_herc_weights
+        np.random.seed(42)
+        cov = np.array([
+            [0.0006, 0.0001, 0.00005, 0.00002],
+            [0.0001, 0.0005, 0.00004, 0.00003],
+            [0.00005, 0.00004, 0.0004, 0.0001],
+            [0.00002, 0.00003, 0.0001, 0.00035]
+        ])
+        weights_herc = calculate_herc_weights(cov, max_k=2)
+
+        assert len(weights_herc) == 4
+        assert math.isclose(np.sum(weights_herc), 1.0, rel_tol=1e-3)
+        assert np.all(weights_herc >= 0.0)
+
+
+class TestCPPIDrawdownCushion:
+    def test_cppi_cushion_and_exposure_scaling(self):
+        # Scenario 1: NAV at peak -> Full gross exposure
+        res_peak = PortfolioAllocator.calculate_cppi_gross_exposure(
+            current_nav=100_000_000.0,
+            peak_nav=100_000_000.0,
+            max_drawdown_limit=0.08,
+            multiplier=3.5
+        )
+        assert res_peak["target_gross_exposure"] > 0.20
+        assert res_peak["cushion"] == 0.08
+
+        # Scenario 2: Severe drawdown breaching floor -> Zero exposure (cash preservation)
+        res_floor = PortfolioAllocator.calculate_cppi_gross_exposure(
+            current_nav=90_000_000.0,
+            peak_nav=100_000_000.0,
+            max_drawdown_limit=0.08,
+            multiplier=3.5
+        )
+        assert res_floor["target_gross_exposure"] == 0.0
+        assert res_floor["cash_buffer_ratio"] == 1.0
+
+
+class TestGatheralMarketImpactKernel:
+    def test_gatheral_decay_and_slicing(self):
+        from src.execution.oms_engine import GatheralMarketImpactKernel
+        perm_imp = GatheralMarketImpactKernel.estimate_permanent_impact(
+            quantity=10000,
+            adv=1_000_000,
+            daily_volatility=0.02
+        )
+        assert perm_imp > 0.0
+
+        slices = GatheralMarketImpactKernel.compute_optimal_gatheral_slices(
+            total_quantity=1000,
+            n_slices=5,
+            alpha_decay_half_life=2.0
+        )
+        assert len(slices) == 5
+        assert sum(slices) == 1000
+        # Fast alpha: first slice should be larger than last slice
+        assert slices[0] >= slices[-1]
+
+
+class TestDieboldYilmazVolatilitySpillover:
+    def test_volatility_spillover_index(self):
+        dates = pd.date_range("2026-01-01", periods=40)
+        np.random.seed(42)
+        df_ret = pd.DataFrame({
+            "SP500": np.random.normal(0, 0.015, 40),
+            "KOSPI": np.random.normal(0, 0.018, 40),
+            "USDKRW": np.random.normal(0, 0.006, 40),
+            "WTI": np.random.normal(0, 0.025, 40)
+        }, index=dates)
+
+        tsi_res = PortfolioAllocator.calculate_volatility_spillover_index(df_ret, lookback=30)
+        assert "total_spillover_index" in tsi_res
+        assert 0.0 <= tsi_res["total_spillover_index"] <= 100.0
+
+
+class TestMultiHorizonRankICDecay:
+    def test_rank_ic_decay_calibration(self):
+        from src.ai.ensemble_scorer import EnsembleScoringEngine
+        base_w = {"surge": 0.25, "rim_valuation": 0.25, "mq_factor": 0.25, "stat_arb": 0.25}
+        rank_ic = {"surge": 0.15, "rim_valuation": 0.02, "mq_factor": 0.08, "stat_arb": -0.05}
+        half_lives = {"surge": 1.0, "rim_valuation": 60.0, "mq_factor": 15.0, "stat_arb": 7.0}
+
+        # Stale latency (e.g. 3 days old signal) -> surge decays quickly, rim_valuation remains robust
+        calibrated = EnsembleScoringEngine.apply_rank_ic_decay_calibration(
+            base_weights=base_w,
+            strategy_rank_ic_dict=rank_ic,
+            strategy_half_lives=half_lives,
+            latency_days=3.0
+        )
+
+        assert math.isclose(sum(calibrated.values()), 1.0, rel_tol=1e-3)
+        # Surge with 1d half-life after 3 days decays more than RIM with 60d half-life
+        assert calibrated["rim_valuation"] > calibrated["stat_arb"]
+
+

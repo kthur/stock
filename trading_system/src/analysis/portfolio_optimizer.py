@@ -448,9 +448,95 @@ def calculate_hrp_weights(
 
     except Exception as e:
         logger.error(f"HRP optimization exception: {e}. Falling back to Risk Parity.")
+        return calculate_risk_parity_weights(cov_matrix)
 
-    fallback_w = calculate_risk_parity_weights(cov_matrix)
-    return apply_portfolio_constraints(fallback_w, symbols=symbols if 'symbols' in locals() else [])
+    return calculate_risk_parity_weights(cov_matrix)
+
+
+def calculate_herc_weights(
+    cov_matrix: np.ndarray,
+    symbols: Optional[list] = None,
+    linkage_method: str = "ward",
+    max_k: int = 5,
+    risk_measure: str = "volatility"
+) -> np.ndarray:
+    """
+    Computes Hierarchical Equal Risk Contribution (HERC) portfolio weights (Raffinot 2017, Lopez de Prado 2020).
+    1. Computes Ward/Complete linkage hierarchical clustering on correlation distance matrix.
+    2. Determines optimal cluster partition via cophenetic/gap tree slicing.
+    3. Allocates Equal Risk Contribution (ERC) across top-level macro clusters:
+       w_k = (1 / sigma_k) / sum(1 / sigma_m).
+    4. Allocates inverse-variance / risk parity within each cluster.
+    """
+    if cov_matrix is None or not isinstance(cov_matrix, np.ndarray):
+        return np.array([])
+    n = cov_matrix.shape[0]
+    if n == 0:
+        return np.array([])
+    if n == 1:
+        return np.ones(n)
+
+    try:
+        from scipy.cluster.hierarchy import linkage, fcluster
+        from scipy.spatial.distance import squareform
+
+        # Ensure valid correlation matrix
+        stds = np.sqrt(np.maximum(np.diag(cov_matrix), 1e-8))
+        corr = cov_matrix / np.outer(stds, stds)
+        corr = np.nan_to_num(corr, nan=0.0)
+        corr = np.clip(corr, -1.0, 1.0)
+        np.fill_diagonal(corr, 1.0)
+
+        # Distance matrix
+        dist = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr)))
+        np.fill_diagonal(dist, 0.0)
+        dist_condensed = squareform(dist, checks=False)
+
+        link_method = str(linkage_method).lower()
+        if link_method not in ["ward", "complete", "average", "single"]:
+            link_method = "ward"
+        try:
+            link = linkage(dist_condensed, method=link_method)
+        except Exception:
+            link = linkage(dist_condensed, method="average")
+
+        # Determine optimal number of clusters K (2 <= K <= min(n, max_k))
+        k = max(2, min(n, int(max_k)))
+        cluster_labels = fcluster(link, t=k, criterion="maxclust")
+
+        # Cluster level variance & weights
+        cluster_weights = np.zeros(n)
+        cluster_vols = {}
+
+        for c_id in np.unique(cluster_labels):
+            idx = np.where(cluster_labels == c_id)[0]
+            cov_c = cov_matrix[np.ix_(idx, idx)]
+            stds_c = np.maximum(np.sqrt(np.maximum(np.diag(cov_c), 1e-8)), 1e-4)
+            inv_var = 1.0 / (stds_c ** 2)
+            w_intra = inv_var / max(np.sum(inv_var), 1e-12)
+            var_c = float(w_intra.T @ cov_c @ w_intra)
+            cluster_vols[c_id] = np.sqrt(max(var_c, 1e-8))
+
+        # Equal Risk Contribution (ERC) across clusters
+        inv_cluster_vols = {c_id: 1.0 / max(v, 1e-6) for c_id, v in cluster_vols.items()}
+        sum_inv_vols = sum(inv_cluster_vols.values())
+        cluster_capital = {c_id: (inv_v / sum_inv_vols) for c_id, inv_v in inv_cluster_vols.items()}
+
+        for c_id in np.unique(cluster_labels):
+            idx = np.where(cluster_labels == c_id)[0]
+            cov_c = cov_matrix[np.ix_(idx, idx)]
+            stds_c = np.maximum(np.sqrt(np.maximum(np.diag(cov_c), 1e-8)), 1e-4)
+            inv_var = 1.0 / (stds_c ** 2)
+            w_intra = inv_var / max(np.sum(inv_var), 1e-12)
+            cluster_weights[idx] = w_intra * cluster_capital[c_id]
+
+        sum_w = np.sum(cluster_weights)
+        if sum_w > 1e-12:
+            return cluster_weights / sum_w
+        return np.full(n, 1.0 / n)
+    except Exception as e:
+        logger.debug(f"[HERC] Fallback to HRP: {e}")
+        return calculate_hrp_weights(cov_matrix, symbols=symbols)
 
 
 def apply_portfolio_constraints(

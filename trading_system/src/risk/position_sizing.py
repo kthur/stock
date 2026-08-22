@@ -288,12 +288,12 @@ class PortfolioAllocator:
             lambda m: norm_market_budgets.get(m.upper(), 1.0 / max(len(present_markets), 1))
         )
 
-        # HRP Allocation Path
-        # NOTE: HRP weights are a risk-parity allocation tool, NOT a signal score.
+        # HRP / HERC Allocation Path
+        # NOTE: HRP/HERC weights are a risk-parity allocation tool, NOT a signal score.
         # raw_score must stay the expected-return based ranking metric so that
         # Top-N selection is driven by the ensemble signal; HRP only sizes positions.
-        if use_hrp:
-            from src.analysis.portfolio_optimizer import calculate_hrp_weights
+        if use_hrp or locals().get('use_herc', False):
+            from src.analysis.portfolio_optimizer import calculate_hrp_weights, calculate_herc_weights
             symbols = df_candidates['symbol'].tolist()
             try:
                 from src.risk.fx_adjusted_covariance import FXAdjustedCovarianceEngine
@@ -331,7 +331,10 @@ class PortfolioAllocator:
             if len(symbols) > 1 and 'cov_mat' in locals() and cov_mat.shape == (len(symbols), len(symbols)):
                 if np.any(np.isnan(cov_mat)):
                     np.fill_diagonal(cov_mat, np.nan_to_num(np.diag(cov_mat), nan=1e-4))
-                hrp_w = calculate_hrp_weights(cov_mat)
+                if locals().get('use_herc', False):
+                    hrp_w = calculate_herc_weights(cov_mat, symbols=symbols)
+                else:
+                    hrp_w = calculate_hrp_weights(cov_mat, symbols=symbols)
                 df_candidates['hrp_weight'] = hrp_w
                 # ── Layer 3: Market Budget × HRP weight ──
                 df_candidates['weight'] = hrp_w * df_candidates['market_budget'] * self.max_total_allocation

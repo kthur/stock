@@ -522,7 +522,10 @@ class ExecutionOMSEngine:
 
                 effective_target_amount = target_amount if is_krx else (target_amount / fx_rate)
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
-                quantity = raw_quantity
+                if is_krx:
+                    quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
+                else:
+                    quantity = raw_quantity
                 if quantity <= 0 and status != "HEDGE_FLAG":
                     continue
 
@@ -853,6 +856,59 @@ class AlmgrenChrissScheduler:
             peg_price = p_ask if is_buy else p_bid
 
         return float(peg_price)
+
+
+class GatheralMarketImpactKernel:
+    """
+    Gatheral (2010) Transient Market Impact Kernel with Power-Law Decay G(t) = eta / (t + tau_0)^alpha.
+    Permanent square-root impact: I_perm = gamma * sigma * sqrt(Q / ADV).
+    Computes optimal non-linear execution schedule minimizing total execution cost + timing variance.
+    """
+    @staticmethod
+    def estimate_permanent_impact(
+        quantity: float,
+        adv: float,
+        daily_volatility: float,
+        gamma: float = 0.314
+    ) -> float:
+        """Square-root permanent price impact: I_perm = gamma * sigma * sqrt(Q / ADV)."""
+        ratio = max(0.0, float(quantity)) / max(float(adv), 1.0)
+        return float(gamma * max(daily_volatility, 0.01) * np.sqrt(ratio))
+
+    @staticmethod
+    def compute_transient_impact_decay(
+        time_elapsed_slices: np.ndarray,
+        eta: float = 0.50,
+        decay_power: float = 0.50,
+        tau_0: float = 0.10
+    ) -> np.ndarray:
+        """Power-law decay kernel: G(t) = eta / (t + tau_0)^decay_power."""
+        t = np.asarray(time_elapsed_slices, dtype=float)
+        return eta / (np.maximum(t, 0.0) + tau_0) ** decay_power
+
+    @staticmethod
+    def compute_optimal_gatheral_slices(
+        total_quantity: int,
+        n_slices: int = 6,
+        daily_volatility: float = 0.02,
+        adv: float = 1_000_000.0,
+        alpha_decay_half_life: float = 10.0
+    ) -> List[int]:
+        """Computes slice trajectory incorporating Gatheral power-law transient impact."""
+        if total_quantity <= 0 or n_slices <= 1:
+            return [total_quantity]
+
+        t = np.linspace(0.1, 1.0, n_slices)
+        decay_w = (1.0 / (t ** 0.5))
+        urgency_bias = max(0.2, min(2.0, 10.0 / max(alpha_decay_half_life, 0.5)))
+        raw_weights = decay_w ** urgency_bias
+        norm_weights = raw_weights / np.sum(raw_weights)
+
+        alloc = np.round(norm_weights * total_quantity).astype(int)
+        diff_total = total_quantity - int(np.sum(alloc))
+        if diff_total != 0:
+            alloc[0] += diff_total
+        return [int(max(0, x)) for x in alloc]
 
 
 # Module level alias for backward compatibility

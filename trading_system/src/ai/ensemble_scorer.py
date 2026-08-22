@@ -1011,6 +1011,42 @@ class EnsembleScoringEngine:
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' [{market}] (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
 
+    @staticmethod
+    def apply_rank_ic_decay_calibration(
+        base_weights: Dict[str, float],
+        strategy_rank_ic_dict: Optional[Dict[str, float]] = None,
+        strategy_half_lives: Optional[Dict[str, float]] = None,
+        latency_days: float = 0.0,
+        gamma: float = 1.0
+    ) -> Dict[str, float]:
+        """
+        Calibrates strategy ensemble weights based on Rank Information Coefficient (IC)
+        and exponential latency/half-life decay: exp(-ln(2) * latency / half_life).
+        Ensures slow/stale signals do not distort rapid execution decisions.
+        """
+        if not base_weights:
+            return {}
+
+        calibrated = {}
+        half_lives = strategy_half_lives or {}
+        rank_ics = strategy_rank_ic_dict or {}
+
+        for strat, w in base_weights.items():
+            ic_val = float(rank_ics.get(strat, 0.0))
+            ic_val = float(np.clip(ic_val, -1.0, 1.0))
+            ic_multiplier = float(np.exp(gamma * ic_val))
+
+            hl = float(half_lives.get(strat, 10.0))
+            hl = max(0.5, hl)
+            decay_mult = float(np.exp(-np.log(2.0) * max(0.0, latency_days) / hl))
+
+            calibrated[strat] = max(1e-6, w * ic_multiplier * decay_mult)
+
+        tot = sum(calibrated.values())
+        if tot > 0:
+            return {k: v / tot for k, v in calibrated.items()}
+        return base_weights
+
     def compute_dynamic_weights(
         self,
         rolling_sharpes: Dict[str, float],
