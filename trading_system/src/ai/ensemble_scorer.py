@@ -688,12 +688,20 @@ class EnsembleScoringEngine:
         ECE = sum(|bin_acc - bin_conf| * bin_weight)
         Brier = mean((prob - y_true)^2)
         """
-        p = np.asarray(probs, dtype=float)
-        y = np.asarray(y_true, dtype=float)
-        mask = np.isfinite(p) & np.isfinite(y)
-        p, y = p[mask], y[mask]
+        if probs is None or y_true is None or len(probs) == 0 or len(y_true) == 0:
+            return {"ece": 0.0, "brier": 0.0}
+        p_raw = np.asarray(probs, dtype=float)
+        y_raw = np.asarray(y_true, dtype=float)
+        min_len = min(len(p_raw), len(y_raw))
+        if min_len == 0:
+            return {"ece": 0.0, "brier": 0.0}
+        p_raw, y_raw = p_raw[:min_len], y_raw[:min_len]
+        mask = np.isfinite(p_raw) & np.isfinite(y_raw)
+        p, y = p_raw[mask], y_raw[mask]
         if len(p) == 0:
             return {"ece": 0.0, "brier": 0.0}
+        p = np.clip(p, 0.0, 1.0)
+        y = np.clip(y, 0.0, 1.0)
 
         brier = float(np.mean((p - y) ** 2))
         bins = np.linspace(0.0, 1.0, n_bins + 1)

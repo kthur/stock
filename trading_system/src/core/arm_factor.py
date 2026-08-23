@@ -76,12 +76,19 @@ class ARMFactorEngine(BaseStrategyEngine):
             p_df = prc.get(sym)
             f_dict = fund.get(sym, {})
 
-            # 1. Consensus Revision (EPS 추정치 변경율)
-            eps_rev = _safe_float(f_dict.get('eps_revision_pct'), default=0.0)
-            target_p_rev = _safe_float(f_dict.get('target_price_revision_pct'), default=0.0)
+            # 1. Consensus Revision (EPS 추정치 변경율 및 fallback)
+            raw_eps_rev = f_dict.get('eps_revision_pct')
+            if raw_eps_rev is None:
+                raw_eps_rev = f_dict.get('eps_growth')
+            eps_rev = float(np.clip(_safe_float(raw_eps_rev, default=0.0), -1.0, 2.0))
+
+            raw_tp_rev = f_dict.get('target_price_revision_pct')
+            if raw_tp_rev is None:
+                raw_tp_rev = f_dict.get('tp_revision_pct')
+            target_p_rev = float(np.clip(_safe_float(raw_tp_rev, default=0.0), -1.0, 2.0))
 
             # 2. Earnings Surprise
-            surprise = _safe_float(f_dict.get('earnings_surprise_pct'), default=0.0)
+            surprise = float(np.clip(_safe_float(f_dict.get('earnings_surprise_pct'), default=0.0), -1.0, 2.0))
 
             # 3. Fundamental Growth vs Valuation
             growth_score = 0.0

@@ -186,10 +186,11 @@ class EventDrivenEngine(BaseStrategyEngine):
                             else:
                                 weight = 0.78
 
-                        if weight < 0.50:
-                            scores_map[sym] = min(scores_map[sym], weight)
-                        else:
-                            scores_map[sym] = max(scores_map[sym], weight)
+                        current_delta = scores_map[sym] - 0.50
+                        filing_delta = weight - 0.50
+                        # Compound multi-filing impact with soft hyperbolic saturation
+                        new_delta = float(np.tanh(current_delta * 2.5 + filing_delta * 2.5) / 2.5)
+                        scores_map[sym] = float(np.clip(0.50 + new_delta, 0.05, 0.95))
 
         # Volatility / Volume Event Boost from price data (continuous scoring for all symbols)
         if prices_dict:

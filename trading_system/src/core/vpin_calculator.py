@@ -44,7 +44,7 @@ class VPINCalculator:
         std_diff = float(np.std(price_diffs))
         if std_diff <= 1e-8 or np.isnan(std_diff) or np.isinf(std_diff):
             std_diff = 1e-4
-        z_scores = price_diffs / std_diff
+        z_scores = np.clip(price_diffs / std_diff, -8.0, 8.0)
 
         # Bulk Volume Classification (BVC)
         buy_ratios = norm.cdf(z_scores)
@@ -53,12 +53,34 @@ class VPINCalculator:
         v_b = volumes[1:] * buy_ratios
         v_s = volumes[1:] * sell_ratios
 
-        imbalances = np.abs(v_b - v_s)
-        total_vol = np.sum(volumes[1:])
-
+        total_vol = float(np.sum(volumes[1:]))
         if total_vol <= 0:
             return 0.0
 
+        # Volume Bucketing Accumulation when total volume >= bucket_volume
+        if total_vol >= bucket_volume and bucket_volume > 0:
+            bucket_imbalances = []
+            cur_b = 0.0
+            cur_s = 0.0
+            cur_vol = 0.0
+            for vb, vs in zip(v_b, v_s):
+                step_v = vb + vs
+                if step_v <= 0:
+                    continue
+                cur_b += vb
+                cur_s += vs
+                cur_vol += step_v
+                while cur_vol >= bucket_volume:
+                    ratio = bucket_volume / max(1e-12, cur_vol)
+                    bucket_imbalances.append(abs(cur_b * ratio - cur_s * ratio))
+                    cur_b -= cur_b * ratio
+                    cur_s -= cur_s * ratio
+                    cur_vol -= bucket_volume
+            if bucket_imbalances:
+                vpin_val = np.sum(bucket_imbalances) / (len(bucket_imbalances) * bucket_volume)
+                return float(np.clip(vpin_val, 0.0, 1.0))
+
+        imbalances = np.abs(v_b - v_s)
         vpin_val = np.sum(imbalances) / total_vol
         return float(np.clip(vpin_val, 0.0, 1.0))
 

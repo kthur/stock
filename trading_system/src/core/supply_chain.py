@@ -311,12 +311,12 @@ class SupplyChainEngine(BaseStrategyEngine):
                     if r1 < 0:
                         r1_eff = r1 * 1.35
                     else:
-                        r1_eff = float(np.sign(r1) * (abs(r1) ** 0.90) * 0.95)
+                        r1_eff = r1 * 0.85
 
                     if r3 < 0:
                         r3_eff = r3 * 1.25
                     else:
-                        r3_eff = r3 * 1.05
+                        r3_eff = r3 * 0.90
 
                     spillover_ret = 0.45 * r1_eff + 0.35 * r3_eff + 0.20 * r5
                     cust_rets.append(spillover_ret * c_weight)

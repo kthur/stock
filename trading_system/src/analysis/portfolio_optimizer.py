@@ -551,7 +551,13 @@ def calculate_herc_weights(
 
         sum_w = np.sum(cluster_weights)
         if sum_w > 1e-12:
-            return cluster_weights / sum_w
+            herc_w = cluster_weights / sum_w
+            return apply_portfolio_constraints(
+                herc_w,
+                symbols=symbols,
+                max_single_stock_weight=0.20,
+                max_sector_weight=0.35
+            )
         return np.full(n, 1.0 / n)
     except Exception as e:
         logger.debug(f"[HERC] Fallback to HRP: {e}")

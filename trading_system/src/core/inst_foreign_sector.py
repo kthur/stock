@@ -62,9 +62,9 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         vol_window = volume.iloc[-len(ret_window):]
 
         # Base Money Flow calculation for foreign buying proxy
-        positive_mf = np.where(ret_window > 0, ret_window * vol_window, 0.0).sum()
-        total_mf = (abs(ret_window) * vol_window).sum() + 1e-12
-        price_mf_ratio = positive_mf / total_mf
+        positive_mf = float(np.where(ret_window > 0, ret_window * vol_window, 0.0).sum())
+        total_mf = float((abs(ret_window) * vol_window).sum())
+        price_mf_ratio = float(positive_mf / total_mf) if total_mf > 1e-12 else 0.50
 
         foreign_flow_score = 0.5
         vol_sum = float(vol_window.sum()) if not vol_window.empty else 1e6
@@ -89,9 +89,9 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         vol_window = volume.iloc[-len(ret_window):]
 
         # Base Money Flow calculation for trust buying proxy
-        positive_mf = np.where(ret_window > 0, ret_window * vol_window, 0.0).sum()
-        total_mf = (abs(ret_window) * vol_window).sum() + 1e-12
-        price_mf_ratio = positive_mf / total_mf
+        positive_mf = float(np.where(ret_window > 0, ret_window * vol_window, 0.0).sum())
+        total_mf = float((abs(ret_window) * vol_window).sum())
+        price_mf_ratio = float(positive_mf / total_mf) if total_mf > 1e-12 else 0.50
 
         trust_flow_score = 0.5
         vol_sum = float(vol_window.sum()) if not vol_window.empty else 1e6

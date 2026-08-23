@@ -102,13 +102,20 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 t_data = transcript_map.get(sym, transcript_map.get(str(sym), transcript_map.get(sym_clean, transcript_map.get(sym_raw))))
 
                 if t_data:
-                    prev_tone = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
-                    cur_tone = _safe_float(t_data.get('current_quarter_tone'), 0.50)
-                    confidence = _safe_float(t_data.get('confidence'), 1.0)
+                    raw_prev = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
+                    raw_cur = _safe_float(t_data.get('current_quarter_tone'), 0.50)
+                    # Normalize [-1, 1] scale to [0, 1] if negative inputs are detected
+                    if raw_prev < 0.0 or raw_cur < 0.0:
+                        prev_tone = float(np.clip((raw_prev + 1.0) / 2.0, 0.0, 1.0))
+                        cur_tone = float(np.clip((raw_cur + 1.0) / 2.0, 0.0, 1.0))
+                    else:
+                        prev_tone = float(np.clip(raw_prev, 0.0, 1.0))
+                        cur_tone = float(np.clip(raw_cur, 0.0, 1.0))
+                    confidence = float(np.clip(_safe_float(t_data.get('confidence'), 1.0), 0.1, 1.0))
 
-                    # Tone Drift Delta (Positive = Management Sentiment Upgrade) + Absolute Tone Level
+                    # Tone Drift Delta (Positive = Upgrade, Negative = Downgrade with symmetric acceleration)
                     tone_delta = (cur_tone - prev_tone) * confidence
-                    accel_mult = 1.25 if tone_delta > 0.10 else 1.0
+                    accel_mult = 1.25 if abs(tone_delta) > 0.10 else 1.0
                     abs_tone_boost = (cur_tone - 0.50) * 0.40 * confidence
                     drift_boost = 1.0 * tone_delta * accel_mult
                     score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.0, 1.0))

@@ -139,11 +139,12 @@ class IVSkewEngine(BaseStrategyEngine):
                                 up_diff = np.maximum(ret_window.values, 0.0)
                                 down_vol = float(np.sqrt(np.mean(down_diff ** 2)))
                                 up_vol = float(np.sqrt(np.mean(up_diff ** 2)))
-                                if np.isnan(down_vol) or down_vol <= 0:
-                                    down_vol = 0.005
-                                if np.isnan(up_vol) or up_vol <= 0:
-                                    up_vol = 0.005
-                                skew_ratio = down_vol / up_vol
+                                if down_vol < 1e-6 and up_vol < 1e-6:
+                                    skew_ratio = 1.0
+                                else:
+                                    down_eff = max(down_vol, 1e-6)
+                                    up_eff = max(up_vol, 1e-6)
+                                    skew_ratio = float(np.clip(down_eff / up_eff, 0.1, 10.0))
                                 ret_skew = float(ret_window.skew()) if len(ret_window) >= 3 else 0.0
                                 if np.isnan(ret_skew):
                                     ret_skew = 0.0

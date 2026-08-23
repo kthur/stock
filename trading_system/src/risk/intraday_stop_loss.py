@@ -74,6 +74,7 @@ class IntradayStopLossEngine:
         self.volume_spike_multiplier = max(1.0, safe_vol_mult)
 
         self._symbol_peaks: Dict[str, float] = collections.OrderedDict()
+        self._symbol_stops: Dict[str, float] = collections.OrderedDict()
         self._price_history: Dict[str, list] = collections.OrderedDict()
         self._volume_history: Dict[str, list] = collections.OrderedDict()
         self._open_prices: Dict[str, float] = collections.OrderedDict()
@@ -87,6 +88,7 @@ class IntradayStopLossEngine:
     def reset_symbol(self, symbol: str) -> None:
         """Clear tracking state for a single symbol."""
         self._symbol_peaks.pop(symbol, None)
+        self._symbol_stops.pop(symbol, None)
         self._price_history.pop(symbol, None)
         self._volume_history.pop(symbol, None)
         self._open_prices.pop(symbol, None)
@@ -235,10 +237,13 @@ class IntradayStopLossEngine:
 
             reasons = []
 
-            # Rule 1: Dynamic ATR Trailing Stop Breach
+            # Rule 1: Dynamic ATR Trailing Stop Breach with Ratchet Monotonicity
             if atr > 0:
-                stop_level = peak_price - self.atr_multiplier * atr
-                if current_price < stop_level:
+                raw_stop = peak_price - self.atr_multiplier * atr
+                last_stop = self._symbol_stops.get(symbol, 0.0)
+                effective_stop = max(last_stop, raw_stop)
+                self._symbol_stops[symbol] = effective_stop
+                if current_price < effective_stop:
                     reasons.append("DYNAMIC_ATR_TRAILING_BREACH")
 
             # Rule 2: Peak to Trough Drop

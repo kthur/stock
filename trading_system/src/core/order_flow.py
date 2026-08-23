@@ -144,12 +144,10 @@ class OrderFlowEngine(BaseStrategyEngine):
 
                             if 'foreign_net_buy' in f_df_aligned.columns:
                                 f_buy = float(f_df_aligned['foreign_net_buy'].iloc[-5:].sum())
-                                if f_buy > 0:
-                                    inst_boost += min(0.10, (f_buy / vol_5d) * 0.5)
+                                inst_boost += float(np.clip((f_buy / vol_5d) * 0.5, -0.10, 0.10))
                             if 'inst_net_buy' in f_df_aligned.columns:
                                 i_buy = float(f_df_aligned['inst_net_buy'].iloc[-5:].sum())
-                                if i_buy > 0:
-                                    inst_boost += min(0.10, (i_buy / vol_5d) * 0.5)
+                                inst_boost += float(np.clip((i_buy / vol_5d) * 0.5, -0.10, 0.10))
                         except Exception:
                             pass
 
