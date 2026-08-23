@@ -149,7 +149,7 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
     near_high = near_high_10d
 
     # 7. Recent price action: positive return over last 5-10 days
-    momentum_ok = float(close.tail(10).iloc[0]) < last_close
+    momentum_ok = float(close.iloc[-10]) < last_close if len(close) >= 10 else (float(close.iloc[0]) < last_close if len(close) > 1 else False)
 
     score = 0.0
     if decreasing:
@@ -173,7 +173,7 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
     elif current_range < 10:
         score += 6.0
 
-    score = min(score, 100.0)
+    score = float(min(max(score, 0.0), 100.0))
 
     # VCP confirmed: strong contraction + constructive price action
     is_vcp = decreasing and above_sma50 and score >= min_vcp_score
