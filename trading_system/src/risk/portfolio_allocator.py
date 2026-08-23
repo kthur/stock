@@ -649,7 +649,25 @@ class PortfolioAllocator:
                 return -(ret - 0.5 * self.risk_aversion * var_p)
 
             def std_cvar_constraint(w):
-                cvar_val = self.estimate_portfolio_evt_cvar(w, returns_matrix, confidence)
+                # Analytical Cornish-Fisher smooth CVaR for continuous gradient evaluations
+                port_rets = np.dot(returns_matrix, w)
+                m_ret = float(np.mean(port_rets))
+                s_ret = float(np.std(port_rets, ddof=1))
+                if s_ret > 1e-6 and len(port_rets) >= 10:
+                    skewness = float(np.mean(((port_rets - m_ret) / s_ret) ** 3))
+                    kurt = float(np.mean(((port_rets - m_ret) / s_ret) ** 4)) - 3.0
+                    skew_c = float(np.clip(skewness, -1.5, 1.5))
+                    kurt_c = float(np.clip(kurt, -1.0, 4.0))
+                    z_alpha = -1.6448536269514722
+                    z_cf = (
+                        z_alpha
+                        + (z_alpha**2 - 1.0) * skew_c / 6.0
+                        + (z_alpha**3 - 3.0 * z_alpha) * kurt_c / 24.0
+                        - (2.0 * z_alpha**3 - 5.0 * z_alpha) * (skew_c**2) / 36.0
+                    )
+                    cvar_val = float(max(0.0, - (m_ret + z_cf * s_ret)))
+                else:
+                    cvar_val = float(np.percentile(-port_rets, 95))
                 return max_cvar - cvar_val
 
             res_std = minimize(

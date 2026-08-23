@@ -223,6 +223,8 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                     low = float(recent.get("low", recent.get("Low", 1.0)))
                     close = float(recent.get("close", recent.get("Close", 1.0)))
                     volume = float(recent.get("volume", recent.get("Volume", 1.0)))
+                    if not (np.isfinite(high) and np.isfinite(low) and np.isfinite(close) and np.isfinite(volume)):
+                        high, low, close, volume = 1.0, 1.0, 1.0, 1.0
                 except (ValueError, TypeError):
                     high, low, close, volume = 1.0, 1.0, 1.0, 1.0
 

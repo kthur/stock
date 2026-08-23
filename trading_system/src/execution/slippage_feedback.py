@@ -157,7 +157,12 @@ class SlippageFeedbackEngine:
                 filtered = arr[np.abs(arr - med) <= 3.5 * mad_sigma]
                 avg_slip = float(np.mean(filtered)) if len(filtered) > 0 else med
             else:
-                avg_slip = med
+                std_val = float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0
+                if std_val > 1e-4:
+                    filtered = arr[np.abs(arr - med) <= 3.5 * std_val]
+                    avg_slip = float(np.mean(filtered)) if len(filtered) > 0 else med
+                else:
+                    avg_slip = med
 
             max_slip = float(np.max(valid_slippages))
             if not math.isfinite(avg_slip):
