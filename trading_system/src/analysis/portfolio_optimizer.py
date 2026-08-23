@@ -615,16 +615,18 @@ def apply_portfolio_constraints(
     if sectors and len(sectors) == n:
         import pandas as pd
         sec_series = pd.Series(sectors)
+        num_unique_sectors = max(1, len(sec_series.unique()))
+        eff_max_sec = max(max_sector_weight, 1.0 / num_unique_sectors)
         for _ in range(10):
             df_w = pd.DataFrame({'weight': w, 'sector': sec_series})
             sec_sums = df_w.groupby('sector')['weight'].sum()
-            over_sectors = sec_sums[sec_sums > max_sector_weight + 1e-6]
+            over_sectors = sec_sums[sec_sums > eff_max_sec + 1e-6]
             if over_sectors.empty:
                 break
 
             excess_total = 0.0
             for sec, total_s in over_sectors.items():
-                scale = max_sector_weight / total_s
+                scale = eff_max_sec / total_s
                 sec_mask = (sec_series == sec).values
                 excess_total += float(np.sum(w[sec_mask] * (1.0 - scale)))
                 w[sec_mask] *= scale
