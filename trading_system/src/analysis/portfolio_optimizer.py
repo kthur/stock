@@ -35,13 +35,15 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
         logger.error("Covariance matrix contains NaN or Inf values.")
         return np.array([])
 
-    # Apply adaptive Tikhonov regularization (epsilon * I) to prevent ill-conditioning
+    # Apply adaptive Tikhonov regularization (epsilon * I) only when ill-conditioned (cond_num > 1e4)
     cond_num = np.linalg.cond(cov_matrix) if n <= 200 else 1.0
     if cond_num > 1e4:
         logger.debug(f"High covariance condition number ({cond_num:.1e}); applying Tikhonov regularization.")
-    cov_trace = float(np.trace(cov_matrix)) / max(n, 1)
-    adaptive_eps = max(1e-6, 1e-5 * cov_trace) if np.isfinite(cov_trace) and cov_trace > 0 else 1e-6
-    reg_cov = cov_matrix + adaptive_eps * np.eye(n)
+        cov_trace = float(np.trace(cov_matrix)) / max(n, 1)
+        adaptive_eps = max(1e-6, 1e-5 * cov_trace) if np.isfinite(cov_trace) and cov_trace > 0 else 1e-6
+        reg_cov = cov_matrix + adaptive_eps * np.eye(n)
+    else:
+        reg_cov = cov_matrix
 
     weights = None
 

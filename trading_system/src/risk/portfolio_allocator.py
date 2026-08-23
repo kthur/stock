@@ -1040,8 +1040,10 @@ class PortfolioAllocator:
         vol_clean = max(0.005, volatility_20d)
         ann_variance = 252.0 * (vol_clean ** 2)
 
-        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * w_i * sigma_ann^2) / (4 * gamma) ]^(1/3)
-        cubic_term = (3.0 * cost_rate * target_weight * ann_variance) / (4.0 * max(1e-4, gamma))
+        # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * (w_i * (1 - w_i))^2 * sigma_ann^2) / (4 * gamma) ]^(1/3)
+        # R5-3 Fix: Weight process variance scales quadratically as (w_i * (1 - w_i))^2
+        w_factor = max(1e-4, target_weight * (1.0 - min(0.99, target_weight)))
+        cubic_term = (3.0 * cost_rate * (w_factor ** 2) * ann_variance) / (4.0 * max(1e-4, gamma))
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor

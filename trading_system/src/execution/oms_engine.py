@@ -677,10 +677,8 @@ class ExecutionOMSEngine:
                         is_krx_hedge = str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
                         h_amount_local = h_amount if is_krx_hedge else (h_amount / fx_rate)
                         raw_h_qty = int(h_amount_local // hedge_price) if hedge_price > 0 else 0
-                        if is_krx_hedge:
-                            h_quantity = (raw_h_qty // 10) * 10 if raw_h_qty >= 10 else raw_h_qty
-                        else:
-                            h_quantity = raw_h_qty
+                        # R5-5 Fix: Modern KRX standard is 1-share lot size for hedge overlay
+                        h_quantity = raw_h_qty
 
                         h_entry = {
                             "order_id": h_order_id,

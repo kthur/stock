@@ -152,15 +152,22 @@ class ShortTermReversalEngine(BaseStrategyEngine):
             0.0
         )
 
-        # Vectorized RSI-14 Oversold Indicator
+        # Vectorized Dual-Horizon RSI (Fast RSI-5 + Standard RSI-14) Oversold Indicator
         delta = close_2d.diff().iloc[1:]
         gain = np.maximum(delta, 0.0)
         loss = np.maximum(-delta, 0.0)
-        avg_gain = gain.tail(14).mean(axis=0)
-        avg_loss = loss.tail(14).mean(axis=0).replace(0, 1e-8)
-        rs_val = avg_gain / avg_loss
-        rsi_14 = 100.0 - (100.0 / (1.0 + rs_val))
-        rsi_oversold_term = np.clip((35.0 - rsi_14) / 20.0, -0.2, 0.3)
+        avg_gain_14 = gain.tail(14).mean(axis=0)
+        avg_loss_14 = loss.tail(14).mean(axis=0).replace(0, 1e-8)
+        rs_val_14 = avg_gain_14 / avg_loss_14
+        rsi_14 = 100.0 - (100.0 / (1.0 + rs_val_14))
+
+        avg_gain_5 = gain.tail(5).mean(axis=0)
+        avg_loss_5 = loss.tail(5).mean(axis=0).replace(0, 1e-8)
+        rs_val_5 = avg_gain_5 / avg_loss_5
+        rsi_5 = 100.0 - (100.0 / (1.0 + rs_val_5))
+
+        # R5-6: 50% Fast RSI-5 + 50% Standard RSI-14
+        rsi_oversold_term = 0.5 * np.clip((35.0 - rsi_14) / 20.0, -0.2, 0.3) + 0.5 * np.clip((30.0 - rsi_5) / 20.0, -0.2, 0.3)
 
         oversold_metric = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus + rsi_oversold_term
 
