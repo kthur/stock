@@ -1177,10 +1177,10 @@ class OnDevicePredictionModel:
         df['dividend_yield'] = safe_divide(div_ps, df['Close'])
 
         # Return features
-        df['ret_1d'] = df['Close'].pct_change(1)
-        df['ret_5d'] = df['Close'].pct_change(5)
-        df['ret_20d'] = df['Close'].pct_change(20)
-        df['ret_60d'] = df['Close'].pct_change(60)
+        df['ret_1d'] = df['Close'].pct_change(1, fill_method=None)
+        df['ret_5d'] = df['Close'].pct_change(5, fill_method=None)
+        df['ret_20d'] = df['Close'].pct_change(20, fill_method=None)
+        df['ret_60d'] = df['Close'].pct_change(60, fill_method=None)
 
         # Moving averages
         df['sma_20'] = df['Close'].rolling(20).mean()
@@ -1229,8 +1229,8 @@ class OnDevicePredictionModel:
             df['atr_14'] = df['vol_20d']
 
         # 5. ROC (Rate of Change)
-        df['roc_10'] = df['Close'].pct_change(10).replace([np.inf, -np.inf], 0.0).fillna(0.0)
-        df['roc_20'] = df['Close'].pct_change(20).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['roc_10'] = df['Close'].pct_change(10, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['roc_20'] = df['Close'].pct_change(20, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         # 6. Higher High / Lower Low
         df['higher_high'] = (df['High'] > df['High'].shift(1)).astype(float) if 'High' in df.columns else 0.0

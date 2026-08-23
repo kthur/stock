@@ -452,7 +452,7 @@ class DataValidator:
                         df_clean[col] = df_clean[col].interpolate(method='linear').ffill().bfill()
 
         # Detect reverse stock splits (permanent upward jumps > 50% that don't revert) with volume contraction
-        rev_split_candidates = (close.pct_change() > 0.50) & (~transient_spikes)
+        rev_split_candidates = (close.pct_change(fill_method=None) > 0.50) & (~transient_spikes)
         if rev_split_candidates.any():
             rev_dates = rev_split_candidates[rev_split_candidates].index
             for date in rev_dates:
@@ -475,7 +475,7 @@ class DataValidator:
                                 df_clean.iloc[:idx, df_clean.columns.get_loc('Volume')] /= rev_ratio
 
         # Detect stock splits (permanent drops > 25% that don't revert) with crash guard & volume confirmation
-        split_candidates = (close.pct_change() < -0.25) & (~transient_spikes)
+        split_candidates = (close.pct_change(fill_method=None) < -0.25) & (~transient_spikes)
         if split_candidates.any():
             split_dates = split_candidates[split_candidates].index
             for date in split_dates:

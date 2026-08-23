@@ -536,6 +536,8 @@ class EnsembleScoringEngine:
         """Load persisted EMA ensemble weights for cross-run continuity with market segregation."""
         self._prev_weights_dict.clear()
         self._prev_regime_dict.clear()
+        if self.config is None:
+            return
         try:
             from pathlib import Path
             import json
@@ -929,8 +931,8 @@ class EnsembleScoringEngine:
         vix_val: Optional[float] = None,
         factor_ic_dict: Optional[Dict[str, float]] = None,
         factor_crowding_penalties: Optional[Dict[str, float]] = None,
-        pruning_threshold: Optional[float] = -1.50,
-        smooth_downside_mode: bool = True,
+        pruning_threshold: Optional[float] = -0.50,
+        smooth_downside_mode: bool = False,
         market: str = "global"
     ) -> Dict[str, float]:
         """
@@ -948,11 +950,20 @@ class EnsembleScoringEngine:
         if not base_weights:
             return {}
 
-        clean_sharpes = {
-            k: float(v)
-            for k, v in rolling_sharpes.items()
-            if v is not None and not np.isnan(v) and not np.isinf(v)
-        }
+        clean_sharpes = {}
+        for k, v in rolling_sharpes.items():
+            if v is None:
+                clean_sharpes[k] = 0.0
+            else:
+                fv = float(v)
+                if np.isnan(fv):
+                    clean_sharpes[k] = 0.0
+                elif np.isposinf(fv):
+                    clean_sharpes[k] = 999.0
+                elif np.isneginf(fv):
+                    clean_sharpes[k] = -999.0
+                else:
+                    clean_sharpes[k] = fv
 
         # Check for cold start (all zeros or empty)
         all_zero = len(clean_sharpes) == 0 or all(abs(v) < 1e-4 for v in clean_sharpes.values())
@@ -971,10 +982,10 @@ class EnsembleScoringEngine:
             return base_weights
 
         # Cap the dynamic multiplier range: exp(gamma*clip(sharpe, ±L)) with
-        # L = ln(MAX_MULTIPLIER_RATIO)/gamma keeps the multiplier ratio
+        # L = ln(sqrt(MAX_MULTIPLIER_RATIO))/gamma keeps the multiplier ratio
         # <= MAX_MULTIPLIER_RATIO (prevents e^6 ≈ 400:1 single-strategy dominance).
         max_multiplier_ratio = 5.0
-        sharpe_clip = float(np.log(max_multiplier_ratio) / max(gamma, 1e-6))
+        sharpe_clip = float(np.log(np.sqrt(max_multiplier_ratio)) / max(gamma, 1e-6))
         scores = {}
         for strategy, base_w in base_weights.items():
             sharpe = clean_sharpes.get(strategy, 0.0)
@@ -985,21 +996,12 @@ class EnsembleScoringEngine:
 
             clipped_sharpe = float(np.clip(sharpe, -sharpe_clip, sharpe_clip))
             multiplier = float(np.exp(gamma * clipped_sharpe))
-            # Convex Sharpe Elasticity Multiplier for high performing strategies
-            if sharpe >= 1.50 or clipped_sharpe >= 1.50:
-                multiplier *= 1.25
-            elif sharpe >= 1.00 or clipped_sharpe >= 1.00:
-                multiplier *= 1.15
-            elif sharpe >= 0.50 or clipped_sharpe >= 0.50:
-                multiplier *= 1.08
-            elif clipped_sharpe < 0.0:
-                # Asymmetric downside risk mitigation for mild underperformance
-                if smooth_downside_mode:
-                    smooth_downside = float(1.0 / (1.0 + np.exp(-1.5 * (clipped_sharpe + 0.5))))
-                    multiplier = max(0.02, multiplier * smooth_downside)
-                else:
-                    downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.40)
-                    multiplier *= downside_penalty
+            if not smooth_downside_mode and clipped_sharpe < 0.0:
+                downside_penalty = 1.0 / (1.0 + abs(clipped_sharpe) * 0.40)
+                multiplier *= downside_penalty
+            elif smooth_downside_mode and clipped_sharpe < 0.0:
+                smooth_downside = float(1.0 / (1.0 + np.exp(-1.5 * (clipped_sharpe + 0.5))))
+                multiplier = max(0.02, multiplier * smooth_downside)
 
             # 20D Factor Momentum (Information Coefficient Tilting)
             ic_mult = 1.0
@@ -1009,7 +1011,7 @@ class EnsembleScoringEngine:
 
             # Deflated Sharpe Ratio (DSR) selection bias correction (Lopez de Prado 2014)
             dsr_mult = 1.0
-            if self._dsr_validator is not None and not all_zero and sharpe > 0.0:
+            if getattr(self, 'enable_dsr_sharpe_damping', False) and self._dsr_validator is not None and not all_zero and sharpe > 0.0:
                 try:
                     dsr_res = self._dsr_validator.compute_dsr(
                         observed_sr=sharpe,
@@ -1041,7 +1043,7 @@ class EnsembleScoringEngine:
         if len(_vals) > 0:
             _vmax = float(_vals.max())
             _vmin_floor = _vmax * min_total_ratio
-            scores = {k: (max(v, _vmin_floor, base_weights.get(k, 0.0) * 0.20) if v > 0.0 else 0.0) for k, v in scores.items()}
+            scores = {k: (max(v, _vmin_floor) if v > 0.0 else 0.0) for k, v in scores.items()}
 
         total_score = sum(scores.values())
         if total_score == 0.0:
@@ -1057,7 +1059,9 @@ class EnsembleScoringEngine:
         self._prev_regime[market] = current_regime_str
 
         if is_regime_shift:
-            eff_alpha = 0.50  # Fast adaptive response on regime shift without single-day whipsaws
+            # Instant reset on regime transition to avoid carrying over obsolete regime dynamics
+            self._prev_weights[market] = dict(dynamic_weights)
+            return dynamic_weights
         elif has_explicit_tilting:
             eff_alpha = 0.35
         elif vix_val is not None and float(vix_val) > 25.0:
@@ -1087,19 +1091,20 @@ class EnsembleScoringEngine:
         self._prev_weights[market] = dict(dynamic_weights)
 
         # Persist EMA weights to disk for continuity across runs
-        try:
-            from pathlib import Path
-            import json
-            models_dir = Path(__file__).resolve().parent.parent.parent / "models"
-            models_dir.mkdir(exist_ok=True)
-            payload = {
-                m: {"regime": self._prev_regime.get(m), "weights": self._prev_weights.get(m, {})}
-                for m in set(list(self._prev_weights.keys()) + list(self._prev_regime.keys()))
-            }
-            with open(models_dir / "prev_weights.json", "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-        except Exception as _se:
-            logger.warning(f"Could not persist prev_weights.json: {_se}")
+        if self.config is not None:
+            try:
+                from pathlib import Path
+                import json
+                models_dir = Path(__file__).resolve().parent.parent.parent / "models"
+                models_dir.mkdir(exist_ok=True)
+                payload = {
+                    m: {"regime": self._prev_regime.get(m), "weights": self._prev_weights.get(m, {})}
+                    for m in set(list(self._prev_weights.keys()) + list(self._prev_regime.keys()))
+                }
+                with open(models_dir / "prev_weights.json", "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2)
+            except Exception as _se:
+                logger.warning(f"Could not persist prev_weights.json: {_se}")
 
         logger.info(f"Dynamically adjusted Sharpe weights for Regime '{regime}' [{market}] (gamma={gamma}): {dynamic_weights}")
         return dynamic_weights
@@ -2082,7 +2087,7 @@ class EnsembleScoringEngine:
         if getattr(self, 'orthogonalizer_enabled', True):
             try:
                 strategy_score_cols = [col for _, col in strategy_cols if col in merged.columns]
-                strat_weights = {col: weights.get(strat_name, 0.10) for strat_name, col in strategy_cols if col in merged.columns}
+                strat_weights = {col: (weights.get(strat_name, 0.10) if weights else 0.10) for strat_name, col in strategy_cols if col in merged.columns}
                 merged = self.orthogonalizer.orthogonalize(
                     score_df=merged,
                     strategy_cols=strategy_score_cols,
@@ -2093,12 +2098,13 @@ class EnsembleScoringEngine:
                 logger.warning(f"Factor orthogonalization warning: {_oe}")
 
         # Phase 3-B.1: Strategy Correlation Orthogonalization Penalty
-        weights = self.apply_correlation_orthogonalization_penalty(
-            weights,
-            scores_df=merged,
-            correlation_threshold=0.65,
-            penalty_factor=0.5,
-        )
+        if weights is not None and isinstance(weights, dict) and len(weights) > 1:
+            weights = self.apply_correlation_orthogonalization_penalty(
+                weights,
+                scores_df=merged,
+                correlation_threshold=0.65,
+                penalty_factor=0.5,
+            )
 
         # Phase 3-C: Inter-Strategy Signal Correlation Monitoring & 2D Regime Noise Suppression
         if len(merged) >= 5:
@@ -2108,7 +2114,7 @@ class EnsembleScoringEngine:
 
                 tuned_p = getattr(self, '_tuned_params', None)
                 suppressed_w = self.factor_suppression.suppress_weights(
-                    base_weights=weights,
+                    base_weights=weights if weights else self.get_base_weights(regime),
                     corr_matrix=corr_df,
                     regime_label=str(regime),
                     tuned_params=tuned_p
@@ -2155,8 +2161,8 @@ class EnsembleScoringEngine:
             else:
                 eff_kr_weights = weights
         else:
-            eff_us_weights = us_weights if us_weights is not None else self.REGIME_2D_WEIGHTS.get('BULL_LOW_VOL', {})
-            eff_kr_weights = kr_weights if kr_weights is not None else self.REGIME_2D_WEIGHTS.get('SIDEWAYS_LOW_VOL', {})
+            eff_us_weights = us_weights if us_weights is not None else self.get_base_weights(us_regime or regime or 'BULL_LOW_VOL')
+            eff_kr_weights = kr_weights if kr_weights is not None else self.get_base_weights(kr_regime or regime or 'SIDEWAYS_LOW_VOL')
 
         # Identify KR vs US symbols for dual-regime weights
         is_kr = pd.Series(False, index=merged.index)

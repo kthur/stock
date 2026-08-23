@@ -142,7 +142,4 @@ def test_18_strategy_formatting_string_inspection():
 
     # Verify whether IFS is present in the table header formatting string
     # Finding: IFS column is missing from the 18-strategy prediction table header and row formatting string in run_pipeline.py.
-    return {
-        "has_ifs_header": has_ifs_header,
-        "header_line": header_line
-    }
+    assert isinstance(header_line, str) and len(header_line) > 0
