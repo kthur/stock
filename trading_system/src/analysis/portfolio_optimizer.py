@@ -422,22 +422,25 @@ def calculate_hrp_weights(
                 c_left = cluster_items[i]
                 c_right = cluster_items[i + 1]
 
-                # Variance of left & right clusters
+                # Variance of left & right clusters (R9-1 Fix: High precision without artificial 1e-8 floor distortion)
                 cov_left = cov_matrix[np.ix_(c_left, c_left)]
-                vols_left = np.maximum(np.sqrt(np.maximum(np.diag(cov_left), 1e-8)), 1e-4)
+                vols_left = np.maximum(np.sqrt(np.maximum(np.diag(cov_left), 1e-12)), 1e-6)
                 inv_vol_left = 1.0 / (vols_left ** 2)
                 w_left = inv_vol_left / max(float(np.sum(inv_vol_left)), 1e-12)
-                var_left = max(float(w_left @ cov_left @ w_left), 1e-8)
+                var_left = max(float(w_left @ cov_left @ w_left), 1e-16)
 
                 cov_right = cov_matrix[np.ix_(c_right, c_right)]
-                vols_right = np.maximum(np.sqrt(np.maximum(np.diag(cov_right), 1e-8)), 1e-4)
+                vols_right = np.maximum(np.sqrt(np.maximum(np.diag(cov_right), 1e-12)), 1e-6)
                 inv_vol_right = 1.0 / (vols_right ** 2)
                 w_right = inv_vol_right / max(float(np.sum(inv_vol_right)), 1e-12)
-                var_right = max(float(w_right @ cov_right @ w_right), 1e-8)
+                var_right = max(float(w_right @ cov_right @ w_right), 1e-16)
 
                 # Allocation factor alpha
-                alpha = 1.0 - var_left / (var_left + var_right + 1e-12)
-                alpha = float(np.clip(alpha, 0.01, 0.99))
+                tot_var = var_left + var_right
+                if tot_var < 1e-12:
+                    alpha = 0.50
+                else:
+                    alpha = float(np.clip(1.0 - (var_left / tot_var), 0.01, 0.99))
 
                 weights[c_left] *= alpha
                 weights[c_right] *= (1.0 - alpha)

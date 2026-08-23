@@ -637,13 +637,24 @@ class ExecutionOMSEngine:
                     slice_count = 1
 
                 # Gate 7.6: VPIN Order Flow Toxicity Gate (Easley, Lopez de Prado, O'Hara 2012)
-                # If adverse informed toxic order flow is detected (vpin > 0.70),
-                # switch execution to PASSIVE_LIMIT or scale down slice size to prevent adverse selection.
+                # If adverse informed toxic order flow is detected (vpin > 0.70):
+                # - BUY: switch to PASSIVE_LIMIT to prevent adverse selection
+                # - SELL: switch to FAST_VWAP to rapidly liquidate before price collapses
+                # - Wide spread (>100 bps): route to PASSIVE_LIMIT to minimize spread crossing cost
                 vpin_val = float(pred.get("vpin", pred.get("microstructure_toxicity", pred.get("order_flow_toxicity", 0.0))) or 0.0)
+                spread_val = float(pred.get("bid_ask_spread", pred.get("spread", 0.0)) or 0.0)
                 if action == "BUY" and vpin_val > 0.70:
-                    logger.warning(f"[OMS GATE 7.6] {sym} High VPIN toxicity ({vpin_val:.2f} > 0.70) detected. Routing to PASSIVE_LIMIT to avoid adverse selection.")
+                    logger.warning(f"[OMS GATE 7.6] {sym} High VPIN toxicity ({vpin_val:.2f} > 0.70) detected on BUY. Routing to PASSIVE_LIMIT to avoid adverse selection.")
                     exec_strategy = "PASSIVE_LIMIT"
                     slice_count = max(6, slice_count)
+                elif action == "SELL" and vpin_val > 0.70:
+                    logger.warning(f"[OMS GATE 7.6] {sym} High VPIN toxicity ({vpin_val:.2f} > 0.70) detected on SELL. Routing to FAST_VWAP for rapid liquidation.")
+                    exec_strategy = "FAST_VWAP"
+                    slice_count = max(2, slice_count // 2)
+                elif spread_val > 0.01:
+                    logger.warning(f"[OMS GATE 7.6] {sym} Wide spread ({spread_val:.4f} > 0.01) detected. Routing to PASSIVE_LIMIT.")
+                    exec_strategy = "PASSIVE_LIMIT"
+                    slice_count = max(4, slice_count)
 
                 plan_entry = {
                     "order_id": order_id,

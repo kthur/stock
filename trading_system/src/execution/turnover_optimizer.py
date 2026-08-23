@@ -75,6 +75,11 @@ class TurnoverOptimizer:
                 final_w = curr_w
                 action = "HOLD"
                 total_turnover_reduced += amount_delta
+            elif not is_full_exit and not is_fresh_entry and weight_delta < (self.turnover_threshold_pct * 1.5):
+                # R9-8 Fix: Smooth transition near threshold to prevent bang-bang rebalance oscillation
+                decay_ratio = (weight_delta - self.turnover_threshold_pct) / (0.5 * self.turnover_threshold_pct + 1e-6)
+                final_w = curr_w + (raw_w - curr_w) * float(np.clip(decay_ratio, 0.2, 1.0))
+                action = "BUY" if final_w > curr_w else ("SELL" if final_w < curr_w else "HOLD")
             else:
                 final_w = raw_w
                 action = "BUY" if raw_w > curr_w else "SELL"

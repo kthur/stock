@@ -1107,9 +1107,12 @@ class PortfolioAllocator:
                 cost_rate=cost_rate,
                 volatility_20d=vol
             )
-            # Scale delta_i relative to target weight for small allocations to prevent L_i collapsing to 0.0
+            # R9-2 Fix: Account scale-aware buffer band to suppress uneconomical tiny fraction rebalances
+            min_trade_krw = 50_000.0
+            min_weight_delta = min_trade_krw / max(1_000_000.0, portfolio_value) if portfolio_value > 0 else 0.001
+            delta_i = max(delta_i, min_weight_delta)
             if w_targ > 0.0:
-                delta_i = min(delta_i, w_targ * 0.40)
+                delta_i = min(delta_i, max(w_targ * 0.40, min_weight_delta))
 
             L_i = max(0.0, w_targ - delta_i)
             U_i = w_targ + delta_i

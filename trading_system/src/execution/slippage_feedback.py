@@ -148,8 +148,8 @@ class SlippageFeedbackEngine:
                     recommended_market_impact_multiplier=1.0,
                 )
 
-            # Robust estimation: MAD (Median Absolute Deviation) scaled by 1.4826 for normal consistency
-            arr = np.array(valid_slippages, dtype=float)
+            # Robust estimation: Hard-clip extreme outliers (e.g. > 50 bps data artifacts) and apply MAD
+            arr = np.clip(np.array(valid_slippages, dtype=float), -50.0, 50.0)
             med = float(np.median(arr))
             mad = float(np.median(np.abs(arr - med)))
             mad_sigma = mad * 1.4826

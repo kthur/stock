@@ -770,10 +770,11 @@ class RiskManager:
         atr: float,
         regime: str = "weak_bull",
         adx: float = 20.0,
+        previous_stop_price: float = 0.0,
     ) -> float:
-        """ATR 기반 동적 트레일링 스탑 가격 계산"""
+        """ATR 기반 동적 트레일링 스탑 가격 계산 (Ratchet 단방향 상향 보장)"""
         if atr <= 0.0 or highest_price <= 0.0:
-            return 0.0
+            return float(previous_stop_price)
 
         multipliers = self.get_adaptive_atr_multipliers(regime, adx)
         stop_multiplier = multipliers.get("stop", 2.0)
@@ -789,7 +790,9 @@ class RiskManager:
             drawdown_scaler = max(0.25, min(1.0, drawdown_scaler))
             stop_distance *= drawdown_scaler
 
-        return float(max(0.0, highest_price - stop_distance))
+        calculated_stop = float(max(0.0, highest_price - stop_distance))
+        # R9-3 Fix: Enforce monotonic ratchet: trailing stop never decreases on a running position
+        return float(max(calculated_stop, previous_stop_price))
 
     def check_sentiment_blacklist(self, symbol: str, blacklist: Optional[set | list | dict] = None) -> bool:
         """Returns True if the symbol is blacklisted due to critical sentiment/disclosure risk."""
