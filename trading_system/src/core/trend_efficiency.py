@@ -111,7 +111,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         ker20 = np.where(vol_20 > 1e-8, change_20 / vol_20, 0.0)
 
         weighted_ker = 0.50 * ker5 + 0.30 * ker10 + 0.20 * ker20
-        base_p = close_2d.iloc[-21].replace(0, 1e-8)
+        base_p = close_2d.iloc[-21].clip(lower=1e-8)
         ret_20d = (close_2d.iloc[-1] / base_p) - 1.0
 
         # R/S Hurst Exponent over extended lookback window (up to 120 days, min 20)
@@ -121,7 +121,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             mean_diff_h = diffs_h.mean(axis=0)
             dev_h = (diffs_h - mean_diff_h).cumsum(axis=0)
             r_range_h = dev_h.max(axis=0) - dev_h.min(axis=0)
-            s_std_h = diffs_h.std(axis=0, ddof=1).replace(0, 1e-8)
+            s_std_h = diffs_h.std(axis=0, ddof=1).clip(lower=1e-8)
             rs_h = np.maximum(r_range_h / s_std_h, 1e-4)
             hurst = np.clip(np.log(rs_h) / np.log(float(max(20, h_len))), 0.1, 0.9)
         else:

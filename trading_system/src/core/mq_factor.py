@@ -159,10 +159,12 @@ class MQFactorEngine(BaseStrategyEngine):
             w_mom = 1.0 - w_qual
             res_df['mq_score'] = w_mom * res_df['price_mom_rank'] + w_qual * res_df['quality_score']
 
-            # Quality Gate: Penalize unprofitable distress stocks (operating loss or negative ROE)
+            # Quality Gate: Penalize unprofitable distress stocks (operating loss, negative net margin, or negative ROE)
             distress_mask = pd.Series(False, index=res_df.index)
             if 'operating_margin' in res_df.columns:
                 distress_mask = distress_mask | (res_df['operating_margin'] < 0)
+            if 'net_profit_margin' in res_df.columns:
+                distress_mask = distress_mask | (res_df['net_profit_margin'] < 0)
             if 'roe' in res_df.columns:
                 distress_mask = distress_mask | (res_df['roe'] < 0)
             if distress_mask.any():

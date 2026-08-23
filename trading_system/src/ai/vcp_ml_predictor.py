@@ -472,30 +472,36 @@ class VCPSurgePredictor:
                 else:
                     local_cat_models[h] = model_cat
 
-                # Calculate metrics
+                # Calculate metrics (R8-3: PR-AUC / Average Precision & F1 Score for imbalanced surge events)
                 X_eval = X_val if vv.any() else X_train
                 y_eval = y_val if vv.any() else y_train
 
                 def get_clf_metrics(m, X_e, y_e):
+                    from sklearn.metrics import roc_auc_score, accuracy_score, average_precision_score, f1_score
                     probs = m.predict_proba(X_e)[:, 1]
                     preds = m.predict(X_e)
                     try:
                         auc = float(roc_auc_score(y_e, probs))
                     except Exception:
                         auc = 0.5
+                    try:
+                        pr_auc = float(average_precision_score(y_e, probs))
+                    except Exception:
+                        pr_auc = float(np.mean(y_e))
                     acc = float(accuracy_score(y_e, preds))
-                    return auc, acc
+                    f1 = float(f1_score(y_e, preds, zero_division=0))
+                    return auc, acc, pr_auc, f1
 
-                auc_xgb, acc_xgb = get_clf_metrics(model_xgb, X_eval, y_eval)
-                auc_lgb, acc_lgb = get_clf_metrics(model_lgb, X_eval, y_eval)
-                auc_cat, acc_cat = get_clf_metrics(model_cat, X_eval, y_eval)
+                auc_xgb, acc_xgb, pr_xgb, f1_xgb = get_clf_metrics(model_xgb, X_eval, y_eval)
+                auc_lgb, acc_lgb, pr_lgb, f1_lgb = get_clf_metrics(model_lgb, X_eval, y_eval)
+                auc_cat, acc_cat, pr_cat, f1_cat = get_clf_metrics(model_cat, X_eval, y_eval)
 
                 if market not in self.validation_metrics["vcp_ml"]:
                     self.validation_metrics["vcp_ml"][market] = {}
                 self.validation_metrics["vcp_ml"][market][h] = {
-                    "xgb": {"auc": auc_xgb, "accuracy": acc_xgb},
-                    "lgb": {"auc": auc_lgb, "accuracy": acc_lgb},
-                    "cat": {"auc": auc_cat, "accuracy": acc_cat}
+                    "xgb": {"auc": auc_xgb, "accuracy": acc_xgb, "pr_auc": pr_xgb, "f1": f1_xgb},
+                    "lgb": {"auc": auc_lgb, "accuracy": acc_lgb, "pr_auc": pr_lgb, "f1": f1_lgb},
+                    "cat": {"auc": auc_cat, "accuracy": acc_cat, "pr_auc": pr_cat, "f1": f1_cat}
                 }
 
             with vcp_train_lock:

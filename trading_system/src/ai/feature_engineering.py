@@ -53,16 +53,26 @@ def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd
     X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
     if hasattr(scaler, 'mean_') and scaler.mean_ is not None:
         try:
-            scaled_values = scaler.transform(X)
+            # R8-1 Fix: Reindex to scaler.feature_names_in_ if available to avoid feature mismatch exceptions
+            if hasattr(scaler, 'feature_names_in_') and scaler.feature_names_in_ is not None:
+                X_aligned = X.reindex(columns=scaler.feature_names_in_, fill_value=0.0)
+                scaled_values = scaler.transform(X_aligned)
+            else:
+                scaled_values = scaler.transform(X)
             df_copy[features] = scaled_values
         except Exception as e:
-            logger.warning(f"Failed to apply scaling: {e}. Fitting on current data.")
-            scaled_values = scaler.fit_transform(X)
-            df_copy[features] = scaled_values
+            # Avoid calling fit_transform on single-row inference (which zeroes out all features)
+            if len(X) > 10:
+                logger.warning(f"Failed to apply scaling: {e}. Fitting on current batch data.")
+                scaled_values = scaler.fit_transform(X)
+                df_copy[features] = scaled_values
+            else:
+                logger.warning(f"Failed to apply scaling: {e}. Preserving raw features for single-row inference.")
     else:
         try:
-            scaled_values = scaler.fit_transform(X)
-            df_copy[features] = scaled_values
+            if len(X) > 10:
+                scaled_values = scaler.fit_transform(X)
+                df_copy[features] = scaled_values
         except Exception as e:
             logger.warning(f"Failed to fit_transform scaler: {e}. Using raw features.")
     df_copy[features] = df_copy[features].replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)

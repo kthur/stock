@@ -113,6 +113,26 @@ class VolTargetingEngine(BaseStrategyEngine):
         realized_vol = np.sqrt(ewma_var * 252)
         realized_vol[valid_counts < 20] = 0.25
 
+        # R8-7: Incorporate Parkinson range volatility if High/Low prices are available in df_prices dict
+        if isinstance(df_prices, dict):
+            for sym in realized_vol.index:
+                df_p = df_prices.get(sym)
+                if isinstance(df_p, pd.DataFrame) and not df_p.empty:
+                    h_col = "High" if "High" in df_p.columns else ("high" if "high" in df_p.columns else None)
+                    l_col = "Low" if "Low" in df_p.columns else ("low" if "low" in df_p.columns else None)
+                    if h_col and l_col:
+                        h = pd.to_numeric(df_p[h_col].tail(30), errors='coerce').dropna()
+                        l = pd.to_numeric(df_p[l_col].tail(30), errors='coerce').dropna()
+                        common_idx = h.index.intersection(l.index)
+                        if len(common_idx) >= 15:
+                            h_sub, l_sub = h.loc[common_idx], l.loc[common_idx]
+                            hl_ratio = (h_sub / np.maximum(l_sub, 1e-8)).clip(lower=1.0)
+                            log_hl_sq = (np.log(hl_ratio) ** 2)
+                            parkinson_var = float(log_hl_sq.mean() / (4.0 * np.log(2.0)))
+                            parkinson_vol = np.sqrt(parkinson_var * 252.0)
+                            # Blend 70% Close-to-Close EWMA + 30% Parkinson Range Volatility
+                            realized_vol[sym] = float(0.70 * realized_vol[sym] + 0.30 * parkinson_vol)
+
 
         # Fully vectorized computation across all universe symbols (O(1) Pandas vectorized)
         sym_series = universe["symbol"].astype(str).str.strip()

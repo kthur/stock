@@ -2296,14 +2296,25 @@ class OnDevicePredictionModel:
                         X_scaled[c] = pd.to_numeric(X_scaled[c], errors='coerce')
                 X_scaled = X_scaled.replace([np.inf, -np.inf], 0.0).fillna(0.0).clip(lower=-1e9, upper=1e9)
 
+                def _align_inf(m, df):
+                    feat_names = getattr(m, "feature_names_in_", None)
+                    if feat_names is None and hasattr(m, "get_booster"):
+                        try:
+                            feat_names = m.get_booster().feature_names
+                        except Exception:
+                            pass
+                    if feat_names is not None:
+                        return df.reindex(columns=feat_names, fill_value=0.0)
+                    return df
+
                 if xgb_m is not None:
-                    preds.append(float(xgb_m.predict(X_scaled)[0]))
+                    preds.append(float(xgb_m.predict(_align_inf(xgb_m, X_scaled))[0]))
                     weights.append(w_xgb_val)
                 if lgb_m is not None:
-                    preds.append(float(lgb_m.predict(X_scaled)[0]))
+                    preds.append(float(lgb_m.predict(_align_inf(lgb_m, X_scaled))[0]))
                     weights.append(w_lgb_val)
                 if cat_m is not None:
-                    preds.append(float(cat_m.predict(X_scaled)[0]))
+                    preds.append(float(cat_m.predict(_align_inf(cat_m, X_scaled))[0]))
                     weights.append(w_cat_val)
 
                 if preds:

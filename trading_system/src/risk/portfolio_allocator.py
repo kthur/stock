@@ -946,7 +946,7 @@ class PortfolioAllocator:
         slip_mult = max(0.5, float(slippage_multiplier))
 
         if market_upper in ['KOSDAQ', 'KQ'] or symbol.endswith('.KQ'):
-            stt_tax = 0.0018
+            stt_tax = 0.0020  # KOSDAQ STT tax = 0.20%
             brokerage_fee = 0.0003
             base_spread = getattr(self.config, 'base_spread_kosdaq', 0.0010) if self.config else 0.0010
             spread_min, spread_max = 0.0003, 0.0250
@@ -974,7 +974,7 @@ class PortfolioAllocator:
             adv_ref = 1_000_000.0
             impact_coeff = getattr(self.config, 'market_impact_coeff_sp500', 0.50) if self.config else 0.50
         else:  # KOSPI default
-            stt_tax = 0.0015
+            stt_tax = 0.0018  # KOSPI STT tax = 0.18%
             brokerage_fee = 0.0003
             base_spread = getattr(self.config, 'base_spread_kospi', 0.0006) if self.config else 0.0006
             spread_min, spread_max = 0.0002, 0.0150

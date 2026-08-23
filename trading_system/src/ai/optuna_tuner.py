@@ -643,7 +643,12 @@ class OptunaStrategyTuner:
                 )
                 model.fit(X_tr, y_tr)
                 probs = model.predict_proba(X_va)[:, 1]
-                aucs.append(roc_auc_score(y_va, probs))
+                from sklearn.metrics import average_precision_score
+                try:
+                    score_val = float(average_precision_score(y_va, probs))
+                except Exception:
+                    score_val = float(roc_auc_score(y_va, probs))
+                aucs.append(score_val)
             return float(np.mean(aucs)) if aucs else 0.5
 
         study_vcp_ml = optuna.create_study(direction='maximize')
