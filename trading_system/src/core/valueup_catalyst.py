@@ -105,10 +105,10 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 is_distress = (pd.notna(op_margin) and float(op_margin) < 0) or (pd.notna(roe_val) and float(roe_val) < 0)
 
                 # Low PBR bonus factor: highest for PBR between 0.3 and 1.0 (profitable firms only)
-                if is_distress or pbr_val <= 0.20:
+                if pbr_val <= 0:
+                    pbr_factor = 0.10  # Negative equity / capital impairment
+                elif is_distress or pbr_val <= 0.20:
                     pbr_factor = 0.20  # Invalidate low PBR bonus for loss-making distress value traps / zombie shells
-                elif pbr_val <= 0:
-                    pbr_factor = 0.1
                 elif pbr_val < 1.0:
                     pbr_factor = 1.5 - (pbr_val * 0.5)  # PBR 0.4 -> 1.3, PBR 0.8 -> 1.1
                 else:

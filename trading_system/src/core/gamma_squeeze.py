@@ -86,8 +86,8 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
 
                         if len(c) >= 10:
                             ret_3d = float((c.iloc[-1] / c.iloc[-4]) - 1.0) if len(c) >= 4 else 0.0
-                            ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0)
-                            high_20d = float(c.iloc[-20:].max())
+                            ret_5d = float((c.iloc[-1] / c.iloc[-6]) - 1.0) if len(c) >= 6 else 0.0
+                            high_20d = float(c.iloc[-min(len(c), 20):].max())
                             cur_p = float(c.iloc[-1])
 
                             # Proximity to 20-day High (Call Wall Proxy)

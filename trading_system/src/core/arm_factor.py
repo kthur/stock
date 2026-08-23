@@ -97,6 +97,9 @@ class ARMFactorEngine(BaseStrategyEngine):
                 # PEG 스타일 (PER 대비 EPS 성장률)
                 peg_proxy = eps_rev / (per + 1e-4)
                 growth_score = float(np.clip(peg_proxy * 5.0, -0.2, 0.2))
+            elif per < 0:
+                # Loss making firms (negative PER): negative growth penalized
+                growth_score = float(np.clip(eps_rev * 0.10, -0.2, 0.2))
 
             # 복합 Revision 점수
             revision_composite = (eps_rev * 0.40) + (target_p_rev * 0.30) + (surprise * 0.20) + (growth_score * 0.10)
