@@ -266,10 +266,10 @@ class EventDrivenEngine(BaseStrategyEngine):
         eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
         if eff_filings:
             for item in eff_filings:
-                stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
-                corp_code = str(item.get('corp_code', '')).strip()
-                report_nm = str(item.get('report_nm', ''))
-                flr_nm = str(item.get('flr_nm', ''))
+                stock_code = str(item.get('stock_code', '') or '').strip().zfill(6) if item.get('stock_code') else ''
+                corp_code = str(item.get('corp_code', '') or '').strip()
+                report_nm = str(item.get('report_nm', '') or '')
+                flr_nm = str(item.get('flr_nm', '') or '')
                 combined_text = f"{report_nm} {flr_nm}"
 
                 if any(kw in report_nm for kw in ('전환청구권행사', '신주인수권행사', '전환가액', '신주인수권부사채', '전환사채')):

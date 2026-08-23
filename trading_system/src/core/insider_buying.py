@@ -104,9 +104,9 @@ class InsiderBuyingEngine(BaseStrategyEngine):
 
                 cur_score = 0.50
                 for item in matching_items:
-                    report_nm = str(item.get('report_nm', ''))
-                    insider_role = str(item.get('insider_role', 'EXECUTIVE')).upper()
-                    raw_type = str(item.get('trans_type', '')).upper().strip()
+                    report_nm = str(item.get('report_nm', '') or '')
+                    insider_role = str(item.get('insider_role', 'EXECUTIVE') or 'EXECUTIVE').upper()
+                    raw_type = str(item.get('trans_type', '') or '').upper().strip()
                     combined_role_text = f"{insider_role} {report_nm}"
 
                     # Explicit transaction classification: do not default generic informational filings to BUY
