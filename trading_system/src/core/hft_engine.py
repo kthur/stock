@@ -229,7 +229,7 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                     high, low, close, volume = 1.0, 1.0, 1.0, 1.0
 
                 if high - low > 1e-5:
-                    close_location = (close - low) / (high - low)
+                    close_location = float(np.clip((close - low) / (high - low), 0.0, 1.0))
                 else:
                     close_location = 0.50  # Neutral balance for flat/zero-range bars
                 bid_ask_imbalance = float(np.clip((close_location - 0.5) * 2.0, -1.0, 1.0))
