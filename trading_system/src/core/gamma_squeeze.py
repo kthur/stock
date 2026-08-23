@@ -91,7 +91,7 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                             cur_p = float(c.iloc[-1])
 
                             # Proximity to 20-day High (Call Wall Proxy)
-                            proximity = (cur_p / high_20d) if high_20d > 0 else 0.95
+                            proximity = float(np.clip(cur_p / high_20d, 0.0, 1.0)) if high_20d > 0 else 0.95
 
                             vol_surge = 1.0
                             if v is not None and len(v) >= 6:
@@ -101,7 +101,8 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                                     cur_v = float(v.iloc[-1])
                                 except (ValueError, TypeError):
                                     cur_v = 1.0
-                                vol_surge = (cur_v / avg_v) if avg_v > 0 and not np.isnan(avg_v) else 1.0
+                                raw_vol_surge = (cur_v / avg_v) if avg_v > 0 and not np.isnan(avg_v) else 1.0
+                                vol_surge = float(np.clip(raw_vol_surge, 0.0, 10.0)) if np.isfinite(raw_vol_surge) else 1.0
 
                             # Gamma Breakout Ignition Bonus (Strong momentum + volume surge + near 20d high)
                             gamma_ignition_bonus = 0.12 if (proximity >= 0.97 and (ret_5d >= 0.08 or ret_3d >= 0.05) and vol_surge >= 1.8) else 0.0

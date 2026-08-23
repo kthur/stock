@@ -109,7 +109,9 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                             c_series = p_df[close_col].dropna()
                             if len(v_series) >= 20 and len(c_series) >= 20:
                                 vol_surge = v_series.iloc[-1] / (v_series.iloc[-20:-1].mean() + 1e-5)
+                                vol_surge = float(np.clip(vol_surge, 0.0, 5.0)) if np.isfinite(vol_surge) else 1.0
                                 ret_20d = float((c_series.iloc[-1] / c_series.iloc[-20]) - 1.0) if len(c_series) >= 20 and c_series.iloc[-20] > 0 else 0.0
+                                ret_20d = ret_20d if np.isfinite(ret_20d) else 0.0
                                 # High volume surge + positive recent bounce = squeeze proxy (calibrated to [0.0, 0.50] scale)
                                 proxy_score = float(
                                     0.15 * max(-0.2, min(0.5, ret_5d))
