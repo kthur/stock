@@ -90,11 +90,13 @@ class MQFactorEngine(BaseStrategyEngine):
                     effective_days = max(1, len(close) - 21)
 
                 raw_mom = (p_t21 / p_base - 1.0) if p_base > 0 else 0.0
+                raw_mom = float(raw_mom) if np.isfinite(raw_mom) else 0.0
                 if 60 <= effective_days < 231 and raw_mom > -0.8:
                     power = min(3.0, 231.0 / effective_days)
                     price_mom = float(np.clip(((1.0 + raw_mom) ** power) - 1.0, -0.95, 2.0))
                 else:
                     price_mom = float(np.clip(raw_mom, -0.95, 2.0))
+                price_mom = price_mom if np.isfinite(price_mom) else 0.0
 
                 records.append({
                     'symbol': sym,
@@ -177,5 +179,5 @@ class MQFactorEngine(BaseStrategyEngine):
         else:
             res_df['mq_score'] = res_df['price_mom_rank']
 
-        res_df['mq_score'] = res_df['mq_score'].clip(0.0, 1.0)
+        res_df['mq_score'] = pd.to_numeric(res_df['mq_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
         return res_df[['symbol', 'mq_score']]
