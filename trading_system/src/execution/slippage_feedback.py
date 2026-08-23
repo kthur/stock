@@ -184,7 +184,7 @@ class SlippageFeedbackEngine:
                 v_finite = [v for v in val_list if math.isfinite(v)]
                 if v_finite:
                     m_val = float(np.mean(v_finite))
-                    final_mkt_map[mkt] = m_val if math.isfinite(m_val) else self.default_slippage_bps
+                    final_mkt_map[mkt] = float(np.clip(m_val, 0.1, 100.0)) if math.isfinite(m_val) else self.default_slippage_bps
                 else:
                     baseline_defaults = {"KOSPI": 5.0, "KOSDAQ": 8.0, "SP500": 3.0, "NASDAQ": 4.0, "RUSSELL2000": 7.0}
                     final_mkt_map[mkt] = baseline_defaults.get(mkt, self.default_slippage_bps)
