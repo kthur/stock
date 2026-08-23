@@ -643,8 +643,9 @@ class VCPSurgePredictor:
                                 coef = calib_dict.get("coef")
                                 intercept = calib_dict.get("intercept")
                                 if coef is not None and intercept is not None and coef > 0:
-                                    # Align with LogisticRegression fit on raw blend_prob in [0, 1]
-                                    z = np.clip(coef * blend_prob + intercept, -10, 10)
+                                    # R7-4 Fix: Apply logit transformation before Platt logistic scaling
+                                    logit = np.log(np.clip(blend_prob, 1e-6, 1.0 - 1e-6) / (1.0 - np.clip(blend_prob, 1e-6, 1.0 - 1e-6)))
+                                    z = np.clip(coef * logit + intercept, -10.0, 10.0)
                                     calib_p = 1.0 / (1.0 + np.exp(-z))
                                     # Prevent numeric collapse to 0.0 while preserving model ranking
                                     blend_prob = np.where(blend_prob > 0, np.maximum(calib_p, blend_prob * 0.05), blend_prob)

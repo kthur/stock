@@ -601,8 +601,9 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                 current_spread = float(s1_log[-1] - (slope * s2_log[-1] + intercept))
                 z_score = float((current_spread - spread_mean) / spread_std)
 
+                # R7-5 Fix: Harmonize stop loss threshold (3.5) with Kalman structural break threshold (3.5)
                 signal = "NEUTRAL"
-                if abs(z_score) > 3.2 or half_life > 60.0:
+                if abs(z_score) > 3.5 or half_life > 60.0:
                     signal = "STOP_LOSS_NEUTRAL"
                 elif z_score >= min_zscore:
                     signal = f"SHORT_{s1}_LONG_{s2}"

@@ -2456,8 +2456,9 @@ class EnsembleScoringEngine:
         adv_ref[m_russell] = 500_000.0
         impact_coeff[m_russell] = impact_coeff_sp500
 
+        # R7-3 Fix: Actual Korean market STT rates: KOSDAQ 0.20% (0.0020), KOSPI 0.18% (0.0018)
         m_kosdaq = (mkt_col == 'KOSDAQ') | sym_col.str.endswith('.KQ')
-        stt_tax[m_kosdaq] = 0.0018
+        stt_tax[m_kosdaq] = 0.0020
         brokerage_fee[m_kosdaq] = 0.0003
         base_spread[m_kosdaq] = base_spread_kosdaq
         spread_min[m_kosdaq] = 0.0003
@@ -2467,7 +2468,7 @@ class EnsembleScoringEngine:
         impact_coeff[m_kosdaq] = impact_coeff_krx
 
         m_kospi = ((mkt_col == 'KOSPI') | sym_col.str.endswith('.KS') | (sym_col.str.isdigit() & (sym_col.str.len() == 6))) & ~m_kosdaq
-        stt_tax[m_kospi] = 0.0015
+        stt_tax[m_kospi] = 0.0018
         brokerage_fee[m_kospi] = 0.0003
         base_spread[m_kospi] = base_spread_kospi
         spread_min[m_kospi] = 0.0002

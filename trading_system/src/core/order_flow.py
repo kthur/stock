@@ -105,8 +105,10 @@ class OrderFlowEngine(BaseStrategyEngine):
                 obv_trend = float((obv_slice.iloc[-1] - obv_slice.iloc[-10]) / max(vol_10d_sum, 1.0)) if len(obv_slice) >= 10 else 0.0
 
                 # Volume Acceleration Ratio (5d avg volume / 20d avg volume)
-                vol_5d = float(volume.iloc[-5:].mean()) if len(volume) >= 5 else float(volume.iloc[-1])
-                vol_20d = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else vol_5d
+                # R7-7 Fix: Clip single-day volume spikes at 3.0 * vol_20d to avoid single-day outlier distortions
+                vol_20d = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else float(volume.mean())
+                vol_5d_sub = volume.iloc[-5:].clip(upper=max(1.0, 3.0 * vol_20d)) if len(volume) >= 5 else volume.iloc[-1:]
+                vol_5d = float(vol_5d_sub.mean())
                 vol_accel = (vol_5d / (vol_20d + 1e-6)) if vol_20d > 0 else 1.0
 
                 # VWAP Deviation Signal (Current Close vs 20-day VWAP)

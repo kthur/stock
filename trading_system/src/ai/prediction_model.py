@@ -1296,9 +1296,11 @@ class OnDevicePredictionModel:
         dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di + 1e-9)).replace([np.inf, -np.inf], 0.0).fillna(0.0)
         df['adx_14'] = dx.rolling(14, min_periods=1).mean().fillna(0.0)
 
-        # Ichimoku Cloud
-        df['tenkan_sen'] = ((high.rolling(9, min_periods=1).max() + low.rolling(9, min_periods=1).min()) / 2).fillna(close)
-        df['kijun_sen'] = ((high.rolling(26, min_periods=1).max() + low.rolling(26, min_periods=1).min()) / 2).fillna(close)
+        # Ichimoku Cloud (R7-2 Fix: Normalized by close price for cross-sectional scale invariance)
+        tenkan_raw = ((high.rolling(9, min_periods=1).max() + low.rolling(9, min_periods=1).min()) / 2).fillna(close)
+        kijun_raw = ((high.rolling(26, min_periods=1).max() + low.rolling(26, min_periods=1).min()) / 2).fillna(close)
+        df['tenkan_sen'] = ((tenkan_raw - close) / (close + 1e-9)).fillna(0.0)
+        df['kijun_sen'] = ((kijun_raw - close) / (close + 1e-9)).fillna(0.0)
 
         # Stochastic RSI
         rsi = df['rsi_14']
@@ -1395,9 +1397,9 @@ class OnDevicePredictionModel:
         # Compute 20-day realised volatility of daily returns (min 5 obs)
         pct_chg = df['Close'].pct_change()
         vol_20d = pct_chg.rolling(20, min_periods=5).std()
-        # Replace zero / NaN vols with a small floor so we never divide by zero
-        vol_20d = vol_20d.replace(0.0, np.nan)
-        vol_20d = vol_20d.bfill().ffill().fillna(0.01)
+        # R7-1 Fix: Pad denominator with strict floor (1e-4) so we never divide by zero or near-zero
+        vol_20d = vol_20d.replace(0.0, np.nan).bfill().ffill().fillna(0.01)
+        vol_20d = pd.Series(np.maximum(vol_20d.values, 1e-4), index=df.index)
         # Store vol scale for inverse-transform at inference time
         df['_vol_scale'] = vol_20d
 

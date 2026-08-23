@@ -152,17 +152,18 @@ class ShortTermReversalEngine(BaseStrategyEngine):
             0.0
         )
 
-        # Vectorized Dual-Horizon RSI (Fast RSI-5 + Standard RSI-14) Oversold Indicator
+        # Vectorized Dual-Horizon RSI (Fast RSI-5 + Standard RSI-14) with R7-8 Wilder's Exponential Smoothing
         delta = close_2d.diff().iloc[1:]
         gain = np.maximum(delta, 0.0)
         loss = np.maximum(-delta, 0.0)
-        avg_gain_14 = gain.tail(14).mean(axis=0)
-        avg_loss_14 = loss.tail(14).mean(axis=0).replace(0, 1e-8)
+        # R7-8 Fix: Wilder's exponential moving average smoothing (alpha = 1/N)
+        avg_gain_14 = gain.ewm(alpha=1.0/14.0, adjust=False).mean().iloc[-1]
+        avg_loss_14 = loss.ewm(alpha=1.0/14.0, adjust=False).mean().iloc[-1].replace(0, 1e-8)
         rs_val_14 = avg_gain_14 / avg_loss_14
         rsi_14 = 100.0 - (100.0 / (1.0 + rs_val_14))
 
-        avg_gain_5 = gain.tail(5).mean(axis=0)
-        avg_loss_5 = loss.tail(5).mean(axis=0).replace(0, 1e-8)
+        avg_gain_5 = gain.ewm(alpha=1.0/5.0, adjust=False).mean().iloc[-1]
+        avg_loss_5 = loss.ewm(alpha=1.0/5.0, adjust=False).mean().iloc[-1].replace(0, 1e-8)
         rs_val_5 = avg_gain_5 / avg_loss_5
         rsi_5 = 100.0 - (100.0 / (1.0 + rs_val_5))
 

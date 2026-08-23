@@ -321,30 +321,22 @@ class RIMValuationEngine(BaseStrategyEngine):
         else:
             roe = max(-0.5, min(float(ABSOLUTE_ROE_CAP), float(roe)))
 
-        if self.decay_rate <= 0:
-            # Constant ROE Perpetuity Formula (legacy, no 유보금):
-            # V_0 = BPS * (1 + (ROE - r_e) / r_e)
-            if r_e <= 0:
-                return bps
-            excess_return_ratio = (roe - r_e) / r_e
-            excess_return_ratio = max(-0.8, min(5.0, excess_return_ratio))
-            return bps * (1.0 + excess_return_ratio)
-        else:
-            # Finite horizon / Decaying ROE with 유보금 retention
-            pv_excess = 0.0
-            current_bps = bps
-            current_roe = roe
-            for t in range(1, years + 1):
-                net_income = current_bps * current_roe
-                excess_income = current_bps * (current_roe - r_e)
-                pv_excess += excess_income / ((1.0 + r_e) ** t)
-                # BPS grows by retained positive net income (or decreases by net losses)
-                retention = self.retention_ratio if net_income > 0 else 1.0
-                current_bps += net_income * retention
-                current_roe = r_e + (current_roe - r_e) * (1.0 - self.decay_rate)
-            # Standard RIM intrinsic value V0 = BPS0 + Sum(PV of Excess Income).
-            # Terminal value beyond horizon N assumes ROE = r_e (excess income = 0).
-            return bps + pv_excess
+        # R7-6 Fix: Enforce minimum 2% ROE decay floor to prevent perpetuity bubble traps on temporarily high ROE firms
+        eff_decay = max(0.02, float(self.decay_rate)) if self.decay_rate > 0 else 0.05
+        pv_excess = 0.0
+        current_bps = bps
+        current_roe = roe
+        for t in range(1, years + 1):
+            net_income = current_bps * current_roe
+            excess_income = current_bps * (current_roe - r_e)
+            pv_excess += excess_income / ((1.0 + r_e) ** t)
+            # BPS grows by retained positive net income (or decreases by net losses)
+            retention = self.retention_ratio if net_income > 0 else 1.0
+            current_bps += net_income * retention
+            current_roe = r_e + (current_roe - r_e) * (1.0 - eff_decay)
+        # Standard RIM intrinsic value V0 = BPS0 + Sum(PV of Excess Income).
+        # Terminal value beyond horizon N assumes ROE = r_e (excess income = 0).
+        return bps + pv_excess
 
     def compute_rim_scores(
         self,
