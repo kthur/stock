@@ -410,6 +410,7 @@ def calculate_hrp_weights(
 
         # Distance matrix d_ij = sqrt(0.5 * (1 - corr_ij))
         dist = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr)))
+        dist = 0.5 * (dist + dist.T)
         np.fill_diagonal(dist, 0.0)
 
         # Linkage matrix: Ward / Complete avoids seriation chaining
@@ -522,6 +523,7 @@ def calculate_herc_weights(
 
         # Distance matrix
         dist = np.sqrt(np.maximum(0.0, 0.5 * (1.0 - corr)))
+        dist = 0.5 * (dist + dist.T)
         np.fill_diagonal(dist, 0.0)
         dist_condensed = squareform(dist, checks=False)
 
