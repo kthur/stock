@@ -157,16 +157,20 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         delta = close_2d.diff().iloc[1:]
         gain = np.maximum(delta, 0.0)
         loss = np.maximum(-delta, 0.0)
-        # R7-8 Fix: Wilder's exponential moving average smoothing (alpha = 1/N)
-        avg_gain_14 = gain.ewm(alpha=1.0/14.0, adjust=False).mean().iloc[-1]
-        avg_loss_14 = loss.ewm(alpha=1.0/14.0, adjust=False).mean().iloc[-1].replace(0, 1e-8)
-        rs_val_14 = avg_gain_14 / avg_loss_14
-        rsi_14 = 100.0 - (100.0 / (1.0 + rs_val_14))
+        # Wilder's exponential moving average smoothing (alpha = 1/N)
+        gain_ewm_14 = gain.ewm(alpha=1.0/14.0, adjust=False).mean().iloc[-1]
+        loss_ewm_14 = loss.ewm(alpha=1.0/14.0, adjust=False).mean().iloc[-1]
+        flat_mask_14 = (gain_ewm_14 < 1e-8) & (loss_ewm_14 < 1e-8)
+        avg_loss_14 = loss_ewm_14.replace(0, 1e-8)
+        rs_val_14 = gain_ewm_14 / avg_loss_14
+        rsi_14 = np.where(flat_mask_14, 50.0, 100.0 - (100.0 / (1.0 + rs_val_14)))
 
-        avg_gain_5 = gain.ewm(alpha=1.0/5.0, adjust=False).mean().iloc[-1]
-        avg_loss_5 = loss.ewm(alpha=1.0/5.0, adjust=False).mean().iloc[-1].replace(0, 1e-8)
-        rs_val_5 = avg_gain_5 / avg_loss_5
-        rsi_5 = 100.0 - (100.0 / (1.0 + rs_val_5))
+        gain_ewm_5 = gain.ewm(alpha=1.0/5.0, adjust=False).mean().iloc[-1]
+        loss_ewm_5 = loss.ewm(alpha=1.0/5.0, adjust=False).mean().iloc[-1]
+        flat_mask_5 = (gain_ewm_5 < 1e-8) & (loss_ewm_5 < 1e-8)
+        avg_loss_5 = loss_ewm_5.replace(0, 1e-8)
+        rs_val_5 = gain_ewm_5 / avg_loss_5
+        rsi_5 = np.where(flat_mask_5, 50.0, 100.0 - (100.0 / (1.0 + rs_val_5)))
 
         # R5-6: 50% Fast RSI-5 + 50% Standard RSI-14
         rsi_oversold_term = 0.5 * np.clip((35.0 - rsi_14) / 20.0, -0.2, 0.3) + 0.5 * np.clip((30.0 - rsi_5) / 20.0, -0.2, 0.3)

@@ -122,11 +122,13 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             dev_h = (diffs_h - mean_diff_h).cumsum(axis=0)
             r_range_h = dev_h.max(axis=0) - dev_h.min(axis=0)
             s_std_h = diffs_h.std(axis=0, ddof=1).clip(lower=1e-8)
+            flat_mask = (r_range_h <= 1e-8) | (s_std_h <= 1e-8)
             rs_h = np.maximum(r_range_h / s_std_h, 1e-4)
             n_obs = float(max(20, h_len))
             # Expected R/S under null hypothesis of random walk (Anis-Lloyd / Peters correction)
             e_rs = np.sqrt(np.pi * n_obs / 2.0) if n_obs > 50 else ((n_obs - 0.5) / n_obs) * np.sqrt(np.pi * n_obs / 2.0)
             hurst = np.clip(0.50 + (np.log(rs_h) - np.log(e_rs)) / np.log(n_obs), 0.1, 0.9)
+            hurst = np.where(flat_mask, 0.50, hurst)
         else:
             hurst = np.full(len(close_2d.columns), 0.50)
 
