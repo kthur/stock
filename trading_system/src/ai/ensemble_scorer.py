@@ -1061,9 +1061,9 @@ class EnsembleScoringEngine:
             scores = {k: (max(v, _vmin_floor) if v > 0.0 else 0.0) for k, v in scores.items()}
 
         total_score = sum(scores.values())
-        if total_score == 0.0:
+        if total_score == 0.0 or not np.isfinite(total_score):
             return base_weights
-        dynamic_weights = {k: v / total_score for k, v in scores.items()}
+        dynamic_weights = {k: float(v / total_score) for k, v in scores.items()}
 
         # Detect regime transition or explicit factor tilting to accelerate EMA weight smoothing
         current_regime_str = str(regime)
