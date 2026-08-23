@@ -220,8 +220,10 @@ class EventDrivenEngine(BaseStrategyEngine):
                             avg_vol = float(v.iloc[-6:-1].mean())
                         cur_vol = float(v.iloc[-1])
                         p_base = float(c.iloc[-6])
-                        ret_5d = float((c.iloc[-1] / p_base) - 1.0) if p_base > 0 else 0.0
-                        v_ratio = float(cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                        raw_ret5 = float((c.iloc[-1] / p_base) - 1.0) if p_base > 0 else 0.0
+                        ret_5d = float(np.clip(raw_ret5, -0.99, 5.0)) if np.isfinite(raw_ret5) else 0.0
+                        raw_vr = float(cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                        v_ratio = float(np.clip(raw_vr, 0.0, 20.0)) if np.isfinite(raw_vr) else 1.0
                         # R10-1 Fix: Explicitly define breakout_bonus to eliminate NameError exception
                         breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
                         # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
@@ -239,7 +241,7 @@ class EventDrivenEngine(BaseStrategyEngine):
                     if sent_metric:
                         scores_map[sym] = self.incorporate_filing_sentiment(sym, scores_map[sym], sent_metric)
 
-        res_df = pd.DataFrame([{'symbol': k, 'event_score': float(v)} for k, v in scores_map.items()])
+        res_df = pd.DataFrame([{'symbol': k, 'event_score': float(np.clip(v, 0.0, 1.0)) if np.isfinite(v) else 0.5} for k, v in scores_map.items()])
         return res_df
 
     def evaluate_cb_bw_overhang_and_margin_risk(
