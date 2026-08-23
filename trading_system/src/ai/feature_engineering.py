@@ -46,6 +46,9 @@ def apply_scaler(df: pd.DataFrame, features: list, scaler: StandardScaler) -> pd
     if df.empty:
         return df
     df_copy = df.copy()
+    for col in features:
+        if col not in df_copy.columns:
+            df_copy[col] = 0.0
     X = df_copy[features].copy()
     for c in features:
         if c in X.columns:
@@ -190,7 +193,7 @@ def compute_advanced_alpha_features(df: pd.DataFrame, market_returns: pd.Series 
     df['dist_52w_high'] = (close / high_52w.replace(0, 1e-10)).fillna(1.0)
 
     # 2. Residual Momentum 20d
-    ret_20d = close.pct_change(20).fillna(0.0)
+    ret_20d = close.pct_change(20).replace([np.inf, -np.inf], 0.0).fillna(0.0)
     if market_returns is not None and not market_returns.empty:
         mkt_ret_20d = market_returns.pct_change(20).reindex(ret_20d.index).fillna(0.0)
         df['residual_mom_20d'] = ret_20d - mkt_ret_20d

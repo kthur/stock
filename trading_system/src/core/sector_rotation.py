@@ -283,8 +283,8 @@ class SectorRotationEngine(BaseStrategyEngine):
 
                 # Intra-Sector Dispersion weighting: High dispersion -> favor individual stock rank
                 sector_disp = res_df.groupby('sector')['mom_raw'].transform('std').fillna(0.0)
-                stock_weight = pd.Series(0.35, index=res_df.index)
-                stock_weight[sector_disp > 0.05] = 0.60
+                # R12-7 Fix: Continuous dispersion scaling with clip [0.20, 0.70]
+                stock_weight = (0.35 + sector_disp * 5.0).clip(0.20, 0.70)
                 sector_weight = 1.0 - stock_weight
 
                 res_df['sector_score'] = sector_weight * res_df['sector_rank'] + stock_weight * res_df['stock_rank']

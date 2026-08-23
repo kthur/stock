@@ -2204,7 +2204,8 @@ class EnsembleScoringEngine:
         # Dynamic re-normalization over active strategies (Active weights sum to 100%)
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
-        raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
+        # R12-4 Fix: Fall back to neutral 0.50 for symbols with no active strategy data instead of extreme bearish 0.0
+        raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.50), index=merged.index)
         linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)

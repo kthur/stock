@@ -772,8 +772,12 @@ class RiskManager:
         adx: float = 20.0,
         previous_stop_price: float = 0.0,
     ) -> float:
-        """ATR 기반 동적 트레일링 스탑 가격 계산 (Ratchet 단방향 상향 보장)"""
-        if atr <= 0.0 or highest_price <= 0.0:
+        # R12-2 Fix: Guard against NaN, Inf, and non-positive inputs
+        if (
+            atr is None or highest_price is None
+            or not math.isfinite(atr) or not math.isfinite(highest_price)
+            or atr <= 0.0 or highest_price <= 0.0
+        ):
             return float(previous_stop_price)
 
         multipliers = self.get_adaptive_atr_multipliers(regime, adx)
@@ -1147,13 +1151,18 @@ class RiskManager:
     def calculate_drawdown(self, total_portfolio_value: Optional[float] = None) -> float:
         """현재 Drawdown 계산 (총 포트폴리오 가치 = 현금 + 오픈 포지션 평가액)"""
         with self._lock:
-            val = total_portfolio_value if (total_portfolio_value is not None and total_portfolio_value > 0) else self.portfolio_value
+            # R12-3 Fix: Ensure val is finite and strictly positive
+            if total_portfolio_value is not None and np.isfinite(total_portfolio_value) and total_portfolio_value > 0:
+                val = float(total_portfolio_value)
+            else:
+                val = float(self.portfolio_value) if (np.isfinite(self.portfolio_value) and self.portfolio_value > 0) else 0.0
+
             if val > self.peak_value:
                 self.peak_value = val
-            if self.peak_value == 0:
+            if self.peak_value <= 0 or val <= 0:
                 return 0.0
 
-            drawdown = (self.peak_value - val) / self.peak_value
+            drawdown = max(0.0, float((self.peak_value - val) / self.peak_value))
             return drawdown
 
     def run_built_in_stress_tests(self, portfolio_weights: Dict[str, float]) -> Dict[str, Any]:

@@ -1179,10 +1179,10 @@ class OnDevicePredictionModel:
         df['dividend_yield'] = safe_divide(div_ps, df['Close'])
 
         # Return features
-        df['ret_1d'] = df['Close'].pct_change(1, fill_method=None)
-        df['ret_5d'] = df['Close'].pct_change(5, fill_method=None)
-        df['ret_20d'] = df['Close'].pct_change(20, fill_method=None)
-        df['ret_60d'] = df['Close'].pct_change(60, fill_method=None)
+        df['ret_1d'] = df['Close'].pct_change(1, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['ret_5d'] = df['Close'].pct_change(5, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['ret_20d'] = df['Close'].pct_change(20, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        df['ret_60d'] = df['Close'].pct_change(60, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         # Moving averages
         df['sma_20'] = df['Close'].rolling(20).mean()
@@ -1308,15 +1308,18 @@ class OnDevicePredictionModel:
         rsi = df['rsi_14']
         rsi_min = rsi.rolling(14, min_periods=1).min()
         rsi_max = rsi.rolling(14, min_periods=1).max()
-        stoch_rsi = (rsi - rsi_min) / (rsi_max - rsi_min).replace(0, 1e-10) * 100
-        df['stoch_rsi_k'] = stoch_rsi.fillna(50.0)
-        df['stoch_rsi_d'] = stoch_rsi.rolling(3, min_periods=1).mean().fillna(50.0)
+        # R12-1 Fix: Safe division for Stochastic RSI to cleanly return 50.0 when RSI range is flat
+        rsi_diff = rsi_max - rsi_min
+        stoch_rsi = np.where(rsi_diff > 1e-6, ((rsi - rsi_min) / rsi_diff) * 100.0, 50.0)
+        df['stoch_rsi_k'] = pd.Series(stoch_rsi, index=df.index).fillna(50.0)
+        df['stoch_rsi_d'] = df['stoch_rsi_k'].rolling(3, min_periods=1).mean().fillna(50.0)
 
         # 12. Microstructure / Alt-data proxy features (vectorized dark pool ratio & block trades)
         vol_mean_20d = volume.rolling(20, min_periods=1).mean()
         vol_ratio_20d = (volume / (vol_mean_20d + 1e-9)).fillna(1.0)
         ret_vol_20d = df['ret_1d'].rolling(20, min_periods=1).std().fillna(0.02)
-        dp_ratio = 0.35 + 0.1 * (vol_ratio_20d - 1.0) - 0.05 * (df['ret_1d'].abs() / (ret_vol_20d + 1e-5))
+        # R12-6 Fix: Use np.maximum on volatility denominator to prevent micro-volatility distortions
+        dp_ratio = 0.35 + 0.1 * (vol_ratio_20d - 1.0) - 0.05 * (df['ret_1d'].abs() / np.maximum(ret_vol_20d, 1e-4))
         df['dark_pool_ratio'] = dp_ratio.clip(0.1, 0.6).fillna(0.35)
         fx_conv = 1350.0 if is_krx_symbol else 1.0
         df['block_trade_net_usd'] = ((volume * close / fx_conv) * df['ret_1d'] * df['dark_pool_ratio']).fillna(0.0)

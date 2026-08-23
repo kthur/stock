@@ -208,6 +208,10 @@ class MarketIndicatorStorage:
 
         try:
             yield conn
+            try:
+                conn.commit()
+            except Exception:
+                pass
         except Exception:
             try:
                 conn.rollback()
