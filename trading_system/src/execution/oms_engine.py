@@ -466,8 +466,8 @@ class ExecutionOMSEngine:
                 change_pct = pred.get("change_pct") or pred.get("daily_return")
                 try:
                     if change_pct is not None and is_krx:
-                        # S-5 Fix: Unified percentage-to-decimal normalization (>1.0 -> /100)
-                        c_norm = float(change_pct) / 100.0 if abs(float(change_pct)) > 1.0 else float(change_pct)
+                        # S-5 Fix: Unified percentage-to-decimal normalization (>=0.50 -> /100)
+                        c_norm = float(change_pct) / 100.0 if abs(float(change_pct)) >= 0.50 else float(change_pct)
                         if c_norm >= 0.295 and action == "BUY":
                             logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
                             continue
@@ -509,10 +509,12 @@ class ExecutionOMSEngine:
                         )
                         friction_cost = buy_cost + sell_cost
                         safety_margin = 0.0010  # 0.10% KRX safety margin
-                        _exp_ret_raw = pred.get("expected_return") if pred.get("expected_return") is not None else pred.get("ensemble_expected_return", 0.0)
+                        _is_net = "ensemble_expected_return" in pred and pred.get("expected_return") is None
+                        _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
-                        exp_ret_frac = raw_exp_ret / 100.0
-                        hurdle = friction_cost + safety_margin
+                        has_large_vals = any(abs(float(p.get("expected_return", p.get("ensemble_expected_return", 0.0)) or 0.0)) > 1.0 for p in top_predictions)
+                        exp_ret_frac = (raw_exp_ret / 100.0) if has_large_vals else (raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret)
+                        hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac < hurdle:
                             logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({hurdle:.4%}), skipping.")
@@ -524,8 +526,8 @@ class ExecutionOMSEngine:
                 try:
                     vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
                     raw_gap = float(change_pct or 0.0)
-                    # S-4/S-5 Fix: Unified normalization threshold > 1.0
-                    gap_ret = raw_gap / 100.0 if abs(raw_gap) > 1.0 else raw_gap
+                    # S-4/S-5 Fix: Unified normalization threshold >= 0.50
+                    gap_ret = raw_gap / 100.0 if abs(raw_gap) >= 0.50 else raw_gap
                     # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
                     strat_src = str(pred.get("strategy_source", "") or pred.get("primary_strategy", "") or pred.get("strategy", "")).lower()
                     is_reversal = "reversal" in strat_src or "short_term_reversal" in strat_src

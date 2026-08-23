@@ -476,12 +476,12 @@ class CrisisDetector:
         return multipliers.get(self.crisis_level, 1.0)
 
     def get_crisis_stop_multiplier(self) -> float:
-        """위기 시 고변동성/ATR 확장을 감안하여 손절 거리를 유지/확대 (Whipsaw 조기 청산 방어)"""
+        """위기 시 트레일링 스탑 거리를 축소/강화(tightening)하여 손실 방어 및 조기 탈출"""
         multipliers = {
             CrisisLevel.NONE: 1.0,
-            CrisisLevel.WATCH: 1.0,
-            CrisisLevel.ACTIVE: 1.05,
-            CrisisLevel.SEVERE: 1.10,
+            CrisisLevel.WATCH: 0.80,
+            CrisisLevel.ACTIVE: 0.60,
+            CrisisLevel.SEVERE: 0.50,
         }
         return multipliers.get(self.crisis_level, 1.0)
 
@@ -696,20 +696,20 @@ class RiskManager:
         stop_distance = atr * self.atr_multiplier_stop
         base = max(entry_price - stop_distance, entry_price * (1 - self.default_stop_loss_pct * 2))
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult > 1.0:
-            wider = entry_price - (entry_price - base) * crisis_mult
-            self.logger.info(f"Crisis stop widening: {base:.2f} -> {wider:.2f} (mult={crisis_mult:.2f})")
-            return wider
+        if crisis_mult > 0.0 and crisis_mult != 1.0:
+            tightened = entry_price - (entry_price - base) * crisis_mult
+            self.logger.info(f"Crisis stop tightening: {base:.2f} -> {tightened:.2f} (mult={crisis_mult:.2f})")
+            return tightened
         return base
 
     def calculate_atr_based_target(self, entry_price: float, atr: float) -> float:
         target_distance = atr * self.atr_multiplier_target
         base = min(entry_price + target_distance, entry_price * (1 + self.default_take_profit_pct * 2))
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult > 1.0:
-            wider = entry_price + (base - entry_price) * crisis_mult
-            self.logger.info(f"Crisis target widening: {base:.2f} -> {wider:.2f} (mult={crisis_mult:.2f})")
-            return wider
+        if crisis_mult > 0.0 and crisis_mult != 1.0:
+            target_adjusted = entry_price + (base - entry_price) * crisis_mult
+            self.logger.info(f"Crisis target adjustment: {base:.2f} -> {target_adjusted:.2f} (mult={crisis_mult:.2f})")
+            return target_adjusted
         return base
 
     REGIME_ATR_MULTIPLIERS = {
@@ -751,7 +751,7 @@ class RiskManager:
         stop_distance = atr * stop_multiplier
 
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult > 1.0:
+        if crisis_mult > 0.0:
             stop_distance *= crisis_mult
 
         drawdown = self.calculate_drawdown()
@@ -780,7 +780,7 @@ class RiskManager:
         stop_distance = atr * stop_multiplier
 
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult > 1.0:
+        if crisis_mult > 0.0:
             stop_distance *= crisis_mult
 
         drawdown = self.calculate_drawdown()
@@ -1062,9 +1062,9 @@ class RiskManager:
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price)
         position_quantity = min(position_quantity, unpenalized_max_position)
 
-        # 위기 시 포지션 크기 감축 (과도한 5중 중복 감쇄 방어: 최소 35% 바운드 유지)
+        # 위기 시 포지션 크기 감축
         crisis_mult = self.crisis_detector.get_crisis_position_multiplier()
-        combined_mult = max(0.35, crisis_mult * self.stress_test_adjustment_factor)
+        combined_mult = crisis_mult * self.stress_test_adjustment_factor
         if combined_mult < 1.0:
             old_qty = position_quantity
             position_quantity = max(0, int(position_quantity * combined_mult))
