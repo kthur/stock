@@ -122,10 +122,12 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         valid_mask = net_inc.notna() & ocf.notna()
         proxy_denom = np.maximum(np.abs(net_inc) + np.abs(ocf), 1e-4) * 3.0
         raw_denom = np.where(assets.notna() & (assets > 0), assets, proxy_denom)
-        accrual_ratio = np.where(valid_mask & pd.notna(raw_denom), (net_inc - ocf) / np.maximum(raw_denom, 1e-5), np.nan)
+        raw_accrual = np.where(valid_mask & pd.notna(raw_denom), (net_inc - ocf) / np.maximum(raw_denom, 1e-5), np.nan)
+        accrual_ratio = np.where(np.isfinite(raw_accrual), np.clip(raw_accrual, -5.0, 5.0), np.nan)
 
         # Cash conversion booster: OCF > Net Income significantly
-        cash_conversion = np.where(valid_mask & (net_inc > 0), ocf / np.maximum(net_inc, 1e-5), 1.0)
+        raw_conversion = np.where(valid_mask & (net_inc > 0), ocf / np.maximum(net_inc, 1e-5), 1.0)
+        cash_conversion = np.where(np.isfinite(raw_conversion), np.clip(raw_conversion, 0.0, 10.0), 1.0)
         conversion_bonus = np.where(cash_conversion > 1.25, 0.05, 0.0)
 
         df_acc = pd.DataFrame({'symbol': sym_strs, 'accrual_ratio': accrual_ratio, 'conversion_bonus': conversion_bonus})
