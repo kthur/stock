@@ -82,7 +82,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
 
             pbr = row.get('pbr', row.get('price_to_book', np.nan))
             bps = row.get('bps', np.nan)
-            cash = row.get('cash', row.get('cash_and_equivalents', np.nan))
+            cash = row.get('cash', row.get('cash_equivalents', row.get('cash_and_equivalents', np.nan)))
             mcap = row.get('market_cap', row.get('marcap', np.nan))
             div_yield = row.get('dividend_yield', row.get('div_yield', 0.0))
 

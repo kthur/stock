@@ -2861,7 +2861,11 @@ def _execute_prediction_pipeline_core(_pipeline_start_time: float):
         from src.core.event_driven import EventDrivenEngine
         from src.core.llm_sentiment_engine import LLMSentimentEngine
         logger.info("Computing Strategy 10: Event-Driven Momentum Scores with LLM/NLP Filing Sentiment...")
-        event_engine = EventDrivenEngine(dart_api_key=getattr(cfg, 'dart_api_key', ''))
+        _dart_key = getattr(cfg, 'dart_api_key', '') or ''
+        if not _dart_key or _dart_key == 'your_dart_api_key_here':
+            logger.warning("[S-2 WARNING] DART_API_KEY is not configured. Event-Driven (Strategy 10) and Insider Buying (Strategy 29) "
+                           "will fall back to volume-breakout-only mode for Korean stocks. Set DART_API_KEY in .env for full coverage.")
+        event_engine = EventDrivenEngine(dart_api_key=_dart_key)
         sentiment_engine = LLMSentimentEngine(db_storage=storage)
         eff_filings = event_engine.fetch_recent_dart_filings()
         sentiment_map = {}

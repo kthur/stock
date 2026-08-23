@@ -115,6 +115,32 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     else:
         result['eps'] = 0.0
 
+    # Fetch Cash Flow Statement for OCF
+    try:
+        if is_quarterly:
+            cf_data = ticker.quarterly_cashflow
+        else:
+            cf_data = ticker.cashflow
+        if cf_data is not None and not cf_data.empty:
+            cf_cols_map = {
+                'Total Cash From Operating Activities': 'operating_cash_flow',
+                'Operating Cash Flow': 'operating_cash_flow',
+                'Cash Flow From Continuing Operating Activities': 'operating_cash_flow',
+            }
+            for cf_col, target_col in cf_cols_map.items():
+                if cf_col in cf_data.index:
+                    ocf_series = cf_data.loc[cf_col]
+                    for date_col in ocf_series.index:
+                        date_str = date_col.strftime('%Y-%m-%d') if hasattr(date_col, 'strftime') else str(date_col)
+                        # Find matching row in results and add OCF
+                        for r_idx in result.index:
+                            r_date_str = r_idx.strftime('%Y-%m-%d') if hasattr(r_idx, 'strftime') else str(r_idx)
+                            if r_date_str == date_str:
+                                result.loc[r_idx, 'operating_cash_flow'] = float(ocf_series[date_col]) if pd.notna(ocf_series[date_col]) else 0.0
+                    break
+    except Exception as e:
+        logger.debug(f"Cash flow fetch failed for {yf_sym}: {e}")
+
     info: Dict[str, Any] = {}
     try:
         info = ticker.info or {}
@@ -168,7 +194,7 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     else:
         result['bps'] = result.get('book_value', 0.0)
 
-    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps']:
+    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'operating_cash_flow']:
         if col in result.columns:
             result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0.0).astype(float)
         else:
@@ -186,6 +212,22 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
         result['ttm_operating_income'] = (result['operating_income'] / scale_factor) if scale_factor > 0 else result['operating_income']
         result['ttm_net_income'] = (result['net_income'] / scale_factor) if scale_factor > 0 else result['net_income']
         result['ttm_eps'] = (result['eps'] / scale_factor) if scale_factor > 0 else result['eps']
+
+    # Compute quality metrics from TTM data
+    if 'ttm_revenue' in result.columns and 'ttm_operating_income' in result.columns:
+        result['operating_margin'] = np.where(
+            result['ttm_revenue'] > 0,
+            result['ttm_operating_income'] / result['ttm_revenue'],
+            0.0
+        )
+    if 'ttm_revenue' in result.columns and 'ttm_net_income' in result.columns:
+        result['net_profit_margin'] = np.where(
+            result['ttm_revenue'] > 0,
+            result['ttm_net_income'] / result['ttm_revenue'],
+            0.0
+        )
+    if 'ttm_eps' in result.columns:
+        result['eps_growth_1y'] = result['ttm_eps'].pct_change(4).replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
     return result
 
@@ -284,6 +326,33 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                             "eps": float(eps) * scale_factor
                         })
 
+                    # Fetch Cash Flow Statement for OCF
+                    try:
+                        ticker = yf.Ticker(yf_sym)
+                        if is_quarterly:
+                            cf_data = ticker.quarterly_cashflow
+                        else:
+                            cf_data = ticker.cashflow
+                        if cf_data is not None and not cf_data.empty:
+                            cf_cols_map = {
+                                'Total Cash From Operating Activities': 'operating_cash_flow',
+                                'Operating Cash Flow': 'operating_cash_flow',
+                                'Cash Flow From Continuing Operating Activities': 'operating_cash_flow',
+                            }
+                            for cf_col, target_col in cf_cols_map.items():
+                                if cf_col in cf_data.index:
+                                    ocf_series = cf_data.loc[cf_col]
+                                    for date_col in ocf_series.index:
+                                        date_str = date_col.strftime('%Y-%m-%d') if hasattr(date_col, 'strftime') else str(date_col)
+                                        # Find matching row in results and add OCF
+                                        for r in rows:
+                                            r_date_str = r.get('date_align', '').strftime('%Y-%m-%d') if hasattr(r.get('date_align', ''), 'strftime') else str(r.get('date_align', ''))
+                                            if r_date_str == date_str:
+                                                r['operating_cash_flow'] = float(ocf_series[date_col]) if pd.notna(ocf_series[date_col]) else 0.0
+                                    break
+                    except Exception as e:
+                        logger.debug(f"Cash flow fetch failed for {symbol}: {e}")
+
                     if not rows:
                         return None
 
@@ -324,7 +393,7 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                     df['book_value'] = float(total_equity if total_equity > 0 else (book_val * shares if shares > 0 else book_val))
                     df['bps'] = float(book_val)
 
-                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'shares_outstanding', 'dividend_per_share']:
+                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'shares_outstanding', 'dividend_per_share', 'operating_cash_flow']:
                         if col in df.columns:
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
                         else:
@@ -340,6 +409,22 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                         df['ttm_operating_income'] = (df['operating_income'] / scale_factor) if scale_factor > 0 else df['operating_income']
                         df['ttm_net_income'] = (df['net_income'] / scale_factor) if scale_factor > 0 else df['net_income']
                         df['ttm_eps'] = (df['eps'] / scale_factor) if scale_factor > 0 else df['eps']
+
+                    # Compute quality metrics from TTM data
+                    if 'ttm_revenue' in df.columns and 'ttm_operating_income' in df.columns:
+                        df['operating_margin'] = np.where(
+                            df['ttm_revenue'] > 0,
+                            df['ttm_operating_income'] / df['ttm_revenue'],
+                            0.0
+                        )
+                    if 'ttm_revenue' in df.columns and 'ttm_net_income' in df.columns:
+                        df['net_profit_margin'] = np.where(
+                            df['ttm_revenue'] > 0,
+                            df['ttm_net_income'] / df['ttm_revenue'],
+                            0.0
+                        )
+                    if 'ttm_eps' in df.columns:
+                        df['eps_growth_1y'] = df['ttm_eps'].pct_change(4).replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
                     return df
 

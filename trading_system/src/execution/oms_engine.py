@@ -462,11 +462,12 @@ class ExecutionOMSEngine:
                     status = "PENDING"
 
                 # Gate 7.2: KRX Upper/Lower Limit Lock (±30% Price Limit & Liquidity Vanishing Gate)
+                # C-3 Fix: Only apply to KRX markets (US stocks can move >30% normally)
                 change_pct = pred.get("change_pct") or pred.get("daily_return")
                 try:
-                    if change_pct is not None:
-                        raw_c = float(change_pct)
-                        c_norm = raw_c / 100.0 if abs(raw_c) >= 0.35 else raw_c
+                    if change_pct is not None and is_krx:
+                        # S-5 Fix: Unified percentage-to-decimal normalization (>1.0 -> /100)
+                        c_norm = float(change_pct) / 100.0 if abs(float(change_pct)) > 1.0 else float(change_pct)
                         if c_norm >= 0.295 and action == "BUY":
                             logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
                             continue
@@ -508,14 +509,10 @@ class ExecutionOMSEngine:
                         )
                         friction_cost = buy_cost + sell_cost
                         safety_margin = 0.0010  # 0.10% KRX safety margin
-                        if "expected_return" in pred and pred["expected_return"] is not None:
-                            raw_exp_ret = float(pred["expected_return"])
-                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.10 else raw_exp_ret
-                            hurdle = friction_cost + safety_margin
-                        else:
-                            raw_exp_ret = float(pred.get("ensemble_expected_return", 0.0) or 0.0)
-                            exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.10 else raw_exp_ret
-                            hurdle = friction_cost + safety_margin
+                        # S-5 Fix: Unified expected return normalization (>1.0 -> /100)
+                        raw_exp_ret = float(pred.get("expected_return") if pred.get("expected_return") is not None else pred.get("ensemble_expected_return", 0.0) or 0.0)
+                        exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) > 1.0 else raw_exp_ret
+                        hurdle = friction_cost + safety_margin
 
                         if exp_ret_frac < hurdle:
                             logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({hurdle:.4%}), skipping.")
@@ -527,7 +524,8 @@ class ExecutionOMSEngine:
                 try:
                     vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
                     raw_gap = float(change_pct or 0.0)
-                    gap_ret = raw_gap / 100.0 if abs(raw_gap) >= 0.35 else raw_gap
+                    # S-4/S-5 Fix: Unified normalization threshold > 1.0
+                    gap_ret = raw_gap / 100.0 if abs(raw_gap) > 1.0 else raw_gap
                     # Short-term reversal strategy is specifically designed for oversold bounce; exempt it
                     strat_src = str(pred.get("strategy_source", "") or pred.get("primary_strategy", "") or pred.get("strategy", "")).lower()
                     is_reversal = "reversal" in strat_src or "short_term_reversal" in strat_src
@@ -537,17 +535,7 @@ class ExecutionOMSEngine:
                 except (ValueError, TypeError):
                     pass
 
-                # Gate 7.5: ADV Capacity Cap (max_adv_ratio of ADV max order value)
-                adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
-                if adv_in_pred is not None and float(adv_in_pred) > 0:
-                    adv_val = float(adv_in_pred)
-                    max_adv_amount = max(100_000.0, max_adv_ratio * adv_val)
-                    if target_amount > max_adv_amount:
-                        logger.info(f"[OMS ADV CAPACITY] {sym} target amount {target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
-                        target_amount = max_adv_amount
-                else:
-                    adv_val = 1_000_000_000.0
-
+                # C-2 Fix: Move currency conversion BEFORE Gate 7.5 to compare same-currency amounts
                 curr_iso = "KRW"
                 try:
                     from src.config import TradingConfig
@@ -559,7 +547,7 @@ class ExecutionOMSEngine:
                 if curr_iso == "KRW":
                     effective_target_amount = target_amount
                 elif curr_iso == "USD":
-                    effective_target_amount = target_amount / fx_rate
+                    effective_target_amount = target_amount / max(fx_rate, 1.0)
                 else:
                     try:
                         from src.data_layer.global_market import GlobalMarketClient
@@ -568,7 +556,19 @@ class ExecutionOMSEngine:
                         rate_krw_to_curr = 1.0 / max(1e-6, rate_to_krw)
                         effective_target_amount = target_amount * rate_krw_to_curr
                     except Exception:
-                        effective_target_amount = target_amount / fx_rate
+                        effective_target_amount = target_amount / max(fx_rate, 1.0)
+
+                # Gate 7.5: ADV Capacity Cap (max_adv_ratio of ADV max order value)
+                # Now compares in local currency (USD for US stocks, KRW for KRX)
+                adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
+                if adv_in_pred is not None and float(adv_in_pred) > 0:
+                    adv_val = float(adv_in_pred)
+                    max_adv_amount = max(100_000.0, max_adv_ratio * adv_val)
+                    if effective_target_amount > max_adv_amount:
+                        logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
+                        effective_target_amount = max_adv_amount
+                else:
+                    adv_val = 1_000_000_000.0
 
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
                 if is_krx:

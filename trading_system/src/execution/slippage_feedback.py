@@ -165,7 +165,8 @@ class SlippageFeedbackEngine:
             if not math.isfinite(max_slip):
                 max_slip = 15.0
 
-            scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 3.0)) if self.default_slippage_bps > 0 else 1.0
+            # A-2 Fix: Relaxed scaling cap from 3.0 to 5.0 so alpha can reach 2.50 (0.50 * 5.0)
+            scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 5.0)) if self.default_slippage_bps > 0 else 1.0
             if not math.isfinite(scaling):
                 scaling = 1.0
             alpha = float(np.clip(0.50 * scaling, 0.1, 2.50))

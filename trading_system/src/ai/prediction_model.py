@@ -1409,12 +1409,16 @@ class OnDevicePredictionModel:
         # Store vol scale for inverse-transform at inference time
         df['_vol_scale'] = vol_20d
 
+        # C-1 Fix: Use Open[t+1] as entry price since pipeline runs post-market.
+        # Eliminates unrealizable overnight gap from training targets.
+        entry_price = df['Open'].shift(-1).replace(0, np.nan) if 'Open' in df.columns else df['Close'].replace(0, np.nan)
+
         for h in self.horizons:
-            raw_ret = (df['Close'].shift(-h) / df['Close'].replace(0, np.nan) - 1).replace([np.inf, -np.inf], np.nan)
+            raw_ret = (df['Close'].shift(-h) / entry_price - 1).replace([np.inf, -np.inf], np.nan)
             df[f'target_{h}d'] = raw_ret / vol_20d
 
         for h in self.surge_horizons:
-            raw_ret = (df['Close'].shift(-h) / df['Close'] - 1).replace([np.inf, -np.inf], np.nan)
+            raw_ret = (df['Close'].shift(-h) / entry_price - 1).replace([np.inf, -np.inf], np.nan)
             df[f'raw_surge_target_{h}d'] = raw_ret
             # Optional Triple Barrier path-dependent label
             if 'High' in df.columns and 'Low' in df.columns and len(df) > h + 20:

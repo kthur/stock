@@ -1085,9 +1085,12 @@ class RiskManager:
         self.logger.info(f"Calculated position size for {symbol}: {position_quantity} shares")
         return position_quantity
 
-    def check_stop_loss(self, symbol: str, current_price: float, entry_price: float) -> bool:
-        """Stop Loss 확인"""
-        stop_loss_price = entry_price * (1 - self.default_stop_loss_pct)
+    def check_stop_loss(self, symbol: str, current_price: float, entry_price: float, atr: Optional[float] = None) -> bool:
+        """Stop Loss 확인 (A-3 Fix: ATR 기반 동적 조정 지원)"""
+        if atr is not None and atr > 0:
+            stop_loss_price = self.calculate_atr_based_stop(entry_price, atr)
+        else:
+            stop_loss_price = entry_price * (1 - self.default_stop_loss_pct)
 
         if current_price <= stop_loss_price:
             self._create_alert("STOP_LOSS", symbol, current_price, entry_price)
@@ -1095,9 +1098,12 @@ class RiskManager:
 
         return False
 
-    def check_take_profit(self, symbol: str, current_price: float, entry_price: float) -> bool:
-        """Take Profit 확인"""
-        take_profit_price = entry_price * (1 + self.default_take_profit_pct)
+    def check_take_profit(self, symbol: str, current_price: float, entry_price: float, atr: Optional[float] = None) -> bool:
+        """Take Profit 확인 (A-3 Fix: ATR 기반 동적 조정 지원)"""
+        if atr is not None and atr > 0:
+            take_profit_price = self.calculate_atr_based_target(entry_price, atr)
+        else:
+            take_profit_price = entry_price * (1 + self.default_take_profit_pct)
 
         if current_price >= take_profit_price:
             self._create_alert("TAKE_PROFIT", symbol, current_price, entry_price)

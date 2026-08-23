@@ -543,8 +543,8 @@ def apply_portfolio_constraints(
     weights: np.ndarray,
     symbols: Optional[list] = None,
     sectors: Optional[list] = None,
-    max_single_stock_weight: float = 0.10,
-    max_sector_weight: float = 0.25,
+    max_single_stock_weight: float = 0.20,  # A-1 Fix: aligned with PortfolioAllocator (was 0.10)
+    max_sector_weight: float = 0.35,        # A-1 Fix: aligned with PortfolioAllocator (was 0.25)
     factor_loadings: Optional[Any] = None,
     max_factor_exposure: float = 0.35
 ) -> np.ndarray:
