@@ -114,7 +114,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         base_p = close_2d.iloc[-21].clip(lower=1e-8)
         ret_20d = (close_2d.iloc[-1] / base_p) - 1.0
 
-        # R/S Hurst Exponent over extended lookback window (up to 120 days, min 20)
+        # R/S Hurst Exponent over extended lookback window (up to 120 days, min 20) with finite-sample correction
         h_len = len(close_hurst)
         if h_len >= 20:
             diffs_h = close_hurst.diff().iloc[1:]
@@ -123,7 +123,10 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             r_range_h = dev_h.max(axis=0) - dev_h.min(axis=0)
             s_std_h = diffs_h.std(axis=0, ddof=1).clip(lower=1e-8)
             rs_h = np.maximum(r_range_h / s_std_h, 1e-4)
-            hurst = np.clip(np.log(rs_h) / np.log(float(max(20, h_len))), 0.1, 0.9)
+            n_obs = float(max(20, h_len))
+            # Expected R/S under null hypothesis of random walk (Anis-Lloyd / Peters correction)
+            e_rs = np.sqrt(np.pi * n_obs / 2.0) if n_obs > 50 else ((n_obs - 0.5) / n_obs) * np.sqrt(np.pi * n_obs / 2.0)
+            hurst = np.clip(0.50 + (np.log(rs_h) - np.log(e_rs)) / np.log(n_obs), 0.1, 0.9)
         else:
             hurst = np.full(len(close_2d.columns), 0.50)
 

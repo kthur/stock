@@ -137,11 +137,19 @@ class FactorOrthogonalizerEngine:
                     u_k -= proj
             U[:, idx] = u_k
 
-            u_std = np.std(u_k)
-            if u_std > 1e-8:
+            u_std = float(np.std(u_k))
+            raw_k = X_centered[:, k]
+            raw_std = float(stds[k]) if stds[k] > 1e-8 else 1.0
+
+            if u_std > 0.05 * raw_std:
                 rescaled = means[k] + (u_k / u_std) * stds[k]
+            elif u_std > 1e-6:
+                blend_weight = u_std / (0.05 * raw_std)
+                norm_residual = (u_k / u_std) * stds[k]
+                norm_original = (raw_k / raw_std) * stds[k]
+                rescaled = means[k] + (blend_weight * norm_residual + (1.0 - blend_weight) * 0.05 * norm_original)
             else:
-                rescaled = means[k] * np.ones(N)
+                rescaled = means[k] + 0.05 * (raw_k / raw_std) * stds[k]
             X_ortho[:, k] = rescaled
 
         return X_ortho
@@ -167,6 +175,7 @@ class FactorOrthogonalizerEngine:
         diag_signs = np.sign(np.diag(W_esrw))
         diag_signs[diag_signs == 0] = 1.0
         W_esrw = W_esrw * diag_signs[:, np.newaxis]
+        W_esrw = (W_esrw + W_esrw.T) * 0.5
 
         return np.asarray(np.dot(X_bar, W_esrw), dtype=np.float64)
 
@@ -204,6 +213,7 @@ class FactorOrthogonalizerEngine:
         diag_signs = np.sign(np.diag(C_inv_sqrt))
         diag_signs[diag_signs == 0] = 1.0
         C_inv_sqrt = C_inv_sqrt * diag_signs[:, np.newaxis]
+        C_inv_sqrt = (C_inv_sqrt + C_inv_sqrt.T) * 0.5
 
         # ZCA decorrelation
         X_decorr = np.dot(X_bar, C_inv_sqrt)

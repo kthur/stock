@@ -1969,14 +1969,30 @@ class PortfolioAllocator:
         co_tail = np.dot(tail_indicator.T, tail_indicator) / max(1, returns_matrix.shape[0])
         p_indiv = np.mean(tail_indicator, axis=0)
 
+        try:
+            from scipy.stats import kendalltau
+        except ImportError:
+            kendalltau = None
+
         lambda_L = np.zeros((N, N), dtype=float)
         for i in range(N):
             for j in range(N):
                 if i == j:
                     lambda_L[i, j] = 1.0
                 else:
-                    p_cond = co_tail[i, j] / max(p_indiv[i], 1e-4)
+                    p_cond = co_tail[i, j] / max(np.sqrt(p_indiv[i] * p_indiv[j]), 1e-6)
                     theoretical_l = float(2.0 ** (-1.0 / max(theta, 0.1)))
+                    if kendalltau is not None and len(returns_matrix) >= 10:
+                        try:
+                            tau_val, _ = kendalltau(returns_matrix[:, i], returns_matrix[:, j])
+                            tau_val = float(np.nan_to_num(tau_val, nan=0.0))
+                            if 0.01 < tau_val < 0.99:
+                                theta_pair = (2.0 * tau_val) / (1.0 - tau_val)
+                                theoretical_l = float(2.0 ** (-1.0 / max(theta_pair, 0.05)))
+                            elif tau_val <= 0.01:
+                                theoretical_l = 0.0
+                        except Exception:
+                            pass
                     lambda_L[i, j] = float(np.clip(0.5 * p_cond + 0.5 * theoretical_l, 0.0, 1.0))
 
         return lambda_L

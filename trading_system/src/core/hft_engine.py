@@ -226,9 +226,11 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 except (ValueError, TypeError):
                     high, low, close, volume = 1.0, 1.0, 1.0, 1.0
 
-                bar_range = max(1e-6, high - low)
-                close_location = (close - low) / bar_range  # 0.0 to 1.0
-                bid_ask_imbalance = (close_location - 0.5) * 2.0  # -1.0 to +1.0
+                if high - low > 1e-5:
+                    close_location = (close - low) / (high - low)
+                else:
+                    close_location = 0.50  # Neutral balance for flat/zero-range bars
+                bid_ask_imbalance = float(np.clip((close_location - 0.5) * 2.0, -1.0, 1.0))
 
                 vol_col = "volume" if "volume" in df_sym.columns else ("Volume" if "Volume" in df_sym.columns else None)
                 if vol_col and len(df_sym) >= 5:

@@ -526,12 +526,28 @@ class SentimentAnalyzer:
                 matched.add(pos)
                 matched.add(pos + 1)
 
-        # Unigrams
+        # Unigrams (with Korean prefix matching for agglutinative postpositions)
         for i, token in enumerate(tokens):
             if i in matched:
                 continue
-            if token in self._pos_lexicon:
-                intensity = self._pos_lexicon[token]
+
+            pos_key = token if token in self._pos_lexicon else None
+            neg_key = token if token in self._neg_lexicon else None
+
+            # Korean prefix matching if exact match not found
+            if not pos_key and not neg_key and any(0xAC00 <= ord(c) <= 0xD7A3 for c in token):
+                for k in self._pos_lexicon:
+                    if len(k) >= 2 and any(0xAC00 <= ord(c) <= 0xD7A3 for c in k) and token.startswith(k):
+                        pos_key = k
+                        break
+                if not pos_key:
+                    for k in self._neg_lexicon:
+                        if len(k) >= 2 and any(0xAC00 <= ord(c) <= 0xD7A3 for c in k) and token.startswith(k):
+                            neg_key = k
+                            break
+
+            if pos_key:
+                intensity = self._pos_lexicon[pos_key]
                 for j in range(max(0, i - 2), i):
                     if tokens[j] in INTENSIFIERS:
                         intensity *= INTENSIFIERS[tokens[j]]
@@ -540,8 +556,8 @@ class SentimentAnalyzer:
                     neg_raw += intensity * 0.5
                 else:
                     pos_raw += intensity
-            elif token in self._neg_lexicon:
-                intensity = self._neg_lexicon[token]
+            elif neg_key:
+                intensity = self._neg_lexicon[neg_key]
                 for j in range(max(0, i - 2), i):
                     if tokens[j] in INTENSIFIERS:
                         intensity *= INTENSIFIERS[tokens[j]]

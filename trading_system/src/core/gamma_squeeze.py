@@ -120,9 +120,11 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
 
                 if call_wall > 0 and cur_p > 0:
                     dist_to_wall = abs(cur_p - call_wall) / cur_p
-                    if dist_to_wall < 0.03 and gex < 0:  # Short Gamma Zone near Call Wall
+                    if (dist_to_wall < 0.03 and gex < 0) or (cur_p >= call_wall):  # Short Gamma Zone or Call Wall Breakout
                         score = float(np.clip(score + 0.35, 0.0, 1.0))
                         logger.info(f"[GAMMA SQUEEZE ENGINE] High Gamma Squeeze trigger for {sym} (Call Wall={call_wall}, dist={dist_to_wall*100:.1f}%)")
+                    elif gex > 0:  # Positive dealer GEX dampens volatility and gamma squeeze potential
+                        score = float(np.clip(score * 0.70, 0.0, 1.0))
 
             results.append({'symbol': sym, 'gamma_squeeze_score': score})
 

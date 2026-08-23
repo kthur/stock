@@ -121,13 +121,15 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
                                 continue
                 results[sym_str] = np.nan
             else:
-                # Formula: Short Interest Ratio * DTC * (1 + max(0, ret_5d * 3))
+                # Formula: Short Interest Ratio * DTC * Momentum Condition
                 # Add squeeze ignition multiplier when momentum turns positive with heavy DTC
                 ignite_mult = 1.35 if (ret_5d > 0.02 and float(dtc) >= 3.0) else 1.0
 
-                # Hard-To-Borrow (HTB) & Borrow Fee Drag Modeling (Special Rate & Recall risk)
-                borrow_fee_drag = 0.85 if (float(short_ratio) > 0.35 or float(dtc) > 10.0) else 1.0
-                raw_squeeze = float(short_ratio) * float(dtc) * (1.0 + max(0.0, float(ret_5d) * 3.0)) * ignite_mult * borrow_fee_drag
+                # Hard-To-Borrow (HTB) & Borrow Fee Escalation Catalyst (Special Rate & Recall risk forces buy-ins)
+                htb_squeeze_mult = 1.20 if (float(short_ratio) > 0.35 or float(dtc) > 10.0) else 1.0
+                # Downward momentum dampens squeeze catalyst (short sellers in profit)
+                mom_factor = (1.0 + float(ret_5d) * 3.0) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
+                raw_squeeze = float(short_ratio) * float(dtc) * mom_factor * ignite_mult * htb_squeeze_mult
                 results[sym_str] = raw_squeeze
 
         # Build output DataFrame and normalize

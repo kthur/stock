@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_squared_error, roc_auc_score
+from sklearn.metrics import mean_squared_error, roc_auc_score, average_precision_score
+from scipy.stats import spearmanr
 import xgboost as xgb
 import optuna
 
@@ -124,15 +125,22 @@ class OptunaStrategyTuner:
                 'random_state': 42,
                 'n_jobs': -1,
             }
-            rmses = []
+            scores = []
             for train_idx, val_idx in tscv.split(split_target):
                 X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
                 y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
                 model = xgb.XGBRegressor(**params)
                 model.fit(X_tr, y_tr)
                 preds = model.predict(X_va)
-                rmses.append(np.sqrt(mean_squared_error(y_va, preds)))
-            return float(np.mean(rmses))
+                rmse = float(np.sqrt(mean_squared_error(y_va, preds)))
+                try:
+                    s_ic = float(spearmanr(preds, y_va)[0])
+                    s_ic = s_ic if np.isfinite(s_ic) else 0.0
+                except Exception:
+                    s_ic = 0.0
+                # Blended objective: minimize -(Rank_IC - 0.10 * RMSE) to prioritize cross-sectional ranking
+                scores.append(-(s_ic - 0.10 * rmse))
+            return float(np.mean(scores)) if scores else 0.0
 
         study_xgb = optuna.create_study(direction='minimize')
         study_xgb.optimize(xgb_objective, n_trials=n_trials)
@@ -285,22 +293,22 @@ class OptunaStrategyTuner:
                 'n_jobs': -1,
                 'eval_metric': 'auc'
             }
-            aucs = []
+            pr_aucs = []
             for train_idx, val_idx in tscv.split(split_target):
                 X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
                 y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
                 if len(np.unique(y_tr)) < 2 or len(np.unique(y_va)) < 2:
-                    aucs.append(0.5)
+                    pr_aucs.append(0.5)
                     continue
                 model = xgb.XGBClassifier(**params)
                 model.fit(X_tr, y_tr)
                 probs = model.predict_proba(X_va)[:, 1]
                 try:
-                    score = roc_auc_score(y_va, probs)
+                    score = float(average_precision_score(y_va, probs))
                 except Exception:
-                    score = 0.5
-                aucs.append(score)
-            return float(np.mean(aucs)) if aucs else 0.5
+                    score = float(roc_auc_score(y_va, probs)) if len(np.unique(y_va)) >= 2 else 0.5
+                pr_aucs.append(score)
+            return float(np.mean(pr_aucs)) if pr_aucs else 0.5
 
         study_surge = optuna.create_study(direction='maximize')
         study_surge.optimize(surge_objective, n_trials=n_trials)
@@ -623,7 +631,6 @@ class OptunaStrategyTuner:
             max_depth = trial.suggest_int('max_depth', 3, 6)
             learning_rate = trial.suggest_float('learning_rate', 0.01, 0.2, log=True)
             spw = trial.suggest_float('scale_pos_weight', 1.0, 20.0)
-            trial.suggest_int('window_step_size', 1, 5)
 
             aucs = []
             for train_idx, val_idx in tscv.split(split_target):

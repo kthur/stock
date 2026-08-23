@@ -122,12 +122,13 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
 
                 cash_ratio = 0.0
                 mcap_val = float(mcap) if pd.notna(mcap) else 0.0
-                if 0 < mcap_val < 1e7:
-                    mcap_krw = mcap_val * 1e8  # Convert 억원 -> KRW
+                is_krx = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
+                if is_krx and 0 < mcap_val < 1e7:
+                    mcap_norm = mcap_val * 1e8  # Convert 억원 -> KRW
                 else:
-                    mcap_krw = mcap_val
-                if mcap_krw > 1e6:
-                    cash_ratio = max(0.0, net_cash) / mcap_krw
+                    mcap_norm = mcap_val
+                if mcap_norm > 1e4:
+                    cash_ratio = max(0.0, net_cash) / mcap_norm
 
                 div_val = float(div_yield) if pd.notna(div_yield) else 0.0
                 if div_val > 1.0:  # Percentage format e.g. 3.5 -> 0.035

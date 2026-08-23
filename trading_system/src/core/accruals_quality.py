@@ -139,6 +139,9 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             # Accruals Quality Alpha Boost for top 15% high-cashflow sustainable earnings stocks
             high_quality_mask = base_score >= 0.85
             enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
+            # Distress check: Cash-burning loss-making firms cannot receive high accruals quality alpha
+            is_distressed = ((net_inc < 0) & (ocf < 0)).reindex(df_acc.index).fillna(False).loc[valid_mask]
+            enhanced_score = np.where(is_distressed, np.minimum(0.30, enhanced_score), enhanced_score)
             df_acc.loc[valid_mask, 'accruals_quality_score'] = enhanced_score
         elif valid_mask.sum() == 1:
             bonus = float(df_acc.loc[valid_mask, 'conversion_bonus'].iloc[0])

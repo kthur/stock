@@ -39,9 +39,10 @@ def solve_single_stage_entropy_allocation(
     w = w / np.sum(w)
 
     lr = 0.02
-    for _ in range(max_iter):
+    for it in range(max_iter):
+        lr_t = lr / (1.0 + 0.05 * it)
         grad = np.dot(R_sym, w) - (tau_entropy / np.maximum(w, 1e-6)) + 2.0 * gamma_anchor * (w - w0)
-        w_new = w - lr * grad
+        w_new = w - lr_t * grad
         w_new = np.maximum(w_new, w_min)
         w_new = w_new / np.sum(w_new)
 
@@ -152,21 +153,21 @@ class RegimeFactorSuppressionEngine:
         self,
         corr_matrix: pd.DataFrame,
         regime_label: str,
-        theta: float = 0.65,
-        lambda_penalty: float = 1.0,
-        consensus_precision: Optional[Dict[str, float]] = None
+        theta: Optional[float] = None,
+        lambda_penalty: Optional[float] = None,
+        consensus_precision: Optional[Dict[str, float]] = None,
+        vif_dict: Optional[Dict[str, float]] = None
     ) -> Dict[str, float]:
         """
-        Computes strategy-level dampening penalty factor P_i(R) in [0, 1].
-
-        Formula:
-          E_ij = max(0, |rho_ij| - theta(R))
-          c_ij = intra_cluster_mult (1.5) or inter_cluster_mult (0.5)
-                 * regime_high_risk_mult (1.5 if i in high-risk cluster)
-          P_i = 1 / sqrt(1 + lambda * sum_{j != i} c_ij * E_ij^2)
+        Computes pairwise correlation excess penalties P_i(R) for all strategies in corr_matrix.
+        Includes direct multi-way collinearity damping via vif_dict.
         """
         if corr_matrix is None or corr_matrix.empty:
-            return {col: 1.0 for col in corr_matrix.columns} if corr_matrix is not None else {}
+            return {}
+
+        theta_eff, lambda_eff = self._get_regime_params(regime_label)
+        theta = theta if theta is not None else theta_eff
+        lambda_penalty = lambda_penalty if lambda_penalty is not None else lambda_eff
 
         strats = list(corr_matrix.columns)
         n = len(strats)
@@ -213,6 +214,13 @@ class RegimeFactorSuppressionEngine:
             denom = np.sqrt(1.0 + lambda_penalty * weighted_excess_sq_sum)
             penalty_i = float(1.0 / denom)
 
+            # Direct VIF multi-way collinearity damping
+            if vif_dict and strat_i in vif_dict:
+                vif_val = float(vif_dict[strat_i])
+                if vif_val > 5.0:
+                    vif_damping = min(1.0, np.sqrt(5.0 / vif_val))
+                    penalty_i *= vif_damping
+
             # Consensus Precision Relief: Prevent over-suppression when strategy has high precision
             if consensus_precision and strat_i in consensus_precision:
                 prec = float(consensus_precision[strat_i])
@@ -232,7 +240,8 @@ class RegimeFactorSuppressionEngine:
         theta: Optional[float] = None,
         lambda_penalty: Optional[float] = None,
         tuned_params: Optional[Dict[str, Any]] = None,
-        use_entropy_allocation: bool = False
+        use_entropy_allocation: bool = False,
+        vif_dict: Optional[Dict[str, float]] = None
     ) -> Dict[str, float]:
         """
         Applies regime-specific correlation factor noise dampening penalties to base strategy weights.
@@ -243,7 +252,7 @@ class RegimeFactorSuppressionEngine:
 
         if corr_matrix is None or corr_matrix.empty:
             tot = sum(base_weights.values())
-            return {k: v / tot for k, v in base_weights.items()} if tot > 0 else base_weights
+            return {k: v / tot for k, v in base_weights.items()} if tot > 0 else {}
 
         # Determine theta and lambda
         default_t, default_l = self._get_regime_params(regime_label, tuned_params=tuned_params)

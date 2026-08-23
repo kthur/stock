@@ -613,6 +613,12 @@ class StockPriceDB:
                 self.logger.warning(f"[StockPriceDB] Price data validation failed for {symbol}. Upsert aborted.")
                 return 0
 
+        # Ensure DatetimeIndex if integer index with Date column is provided
+        if not isinstance(df.index, pd.DatetimeIndex) and any(str(c).lower() in ('date', 'datetime', 'time') for c in df.columns):
+            date_col = next(c for c in df.columns if str(c).lower() in ('date', 'datetime', 'time'))
+            df = df.copy()
+            df.set_index(pd.to_datetime(df[date_col], errors='coerce'), inplace=True)
+
         # Pre-resolve column indices for ultra-fast itertuples extraction
         col_list = list(df.columns)
         lower_cols = [str(c).lower() for c in col_list]
