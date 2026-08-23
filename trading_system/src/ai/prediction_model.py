@@ -1590,8 +1590,8 @@ class OnDevicePredictionModel:
 
         use_wf = n_splits >= 2
         if use_wf:
-            tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
-            logger.info(f"{market}: Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
+            tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
+            logger.info(f"{market}: DateAware Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
         else:
             logger.info(f"{market}: Dataset too small for walk-forward ({_n} rows). Training on full data.")
 
@@ -1837,8 +1837,8 @@ class OnDevicePredictionModel:
             # Evaluate final model on last fold's val set (only if WF ran)
             if market not in self.validation_metrics["regression"]:
                 self.validation_metrics["regression"][market] = {}
-            if use_wf:
-                last_tr_idx, last_va_idx = list(tscv.split(X_all))[-1]
+            if use_wf and tscv_h is not None:
+                last_tr_idx, last_va_idx = list(tscv_h.split(df_h))[-1]
                 X_eval = X_all.iloc[last_va_idx]
                 y_eval = y_all.iloc[last_va_idx]
                 self.validation_metrics["regression"][market][h] = {

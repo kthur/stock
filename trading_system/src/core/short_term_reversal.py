@@ -123,7 +123,8 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         sma_20 = close_2d.mean(axis=0)
         std_20 = close_2d.std(axis=0, ddof=1)
         lower_band = np.where(std_20 > 0, sma_20 - 2.0 * std_20, sma_20)
-        dist_lower_band = (cur_price - lower_band) / (std_20 + 1e-8)
+        # R11-4 Fix: Vectorized safe bounding with np.maximum to prevent distortion on micro-volatility
+        dist_lower_band = (cur_price - lower_band) / np.maximum(std_20, 1e-6)
 
         # First green bounce bonus with volume confirmation to prioritize turnaround over falling knives
         ret_1d = ((cur_price / close_2d.iloc[-2].replace(0, np.nan)) - 1.0).fillna(0.0)

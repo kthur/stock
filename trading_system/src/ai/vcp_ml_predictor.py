@@ -393,8 +393,17 @@ class VCPSurgePredictor:
                 neg_count = len(target) - pos_count
 
                 if pos_count < 10:
-                    logger.info(f"VCP ML skip {market} {h}d: only {pos_count} positive (< 10)")
-                    continue
+                    # R11-2 Fix: Fall back to 95th percentile dynamic label thresholding when positive samples are sparse
+                    if target_col in m_df.columns:
+                        raw_vals = m_df[target_col].dropna()
+                        q95 = raw_vals.quantile(0.95)
+                        if q95 > 0:
+                            target = (m_df[target_col] >= q95).astype(int)
+                            pos_count = target.sum()
+                            neg_count = len(target) - pos_count
+                    if pos_count < 5:
+                        logger.info(f"VCP ML skip {market} {h}d: only {pos_count} positive (< 5)")
+                        continue
 
                 scale_pos_weight = min(neg_count / pos_count, 20.0)
                 kw_xgb['scale_pos_weight'] = scale_pos_weight
@@ -646,15 +655,22 @@ class VCPSurgePredictor:
                             if calib_dict is None:
                                 calib_dict = calib_mkt.get(h, {})
                             if calib_dict:
-                                coef = calib_dict.get("coef")
-                                intercept = calib_dict.get("intercept")
-                                if coef is not None and intercept is not None and coef > 0:
-                                    # R7-4 Fix: Apply logit transformation before Platt logistic scaling
-                                    logit = np.log(np.clip(blend_prob, 1e-6, 1.0 - 1e-6) / (1.0 - np.clip(blend_prob, 1e-6, 1.0 - 1e-6)))
-                                    z = np.clip(coef * logit + intercept, -10.0, 10.0)
-                                    calib_p = 1.0 / (1.0 + np.exp(-z))
-                                    # Prevent numeric collapse to 0.0 while preserving model ranking
+                                calib_type = calib_dict.get("type", "platt")
+                                if calib_type == "isotonic" and "x_thresholds" in calib_dict and "y_thresholds" in calib_dict:
+                                    x_t = np.array(calib_dict["x_thresholds"])
+                                    y_t = np.array(calib_dict["y_thresholds"])
+                                    calib_p = np.interp(np.clip(blend_prob, 0.0, 1.0), x_t, y_t)
                                     blend_prob = np.where(blend_prob > 0, np.maximum(calib_p, blend_prob * 0.05), blend_prob)
+                                else:
+                                    coef = calib_dict.get("coef")
+                                    intercept = calib_dict.get("intercept")
+                                    if coef is not None and intercept is not None and coef > 0:
+                                        # R7-4 Fix: Apply logit transformation before Platt logistic scaling
+                                        logit = np.log(np.clip(blend_prob, 1e-6, 1.0 - 1e-6) / (1.0 - np.clip(blend_prob, 1e-6, 1.0 - 1e-6)))
+                                        z = np.clip(coef * logit + intercept, -10.0, 10.0)
+                                        calib_p = 1.0 / (1.0 + np.exp(-z))
+                                        # Prevent numeric collapse to 0.0 while preserving model ranking
+                                        blend_prob = np.where(blend_prob > 0, np.maximum(calib_p, blend_prob * 0.05), blend_prob)
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             # Use VCP feature heuristic probability fallback (calibrated to ~0.20-0.25 base rate)

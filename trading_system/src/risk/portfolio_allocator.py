@@ -1055,7 +1055,10 @@ class PortfolioAllocator:
         clamped to [delta_floor, delta_cap].
         """
         gamma = risk_aversion if risk_aversion is not None else self.risk_aversion
-        if target_weight <= 0.0 or cost_rate <= 0.0:
+        # R11-6 Fix: If target weight is 0.0, return 0.0 immediately to ensure full liquidation is never delayed by a buffer band
+        if target_weight <= 0.0:
+            return 0.0
+        if cost_rate <= 0.0:
             return self.delta_floor
 
         vol_clean = max(0.005, volatility_20d)

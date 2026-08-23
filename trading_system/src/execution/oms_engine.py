@@ -562,6 +562,7 @@ class ExecutionOMSEngine:
                         rate_krw_to_curr = 1.0 / max(1e-6, rate_to_krw)
                         effective_target_amount = target_amount * rate_krw_to_curr
                     except Exception:
+                        rate_to_krw = fx_rate
                         effective_target_amount = target_amount / max(fx_rate, 1.0)
 
                 # Gate 7.5: ADV Capacity Cap (max_adv_ratio of ADV max order value)

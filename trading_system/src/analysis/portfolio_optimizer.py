@@ -271,6 +271,20 @@ def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: Optional[flo
         delta = float(np.clip(asy_var / (d2 + asy_var), 0.05, 0.40))
 
     shrunk_cov = (1.0 - delta) * cov_matrix + delta * diag_target
+
+    # R11-5 Fix: Enforce strict positive definiteness and maximum condition number clamp <= 1000
+    try:
+        eigvals, eigvecs = np.linalg.eigh(shrunk_cov)
+        min_eigval = float(np.max(eigvals) * 1e-6)
+        eigvals = np.maximum(eigvals, max(min_eigval, 1e-8))
+        max_cond = 1000.0
+        max_eig = float(np.max(eigvals))
+        if max_eig / float(np.min(eigvals)) > max_cond:
+            eigvals = np.maximum(eigvals, max_eig / max_cond)
+        shrunk_cov = (eigvecs * eigvals) @ eigvecs.T
+    except Exception:
+        np.fill_diagonal(shrunk_cov, np.diag(shrunk_cov) + 1e-4)
+
     return shrunk_cov
 
 
