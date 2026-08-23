@@ -1107,7 +1107,9 @@ class PortfolioAllocator:
         - If current_weight BREACHES band: triggers BUY/SELL rebalancing trade.
         """
         mode = (rebalance_mode or self.rebalance_mode).lower()
-        all_symbols = set(current_weights.keys()).union(set(target_weights.keys()))
+        curr_w_dict = current_weights if isinstance(current_weights, dict) else {}
+        target_w_dict = target_weights if isinstance(target_weights, dict) else {}
+        all_symbols = set(curr_w_dict.keys()).union(set(target_w_dict.keys()))
 
         new_weights: Dict[str, float] = {}
         buffer_bands: Dict[str, Tuple[float, float, float]] = {}
@@ -1117,8 +1119,8 @@ class PortfolioAllocator:
         skipped_count = 0
 
         for sym in all_symbols:
-            w_curr = current_weights.get(sym, 0.0)
-            w_targ = target_weights.get(sym, 0.0)
+            w_curr = curr_w_dict.get(sym, 0.0)
+            w_targ = target_w_dict.get(sym, 0.0)
             mkt = market_map.get(sym, "KOSPI")
             vol = volatility_map.get(sym, 0.020)
             adv = adv_map.get(sym, 1_000_000_000.0)

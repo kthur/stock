@@ -858,13 +858,16 @@ class MarketIndicatorStorage:
             d_str = str(date_str or datetime.now(KST).strftime("%Y-%m-%d"))
             for sym, info in data.get('indices', {}).items():
                 if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
-                    rows.append((d_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+                    chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
+                    rows.append((d_str, info['symbol'], info['name'], float(info['price']), chg))
             for sym, info in data.get('fx_rates', {}).items():
                 if self._indicator_value_ok(info.get('pair') or sym, info.get('name'), info.get('rate')):
-                    rows.append((d_str, info['pair'], info['name'], info['rate'], info['change_pct']))
+                    chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
+                    rows.append((d_str, info['pair'], info['name'], float(info['rate']), chg))
             for sym, info in data.get('macro_commodities', {}).items():
                 if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
-                    rows.append((d_str, info['symbol'], info['name'], info['price'], info['change_pct']))
+                    chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
+                    rows.append((d_str, info['symbol'], info['name'], float(info['price']), chg))
 
         if not rows:
             return
