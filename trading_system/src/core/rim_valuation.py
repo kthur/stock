@@ -82,7 +82,7 @@ _HOLDING_CO_SECTOR_CODES = frozenset({
 # ── 우선주 심볼 판별 ──────────────────────────────────────────────────────────
 #   - 6자리 코드 마지막 자리 5~9: 005935(삼성전자우), 000025(한진칼우) 등
 #   - 6자리 + K/L 접미사: 00680K(미래에셋증권2우B), 33626L(두산퓨얼셀2우B) 등
-_KRX_PREFERRED_RE = re.compile(r"^(?:\d{5}[56789KL]|\d{6}[KL])$")
+_KRX_PREFERRED_RE = re.compile(r"^\d{5}[56789KLM]$")
 
 
 def is_preferred_share(symbol: str) -> bool:

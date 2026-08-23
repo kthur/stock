@@ -89,9 +89,27 @@ class LATRFactorEngine(BaseStrategyEngine):
                 vol_20m = vol.tail(20).mean()
                 vol_surge = (vol.iloc[-1] / vol_20m) if vol_20m > 0 else 1.0
 
-                # 3. Tail Risk (5th percentile daily return over 60D)
+                # 3. Tail Risk (R6-6 Fix: Cornish-Fisher 5th percentile VaR over 60D incorporating skewness & kurtosis)
                 daily_rets = close.pct_change().dropna()
-                tail_risk = float(np.percentile(daily_rets.tail(60), 5)) if len(daily_rets) >= 20 else -0.03
+                if len(daily_rets) >= 20:
+                    sub_rets = daily_rets.tail(60).values
+                    mu = float(np.mean(sub_rets))
+                    sigma = float(np.std(sub_rets, ddof=1))
+                    if sigma > 1e-6 and len(sub_rets) >= 10:
+                        skewness = float(np.mean(((sub_rets - mu) / sigma) ** 3))
+                        kurt = float(np.mean(((sub_rets - mu) / sigma) ** 4)) - 3.0
+                        z_alpha = -1.6448536269514722  # 5th percentile standard normal
+                        z_cf = (
+                            z_alpha
+                            + (z_alpha**2 - 1.0) * skewness / 6.0
+                            + (z_alpha**3 - 3.0 * z_alpha) * kurt / 24.0
+                            - (2.0 * z_alpha**3 - 5.0 * z_alpha) * (skewness**2) / 36.0
+                        )
+                        tail_risk = mu + z_cf * sigma
+                    else:
+                        tail_risk = float(np.percentile(sub_rets, 5))
+                else:
+                    tail_risk = -0.03
                 tail_penalty = float(min(2.0, abs(tail_risk) / 0.035))
 
                 # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price)) with cross-market USD normalization

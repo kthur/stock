@@ -568,15 +568,11 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
 
             p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
             # Ornstein-Uhlenbeck continuous / discrete half-life:
-            # For monotonic reversion (1 + beta > 0): -ln(2)/ln(1 + beta)
-            # For fast oscillatory reversion (1 + beta <= 0): -ln(2)/ln(|1 + beta|)
+            # For true mean reversion: beta in (-1, 0) -> (1 + beta) in (0, 1) -> half_life = -ln(2)/ln(1 + beta)
+            # R6-2 Fix: Discard oscillatory/explosive noise (beta <= -1 or 1+beta <= 1e-4) by assigning 999.0
             half_lives = np.where(
-                beta < 0.0,
-                np.where(
-                    1.0 + beta > 1e-4,
-                    -np.log(2.0) / np.log(np.clip(1.0 + beta, 1e-4, 0.999999)),
-                    -np.log(2.0) / np.log(np.clip(np.abs(1.0 + beta), 1e-4, 0.999999))
-                ),
+                (beta < 0.0) & (1.0 + beta > 1e-4),
+                -np.log(2.0) / np.log(np.clip(1.0 + beta, 1e-4, 0.999999)),
                 999.0,
             )
 

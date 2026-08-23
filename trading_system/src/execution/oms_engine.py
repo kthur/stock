@@ -580,7 +580,21 @@ class ExecutionOMSEngine:
                             except Exception:
                                 target_amount = effective_target_amount * max(fx_rate, 1.0)
                 else:
-                    adv_val = 1_000_000_000.0
+                    # R6-5 Fix: Conservative fallback ADV for unknown/missing liquidity symbols (50M KRW / $50k USD)
+                    adv_val = 50_000_000.0 if curr_iso == "KRW" else 50_000.0
+                    max_adv_amount = max(10_000.0 if curr_iso == "USD" else 10_000_000.0, max_adv_ratio * adv_val)
+                    if effective_target_amount > max_adv_amount:
+                        logger.info(f"[OMS ADV CAPACITY FALLBACK] {sym} target amount {effective_target_amount:,.0f} capped to conservative ADV fallback ({max_adv_amount:,.0f})")
+                        effective_target_amount = max_adv_amount
+                        if curr_iso == "KRW":
+                            target_amount = effective_target_amount
+                        elif curr_iso == "USD":
+                            target_amount = effective_target_amount * max(fx_rate, 1.0)
+                        else:
+                            try:
+                                target_amount = effective_target_amount * max(1e-6, rate_to_krw)
+                            except Exception:
+                                target_amount = effective_target_amount * max(fx_rate, 1.0)
 
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
                 # R4-4 Fix: Modern KRX standard is 1-share lot size (abolished 10-share unit)

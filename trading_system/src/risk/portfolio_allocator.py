@@ -894,10 +894,15 @@ class PortfolioAllocator:
         else:
             daily_vols = np.full(len(symbols), 0.02)
 
-        # Estimate weighted annual volatility proxy: sqrt(252) * sum(w_i * sigma_i)
-        port_ann_vol = float(np.sqrt(252) * np.dot(w_vec, daily_vols))
+        # R6-4 Fix: Multi-asset diversification-adjusted portfolio annual volatility
+        # sigma_port^2 = (1 - rho_avg) * sum(w_i^2 * sigma_i^2) + rho_avg * (sum(w_i * sigma_i))^2
+        rho_avg = 0.35
+        sum_w_vol = float(np.dot(w_vec, daily_vols))
+        sum_w2_vol2 = float(np.sum((w_vec * daily_vols) ** 2))
+        port_daily_var = (1.0 - rho_avg) * sum_w2_vol2 + rho_avg * (sum_w_vol ** 2)
+        port_ann_vol = float(np.sqrt(252.0 * max(1e-8, port_daily_var)))
         if port_ann_vol > 1e-4:
-            vol_scale = float(np.clip(target_annual_vol / port_ann_vol, 0.40, 1.25))
+            vol_scale = float(np.clip(target_annual_vol / port_ann_vol, 0.40, 1.35))
         else:
             vol_scale = 1.0
 

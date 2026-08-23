@@ -216,8 +216,8 @@ class EventDrivenEngine(BaseStrategyEngine):
                         ret_5d = float((c.iloc[-1] / p_base) - 1.0) if p_base > 0 else 0.0
                         v_ratio = float(cur_vol / avg_vol) if avg_vol > 0 else 1.0
                         # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
-                        breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
-                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 1.50 * ret_5d + breakout_bonus, -0.2, 0.45)
+                        # R6-3 Fix: Moderate momentum weighting (0.30 * clip(ret_5d)) to preserve DART catalyst signal purity
+                        continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.30 * np.clip(ret_5d, -0.15, 0.15) + breakout_bonus, -0.15, 0.25)
                         scores_map[sym] = float(np.clip(scores_map[sym] + continuous_boost, 0.0, 1.0))
                 except Exception:
                     pass
