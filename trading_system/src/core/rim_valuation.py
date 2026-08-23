@@ -341,11 +341,14 @@ class RIMValuationEngine(BaseStrategyEngine):
         omega = 1.0 - eff_decay
         denom_tv = (1.0 + r_e - omega)
         if denom_tv > 1e-4 and current_bps > 0:
-            tv_excess = (current_bps * (current_roe - r_e) * omega) / denom_tv
-            pv_excess += tv_excess / ((1.0 + r_e) ** years)
+            tv_excess = (current_bps * (current_roe - r_e) * omega) / max(denom_tv, 1e-4)
+            tv_pv = tv_excess / ((1.0 + r_e) ** years)
+            if np.isfinite(tv_pv):
+                pv_excess += tv_pv
 
         # Intrinsic equity value cannot be negative due to corporate limited liability.
-        return max(0.0, float(bps + pv_excess))
+        safe_pv = float(pv_excess) if np.isfinite(pv_excess) else 0.0
+        return max(0.0, float(bps + safe_pv))
 
     def compute_rim_scores(
         self,
