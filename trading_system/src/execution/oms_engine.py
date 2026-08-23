@@ -472,8 +472,12 @@ class ExecutionOMSEngine:
                             logger.warning(f"[OMS GATE 7] {sym} locked at upper limit (+{c_norm:.2%}), skipping buy execution.")
                             continue
                         elif c_norm <= -0.295:
-                            logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}) - complete liquidity freeze; skipping new entry and tagging emergency monitoring.")
-                            continue
+                            if action == "SELL":
+                                logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}). Queueing PASSIVE_LIMIT SELL order for unfreeze liquidation.")
+                                exec_strategy = "PASSIVE_LIMIT"
+                            else:
+                                logger.warning(f"[OMS GATE 7] {sym} locked at lower limit ({c_norm:.2%}) - complete liquidity freeze; skipping new entry.")
+                                continue
                 except (ValueError, TypeError):
                     pass
 

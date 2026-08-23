@@ -717,7 +717,7 @@ class EnsembleScoringEngine:
     def compute_rolling_sharpe(self, strategy_returns: Dict[str, Union[List[float], pd.Series]],
                                window: int = 60,
                                risk_free_rate: float = 0.0,
-                               min_obs: int = 2) -> Dict[str, float]:
+                               min_obs: int = 5) -> Dict[str, float]:
         """
         Computes recent rolling Sharpe ratio for each strategy.
         Sharpe_i = (mean(R_i) - r_f/252) / (std(R_i) + 1e-6) * sqrt(252)
@@ -731,7 +731,7 @@ class EnsembleScoringEngine:
         for strategy, ret_data in strategy_returns.items():
             try:
                 s = pd.Series(ret_data).dropna()
-                if len(s) >= max(2, min_obs):
+                if len(s) >= max(5, min_obs):
 
                     recent = s.tail(window)
                     if len(recent) >= 10:
@@ -902,7 +902,8 @@ class EnsembleScoringEngine:
             # Löwdin Symmetric Orthogonalization: C^(-1/2) for order-independent penalization
             C = corr_matrix.values
             evals, evecs = np.linalg.eigh(C)
-            evals = np.maximum(evals, 1e-4)
+            # R10-7 Fix: Continuous Tikhonov ridge regularization evals + 1e-4
+            evals = np.maximum(evals + 1e-4, 1e-6)
             inv_sqrt_C = evecs @ np.diag(1.0 / np.sqrt(evals)) @ evecs.T
 
             diag_penalties = np.diag(inv_sqrt_C)

@@ -150,7 +150,18 @@ class CARDFactorEngine(BaseStrategyEngine):
                 else:
                     beta = float(base_beta)
 
-                macro_impact = ((usdkrw_chg * 0.35) + (wti_chg * 0.35) + (vix_pct_shock * 0.30)) * beta
+                sec_str = str(sec).lower()
+                # R10-2 Fix: Sector-aware macro weighting to reflect real economic sensitivity
+                if any(kw in sec_str for kw in ['energy', 'oil', 'gas', 'chem', '정유', '화학', '에너지']):
+                    w_fx, w_wti, w_vix = 0.20, 0.60, 0.20
+                elif any(kw in sec_str for kw in ['tech', 'semi', 'it', 'it서비스', '반도체', '전기전자']):
+                    w_fx, w_wti, w_vix = 0.45, 0.15, 0.40
+                elif any(kw in sec_str for kw in ['utility', 'defensive', 'consumer staple', '통신', '유틸리티', '음식료']):
+                    w_fx, w_wti, w_vix = 0.20, 0.20, 0.60
+                else:
+                    w_fx, w_wti, w_vix = 0.35, 0.35, 0.30
+
+                macro_impact = ((usdkrw_chg * w_fx) + (wti_chg * w_wti) + (vix_pct_shock * w_vix)) * beta
                 divergence = stock_ret - macro_impact
 
                 card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.1, -50.0, 50.0)))

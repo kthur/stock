@@ -95,7 +95,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                         c_series = p_df[close_col].dropna()
                         if not c_series.empty:
                             last_price = float(c_series.iloc[-1])
-                            pbr = last_price / float(bps)
+                            pbr = last_price / max(float(bps), 1.0)
 
             if pd.notna(pbr):
                 pbr_val = float(pbr)
@@ -121,7 +121,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 net_cash = cash_val - debt_val
 
                 cash_ratio = 0.0
-                if pd.notna(mcap) and float(mcap) > 0:
+                if pd.notna(mcap) and float(mcap) > 1e6:
                     cash_ratio = max(0.0, net_cash) / float(mcap)
 
                 div_val = float(div_yield) if pd.notna(div_yield) else 0.0

@@ -153,16 +153,18 @@ class DateAwareTimeSeriesSplit:
             yield np.arange(cutoff), np.arange(cutoff, n_samples)
             return
 
-        test_size = max(1, (n_dates - self.gap) // (self.n_splits + 1))
+        # R10-8 Fix: Guard maximum date index to reserve future horizon labels from NaN leakage
+        max_valid_idx = max(self.n_splits + 1, n_dates - self.gap)
+        test_size = max(1, (max_valid_idx - self.gap) // (self.n_splits + 1))
         for i in range(self.n_splits):
             train_end_idx = (i + 1) * test_size
             test_start_idx = train_end_idx + self.gap
-            test_end_idx = test_start_idx + test_size
+            test_end_idx = min(test_start_idx + test_size, n_dates)
             if train_end_idx <= 0 or test_start_idx >= n_dates:
                 continue
 
             train_dates = set(unique_dates[:train_end_idx])
-            test_dates = set(unique_dates[test_start_idx:min(test_end_idx, n_dates)])
+            test_dates = set(unique_dates[test_start_idx:test_end_idx])
 
             train_idx = np.where(np.isin(dates, list(train_dates)))[0]
             test_idx = np.where(np.isin(dates, list(test_dates)))[0]

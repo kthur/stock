@@ -445,26 +445,42 @@ class PortfolioAllocator:
         worse_losses = losses[losses >= var_emp]
         cvar_emp = float(np.mean(worse_losses)) if len(worse_losses) > 0 else var_emp
 
-        # Tier 2: Cornish-Fisher Expansion
+        # Tier 2: Heavy-Tail Fallbacks (Student-t / Cornish-Fisher Expansion)
         var_cf, cvar_cf = var_emp, cvar_emp
         cf_valid = False
         try:
-            mu_l = float(np.mean(losses))
-            sigma_l = float(np.std(losses, ddof=1))
-            if sigma_l > 1e-8:
-                s_loss = float(skew(losses))
-                k_loss = float(kurtosis(losses))  # excess kurtosis
-                z_a = float(norm.ppf(confidence))
-                z_cf = z_a + (s_loss / 6.0) * (z_a**2 - 1.0) + (k_loss / 24.0) * (z_a**3 - 3.0 * z_a) - (s_loss**2 / 36.0) * (2.0 * z_a**3 - 5.0 * z_a)
-                z_cf = float(np.clip(z_cf, 0.5, 6.0))
-                var_cf = max(0.0, mu_l + sigma_l * z_cf)
-                pdf_cf = norm.pdf(z_cf)
-                cvar_cf_raw = mu_l + sigma_l * (pdf_cf / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * z_cf**3 + (k_loss / 24.0) * (z_cf**4 - 2.0 * z_cf**2 - 1.0))
-                if np.isfinite(cvar_cf_raw) and cvar_cf_raw > 0:
-                    cvar_cf = max(0.0, float(cvar_cf_raw))
+            from scipy.stats import t as student_t
+            df_t, loc_t, scale_t = student_t.fit(losses)
+            if df_t > 2.0 and scale_t > 1e-8:
+                var_t = float(student_t.ppf(confidence, df_t, loc=loc_t, scale=scale_t))
+                # Closed-form Student-t CVaR: loc + scale * (pdf(q) / (1-p)) * (df + q^2) / (df - 1)
+                q_std = (var_t - loc_t) / scale_t
+                pdf_t = student_t.pdf(q_std, df_t)
+                cvar_t = loc_t + scale_t * (pdf_t / (1.0 - confidence)) * ((df_t + q_std**2) / (df_t - 1.0))
+                if np.isfinite(cvar_t) and cvar_t > 0:
+                    var_cf, cvar_cf = max(0.0, var_t), max(0.0, float(cvar_t))
                     cf_valid = True
         except Exception:
             pass
+
+        if not cf_valid:
+            try:
+                mu_l = float(np.mean(losses))
+                sigma_l = float(np.std(losses, ddof=1))
+                if sigma_l > 1e-8:
+                    s_loss = float(skew(losses))
+                    k_loss = float(kurtosis(losses))  # excess kurtosis
+                    z_a = float(norm.ppf(confidence))
+                    z_cf = z_a + (s_loss / 6.0) * (z_a**2 - 1.0) + (k_loss / 24.0) * (z_a**3 - 3.0 * z_a) - (s_loss**2 / 36.0) * (2.0 * z_a**3 - 5.0 * z_a)
+                    z_cf = float(np.clip(z_cf, 0.5, 6.0))
+                    var_cf = max(0.0, mu_l + sigma_l * z_cf)
+                    pdf_cf = norm.pdf(z_cf)
+                    cvar_cf_raw = mu_l + sigma_l * (pdf_cf / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * z_cf**3 + (k_loss / 24.0) * (z_cf**4 - 2.0 * z_cf**2 - 1.0))
+                    if np.isfinite(cvar_cf_raw) and cvar_cf_raw > 0:
+                        cvar_cf = max(0.0, float(cvar_cf_raw))
+                        cf_valid = True
+            except Exception:
+                pass
 
         # Tier 1: EVT-GPD Fit with Extremal Index (theta) Clustering Adjustment (Ferro-Segers 2003)
         var_evt, cvar_evt = var_cf, cvar_cf

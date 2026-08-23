@@ -210,11 +210,17 @@ class EventDrivenEngine(BaseStrategyEngine):
                     c = c.dropna()
                     v = v.dropna()
                     if len(c) >= 6 and len(v) >= 6:
-                        avg_vol = float(v.iloc[-6:-1].mean())
+                        # R10-1 Fix: Use 20-day median (or 5-day mean if short) to prevent block trade distortion
+                        if len(v) >= 21:
+                            avg_vol = float(v.iloc[-21:-1].median())
+                        else:
+                            avg_vol = float(v.iloc[-6:-1].mean())
                         cur_vol = float(v.iloc[-1])
                         p_base = float(c.iloc[-6])
                         ret_5d = float((c.iloc[-1] / p_base) - 1.0) if p_base > 0 else 0.0
                         v_ratio = float(cur_vol / avg_vol) if avg_vol > 0 else 1.0
+                        # R10-1 Fix: Explicitly define breakout_bonus to eliminate NameError exception
+                        breakout_bonus = 0.08 if (v_ratio >= 3.0 and ret_5d > 0.0) else 0.0
                         # High volume breakout booster: +0.08 if volume explodes >= 3x with positive 5D return
                         # R6-3 Fix: Moderate momentum weighting (0.30 * clip(ret_5d)) to preserve DART catalyst signal purity
                         continuous_boost = np.clip(0.05 * (v_ratio - 1.0) + 0.30 * np.clip(ret_5d, -0.15, 0.15) + breakout_bonus, -0.15, 0.25)
