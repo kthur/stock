@@ -57,5 +57,4 @@ class ModularPipelineOrchestrator:
         if self.checkpoint:
             self.checkpoint.save("inference_complete", {"scores": strategy_scores})
 
-        logger.info("=== Modular Pipeline Execution Finished Successfully ===")
-        return strategy_scores
+        return dict(strategy_scores) if strategy_scores is not None else {}

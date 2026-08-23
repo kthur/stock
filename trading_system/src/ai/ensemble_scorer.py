@@ -20,7 +20,7 @@ try:
     from ..analysis.dsr_validator import DeflatedSharpeRatioValidator
 except Exception:
     try:
-        from src.analysis.dsr_validator import DeflatedSharpeRatioValidator
+        from src.analysis.dsr_validator import DeflatedSharpeRatioValidator  # type: ignore[no-redef]
     except Exception:
         DeflatedSharpeRatioValidator = None  # type: ignore[assignment, misc]
 

@@ -509,8 +509,8 @@ class ExecutionOMSEngine:
                         )
                         friction_cost = buy_cost + sell_cost
                         safety_margin = 0.0010  # 0.10% KRX safety margin
-                        # S-5 Fix: Unified expected return normalization (>1.0 -> /100)
-                        raw_exp_ret = float(pred.get("expected_return") if pred.get("expected_return") is not None else pred.get("ensemble_expected_return", 0.0) or 0.0)
+                        _exp_ret_raw = pred.get("expected_return") if pred.get("expected_return") is not None else pred.get("ensemble_expected_return", 0.0)
+                        raw_exp_ret = float(_exp_ret_raw or 0.0)
                         exp_ret_frac = raw_exp_ret / 100.0 if abs(raw_exp_ret) > 1.0 else raw_exp_ret
                         hurdle = friction_cost + safety_margin
 

@@ -228,7 +228,7 @@ class TradingConfig:
                 f"Invalid BROKER_TYPE={value!r}. Valid values: {', '.join(BrokerType.__members__)} "
                 f"(alias: KIS -> KOREA_INVESTMENT; DUMMY/MOCK allowed only when MOCK_TRADING_ENABLED=True)"
             )
-        return BrokerType[norm].value
+        return str(BrokerType[norm].value)
 
     def __post_init__(self):
         # Override fields with env variables dynamically using structured helpers

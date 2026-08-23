@@ -158,7 +158,7 @@ class ScenarioSimulationEngine:
     def _normalize_gics(self, raw_sec: str, symbol: Optional[str] = None, name: Optional[str] = None) -> str:
         try:
             from src.core.sector_rotation import SectorRotationEngine
-            return SectorRotationEngine.normalize_sector(raw_sec, symbol=symbol, name=name)
+            return str(SectorRotationEngine.normalize_sector(raw_sec, symbol=symbol, name=name))
         except Exception:
             if not raw_sec or not isinstance(raw_sec, str):
                 return 'Consumer Staples'

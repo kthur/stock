@@ -21,7 +21,7 @@ class StrategyCoverageAnalyzer:
         from src.core.strategy_registry import get_registry
         reg = get_registry()
         reg.auto_discover(["src.core", "src.ai"])
-        return reg.get_all_ids()
+        return list(reg.get_all_ids())
 
     def __init__(self, strategies: Optional[List[str]] = None):
         self.strategies = strategies if strategies else self.STRATEGIES

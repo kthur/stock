@@ -21,12 +21,12 @@ import optuna
 try:
     import lightgbm as lgb
 except ImportError:
-    lgb = None
+    lgb = None  # type: ignore[assignment]
 
 try:
     import catboost as cb
 except ImportError:
-    cb = None
+    cb = None  # type: ignore[assignment]
 
 try:
     from src.ai.prediction_model import DateAwareTimeSeriesSplit

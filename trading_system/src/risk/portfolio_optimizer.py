@@ -415,7 +415,7 @@ class PortfolioOptimizer:
             default_max_weight=max_weight if max_weight is not None else self.default_max_weight,
             default_max_sector_weight=max_sector_weight if max_sector_weight is not None else self.default_max_sector_weight
         )
-        return optimizer.optimize(
+        res = optimizer.optimize(
             expected_returns=expected_returns,
             cov_matrix=cov_matrix,
             factor_df=factor_df,
@@ -424,3 +424,4 @@ class PortfolioOptimizer:
             max_sector_weight=max_sector_weight,
             risk_aversion=risk_aversion
         )
+        return dict(res) if res is not None else {}

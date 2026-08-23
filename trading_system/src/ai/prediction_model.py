@@ -2795,7 +2795,7 @@ class OnDevicePredictionModel:
                                     if coef is not None and intercept is not None:
                                         z = np.clip(coef * blend_prob + intercept, -10, 10)
                                         calib_p = 1.0 / (1.0 + np.exp(-z))
-                                        blend_prob = float(np.clip(calib_p, 0.0, 1.0))
+                                        blend_prob = np.clip(calib_p, 0.0, 1.0)
                             res_df.loc[idx, col_name] = blend_prob
                         else:
                             # Momentum heuristic fallback when ML models are missing

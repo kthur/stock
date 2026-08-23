@@ -293,7 +293,7 @@ def parse_ensemble(text: str) -> EnsembleData:
         if m:
             data.max_allocation = m.group(1).strip()
         def _clean_macro(val_str: str, fallback_str: str, kind: str) -> str:
-            return DataValidator.clean_macro_value(val_str, fallback_str, kind)
+            return str(DataValidator.clean_macro_value(val_str, fallback_str, kind))
 
         m = re.match(r"S&P 500 \(20d Rolling Mean Return\)\s*:\s*(.+)", line)
         if m:
@@ -1475,23 +1475,23 @@ def build_html(
     # Collect all known and active markets from ensemble and all strategy data
     all_seen_markets = set()
     if ensemble and ensemble.markets:
-        for m in ensemble.markets:
-            if m.rows:
-                all_seen_markets.add(m.market)
+        for emkt in ensemble.markets:
+            if emkt.rows:
+                all_seen_markets.add(emkt.market)
     if portfolio_data and portfolio_data.rows:
-        for r in portfolio_data.rows:
-            if r.market:
-                all_seen_markets.add(r.market)
+        for prow in portfolio_data.rows:
+            if prow.market:
+                all_seen_markets.add(prow.market)
     for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows]:
-        if row_coll:
-            for r in row_coll:
-                if getattr(r, 'market', None):
-                    all_seen_markets.add(r.market)
+        if row_coll and isinstance(row_coll, (list, tuple)):
+            for crow in row_coll:
+                if getattr(crow, 'market', None):
+                    all_seen_markets.add(crow.market)
     for sec_coll in [surge_sections, vcp_ml_sections, reg_sections]:
-        if sec_coll:
-            for s in sec_coll:
-                if s.market:
-                    all_seen_markets.add(s.market)
+        if sec_coll and isinstance(sec_coll, (list, tuple)):
+            for sc_item in sec_coll:
+                if getattr(sc_item, 'market', None):
+                    all_seen_markets.add(sc_item.market)
 
     # Standard preferred ordering for core markets, then alphabetized international markets
     _CORE_ORDER = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]
@@ -1511,7 +1511,7 @@ def build_html(
     if not active_markets_ordered:
         active_markets_ordered = _CORE_ORDER
 
-    def _b_btns(gid: str, m_list: list[str] = None) -> str:
+    def _b_btns(gid: str, m_list: Optional[list[str]] = None) -> str:
         target_mkts = m_list if m_list is not None else active_markets_ordered
         buttons = [f'<button class="filter-btn active" onclick="filterMarket(this,\'{gid}\')" data-mkt="all">전체</button>']
         for mkt in target_mkts:
@@ -1522,104 +1522,104 @@ def build_html(
     # ── Tab: Ensemble ──
     ensemble_panels = ""
     for mkt in active_markets_ordered:
-        mkt_data = next((m for m in ensemble.markets if m.market == mkt), None)
+        mkt_data = next((em for em in ensemble.markets if em.market == mkt), None)
         flag = MARKET_FLAGS.get(mkt, "")
         rows_html = ""
         cards_html = ""
         if mkt_data and mkt_data.rows:
-            for r in mkt_data.rows[:100]:
-                rc = ret_class(r.expected_return)
-                ret_disp = f"▲ {r.expected_return}" if r.expected_return.startswith('+') else (f"▼ {r.expected_return}" if r.expected_return.startswith('-') else r.expected_return)
-                symbol_link = make_stock_link(r.symbol, mkt)
+            for erow in mkt_data.rows[:100]:
+                rc = ret_class(erow.expected_return)
+                ret_disp = f"▲ {erow.expected_return}" if erow.expected_return.startswith('+') else (f"▼ {erow.expected_return}" if erow.expected_return.startswith('-') else erow.expected_return)
+                symbol_link = make_stock_link(erow.symbol, mkt)
                 factors_dict = {
-                    "1. XGBoost 회귀": r.reg,
-                    "2. Surge 분류기": r.surge,
-                    "3. Lead-Lag": r.lead_lag,
-                    "4. VCP 패턴 (Rule)": r.vcp_rule,
-                    "5. VCP ML": r.vcp_ml,
-                    "6. Strict LSTM": r.lstm,
-                    "7. Stat-Arb": r.stat_arb,
-                    "8. Sector Rotation": r.sector_rotation,
-                    "9. RIM Valuation": r.rim_valuation,
-                    "10. Event-Driven": r.event_driven,
-                    "11. MQ Factor": r.mq_factor,
-                    "12. Options IV Skew": r.iv_skew,
-                    "13. Order Flow": r.order_flow,
-                    "14. Short-Term Reversal": r.short_term_reversal,
-                    "15. ARM Factor": r.arm_factor,
-                    "16. CARD Factor": r.card_factor,
-                    "17. LATR Factor": r.latr_factor,
-                    "18. Inst & Foreign Sector": r.inst_foreign_sector,
-                    "19. Supply Chain": r.supply_chain,
-                    "20. NLP Sentiment": r.sentiment,
-                    "21. Factor Neutralized": r.factor_neutralized,
-                    "22. Vol Targeting": r.vol_target,
-                    "23. Microstructure": r.microstructure,
-                    "24. Accruals Quality": r.accruals_quality,
-                    "25. Short Squeeze": r.short_squeeze,
-                    "26. Value-Up Yield": r.valueup_catalyst,
-                    "27. Trend Efficiency": r.trend_efficiency,
-                    "28. Gamma Squeeze": r.gamma_squeeze,
-                    "29. Insider Buying": r.insider_buying,
-                    "30. Darkpool & HFT": r.darkpool,
-                    "31. Tone Drift": r.earnings_tone_drift,
+                    "1. XGBoost 회귀": erow.reg,
+                    "2. Surge 분류기": erow.surge,
+                    "3. Lead-Lag": erow.lead_lag,
+                    "4. VCP 패턴 (Rule)": erow.vcp_rule,
+                    "5. VCP ML": erow.vcp_ml,
+                    "6. Strict LSTM": erow.lstm,
+                    "7. Stat-Arb": erow.stat_arb,
+                    "8. Sector Rotation": erow.sector_rotation,
+                    "9. RIM Valuation": erow.rim_valuation,
+                    "10. Event-Driven": erow.event_driven,
+                    "11. MQ Factor": erow.mq_factor,
+                    "12. Options IV Skew": erow.iv_skew,
+                    "13. Order Flow": erow.order_flow,
+                    "14. Short-Term Reversal": erow.short_term_reversal,
+                    "15. ARM Factor": erow.arm_factor,
+                    "16. CARD Factor": erow.card_factor,
+                    "17. LATR Factor": erow.latr_factor,
+                    "18. Inst & Foreign Sector": erow.inst_foreign_sector,
+                    "19. Supply Chain": erow.supply_chain,
+                    "20. NLP Sentiment": erow.sentiment,
+                    "21. Factor Neutralized": erow.factor_neutralized,
+                    "22. Vol Targeting": erow.vol_target,
+                    "23. Microstructure": erow.microstructure,
+                    "24. Accruals Quality": erow.accruals_quality,
+                    "25. Short Squeeze": erow.short_squeeze,
+                    "26. Value-Up Yield": erow.valueup_catalyst,
+                    "27. Trend Efficiency": erow.trend_efficiency,
+                    "28. Gamma Squeeze": erow.gamma_squeeze,
+                    "29. Insider Buying": erow.insider_buying,
+                    "30. Darkpool & HFT": erow.darkpool,
+                    "31. Tone Drift": erow.earnings_tone_drift,
                 }
                 import urllib.parse
                 factors_encoded = urllib.parse.quote(_safe_json(factors_dict))
-                clean_name = html.escape(r.name).replace("'", "\\'").replace('"', '&quot;')
-                drawer_call = f"openStockDrawer('{r.symbol}', '{clean_name}', '{mkt}', '{r.score}', '{ret_disp}', '{factors_encoded}')"
+                clean_name = html.escape(erow.name).replace("'", "\\'").replace('"', '&quot;')
+                drawer_call = f"openStockDrawer('{erow.symbol}', '{clean_name}', '{mkt}', '{erow.score}', '{ret_disp}', '{factors_encoded}')"
                 rows_html += f"""
             <tr class="clickable-row" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 31대 전략 상세 보기">
-              <td class="rank sticky-col sticky-rank">#{r.rank}</td>
+              <td class="rank sticky-col sticky-rank">#{erow.rank}</td>
               <td class="symbol sticky-col sticky-symbol">{symbol_link}</td>
-              <td class="name sticky-col sticky-name">{html.escape(r.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
-              <td class="score">{r.score}</td>
+              <td class="name sticky-col sticky-name">{html.escape(erow.name)}<span class="row-chevron" aria-hidden="true">›</span></td>
+              <td class="score">{erow.score}</td>
               <td class="{rc}">{ret_disp}</td>
-              <td class="col-strat">{r.reg}</td>
-              <td class="col-strat">{r.surge}</td>
-              <td class="col-strat">{r.lead_lag}</td>
-              <td class="col-strat">{r.vcp_rule}</td>
-              <td class="col-strat">{r.vcp_ml}</td>
-              <td class="col-strat">{r.lstm}</td>
-              <td class="col-strat">{r.stat_arb}</td>
-              <td class="col-strat">{r.sector_rotation}</td>
-              <td class="col-strat">{r.rim_valuation}</td>
-              <td class="col-strat">{r.event_driven}</td>
-              <td class="col-strat">{r.mq_factor}</td>
-              <td class="col-strat">{r.iv_skew}</td>
-              <td class="col-strat">{r.order_flow}</td>
-              <td class="col-strat">{r.short_term_reversal}</td>
-              <td class="col-strat">{r.arm_factor}</td>
-              <td class="col-strat">{r.card_factor}</td>
-              <td class="col-strat">{r.latr_factor}</td>
-              <td class="col-strat">{r.inst_foreign_sector}</td>
-              <td class="col-strat">{r.supply_chain}</td>
-              <td class="col-strat">{r.sentiment}</td>
-              <td class="col-strat">{r.factor_neutralized}</td>
-              <td class="col-strat">{r.vol_target}</td>
-              <td class="col-strat">{r.microstructure}</td>
-              <td class="col-strat">{r.accruals_quality}</td>
-              <td class="col-strat">{r.short_squeeze}</td>
-              <td class="col-strat">{r.valueup_catalyst}</td>
-              <td class="col-strat">{r.trend_efficiency}</td>
-              <td class="col-strat">{r.gamma_squeeze}</td>
-              <td class="col-strat">{r.insider_buying}</td>
-              <td class="col-strat">{r.darkpool}</td>
-              <td class="col-strat">{r.earnings_tone_drift}</td>
+              <td class="col-strat">{erow.reg}</td>
+              <td class="col-strat">{erow.surge}</td>
+              <td class="col-strat">{erow.lead_lag}</td>
+              <td class="col-strat">{erow.vcp_rule}</td>
+              <td class="col-strat">{erow.vcp_ml}</td>
+              <td class="col-strat">{erow.lstm}</td>
+              <td class="col-strat">{erow.stat_arb}</td>
+              <td class="col-strat">{erow.sector_rotation}</td>
+              <td class="col-strat">{erow.rim_valuation}</td>
+              <td class="col-strat">{erow.event_driven}</td>
+              <td class="col-strat">{erow.mq_factor}</td>
+              <td class="col-strat">{erow.iv_skew}</td>
+              <td class="col-strat">{erow.order_flow}</td>
+              <td class="col-strat">{erow.short_term_reversal}</td>
+              <td class="col-strat">{erow.arm_factor}</td>
+              <td class="col-strat">{erow.card_factor}</td>
+              <td class="col-strat">{erow.latr_factor}</td>
+              <td class="col-strat">{erow.inst_foreign_sector}</td>
+              <td class="col-strat">{erow.supply_chain}</td>
+              <td class="col-strat">{erow.sentiment}</td>
+              <td class="col-strat">{erow.factor_neutralized}</td>
+              <td class="col-strat">{erow.vol_target}</td>
+              <td class="col-strat">{erow.microstructure}</td>
+              <td class="col-strat">{erow.accruals_quality}</td>
+              <td class="col-strat">{erow.short_squeeze}</td>
+              <td class="col-strat">{erow.valueup_catalyst}</td>
+              <td class="col-strat">{erow.trend_efficiency}</td>
+              <td class="col-strat">{erow.gamma_squeeze}</td>
+              <td class="col-strat">{erow.insider_buying}</td>
+              <td class="col-strat">{erow.darkpool}</td>
+              <td class="col-strat">{erow.earnings_tone_drift}</td>
             </tr>"""
 
                 cards_html += f"""
         <div class="stock-card" onclick="{drawer_call}" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();{drawer_call}}}" title="클릭하여 31대 전략 상세 보기">
           <div class="stock-card-header">
-            <span class="stock-card-rank">#{r.rank}</span>
+            <span class="stock-card-rank">#{erow.rank}</span>
             <span class="badge" style="font-size:11px;">{flag} {mkt}</span>
           </div>
-          <div class="stock-card-title">{html.escape(r.name)}</div>
+          <div class="stock-card-title">{html.escape(erow.name)}</div>
           <div class="stock-card-code">{symbol_link}</div>
           <div class="stock-card-metrics">
             <div>
               <div class="stock-card-metric-lbl">31대 앙상블</div>
-              <div class="stock-card-metric-val" style="color:var(--blue);">{r.score}</div>
+              <div class="stock-card-metric-val" style="color:var(--blue);">{erow.score}</div>
             </div>
             <div>
               <div class="stock-card-metric-lbl">20D 순예상수익률</div>
@@ -1627,7 +1627,7 @@ def build_html(
             </div>
           </div>
           <div style="font-size:11px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:6px; margin-top:6px;">
-            <span>회귀: {r.reg} | Surge: {r.surge}</span>
+            <span>회귀: {erow.reg} | Surge: {erow.surge}</span>
             <span style="color:var(--accent); font-weight:600;">31대 팩터 분석 ›</span>
           </div>
         </div>"""
@@ -1911,20 +1911,20 @@ def build_html(
         portfolio_rows_html = '<tr><td colspan="8" class="empty">포트폴리오 배분 데이터 없음</td></tr>'
 
     # ── Tab: Surge ──
-    horizons = sorted(set(s.horizon for s in surge_sections), key=lambda h: int(m.group()) if (m := re.search(r"\d+", h)) else 0) if surge_sections else ["1일", "3일", "5일", "20일"]
+    horizons = sorted(set(sec.horizon for sec in surge_sections), key=lambda h: int(match_hz.group()) if (match_hz := re.search(r"\d+", h)) else 0) if surge_sections else ["1일", "3일", "5일", "20일"]
     surge_tabs_nav = ""
     surge_tabs_content = ""
     for i, hz in enumerate(horizons):
         active = "active" if i == 0 else ""
         surge_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
-        hz_sections = [s for s in surge_sections if s.horizon == hz]
+        hz_sections_surge = [s for s in surge_sections if s.horizon == hz]
         panels = ""
         for mkt in active_markets_ordered:
-            s = next((sec for sec in hz_sections if sec.market == mkt), None)
+            s_surge = next((sec for sec in hz_sections_surge if sec.market == mkt), None)
             flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
-            if s and s.rows:
-                for sr in s.rows:
+            if s_surge and s_surge.rows:
+                for sr in s_surge.rows:
                     prob = safe_float(sr.probability)
                     bar_w = min(100, int(prob))
                     color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
@@ -2059,20 +2059,20 @@ def build_html(
 
     # ── Tab: VCP ML ──
     vcp_ml_sections = vcp_ml_sections or []
-    vcp_ml_horizons = sorted(set(s.horizon for s in vcp_ml_sections), key=lambda h: int(m.group()) if (m := re.search(r"\d+", h)) else 0) if vcp_ml_sections else ["1일", "3일", "5일", "20일"]
+    vcp_ml_horizons = sorted(set(sec.horizon for sec in vcp_ml_sections), key=lambda h: int(match_hz.group()) if (match_hz := re.search(r"\d+", h)) else 0) if vcp_ml_sections else ["1일", "3일", "5일", "20일"]
     vcp_ml_tabs_nav = ""
     vcp_ml_tabs_content = ""
     for i, hz in enumerate(vcp_ml_horizons):
         active = "active" if i == 0 else ""
         vcp_ml_tabs_nav += f'<button class="hz-tab {active}" data-hz="{hz}" onclick="switchHz(this)">{hz}</button>'
-        hz_sections = [s for s in vcp_ml_sections if s.horizon == hz]
+        hz_sections_vcp = [s for s in vcp_ml_sections if s.horizon == hz]
         panels = ""
         for mkt in active_markets_ordered:
-            s = next((sec for sec in hz_sections if sec.market == mkt), None)
+            s_vcp = next((sec for sec in hz_sections_vcp if sec.market == mkt), None)
             flag = MARKET_FLAGS.get(mkt, "")
             rows_html = ""
-            if s and s.rows:
-                for vml in s.rows:
+            if s_vcp and s_vcp.rows:
+                for vml in s_vcp.rows:
                     prob = safe_float(vml.probability)
                     bar_w = min(100, int(prob))
                     color = "#2ea043" if prob >= 20 else "#d29922" if prob >= 10 else "#8b949e"
@@ -2116,7 +2116,7 @@ def build_html(
 
     # ── Tab: Regression ──
     reg_sections = reg_sections or []
-    reg_horizons = sorted(set(s.horizon for s in reg_sections), key=lambda h: int(m.group()) if (m := re.search(r"\d+", h)) else 0) if reg_sections else ["1d", "5d", "20d", "60d"]
+    reg_horizons = sorted(set(sec.horizon for sec in reg_sections), key=lambda h: int(match_hz.group()) if (match_hz := re.search(r"\d+", h)) else 0) if reg_sections else ["1d", "5d", "20d", "60d"]
     reg_tabs_nav = ""
     reg_tabs_content = ""
     for i, hz in enumerate(reg_horizons):
