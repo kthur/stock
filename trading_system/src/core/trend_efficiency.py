@@ -58,7 +58,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         volatility = series.iloc[-window-1:].diff().abs().sum()
         if volatility <= 1e-8:
             return 0.0
-        return float(change / volatility)
+        return float(np.clip(change / volatility, 0.0, 1.0))
 
     def calculate_scores(
         self,
@@ -136,11 +136,12 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
         # High conviction persistent trend accelerator (KER > 0.50 and Hurst > 0.55 on strong uptrend)
         trend_mult = np.where((weighted_ker > 0.55) & (hurst > 0.58) & (ret_20d > 0.05), 1.20,
                               np.where((weighted_ker > 0.45) & (hurst > 0.52) & (ret_20d > 0.02), 1.10, 1.0))
-        score_arr = np.where(
+        raw_score = np.where(
             ret_20d >= 0,
             0.5 + 0.5 * weighted_ker * (hurst / 0.5) * trend_mult,
             0.5 - 0.5 * weighted_ker * (hurst / 0.5) * 1.10
         )
+        score_arr = np.clip(raw_score, 0.0, 1.0)
 
         results = dict(zip(close_2d.columns, score_arr))
         df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in symbols])
