@@ -183,6 +183,7 @@ class FactorOrthogonalizerEngine:
         diag_signs[diag_signs == 0] = 1.0
         W_esrw = W_esrw * diag_signs[:, np.newaxis]
         W_esrw = (W_esrw + W_esrw.T) * 0.5
+        np.fill_diagonal(W_esrw, np.maximum(np.diag(W_esrw), 1e-6))
 
         return np.asarray(np.dot(X_bar, W_esrw), dtype=np.float64)
 
@@ -221,6 +222,7 @@ class FactorOrthogonalizerEngine:
         diag_signs[diag_signs == 0] = 1.0
         C_inv_sqrt = C_inv_sqrt * diag_signs[:, np.newaxis]
         C_inv_sqrt = (C_inv_sqrt + C_inv_sqrt.T) * 0.5
+        np.fill_diagonal(C_inv_sqrt, np.maximum(np.diag(C_inv_sqrt), 1e-6))
 
         # ZCA decorrelation
         X_decorr = np.dot(X_bar, C_inv_sqrt)
