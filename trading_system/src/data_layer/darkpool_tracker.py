@@ -127,8 +127,10 @@ class DarkPoolTrackerEngine:
             if darkpool_data_dict and sym in darkpool_data_dict:
                 dp_data = darkpool_data_dict[sym]
                 if isinstance(dp_data, dict):
-                    dp_share = float(dp_data.get('dark_pool_ratio', 0.30))
-                    dp_buy_bias = float(dp_data.get('buy_bias', 0.50))
+                    raw_ratio = dp_data.get('dark_pool_ratio')
+                    raw_bias = dp_data.get('buy_bias')
+                    dp_share = float(raw_ratio) if (raw_ratio is not None and np.isfinite(float(raw_ratio))) else 0.30
+                    dp_buy_bias = float(raw_bias) if (raw_bias is not None and np.isfinite(float(raw_bias))) else 0.50
 
                     if dp_share > 0.40 and dp_buy_bias > 0.65:  # High dark pool volume with institutional buy bias
                         score = float(np.clip(score + 0.30, 0.0, 1.0))
