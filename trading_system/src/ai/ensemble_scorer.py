@@ -525,7 +525,7 @@ class EnsembleScoringEngine:
         if val is None:
             self._prev_weights_dict.clear()
         elif isinstance(val, dict):
-            if val and not any(k in ("global", "us", "kr", "kospi", "sp500") for k in val):
+            if val and all(isinstance(v, (int, float)) for v in val.values()):
                 self._prev_weights_dict = WeightsStateDict({"global": {str(k): float(v) for k, v in val.items()}})
             else:
                 self._prev_weights_dict = WeightsStateDict(val)
@@ -546,7 +546,7 @@ class EnsembleScoringEngine:
                 with open(weights_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
-                    if any(k in data for k in ("us", "kr", "global")):
+                    if any(isinstance(v, dict) and "weights" in v for v in data.values()):
                         for mkt, mkt_data in data.items():
                             if isinstance(mkt_data, dict):
                                 w = mkt_data.get("weights", {})
@@ -563,12 +563,12 @@ class EnsembleScoringEngine:
                         if reg:
                             self._prev_regime_dict["global"] = str(reg)
                     logger.info(
-                        f"[EMA] Loaded previous ensemble weights from prev_weights.json for markets: {list(self._prev_weights_dict.keys())}"
+                        f"Loaded previous ensemble state: {len(self._prev_weights_dict)} markets: {list(self._prev_weights_dict.keys())}"
                     )
         except Exception as e:
             logger.warning(f"Could not load prev_weights.json: {e}")
 
-    def update_microstructure_costs(self, slippage_metrics: Any) -> None:
+    def update_realized_costs(self, slippage_metrics: Any) -> None:
         """
         Dynamically updates microstructure cost parameters based on realized execution logs.
         """
@@ -582,6 +582,8 @@ class EnsembleScoringEngine:
                 f"impact_alpha={self.realized_market_impact_alpha:.4f}, avg_slippage={getattr(slippage_metrics, 'avg_slippage_bps', 5.0):.2f}bps "
                 f"(sample_count={getattr(slippage_metrics, 'sample_count', 0)})"
             )
+
+    update_microstructure_costs = update_realized_costs
 
     def has_calibrators(self) -> bool:
         """Return True if calibrators dictionary is non-empty."""
@@ -628,8 +630,8 @@ class EnsembleScoringEngine:
             return
         for strategy, scores in strategy_scores.items():
             try:
-                s = np.asarray(scores, dtype=float)
-                y = np.asarray(true_labels, dtype=float)
+                s = np.asarray(scores, dtype=float).ravel()
+                y = np.asarray(true_labels, dtype=float).ravel()
                 if len(s) != len(y):
                     min_len = min(len(s), len(y))
                     logger.warning(f"Calibrator for '{strategy}': array length mismatch (scores={len(s)}, true_labels={len(y)}). Truncating to min_len={min_len}")
@@ -643,6 +645,10 @@ class EnsembleScoringEngine:
 
                 if len(np.unique(y[mask])) < 2:
                     logger.warning(f"Calibrator for '{strategy}': target labels have single-class zero variance, skipping.")
+                    continue
+
+                if len(np.unique(s[mask])) < 2:
+                    logger.warning(f"Calibrator for '{strategy}': feature scores have zero variance, skipping.")
                     continue
 
                 if n_samples >= 50:
@@ -667,11 +673,11 @@ class EnsembleScoringEngine:
         """Apply per-strategy calibrator if available; otherwise return scores unchanged."""
         cal_tuple = self._calibrators.get(strategy)
         if cal_tuple is None:
-            return scores
+            return np.asarray(scores)
         cal_type, cal = cal_tuple
         try:
             s = np.asarray(scores, dtype=float)
-            clean_s = np.where(np.isfinite(s), s, 0.0)
+            clean_s = np.nan_to_num(s, nan=0.50, posinf=1.0, neginf=0.0)
             if cal_type == 'isotonic':
                 out = cal.predict(clean_s)
             else:

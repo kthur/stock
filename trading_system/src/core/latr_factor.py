@@ -105,8 +105,8 @@ class LATRFactorEngine(BaseStrategyEngine):
                             + (z_alpha**3 - 3.0 * z_alpha) * kurt / 24.0
                             - (2.0 * z_alpha**3 - 5.0 * z_alpha) * (skewness**2) / 36.0
                         )
-                        # R9-6 Fix: Check Cornish-Fisher domain of validity (|skew|<=3, kurt<=10, z_cf < 0)
-                        if abs(skewness) > 3.0 or kurt > 10.0 or z_cf >= 0.0 or not np.isfinite(z_cf):
+                        # Barton-Dennis (1952) domain of validity for monotonic Cornish-Fisher quantiles
+                        if abs(skewness) > 1.5 or kurt > 4.0 or z_cf >= 0.0 or not np.isfinite(z_cf):
                             tail_risk = float(np.percentile(sub_rets, 5))
                         else:
                             tail_risk = mu + z_cf * sigma

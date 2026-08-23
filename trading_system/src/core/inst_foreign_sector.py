@@ -180,8 +180,14 @@ class InstForeignSectorEngine(BaseStrategyEngine):
             df = prices_dict[sym]
             c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
             if c_col:
-                close = df[c_col].iloc[:, 0] if isinstance(df[c_col], pd.DataFrame) else df[c_col]
-                returns_dict[sym] = close.pct_change()
+                s = df[c_col].dropna()
+                if isinstance(s, pd.DataFrame):
+                    s = s.iloc[:, 0]
+                if not isinstance(s.index, pd.DatetimeIndex) and any(str(c).lower() in ('date', 'datetime') for c in df.columns):
+                    date_col = next(c for c in df.columns if str(c).lower() in ('date', 'datetime'))
+                    s = s.copy()
+                    s.index = pd.to_datetime(df[date_col].loc[s.index], errors='coerce')
+                returns_dict[sym] = s.pct_change().dropna()
 
         returns_df = pd.DataFrame(returns_dict).ffill().tail(40).fillna(0.0)
 

@@ -337,9 +337,13 @@ class RIMValuationEngine(BaseStrategyEngine):
                 retention = self.retention_ratio if net_income > 0 else 1.0
                 current_bps += net_income * retention
             pv_excess += excess_income / ((1.0 + r_e) ** t)
-            current_roe = r_e + (current_roe - r_e) * (1.0 - eff_decay)
-        # Standard RIM intrinsic value V0 = BPS0 + Sum(PV of Excess Income).
-        # Terminal value beyond horizon N assumes ROE = r_e (excess income = 0).
+        # Ohlson (1995) Terminal Residual Income Persistence Annuity beyond Horizon T
+        omega = 1.0 - eff_decay
+        denom_tv = (1.0 + r_e - omega)
+        if denom_tv > 1e-4 and current_bps > 0:
+            tv_excess = (current_bps * (current_roe - r_e) * omega) / denom_tv
+            pv_excess += tv_excess / ((1.0 + r_e) ** years)
+
         # Intrinsic equity value cannot be negative due to corporate limited liability.
         return max(0.0, float(bps + pv_excess))
 
@@ -710,7 +714,20 @@ class RIMValuationEngine(BaseStrategyEngine):
                                 rows.append({"symbol": sym, "Close": float(p_df[c_col].dropna().iloc[-1])})
                     if rows:
                         features_df = pd.DataFrame(rows)
-            return self.compute_rim_scores(features_df)
+            indicators_df = kwargs.get('indicators_df')
+            us10y = kwargs.get('us10y_yield')
+            vix = kwargs.get('vix_val')
+            if us10y is None and isinstance(indicators_df, pd.DataFrame) and 'us10y' in indicators_df.columns:
+                try:
+                    us10y = float(indicators_df['us10y'].iloc[-1])
+                except Exception:
+                    pass
+            if vix is None and isinstance(indicators_df, pd.DataFrame) and 'vix' in indicators_df.columns:
+                try:
+                    vix = float(indicators_df['vix'].iloc[-1])
+                except Exception:
+                    pass
+            return self.compute_rim_scores(features_df, us10y_yield=us10y, vix_val=vix)
         except Exception as e:
             logger.warning(f"[RIMValuationEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "rim_score"])

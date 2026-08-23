@@ -110,12 +110,12 @@ class InsiderBuyingEngine(BaseStrategyEngine):
                     combined_role_text = f"{insider_role} {report_nm}"
 
                     # Explicit transaction classification: do not default generic informational filings to BUY
-                    if raw_type in buy_keywords or any(k in report_nm for k in ['장내매수', '취득', '증가', '신규매수', '매입']):
+                    if raw_type in buy_keywords or any(k in report_nm for k in ['장내매수', '장내취득', '신규매수', '주식매입', '자사주매입', '지분매수', '지분취득']):
                         boost = 0.35 if any(role in combined_role_text for role in high_level_roles) else 0.20
                         # Accumulate multiple insider buys up to 0.98 cap
                         cur_score = float(np.clip(cur_score + boost, 0.0, 0.98))
                         logger.info(f"[INSIDER BUYING ENGINE] Insider buy detected for {sym}: {report_nm} (Score -> {cur_score:.2f})")
-                    elif raw_type in sell_keywords or any(k in report_nm for k in ['매도', '처분', '매각', '감소']):
+                    elif raw_type in sell_keywords or any(k in report_nm for k in ['장내매도', '장내처분', '지분매각', '지분매도', '주식매도', '블록딜']):
                         penalty = 0.25
                         cur_score = float(np.clip(cur_score - penalty, 0.05, 1.0))
 
