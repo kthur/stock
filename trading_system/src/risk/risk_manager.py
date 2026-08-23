@@ -696,20 +696,20 @@ class RiskManager:
         stop_distance = atr * self.atr_multiplier_stop
         base = max(entry_price - stop_distance, entry_price * (1 - self.default_stop_loss_pct * 2))
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult < 1.0:
-            tighter = entry_price - (entry_price - base) * crisis_mult
-            self.logger.info(f"Crisis stop tightening: {base:.2f} -> {tighter:.2f} (mult={crisis_mult:.2f})")
-            return tighter
+        if crisis_mult > 1.0:
+            wider = entry_price - (entry_price - base) * crisis_mult
+            self.logger.info(f"Crisis stop widening: {base:.2f} -> {wider:.2f} (mult={crisis_mult:.2f})")
+            return wider
         return base
 
     def calculate_atr_based_target(self, entry_price: float, atr: float) -> float:
         target_distance = atr * self.atr_multiplier_target
         base = min(entry_price + target_distance, entry_price * (1 + self.default_take_profit_pct * 2))
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult < 1.0:
-            tighter = entry_price + (base - entry_price) * crisis_mult
-            self.logger.info(f"Crisis target tightening: {base:.2f} -> {tighter:.2f} (mult={crisis_mult:.2f})")
-            return tighter
+        if crisis_mult > 1.0:
+            wider = entry_price + (base - entry_price) * crisis_mult
+            self.logger.info(f"Crisis target widening: {base:.2f} -> {wider:.2f} (mult={crisis_mult:.2f})")
+            return wider
         return base
 
     REGIME_ATR_MULTIPLIERS = {
@@ -751,7 +751,7 @@ class RiskManager:
         stop_distance = atr * stop_multiplier
 
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult < 1.0:
+        if crisis_mult > 1.0:
             stop_distance *= crisis_mult
 
         drawdown = self.calculate_drawdown()
@@ -780,7 +780,7 @@ class RiskManager:
         stop_distance = atr * stop_multiplier
 
         crisis_mult = self.crisis_detector.get_crisis_stop_multiplier()
-        if crisis_mult < 1.0:
+        if crisis_mult > 1.0:
             stop_distance *= crisis_mult
 
         drawdown = self.calculate_drawdown()

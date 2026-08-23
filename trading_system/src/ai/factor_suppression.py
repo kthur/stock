@@ -200,6 +200,14 @@ class RegimeFactorSuppressionEngine:
                 if is_high_risk_i:
                     c_base *= 1.5
 
+                # Asymmetric protection: if strategy i is superior to strategy j, dampen i's penalty from j
+                if consensus_precision:
+                    prec_i = float(consensus_precision.get(strat_i, 0.50))
+                    prec_j = float(consensus_precision.get(strat_j, 0.50))
+                    if prec_i > prec_j:
+                        asym_scale = max(0.20, 1.0 - (prec_i - prec_j) * 2.0)
+                        c_base *= asym_scale
+
                 weighted_excess_sq_sum += c_base * (excess ** 2)
 
             denom = np.sqrt(1.0 + lambda_penalty * weighted_excess_sq_sum)

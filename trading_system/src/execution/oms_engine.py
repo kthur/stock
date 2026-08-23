@@ -344,6 +344,28 @@ class ExecutionOMSEngine:
         except (ValueError, TypeError):
             fx_rate = 1350.0
 
+        # Pre-compute realized slippage multiplier and shared allocator instance once outside the loop (prevents N+1 DB queries)
+        try:
+            from src.execution.slippage_feedback import SlippageFeedbackEngine
+            slip_res = SlippageFeedbackEngine(db_path=self.db_path).calculate_realized_slippage()
+            if hasattr(slip_res, "cost_scaling_factor"):
+                cached_slip_mult = float(slip_res.cost_scaling_factor)
+            elif hasattr(slip_res, "recommended_market_impact_multiplier"):
+                cached_slip_mult = float(slip_res.recommended_market_impact_multiplier)
+            elif isinstance(slip_res, (int, float)):
+                cached_slip_mult = float(slip_res)
+            else:
+                cached_slip_mult = 1.0
+        except Exception as _se:
+            logger.debug(f"[OMS] Slippage feedback preload exception: {_se}")
+            cached_slip_mult = 1.0
+
+        try:
+            from src.risk.portfolio_allocator import PortfolioAllocator
+            shared_allocator = PortfolioAllocator()
+        except Exception:
+            shared_allocator = None
+
         conn = self._get_conn()
         try:
             cursor = conn.cursor()
@@ -379,13 +401,16 @@ class ExecutionOMSEngine:
                     is_new_entry = (curr_w <= 0.0 and weight > 0.0)
                     if not is_full_exit and not is_new_entry:
                         try:
-                            from src.risk.portfolio_allocator import PortfolioAllocator
-                            p_alloc = PortfolioAllocator()
+                            p_alloc = shared_allocator
+                            if p_alloc is None:
+                                from src.risk.portfolio_allocator import PortfolioAllocator
+                                p_alloc = PortfolioAllocator()
                             mkt = str(pred.get("market", "KOSPI"))
                             vol_20d = float(pred.get("volatility_20d", 0.02) or 0.02)
                             c_rate = p_alloc.estimate_transaction_cost_rate(
                                 symbol=sym, market=mkt, target_weight=weight,
-                                portfolio_value=tot_cap, volatility_20d=vol_20d
+                                portfolio_value=tot_cap, volatility_20d=vol_20d,
+                                slippage_multiplier=cached_slip_mult
                             )
                             delta_i = p_alloc.calculate_dynamic_buffer_band(
                                 symbol=sym, target_weight=weight, cost_rate=c_rate, volatility_20d=vol_20d
@@ -454,22 +479,11 @@ class ExecutionOMSEngine:
                 # Gate 7.3: KRX STT / Transaction Cost Net Alpha Hurdle Check
                 if is_krx and action == "BUY" and ("expected_return" in pred or "ensemble_expected_return" in pred):
                     try:
-                        from src.risk.portfolio_allocator import PortfolioAllocator
-                        try:
-                            from src.execution.slippage_feedback import SlippageFeedbackEngine
-                            slip_res = SlippageFeedbackEngine(db_path=self.db_path).calculate_realized_slippage()
-                            if hasattr(slip_res, "cost_scaling_factor"):
-                                slip_mult = float(slip_res.cost_scaling_factor)
-                            elif hasattr(slip_res, "recommended_market_impact_multiplier"):
-                                slip_mult = float(slip_res.recommended_market_impact_multiplier)
-                            elif isinstance(slip_res, (int, float)):
-                                slip_mult = float(slip_res)
-                            else:
-                                slip_mult = 1.0
-                        except Exception:
-                            slip_mult = 1.0
-
-                        allocator = PortfolioAllocator()
+                        allocator = shared_allocator
+                        if allocator is None:
+                            from src.risk.portfolio_allocator import PortfolioAllocator
+                            allocator = PortfolioAllocator()
+                        slip_mult = cached_slip_mult
                         adv_val = float(pred.get("adv", pred.get("trading_value", 1_000_000_000.0)) or 1_000_000_000.0)
                         vol_val = float(pred.get("volatility_20d", 0.02) or 0.02)
                         buy_cost = allocator.estimate_transaction_cost_rate(

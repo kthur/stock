@@ -168,7 +168,7 @@ class SlippageFeedbackEngine:
             scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 3.0)) if self.default_slippage_bps > 0 else 1.0
             if not math.isfinite(scaling):
                 scaling = 1.0
-            alpha = float(np.clip(0.50 * scaling, 0.1, 1.00))
+            alpha = float(np.clip(0.50 * scaling, 0.1, 2.50))
             if not math.isfinite(alpha):
                 alpha = 0.50
 

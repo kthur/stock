@@ -10,6 +10,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
+from sklearn.calibration import CalibratedClassifierCV
 
 logger = logging.getLogger(__name__)
 
@@ -418,7 +419,18 @@ class VCPSurgePredictor:
                     kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
                     model_xgb = xgb.XGBClassifier(**kw_no_es)
                     model_xgb.fit(X_train, y_train)
-                local_models[h] = model_xgb
+
+                if vv.any() and len(np.unique(y_val)) >= 2:
+                    try:
+                        calib_method = 'isotonic' if len(y_val) >= 100 else 'sigmoid'
+                        calib_xgb = CalibratedClassifierCV(model_xgb, method=calib_method, cv='prefit')
+                        calib_xgb.fit(X_val, y_val)
+                        local_models[h] = calib_xgb
+                    except Exception as _ce:
+                        logger.debug(f"VCP ML XGB calibration fallback: {_ce}")
+                        local_models[h] = model_xgb
+                else:
+                    local_models[h] = model_xgb
 
                 # 2. LightGBM
                 model_lgb = lgb.LGBMClassifier(**kw_lgb)
@@ -426,7 +438,18 @@ class VCPSurgePredictor:
                     model_lgb.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='auc', callbacks=[lgb.early_stopping(50, verbose=False)])
                 else:
                     model_lgb.fit(X_train, y_train)
-                local_lgb_models[h] = model_lgb
+
+                if vv.any() and len(np.unique(y_val)) >= 2:
+                    try:
+                        calib_method = 'isotonic' if len(y_val) >= 100 else 'sigmoid'
+                        calib_lgb = CalibratedClassifierCV(model_lgb, method=calib_method, cv='prefit')
+                        calib_lgb.fit(X_val, y_val)
+                        local_lgb_models[h] = calib_lgb
+                    except Exception as _ce:
+                        logger.debug(f"VCP ML LGB calibration fallback: {_ce}")
+                        local_lgb_models[h] = model_lgb
+                else:
+                    local_lgb_models[h] = model_lgb
 
                 # 3. CatBoost
                 if vv.any():
@@ -435,7 +458,18 @@ class VCPSurgePredictor:
                 else:
                     model_cat = cb.CatBoostClassifier(**kw_cat)
                     model_cat.fit(X_train, y_train, verbose=False)
-                local_cat_models[h] = model_cat
+
+                if vv.any() and len(np.unique(y_val)) >= 2:
+                    try:
+                        calib_method = 'isotonic' if len(y_val) >= 100 else 'sigmoid'
+                        calib_cat = CalibratedClassifierCV(model_cat, method=calib_method, cv='prefit')
+                        calib_cat.fit(X_val, y_val)
+                        local_cat_models[h] = calib_cat
+                    except Exception as _ce:
+                        logger.debug(f"VCP ML CatBoost calibration fallback: {_ce}")
+                        local_cat_models[h] = model_cat
+                else:
+                    local_cat_models[h] = model_cat
 
                 # Calculate metrics
                 X_eval = X_val if vv.any() else X_train

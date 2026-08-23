@@ -1045,7 +1045,8 @@ class PortfolioAllocator:
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor
-        return float(min(max(delta_raw, self.delta_floor), self.delta_cap))
+        effective_cap = min(self.delta_cap, max(self.delta_floor, target_weight * 0.35))
+        return float(min(max(delta_raw, self.delta_floor), effective_cap))
 
     def compute_portfolio_rebalance(
         self,

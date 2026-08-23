@@ -19,6 +19,16 @@ import xgboost as xgb
 import optuna
 
 try:
+    import lightgbm as lgb
+except ImportError:
+    lgb = None
+
+try:
+    import catboost as cb
+except ImportError:
+    cb = None
+
+try:
     from src.ai.prediction_model import DateAwareTimeSeriesSplit
 except ImportError:
     try:
@@ -130,6 +140,7 @@ class OptunaStrategyTuner:
         best_xgb['random_state'] = 42
         best_xgb['n_jobs'] = -1
 
+        # 2. LightGBM Regressor
         best_lgb = {
             'n_estimators': best_xgb.get('n_estimators', 100),
             'max_depth': best_xgb.get('max_depth', 5),
@@ -138,12 +149,78 @@ class OptunaStrategyTuner:
             'colsample_bytree': best_xgb.get('colsample_bytree', 0.8),
             'reg_lambda': best_xgb.get('reg_lambda', 1.0)
         }
+        if lgb is not None:
+            try:
+                def lgb_objective(trial):
+                    params = {
+                        'n_estimators': trial.suggest_int('n_estimators', 50, 100),
+                        'num_leaves': trial.suggest_int('num_leaves', 15, 63),
+                        'max_depth': trial.suggest_int('max_depth', 3, 7),
+                        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+                        'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+                        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+                        'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 10.0, log=True),
+                        'min_child_samples': trial.suggest_int('min_child_samples', 5, 50),
+                        'random_state': 42,
+                        'verbosity': -1,
+                        'n_jobs': -1,
+                    }
+                    rmses = []
+                    for train_idx, val_idx in tscv.split(split_target):
+                        X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
+                        y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
+                        model = lgb.LGBMRegressor(**params)
+                        model.fit(X_tr, y_tr)
+                        preds = model.predict(X_va)
+                        rmses.append(np.sqrt(mean_squared_error(y_va, preds)))
+                    return float(np.mean(rmses))
+
+                study_lgb = optuna.create_study(direction='minimize')
+                study_lgb.optimize(lgb_objective, n_trials=n_trials)
+                best_lgb = study_lgb.best_params
+                best_lgb['random_state'] = 42
+                best_lgb['verbosity'] = -1
+                best_lgb['n_jobs'] = -1
+            except Exception as _lgb_e:
+                logger.warning(f"LightGBM regression tuning fallback: {_lgb_e}")
+
+        # 3. CatBoost Regressor
         best_cat = {
             'iterations': best_xgb.get('n_estimators', 100),
             'depth': best_xgb.get('max_depth', 5),
             'learning_rate': best_xgb.get('learning_rate', 0.05),
             'l2_leaf_reg': best_xgb.get('reg_lambda', 1.0)
         }
+        if cb is not None:
+            try:
+                def cat_objective(trial):
+                    params = {
+                        'iterations': trial.suggest_int('iterations', 50, 150),
+                        'depth': trial.suggest_int('depth', 3, 6),
+                        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+                        'l2_leaf_reg': trial.suggest_float('l2_leaf_reg', 0.5, 10.0, log=True),
+                        'random_seed': 42,
+                        'verbose': 0,
+                        'thread_count': -1,
+                    }
+                    rmses = []
+                    for train_idx, val_idx in tscv.split(split_target):
+                        X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
+                        y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
+                        model = cb.CatBoostRegressor(**params)
+                        model.fit(X_tr, y_tr)
+                        preds = model.predict(X_va)
+                        rmses.append(np.sqrt(mean_squared_error(y_va, preds)))
+                    return float(np.mean(rmses))
+
+                study_cat = optuna.create_study(direction='minimize')
+                study_cat.optimize(cat_objective, n_trials=n_trials)
+                best_cat = study_cat.best_params
+                best_cat['random_seed'] = 42
+                best_cat['verbose'] = 0
+                best_cat['thread_count'] = -1
+            except Exception as _cat_e:
+                logger.warning(f"CatBoost regression tuning fallback: {_cat_e}")
 
         self.tuned_params['xgb'] = best_xgb
         self.tuned_params['lgb'] = best_lgb
@@ -229,17 +306,99 @@ class OptunaStrategyTuner:
         study_surge.optimize(surge_objective, n_trials=n_trials)
         best_surge_xgb = study_surge.best_params
 
+        # 2. LightGBM Surge Classifier
         best_surge_lgb = {
             'n_estimators': best_surge_xgb.get('n_estimators', 100),
             'max_depth': best_surge_xgb.get('max_depth', 4),
             'learning_rate': best_surge_xgb.get('learning_rate', 0.05),
             'min_child_samples': best_surge_xgb.get('min_child_weight', 10)
         }
+        if lgb is not None:
+            try:
+                def surge_lgb_objective(trial):
+                    params = {
+                        'n_estimators': trial.suggest_int('n_estimators', 50, 250),
+                        'num_leaves': trial.suggest_int('num_leaves', 15, 63),
+                        'max_depth': trial.suggest_int('max_depth', 3, 6),
+                        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+                        'scale_pos_weight': trial.suggest_float('scale_pos_weight', 1.0, 20.0),
+                        'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+                        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+                        'min_child_samples': trial.suggest_int('min_child_samples', 5, 50),
+                        'random_state': 42,
+                        'verbosity': -1,
+                        'n_jobs': -1,
+                    }
+                    aucs = []
+                    for train_idx, val_idx in tscv.split(split_target):
+                        X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
+                        y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
+                        if len(np.unique(y_tr)) < 2 or len(np.unique(y_va)) < 2:
+                            aucs.append(0.5)
+                            continue
+                        model = lgb.LGBMClassifier(**params)
+                        model.fit(X_tr, y_tr)
+                        probs = model.predict_proba(X_va)[:, 1]
+                        try:
+                            score = roc_auc_score(y_va, probs)
+                        except Exception:
+                            score = 0.5
+                        aucs.append(score)
+                    return float(np.mean(aucs)) if aucs else 0.5
+
+                study_surge_lgb = optuna.create_study(direction='maximize')
+                study_surge_lgb.optimize(surge_lgb_objective, n_trials=n_trials)
+                best_surge_lgb = study_surge_lgb.best_params
+                best_surge_lgb['random_state'] = 42
+                best_surge_lgb['verbosity'] = -1
+                best_surge_lgb['n_jobs'] = -1
+            except Exception as _lgb_e:
+                logger.warning(f"LightGBM surge tuning fallback: {_lgb_e}")
+
+        # 3. CatBoost Surge Classifier
         best_surge_cat = {
             'iterations': best_surge_xgb.get('n_estimators', 100),
             'depth': best_surge_xgb.get('max_depth', 4),
             'learning_rate': best_surge_xgb.get('learning_rate', 0.05)
         }
+        if cb is not None:
+            try:
+                def surge_cat_objective(trial):
+                    params = {
+                        'iterations': trial.suggest_int('iterations', 50, 200),
+                        'depth': trial.suggest_int('depth', 3, 6),
+                        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+                        'scale_pos_weight': trial.suggest_float('scale_pos_weight', 1.0, 20.0),
+                        'l2_leaf_reg': trial.suggest_float('l2_leaf_reg', 0.5, 10.0, log=True),
+                        'random_seed': 42,
+                        'verbose': 0,
+                        'thread_count': -1,
+                    }
+                    aucs = []
+                    for train_idx, val_idx in tscv.split(split_target):
+                        X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
+                        y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
+                        if len(np.unique(y_tr)) < 2 or len(np.unique(y_va)) < 2:
+                            aucs.append(0.5)
+                            continue
+                        model = cb.CatBoostClassifier(**params)
+                        model.fit(X_tr, y_tr)
+                        probs = model.predict_proba(X_va)[:, 1]
+                        try:
+                            score = roc_auc_score(y_va, probs)
+                        except Exception:
+                            score = 0.5
+                        aucs.append(score)
+                    return float(np.mean(aucs)) if aucs else 0.5
+
+                study_surge_cat = optuna.create_study(direction='maximize')
+                study_surge_cat.optimize(surge_cat_objective, n_trials=n_trials)
+                best_surge_cat = study_surge_cat.best_params
+                best_surge_cat['random_seed'] = 42
+                best_surge_cat['verbose'] = 0
+                best_surge_cat['thread_count'] = -1
+            except Exception as _cat_e:
+                logger.warning(f"CatBoost surge tuning fallback: {_cat_e}")
 
         self.tuned_params['surge_xgb'] = best_surge_xgb
         self.tuned_params['surge_lgb'] = best_surge_lgb

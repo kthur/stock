@@ -194,7 +194,7 @@ class FactorOrthogonalizerEngine:
         # Continuous Ridge Regularization & Floor to prevent null-space amplification (N < K)
         mean_eig = float(np.mean(eigenvalues)) if len(eigenvalues) > 0 else 1.0
         ridge_floor = max(0.01 * mean_eig, self.ridge_epsilon)
-        lambdas_reg = np.maximum(eigenvalues, 0.0) + ridge_floor
+        lambdas_reg = np.maximum(eigenvalues, ridge_floor)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(lambda^(-1/2)) * V^T
         inv_sqrt_lambda = np.diag(1.0 / np.sqrt(lambdas_reg))

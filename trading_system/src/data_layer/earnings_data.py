@@ -174,6 +174,19 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
         else:
             result[col] = 0.0
 
+    # TTM (Trailing Twelve Months) aggregation: preserves quarterly seasonality while stabilizing valuation inputs
+    if is_quarterly and len(result) >= 1:
+        result['ttm_revenue'] = result['revenue'].rolling(4, min_periods=1).sum()
+        result['ttm_operating_income'] = result['operating_income'].rolling(4, min_periods=1).sum()
+        result['ttm_net_income'] = result['net_income'].rolling(4, min_periods=1).sum()
+        result['ttm_eps'] = result['eps'].rolling(4, min_periods=1).sum()
+    else:
+        # For annual records, annual total is already the full 12-month figure
+        result['ttm_revenue'] = (result['revenue'] / scale_factor) if scale_factor > 0 else result['revenue']
+        result['ttm_operating_income'] = (result['operating_income'] / scale_factor) if scale_factor > 0 else result['operating_income']
+        result['ttm_net_income'] = (result['net_income'] / scale_factor) if scale_factor > 0 else result['net_income']
+        result['ttm_eps'] = (result['eps'] / scale_factor) if scale_factor > 0 else result['eps']
+
     return result
 
 
@@ -316,6 +329,17 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
                         else:
                             df[col] = 0.0
+
+                    if is_quarterly and len(df) >= 1:
+                        df['ttm_revenue'] = df['revenue'].rolling(4, min_periods=1).sum()
+                        df['ttm_operating_income'] = df['operating_income'].rolling(4, min_periods=1).sum()
+                        df['ttm_net_income'] = df['net_income'].rolling(4, min_periods=1).sum()
+                        df['ttm_eps'] = df['eps'].rolling(4, min_periods=1).sum()
+                    else:
+                        df['ttm_revenue'] = (df['revenue'] / scale_factor) if scale_factor > 0 else df['revenue']
+                        df['ttm_operating_income'] = (df['operating_income'] / scale_factor) if scale_factor > 0 else df['operating_income']
+                        df['ttm_net_income'] = (df['net_income'] / scale_factor) if scale_factor > 0 else df['net_income']
+                        df['ttm_eps'] = (df['eps'] / scale_factor) if scale_factor > 0 else df['eps']
 
                     return df
 
