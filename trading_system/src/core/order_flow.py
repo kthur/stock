@@ -151,9 +151,10 @@ class OrderFlowEngine(BaseStrategyEngine):
                         except Exception:
                             pass
 
+                mfi_val = composite_flow + inst_boost
                 records.append({
                     'symbol': sym,
-                    'mfi_ratio': composite_flow + inst_boost
+                    'mfi_ratio': float(np.clip(mfi_val, 0.0, 1.20)) if np.isfinite(mfi_val) else 0.50
                 })
             except Exception as e:
                 logger.debug(f"Order flow score failed for {sym}: {e}")
@@ -171,5 +172,5 @@ class OrderFlowEngine(BaseStrategyEngine):
         # Smart Money Dual Inflow Booster for top 15% high-demand order flow leaders
         smart_money_mask = raw_ranks >= 0.85
         enhanced_score = np.where(smart_money_mask, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks)
-        res_df['order_flow_score'] = pd.Series(enhanced_score, index=res_df.index).clip(0.0, 1.0)
+        res_df['order_flow_score'] = pd.to_numeric(pd.Series(enhanced_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         return res_df[['symbol', 'order_flow_score']]
