@@ -111,7 +111,8 @@ class ARMFactorEngine(BaseStrategyEngine):
                 if col:
                     close = p_df[col].dropna()
                     if len(close) >= 20 and close.iloc[-20] > 0:
-                        price_mom = float((close.iloc[-1] / close.iloc[-20]) - 1.0)
+                        raw_pm = float((close.iloc[-1] / close.iloc[-20]) - 1.0)
+                        price_mom = float(np.clip(raw_pm, -0.99, 5.0)) if np.isfinite(raw_pm) else 0.0
 
             # 가격 확인 필터 (추정치 상향 + 주가 상승 = 강력한 동반 모멘텀, 부드러운 연속형 시너지)
             syn_pos = np.maximum(0.0, np.tanh(10.0 * revision_composite)) * np.maximum(0.0, np.tanh(10.0 * price_mom))
@@ -119,15 +120,17 @@ class ARMFactorEngine(BaseStrategyEngine):
             synergy_bonus = float(0.15 * (syn_pos - syn_neg))
 
             raw_score = 0.5 + (revision_composite * 2.0) + (price_mom * 0.5) + synergy_bonus
-            raw_scores[sym] = float(raw_score)
+            raw_scores[sym] = float(np.clip(raw_score, -5.0, 5.0)) if np.isfinite(raw_score) else 0.5
 
         if not raw_scores:
             return make_score_dataframe({}, 'arm_score')
 
-        vals = np.array(list(raw_scores.values()))
-        lower = np.percentile(vals, 1)
-        upper = np.percentile(vals, 99)
-        if upper == lower:
+        vals = np.array([v for v in raw_scores.values() if np.isfinite(v)])
+        if len(vals) == 0:
+            return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
+        lower = float(np.percentile(vals, 1))
+        upper = float(np.percentile(vals, 99))
+        if upper <= lower:
             return make_score_dataframe({k: 0.5 for k in raw_scores.keys()}, 'arm_score')
 
         res_scores = {}
