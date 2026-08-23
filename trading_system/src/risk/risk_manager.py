@@ -353,10 +353,13 @@ class CrisisDetector:
         scores: List[float] = []
 
         def _calc_z_risk(curr: float, hist: list, neutral_level: float, level_scale: float, two_sided: bool = False) -> float:
-            if not hist:
+            if curr is None or not (isinstance(curr, (int, float)) and np.isfinite(curr)):
+                return 0.0
+            valid_hist = [float(x) for x in hist if x is not None and isinstance(x, (int, float)) and np.isfinite(x)]
+            if not valid_hist:
                 dev = abs(curr - neutral_level) if two_sided else max(0.0, curr - neutral_level)
                 return float(np.clip(dev / max(level_scale, 1e-4), 0.0, 1.0))
-            arr = np.asarray(hist, dtype=float)
+            arr = np.asarray(valid_hist, dtype=float)
             window = min(len(arr), 60)
             sub_arr = arr[-window:]
             mean_val = float(np.mean(sub_arr))

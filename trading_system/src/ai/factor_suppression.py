@@ -261,9 +261,9 @@ class RegimeFactorSuppressionEngine:
 
         if use_entropy_allocation:
             try:
-                # Single-Stage Information-Entropy Redundancy Allocation
                 strats = [s for s in base_weights.keys() if s in corr_matrix.columns]
-                if len(strats) >= 2:
+                missing_strats = [s for s in base_weights.keys() if s not in corr_matrix.columns]
+                if len(strats) >= 2 and not missing_strats:
                     w0_vec = np.array([float(base_weights[s]) for s in strats], dtype=np.float64)
                     w0_sum = float(np.sum(w0_vec))
                     w0_vec = w0_vec / max(w0_sum, 1e-8)
