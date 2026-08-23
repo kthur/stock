@@ -112,8 +112,12 @@ class DarkPoolTrackerEngine:
                                 cur_vol = float(v.iloc[-1])
                                 vol_spike = (cur_vol / avg_vol) if (avg_vol > 0 and np.isfinite(avg_vol) and np.isfinite(cur_vol)) else 1.0
 
-                            # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x)
-                            if abs(ret_10d) < 0.02 and vol_spike > 2.5:
+                            # Enforce minimum traded dollar value (1억원 for KRX, $100k for US)
+                            traded_value = float(v.iloc[-1]) * float(c.iloc[-1])
+                            min_val_thresh = 100_000_000 if str(sym).isdigit() else 100_000
+
+                            # Accumulation Divergence: Flat price (-2% ~ +2%) + Massive Volume Spike (> 2.5x) with liquidity check
+                            if abs(ret_10d) < 0.02 and vol_spike > 2.5 and traded_value >= min_val_thresh:
                                 base_score = float(np.clip(0.50 + 0.15 * vol_spike, 0.50, 0.95))
                                 # Dark Pool Stealth Inflow Booster for high conviction accumulation
                                 score = float(np.clip(base_score * 1.10, 0.50, 0.98))

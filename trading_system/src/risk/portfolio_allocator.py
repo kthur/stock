@@ -613,12 +613,9 @@ class PortfolioAllocator:
 
         def ru_objective(x):
             w = x[:N]
-            alpha = x[N]
-            u = x[N+1:]
-            ret = np.dot(w, mu)
+            ret = float(np.dot(w, mu))
             var_p = float(w.T @ cov_shrunk @ w) if cov_shrunk.shape == (N, N) else float(np.var(np.dot(rets_T, w), ddof=1))
-            cvar_term = alpha + beta_inv * float(np.sum(u))
-            return -ret + 0.5 * self.risk_aversion * var_p + 1.0 * max(0.0, cvar_term - max_cvar)
+            return -ret + 0.5 * self.risk_aversion * var_p
 
         eff_max_w = max(max_weight, 1.05 / N)
         bounds_ru = [(0.0, eff_max_w)] * N + [(-1.0, 1.0)] + [(0.0, None)] * T

@@ -206,9 +206,9 @@ def calculate_black_litterman_weights(
         if not np.all(np.isfinite(mu_bl)) or not np.all(np.isfinite(cov_bl)):
             raise ValueError("Calculated BL expected returns or covariance contain NaN/Inf.")
 
-        # Problem-level regime formulation: Determine globally whether excess return is achievable
-        lambda_aversion = 2.5
-        all_negative_excess = bool(np.max(mu_bl) <= risk_free_rate)
+        # Convert annualized risk-free rate to daily equivalent if in annual scale (> 0.005)
+        rf_daily = (1.0 + risk_free_rate) ** (1.0 / 252.0) - 1.0 if risk_free_rate > 0.005 else risk_free_rate
+        all_negative_excess = bool(np.max(mu_bl) <= rf_daily)
 
         def objective(w):
             w = np.asarray(w)
@@ -221,8 +221,11 @@ def calculate_black_litterman_weights(
                 return - (port_ret - 0.5 * lambda_aversion * port_var)
             else:
                 # Maximize Sharpe ratio with smooth quadratic penalty if below r_f
-                excess = port_ret - risk_free_rate
-                return - excess / port_vol if excess > 0 else (0.5 * lambda_aversion * port_var - excess * 10.0)
+                excess = port_ret - rf_daily
+                if excess > 0:
+                    return - (excess / port_vol)
+                else:
+                    return 0.5 * lambda_aversion * port_var - (excess / port_vol)
 
         w0 = np.full(n, 1.0 / n)
         cons = {"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}
@@ -234,19 +237,23 @@ def calculate_black_litterman_weights(
             # Normalize to sum to exactly 1.0 and clip
             weights = np.clip(weights, 0.0, 1.0)
             sum_w = np.sum(weights)
-            if sum_w > 1e-12:
-                weights /= sum_w
-                return weights
+            if sum_w > 0:
+                weights = weights / sum_w
+                return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors)
 
-        logger.warning(f"Black-Litterman optimization failed: {res.message}. Falling back to Risk Parity.")
     except Exception as e:
-        logger.error(f"Exception during Black-Litterman optimization: {e}. Falling back to Risk Parity.")
+        logger.error(f"Black-Litterman optimization exception: {e}. Falling back to Risk Parity.")
+        return calculate_risk_parity_weights(cov_matrix)
 
     # Fallback to Risk Parity
     return calculate_risk_parity_weights(cov_matrix)
 
 
-def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: Optional[float] = None) -> np.ndarray:
+def shrink_covariance_matrix(
+    cov_matrix: np.ndarray,
+    shrink_factor: Optional[float] = None,
+    n_samples: Optional[int] = None
+) -> np.ndarray:
     """
     Analytical Ledoit-Wolf optimal covariance shrinkage towards diagonal variance target F = mean(diag(S)) * I.
     Stabilizes covariance matrix, mitigates sample noise, and minimizes Frobenius loss in portfolio optimization.
@@ -263,12 +270,13 @@ def shrink_covariance_matrix(cov_matrix: np.ndarray, shrink_factor: Optional[flo
     if shrink_factor is not None:
         delta = float(np.clip(shrink_factor, 0.0, 1.0))
     else:
-        # Analytical Frobenius-norm Ledoit-Wolf Shrinkage Intensity Estimation
+        # Analytical Frobenius-norm Ledoit-Wolf Shrinkage Intensity Estimation scaled by observation count T
         d2 = float(np.sum((cov_matrix - diag_target) ** 2))
         if d2 < 1e-12:
             return cov_matrix
-        asy_var = float(np.sum(np.diag(cov_matrix) ** 2)) / float(max(n, 1))
-        delta = float(np.clip(asy_var / (d2 + asy_var), 0.05, 0.40))
+        t_eff = max(2, int(n_samples)) if n_samples is not None else 60
+        asy_var = (float(np.sum(np.diag(cov_matrix) ** 2)) / float(max(n, 1))) / float(t_eff)
+        delta = float(np.clip(asy_var / (d2 + asy_var), 0.0, 1.0))
 
     shrunk_cov = (1.0 - delta) * cov_matrix + delta * diag_target
 

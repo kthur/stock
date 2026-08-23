@@ -696,7 +696,7 @@ class ExecutionOMSEngine:
                     )
                     if hedge_info.get("hedge_required") and hedge_info.get("hedge_weight", 0.0) > 0:
                         h_sym = hedge_info["hedge_symbol"]
-                        h_weight = hedge_info["hedge_weight"]
+                        h_weight = float(np.clip(hedge_info["hedge_weight"], 0.0, 0.50))
                         h_amount = tot_cap * h_weight
                         h_order_id = f"ORD_HEDGE_{h_sym}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}"
                         hedge_price = self._get_latest_price(h_sym, prices_dict=prices_dict, top_predictions=top_predictions)
@@ -717,7 +717,7 @@ class ExecutionOMSEngine:
                             "market": first_market,
                             "action": "BUY_HEDGE",
                             "target_weight": round(h_weight, 4),
-                            "target_amount": round(h_amount, 2),
+                            "target_amount": round(h_amount_local, 2),
                             "target_price": round(hedge_price, 2),
                             "quantity": h_quantity,
                             "execution_strategy": "DIRECT",
@@ -730,7 +730,7 @@ class ExecutionOMSEngine:
                             INSERT OR REPLACE INTO order_plans
                             (order_id, symbol, name, market, action, target_weight, target_amount, target_price, quantity, execution_strategy, slice_count, status, created_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", first_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "HEDGE_ACTIVE", now_str))
+                        """, (h_order_id, h_sym, "INVERSE_HEDGE_OVERLAY", first_market, "BUY_HEDGE", round(h_weight, 4), round(h_amount_local, 2), h_entry["target_price"], h_entry["quantity"], "DIRECT", 1, "HEDGE_ACTIVE", now_str))
                 except Exception as _hedge_e:
                     logger.warning(f"[OMS HEDGE OVERLAY] Hedge order plan generation skipped: {_hedge_e}")
 

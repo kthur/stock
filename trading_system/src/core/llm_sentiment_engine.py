@@ -66,7 +66,7 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
     """
 
     POSITIVE_WORDS_KO = {"흑자전환", "최고실적", "수주계약", "자사주소각", "영업이익증가", "기술이전", "특허취득", "매출상향", "실적개선", "무상증자", "자기주식소각"}
-    NEGATIVE_WORDS_KO = {"적자전환", "감감계약", "횡령", "배임", "소송", "회계감사거절", "영업이익감소", "유상증자", "부도", "실적 감소", "실적감소", "감자"}
+    NEGATIVE_WORDS_KO = {"적자전환", "공급계약해지", "계약해지", "감액계약", "횡령", "배임", "소송", "회계감사거절", "영업이익감소", "유상증자", "부도", "실적 감소", "실적감소", "감자", "감사의견거절", "관리종목"}
     NEGATION_WORDS_KO = {"철회", "취소", "실패", "불투명", "무산", "지연", "불발", "의혹", "하향", "미달", "부정적", "소송", "제동", "차질", "난항"}
 
     POSITIVE_WORDS_EN = {"record revenue", "earnings surprise", "share buyback", "upgraded guidance", "patent granted", "contract win", "revenue growth", "profit margin"}

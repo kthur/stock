@@ -1041,6 +1041,10 @@ class RiskManager:
             self.logger.warning("Invalid stop loss price")
             return 0
 
+        # Always enforce risk dollar budget per trade constraint
+        scaled_max_loss_pct = self.max_loss_per_trade_pct * self.crisis_detector.get_crisis_risk_multiplier()
+        max_risk_allowed_value = (self.portfolio_value * scaled_max_loss_pct) * (entry_price / max(risk_per_share, 1e-4))
+
         # Kelly 공식 적용 (정보가 있는 경우)
         if win_rate > 0 and win_loss_ratio > 0:
             kelly_pct = self.calculate_kelly_fraction(win_rate, win_loss_ratio)
@@ -1050,11 +1054,9 @@ class RiskManager:
                     vol_scaler = self.target_annual_volatility / asset_vol_annual
                     vol_scaler = max(0.25, min(1.5, vol_scaler))
                     kelly_pct *= vol_scaler
-            max_value = self.portfolio_value * kelly_pct
+            max_value = min(self.portfolio_value * kelly_pct, max_risk_allowed_value)
         else:
-            scaled_max_loss_pct = self.max_loss_per_trade_pct * self.crisis_detector.get_crisis_risk_multiplier()
-            max_loss = self.portfolio_value * scaled_max_loss_pct
-            max_value = max_loss * (entry_price / risk_per_share)
+            max_value = max_risk_allowed_value
 
         vol_scalar = self._volatility_scalar(vix)
         max_value *= vol_scalar
