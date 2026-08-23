@@ -126,11 +126,13 @@ class LATRFactorEngine(BaseStrategyEngine):
                 dd_score = float(np.clip(dd_pct / max(0.01, self.target_drawdown), 0.0, 1.25))
 
                 # Panic volume surge bounce bonus (Volume surge >= 2.5 on panic drawdown)
-                panic_bounce_bonus = 0.12 if (vol_surge >= 2.5 and dd_score >= 0.80) else 0.0
+                vol_surge_val = float(np.clip(vol_surge, 0.0, 5.0)) if np.isfinite(vol_surge) else 1.0
+                amihud_val = float(np.clip(amihud_illiq, 0.0, 5.0)) if np.isfinite(amihud_illiq) else 0.0
+                panic_bounce_bonus = 0.12 if (vol_surge_val >= 2.5 and dd_score >= 0.80) else 0.0
 
                 # LATR raw score: Optimal panic drawdown score + volume surge - tail risk penalty - illiquidity penalty
-                latr_score = (dd_score * 0.40) + (min(vol_surge, 3.0) * 0.35) - (tail_penalty * 0.15) - (min(amihud_illiq, 2.0) * 0.10) + panic_bounce_bonus
-                scores[sym] = float(latr_score)
+                raw_latr = (dd_score * 0.40) + (min(vol_surge_val, 3.0) * 0.35) - (tail_penalty * 0.15) - (min(amihud_val, 2.0) * 0.10) + panic_bounce_bonus
+                scores[sym] = float(np.clip(raw_latr, -5.0, 5.0)) if np.isfinite(raw_latr) else 0.5
             except Exception as e:
                 logger.warning(f"[LATR FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
@@ -138,11 +140,13 @@ class LATRFactorEngine(BaseStrategyEngine):
         if not scores:
             return make_score_dataframe({}, 'latr_score')
 
-        vals = np.array(list(scores.values()))
-        p1, p99 = np.percentile(vals, 1), np.percentile(vals, 99)
-        if p99 == p1:
+        vals = np.array([v for v in scores.values() if np.isfinite(v)])
+        if len(vals) == 0:
+            return make_score_dataframe({k: 0.5 for k in scores.keys()}, 'latr_score')
+        p1, p99 = float(np.percentile(vals, 1)), float(np.percentile(vals, 99))
+        if p99 <= p1:
             return make_score_dataframe({k: 0.5 for k in scores.keys()}, 'latr_score')
         range_v = p99 - p1
 
-        norm_scores = {k: float(np.clip((v - p1) / range_v, 0.0, 1.0)) for k, v in scores.items()}
+        norm_scores = {k: float(np.clip((v - p1) / range_v, 0.0, 1.0)) if np.isfinite(v) else 0.5 for k, v in scores.items()}
         return make_score_dataframe(norm_scores, 'latr_score')
