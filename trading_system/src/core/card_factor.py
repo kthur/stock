@@ -144,11 +144,12 @@ class CARDFactorEngine(BaseStrategyEngine):
                 if len(close) >= 20:
                     ret_series = close.pct_change().dropna()
                     stock_vol = float(ret_series.std()) if len(ret_series) > 5 else 0.02
+                    stock_vol = stock_vol if (np.isfinite(stock_vol) and stock_vol > 0) else 0.02
                     # Scale beta proportionally to realized volatility relative to baseline 2% daily vol
-                    vol_scale = np.clip(stock_vol / 0.020, 0.5, 2.0)
-                    beta = float(0.4 * base_beta + 0.6 * (base_beta * vol_scale))
+                    vol_scale = float(np.clip(stock_vol / 0.020, 0.5, 2.0))
+                    beta = float(np.clip(0.4 * base_beta + 0.6 * (base_beta * vol_scale), 0.1, 3.0))
                 else:
-                    beta = float(base_beta)
+                    beta = float(np.clip(base_beta, 0.1, 3.0))
 
                 sec_str = str(sec).lower()
                 # R10-2 Fix: Sector-aware macro weighting to reflect real economic sensitivity
@@ -162,7 +163,8 @@ class CARDFactorEngine(BaseStrategyEngine):
                     w_fx, w_wti, w_vix = 0.35, 0.35, 0.30
 
                 macro_impact = ((usdkrw_chg * w_fx) + (wti_chg * w_wti) - (vix_pct_shock * w_vix)) * beta
-                divergence = stock_ret - macro_impact
+                raw_div = stock_ret - macro_impact
+                divergence = float(np.clip(raw_div, -200.0, 200.0)) if np.isfinite(raw_div) else 0.0
 
                 card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.1, -50.0, 50.0)))
                 if np.isnan(card_score) or np.isinf(card_score):
