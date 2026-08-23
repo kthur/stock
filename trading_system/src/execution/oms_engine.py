@@ -602,11 +602,11 @@ class ExecutionOMSEngine:
                                 target_amount = effective_target_amount * max(fx_rate, 1.0)
 
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
-                # R4-4 Fix: Modern KRX standard is 1-share lot size (abolished 10-share unit)
-                if is_krx:
+                # Market-specific standard lot size constraints (TSE/HOSE/HKEX: 100 shares, KRX/US: 1 share)
+                if is_krx or curr_iso in ("USD", "KRW"):
                     quantity = raw_quantity
-                elif curr_iso in ('JPY', 'VND'):
-                    quantity = int(raw_quantity)
+                elif str(market).upper() in ("JAPAN_TSE", "VIETNAM_HOSE", "HKEX") or curr_iso in ("JPY", "VND", "HKD"):
+                    quantity = (raw_quantity // 100) * 100
                 else:
                     quantity = raw_quantity
                 if quantity <= 0 and status != "HEDGE_FLAG":
