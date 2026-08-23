@@ -2190,6 +2190,16 @@ class EnsembleScoringEngine:
                 valid_weight_series += w_series * valid_mask.astype(float)
                 valid_count_series += valid_mask.astype(float)
 
+        # Fallback if valid strategies exist but sum of their nominal regime weights is 0.0
+        zero_weight_mask = (valid_count_series > 0) & (valid_weight_series <= 0.0)
+        if zero_weight_mask.any():
+            for strat_name, score_col in strategy_cols:
+                if score_col in merged.columns:
+                    vm = merged[score_col].notna() & np.isfinite(merged[score_col]) & zero_weight_mask
+                    if vm.any():
+                        total_score_series[vm] += merged.loc[vm, score_col]
+                        valid_weight_series[vm] += 1.0
+
         # Dynamic re-normalization over active strategies (Active weights sum to 100%)
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)

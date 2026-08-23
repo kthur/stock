@@ -516,8 +516,8 @@ class ExecutionOMSEngine:
                         exp_ret_frac = (raw_exp_ret / 100.0) if has_large_vals else (raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret)
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
-                        if exp_ret_frac < hurdle:
-                            logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} < hurdle ({hurdle:.4%}), skipping.")
+                        if exp_ret_frac <= hurdle:
+                            logger.info(f"[OMS GATE 7] {sym} net alpha {exp_ret_frac:.4%} <= hurdle ({hurdle:.4%}), skipping.")
                             continue
                     except Exception as _fe:
                         logger.debug(f"[OMS GATE 7] Hurdle check exception for {sym}: {_fe}")
