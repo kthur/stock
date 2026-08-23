@@ -101,7 +101,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 sym_clean = sym_raw.zfill(6) if sym_raw.isdigit() else sym_raw
                 t_data = transcript_map.get(sym, transcript_map.get(str(sym), transcript_map.get(sym_clean, transcript_map.get(sym_raw))))
 
-                if t_data:
+                if t_data and isinstance(t_data, dict):
                     raw_prev = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
                     raw_cur = _safe_float(t_data.get('current_quarter_tone'), 0.50)
                     # Consistent linear mapping from [-1, 1] or [0, 1] scale to unit interval [0, 1]

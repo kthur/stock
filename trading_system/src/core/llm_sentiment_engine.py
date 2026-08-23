@@ -86,10 +86,11 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                 logger.debug(f"Transformers pipeline initialization skipped: {e}. Using robust lexicon.")
 
     def _score_offline_lexicon(self, text: str, symbol: str = "", market: str = "KOSPI", **kwargs) -> Any:
-        if not text:
+        if not text or not isinstance(text, str) or not text.strip():
             score = 0.5
         else:
-            text_lower = text.lower()
+            text_str = str(text)
+            text_lower = text_str.lower()
             pos_count = 0.0
             neg_count = 0.0
 
