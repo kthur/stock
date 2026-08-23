@@ -543,6 +543,8 @@ class OptunaStrategyTuner:
                     low = df[low_col].iloc[:, 0] if isinstance(df[low_col], pd.DataFrame) else df[low_col]
                     close = df[close_col].iloc[:, 0] if isinstance(df[close_col], pd.DataFrame) else df[close_col]
                     volume = df[vol_col].iloc[:, 0] if vol_col and isinstance(df[vol_col], pd.DataFrame) else (df[vol_col] if vol_col else pd.Series(1.0, index=df.index))
+                    open_col = 'Open' if 'Open' in df.columns else ('open' if 'open' in df.columns else None)
+                    open_p = (df[open_col].iloc[:, 0] if isinstance(df[open_col], pd.DataFrame) else df[open_col]) if open_col else close
                     r_pct = (high - low) / (close + 1e-8) * 100
 
                     for offset in eval_offsets:
@@ -569,9 +571,10 @@ class OptunaStrategyTuner:
                             sc += 15.0
 
                         if decreasing and near_pivot and sc >= min_vcp_sc:
-                            # Forward 5-day return from this window
+                            # Forward 5-day return from this window (entry at Open[t+1] for post-market execution)
+                            entry_p = float(open_p.iloc[-(offset - 1)]) if (offset - 1) > 0 and float(open_p.iloc[-(offset - 1)]) > 0 else curr_p
                             fwd_p = float(close.iloc[-(offset - 5)]) if (offset - 5) > 0 else float(close.iloc[-1])
-                            fwd_ret = (fwd_p - curr_p) / (curr_p + 1e-8) if curr_p > 0 else 0.0
+                            fwd_ret = (fwd_p - entry_p) / (entry_p + 1e-8) if entry_p > 0 else 0.0
                             forward_returns.append(fwd_ret)
 
             if not forward_returns:

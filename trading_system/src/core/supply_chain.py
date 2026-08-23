@@ -382,12 +382,12 @@ class SupplyChainEngine(BaseStrategyEngine):
             if s in sym_to_idx:
                 H[sym_to_idx[s]] = float(r) if pd.notna(r) else 0.0
 
-        # Multi-hop diffusion
+        # Multi-hop diffusion with true geometric decay: gamma^hop * A^hop * H
         diffused_H = H.copy()
         current_H = H.copy()
         for hop in range(1, max_hops + 1):
-            current_H = (damping_factor ** hop) * (A_norm @ current_H)
-            diffused_H += current_H
+            current_H = A_norm @ current_H
+            diffused_H += (damping_factor ** hop) * current_H
 
         diffused_series = pd.Series(
             [float(diffused_H[sym_to_idx[s]]) for s in returns_series.index],

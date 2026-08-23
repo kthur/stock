@@ -1275,19 +1275,10 @@ class OnDevicePredictionModel:
         close = df['Close'].astype(float)
         volume = df['Volume'].astype(float)
 
-        volume.rolling(20, min_periods=1).mean()
-        volume.rolling(60, min_periods=1).mean()
-        close.rolling(50, min_periods=1).mean()
-        close.rolling(200, min_periods=1).mean()
-        high.rolling(10, min_periods=1).max()
-        low.rolling(10, min_periods=1).min()
-        high.rolling(20, min_periods=1).max()
-        low.rolling(20, min_periods=1).min()
         tr1 = high - low
         tr2 = (high - close.shift(1)).abs()
         tr3 = (low - close.shift(1)).abs()
         tr_val = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        (high - low).rolling(5, min_periods=1).max() # fallback local definition for legacy below if needed
 
         # Lagged returns
         df['ret_1d_lag1'] = df['ret_1d'].shift(1).fillna(0.0)
@@ -1301,7 +1292,8 @@ class OnDevicePredictionModel:
         tr_sum = tr_val.rolling(14, min_periods=1).sum().replace(0, 1e-10)
         plus_di = 100 * (pd.Series(plus_dm, index=df.index).rolling(14, min_periods=1).sum() / tr_sum)
         minus_di = 100 * (pd.Series(down_dm, index=df.index).rolling(14, min_periods=1).sum() / tr_sum)
-        dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, 1e-10))
+        # R4-7 Fix: Add safe denominator padding to dx to prevent division by zero / precision blowups
+        dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di + 1e-9)).replace([np.inf, -np.inf], 0.0).fillna(0.0)
         df['adx_14'] = dx.rolling(14, min_periods=1).mean().fillna(0.0)
 
         # Ichimoku Cloud

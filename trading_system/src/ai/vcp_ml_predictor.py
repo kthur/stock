@@ -217,8 +217,8 @@ class VCPSurgePredictor:
         """Generate multiple training windows per symbol by sliding backwards."""
         if df is None or len(df) < 200:
             return pd.DataFrame()
-        rows = []
         close = _safe_series(df['Close']).astype(float)
+        open_p = _safe_series(df['Open']).astype(float) if 'Open' in df.columns else close
         for end in range(len(df), 200, -step):
             window = df.iloc[:end]
             vcp = self._compute_vcp_features(window)
@@ -227,9 +227,10 @@ class VCPSurgePredictor:
             row = vcp.iloc[0].to_dict()
             row['date_idx'] = end
             row['date'] = window.index[-1]
+            entry_p = float(open_p.iloc[end]) if end < len(df) and float(open_p.iloc[end]) > 0 else float(close.iloc[end - 1])
             for h in SURGE_HORIZONS:
                 if end - 1 + h < len(df):
-                    target = (close.iloc[end - 1 + h] / close.iloc[end - 1] - 1)
+                    target = (close.iloc[end - 1 + h] / max(1e-6, entry_p) - 1.0)
                     if abs(target) < 10.0:
                         row[f'surge_{h}d'] = int(target >= SURGE_THRESHOLD)
                     else:

@@ -569,12 +569,23 @@ class ExecutionOMSEngine:
                     if effective_target_amount > max_adv_amount:
                         logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
                         effective_target_amount = max_adv_amount
+                        # R4-3 Fix: Update target_amount (base KRW) to reflect the ADV capacity cap
+                        if curr_iso == "KRW":
+                            target_amount = effective_target_amount
+                        elif curr_iso == "USD":
+                            target_amount = effective_target_amount * max(fx_rate, 1.0)
+                        else:
+                            try:
+                                target_amount = effective_target_amount * max(1e-6, rate_to_krw)
+                            except Exception:
+                                target_amount = effective_target_amount * max(fx_rate, 1.0)
                 else:
                     adv_val = 1_000_000_000.0
 
                 raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
+                # R4-4 Fix: Modern KRX standard is 1-share lot size (abolished 10-share unit)
                 if is_krx:
-                    quantity = (raw_quantity // 10) * 10 if raw_quantity >= 10 else raw_quantity
+                    quantity = raw_quantity
                 elif curr_iso in ('JPY', 'VND'):
                     quantity = int(raw_quantity)
                 else:

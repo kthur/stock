@@ -959,8 +959,8 @@ class RiskManager:
         if half_kelly:
             kelly_pct /= 2.0
 
-        # 최대 포지션 한도를 초과하지 않도록 제한
-        return min(kelly_pct, self.max_position_size_pct)
+        # 최대 포지션 한도를 초과하지 않도록 제한 [0.0, max_position_size_pct]
+        return max(0.0, min(kelly_pct, self.max_position_size_pct))
 
     def get_vix_position_cap(self, vix: float) -> float:
         """VIX 수준에 따른 포지션 크기 상한 (Risk-Off 스위치).
