@@ -681,7 +681,10 @@ class VCPSurgePredictor:
                             else:
                                 fallback_prob = 0.20
                             res_df.loc[idx, col_name] = fallback_prob
-                            logger.info(f"VCP ML fallback heuristic applied for market={mkt}, horizon={h}.")
+        for h in SURGE_HORIZONS:
+            col_name = f'vcp_{h}d'
+            if col_name in res_df.columns:
+                res_df[col_name] = pd.to_numeric(res_df[col_name], errors='coerce').fillna(0.20).clip(0.0, 1.0)
 
         return res_df
 
