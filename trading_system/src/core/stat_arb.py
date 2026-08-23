@@ -204,6 +204,8 @@ class KalmanPairTracker:
         # 4. State Update
         self.theta = self.theta + K * e
         self.P = self.P - np.outer(K, H).dot(self.P)
+        self.P = 0.5 * (self.P + self.P.T)
+        np.fill_diagonal(self.P, np.maximum(np.diag(self.P), 1e-12))
 
         innov_z = float(abs(e) / np.sqrt(max(F, 1e-12)))
         is_break = bool(innov_z > self.break_threshold)
