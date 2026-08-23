@@ -152,10 +152,10 @@ class EventDrivenEngine(BaseStrategyEngine):
                 if clean_as_of and rcept_dt and rcept_dt > clean_as_of:
                     continue
 
-                stock_code = str(item.get('stock_code', '')).strip().zfill(6) if item.get('stock_code') else ''
-                corp_code = str(item.get('corp_code', '')).strip()
-                report_nm = item.get('report_nm', '')
-                pblntf_ty = item.get('pblntf_ty', '')
+                stock_code = str(item.get('stock_code', '') or '').strip().zfill(6) if item.get('stock_code') else ''
+                corp_code = str(item.get('corp_code', '') or '').strip()
+                report_nm = str(item.get('report_nm', '') or '')
+                pblntf_ty = str(item.get('pblntf_ty', '') or '')
 
                 # Match stock_code or corp_code with symbol list
                 for sym in symbols:
