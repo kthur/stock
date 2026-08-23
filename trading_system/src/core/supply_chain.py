@@ -279,14 +279,14 @@ class SupplyChainEngine(BaseStrategyEngine):
                             if col_candidate in indicators_df.columns:
                                 val = indicators_df[col_candidate].iloc[-1]
                                 if pd.notna(val):
-                                    us_proxy_1d = float(val) / 100.0 if abs(val) > 0.5 else float(val)
+                                    us_proxy_1d = float(val) / 100.0 if abs(val) > 0.05 else float(val)
                                     break
                     elif isinstance(indicators_df, dict):
                         for col_candidate in ['nasdaq_change', 'sp500_change', 'nasdaq', 'sp500']:
                             if col_candidate in indicators_df:
                                 val = indicators_df[col_candidate]
                                 if pd.notna(val):
-                                    us_proxy_1d = float(val) / 100.0 if abs(val) > 0.5 else float(val)
+                                    us_proxy_1d = float(val) / 100.0 if abs(val) > 0.05 else float(val)
                                     break
 
                 cust_rets = []

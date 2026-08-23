@@ -180,11 +180,13 @@ class EventDrivenEngine(BaseStrategyEngine):
                                 weight = 0.60  # Neutral / Informational
                         elif '무상증자' in report_nm or '주식분할' in report_nm:
                             weight = 0.92  # Bullish
-                        elif '영업이익' in report_nm or '실적' in report_nm:
-                            if '적자' in report_nm or '감소' in report_nm:
-                                weight = 0.30
+                        elif any(k in report_nm for k in ['영업이익', '실적', '손익구조', '잠정실적', '매출액또는손익']):
+                            if any(k in report_nm for k in ['흑자전환', '흑전', '적자축소', '영업익증가', '이익증가']):
+                                weight = 0.88
+                            elif any(k in report_nm for k in ['적자전환', '적전', '적자지속', '손실확대', '영업익감소', '감소']):
+                                weight = 0.22
                             else:
-                                weight = 0.78
+                                weight = 0.70
 
                         current_delta = scores_map[sym] - 0.50
                         filing_delta = weight - 0.50

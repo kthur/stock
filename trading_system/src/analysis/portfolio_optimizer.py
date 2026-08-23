@@ -135,6 +135,8 @@ def calculate_black_litterman_weights(
     omega_scale: float = 0.1,
     risk_free_rate: float = 0.02,
     meta_convictions: np.ndarray | None = None,
+    symbols: Optional[list] = None,
+    sectors: Optional[list] = None,
 ) -> np.ndarray:
     """
     Computes optimal portfolio weights using the Black-Litterman model.
@@ -209,6 +211,7 @@ def calculate_black_litterman_weights(
         # Convert annualized risk-free rate to daily equivalent if in annual scale (> 0.005)
         rf_daily = (1.0 + risk_free_rate) ** (1.0 / 252.0) - 1.0 if risk_free_rate > 0.005 else risk_free_rate
         all_negative_excess = bool(np.max(mu_bl) <= rf_daily)
+        lambda_aversion = max(0.1, float(risk_aversion))
 
         def objective(w):
             w = np.asarray(w)
@@ -290,6 +293,9 @@ def shrink_covariance_matrix(
         if max_eig / float(np.min(eigvals)) > max_cond:
             eigvals = np.maximum(eigvals, max_eig / max_cond)
         shrunk_cov = (eigvecs * eigvals) @ eigvecs.T
+        shrunk_cov = 0.5 * (shrunk_cov + shrunk_cov.T)
+    except Exception:
+        pass
     except Exception:
         np.fill_diagonal(shrunk_cov, np.diag(shrunk_cov) + 1e-4)
 

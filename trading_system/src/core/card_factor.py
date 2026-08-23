@@ -161,7 +161,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                 else:
                     w_fx, w_wti, w_vix = 0.35, 0.35, 0.30
 
-                macro_impact = ((usdkrw_chg * w_fx) + (wti_chg * w_wti) + (vix_pct_shock * w_vix)) * beta
+                macro_impact = ((usdkrw_chg * w_fx) + (wti_chg * w_wti) - (vix_pct_shock * w_vix)) * beta
                 divergence = stock_ret - macro_impact
 
                 card_score = 1.0 / (1.0 + np.exp(np.clip(divergence * 0.1, -50.0, 50.0)))

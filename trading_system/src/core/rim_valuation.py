@@ -340,7 +340,8 @@ class RIMValuationEngine(BaseStrategyEngine):
             current_roe = r_e + (current_roe - r_e) * (1.0 - eff_decay)
         # Standard RIM intrinsic value V0 = BPS0 + Sum(PV of Excess Income).
         # Terminal value beyond horizon N assumes ROE = r_e (excess income = 0).
-        return bps + pv_excess
+        # Intrinsic equity value cannot be negative due to corporate limited liability.
+        return max(0.0, float(bps + pv_excess))
 
     def compute_rim_scores(
         self,

@@ -181,12 +181,15 @@ class MarketIndicatorStorage:
     }
     _INDICATOR_DEFAULT_BOUNDS = (0.0001, 1e7)
 
+    _SHARED_WRITE_LOCK = threading.Lock()
+
     def __init__(self, db_path: str = str(_DEFAULT_INDICATORS_DB)):
         self.db_path = db_path
         # S6 fix: thread-safe write lock to prevent "database is locked" under ThreadPoolExecutor
-        self._write_lock = threading.Lock()
+        self._write_lock = MarketIndicatorStorage._SHARED_WRITE_LOCK
         self._local = threading.local()
-        self._init_db()
+        with self._write_lock:
+            self._init_db()
         # Modular sub-stores for clean SRP delegation
         self.macro_store = MacroIndicatorStore(self)
         self.universe_mgr = StockUniverseManager(self)

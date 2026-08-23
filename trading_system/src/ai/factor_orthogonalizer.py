@@ -88,6 +88,13 @@ class FactorOrthogonalizerEngine:
 
         if str(eff_method).startswith('gram_schmidt'):
             X_ortho = self._gram_schmidt(X_clean, valid_cols, weights, col_means, col_stds)
+        elif str(eff_method).startswith('esrw') or 'spectral' in str(eff_method).lower():
+            N = X_clean.shape[0]
+            X_bar = (X_clean - col_means) / col_stds
+            C = np.dot(X_bar.T, X_bar) / max(N - 1, 1)
+            C_shrunk = self._compute_ledoit_wolf_covariance(X_bar, C)
+            X_decorr = self._esrw_whitening(X_bar, C_shrunk)
+            X_ortho = col_means + X_decorr * col_stds
         else:
             X_ortho = self._pca_zca_symmetric(X_clean, col_means, col_stds)
 

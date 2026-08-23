@@ -1185,8 +1185,8 @@ class OnDevicePredictionModel:
         df['ret_60d'] = df['Close'].pct_change(60, fill_method=None).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         # Moving averages
-        df['sma_20'] = df['Close'].rolling(20).mean()
-        df['sma_60'] = df['Close'].rolling(60).mean()
+        df['sma_20'] = df['Close'].rolling(20, min_periods=1).mean()
+        df['sma_60'] = df['Close'].rolling(60, min_periods=1).mean()
         df['dist_sma_20'] = (df['Close'] / df['sma_20'] - 1).replace([np.inf, -np.inf], 0.0).fillna(0.0)
 
         # Volatility
@@ -1339,8 +1339,8 @@ class OnDevicePredictionModel:
             df['fx_beta_60d'] = 0.0
 
         # Fill NaNs in return and volatility columns with 0.0 before dropna
-        new_tech_cols = ['ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'rsi_14', 'rsi_5',
-                    'macd', 'macd_signal', 'macd_hist_norm', 'bb_upper_dist', 'bb_lower_dist',
+        new_tech_cols = ['ret_1d', 'ret_5d', 'ret_20d', 'ret_60d', 'vol_20d', 'sma_20', 'sma_60', 'dist_sma_20',
+                    'rsi_14', 'rsi_5', 'macd', 'macd_signal', 'macd_hist_norm', 'bb_upper_dist', 'bb_lower_dist',
                     'bb_width', 'atr_14', 'roc_10', 'roc_20', 'higher_high', 'higher_low', 'distance_from_52w_high',
                     'ema_crossover', 'stoch_k', 'stoch_d', 'volume_ratio',
                     'range_5v20', 'range_10v20', 'range_20v40', 'range_40v60', 'vol_20v60',
