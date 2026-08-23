@@ -151,6 +151,8 @@ class IVSkewEngine(BaseStrategyEngine):
                                 # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
                                 turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
                                 score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
+                            elif len(ret_window) >= 1:
+                                score = 0.50
                             else:
                                 score = np.nan
                     except Exception:
