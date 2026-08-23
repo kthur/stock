@@ -196,6 +196,16 @@ class MarketIndicatorStorage:
     def _connect(self):
         """Thread-local SQLite connection context with WAL mode and connection recycling."""
         conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.execute("SELECT 1")
+            except Exception:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                conn = None
+
         if conn is None:
             conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")

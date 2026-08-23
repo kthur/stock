@@ -272,13 +272,15 @@ class SectorRotationEngine(BaseStrategyEngine):
             else:
                 res_df['stock_rank'] = res_df['mom_raw'].rank(pct=True).clip(0.02, 0.98)
 
-            if 'sector' in res_df.columns and res_df['sector'].nunique() > 1:
-                # Sector mean momentum computed once per unique sector (no stock count skew)
-                sec_mom = res_df.groupby('sector')['mom_raw'].mean()
+            valid_sec_df = res_df[res_df['sector'] != 'General'] if 'sector' in res_df.columns else pd.DataFrame()
+            if not valid_sec_df.empty and valid_sec_df['sector'].nunique() > 1:
+                # Sector mean momentum computed once per unique real sector (excludes 'General' composite skew)
+                sec_mom = valid_sec_df.groupby('sector')['mom_raw'].mean()
                 if sec_mom.std() < 1e-6:
                     sec_rank_map = {s: 0.50 for s in sec_mom.index}
                 else:
                     sec_rank_map = sec_mom.rank(pct=True).clip(0.02, 0.98).to_dict()
+                sec_rank_map['General'] = 0.50
                 res_df['sector_rank'] = res_df['sector'].map(sec_rank_map).fillna(0.5)
 
                 # Intra-Sector Dispersion weighting: High dispersion -> favor individual stock rank

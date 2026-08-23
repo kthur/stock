@@ -334,10 +334,10 @@ class ExecutionOMSEngine:
                 total_capital = 100000000.0
 
         try:
-            tot_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
+            base_portfolio_cap = float(total_capital) if (total_capital is not None and math.isfinite(float(total_capital))) else 100000000.0
         except (ValueError, TypeError):
-            tot_cap = 100000000.0
-        tot_cap = max(0.0, tot_cap) * max(0.15, min(1.0, float(crisis_mult)))
+            base_portfolio_cap = 100000000.0
+        tot_cap = max(0.0, base_portfolio_cap) * max(0.15, min(1.0, float(crisis_mult)))
 
         try:
             fx_rate = float(usdkrw_rate) if (usdkrw_rate is not None and math.isfinite(float(usdkrw_rate)) and float(usdkrw_rate) > 0) else 1350.0
@@ -423,7 +423,7 @@ class ExecutionOMSEngine:
 
                 curr_holding_w = float(current_holdings.get(sym, 0.0)) if current_holdings is not None else 0.0
                 if (raw_action == "SELL" or is_severe) and weight == 0.0 and curr_holding_w > 0.0:
-                    target_amount = tot_cap * curr_holding_w
+                    target_amount = base_portfolio_cap * curr_holding_w
                 else:
                     target_amount = tot_cap * weight
 

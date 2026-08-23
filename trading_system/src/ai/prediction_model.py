@@ -1206,12 +1206,12 @@ class OnDevicePredictionModel:
         avg_loss5 = loss.ewm(alpha=1/5, adjust=False).mean()
         df['rsi_5'] = np.where((avg_gain5 == 0) & (avg_loss5 == 0), 50.0, 100.0 - (100.0 / (1.0 + avg_gain5 / (avg_loss5 + 1e-9))))
 
-        # 2. MACD (12, 26, 9)
+        # 2. MACD (12, 26, 9) (R13-1: Scale-invariant percentage ratio against Close)
         ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
         ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
-        df['macd'] = ema_12 - ema_26
+        df['macd'] = (ema_12 - ema_26) / (df['Close'] + 1e-9)
         df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
-        df['macd_hist_norm'] = (df['macd'] - df['macd_signal']) / (df['Close'] + 1e-9)
+        df['macd_hist_norm'] = (df['macd'] - df['macd_signal'])
 
         # 3. Bollinger Bands (20, 2)
         sma_20 = df['Close'].rolling(20, min_periods=1).mean()
@@ -1298,11 +1298,11 @@ class OnDevicePredictionModel:
         dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di + 1e-9)).replace([np.inf, -np.inf], 0.0).fillna(0.0)
         df['adx_14'] = dx.rolling(14, min_periods=1).mean().fillna(0.0)
 
-        # Ichimoku Cloud (R7-2 Fix: Normalized by close price for cross-sectional scale invariance)
+        # Ichimoku Cloud (R7-2 Fix: Normalized by close price for cross-sectional scale invariance, R13-2: Bounded clip)
         tenkan_raw = ((high.rolling(9, min_periods=1).max() + low.rolling(9, min_periods=1).min()) / 2).fillna(close)
         kijun_raw = ((high.rolling(26, min_periods=1).max() + low.rolling(26, min_periods=1).min()) / 2).fillna(close)
-        df['tenkan_sen'] = ((tenkan_raw - close) / (close + 1e-9)).fillna(0.0)
-        df['kijun_sen'] = ((kijun_raw - close) / (close + 1e-9)).fillna(0.0)
+        df['tenkan_sen'] = ((tenkan_raw - close) / (close + 1e-9)).clip(-1.0, 2.0).fillna(0.0)
+        df['kijun_sen'] = ((kijun_raw - close) / (close + 1e-9)).clip(-1.0, 2.0).fillna(0.0)
 
         # Stochastic RSI
         rsi = df['rsi_14']
@@ -2471,6 +2471,13 @@ class OnDevicePredictionModel:
                             feat_names = None
                             if hasattr(m, "feature_names_in_") and m.feature_names_in_ is not None:
                                 feat_names = list(m.feature_names_in_)
+                            elif hasattr(m, "feature_names_") and m.feature_names_ is not None:
+                                feat_names = list(m.feature_names_)
+                            elif hasattr(m, "booster_") and hasattr(m.booster_, "feature_name"):
+                                try:
+                                    feat_names = list(m.booster_.feature_name())
+                                except Exception:
+                                    feat_names = None
                             elif hasattr(m, "get_booster"):
                                 try:
                                     feat_names = m.get_booster().feature_names
@@ -2740,6 +2747,13 @@ class OnDevicePredictionModel:
                             feat_names = None
                             if hasattr(m, "feature_names_in_") and m.feature_names_in_ is not None:
                                 feat_names = list(m.feature_names_in_)
+                            elif hasattr(m, "feature_names_") and m.feature_names_ is not None:
+                                feat_names = list(m.feature_names_)
+                            elif hasattr(m, "booster_") and hasattr(m.booster_, "feature_name"):
+                                try:
+                                    feat_names = list(m.booster_.feature_name())
+                                except Exception:
+                                    feat_names = None
                             elif hasattr(m, "get_booster"):
                                 try:
                                     feat_names = m.get_booster().feature_names

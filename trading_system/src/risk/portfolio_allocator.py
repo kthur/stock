@@ -506,7 +506,7 @@ class PortfolioAllocator:
                 if beta > 1e-8 and xi < 0.95 and np.isfinite(xi) and np.isfinite(beta):
                     xi_clamped = float(np.clip(xi, -0.50, 0.50))
                     # Adjust tail probability for dependent clustered exceedances
-                    tail_ratio = (N / n_u) * ((1.0 - confidence) / max(0.25, theta_val))
+                    tail_ratio = min(0.999, (N / n_u) * ((1.0 - confidence) / max(0.25, theta_val)))
                     if abs(xi_clamped) < 1e-4:
                         var_evt = u - beta * np.log(tail_ratio)
                         cvar_evt = var_evt + beta
@@ -1184,6 +1184,9 @@ class PortfolioAllocator:
         if tot_asset_w > 1.0:
             scale = 1.0 / tot_asset_w
             new_weights = {s: w * scale for s, w in new_weights.items()}
+            for sym, tr in trades.items():
+                tr["w_new"] = new_weights.get(sym, tr.get("w_new", 0.0))
+                tr["trade_weight"] = tr["w_new"] - tr.get("w_current", 0.0)
 
         return {
             "new_weights": new_weights,

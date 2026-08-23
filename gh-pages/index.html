@@ -482,7 +482,7 @@
     <span class="badge" style="color: #d29922; border-color: #d29922; background: #d2992220;">🇰🇷 KR: 🟡 SIDEWAYS_LOW_VOL (저변동 횡보)</span>
     <span class="badge" style="color:#38bdf8; border-color:#38bdf8; background:#38bdf820;">🔗 Coupled (S&P500 ⟷ KOSPI)</span>
     <span class="badge badge-date">📅 2026-08-16 10:22 KST</span>
-    <span class="badge badge-updated">🔄 생성: 2026-08-23 07:56 KST</span>
+    <span class="badge badge-updated">🔄 생성: 2026-08-24 01:21 KST</span>
   </div>
 </div>
 
@@ -609,12 +609,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ensemble')" data-mkt="NPX">🌐 NPX</button>
           </div>
         </div>
         <div id="ensemble-panels">
@@ -628,6 +623,15 @@
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
@@ -6668,6 +6672,15 @@
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
@@ -12708,6 +12721,15 @@
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
@@ -18748,6 +18770,15 @@
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
@@ -18788,166 +18819,15 @@
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
-            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
-            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
-            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
-            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
-            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
-            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
-            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
-            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
-            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
-            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
-            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
-            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
-            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
-            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
-            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
-            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
-            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
-            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
-            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
-            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
-            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
-            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
-            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="36" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-      <div class="stock-cards-wrap">
-        <div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
-            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
-            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
-            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
-            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
-            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
-            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
-            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
-            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
-            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
-            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
-            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
-            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
-            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
-            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
-            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
-            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
-            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
-            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
-            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
-            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
-            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
-            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
-            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
-            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="36" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-      <div class="stock-cards-wrap">
-        <div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
-            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
-            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
-            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
-            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
-            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
-            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
-            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
-            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
-            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
-            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
-            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
-            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
-            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
-            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
-            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
-            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
-            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
-            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
-            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
-            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
-            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
-            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
-            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
-            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="36" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-      <div class="stock-cards-wrap">
-        <div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
-            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
-            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
-            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
-            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
-            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
-            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
-            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
-            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
-            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
-            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
-            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
-            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
-            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
-            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
-            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
-            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
-            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
-            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
-            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
-            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
-            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
-            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
-            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
-            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="36" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-      <div class="stock-cards-wrap">
-        <div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
-            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
@@ -18988,46 +18868,15 @@
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
-            <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
-            <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
-            <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
-            <th class="col-strat" title="12. Options Put/Call Implied Volatility Skew 역발상 점수">12. IV-Sk ↕</th>
-            <th class="col-strat" title="13. Order Flow Imbalance 외인/기관 순매수 수급 가속도">13. Flow ↕</th>
-            <th class="col-strat" title="14. Short-Term Reversal 과매도/볼린저 하단 이탈 단기 반등">14. Rev ↕</th>
-            <th class="col-strat" title="15. Analyst Revision Momentum EPS/목표가 상향 조정">15. ARM ↕</th>
-            <th class="col-strat" title="16. Cross-Asset Regime Divergence (주식-환율-유가 괴리율 매수)">16. CARD ↕</th>
-            <th class="col-strat" title="17. Liquidity-Adjusted Tail Risk (52주 고점 낙폭 + 유동성 서지)">17. LATR ↕</th>
-            <th class="col-strat" title="18. Institutional &amp; Foreigner Sector Flow 2개월 수급 누적">18. I&amp;F ↕</th>
-            <th class="col-strat" title="19. Supply Chain Momentum 전방 공급망 전이">19. Supply ↕</th>
-            <th class="col-strat" title="20. NLP Sentiment FinBERT 공시/뉴스 감성">20. NLP ↕</th>
-            <th class="col-strat" title="21. Fama-French Multi-Factor Style Neutralized 순수 알파">21. Neutral ↕</th>
-            <th class="col-strat" title="22. Dynamic Volatility Targeting 리스크 파리티">22. Vol-T ↕</th>
-            <th class="col-strat" title="23. Microstructure Imbalance 호가/동시호가 갭">23. Micro ↕</th>
-            <th class="col-strat" title="24. Accruals Quality Anomaly 영업현금흐름 괴리 회계 품질">24. Accrual ↕</th>
-            <th class="col-strat" title="25. Short Interest &amp; Squeeze 공매도 잔고 숏스퀴즈">25. S-Sq ↕</th>
-            <th class="col-strat" title="26. Value-Up Catalyst 저PBR 및 총주주환원율">26. ValueUp ↕</th>
-            <th class="col-strat" title="27. Kaufman Trend Efficiency 고순도 추세 필터">27. TrendEff ↕</th>
-            <th class="col-strat" title="28. Gamma Squeeze 옵션 델타/감마 가속도">28. GammaSq ↕</th>
-            <th class="col-strat" title="29. Insider Buying 임원/대주주 내부자 매수">29. Insider ↕</th>
-            <th class="col-strat" title="30. High-Frequency Darkpool / Block Order Flow">30. Darkpool ↕</th>
-            <th class="col-strat" title="31. Earnings Tone Drift 실적 콘퍼런스콜 톤 변화">31. ToneDrift ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="36" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-      <div class="stock-cards-wrap">
-        <div class="empty" style="padding:20px; grid-column:1/-1; text-align:center; color:var(--muted);">데이터 없음</div>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th class="sticky-col sticky-rank" title="종목 순위">순위 ↕</th>
-            <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
-            <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
-            <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>
@@ -19591,30 +19440,25 @@
 <div class="content row2-content" style="padding: 24px 32px;">
   <!-- ══ 1. Regression Tab ══ -->
   <div class="tab-panel active" id="panel-regression">
-    <div class="hz-tabs"><button class="hz-tab active" data-hz="" onclick="switchHz(this)"></button></div>
+    <div class="hz-tabs"><button class="hz-tab active" data-hz="1d" onclick="switchHz(this)">1d</button><button class="hz-tab " data-hz="5d" onclick="switchHz(this)">5d</button><button class="hz-tab " data-hz="20d" onclick="switchHz(this)">20d</button><button class="hz-tab " data-hz="60d" onclick="switchHz(this)">60d</button></div>
     
-    <div class="hz-content" data-hz="" style="display: block;">
+    <div class="hz-content" data-hz="1d" style="display: block;">
       <div class="filter-bar">
-        <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-')" data-mkt="all">전체</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="SP500">🇺🇸 SP500</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="Electronic">🌐 Electronic</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-')" data-mkt="NPX">🌐 NPX</button>
+        <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-1d')" data-mkt="KONEX">🌐 KONEX</button>
       </div>
-      <div id="reg-hz--panels">
+      <div id="reg-hz-1d-panels">
         
         <div class="market-panel" data-market="KOSPI">
           <h3 class="market-title">🇰🇷 KOSPI</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (1d)</th></tr></thead>
               <tbody>
             <tr>
               <td class="rank">#1</td>
@@ -19641,7 +19485,7 @@
           <h3 class="market-title">🇰🇷 KOSDAQ</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (1d)</th></tr></thead>
               <tbody>
             <tr>
               <td class="rank">#1</td>
@@ -19668,7 +19512,7 @@
           <h3 class="market-title">🇺🇸 SP500</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (1d)</th></tr></thead>
               <tbody>
             <tr>
               <td class="rank">#1</td>
@@ -19695,7 +19539,7 @@
           <h3 class="market-title">🇺🇸 NASDAQ</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (1d)</th></tr></thead>
               <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
             </table>
           </div>
@@ -19704,43 +19548,7 @@
           <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Arts">
-          <h3 class="market-title"> Arts</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Brands">
-          <h3 class="market-title"> Brands</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="EchoStar">
-          <h3 class="market-title"> EchoStar</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Electronic">
-          <h3 class="market-title"> Electronic</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (1d)</th></tr></thead>
               <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
             </table>
           </div>
@@ -19749,16 +19557,373 @@
           <h3 class="market-title"> KONEX</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (1d)</th></tr></thead>
               <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
             </table>
           </div>
         </div>
-        <div class="market-panel" data-market="NPX">
-          <h3 class="market-title"> NPX</h3>
+      </div>
+    </div>
+    <div class="hz-content" data-hz="5d" style="display: none;">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-5d')" data-mkt="KONEX">🌐 KONEX</button>
+      </div>
+      <div id="reg-hz-5d-panels">
+        
+        <div class="market-panel" data-market="KOSPI">
+          <h3 class="market-title">🇰🇷 KOSPI</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 ()</th></tr></thead>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (5d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/057050/total" target="_blank" class="stock-link">057050</a></td>
+              <td class="name">현대홈쇼핑</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/204210/total" target="_blank" class="stock-link">204210</a></td>
+              <td class="name">JK리버스톤리츠</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/012510/total" target="_blank" class="stock-link">012510</a></td>
+              <td class="name">더존비즈온</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="KOSDAQ">
+          <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (5d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/222160/total" target="_blank" class="stock-link">222160</a></td>
+              <td class="name">NPX</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/230360/total" target="_blank" class="stock-link">230360</a></td>
+              <td class="name">에코마케팅</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/203690/total" target="_blank" class="stock-link">203690</a></td>
+              <td class="name">아크솔루션스</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="SP500">
+          <h3 class="market-title">🇺🇸 SP500</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (5d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
+              <td class="name">Conagra Brands</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="NASDAQ">
+          <h3 class="market-title">🇺🇸 NASDAQ</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (5d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="RUSSELL2000">
+          <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (5d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="KONEX">
+          <h3 class="market-title"> KONEX</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (5d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hz-content" data-hz="20d" style="display: none;">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-20d')" data-mkt="KONEX">🌐 KONEX</button>
+      </div>
+      <div id="reg-hz-20d-panels">
+        
+        <div class="market-panel" data-market="KOSPI">
+          <h3 class="market-title">🇰🇷 KOSPI</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (20d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/057050/total" target="_blank" class="stock-link">057050</a></td>
+              <td class="name">현대홈쇼핑</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/204210/total" target="_blank" class="stock-link">204210</a></td>
+              <td class="name">JK리버스톤리츠</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/012510/total" target="_blank" class="stock-link">012510</a></td>
+              <td class="name">더존비즈온</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="KOSDAQ">
+          <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (20d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/222160/total" target="_blank" class="stock-link">222160</a></td>
+              <td class="name">NPX</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/230360/total" target="_blank" class="stock-link">230360</a></td>
+              <td class="name">에코마케팅</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/203690/total" target="_blank" class="stock-link">203690</a></td>
+              <td class="name">아크솔루션스</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="SP500">
+          <h3 class="market-title">🇺🇸 SP500</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (20d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
+              <td class="name">Conagra Brands</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="NASDAQ">
+          <h3 class="market-title">🇺🇸 NASDAQ</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (20d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="RUSSELL2000">
+          <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (20d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="KONEX">
+          <h3 class="market-title"> KONEX</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (20d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hz-content" data-hz="60d" style="display: none;">
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="all">전체</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="KOSPI">🇰🇷 KOSPI</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="KOSDAQ">🇰🇷 KOSDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="SP500">🇺🇸 SP500</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
+            <button class="filter-btn" onclick="filterMarket(this,'reg-hz-60d')" data-mkt="KONEX">🌐 KONEX</button>
+      </div>
+      <div id="reg-hz-60d-panels">
+        
+        <div class="market-panel" data-market="KOSPI">
+          <h3 class="market-title">🇰🇷 KOSPI</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (60d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/057050/total" target="_blank" class="stock-link">057050</a></td>
+              <td class="name">현대홈쇼핑</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/204210/total" target="_blank" class="stock-link">204210</a></td>
+              <td class="name">JK리버스톤리츠</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/012510/total" target="_blank" class="stock-link">012510</a></td>
+              <td class="name">더존비즈온</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="KOSDAQ">
+          <h3 class="market-title">🇰🇷 KOSDAQ</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (60d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/222160/total" target="_blank" class="stock-link">222160</a></td>
+              <td class="name">NPX</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/230360/total" target="_blank" class="stock-link">230360</a></td>
+              <td class="name">에코마케팅</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/203690/total" target="_blank" class="stock-link">203690</a></td>
+              <td class="name">아크솔루션스</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="SP500">
+          <h3 class="market-title">🇺🇸 SP500</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (60d)</th></tr></thead>
+              <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
+              <td class="name">Conagra Brands</td>
+              <td class="">+0.00%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
+              <td class="">+0.00%</td>
+            </tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="NASDAQ">
+          <h3 class="market-title">🇺🇸 NASDAQ</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (60d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="RUSSELL2000">
+          <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (60d)</th></tr></thead>
+              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="market-panel" data-market="KONEX">
+          <h3 class="market-title"> KONEX</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률 (60d)</th></tr></thead>
               <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
             </table>
           </div>
@@ -19779,12 +19944,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-1일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="surge-hz-1일-panels">
         
@@ -19932,53 +20092,8 @@
               </table>
             </div>
           </div>
-          <div class="market-panel" data-market="Arts">
-            <h3 class="market-title"> Arts</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Brands">
-            <h3 class="market-title"> Brands</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="EchoStar">
-            <h3 class="market-title"> EchoStar</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Electronic">
-            <h3 class="market-title"> Electronic</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
           <div class="market-panel" data-market="KONEX">
             <h3 class="market-title"> KONEX</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="NPX">
-            <h3 class="market-title"> NPX</h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -19996,12 +20111,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-3일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="surge-hz-3일-panels">
         
@@ -20149,53 +20259,8 @@
               </table>
             </div>
           </div>
-          <div class="market-panel" data-market="Arts">
-            <h3 class="market-title"> Arts</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Brands">
-            <h3 class="market-title"> Brands</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="EchoStar">
-            <h3 class="market-title"> EchoStar</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Electronic">
-            <h3 class="market-title"> Electronic</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
           <div class="market-panel" data-market="KONEX">
             <h3 class="market-title"> KONEX</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="NPX">
-            <h3 class="market-title"> NPX</h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -20213,12 +20278,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-5일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="surge-hz-5일-panels">
         
@@ -20366,53 +20426,8 @@
               </table>
             </div>
           </div>
-          <div class="market-panel" data-market="Arts">
-            <h3 class="market-title"> Arts</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Brands">
-            <h3 class="market-title"> Brands</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="EchoStar">
-            <h3 class="market-title"> EchoStar</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Electronic">
-            <h3 class="market-title"> Electronic</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
           <div class="market-panel" data-market="KONEX">
             <h3 class="market-title"> KONEX</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="NPX">
-            <h3 class="market-title"> NPX</h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -20430,12 +20445,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'surge-hz-20일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="surge-hz-20일-panels">
         
@@ -20583,53 +20593,8 @@
               </table>
             </div>
           </div>
-          <div class="market-panel" data-market="Arts">
-            <h3 class="market-title"> Arts</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Brands">
-            <h3 class="market-title"> Brands</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="EchoStar">
-            <h3 class="market-title"> EchoStar</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="Electronic">
-            <h3 class="market-title"> Electronic</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
           <div class="market-panel" data-market="KONEX">
             <h3 class="market-title"> KONEX</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-                <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="market-panel" data-market="NPX">
-            <h3 class="market-title"> NPX</h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -20650,12 +20615,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'leadlag')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="leadlag-panels">
     
@@ -20764,53 +20724,8 @@
           </table>
         </div>
       </div>
-      <div class="market-panel" data-market="Arts">
-        <h3 class="market-title"> Arts</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-            <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="Brands">
-        <h3 class="market-title"> Brands</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-            <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="EchoStar">
-        <h3 class="market-title"> EchoStar</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-            <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="Electronic">
-        <h3 class="market-title"> Electronic</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-            <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
       <div class="market-panel" data-market="KONEX">
         <h3 class="market-title"> KONEX</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
-            <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="NPX">
-        <h3 class="market-title"> NPX</h3>
         <div class="table-wrap">
           <table>
             <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>예상수익률</th></tr></thead>
@@ -20839,12 +20754,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="vcp-panels">
     
@@ -20971,68 +20881,8 @@
           </table>
         </div>
       </div>
-      <div class="market-panel" data-market="Arts">
-        <h3 class="market-title"> Arts</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>순위</th><th>종목코드</th><th>종목명</th>
-              <th>점수</th><th>현재범위</th><th>수축 패턴</th><th>조건</th>
-            </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">패턴 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="Brands">
-        <h3 class="market-title"> Brands</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>순위</th><th>종목코드</th><th>종목명</th>
-              <th>점수</th><th>현재범위</th><th>수축 패턴</th><th>조건</th>
-            </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">패턴 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="EchoStar">
-        <h3 class="market-title"> EchoStar</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>순위</th><th>종목코드</th><th>종목명</th>
-              <th>점수</th><th>현재범위</th><th>수축 패턴</th><th>조건</th>
-            </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">패턴 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="Electronic">
-        <h3 class="market-title"> Electronic</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>순위</th><th>종목코드</th><th>종목명</th>
-              <th>점수</th><th>현재범위</th><th>수축 패턴</th><th>조건</th>
-            </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">패턴 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
       <div class="market-panel" data-market="KONEX">
         <h3 class="market-title"> KONEX</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr>
-              <th>순위</th><th>종목코드</th><th>종목명</th>
-              <th>점수</th><th>현재범위</th><th>수축 패턴</th><th>조건</th>
-            </tr></thead>
-            <tbody><tr><td colspan="7" class="empty">패턴 없음</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="market-panel" data-market="NPX">
-        <h3 class="market-title"> NPX</h3>
         <div class="table-wrap">
           <table>
             <thead><tr>
@@ -21058,12 +20908,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-1일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="vcp_ml-hz-1일-panels">
         
@@ -21211,53 +21056,8 @@
             </table>
           </div>
         </div>
-        <div class="market-panel" data-market="Arts">
-          <h3 class="market-title"> Arts</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Brands">
-          <h3 class="market-title"> Brands</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="EchoStar">
-          <h3 class="market-title"> EchoStar</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Electronic">
-          <h3 class="market-title"> Electronic</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
         <div class="market-panel" data-market="KONEX">
           <h3 class="market-title"> KONEX</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="NPX">
-          <h3 class="market-title"> NPX</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -21275,12 +21075,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-3일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="vcp_ml-hz-3일-panels">
         
@@ -21428,53 +21223,8 @@
             </table>
           </div>
         </div>
-        <div class="market-panel" data-market="Arts">
-          <h3 class="market-title"> Arts</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Brands">
-          <h3 class="market-title"> Brands</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="EchoStar">
-          <h3 class="market-title"> EchoStar</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Electronic">
-          <h3 class="market-title"> Electronic</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
         <div class="market-panel" data-market="KONEX">
           <h3 class="market-title"> KONEX</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="NPX">
-          <h3 class="market-title"> NPX</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -21492,12 +21242,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-5일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="vcp_ml-hz-5일-panels">
         
@@ -21645,53 +21390,8 @@
             </table>
           </div>
         </div>
-        <div class="market-panel" data-market="Arts">
-          <h3 class="market-title"> Arts</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Brands">
-          <h3 class="market-title"> Brands</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="EchoStar">
-          <h3 class="market-title"> EchoStar</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Electronic">
-          <h3 class="market-title"> Electronic</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
         <div class="market-panel" data-market="KONEX">
           <h3 class="market-title"> KONEX</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="NPX">
-          <h3 class="market-title"> NPX</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -21709,12 +21409,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'vcp_ml-hz-20일')" data-mkt="NPX">🌐 NPX</button>
       </div>
       <div id="vcp_ml-hz-20일-panels">
         
@@ -21862,53 +21557,8 @@
             </table>
           </div>
         </div>
-        <div class="market-panel" data-market="Arts">
-          <h3 class="market-title"> Arts</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Brands">
-          <h3 class="market-title"> Brands</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="EchoStar">
-          <h3 class="market-title"> EchoStar</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="Electronic">
-          <h3 class="market-title"> Electronic</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
         <div class="market-panel" data-market="KONEX">
           <h3 class="market-title"> KONEX</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
-              <tbody><tr><td colspan="4" class="empty">데이터 없음</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="market-panel" data-market="NPX">
-          <h3 class="market-title"> NPX</h3>
           <div class="table-wrap">
             <table>
               <thead><tr><th>순위</th><th>종목코드</th><th>종목명</th><th>급등확률 (≥20%)</th></tr></thead>
@@ -21929,12 +21579,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'lstm')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="lstm-panels">
     
@@ -24093,63 +23738,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LSTM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LSTM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LSTM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LSTM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LSTM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -24270,12 +23860,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sector')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="sector-panels">
     
@@ -24288,11 +23873,27 @@
           </tr></thead>
           <tbody>
             <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronic</td>
+              <td>🇰🇷 KOSPI</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">62.5%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/005930/total" target="_blank" class="stock-link">005930</a></td>
+              <td class="name">Samsung Electronic</td>
+              <td>🇰🇷 KOSPI</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">62.5%</td>
+            </tr>
+            <tr>
               <td class="rank">#1</td>
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/057050/total" target="_blank" class="stock-link">057050</a></td>
               <td class="name">현대홈쇼핑</td>
               <td>🇰🇷 KOSPI</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">65.0%</td>
             </tr>
             <tr>
@@ -24300,7 +23901,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/012510/total" target="_blank" class="stock-link">012510</a></td>
               <td class="name">더존비즈온</td>
               <td>🇰🇷 KOSPI</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">55.0%</td>
             </tr>
             <tr>
@@ -24308,7 +23909,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/204210/total" target="_blank" class="stock-link">204210</a></td>
               <td class="name">JK리버스톤리츠</td>
               <td>🇰🇷 KOSPI</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">38.3%</td>
             </tr></tbody>
         </table>
@@ -24343,7 +23944,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/222160/total" target="_blank" class="stock-link">222160</a></td>
               <td class="name">NPX</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">48.3%</td>
             </tr>
             <tr>
@@ -24351,7 +23952,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/203690/total" target="_blank" class="stock-link">203690</a></td>
               <td class="name">아크솔루션스</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">45.0%</td>
             </tr>
             <tr>
@@ -24359,7 +23960,7 @@
               <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/230360/total" target="_blank" class="stock-link">230360</a></td>
               <td class="name">에코마케팅</td>
               <td>🇰🇷 KOSDAQ</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">41.7%</td>
             </tr></tbody>
         </table>
@@ -24374,11 +23975,27 @@
           </tr></thead>
           <tbody>
             <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
+              <td class="name">Conagra Brands</td>
+              <td>🇺🇸 SP500</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">61.7%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
+              <td>🇺🇸 SP500</td>
+              <td><span class="badge">General</span></td>
+              <td class="pos">58.3%</td>
+            </tr>
+            <tr>
               <td class="rank">#3</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
               <td class="name">EchoStar</td>
               <td>🇺🇸 SP500</td>
-              <td><span class="badge"></span></td>
+              <td><span class="badge">General</span></td>
               <td class="pos">51.7%</td>
             </tr>
             <tr>
@@ -24438,95 +24055,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
-              <td class="name">Electronic</td>
-              <td> Arts</td>
-              <td><span class="badge">SP500</span></td>
-              <td class="pos">58.3%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
-              <td class="name">Conagra</td>
-              <td> Brands</td>
-              <td><span class="badge">SP500</span></td>
-              <td class="pos">61.7%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="6" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/005930" target="_blank" class="stock-link">005930</a></td>
-              <td class="name">Samsung</td>
-              <td> Electronic</td>
-              <td><span class="badge">KOSPI     General</span></td>
-              <td class="pos">62.5%</td>
-            </tr>
-            <tr>
-              <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/005930" target="_blank" class="stock-link">005930</a></td>
-              <td class="name">Samsung</td>
-              <td> Electronic</td>
-              <td><span class="badge">KOSPI     General</span></td>
-              <td class="pos">62.5%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>시장</th><th>표준 GICS 섹터</th><th>섹터 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="6" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -24548,12 +24078,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'rim')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="rim-panels">
     
@@ -24833,63 +24358,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>ROE(보고)</th><th>ROE(조정)</th><th>EQ</th><th>필터</th><th>RIM 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="11" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>ROE(보고)</th><th>ROE(조정)</th><th>EQ</th><th>필터</th><th>RIM 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="11" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>ROE(보고)</th><th>ROE(조정)</th><th>EQ</th><th>필터</th><th>RIM 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="11" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>ROE(보고)</th><th>ROE(조정)</th><th>EQ</th><th>필터</th><th>RIM 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="11" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위</th><th>종목코드</th><th>종목명</th><th>현재가</th><th>RIM 적정가(V0)</th><th>안전마진(할인율)</th><th>ROE(보고)</th><th>ROE(조정)</th><th>EQ</th><th>필터</th><th>RIM 스코어</th>
-          </tr></thead>
-          <tbody><tr><td colspan="11" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -24911,12 +24381,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'event')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="event-panels">
     
@@ -25094,63 +24559,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>이벤트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>이벤트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>이벤트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>이벤트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>이벤트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -25172,12 +24582,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'mq')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="mq-panels">
     
@@ -25355,63 +24760,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>MQ 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>MQ 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>MQ 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>MQ 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>MQ 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -25433,12 +24783,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'iv')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="iv-panels">
     
@@ -25616,63 +24961,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>IV Skew 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>IV Skew 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>IV Skew 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>IV Skew 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>IV Skew 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -25694,12 +24984,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'flow')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="flow-panels">
     
@@ -25877,63 +25162,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -25955,12 +25185,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'reversal')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="reversal-panels">
     
@@ -26138,63 +25363,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>반전 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>반전 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>반전 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>반전 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>반전 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -26216,12 +25386,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'arm')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="arm-panels">
     
@@ -28380,63 +27545,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>ARM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>ARM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>ARM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>ARM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>ARM 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -28458,12 +27568,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'card')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="card-panels">
     
@@ -30622,63 +29727,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>CARD 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>CARD 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>CARD 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>CARD 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>CARD 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -30700,12 +29750,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'latr')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="latr-panels">
     
@@ -30716,7 +29761,21 @@
           <thead><tr>
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/012510/total" target="_blank" class="stock-link">012510</a></td>
+              <td class="name">더존비즈온</td>
+              <td>🇰🇷 KOSPI</td>
+              <td class="pos">0.8%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/057050/total" target="_blank" class="stock-link">057050</a></td>
+              <td class="name">현대홈쇼핑</td>
+              <td>🇰🇷 KOSPI</td>
+              <td class="pos">0.0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30727,7 +29786,35 @@
           <thead><tr>
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/204210/total" target="_blank" class="stock-link">204210</a></td>
+              <td class="name">JK리버스톤리츠</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">81.6%</td>
+            </tr>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/230360/total" target="_blank" class="stock-link">230360</a></td>
+              <td class="name">에코마케팅</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">100.0%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/222160/total" target="_blank" class="stock-link">222160</a></td>
+              <td class="name">NPX</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">79.7%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/203690/total" target="_blank" class="stock-link">203690</a></td>
+              <td class="name">아크솔루션스</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">20.0%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30738,7 +29825,28 @@
           <thead><tr>
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">45.7%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
+              <td class="name">Conagra Brands</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">23.7%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">0.6%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30764,71 +29872,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
-              <td class="name">Electronic</td>
-              <td> Arts</td>
-              <td class="pos">0.6%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
-              <td class="name">Conagra</td>
-              <td> Brands</td>
-              <td class="pos">23.7%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
-              <td class="name"></td>
-              <td> EchoStar</td>
-              <td class="pos">45.7%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
       <div class="table-wrap">
@@ -30837,24 +29880,6 @@
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>LATR 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/222160" target="_blank" class="stock-link">222160</a></td>
-              <td class="name"></td>
-              <td> NPX</td>
-              <td class="pos">79.7%</td>
-            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30870,12 +29895,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'ifs')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="ifs-panels">
     
@@ -30886,7 +29906,21 @@
           <thead><tr>
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/057050/total" target="_blank" class="stock-link">057050</a></td>
+              <td class="name">현대홈쇼핑</td>
+              <td>🇰🇷 KOSPI</td>
+              <td class="pos">96.0%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/012510/total" target="_blank" class="stock-link">012510</a></td>
+              <td class="name">더존비즈온</td>
+              <td>🇰🇷 KOSPI</td>
+              <td class="pos">77.8%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30897,7 +29931,35 @@
           <thead><tr>
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/204210/total" target="_blank" class="stock-link">204210</a></td>
+              <td class="name">JK리버스톤리츠</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">44.4%</td>
+            </tr>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/230360/total" target="_blank" class="stock-link">230360</a></td>
+              <td class="name">에코마케팅</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">55.6%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/222160/total" target="_blank" class="stock-link">222160</a></td>
+              <td class="name">NPX</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">22.2%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://m.stock.naver.com/domestic/stock/203690/total" target="_blank" class="stock-link">203690</a></td>
+              <td class="name">아크솔루션스</td>
+              <td>🇰🇷 KOSDAQ</td>
+              <td class="pos">11.1%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30908,7 +29970,28 @@
           <thead><tr>
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
           </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
+          <tbody>
+            <tr>
+              <td class="rank">#1</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
+              <td class="name">Electronic Arts</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">98.0%</td>
+            </tr>
+            <tr>
+              <td class="rank">#2</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
+              <td class="name">Conagra Brands</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">66.7%</td>
+            </tr>
+            <tr>
+              <td class="rank">#3</td>
+              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
+              <td class="name">EchoStar</td>
+              <td>🇺🇸 SP500</td>
+              <td class="pos">33.3%</td>
+            </tr></tbody>
         </table>
       </div>
     </div>
@@ -30934,71 +30017,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#1</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/EA" target="_blank" class="stock-link">EA</a></td>
-              <td class="name">Electronic</td>
-              <td> Arts</td>
-              <td class="pos">98.0%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/CAG" target="_blank" class="stock-link">CAG</a></td>
-              <td class="name">Conagra</td>
-              <td> Brands</td>
-              <td class="pos">66.7%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#3</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/SATS" target="_blank" class="stock-link">SATS</a></td>
-              <td class="name"></td>
-              <td> EchoStar</td>
-              <td class="pos">33.3%</td>
-            </tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
       <div class="table-wrap">
@@ -31007,24 +30025,6 @@
             <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
           </tr></thead>
           <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>외인/투신 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody>
-            <tr>
-              <td class="rank">#2</td>
-              <td class="symbol"><a href="https://finance.yahoo.com/quote/222160" target="_blank" class="stock-link">222160</a></td>
-              <td class="name"></td>
-              <td> NPX</td>
-              <td class="pos">22.2%</td>
-            </tr></tbody>
         </table>
       </div>
     </div>
@@ -31040,12 +30040,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'supplychain')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="supplychain-panels">
     
@@ -31804,63 +30799,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>밸류체인 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>밸류체인 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>밸류체인 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>밸류체인 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>밸류체인 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -31882,12 +30822,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'sentiment')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="sentiment-panels">
     
@@ -32646,63 +31581,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>NLP 감성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>NLP 감성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>NLP 감성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>NLP 감성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>NLP 감성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -32724,12 +31604,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'neutralized')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="neutralized-panels">
     
@@ -33488,63 +32363,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>순수 알파 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>순수 알파 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>순수 알파 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>순수 알파 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>순수 알파 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -33566,12 +32386,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'voltarget')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="voltarget-panels">
     
@@ -34316,50 +33131,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>변동성 타겟 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>변동성 타겟 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>변동성 타겟 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>변동성 타겟 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
       <div class="table-wrap">
@@ -34385,17 +33156,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>변동성 타겟 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     </div>
   </div>
 
@@ -34408,12 +33168,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'microstructure')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="microstructure-panels">
     
@@ -35172,63 +33927,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>미시구조 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>미시구조 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>미시구조 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>미시구조 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>미시구조 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -35250,12 +33950,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'accruals')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="accruals-panels">
     
@@ -36014,63 +34709,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>회계 품질 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>회계 품질 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>회계 품질 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>회계 품질 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>회계 품질 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -36092,12 +34732,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'shortsqueeze')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="shortsqueeze-panels">
     
@@ -36590,50 +35225,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>숏스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>숏스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>숏스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>숏스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
       <div class="table-wrap">
@@ -36911,17 +35502,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>숏스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     </div>
   </div>
 
@@ -36934,12 +35514,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'valueup')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="valueup-panels">
     
@@ -37698,63 +36273,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Value-Up 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Value-Up 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Value-Up 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Value-Up 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>Value-Up 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -37776,12 +36296,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'trendeff')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="trendeff-panels">
     
@@ -38540,63 +37055,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>추세 효율성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>추세 효율성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>추세 효율성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>추세 효율성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>추세 효율성 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -38618,12 +37078,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'gammasqueeze')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="gammasqueeze-panels">
     
@@ -38916,7 +37371,7 @@
             <tr>
               <td class="rank">#65</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/FIVE" target="_blank" class="stock-link">FIVE</a></td>
-              <td class="name">Five Below  Inc.</td>
+              <td class="name">Five Below Inc.</td>
               <td>🇺🇸 NASDAQ</td>
               <td class="pos">50.0%</td>
             </tr>
@@ -38986,7 +37441,7 @@
             <tr>
               <td class="rank">#75</td>
               <td class="symbol"><a href="https://finance.yahoo.com/quote/DOCU" target="_blank" class="stock-link">DOCU</a></td>
-              <td class="name">Docusign  Inc.</td>
+              <td class="name">Docusign Inc.</td>
               <td>🇺🇸 NASDAQ</td>
               <td class="pos">50.0%</td>
             </tr>
@@ -39170,50 +37625,6 @@
     </div>
     <div class="market-panel" data-market="RUSSELL2000">
       <h3 class="market-title">🇺🇸 RUSSELL2000</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>감마 스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>감마 스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>감마 스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>감마 스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -39437,17 +37848,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>감마 스퀴즈 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     </div>
   </div>
 
@@ -39460,12 +37860,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'insider')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="insider-panels">
     
@@ -40224,63 +38619,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>내부자 매수 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>내부자 매수 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>내부자 매수 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>내부자 매수 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>내부자 매수 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>
@@ -40302,12 +38642,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'darkpool')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="darkpool-panels">
     
@@ -40849,50 +39184,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>다크풀 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>다크풀 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>다크풀 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>다크풀 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
       <div class="table-wrap">
@@ -41121,17 +39412,6 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>다크풀 수급 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     </div>
   </div>
 
@@ -41144,12 +39424,7 @@
             <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="SP500">🇺🇸 SP500</button>
             <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="NASDAQ">🇺🇸 NASDAQ</button>
             <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="RUSSELL2000">🇺🇸 RUSSELL2000</button>
-            <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="Arts">🌐 Arts</button>
-            <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="Brands">🌐 Brands</button>
-            <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="EchoStar">🌐 EchoStar</button>
-            <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="Electronic">🌐 Electronic</button>
             <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="KONEX">🌐 KONEX</button>
-            <button class="filter-btn" onclick="filterMarket(this,'tonedrift')" data-mkt="NPX">🌐 NPX</button>
     </div>
     <div id="tonedrift-panels">
     
@@ -41908,63 +40183,8 @@
         </table>
       </div>
     </div>
-    <div class="market-panel" data-market="Arts">
-      <h3 class="market-title"> Arts</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>어닝 톤 드리프트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Brands">
-      <h3 class="market-title"> Brands</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>어닝 톤 드리프트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="EchoStar">
-      <h3 class="market-title"> EchoStar</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>어닝 톤 드리프트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="Electronic">
-      <h3 class="market-title"> Electronic</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>어닝 톤 드리프트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
     <div class="market-panel" data-market="KONEX">
       <h3 class="market-title"> KONEX</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>순위 ↕</th><th>종목코드 ↕</th><th>종목명 ↕</th><th>시장 ↕</th><th>어닝 톤 드리프트 스코어 ↕</th>
-          </tr></thead>
-          <tbody><tr><td colspan="5" class="empty">데이터 없음</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="market-panel" data-market="NPX">
-      <h3 class="market-title"> NPX</h3>
       <div class="table-wrap">
         <table>
           <thead><tr>

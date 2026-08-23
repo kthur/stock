@@ -114,7 +114,7 @@ class LATRFactorEngine(BaseStrategyEngine):
                         tail_risk = float(np.percentile(sub_rets, 5))
                 else:
                     tail_risk = -0.03
-                tail_penalty = float(min(2.0, abs(tail_risk) / 0.035))
+                tail_penalty = float(min(2.0, max(0.0, -tail_risk) / 0.035))
 
                 # 4. Amihud Illiquidity Ratio (|ret| / (Volume * Price)) with cross-market USD normalization
                 is_kr = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))

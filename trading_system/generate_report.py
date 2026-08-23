@@ -589,17 +589,21 @@ def parse_regression(text: str) -> tuple[str, list[RegSection]]:
 
     for line in text.splitlines():
         line = line.strip()
+        if not line:
+            continue
         m = re.match(r"Date:\s*(.+)", line)
         if m:
             date = m.group(1).strip()
+            continue
         m = re.match(r"Horizon:\s*(\w+)", line)
         if m:
             current_horizon = m.group(1)
             continue
-        m = re.match(r"---\s*(.+?)\s+TOP", line)
+        m = re.match(r"---\s*(.+?)\s+TOP\s+\d+(?:\s*\(Horizon:\s*([^)]+)\))?\s*---?", line)
         if m:
-            mkt = m.group(1).replace("S&P ", "SP")
-            current_section = RegSection(horizon=current_horizon, market=mkt.strip())
+            mkt = m.group(1).replace("S&P ", "SP").replace("S&P", "SP").strip()
+            hz = m.group(2).strip() if m.group(2) else current_horizon
+            current_section = RegSection(horizon=hz, market=mkt)
             sections.append(current_section)
             continue
         if current_section:
@@ -642,21 +646,50 @@ def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
         return "", []
     date = ""
     rows: list[SectorRow] = []
+    KNOWN_MKTS = {
+        "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
+        "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
+        "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
+        "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX",
+        "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN",
+        "AUSTRALIA", "BRAZIL", "SINGAPORE", "CANADA", "US"
+    }
     for line in text.splitlines():
         line = line.strip()
+        if not line or line.startswith("===") or line.startswith("Rank") or line.startswith("---") or line.startswith("Total symbols"):
+            continue
         m = re.match(r"Date:\s*(.+)", line)
         if m:
             date = m.group(1).strip()
             continue
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+(.+?)\s+([-\d.]+)%$", line)
-        if m:
+        parts = line.split()
+        if len(parts) >= 4 and parts[0].isdigit():
+            rank = int(parts[0])
+            symbol = parts[1]
+            score_str = parts[-1]
+            if not score_str.endswith("%") and not score_str.replace(".", "").replace("-", "").replace("+", "").isdigit():
+                continue
+            mkt_idx = -1
+            for idx in range(2, len(parts) - 1):
+                if parts[idx].upper() in KNOWN_MKTS:
+                    mkt_idx = idx
+                    break
+            if mkt_idx != -1:
+                name = " ".join(parts[2:mkt_idx])
+                market = parts[mkt_idx].upper()
+                sector = " ".join(parts[mkt_idx+1:-1]) if mkt_idx + 1 < len(parts) - 1 else "General"
+            else:
+                market = "SP500" if not symbol.isdigit() else ("KOSPI" if not symbol.startswith(("2", "3", "9")) else "KOSDAQ")
+                name = " ".join(parts[2:-1])
+                sector = "General"
+            
             rows.append(SectorRow(
-                rank=int(m.group(1)),
-                symbol=m.group(2),
-                name=m.group(3).strip(),
-                market=m.group(4),
-                sector=m.group(5).strip(),
-                score=m.group(6) + "%"
+                rank=rank,
+                symbol=symbol,
+                name=name,
+                market=market,
+                sector=sector or "General",
+                score=score_str.rstrip("%") + "%"
             ))
     return date, rows
 
@@ -760,23 +793,52 @@ def _parse_simple_strategy(text: str, score_col: str) -> tuple[str, list[SimpleS
         return "", []
     date = ""
     rows: list[SimpleStrategyRow] = []
+    KNOWN_MKTS = {
+        "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
+        "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
+        "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
+        "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX",
+        "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN",
+        "AUSTRALIA", "BRAZIL", "SINGAPORE", "CANADA", "US"
+    }
+    current_market = ""
     for line in text.splitlines():
         line = line.strip()
+        if not line or line.startswith("===") or line.startswith("Rank") or line.startswith("---") or line.startswith("Total symbols"):
+            continue
         m = re.match(r"Date:\s*(.+)", line)
         if m:
             date = m.group(1).strip()
             continue
-        # Matches: rank  symbol  name (anything)  market  score%
-        m = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+([A-Za-z0-9_]+)\s+([-+]?(?:[\d.]+|nan|NaN|None))%?$", line)
-        if m:
-            score_val = m.group(5).strip()
+        m_mkt = re.match(r"^\[([A-Za-z0-9_]+)\]", line)
+        if m_mkt:
+            current_market = m_mkt.group(1).upper()
+            continue
+
+        parts = line.split()
+        if len(parts) >= 3 and parts[0].isdigit():
+            rank = int(parts[0])
+            symbol = parts[1]
+            score_val = parts[-1].rstrip("%")
             if "nan" in score_val.lower() or "none" in score_val.lower():
                 score_val = "50.0" if score_col == "sentiment_score" else "0.0"
+
+            if len(parts) >= 4 and parts[-2].upper() in KNOWN_MKTS:
+                market = parts[-2].upper()
+                name = " ".join(parts[2:-2])
+            else:
+                name = " ".join(parts[2:-1])
+                market = current_market
+                if not market:
+                    market = "KOSPI" if (symbol.isdigit() and len(symbol) == 6 and not symbol.startswith(("2", "3", "9"))) else (
+                        "KOSDAQ" if (symbol.isdigit() and len(symbol) == 6) else "SP500"
+                    )
+
             rows.append(SimpleStrategyRow(
-                rank=int(m.group(1)),
-                symbol=m.group(2),
-                name=m.group(3).strip(),
-                market=m.group(4),
+                rank=rank,
+                symbol=symbol,
+                name=name,
+                market=market,
                 score=score_val + "%",
             ))
     return date, rows
@@ -1482,25 +1544,29 @@ def build_html(
         for prow in portfolio_data.rows:
             if prow.market:
                 all_seen_markets.add(prow.market)
-    for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows]:
-        if row_coll and isinstance(row_coll, (list, tuple)):
-            for crow in row_coll:
-                if getattr(crow, 'market', None):
-                    all_seen_markets.add(crow.market)
-    for sec_coll in [surge_sections, vcp_ml_sections, reg_sections]:
-        if sec_coll and isinstance(sec_coll, (list, tuple)):
-            for sc_item in sec_coll:
-                if getattr(sc_item, 'market', None):
-                    all_seen_markets.add(sc_item.market)
-
     # Standard preferred ordering for core markets, then alphabetized international markets
     _CORE_ORDER = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "RUSSELL2000"]
     _INTL_ORDER = [
         "JAPAN_TSE", "JAPAN", "CHINA_SSE", "CHINA", "TAIWAN_TWSE", "TAIWAN",
         "INDIA_NSE", "INDIA", "EUROPE_STOXX", "EUROPE", "VIETNAM_HOSE", "VIETNAM",
         "AUSTRALIA_ASX", "AUSTRALIA", "BRAZIL_B3", "BRAZIL", "HKEX",
-        "SINGAPORE_SGX", "SINGAPORE", "CANADA_TSX", "CANADA"
+        "SINGAPORE_SGX", "SINGAPORE", "CANADA_TSX", "CANADA", "KONEX", "CHINA_SZSE", "US"
     ]
+    KNOWN_ALL_MKTS = set(_CORE_ORDER + _INTL_ORDER)
+
+    for row_coll in [vcp_rows, follower_rows, sector_rows, rim_rows, event_rows, mq_rows, iv_rows, flow_rows, reversal_rows, arm_rows, card_rows, latr_rows, ifs_rows, supply_chain_rows, sentiment_rows, factor_neutralized_rows, vol_target_rows, microstructure_rows, accruals_quality_rows, short_squeeze_rows, valueup_catalyst_rows, trend_efficiency_rows, gamma_squeeze_rows, insider_buying_rows, darkpool_rows, earnings_tone_drift_rows, lstm_rows]:
+        if row_coll and isinstance(row_coll, (list, tuple)):
+            for crow in row_coll:
+                m_val = getattr(crow, 'market', None)
+                if m_val and m_val.upper() in KNOWN_ALL_MKTS:
+                    all_seen_markets.add(m_val.upper())
+    for sec_coll in [surge_sections, vcp_ml_sections, reg_sections]:
+        if sec_coll and isinstance(sec_coll, (list, tuple)):
+            for sc_item in sec_coll:
+                m_val = getattr(sc_item, 'market', None)
+                if m_val and m_val.upper() in KNOWN_ALL_MKTS:
+                    all_seen_markets.add(m_val.upper())
+
     active_markets_ordered = []
     for mkt in _CORE_ORDER + _INTL_ORDER:
         if mkt in all_seen_markets and mkt not in active_markets_ordered:
@@ -1645,6 +1711,15 @@ def build_html(
             <th class="sticky-col sticky-symbol" title="종목 티커 / 상장 코드">종목코드 ↕</th>
             <th class="sticky-col sticky-name" title="기업 / 종목 명칭 (클릭 시 31대 전략 상세 분해)">종목명 ↕</th>
             <th title="31대 다변화 전략 종합 앙상블 스코어">앙상블 ↕</th>
+            <th title="20D 순예상수익률 (거래비용 차감)">20D 예상수익률 ↕</th>
+            <th class="col-strat" title="1. XGBoost 다중 기간 회귀 기본적/기술적 예상수익률">1. Reg ↕</th>
+            <th class="col-strat" title="2. Surge 분류기 단기 20%+ 급등 확률">2. Surge ↕</th>
+            <th class="col-strat" title="3. Lead-Lag 후행 반응 종목 시차 상관성">3. L-L ↕</th>
+            <th class="col-strat" title="4. VCP 변동성 수축 패턴 규칙 검출">4. VCP-R ↕</th>
+            <th class="col-strat" title="5. VCP 머신러닝 급등 예측">5. VCP-M ↕</th>
+            <th class="col-strat" title="6. Strict Causal 시계열 LSTM 딥러닝">6. LSTM ↕</th>
+            <th class="col-strat" title="7. Stat-Arb 공적분 잔차 평균회귀 Z-score">7. S-Arb ↕</th>
+            <th class="col-strat" title="8. Sector Rotation 상대모멘텀 & 순환매">8. Sec-R ↕</th>
             <th class="col-strat" title="9. Residual Income Model 잔여이익 가치평가 및 안전마진">9. RIM ↕</th>
             <th class="col-strat" title="10. Event-Driven 공시, 실적 서프라이즈, 자사주 촉매">10. Event ↕</th>
             <th class="col-strat" title="11. Momentum Quality (12M-1M 모멘텀 - 반전 노이즈 제거 + ROE)">11. MQ ↕</th>

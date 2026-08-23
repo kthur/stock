@@ -89,14 +89,35 @@ def merge_ensemble_predictions(result_dir: Path, target_dirs: dict) -> None:
     print(f"Merging ensemble_predictions.txt -> {merged_path}")
 
     header = ""
-    for market, path in target_dirs.items():
-        file_path = path / f"ensemble_predictions_{market}.txt"
-        if file_path.exists():
-            content = get_file_content(file_path)
-            idx = content.find("=========================================")
-            if idx != -1:
-                header = content[:idx].strip() + "\n\n"
-                break
+    # 1. Prefer existing ensemble_predictions.txt if it already has the full weights and executive summary
+    existing_merged = result_dir / "ensemble_predictions.txt"
+    if existing_merged.exists():
+        c_exist = get_file_content(existing_merged)
+        idx_exist = c_exist.find("=========================================")
+        if idx_exist != -1 and ("--- Applied" in c_exist[:idx_exist] or "--- Executive" in c_exist[:idx_exist]):
+            header = c_exist[:idx_exist].strip() + "\n\n"
+
+    # 2. Check individual market files for full weights header
+    if not header:
+        for market, path in target_dirs.items():
+            file_path = path / f"ensemble_predictions_{market}.txt"
+            if file_path.exists():
+                content = get_file_content(file_path)
+                idx = content.find("=========================================")
+                if idx != -1 and ("--- Applied" in content[:idx] or "--- Executive" in content[:idx]):
+                    header = content[:idx].strip() + "\n\n"
+                    break
+
+    # 3. Fallback to basic header from any market file
+    if not header:
+        for market, path in target_dirs.items():
+            file_path = path / f"ensemble_predictions_{market}.txt"
+            if file_path.exists():
+                content = get_file_content(file_path)
+                idx = content.find("=========================================")
+                if idx != -1:
+                    header = content[:idx].strip() + "\n\n"
+                    break
 
     if not header:
         from datetime import timezone, timedelta

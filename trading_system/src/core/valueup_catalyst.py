@@ -105,8 +105,8 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 is_distress = (pd.notna(op_margin) and float(op_margin) < 0) or (pd.notna(roe_val) and float(roe_val) < 0)
 
                 # Low PBR bonus factor: highest for PBR between 0.3 and 1.0 (profitable firms only)
-                if is_distress:
-                    pbr_factor = 0.20  # Invalidate low PBR bonus for loss-making distress value traps
+                if is_distress or pbr_val <= 0.20:
+                    pbr_factor = 0.20  # Invalidate low PBR bonus for loss-making distress value traps / zombie shells
                 elif pbr_val <= 0:
                     pbr_factor = 0.1
                 elif pbr_val < 1.0:
@@ -121,8 +121,13 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 net_cash = cash_val - debt_val
 
                 cash_ratio = 0.0
-                if pd.notna(mcap) and float(mcap) > 1e6:
-                    cash_ratio = max(0.0, net_cash) / float(mcap)
+                mcap_val = float(mcap) if pd.notna(mcap) else 0.0
+                if 0 < mcap_val < 1e7:
+                    mcap_krw = mcap_val * 1e8  # Convert 억원 -> KRW
+                else:
+                    mcap_krw = mcap_val
+                if mcap_krw > 1e6:
+                    cash_ratio = max(0.0, net_cash) / mcap_krw
 
                 div_val = float(div_yield) if pd.notna(div_yield) else 0.0
                 if div_val > 1.0:  # Percentage format e.g. 3.5 -> 0.035

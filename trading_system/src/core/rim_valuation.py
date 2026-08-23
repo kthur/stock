@@ -327,12 +327,16 @@ class RIMValuationEngine(BaseStrategyEngine):
         current_bps = bps
         current_roe = roe
         for t in range(1, years + 1):
-            net_income = current_bps * current_roe
-            excess_income = current_bps * (current_roe - r_e)
+            if current_bps <= 0.0:
+                excess_income = 0.0
+                current_bps = 0.0
+            else:
+                net_income = current_bps * current_roe
+                excess_income = current_bps * (current_roe - r_e)
+                # BPS grows by retained positive net income (or decreases by net losses)
+                retention = self.retention_ratio if net_income > 0 else 1.0
+                current_bps += net_income * retention
             pv_excess += excess_income / ((1.0 + r_e) ** t)
-            # BPS grows by retained positive net income (or decreases by net losses)
-            retention = self.retention_ratio if net_income > 0 else 1.0
-            current_bps += net_income * retention
             current_roe = r_e + (current_roe - r_e) * (1.0 - eff_decay)
         # Standard RIM intrinsic value V0 = BPS0 + Sum(PV of Excess Income).
         # Terminal value beyond horizon N assumes ROE = r_e (excess income = 0).
