@@ -1070,19 +1070,20 @@ class PortfolioAllocator:
         clamped to [delta_floor, delta_cap].
         """
         gamma = risk_aversion if risk_aversion is not None else self.risk_aversion
+        gamma_clean = float(gamma) if (gamma is not None and math.isfinite(float(gamma)) and float(gamma) > 0) else self.risk_aversion
         # R11-6 Fix: If target weight is 0.0, return 0.0 immediately to ensure full liquidation is never delayed by a buffer band
         if target_weight <= 0.0:
             return 0.0
-        if cost_rate <= 0.0:
+        if cost_rate is None or not math.isfinite(float(cost_rate)) or float(cost_rate) <= 0.0:
             return self.delta_floor
 
-        vol_clean = max(0.005, volatility_20d)
+        vol_clean = max(0.005, float(volatility_20d)) if (volatility_20d is not None and math.isfinite(float(volatility_20d))) else 0.02
         ann_variance = 252.0 * (vol_clean ** 2)
 
         # Leland's transaction cost buffer bandwidth: delta_i = [ (3 * c_i * (w_i * (1 - w_i))^2 * sigma_ann^2) / (4 * gamma) ]^(1/3)
         # R5-3 Fix: Weight process variance scales quadratically as (w_i * (1 - w_i))^2
         w_factor = max(1e-4, target_weight * (1.0 - min(0.99, target_weight)))
-        cubic_term = (3.0 * cost_rate * (w_factor ** 2) * ann_variance) / (4.0 * max(1e-4, gamma))
+        cubic_term = (3.0 * float(cost_rate) * (w_factor ** 2) * ann_variance) / (4.0 * max(1e-4, gamma_clean))
         delta_raw = np.cbrt(cubic_term)
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor
