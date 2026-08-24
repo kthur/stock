@@ -115,12 +115,14 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
                 tr2 = (high.iloc[-15:] - prev_closes).abs()
                 tr3 = (low.iloc[-15:] - prev_closes).abs()
                 tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-                atr_14 = float(tr.rolling(14, min_periods=5).mean().iloc[-1])
+                atr_val = tr.rolling(14, min_periods=5).mean().iloc[-1]
+                atr_14 = float(atr_val) if (pd.notna(atr_val) and np.isfinite(float(atr_val))) else float(prev_close * 0.02)
                 atr_pct = float(atr_14 / prev_close) if prev_close > 0 else 0.02
-                atr_pct = max(0.005, atr_pct)
+                atr_pct = max(0.005, atr_pct) if np.isfinite(atr_pct) else 0.02
 
                 # Standardized Gap Z-Score
-                gap_z = gap_pct / atr_pct
+                gap_z = (gap_pct / atr_pct) if atr_pct > 0 else 0.0
+                gap_z = gap_z if np.isfinite(gap_z) else 0.0
 
                 # 3. Gap Fill Directionality & Mean Reversion Sizing
                 # If gap is downward (gap_z < -1.0), strong bounce mean-reversion signal
@@ -130,14 +132,15 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
                 reversion_score = 0.50 - 0.25 * np.tanh(gap_z / 1.5)
 
                 # Intraday momentum confirmation: if open < close (reversal in progress), add bonus
-                intraday_ret = float((curr_close - curr_open) / curr_open)
-                if gap_z < -0.8 and intraday_ret > 0:
-                    reversion_score += min(0.15, intraday_ret * 3.0)
-                elif gap_z > 0.8 and intraday_ret < 0:
-                    reversion_score -= min(0.15, abs(intraday_ret) * 3.0)
+                intraday_ret = float((curr_close - curr_open) / curr_open) if curr_open > 0 else 0.0
+                if np.isfinite(intraday_ret):
+                    if gap_z < -0.8 and intraday_ret > 0:
+                        reversion_score += min(0.15, intraday_ret * 3.0)
+                    elif gap_z > 0.8 and intraday_ret < 0:
+                        reversion_score -= min(0.15, abs(intraday_ret) * 3.0)
 
-                score = float(np.clip(reversion_score, 0.05, 0.95))
-                results.append({'symbol': sym, 'overnight_gap_score': round(score, 4)})
+                score = float(np.clip(reversion_score, 0.05, 0.95)) if np.isfinite(reversion_score) else 0.50
+                results.append({'symbol': str(sym), 'overnight_gap_score': round(score, 4)})
 
             except Exception as ex:
                 logger.debug(f"Error computing gap score for {sym}: {ex}")
