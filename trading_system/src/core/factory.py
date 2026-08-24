@@ -5,6 +5,7 @@ Enables decoupled instantiation, lifecycle management, and test mocking across a
 
 from typing import Dict, Any, Type, Optional, Callable
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,13 @@ class SystemFactory:
         from src.strategy import InvestorStrategyEngine
         from src.utils import ErrorHandler, EventBus
 
-        safe_cash = max(0.0, float(initial_cash)) if initial_cash is not None else 0.0
+        safe_cash = 0.0
+        if initial_cash is not None:
+            try:
+                c_val = float(initial_cash)
+                safe_cash = max(0.0, c_val) if math.isfinite(c_val) else 0.0
+            except (ValueError, TypeError):
+                safe_cash = 0.0
         if event_bus is None:
             event_bus = EventBus()
 
