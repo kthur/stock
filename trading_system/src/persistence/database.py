@@ -639,9 +639,9 @@ class StockPriceDB:
                 lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
                 cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
                 vol_f = float(row[vol_pos + 1]) if vol_pos is not None else 0.0
-                vol = int(vol_f) if math.isfinite(vol_f) and vol_f >= 0 else 0
+                vol = int(vol_f) if (math.isfinite(vol_f) and vol_f >= 0) else 0
 
-                if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
+                if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl) and math.isfinite(vol_f)):
                     continue
                 if cl <= 0.0 or op <= 0.0 or hi <= 0.0 or lo <= 0.0:
                     continue
