@@ -190,9 +190,11 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
     if 'shares_outstanding' in result.columns:
         shares = pd.to_numeric(result['shares_outstanding'], errors='coerce').fillna(0.0)
         bv = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
-        result['bps'] = np.where(shares > 0, bv / np.maximum(shares, 1.0), bv)
+        bps_raw = np.where(shares > 0, bv / np.maximum(shares, 1.0), bv)
+        result['bps'] = np.where(np.isfinite(bps_raw), bps_raw, 0.0)
     else:
-        result['bps'] = result.get('book_value', 0.0)
+        bv_val = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
+        result['bps'] = np.where(np.isfinite(bv_val), bv_val, 0.0)
 
     for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'operating_cash_flow']:
         if col in result.columns:
