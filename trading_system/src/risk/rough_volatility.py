@@ -90,18 +90,22 @@ class RoughVolatilityEstimator:
         h_param = self.hurst - 0.50
 
         kernel = np.power(s_grid.astype(float), h_param)
-        kernel_norm = kernel / np.sum(kernel)
+        kernel = np.nan_to_num(kernel, nan=1.0)
+        sum_k = float(np.sum(kernel))
+        kernel_norm = (kernel / sum_k) if (sum_k > 1e-12 and np.isfinite(sum_k)) else np.ones(window) / window
 
         # Fractional drift estimate
-        frac_shock = np.sum(kernel_norm * np.abs(recent_rets))
-        log_vol_drift = self.nu * (frac_shock - np.mean(np.abs(recent_rets)))
+        frac_shock = float(np.sum(kernel_norm * np.abs(recent_rets)))
+        mean_abs_ret = float(np.mean(np.abs(recent_rets))) if len(recent_rets) > 0 else 0.0
+        log_vol_drift = self.nu * (frac_shock - mean_abs_ret)
+        log_vol_drift = float(np.clip(log_vol_drift if np.isfinite(log_vol_drift) else 0.0, -5.0, 5.0))
 
         # Jump multiplier
         jump_info = self.detect_poisson_jumps(recent_rets)
-        jump_mult = 1.35 if jump_info["has_jump"] else 1.0
+        jump_mult = 1.35 if jump_info.get("has_jump") else 1.0
 
         forecast_vol = base_vol * np.exp(log_vol_drift) * jump_mult
-        return float(np.clip(forecast_vol, 0.02, 2.50))
+        return float(np.clip(forecast_vol if np.isfinite(forecast_vol) else 0.15, 0.02, 2.50))
 
     def compute_rough_deleveraging_factor(
         self,
