@@ -93,14 +93,16 @@ class DRLPortfolioAllocator:
         scores_clean = np.nan_to_num(scores, nan=0.0)
 
         # Softmax allocation scaled by max_weight constraint
-        max_s = np.max(scores_clean) if len(scores_clean) > 0 else 0.0
+        max_s = float(np.max(scores_clean)) if len(scores_clean) > 0 else 0.0
+        max_s = max_s if np.isfinite(max_s) else 0.0
         exp_s = np.exp((scores_clean - max_s) / 20.0)
+        exp_s = np.nan_to_num(exp_s, nan=1.0)
         sum_exp = float(np.sum(exp_s))
-        weights_raw = (exp_s / sum_exp) if sum_exp > 1e-12 else np.ones(N) / N
+        weights_raw = (exp_s / sum_exp) if (sum_exp > 1e-12 and np.isfinite(sum_exp)) else np.ones(N) / N
 
         effective_max_w = max(safe_max_w, 1.0 / N)
         weights_capped = np.clip(weights_raw, 0.0, effective_max_w)
         total_w = float(np.sum(weights_capped))
-        weights_final = (weights_capped / total_w) if total_w > 1e-12 else np.ones(N) / N
+        weights_final = (weights_capped / total_w) if (total_w > 1e-12 and np.isfinite(total_w)) else np.ones(N) / N
 
         return {sym: round(float(w), 4) for sym, w in zip(symbols, weights_final)}
