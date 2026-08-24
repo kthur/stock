@@ -9,9 +9,10 @@ def get_daily_vol(close: pd.Series, lookback: int = 20) -> pd.Series:
     """
     Computes daily volatility using exponential moving average of pct_change.
     """
-    returns = close.pct_change()
-    vol = returns.ewm(span=lookback).std()
-    return vol.fillna(0.01)
+    c_num = pd.to_numeric(pd.Series(close), errors='coerce').ffill().bfill().fillna(1.0)
+    returns = c_num.pct_change().replace([np.inf, -np.inf], 0.0).fillna(0.0)
+    vol = returns.ewm(span=max(2, int(lookback))).std().fillna(0.01)
+    return pd.Series(np.clip(vol.values, 0.001, 1.0), index=c_num.index)
 
 def apply_triple_barrier(
     df: pd.DataFrame,
@@ -34,9 +35,9 @@ def apply_triple_barrier(
     if df.empty or len(df) < vol_lookback:
         return pd.DataFrame()
 
-    close = df['Close'].astype(float)
-    high = df['High'].astype(float) if 'High' in df.columns else close
-    low = df['Low'].astype(float) if 'Low' in df.columns else close
+    close = pd.to_numeric(df['Close'], errors='coerce').ffill().bfill().fillna(1.0)
+    high = pd.to_numeric(df['High'], errors='coerce').ffill().bfill().fillna(close) if 'High' in df.columns else close
+    low = pd.to_numeric(df['Low'], errors='coerce').ffill().bfill().fillna(close) if 'Low' in df.columns else close
 
     vol = get_daily_vol(close, lookback=vol_lookback)
 
@@ -45,11 +46,20 @@ def apply_triple_barrier(
     barrier_hits = []
     returns = []
 
-    pt_factor, sl_factor = pt_sl
+    pt_factor = float(pt_sl[0]) if (len(pt_sl) > 0 and np.isfinite(pt_sl[0])) else 1.5
+    sl_factor = float(pt_sl[1]) if (len(pt_sl) > 1 and np.isfinite(pt_sl[1])) else 1.0
 
     for i in range(len(df) - num_days):
-        entry_price = close.iloc[i]
-        curr_vol = vol.iloc[i]
+        entry_price = float(close.iloc[i])
+        if entry_price <= 1e-6 or not np.isfinite(entry_price):
+            returns.append(0.0)
+            labels.append(0)
+            meta_labels.append(0)
+            barrier_hits.append('time')
+            continue
+
+        curr_vol = float(vol.iloc[i])
+        curr_vol = max(0.001, min(1.0, curr_vol)) if np.isfinite(curr_vol) else 0.01
 
         target_pt = entry_price * (1.0 + pt_factor * curr_vol)
         target_sl = entry_price * (1.0 - sl_factor * curr_vol)
@@ -69,17 +79,17 @@ def apply_triple_barrier(
             label = 1
             meta = 1
             hit = 'pt'
-            ret = (target_pt - entry_price) / entry_price
+            ret = float(np.clip((target_pt - entry_price) / entry_price, -1.0, 10.0))
         elif sl_time < pt_time and sl_time != 999:
             # Stop loss hit first
             label = -1
             meta = 0
             hit = 'sl'
-            ret = (target_sl - entry_price) / entry_price
+            ret = float(np.clip((target_sl - entry_price) / entry_price, -1.0, 10.0))
         else:
             # Vertical barrier (timeout)
-            exit_price = future_close.iloc[-1]
-            ret = (exit_price - entry_price) / entry_price
+            exit_price = float(future_close.iloc[-1]) if (len(future_close) > 0 and np.isfinite(future_close.iloc[-1])) else entry_price
+            ret = float(np.clip((exit_price - entry_price) / entry_price, -1.0, 10.0))
             label = 1 if ret > 0 else -1 if ret < 0 else 0
             meta = 1 if ret >= (pt_factor * curr_vol * 0.5) else 0
             hit = 'time'
