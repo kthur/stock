@@ -131,7 +131,8 @@ class VolTargetingEngine(BaseStrategyEngine):
                             parkinson_var = float(log_hl_sq.mean() / (4.0 * np.log(2.0)))
                             parkinson_vol = np.sqrt(parkinson_var * 252.0)
                             # Blend 70% Close-to-Close EWMA + 30% Parkinson Range Volatility
-                            realized_vol[sym] = float(0.70 * realized_vol[sym] + 0.30 * parkinson_vol)
+                            blended_v = float(0.70 * realized_vol[sym] + 0.30 * parkinson_vol)
+                            realized_vol[sym] = float(np.clip(blended_v, 0.02, 5.0)) if np.isfinite(blended_v) else 0.25
 
 
         # Fully vectorized computation across all universe symbols (O(1) Pandas vectorized)
@@ -150,7 +151,7 @@ class VolTargetingEngine(BaseStrategyEngine):
             "symbol": sym_series,
             "name": universe.get("name", sym_series),
             "market": universe.get("market", "KRX"),
-            "vol_target_score": scores
+            "vol_target_score": pd.to_numeric(pd.Series(scores, index=sym_series.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         })
 
         if not res_df.empty:
