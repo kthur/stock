@@ -26,11 +26,16 @@ class DRLPortfolioAllocator:
     def compute_regime_features(self, regime_code: int, vix: float, rolling_sharpes: Dict[str, float]) -> np.ndarray:
         """Construct state feature vector: [regime_code, vix, normalized_sharpe_1, ..., normalized_sharpe_23]."""
         sharpe_vals = np.array([float(rolling_sharpes.get(f"s_{i}", 1.0)) for i in range(self.num_strategies)])
+        sharpe_vals = np.nan_to_num(sharpe_vals, nan=1.0, posinf=3.0, neginf=-3.0)
         # Normalize sharpe values with softmax
-        exp_s = np.exp(sharpe_vals - np.max(sharpe_vals))
-        softmax_s = exp_s / np.sum(exp_s)
+        exp_s = np.exp(np.clip(sharpe_vals - np.max(sharpe_vals), -50.0, 50.0))
+        sum_exp = np.sum(exp_s)
+        softmax_s = exp_s / (sum_exp if sum_exp > 0 else 1.0)
 
-        state_vec = np.concatenate(([float(regime_code), float(vix) / 100.0], softmax_s))
+        safe_vix = float(vix) if (vix is not None and np.isfinite(vix)) else 20.0
+        safe_regime = float(regime_code) if (regime_code is not None and np.isfinite(regime_code)) else 0.0
+
+        state_vec = np.concatenate(([safe_regime, safe_vix / 100.0], softmax_s))
         return state_vec
 
     def allocate_weights(self, regime_code: int, vix: float,
@@ -54,18 +59,20 @@ class DRLPortfolioAllocator:
 
         # Policy Network simulation: Softmax transformation of state feature representations
         # Higher Sharpe strategies in low VIX regimes receive boost, high VIX regimes tilt to tail-risk / stat-arb
-        policy_logits = state_vec[2:] # strategy softmax components
+        policy_logits = np.copy(state_vec[2:]) # strategy softmax components
 
         # Regime risk scaling
         if regime_code in (2, 5): # BEAR_HIGH_VOL or CRISIS
             # Boost Stat-Arb, Short-Term Reversal, and LATR Tail Risk weights
-            policy_logits[6] += 0.5  # stat_arb
-            policy_logits[13] += 0.5 # reversal
-            policy_logits[16] += 0.5 # latr
-            policy_logits[21] += 0.5 # vol_target
+            if len(policy_logits) > 21:
+                policy_logits[6] += 0.5  # stat_arb
+                policy_logits[13] += 0.5 # reversal
+                policy_logits[16] += 0.5 # latr
+                policy_logits[21] += 0.5 # vol_target
 
-        exp_logits = np.exp(policy_logits - np.max(policy_logits))
-        drl_weights = exp_logits / np.sum(exp_logits)
+        exp_logits = np.exp(np.clip(policy_logits - np.max(policy_logits), -50.0, 50.0))
+        sum_exp = np.sum(exp_logits)
+        drl_weights = exp_logits / (sum_exp if sum_exp > 0 else 1.0)
 
         # Map to strategy names
         strategy_names = [
@@ -81,12 +88,16 @@ class DRLPortfolioAllocator:
             w = float(drl_weights[idx]) if idx < len(drl_weights) else 1.0 / self.num_strategies
             if base_weights and name in base_weights:
                 # Blend DRL policy 40% with Rule Base 60%
-                w = 0.60 * base_weights[name] + 0.40 * w
-            result_weights[name] = w
+                base_val = float(base_weights[name]) if np.isfinite(base_weights[name]) else 0.0
+                w = 0.60 * base_val + 0.40 * w
+            result_weights[name] = max(0.0, w)
 
         # Re-normalize to sum 1.0
         total_w = sum(result_weights.values())
-        if total_w > 0:
-            result_weights = {k: v / total_w for k, v in result_weights.items()}
+        if total_w > 0 and np.isfinite(total_w):
+            result_weights = {k: float(v / total_w) for k, v in result_weights.items()}
+        else:
+            uniform = 1.0 / max(1, len(strategy_names))
+            result_weights = {k: uniform for k in strategy_names}
 
         return result_weights
