@@ -183,8 +183,9 @@ class DARTNewsFetcher:
             raw_titles = title_pattern.findall(text)
 
             # Strip HTML tags and decode entities
+            safe_max = max(1, int(max_items)) if max_items is not None else 10
             clean_titles = []
-            for raw in raw_titles[:max_items]:
+            for raw in raw_titles[:safe_max]:
                 clean = re.sub(r"<[^>]+>", "", raw).strip()
                 clean = html.unescape(clean)
                 if clean:
