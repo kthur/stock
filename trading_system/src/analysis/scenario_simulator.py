@@ -133,8 +133,10 @@ class ScenarioSimulationEngine:
             sector_shock = sector_outlook * 0.25  # 최대 ±25% 충격 가중치
 
             # 3. Total Combined Scenario Shock & Simulated Score
-            total_shock = macro_shock * 0.15 + sector_shock
-            simulated_score = float(np.clip(base_score + total_shock, 0.0, 1.0))
+            macro_shock_val = macro_shock if np.isfinite(macro_shock) else 0.0
+            sector_shock_val = sector_shock if np.isfinite(sector_shock) else 0.0
+            total_shock = macro_shock_val * 0.15 + sector_shock_val
+            simulated_score = float(np.clip(base_score + total_shock, 0.0, 1.0)) if np.isfinite(base_score + total_shock) else base_score
             score_delta = simulated_score - base_score
 
             results.append({
@@ -143,8 +145,8 @@ class ScenarioSimulationEngine:
                 'base_score': round(base_score, 4),
                 'simulated_score': round(simulated_score, 4),
                 'score_delta': round(score_delta, 4),
-                'macro_shock': round(macro_shock, 4),
-                'sector_shock': round(sector_shock, 4),
+                'macro_shock': round(macro_shock_val, 4),
+                'sector_shock': round(sector_shock_val, 4),
                 'impact_rationale': self._build_rationale(gics_sec, sector_outlook, macro_scenario, elas)
             })
 
