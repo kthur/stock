@@ -236,9 +236,15 @@ class RelativeStrengthAnalyzer:
         metrics = self.compute_metrics_from_histories(symbol, stock_closes, bench_closes, risk_free_rate)
 
         # Additional relative-strength indicators
-        stock_return = (stock_closes[-1] - stock_closes[0]) / stock_closes[0]
-        bench_return = (bench_closes[-1] - bench_closes[0]) / bench_closes[0]
+        s_first = stock_closes[0]
+        s_last = stock_closes[-1]
+        b_first = bench_closes[0]
+        b_last = bench_closes[-1]
+        stock_return = (s_last - s_first) / s_first if (s_first > 0 and np.isfinite(s_first) and np.isfinite(s_last)) else 0.0
+        bench_return = (b_last - b_first) / b_first if (b_first > 0 and np.isfinite(b_first) and np.isfinite(b_last)) else 0.0
         relative_strength = stock_return - bench_return  # excess return
+        if not np.isfinite(relative_strength):
+            relative_strength = 0.0
 
         # Volatility ratio (stock vol / bench vol)
         sr = _returns(np.array(stock_closes, dtype=float))
@@ -246,14 +252,20 @@ class RelativeStrengthAnalyzer:
         stock_vol = float(np.std(sr)) if len(sr) > 1 else 0.0
         bench_vol = float(np.std(br)) if len(br) > 1 else 0.0
         vol_ratio = stock_vol / max(bench_vol, 1e-10)
+        if not np.isfinite(vol_ratio):
+            vol_ratio = 1.0
 
         # Composite score: weighted sum of alpha, relative_strength,
         # and inversed vol_ratio (lower relative vol = better risk-adjusted)
-        alpha_score = max(-0.05, min(0.05, metrics.get("alpha", 0))) * 100  # scale
+        alpha_val = metrics.get("alpha", 0.0)
+        alpha_val = float(alpha_val) if (alpha_val is not None and np.isfinite(float(alpha_val))) else 0.0
+        alpha_score = max(-0.05, min(0.05, alpha_val)) * 100  # scale
         rs_score = max(-0.5, min(0.5, relative_strength)) * 2
         vol_score = max(-1.0, min(1.0, 1.0 - vol_ratio)) if vol_ratio > 0 else 0.0
 
         composite = round(alpha_score * 0.5 + rs_score * 0.3 + vol_score * 0.2, 4)
+        if not np.isfinite(composite):
+            composite = 0.0
 
         metrics.update(
             {
