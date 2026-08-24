@@ -108,7 +108,7 @@ class BuffettStrategy:
             reasons.append(f"배당율 {dividend_yield:.2f}% - 안정적 배당")
             score += 1
 
-        confidence = min(score / max_score, 1.0)
+        confidence = float(np.clip(score / max_score, 0.0, 1.0)) if np.isfinite(score) else 0.50
 
         if confidence > 0.7:
             recommendation = "BUY"
@@ -185,7 +185,7 @@ class LynchStrategy:
             reasons.append(f"산업 성장률 {industry_growth:.1f}% 초과 성장")
             score += 1
 
-        confidence = min(score / max_score, 1.0)
+        confidence = float(np.clip(score / max_score, 0.0, 1.0)) if np.isfinite(score) else 0.50
 
         if confidence > 0.7:
             recommendation = "BUY"
@@ -267,7 +267,7 @@ class MinervaStrategy:
             reasons.append(f"거래량 증가 {volume_trend:.1f}% - 매수세 강함")
             score += 0.5
 
-        confidence = min(score / max_score, 1.0)
+        confidence = float(np.clip(score / max_score, 0.0, 1.0)) if np.isfinite(score) else 0.50
 
         if confidence > 0.7:
             recommendation = "BUY"
@@ -355,7 +355,7 @@ class DividendStrategy:
             reasons.append("잉여현금흐름 양수 - 배당 뒷받침")
             score += 0.5
 
-        confidence = min(score / max_score, 1.0)
+        confidence = float(np.clip(score / max_score, 0.0, 1.0)) if np.isfinite(score) else 0.50
 
         if confidence > 0.7:
             recommendation = "BUY"
@@ -412,7 +412,9 @@ class InvestorStrategyEngine:
         hold_count = sum(1 for s in results.values() if s.recommendation == "HOLD")
         sell_count = sum(1 for s in results.values() if s.recommendation == "SELL")
 
-        avg_confidence = (sum(s.confidence for s in results.values()) / len(results)) if results else 0.50
+        conf_list = [s.confidence for s in results.values() if np.isfinite(s.confidence)]
+        avg_confidence = float(np.mean(conf_list)) if conf_list else 0.50
+        avg_confidence = float(np.clip(avg_confidence, 0.0, 1.0)) if np.isfinite(avg_confidence) else 0.50
 
         # 합의 도출
         if buy_count >= 3:
