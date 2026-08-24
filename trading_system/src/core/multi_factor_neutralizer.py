@@ -363,11 +363,11 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
 
         df["factor_neutralized_score"] = pd.to_numeric(pd.Series(np.round(scores, 4)), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         df["neutralized_score"] = df["factor_neutralized_score"]
-        df["smb_exposure"] = np.round(exposures[:, 0], 4)
-        df["hml_exposure"] = np.round(exposures[:, 1], 4)
-        df["rmw_exposure"] = np.round(exposures[:, 2], 4)
-        df["cma_exposure"] = np.round(exposures[:, 3], 4)
-        df["umd_exposure"] = np.round(exposures[:, 4], 4)
+        df["smb_exposure"] = np.where(np.isfinite(exposures[:, 0]), np.round(exposures[:, 0], 4), 0.0)
+        df["hml_exposure"] = np.where(np.isfinite(exposures[:, 1]), np.round(exposures[:, 1], 4), 0.0)
+        df["rmw_exposure"] = np.where(np.isfinite(exposures[:, 2]), np.round(exposures[:, 2], 4), 0.0)
+        df["cma_exposure"] = np.where(np.isfinite(exposures[:, 3]), np.round(exposures[:, 3], 4), 0.0)
+        df["umd_exposure"] = np.where(np.isfinite(exposures[:, 4]), np.round(exposures[:, 4], 4), 0.0)
 
         out_cols = [
             "symbol", "name", "market",
