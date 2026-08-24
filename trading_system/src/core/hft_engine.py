@@ -257,14 +257,16 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
             # HFT Order Flow Momentum Booster for high-conviction order imbalance (smooth transition)
             smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (net_score - 0.75)))
             net_score = float(np.clip(net_score * smooth_boost, 0.0, 1.0))
-            net_score = net_score if np.isfinite(net_score) else 0.50
+            net_score = float(np.clip(net_score, 0.0, 1.0)) if np.isfinite(net_score) else 0.50
+
+            gap_edge_val = round(float(bid_ask_imbalance * 2.5), 4) if np.isfinite(bid_ask_imbalance) else 0.0
 
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
                 "microstructure_score": net_score,
-                "overnight_gap_edge": round(bid_ask_imbalance * 2.5, 4),
+                "overnight_gap_edge": gap_edge_val,
                 "estimated_friction": 0.0050,
             })
 
