@@ -72,7 +72,8 @@ class CorporateActionAdjuster:
                 vol_cols = [c for c in df.columns if str(c).lower() == "volume"]
                 if vol_cols:
                     df[vol_cols[0]] = pd.to_numeric(df[vol_cols[0]], errors='coerce').astype(float)
-                    df.loc[prior_mask, vol_cols[0]] = df.loc[prior_mask, vol_cols[0]] / r
+                    if r > 1e-6:
+                        df.loc[prior_mask, vol_cols[0]] = df.loc[prior_mask, vol_cols[0]] / r
 
         return df
 

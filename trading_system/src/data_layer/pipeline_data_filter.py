@@ -43,7 +43,7 @@ def filter_training_data(
         if len(valid_s) > 10:
             mu = float(valid_s.mean())
             std = float(valid_s.std())
-            if np.isfinite(std) and std > 1e-8:
+            if np.isfinite(mu) and np.isfinite(std) and std > 1e-8:
                 mask = (s - mu).abs() <= sigma_thresh * std
                 df = df[mask.fillna(True)]
 
