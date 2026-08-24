@@ -39,18 +39,23 @@ class StrategyCorrelationMonitor:
 
         try:
             # Eigenvalue decomposition of correlation matrix
-            eigenvals = np.linalg.eigvalsh(corr_matrix.values)
+            vals = np.nan_to_num(corr_matrix.values, nan=0.0, posinf=0.0, neginf=0.0)
+            eigenvals = np.linalg.eigvalsh(vals)
             eigenvals = np.maximum(0.0, eigenvals)
-            tot = np.sum(eigenvals)
-            if tot <= 1e-12:
+            tot = float(np.sum(eigenvals))
+            if tot <= 1e-12 or not np.isfinite(tot):
                 return 1.0
 
             p = eigenvals / tot
             # Filter non-zero probabilities for entropy
-            p_pos = p[p > 1e-8]
+            p_pos = p[(p > 1e-8) & np.isfinite(p)]
+            if len(p_pos) == 0:
+                return 1.0
             entropy = -float(np.sum(p_pos * np.log(p_pos)))
+            if not np.isfinite(entropy):
+                return 1.0
             esc = float(np.exp(entropy))
-            return round(min(float(len(corr_matrix)), max(1.0, esc)), 2)
+            return round(min(float(len(corr_matrix)), max(1.0, esc if np.isfinite(esc) else 1.0)), 2)
         except Exception as ex:
             logger.warning(f"Error computing ESC: {ex}")
             return float(len(corr_matrix))
