@@ -49,8 +49,8 @@ def run_async(coro: Coroutine, timeout: float = 60.0) -> Any:
         thread = threading.Thread(target=run_in_thread, daemon=True)
         thread.start()
         try:
-            return future.result(timeout=timeout)
+            return future.result(timeout=safe_timeout)
         except FutureTimeoutError:
-            raise TimeoutError(f"async operation timed out after {timeout}s")
+            raise TimeoutError(f"async operation timed out after {safe_timeout}s")
     else:
         return loop.run_until_complete(coro)
