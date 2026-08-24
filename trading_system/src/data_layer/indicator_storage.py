@@ -1058,16 +1058,16 @@ class MarketIndicatorStorage:
             rec = [
                 str(r_dict.get('symbol', '')),
                 str(r_dict.get('date', ''))[:10],
-                float(r_dict.get('revenue', 0.0)) if pd.notna(r_dict.get('revenue')) else 0.0,
-                float(r_dict.get('operating_income', 0.0)) if pd.notna(r_dict.get('operating_income')) else 0.0,
-                float(r_dict.get('net_income', 0.0)) if pd.notna(r_dict.get('net_income', 0.0)) else 0.0,
-                float(r_dict.get('eps', 0.0)) if pd.notna(r_dict.get('eps', 0.0)) else 0.0,
-                float(r_dict.get('shares_outstanding', 0.0)) if pd.notna(r_dict.get('shares_outstanding', 0.0)) else 0.0,
-                float(r_dict.get('dividend_per_share', 0.0)) if pd.notna(r_dict.get('dividend_per_share')) else 0.0,
-                float(bv_val) if (bv_val is not None and pd.notna(bv_val)) else 0.0,
-                float(bps_val) if (bps_val is not None and pd.notna(bps_val)) else 0.0,
-                float(debt_val) if (debt_val is not None and pd.notna(debt_val)) else 0.0,
-                float(cash_val) if (cash_val is not None and pd.notna(cash_val)) else 0.0,
+                float(r_dict.get('revenue', 0.0)) if (pd.notna(r_dict.get('revenue')) and math.isfinite(float(r_dict.get('revenue', 0.0)))) else 0.0,
+                float(r_dict.get('operating_income', 0.0)) if (pd.notna(r_dict.get('operating_income')) and math.isfinite(float(r_dict.get('operating_income', 0.0)))) else 0.0,
+                float(r_dict.get('net_income', 0.0)) if (pd.notna(r_dict.get('net_income', 0.0)) and math.isfinite(float(r_dict.get('net_income', 0.0)))) else 0.0,
+                float(r_dict.get('eps', 0.0)) if (pd.notna(r_dict.get('eps', 0.0)) and math.isfinite(float(r_dict.get('eps', 0.0)))) else 0.0,
+                float(r_dict.get('shares_outstanding', 0.0)) if (pd.notna(r_dict.get('shares_outstanding', 0.0)) and math.isfinite(float(r_dict.get('shares_outstanding', 0.0)))) else 0.0,
+                float(r_dict.get('dividend_per_share', 0.0)) if (pd.notna(r_dict.get('dividend_per_share')) and math.isfinite(float(r_dict.get('dividend_per_share', 0.0)))) else 0.0,
+                float(bv_val) if (bv_val is not None and pd.notna(bv_val) and math.isfinite(float(bv_val))) else 0.0,
+                float(bps_val) if (bps_val is not None and pd.notna(bps_val) and math.isfinite(float(bps_val))) else 0.0,
+                float(debt_val) if (debt_val is not None and pd.notna(debt_val) and math.isfinite(float(debt_val))) else 0.0,
+                float(cash_val) if (cash_val is not None and pd.notna(cash_val) and math.isfinite(float(cash_val))) else 0.0,
             ]
             records.append(tuple(rec))
 
