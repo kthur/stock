@@ -89,7 +89,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 return default
             try:
                 res = float(val)
-                return default if np.isnan(res) else res
+                return default if not np.isfinite(res) else res
             except (ValueError, TypeError):
                 return default
 
