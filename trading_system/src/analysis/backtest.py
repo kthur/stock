@@ -968,23 +968,25 @@ class BacktestEngine:
     def _calculate_win_rate(self, trades: List[BacktestTrade]) -> float:
         """승률 계산"""
         if not trades:
-            return 0
+            return 0.0
 
-        winning_trades = sum(1 for t in trades if t.pnl > 0)
-        return winning_trades / len(trades)
+        winning_trades = sum(1 for t in trades if t.pnl > 0 and np.isfinite(t.pnl))
+        val = winning_trades / len(trades)
+        return float(np.clip(val, 0.0, 1.0)) if np.isfinite(val) else 0.0
 
     def _calculate_profit_factor(self, trades: List[BacktestTrade]) -> float:
         """이익 계수 계산"""
         if not trades:
             return 0.0
 
-        gross_profit = sum(t.pnl for t in trades if t.pnl > 0)
-        gross_loss = abs(sum(t.pnl for t in trades if t.pnl <= 0))
+        gross_profit = sum(t.pnl for t in trades if t.pnl > 0 and np.isfinite(t.pnl))
+        gross_loss = abs(sum(t.pnl for t in trades if t.pnl <= 0 and np.isfinite(t.pnl)))
 
-        if gross_loss == 0:
+        if gross_loss == 0 or not np.isfinite(gross_loss):
             return 10.0 if gross_profit > 0 else 0.0
 
-        return min(gross_profit / gross_loss, 100.0)
+        pf = gross_profit / gross_loss
+        return float(np.clip(pf, 0.0, 100.0)) if np.isfinite(pf) else 0.0
 
     def _calculate_max_drawdown(self, equity_curve: List[float]) -> float:
         """최대 낙폭 계산"""
