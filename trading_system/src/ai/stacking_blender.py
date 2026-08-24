@@ -49,17 +49,32 @@ class StackingBlender:
         """
         Blend predictions using learned weights, adjusted by VIX market regime if VIX > 30.
         """
+        if preds_matrix is None or len(preds_matrix) == 0:
+            return np.array([], dtype=float)
+
+        clean_preds = np.nan_to_num(np.asarray(preds_matrix, dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
+
         if key in self.weights_cache:
             weights = self.weights_cache[key].copy()
         else:
-            n_models = preds_matrix.shape[1] if preds_matrix.ndim == 2 else 3
+            n_models = clean_preds.shape[1] if clean_preds.ndim == 2 else 3
             weights = np.ones(n_models) / float(n_models)
 
+        safe_vix = float(vix_level) if (vix_level is not None and np.isfinite(vix_level)) else 20.0
+
         # High VIX regime shift adjustment (VIX > 30 shifts priority towards robust tree predictions)
-        if vix_level > 30.0 and len(weights) >= 3:
+        if safe_vix > 30.0 and len(weights) >= 3:
             # Increase weight for conservative/tree models (e.g. CatBoost)
             regime_adjust = np.array([0.25, 0.25, 0.50])[:len(weights)]
             weights = 0.5 * weights + 0.5 * regime_adjust
-            weights = weights / weights.sum()
 
-        return cast(np.ndarray, np.dot(preds_matrix, weights))
+        weights = np.nan_to_num(weights, nan=0.0, posinf=0.0, neginf=0.0)
+        w_sum = float(weights.sum())
+        if w_sum > 1e-8 and np.isfinite(w_sum):
+            weights = weights / w_sum
+        else:
+            n_w = len(weights) if len(weights) > 0 else 1
+            weights = np.ones(n_w) / float(n_w)
+
+        blended = np.dot(clean_preds, weights)
+        return cast(np.ndarray, np.nan_to_num(blended, nan=0.0))
