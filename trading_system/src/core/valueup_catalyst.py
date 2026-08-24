@@ -141,7 +141,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
 
                 # Composite score
                 raw_score = pbr_factor * roe_boost * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.5 + np.clip(div_val, 0.0, 0.10) * 5.0)
-                scores[sym_str] = float(raw_score)
+                scores[sym_str] = float(np.clip(raw_score, 0.0, 50.0)) if np.isfinite(raw_score) else np.nan
             else:
                 scores[sym_str] = np.nan
 
@@ -161,6 +161,6 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
             default_val = 0.50 if len(df_out) == 1 else np.nan
             df_out['valueup_catalyst_score'] = default_val
 
-        df_out['valueup_catalyst_score'] = df_out['valueup_catalyst_score'].astype(float)
+        df_out['valueup_catalyst_score'] = pd.to_numeric(df_out['valueup_catalyst_score'], errors='coerce')
 
         return df_out[['symbol', 'valueup_catalyst_score']]
