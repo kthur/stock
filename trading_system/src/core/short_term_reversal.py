@@ -175,7 +175,8 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         # R5-6: 50% Fast RSI-5 + 50% Standard RSI-14
         rsi_oversold_term = 0.5 * np.clip((35.0 - rsi_14) / 20.0, -0.2, 0.3) + 0.5 * np.clip((30.0 - rsi_5) / 20.0, -0.2, 0.3)
 
-        oversold_metric = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus + rsi_oversold_term
+        raw_oversold = -1.0 * ret_5d + 0.1 * consec - 0.2 * dist_lower_band + bounce_bonus + rsi_oversold_term
+        oversold_metric = pd.to_numeric(pd.Series(raw_oversold, index=close_2d.columns), errors='coerce').fillna(0.0).clip(-10.0, 10.0)
 
         res_df = pd.DataFrame({
             'symbol': close_2d.columns,
@@ -199,5 +200,6 @@ class ShortTermReversalEngine(BaseStrategyEngine):
             res_df['reversal_score'] = 0.50
             return res_df[['symbol', 'reversal_score']]
 
-        res_df['reversal_score'] = res_df['oversold_metric'].rank(pct=True, ascending=True).clip(0.02, 0.98)
+        res_df['reversal_score'] = pd.to_numeric(res_df['oversold_metric'], errors='coerce').rank(pct=True, ascending=True).clip(0.02, 0.98)
+        res_df['reversal_score'] = pd.to_numeric(res_df['reversal_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
         return res_df[['symbol', 'reversal_score']]
