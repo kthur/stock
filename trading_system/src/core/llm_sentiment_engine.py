@@ -350,6 +350,7 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                 elif isinstance(sent_res, (int, float)):
                     s_val = float(sent_res)
                     score = s_val if 0.0 <= s_val <= 1.0 else float(np.clip(0.5 + s_val * 0.4, 0.0, 1.0))
+                score = score if np.isfinite(score) else 0.5
 
             # 2. Check filings text map if not resolved yet
             if pd.isna(score):
@@ -357,6 +358,7 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                 if text:
                     res = self.analyze_filing_text(sym, str(text))
                     score = float(np.clip(0.5 + res.sentiment_score * 0.4, 0.0, 1.0))
+                    score = score if np.isfinite(score) else 0.5
 
             results.append({
                 "symbol": sym,
@@ -367,6 +369,7 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
+            res_df['sentiment_score'] = pd.to_numeric(res_df['sentiment_score'], errors='coerce')
             res_df = res_df.sort_values(by="sentiment_score", ascending=False, na_position='last').reset_index(drop=True)
         return res_df
 
