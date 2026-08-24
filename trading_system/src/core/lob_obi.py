@@ -24,11 +24,20 @@ class LimitOrderBookCalculator:
         """
         Calculates Micro-Price: P_micro = (V_a^1 * P_b^1 + V_b^1 * P_a^1) / (V_b^1 + V_a^1)
         """
-        total_vol = bid_vol_1 + ask_vol_1
-        if total_vol <= 0:
-            return 0.5 * (bid_price_1 + ask_price_1)
-        micro_price = (ask_vol_1 * bid_price_1 + bid_vol_1 * ask_price_1) / total_vol
-        return float(micro_price)
+        try:
+            pb = float(bid_price_1) if np.isfinite(float(bid_price_1)) else 0.0
+            vb = max(0.0, float(bid_vol_1)) if np.isfinite(float(bid_vol_1)) else 0.0
+            pa = float(ask_price_1) if np.isfinite(float(ask_price_1)) else 0.0
+            va = max(0.0, float(ask_vol_1)) if np.isfinite(float(ask_vol_1)) else 0.0
+        except (ValueError, TypeError):
+            return 0.0
+
+        total_vol = vb + va
+        if total_vol <= 0 or not np.isfinite(total_vol):
+            mid = 0.5 * (pb + pa)
+            return float(mid) if np.isfinite(mid) else 0.0
+        micro_price = (va * pb + vb * pa) / total_vol
+        return float(micro_price) if np.isfinite(micro_price) else float(0.5 * (pb + pa))
 
     def calculate_obi(
         self,
