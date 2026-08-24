@@ -142,10 +142,12 @@ class VolTargetingEngine(BaseStrategyEngine):
         if len(inv_vols) > 1 and inv_vols.std() > 1e-6:
             pct_rank = inv_vols.rank(pct=True).clip(0.02, 0.98)
             scores = (0.05 + pct_rank * 0.90).clip(0.0, 1.0).round(4)
+            scores = np.where(np.isfinite(scores), scores, 0.50)
         else:
-            target_weights = self.target_vol_annual / vols
+            target_weights = self.target_vol_annual / np.maximum(vols, 0.02)
             vol_ratio = target_weights - 1.0
             scores = (1.0 / (1.0 + np.exp(-3.0 * np.clip(vol_ratio, -2.0, 2.0)))).clip(0.0, 1.0).round(4)
+            scores = np.where(np.isfinite(scores), scores, 0.50)
 
         res_df = pd.DataFrame({
             "symbol": sym_series,
