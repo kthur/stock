@@ -109,13 +109,14 @@ class SentimentMetaFilter:
         kw_list = sorted(list(detected_kw))
 
         # Risk score calculation
-        risk_score = min(len(kw_list) * 0.40, 1.0)
+        raw_score = min(len(kw_list) * 0.40, 1.0)
+        risk_score = float(np.clip(raw_score if np.isfinite(raw_score) else 0.0, 0.0, 1.0))
 
         # Instant blacklist keywords bypass the threshold
         if any(kw in self.instant_blacklist_keywords for kw in kw_list):
             risk_score = 1.0
 
-        is_blacklisted = risk_score >= self.risk_threshold
+        is_blacklisted = bool(risk_score >= self.risk_threshold)
 
         reason = ""
         if is_blacklisted:
