@@ -25,11 +25,16 @@ class GNNSupplyChainLeadLagEngine:
         """
         Calculates Graph Attention coefficient alpha_ij between leader node j and follower node i.
         """
+        l_ret = float(leader_ret) if (leader_ret is not None and np.isfinite(leader_ret)) else 0.0
+        f_ret = float(follower_ret) if (follower_ret is not None and np.isfinite(follower_ret)) else 0.0
+        ew = float(edge_weight) if (edge_weight is not None and np.isfinite(edge_weight)) else 1.0
+
         # LeakyReLU attention mechanism
-        a_input = (leader_ret - follower_ret) * edge_weight
+        a_input = (l_ret - f_ret) * ew
         attn = np.maximum(a_input, a_input * self.alpha_leakage)
-        alpha = float(1.0 / (1.0 + np.exp(-attn)))
-        return alpha
+        attn_clipped = np.clip(attn, -50.0, 50.0)
+        alpha = float(1.0 / (1.0 + np.exp(-attn_clipped)))
+        return float(np.clip(alpha, 0.0, 1.0))
 
     def calculate_scores(
         self,
@@ -49,7 +54,10 @@ class GNNSupplyChainLeadLagEngine:
                 c = df_p['Close'] if 'Close' in df_p.columns else df_p.iloc[:, 0]
                 c_clean = c.dropna().values
                 if len(c_clean) >= 2:
-                    returns_1d[sym] = (c_clean[-1] - c_clean[-2]) / c_clean[-2]
+                    prev_c = float(c_clean[-2])
+                    curr_c = float(c_clean[-1])
+                    if prev_c > 1e-6 and np.isfinite(prev_c) and np.isfinite(curr_c):
+                        returns_1d[sym] = float(np.clip((curr_c - prev_c) / prev_c, -1.0, 10.0))
 
         for row in universe_df.itertuples(index=False):
             r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(universe_df.columns, row))
