@@ -120,6 +120,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                     abs_tone_boost = (cur_tone - 0.50) * 0.40 * confidence
                     drift_boost = 1.0 * tone_delta * accel_mult
                     score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.0, 1.0))
+                    score = score if np.isfinite(score) else 0.50
 
             results.append({
                 'symbol': sym,
@@ -127,4 +128,8 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 'tone_drift_score': score
             })
 
-        return pd.DataFrame(results)
+        res_df = pd.DataFrame(results)
+        if not res_df.empty:
+            res_df['earnings_tone_drift_score'] = pd.to_numeric(res_df['earnings_tone_drift_score'], errors='coerce')
+            res_df['tone_drift_score'] = res_df['earnings_tone_drift_score']
+        return res_df
