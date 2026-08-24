@@ -215,19 +215,22 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
 
     # Compute quality metrics from TTM data
     if 'ttm_revenue' in result.columns and 'ttm_operating_income' in result.columns:
-        result['operating_margin'] = np.where(
+        raw_op_m = np.where(
             result['ttm_revenue'] > 0,
-            result['ttm_operating_income'] / result['ttm_revenue'],
+            result['ttm_operating_income'] / np.maximum(result['ttm_revenue'], 1e-6),
             0.0
         )
+        result['operating_margin'] = np.clip(np.where(np.isfinite(raw_op_m), raw_op_m, 0.0), -10.0, 10.0)
     if 'ttm_revenue' in result.columns and 'ttm_net_income' in result.columns:
-        result['net_profit_margin'] = np.where(
+        raw_np_m = np.where(
             result['ttm_revenue'] > 0,
-            result['ttm_net_income'] / result['ttm_revenue'],
+            result['ttm_net_income'] / np.maximum(result['ttm_revenue'], 1e-6),
             0.0
         )
+        result['net_profit_margin'] = np.clip(np.where(np.isfinite(raw_np_m), raw_np_m, 0.0), -10.0, 10.0)
     if 'ttm_eps' in result.columns:
-        result['eps_growth_1y'] = result['ttm_eps'].pct_change(4).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        raw_eps_g = result['ttm_eps'].pct_change(4).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        result['eps_growth_1y'] = np.clip(np.where(np.isfinite(raw_eps_g), raw_eps_g, 0.0), -10.0, 10.0)
 
     return result
 
