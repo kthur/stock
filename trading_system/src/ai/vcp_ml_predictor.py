@@ -671,7 +671,8 @@ class VCPSurgePredictor:
                                         calib_p = 1.0 / (1.0 + np.exp(-z))
                                         # Prevent numeric collapse to 0.0 while preserving model ranking
                                         blend_prob = np.where(blend_prob > 0, np.maximum(calib_p, blend_prob * 0.05), blend_prob)
-                            res_df.loc[idx, col_name] = blend_prob
+                            blend_prob_safe = np.clip(np.where(np.isfinite(blend_prob), blend_prob, 0.20), 0.0, 1.0)
+                            res_df.loc[idx, col_name] = blend_prob_safe
                         else:
                             # Use VCP feature heuristic probability fallback (calibrated to ~0.20-0.25 base rate)
                             if 'vcp_score' in X_mkt.columns:
@@ -680,7 +681,8 @@ class VCPSurgePredictor:
                                 fallback_prob = np.clip((1.0 - (X_mkt['range_pct'] / 50.0)) * 0.40 + 0.05, 0.05, 0.45)
                             else:
                                 fallback_prob = 0.20
-                            res_df.loc[idx, col_name] = fallback_prob
+                            fallback_safe = np.clip(np.where(np.isfinite(fallback_prob), fallback_prob, 0.20), 0.0, 1.0)
+                            res_df.loc[idx, col_name] = fallback_safe
         for h in SURGE_HORIZONS:
             col_name = f'vcp_{h}d'
             if col_name in res_df.columns:
