@@ -326,7 +326,7 @@ class SupplyChainEngine(BaseStrategyEngine):
                     combined_ret = weighted_cust_ret * 0.70 + diff_val * 0.30
                 else:
                     combined_ret = weighted_cust_ret
-                score = float(np.clip(0.50 + combined_ret * 5.0, 0.0, 1.0))
+                score = float(np.clip(0.50 + combined_ret * 5.0, 0.0, 1.0)) if np.isfinite(combined_ret) else 0.50
 
             results.append({
                 "symbol": sym,
@@ -337,6 +337,7 @@ class SupplyChainEngine(BaseStrategyEngine):
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
+            res_df['supply_chain_score'] = pd.to_numeric(res_df['supply_chain_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
             res_df = res_df.sort_values(by="supply_chain_score", ascending=False).reset_index(drop=True)
         return res_df
 
