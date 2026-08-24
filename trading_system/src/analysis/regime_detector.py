@@ -283,11 +283,17 @@ class MarketRegimeDetector:
             regime_probs = {0: 0.0, 1: 0.0, 2: 0.0}
             for cluster_idx, prob in enumerate(cluster_probs):
                 reg = self.cluster_to_regime.get(cluster_idx, 2)
-                regime_probs[reg] += float(prob)
+                p_val = float(prob) if np.isfinite(float(prob)) else 0.0
+                regime_probs[reg] += p_val
 
-            p_bear = regime_probs[0]
-            p_sideways = regime_probs[1]
-            p_bull = regime_probs[2]
+            tot_p = sum(regime_probs.values())
+            if tot_p > 1e-12 and np.isfinite(tot_p):
+                p_bear = float(np.clip(regime_probs[0] / tot_p, 0.0, 1.0))
+                p_sideways = float(np.clip(regime_probs[1] / tot_p, 0.0, 1.0))
+                p_bull = float(np.clip(regime_probs[2] / tot_p, 0.0, 1.0))
+            else:
+                p_bear, p_sideways, p_bull = 0.10, 0.20, 0.70
+
             bear_shock_risk = bool(p_bear >= 0.35)
 
             return {
