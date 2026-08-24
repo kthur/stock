@@ -73,7 +73,7 @@ class InstForeignSectorEngine(BaseStrategyEngine):
             f_buy_40d = float(flow_df['foreign_net_buy'].iloc[-days:].sum())
             foreign_flow_score = np.clip(0.5 + (f_buy_40d / vol_sum) * 2.0, 0.0, 1.0) if f_buy_40d != 0 else 0.5
 
-        return float(0.5 * price_mf_ratio + 0.5 * foreign_flow_score)
+        return float(np.clip(0.5 * price_mf_ratio + 0.5 * foreign_flow_score, 0.0, 1.0))
 
     def compute_trust_accumulation(
         self,
@@ -100,7 +100,7 @@ class InstForeignSectorEngine(BaseStrategyEngine):
             t_buy_40d = float(flow_df['trust_net_buy'].iloc[-days:].sum())
             trust_flow_score = np.clip(0.5 + (t_buy_40d / vol_sum) * 2.0, 0.0, 1.0) if t_buy_40d != 0 else 0.5
 
-        return float(0.5 * price_mf_ratio + 0.5 * trust_flow_score)
+        return float(np.clip(0.5 * price_mf_ratio + 0.5 * trust_flow_score, 0.0, 1.0))
 
     def compute_inst_foreign_sector_scores(
         self,
@@ -228,7 +228,7 @@ class InstForeignSectorEngine(BaseStrategyEngine):
         # Institutional Leader Acceleration Booster for top 15% accumulated leaders
         inst_leader_mask = raw_ranks >= 0.85
         enhanced_score = np.where(inst_leader_mask, (raw_ranks * 1.08).clip(0.0, 0.98), raw_ranks)
-        acc_df['inst_foreign_sector_score'] = enhanced_score
+        acc_df['inst_foreign_sector_score'] = pd.to_numeric(pd.Series(enhanced_score, index=acc_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
 
         res_df = acc_df.reset_index()[['symbol', 'inst_foreign_sector_score', 'foreign_acc_score', 'trust_acc_score', 'accumulation_score', 'sector_corr_score']]
         return res_df
