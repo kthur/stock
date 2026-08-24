@@ -184,15 +184,19 @@ class AssetAllocator:
 
         raw: Dict[str, float] = {}
         for ticker, prices in price_data.items():
+            if not prices:
+                raw[ticker] = MIN_RETURN
+                continue
             first = prices[0]
             last = prices[-1]
-            if first <= 0:
-                total_return = MIN_RETURN
+            if not (isinstance(first, (int, float)) and isinstance(last, (int, float)) and math.isfinite(first) and math.isfinite(last)):
+                raw[ticker] = MIN_RETURN
+            elif first <= 0:
+                raw[ticker] = MIN_RETURN
             else:
                 total_return = last / first
-                # Convert to positive relative return (floor at epsilon)
-                total_return = max(MIN_RETURN, total_return)
-            raw[ticker] = total_return
+                total_return = max(MIN_RETURN, total_return) if math.isfinite(total_return) else MIN_RETURN
+                raw[ticker] = float(total_return)
 
         return _normalize(raw)
 
@@ -229,12 +233,17 @@ class AssetAllocator:
         pred_list = []
         for t in tickers:
             if predicted_returns and t in predicted_returns:
-                pred_list.append(float(predicted_returns[t]))
+                try:
+                    pr = float(predicted_returns[t])
+                    pred_list.append(pr if math.isfinite(pr) else 0.0)
+                except (ValueError, TypeError):
+                    pred_list.append(0.0)
             else:
                 # Default to historical momentum return as view
                 prices = price_data[t]
-                if prices[0] > 0:
-                    pred_list.append(max(0.0, (prices[-1] / prices[0]) - 1.0))
+                if prices and isinstance(prices[0], (int, float)) and prices[0] > 0 and math.isfinite(prices[0]) and math.isfinite(prices[-1]):
+                    pred_ret = (prices[-1] / prices[0]) - 1.0
+                    pred_list.append(max(0.0, pred_ret) if math.isfinite(pred_ret) else 0.0)
                 else:
                     pred_list.append(0.0)
 
