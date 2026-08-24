@@ -159,8 +159,10 @@ class MetaEnsembleLearner:
         if self.is_fitted and self.weights is not None:
             # Explicit column name dictionary projection to prevent permutation corruption
             w_dict = dict(zip(self.feature_names, self.weights))
-            eff_w = np.array([w_dict.get(col, 0.0) for col in available_cols], dtype=float)
-            ridge_pred = np.dot(X, eff_w) + self.intercept
+            eff_w = np.array([float(w_dict.get(col, 0.0)) for col in available_cols], dtype=float)
+            eff_w = np.nan_to_num(eff_w, nan=0.0, posinf=0.0, neginf=0.0)
+            safe_intercept = float(self.intercept) if np.isfinite(self.intercept) else 0.0
+            ridge_pred = np.dot(X, eff_w) + safe_intercept
 
             if self.learner_type == 'lgbm' and self._lgbm_model is not None:
                 try:
@@ -178,14 +180,16 @@ class MetaEnsembleLearner:
             else:
                 raw_pred = ridge_pred
 
-            meta_score = np.clip(raw_pred, 0.0, 1.0)
+            clean_raw = np.nan_to_num(raw_pred, nan=0.0, posinf=1.0, neginf=0.0)
+            meta_score = np.clip(clean_raw, 0.0, 1.0)
             return cast(np.ndarray, meta_score)
         else:
             # Fallback: Dynamic average of non-zero strategy scores
             non_zero_counts = (X > 0).sum(axis=1)
             row_sums = X.sum(axis=1)
             fallback = np.where(non_zero_counts > 0, row_sums / np.maximum(non_zero_counts, 1), 0.0)
-            return cast(np.ndarray, np.clip(fallback, 0.0, 1.0))
+            clean_fallback = np.nan_to_num(fallback, nan=0.0, posinf=1.0, neginf=0.0)
+            return cast(np.ndarray, np.clip(clean_fallback, 0.0, 1.0))
 
     def auto_rolling_retrain(self, historical_predictions_df: pd.DataFrame, target_col: str = 'outcome_label') -> bool:
         """
