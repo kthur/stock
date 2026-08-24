@@ -39,12 +39,15 @@ class RegressionStrategyAdapter(BaseStrategyEngine):
         if self.model_instance is None:
             return pd.DataFrame(columns=["symbol", "reg_score"])
         try:
+            import numpy as np
             preds = self.model_instance.predict_all(prices_dict, fundamentals_dict=fundamentals_dict)
             if isinstance(preds, pd.DataFrame):
                 if "reg_score" not in preds.columns and "expected_return_5d" in preds.columns:
                     preds = preds.rename(columns={"expected_return_5d": "reg_score"})
+                if "reg_score" in preds.columns:
+                    preds["reg_score"] = pd.to_numeric(preds["reg_score"], errors="coerce").fillna(0.0)
                 return preds
-            records = [{"symbol": k, "reg_score": v} for k, v in preds.items()]
+            records = [{"symbol": str(k), "reg_score": float(v) if (v is not None and np.isfinite(float(v))) else 0.0} for k, v in preds.items()]
             return pd.DataFrame(records)
         except Exception as e:
             logger.warning(f"[RegressionAdapter] Prediction failed: {e}")
@@ -80,12 +83,15 @@ class SurgeStrategyAdapter(BaseStrategyEngine):
         if self.model_instance is None:
             return pd.DataFrame(columns=["symbol", "surge_score"])
         try:
+            import numpy as np
             preds = self.model_instance.predict_surge_all(prices_dict)
             if isinstance(preds, pd.DataFrame):
                 if "surge_score" not in preds.columns and "surge_prob_5d" in preds.columns:
                     preds = preds.rename(columns={"surge_prob_5d": "surge_score"})
+                if "surge_score" in preds.columns:
+                    preds["surge_score"] = pd.to_numeric(preds["surge_score"], errors="coerce").fillna(0.0)
                 return preds
-            records = [{"symbol": k, "surge_score": v} for k, v in preds.items()]
+            records = [{"symbol": str(k), "surge_score": float(v) if (v is not None and np.isfinite(float(v))) else 0.0} for k, v in preds.items()]
             return pd.DataFrame(records)
         except Exception as e:
             logger.warning(f"[SurgeAdapter] Prediction failed: {e}")
@@ -121,12 +127,15 @@ class VCPMLStrategyAdapter(BaseStrategyEngine):
         if self.model_instance is None:
             return pd.DataFrame(columns=["symbol", "vcp_ml_score"])
         try:
+            import numpy as np
             preds = self.model_instance.predict(prices_dict)
             if isinstance(preds, pd.DataFrame):
                 if "vcp_ml_score" not in preds.columns and "score" in preds.columns:
                     preds = preds.rename(columns={"score": "vcp_ml_score"})
+                if "vcp_ml_score" in preds.columns:
+                    preds["vcp_ml_score"] = pd.to_numeric(preds["vcp_ml_score"], errors="coerce").fillna(0.0)
                 return preds
-            records = [{"symbol": k, "vcp_ml_score": v} for k, v in preds.items()]
+            records = [{"symbol": str(k), "vcp_ml_score": float(v) if (v is not None and np.isfinite(float(v))) else 0.0} for k, v in preds.items()]
             return pd.DataFrame(records)
         except Exception as e:
             logger.warning(f"[VCPMLAdapter] Prediction failed: {e}")
