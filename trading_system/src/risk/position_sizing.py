@@ -141,9 +141,9 @@ class PortfolioAllocator:
                 logger.info(f"[Market Budget] DECOUPLING_KR_BULL_US_BEAR: KR boosted, US reduced (strength={decoupling_strength:.2f})")
 
         # 정규화: 합산 = 1.0
-        total = sum(raw.values())
-        budgets = {k: v / total for k, v in raw.items()} if total > 0 else \
-                  {k: 0.20 for k in raw}
+        total = float(sum(raw.values()))
+        budgets = {k: v / total for k, v in raw.items()} if (total > 1e-12 and np.isfinite(total)) else \
+                  {k: 1.0 / max(len(raw), 1) for k in raw}
 
         logger.info(f"[Market Budget] Layer1+2 Final Budgets: { {k: f'{v:.1%}' for k, v in budgets.items()} }")
         return budgets
