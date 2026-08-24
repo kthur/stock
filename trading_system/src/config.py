@@ -584,7 +584,11 @@ class TradingConfig:
 
     def get_max_country_weight(self, market: str) -> float:
         """Return maximum portfolio allocation weight cap for a given country (default 35%)."""
-        return float(os.getenv("MAX_COUNTRY_WEIGHT", "0.35"))
+        try:
+            val = float(os.getenv("MAX_COUNTRY_WEIGHT", "0.35"))
+            return float(max(0.05, min(1.0, val))) if math.isfinite(val) else 0.35
+        except (ValueError, TypeError):
+            return 0.35
 
     def validate(self) -> None:
         if self.initial_cash <= 0:
