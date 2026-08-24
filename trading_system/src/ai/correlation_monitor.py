@@ -224,6 +224,9 @@ class StrategyCorrelationMonitor:
         Extracts strategy pairs with correlation magnitude |rho_ij| >= threshold.
         Returns list of (strat_i, strat_j, corr_value) sorted descending by absolute correlation.
         """
+        safe_threshold = float(threshold) if (threshold is not None and np.isfinite(threshold)) else 0.50
+        safe_threshold = max(0.0, min(1.0, safe_threshold))
+
         mat_df = corr_matrix if corr_matrix is not None else self.rolling_corr_matrix
         if mat_df is None or mat_df.empty:
             return []
@@ -234,8 +237,8 @@ class StrategyCorrelationMonitor:
         for i in range(n):
             for j in range(i + 1, n):
                 rho = float(mat_df.iloc[i, j])
-                if abs(rho) >= threshold:
-                    pairs.append((strats[i], strats[j], round(rho, 4)))
+                if np.isfinite(rho) and abs(rho) >= safe_threshold:
+                    pairs.append((strats[i], strats[j], round(float(np.clip(rho, -1.0, 1.0)), 4)))
 
         pairs.sort(key=lambda x: abs(x[2]), reverse=True)
         return pairs
