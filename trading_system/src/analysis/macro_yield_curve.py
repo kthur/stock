@@ -38,9 +38,9 @@ class NelsonSiegelYieldCurveEngine:
 
         if len(tau) < 3 or len(tau) != len(y):
             # Fallback estimation if incomplete maturity curve
-            level = float(np.mean(y)) if len(y) > 0 else 3.50
-            slope = float(y[-1] - y[0]) if len(y) >= 2 else 0.0
-            return {"level": level, "slope": slope, "curvature": 0.0, "r_squared": 0.50}
+            level = float(np.mean(y)) if (len(y) > 0 and np.isfinite(np.mean(y))) else 3.50
+            slope = float(y[-1] - y[0]) if (len(y) >= 2 and np.isfinite(y[-1] - y[0])) else 0.0
+            return {"level": round(level, 4), "slope": round(slope, 4), "curvature": 0.0, "r_squared": 0.50}
 
         lam = self.decay_lambda
         # Basis functions
@@ -60,16 +60,16 @@ class NelsonSiegelYieldCurveEngine:
             r2 = float(1.0 - (ss_res / max(ss_tot, 1e-6)))
         except Exception as e:
             logger.warning(f"[NELSON SIEGEL] OLS fit failed ({e}), using fallback.")
-            level = float(y[-1])
-            slope = float(y[-1] - y[0])
+            level = float(y[-1]) if (len(y) > 0 and np.isfinite(y[-1])) else 3.50
+            slope = float(y[-1] - y[0]) if (len(y) >= 2 and np.isfinite(y[-1] - y[0])) else 0.0
             curvature = 0.0
             r2 = 0.0
 
         return {
-            "level": round(float(level), 4),
-            "slope": round(float(slope), 4),
-            "curvature": round(float(curvature), 4),
-            "r_squared": round(float(np.clip(r2, 0.0, 1.0)), 4)
+            "level": round(float(level), 4) if np.isfinite(level) else 3.50,
+            "slope": round(float(slope), 4) if np.isfinite(slope) else 0.0,
+            "curvature": round(float(curvature), 4) if np.isfinite(curvature) else 0.0,
+            "r_squared": round(float(np.clip(r2, 0.0, 1.0)), 4) if np.isfinite(r2) else 0.0
         }
 
     def predict_macro_regime_transition(
@@ -112,8 +112,13 @@ class NelsonSiegelYieldCurveEngine:
         slope = fit_res["slope"] # Inverted when slope > 0 in standard NS (short rate > long rate) or 10Y - 2Y < 0
 
         # 10Y - 2Y direct spread
-        spread_10_2 = (yield_curve_dict.get("10y", yield_curve_dict.get("tnx", 4.0)) or 4.0) - \
-                      (yield_curve_dict.get("2y", yield_curve_dict.get("fvxb", 3.8)) or 3.8)
+        v_10y = yield_curve_dict.get("10y", yield_curve_dict.get("tnx", 4.0))
+        v_2y = yield_curve_dict.get("2y", yield_curve_dict.get("fvxb", 3.8))
+        f_10y = float(v_10y) if (v_10y is not None and np.isfinite(float(v_10y))) else 4.0
+        f_2y = float(v_2y) if (v_2y is not None and np.isfinite(float(v_2y))) else 3.8
+        spread_10_2 = f_10y - f_2y
+        if not np.isfinite(spread_10_2):
+            spread_10_2 = 0.20
 
         # Inversion & Steepening classification
         is_inverted = spread_10_2 < 0.0
