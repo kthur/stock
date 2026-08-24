@@ -77,22 +77,30 @@ def _compute_strategy_metrics(daily_returns: pd.Series, horizon: int) -> Dict[st
     std_period = float(s.std(ddof=1)) if n > 1 else 0.0
 
     # Annualized return (geometric compounding of average period return with loss floor)
-    clamped_mean = max(mean_period, -0.999)
-    annualized_return = ((1.0 + clamped_mean) ** periods_per_year - 1.0) * 100.0
+    clamped_mean = max(mean_period, -0.999) if np.isfinite(mean_period) else 0.0
+    try:
+        annualized_return = ((1.0 + clamped_mean) ** periods_per_year - 1.0) * 100.0
+        if not np.isfinite(annualized_return):
+            annualized_return = 0.0
+    except (ValueError, OverflowError):
+        annualized_return = 0.0
 
     # Annualized volatility
-    annualized_vol = std_period * math.sqrt(periods_per_year) if not np.isnan(std_period) else 0.0
-    sharpe = (annualized_return / 100.0) / annualized_vol if annualized_vol > 1e-12 else 0.0
-    sharpe = float(np.clip(sharpe, -10.0, 10.0))
+    annualized_vol = std_period * math.sqrt(periods_per_year) if (std_period is not None and np.isfinite(std_period) and std_period > 0) else 0.0
+    sharpe = (annualized_return / 100.0) / annualized_vol if (annualized_vol > 1e-12 and np.isfinite(annualized_vol)) else 0.0
+    sharpe = float(np.clip(sharpe, -10.0, 10.0)) if np.isfinite(sharpe) else 0.0
 
     # Win rate per rebalance period
-    win_rate = float((s > 0).mean()) * 100.0
+    win_rate = float((s > 0).mean()) * 100.0 if len(s) > 0 else 0.0
+    win_rate = float(np.clip(win_rate, 0.0, 100.0)) if np.isfinite(win_rate) else 0.0
 
     # Max drawdown on the compounded equity curve
-    equity = np.cumprod(1.0 + np.clip(s.values, -0.999, 10.0))
+    s_vals = np.clip(np.nan_to_num(s.values, nan=0.0), -0.999, 10.0)
+    equity = np.cumprod(1.0 + s_vals)
     peak = np.maximum.accumulate(equity)
     dd = (equity - peak) / np.maximum(peak, 1e-12)
     max_dd = float(np.min(dd)) * 100.0 if len(dd) else 0.0
+    max_dd = float(np.clip(max_dd, -100.0, 0.0)) if np.isfinite(max_dd) else 0.0
 
     return {
         "sharpe_ratio": round(sharpe, 2),
