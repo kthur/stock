@@ -25,13 +25,21 @@ def calculate_almgren_chriss_impact(
     Computes non-linear Almgren-Chriss market impact cost (pct of price).
     Formula: Cost = 0.5 * spread + gamma * daily_volatility * sqrt(order_quantity / max(adv, 1.0))
     """
-    if adv <= 0 or order_quantity <= 0:
-        return 0.5 * spread + 0.005
-    ratio = order_quantity / max(adv, 1.0)
-    vol_clean = max(1e-4, daily_volatility)
-    impact = 0.5 * spread + gamma * vol_clean * float(np.sqrt(ratio))
+    sp = float(spread) if np.isfinite(spread) else 0.001
+    try:
+        adv_f = float(adv)
+        qty_f = float(order_quantity)
+        if adv_f <= 0 or qty_f <= 0 or not np.isfinite(adv_f) or not np.isfinite(qty_f):
+            return 0.5 * sp + 0.005
+    except (ValueError, TypeError):
+        return 0.5 * sp + 0.005
+
+    vol = float(daily_volatility) if np.isfinite(daily_volatility) else 0.02
+    ratio = max(0.0, qty_f) / max(adv_f, 1.0)
+    vol_clean = max(1e-4, vol)
+    impact = 0.5 * sp + gamma * vol_clean * float(np.sqrt(ratio))
     if np.isnan(impact) or np.isinf(impact):
-        return 0.5 * spread + 0.005
+        return 0.5 * sp + 0.005
     return float(np.clip(impact, 0.0005, 0.05))
 
 
@@ -109,9 +117,17 @@ class OrderManagementSystem:
         self, symbol: str, order_type: OrderType, quantity: int, price: float, signal_name: str = ""
     ) -> Order:
         """주문 생성"""
-        order = Order(symbol=symbol, order_type=order_type, quantity=quantity, price=price, signal_name=signal_name)
+        try:
+            qty = max(0, int(quantity)) if (quantity is not None and np.isfinite(float(quantity))) else 0
+        except (ValueError, TypeError):
+            qty = 0
+        try:
+            p = max(0.0, float(price)) if (price is not None and np.isfinite(float(price))) else 0.0
+        except (ValueError, TypeError):
+            p = 0.0
+        order = Order(symbol=symbol, order_type=order_type, quantity=qty, price=p, signal_name=signal_name)
         self.orders[order.order_id] = order
-        self.logger.info(f"Order created: {order.order_id} {order_type.value} {symbol} x{quantity}")
+        self.logger.info(f"Order created: {order.order_id} {order_type.value} {symbol} x{qty}")
         return order
 
     async def submit_order(self, order: Order) -> bool:
@@ -207,17 +223,25 @@ class OrderManagementSystem:
         self, symbol: str, quantity: int, trigger_price: float, parent_order_id: str | None = None
     ) -> Order:
         """손절매 주문 생성"""
+        try:
+            qty = max(0, int(quantity)) if (quantity is not None and np.isfinite(float(quantity))) else 0
+        except (ValueError, TypeError):
+            qty = 0
+        try:
+            tp = max(0.0, float(trigger_price)) if (trigger_price is not None and np.isfinite(float(trigger_price))) else 0.0
+        except (ValueError, TypeError):
+            tp = 0.0
         order = Order(
             symbol=symbol,
             order_type=OrderType.STOP_LOSS,
-            quantity=quantity,
-            price=trigger_price,  # Stop loss 주문의 price는 trigger_price
-            trigger_price=trigger_price,
+            quantity=qty,
+            price=tp,  # Stop loss 주문의 price는 trigger_price
+            trigger_price=tp,
             parent_order_id=parent_order_id,
         )
         self.orders[order.order_id] = order
         self.logger.info(
-            f"Stop loss order created: {order.order_id} {symbol} x{quantity} @ trigger={trigger_price:,.0f}"
+            f"Stop loss order created: {order.order_id} {symbol} x{qty} @ trigger={tp:,.0f}"
         )
         return order
 
