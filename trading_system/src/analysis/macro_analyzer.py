@@ -76,7 +76,12 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
         for t1 in tickers:
             for t2 in tickers:
                 val = returns[t1].corr(shifted[t2])
-                corr_df.loc[t1, (t2, lag)] = float(val) if (val is not None and np.isfinite(val)) else 0.0
+                if val is not None and np.isfinite(val):
+                    corr_df.loc[t1, (t2, lag)] = float(val)
+                elif lag == 0 and t1 == t2:
+                    corr_df.loc[t1, (t2, lag)] = 1.0
+                else:
+                    corr_df.loc[t1, (t2, lag)] = 0.0
 
     return corr_df
 
