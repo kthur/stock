@@ -1,6 +1,7 @@
 """Distributed Order Manager — split large orders into tranches for better entry/exit."""
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -25,13 +26,17 @@ def _normalize(allocation: Tuple[float, ...], n: int) -> List[float]:
     """Ensure the allocation tuple matches *n* and sums to 1.0."""
     if n <= 0:
         return []
-    alloc = list(allocation)
+    alloc = []
+    for a in allocation[:n]:
+        try:
+            a_val = float(a)
+            alloc.append(max(0.0, a_val) if math.isfinite(a_val) else 0.0)
+        except (ValueError, TypeError):
+            alloc.append(0.0)
     if len(alloc) < n:
         alloc += [0.0] * (n - len(alloc))
-    elif len(alloc) > n:
-        alloc = alloc[:n]
     s = sum(alloc)
-    if s <= 0:
+    if s <= 0 or not math.isfinite(s):
         alloc = [1.0 / n] * n
     else:
         alloc = [a / s for a in alloc]
@@ -51,11 +56,22 @@ def _build_buy_levels(
     """
     alloc = _normalize(allocation, n)
     levels: List[Dict] = []
+    try:
+        cp_val = float(center_price)
+        cp = max(0.0, cp_val) if math.isfinite(cp_val) else 0.0
+    except (ValueError, TypeError):
+        cp = 0.0
+    try:
+        sp_val = float(spread_pct)
+        sp = max(0.0, sp_val) if math.isfinite(sp_val) else 0.02
+    except (ValueError, TypeError):
+        sp = 0.02
+
     for i in range(n):
-        offset = 1.0 - spread_pct * i
+        offset = max(0.01, 1.0 - sp * i)
         levels.append(
             {
-                "price": round(center_price * offset, 2),
+                "price": round(cp * offset, 2),
                 "frac": alloc[i],
             }
         )
@@ -75,11 +91,22 @@ def _build_sell_levels(
     """
     alloc = _normalize(allocation, n)
     levels: List[Dict] = []
+    try:
+        cp_val = float(center_price)
+        cp = max(0.0, cp_val) if math.isfinite(cp_val) else 0.0
+    except (ValueError, TypeError):
+        cp = 0.0
+    try:
+        sp_val = float(spread_pct)
+        sp = max(0.0, sp_val) if math.isfinite(sp_val) else 0.025
+    except (ValueError, TypeError):
+        sp = 0.025
+
     for i in range(n):
-        offset = 1.0 + spread_pct * (i + 1)
+        offset = 1.0 + sp * (i + 1)
         levels.append(
             {
-                "price": round(center_price * offset, 2),
+                "price": round(cp * offset, 2),
                 "frac": alloc[i],
             }
         )
