@@ -119,7 +119,11 @@ class OrderFlowEngine(BaseStrategyEngine):
                 vol_20_slice = volume.iloc[-20:]
                 close_20_slice = close.iloc[-20:]
                 vwap_20d = (close_20_slice * vol_20_slice).sum() / (vol_20_slice.sum() + 1e-6)
-                vwap_dev = (float(close.iloc[-1]) - float(vwap_20d)) / (float(vwap_20d) + 1e-6)
+                if np.isfinite(vwap_20d) and float(vwap_20d) > 0:
+                    vwap_dev = (float(close.iloc[-1]) - float(vwap_20d)) / (float(vwap_20d) + 1e-6)
+                    vwap_dev = vwap_dev if np.isfinite(vwap_dev) else 0.0
+                else:
+                    vwap_dev = 0.0
                 vwap_score = float(np.clip(0.5 + vwap_dev * 5.0, 0.0, 1.0))
 
                 # Composite order flow indicator (MFI + OBV + Volume Accel + VWAP Deviation)
@@ -144,10 +148,12 @@ class OrderFlowEngine(BaseStrategyEngine):
 
                             if 'foreign_net_buy' in f_df_aligned.columns:
                                 f_buy = float(f_df_aligned['foreign_net_buy'].iloc[-5:].sum())
-                                inst_boost += float(np.clip((f_buy / vol_5d) * 0.5, -0.10, 0.10))
+                                if np.isfinite(f_buy):
+                                    inst_boost += float(np.clip((f_buy / vol_5d) * 0.5, -0.10, 0.10))
                             if 'inst_net_buy' in f_df_aligned.columns:
                                 i_buy = float(f_df_aligned['inst_net_buy'].iloc[-5:].sum())
-                                inst_boost += float(np.clip((i_buy / vol_5d) * 0.5, -0.10, 0.10))
+                                if np.isfinite(i_buy):
+                                    inst_boost += float(np.clip((i_buy / vol_5d) * 0.5, -0.10, 0.10))
                         except Exception:
                             pass
 
@@ -172,5 +178,6 @@ class OrderFlowEngine(BaseStrategyEngine):
         # Smart Money Dual Inflow Booster for top 15% high-demand order flow leaders
         smart_money_mask = raw_ranks >= 0.85
         enhanced_score = np.where(smart_money_mask, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks)
+        enhanced_score = np.where(np.isfinite(enhanced_score), enhanced_score, 0.50)
         res_df['order_flow_score'] = pd.to_numeric(pd.Series(enhanced_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         return res_df[['symbol', 'order_flow_score']]
