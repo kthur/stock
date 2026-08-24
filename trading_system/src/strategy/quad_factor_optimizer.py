@@ -181,12 +181,14 @@ class QuadFactorNeutralOptimizer:
         w_opt = np.clip(w_opt, 0.0, eff_max_w)
         w_sum = float(np.sum(w_opt))
 
-        if not isinfeasible_sector and w_sum > 0:
+        if not isinfeasible_sector and w_sum > 0 and np.isfinite(w_sum):
             w_opt /= w_sum
-        elif isinfeasible_sector and w_sum > 1.0:
+        elif isinfeasible_sector and w_sum > 1.0 and np.isfinite(w_sum):
             w_opt /= w_sum
+        elif w_sum <= 0 or not np.isfinite(w_sum):
+            w_opt = np.full(n, 1.0 / n, dtype=np.float64)
 
-        return {symbols[i]: float(w_opt[i]) if (i < len(w_opt) and np.isfinite(w_opt[i])) else 0.0 for i in range(n)}
+        return {symbols[i]: round(float(w_opt[i]), 4) if (i < len(w_opt) and np.isfinite(w_opt[i])) else round(1.0 / n, 4) for i in range(n)}
 
     def optimize_portfolio(self, *args, **kwargs) -> Dict[str, float]:
         return self.optimize(*args, **kwargs)
