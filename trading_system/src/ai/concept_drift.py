@@ -40,8 +40,8 @@ class ConceptDriftDetector:
         exp_arr = np.asarray(expected, dtype=np.float64)
         act_arr = np.asarray(actual, dtype=np.float64)
 
-        exp_clean = exp_arr[~np.isnan(exp_arr)]
-        act_clean = act_arr[~np.isnan(act_arr)]
+        exp_clean = exp_arr[np.isfinite(exp_arr)]
+        act_clean = act_arr[np.isfinite(act_arr)]
 
         if len(exp_clean) < 20 or len(act_clean) < 20:
             return 0.0
