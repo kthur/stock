@@ -257,6 +257,7 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
             # HFT Order Flow Momentum Booster for high-conviction order imbalance (smooth transition)
             smooth_boost = 1.0 + 0.10 / (1.0 + np.exp(-10.0 * (net_score - 0.75)))
             net_score = float(np.clip(net_score * smooth_boost, 0.0, 1.0))
+            net_score = net_score if np.isfinite(net_score) else 0.50
 
             results.append({
                 "symbol": sym,
@@ -267,4 +268,7 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                 "estimated_friction": 0.0050,
             })
 
-        return pd.DataFrame(results)
+        res_df = pd.DataFrame(results)
+        if not res_df.empty:
+            res_df['microstructure_score'] = pd.to_numeric(res_df['microstructure_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+        return res_df
