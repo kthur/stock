@@ -91,14 +91,17 @@ def _build_styles():
 
 def _metrics_table(data: dict, styles: dict) -> Table:
     """Build the performance metrics table."""
-    try:
-        init_cap = int(data.get("initial_capital", 0))
-    except (ValueError, TypeError):
-        init_cap = 0
-    try:
-        fin_cap = int(data.get("final_capital", 0))
-    except (ValueError, TypeError):
-        fin_cap = 0
+    import math
+    def _to_int(v, d=0):
+        try:
+            f = float(v)
+            return int(f) if math.isfinite(f) else d
+        except (ValueError, TypeError):
+            return d
+
+    init_cap = _to_int(data.get("initial_capital", 0))
+    fin_cap = _to_int(data.get("final_capital", 0))
+    tot_fees = _to_int(data.get("total_fees", 0))
 
     rows = [
         ["Metric", "Value"],
@@ -111,7 +114,7 @@ def _metrics_table(data: dict, styles: dict) -> Table:
         ["Max Drawdown", str(data.get("max_drawdown", "N/A"))],
         ["Profit Factor", str(data.get("profit_factor", "N/A"))],
         ["Sharpe Ratio", str(data.get("sharpe_ratio", "N/A"))],
-        ["Total Fees", f"₩{int(data.get('total_fees', 0)):,}"],
+        ["Total Fees", f"₩{tot_fees:,}"],
         ["Total Trades", str(data.get("trades_count", "N/A"))],
     ]
 
