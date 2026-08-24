@@ -107,8 +107,10 @@ class IndexRebalanceEngine(BaseStrategyEngine):
             name = str(row.get("name", sym))
             mkt = str(row.get("market", "KOSPI"))
 
-            m_rank = float(mcap_rank_pct.loc[idx])
-            a_rank = float(adv_rank_pct.loc[idx])
+            m_val = mcap_rank_pct.loc[idx]
+            a_val = adv_rank_pct.loc[idx]
+            m_rank = float(m_val) if (pd.notna(m_val) and np.isfinite(float(m_val))) else 0.50
+            a_rank = float(a_val) if (pd.notna(a_val) and np.isfinite(float(a_val))) else 0.50
 
             # High probability candidate for inclusion: Top 5-15% market cap + Top 10% liquidity in non-mega caps
             is_inclusion_candidate = (0.02 <= m_rank <= 0.15) and (a_rank <= 0.20)
@@ -131,12 +133,15 @@ class IndexRebalanceEngine(BaseStrategyEngine):
                 raw_score = 0.50
                 predicted_flow = 0.0
 
+            safe_score = round(float(np.clip(raw_score, 0.0, 1.0)), 4) if np.isfinite(raw_score) else 0.50
+            safe_flow = round(float(predicted_flow), 2) if np.isfinite(predicted_flow) else 0.0
+
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "index_rebalance_score": round(float(np.clip(raw_score, 0.0, 1.0)), 4),
-                "predicted_flow_krw": round(predicted_flow, 2),
+                "index_rebalance_score": safe_score,
+                "predicted_flow_krw": safe_flow,
                 "rebalance_phase": rebal_info["phase"]
             })
 
