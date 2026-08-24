@@ -150,8 +150,8 @@ class SlippageFeedbackEngine:
 
             # Robust estimation: Hard-clip extreme outliers (e.g. > 50 bps data artifacts) and apply MAD
             arr = np.clip(np.array(valid_slippages, dtype=float), -50.0, 50.0)
-            med = float(np.median(arr))
-            mad = float(np.median(np.abs(arr - med)))
+            med = float(np.median(arr)) if len(arr) > 0 else self.default_slippage_bps
+            mad = float(np.median(np.abs(arr - med))) if len(arr) > 0 else 0.0
             mad_sigma = mad * 1.4826
             if mad_sigma > 1e-4 and len(arr) >= 5:
                 filtered = arr[np.abs(arr - med) <= 3.5 * mad_sigma]
