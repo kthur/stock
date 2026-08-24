@@ -422,7 +422,11 @@ class TradingConfig:
 
         info = _MARKET_LOOKUP.get(mkt)
         if info and 'spread_bps' in info:
-            return float(info['spread_bps'])
+            try:
+                v = float(info['spread_bps'])
+                return v if math.isfinite(v) else self.base_spread_sp500
+            except (ValueError, TypeError):
+                return self.base_spread_sp500
         return self.base_spread_sp500
 
     def get_stt_tax(self, market: str) -> float:
@@ -430,7 +434,11 @@ class TradingConfig:
         mkt = str(market).strip().upper()
         info = _MARKET_LOOKUP.get(mkt)
         if info and 'stt' in info:
-            return float(info['stt'])
+            try:
+                v = float(info['stt'])
+                return v if math.isfinite(v) else 0.0001
+            except (ValueError, TypeError):
+                return 0.0001
         return 0.0001
 
     def get_brokerage_fee(self, market: str) -> float:
@@ -438,7 +446,11 @@ class TradingConfig:
         mkt = str(market).strip().upper()
         info = _MARKET_LOOKUP.get(mkt)
         if info and 'brokerage' in info:
-            return float(info['brokerage'])
+            try:
+                v = float(info['brokerage'])
+                return v if math.isfinite(v) else 0.0003
+            except (ValueError, TypeError):
+                return 0.0003
         if mkt in ('KOSPI', 'KOSDAQ', 'KRX'):
             return 0.0003
         if mkt in ('SP500', 'NASDAQ', 'RUSSELL2000', 'US'):
