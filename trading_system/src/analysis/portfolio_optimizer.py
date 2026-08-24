@@ -116,6 +116,7 @@ def calculate_risk_parity_weights(cov_matrix: np.ndarray) -> np.ndarray:
         weights = np.full(n, 1.0 / n)
 
     # Float precision correction (ensure exact sum to 1.0 and clip to [0, 1])
+    weights = np.where(np.isfinite(weights), weights, 1.0 / n)
     weights = np.clip(weights, 0.0, 1.0)
     sum_w = np.sum(weights)
     if sum_w > 1e-12:
@@ -474,6 +475,7 @@ def calculate_hrp_weights(
                 weights[c_left] *= alpha
                 weights[c_right] *= (1.0 - alpha)
 
+        weights = np.where(np.isfinite(weights), weights, 1.0 / n)
         weights = np.clip(weights, 0.0, 1.0)
         sum_w = np.sum(weights)
         if sum_w > 1e-12:
