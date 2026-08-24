@@ -146,8 +146,10 @@ class NonLinearMetaLearner:
                 ranks = pd.Series(raw_pred).rank(pct=True).values
                 return np.asarray(np.clip(ranks, 0.0, 1.0), dtype=np.float64)
             else:
-                # Sigmoid scaling for single instance
-                score = 1.0 / (1.0 + np.exp(-raw_pred[0] * 5.0))
+                # Sigmoid scaling for single instance with exp clipping
+                val = float(raw_pred[0]) if (len(raw_pred) > 0 and np.isfinite(raw_pred[0])) else 0.0
+                clipped_val = np.clip(-val * 5.0, -50.0, 50.0)
+                score = 1.0 / (1.0 + np.exp(clipped_val))
                 return np.array([float(np.clip(score, 0.0, 1.0))], dtype=np.float64)
         except Exception as e:
             logger.warning(f"[META LEARNER] Prediction failed ({e}), using fallback linear combination.")
@@ -171,13 +173,17 @@ class NonLinearMetaLearner:
         for i in range(len(cols)):
             for j in range(i + 1, len(cols)):
                 c1, c2 = cols[i], cols[j]
+                rho = corr_mat[i, j]
+                rho_val = float(rho) if np.isfinite(rho) else 0.0
+                std1 = float(np.std(X[c1])) if np.isfinite(np.std(X[c1])) else 0.0
+                std2 = float(np.std(X[c2])) if np.isfinite(np.std(X[c2])) else 0.0
                 # Lower correlation + high variance product indicates orthogonal synergy
-                orthogonal_synergy = (1.0 - abs(corr_mat[i, j])) * np.std(X[c1]) * np.std(X[c2])
+                orthogonal_synergy = (1.0 - min(1.0, abs(rho_val))) * std1 * std2
                 synergies.append({
                     "factor_1": c1,
                     "factor_2": c2,
-                    "synergy_score": round(float(orthogonal_synergy), 4),
-                    "correlation": round(float(corr_mat[i, j]), 4)
+                    "synergy_score": round(float(np.nan_to_num(orthogonal_synergy, nan=0.0)), 4),
+                    "correlation": round(float(np.clip(rho_val, -1.0, 1.0)), 4)
                 })
 
         synergies.sort(key=lambda x: x["synergy_score"], reverse=True)
