@@ -78,13 +78,18 @@ class NewsSentimentFetcher:
                     try:
                         # SentimentAnalyzer.analyze()는 딕셔너리를 반환하며 'score' 키에 [-1.0, 1.0] 점수가 들어있음
                         res = self.sentiment_analyzer.analyze(text_to_analyze)
-                        total_score += res.get('score', 0.0)
-                        count += 1
+                        sc = res.get('score', 0.0) if isinstance(res, dict) else res
+                        import math
+                        if sc is not None and math.isfinite(float(sc)):
+                            total_score += float(sc)
+                            count += 1
                     except Exception as e:
                         logger.debug(f"Error analyzing text: {e}")
                         continue
 
             avg_score = total_score / count if count > 0 else 0.0
+            import math
+            avg_score = max(-1.0, min(1.0, float(avg_score))) if math.isfinite(avg_score) else 0.0
 
             # 결과 캐싱
             self.cache[symbol] = (avg_score, now + timedelta(hours=self.cache_ttl_hours))
