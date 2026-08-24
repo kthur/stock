@@ -312,12 +312,24 @@ class StrategyCoverageAnalyzer:
         cache_pct = (cache_cnt / total_filings * 100.0)
 
         mean_tone = float(np.mean(tones)) if tones else 0.5
+        mean_tone = float(np.clip(mean_tone, 0.0, 1.0)) if np.isfinite(mean_tone) else 0.5
         mean_surprise = float(np.mean(surprises)) if surprises else 0.5
+        mean_surprise = float(np.clip(mean_surprise, 0.0, 1.0)) if np.isfinite(mean_surprise) else 0.5
         mean_composite = float(np.mean(composites)) if composites else 0.5
+        mean_composite = float(np.clip(mean_composite, 0.0, 1.0)) if np.isfinite(mean_composite) else 0.5
         mean_conf = float(np.mean(confidences)) if confidences else 0.7
+        mean_conf = float(np.clip(mean_conf, 0.0, 1.0)) if np.isfinite(mean_conf) else 0.7
 
-        top_pos_sorted = sorted(top_positive, key=lambda x: float(str(x.get('composite', 0.0))), reverse=True)[:5]
-        top_neg_sorted = sorted(top_negative, key=lambda x: float(str(x.get('composite', 0.0))))[:5]
+        def _safe_comp_key(item_dict):
+            val = item_dict.get('composite', 0.5)
+            try:
+                f_val = float(val)
+                return f_val if np.isfinite(f_val) else 0.5
+            except (ValueError, TypeError):
+                return 0.5
+
+        top_pos_sorted = sorted(top_positive, key=_safe_comp_key, reverse=True)[:5]
+        top_neg_sorted = sorted(top_negative, key=_safe_comp_key)[:5]
 
         lines = [
             "================================================================================",
