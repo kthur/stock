@@ -125,7 +125,8 @@ class RateLimiter:
         with self._lock:
             now = time.time()
             elapsed = now - self.last_updated
-            self.tokens += elapsed * (self.rate_limit / self.time_window)
+            if elapsed > 0 and self.time_window > 0:
+                self.tokens += elapsed * (self.rate_limit / self.time_window)
             if self.tokens > self.rate_limit:
                 self.tokens = self.rate_limit
             self.last_updated = now
