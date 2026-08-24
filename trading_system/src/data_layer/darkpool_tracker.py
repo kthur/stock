@@ -55,7 +55,7 @@ class DarkPoolTrackerEngine:
                         is_dist = True
                         net_usd = -last_close * cur_vol * 0.2
 
-                    dp_ratio = float(np.clip(0.35 * min(2.0, max(0.5, vol_ratio)), 0.1, 0.6))
+                    dp_ratio = float(np.clip(0.35 * min(2.0, max(0.5, vol_ratio)), 0.1, 0.6)) if np.isfinite(vol_ratio) else 0.35
 
         return {
             'symbol': symbol,
@@ -140,7 +140,10 @@ class DarkPoolTrackerEngine:
             score_clipped = float(np.clip(score_clean, 0.0, 1.0))
             results.append({'symbol': sym, 'darkpool_score': round(score_clipped, 4)})
 
-        return pd.DataFrame(results)
+        res_df = pd.DataFrame(results)
+        if not res_df.empty:
+            res_df['darkpool_score'] = pd.to_numeric(res_df['darkpool_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+        return res_df
 
 
 # Alias for backward compatibility
