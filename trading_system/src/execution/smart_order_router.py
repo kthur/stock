@@ -107,7 +107,9 @@ class SmartOrderRouter:
         tot_saving = 0.0
         for leg in legs:
             w_leg = leg["quantity"] / total_quantity
-            tot_saving += w_leg * leg["expected_rebate_bps"]
+            rebate = float(leg.get("expected_rebate_bps", 0.0))
+            if np.isfinite(rebate) and np.isfinite(w_leg):
+                tot_saving += w_leg * rebate
 
         return {
             "symbol": symbol,
@@ -115,7 +117,7 @@ class SmartOrderRouter:
             "total_quantity": total_quantity,
             "target_price": target_price,
             "legs": legs,
-            "expected_cost_saving_bps": round(float(tot_saving), 2)
+            "expected_cost_saving_bps": round(float(tot_saving if np.isfinite(tot_saving) else 0.0), 2)
         }
 
     def route_batch(
