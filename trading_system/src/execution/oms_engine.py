@@ -609,7 +609,7 @@ class ExecutionOMSEngine:
                     quantity = (raw_quantity // 100) * 100
                 else:
                     quantity = raw_quantity
-                if quantity <= 0 and status != "HEDGE_FLAG":
+                if (quantity <= 0 or not math.isfinite(quantity)) and status != "HEDGE_FLAG":
                     continue
 
                 # Strategy Alpha Half-Life (tau_alpha) Adaptive Execution Strategy Routing
@@ -622,7 +622,7 @@ class ExecutionOMSEngine:
                 avg_half_life = float(np.mean(hl_list)) if hl_list else 10.0
                 avg_half_life = avg_half_life if np.isfinite(avg_half_life) else 10.0
 
-                part_ratio = target_amount / max(adv_val, 1.0)
+                part_ratio = float(target_amount / max(adv_val, 1.0)) if (np.isfinite(target_amount) and np.isfinite(adv_val)) else 0.0
                 if avg_half_life <= 2.0 and part_ratio > 0.01:
                     exec_strategy = "FAST_VWAP"
                     slice_count = min(6, max(2, int(np.ceil(part_ratio / 0.005))))
