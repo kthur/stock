@@ -151,6 +151,7 @@ class IVSkewEngine(BaseStrategyEngine):
                                 # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
                                 turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
                                 score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
+                                score = score if np.isfinite(score) else 0.50
                             elif len(ret_window) >= 1:
                                 score = 0.50
                             else:
@@ -169,8 +170,10 @@ class IVSkewEngine(BaseStrategyEngine):
                 except Exception as e:
                     logger.debug(f"IV Skew task error: {e}")
 
-        res_list = [{'symbol': sym, 'iv_skew_score': results.get(sym, np.nan)} for sym in symbols]
-        return pd.DataFrame(res_list)
+        res_list = [{'symbol': sym, 'iv_skew_score': float(results[sym]) if (sym in results and pd.notna(results[sym]) and np.isfinite(results[sym])) else np.nan} for sym in symbols]
+        df_out = pd.DataFrame(res_list)
+        df_out['iv_skew_score'] = pd.to_numeric(df_out['iv_skew_score'], errors='coerce')
+        return df_out
 
     def compute_scores(
         self,
