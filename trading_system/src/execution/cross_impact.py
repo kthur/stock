@@ -84,15 +84,19 @@ class CrossAssetImpactEngine:
 
         total_single_impact = float(np.sum(standalone_impact))
         total_cross_impact = float(np.sum(cross_impact_vec))
-        cross_mult = float(total_cross_impact / max(total_single_impact, 1e-4))
+        if total_single_impact > 1e-12 and np.isfinite(total_single_impact) and np.isfinite(total_cross_impact):
+            cross_mult = float(total_cross_impact / total_single_impact)
+        else:
+            cross_mult = 1.0
 
         per_symbol = {}
         for s, imp in zip(symbols, cross_impact_vec):
-            per_symbol[s] = round(float(imp), 2)
+            val_imp = float(imp) if np.isfinite(float(imp)) else 0.0
+            per_symbol[s] = round(val_imp, 2)
 
         return {
-            "total_impact_bps": round(total_cross_impact, 2),
-            "standalone_impact_bps": round(total_single_impact, 2),
+            "total_impact_bps": round(float(total_cross_impact if np.isfinite(total_cross_impact) else 0.0), 2),
+            "standalone_impact_bps": round(float(total_single_impact if np.isfinite(total_single_impact) else 0.0), 2),
             "cross_impact_multiplier": round(float(np.clip(cross_mult, 1.0, 3.0)), 3),
             "per_symbol_impact_bps": per_symbol
         }
