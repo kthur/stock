@@ -80,8 +80,12 @@ class NonLinearSpectralCovarianceEngine:
             d_shrunk[i] = max(self.eps, d_val)
 
         # Trace preservation: sum(d_shrunk) = sum(evals)
-        trace_ratio = np.sum(evals) / max(np.sum(d_shrunk), 1e-6)
+        sum_evals = float(np.sum(evals))
+        sum_d = float(np.sum(d_shrunk))
+        trace_ratio = (sum_evals / sum_d) if (sum_d > 1e-12 and np.isfinite(sum_d) and np.isfinite(sum_evals)) else 1.0
         d_shrunk *= trace_ratio
+        d_shrunk = np.nan_to_num(d_shrunk, nan=self.eps)
+        d_shrunk = np.maximum(d_shrunk, self.eps)
 
         # Reconstruct clean covariance matrix
         Sigma_clean = evecs @ np.diag(d_shrunk) @ evecs.T
@@ -115,7 +119,8 @@ class NonLinearSpectralCovarianceEngine:
             raw_w = np.ones(N) / N
 
         raw_w = np.maximum(0.0, raw_w)
-        tot_w = np.sum(raw_w) or 1.0
-        norm_w = raw_w / tot_w
+        raw_w = np.nan_to_num(raw_w, nan=0.0)
+        tot_w = float(np.sum(raw_w))
+        norm_w = (raw_w / tot_w) if (tot_w > 1e-12 and np.isfinite(tot_w)) else np.ones(N) / N
 
         return {s: float(w) for s, w in zip(symbols, norm_w)}
