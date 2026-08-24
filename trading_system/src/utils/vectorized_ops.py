@@ -22,26 +22,25 @@ class VectorizedFeatureEngine:
 
         deltas = np.diff(prices)
         seed = deltas[:period]
-        up = seed[seed >= 0].sum() / period
-        down = -seed[seed < 0].sum() / period
-
-        if down == 0:
-            rs = 100.0
-        else:
-            rs = up / down
+        up = seed[seed >= 0].sum() / safe_period
+        down = -seed[seed < 0].sum() / safe_period
 
         rsi = np.zeros_like(prices)
-        rsi[:period] = 100.0 - (100.0 / (1.0 + rs))
+        if down == 0:
+            rsi[:safe_period] = 100.0 if up > 0 else 50.0
+        else:
+            rs = up / down
+            rsi[:safe_period] = 100.0 - (100.0 / (1.0 + rs))
 
         up_vals = np.where(deltas > 0, deltas, 0.0)
         down_vals = np.where(deltas < 0, -deltas, 0.0)
 
-        for i in range(period, len(prices)):
-            up = (up * (period - 1) + up_vals[i - 1]) / period
-            down = (down * (period - 1) + down_vals[i - 1]) / period
+        for i in range(safe_period, len(prices)):
+            up = (up * (safe_period - 1) + up_vals[i - 1]) / safe_period
+            down = (down * (safe_period - 1) + down_vals[i - 1]) / safe_period
 
             if down == 0:
-                rsi[i] = 100.0
+                rsi[i] = 100.0 if up > 0 else 50.0
             else:
                 rsi[i] = 100.0 - (100.0 / (1.0 + (up / down)))
 
