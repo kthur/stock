@@ -364,7 +364,7 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "sentiment_score": round(score, 4) if pd.notna(score) else np.nan,
+                "sentiment_score": round(float(score), 4) if (pd.notna(score) and np.isfinite(score)) else np.nan,
             })
 
         res_df = pd.DataFrame(results)
