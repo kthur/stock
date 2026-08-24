@@ -140,7 +140,8 @@ class OptunaStrategyTuner:
                     s_ic = 0.0
                 # Blended objective: minimize -(Rank_IC - 0.10 * RMSE) to prioritize cross-sectional ranking
                 scores.append(-(s_ic - 0.10 * rmse))
-            return float(np.mean(scores)) if scores else 0.0
+            res_obj = float(np.mean(scores)) if scores else 0.0
+            return res_obj if np.isfinite(res_obj) else 0.0
 
         study_xgb = optuna.create_study(direction='minimize')
         study_xgb.optimize(xgb_objective, n_trials=n_trials)
@@ -590,7 +591,8 @@ class OptunaStrategyTuner:
             mean_ret = float(np.mean(forward_returns))
             std_ret = float(np.std(forward_returns)) + 1e-4
             # Optimize risk-adjusted return (Sharpe-like metric) to penalize volatility
-            return float(mean_ret / std_ret)
+            sharpe_obj = float(mean_ret / std_ret)
+            return sharpe_obj if np.isfinite(sharpe_obj) else 0.0
 
         study_vcp_r = optuna.create_study(direction='maximize')
         study_vcp_r.optimize(vcp_rule_objective, n_trials=n_trials)
