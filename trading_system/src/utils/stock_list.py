@@ -23,22 +23,27 @@ class KoreanStockList:
 
             logger.info("Fetching KRX stock listing...")
             df = fdr.StockListing("KRX")
+            if df is not None and not df.empty:
+                for row in df.itertuples(index=False):
+                    r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
+                    code_raw = str(r_dict.get("Code", "")).strip()
+                    name = str(r_dict.get("Name", "")).strip()
+                    market = str(r_dict.get("Market", "")).strip().upper()
 
-            for row in df.itertuples(index=False):
-                r_dict = row._asdict() if hasattr(row, '_asdict') else dict(zip(df.columns, row))
-                code = r_dict.get("Code", "")
-                name = r_dict.get("Name", "")
-                market = str(r_dict.get("Market", ""))
+                    if not code_raw or not name:
+                        continue
 
-                if "KOSPI" in market:
-                    symbol = f"{code}.KS"
-                elif "KOSDAQ" in market:
-                    symbol = f"{code}.KQ"
-                else:
-                    continue
+                    code = code_raw.zfill(6) if (code_raw.isdigit() and len(code_raw) <= 6) else code_raw
 
-                self._tickers[name] = symbol
-                self._tickers_rev[symbol] = name
+                    if "KOSPI" in market:
+                        symbol = f"{code}.KS"
+                    elif "KOSDAQ" in market:
+                        symbol = f"{code}.KQ"
+                    else:
+                        continue
+
+                    self._tickers[name] = symbol
+                    self._tickers_rev[symbol] = name
 
             logger.info(f"Successfully loaded {len(self._tickers)} Korean stocks.")
         except Exception as e:
