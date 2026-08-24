@@ -27,7 +27,16 @@ class StrategyMeta:
         self.display_name = display_name
         self.score_column = score_column
         self.category = category
-        self.default_regime_weights = default_regime_weights or {}
+        safe_regime_weights = {}
+        if default_regime_weights and isinstance(default_regime_weights, dict):
+            import math
+            for r_k, r_v in default_regime_weights.items():
+                try:
+                    f_v = float(r_v)
+                    safe_regime_weights[str(r_k)] = f_v if (math.isfinite(f_v) and f_v >= 0.0) else 0.0
+                except (ValueError, TypeError):
+                    safe_regime_weights[str(r_k)] = 0.0
+        self.default_regime_weights = safe_regime_weights
         self.output_file = output_file
         self.requires_fundamentals = requires_fundamentals
         self.requires_indicators = requires_indicators
