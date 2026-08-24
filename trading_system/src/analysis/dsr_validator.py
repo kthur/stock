@@ -94,19 +94,20 @@ class DeflatedSharpeRatioValidator:
         gamma4 = float(kurtosis_val) if np.isfinite(kurtosis_val) else 3.0
         # Ensure kurtosis is at least 1.0 to maintain positive variance
         gamma4 = max(1.0, gamma4)
+        obs_sr = float(observed_sr) if np.isfinite(observed_sr) else 0.0
 
-        denom_sq = 1.0 - gamma3 * observed_sr + ((gamma4 - 1.0) / 4.0) * (observed_sr ** 2)
+        denom_sq = 1.0 - gamma3 * obs_sr + ((gamma4 - 1.0) / 4.0) * (obs_sr ** 2)
         denom = float(np.sqrt(max(denom_sq, 1e-6)))
 
         # DSR Z-score
-        z_stat = (observed_sr - sr_star) * np.sqrt(t_obs - 1) / denom
-        z_stat_clean = float(np.clip(z_stat, -10.0, 10.0))
+        z_stat = (obs_sr - sr_star) * np.sqrt(t_obs - 1) / denom
+        z_stat_clean = float(np.clip(z_stat, -10.0, 10.0)) if np.isfinite(z_stat) else 0.0
 
         dsr_pvalue = float(norm.cdf(z_stat_clean))
         is_significant = bool(dsr_pvalue >= self.confidence_level)
 
         return {
-            'observed_sharpe': float(observed_sr),
+            'observed_sharpe': float(obs_sr),
             'benchmark_sharpe': float(sr_star),
             'expected_max_sharpe': float(sr_star),
             'deflated_sharpe_z': float(z_stat_clean),
@@ -138,6 +139,8 @@ class DeflatedSharpeRatioValidator:
         n_active = len(clean_sharpes)
         sr_values = np.array(list(clean_sharpes.values()), dtype=float)
         var_sr = float(np.var(sr_values)) if len(sr_values) > 1 else 0.50
+        if not np.isfinite(var_sr) or var_sr <= 0.0:
+            var_sr = 0.50
 
         results = {}
         valid_strats = []
