@@ -56,9 +56,9 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             return 0.0
         change = abs(series.iloc[-1] - series.iloc[-1 - window])
         volatility = series.iloc[-window-1:].diff().abs().sum()
-        if volatility <= 1e-8:
+        if volatility <= 1e-8 or not (np.isfinite(change) and np.isfinite(volatility)):
             return 0.0
-        return float(np.clip(change / volatility, 0.0, 1.0))
+        return float(np.clip(change / max(volatility, 1e-8), 0.0, 1.0))
 
     def calculate_scores(
         self,
@@ -141,7 +141,7 @@ class TrendEfficiencyEngine(BaseStrategyEngine):
             0.5 + 0.5 * weighted_ker * (hurst / 0.5) * trend_mult,
             0.5 - 0.5 * weighted_ker * (hurst / 0.5) * 1.10
         )
-        score_arr = np.clip(raw_score, 0.0, 1.0)
+        score_arr = np.clip(np.where(np.isfinite(raw_score), raw_score, 0.50), 0.0, 1.0)
 
         results = dict(zip(close_2d.columns, score_arr))
         df_out = pd.DataFrame([{'symbol': str(s), 'raw_score': results.get(str(s), np.nan)} for s in symbols])
