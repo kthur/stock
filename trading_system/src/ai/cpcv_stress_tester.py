@@ -204,19 +204,21 @@ class HistoricalStressTester:
         """Runs stress tests for all historical scenarios on current portfolio allocation."""
         results: List[StressScenarioResult] = []
         symbols = list(weights.keys())
-        w_vec = np.array([weights[s] for s in symbols])
+        w_vec = np.array([float(weights.get(s, 0.0)) if (weights.get(s) is not None and np.isfinite(float(weights.get(s, 0.0)))) else 0.0 for s in symbols])
 
         if len(w_vec) == 0:
             return results
 
         for sc_name, params in self.SCENARIOS.items():
-            shock = params["equity_shock"]
-            vol_mult = params["vol_mult"]
+            shock = float(params.get("equity_shock", -0.30))
+            vol_mult = float(params.get("vol_mult", 2.0))
 
             # Expected portfolio return under shock
             simulated_drawdown = float(np.sum(w_vec * shock))
-            vols = np.array([asset_volatilities.get(s, 0.20) for s in symbols])
+            vols = np.array([float(asset_volatilities.get(s, 0.20)) if (asset_volatilities.get(s) is not None and np.isfinite(float(asset_volatilities.get(s, 0.20)))) else 0.20 for s in symbols])
+            vols = np.where((vols > 0), vols, 0.20)
             simulated_vol = float(np.sum(w_vec * vols) * vol_mult)
+            simulated_vol = max(0.0, simulated_vol) if np.isfinite(simulated_vol) else 0.0
 
             # VaR 99% and CVaR 99% under parametric normal / fat tail assumption
             var_99 = float(simulated_drawdown - 2.33 * simulated_vol / np.sqrt(252))
