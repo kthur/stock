@@ -43,23 +43,28 @@ class OvernightGapShifter:
             last_row = indicator_df.iloc[-1]
             for k in ['sp500_change', 'sp500_ret', 'sp500_pct_change', '^gspc_change']:
                 if k in indicator_df.columns:
-                    factors['spy_return'] = float(last_row[k])
+                    val = float(last_row[k])
+                    factors['spy_return'] = val if np.isfinite(val) else 0.0
                     break
             for k in ['nasdaq_change', 'nasdaq_ret', '^ixic_change']:
                 if k in indicator_df.columns:
-                    factors['qqq_return'] = float(last_row[k])
+                    val = float(last_row[k])
+                    factors['qqq_return'] = val if np.isfinite(val) else 0.0
                     break
             for k in ['vix_change', 'vix_ret', '^vix_change']:
                 if k in indicator_df.columns:
-                    factors['vix_change'] = float(last_row[k])
+                    val = float(last_row[k])
+                    factors['vix_change'] = val if np.isfinite(val) else 0.0
                     break
             for k in ['usdkrw_change', 'usdkrw_ret']:
                 if k in indicator_df.columns:
-                    factors['usdkrw_change'] = float(last_row[k])
+                    val = float(last_row[k])
+                    factors['usdkrw_change'] = val if np.isfinite(val) else 0.0
                     break
             for k in ['wti_change', 'cl_change']:
                 if k in indicator_df.columns:
-                    factors['wti_change'] = float(last_row[k])
+                    val = float(last_row[k])
+                    factors['wti_change'] = val if np.isfinite(val) else 0.0
                     break
 
         return factors
