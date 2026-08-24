@@ -107,12 +107,12 @@ class FactorOrthogonalizerEngine:
             # Preserves relative distance, fat tails, and non-uniform conviction without flat rank collapse
             X_centered = (X_ortho - col_means) / col_stds
             X_disp = col_means + col_stds * np.tanh(X_centered)
-            out_df[valid_cols] = np.clip(X_disp, 0.0, 1.0)
+            out_df[valid_cols] = np.clip(np.where(np.isfinite(X_disp), X_disp, 0.50), 0.0, 1.0)
         elif len(out_df) >= 5:
             ranks = pd.DataFrame(X_ortho, index=out_df.index, columns=valid_cols).rank(pct=True)
-            out_df[valid_cols] = ranks.values
+            out_df[valid_cols] = np.clip(np.where(np.isfinite(ranks.values), ranks.values, 0.50), 0.0, 1.0)
         else:
-            out_df[valid_cols] = np.clip(X_ortho, 0.0, 1.0)
+            out_df[valid_cols] = np.clip(np.where(np.isfinite(X_ortho), X_ortho, 0.50), 0.0, 1.0)
         return out_df
 
     def _gram_schmidt(
