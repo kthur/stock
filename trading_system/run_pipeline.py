@@ -78,6 +78,8 @@ def largest_remainder_round(values: list[float], target_sum: float = 100.0, deci
     total_val = sum(safe_values)
     if total_val <= 0 or not np.isfinite(total_val):
         n = len(safe_values)
+        if n == 0:
+            return []
         base = int((target_sum * factor) // n)
         rem = int(round(target_sum * factor - base * n))
         res = [base + (1 if i < rem else 0) for i in range(n)]
