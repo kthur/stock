@@ -119,7 +119,7 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                 gex = opt_data.get('net_gex', 0.0)
                 cur_p = opt_data.get('current_price', 1.0)
 
-                if call_wall > 0 and cur_p > 0:
+                if call_wall > 0 and cur_p > 0 and np.isfinite(call_wall) and np.isfinite(cur_p):
                     dist_to_wall = abs(cur_p - call_wall) / cur_p
                     if (dist_to_wall < 0.03 and gex < 0) or (cur_p >= call_wall):  # Short Gamma Zone or Call Wall Breakout
                         score = float(np.clip(score + 0.35, 0.0, 1.0))
@@ -127,6 +127,7 @@ class OptionsGammaSqueezeEngine(BaseStrategyEngine):
                     elif gex > 0:  # Positive dealer GEX dampens volatility and gamma squeeze potential
                         score = float(np.clip(score * 0.70, 0.0, 1.0))
 
-            results.append({'symbol': sym, 'gamma_squeeze_score': score})
+            safe_score = float(np.clip(score if np.isfinite(score) else 0.50, 0.0, 1.0))
+            results.append({'symbol': sym, 'gamma_squeeze_score': safe_score})
 
         return pd.DataFrame(results)
