@@ -175,7 +175,7 @@ class StrategyCorrelationMonitor:
         vif_dict = {}
         for s, vif in zip(strats, vif_diag):
             # VIF cannot be less than 1.0
-            vif_val = float(np.clip(vif, 1.0, 100.0))
+            vif_val = float(np.clip(vif, 1.0, 100.0)) if np.isfinite(vif) else 1.0
             vif_dict[s] = round(vif_val, 4)
 
         return vif_dict
@@ -202,16 +202,17 @@ class StrategyCorrelationMonitor:
             w_vec = np.array([weights.get(s, 1.0 / float(n)) for s in strats], dtype=float)
 
         w_sum = np.sum(w_vec)
-        if w_sum <= 0:
+        if w_sum <= 0 or not np.isfinite(w_sum):
             return 1.0
 
         # W_i * W_j * Rho_ij denominator
         R = mat_df.values
         denom = np.dot(w_vec, np.dot(R, w_vec))
-        if denom <= 1e-8:
+        if denom <= 1e-8 or not np.isfinite(denom):
             denom = 1e-8
 
         n_eff = float((w_sum ** 2) / denom)
+        n_eff = n_eff if np.isfinite(n_eff) else float(n)
         return float(np.clip(n_eff, 1.0, float(n)))
 
     def get_top_collinear_pairs(
