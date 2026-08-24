@@ -948,11 +948,9 @@ class RiskManager:
         self.position_limits[symbol] = max_quantity
         self.logger.info(f"Position limit set for {symbol}: {max_quantity}")
 
-    def calculate_max_position_size(self, current_price: float) -> int:
-        """최대 포지션 크기 계산"""
         max_value = self.portfolio_value * self.max_position_size_pct * self.stress_test_adjustment_factor
-        max_quantity = int(max_value / current_price)
-        return max_quantity
+        max_quantity = int(max_value / current_price) if (current_price > 0 and np.isfinite(current_price)) else 0
+        return max(0, max_quantity)
 
     def calculate_kelly_fraction(self, win_rate: float, win_loss_ratio: float, half_kelly: bool = True) -> float:
         """Kelly Criterion을 사용한 최적 투자 비중 계산 (f*)"""
@@ -1070,8 +1068,8 @@ class RiskManager:
             max_value = min(max_value, self.portfolio_value * vix_cap)
             self.logger.info(f"VIX Risk-Off: {symbol} capped at {vix_cap:.0%} of portfolio (VIX={vix:.1f})")
 
-        position_quantity = max(0, int(max_value / entry_price))
-        unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price)
+        position_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and np.isfinite(entry_price)) else 0
+        unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price) if (entry_price > 0 and np.isfinite(entry_price)) else 0
         position_quantity = min(position_quantity, unpenalized_max_position)
 
         # 위기 시 포지션 크기 감축
