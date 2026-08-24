@@ -74,18 +74,19 @@ def largest_remainder_round(values: list[float], target_sum: float = 100.0, deci
     if not values:
         return []
     factor = 10 ** decimals
-    total_val = sum(values)
-    if total_val <= 0:
-        n = len(values)
+    safe_values = [float(v) if (v is not None and np.isfinite(v) and float(v) >= 0) else 0.0 for v in values]
+    total_val = sum(safe_values)
+    if total_val <= 0 or not np.isfinite(total_val):
+        n = len(safe_values)
         base = int((target_sum * factor) // n)
         rem = int(round(target_sum * factor - base * n))
         res = [base + (1 if i < rem else 0) for i in range(n)]
         return [r / factor for r in res]
     
     target_int = int(round(target_sum * factor))
-    scaled = [v * (target_int / total_val) for v in values]
+    scaled = [v * (target_int / total_val) for v in safe_values]
     floored = [int(s) for s in scaled]
-    remainders = [(s - f, -v, i) for i, (s, f, v) in enumerate(zip(scaled, floored, values))]
+    remainders = [(s - f, -v, i) for i, (s, f, v) in enumerate(zip(scaled, floored, safe_values))]
     
     current_sum = sum(floored)
     diff = target_int - current_sum
