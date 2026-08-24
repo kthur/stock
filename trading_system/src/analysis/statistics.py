@@ -217,22 +217,28 @@ class AdvancedStatistics:
         self, returns: List[float], benchmark_returns: List[float], periods_per_year: int = 252
     ) -> float:
         """Information Ratio 계산"""
-        if len(returns) != len(benchmark_returns):
-            return 0
+        if len(returns) != len(benchmark_returns) or not returns:
+            return 0.0
 
         # 초과 수익 계산
-        excess_returns = [r - b for r, b in zip(returns, benchmark_returns)]
+        valid_pairs = [(float(r), float(b)) for r, b in zip(returns, benchmark_returns) if r is not None and b is not None and math.isfinite(float(r)) and math.isfinite(float(b))]
+        if len(valid_pairs) < 2:
+            return 0.0
+
+        excess_returns = [r - b for r, b in valid_pairs]
 
         avg_excess = sum(excess_returns) / len(excess_returns)
         variance = sum((e - avg_excess) ** 2 for e in excess_returns) / len(excess_returns)
-        tracking_error = math.sqrt(variance)
+        tracking_error = math.sqrt(max(0.0, variance))
 
-        if tracking_error == 0:
-            return 0
+        if tracking_error == 0 or abs(tracking_error) < 1e-9:
+            return 0.0
 
         ir = (avg_excess / tracking_error) * math.sqrt(periods_per_year)
+        if not math.isfinite(ir):
+            return 0.0
 
-        return ir
+        return max(-10.0, min(10.0, float(ir)))
 
     def calculate_hurst_exponent(self, prices: List[float]) -> float:
         """Hurst Exponent 계산 (추세 강도)"""
@@ -240,26 +246,38 @@ class AdvancedStatistics:
             return 0.5
 
         returns = self.calculate_returns(prices)
-        n = len(returns)
+        valid_returns = [float(r) for r in returns if math.isfinite(float(r))]
+        n = len(valid_returns)
+        if n < 10:
+            return 0.5
 
         # 누적 편차 계산
-        mean_return = sum(returns) / n
-        deviations = [r - mean_return for r in returns]
+        mean_return = sum(valid_returns) / n
+        deviations = [r - mean_return for r in valid_returns]
         cumsum = [sum(deviations[: i + 1]) for i in range(n)]
 
         # Range 계산
         range_val = max(cumsum) - min(cumsum)
 
         # Standard deviation
-        std_dev = math.sqrt(sum(r**2 for r in returns) / n)
+        std_dev = math.sqrt(max(0.0, sum(r**2 for r in valid_returns) / n))
 
-        if std_dev == 0 or range_val == 0:
+        if std_dev == 0 or range_val == 0 or not math.isfinite(range_val) or not math.isfinite(std_dev):
             return 0.5
 
         # Hurst 지수 (간단한 추정)
-        hurst = math.log(range_val / std_dev) / math.log(n)
+        try:
+            ratio = range_val / std_dev
+            if ratio <= 0 or not math.isfinite(ratio):
+                return 0.5
+            hurst = math.log(ratio) / math.log(n)
+        except (ValueError, ZeroDivisionError):
+            return 0.5
 
-        return max(0, min(1, hurst))
+        if not math.isfinite(hurst):
+            return 0.5
+
+        return max(0.0, min(1.0, float(hurst)))
 
     def get_performance_summary(self, equity_curve: List[float], trades: List[Dict]) -> Dict:
         """성과 요약 조회"""
