@@ -81,8 +81,12 @@ class StrategyAttributionAnalyzer:
             name = STRATEGY_MAP[col]
             num_s = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
             avg_score = float(num_s.mean()) if not num_s.empty else 0.0
+            if not math.isfinite(avg_score):
+                avg_score = 0.0
             non_zero_count = int((num_s.abs() > 1e-6).sum())
             coverage_pct = (non_zero_count / len(df)) * 100.0 if len(df) > 0 else 0.0
+            if not math.isfinite(coverage_pct):
+                coverage_pct = 0.0
 
             # Linear attribution proxy
             alpha_contrib = avg_score * (total_exp_ret / 100.0) * (coverage_pct / 100.0)
@@ -92,9 +96,9 @@ class StrategyAttributionAnalyzer:
             strat_summaries.append({
                 'col': col,
                 'strategy_name': name,
-                'avg_score': avg_score,
-                'coverage_pct': coverage_pct,
-                'alpha_contrib': alpha_contrib
+                'avg_score': round(avg_score, 4),
+                'coverage_pct': round(coverage_pct, 2),
+                'alpha_contrib': round(alpha_contrib, 6)
             })
 
         summary_df = pd.DataFrame(strat_summaries).sort_values(by='alpha_contrib', ascending=False).reset_index(drop=True)
