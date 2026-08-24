@@ -78,6 +78,8 @@ class AlternativeDataClient:
             current = float(closes[-1])
             returns_1m = float((closes[-1] / closes[-21] - 1.0)) if len(closes) >= 21 and closes[-21] > 0 and np.isfinite(closes[-21]) else 0.0
             returns_3m = float((closes[-1] / closes[-63] - 1.0)) if len(closes) >= 63 and closes[-63] > 0 and np.isfinite(closes[-63]) else 0.0
+            returns_1m = returns_1m if np.isfinite(returns_1m) else 0.0
+            returns_3m = returns_3m if np.isfinite(returns_3m) else 0.0
 
             if current > sma50 and returns_1m > 0.02:
                 trend = "BULL"
@@ -134,5 +136,5 @@ class AlternativeDataClient:
             "is_high_volatility": vix_safe > 25,
             "is_bull_market": trend in ("BULL", "BULLISH"),
             "is_bear_market": trend in ("BEAR", "BEARISH"),
-            "regime_score": round(trend_strength * 0.6 + (1.0 - vix_safe / 50.0) * 0.4, 3),
+            "regime_score": round(float(np.clip(trend_strength * 0.6 + (1.0 - vix_safe / 50.0) * 0.4, -1.0, 1.0)), 3) if np.isfinite(trend_strength * 0.6 + (1.0 - vix_safe / 50.0) * 0.4) else 0.0,
         }
