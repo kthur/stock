@@ -1054,6 +1054,7 @@ class PortfolioAllocator:
             impact_one_way += 0.50 * (participation - 0.10) * slip_mult
 
         total_cost_rate = tax_fee + half_spread + impact_one_way
+        total_cost_rate = total_cost_rate if np.isfinite(total_cost_rate) else 0.0030
         return float(total_cost_rate)
 
     def calculate_dynamic_buffer_band(
@@ -1088,7 +1089,8 @@ class PortfolioAllocator:
         if np.isnan(delta_raw) or np.isinf(delta_raw):
             return self.delta_floor
         effective_cap = min(self.delta_cap, max(self.delta_floor, target_weight * 0.35))
-        return float(min(max(delta_raw, self.delta_floor), effective_cap))
+        delta_res = float(min(max(delta_raw, self.delta_floor), effective_cap))
+        return delta_res if np.isfinite(delta_res) else self.delta_floor
 
     def compute_portfolio_rebalance(
         self,
