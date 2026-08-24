@@ -46,23 +46,23 @@ class QuantumPortfolioOptimizer:
             inv_cov = np.linalg.inv(cov + np.eye(n) * 0.01)
 
         ones = np.ones(n)
-        A = ones @ inv_cov @ er
-        B = er @ inv_cov @ er
-        C = ones @ inv_cov @ ones
+        A = float(ones @ inv_cov @ er)
+        B = float(er @ inv_cov @ er)
+        C = float(ones @ inv_cov @ ones)
         D = B * C - A * A
 
-        if abs(D) < 1e-10:
+        if abs(D) < 1e-10 or not np.isfinite(D) or abs(C) < 1e-10 or not np.isfinite(C):
             raw_weights = np.full(n, 1.0 / n)
         else:
-            mu_target = max(er.mean(), 0.0)
-            lam = (C * mu_target - A) / D if D != 0 else 0.0
-            gamma = (B - A * mu_target) / D if D != 0 else 1.0 / C
+            mu_target = max(float(er.mean()), 0.0)
+            lam = (C * mu_target - A) / D if (D != 0 and np.isfinite((C * mu_target - A) / D)) else 0.0
+            gamma = (B - A * mu_target) / D if (D != 0 and np.isfinite((B - A * mu_target) / D)) else 1.0 / C
             raw_weights = inv_cov @ (lam * er + gamma * ones)
 
         raw_weights = np.nan_to_num(raw_weights, nan=0.0, posinf=0.0, neginf=0.0)
         raw_weights = np.maximum(raw_weights, 0.0)
         total = float(raw_weights.sum())
-        if total > 1e-12:
+        if total > 1e-12 and np.isfinite(total):
             raw_weights /= total
         else:
             raw_weights = np.full(n, 1.0 / n)
