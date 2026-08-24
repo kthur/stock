@@ -357,10 +357,11 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             if np.any(alpha_mask):
                 norm_scores[alpha_mask] = np.clip(norm_scores[alpha_mask] * 1.06, 0.0, 1.0)
 
-            scores[idxs_arr] = norm_scores
-            exposures[idxs_arr] = Z_m
+            safe_norm_scores = np.clip(np.where(np.isfinite(norm_scores), norm_scores, 0.50), 0.0, 1.0)
+            scores[idxs_arr] = safe_norm_scores
+            exposures[idxs_arr] = np.where(np.isfinite(Z_m), Z_m, 0.0)
 
-        df["factor_neutralized_score"] = np.round(scores, 4)
+        df["factor_neutralized_score"] = pd.to_numeric(pd.Series(np.round(scores, 4)), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         df["neutralized_score"] = df["factor_neutralized_score"]
         df["smb_exposure"] = np.round(exposures[:, 0], 4)
         df["hml_exposure"] = np.round(exposures[:, 1], 4)
