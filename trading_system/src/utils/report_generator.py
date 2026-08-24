@@ -16,23 +16,31 @@ class ReportGenerator:
         """콘솔/텍스트 리포트 생성"""
         if not data or not isinstance(data, dict):
             return "No data available for report generation."
+        import math
+        def _sf(v, d=0.0):
+            try:
+                f = float(v)
+                return f if math.isfinite(f) else d
+            except (ValueError, TypeError):
+                return d
+
         lines = []
         lines.append("=" * 55)
         lines.append(f"  백테스트 리포트: {data.get('symbol', 'UNKNOWN')}")
         lines.append("=" * 55)
         lines.append(f"  생성일: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"  기간: {data.get('start_date', '')} ~ {data.get('end_date', '')}")
-        lines.append(f"  초기 자본: ${data.get('initial_capital', 0):,.0f}")
-        lines.append(f"  최종 자본: ${data.get('final_capital', 0):,.0f}")
+        lines.append(f"  초기 자본: ${_sf(data.get('initial_capital', 0)):,.0f}")
+        lines.append(f"  최종 자본: ${_sf(data.get('final_capital', 0)):,.0f}")
         lines.append("-" * 55)
         lines.append("  [성과 지표]")
         lines.append(f"  총 수익률:    {data.get('total_return_pct', '0%')}")
         lines.append(f"  승률:         {data.get('win_rate', '0%')}")
         lines.append(f"  최대 낙폭:    {data.get('max_drawdown', '0%')}")
-        lines.append(f"  Profit Factor: {data.get('profit_factor', 0):.2f}")
-        lines.append(f"  Sharpe Ratio:  {data.get('sharpe_ratio', 0):.2f}")
-        lines.append(f"  총 수수료:     ${data.get('total_fees', 0):,.2f}")
-        lines.append(f"  총 거래:       {data.get('trades_count', 0)}건")
+        lines.append(f"  Profit Factor: {_sf(data.get('profit_factor', 0)):.2f}")
+        lines.append(f"  Sharpe Ratio:  {_sf(data.get('sharpe_ratio', 0)):.2f}")
+        lines.append(f"  총 수수료:     ${_sf(data.get('total_fees', 0)):,.2f}")
+        lines.append(f"  총 거래:       {int(_sf(data.get('trades_count', 0)))}건")
         lines.append("=" * 55)
 
         trades = data.get("trades", [])
