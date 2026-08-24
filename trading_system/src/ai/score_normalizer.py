@@ -140,11 +140,14 @@ class CrossSectionalScoreNormalizer:
                         # Fallback to standard deviation if MAD is zero (e.g. discrete repeated values)
                         sample_std = float(np.std(w_vals))
                         robust_std = sample_std if sample_std > 1e-6 else 1.0
-                    z = (w_vals - med) / robust_std
+                    z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
+                    z_clipped = np.clip(z, -8.0, 8.0)
                     # Standard Gaussian CDF Phi(z) = 0.5 * (1 + erf(z / sqrt(2)))
-                    phi_z = 0.5 * (1.0 + erf(z / np.sqrt(2.0)))
-                    norm_df.loc[valid_mask, col] = np.clip(phi_z, 0.005, 0.995)
+                    phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
+                    phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
+                    norm_df.loc[valid_mask, col] = np.clip(phi_clean, 0.005, 0.995)
                 else:
-                    norm_df.loc[valid_mask, col] = np.clip(vals, 0.0, 1.0)
+                    clean_vals = np.nan_to_num(vals, nan=0.50, posinf=1.0, neginf=0.0)
+                    norm_df.loc[valid_mask, col] = np.clip(clean_vals, 0.0, 1.0)
 
         return norm_df
