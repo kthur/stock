@@ -200,6 +200,13 @@ class ErrorHandler:
         Returns:
             함수의 반환값 또는 None
         """
+        import math
+        try:
+            safe_timeout = float(timeout_seconds) if (timeout_seconds is not None and math.isfinite(float(timeout_seconds))) else 30.0
+        except (ValueError, TypeError):
+            safe_timeout = 30.0
+        safe_timeout = max(0.1, safe_timeout)
+
         result_future: Future = Future()
 
         def target():
@@ -213,9 +220,9 @@ class ErrorHandler:
         thread.start()
 
         try:
-            return result_future.result(timeout=timeout_seconds)
+            return result_future.result(timeout=safe_timeout)
         except FutureTimeoutError:
-            error_msg = f"Function {func.__name__} timed out after {timeout_seconds} seconds"
+            error_msg = f"Function {func.__name__} timed out after {safe_timeout} seconds"
             self.logger.error(error_msg)
             self._record_error(func.__name__, TimeoutError(error_msg), ErrorSeverity.ERROR)
             return None
