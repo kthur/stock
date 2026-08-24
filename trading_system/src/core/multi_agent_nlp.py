@@ -79,11 +79,22 @@ class MultiAgentNLPEngine:
 
             cached = filing_sentiment_cache.get(sym) if filing_sentiment_cache else None
             if cached and isinstance(cached, dict):
-                score = float(cached.get('composite_sentiment_score', 50.0))
-                tone = float(cached.get('tone_drift_score', 0.0))
+                try:
+                    s_val = float(cached.get('composite_sentiment_score', 50.0))
+                    score = s_val if np.isfinite(s_val) else 50.0
+                except (ValueError, TypeError):
+                    score = 50.0
+                try:
+                    t_val = float(cached.get('tone_drift_score', 0.0))
+                    tone = t_val if np.isfinite(t_val) else 0.0
+                except (ValueError, TypeError):
+                    tone = 0.0
             else:
                 score = 50.0
                 tone = 0.0
+
+            score = float(np.clip(score, 0.0, 100.0)) if np.isfinite(score) else 50.0
+            tone = float(tone) if np.isfinite(tone) else 0.0
 
             results.append({
                 "symbol": sym,
