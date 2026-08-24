@@ -95,7 +95,9 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                         c_series = p_df[close_col].dropna()
                         if not c_series.empty:
                             last_price = float(c_series.iloc[-1])
-                            pbr = last_price / max(float(bps), 1.0)
+                            bps_f = float(bps)
+                            if bps_f > 0 and np.isfinite(bps_f) and np.isfinite(last_price):
+                                pbr = last_price / max(bps_f, 1.0)
 
             if pd.notna(pbr):
                 pbr_val = float(pbr)
@@ -105,7 +107,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 is_distress = (pd.notna(op_margin) and float(op_margin) < 0) or (pd.notna(roe_val) and float(roe_val) < 0)
 
                 # Low PBR bonus factor: highest for PBR between 0.3 and 1.0 (profitable firms only)
-                if pbr_val <= 0:
+                if pbr_val <= 0 or not np.isfinite(pbr_val):
                     pbr_factor = 0.10  # Negative equity / capital impairment
                 elif is_distress or pbr_val <= 0.20:
                     pbr_factor = 0.20  # Invalidate low PBR bonus for loss-making distress value traps / zombie shells
@@ -116,12 +118,12 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
 
                 # Net cash ratio (cash minus total debt)
                 debt = row.get('total_debt', row.get('debt', row.get('interest_bearing_debt', 0.0)))
-                debt_val = float(debt) if (pd.notna(debt) and float(debt) > 0) else 0.0
-                cash_val = float(cash) if (pd.notna(cash) and float(cash) > 0) else 0.0
+                debt_val = float(debt) if (pd.notna(debt) and float(debt) > 0 and np.isfinite(float(debt))) else 0.0
+                cash_val = float(cash) if (pd.notna(cash) and float(cash) > 0 and np.isfinite(float(cash))) else 0.0
                 net_cash = cash_val - debt_val
 
                 cash_ratio = 0.0
-                mcap_val = float(mcap) if pd.notna(mcap) else 0.0
+                mcap_val = float(mcap) if (pd.notna(mcap) and np.isfinite(float(mcap))) else 0.0
                 is_krx = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
                 if is_krx and 0 < mcap_val < 1e7:
                     mcap_norm = mcap_val * 1e8  # Convert 억원 -> KRW
@@ -130,13 +132,13 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 if mcap_norm > 1e4:
                     cash_ratio = max(0.0, net_cash) / mcap_norm
 
-                div_val = float(div_yield) if pd.notna(div_yield) else 0.0
+                div_val = float(div_yield) if (pd.notna(div_yield) and np.isfinite(float(div_yield))) else 0.0
                 if div_val > 1.0:  # Percentage format e.g. 3.5 -> 0.035
                     div_val /= 100.0
 
                 # Profitability Booster (ROE > 8% accelerates Value-Up re-rating potential)
                 roe_boost = 1.0
-                if pd.notna(roe_val) and float(roe_val) > 0.08:
+                if pd.notna(roe_val) and np.isfinite(float(roe_val)) and float(roe_val) > 0.08:
                     roe_boost = np.clip(1.0 + float(roe_val) * 0.5, 1.0, 1.25)
 
                 # Composite score
@@ -154,6 +156,7 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
             # Value-Up Super Premium Booster for top 15% high-conviction shareholder yield champions
             super_valueup_mask = base_score >= 0.85
             enhanced_score = np.where(super_valueup_mask, (base_score * 1.10).clip(0.05, 0.98), base_score)
+            enhanced_score = np.where(np.isfinite(enhanced_score), enhanced_score, 0.50)
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = enhanced_score
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = 0.50
