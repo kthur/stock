@@ -154,7 +154,7 @@ class BaseStrategyEngine(ABC):
         scaled = np.clip(ranked, min_clip, max_clip)
 
         result: dict[str, float] = {
-            str(k): float(scaled[k]) if k in scaled.index else float(neutral_fill)
+            str(k): float(np.clip(scaled[k], min_clip, max_clip)) if (k in scaled.index and np.isfinite(scaled[k])) else float(neutral_fill)
             for k in s.index
         }
         return result
