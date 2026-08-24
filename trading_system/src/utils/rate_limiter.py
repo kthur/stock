@@ -88,11 +88,11 @@ class GlobalRateLimiter:
         sleep_time = 0.0
         with self.lock:
             now = time.time()
-            if key not in self._last_time:
+            if key not in self._last_time or key not in self._tokens:
                 self._tokens[key] = capacity
                 self._last_time[key] = now
 
-            elapsed = now - self._last_time[key]
+            elapsed = max(0.0, now - self._last_time[key])
             self._tokens[key] = min(capacity, self._tokens[key] + elapsed * rate)
             self._last_time[key] = now
 
