@@ -89,7 +89,7 @@ def calc_rsi_list(closes: List[float], window: int = 14) -> List[float]:
     avg_gain = sum(gains[:window]) / window
     avg_loss = sum(losses[:window]) / window
     if avg_loss == 0:
-        rsi[window] = 100.0
+        rsi[window] = 100.0 if avg_gain > 0 else 50.0
     else:
         rsi[window] = 100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
     for i in range(window + 1, n):
@@ -97,7 +97,7 @@ def calc_rsi_list(closes: List[float], window: int = 14) -> List[float]:
         avg_gain = (avg_gain * (window - 1) + gains[delta_idx]) / window
         avg_loss = (avg_loss * (window - 1) + losses[delta_idx]) / window
         if avg_loss == 0:
-            rsi[i] = 100.0
+            rsi[i] = 100.0 if avg_gain > 0 else 50.0
         else:
             rsi[i] = 100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
     return rsi
