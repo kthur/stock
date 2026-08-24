@@ -378,7 +378,8 @@ class MLEngine:
                 prob = 0.5 * prob_rf + 0.5 * prob_xgb
             else:
                 prob = self.model.predict_proba(X)[0][1]  # 클래스 1(상승)의 확률
-            return float(prob)
+            prob_f = float(prob)
+            return float(np.clip(prob_f, 0.0, 1.0)) if np.isfinite(prob_f) else 0.5
         except Exception as e:
             logger.error(f"ML prediction failed: {e}")
             return 0.5
