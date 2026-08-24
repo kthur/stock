@@ -77,21 +77,22 @@ class VPINCalculator:
                     cur_s -= cur_s * ratio
                     cur_vol -= bucket_volume
             if bucket_imbalances:
-                vpin_val = np.sum(bucket_imbalances) / (len(bucket_imbalances) * bucket_volume)
-                return float(np.clip(vpin_val, 0.0, 1.0))
+                vpin_val = np.sum(bucket_imbalances) / max(1e-12, float(len(bucket_imbalances) * bucket_volume))
+                return float(np.clip(vpin_val, 0.0, 1.0)) if np.isfinite(vpin_val) else 0.0
 
         imbalances = np.abs(v_b - v_s)
-        vpin_val = np.sum(imbalances) / total_vol
-        return float(np.clip(vpin_val, 0.0, 1.0))
+        vpin_val = np.sum(imbalances) / max(1e-12, float(total_vol))
+        return float(np.clip(vpin_val, 0.0, 1.0)) if np.isfinite(vpin_val) else 0.0
 
     def evaluate_toxicity_risk(self, vpin_score: float, threshold: float = 0.75) -> Dict[str, Any]:
         """
         Determines whether VPIN toxicity exceeds risk threshold.
         """
-        is_toxic = bool(vpin_score >= threshold)
+        safe_score = float(np.clip(vpin_score, 0.0, 1.0)) if np.isfinite(vpin_score) else 0.0
+        is_toxic = bool(safe_score >= threshold)
         action = "HALT_PASSIVE_ORDERS" if is_toxic else "NORMAL"
         return {
-            "vpin_score": round(float(vpin_score), 4),
+            "vpin_score": round(safe_score, 4),
             "threshold": threshold,
             "is_toxic": is_toxic,
             "recommended_action": action
