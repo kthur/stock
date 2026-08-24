@@ -83,13 +83,14 @@ class RLEngine:
         for action in ["BUY", "SELL", "HOLD"]:
             perf = self._action_performance[action]
             if len(perf) >= self._min_samples:
-                accuracies[action] = sum(perf) / len(perf)
+                acc = sum(perf) / len(perf)
+                accuracies[action] = float(np.clip(acc if np.isfinite(acc) else 0.5, 0.0, 1.0))
 
         if len(accuracies) < 2:
             return
 
-        buy_acc = accuracies.get("BUY", 0.5)
-        sell_acc = accuracies.get("SELL", 0.5)
+        buy_acc = float(np.clip(accuracies.get("BUY", 0.5), 0.0, 1.0))
+        sell_acc = float(np.clip(accuracies.get("SELL", 0.5), 0.0, 1.0))
 
         if buy_acc < 0.4:
             self._thresholds["vix_buy"] *= 1.0 + self._adaptation_rate
