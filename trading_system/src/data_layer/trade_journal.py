@@ -212,7 +212,9 @@ class TradeJournal:
             if not avg_loss or float(avg_loss) == 0:
                 return 10.0 if float(avg_win) > 0 else 0.0
 
-            return float(avg_win) / abs(float(avg_loss))
+            ratio = float(avg_win) / max(1e-6, abs(float(avg_loss)))
+            import math
+            return float(ratio) if math.isfinite(ratio) else 0.0
         except Exception as e:
             logger.error(f"Failed to calculate win-loss ratio: {e}")
             return 0.0
