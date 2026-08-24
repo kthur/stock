@@ -136,9 +136,11 @@ class StockScreener:
                 prices = self._get_52week_prices(symbol)
                 current = prices.get("current", 0.0)
                 high = prices.get("52week_high", 0.0)
-                if high > 0:
-                    distance = (high - current) / high
-                    if distance > self.max_distance_from_high:
+                current_f = float(current) if (current is not None and np.isfinite(float(current))) else 0.0
+                high_f = float(high) if (high is not None and np.isfinite(float(high))) else 0.0
+                if high_f > 0:
+                    distance = (high_f - current_f) / high_f
+                    if not np.isfinite(distance) or distance > self.max_distance_from_high:
                         continue
                 else:
                     continue
