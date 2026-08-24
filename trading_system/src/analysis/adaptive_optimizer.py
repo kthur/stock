@@ -357,13 +357,15 @@ class AdaptiveParameterOptimizer:
 
     def _create_inline_engine(self, bars, regime_thresholds, atr_mult, trail_pct, max_hold):
         """간이 백테스트 엔진: 복합 전략 + 무작위 레짐 탐지"""
-        closes = [b.close for b in bars]
+        closes = [float(b.close) for b in bars if b.close is not None and np.isfinite(float(b.close))]
         if len(closes) < 50:
             return "HOLD"
 
-        ema50 = self._ema(closes, 50)[-1]
-        ema200 = self._ema(closes, 200)[-1] if len(closes) >= 200 else closes[0]
-        roc_20 = (closes[-1] - closes[-20]) / closes[-20] if len(closes) >= 20 else 0
+        ema50_arr = self._ema(closes, 50)
+        ema50 = ema50_arr[-1] if len(ema50_arr) > 0 else closes[-1]
+        ema200_arr = self._ema(closes, 200) if len(closes) >= 200 else [closes[0]]
+        ema200 = ema200_arr[-1] if len(ema200_arr) > 0 else closes[0]
+        roc_20 = (closes[-1] - closes[-20]) / closes[-20] if (len(closes) >= 20 and closes[-20] > 0 and np.isfinite(closes[-20])) else 0.0
 
         adx = self._calc_adx(bars)
         strong_trend = adx > 25
