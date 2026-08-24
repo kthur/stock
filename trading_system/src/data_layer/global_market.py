@@ -351,8 +351,11 @@ class GlobalMarketClient:
         except (ValueError, TypeError):
             rate_to = 1350.0 if c_to == 'KRW' else 1.0
 
-        cross_res = float(rate_to / rate_from)
-        return cross_res if math.isfinite(cross_res) else 1.0
+        if rate_from > 1e-12 and math.isfinite(rate_from) and math.isfinite(rate_to):
+            cross_res = float(rate_to / rate_from)
+        else:
+            cross_res = 1.0
+        return cross_res if (math.isfinite(cross_res) and cross_res > 0) else 1.0
 
 
 class MarketSessionManager:
