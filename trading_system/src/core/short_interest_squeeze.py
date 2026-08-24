@@ -125,14 +125,20 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
             else:
                 # Formula: Short Interest Ratio * DTC * Momentum Condition
                 # Add squeeze ignition multiplier when momentum turns positive with heavy DTC
-                ignite_mult = 1.35 if (ret_5d > 0.02 and float(dtc) >= 3.0) else 1.0
-
-                # Hard-To-Borrow (HTB) & Borrow Fee Escalation Catalyst (Special Rate & Recall risk forces buy-ins)
-                htb_squeeze_mult = 1.20 if (float(short_ratio) > 0.35 or float(dtc) > 10.0) else 1.0
-                # Downward momentum dampens squeeze catalyst (short sellers in profit)
-                mom_factor = (1.0 + float(ret_5d) * 3.0) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
-                raw_squeeze = float(short_ratio) * float(dtc) * mom_factor * ignite_mult * htb_squeeze_mult
-                results[sym_str] = raw_squeeze
+                try:
+                    f_sr = float(short_ratio)
+                    f_dtc = float(dtc)
+                    if not (np.isfinite(f_sr) and np.isfinite(f_dtc) and f_sr >= 0 and f_dtc >= 0):
+                        results[sym_str] = np.nan
+                    else:
+                        ignite_mult = 1.35 if (ret_5d > 0.02 and f_dtc >= 3.0) else 1.0
+                        htb_squeeze_mult = 1.20 if (f_sr > 0.35 or f_dtc > 10.0) else 1.0
+                        mom_factor = (1.0 + float(ret_5d) * 3.0) if ret_5d >= 0 else max(0.10, 1.0 + float(ret_5d) * 2.0)
+                        mom_factor = mom_factor if np.isfinite(mom_factor) else 1.0
+                        raw_squeeze = float(f_sr * f_dtc * mom_factor * ignite_mult * htb_squeeze_mult)
+                        results[sym_str] = raw_squeeze if np.isfinite(raw_squeeze) else np.nan
+                except (ValueError, TypeError):
+                    results[sym_str] = np.nan
 
         # Build output DataFrame and normalize
         df_out = pd.DataFrame(list(results.items()), columns=['symbol', 'raw_score'])
