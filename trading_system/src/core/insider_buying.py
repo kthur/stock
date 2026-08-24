@@ -121,5 +121,8 @@ class InsiderBuyingEngine(BaseStrategyEngine):
 
                 scores_map[sym] = cur_score
 
-        results = [{'symbol': k, 'insider_buying_score': float(v) if pd.notna(v) else np.nan} for k, v in scores_map.items()]
-        return pd.DataFrame(results)
+        results = [{'symbol': k, 'insider_buying_score': float(v) if (pd.notna(v) and np.isfinite(v)) else np.nan} for k, v in scores_map.items()]
+        res_df = pd.DataFrame(results)
+        if not res_df.empty:
+            res_df['insider_buying_score'] = pd.to_numeric(res_df['insider_buying_score'], errors='coerce')
+        return res_df
