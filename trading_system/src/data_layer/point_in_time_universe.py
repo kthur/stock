@@ -1,4 +1,4 @@
-﻿"""
+"""
 Point-in-Time Universe & Delisting Archive Module (Phase 2 Institutional Enhancement)
 Eliminates survivorship bias by tracking historical index constituents, entry/exit dates,
 and realistic delisting terminal liquidation values.
@@ -157,12 +157,20 @@ class PointInTimeUniverseManager:
                 """, (symbol,))
                 row = cursor.fetchone()
                 if row:
+                    try:
+                        rec_r = float(row[2]) if (row[2] is not None and np.isfinite(float(row[2]))) else 0.0
+                    except (ValueError, TypeError):
+                        rec_r = 0.0
+                    try:
+                        last_p = float(row[3]) if (row[3] is not None and np.isfinite(float(row[3]))) else None
+                    except (ValueError, TypeError):
+                        last_p = None
                     return {
-                        'delisting_date': row[0],
-                        'reason': row[1],
-                        'recovery_rate': float(row[2]),
-                        'last_price': float(row[3]) if row[3] is not None else None,
-                        'notes': row[4]
+                        'delisting_date': str(row[0]),
+                        'reason': str(row[1]),
+                        'recovery_rate': rec_r,
+                        'last_price': last_p,
+                        'notes': str(row[4] or '')
                     }
         except Exception as e:
             logger.debug(f"Failed to fetch delisting info for {symbol}: {e}")
