@@ -95,9 +95,11 @@ class PreTradeRiskGatekeeper:
                 logger.warning(f"[PreTradeRisk] ORDER RESIZED for {order.symbol}: {reason}")
 
                 # Recalculate adjusted weight based on max shares
-                port_val = max(1.0, float(portfolio_value)) if np.isfinite(portfolio_value) else 1.0
+                port_val = max(1.0, float(portfolio_value)) if (portfolio_value is not None and np.isfinite(portfolio_value)) else 1.0
                 max_allowed_value = max_shares * price
-                adjusted_w = min(clamped_weight, max_allowed_value / port_val)
+                val_ratio = max_allowed_value / port_val
+                adjusted_w = min(clamped_weight, val_ratio if np.isfinite(val_ratio) else clamped_weight)
+                adjusted_w = float(np.clip(adjusted_w, 0.0, 1.0))
                 return RiskCheckResult(
                     passed=True,
                     symbol=order.symbol,
