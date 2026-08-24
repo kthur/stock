@@ -1,5 +1,6 @@
 import json
 import logging
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Optional, Any
@@ -174,21 +175,24 @@ def detect_vcp(df: pd.DataFrame, params: Optional[Dict[str, Any]] = None) -> Dic
         score += 6.0
 
     score = float(min(max(score, 0.0), 100.0))
+    score = score if np.isfinite(score) else 0.0
 
     # VCP confirmed: strong contraction + constructive price action
-    is_vcp = decreasing and above_sma50 and score >= min_vcp_score
+    is_vcp = bool(decreasing and above_sma50 and score >= min_vcp_score)
 
     pivot_price = float(high.iloc[-20:].max()) if len(high) >= 20 else float(high.iloc[-1])
+    pivot_price = pivot_price if np.isfinite(pivot_price) else 0.0
+    current_range = current_range if np.isfinite(current_range) else 0.0
 
     return {
         'is_vcp': is_vcp,
-        'vcp_score': score,
+        'vcp_score': round(score, 2),
         'pivot_price': round(pivot_price, 2),
-        'contraction_peaks': ranges,
+        'contraction_peaks': [round(float(r), 2) if np.isfinite(r) else 0.0 for r in ranges],
         'current_range_pct': round(current_range, 2),
-        'volume_declining': volume_declining,
-        'above_sma50': above_sma50,
-        'above_sma200': above_sma200,
-        'near_high': near_high,
+        'volume_declining': bool(volume_declining),
+        'above_sma50': bool(above_sma50),
+        'above_sma200': bool(above_sma200),
+        'near_high': bool(near_high),
     }
 
