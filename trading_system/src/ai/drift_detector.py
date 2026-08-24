@@ -35,10 +35,10 @@ class FeatureDriftDetector:
         - 0.10 <= PSI < 0.25: Moderate shift.
         - PSI >= 0.25: Significant distribution shift -> Trigger model retraining.
         """
-        ref_clean = np.asarray(reference_dist, dtype=np.float64)
-        ref_clean = ref_clean[~np.isnan(ref_clean)]
-        tar_clean = np.asarray(target_dist, dtype=np.float64)
-        tar_clean = tar_clean[~np.isnan(tar_clean)]
+        ref_arr = np.asarray(reference_dist, dtype=np.float64)
+        ref_clean = ref_arr[np.isfinite(ref_arr)]
+        tar_arr = np.asarray(target_dist, dtype=np.float64)
+        tar_clean = tar_arr[np.isfinite(tar_arr)]
 
         if len(ref_clean) < 10 or len(tar_clean) < 10:
             return 0.0
@@ -56,9 +56,12 @@ class FeatureDriftDetector:
 
         ref_pct = ref_counts / float(len(ref_clean)) + 1e-6
         tar_pct = tar_counts / float(len(tar_clean)) + 1e-6
+        ref_pct = ref_pct / ref_pct.sum()
+        tar_pct = tar_pct / tar_pct.sum()
 
         psi_val = np.sum((tar_pct - ref_pct) * np.log(tar_pct / ref_pct))
-        return float(psi_val)
+        psi_clean = float(np.nan_to_num(psi_val, nan=0.0, posinf=0.0, neginf=0.0))
+        return max(0.0, psi_clean)
 
     def update_page_hinkley(self, error: float) -> bool:
         """
