@@ -145,22 +145,25 @@ def validate_price_data(sym: str, df: pd.DataFrame) -> bool:
 
     # 2. Extreme daily returns & corporate action price spikes (> 300% change magnitude)
     if len(valid_close) >= 2:
-        ratios = (valid_close / valid_close.shift(1)).dropna()
-        if len(ratios) > 0:
-            mags = ratios.apply(lambda r: (max(r, 1.0 / r) - 1.0) if (pd.notna(r) and r > 0) else 0.0)
-            max_mag = mags.max()
-            if max_mag > 3.0:
-                logger.warning(
-                    f"[DataValidator] {sym}: single-day price return/split spike max_magnitude={max_mag:.1%} > 300% (unadjusted split/corrupted), skipping"
-                )
-                return False
+        prev_close = valid_close.shift(1)
+        valid_mask = (prev_close > 0) & np.isfinite(prev_close) & (valid_close > 0) & np.isfinite(valid_close)
+        if valid_mask.sum() > 0:
+            ratios = (valid_close[valid_mask] / prev_close[valid_mask]).dropna()
+            if len(ratios) > 0:
+                mags = ratios.apply(lambda r: (max(r, 1.0 / r) - 1.0) if (pd.notna(r) and np.isfinite(r) and r > 0) else 0.0)
+                max_mag = float(mags.max()) if len(mags) > 0 else 0.0
+                if max_mag > 3.0:
+                    logger.warning(
+                        f"[DataValidator] {sym}: single-day price return/split spike max_magnitude={max_mag:.1%} > 300% (unadjusted split/corrupted), skipping"
+                    )
+                    return False
 
-            extreme_ratio = (mags > 1.0).sum() / len(mags)
-            if extreme_ratio > 0.05:
-                logger.warning(
-                    f"[DataValidator] {sym}: extreme return ratio={extreme_ratio:.1%} > 5%, skipping"
-                )
-                return False
+                extreme_ratio = float((mags > 1.0).sum() / len(mags))
+                if extreme_ratio > 0.05:
+                    logger.warning(
+                        f"[DataValidator] {sym}: extreme return ratio={extreme_ratio:.1%} > 5%, skipping"
+                    )
+                    return False
 
     # 3. Volume zero ratio (suspended / halted ticker)
     if volume_col is not None:
