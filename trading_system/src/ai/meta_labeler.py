@@ -65,10 +65,15 @@ class MetaLabeler:
         Maps [P_threshold, 1.0] linearly to [min_conviction, max_conviction].
         Returns 0.0 if P(win) < probability_threshold.
         """
+        min_c = float(min_conviction) if (min_conviction is not None and np.isfinite(min_conviction)) else 0.20
+        max_c = float(max_conviction) if (max_conviction is not None and np.isfinite(max_conviction)) else 1.50
+        min_c = max(0.0, min_c)
+        max_c = max(min_c, max_c)
+
         probs = self.predict_probability(X)
         denom = max(1e-6, 1.0 - self.probability_threshold)
         ratio = np.clip((probs - self.probability_threshold) / denom, 0.0, 1.0)
-        scaled_conviction = min_conviction + ratio * (max_conviction - min_conviction)
+        scaled_conviction = min_c + ratio * (max_c - min_c)
 
         conviction = np.where(
             probs >= self.probability_threshold,
@@ -150,12 +155,14 @@ class MetaLabeler:
                 p_copy['meta_action'] = 'EXECUTE'
                 if return_col in p_copy:
                     try:
-                        p_copy[return_col] = float(p_copy[return_col]) * conviction
+                        ret_val = float(p_copy[return_col])
+                        p_copy[return_col] = float(ret_val * conviction) if np.isfinite(ret_val) else ret_val
                     except (ValueError, TypeError):
                         pass
                 if score_col in p_copy:
                     try:
-                        p_copy[score_col] = float(p_copy[score_col]) * min(1.2, conviction)
+                        sc_val = float(p_copy[score_col])
+                        p_copy[score_col] = float(sc_val * min(1.2, conviction)) if np.isfinite(sc_val) else sc_val
                     except (ValueError, TypeError):
                         pass
 
