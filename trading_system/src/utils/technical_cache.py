@@ -177,16 +177,20 @@ class CorrelationCache:
             bars_b = fetcher(sym_b, period="1mo")
             if not bars_a or not bars_b or len(bars_a) < 10 or len(bars_b) < 10:
                 return 0.0
-            closes_a = [b.close for b in bars_a[-20:]]
-            closes_b = [b.close for b in bars_b[-20:]]
+            closes_a = [float(b.close) for b in bars_a[-20:] if hasattr(b, 'close') and np.isfinite(getattr(b, 'close', np.nan))]
+            closes_b = [float(b.close) for b in bars_b[-20:] if hasattr(b, 'close') and np.isfinite(getattr(b, 'close', np.nan))]
             n = min(len(closes_a), len(closes_b))
             if n < 10:
                 return 0.0
-            ret_a = [(closes_a[i] - closes_a[i-1]) / closes_a[i-1] for i in range(1, n)]
-            ret_b = [(closes_b[i] - closes_b[i-1]) / closes_b[i-1] for i in range(1, n)]
-            if np.std(ret_a) < 1e-10 or np.std(ret_b) < 1e-10:
+            ret_a = [(closes_a[i] - closes_a[i-1]) / max(1e-6, abs(closes_a[i-1])) for i in range(1, n)]
+            ret_b = [(closes_b[i] - closes_b[i-1]) / max(1e-6, abs(closes_b[i-1])) for i in range(1, n)]
+            std_a = float(np.std(ret_a))
+            std_b = float(np.std(ret_b))
+            if not (np.isfinite(std_a) and np.isfinite(std_b)) or std_a < 1e-10 or std_b < 1e-10:
                 return 0.0
-            corr = float(np.corrcoef(ret_a, ret_b)[0, 1])
+            corr_mat = np.corrcoef(ret_a, ret_b)
+            corr_val = float(corr_mat[0, 1])
+            corr = float(np.clip(corr_val, -1.0, 1.0)) if np.isfinite(corr_val) else 0.0
             self.set(sym_a, sym_b, corr)
             return corr
         except Exception:
