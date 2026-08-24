@@ -329,6 +329,9 @@ class TradingAgent:
                     continue
 
                 curr_price = self._get_current_price(symbol)
+                if curr_price <= 1e-6 or not np.isfinite(curr_price):
+                    logger.info(f"Skipping {symbol}: invalid current price ({curr_price})")
+                    continue
 
                 # Rule 2: 뉴스 감성 + VIX 체크
                 sentiment = self.news_fetcher.fetch_and_analyze(symbol, name, market)
