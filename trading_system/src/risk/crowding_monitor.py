@@ -49,15 +49,17 @@ class CrowdingRiskMonitor:
         if sec_col and ens_col:
             sector_sums = df.groupby(sec_col)[ens_col].sum()
             total_score_sum = float(sector_sums.sum())
-            if total_score_sum > 1e-12:
+            if total_score_sum > 1e-12 and np.isfinite(total_score_sum):
                 sector_weights = sector_sums / total_score_sum
                 overconcentrated = sector_weights[sector_weights > self.max_sector_weight]
                 for sec, w in overconcentrated.items():
-                    w_float = float(w)
+                    w_float = float(w) if np.isfinite(float(w)) else 0.0
+                    if w_float <= 0:
+                        continue
                     warnings.append(f"Sector '{sec}' weight {w_float*100:.1f}% exceeds max {self.max_sector_weight*100:.0f}% threshold!")
                     # Dampen scores in overconcentrated sector
                     sec_mask = df[sec_col] == sec
-                    scale_factor = self.max_sector_weight / max(w_float, 1e-6)
+                    scale_factor = float(np.clip(self.max_sector_weight / max(w_float, 1e-6), 0.01, 1.0))
                     df.loc[sec_mask, ens_col] = df.loc[sec_mask, ens_col] * scale_factor
 
         # 2. Multi-Strategy Consensus Crowding Penalty
