@@ -337,12 +337,22 @@ class GlobalMarketClient:
 
         # Rate relative to USD: 1 USD = rate_from from_curr, 1 USD = rate_to to_curr
         # => 1 from_curr = (rate_to / rate_from) to_curr
-        rate_from = usd_rates.get(c_from, 1.0)
-        rate_to = usd_rates.get(c_to, 1350.0 if c_to == 'KRW' else 1.0)
+        try:
+            rate_from = float(usd_rates.get(c_from, 1.0))
+            if not math.isfinite(rate_from) or rate_from <= 0:
+                rate_from = 1.0
+        except (ValueError, TypeError):
+            rate_from = 1.0
 
-        if rate_from <= 0:
-            return 1.0
-        return float(rate_to / rate_from)
+        try:
+            rate_to = float(usd_rates.get(c_to, 1350.0 if c_to == 'KRW' else 1.0))
+            if not math.isfinite(rate_to) or rate_to <= 0:
+                rate_to = 1350.0 if c_to == 'KRW' else 1.0
+        except (ValueError, TypeError):
+            rate_to = 1350.0 if c_to == 'KRW' else 1.0
+
+        cross_res = float(rate_to / rate_from)
+        return cross_res if math.isfinite(cross_res) else 1.0
 
 
 class MarketSessionManager:
