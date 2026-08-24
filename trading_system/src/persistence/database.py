@@ -747,15 +747,21 @@ class StockPriceDB:
         latest = self.get_latest_date(symbol)
         if latest is None:
             return True
-        latest_dt = datetime.strptime(latest[:10], "%Y-%m-%d")
+        try:
+            latest_dt = datetime.strptime(str(latest)[:10], "%Y-%m-%d")
+        except (ValueError, TypeError):
+            return True
         if (datetime.now() - latest_dt).days >= max_age_days:
             return True
         if start_date is not None:
             earliest = self._get_earliest_date(symbol)
             if earliest is None:
                 return True
-            earliest_dt = datetime.strptime(earliest[:10], "%Y-%m-%d")
-            start_dt = datetime.strptime(start_date[:10], "%Y-%m-%d")
+            try:
+                earliest_dt = datetime.strptime(str(earliest)[:10], "%Y-%m-%d")
+                start_dt = datetime.strptime(str(start_date)[:10], "%Y-%m-%d")
+            except (ValueError, TypeError):
+                return True
             if (earliest_dt - start_dt).days > 7:
                 return True
         return False
