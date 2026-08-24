@@ -1,6 +1,7 @@
 """Asset Management - 포트폴리오 및 자산 관리"""
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -48,14 +49,14 @@ class PortfolioManager:
 
     def add_position(self, symbol: str, quantity: int, price: float) -> None:
         """포지션 추가 또는 업데이트"""
-        if quantity <= 0:
-            self.logger.warning(f"Cannot add position with non-positive quantity: {quantity}")
+        if quantity <= 0 or not math.isfinite(price) or price <= 0:
+            self.logger.warning(f"Cannot add position with non-positive quantity/price: {quantity} @ {price}")
             return
         if symbol in self.positions:
             pos = self.positions[symbol]
             total_qty = pos.quantity + quantity
             total_cost = pos.quantity * pos.avg_price + quantity * price
-            self.positions[symbol].avg_price = total_cost / total_qty
+            self.positions[symbol].avg_price = total_cost / total_qty if total_qty > 0 else price
             self.positions[symbol].quantity = total_qty
         else:
             self.positions[symbol] = Position(symbol=symbol, quantity=quantity, avg_price=price, highest_price=price)
@@ -80,28 +81,32 @@ class PortfolioManager:
 
     def get_available_cash(self) -> float:
         """사용 가능한 현금 조회"""
-        return self.cash
+        return self.cash if (self.cash is not None and math.isfinite(float(self.cash))) else 0.0
 
     def deposit(self, amount: float) -> None:
         """예금"""
-        self.cash += amount
+        amt = float(amount) if (amount is not None and math.isfinite(float(amount))) else 0.0
+        self.cash += amt
         self.logger.info(f"Deposited: {amount}, total cash: {self.cash}")
 
     def withdraw(self, amount: float) -> bool:
         """출금"""
-        if self.cash >= amount:
-            self.cash -= amount
+        amt = float(amount) if (amount is not None and math.isfinite(float(amount))) else 0.0
+        if self.cash >= amt and amt > 0:
+            self.cash -= amt
             self.logger.info(f"Withdrawn: {amount}, remaining cash: {self.cash}")
             return True
         return False
 
     def get_portfolio_value(self, market_prices: Dict[str, float]) -> float:
         """포트폴리오 총 가치 계산"""
-        total = self.cash
+        total = self.cash if (self.cash is not None and math.isfinite(float(self.cash))) else 0.0
         for symbol, position in self.positions.items():
             if symbol in market_prices:
-                total += position.quantity * market_prices[symbol]
-        return total
+                p = market_prices[symbol]
+                if p is not None and math.isfinite(float(p)) and float(p) > 0:
+                    total += position.quantity * float(p)
+        return total if math.isfinite(total) else 0.0
 
     def take_snapshot(self, market_prices: Optional[Dict[str, float]] = None) -> AssetSnapshot:
         """자산 스냅샷 기록"""
