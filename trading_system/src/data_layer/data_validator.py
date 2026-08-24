@@ -257,7 +257,9 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
                             is_isolated = True
 
                     if is_isolated:
-                        p_fill = (p_prev + float(close_arr[i + 1])) / 2.0 if p_prev > 0 else float(close_arr[i + 1])
+                        p_next_val = float(close_arr[i + 1]) if (i + 1 < n and math.isfinite(float(close_arr[i + 1]))) else p_prev
+                        p_fill = (p_prev + p_next_val) / 2.0 if (p_prev > 0 and math.isfinite(p_prev)) else p_next_val
+                        p_fill = p_fill if math.isfinite(p_fill) else p_prev
                         for pc in price_cols:
                             adjusted.loc[idx_curr, pc] = p_fill
                         close_arr[i] = p_fill
@@ -266,15 +268,16 @@ def filter_price_spikes(df: pd.DataFrame, max_return: float = 3.0) -> pd.DataFra
                             adjusted.loc[idx_curr, pc] = p_prev
                         close_arr[i] = p_prev
                     else:
-                        prior_mask = adjusted.index < idx_curr
-                        for pc in price_cols:
-                            adjusted.loc[prior_mask, pc] = adjusted.loc[prior_mask, pc] * r
-                        volume_col = cols_lower.get("volume")
-                        if volume_col is not None:
-                            adjusted.loc[prior_mask, volume_col] = adjusted.loc[prior_mask, volume_col] / r
-                        close_arr = adjusted[close_col].to_numpy(dtype=np.float64, copy=True)
-                        close_s = pd.Series(close_arr)
-                        ratios = (close_s / close_s.shift(1).replace(0, np.nan)).fillna(1.0)
+                        if r > 0 and math.isfinite(r):
+                            prior_mask = adjusted.index < idx_curr
+                            for pc in price_cols:
+                                adjusted.loc[prior_mask, pc] = adjusted.loc[prior_mask, pc] * r
+                            volume_col = cols_lower.get("volume")
+                            if volume_col is not None:
+                                adjusted.loc[prior_mask, volume_col] = adjusted.loc[prior_mask, volume_col] / r
+                            close_arr = adjusted[close_col].to_numpy(dtype=np.float64, copy=True)
+                            close_s = pd.Series(close_arr)
+                            ratios = (close_s / close_s.shift(1).replace(0, np.nan)).fillna(1.0)
     except Exception as e:
         logger.warning(f"[DataValidator] filter_price_spikes failed: {e}")
 
