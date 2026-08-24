@@ -52,9 +52,11 @@ class CrossBorderLeadLagEngine:
                     col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
                     if not col:
                         continue
-                    close = df[col].iloc[:, 0] if isinstance(df[col], pd.DataFrame) else df[col]
-                    us_ret = (close.iloc[-1] - close.iloc[-2]) / max(close.iloc[-2], 1e-4)
-                    us_returns[us_sym] = float(us_ret)
+                    c_last = float(close.iloc[-1])
+                    c_prev = float(close.iloc[-2])
+                    if c_prev > 0 and np.isfinite(c_last) and np.isfinite(c_prev):
+                        us_ret = (c_last - c_prev) / c_prev
+                        us_returns[us_sym] = float(us_ret) if np.isfinite(us_ret) else 0.0
 
         # Default fallback US tech return if US ticker prices aren't loaded explicitly
         if not us_returns:
@@ -76,7 +78,13 @@ class CrossBorderLeadLagEngine:
                     scores[sym] = 0.5
                     continue
                 close = df[col].iloc[:, 0] if isinstance(df[col], pd.DataFrame) else df[col]
-                kr_5d_ret = float((close.iloc[-1] - close.iloc[-5]) / max(close.iloc[-5], 1e-4))
+                c_last = float(close.iloc[-1])
+                c_prev = float(close.iloc[-5])
+                if c_prev > 0 and np.isfinite(c_last) and np.isfinite(c_prev):
+                    kr_5d_ret = float((c_last - c_prev) / c_prev)
+                    kr_5d_ret = kr_5d_ret if np.isfinite(kr_5d_ret) else 0.0
+                else:
+                    kr_5d_ret = 0.0
 
                 sec = sector_map.get(sym, 'General')
                 leaders = self.SECTOR_LEADER_MAP.get(sec, self.SECTOR_LEADER_MAP['General'])
@@ -87,13 +95,16 @@ class CrossBorderLeadLagEngine:
                     scores[sym] = 0.5
                     continue
 
-                leader_rets = [us_returns[l_sym] for l_sym in avail_leaders]
+                leader_rets = [us_returns[l_sym] for l_sym in avail_leaders if np.isfinite(us_returns[l_sym])]
+                if not leader_rets:
+                    scores[sym] = 0.5
+                    continue
                 mean_leader_ret = float(np.mean(leader_rets))
 
                 # Lag divergence: US leader rose but KR stock hasn't caught up yet -> Buying Opportunity
                 lag_divergence = mean_leader_ret - (kr_5d_ret * 0.2)
                 score = 1.0 / (1.0 + np.exp(-lag_divergence * 15.0))
-                scores[sym] = float(np.clip(score, 0.0, 1.0))
+                scores[sym] = float(np.clip(score, 0.0, 1.0)) if np.isfinite(score) else 0.5
             except Exception as e:
                 logger.debug(f"Cross-border scoring error for {sym}: {e}")
                 scores[sym] = 0.5
