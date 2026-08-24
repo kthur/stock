@@ -467,18 +467,19 @@ def calculate_hrp_weights(
 
                 # Allocation factor alpha
                 tot_var = var_left + var_right
-                if tot_var < 1e-12:
+                if tot_var < 1e-12 or not np.isfinite(tot_var):
                     alpha = 0.50
                 else:
-                    alpha = float(np.clip(1.0 - (var_left / tot_var), 0.01, 0.99))
+                    ratio = var_left / tot_var
+                    alpha = float(np.clip(1.0 - ratio if np.isfinite(ratio) else 0.50, 0.01, 0.99))
 
                 weights[c_left] *= alpha
                 weights[c_right] *= (1.0 - alpha)
 
         weights = np.where(np.isfinite(weights), weights, 1.0 / n)
         weights = np.clip(weights, 0.0, 1.0)
-        sum_w = np.sum(weights)
-        if sum_w > 1e-12:
+        sum_w = float(np.sum(weights))
+        if sum_w > 1e-12 and np.isfinite(sum_w):
             weights = weights / sum_w
             return apply_portfolio_constraints(weights, symbols=symbols, sectors=sectors if 'sectors' in locals() else None)
 
