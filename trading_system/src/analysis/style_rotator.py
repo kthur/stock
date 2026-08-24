@@ -122,15 +122,18 @@ class StyleRotator:
 
             size_multiplier = float(self.style_preferences.get(size_style, 1.0))
             value_multiplier = float(self.style_preferences.get(value_style, 1.0))
+            s_mult = size_multiplier if np.isfinite(size_multiplier) else 1.0
+            v_mult = value_multiplier if np.isfinite(value_multiplier) else 1.0
 
-            adjusted_weights[i] *= (size_multiplier * value_multiplier)
+            adjusted_weights[i] *= (s_mult * v_mult)
 
         adjusted_weights = np.nan_to_num(adjusted_weights, nan=0.0, posinf=0.0, neginf=0.0)
         adjusted_weights = np.maximum(adjusted_weights, 0.0)
         sum_w = float(np.sum(adjusted_weights))
-        if sum_w > 1e-12:
+        if sum_w > 1e-12 and np.isfinite(sum_w):
             adjusted_weights = adjusted_weights / sum_w
         else:
             adjusted_weights = np.ones(len(tickers)) / len(tickers) if len(tickers) > 0 else adjusted_weights
 
+        adjusted_weights = np.nan_to_num(adjusted_weights, nan=0.0, posinf=0.0, neginf=0.0)
         return adjusted_weights
