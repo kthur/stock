@@ -1,6 +1,7 @@
 """Strategy Engine - 매매 전략 및 최적화"""
 
 import logging
+import math
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
@@ -769,15 +770,22 @@ class HybridStrategyEngine:
         self._normalize_weights()
 
     def _normalize_weights(self) -> None:
-        self.sentiment_weight = max(0.0, min(1.0, self.sentiment_weight))
-        self.technical_weight = max(0.0, min(1.0, self.technical_weight))
-        self.ml_weight = max(0.0, min(1.0, self.ml_weight))
-        self.rl_weight = max(0.0, min(1.0, self.rl_weight))
-        self.darkpool_weight = max(0.0, min(1.0, self.darkpool_weight))
-        self.llm_weight = max(0.0, min(1.0, self.llm_weight))
-        self.global_market_weight = max(0.0, min(1.0, self.global_market_weight))
-        self.cash_ratio_weight = max(0.0, min(1.0, self.cash_ratio_weight))
-        self.macro_weight = max(0.0, min(1.0, self.macro_weight))
+        def _sanitize(w: float) -> float:
+            try:
+                w_f = float(w)
+                return max(0.0, min(1.0, w_f)) if math.isfinite(w_f) else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+
+        self.sentiment_weight = _sanitize(self.sentiment_weight)
+        self.technical_weight = _sanitize(self.technical_weight)
+        self.ml_weight = _sanitize(self.ml_weight)
+        self.rl_weight = _sanitize(self.rl_weight)
+        self.darkpool_weight = _sanitize(self.darkpool_weight)
+        self.llm_weight = _sanitize(self.llm_weight)
+        self.global_market_weight = _sanitize(self.global_market_weight)
+        self.cash_ratio_weight = _sanitize(self.cash_ratio_weight)
+        self.macro_weight = _sanitize(self.macro_weight)
 
         total = (
             self.sentiment_weight
@@ -790,7 +798,7 @@ class HybridStrategyEngine:
             + self.cash_ratio_weight
             + self.macro_weight
         )
-        if total == 0:
+        if total <= 0 or not math.isfinite(total):
             n = len(self.SIGNAL_NAMES)
             self.sentiment_weight = 1.0 / n
             self.technical_weight = 1.0 / n
