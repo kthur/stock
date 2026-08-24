@@ -601,7 +601,7 @@ class ExecutionOMSEngine:
                             except Exception:
                                 target_amount = effective_target_amount * max(fx_rate, 1.0)
 
-                raw_quantity = int(effective_target_amount // target_price) if target_price > 0 else 0
+                raw_quantity = int(effective_target_amount // target_price) if (target_price > 0 and np.isfinite(target_price) and np.isfinite(effective_target_amount)) else 0
                 # Market-specific standard lot size constraints (TSE/HOSE/HKEX: 100 shares, KRX/US: 1 share)
                 if is_krx or curr_iso in ("USD", "KRW"):
                     quantity = raw_quantity
@@ -620,6 +620,7 @@ class ExecutionOMSEngine:
                     if strat_key in pred or f"{strat_key}_score" in pred or f"{strat_key}_prob" in pred or f"{strat_key}_20d" in pred:
                         hl_list.append(strat_hl)
                 avg_half_life = float(np.mean(hl_list)) if hl_list else 10.0
+                avg_half_life = avg_half_life if np.isfinite(avg_half_life) else 10.0
 
                 part_ratio = target_amount / max(adv_val, 1.0)
                 if avg_half_life <= 2.0 and part_ratio > 0.01:
