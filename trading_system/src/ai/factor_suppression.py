@@ -50,7 +50,10 @@ def solve_single_stage_entropy_allocation(
             break
         w = w_new
 
-    return w
+    w_clean = np.where(np.isfinite(w), w, w_min)
+    w_clean = np.maximum(w_clean, w_min)
+    w_clean = w_clean / np.sum(w_clean)
+    return w_clean
 
 
 class RegimeFactorSuppressionEngine:
@@ -294,12 +297,12 @@ class RegimeFactorSuppressionEngine:
             adjusted_weights[strat] = base_w * p_i
 
         tot_w = sum(adjusted_weights.values())
-        if tot_w <= 0:
+        if tot_w <= 0 or not np.isfinite(tot_w):
             logger.warning("Sum of suppressed weights <= 0; falling back to base weights.")
             tot_base = sum(base_weights.values())
-            return {k: v / tot_base for k, v in base_weights.items()}
+            return {k: float(v / tot_base) if (tot_base > 0 and np.isfinite(v)) else (1.0 / len(base_weights)) for k, v in base_weights.items()}
 
-        final_weights = {k: v / tot_w for k, v in adjusted_weights.items()}
+        final_weights = {k: float(v / tot_w) if np.isfinite(v / tot_w) else float(base_weights.get(k, 1.0 / len(adjusted_weights))) for k, v in adjusted_weights.items()}
         return final_weights
 
     def get_suppression_report(
