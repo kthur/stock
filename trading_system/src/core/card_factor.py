@@ -89,7 +89,7 @@ class CARDFactorEngine(BaseStrategyEngine):
         else:
             vix_pct_shock = 0.0
 
-        sector_beta = {
+        DEFAULT_SECTOR_BETAS = {
             # GICS Sectors (US & Global)
             'Information Technology': 1.4, 'IT': 1.3, 'Technology': 1.4, 'Semiconductor': 1.5,
             'Financials': 0.8, 'Finance': 0.7, 'Financial Services': 0.8,
@@ -138,7 +138,7 @@ class CARDFactorEngine(BaseStrategyEngine):
                     continue
 
                 sec = sector_map.get(sym, 'Market') if isinstance(sector_map, dict) else 'Market'
-                base_beta = sector_beta.get(sec, sector_beta.get(str(sec).strip(), 1.0))
+                base_beta = DEFAULT_SECTOR_BETAS.get(sec, DEFAULT_SECTOR_BETAS.get(str(sec).strip(), 1.0))
 
                 # Dynamic rolling empirical beta adjustment if price history is sufficient
                 if len(close) >= 20:
@@ -151,18 +151,36 @@ class CARDFactorEngine(BaseStrategyEngine):
                 else:
                     beta = float(np.clip(base_beta, 0.1, 3.0))
 
-                sec_str = str(sec).lower()
-                # R10-2 Fix: Sector-aware macro weighting to reflect real economic sensitivity
-                if any(kw in sec_str for kw in ['energy', 'oil', 'gas', 'chem', '정유', '화학', '에너지']):
-                    w_fx, w_wti, w_vix = 0.20, 0.60, 0.20
-                elif any(kw in sec_str for kw in ['tech', 'semi', 'it', 'it서비스', '반도체', '전기전자']):
-                    w_fx, w_wti, w_vix = 0.45, 0.15, 0.40
-                elif any(kw in sec_str for kw in ['utility', 'defensive', 'consumer staple', '통신', '유틸리티', '음식료']):
-                    w_fx, w_wti, w_vix = 0.20, 0.20, 0.60
-                else:
-                    w_fx, w_wti, w_vix = 0.35, 0.35, 0.30
+                # Dynamic rolling OLS macro impact
+                macro_impact = None
+                if indicator_df is not None and isinstance(indicator_df, pd.DataFrame) and len(close) >= 60 and len(indicator_df) >= 60:
+                    try:
+                        ret_60 = close.pct_change().tail(60).dropna()
+                        fx_60 = indicator_df.get('usdkrw_change', indicator_df.get('usdkrw_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
+                        wti_60 = indicator_df.get('wti_change', indicator_df.get('wti_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
+                        vix_60 = indicator_df.get('vix_change', indicator_df.get('vix_pct', pd.Series(0.0, index=indicator_df.index))).tail(60) / 100.0
+                        
+                        df_ols = pd.DataFrame({'R': ret_60, 'FX': fx_60, 'WTI': wti_60, 'VIX': vix_60}).dropna()
+                        if len(df_ols) >= 30:
+                            import statsmodels.api as sm
+                            X = sm.add_constant(df_ols[['FX', 'WTI', 'VIX']])
+                            model = sm.OLS(df_ols['R'], X).fit()
+                            macro_impact = (model.params.get('FX', 0.0) * usdkrw_chg + model.params.get('WTI', 0.0) * wti_chg - model.params.get('VIX', 0.0) * vix_pct_shock)
+                    except Exception:
+                        pass
+                
+                if macro_impact is None:
+                    sec_str = str(sec).lower()
+                    if any(kw in sec_str for kw in ['energy', 'oil', 'gas', 'chem', '정유', '화학', '에너지']):
+                        w_fx, w_wti, w_vix = 0.20, 0.60, 0.20
+                    elif any(kw in sec_str for kw in ['tech', 'semi', 'it', 'it서비스', '반도체', '전기전자']):
+                        w_fx, w_wti, w_vix = 0.45, 0.15, 0.40
+                    elif any(kw in sec_str for kw in ['utility', 'defensive', 'consumer staple', '통신', '유틸리티', '음식료']):
+                        w_fx, w_wti, w_vix = 0.20, 0.20, 0.60
+                    else:
+                        w_fx, w_wti, w_vix = 0.35, 0.35, 0.30
+                    macro_impact = ((usdkrw_chg * w_fx) + (wti_chg * w_wti) - (vix_pct_shock * w_vix)) * beta
 
-                macro_impact = ((usdkrw_chg * w_fx) + (wti_chg * w_wti) - (vix_pct_shock * w_vix)) * beta
                 raw_div = stock_ret - macro_impact
                 divergence = float(np.clip(raw_div, -200.0, 200.0)) if np.isfinite(raw_div) else 0.0
 

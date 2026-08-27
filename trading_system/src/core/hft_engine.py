@@ -232,7 +232,23 @@ class MicrostructureImbalanceEngine(BaseStrategyEngine):
                     close_location = float(np.clip((close - low) / (high - low), 0.0, 1.0))
                 else:
                     close_location = 0.50  # Neutral balance for flat/zero-range bars
-                bid_ask_imbalance = float(np.clip((close_location - 0.5) * 2.0, -1.0, 1.0))
+                clv_score = float(np.clip((close_location - 0.5) * 2.0, -1.0, 1.0))
+
+                c_col = "close" if "close" in df_sym.columns else ("Close" if "Close" in df_sym.columns else None)
+                v_col = "volume" if "volume" in df_sym.columns else ("Volume" if "Volume" in df_sym.columns else None)
+                vwap_deviation_score = 0.0
+                if c_col and v_col and len(df_sym) >= 20:
+                    c_series = pd.to_numeric(df_sym[c_col], errors='coerce').ffill()
+                    v_series = pd.to_numeric(df_sym[v_col], errors='coerce').fillna(0)
+                    vwap = (c_series * v_series).rolling(20).sum() / (v_series.rolling(20).sum() + 1e-8)
+                    vwap_val = float(vwap.iloc[-1])
+                    curr_c = float(c_series.iloc[-1])
+                    if vwap_val > 0:
+                        vwap_dev = (curr_c - vwap_val) / vwap_val
+                        # Assuming vwap_dev is small, scale it or use it as is? Instruction says vwap_dev = ...
+                        vwap_deviation_score = float(np.clip(vwap_dev * 10.0, -1.0, 1.0))
+
+                bid_ask_imbalance = float(np.clip(0.6 * clv_score + 0.4 * vwap_deviation_score, -1.0, 1.0))
 
                 vol_col = "volume" if "volume" in df_sym.columns else ("Volume" if "Volume" in df_sym.columns else None)
                 if vol_col and len(df_sym) >= 5:

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -257,10 +258,11 @@ class CrisisDetector:
                 if self.crisis_level == CrisisLevel.NONE:
                     self.crisis_level = CrisisLevel.WATCH
             elif isinstance(vix, (float, int)) and not np.isnan(vix):
+                is_rebounding = len(self._dd_history) >= 2 and self._dd_history[-1] < 0.05 and dd_score < 0.30
                 if vix >= 40.0:
-                    self.crisis_level = CrisisLevel.SEVERE
+                    self.crisis_level = CrisisLevel.ACTIVE if is_rebounding else CrisisLevel.SEVERE
                 elif vix >= 30.0:
-                    if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH):
+                    if self.crisis_level in (CrisisLevel.NONE, CrisisLevel.WATCH) and not is_rebounding:
                         self.crisis_level = CrisisLevel.ACTIVE
 
             # Standalone CDS credit risk override check
@@ -284,7 +286,7 @@ class CrisisDetector:
                 self._check_recovery(safe_vix, safe_dd)
                 if self._recovery_mode:
                     self._recovery_days = (self._recovery_days or 0) + 1
-                    if self._recovery_days >= 20:
+                    if self._recovery_days >= self._get_dynamic_recovery_period():
                         self._recovery_mode = False
                         self._recovery_days = 0
 
@@ -418,6 +420,27 @@ class CrisisDetector:
     def is_recovery(self) -> bool:
         return self._recovery_mode
 
+    def _get_dynamic_recovery_period(self) -> int:
+        """
+        Computes Kinematic Momentum Recovery Cooldown:
+          tau_recovery = max(3, floor(20 * exp(-3.0 * max(0, Delta_Mom))))
+        Allows fast V-shaped market recoveries (3-5 days) to rapidly restore exposure.
+        """
+        mom_roc = 0.0
+        if hasattr(self, '_dd_history') and len(self._dd_history) >= 5:
+            dd_curr = self._dd_history[-1] if self._dd_history else 0.0
+            dd_past = self._dd_history[-5]
+            if dd_past is not None and dd_curr is not None:
+                mom_roc = max(0.0, float(dd_past - dd_curr))
+        if hasattr(self, '_vix_history') and len(self._vix_history) >= 5:
+            vix_curr = self._vix_history[-1] if self._vix_history else 20.0
+            vix_past = self._vix_history[-5]
+            if vix_past is not None and vix_curr is not None and vix_past > 0:
+                vix_drop = max(0.0, float(vix_past - vix_curr) / float(vix_past))
+                mom_roc = max(mom_roc, vix_drop)
+        tau = max(3, int(np.floor(20.0 * np.exp(-3.0 * mom_roc))))
+        return min(20, tau)
+
     def get_crisis_cash_target(self) -> float:
         targets = {
             CrisisLevel.NONE: 0.10,
@@ -427,7 +450,8 @@ class CrisisDetector:
         }
         base = targets.get(self.crisis_level, 0.10)
         if self._recovery_mode and self.crisis_level == CrisisLevel.NONE:
-            progress = min(1.0, (self._recovery_days or 1) / 20.0)
+            rec_total = float(self._get_dynamic_recovery_period())
+            progress = min(1.0, (self._recovery_days or 1) / max(rec_total, 1.0))
             prev_cash = targets.get(self._prev_crisis_level or CrisisLevel.ACTIVE, 0.60)
             return float(0.10 + (prev_cash - 0.10) * (1.0 - progress))
         return base
@@ -441,7 +465,8 @@ class CrisisDetector:
         }
         base = multipliers.get(self.crisis_level, 1.0)
         if self._recovery_mode and self.crisis_level == CrisisLevel.NONE:
-            progress = min(1.0, (self._recovery_days or 1) / 20.0)
+            rec_total = float(self._get_dynamic_recovery_period())
+            progress = min(1.0, (self._recovery_days or 1) / max(rec_total, 1.0))
             return 0.15 + (1.0 - 0.15) * progress
         return base
 
@@ -943,14 +968,24 @@ class RiskManager:
         except Exception as e:
             self.logger.error(f"Failed to save risk configuration: {e}")
 
-    def set_position_limit(self, symbol: str, max_quantity: int):
+    def set_position_limit(self, symbol: str, max_quantity: int, current_price: Optional[float] = None):
         """종목별 최대 수량 설정"""
         self.position_limits[symbol] = max_quantity
         self.logger.info(f"Position limit set for {symbol}: {max_quantity}")
 
+        if current_price is None:
+            return max(0, max_quantity)
+
         max_value = self.portfolio_value * self.max_position_size_pct * self.stress_test_adjustment_factor
-        max_quantity = int(max_value / current_price) if (current_price > 0 and np.isfinite(current_price)) else 0
-        return max(0, max_quantity)
+        val_max_quantity = int(max_value / current_price) if (current_price > 0 and np.isfinite(current_price)) else 0
+        return max(0, min(max_quantity, val_max_quantity))
+
+    def calculate_max_position_size(self, current_price: float) -> int:
+        """현재 가격 기준 최대 매수 가능 수량 계산"""
+        if current_price is None or current_price <= 0 or not np.isfinite(current_price):
+            return 0
+        max_value = self.portfolio_value * self.max_position_size_pct * self.stress_test_adjustment_factor
+        return int(max_value / current_price)
 
     def calculate_kelly_fraction(self, win_rate: float, win_loss_ratio: float, half_kelly: bool = True) -> float:
         """Kelly Criterion을 사용한 최적 투자 비중 계산 (f*)"""
@@ -992,14 +1027,14 @@ class RiskManager:
             return 0.0
         confidence_factor = min(1.0, n_trades / 50.0)
         adjusted = raw_kelly * confidence_factor * 0.5  # Half Kelly 시작
-        if consecutive_losses >= 3:
-            adjusted *= 0.5
         if consecutive_losses >= 5:
-            adjusted *= 0.5
-        if consecutive_losses >= 7:
-            adjusted *= 0.25  # 쿨다운
-        if consecutive_losses >= 10:
-            adjusted = 0.0  # 거래 중단
+            adjusted *= 0.7   # 30% penalty
+        if consecutive_losses >= 8:
+            adjusted *= 0.5   # 50% penalty
+        if consecutive_losses >= 12:
+            adjusted *= 0.3   # 70% penalty
+        if consecutive_losses >= 15:
+            adjusted = 0.0    # 거래 중단
 
         if consecutive_losses >= 10 or adjusted <= 0.0:
             return 0.0
@@ -1060,13 +1095,13 @@ class RiskManager:
             max_value = max_risk_allowed_value
 
         vol_scalar = self._volatility_scalar(vix)
-        max_value *= vol_scalar
-
-        # VIX Risk-Off 스위치: VIX 수준별 포지션 상한
         vix_cap = self.get_vix_position_cap(vix)
-        if vix_cap < 1.0:
-            max_value = min(max_value, self.portfolio_value * vix_cap)
-            self.logger.info(f"VIX Risk-Off: {symbol} capped at {vix_cap:.0%} of portfolio (VIX={vix:.1f})")
+
+        effective_scale = max(vol_scalar, vix_cap)
+        max_value *= effective_scale
+
+        if effective_scale < 1.0:
+            self.logger.info(f"VIX Risk-Off: {symbol} scaled by {effective_scale:.2f}x (VIX={vix:.1f})")
 
         position_quantity = max(0, int(max_value / entry_price)) if (entry_price > 0 and np.isfinite(entry_price)) else 0
         unpenalized_max_position = int((self.portfolio_value * self.max_position_size_pct) / entry_price) if (entry_price > 0 and np.isfinite(entry_price)) else 0

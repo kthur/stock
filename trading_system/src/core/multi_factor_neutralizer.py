@@ -97,7 +97,14 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
         if "name" not in df.columns:
             df["name"] = df["symbol"]
         if "market" not in df.columns:
-            df["market"] = df["symbol"].map(lambda s: "KOSPI" if str(s).isdigit() else "SP500")
+            def _detect_mkt(s: str) -> str:
+                s_str = str(s).strip().upper()
+                if s_str.endswith('.KQ'):
+                    return "KOSDAQ"
+                if s_str.isdigit() or s_str.endswith('.KS') or (len(s_str) == 6 and s_str[:5].isdigit()):
+                    return "KOSPI"
+                return "SP500"
+            df["market"] = df["symbol"].map(_detect_mkt)
 
         # 2. Merge fundamentals_dict if supplied
         if fundamentals_dict and isinstance(fundamentals_dict, dict):
@@ -112,6 +119,15 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
                         df.loc[missing_mask, col] = df.loc[missing_mask, "symbol"].map(
                             lambda s: fundamentals_dict.get(s, {}).get(col, np.nan)
                         )
+            
+            # 5-4. Sector-grouped median imputation for PBR/ROE
+            if "sector" in df.columns or "sector_code" in df.columns:
+                sec_col = "sector" if "sector" in df.columns else "sector_code"
+                for col in ["pbr", "roe"]:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
+                        df[col] = df.groupby(sec_col)[col].transform(lambda x: x.fillna(x.median()))
+                        df[col] = df[col].fillna(df[col].median())
 
         # 3. Resolve or compute raw alpha scores y
         raw_scores = kwargs.get("raw_scores", kwargs.get("raw_scores_df", None))

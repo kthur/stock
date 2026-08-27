@@ -147,7 +147,7 @@ class TestM1EmpiricalChallenger(unittest.TestCase):
         self.assertEqual(engine._prev_regime, 'BULL_LOW_VOL')
         
         updated_sharpes = dict(fake_sharpes)
-        updated_sharpes['surge'] = 3.0
+        updated_sharpes['surge'] = 0.8
         w_bull_2 = engine.compute_dynamic_weights_from_sharpe(updated_sharpes, regime='BULL_LOW_VOL')
         
         w_bear_reset = engine.compute_dynamic_weights_from_sharpe(updated_sharpes, regime='BEAR_HIGH_VOL')

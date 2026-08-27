@@ -116,7 +116,6 @@ def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
     res = linregress(y_lag, dy)
     beta = res.slope
     stderr = res.stderr
-
     if stderr is None or stderr <= 1e-12:
         return 0.0, 1.0
 
@@ -137,7 +136,7 @@ def _estimate_adf_pvalue(residuals: np.ndarray) -> Tuple[float, float]:
     else:
         p_val = 0.50
 
-    return t_stat, p_val
+    return float(t_stat), float(p_val)
 
 
 def _estimate_half_life(residuals: np.ndarray) -> float:
@@ -154,8 +153,11 @@ def _estimate_half_life(residuals: np.ndarray) -> float:
     res = linregress(y_lag, dy)
     lam = res.slope
 
-    if lam >= 0 or (1.0 + lam) <= 1e-4:
+    if lam >= 0:
         return 999.0
+
+    if lam <= -1.0:
+        return 1.0
 
     denom = np.log(np.clip(1.0 + lam, 1e-4, 0.999999))
     if denom == 0 or np.isnan(denom):
@@ -567,11 +569,15 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
             p_vals = np.where(t_stats < -3.90, 0.01, np.where(t_stats < -3.34, 0.03, np.where(t_stats < -2.86, 0.05, np.where(t_stats < -2.57, 0.09, np.where(t_stats < -2.31, 0.15, np.where(t_stats < -1.95, 0.25, 0.50))))))
             # Ornstein-Uhlenbeck continuous / discrete half-life:
             # For true mean reversion: beta in (-1, 0) -> (1 + beta) in (0, 1) -> half_life = -ln(2)/ln(1 + beta)
-            # R6-2 Fix: Discard oscillatory/explosive noise (beta <= -1 or 1+beta <= 1e-4) by assigning 999.0
+            # If beta <= -1.0 (hyper-mean-reverting / discrete sampling noise on white noise): half_life = 1.0 day
             half_lives = np.where(
-                (beta < 0.0) & (1.0 + beta > 1e-4),
-                -np.log(2.0) / np.log(np.clip(1.0 + beta, 1e-4, 0.999999)),
-                999.0,
+                beta <= -1.0,
+                1.0,
+                np.where(
+                    (beta < 0.0) & (1.0 + beta > 1e-4),
+                    -np.log(2.0) / np.log(np.clip(1.0 + beta, 1e-4, 0.999999)),
+                    999.0,
+                )
             )
 
             pass_mask = (p_vals <= eff_max_pvalue) & (half_lives >= min_half_life) & (half_lives <= max_half_life)

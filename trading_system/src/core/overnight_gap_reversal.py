@@ -128,16 +128,8 @@ class OvernightGapReversalEngine(BaseStrategyEngine):
                 # If gap is downward (gap_z < -1.0), strong bounce mean-reversion signal
                 # If gap is upward (gap_z > +1.0), fade probability
                 # Baseline neutral is 0.50
-                # Formula: score = 0.50 - 0.25 * tanh(gap_z / 1.5)
-                reversion_score = 0.50 - 0.25 * np.tanh(gap_z / 1.5)
-
-                # Intraday momentum confirmation: if open < close (reversal in progress), add bonus
-                intraday_ret = float((curr_close - curr_open) / curr_open) if curr_open > 0 else 0.0
-                if np.isfinite(intraday_ret):
-                    if gap_z < -0.8 and intraday_ret > 0:
-                        reversion_score += min(0.15, intraday_ret * 3.0)
-                    elif gap_z > 0.8 and intraday_ret < 0:
-                        reversion_score -= min(0.15, abs(intraday_ret) * 3.0)
+                # Formula: score = 0.50 - 0.35 * tanh(gap_z / 1.5)
+                reversion_score = 0.50 - 0.35 * np.tanh(gap_z / 1.5)
 
                 score = float(np.clip(reversion_score, 0.05, 0.95)) if np.isfinite(reversion_score) else 0.50
                 results.append({'symbol': str(sym), 'overnight_gap_score': round(score, 4)})

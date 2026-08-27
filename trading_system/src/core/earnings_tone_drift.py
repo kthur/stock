@@ -104,9 +104,12 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 if t_data and isinstance(t_data, dict):
                     raw_prev = _safe_float(t_data.get('previous_quarter_tone'), 0.50)
                     raw_cur = _safe_float(t_data.get('current_quarter_tone'), 0.50)
-                    # Consistent linear mapping from [-1, 1] or [0, 1] scale to unit interval [0, 1]
+                    # Consistent linear mapping from [-1, 1] polarity or [0, 1] unit scale
+                    is_polarity = (raw_prev < 0.0 or raw_cur < 0.0)
                     def _normalize_tone(val: float) -> float:
-                        if val < 0.0 or val > 1.0:
+                        if not np.isfinite(val):
+                            return 0.50
+                        if is_polarity:
                             return float(np.clip((val + 1.0) / 2.0, 0.0, 1.0))
                         return float(np.clip(val, 0.0, 1.0))
 

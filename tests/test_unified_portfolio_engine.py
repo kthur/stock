@@ -456,3 +456,131 @@ class TestMultiHorizonRankICDecay:
         assert calibrated["rim_valuation"] > calibrated["stat_arb"]
 
 
+class TestTopDecileConvexAlphaBoost:
+    def test_convex_alpha_boosting(self):
+        from src.ai.ensemble_scorer import EnsembleScoringEngine
+        # Mock scores DataFrame: 1 symbol with extreme surge (0.95), vcp (0.85), order_flow (0.80), rest 0.50
+        df = pd.DataFrame({
+            "surge_score": [0.95, 0.40],
+            "vcp_score": [0.85, 0.50],
+            "order_flow_score": [0.80, 0.45],
+            "reg_score": [0.50, 0.50],
+            "rim_score": [0.50, 0.50]
+        })
+        base = pd.Series([0.55, 0.45])
+        boosted = EnsembleScoringEngine.apply_top_decile_convex_boost(
+            scores_df=df,
+            strategy_cols=list(df.columns),
+            base_scores=base,
+            top_k=3,
+            lambda_boost=0.40
+        )
+        # First row should be boosted significantly (> 0.65)
+        assert boosted.iloc[0] > 0.65
+        # Second row should not be boosted (stays base)
+        assert math.isclose(boosted.iloc[1], 0.45, rel_tol=1e-2)
+
+
+class TestConvictionAlphaSizing:
+    def test_conviction_alpha_precision_weights(self):
+        from src.risk.position_sizing import PortfolioAllocator
+        rets = np.array([0.25, 0.05, 0.02])
+        vols = np.array([0.03, 0.02, 0.015])
+        weights = PortfolioAllocator.calculate_conviction_alpha_weights(
+            expected_returns=rets,
+            volatilities=vols,
+            gamma=1.5,
+            max_single_cap=0.25
+        )
+        assert len(weights) == 3
+        assert math.isclose(np.sum(weights), 1.0, rel_tol=1e-3)
+        # High expected return asset gets largest allocation
+        assert weights[0] > weights[1] > weights[2]
+
+
+class TestMultiSleeveExecution:
+    def test_multi_sleeve_order_plan(self):
+        engine = ExecutionOMSEngine(db_path=":memory:")
+        # Fast sleeve symbol (surge) vs Core sleeve symbol (rim)
+        top_pred = [
+            {"symbol": "005930", "market": "KOSPI", "close_price": 70000.0, "adv": 50_000_000.0, "surge_prob": 0.85},
+            {"symbol": "000660", "market": "KOSPI", "close_price": 120000.0, "adv": 50_000_000.0, "rim_valuation_score": 0.90}
+        ]
+        plans = engine.generate_order_plan(top_pred, {"005930": 0.50, "000660": 0.50}, total_capital=100_000_000.0)
+        assert len(plans) == 2
+        p0 = next(p for p in plans if p["symbol"] == "005930")
+        p1 = next(p for p in plans if p["symbol"] == "000660")
+        assert p0["sleeve_type"] == "FAST_MOMENTUM"
+        assert p1["sleeve_type"] == "CORE_FUNDAMENTAL"
+        assert p0["target_take_profit"] > p0["target_price"]
+
+
+class TestBullMarketDynamicLeverage:
+    def test_bull_market_cash_drag_eliminator(self):
+        from src.risk.position_sizing import PortfolioAllocator
+        allocator = PortfolioAllocator(max_total_allocation=0.85, max_single_position=0.40)
+        # In Bull market, allocation scales to 98%
+        preds = pd.DataFrame({
+            "symbol": ["005930", "000660", "035420"],
+            "market": ["KOSPI", "KOSPI", "KOSPI"],
+            20: [15.0, 12.0, 10.0]
+        })
+        prices = {
+            "005930": pd.DataFrame({"Close": [70000.0] * 30}),
+            "000660": pd.DataFrame({"Close": [120000.0] * 30}),
+            "035420": pd.DataFrame({"Close": [200000.0] * 30})
+        }
+        res = allocator.allocate(preds, prices, total_portfolio_value=100_000_000.0, regime="BULL_LOW_VOL")
+        assert not res.empty
+        assert res["weight"].sum() > 0.85  # Breached 85% cash drag up towards 98%
+
+
+class TestChandelierTrailingExit:
+    def test_chandelier_and_breakeven_lock(self):
+        engine = ExecutionOMSEngine(db_path=":memory:")
+        # Holding with entry 70,000, high 90,000, current price 85,000 (+21.4% profit above 10% threshold, below trailing stop 90000 - 2*ATR ~ 88000)
+        holdings = {
+            "005930": {
+                "quantity": 100,
+                "entry_price": 70000.0,
+                "current_price": 85000.0,
+            }
+        }
+        prices = {
+            "005930": pd.DataFrame({
+                "High": np.linspace(70000, 90000, 20),
+                "Low": np.linspace(69000, 89000, 20),
+                "Close": np.linspace(69500, 89500, 20)
+            })
+        }
+        plans = engine.calculate_trailing_stop_plan(holdings, prices_dict=prices, profit_take_threshold=0.10)
+        assert len(plans) == 1
+        assert plans[0]["action"] == "SELL"
+        assert plans[0]["reason"] == "CHANDELIER_TRAILING_PROFIT"
+
+
+class TestSectorBreadthVelocityThrust:
+    def test_sector_velocity_thrust(self):
+        from src.core.sector_rotation import SectorRotationEngine
+        dates = pd.date_range("2026-01-01", periods=25)
+        # IT sector accelerating (high 5d momentum vs 20d)
+        p_it = np.linspace(100, 105, 20).tolist() + [108, 112, 118, 125, 135]
+        df_sec = pd.DataFrame({"IT": p_it}, index=dates)
+        thrust = SectorRotationEngine.compute_sector_breadth_velocity_thrust(df_sec, short_window=5, long_window=20)
+        assert "IT" in thrust
+        assert thrust["IT"] > 0.05  # Positive momentum acceleration
+
+
+class TestInterMarketCapitalFlight:
+    def test_dynamic_capital_flight(self):
+        from src.risk.position_sizing import PortfolioAllocator
+        # US strongly outperforming KR (+25% vs -5%)
+        budgets_flight = PortfolioAllocator.compute_dynamic_capital_flight_budgets(
+            us_momentum_60d=0.25,
+            kr_momentum_60d=-0.05
+        )
+        assert budgets_flight["SP500"] + budgets_flight["NASDAQ"] + budgets_flight["RUSSELL2000"] > 0.70
+        assert budgets_flight["KOSPI"] + budgets_flight["KOSDAQ"] < 0.30
+
+
+

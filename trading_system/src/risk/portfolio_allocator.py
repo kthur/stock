@@ -469,13 +469,14 @@ class PortfolioAllocator:
                 sigma_l = float(np.std(losses, ddof=1))
                 if sigma_l > 1e-8:
                     s_loss = float(skew(losses))
-                    k_loss = float(kurtosis(losses))  # excess kurtosis
+                    k_loss = float(kurtosis(losses))
                     z_a = float(norm.ppf(confidence))
                     z_cf = z_a + (s_loss / 6.0) * (z_a**2 - 1.0) + (k_loss / 24.0) * (z_a**3 - 3.0 * z_a) - (s_loss**2 / 36.0) * (2.0 * z_a**3 - 5.0 * z_a)
                     z_cf = float(np.clip(z_cf, 0.5, 6.0))
                     var_cf = max(0.0, mu_l + sigma_l * z_cf)
-                    pdf_cf = norm.pdf(z_cf)
-                    cvar_cf_raw = mu_l + sigma_l * (pdf_cf / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * z_cf**3 + (k_loss / 24.0) * (z_cf**4 - 2.0 * z_cf**2 - 1.0))
+                    pdf_a = norm.pdf(z_a)
+                    es_factor = (pdf_a / (1.0 - confidence)) * (1.0 + (s_loss / 6.0) * (z_a**3) + (k_loss / 24.0) * (z_a**4 - 2.0 * z_a**2 - 1.0))
+                    cvar_cf_raw = mu_l + sigma_l * max(z_cf, float(es_factor))
                     if np.isfinite(cvar_cf_raw) and cvar_cf_raw > 0:
                         cvar_cf = max(0.0, float(cvar_cf_raw))
                         cf_valid = True
@@ -638,7 +639,7 @@ class PortfolioAllocator:
             method='SLSQP',
             bounds=bounds_ru,
             constraints=constraints_ru,
-            options={'maxiter': 500, 'ftol': 1e-6}
+            options={'maxiter': 100, 'ftol': 1e-5}
         )
 
         if not res.success or np.sum(res.x[:N]) <= 0:
@@ -679,7 +680,7 @@ class PortfolioAllocator:
                     {'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0},
                     {'type': 'ineq', 'fun': std_cvar_constraint}
                 ],
-                options={'maxiter': 200, 'ftol': 1e-6}
+                options={'maxiter': 50, 'ftol': 1e-5}
             )
             weights = res_std.x / np.sum(res_std.x) if res_std.success else init_w
         else:
@@ -693,8 +694,8 @@ class PortfolioAllocator:
         expected_returns: pd.Series,
         returns_df: pd.DataFrame,
         previous_weights: Optional[Dict[str, float]] = None,
-        turnover_penalty_l1: float = 0.05,
-        turnover_penalty_l2: float = 0.02,
+        turnover_penalty_l1: float = 0.001,
+        turnover_penalty_l2: float = 0.0005,
         max_weight: Optional[float] = None,
         sector_map: Optional[Dict[str, str]] = None,
         max_sector_weight: Optional[float] = None,
@@ -868,29 +869,28 @@ class PortfolioAllocator:
             equal_w = 1.0 / float(n_assets)
             return {sym: float(min(equal_w, cap)) for sym in symbols}
 
-        # Normalize to 1.0
-        norm_w = raw_kelly / max(1.0, total_k)  # Only scale down if gross exposure > 100%
-
-        # Iterative water-filling projection to guarantee weights <= cap and sum(weights) == 1.0
         eff_cap = max(cap, 1.0 / n_assets)
-        cur_w = np.clip(norm_w, 0.0, eff_cap)
-        for _ in range(10):
-            cur_sum = np.sum(cur_w)
-            if abs(cur_sum - 1.0) < 1e-6 or cur_sum <= 0:
-                break
-            excess = 1.0 - cur_sum
-            uncapped_mask = cur_w < (eff_cap - 1e-6)
-            if not np.any(uncapped_mask):
-                cur_w = cur_w / cur_sum
-                break
-            uncapped_sum = np.sum(cur_w[uncapped_mask])
-            if uncapped_sum > 0:
-                additions = excess * (cur_w[uncapped_mask] / uncapped_sum)
-                cur_w[uncapped_mask] = np.clip(cur_w[uncapped_mask] + additions, 0.0, eff_cap)
-            else:
-                cur_w[uncapped_mask] += excess / np.sum(uncapped_mask)
-
-        final_w = cur_w if np.sum(cur_w) > 0 else np.ones(n_assets) / n_assets
+        if total_k < 1.0:
+            final_w = np.clip(raw_kelly, 0.0, eff_cap)
+        else:
+            norm_w = raw_kelly / total_k
+            cur_w = np.clip(norm_w, 0.0, eff_cap)
+            for _ in range(10):
+                cur_sum = np.sum(cur_w)
+                if abs(cur_sum - 1.0) < 1e-6 or cur_sum <= 0:
+                    break
+                excess = 1.0 - cur_sum
+                uncapped_mask = cur_w < (eff_cap - 1e-6)
+                if not np.any(uncapped_mask):
+                    cur_w = cur_w / cur_sum
+                    break
+                uncapped_sum = np.sum(cur_w[uncapped_mask])
+                if uncapped_sum > 0:
+                    additions = excess * (cur_w[uncapped_mask] / uncapped_sum)
+                    cur_w[uncapped_mask] = np.clip(cur_w[uncapped_mask] + additions, 0.0, eff_cap)
+                else:
+                    cur_w[uncapped_mask] += excess / np.sum(uncapped_mask)
+            final_w = cur_w if np.sum(cur_w) > 0 else np.ones(n_assets) / n_assets
         return {sym: float(w) for sym, w in zip(symbols, final_w)}
 
     def allocate_volatility_targeted_kelly(
@@ -899,7 +899,8 @@ class PortfolioAllocator:
         volatilities: Optional[pd.Series] = None,
         target_annual_vol: float = 0.15,
         max_weight: Optional[float] = None,
-        kelly_fraction: float = 0.25
+        kelly_fraction: float = 0.25,
+        returns_df: Optional[pd.DataFrame] = None
     ) -> Dict[str, float]:
         """
         Allocates portfolio weights combining Fractional Kelly with Volatility Targeting:
@@ -927,7 +928,14 @@ class PortfolioAllocator:
 
         # R6-4 Fix: Multi-asset diversification-adjusted portfolio annual volatility
         # sigma_port^2 = (1 - rho_avg) * sum(w_i^2 * sigma_i^2) + rho_avg * (sum(w_i * sigma_i))^2
-        rho_avg = 0.35
+        if returns_df is not None and not returns_df.empty:
+            corr_mat = returns_df.corr()
+            valid_corr = corr_mat.values[np.triu_indices_from(corr_mat.values, k=1)]
+            valid_corr = valid_corr[np.isfinite(valid_corr)]
+            rho_avg = float(np.mean(valid_corr)) if len(valid_corr) > 0 else 0.25
+        else:
+            rho_avg = 0.25  # Fallback realistic multi-asset correlation
+
         sum_w_vol = float(np.dot(w_vec, daily_vols))
         sum_w2_vol2 = float(np.sum((w_vec * daily_vols) ** 2))
         port_daily_var = (1.0 - rho_avg) * sum_w2_vol2 + rho_avg * (sum_w_vol ** 2)
@@ -1202,11 +1210,16 @@ class PortfolioAllocator:
 
         tot_asset_w = sum(new_weights.values())
         if tot_asset_w > 1.0:
-            scale = 1.0 / tot_asset_w
-            new_weights = {s: w * scale for s, w in new_weights.items()}
-            for sym, tr in trades.items():
-                tr["w_new"] = new_weights.get(sym, tr.get("w_new", 0.0))
-                tr["trade_weight"] = tr["w_new"] - tr.get("w_current", 0.0)
+            hold_sum = sum(w for s, w in new_weights.items() if trades[s]["action"] == "HOLD")
+            trade_sum = tot_asset_w - hold_sum
+            avail_for_trades = max(0.0, 1.0 - hold_sum)
+            if trade_sum > 0:
+                scale = avail_for_trades / trade_sum
+                for s in new_weights:
+                    if trades[s]["action"] != "HOLD":
+                        new_weights[s] *= scale
+                        trades[s]["w_new"] = new_weights[s]
+                        trades[s]["trade_weight"] = new_weights[s] - trades[s].get("w_current", 0.0)
 
         return {
             "new_weights": new_weights,
@@ -1372,9 +1385,12 @@ class PortfolioAllocator:
             if len(valid) < 5:
                 return 1.0
 
-            slippage_pct = (np.abs(valid['executed_price'] - valid['order_price']) / valid['order_price']).mean()
+            is_buy = valid['side'].str.upper().str.startswith('BUY') if 'side' in valid.columns else pd.Series(True, index=valid.index)
+            side_sign = np.where(is_buy, 1.0, -1.0)
+            signed_slip = side_sign * (valid['executed_price'] - valid['order_price']) / valid['order_price']
+            adverse_slip = max(0.0, float(signed_slip.mean()))
             # Normalize relative to benchmark 0.10% (10 bps)
-            calibrated_factor = float(np.clip(slippage_pct / 0.0010, 0.5, 3.0))
+            calibrated_factor = float(np.clip(adverse_slip / 0.0010, 0.5, 3.0))
             logger.info(f"[OMS SLIPPAGE FEEDBACK] Calibrated slippage factor = {calibrated_factor:.2f}x (from {len(valid)} trades)")
             return calibrated_factor
         except Exception as e:
@@ -1825,7 +1841,7 @@ class PortfolioAllocator:
         cap = max_weight or self.default_max_weight
         mu = np.nan_to_num(expected_returns.values.astype(np.float64), nan=0.0)
         # Scale risk-free rate to 20d horizon if mu is horizon return
-        rf_scaled = risk_free_rate * (self.target_horizon / 252.0) if np.mean(mu) < 0.50 else risk_free_rate
+        rf_scaled = risk_free_rate * (self.target_horizon / 252.0)
         excess_mu = np.maximum(0.0, mu - rf_scaled)
 
         cov = np.asarray(covariance_matrix, dtype=np.float64)

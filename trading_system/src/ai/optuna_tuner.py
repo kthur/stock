@@ -116,12 +116,13 @@ class OptunaStrategyTuner:
         # 1. XGBoost Regressor
         def xgb_objective(trial):
             params = {
-                'n_estimators': trial.suggest_int('n_estimators', 50, 100),
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'max_depth': trial.suggest_int('max_depth', 3, 6),
                 'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
                 'subsample': trial.suggest_float('subsample', 0.6, 1.0),
                 'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
                 'reg_lambda': trial.suggest_float('reg_lambda', 0.1, 10.0, log=True),
+                'early_stopping_rounds': 50,
                 'random_state': 42,
                 'n_jobs': -1,
             }
@@ -129,12 +130,19 @@ class OptunaStrategyTuner:
             for train_idx, val_idx in tscv.split(split_target):
                 X_tr, X_va = X.iloc[train_idx], X.iloc[val_idx]
                 y_tr, y_va = y.iloc[train_idx], y.iloc[val_idx]
+                if len(val_idx) >= 20:
+                    split_mid = len(val_idx) // 2
+                    X_es, X_eval = X_va.iloc[:split_mid], X_va.iloc[split_mid:]
+                    y_es, y_eval = y_va.iloc[:split_mid], y_va.iloc[split_mid:]
+                else:
+                    X_es, X_eval = X_va, X_va
+                    y_es, y_eval = y_va, y_va
                 model = xgb.XGBRegressor(**params)
-                model.fit(X_tr, y_tr)
-                preds = model.predict(X_va)
-                rmse = float(np.sqrt(mean_squared_error(y_va, preds)))
+                model.fit(X_tr, y_tr, eval_set=[(X_es, y_es)], verbose=False)
+                preds = model.predict(X_eval)
+                rmse = float(np.sqrt(mean_squared_error(y_eval, preds)))
                 try:
-                    s_ic = float(spearmanr(preds, y_va)[0])
+                    s_ic = float(spearmanr(preds, y_eval)[0])
                     s_ic = s_ic if np.isfinite(s_ic) else 0.0
                 except Exception:
                     s_ic = 0.0
@@ -427,7 +435,11 @@ class OptunaStrategyTuner:
                 feature_cols = [c for c in df_train.columns if c not in ['symbol', 'date', 'name', 'market', target_col] and not c.startswith('target_')]
                 df_clean = df_train.dropna(subset=feature_cols + [target_col])
                 if len(df_clean) >= 30:
-                    surge_thresh = 0.10  # Fixed threshold to avoid future data leakage
+                    try:
+                        from src.ai.vcp_ml_predictor import SURGE_THRESHOLD
+                        surge_thresh = SURGE_THRESHOLD
+                    except ImportError:
+                        surge_thresh = 0.20  # Fixed threshold to avoid future data leakage
                     y = (df_clean[target_col] >= surge_thresh).astype(int)
                     if len(np.unique(y)) < 2:
                         logger.warning("Single-class target encountered in surge tuning. Returning defaults without fake label injection.")
@@ -471,6 +483,7 @@ class OptunaStrategyTuner:
                     if isinstance(c, pd.DataFrame):
                         c = c.iloc[:, 0]
                     ret = c.pct_change().dropna()
+                    ret.name = str(s)
                     if len(ret) > 50:
                         series_list.append(ret)
             if len(series_list) < 2:
@@ -485,21 +498,32 @@ class OptunaStrategyTuner:
             df_train = df_ret.iloc[:n_split]
             if df_train.empty or len(df_train) < 20:
                 df_train = df_ret
-            df_val = df_ret.iloc[n_split:] if len(df_ret) > n_split + 10 else df_ret
 
             eval_k = min(leaders_count, df_train.shape[1])
-            for i in range(eval_k):
-                for j in range(eval_k):
-                    if i != j:
-                        r = df_train.iloc[:, i].shift(lag_window).corr(df_train.iloc[:, j])
-                        if not np.isnan(r) and abs(r) >= corr_cutoff:
-                            # Evaluate out-of-sample persistence on validation split
-                            if not df_val.empty and len(df_val) >= 10:
-                                r_val = df_val.iloc[:, i].shift(lag_window).corr(df_val.iloc[:, j])
-                                if not np.isnan(r_val):
-                                    corrs.append(float(r_val))
-                            else:
-                                corrs.append(abs(r))
+            df_train_sub = df_train.iloc[:, :eval_k]
+            shifted = df_train_sub.shift(lag_window)
+
+            # Vectorized pairwise cross-correlation matrix (Shifted Leader i vs Follower j)
+            s_clean = shifted.iloc[lag_window:].dropna(how='all', axis=1)
+            d_clean = df_train_sub.iloc[lag_window:].dropna(how='all', axis=1)
+            common_cols = [c for c in s_clean.columns if c in d_clean.columns]
+
+            if len(common_cols) >= 2:
+                s_mat = s_clean[common_cols].values
+                d_mat = d_clean[common_cols].values
+                s_std = (s_mat - np.nanmean(s_mat, axis=0)) / np.maximum(np.nanstd(s_mat, axis=0), 1e-6)
+                d_std = (d_mat - np.nanmean(d_mat, axis=0)) / np.maximum(np.nanstd(d_mat, axis=0), 1e-6)
+                s_std = np.nan_to_num(s_std)
+                d_std = np.nan_to_num(d_std)
+                T_len = len(s_std)
+
+                # Cross correlation matrix C[i, j] = corr(shifted leader i, follower j)
+                C = np.dot(s_std.T, d_std) / max(T_len - 1, 1)
+                # Zero out diagonal to exclude self-autocorrelation and evaluate genuine cross-asset pairs
+                np.fill_diagonal(C, 0.0)
+                valid_mask = np.abs(C) >= corr_cutoff
+                if valid_mask.any():
+                    corrs.extend(np.abs(C[valid_mask]).tolist())
 
             return float(np.mean(corrs)) if corrs else 0.0
 

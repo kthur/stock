@@ -122,32 +122,36 @@ class CrossSectionalScoreNormalizer:
                 norm_df.loc[valid_mask, col] = 0.50
             else:
                 vals = s.loc[valid_mask].values
-                method_clean = method.lower()
-                if method_clean in ('rank_percentile', 'percentile_rank', 'rank'):
-                    # (Rank - 0.5) / N uniformly distributed in (0, 1)
-                    # Use average ranking for ties
-                    rank_s = pd.Series(vals, index=s.loc[valid_mask].index).rank(ascending=True, method='average')
-                    norm_vals = ((rank_s - 0.5) / float(n_valid)).clip(0.005, 0.995)
-                    norm_df.loc[valid_mask, col] = norm_vals.values
-                elif method_clean in ('winsorized_zscore', 'zscore'):
-                    q01 = np.percentile(vals, 1.0)
-                    q99 = np.percentile(vals, 99.0)
-                    w_vals = np.clip(vals, q01, q99)
-                    med = float(np.median(w_vals))
-                    mad = float(np.median(np.abs(w_vals - med)))
-                    robust_std = 1.4826 * mad
-                    if robust_std < 1e-6:
-                        # Fallback to standard deviation if MAD is zero (e.g. discrete repeated values)
-                        sample_std = float(np.std(w_vals))
-                        robust_std = sample_std if sample_std > 1e-6 else 1.0
-                    z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
-                    z_clipped = np.clip(z, -8.0, 8.0)
-                    # Standard Gaussian CDF Phi(z) = 0.5 * (1 + erf(z / sqrt(2)))
-                    phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
-                    phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
-                    norm_df.loc[valid_mask, col] = np.clip(phi_clean, 0.005, 0.995)
+                val_std = float(np.std(vals))
+                if val_std < 1e-6:
+                    norm_df.loc[valid_mask, col] = 0.50
                 else:
-                    clean_vals = np.nan_to_num(vals, nan=0.50, posinf=1.0, neginf=0.0)
-                    norm_df.loc[valid_mask, col] = np.clip(clean_vals, 0.0, 1.0)
+                    method_clean = method.lower()
+                    if method_clean in ('rank_percentile', 'percentile_rank', 'rank'):
+                        # (Rank - 0.5) / N uniformly distributed in (0, 1)
+                        # Use 'min' ranking for ties to avoid artificially boosting zero-signal blocks
+                        rank_s = pd.Series(vals, index=s.loc[valid_mask].index).rank(ascending=True, method='min')
+                        norm_vals = ((rank_s - 0.5) / float(n_valid)).clip(0.005, 0.995)
+                        norm_df.loc[valid_mask, col] = norm_vals.values
+                    elif method_clean in ('winsorized_zscore', 'zscore'):
+                        q01 = np.percentile(vals, 1.0)
+                        q99 = np.percentile(vals, 99.0)
+                        w_vals = np.clip(vals, q01, q99)
+                        med = float(np.median(w_vals))
+                        mad = float(np.median(np.abs(w_vals - med)))
+                        robust_std = 1.4826 * mad
+                        if robust_std < 1e-6:
+                            # Fallback to standard deviation if MAD is zero (e.g. discrete repeated values)
+                            sample_std = float(np.std(w_vals))
+                            robust_std = sample_std if sample_std > 1e-6 else 1.0
+                        z = (w_vals - med) / (robust_std if robust_std > 1e-6 else 1.0)
+                        z_clipped = np.clip(z, -8.0, 8.0)
+                        # Standard Gaussian CDF Phi(z) = 0.5 * (1 + erf(z / sqrt(2)))
+                        phi_z = 0.5 * (1.0 + erf(z_clipped / np.sqrt(2.0)))
+                        phi_clean = np.nan_to_num(phi_z, nan=0.50, posinf=0.995, neginf=0.005)
+                        norm_df.loc[valid_mask, col] = np.clip(phi_clean, 0.005, 0.995)
+                    else:
+                        clean_vals = np.nan_to_num(vals, nan=0.50, posinf=1.0, neginf=0.0)
+                        norm_df.loc[valid_mask, col] = np.clip(clean_vals, 0.0, 1.0)
 
         return norm_df

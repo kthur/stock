@@ -279,8 +279,8 @@ def shrink_covariance_matrix(
         if d2 < 1e-12:
             return cov_matrix
         t_eff = max(2, int(n_samples)) if n_samples is not None else 60
-        asy_var = (float(np.sum(np.diag(cov_matrix) ** 2)) / float(max(n, 1))) / float(t_eff)
-        delta = float(np.clip(asy_var / (d2 + asy_var), 0.0, 1.0))
+        asy_var = float(np.sum(cov_matrix ** 2)) / float(t_eff)
+        delta = float(np.clip(asy_var / max(d2 + asy_var, 1e-8), 0.0, 1.0))
 
     shrunk_cov = (1.0 - delta) * cov_matrix + delta * diag_target
 
@@ -295,8 +295,6 @@ def shrink_covariance_matrix(
             eigvals = np.maximum(eigvals, max_eig / max_cond)
         shrunk_cov = (eigvecs * eigvals) @ eigvecs.T
         shrunk_cov = 0.5 * (shrunk_cov + shrunk_cov.T)
-    except Exception:
-        pass
     except Exception:
         np.fill_diagonal(shrunk_cov, np.diag(shrunk_cov) + 1e-4)
 
@@ -341,7 +339,9 @@ def calculate_hrp_weights(
     returns_matrix: Optional[np.ndarray] = None,
     tail_stress: bool = True,
     linkage_method: str = "ward",
-    use_rmt_denoising: bool = True
+    use_rmt_denoising: bool = True,
+    expected_returns: Optional[np.ndarray] = None,
+    alpha_tilt_exponent: float = 1.0
 ) -> np.ndarray:
     """
     Computes Hierarchical Risk Parity (HRP) weights based on Marcos Lopez de Prado's algorithm.
@@ -349,6 +349,7 @@ def calculate_hrp_weights(
     1. RMT Marchenko-Pastur Spectral Denoising.
     2. Ward / Complete hierarchical clustering (eliminates single-linkage chaining artifacts).
     3. Quasi-diagonalization & Hierarchical Recursive Bisection.
+    4. Return-Tilted HRP (R-HRP): Conviction alpha tilting based on risk-adjusted expected returns.
     """
     if cov_matrix is None or not isinstance(cov_matrix, (np.ndarray, list)):
         logger.error("Invalid covariance matrix for HRP: not a numpy array.")
@@ -437,44 +438,58 @@ def calculate_hrp_weights(
 
         quasi_diag = get_quasi_diag(link, n)
 
-        # Recursive Bisection
+        # Recursive Bisection via Queue
         weights = np.ones(n)
-        cluster_items = [quasi_diag]
+        items = [quasi_diag]
 
-        while len(cluster_items) > 0:
-            cluster_items = [
-                c[i:j]
-                for c in cluster_items
-                for i, j in ((0, len(c) // 2), (len(c) // 2, len(c)))
-                if len(c) > 1
-            ]
-            for i in range(0, len(cluster_items), 2):
-                c_left = cluster_items[i]
-                c_right = cluster_items[i + 1]
+        while len(items) > 0:
+            new_items = []
+            for c in items:
+                if len(c) > 1:
+                    mid = len(c) // 2
+                    c_left = c[:mid]
+                    c_right = c[mid:]
 
-                # Variance of left & right clusters (R9-1 Fix: High precision without artificial 1e-8 floor distortion)
-                cov_left = cov_matrix[np.ix_(c_left, c_left)]
-                vols_left = np.maximum(np.sqrt(np.maximum(np.diag(cov_left), 1e-12)), 1e-6)
-                inv_vol_left = 1.0 / (vols_left ** 2)
-                w_left = inv_vol_left / max(float(np.sum(inv_vol_left)), 1e-12)
-                var_left = max(float(w_left @ cov_left @ w_left), 1e-16)
+                    # Variance of left & right clusters
+                    cov_left = cov_matrix[np.ix_(c_left, c_left)]
+                    vols_left = np.maximum(np.sqrt(np.maximum(np.diag(cov_left), 1e-12)), 1e-6)
+                    inv_vol_left = 1.0 / (vols_left ** 2)
+                    w_left = inv_vol_left / max(float(np.sum(inv_vol_left)), 1e-12)
+                    var_left = max(float(w_left @ cov_left @ w_left), 1e-16)
 
-                cov_right = cov_matrix[np.ix_(c_right, c_right)]
-                vols_right = np.maximum(np.sqrt(np.maximum(np.diag(cov_right), 1e-12)), 1e-6)
-                inv_vol_right = 1.0 / (vols_right ** 2)
-                w_right = inv_vol_right / max(float(np.sum(inv_vol_right)), 1e-12)
-                var_right = max(float(w_right @ cov_right @ w_right), 1e-16)
+                    cov_right = cov_matrix[np.ix_(c_right, c_right)]
+                    vols_right = np.maximum(np.sqrt(np.maximum(np.diag(cov_right), 1e-12)), 1e-6)
+                    inv_vol_right = 1.0 / (vols_right ** 2)
+                    w_right = inv_vol_right / max(float(np.sum(inv_vol_right)), 1e-12)
+                    var_right = max(float(w_right @ cov_right @ w_right), 1e-16)
 
-                # Allocation factor alpha
-                tot_var = var_left + var_right
-                if tot_var < 1e-12 or not np.isfinite(tot_var):
-                    alpha = 0.50
-                else:
-                    ratio = var_left / tot_var
-                    alpha = float(np.clip(1.0 - ratio if np.isfinite(ratio) else 0.50, 0.01, 0.99))
+                    # Return-Tilted HRP (R-HRP) conviction scoring
+                    if expected_returns is not None and len(expected_returns) == n and alpha_tilt_exponent > 0:
+                        er_arr = np.nan_to_num(np.asarray(expected_returns, dtype=float), nan=0.0)
+                        mu_left = float(w_left @ er_arr[c_left])
+                        mu_right = float(w_right @ er_arr[c_right])
+                        sharpe_left = (max(mu_left, -0.20) + 0.25) / np.sqrt(var_left)
+                        sharpe_right = (max(mu_right, -0.20) + 0.25) / np.sqrt(var_right)
+                        score_left = (max(sharpe_left, 1e-4)) ** alpha_tilt_exponent
+                        score_right = (max(sharpe_right, 1e-4)) ** alpha_tilt_exponent
+                        tilt_var_left = var_left / max(score_left, 1e-4)
+                        tilt_var_right = var_right / max(score_right, 1e-4)
+                        tot_tilt_var = tilt_var_left + tilt_var_right
+                        ratio = tilt_var_left / tot_tilt_var if tot_tilt_var > 1e-12 else 0.50
+                        alpha = float(np.clip(1.0 - ratio if np.isfinite(ratio) else 0.50, 0.01, 0.99))
+                    else:
+                        tot_var = var_left + var_right
+                        if tot_var < 1e-12 or not np.isfinite(tot_var):
+                            alpha = 0.50
+                        else:
+                            ratio = var_left / tot_var
+                            alpha = float(np.clip(1.0 - ratio if np.isfinite(ratio) else 0.50, 0.01, 0.99))
 
-                weights[c_left] *= alpha
-                weights[c_right] *= (1.0 - alpha)
+                    weights[c_left] *= alpha
+                    weights[c_right] *= (1.0 - alpha)
+
+                    new_items.extend([c_left, c_right])
+            items = [c for c in new_items if len(c) > 1]
 
         weights = np.where(np.isfinite(weights), weights, 1.0 / n)
         weights = np.clip(weights, 0.0, 1.0)

@@ -52,11 +52,13 @@ class CrossBorderLeadLagEngine:
                     col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
                     if not col:
                         continue
-                    c_last = float(close.iloc[-1])
-                    c_prev = float(close.iloc[-2])
-                    if c_prev > 0 and np.isfinite(c_last) and np.isfinite(c_prev):
-                        us_ret = (c_last - c_prev) / c_prev
-                        us_returns[us_sym] = float(us_ret) if np.isfinite(us_ret) else 0.0
+                    close_s = df[col].dropna()
+                    if len(close_s) >= 2:
+                        c_last = float(close_s.iloc[-1])
+                        c_prev = float(close_s.iloc[-2])
+                        if c_prev > 0 and np.isfinite(c_last) and np.isfinite(c_prev):
+                            us_ret = (c_last - c_prev) / c_prev
+                            us_returns[us_sym] = float(us_ret) if np.isfinite(us_ret) else 0.0
 
         # Default fallback US tech return if US ticker prices aren't loaded explicitly
         if not us_returns:

@@ -30,15 +30,17 @@ def inverse_transform(pred_series: pd.Series) -> pd.Series:
 
 
 def inverse_transform_sharpe(pred_series: pd.Series,
-                              vol_scale: pd.Series) -> pd.Series:
+                              vol_scale: pd.Series,
+                              horizon: int = 1) -> pd.Series:
     """Invert Sharpe-scaled predictions back to raw expected returns.
 
     1. Invert sign * log1p(|x|)  →  Sharpe-scaled value
-    2. Multiply by current vol_20d  →  raw return
+    2. Multiply by current vol_20d * sqrt(h)  →  raw return
 
     Args:
         pred_series: Model output in sign-log1p(Sharpe) space.
         vol_scale:   Per-symbol 20-day realised volatility (same index).
+        horizon:     Forecast horizon in days (applies sqrt(h) scaling).
 
     Returns:
         pd.Series of expected raw returns.
@@ -54,5 +56,6 @@ def inverse_transform_sharpe(pred_series: pd.Series,
         v_vals = np.array(vol_scale)
     v_vals = np.nan_to_num(pd.to_numeric(pd.Series(v_vals.ravel() if hasattr(v_vals, 'ravel') else v_vals), errors='coerce').fillna(0.01).values, nan=0.01)
     floored_vol = np.maximum(v_vals, 0.005)
-    raw_ret = np.nan_to_num(sharpe.values * floored_vol, nan=0.0)
+    h_scale = np.sqrt(max(1.0, float(horizon))) if horizon is not None and float(horizon) > 1.0 else 1.0
+    raw_ret = np.nan_to_num(sharpe.values * floored_vol * h_scale, nan=0.0)
     return pd.Series(raw_ret, index=p_clean.index)

@@ -143,21 +143,19 @@ class MQFactorEngine(BaseStrategyEngine):
         res_df['price_mom_rank'] = res_df['price_mom'].rank(pct=True, ascending=True).clip(0.02, 0.98)
 
         quality_terms = []
-        if 'operating_margin' in res_df.columns:
-            res_df['op_margin_rank'] = res_df['operating_margin'].rank(pct=True, ascending=True).clip(0.02, 0.98).fillna(0.5)
-            quality_terms.append('op_margin_rank')
-        if 'eps_growth_1y' in res_df.columns:
-            res_df['eps_growth_rank'] = res_df['eps_growth_1y'].rank(pct=True, ascending=True).clip(0.02, 0.98).fillna(0.5)
-            quality_terms.append('eps_growth_rank')
-        if 'roe' in res_df.columns:
-            res_df['roe_rank'] = res_df['roe'].rank(pct=True, ascending=True).clip(0.02, 0.98).fillna(0.5)
-            quality_terms.append('roe_rank')
+        for q_col in ['operating_margin', 'eps_growth_1y', 'roe']:
+            if q_col in res_df.columns:
+                rank_col = f'{q_col}_rank'
+                res_df[rank_col] = res_df[q_col].rank(pct=True, ascending=True).clip(0.02, 0.98)
+                quality_terms.append(rank_col)
 
         if quality_terms:
-            res_df['quality_score'] = res_df[quality_terms].mean(axis=1)
-            # M-4 Fix: Adaptively weight momentum vs quality based on how many fundamental terms are valid
-            valid_qual_ratio = len(quality_terms) / 3.0
-            w_qual = 0.40 * valid_qual_ratio
+            valid_qual_counts = res_df[quality_terms].notna().sum(axis=1)
+            row_qual_score = res_df[quality_terms].mean(axis=1).fillna(0.50)
+            res_df['quality_score'] = row_qual_score
+
+            valid_ratio = (valid_qual_counts / 3.0).clip(0.0, 1.0)
+            w_qual = 0.40 * valid_ratio
             w_mom = 1.0 - w_qual
             res_df['mq_score'] = w_mom * res_df['price_mom_rank'] + w_qual * res_df['quality_score']
 

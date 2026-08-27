@@ -118,7 +118,8 @@ class OrderFlowEngine(BaseStrategyEngine):
                 # VWAP Deviation Signal (Current Close vs 20-day VWAP)
                 vol_20_slice = volume.iloc[-20:]
                 close_20_slice = close.iloc[-20:]
-                vwap_20d = (close_20_slice * vol_20_slice).sum() / (vol_20_slice.sum() + 1e-6)
+                vol_clipped = np.minimum(vol_20_slice, 3.0 * vol_20d)
+                vwap_20d = (close_20_slice * vol_clipped).sum() / (vol_clipped.sum() + 1e-6)
                 if np.isfinite(vwap_20d) and float(vwap_20d) > 0:
                     vwap_dev = (float(close.iloc[-1]) - float(vwap_20d)) / (float(vwap_20d) + 1e-6)
                     vwap_dev = vwap_dev if np.isfinite(vwap_dev) else 0.0

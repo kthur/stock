@@ -287,7 +287,8 @@ class RegimeFactorSuppressionEngine:
             corr_matrix=corr_matrix,
             regime_label=regime_label,
             theta=eff_theta,
-            lambda_penalty=eff_lambda
+            lambda_penalty=eff_lambda,
+            vif_dict=vif_dict
         )
 
         # Apply penalties to base weights

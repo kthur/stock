@@ -88,6 +88,36 @@ class EventDrivenEngine(BaseStrategyEngine):
 
         return []
 
+    def fetch_recent_sec_filings(self, ticker: str, start: str = "", end: str = "") -> List[Dict[str, Any]]:
+        """
+        Fetches recent 8-K filings from SEC EDGAR full-text search RSS feed.
+        """
+        try:
+            from datetime import datetime, timedelta
+            if not start:
+                start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            if not end:
+                end = datetime.now().strftime('%Y-%m-%d')
+            url = f"https://efts.sec.gov/LATEST/search-index?q=%22{ticker}%22&dateRange=custom&startdt={start}&enddt={end}&forms=8-K"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                hits = data.get('hits', {}).get('hits', [])
+                results = []
+                for h in hits:
+                    src = h.get('_source', {})
+                    results.append({
+                        'stock_code': ticker,
+                        'corp_code': ticker,
+                        'report_nm': src.get('display_names', [''])[0] if src.get('display_names') else '',
+                        'rcept_dt': src.get('file_date', '').replace('-', ''),
+                        'pblntf_ty': 'B'
+                    })
+                return results
+        except Exception as e:
+            logger.debug(f"SEC fetch failed for {ticker}: {e}")
+            return []
+
     def incorporate_filing_sentiment(
         self,
         symbol: str,
@@ -138,6 +168,11 @@ class EventDrivenEngine(BaseStrategyEngine):
 
         # Process DART filings if provided or fetched
         eff_filings = filings if filings is not None else self.fetch_recent_dart_filings()
+
+        if filings is None:
+            for sym in symbols:
+                if not sym.isdigit() and not sym.endswith('.KS') and not sym.endswith('.KQ'):
+                    eff_filings.extend(self.fetch_recent_sec_filings(sym))
         if eff_filings:
             try:
                 from src.data_layer.dart_corp_mapper import DARTCorpMapper
@@ -188,8 +223,18 @@ class EventDrivenEngine(BaseStrategyEngine):
                             else:
                                 weight = 0.70
 
+                        # Time decay: 10-day half-life decay
+                        days_diff = 0
+                        if clean_as_of and rcept_dt and len(clean_as_of) == 8 and len(rcept_dt) == 8:
+                            try:
+                                d_as_of = pd.to_datetime(clean_as_of, format='%Y%m%d')
+                                d_rcept = pd.to_datetime(rcept_dt, format='%Y%m%d')
+                                days_diff = max(0, int((d_as_of - d_rcept).days))
+                            except Exception:
+                                days_diff = 0
+                        time_decay = float(np.exp(-days_diff / 10.0))
                         current_delta = scores_map[sym] - 0.50
-                        filing_delta = weight - 0.50
+                        filing_delta = (weight - 0.50) * time_decay
                         # Compound multi-filing impact with soft hyperbolic saturation
                         new_delta = float(np.tanh(current_delta * 2.5 + filing_delta * 2.5) / 2.5)
                         scores_map[sym] = float(np.clip(0.50 + new_delta, 0.05, 0.95))

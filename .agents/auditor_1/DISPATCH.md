@@ -1,22 +1,19 @@
-# Dispatch Log
+## 2026-08-27T13:25:18Z
 
-## 2026-08-22T07:20:10+09:00
-You are auditor_1 (Senior Forensic Integrity Auditor).
-Your working directory is: d:\Finance\code\stock\.agents\auditor_1\
+<USER_REQUEST>
+You are Forensic Auditor for Master Report Integrity Verification.
+Your working directory is: `d:\Finance\code\stock\.agents\auditor_1`.
+Please read `d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md`.
 
-Mandatory inputs to read before starting:
-1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. d:\Finance\code\stock\system_improvement_report_v6.md (Sections 1 through 6)
-3. d:\Finance\code\stock\TEST_READY.md
-4. Code implementations for V6-01 ~ V6-35 across all 5 domains.
+Your objective is to conduct an independent forensic audit of the deliverable:
+`d:\Finance\code\stock\comprehensive_return_maximization_master_report.md`
 
-Your Task:
-1. Perform exhaustive forensic integrity verification across all 35 tasks (V6-01 ~ V6-35):
-   - Check for hardcoded test outputs or return values tailored solely to pass unit tests
-   - Check for dummy/facade mock implementations
-   - Check for bypassed validation logic or test assertions
-   - Verify that mathematical algorithms (log1p transform, Leland buffer, EVT POT, Rockafellar-Uryasev CVaR, Black-Litterman, Ledoit-Wolf diagonal shrinkage, Almgren-Chriss, Marchenko-Pastur noise variance) are implemented with true algorithmic fidelity
-2. Run pytest test suite: .venv\Scripts\python.exe -m pytest tests/test_v6_improvements.py -q
-3. Issue a binary Forensic Audit Verdict: CLEAN or INTEGRITY VIOLATION.
-4. Write your report to d:\Finance\code\stock\.agents\auditor_1\handoff.md.
-5. Send a completion message back.
+Forensic Checks:
+1. Check for genuine quantitative content: Are the derivations, code references, formulas, matrices, and tables authentic and directly tied to the codebase at `d:\Finance\code\stock`?
+2. Check for absence of dummy/facade data: Ensure there are no fabricated references, non-existent files, or empty placeholders.
+3. Check for completeness: Ensure all 31 strategies, 5 markets, AI models, ensemble, risk, and OMS layers are comprehensively covered.
+
+Deliverable:
+Write a forensic audit report at `d:\Finance\code\stock\.agents\auditor_1\audit.md` and handoff at `d:\Finance\code\stock\.agents\auditor_1\handoff.md`.
+Provide an explicit binary verdict: CLEAN or INTEGRITY VIOLATION. Send a completion message when finished.
+</USER_REQUEST>

@@ -217,201 +217,201 @@ class EnsembleScoringEngine:
     # C-4 Fix: All regimes normalized to sum = 1.00 after zeroing 6 faked strategies
     REGIME_2D_WEIGHTS = {
         'BEAR_LOW_VOL': {  # sum = 1.00
-            'regression': 0.10,
+            'regression': 0.09,
             'surge': 0.01,
             'lead_lag': 0.03,
             'vcp_rule': 0.02,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.08,
-            'sector_rotation': 0.04,
-            'rim_valuation': 0.09,
-            'event_driven': 0.04,
-            'mq_factor': 0.05,
-            'iv_skew': 0.00,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.03,
+            'rim_valuation': 0.08,
+            'event_driven': 0.03,
+            'mq_factor': 0.04,
+            'iv_skew': 0.02,
             'order_flow': 0.03,
             'short_term_reversal': 0.04,
-            'arm_factor': 0.00,
+            'arm_factor': 0.01,
             'card_factor': 0.04,
             'latr_factor': 0.04,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.02,
-            'sentiment': 0.04,
+            'sentiment': 0.03,
             'factor_neutralized': 0.04,
             'vol_target': 0.05,
-            'microstructure': 0.00,
+            'microstructure': 0.01,
             'accruals_quality': 0.04,
-            'short_squeeze': 0.00,
+            'short_squeeze': 0.01,
             'valueup_catalyst': 0.04,
             'trend_efficiency': 0.02,
-            'gamma_squeeze': 0.00,
+            'gamma_squeeze': 0.01,
             'insider_buying': 0.03,
-            'darkpool': 0.00,
+            'darkpool': 0.01,
             'earnings_tone_drift': 0.02,
         },
         'BEAR_HIGH_VOL': {  # sum = 1.00
-            'regression': 0.11,
-            'surge': 0.00,
-            'lead_lag': 0.03,
-            'vcp_rule': 0.02,
+            'regression': 0.09,
+            'surge': 0.01,
+            'lead_lag': 0.02,
+            'vcp_rule': 0.01,
             'vcp_ml': 0.02,
             'lstm': 0.03,
-            'stat_arb': 0.09,
+            'stat_arb': 0.08,
             'sector_rotation': 0.03,
-            'rim_valuation': 0.09,
+            'rim_valuation': 0.08,
             'event_driven': 0.03,
-            'mq_factor': 0.04,
-            'iv_skew': 0.00,
+            'mq_factor': 0.03,
+            'iv_skew': 0.03,
             'order_flow': 0.03,
-            'short_term_reversal': 0.06,
-            'arm_factor': 0.00,
-            'card_factor': 0.05,
+            'short_term_reversal': 0.05,
+            'arm_factor': 0.01,
+            'card_factor': 0.04,
             'latr_factor': 0.05,
             'inst_foreign_sector': 0.04,
             'supply_chain': 0.01,
             'sentiment': 0.03,
             'factor_neutralized': 0.03,
             'vol_target': 0.06,
-            'microstructure': 0.00,
-            'accruals_quality': 0.05,
-            'short_squeeze': 0.00,
+            'microstructure': 0.01,
+            'accruals_quality': 0.04,
+            'short_squeeze': 0.01,
             'valueup_catalyst': 0.04,
             'trend_efficiency': 0.01,
-            'gamma_squeeze': 0.00,
+            'gamma_squeeze': 0.01,
             'insider_buying': 0.03,
-            'darkpool': 0.00,
-            'earnings_tone_drift': 0.02,
+            'darkpool': 0.01,
+            'earnings_tone_drift': 0.01,
         },
         'SIDEWAYS_LOW_VOL': {  # sum = 1.00
-            'regression': 0.06,
+            'regression': 0.05,
             'surge': 0.03,
-            'lead_lag': 0.04,
+            'lead_lag': 0.03,
             'vcp_rule': 0.03,
             'vcp_ml': 0.04,
-            'lstm': 0.05,
-            'stat_arb': 0.08,
-            'sector_rotation': 0.05,
+            'lstm': 0.04,
+            'stat_arb': 0.07,
+            'sector_rotation': 0.04,
             'rim_valuation': 0.05,
-            'event_driven': 0.05,
-            'mq_factor': 0.05,
-            'iv_skew': 0.00,
+            'event_driven': 0.04,
+            'mq_factor': 0.04,
+            'iv_skew': 0.01,
             'order_flow': 0.04,
             'short_term_reversal': 0.04,
-            'arm_factor': 0.00,
-            'card_factor': 0.05,
-            'latr_factor': 0.05,
+            'arm_factor': 0.02,
+            'card_factor': 0.04,
+            'latr_factor': 0.04,
             'inst_foreign_sector': 0.05,
             'supply_chain': 0.02,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
             'vol_target': 0.04,
-            'microstructure': 0.00,
-            'accruals_quality': 0.04,
-            'short_squeeze': 0.00,
+            'microstructure': 0.02,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.02,
             'valueup_catalyst': 0.04,
             'trend_efficiency': 0.02,
-            'gamma_squeeze': 0.00,
-            'insider_buying': 0.01,
-            'darkpool': 0.00,
-            'earnings_tone_drift': 0.03,
+            'gamma_squeeze': 0.01,
+            'insider_buying': 0.02,
+            'darkpool': 0.02,
+            'earnings_tone_drift': 0.02,
         },
         'SIDEWAYS_HIGH_VOL': {  # sum = 1.00
-            'regression': 0.06,
+            'regression': 0.05,
             'surge': 0.03,
-            'lead_lag': 0.04,
+            'lead_lag': 0.03,
             'vcp_rule': 0.03,
             'vcp_ml': 0.04,
-            'lstm': 0.05,
-            'stat_arb': 0.09,
+            'lstm': 0.04,
+            'stat_arb': 0.07,
             'sector_rotation': 0.04,
-            'rim_valuation': 0.05,
-            'event_driven': 0.05,
+            'rim_valuation': 0.04,
+            'event_driven': 0.04,
             'mq_factor': 0.04,
-            'iv_skew': 0.00,
+            'iv_skew': 0.02,
             'order_flow': 0.04,
-            'short_term_reversal': 0.05,
-            'arm_factor': 0.00,
-            'card_factor': 0.05,
-            'latr_factor': 0.05,
-            'inst_foreign_sector': 0.05,
+            'short_term_reversal': 0.04,
+            'arm_factor': 0.02,
+            'card_factor': 0.04,
+            'latr_factor': 0.04,
+            'inst_foreign_sector': 0.04,
             'supply_chain': 0.02,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
-            'vol_target': 0.05,
-            'microstructure': 0.00,
-            'accruals_quality': 0.04,
-            'short_squeeze': 0.00,
+            'vol_target': 0.04,
+            'microstructure': 0.02,
+            'accruals_quality': 0.03,
+            'short_squeeze': 0.02,
             'valueup_catalyst': 0.04,
             'trend_efficiency': 0.02,
-            'gamma_squeeze': 0.00,
+            'gamma_squeeze': 0.02,
             'insider_buying': 0.02,
-            'darkpool': 0.00,
+            'darkpool': 0.02,
             'earnings_tone_drift': 0.02,
         },
         'BULL_LOW_VOL': {  # sum = 1.00
-            'regression': 0.05,
-            'surge': 0.09,
+            'regression': 0.04,
+            'surge': 0.07,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.07,
-            'lstm': 0.05,
+            'vcp_ml': 0.06,
+            'lstm': 0.04,
             'stat_arb': 0.03,
             'sector_rotation': 0.05,
-            'rim_valuation': 0.04,
-            'event_driven': 0.05,
+            'rim_valuation': 0.03,
+            'event_driven': 0.04,
             'mq_factor': 0.05,
-            'iv_skew': 0.00,
+            'iv_skew': 0.01,
             'order_flow': 0.04,
             'short_term_reversal': 0.03,
-            'arm_factor': 0.00,
-            'card_factor': 0.04,
-            'latr_factor': 0.04,
+            'arm_factor': 0.03,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
             'inst_foreign_sector': 0.05,
             'supply_chain': 0.04,
             'sentiment': 0.04,
             'factor_neutralized': 0.04,
             'vol_target': 0.02,
-            'microstructure': 0.00,
+            'microstructure': 0.02,
             'accruals_quality': 0.02,
-            'short_squeeze': 0.00,
+            'short_squeeze': 0.02,
             'valueup_catalyst': 0.02,
-            'trend_efficiency': 0.05,
-            'gamma_squeeze': 0.00,
-            'insider_buying': 0.04,
-            'darkpool': 0.00,
-            'earnings_tone_drift': 0.03,
+            'trend_efficiency': 0.04,
+            'gamma_squeeze': 0.02,
+            'insider_buying': 0.03,
+            'darkpool': 0.02,
+            'earnings_tone_drift': 0.02,
         },
         'BULL_HIGH_VOL': {  # sum = 1.00
             'regression': 0.04,
-            'surge': 0.10,
+            'surge': 0.08,
             'lead_lag': 0.03,
             'vcp_rule': 0.03,
-            'vcp_ml': 0.07,
-            'lstm': 0.05,
+            'vcp_ml': 0.06,
+            'lstm': 0.04,
             'stat_arb': 0.03,
-            'sector_rotation': 0.05,
-            'rim_valuation': 0.04,
-            'event_driven': 0.05,
-            'mq_factor': 0.05,
-            'iv_skew': 0.00,
+            'sector_rotation': 0.04,
+            'rim_valuation': 0.03,
+            'event_driven': 0.04,
+            'mq_factor': 0.04,
+            'iv_skew': 0.01,
             'order_flow': 0.04,
-            'short_term_reversal': 0.04,
-            'arm_factor': 0.00,
-            'card_factor': 0.04,
-            'latr_factor': 0.04,
+            'short_term_reversal': 0.03,
+            'arm_factor': 0.02,
+            'card_factor': 0.03,
+            'latr_factor': 0.03,
             'inst_foreign_sector': 0.05,
             'supply_chain': 0.04,
             'sentiment': 0.04,
-            'factor_neutralized': 0.04,
-            'vol_target': 0.03,
-            'microstructure': 0.00,
+            'factor_neutralized': 0.03,
+            'vol_target': 0.02,
+            'microstructure': 0.03,
             'accruals_quality': 0.02,
-            'short_squeeze': 0.00,
+            'short_squeeze': 0.04,
             'valueup_catalyst': 0.02,
-            'trend_efficiency': 0.05,
-            'gamma_squeeze': 0.00,
-            'insider_buying': 0.04,
-            'darkpool': 0.00,
+            'trend_efficiency': 0.04,
+            'gamma_squeeze': 0.03,
+            'insider_buying': 0.03,
+            'darkpool': 0.03,
             'earnings_tone_drift': 0.02,
         }
     }
@@ -605,6 +605,11 @@ class EnsembleScoringEngine:
                             for k, v in tuned.items():
                                 if k in self.REGIME_2D_WEIGHTS:
                                     self.REGIME_2D_WEIGHTS[k].update(v)
+                                    w_sum = sum(self.REGIME_2D_WEIGHTS[k].values())
+                                    if w_sum > 0:
+                                        self.REGIME_2D_WEIGHTS[k] = {
+                                            strat: float(val / w_sum) for strat, val in self.REGIME_2D_WEIGHTS[k].items()
+                                        }
                         logger.info("Loaded Optuna tuned 2D regime weights from tuned_params.json")
         except Exception as e:
             logger.warning(f"Could not load tuned_params.json: {e}")
@@ -801,10 +806,9 @@ class EnsembleScoringEngine:
             w['supply_chain'] = max(0.0, w.get('supply_chain', 0.02) - 0.01)
 
         if vix_val > 40.0:
-            w['surge'] = max(0.01, w.get('surge', 0.15) * 0.3)
-            w['vcp_ml'] = max(0.01, w.get('vcp_ml', 0.10) * 0.3)
-            w['trend_efficiency'] = max(0.01, w.get('trend_efficiency', 0.02) * 0.3)
-            w['short_squeeze'] = max(0.01, w.get('short_squeeze', 0.02) * 0.3)
+            vix_decay = 1.0 / (1.0 + np.exp((vix_val - 35) / 5))
+            for key in ['surge', 'vcp_ml', 'trend_efficiency', 'short_squeeze']:
+                w[key] = max(w.get(key, 0.15) * max(vix_decay, 0.50), 0.01)
             w['stat_arb'] = w.get('stat_arb', 0.10) + 0.15
             w['rim_valuation'] = w.get('rim_valuation', 0.10) + 0.10
             w['vol_target'] = w.get('vol_target', 0.04) + 0.05  # 리스크 파리티 극대화
@@ -922,7 +926,7 @@ class EnsembleScoringEngine:
 
             diag_penalties = np.diag(inv_sqrt_C)
             mean_p = np.mean(diag_penalties) if np.mean(diag_penalties) > 0 else 1.0
-            norm_penalties = np.clip(diag_penalties / mean_p, 0.4, 2.5)
+            norm_penalties = np.clip(diag_penalties / mean_p, 0.2, 4.0)
 
             penalized_weights = dict(weights)
             for col, p_factor in zip(corr_matrix.columns, norm_penalties):
@@ -1048,7 +1052,23 @@ class EnsembleScoringEngine:
             if factor_crowding_penalties and strategy in factor_crowding_penalties:
                 crowd_penalty = float(np.clip(factor_crowding_penalties[strategy], 0.0, 0.50))
 
-            scores[strategy] = base_w * multiplier * ic_mult * dsr_mult * (1.0 - crowd_penalty)
+            # Regime-Adaptive Momentum Turbo (Bull Market Alpha Accelerator):
+            # In confirmed Bull regimes, accelerate high-beta catalyst & breakout strategies by 1.4x ~ 1.8x
+            # to capture the vast majority of annual market momentum alpha.
+            turbo_mult = 1.0
+            is_bull_regime = 'BULL' in str(regime).upper() or str(regime) == '2'
+            if is_bull_regime:
+                MOMENTUM_TURBO_STRATEGIES = {
+                    'surge', 'vcp_ml', 'mq_factor', 'order_flow', 'short_squeeze',
+                    'gamma_squeeze', 'trend_efficiency', 'supply_chain', 'event_driven'
+                }
+                DEFENSIVE_STRATEGIES = {'stat_arb', 'short_term_reversal', 'vol_target'}
+                if strategy in MOMENTUM_TURBO_STRATEGIES:
+                    turbo_mult = 1.40
+                elif strategy in DEFENSIVE_STRATEGIES:
+                    turbo_mult = 0.70
+
+            scores[strategy] = base_w * multiplier * ic_mult * dsr_mult * turbo_mult * (1.0 - crowd_penalty)
 
         # Additionally bound the TOTAL weight ratio (base regime weights already
         # differ up to ~5x, so multiplier-only capping is not enough).
@@ -1159,6 +1179,44 @@ class EnsembleScoringEngine:
         if tot > 0:
             return {k: v / tot for k, v in calibrated.items()}
         return base_weights
+
+    @staticmethod
+    def apply_top_decile_convex_boost(
+        scores_df: pd.DataFrame,
+        strategy_cols: List[str],
+        base_scores: pd.Series,
+        top_k: int = 3,
+        lambda_boost: float = 0.35
+    ) -> pd.Series:
+        """
+        Top-Decile Convex Alpha Booster (Grinold Law Alpha Preserver):
+        Extracts the top K strongest active strategy scores for each asset,
+        computes the convex average of extreme conviction signals, and blends with base score:
+        S_boosted = (1 - lambda) * S_base + lambda * Mean(Top_K(S_active))
+        Prevents high-conviction 90%+ surge/breakout signals from being diluted by 28 neutral signals.
+        """
+        if scores_df is None or scores_df.empty or not strategy_cols:
+            return base_scores
+
+        valid_cols = [c for c in strategy_cols if c in scores_df.columns]
+        if not valid_cols:
+            return base_scores
+
+        sub_df = scores_df[valid_cols].fillna(0.0)
+        vals = sub_df.values
+        if vals.shape[1] >= top_k:
+            top_k_vals = np.partition(vals, -top_k, axis=1)[:, -top_k:]
+            top_k_mean = np.mean(top_k_vals, axis=1)
+        else:
+            top_k_mean = np.mean(vals, axis=1)
+
+        conviction_mask = top_k_mean >= 0.60
+        boosted = np.where(
+            conviction_mask,
+            (1.0 - lambda_boost) * base_scores.values + lambda_boost * top_k_mean,
+            base_scores.values
+        )
+        return pd.Series(np.clip(boosted, 0.0, 1.0), index=base_scores.index)
 
     def compute_dynamic_weights(
         self,
@@ -1581,8 +1639,10 @@ class EnsembleScoringEngine:
                 target_col = exp_cols[0] if exp_cols else None
 
             if target_col is not None and target_col in reg_df_copy.columns:
-                ret_multiplier = self._return_multiplier
-                reg_df_copy['reg_score'] = (reg_df_copy[target_col] * ret_multiplier).clip(0.0, 1.0)
+                raw_vals = pd.to_numeric(reg_df_copy[target_col], errors='coerce').fillna(0.0)
+                has_pct = (raw_vals.abs() > 1.0).any()
+                frac_vals = raw_vals / 100.0 if has_pct else raw_vals
+                reg_df_copy['reg_score'] = (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0)
             else:
                 reg_df_copy['reg_score'] = np.nan
 
@@ -1682,7 +1742,10 @@ class EnsembleScoringEngine:
             target_col = 'lstm_score' if 'lstm_score' in l_df.columns else ('expected_return' if 'expected_return' in l_df.columns else None)
             if target_col and target_col in l_df.columns:
                 if target_col == 'expected_return':
-                    l_df['lstm_score'] = (l_df[target_col] * self._return_multiplier).clip(0.0, 1.0)
+                    raw_vals = pd.to_numeric(l_df[target_col], errors='coerce').fillna(0.0)
+                    has_pct = (raw_vals.abs() > 1.0).any()
+                    frac_vals = raw_vals / 100.0 if has_pct else raw_vals
+                    l_df['lstm_score'] = (0.50 + frac_vals / (2.0 * 0.20)).clip(0.0, 1.0)
                 else:
                     l_df['lstm_score'] = l_df[target_col].clip(0.0, 1.0)
 
@@ -2218,8 +2281,8 @@ class EnsembleScoringEngine:
         # Dynamic re-normalization over active strategies (Active weights sum to 100%)
         has_valid = valid_weight_series > 0
         safe_valid_weight = valid_weight_series.replace(0.0, 1.0)
-        # R12-4 Fix: Fall back to neutral 0.50 for symbols with no active strategy data instead of extreme bearish 0.0
-        raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.50), index=merged.index)
+        # Fall back to 0.0 for symbols with no active strategy data
+        raw_linear_score = pd.Series(np.where(has_valid, (total_score_series / safe_valid_weight).clip(0.0, 1.0), 0.0), index=merged.index)
         linear_score = raw_linear_score.copy()
 
         # 3-Tier Multi-Horizon Alpha Score Decomposition (Slow, Medium, Fast)
@@ -2248,24 +2311,26 @@ class EnsembleScoringEngine:
             if s_fast is not None:
                 merged['fast_alpha_score'] = s_fast
                 merged['fast_alpha_intraday_eligible'] = (merged['fast_alpha_score'] >= 0.70)
-                if len(merged) >= 5 and 'slow_alpha_score' in merged.columns and 'medium_alpha_score' in merged.columns:
-                    w_slow = self.TIER_WEIGHTS.get('slow', 0.50)
-                    w_med = self.TIER_WEIGHTS.get('medium', 0.35)
-                    w_fast = self.TIER_WEIGHTS.get('fast', 0.15)
 
-                    tier_cols = [('slow_alpha_score', w_slow), ('medium_alpha_score', w_med), ('fast_alpha_score', w_fast)]
-                    h_score_sum = pd.Series(0.0, index=merged.index)
-                    h_weight_sum = pd.Series(0.0, index=merged.index)
-                    for col_name, tw in tier_cols:
-                        if col_name in merged.columns:
-                            t_s = pd.to_numeric(merged[col_name], errors='coerce')
-                            t_mask = t_s.notna() & np.isfinite(t_s)
-                            h_score_sum += np.where(t_mask, t_s, 0.0) * tw
-                            h_weight_sum += t_mask.astype(float) * tw
+            has_any_tier = any(c in merged.columns for c in ['slow_alpha_score', 'medium_alpha_score', 'fast_alpha_score'])
+            if len(merged) >= 5 and has_any_tier:
+                w_slow = self.TIER_WEIGHTS.get('slow', 0.50)
+                w_med = self.TIER_WEIGHTS.get('medium', 0.35)
+                w_fast = self.TIER_WEIGHTS.get('fast', 0.15)
 
-                    safe_h_w = h_weight_sum.replace(0.0, np.nan)
-                    hierarchical_score = (h_score_sum / safe_h_w).fillna(linear_score).clip(0.0, 1.0)
-                    linear_score = pd.Series(0.70 * linear_score + 0.30 * hierarchical_score, index=merged.index).clip(0.0, 1.0)
+                tier_cols = [('slow_alpha_score', w_slow), ('medium_alpha_score', w_med), ('fast_alpha_score', w_fast)]
+                h_score_sum = pd.Series(0.0, index=merged.index)
+                h_weight_sum = pd.Series(0.0, index=merged.index)
+                for col_name, tw in tier_cols:
+                    if col_name in merged.columns:
+                        t_s = pd.to_numeric(merged[col_name], errors='coerce')
+                        t_mask = t_s.notna() & np.isfinite(t_s)
+                        h_score_sum += np.where(t_mask, t_s, 0.0) * tw
+                        h_weight_sum += t_mask.astype(float) * tw
+
+                safe_h_w = h_weight_sum.replace(0.0, np.nan)
+                hierarchical_score = (h_score_sum / safe_h_w).fillna(linear_score).clip(0.0, 1.0)
+                linear_score = pd.Series(0.70 * linear_score + 0.30 * hierarchical_score, index=merged.index).clip(0.0, 1.0)
 
         # Phase 1: 2nd Stage Stacking Meta-Learner Hybrid Blend
         explicit_weights_provided = (weights is not None and len(weights) > 0 and len(merged) < 5)
@@ -2375,7 +2440,19 @@ class EnsembleScoringEngine:
             except Exception as _be:
                 logger.debug(f"Convex multi-signal synergy boost bypassed: {_be}")
 
+        # Phase 2-D: Top-Decile Convex Alpha Booster (Grinold Law Alpha Preserver)
+        strategy_score_cols = [sc for _, sc in strategy_cols if sc in merged.columns]
+        blended_score = self.apply_top_decile_convex_boost(
+            scores_df=merged,
+            strategy_cols=strategy_score_cols,
+            base_scores=blended_score,
+            top_k=3,
+            lambda_boost=0.35
+        )
+
         merged['ensemble_score'] = blended_score
+        if (~has_valid).any():
+            merged.loc[~has_valid, 'ensemble_score'] = 0.0
 
         # Fix Task 2: Preserve raw un-mutated strategy scores with actual NaNs for StrategyCoverageAnalyzer
         self.raw_scores = merged.copy()
@@ -2407,11 +2484,11 @@ class EnsembleScoringEngine:
             regime_elasticity = 0.85
         else:
             regime_elasticity = 1.0
-        # Power-law convex transformation: concentrates alpha on high-conviction momentum tails (Power Law / Pareto skewness)
-        # while compressing noisy [0.45, 0.55] signals toward neutral.
+        # Zero-centered around 0.50 neutral score so neutral assets generate 0.0% expected excess return.
         score_centered = np.clip(merged['ensemble_score'].values - 0.50, -0.50, 0.50)
-        convex_score = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.25) * 0.50 + 0.50
-        raw_exp_ret = convex_score * float(self._return_multiplier) * horizon_scale * regime_elasticity
+        # Power-law convex transformation: Softened to 1.10 to prevent over-suppressing high-conviction signals (e.g. 0.75 score)
+        convex_alpha = np.sign(score_centered) * (np.abs(score_centered * 2.0) ** 1.10)
+        raw_exp_ret = convex_alpha * float(self._return_multiplier) * horizon_scale * regime_elasticity
 
         # Microstructure execution model: Sell-side STT tax, SEC fees, dynamic Bid-Ask spread,
         # and Kyle/Almgren-Chriss Square-Root Market Impact Cost modeling.
@@ -2623,7 +2700,10 @@ class EnsembleScoringEngine:
         clamped_spread = np.clip(dynamic_spread, spread_min, spread_max)
 
         n_slices = max(1, int(getattr(self.config, 'twap_execution_slices', 4) if self.config else 4))
-        participation_ratio = q_order / (adv * float(n_slices))
+        # Adaptive algorithmic execution order sizing (proportional to ADV, avoiding over-penalizing mid/small caps)
+        min_order_slice = np.where(is_us_stock, 1_000.0, 1_000_000.0)
+        q_order_adaptive = np.minimum(q_order, np.maximum(adv * 0.015, min_order_slice))
+        participation_ratio = np.clip(q_order_adaptive / (adv * float(n_slices)), 0.0001, 0.25)
         impact_alpha = getattr(self, 'realized_market_impact_alpha', 0.50)
         impact_one_way = impact_coeff * vols * (participation_ratio ** impact_alpha)
 
@@ -2636,7 +2716,7 @@ class EnsembleScoringEngine:
         cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
         max_cost_cap = np.where(ov_mask, 0.20, 0.05)
         cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
-        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - cost_series * 100.0, 0.0, 50.0)
+        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - cost_series * 100.0, -50.0, 50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:
@@ -2651,10 +2731,11 @@ class EnsembleScoringEngine:
         def _is_illiquid_or_preferred(row: pd.Series) -> bool:
             sym = str(row.get('symbol', ''))
             name = str(row.get('name', ''))
-            # Preferred stock check
-            if name.endswith('우') or name.endswith('우B') or name.endswith('1우') or name.endswith('2우B') or name.endswith('3우B'):
+            # Preferred stock check (KRX naming convention & 6-digit ticker 5/7/9/K/L/M/N/O suffix)
+            if name.endswith(('우', '우B', '1우', '2우B', '3우B', '우(전환)', '우A', '우C')) or '우선주' in name:
                 return True
-            if len(sym) == 6 and sym[-1] in ['K', 'L', 'M', 'N', 'O']:
+            raw_sym = sym.split('.')[0] if '.' in sym else sym
+            if len(raw_sym) == 6 and raw_sym[-1] in ['5', '7', '9', 'K', 'L', 'M', 'N', 'O']:
                 return True
             # SPAC check
             if '스팩' in name or 'SPAC' in name.upper():
@@ -2687,7 +2768,16 @@ class EnsembleScoringEngine:
 
         # ─── Portfolio Optimization & Risk Parity Weight Allocation ─────────────
         merged['portfolio_weight'] = 0.0
-        top_candidates = merged.head(20)
+        # Dynamic Alpha Hurdle Rate & High-Conviction Selection (concentrates capital into top 5~12 alpha leaders)
+        if len(merged) >= 5:
+            top5_mean_ret = float(merged['ensemble_expected_return'].head(5).mean())
+            alpha_hurdle = max(0.50, min(10.0, top5_mean_ret * 0.40))
+            hurdle_mask = (merged['ensemble_expected_return'] >= alpha_hurdle)
+            n_selected = int(np.clip(hurdle_mask.sum(), 5, 12))
+            top_candidates = merged.head(n_selected)
+        else:
+            top_candidates = merged.head(20)
+
         if not top_candidates.empty:
             try:
                 from ..risk.portfolio_optimizer import PortfolioOptimizer
@@ -2724,7 +2814,8 @@ class EnsembleScoringEngine:
                     for sym in top_syms:
                         row_s = top_candidates[top_candidates['symbol'] == sym].iloc[0]
                         exp_r_daily = float(row_s.get('ensemble_expected_return', 0.0)) / (20.0 * 100.0)
-                        sym_seed = int(abs(hash(str(sym)))) % (2**31)
+                        import hashlib
+                        sym_seed = int(hashlib.md5(str(sym).encode('utf-8')).hexdigest()[:8], 16) % (2**31)
                         sym_rng = np.random.RandomState(sym_seed)
                         idio_noise = sym_rng.normal(0.0, 0.015, n_periods)
                         ret_dict[sym] = exp_r_daily + 0.8 * mkt_returns + idio_noise

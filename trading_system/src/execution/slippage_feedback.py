@@ -148,8 +148,8 @@ class SlippageFeedbackEngine:
                     recommended_market_impact_multiplier=1.0,
                 )
 
-            # Robust estimation: Hard-clip extreme outliers (e.g. > 50 bps data artifacts) and apply MAD
-            arr = np.clip(np.array(valid_slippages, dtype=float), -50.0, 50.0)
+            # Robust estimation: Hard-clip extreme outliers (e.g. > 500 bps data artifacts) and apply MAD
+            arr = np.clip(np.array(valid_slippages, dtype=float), -500.0, 500.0)
             med = float(np.median(arr)) if len(arr) > 0 else self.default_slippage_bps
             mad = float(np.median(np.abs(arr - med))) if len(arr) > 0 else 0.0
             mad_sigma = mad * 1.4826
@@ -172,8 +172,8 @@ class SlippageFeedbackEngine:
             scaling = float(np.clip(avg_slip / self.default_slippage_bps, 0.5, 5.0)) if self.default_slippage_bps > 0 else 1.0
             if not math.isfinite(scaling):
                 scaling = 1.0
-            # R4-5 Fix: Allow alpha to scale up to 2.50 (was clipped to 1.00)
-            alpha = float(np.clip(0.50 * scaling, 0.10, 2.50))
+            # Square-root market impact power exponent alpha in [0.10, 1.00] (Almgren-Chriss / Kyle standard)
+            alpha = float(np.clip(0.50 * (scaling ** 0.5), 0.10, 1.00))
             if not math.isfinite(alpha):
                 alpha = 0.50
 

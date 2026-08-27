@@ -63,15 +63,25 @@ class FactorOrthogonalizerEngine:
         has_nans = nan_mask.any()
         if has_nans:
             # Handle potential completely empty columns safely
-            col_means = np.zeros(K, dtype=np.float64)
-            for j in range(K):
-                col_j = X_raw[:, j]
-                valid_j = col_j[~np.isnan(col_j)]
-                col_means[j] = float(np.mean(valid_j)) if len(valid_j) > 0 else 0.5
-            col_means = np.nan_to_num(col_means, nan=0.5)
             X_clean = X_raw.copy()
-            inds = np.where(nan_mask)
-            X_clean[inds] = np.take(col_means, inds[1])
+            for j in range(K):
+                col_j = X_clean[:, j]
+                nan_idx = np.isnan(col_j)
+                if nan_idx.any():
+                    if 'sector' in score_df.columns or 'market' in score_df.columns:
+                        group_col = 'sector' if 'sector' in score_df.columns else 'market'
+                        # Create series for grouping
+                        s = pd.Series(col_j)
+                        s = s.fillna(s.groupby(score_df[group_col].values).transform('mean'))
+                        # Fill remaining NaNs with overall mean
+                        overall_mean = s.mean()
+                        s = s.fillna(overall_mean if pd.notna(overall_mean) else 0.5)
+                        X_clean[:, j] = s.values
+                    else:
+                        valid_j = col_j[~nan_idx]
+                        mean_val = float(np.mean(valid_j)) if len(valid_j) > 0 else 0.5
+                        col_j[nan_idx] = mean_val
+            col_means = np.mean(X_clean, axis=0)
         else:
             X_clean = X_raw
             col_means = np.mean(X_clean, axis=0)
@@ -107,12 +117,17 @@ class FactorOrthogonalizerEngine:
             # Preserves relative distance, fat tails, and non-uniform conviction without flat rank collapse
             X_centered = (X_ortho - col_means) / col_stds
             X_disp = col_means + col_stds * np.tanh(X_centered)
-            out_df[valid_cols] = np.clip(np.where(np.isfinite(X_disp), X_disp, 0.50), 0.0, 1.0)
+            scaled_vals = np.clip(np.where(np.isfinite(X_disp), X_disp, 0.50), 0.0, 1.0)
         elif len(out_df) >= 5:
             ranks = pd.DataFrame(X_ortho, index=out_df.index, columns=valid_cols).rank(pct=True)
-            out_df[valid_cols] = np.clip(np.where(np.isfinite(ranks.values), ranks.values, 0.50), 0.0, 1.0)
+            scaled_vals = np.clip(np.where(np.isfinite(ranks.values), ranks.values, 0.50), 0.0, 1.0)
         else:
-            out_df[valid_cols] = np.clip(np.where(np.isfinite(X_ortho), X_ortho, 0.50), 0.0, 1.0)
+            scaled_vals = np.clip(np.where(np.isfinite(X_ortho), X_ortho, 0.50), 0.0, 1.0)
+
+        if has_nans:
+            scaled_vals = np.where(nan_mask, np.nan, scaled_vals)
+
+        out_df[valid_cols] = scaled_vals
         return out_df
 
     def _gram_schmidt(
@@ -147,14 +162,13 @@ class FactorOrthogonalizerEngine:
             u_std = float(np.std(u_k))
             raw_k = X_centered[:, k]
             raw_std = float(stds[k]) if stds[k] > 1e-8 else 1.0
-
-            if u_std > 0.05 * raw_std:
+            ratio = u_std / raw_std
+            if ratio >= 0.20:
                 rescaled = means[k] + (u_k / u_std) * stds[k]
             elif u_std > 1e-6:
-                blend_weight = u_std / (0.05 * raw_std)
-                norm_residual = (u_k / u_std) * stds[k]
-                norm_original = (raw_k / raw_std) * stds[k]
-                rescaled = means[k] + (blend_weight * norm_residual + (1.0 - blend_weight) * 0.05 * norm_original)
+                # Smoothly damp weak collinear residuals to prevent 20x noise explosion
+                damp_factor = np.clip(ratio / 0.20, 0.05, 1.0)
+                rescaled = means[k] + (u_k / u_std) * stds[k] * damp_factor
             else:
                 rescaled = means[k] + 0.05 * (raw_k / raw_std) * stds[k]
             X_ortho[:, k] = rescaled
@@ -209,8 +223,9 @@ class FactorOrthogonalizerEngine:
         eigenvalues, eigenvectors = np.linalg.eigh(C_sym.astype(np.float64))
 
         # Continuous Ridge Regularization & Floor to prevent null-space amplification (N < K)
-        mean_eig = float(np.mean(eigenvalues)) if len(eigenvalues) > 0 else 1.0
-        ridge_floor = max(0.01 * mean_eig, self.ridge_epsilon)
+        pos_eigs = eigenvalues[eigenvalues > 1e-4]
+        mean_eig = float(np.mean(pos_eigs)) if len(pos_eigs) > 0 else 1.0
+        ridge_floor = max(0.05 * mean_eig, self.ridge_epsilon, 1e-3)
         lambdas_reg = np.maximum(eigenvalues, ridge_floor)
 
         # Compute ZCA whitening operator: C^(-1/2) = V * diag(lambda^(-1/2)) * V^T

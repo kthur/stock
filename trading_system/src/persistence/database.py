@@ -525,12 +525,14 @@ class StockPriceDB:
 
     Thread-safe: WAL 모드 + connection 재사용 + mutex lock.
     """
+    _SHARED_WRITE_LOCK = threading.Lock()
 
     def __init__(self, db_path: str = str(_DEFAULT_STOCK_PRICES_DB)):
         self.db_path = Path(db_path)
         self.logger = logger
         self._local = threading.local()
-        self._write_lock = threading.Lock()
+        self._all_conns = set()
+        self._conns_lock = threading.Lock()
         self._init_db()
 
     def health_check(self) -> bool:
@@ -548,29 +550,34 @@ class StockPriceDB:
             return False
 
     def close(self):
-        """현재 스레드의 sqlite3 커넥션 명시적 닫기"""
-
+        """Close all thread connections safely."""
+        with self._conns_lock:
+            for conn in list(self._all_conns):
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            self._all_conns.clear()
         if hasattr(self._local, "conn") and self._local.conn is not None:
-            try:
-                self._local.conn.close()
-            except Exception:
-                pass
             self._local.conn = None
 
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = sqlite3.connect(
+            conn = sqlite3.connect(
                 str(self.db_path), timeout=30.0, check_same_thread=False
             )
-            self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA busy_timeout=30000")
-            self._local.conn.execute("PRAGMA cache_size=-32000")  # 32MB page cache per thread
-            self._local.conn.execute("PRAGMA temp_store=MEMORY")
-            self._local.conn.execute("PRAGMA mmap_size=268435456") # 256MB memory mapped I/O
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA cache_size=-32000")  # 32MB page cache per thread
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA mmap_size=268435456") # 256MB memory mapped I/O
+            self._local.conn = conn
+            with self._conns_lock:
+                self._all_conns.add(conn)
         return cast(sqlite3.Connection, self._local.conn)
 
     def _init_db(self):
-        with self._write_lock:
+        with StockPriceDB._SHARED_WRITE_LOCK:
             conn = sqlite3.connect(str(self.db_path), timeout=30.0)
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
@@ -639,9 +646,12 @@ class StockPriceDB:
                 lo = float(row[low_pos + 1]) if low_pos is not None else 0.0
                 cl = float(row[close_pos + 1]) if close_pos is not None else 0.0
                 vol_f = float(row[vol_pos + 1]) if vol_pos is not None else 0.0
+                
+                if not math.isfinite(vol_f):
+                    vol_f = 0.0
                 vol = int(vol_f) if (math.isfinite(vol_f) and vol_f >= 0) else 0
 
-                if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl) and math.isfinite(vol_f)):
+                if not (math.isfinite(op) and math.isfinite(hi) and math.isfinite(lo) and math.isfinite(cl)):
                     continue
                 if cl <= 0.0 or op <= 0.0 or hi <= 0.0 or lo <= 0.0:
                     continue
@@ -658,7 +668,7 @@ class StockPriceDB:
             return 0
 
         def _do_update():
-            with self._write_lock:
+            with StockPriceDB._SHARED_WRITE_LOCK:
                 conn = self._get_conn()
                 try:
                     conn.executemany("""

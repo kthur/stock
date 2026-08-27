@@ -1,20 +1,17 @@
-## 2026-08-22T07:20:10Z
-<USER_REQUEST>
-You are challenger_1 (Adversarial Quantitative Stress-Testing Challenger).
-Your working directory is: d:\Finance\code\stock\.agents\challenger_1\
+﻿## 2026-08-27T13:25:18Z
+You are Challenger 1 for Quantitative Empirical & Numerical Stress-Testing.
+Your working directory is: d:\Finance\code\stock\.agents\challenger_1.
+Please read d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md.
 
-Mandatory inputs to read before starting:
-1. d:\Finance\code\stock\.agents\ORIGINAL_REQUEST.md
-2. d:\Finance\code\stock\system_improvement_report_v6.md
-3. d:\Finance\code\stock\TEST_READY.md
+Your objective is to stress-test the mathematical formulas, metrics, and quantitative consistency in:
+d:\Finance\code\stock\comprehensive_return_maximization_master_report.md
 
-Your Task:
-1. Empirically challenge the new implementations of V6-01 ~ V6-35 by running adversarial edge-case stress tests:
-   - Degenerate inputs (N=1, empty portfolios, zero weights, 0 USD/KRW rate, huge returns)
-   - Extreme market drawdowns and crisis transitions
-   - Large-scale simulations of portfolio allocation, order execution, and pipeline snapshot parsing
-2. Run pytest suite and any stress harnesses: `.venv\Scripts\python.exe -m pytest tests/test_v6_improvements.py -q`
-3. Output your explicit Gate Verdict (APPROVE or REQUEST_CHANGES).
-4. Write your report to `d:\Finance\code\stock\.agents\challenger_1\handoff.md`.
-5. Send a completion message back.
-</USER_REQUEST>
+Tasks:
+1. Verify the numerical consistency of the baseline vs projected performance tables across SP500, NASDAQ, RUSSELL2000, KOSPI, KOSDAQ, and Consolidated Portfolio.
+2. Verify the return attribution decomposition (does the sum of component alpha gains match the +8.4% net CAGR improvement?).
+3. Verify the mathematical behavior of the Asymmetric Pseudo-Huber loss first and second derivatives (dL/d_yhat, d2L/d_yhat2) under both extreme positive jumps (y >> yhat) and extreme negative crashes (y << yhat).
+4. Verify the Clayton copula tail dependence parameter formulation (lambda_L = 2^(-1/theta)).
+
+Deliverable:
+Write a stress-test verification report at d:\Finance\code\stock\.agents\challenger_1\challenge.md and handoff at d:\Finance\code\stock\.agents\challenger_1\handoff.md.
+Provide an explicit verdict: APPROVE or REQUEST_CHANGES. Send a completion message when finished.

@@ -86,6 +86,7 @@ class FallbackMetadataDict(dict):
         cleaned = self._clean_key(key)
         if isinstance(cleaned, str) and super().__contains__(cleaned):
             return super().__getitem__(cleaned)
+        logger.warning(f"Ticker {key} not found in metadata, using fallback defaults")
         return self._generate_mock_metadata(cleaned)
 
     def get(self, key, default=None):
@@ -95,6 +96,7 @@ class FallbackMetadataDict(dict):
         if super().__contains__(cleaned):
             return super().__getitem__(cleaned)
         try:
+            logger.warning(f"Ticker {key} not found in metadata, using fallback defaults")
             return self._generate_mock_metadata(cleaned)
         except Exception:
             return default
@@ -153,9 +155,9 @@ class DateAwareTimeSeriesSplit:
             yield np.arange(cutoff), np.arange(cutoff, n_samples)
             return
 
-        # R10-8 Fix: Guard maximum date index to reserve future horizon labels from NaN leakage
-        max_valid_idx = max(self.n_splits + 1, n_dates - self.gap)
-        test_size = max(1, (max_valid_idx - self.gap) // (self.n_splits + 1))
+        # R10-8 Fix: Guard date index to reserve future horizon labels from NaN leakage
+        test_size = max(1, (n_dates - self.gap) // (self.n_splits + 1))
+        yielded_any = False
         for i in range(self.n_splits):
             train_end_idx = (i + 1) * test_size
             test_start_idx = train_end_idx + self.gap
@@ -169,7 +171,17 @@ class DateAwareTimeSeriesSplit:
             train_idx = np.where(np.isin(dates, list(train_dates)))[0]
             test_idx = np.where(np.isin(dates, list(test_dates)))[0]
             if len(train_idx) > 0 and len(test_idx) > 0:
+                yielded_any = True
                 yield train_idx, test_idx
+
+        if not yielded_any:
+            n_samples = len(dates)
+            cutoff = int(n_samples * 0.8)
+            if 0 < cutoff < n_samples:
+                yield np.arange(cutoff), np.arange(cutoff, n_samples)
+            else:
+                half = max(1, n_samples // 2)
+                yield np.arange(half), np.arange(half, n_samples)
 
 
 class OnDevicePredictionModel:
@@ -778,14 +790,16 @@ class OnDevicePredictionModel:
                     if default_shares is not None and pd.notna(default_shares) and default_shares > 0:
                         df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * float(default_shares))
                     else:
-                        df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * volume)
+                        volume_ma20 = df_copy['Volume'].rolling(20, min_periods=1).mean().fillna(df_copy['Volume'])
+                        df_copy['market_cap'] = mcap_val.where(~fallback_mcap_mask, close * volume_ma20)
                 else:
                     if shares_out is None or pd.isna(shares_out) or shares_out <= 0:
                         default_shares = metadata.get('shares_outstanding')
                         if default_shares is not None and pd.notna(default_shares) and default_shares > 0:
                             df_copy['market_cap'] = close * float(default_shares)
                         else:
-                            df_copy['market_cap'] = close * volume
+                            volume_ma20 = df_copy['Volume'].rolling(20, min_periods=1).mean().fillna(df_copy['Volume'])
+                            df_copy['market_cap'] = close * volume_ma20
                     else:
                         df_copy['market_cap'] = close * float(shares_out)
 
@@ -1379,7 +1393,12 @@ class OnDevicePredictionModel:
             mask_no_fund = (df['has_fundamental'] == 0.0)
             for col in fundamental_cols:
                 if col in df.columns:
+                    df.loc[~mask_no_fund, col] = df.loc[~mask_no_fund, col].fillna(0.0)
                     df.loc[mask_no_fund, col] = np.nan
+        else:
+            for col in fundamental_cols:
+                if col in df.columns:
+                    df[col] = df[col].fillna(0.0)
 
         other_cols = [c for c in df.columns if c not in fundamental_cols]
         df[other_cols] = df[other_cols].fillna(0.0)
@@ -1402,9 +1421,9 @@ class OnDevicePredictionModel:
         # Compute 20-day realised volatility of daily returns (min 5 obs)
         pct_chg = df['Close'].pct_change()
         vol_20d = pct_chg.rolling(20, min_periods=5).std()
-        # R7-1 Fix: Pad denominator with strict floor (1e-4) so we never divide by zero or near-zero
+        # R7-1 Fix: Pad denominator with realistic floor (0.005 = 0.5% daily vol) to prevent illiquid noise explosion
         vol_20d = vol_20d.replace(0.0, np.nan).bfill().ffill().fillna(0.01)
-        vol_20d = pd.Series(np.maximum(vol_20d.values, 1e-4), index=df.index)
+        vol_20d = pd.Series(np.maximum(vol_20d.values, 0.005), index=df.index)
         # Store vol scale for inverse-transform at inference time
         df['_vol_scale'] = vol_20d
 
@@ -1414,7 +1433,8 @@ class OnDevicePredictionModel:
 
         for h in self.horizons:
             raw_ret = (df['Close'].shift(-h) / entry_price - 1).replace([np.inf, -np.inf], np.nan)
-            df[f'target_{h}d'] = raw_ret / vol_20d
+            h_scale = np.sqrt(max(1.0, float(h)))
+            df[f'target_{h}d'] = raw_ret / (vol_20d * h_scale)
 
         for h in self.surge_horizons:
             raw_ret = (df['Close'].shift(-h) / entry_price - 1).replace([np.inf, -np.inf], np.nan)
@@ -1525,14 +1545,18 @@ class OnDevicePredictionModel:
             if len(group_sorted) < seq_len:
                 continue
 
-            if 'ret_1d' in group_sorted.columns:
-                returns = group_sorted['ret_1d'].values
+            # Extract multi-feature array if feature columns exist, otherwise fall back to returns
+            feat_cols = [c for c in group_sorted.columns if c in getattr(self, 'feature_cols', []) or (c not in ['date', 'symbol', 'market', target_col, '_vol_scale'] and pd.api.types.is_numeric_dtype(group_sorted[c]))]
+            if len(feat_cols) > 1:
+                seq_features = group_sorted[feat_cols].fillna(0.0).values
+            elif 'ret_1d' in group_sorted.columns:
+                seq_features = np.expand_dims(group_sorted['ret_1d'].fillna(0.0).values, axis=-1)
             elif 'close' in group_sorted.columns:
-                returns = group_sorted['close'].pct_change().fillna(0.0).values
+                seq_features = np.expand_dims(group_sorted['close'].pct_change().fillna(0.0).values, axis=-1)
             elif 'Close' in group_sorted.columns:
-                returns = group_sorted['Close'].pct_change().fillna(0.0).values
+                seq_features = np.expand_dims(group_sorted['Close'].pct_change().fillna(0.0).values, axis=-1)
             else:
-                returns = np.zeros(len(group_sorted))
+                seq_features = np.zeros((len(group_sorted), 1), dtype=np.float32)
 
             from src.ai.target_transform import transform_sharpe
             targets = transform_sharpe(group_sorted[target_col]).values
@@ -1540,14 +1564,16 @@ class OnDevicePredictionModel:
 
             # Create rolling windows
             for i in range(seq_len - 1, len(group_sorted)):
-                window = returns[i - (seq_len - 1) : i + 1]
+                window = seq_features[i - (seq_len - 1) : i + 1]
                 X_all.append(window)
                 y_all.append(targets[i])
                 df_indices.append(indices[i])
 
         if not X_all:
             return np.array([]), np.array([]), np.array([])
-        X_arr = np.expand_dims(np.array(X_all, dtype=np.float32), axis=-1)  # (N, seq_len, 1)
+        X_arr = np.array(X_all, dtype=np.float32)
+        if X_arr.ndim == 2:
+            X_arr = np.expand_dims(X_arr, axis=-1)
         y_arr = np.array(y_all, dtype=np.float32)
         df_indices_arr = np.array(df_indices)
         return X_arr, y_arr, df_indices_arr
@@ -1564,7 +1590,6 @@ class OnDevicePredictionModel:
             _has_lstm = True
         except Exception:
             _has_lstm = False
-        from sklearn.model_selection import TimeSeriesSplit
         from sklearn.metrics import mean_squared_error, mean_absolute_error
 
         if df_train.empty:
@@ -1593,7 +1618,6 @@ class OnDevicePredictionModel:
 
         use_wf = n_splits >= 2
         if use_wf:
-            tscv = DateAwareTimeSeriesSplit(n_splits=n_splits, gap=gap)
             logger.info(f"{market}: DateAware Walk-Forward {n_splits}-fold (gap={gap}) on {_n} rows.")
         else:
             logger.info(f"{market}: Dataset too small for walk-forward ({_n} rows). Training on full data.")
@@ -1655,21 +1679,26 @@ class OnDevicePredictionModel:
                     y_tr = transform_sharpe(df_tr[target_col])
                     y_va = transform_sharpe(df_va[target_col])
 
+                    # Asymmetric Profit-Weighted Alpha Boosting (captures explosive breakout surges):
+                    # Samples with strong positive returns are given elevated sample weight (1.5x),
+                    # preventing tree algorithms from shrinking positive predictions to zero.
+                    sample_weights_tr = np.where(y_tr > 0.05, 1.50, 1.0)
+
                     # XGBoost fold
                     kw_no_es = {k: v for k, v in kw_xgb.items() if k != 'early_stopping_rounds'}
                     _m_xgb = xgb.XGBRegressor(**kw_xgb)
                     try:
-                        _m_xgb.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                        _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr, eval_set=[(X_va, y_va)], verbose=False)
                         if hasattr(_m_xgb, 'best_iteration') and _m_xgb.best_iteration is not None:
                             best_iters_xgb.append(_m_xgb.best_iteration)
                     except Exception as ex:
                         if _is_gpu_error(ex):
                             kw_xgb_cpu = {k: v for k, v in kw_xgb.items() if k not in ('device', 'device_type', 'tree_method')}
                             _m_xgb = xgb.XGBRegressor(**kw_xgb_cpu)
-                            _m_xgb.fit(X_tr, y_tr)
+                            _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
                         else:
                             _m_xgb = xgb.XGBRegressor(**kw_no_es)
-                            _m_xgb.fit(X_tr, y_tr)
+                            _m_xgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
                     y_va_clean = np.nan_to_num(y_va, nan=0.0, posinf=0.0, neginf=0.0)
                     pred_xgb_clean = np.nan_to_num(_m_xgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_xgb.append(float(mean_squared_error(y_va_clean, pred_xgb_clean)))
@@ -1679,6 +1708,7 @@ class OnDevicePredictionModel:
                     _m_lgb = lgb.LGBMRegressor(**kw_lgb)
                     try:
                         _m_lgb.fit(X_tr, y_tr,
+                                   sample_weight=sample_weights_tr,
                                    eval_set=[(X_va, y_va)],
                                    callbacks=[lgb.early_stopping(50, verbose=False)])
                         if hasattr(_m_lgb, 'best_iteration_') and _m_lgb.best_iteration_ is not None:
@@ -1687,9 +1717,9 @@ class OnDevicePredictionModel:
                         if _is_gpu_error(ex):
                             kw_lgb_cpu = {k: v for k, v in kw_lgb.items() if k != 'device_type'}
                             _m_lgb = lgb.LGBMRegressor(**kw_lgb_cpu)
-                            _m_lgb.fit(X_tr, y_tr)
+                            _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
                         else:
-                            _m_lgb.fit(X_tr, y_tr)
+                            _m_lgb.fit(X_tr, y_tr, sample_weight=sample_weights_tr)
                     pred_lgb_clean = np.nan_to_num(_m_lgb.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
                     fold_mse_lgb.append(float(mean_squared_error(y_va_clean, pred_lgb_clean)))
                     fold_ic_lgb.append(_calc_rank_ic(y_va_clean, pred_lgb_clean))
@@ -1698,7 +1728,7 @@ class OnDevicePredictionModel:
                     try:
                         if len(np.unique(y_tr)) > 1:
                             _m_cat = cb.CatBoostRegressor(**kw_cat, early_stopping_rounds=50)
-                            _m_cat.fit(X_tr, y_tr, eval_set=[(X_va, y_va)], verbose=False)
+                            _m_cat.fit(X_tr, y_tr, sample_weight=sample_weights_tr, eval_set=[(X_va, y_va)], verbose=False)
                             if hasattr(_m_cat, 'get_best_iteration') and _m_cat.get_best_iteration() is not None:
                                 best_iters_cat.append(_m_cat.get_best_iteration())
                             pred_cat_clean = np.nan_to_num(_m_cat.predict(X_va), nan=0.0, posinf=0.0, neginf=0.0)
@@ -1792,26 +1822,41 @@ class OnDevicePredictionModel:
                     raise ex
             self.cat_models[market][h] = model_cat
 
-            # ── PyTorch LSTM (unchanged logic, uses full data) ───────────────
+            # ── PyTorch LSTM (Evaluated Out-of-Sample via temporal holdout split) ───────────────
             if market not in self.lstm_models:
                 self.lstm_models[market] = {}
 
             mse_lstm = 1e6
             mae_lstm = 1e6
+            ic_lstm = 0.0
             if _has_lstm:
                 try:
                     lstm_predictor = LSTMPredictor(sequence_length=20, epochs=5)
                     X_lstm_all, y_lstm_all, df_lstm_idx = self._prepare_lstm_data(
                         df_train, f'target_{h}d', seq_len=20
                     )
-                    if len(X_lstm_all) >= 10:
+                    if len(X_lstm_all) >= 20:
+                        split_idx = int(len(X_lstm_all) * 0.8)
+                        X_tr_lstm, y_tr_lstm = X_lstm_all[:split_idx], y_lstm_all[:split_idx]
+                        X_va_lstm, y_va_lstm = X_lstm_all[split_idx:], y_lstm_all[split_idx:]
+
+                        # Train on 80% train split and evaluate Out-of-Sample on 20% validation split
+                        lstm_predictor.train_model(X_tr_lstm, y_tr_lstm)
+                        pred_lstm_va = lstm_predictor.predict(X_va_lstm)
+                        y_va_clean = np.nan_to_num(y_va_lstm, nan=0.0, posinf=0.0, neginf=0.0)
+                        pred_va_clean = np.nan_to_num(pred_lstm_va, nan=0.0, posinf=0.0, neginf=0.0)
+                        mse_lstm = float(mean_squared_error(y_va_clean, pred_va_clean))
+                        mae_lstm = float(mean_absolute_error(y_va_clean, pred_va_clean))
+                        ic_lstm = _calc_rank_ic(y_va_clean, pred_va_clean)
+
+                        # Final model: retrain on ALL sequence data for live prediction
                         lstm_predictor.train_model(X_lstm_all, y_lstm_all)
                         self.lstm_models[market][h] = lstm_predictor
-                        pred_lstm = lstm_predictor.predict(X_lstm_all)
-                        y_lstm_clean = np.nan_to_num(y_lstm_all, nan=0.0, posinf=0.0, neginf=0.0)
-                        pred_lstm_clean = np.nan_to_num(pred_lstm, nan=0.0, posinf=0.0, neginf=0.0)
-                        mse_lstm = float(mean_squared_error(y_lstm_clean, pred_lstm_clean))
-                        mae_lstm = float(mean_absolute_error(y_lstm_clean, pred_lstm_clean))
+                    elif len(X_lstm_all) >= 5:
+                        lstm_predictor.train_model(X_lstm_all, y_lstm_all)
+                        self.lstm_models[market][h] = lstm_predictor
+                        mse_lstm = 1.0
+                        mae_lstm = 1.0
                 except Exception as _l_err:
                     logger.warning(f"LSTM training skipped for {market} {h}d: {_l_err}")
 
@@ -1822,11 +1867,12 @@ class OnDevicePredictionModel:
             ic_xgb_clamped = max(-0.1, min(0.5, avg_ic_xgb))
             ic_lgb_clamped = max(-0.1, min(0.5, avg_ic_lgb))
             ic_cat_clamped = max(-0.1, min(0.5, avg_ic_cat))
+            ic_lstm_clamped = max(-0.1, min(0.5, ic_lstm))
 
             score_xgb = (1.0 / max(avg_mse_xgb, 1e-6)) * float(np.exp(5.0 * ic_xgb_clamped))
             score_lgb = (1.0 / max(avg_mse_lgb, 1e-6)) * float(np.exp(5.0 * ic_lgb_clamped))
             score_cat = (1.0 / max(avg_mse_cat, 1e-6)) * float(np.exp(5.0 * ic_cat_clamped))
-            score_lstm = (1.0 / max(mse_lstm, 1e-6)) if use_lstm else 0.0
+            score_lstm = (1.0 / max(mse_lstm, 1e-6)) * float(np.exp(5.0 * ic_lstm_clamped)) if use_lstm else 0.0
 
             sum_scores = score_xgb + score_lgb + score_cat + score_lstm
             if sum_scores > 0:
@@ -1841,16 +1887,26 @@ class OnDevicePredictionModel:
             if market not in self.validation_metrics["regression"]:
                 self.validation_metrics["regression"][market] = {}
             if use_wf and tscv_h is not None:
-                last_tr_idx, last_va_idx = list(tscv_h.split(df_h))[-1]
-                X_eval = X_all.iloc[last_va_idx]
-                y_eval = y_all.iloc[last_va_idx]
-                self.validation_metrics["regression"][market][h] = {
-                    "xgb": {"wf_mse": avg_mse_xgb, "mae": float(mean_absolute_error(y_eval, model_xgb.predict(X_eval)))},
-                    "lgb": {"wf_mse": avg_mse_lgb, "mae": float(mean_absolute_error(y_eval, model_lgb.predict(X_eval)))},
-                    "cat": {"wf_mse": avg_mse_cat, "mae": float(mean_absolute_error(y_eval, model_cat.predict(X_eval)))},
-                    "lstm": {"mse": mse_lstm, "mae": mae_lstm},
-                    "n_folds": n_splits,
-                }
+                splits_list = list(tscv_h.split(df_h))
+                if splits_list:
+                    last_tr_idx, last_va_idx = splits_list[-1]
+                    X_eval = X_all.iloc[last_va_idx]
+                    y_eval = y_all.iloc[last_va_idx]
+                    self.validation_metrics["regression"][market][h] = {
+                        "xgb": {"wf_mse": avg_mse_xgb, "mae": float(mean_absolute_error(y_eval, model_xgb.predict(X_eval)))},
+                        "lgb": {"wf_mse": avg_mse_lgb, "mae": float(mean_absolute_error(y_eval, model_lgb.predict(X_eval)))},
+                        "cat": {"wf_mse": avg_mse_cat, "mae": float(mean_absolute_error(y_eval, model_cat.predict(X_eval)))},
+                        "lstm": {"mse": mse_lstm, "mae": mae_lstm},
+                        "n_folds": n_splits,
+                    }
+                else:
+                    self.validation_metrics["regression"][market][h] = {
+                        "xgb": {"wf_mse": None, "mae": None},
+                        "lgb": {"wf_mse": None, "mae": None},
+                        "cat": {"wf_mse": None, "mae": None},
+                        "lstm": {"mse": mse_lstm, "mae": mae_lstm},
+                        "n_folds": 0,
+                    }
             else:
                 self.validation_metrics["regression"][market][h] = {
                     "xgb": {"wf_mse": None, "mae": None},
@@ -2112,8 +2168,9 @@ class OnDevicePredictionModel:
             w_cat_s /= sum_w
 
             # Calibration & threshold on last fold's val set
-            if tscv_surge is not None:
-                last_tr_idx, last_va_idx = list(tscv_surge.split(X))[-1]
+            splits_surge_list = list(tscv_surge.split(X)) if tscv_surge is not None else []
+            if splits_surge_list:
+                last_tr_idx, last_va_idx = splits_surge_list[-1]
                 X_calib_eval = X.iloc[last_va_idx]
                 y_calib_eval = target.iloc[last_va_idx]
             else:
@@ -2259,9 +2316,11 @@ class OnDevicePredictionModel:
 
         required_features = self.ALL_FEATURES
         if not all(col in df_current.columns for col in required_features):
-            norm_dict = self.apply_market_normalization({'TEMP': df_current})
-            df_current = norm_dict['TEMP']
-            df_current = self._create_features(df_current, indicator_df, is_krx_symbol=self.is_krx_symbol(market if isinstance(market, str) else ""))
+            mkt_str = str(market).upper() if market is not None else ""
+            is_kr = self.is_krx_symbol(mkt_str) or mkt_str in ['KOSPI', 'KOSDAQ', 'KRX']
+            if 'symbol' in df_current.columns and len(df_current['symbol'].dropna()) > 0:
+                is_kr = is_kr or self.is_krx_symbol(str(df_current['symbol'].iloc[-1]))
+            df_current = self._create_features(df_current, indicator_df, is_krx_symbol=is_kr)
             if df_current.empty:
                 return {h: 0.0 for h in self.horizons}
 
@@ -2334,7 +2393,8 @@ class OnDevicePredictionModel:
                     pred = float(
                         inverse_transform_sharpe(
                             pd.Series([pred]),
-                            pd.Series([vol_val])
+                            pd.Series([vol_val]),
+                            horizon=h
                         ).iloc[0]
                     )
                 else:
@@ -2544,7 +2604,7 @@ class OnDevicePredictionModel:
                             else:
                                 vol_scale = pd.Series(0.01, index=range(len(idx)))
                             blend_pred_inv = inverse_transform_sharpe(
-                                pd.Series(blend_pred), vol_scale
+                                pd.Series(blend_pred), vol_scale, horizon=h
                             ).values
                             blend_pred_inv = np.nan_to_num(
                                 blend_pred_inv, nan=0.0, posinf=0.0, neginf=0.0

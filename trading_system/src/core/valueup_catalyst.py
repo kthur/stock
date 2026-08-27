@@ -126,7 +126,10 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 mcap_val = float(mcap) if (pd.notna(mcap) and np.isfinite(float(mcap))) else 0.0
                 is_krx = str(sym).isdigit() or str(sym).endswith(('.KS', '.KQ'))
                 if is_krx and 0 < mcap_val < 1e7:
-                    mcap_norm = mcap_val * 1e8  # Convert 억원 -> KRW
+                    if 0 < max(cash_val, debt_val) < 1e7:
+                        mcap_norm = mcap_val
+                    else:
+                        mcap_norm = mcap_val * 1e8
                 else:
                     mcap_norm = mcap_val
                 if mcap_norm > 1e4:

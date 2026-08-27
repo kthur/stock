@@ -94,15 +94,17 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
             pos_count = 0.0
             neg_count = 0.0
 
-            # Scan Korean positive words with window-based negation detection (±25 chars)
+            # Scan Korean positive words with window-based negation detection (±12 chars)
             for w in self.POSITIVE_WORDS_KO:
                 start_idx = 0
                 while True:
                     idx = text.find(w, start_idx)
                     if idx == -1:
                         break
-                    window = text[max(0, idx - 25): min(len(text), idx + len(w) + 25)]
+                    window = text[max(0, idx - 12): min(len(text), idx + len(w) + 12)]
                     is_negated = any(neg in window for neg in self.NEGATION_WORDS_KO)
+                    if "불구하고" in window or "비록" in window:
+                        is_negated = False
                     if is_negated:
                         neg_count += 1.5  # Inverted fake-positive is penalized as a negative shock
                     else:
@@ -126,8 +128,10 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                     idx = text_lower.find(w, start_idx)
                     if idx == -1:
                         break
-                    window = text_lower[max(0, idx - 30): min(len(text_lower), idx + len(w) + 30)]
+                    window = text_lower[max(0, idx - 12): min(len(text_lower), idx + len(w) + 12)]
                     is_negated = any(neg in window for neg in self.NEGATION_WORDS_EN)
+                    if "despite" in window or "although" in window:
+                        is_negated = False
                     if is_negated:
                         neg_count += 1.5
                     else:

@@ -143,7 +143,7 @@ class PortfolioOptimizer:
         if expected_returns is None or (isinstance(expected_returns, (pd.Series, dict)) and len(expected_returns) == 0):
             return base_erc
 
-        # Step 2: Extract expected returns per symbol
+        # Step 2: Extract expected returns and compute Markowitz-Kelly Sharpe Tilting
         if isinstance(expected_returns, pd.Series):
             er_dict = expected_returns.to_dict()
         elif isinstance(expected_returns, dict):
@@ -157,7 +157,22 @@ class PortfolioOptimizer:
         min_er = 0.001
         er_pos = np.maximum(er_vals, min_er)
         mean_er = float(np.mean(er_pos)) if np.mean(er_pos) > 0 else 1.0
-        tilt_factors = (er_pos / mean_er) ** max(0.1, min(3.0, float(tilt_exponent)))
+        raw_tilt_factors = (er_pos / mean_er) ** max(0.1, min(3.0, float(tilt_exponent)))
+
+        # Markowitz-Kelly Dynamic Sharpe Sizing (Fractional Kelly: w_i ~ E[R_i] / sigma_i^1.5):
+        # Prevents low-risk defensive assets from monopolizing capital over explosive growth leaders.
+        vols = returns_df.std(ddof=1).values
+        vols = np.where((vols <= 0) | np.isnan(vols), 0.015, vols)
+        kelly_factors = er_pos / (vols ** 1.5)
+        mean_kelly = float(np.mean(kelly_factors)) if np.mean(kelly_factors) > 0 else 1.0
+        kelly_tilt = (kelly_factors / mean_kelly) ** max(0.1, min(2.0, float(tilt_exponent)))
+
+        # Combined Alpha Sharpe-Kelly tilt
+        tilt_factors = 0.50 * raw_tilt_factors + 0.50 * kelly_tilt
+
+        # Allow dynamic ceiling expansion up to 30% for super-alpha momentum winners
+        if np.any(er_vals >= 15.0):
+            eff_max_w = min(0.30, max(eff_max_w, 0.25))
 
         # Step 3: Raw tilted target weights
         raw_erc_arr = np.array([base_erc.get(s, 1.0 / n_assets) for s in symbols], dtype=np.float64)
@@ -240,7 +255,10 @@ class PortfolioOptimizer:
         constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1.0}]
 
         if max_cvar_limit is not None and not returns_sub.empty and len(returns_sub) >= 5:
-            from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
+            try:
+                from src.risk.portfolio_allocator import PortfolioAllocator
+            except ImportError:
+                from trading_system.src.risk.portfolio_allocator import PortfolioAllocator
             allocator = PortfolioAllocator()
             returns_matrix = returns_sub.values
 

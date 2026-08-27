@@ -38,11 +38,21 @@ class IVSkewEngine(BaseStrategyEngine):
         self.atm_threshold = atm_threshold
         self.config = config
 
+    _iv_cache = {}
+
     def compute_skew_for_ticker(self, ticker: str) -> float:
         """
         Attempts to calculate Put-Call IV Skew for a given US ticker via yfinance.
         Returns score in [0.0, 1.0].
         """
+        import time
+        from datetime import datetime
+        cache_key = (ticker, datetime.now().strftime('%Y-%m-%d'))
+        if cache_key in self._iv_cache:
+            entry = self._iv_cache[cache_key]
+            if time.time() - entry['timestamp'] < 86400:
+                return entry['score']
+
         try:
             import yfinance as yf
             t = yf.Ticker(ticker)
@@ -79,11 +89,10 @@ class IVSkewEngine(BaseStrategyEngine):
 
             skew_ratio = put_iv / call_iv
 
-            # Normal skew ratio is around 1.0 - 1.2
-            # Extreme skew (> 1.4) represents panic hedging -> contrarian bullish score
-            # Low skew (< 0.8) represents excessive call buying / complacency -> cautious score
             score = 0.5 + (skew_ratio - 1.1) * 0.5
-            return float(np.clip(score, 0.0, 1.0))
+            final_score = float(np.clip(score, 0.0, 1.0))
+            self._iv_cache[cache_key] = {'score': final_score, 'timestamp': time.time()}
+            return final_score
         except Exception as e:
             logger.debug(f"IV Skew calculation failed for {ticker}: {e}")
             return np.nan
@@ -122,7 +131,7 @@ class IVSkewEngine(BaseStrategyEngine):
             # 2. Fast in-memory realized price volatility & return skewness fallback (0 network calls)
             if prices_dict and sym in prices_dict:
                 df = prices_dict[sym]
-                if df is not None and len(df) >= 2:
+                if df is not None and len(df) >= 3:
                     try:
                         c_col = 'Close' if 'Close' in df.columns else ('close' if 'close' in df.columns else None)
                         if not c_col:
@@ -131,10 +140,10 @@ class IVSkewEngine(BaseStrategyEngine):
                         if isinstance(c, pd.DataFrame):
                             c = c.iloc[:, 0]
                         c = c.dropna()
-                        if len(c) >= 2:
+                        if len(c) >= 3:
                             ret = c.pct_change().dropna()
                             ret_window = ret.tail(20)
-                            if len(ret_window) >= 1 and float(abs(ret_window).sum()) > 1e-6:
+                            if len(ret_window) >= 2 and float(abs(ret_window).sum()) > 1e-6:
                                 down_diff = np.minimum(ret_window.values, 0.0)
                                 up_diff = np.maximum(ret_window.values, 0.0)
                                 down_vol = float(np.sqrt(np.mean(down_diff ** 2)))
@@ -150,10 +159,11 @@ class IVSkewEngine(BaseStrategyEngine):
                                     ret_skew = 0.0
                                 # Extreme panic turnaround booster (skew_ratio >= 1.5 with positive 1D turnaround return)
                                 turnaround_bonus = 0.10 if (skew_ratio >= 1.5 and float(ret.iloc[-1]) > 0.0) else 0.0
-                                score = float(np.clip(0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus, 0.0, 1.0))
-                                score = score if np.isfinite(score) else 0.50
-                            elif len(ret_window) >= 1:
-                                score = 0.50
+                                # Reduced fallback weight to 0.3
+                                raw_score = 0.5 + (skew_ratio - 1.0) * 0.25 - ret_skew * 0.15 + turnaround_bonus
+                                score = 0.5 + (raw_score - 0.5) * 0.3
+                                score = float(np.clip(score, 0.0, 1.0))
+                                score = score if np.isfinite(score) else np.nan
                             else:
                                 score = np.nan
                     except Exception:

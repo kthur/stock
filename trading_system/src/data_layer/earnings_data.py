@@ -182,10 +182,32 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
                 result['book_value'] = bv_series
             else:
                 result['book_value'] = 0.0
+
+            # Add cash extraction
+            cash_cols = [c for c in ['Cash And Cash Equivalents', 'Cash', 'Cash And Equivalents'] if c in bs_t.columns]
+            if cash_cols:
+                result['cash_equivalents'] = bs_t[cash_cols[0]].reindex(result.index).ffill()
+            else:
+                result['cash_equivalents'] = 0.0
+
+            # Add debt extraction
+            debt_cols = [c for c in ['Total Debt'] if c in bs_t.columns]
+            if debt_cols:
+                result['total_debt'] = bs_t[debt_cols[0]].reindex(result.index).ffill()
+            else:
+                lt_cols = [c for c in ['Long Term Debt'] if c in bs_t.columns]
+                st_cols = [c for c in ['Current Debt', 'Short Long Term Debt'] if c in bs_t.columns]
+                lt_debt = bs_t[lt_cols[0]].fillna(0.0) if lt_cols else pd.Series(0.0, index=bs_t.index)
+                st_debt = bs_t[st_cols[0]].fillna(0.0) if st_cols else pd.Series(0.0, index=bs_t.index)
+                result['total_debt'] = (lt_debt + st_debt).reindex(result.index).ffill()
         else:
             result['book_value'] = 0.0
+            result['cash_equivalents'] = 0.0
+            result['total_debt'] = 0.0
     except Exception:
         result['book_value'] = 0.0
+        result['cash_equivalents'] = 0.0
+        result['total_debt'] = 0.0
 
     if 'shares_outstanding' in result.columns:
         shares = pd.to_numeric(result['shares_outstanding'], errors='coerce').fillna(0.0)
@@ -196,7 +218,7 @@ def _fetch_fundamentals_network(yf_sym: str) -> pd.DataFrame:
         bv_val = pd.to_numeric(result.get('book_value', 0.0), errors='coerce').fillna(0.0)
         result['bps'] = np.where(np.isfinite(bv_val), bv_val, 0.0)
 
-    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'operating_cash_flow']:
+    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'operating_cash_flow', 'cash_equivalents', 'total_debt']:
         if col in result.columns:
             result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0.0).astype(float)
         else:
@@ -398,7 +420,30 @@ async def async_fetch_fundamentals(symbol: str, market: str, session: Optional[a
                     df['book_value'] = float(total_equity if total_equity > 0 else (book_val * shares if shares > 0 else book_val))
                     df['bps'] = float(book_val)
 
-                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'shares_outstanding', 'dividend_per_share', 'operating_cash_flow']:
+                    # Extract cash and debt
+                    cash_equivalents = 0.0
+                    total_debt = 0.0
+                    bs_key = "balanceSheetHistoryQuarterly" if is_quarterly else "balanceSheetHistory"
+                    bs_statements = data.get(bs_key, {}).get("balanceSheetStatements", [])
+                    if not bs_statements:
+                        bs_statements = data.get("balanceSheetHistory", {}).get("balanceSheetStatements", [])
+                    if bs_statements:
+                        latest_bs = bs_statements[0]
+                        cash_obj = latest_bs.get("cashAndCashEquivalents", latest_bs.get("cash", {}))
+                        cash_equivalents = float(cash_obj.get("raw", 0.0)) if isinstance(cash_obj, dict) else 0.0
+                        
+                        debt_obj = latest_bs.get("totalDebt", {})
+                        if debt_obj and isinstance(debt_obj, dict) and "raw" in debt_obj:
+                            total_debt = float(debt_obj.get("raw", 0.0))
+                        else:
+                            lt_debt = float(latest_bs.get("longTermDebt", {}).get("raw", 0.0)) if isinstance(latest_bs.get("longTermDebt"), dict) else 0.0
+                            st_debt = float(latest_bs.get("shortLongTermDebt", {}).get("raw", 0.0)) if isinstance(latest_bs.get("shortLongTermDebt"), dict) else 0.0
+                            total_debt = lt_debt + st_debt
+
+                    df['cash_equivalents'] = cash_equivalents
+                    df['total_debt'] = total_debt
+
+                    for col in ['revenue', 'operating_income', 'net_income', 'eps', 'book_value', 'bps', 'shares_outstanding', 'dividend_per_share', 'operating_cash_flow', 'cash_equivalents', 'total_debt']:
                         if col in df.columns:
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(float)
                         else:

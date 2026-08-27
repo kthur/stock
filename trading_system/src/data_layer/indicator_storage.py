@@ -868,6 +868,18 @@ class MarketIndicatorStorage:
                 if self._indicator_value_ok(info.get('symbol') or sym, info.get('name'), info.get('price')):
                     chg = float(info.get('change_pct', 0.0)) if info.get('change_pct') is not None and math.isfinite(float(info.get('change_pct', 0.0))) else 0.0
                     rows.append((d_str, info['symbol'], info['name'], float(info['price']), chg))
+            # Support flat dictionary schema
+            if not rows and not any(k in data for k in ['indices', 'fx_rates', 'macro_commodities', 'bonds']):
+                for sym, info in data.items():
+                    if isinstance(info, dict):
+                        p = info.get('price', info.get('Close', info.get('rate', 0.0)))
+                        name = info.get('name', sym)
+                        chg = info.get('change_pct', 0.0)
+                        if self._indicator_value_ok(sym, name, p):
+                            rows.append((d_str, sym, name, float(p), float(chg) if (chg is not None and math.isfinite(float(chg))) else 0.0))
+                    elif isinstance(info, (int, float)) and math.isfinite(float(info)):
+                        if self._indicator_value_ok(sym, sym, info):
+                            rows.append((d_str, sym, sym, float(info), 0.0))
 
         if not rows:
             return

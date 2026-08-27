@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, Optional, Any
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -152,6 +153,18 @@ class SectorRotationEngine(BaseStrategyEngine):
     }
 
     @classmethod
+    def _get_gics_sector(cls, ticker: str, metadata: dict) -> str:
+        """Looks up a GICS sector code from stock metadata before falling back to string matching."""
+        if metadata and ticker in metadata:
+            raw_sector = metadata[ticker].get('sector') or metadata[ticker].get('sector_code')
+            name = metadata[ticker].get('name')
+            if raw_sector or name:
+                norm = cls.normalize_sector(raw_sector=str(raw_sector) if raw_sector else None, symbol=ticker, name=name)
+                if norm != 'General':
+                    return norm
+        return cls.normalize_sector(raw_sector=None, symbol=ticker)
+
+    @classmethod
     def normalize_sector(cls, raw_sector: Optional[str], symbol: Optional[str] = None, name: Optional[str] = None) -> str:
         """
         Normalizes sector classification to 11 standard GICS sectors with high-precision
@@ -286,9 +299,14 @@ class SectorRotationEngine(BaseStrategyEngine):
                 res_df['sector_rank'] = res_df['sector'].map(sec_rank_map).fillna(0.5)
 
                 # Intra-Sector Dispersion weighting: High dispersion -> favor individual stock rank
+                sector_counts = res_df.groupby('sector')['mom_raw'].transform('count')
                 sector_disp = res_df.groupby('sector')['mom_raw'].transform('std').fillna(0.0)
-                # R12-7 Fix: Continuous dispersion scaling with clip [0.20, 0.70]
-                stock_weight = (0.35 + sector_disp * 5.0).clip(0.20, 0.70)
+                # Single-stock sectors use 100% individual stock rank to prevent 0.50 dilution
+                stock_weight = np.where(
+                    sector_counts <= 1,
+                    1.0,
+                    (0.35 + sector_disp * 5.0).clip(0.20, 0.70)
+                )
                 sector_weight = 1.0 - stock_weight
 
                 res_df['sector_score'] = sector_weight * res_df['sector_rank'] + stock_weight * res_df['stock_rank']
@@ -356,4 +374,34 @@ class SectorRotationEngine(BaseStrategyEngine):
         except Exception as e:
             logger.warning(f"[SectorRotationEngine] compute_scores failed: {e}")
             return pd.DataFrame(columns=["symbol", "sector_score"])
+
+    @staticmethod
+    def compute_sector_breadth_velocity_thrust(
+        sector_returns_df: pd.DataFrame,
+        short_window: int = 5,
+        long_window: int = 20
+    ) -> Dict[str, float]:
+        """
+        Computes Sector Breadth Velocity Thrust (Acceleration):
+        Thrust = Mom_5d - (5/20) * Mom_20d
+        Identifies early-stage leading sectors experiencing massive capital acceleration.
+        """
+        if sector_returns_df is None or sector_returns_df.empty or len(sector_returns_df) < long_window:
+            return {}
+
+        thrust_scores = {}
+        for col in sector_returns_df.columns:
+            s = sector_returns_df[col].dropna()
+            if len(s) >= long_window:
+                p_now = float(s.iloc[-1])
+                p_short = float(s.iloc[-short_window])
+                p_long = float(s.iloc[-long_window])
+                mom_short = (p_now / p_short - 1.0) if p_short > 0 else 0.0
+                mom_long = (p_now / p_long - 1.0) if p_long > 0 else 0.0
+                velocity = mom_short - (short_window / long_window) * mom_long
+                thrust_scores[col] = float(velocity)
+            else:
+                thrust_scores[col] = 0.0
+
+        return thrust_scores
 

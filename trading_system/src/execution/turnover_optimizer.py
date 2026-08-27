@@ -8,7 +8,10 @@ unnecessary portfolio turnover and transaction costs by 50%+.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Dict, Any
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

@@ -92,31 +92,15 @@ class ShortTermReversalEngine(BaseStrategyEngine):
         price_5d_ago = close_2d.iloc[-6]
         ret_5d = ((cur_price / price_5d_ago.replace(0, np.nan)) - 1.0).fillna(0.0)
 
-        # Vectorized consecutive down days
-        diffs_last5 = close_2d.iloc[-6:].diff(axis=0).iloc[1:]  # 5 rows x N cols
-        is_down = (diffs_last5 < 0).values  # (5, N) boolean array: index 4 is today, 3 is yesterday
+        # Vectorized consecutive down days using rolling
+        neg_returns = (close_2d.pct_change() < 0).astype(int)
 
-        # Consecutive down days ending on today (index 4)
-        cond5 = is_down[4]
-        consec_today = np.where(cond5, 1.0, 0.0)
-        cond4 = cond5 & is_down[3]
-        consec_today = np.where(cond4, consec_today + 1.0, consec_today)
-        cond3 = cond4 & is_down[2]
-        consec_today = np.where(cond3, consec_today + 1.0, consec_today)
-        cond2 = cond3 & is_down[1]
-        consec_today = np.where(cond2, consec_today + 1.0, consec_today)
-        cond1 = cond2 & is_down[0]
-        consec_today = np.where(cond1, consec_today + 1.0, consec_today)
-
-        # Consecutive down days ending on yesterday (index 3) for turnaround bounce detection
-        p_cond4 = is_down[3]
-        consec_prior = np.where(p_cond4, 1.0, 0.0)
-        p_cond3 = p_cond4 & is_down[2]
-        consec_prior = np.where(p_cond3, consec_prior + 1.0, consec_prior)
-        p_cond2 = p_cond3 & is_down[1]
-        consec_prior = np.where(p_cond2, consec_prior + 1.0, consec_prior)
-        p_cond1 = p_cond2 & is_down[0]
-        consec_prior = np.where(p_cond1, consec_prior + 1.0, consec_prior)
+        consec_today = np.zeros(close_2d.shape[1])
+        consec_prior = np.zeros(close_2d.shape[1])
+        for n in range(1, 6):
+            is_n_down = (neg_returns.rolling(n).sum() == n).astype(int)
+            consec_today = np.where(is_n_down.iloc[-1] == 1, float(n), consec_today)
+            consec_prior = np.where(is_n_down.iloc[-2] == 1, float(n), consec_prior)
 
         consec = np.maximum(consec_today, consec_prior)
 
@@ -195,11 +179,19 @@ class ShortTermReversalEngine(BaseStrategyEngine):
                 # Penalize loss-making distress stocks (operating margin < -0.10)
                 res_df.loc[res_df['operating_margin'] < -0.10, 'oversold_metric'] -= 1.0
 
-        # Percentile rank oversold metric -> reversal_score [0, 1] with boundary clipping
+        # Convert oversold metric to absolute score with sigmoid, combined with cross-sectional rank
         if len(res_df) == 1:
             res_df['reversal_score'] = 0.50
             return res_df[['symbol', 'reversal_score']]
 
-        res_df['reversal_score'] = pd.to_numeric(res_df['oversold_metric'], errors='coerce').rank(pct=True, ascending=True).clip(0.02, 0.98)
-        res_df['reversal_score'] = pd.to_numeric(res_df['reversal_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
+        raw_m = pd.to_numeric(res_df['oversold_metric'], errors='coerce').fillna(0.0)
+        # Absolute oversold score via sigmoid centered at 0.0 (neutral)
+        abs_score = 1.0 / (1.0 + np.exp(-raw_m * 3.0))
+        if len(res_df) >= 5:
+            pct_rank = raw_m.rank(pct=True, ascending=True)
+            final_score = 0.70 * abs_score + 0.30 * pct_rank
+        else:
+            final_score = abs_score
+
+        res_df['reversal_score'] = pd.to_numeric(final_score, errors='coerce').fillna(0.50).clip(0.02, 0.98)
         return res_df[['symbol', 'reversal_score']]

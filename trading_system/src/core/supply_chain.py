@@ -159,10 +159,12 @@ class SupplyChainEngine(BaseStrategyEngine):
                         for sym, m_info in mappings.items():
                             customers = m_info.get("customers", [])
                             weights = m_info.get("weights", [])
+                            revenue_weight = m_info.get("revenue_weight", {})
                             flat_map[sym] = customers
                             self.customer_weights_map[sym] = {
                                 "customers": customers,
-                                "weights": weights if len(weights) == len(customers) else [1.0 / len(customers)] * len(customers),
+                                "weights": weights if len(weights) == len(customers) else [1.0 / len(customers)] * len(customers) if customers else [],
+                                "revenue_weight": revenue_weight,
                                 "role": m_info.get("role", "")
                             }
                     if flat_map:
@@ -264,6 +266,11 @@ class SupplyChainEngine(BaseStrategyEngine):
                 # Check for explicit customer relation weights
                 w_info = self.customer_weights_map.get(c_key, self.customer_weights_map.get(sym, {}))
                 weights = w_info.get("weights", []) if w_info else []
+                revenue_weights = w_info.get("revenue_weight", {}) if w_info else {}
+                if not weights and revenue_weights:
+                    weights = [revenue_weights.get(c, 0.0) for c in customers]
+                    if sum(weights) > 0:
+                        weights = [w / sum(weights) for w in weights]
                 if not weights or len(weights) != len(customers):
                     weights = [1.0 / len(customers)] * len(customers)
 
@@ -354,18 +361,30 @@ class SupplyChainEngine(BaseStrategyEngine):
         if returns_series.empty:
             return returns_series
 
-        all_syms = list(set(returns_series.index) | set(self.customer_map.keys()))
+        def _canon(s: str) -> str:
+            s_str = str(s).strip()
+            return s_str.split('.')[0] if (s_str.endswith('.KS') or s_str.endswith('.KQ')) else s_str
+
+        all_nodes = set(returns_series.index) | set(self.customer_map.keys())
+        for supp, custs in self.customer_map.items():
+            all_nodes.add(supp)
+            all_nodes.add(_canon(supp))
+            for c in custs:
+                all_nodes.add(c)
+                all_nodes.add(_canon(c))
+
+        all_syms = list(all_nodes)
         sym_to_idx = {s: i for i, s in enumerate(all_syms)}
         N = len(all_syms)
 
         # Adjacency Matrix A
         A = np.zeros((N, N), dtype=float)
         for supp, custs in self.customer_map.items():
-            if supp in sym_to_idx:
-                s_idx = sym_to_idx[supp]
+            s_idx = sym_to_idx.get(supp, sym_to_idx.get(_canon(supp)))
+            if s_idx is not None:
                 for c in custs:
-                    if c in sym_to_idx:
-                        c_idx = sym_to_idx[c]
+                    c_idx = sym_to_idx.get(c, sym_to_idx.get(_canon(c)))
+                    if c_idx is not None:
                         A[s_idx, c_idx] = 1.0
 
         # Renormalization Trick: A_tilde = A + I
@@ -380,8 +399,9 @@ class SupplyChainEngine(BaseStrategyEngine):
         # Initial Signal vector H0
         H = np.zeros(N, dtype=float)
         for s, r in returns_series.items():
-            if s in sym_to_idx:
-                H[sym_to_idx[s]] = float(r) if pd.notna(r) else 0.0
+            idx = sym_to_idx.get(s, sym_to_idx.get(_canon(s)))
+            if idx is not None:
+                H[idx] = float(r) if pd.notna(r) else 0.0
 
         # Multi-hop diffusion with true geometric decay: gamma^hop * A^hop * H
         diffused_H = H.copy()

@@ -1012,11 +1012,15 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
             elif col_name == 'put_call_ratio':
                 return (col_name, df['Close'].ffill().fillna(0.6))
             elif col_name in ('us10y', 'us3m_yield', 'kr10y'):
-                # ^TNX, ^IRX: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5)
+                # ^TNX, ^IRX: yfinance reports yield × 10 (e.g. 4.25% → Close=42.5, 1.2% → Close=12.0)
                 # FRED / ECOS report actual percentage (e.g. 3.50% → Close=3.5)
-                # Divide by 10 ONLY if raw value > 15.0 to handle yfinance ×10 convention safely.
                 raw_yield = df['Close'].ffill()
-                scaled = raw_yield.apply(lambda v: v / 10.0 if (pd.notna(v) and v > 15.0) else v)
+                if ticker.startswith('^TNX') or ticker.startswith('^IRX'):
+                    scaled = raw_yield / 10.0
+                elif (raw_yield.median() > 10.0) if not raw_yield.empty else False:
+                    scaled = raw_yield / 10.0
+                else:
+                    scaled = raw_yield
                 return (col_name, scaled.fillna(float('nan')))
             elif col_name in ('kr_base_rate', 'kr_cd91d', 'kr3y'):
                 # ECOS / FRED Korea interest rates: already in real % (e.g. 3.5)
@@ -1125,8 +1129,8 @@ def fetch_indicator_history(start_date: str, price_db: Optional[StockPriceDB] = 
     if 'us10y' in result.columns:
         result['real_rate_proxy'] = result['us10y'] - 2.5  # Nominal 10Y minus 2.5% inflation anchor
 
-    # Forward-fill / backward-fill to eliminate NaNs from staggered market hours (US vs KRX vs FX)
-    result = result.ffill().bfill()
+    # Forward-fill to handle staggered market hours; fill initial warmup NaNs with neutral 0.0 (no backward lookahead)
+    result = result.ffill().fillna(0.0)
 
     logger.info(f"Fetched indicator history: {len(result)} rows x {len(result.columns)} cols")
     return result

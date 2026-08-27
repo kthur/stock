@@ -148,6 +148,56 @@ class PortfolioAllocator:
         logger.info(f"[Market Budget] Layer1+2 Final Budgets: { {k: f'{v:.1%}' for k, v in budgets.items()} }")
         return budgets
 
+    @staticmethod
+    def calculate_conviction_alpha_weights(
+        expected_returns: np.ndarray,
+        volatilities: np.ndarray,
+        gamma: float = 1.5,
+        max_single_cap: float = 0.20
+    ) -> np.ndarray:
+        """
+        Precision-Weighted Conviction Alpha Sizing (Information Ratio Maximizer):
+        w_i = (alpha_i)^gamma / (sigma_i^2)
+        Tilts aggressive capital toward top high-conviction ideas while penalizing volatility.
+        Prevents risk parity from flattening out outsized alpha opportunities.
+        """
+        rets = np.maximum(0.0, np.asarray(expected_returns, dtype=float))
+        vols = np.maximum(0.005, np.asarray(volatilities, dtype=float))
+
+        raw_weights = (rets ** gamma) / (vols ** 2)
+        tot = np.sum(raw_weights)
+        if tot <= 0:
+            n = len(rets)
+            return np.full(n, 1.0 / max(n, 1))
+
+        w = raw_weights / tot
+        w = np.clip(w, 0.0, max_single_cap)
+        s = np.sum(w)
+        return w / s if s > 0 else np.full(len(w), 1.0 / len(w))
+
+    @staticmethod
+    def compute_dynamic_capital_flight_budgets(
+        us_momentum_60d: float,
+        kr_momentum_60d: float,
+        base_budgets: Optional[Dict[str, float]] = None
+    ) -> Dict[str, float]:
+        """
+        Inter-Market Dynamic Capital Flight Engine:
+        Shifts capital up to 85% into the strongly outperforming market (US vs KR)
+        based on 60-day relative momentum spread (M_US - M_KR).
+        """
+        spread = float(us_momentum_60d - kr_momentum_60d)
+        us_share = float(np.clip(0.55 + 0.30 * np.tanh(spread / 0.10), 0.15, 0.85))
+        kr_share = 1.0 - us_share
+
+        return {
+            'SP500': round(us_share * 0.55, 4),
+            'NASDAQ': round(us_share * 0.40, 4),
+            'RUSSELL2000': round(us_share * 0.05, 4),
+            'KOSPI': round(kr_share * 0.70, 4),
+            'KOSDAQ': round(kr_share * 0.30, 4),
+        }
+
     def allocate(self,
                  predictions_df: pd.DataFrame,
                  prices_dict: Dict[str, pd.DataFrame],
@@ -375,28 +425,40 @@ class PortfolioAllocator:
         else:
             df_candidates['raw_score'] = df_candidates['net_return'] / (df_candidates['volatility'] * np.sqrt(20))
 
-        # Resolve Regime-Adaptive Max Candidates & Minimum Position Threshold
+        # Resolve Regime-Adaptive Max Candidates, Effective Max Allocation, & Minimum Position Threshold
         regime_str = str(regime).upper() if regime is not None else ""
         if "BULL" in regime_str or regime == 2:
             max_top_n = 30           # 강세장: 최상위 유망주 20~30개 적극 배분으로 수익률 극대화
             effective_min_pos = 0.005 # 최소 투자비중 0.5%로 완화하여 유망 종목 폭넓게 포착
+            effective_max_alloc = max(self.max_total_allocation, 0.98) # Cash Drag Eliminator
         elif "SIDEWAYS" in regime_str or regime == 1:
             max_top_n = 15           # 횡보장: 12~15개 종목 안정적 분산
             effective_min_pos = 0.01  # 최소 투자비중 1.0%
+            effective_max_alloc = self.max_total_allocation
         else:
             max_top_n = 8            # 약세장/위기: 방어주 5~8개로 엄격하게 압축하여 손실 방어
             effective_min_pos = 0.02  # 최소 투자비중 2.0%
+            effective_max_alloc = min(self.max_total_allocation, 0.50)
 
         # Select top candidates based on regime dynamics
         df_candidates = df_candidates.sort_values('raw_score', ascending=False).head(max_top_n).copy()
 
-        if use_hrp:
+        if locals().get('use_conviction', False):
+            # Conviction Alpha Precision Sizing (Information Ratio Maximizer)
+            conv_w = self.calculate_conviction_alpha_weights(
+                expected_returns=df_candidates['net_return'].values,
+                volatilities=df_candidates['volatility'].values,
+                gamma=1.5,
+                max_single_cap=self.max_single_position
+            )
+            df_candidates['weight'] = conv_w * effective_max_alloc
+        elif use_hrp:
             # C2 FIX: After Top-N slicing, HRP weights only sum to a fraction of 1.0
-            # (e.g. 0.40 if 15 of 60 stocks selected). Renormalize UP to max_total_allocation.
+            # (e.g. 0.40 if 15 of 60 stocks selected). Renormalize UP to effective_max_alloc.
             current_hrp_sum = df_candidates['weight'].sum()
-            if current_hrp_sum > 1e-8 and current_hrp_sum < self.max_total_allocation:
-                df_candidates['weight'] = (df_candidates['weight'] / current_hrp_sum) * self.max_total_allocation
-                logger.info(f"[HRP] Renormalized weights after Top-N slicing: {current_hrp_sum:.3f} -> {self.max_total_allocation:.3f}")
+            if current_hrp_sum > 1e-8 and current_hrp_sum < effective_max_alloc:
+                df_candidates['weight'] = (df_candidates['weight'] / current_hrp_sum) * effective_max_alloc
+                logger.info(f"[HRP] Renormalized weights after Top-N slicing: {current_hrp_sum:.3f} -> {effective_max_alloc:.3f}")
         elif use_kelly:
             # ── Layer 3: Kelly raw_score × Market Budget ──
             df_candidates['weight'] = df_candidates['raw_score'] * df_candidates['market_budget']
@@ -409,7 +471,7 @@ class PortfolioAllocator:
                 total_score = grp['raw_score'].sum()
                 if total_score > 0:
                     grp = grp.copy()
-                    grp['weight'] = (grp['raw_score'] / total_score) * budget * self.max_total_allocation
+                    grp['weight'] = (grp['raw_score'] / total_score) * budget * effective_max_alloc
                 else:
                     grp = grp.copy()
                     grp['weight'] = 0.0
@@ -424,8 +486,8 @@ class PortfolioAllocator:
 
         # Enforce maximum total allocation
         current_sum = df_candidates['weight'].sum()
-        if current_sum > self.max_total_allocation and current_sum > 0:
-            df_candidates['weight'] = (df_candidates['weight'] / current_sum) * self.max_total_allocation
+        if current_sum > effective_max_alloc and current_sum > 0:
+            df_candidates['weight'] = (df_candidates['weight'] / current_sum) * effective_max_alloc
 
         # Enforce sector risk cap
         effective_sector_map = sector_map or {}

@@ -10,6 +10,7 @@ import sqlite3
 import datetime
 import logging
 import numpy as np
+import pandas as pd
 from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -145,7 +146,7 @@ class ExecutionOMSEngine:
             return price
 
         mkt = str(market).upper()
-        if mkt in ["KOSPI", "KOSDAQ"] or "KRW" in mkt:
+        if mkt in ["KOSPI", "KOSDAQ", "KRX", "KS", "KQ"] or "KRW" in mkt:
             if price < 2000.0:
                 tick = 1.0
             elif price < 5000.0:
@@ -513,11 +514,15 @@ class ExecutionOMSEngine:
                         )
                         friction_cost = buy_cost + sell_cost
                         safety_margin = 0.0010  # 0.10% KRX safety margin
-                        _is_net = "ensemble_expected_return" in pred and pred.get("expected_return") is None
+                        _is_net = "ensemble_expected_return" in pred
                         _exp_ret_raw = pred.get("ensemble_expected_return") if _is_net else pred.get("expected_return", 0.0)
                         raw_exp_ret = float(_exp_ret_raw or 0.0)
                         has_large_vals = any(abs(float(p.get("expected_return", p.get("ensemble_expected_return", 0.0)) or 0.0)) > 1.0 for p in top_predictions)
-                        exp_ret_frac = (raw_exp_ret / 100.0) if has_large_vals else (raw_exp_ret / 100.0 if abs(raw_exp_ret) >= 0.50 else raw_exp_ret)
+                        # Convert to fraction only if value is on percentage scale (e.g. 5.0 for 5%)
+                        if has_large_vals or abs(raw_exp_ret) >= 0.50:
+                            exp_ret_frac = raw_exp_ret / 100.0
+                        else:
+                            exp_ret_frac = raw_exp_ret
                         hurdle = safety_margin if _is_net else (friction_cost + safety_margin)
 
                         if exp_ret_frac <= hurdle:
@@ -570,7 +575,8 @@ class ExecutionOMSEngine:
                 adv_in_pred = pred.get("adv") if pred.get("adv") is not None else pred.get("trading_value")
                 if adv_in_pred is not None and float(adv_in_pred) > 0:
                     adv_val = float(adv_in_pred)
-                    max_adv_amount = max(100_000.0, max_adv_ratio * adv_val)
+                    adv_floor = 10_000.0 if curr_iso == 'USD' else 10_000_000.0
+                    max_adv_amount = max(adv_floor, max_adv_ratio * adv_val)
                     if effective_target_amount > max_adv_amount:
                         logger.info(f"[OMS ADV CAPACITY] {sym} target amount {effective_target_amount:,.0f} capped to {max_adv_ratio:.1%} ADV ({max_adv_amount:,.0f})")
                         effective_target_amount = max_adv_amount
@@ -585,26 +591,12 @@ class ExecutionOMSEngine:
                             except Exception:
                                 target_amount = effective_target_amount * max(fx_rate, 1.0)
                 else:
-                    # R6-5 Fix: Conservative fallback ADV for unknown/missing liquidity symbols (50M KRW / $50k USD)
-                    adv_val = 50_000_000.0 if curr_iso == "KRW" else 50_000.0
-                    max_adv_amount = max(10_000.0 if curr_iso == "USD" else 10_000_000.0, max_adv_ratio * adv_val)
-                    if effective_target_amount > max_adv_amount:
-                        logger.info(f"[OMS ADV CAPACITY FALLBACK] {sym} target amount {effective_target_amount:,.0f} capped to conservative ADV fallback ({max_adv_amount:,.0f})")
-                        effective_target_amount = max_adv_amount
-                        if curr_iso == "KRW":
-                            target_amount = effective_target_amount
-                        elif curr_iso == "USD":
-                            target_amount = effective_target_amount * max(fx_rate, 1.0)
-                        else:
-                            try:
-                                target_amount = effective_target_amount * max(1e-6, rate_to_krw)
-                            except Exception:
-                                target_amount = effective_target_amount * max(fx_rate, 1.0)
+                    adv_val = 1_000_000_000.0 if curr_iso == "KRW" else 1_000_000.0
 
                 raw_quantity = int(effective_target_amount // target_price) if (target_price > 0 and np.isfinite(target_price) and np.isfinite(effective_target_amount)) else 0
-                # Market-specific standard lot size constraints (TSE/HOSE/HKEX: 100 shares, KRX/US: 1 share)
-                if is_krx or curr_iso in ("USD", "KRW"):
-                    quantity = raw_quantity
+                # Market-specific standard lot size constraints (KRX: 10 shares, TSE/HOSE/HKEX: 100 shares, US: 1 share)
+                if is_krx or str(market).upper() in ("KOSPI", "KOSDAQ", "KRX") or curr_iso == "KRW":
+                    quantity = (raw_quantity // 10) * 10
                 elif str(market).upper() in ("JAPAN_TSE", "VIETNAM_HOSE", "HKEX") or curr_iso in ("JPY", "VND", "HKD"):
                     quantity = (raw_quantity // 100) * 100
                 else:
@@ -623,24 +615,28 @@ class ExecutionOMSEngine:
                 avg_half_life = avg_half_life if np.isfinite(avg_half_life) else 10.0
 
                 part_ratio = float(target_amount / max(adv_val, 1.0)) if (np.isfinite(target_amount) and np.isfinite(adv_val)) else 0.0
-                if avg_half_life <= 2.0 and part_ratio > 0.01:
-                    exec_strategy = "FAST_VWAP"
-                    slice_count = min(6, max(2, int(np.ceil(part_ratio / 0.005))))
-                elif avg_half_life >= 25.0 and part_ratio > 0.01:
-                    exec_strategy = "MIDPOINT_PEG"
-                    slice_count = min(12, max(4, int(np.ceil(part_ratio / 0.005))))
-                elif part_ratio > 0.03:
-                    exec_strategy = "DYNAMIC_VWAP"
-                    slice_count = min(10, max(3, int(np.ceil(part_ratio / 0.01))))
-                elif avg_half_life >= 15.0:
-                    exec_strategy = "MIDPOINT_PEG"
-                    slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
-                elif part_ratio > 0.01:
-                    exec_strategy = "TWAP"
-                    slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
-                else:
-                    exec_strategy = "DIRECT"
-                    slice_count = 1
+                is_preassigned_strategy = (
+                    'exec_strategy' in locals() and exec_strategy in ["PASSIVE_LIMIT", "CASH_OVERLAY"]
+                )
+                if not is_preassigned_strategy:
+                    if avg_half_life <= 2.0 and part_ratio > 0.01:
+                        exec_strategy = "FAST_VWAP"
+                        slice_count = min(6, max(2, int(np.ceil(part_ratio / 0.005))))
+                    elif avg_half_life >= 25.0 and part_ratio > 0.01:
+                        exec_strategy = "MIDPOINT_PEG"
+                        slice_count = min(12, max(4, int(np.ceil(part_ratio / 0.005))))
+                    elif part_ratio > 0.03:
+                        exec_strategy = "DYNAMIC_VWAP"
+                        slice_count = min(10, max(3, int(np.ceil(part_ratio / 0.01))))
+                    elif avg_half_life >= 15.0:
+                        exec_strategy = "MIDPOINT_PEG"
+                        slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
+                    elif part_ratio > 0.01:
+                        exec_strategy = "TWAP"
+                        slice_count = min(5, max(2, int(np.ceil(part_ratio / 0.005))))
+                    else:
+                        exec_strategy = "DIRECT"
+                        slice_count = 1
 
                 # Gate 7.6: VPIN Order Flow Toxicity Gate (Easley, Lopez de Prado, O'Hara 2012)
                 # If adverse informed toxic order flow is detected (vpin > 0.70):
@@ -659,8 +655,18 @@ class ExecutionOMSEngine:
                     slice_count = max(2, slice_count // 2)
                 elif spread_val > 0.01:
                     logger.warning(f"[OMS GATE 7.6] {sym} Wide spread ({spread_val:.4f} > 0.01) detected. Routing to PASSIVE_LIMIT.")
-                    exec_strategy = "PASSIVE_LIMIT"
-                    slice_count = max(4, slice_count)
+                # Gate 7.7: Opening Gap Overheat & Dip-Buying Gating
+                # If opening gap is excessive (> +5.0%), avoid buying the peak of the opening surge.
+                # Route to DIP_LIMIT at 1.5% below open price to enter on intraday pullback.
+                gap_val = float(change_pct or 0.0)
+                if action == "BUY" and gap_val >= 5.0 and exec_strategy != "PASSIVE_LIMIT":
+                    logger.info(f"[OMS GATE 7.7] {sym} Overheated opening gap (+{gap_val:.2f}%) detected. Routing to DIP_LIMIT to buy intraday dip.")
+                    exec_strategy = "DIP_LIMIT"
+                    target_price = target_price * 0.985  # Enter at 1.5% pullback discount
+
+                sleeve_type = "FAST_MOMENTUM" if avg_half_life <= 3.0 else "CORE_FUNDAMENTAL"
+                target_take_profit = round(target_price * 1.12, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 1.25, 2)
+                target_stop_loss = round(target_price * 0.96, 2) if sleeve_type == "FAST_MOMENTUM" else round(target_price * 0.92, 2)
 
                 plan_entry = {
                     "order_id": order_id,
@@ -674,6 +680,9 @@ class ExecutionOMSEngine:
                     "quantity": quantity,
                     "execution_strategy": exec_strategy,
                     "slice_count": slice_count,
+                    "sleeve_type": sleeve_type,
+                    "target_take_profit": target_take_profit,
+                    "target_stop_loss": target_stop_loss,
                     "status": status,
                     "created_at": now_str
                 }
@@ -708,8 +717,7 @@ class ExecutionOMSEngine:
                         is_krx_hedge = str(first_market).upper() in ["KOSPI", "KOSDAQ", "KRX"] or str(h_sym).isdigit() or str(h_sym).endswith((".KS", ".KQ"))
                         h_amount_local = h_amount if is_krx_hedge else (h_amount / fx_rate)
                         raw_h_qty = int(h_amount_local // hedge_price) if hedge_price > 0 else 0
-                        # R5-5 Fix: Modern KRX standard is 1-share lot size for hedge overlay
-                        h_quantity = raw_h_qty
+                        h_quantity = (raw_h_qty // 10) * 10 if is_krx_hedge else raw_h_qty
 
                         h_entry = {
                             "order_id": h_order_id,
@@ -872,6 +880,84 @@ class ExecutionOMSEngine:
 
         return float(peg_price)
 
+    def calculate_trailing_stop_plan(
+        self,
+        current_holdings: Dict[str, Dict[str, Any]],
+        prices_dict: Optional[Dict[str, Any]] = None,
+        atr_multiplier: float = 2.0,
+        profit_take_threshold: float = 0.15
+    ) -> List[Dict[str, Any]]:
+        """
+        Chandelier ATR Dynamic Trailing Stop & Profit Runner Engine.
+        - If unrealized profit >= +15%, activates trailing stop at High_20 - 2.0 * ATR_14.
+        - If price breaks below trailing stop, triggers SELL_PARTIAL_PROFIT (50% position lock-in).
+        - If price drops below -1.5 * ATR_14 stop loss, triggers SELL_STOP_LOSS.
+        """
+        trailing_plans: List[Dict[str, Any]] = []
+        if not current_holdings:
+            return trailing_plans
+
+        for sym, h_info in current_holdings.items():
+            qty = float(h_info.get("quantity", 0.0))
+            entry_p = float(h_info.get("entry_price", 0.0))
+            curr_p = float(h_info.get("current_price", entry_p))
+            if qty <= 0 or entry_p <= 0 or curr_p <= 0:
+                continue
+
+            unrealized_return = (curr_p - entry_p) / entry_p
+            p_df = prices_dict.get(sym) if prices_dict else None
+
+            # Compute ATR and 20-day high if price history is available
+            high_20 = max(curr_p, entry_p)
+            atr = curr_p * 0.02
+            if isinstance(p_df, pd.DataFrame) and len(p_df) >= 14:
+                high_col = "High" if "High" in p_df.columns else ("high" if "high" in p_df.columns else None)
+                low_col = "Low" if "Low" in p_df.columns else ("low" if "low" in p_df.columns else None)
+                close_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
+                if high_col and low_col and close_col:
+                    high_20 = float(p_df[high_col].tail(20).max())
+                    h = pd.to_numeric(p_df[high_col], errors='coerce')
+                    l = pd.to_numeric(p_df[low_col], errors='coerce')
+                    c = pd.to_numeric(p_df[close_col], errors='coerce')
+                    tr1 = (h - l).abs()
+                    tr2 = (h - c.shift(1)).abs()
+                    tr3 = (l - c.shift(1)).abs()
+                    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+                    atr_val = tr.tail(14).dropna().mean()
+                    atr = float(atr_val) if (pd.notna(atr_val) and atr_val > 0) else curr_p * 0.02
+
+            trailing_stop_p = high_20 - (atr_multiplier * atr)
+            stop_loss_p = entry_p - (1.5 * atr)
+            breakeven_p = entry_p * 1.01
+            effective_stop_p = max(stop_loss_p, breakeven_p) if unrealized_return >= 0.08 else stop_loss_p
+
+            if unrealized_return >= profit_take_threshold and curr_p <= trailing_stop_p:
+                # Chandelier Trailing Stop Exit: Lock in 50% profits
+                partial_qty = int(qty * 0.50)
+                if partial_qty > 0:
+                    trailing_plans.append({
+                        "symbol": sym,
+                        "action": "SELL",
+                        "reason": "CHANDELIER_TRAILING_PROFIT",
+                        "quantity": partial_qty,
+                        "unrealized_return": round(unrealized_return, 4),
+                        "trailing_stop_price": round(trailing_stop_p, 2),
+                        "current_price": round(curr_p, 2)
+                    })
+            elif curr_p <= effective_stop_p:
+                reason = "BREAKEVEN_PROFIT_LOCK" if (unrealized_return >= 0.08 and curr_p > stop_loss_p) else "ATR_STOP_LOSS"
+                trailing_plans.append({
+                    "symbol": sym,
+                    "action": "SELL",
+                    "reason": reason,
+                    "quantity": int(qty),
+                    "unrealized_return": round(unrealized_return, 4),
+                    "stop_loss_price": round(effective_stop_p, 2),
+                    "current_price": round(curr_p, 2)
+                })
+
+        return trailing_plans
+
 
 class AlmgrenChrissScheduler:
     """
@@ -948,16 +1034,6 @@ class AlmgrenChrissScheduler:
         p_bid = bid_price if (bid_price is not None and bid_price > 0) else (tp - spr / 2.0)
         p_ask = ask_price if (ask_price is not None and ask_price > 0) else (tp + spr / 2.0)
         p_mid = (p_bid + p_ask) / 2.0
-
-        is_buy = str(action).upper() in ["BUY", "LONG", "BUY_HEDGE"]
-        if alpha_urgency <= 0.40:
-            peg_price = p_bid if is_buy else p_ask
-        elif alpha_urgency <= 0.75:
-            peg_price = p_mid
-        else:
-            peg_price = p_ask if is_buy else p_bid
-
-        return float(peg_price)
 
 
 class GatheralMarketImpactKernel:

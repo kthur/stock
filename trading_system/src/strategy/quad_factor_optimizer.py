@@ -188,7 +188,7 @@ class QuadFactorNeutralOptimizer:
         elif w_sum <= 0 or not np.isfinite(w_sum):
             w_opt = np.full(n, 1.0 / n, dtype=np.float64)
 
-        return {symbols[i]: round(float(w_opt[i]), 4) if (i < len(w_opt) and np.isfinite(w_opt[i])) else round(1.0 / n, 4) for i in range(n)}
+        return {symbols[i]: float(w_opt[i]) if (i < len(w_opt) and np.isfinite(w_opt[i])) else float(1.0 / n) for i in range(n)}
 
     def optimize_portfolio(self, *args, **kwargs) -> Dict[str, float]:
         return self.optimize(*args, **kwargs)

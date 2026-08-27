@@ -78,7 +78,7 @@ def calculate_cross_correlation(indices_data: pd.DataFrame, lags: int = 5) -> pd
                 val = returns[t1].corr(shifted[t2])
                 if val is not None and np.isfinite(val):
                     corr_df.loc[t1, (t2, lag)] = float(val)
-                elif lag == 0 and t1 == t2:
+                elif lag == 0 and t1 == t2 and returns[t1].notna().sum() >= 2 and (float(returns[t1].std()) > 1e-8):
                     corr_df.loc[t1, (t2, lag)] = 1.0
                 else:
                     corr_df.loc[t1, (t2, lag)] = 0.0
