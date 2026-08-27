@@ -829,7 +829,8 @@ class PortfolioAllocator:
         volatilities: Optional[pd.Series] = None,
         max_weight: Optional[float] = None,
         kelly_fraction: float = 0.25,
-        risk_free_rate: float = 0.035
+        risk_free_rate: float = 0.035,
+        top_k_concentration: Optional[int] = None
     ) -> Dict[str, float]:
         """
         Allocates portfolio weights using Fractional Kelly (Quarter-Kelly) Sizing:
@@ -837,6 +838,7 @@ class PortfolioAllocator:
         subject to 0 <= w_i <= max_weight and sum(w_i) <= 1.0.
 
         Guarantees optimal long-term geometric compounding while suppressing drawdown risk.
+        If top_k_concentration is provided, concentrates capital on top-K conviction assets to eliminate dilution drag.
         """
         if expected_returns.empty:
             return {}
@@ -863,6 +865,14 @@ class PortfolioAllocator:
 
         # Raw Kelly score: kelly_fraction * (excess_mu / sigma_i^2)
         raw_kelly = float(kelly_fraction) * (excess_mu / (vols ** 2))
+
+        # Top-K Conviction Concentration Filter (Eliminate tail dilution drag)
+        if top_k_concentration is not None and 0 < top_k_concentration < n_assets:
+            top_k_indices = np.argsort(raw_kelly)[::-1][:top_k_concentration]
+            mask = np.zeros(n_assets, dtype=bool)
+            mask[top_k_indices] = True
+            raw_kelly = np.where(mask, raw_kelly, 0.0)
+
         total_k = np.sum(raw_kelly)
 
         if total_k <= 1e-8:
@@ -900,7 +910,8 @@ class PortfolioAllocator:
         target_annual_vol: float = 0.15,
         max_weight: Optional[float] = None,
         kelly_fraction: float = 0.25,
-        returns_df: Optional[pd.DataFrame] = None
+        returns_df: Optional[pd.DataFrame] = None,
+        top_k_concentration: Optional[int] = None
     ) -> Dict[str, float]:
         """
         Allocates portfolio weights combining Fractional Kelly with Volatility Targeting:
@@ -913,7 +924,8 @@ class PortfolioAllocator:
             expected_returns=expected_returns,
             volatilities=volatilities,
             max_weight=max_weight,
-            kelly_fraction=kelly_fraction
+            kelly_fraction=kelly_fraction,
+            top_k_concentration=top_k_concentration
         )
         if not base_weights:
             return {}

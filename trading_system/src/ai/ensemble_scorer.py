@@ -1343,6 +1343,7 @@ class EnsembleScoringEngine:
 
     def calculate_ensemble_score(self,
                                  regime: Union[int, str] = 'BULL_LOW_VOL',
+                                 scores_df: Optional[pd.DataFrame] = None,
                                  regression_df: Optional[pd.DataFrame] = None,
                                  surge_df: Optional[pd.DataFrame] = None,
                                  lead_lag_df: Optional[pd.DataFrame] = None,
@@ -1444,6 +1445,7 @@ class EnsembleScoringEngine:
         self.strategy_weights = us_weights
 
         return self.combine_predictions(
+            scores_df=scores_df,
             reg_df=regression_df,
             s_df=surge_df,
             ll_df=lead_lag_df,
@@ -1489,6 +1491,7 @@ class EnsembleScoringEngine:
         )
 
     def combine_predictions(self,
+                            scores_df: Optional[pd.DataFrame] = None,
                             reg_df: Optional[pd.DataFrame] = None,
                             s_df: Optional[pd.DataFrame] = None,
                             ll_df: Optional[pd.DataFrame] = None,
@@ -2083,22 +2086,25 @@ class EnsembleScoringEngine:
             etd_df = pd.DataFrame(columns=['symbol', 'earnings_tone_drift_score'])
 
         # Combine all 31 strategy DataFrames efficiently while preserving metadata
-        dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df]
-        valid_dfs = []
-        for d in dfs:
-            if d is not None and not d.empty and 'symbol' in d.columns:
-                d_idx = d.copy()
-                d_idx['symbol'] = d_idx['symbol'].astype(str)
-                d_idx = d_idx.drop_duplicates(subset=['symbol']).set_index('symbol')
-                valid_dfs.append(d_idx)
-
-        if valid_dfs:
-            merged = pd.concat(valid_dfs, axis=1)
-            if merged.columns.has_duplicates:
-                merged = merged.loc[:, ~merged.columns.duplicated(keep='first')]
-            merged = merged.reset_index()
+        if scores_df is not None and not scores_df.empty:
+            merged = scores_df.copy()
         else:
-            merged = pd.DataFrame(columns=['symbol'])
+            dfs = [reg_df_copy, s_df_copy, ll_df_copy, vr_df, v_df, l_df, sa_df, sec_df, r_val_df, ev_df, m_df, iv_df, of_df, rev_df, a_df, c_df, la_df, ifs_df, sc_df, sent_df, fn_df, vt_df, micro_df, aq_df, sq_df, vu_df, te_df, gs_df, ib_df, dp_df, etd_df]
+            valid_dfs = []
+            for d in dfs:
+                if d is not None and not d.empty and 'symbol' in d.columns:
+                    d_idx = d.copy()
+                    d_idx['symbol'] = d_idx['symbol'].astype(str)
+                    d_idx = d_idx.drop_duplicates(subset=['symbol']).set_index('symbol')
+                    valid_dfs.append(d_idx)
+
+            if valid_dfs:
+                merged = pd.concat(valid_dfs, axis=1)
+                if merged.columns.has_duplicates:
+                    merged = merged.loc[:, ~merged.columns.duplicated(keep='first')]
+                merged = merged.reset_index()
+            else:
+                merged = pd.DataFrame(columns=['symbol'])
 
         # Map strategy names to score column names
         strategy_cols = [
@@ -2312,6 +2318,15 @@ class EnsembleScoringEngine:
                 merged['fast_alpha_score'] = s_fast
                 merged['fast_alpha_intraday_eligible'] = (merged['fast_alpha_score'] >= 0.70)
 
+            # Multi-Horizon Strategy Alpha Sleeve Tagging (Fast: 1-3d, Medium: 5-20d, Slow: 30-90d)
+            s_slow_arr = np.nan_to_num(s_slow if s_slow is not None else 0.0, nan=0.0)
+            s_med_arr = np.nan_to_num(s_med if s_med is not None else 0.0, nan=0.0)
+            s_fast_arr = np.nan_to_num(s_fast if s_fast is not None else 0.0, nan=0.0)
+            tier_matrix = np.column_stack([s_slow_arr, s_med_arr, s_fast_arr])
+            sleeve_labels = ['SLOW', 'MEDIUM', 'FAST']
+            max_idx = np.argmax(tier_matrix, axis=1)
+            merged['alpha_sleeve'] = [sleeve_labels[i] for i in max_idx]
+
             has_any_tier = any(c in merged.columns for c in ['slow_alpha_score', 'medium_alpha_score', 'fast_alpha_score'])
             if len(merged) >= 5 and has_any_tier:
                 w_slow = self.TIER_WEIGHTS.get('slow', 0.50)
@@ -2365,7 +2380,7 @@ class EnsembleScoringEngine:
                 synergy_multiplier = np.where(strong_signal_counts >= 3, 1.0 + 0.03 * (strong_signal_counts - 2), 1.0)
                 blended_score = pd.Series((blended_score * synergy_multiplier), index=merged.index).clip(0.0, 1.0)
 
-                # Phase 2-B: Triple Confirmation Alpha Booster (Valuation + Momentum + Institutional Flow)
+                # Phase 2-B: Quadruple / Triple Confirmation Alpha Booster (Valuation + Momentum + Flow + Catalyst)
                 has_val = pd.Series(False, index=merged.index)
                 if 'rim_score' in merged.columns:
                     has_val = has_val | merged['rim_score'].ge(0.60)
@@ -2392,16 +2407,40 @@ class EnsembleScoringEngine:
                 if 'darkpool_score' in merged.columns:
                     has_flow = has_flow | merged['darkpool_score'].ge(0.60)
 
-                # Triple Confluence (All 3 pillars confirmed) -> 5.0% super-linear alpha boost
-                triple_confluence_mask = (has_val & has_mom & has_flow)
-                if triple_confluence_mask.any():
-                    blended_score.loc[triple_confluence_mask] = (blended_score.loc[triple_confluence_mask] * 1.050).clip(0.0, 1.0)
-                    logger.info(f"[TRIPLE CONFLUENCE] Applied 1.050x boost to {triple_confluence_mask.sum()} high-conviction symbols.")
+                has_cat = pd.Series(False, index=merged.index)
+                if 'supply_chain_score' in merged.columns:
+                    has_cat = has_cat | merged['supply_chain_score'].ge(0.60)
+                if 'event_score' in merged.columns:
+                    has_cat = has_cat | merged['event_score'].ge(0.60)
+                if 'sentiment_score' in merged.columns:
+                    has_cat = has_cat | merged['sentiment_score'].ge(0.60)
+                if 'short_squeeze_score' in merged.columns:
+                    has_cat = has_cat | merged['short_squeeze_score'].ge(0.60)
+                if 'gamma_squeeze_score' in merged.columns:
+                    has_cat = has_cat | merged['gamma_squeeze_score'].ge(0.60)
 
-                # Dual Confluence (2 pillars confirmed, not triple) -> 2.5% synergy boost
-                dual_confluence_mask = ((has_mom & has_flow) | (has_val & has_mom) | (has_val & has_flow)) & ~triple_confluence_mask
+                # Quadruple Confluence (All 4 pillars confirmed) -> 10.0% super-linear alpha boost
+                quadruple_confluence_mask = (has_val & has_mom & has_flow & has_cat)
+                if quadruple_confluence_mask.any():
+                    blended_score.loc[quadruple_confluence_mask] = (blended_score.loc[quadruple_confluence_mask] * 1.100).clip(0.0, 1.0)
+                    logger.info(f"[QUADRUPLE CONFLUENCE] Applied 1.100x boost to {quadruple_confluence_mask.sum()} highest-conviction symbols.")
+
+                # Triple Confluence (3 pillars confirmed, not quadruple) -> 6.5% super-linear alpha boost
+                triple_confluence_mask = (
+                    ((has_val & has_mom & has_flow) | (has_val & has_mom & has_cat) | (has_val & has_flow & has_cat) | (has_mom & has_flow & has_cat))
+                    & ~quadruple_confluence_mask
+                )
+                if triple_confluence_mask.any():
+                    blended_score.loc[triple_confluence_mask] = (blended_score.loc[triple_confluence_mask] * 1.065).clip(0.0, 1.0)
+                    logger.info(f"[TRIPLE CONFLUENCE] Applied 1.065x boost to {triple_confluence_mask.sum()} high-conviction symbols.")
+
+                # Dual Confluence (2 pillars confirmed, not triple/quadruple) -> 3.5% synergy boost
+                dual_confluence_mask = (
+                    ((has_mom & has_flow) | (has_val & has_mom) | (has_val & has_flow) | (has_mom & has_cat) | (has_flow & has_cat) | (has_val & has_cat))
+                    & ~triple_confluence_mask & ~quadruple_confluence_mask
+                )
                 if dual_confluence_mask.any():
-                    blended_score.loc[dual_confluence_mask] = (blended_score.loc[dual_confluence_mask] * 1.025).clip(0.0, 1.0)
+                    blended_score.loc[dual_confluence_mask] = (blended_score.loc[dual_confluence_mask] * 1.035).clip(0.0, 1.0)
 
                 # Phase 2-C: Fundamental Distress Gatekeeper vs High-Quality Compounder Dual Gate
                 if 'operating_margin' in merged.columns or 'roe' in merged.columns:
@@ -2716,7 +2755,7 @@ class EnsembleScoringEngine:
         cost_scaling = getattr(self, 'cost_scaling_factor', 1.0)
         max_cost_cap = np.where(ov_mask, 0.20, 0.05)
         cost_series = np.minimum(raw_total_cost * cost_scaling, max_cost_cap)
-        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - cost_series * 100.0, -50.0, 50.0)
+        merged['ensemble_expected_return'] = np.clip(raw_exp_ret - cost_series * 100.0, 0.0, 50.0)
 
         # Apply Sentiment Blacklist filter (zero-weighting for critical disclosure risk)
         if sentiment_blacklist:
