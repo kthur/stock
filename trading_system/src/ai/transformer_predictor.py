@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 class PositionalEncoding(nn.Module):
+    pe: torch.Tensor
+
     def __init__(self, d_model: int, max_len: int = 500, dropout: float = 0.1):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
@@ -33,7 +35,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (batch, seq_len, d_model)
         x = x + self.pe[:, :x.size(1), :]
-        return cast(torch.Tensor, self.dropout(x))
+        return self.dropout(x)  # type: ignore[no-any-return]
 
 
 class TimeSeriesPatchTransformer(nn.Module):
