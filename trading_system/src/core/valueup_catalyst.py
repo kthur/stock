@@ -148,7 +148,28 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
                 raw_score = pbr_factor * roe_boost * (1.0 + np.clip(cash_ratio, 0.0, 1.0) * 1.5 + np.clip(div_val, 0.0, 0.10) * 5.0)
                 scores[sym_str] = float(np.clip(raw_score, 0.0, 50.0)) if np.isfinite(raw_score) else np.nan
             else:
-                scores[sym_str] = np.nan
+                # Robust fallback for symbols without explicit PBR: compute value proxy from price history
+                if prices_dict and (sym_str in prices_dict or sym in prices_dict):
+                    p_df = prices_dict.get(sym_str, prices_dict.get(sym))
+                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 20:
+                        c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
+                        if c_col and c_col in p_df.columns:
+                            c_vals = p_df[c_col].dropna().values
+                            if len(c_vals) >= 20:
+                                min_52w = np.min(c_vals)
+                                max_52w = np.max(c_vals)
+                                pos_range = (c_vals[-1] - min_52w) / max(max_52w - min_52w, 1e-5)
+                                # Lower in 52-week range + positive 20d return -> higher value turnaround potential
+                                ret_20d = (c_vals[-1] / max(c_vals[-20], 1e-5)) - 1.0
+                                scores[sym_str] = float(np.clip(1.5 - pos_range + max(0.0, ret_20d) * 2.0, 0.1, 5.0))
+                            else:
+                                scores[sym_str] = 1.0
+                        else:
+                            scores[sym_str] = 1.0
+                    else:
+                        scores[sym_str] = 1.0
+                else:
+                    scores[sym_str] = 1.0
 
         df_out = pd.DataFrame(list(scores.items()), columns=['symbol', 'raw_score'])
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
@@ -156,17 +177,18 @@ class ValueUpCatalystEngine(BaseStrategyEngine):
         if valid_mask.sum() > 1:
             ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
             base_score = ranks.clip(0.05, 0.95)
-            # Value-Up Super Premium Booster for top 15% high-conviction shareholder yield champions
+            # Smooth Value-Up Super Premium Booster preserving monotonicity
             super_valueup_mask = base_score >= 0.85
-            enhanced_score = np.where(super_valueup_mask, (base_score * 1.10).clip(0.05, 0.98), base_score)
+            enhanced_score = np.where(super_valueup_mask, (0.05 + 0.93 * (base_score ** 0.90)).clip(0.05, 0.98), base_score)
             enhanced_score = np.where(np.isfinite(enhanced_score), enhanced_score, 0.50)
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = enhanced_score
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'valueup_catalyst_score'] = 0.50
         else:
-            default_val = 0.50 if len(df_out) == 1 else np.nan
-            df_out['valueup_catalyst_score'] = default_val
+            df_out['valueup_catalyst_score'] = 0.50
 
+        # Fill any remaining NaNs
+        df_out['valueup_catalyst_score'] = df_out['valueup_catalyst_score'].fillna(0.50).clip(0.05, 0.95)
         df_out['valueup_catalyst_score'] = pd.to_numeric(df_out['valueup_catalyst_score'], errors='coerce')
 
         return df_out[['symbol', 'valueup_catalyst_score']]

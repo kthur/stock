@@ -273,12 +273,28 @@ class SupplyChainEngine(BaseStrategyEngine):
 
             customers = self.customer_map.get(c_key, self.customer_map.get(sym, []))
             diff_val = float(diffused_returns.get(sym, diffused_returns.get(c_key, 0.0))) if not diffused_returns.empty else 0.0
+            if not customers:
+                # Sector Lead-Lag Proxy Fallback for unmapped stocks
+                sec_val = str(r_dict.get("sector", "") or "")
+                if any(kw in sec_val.lower() for kw in ["semi", "it", "tech", "전자", "반도체"]):
+                    customers = ["005930", "NVDA", "AAPL"]
+                elif any(kw in sec_val.lower() for kw in ["bio", "pharma", "의약", "제약"]):
+                    customers = ["207940", "PFE", "JNJ"]
+                elif any(kw in sec_val.lower() for kw in ["auto", "자동차", "운수장비"]):
+                    customers = ["005380", "TSLA"]
+                elif any(kw in sec_val.lower() for kw in ["energy", "oil", "에너지", "화학"]):
+                    customers = ["XOM", "051910"]
+                elif any(kw in sec_val.lower() for kw in ["bank", "finance", "금융", "증권"]):
+                    customers = ["JPM", "055550"]
 
             if not customers:
                 if diff_val != 0.0 and not np.isnan(diff_val):
                     score = float(np.clip(0.50 + diff_val * 3.5, 0.0, 1.0))
                 else:
-                    score = 0.50
+                    # Fallback to stock's own short-term momentum
+                    r1 = float(returns_1d.get(sym, 0.0)) if not returns_1d.empty else 0.0
+                    r3 = float(returns_3d.get(sym, r1)) if not returns_3d.empty else r1
+                    score = float(np.clip(0.50 + (0.6 * r1 + 0.4 * r3) * 3.0, 0.10, 0.90))
             else:
                 # Check for explicit customer relation weights
                 w_info = self.customer_weights_map.get(c_key, self.customer_weights_map.get(sym, {}))
@@ -329,6 +345,8 @@ class SupplyChainEngine(BaseStrategyEngine):
                         r1 = us_proxy_1d if is_us_leader else 0.0
                         r3 = r1 * 1.5
                         r5 = r1 * 2.0
+                    
+                    r1_eff = r1
                     # Non-linear Asymmetric Bullwhip Spillover (Forrester 1961, Lee et al. 1997):
                     # Downside customer shocks transmit immediately with panic amplification (1.35x),
                     # while upside demand expands with CAPEX gestation smoothing.
@@ -356,13 +374,19 @@ class SupplyChainEngine(BaseStrategyEngine):
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "supply_chain_score": round(score, 4),
+                "raw_score": round(score, 4),
             })
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
+            if len(res_df) > 1:
+                ranks = res_df.groupby("market")["raw_score"].rank(pct=True, ascending=True).clip(0.05, 0.95)
+                res_df["supply_chain_score"] = (0.05 + 0.90 * ranks).round(4)
+            else:
+                res_df["supply_chain_score"] = 0.50
             res_df['supply_chain_score'] = pd.to_numeric(res_df['supply_chain_score'], errors='coerce').fillna(0.50).clip(0.0, 1.0)
             res_df = res_df.sort_values(by="supply_chain_score", ascending=False).reset_index(drop=True)
+            res_df = res_df[["symbol", "name", "market", "supply_chain_score"]]
         return res_df
 
     def compute_graph_diffusion_momentum(

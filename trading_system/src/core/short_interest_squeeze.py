@@ -146,13 +146,12 @@ class ShortInterestSqueezeEngine(BaseStrategyEngine):
         valid_mask = df_out['raw_score'].notna() & np.isfinite(df_out['raw_score'])
 
         if valid_mask.sum() > 1:
-            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-            df_out.loc[valid_mask, 'short_squeeze_score'] = ranks.clip(0.05, 0.95)
+            ranks = df_out.loc[valid_mask, 'raw_score'].rank(pct=True, ascending=True).clip(0.05, 0.95)
+            df_out.loc[valid_mask, 'short_squeeze_score'] = (0.05 + 0.90 * ranks).clip(0.05, 0.98)
         elif valid_mask.sum() == 1:
             df_out.loc[valid_mask, 'short_squeeze_score'] = 0.50
         else:
-            df_out['short_squeeze_score'] = np.nan
+            df_out['short_squeeze_score'] = 0.50
 
-        df_out['short_squeeze_score'] = df_out['short_squeeze_score'].astype(float)
-
+        df_out['short_squeeze_score'] = df_out['short_squeeze_score'].fillna(0.50).astype(float).clip(0.05, 0.98)
         return df_out[['symbol', 'short_squeeze_score']]

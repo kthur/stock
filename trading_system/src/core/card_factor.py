@@ -205,4 +205,12 @@ class CARDFactorEngine(BaseStrategyEngine):
                 logger.warning(f"[CARD FACTOR] Error computing score for {sym}: {e}")
                 scores[sym] = 0.5
 
-        return make_score_dataframe(scores, 'card_score')
+        df_res = pd.DataFrame(list(scores.items()), columns=['symbol', 'raw_score'])
+        if len(df_res) > 1:
+            ranks = df_res['raw_score'].rank(pct=True, ascending=True).clip(0.05, 0.95)
+            df_res['card_score'] = (0.05 + 0.90 * ranks).round(4)
+        else:
+            df_res['card_score'] = 0.50
+
+        df_res['card_score'] = pd.to_numeric(df_res['card_score'], errors='coerce').fillna(0.50)
+        return df_res[['symbol', 'card_score']]

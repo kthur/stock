@@ -180,10 +180,15 @@ class IVSkewEngine(BaseStrategyEngine):
                 except Exception as e:
                     logger.debug(f"IV Skew task error: {e}")
 
-        res_list = [{'symbol': sym, 'iv_skew_score': float(results[sym]) if (sym in results and pd.notna(results[sym]) and np.isfinite(results[sym])) else np.nan} for sym in symbols]
+        res_list = [{'symbol': sym, 'raw_score': float(results[sym]) if (sym in results and pd.notna(results[sym]) and np.isfinite(results[sym])) else 0.50} for sym in symbols]
         df_out = pd.DataFrame(res_list)
-        df_out['iv_skew_score'] = pd.to_numeric(df_out['iv_skew_score'], errors='coerce')
-        return df_out
+        if len(df_out) > 1:
+            ranks = df_out['raw_score'].rank(pct=True, ascending=True).clip(0.05, 0.95)
+            df_out['iv_skew_score'] = (0.05 + 0.90 * ranks).round(4)
+        else:
+            df_out['iv_skew_score'] = 0.50
+        df_out['iv_skew_score'] = pd.to_numeric(df_out['iv_skew_score'], errors='coerce').fillna(0.50)
+        return df_out[['symbol', 'iv_skew_score']]
 
     def compute_scores(
         self,

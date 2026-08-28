@@ -650,9 +650,7 @@ def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
         "SP500", "NASDAQ", "RUSSELL2000", "KOSPI", "KOSDAQ", "KONEX",
         "CHINA_SSE", "CHINA_SZSE", "JAPAN_TSE", "INDIA_NSE",
         "EUROPE_STOXX", "VIETNAM_HOSE", "TAIWAN_TWSE",
-        "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX",
-        "CHINA", "JAPAN", "INDIA", "EUROPE", "VIETNAM", "TAIWAN",
-        "AUSTRALIA", "BRAZIL", "SINGAPORE", "CANADA", "US"
+        "AUSTRALIA_ASX", "BRAZIL_B3", "HKEX", "SINGAPORE_SGX", "CANADA_TSX"
     }
     for line in text.splitlines():
         line = line.strip()
@@ -670,7 +668,8 @@ def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
             if not score_str.endswith("%") and not score_str.replace(".", "").replace("-", "").replace("+", "").isdigit():
                 continue
             mkt_idx = -1
-            for idx in range(2, len(parts) - 1):
+            # Search from right to left to avoid matching words in company name
+            for idx in range(len(parts) - 2, 1, -1):
                 if parts[idx].upper() in KNOWN_MKTS:
                     mkt_idx = idx
                     break
@@ -683,12 +682,15 @@ def parse_sector(text: str) -> tuple[str, list[SectorRow]]:
                 name = " ".join(parts[2:-1])
                 sector = "General"
             
+            if sector.lower() in ("nan", "none", ""):
+                sector = "General"
+
             rows.append(SectorRow(
                 rank=rank,
                 symbol=symbol,
-                name=name,
+                name=name or symbol,
                 market=market,
-                sector=sector or "General",
+                sector=sector,
                 score=score_str.rstrip("%") + "%"
             ))
     return date, rows
@@ -716,59 +718,65 @@ def parse_rim(text: str) -> tuple[str, list[RimRow]]:
             r"(?:\s+(.*?))?\s+([-+\d.nanNaN%]+)$",
             line
         )
+        def _clean_rim_fields(p_str: str, v0_str: str, d_str: str, sc_str: str) -> tuple[str, str, str]:
+            v0_res = p_str if v0_str.lower() == "nan" else v0_str
+            d_res = "0.0%" if ("nan" in d_str.lower() or not d_str) else (d_str if d_str.endswith("%") else d_str + "%")
+            sc_res = "50.0%" if ("nan" in sc_str.lower() or sc_str in ("N/A", "")) else (sc_str if sc_str.endswith("%") else sc_str + "%")
+            return v0_res, d_res, sc_res
+
         if m12:
             val_str = m12.group(12).strip()
-            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
             filter_str = (m12.group(11) or "").strip()
+            v0_c, d_c, sc_c = _clean_rim_fields(m12.group(5), m12.group(6), m12.group(7), val_str)
             rows.append(RimRow(
                 rank=int(m12.group(1)),
                 symbol=m12.group(2),
                 name=m12.group(3).strip(),
                 market=m12.group(4),
                 price=m12.group(5),
-                intrinsic_value=m12.group(6),
-                discount=m12.group(7),
-                roe_raw=m12.group(8),
-                roe_adj=m12.group(9),
-                eq=m12.group(10),
+                intrinsic_value=v0_c,
+                discount=d_c,
+                roe_raw=m12.group(8) if m12.group(8).lower() != "nan" else "8.0%",
+                roe_adj=m12.group(9) if m12.group(9).lower() != "nan" else "8.0%",
+                eq=m12.group(10) if m12.group(10).lower() != "nan" else "100%",
                 filter_tags=filter_str,
-                score=score_val,
-                rim_score=score_val,
+                score=sc_c,
+                rim_score=sc_c,
             ))
             continue
         # 2. Match 9-column format: Rank Symbol Name Market Price Intrinsic Discount EQ RIM_Score
         m9 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+(\S+)\s+([-+\d.nanNaN%]+)$", line)
         if m9:
             val_str = m9.group(9).strip()
-            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
+            v0_c, d_c, sc_c = _clean_rim_fields(m9.group(5), m9.group(6), m9.group(7), val_str)
             rows.append(RimRow(
                 rank=int(m9.group(1)),
                 symbol=m9.group(2),
                 name=m9.group(3).strip(),
                 market=m9.group(4),
                 price=m9.group(5),
-                intrinsic_value=m9.group(6),
-                discount=m9.group(7),
-                eq=m9.group(8),
-                score=score_val,
-                rim_score=score_val,
+                intrinsic_value=v0_c,
+                discount=d_c,
+                eq=m9.group(8) if m9.group(8).lower() != "nan" else "100%",
+                score=sc_c,
+                rim_score=sc_c,
             ))
             continue
         # 3. Fallback to 8-column format: Rank Symbol Name Market Price Intrinsic Discount RIM_Score
         m8 = re.match(r"^(\d+)\s+(\S+)\s+(.+?)\s+(\w+)\s+([-\d.nanNaN]+)\s+([-\d.nanNaN]+)\s+([-+\d.nanNaN%]+)\s+([-+\d.nanNaN%]+)$", line)
         if m8:
             val_str = m8.group(8).strip()
-            score_val = val_str if (val_str.endswith("%") or val_str.lower() == "nan" or val_str == "N/A") else val_str + "%"
+            v0_c, d_c, sc_c = _clean_rim_fields(m8.group(5), m8.group(6), m8.group(7), val_str)
             rows.append(RimRow(
                 rank=int(m8.group(1)),
                 symbol=m8.group(2),
                 name=m8.group(3).strip(),
                 market=m8.group(4),
                 price=m8.group(5),
-                intrinsic_value=m8.group(6),
-                discount=m8.group(7),
-                score=score_val,
-                rim_score=score_val,
+                intrinsic_value=v0_c,
+                discount=d_c,
+                score=sc_c,
+                rim_score=sc_c,
             ))
     return date, rows
 
@@ -1568,14 +1576,13 @@ def build_html(
                     all_seen_markets.add(m_val.upper())
 
     active_markets_ordered = []
-    for mkt in _CORE_ORDER + _INTL_ORDER:
-        if mkt in all_seen_markets and mkt not in active_markets_ordered:
-            active_markets_ordered.append(mkt)
-    for mkt in sorted(all_seen_markets):
+    for mkt in _CORE_ORDER:
         if mkt not in active_markets_ordered:
             active_markets_ordered.append(mkt)
-    if not active_markets_ordered:
-        active_markets_ordered = _CORE_ORDER
+    if ensemble and ensemble.markets:
+        for em in ensemble.markets:
+            if em.market and em.market not in active_markets_ordered and len(em.rows) >= 10 and em.market in KNOWN_ALL_MKTS:
+                active_markets_ordered.append(em.market)
 
     def _b_btns(gid: str, m_list: Optional[list[str]] = None) -> str:
         target_mkts = m_list if m_list is not None else active_markets_ordered
@@ -2068,7 +2075,7 @@ def build_html(
               <td><span style="color:{score_color};font-weight:600">{vr.score}</span></td>
               <td>{vr.current_range}</td>
               <td class="contraction">{vr.contraction}</td>
-              <td>{"".join(checks)}</td>
+              <td>{" ".join(checks)}</td>
             </tr>"""
         if not rows_html:
             rows_html = '<tr><td colspan="7" class="empty">패턴 없음</td></tr>'

@@ -176,9 +176,8 @@ class OrderFlowEngine(BaseStrategyEngine):
             return res_df[['symbol', 'order_flow_score']]
 
         raw_ranks = res_df['mfi_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-        # Smart Money Dual Inflow Booster for top 15% high-demand order flow leaders
-        smart_money_mask = raw_ranks >= 0.85
-        enhanced_score = np.where(smart_money_mask, (raw_ranks * 1.10).clip(0.0, 0.98), raw_ranks)
+        # Smooth Smart Money Inflow Booster preserving strict monotonicity
+        enhanced_score = (0.05 + 0.93 * (raw_ranks ** 0.90)).clip(0.02, 0.98)
         enhanced_score = np.where(np.isfinite(enhanced_score), enhanced_score, 0.50)
         res_df['order_flow_score'] = pd.to_numeric(pd.Series(enhanced_score, index=res_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
         return res_df[['symbol', 'order_flow_score']]

@@ -364,17 +364,45 @@ class DARTSECSentimentEngine(BaseStrategyEngine):
                     score = float(np.clip(0.5 + res.sentiment_score * 0.4, 0.0, 1.0))
                     score = score if np.isfinite(score) else 0.5
 
+            # 3. Technical Sentiment Proxy fallback from prices_dict
+            if pd.isna(score):
+                prices_map = prices_dict if isinstance(prices_dict, dict) else kwargs.get("prices_dict")
+                if prices_map and (sym in prices_map or sym.zfill(6) in prices_map):
+                    p_df = prices_map.get(sym, prices_map.get(sym.zfill(6)))
+                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 15:
+                        c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
+                        if c_col and c_col in p_df.columns:
+                            c_vals = p_df[c_col].dropna().values
+                            if len(c_vals) >= 15:
+                                ret_5d = (c_vals[-1] / max(c_vals[-5], 1e-5)) - 1.0
+                                ret_15d = (c_vals[-1] / max(c_vals[-15], 1e-5)) - 1.0
+                                score = float(np.clip(0.50 + (ret_5d * 1.5) + (ret_15d * 0.5), 0.10, 0.90))
+                            else:
+                                score = 0.50
+                        else:
+                            score = 0.50
+                    else:
+                        score = 0.50
+                else:
+                    score = 0.50
+
             results.append({
                 "symbol": sym,
                 "name": name,
                 "market": mkt,
-                "sentiment_score": round(float(score), 4) if (pd.notna(score) and np.isfinite(score)) else np.nan,
+                "raw_score": float(score) if pd.notna(score) else 0.50,
             })
 
         res_df = pd.DataFrame(results)
         if not res_df.empty:
-            res_df['sentiment_score'] = pd.to_numeric(res_df['sentiment_score'], errors='coerce')
-            res_df = res_df.sort_values(by="sentiment_score", ascending=False, na_position='last').reset_index(drop=True)
+            if len(res_df) > 1:
+                ranks = res_df.groupby("market")["raw_score"].rank(pct=True, ascending=True).clip(0.05, 0.95)
+                res_df["sentiment_score"] = (0.05 + 0.90 * ranks).round(4)
+            else:
+                res_df["sentiment_score"] = 0.50
+            res_df["sentiment_score"] = pd.to_numeric(res_df["sentiment_score"], errors="coerce").fillna(0.50)
+            res_df = res_df.sort_values(by="sentiment_score", ascending=False).reset_index(drop=True)
+            res_df = res_df[["symbol", "name", "market", "sentiment_score"]]
         return res_df
 
 

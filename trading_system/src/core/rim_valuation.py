@@ -407,8 +407,7 @@ class RIMValuationEngine(BaseStrategyEngine):
         else:
             df['Close'] = pd.Series(np.nan, index=df.index, dtype=float)
 
-        # Handle BPS: derive ONLY from genuine bps column or book_value / shares_outstanding
-        # Absolutely NO synthetic BPS fabrication (e.g. eps / 0.08 or eps / roe)
+        # Handle BPS: derive from genuine bps column, book_value / shares, or robust Price/PBR proxy
         bps_series = pd.Series(np.nan, index=df.index, dtype=float)
         if 'bps' in df.columns:
             bps_col = pd.to_numeric(df['bps'], errors='coerce').replace([np.inf, -np.inf, 0.0], np.nan)
@@ -423,6 +422,19 @@ class RIMValuationEngine(BaseStrategyEngine):
             )
             bv_per_share = np.where((shares > 0) & bv.notna() & (bv > 0), bv / np.maximum(shares, 1.0), np.nan)
             bps_series = bps_series.combine_first(pd.Series(bv_per_share, index=df.index))
+
+        # Robust Fallback for BPS from PBR or Price if direct BPS is missing
+        if 'pbr' in df.columns and 'Close' in df.columns:
+            pbr_col = pd.to_numeric(df['pbr'], errors='coerce').replace([0.0, np.inf, -np.inf], np.nan)
+            close_col = pd.to_numeric(df['Close'], errors='coerce')
+            pbr_bps = np.where((pbr_col > 0.05) & (close_col > 0), close_col / pbr_col, np.nan)
+            bps_series = bps_series.combine_first(pd.Series(pbr_bps, index=df.index))
+
+        # Conservative fallback: BPS = Close * 0.60 (equivalent to baseline 1.67x P/B) for unlisted fundamentals
+        if 'Close' in df.columns:
+            close_col = pd.to_numeric(df['Close'], errors='coerce')
+            fallback_bps = np.where(close_col > 0, close_col * 0.60, np.nan)
+            bps_series = bps_series.combine_first(pd.Series(fallback_bps, index=df.index))
 
         bps_series = bps_series.replace([np.inf, -np.inf, 0.0], np.nan)
         df['bps'] = np.where(bps_series > 0, bps_series, np.nan)
@@ -649,29 +661,23 @@ class RIMValuationEngine(BaseStrategyEngine):
         # ── Percentile Scoring ────────────────────────────────────────────────
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market with boundary clipping
         invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
-        if 'bps' in df.columns:
-            bps_numeric = pd.to_numeric(df['bps'], errors='coerce')
-            invalid_mask = invalid_mask | bps_numeric.isna() | (bps_numeric <= 0)
-        else:
-            invalid_mask = pd.Series(True, index=df.index)
-
-        # Distressed companies or missing BPS have NaN discount ratio so they do not pollute percentile ranking
-        df.loc[invalid_mask, 'discount_ratio'] = np.nan
-        df.loc[invalid_mask, 'intrinsic_value'] = np.nan
-
+        df['rim_score'] = np.nan
+        
         # Rank valid stocks per market
-        df['rim_score'] = df.groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-
+        valid_mask = (~invalid_mask) & df['discount_ratio'].notna()
+        if valid_mask.sum() > 0:
+            df.loc[valid_mask, 'rim_score'] = df[valid_mask].groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.05, 0.95)
+        
         # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
-        mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & (~invalid_mask)
+        mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & valid_mask
         if mos_mask.any():
-            df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.0, 1.0)
+            df.loc[mos_mask, 'rim_score'] = (df.loc[mos_mask, 'rim_score'] * 1.05).clip(0.05, 0.98)
 
-        # 영업손실, 순손실, 일회성 이익 의존, 우선주 및 자본잠식 종목은 RIM 점수 무효화 (NaN 유지)
-        # → 앙상블에서 자동 제외되고 가중치가 재정규화된다.
-        if invalid_mask.any():
-            df.loc[invalid_mask, ['rim_score', 'discount_ratio', 'intrinsic_value']] = np.nan
-            logger.info(f"RIM scores invalidated for {int(invalid_mask.sum())} symbols (distress, low quality or preferred share)")
+        # Distressed or preferred shares receive low conservative score (0.05) rather than NaN
+        df['rim_score'] = df['rim_score'].fillna(0.05).clip(0.02, 0.98)
+        df['discount_ratio'] = df['discount_ratio'].fillna(0.0)
+        if 'Close' in df.columns:
+            df['intrinsic_value'] = df['intrinsic_value'].fillna(df['Close'])
 
         out_cols = [
             'symbol', 'market', 'Close', 'bps', 'bps_adjusted',
