@@ -7,7 +7,7 @@ Integrates Cross-Attention with Macro Indicators and Self-Attention over Tempora
 import os
 import math
 import logging
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
