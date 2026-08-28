@@ -662,12 +662,12 @@ class RIMValuationEngine(BaseStrategyEngine):
         # Transform Discount Ratio to Percentile Score [0.0, 1.0] per Market with boundary clipping
         invalid_mask = df['rim_filter_reason'].isin(['LOW_EARNINGS_QUALITY', 'PREFERRED_SHARE', 'OPERATING_LOSS'])
         df['rim_score'] = np.nan
-        
+
         # Rank valid stocks per market
         valid_mask = (~invalid_mask) & df['discount_ratio'].notna()
         if valid_mask.sum() > 0:
             df.loc[valid_mask, 'rim_score'] = df[valid_mask].groupby('market')['discount_ratio'].rank(pct=True, ascending=True).clip(0.05, 0.95)
-        
+
         # Margin of safety acceleration for high-quality value stocks (Discount >= 30% and ROE >= required_return)
         mos_mask = (df['discount_ratio'] >= 0.30) & (df['roe'] >= 0.08) & valid_mask
         if mos_mask.any():

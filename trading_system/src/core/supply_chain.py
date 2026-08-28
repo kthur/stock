@@ -345,7 +345,7 @@ class SupplyChainEngine(BaseStrategyEngine):
                         r1 = us_proxy_1d if is_us_leader else 0.0
                         r3 = r1 * 1.5
                         r5 = r1 * 2.0
-                    
+
                     r1_eff = r1
                     # Non-linear Asymmetric Bullwhip Spillover (Forrester 1961, Lee et al. 1997):
                     # Downside customer shocks transmit immediately with panic amplification (1.35x),

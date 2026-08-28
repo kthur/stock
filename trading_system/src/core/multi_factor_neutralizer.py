@@ -139,7 +139,6 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
 
         # 3. Resolve or compute raw alpha scores y
         raw_scores = kwargs.get("raw_scores", kwargs.get("raw_scores_df", None))
-        has_explicit_raw = False
 
         if raw_scores is not None and isinstance(raw_scores, pd.DataFrame) and not raw_scores.empty:
             score_col = None
@@ -154,18 +153,14 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             if score_col:
                 score_map = dict(zip(raw_scores["symbol"].astype(str).str.strip(), pd.to_numeric(raw_scores[score_col], errors="coerce")))
                 df["_raw_y"] = df["symbol"].map(score_map)
-                has_explicit_raw = True
             else:
                 df["_raw_y"] = np.nan
         elif raw_scores is not None and isinstance(raw_scores, dict):
             df["_raw_y"] = df["symbol"].map(raw_scores)
-            has_explicit_raw = True
         elif "score" in df.columns:
             df["_raw_y"] = pd.to_numeric(df["score"], errors="coerce")
-            has_explicit_raw = True
         elif "raw_score" in df.columns:
             df["_raw_y"] = pd.to_numeric(df["raw_score"], errors="coerce")
-            has_explicit_raw = True
         else:
             # Fallback 1: Extract from universe momentum columns
             if "momentum_12m_1m" in df.columns:

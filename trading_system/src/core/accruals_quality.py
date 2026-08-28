@@ -80,7 +80,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
                     fund_map = deduped.set_index('symbol').to_dict(orient='index')
 
         sym_strs = [str(s) for s in symbols]
-        
+
         # If fund_map is missing or empty, compute price-volume cashflow proxy
         if not fund_map:
             scores = {}
@@ -103,7 +103,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
             else:
                 for sym_str in sym_strs:
                     scores[sym_str] = 0.50
-            
+
             df_acc = pd.DataFrame(list(scores.items()), columns=['symbol', 'raw_score'])
             if len(df_acc) > 1:
                 df_acc['accruals_quality_score'] = df_acc['raw_score'].rank(pct=True).clip(0.05, 0.95)
@@ -172,7 +172,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             bonus = float(df_acc.loc[valid_mask, 'conversion_bonus'].iloc[0])
             df_acc.loc[valid_mask, 'accruals_quality_score'] = min(0.50 + bonus, 0.95)
-        
+
         # Fill any remaining NaNs with cross-sectional median or default
         if df_acc['accruals_quality_score'].isna().any():
             med_val = df_acc['accruals_quality_score'].dropna().median() if df_acc['accruals_quality_score'].notna().any() else 0.50
