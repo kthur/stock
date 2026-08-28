@@ -351,7 +351,7 @@ class PatchTransformerPredictor:
         if not os.path.exists(filepath):
             logger.warning(f"[PatchTransformer] Model file not found: {filepath}")
             return False
-        state = torch.load(filepath, map_location=self.device)
+        state = torch.load(filepath, map_location=self.device, weights_only=False)  # nosec B614
         self.horizons = state['horizons']
         self.seq_len = state['seq_len']
         self.d_model = state['d_model']
