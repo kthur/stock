@@ -286,14 +286,8 @@ class EventDrivenEngine(BaseStrategyEngine):
                     if sent_metric:
                         scores_map[sym] = self.incorporate_filing_sentiment(sym, scores_map[sym], sent_metric)
 
-        res_df = pd.DataFrame([{'symbol': k, 'raw_score': float(np.clip(v, 0.0, 1.0)) if np.isfinite(v) else 0.5} for k, v in scores_map.items()])
-        if len(res_df) > 1:
-            ranks = res_df['raw_score'].rank(pct=True, ascending=True).clip(0.05, 0.95)
-            res_df['event_score'] = (0.05 + 0.90 * ranks).round(4)
-        else:
-            res_df['event_score'] = 0.50
-        res_df['event_score'] = pd.to_numeric(res_df['event_score'], errors='coerce').fillna(0.50)
-        return res_df[['symbol', 'event_score']]
+        res_df = pd.DataFrame([{'symbol': k, 'event_score': float(np.clip(v, 0.0, 1.0)) if np.isfinite(v) else 0.5} for k, v in scores_map.items()])
+        return res_df
 
     def evaluate_cb_bw_overhang_and_margin_risk(
         self,

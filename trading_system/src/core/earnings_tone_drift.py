@@ -48,7 +48,7 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
     ) -> pd.DataFrame:
         symbols = list(prices_dict.keys()) if prices_dict else []
         transcript_map = kwargs.get("transcript_map", None)
-        return self.compute_tone_drift_scores(symbols=symbols, transcript_map=transcript_map, prices_dict=prices_dict, **kwargs)
+        return self.compute_tone_drift_scores(symbols=symbols, transcript_map=transcript_map)
 
     def calculate_scores(
         self,
@@ -68,14 +68,12 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 if sym not in merged_symbols:
                     merged_symbols.append(sym)
         tm = transcript_map or kwargs.get("transcript_map", None)
-        return self.compute_tone_drift_scores(symbols=merged_symbols, transcript_map=tm, prices_dict=prices_dict, **kwargs)
+        return self.compute_tone_drift_scores(symbols=merged_symbols, transcript_map=tm)
 
     def compute_tone_drift_scores(
         self,
         symbols: List[str],
-        transcript_map: Optional[Dict[str, Dict[str, Any]]] = None,
-        prices_dict: Optional[Dict[str, pd.DataFrame]] = None,
-        **kwargs: Any
+        transcript_map: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> pd.DataFrame:
         """
         Computes Tone Drift Acceleration score per symbol [0.0, 1.0].
@@ -94,9 +92,6 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                 return default if not np.isfinite(res) else res
             except (ValueError, TypeError):
                 return default
-
-        # Price momentum drift fallback
-        prices_map = prices_dict if isinstance(prices_dict, dict) else kwargs.get('prices_dict')
 
         for sym in symbols:
             score = np.nan
@@ -130,40 +125,14 @@ class EarningsToneDriftEngine(BaseStrategyEngine):
                     score = float(np.clip(0.50 + abs_tone_boost + drift_boost, 0.0, 1.0))
                     score = score if np.isfinite(score) else 0.50
 
-            if pd.isna(score):
-                if prices_map and (sym in prices_map or str(sym).zfill(6) in prices_map):
-                    p_df = prices_map.get(sym, prices_map.get(str(sym).zfill(6)))
-                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 20:
-                        c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
-                        if c_col and c_col in p_df.columns:
-                            c_vals = p_df[c_col].dropna().values
-                            if len(c_vals) >= 20:
-                                # Post-earnings price momentum drift proxy: 5d return vs 20d baseline
-                                ret_5d = (c_vals[-1] / max(c_vals[-5], 1e-5)) - 1.0
-                                ret_20d = (c_vals[-1] / max(c_vals[-20], 1e-5)) - 1.0
-                                drift_proxy = 0.50 + (ret_5d * 2.0) + (ret_20d * 0.5)
-                                score = float(np.clip(drift_proxy, 0.10, 0.90))
-                            else:
-                                score = 0.50
-                        else:
-                            score = 0.50
-                    else:
-                        score = 0.50
-                else:
-                    score = 0.50
-
             results.append({
                 'symbol': sym,
-                'raw_score': float(score) if pd.notna(score) else 0.50
+                'earnings_tone_drift_score': score,
+                'tone_drift_score': score
             })
 
         res_df = pd.DataFrame(results)
-        if len(res_df) > 1:
-            ranks = res_df['raw_score'].rank(pct=True, ascending=True).clip(0.05, 0.95)
-            res_df['earnings_tone_drift_score'] = (0.05 + 0.90 * ranks).clip(0.05, 0.98)
-        else:
-            res_df['earnings_tone_drift_score'] = 0.50
-
-        res_df['tone_drift_score'] = res_df['earnings_tone_drift_score']
-        res_df['earnings_tone_drift_score'] = pd.to_numeric(res_df['earnings_tone_drift_score'], errors='coerce').fillna(0.50)
-        return res_df[['symbol', 'earnings_tone_drift_score', 'tone_drift_score']]
+        if not res_df.empty:
+            res_df['earnings_tone_drift_score'] = pd.to_numeric(res_df['earnings_tone_drift_score'], errors='coerce')
+            res_df['tone_drift_score'] = res_df['earnings_tone_drift_score']
+        return res_df

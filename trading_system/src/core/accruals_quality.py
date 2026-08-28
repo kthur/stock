@@ -80,35 +80,9 @@ class AccrualsQualityEngine(BaseStrategyEngine):
                     fund_map = deduped.set_index('symbol').to_dict(orient='index')
 
         sym_strs = [str(s) for s in symbols]
-
-        # If fund_map is missing or empty, compute price-volume cashflow proxy
         if not fund_map:
-            scores = {}
-            if prices_dict:
-                for sym_str in sym_strs:
-                    p_df = prices_dict.get(sym_str, prices_dict.get(sym_str.zfill(6)))
-                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 10:
-                        c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
-                        v_col = 'Volume' if 'Volume' in p_df.columns else ('volume' if 'volume' in p_df.columns else None)
-                        if c_col and v_col:
-                            ret = p_df[c_col].pct_change().tail(20).fillna(0.0)
-                            vol = p_df[v_col].tail(20).fillna(0.0)
-                            pos_flow = float(np.where(ret > 0, ret * vol, 0.0).sum())
-                            tot_flow = float((np.abs(ret) * vol).sum())
-                            scores[sym_str] = float(pos_flow / tot_flow) if tot_flow > 0 else 0.50
-                        else:
-                            scores[sym_str] = 0.50
-                    else:
-                        scores[sym_str] = 0.50
-            else:
-                for sym_str in sym_strs:
-                    scores[sym_str] = 0.50
-
-            df_acc = pd.DataFrame(list(scores.items()), columns=['symbol', 'raw_score'])
-            if len(df_acc) > 1:
-                df_acc['accruals_quality_score'] = df_acc['raw_score'].rank(pct=True).clip(0.05, 0.95)
-            else:
-                df_acc['accruals_quality_score'] = 0.50
+            default_val = 0.50 if len(sym_strs) == 1 else np.nan
+            df_acc = pd.DataFrame({'symbol': sym_strs, 'accruals_quality_score': default_val})
             return df_acc[['symbol', 'accruals_quality_score']]
 
         rows = []
@@ -128,7 +102,7 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         )
 
         # Balance Sheet Accruals fallback if real OCF is missing but operating items are present
-        missing_ocf_mask = ocf.isna()
+        missing_ocf_mask = ocf.isna() & net_inc.notna()
         if np.any(missing_ocf_mask):
             ca_change = pd.to_numeric(df_rows.get('current_assets_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
             cl_change = pd.to_numeric(df_rows.get('current_liabilities_change', pd.Series(0.0, index=sym_strs)), errors='coerce').fillna(0.0)
@@ -160,11 +134,13 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         valid_mask = df_acc['accrual_ratio'].notna() & np.isfinite(df_acc['accrual_ratio'])
 
         if valid_mask.sum() > 1:
+            # Rank score: inverted because lower accrual_ratio -> higher earnings quality
+            # Percentile rank: 1 - percentile_rank(accrual_ratio)
             ranks = df_acc.loc[valid_mask, 'accrual_ratio'].rank(pct=True, ascending=True).clip(0.02, 0.98)
             base_score = (1.0 - ranks + df_acc.loc[valid_mask, 'conversion_bonus']).clip(0.05, 0.95)
             # Accruals Quality Alpha Boost for top 15% high-cashflow sustainable earnings stocks
             high_quality_mask = base_score >= 0.85
-            enhanced_score = np.where(high_quality_mask, (0.05 + 0.93 * (base_score ** 0.90)).clip(0.05, 0.98), base_score)
+            enhanced_score = np.where(high_quality_mask, (base_score * 1.08).clip(0.05, 0.98), base_score)
             # Distress check: Cash-burning loss-making firms cannot receive high accruals quality alpha
             is_distressed = ((net_inc < 0) & (ocf < 0)).reindex(df_acc.index).fillna(False).loc[valid_mask]
             enhanced_score = np.where(is_distressed, np.minimum(0.30, enhanced_score), enhanced_score)
@@ -172,11 +148,9 @@ class AccrualsQualityEngine(BaseStrategyEngine):
         elif valid_mask.sum() == 1:
             bonus = float(df_acc.loc[valid_mask, 'conversion_bonus'].iloc[0])
             df_acc.loc[valid_mask, 'accruals_quality_score'] = min(0.50 + bonus, 0.95)
-
-        # Fill any remaining NaNs with cross-sectional median or default
-        if df_acc['accruals_quality_score'].isna().any():
-            med_val = df_acc['accruals_quality_score'].dropna().median() if df_acc['accruals_quality_score'].notna().any() else 0.50
-            df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].fillna(med_val).clip(0.05, 0.95)
+        else:
+            df_acc['accruals_quality_score'] = np.nan
 
         df_acc['accruals_quality_score'] = df_acc['accruals_quality_score'].astype(float)
+
         return df_acc[['symbol', 'accruals_quality_score']]

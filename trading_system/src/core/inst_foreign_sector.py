@@ -225,8 +225,9 @@ class InstForeignSectorEngine(BaseStrategyEngine):
             return acc_df.reset_index()[['symbol', 'inst_foreign_sector_score', 'foreign_acc_score', 'trust_acc_score', 'accumulation_score', 'sector_corr_score']]
 
         raw_ranks = acc_df['raw_composite'].rank(pct=True, ascending=True).clip(0.02, 0.98)
-        # Smooth Institutional Leader Acceleration Booster preserving strict monotonicity
-        enhanced_score = (0.05 + 0.93 * (raw_ranks ** 0.90)).clip(0.02, 0.98)
+        # Institutional Leader Acceleration Booster for top 15% accumulated leaders
+        inst_leader_mask = raw_ranks >= 0.85
+        enhanced_score = np.where(inst_leader_mask, (raw_ranks * 1.08).clip(0.0, 0.98), raw_ranks)
         acc_df['inst_foreign_sector_score'] = pd.to_numeric(pd.Series(enhanced_score, index=acc_df.index), errors='coerce').fillna(0.50).clip(0.0, 1.0)
 
         res_df = acc_df.reset_index()[['symbol', 'inst_foreign_sector_score', 'foreign_acc_score', 'trust_acc_score', 'accumulation_score', 'sector_corr_score']]

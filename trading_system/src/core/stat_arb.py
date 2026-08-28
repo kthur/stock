@@ -603,8 +603,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                 if spread_std <= 1e-8:
                     continue
                 current_spread = float(s1_log[-1] - (slope * s2_log[-1] + intercept))
-                raw_z = (current_spread - spread_mean) / spread_std
-                z_score = float(np.clip(raw_z, -4.0, 4.0))
+                z_score = float((current_spread - spread_mean) / spread_std)
 
                 # R7-5 Fix: Harmonize stop loss threshold (3.5) with Kalman structural break threshold (3.5)
                 signal = "NEUTRAL"
@@ -630,13 +629,7 @@ class StatisticalArbitrageEngine(BaseStrategyEngine):
                     "half_life": round(half_life, 1),
                 })
 
-        def _pair_sort_key(x: dict) -> tuple:
-            z = abs(x.get("z_score", 0.0))
-            is_tradeable = (1.2 <= z <= 3.5)
-            is_stop_loss = ("STOP_LOSS" in str(x.get("signal", "")))
-            return (0 if is_tradeable else (2 if is_stop_loss else 1), -z if is_tradeable else -abs(z - 2.0))
-
-        found_pairs.sort(key=_pair_sort_key)
+        found_pairs.sort(key=lambda x: abs(x.get("z_score", 0.0)), reverse=True)
 
         if found_pairs:
             if len(found_pairs) <= 3:

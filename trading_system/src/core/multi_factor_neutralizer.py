@@ -107,28 +107,20 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             df["market"] = df["symbol"].map(_detect_mkt)
 
         # 2. Merge fundamentals_dict if supplied
-        fund_data = fundamentals_dict if isinstance(fundamentals_dict, dict) else kwargs.get("fundamentals_dict")
-        if fund_data and isinstance(fund_data, dict):
-            def _get_fund_val(s: str, col: str) -> Any:
-                s_str = str(s).strip()
-                s_raw = s_str.split('.')[0]
-                s_clean = s_raw.zfill(6) if s_raw.isdigit() else s_raw
-                info = fund_data.get(s_str, fund_data.get(s_raw, fund_data.get(s_clean, {})))
-                if isinstance(info, dict):
-                    return info.get(col, np.nan)
-                return np.nan
-
+        if fundamentals_dict and isinstance(fundamentals_dict, dict):
             for col in ["market_cap", "per", "pbr", "roe", "asset_growth_yoy"]:
                 if col not in df.columns:
-                    df[col] = df["symbol"].map(lambda s: _get_fund_val(s, col))
+                    df[col] = df["symbol"].map(
+                        lambda s: fundamentals_dict.get(s, {}).get(col, np.nan)
+                    )
                 else:
                     missing_mask = df[col].isna()
                     if missing_mask.any():
                         df.loc[missing_mask, col] = df.loc[missing_mask, "symbol"].map(
-                            lambda s: _get_fund_val(s, col)
+                            lambda s: fundamentals_dict.get(s, {}).get(col, np.nan)
                         )
 
-            # Sector-grouped median imputation for PBR/ROE
+            # 5-4. Sector-grouped median imputation for PBR/ROE
             if "sector" in df.columns or "sector_code" in df.columns:
                 sec_col = "sector" if "sector" in df.columns else "sector_code"
                 for col in ["pbr", "roe"]:
@@ -139,6 +131,7 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
 
         # 3. Resolve or compute raw alpha scores y
         raw_scores = kwargs.get("raw_scores", kwargs.get("raw_scores_df", None))
+        has_explicit_raw = False
 
         if raw_scores is not None and isinstance(raw_scores, pd.DataFrame) and not raw_scores.empty:
             score_col = None
@@ -153,14 +146,18 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             if score_col:
                 score_map = dict(zip(raw_scores["symbol"].astype(str).str.strip(), pd.to_numeric(raw_scores[score_col], errors="coerce")))
                 df["_raw_y"] = df["symbol"].map(score_map)
+                has_explicit_raw = True
             else:
                 df["_raw_y"] = np.nan
         elif raw_scores is not None and isinstance(raw_scores, dict):
             df["_raw_y"] = df["symbol"].map(raw_scores)
+            has_explicit_raw = True
         elif "score" in df.columns:
             df["_raw_y"] = pd.to_numeric(df["score"], errors="coerce")
+            has_explicit_raw = True
         elif "raw_score" in df.columns:
             df["_raw_y"] = pd.to_numeric(df["raw_score"], errors="coerce")
+            has_explicit_raw = True
         else:
             # Fallback 1: Extract from universe momentum columns
             if "momentum_12m_1m" in df.columns:
@@ -194,21 +191,22 @@ class MultiFactorNeutralizerEngine(BaseStrategyEngine):
             else:
                 df["_raw_y"] = np.nan
 
-        # If _raw_y is totally empty or missing, derive from price momentum or rank
-        if df["_raw_y"].isna().all():
-            if prices_map and isinstance(prices_map, dict):
-                price_moms = {}
-                for sym, p_df in prices_map.items():
-                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 10:
-                        c_col = "Close" if "Close" in p_df.columns else ("close" if "close" in p_df.columns else None)
-                        if c_col and c_col in p_df.columns:
-                            c_vals = p_df[c_col].dropna().values
-                            if len(c_vals) >= 10:
-                                price_moms[str(sym).strip()] = (c_vals[-1] / max(c_vals[-10], 1e-5)) - 1.0
-                if price_moms:
-                    df["_raw_y"] = df["symbol"].map(price_moms).fillna(0.0)
-            if df["_raw_y"].isna().all():
-                df["_raw_y"] = np.linspace(-0.1, 0.1, len(df))
+        # Check if factors or raw scores exist; if totally empty/NaN, return NaNs (Bug A-3 contract)
+        fund_cols_exist = any(col in df.columns for col in ["market_cap", "per", "pbr", "roe", "asset_growth_yoy"])
+        if not fund_cols_exist and not has_explicit_raw and df["_raw_y"].isna().all():
+            logger.info("MultiFactorNeutralizerEngine: missing factors and raw scores. Returning deterministic NaNs.")
+            return pd.DataFrame({
+                "symbol": df["symbol"],
+                "name": df["name"],
+                "market": df["market"],
+                "factor_neutralized_score": np.nan,
+                "neutralized_score": np.nan,
+                "smb_exposure": np.nan,
+                "hml_exposure": np.nan,
+                "rmw_exposure": np.nan,
+                "cma_exposure": np.nan,
+                "umd_exposure": np.nan,
+            })
 
         # 4. Construct Fama-French 5-Factor Raw Series
         # Factor 1: Size (SMB) -> log(Market Cap)

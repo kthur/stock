@@ -77,7 +77,6 @@ class InsiderBuyingEngine(BaseStrategyEngine):
         # Default to NaN for symbols without insider filings
         scores_map = {sym: np.nan for sym in symbols}
 
-        # If insider filings are provided, evaluate them
         if insider_filings:
             # Pre-index filings by stock code/symbol for O(M) processing
             filings_by_code: Dict[str, List[Dict[str, Any]]] = {}
@@ -122,37 +121,8 @@ class InsiderBuyingEngine(BaseStrategyEngine):
 
                 scores_map[sym] = float(np.clip(cur_score, 0.0, 1.0)) if np.isfinite(cur_score) else np.nan
 
-        # Fallback for symbols without filings: smart-money accumulation proxy from prices_dict
-        prices_dict = kwargs.get('prices_dict')
-        for sym in symbols:
-            if pd.isna(scores_map.get(sym)):
-                if prices_dict and (sym in prices_dict or str(sym).zfill(6) in prices_dict):
-                    p_df = prices_dict.get(sym, prices_dict.get(str(sym).zfill(6)))
-                    if isinstance(p_df, pd.DataFrame) and len(p_df) >= 15:
-                        c_col = 'Close' if 'Close' in p_df.columns else ('close' if 'close' in p_df.columns else None)
-                        v_col = 'Volume' if 'Volume' in p_df.columns else ('volume' if 'volume' in p_df.columns else None)
-                        if c_col and v_col:
-                            ret = p_df[c_col].pct_change().tail(20).fillna(0.0)
-                            vol = p_df[v_col].tail(20).fillna(0.0)
-                            # Accumulation score: high volume on positive return days vs negative return days
-                            up_vol = float(np.where(ret > 0.01, vol, 0.0).sum())
-                            dn_vol = float(np.where(ret < -0.01, vol, 0.0).sum())
-                            acc_ratio = (up_vol + 1.0) / (up_vol + dn_vol + 2.0)
-                            scores_map[sym] = float(np.clip(0.35 + 0.30 * acc_ratio, 0.10, 0.90))
-                        else:
-                            scores_map[sym] = 0.50
-                    else:
-                        scores_map[sym] = 0.50
-                else:
-                    scores_map[sym] = 0.50
-
-        results = [{'symbol': str(k), 'raw_score': float(v) if pd.notna(v) else 0.50} for k, v in scores_map.items()]
+        results = [{'symbol': str(k), 'insider_buying_score': float(np.clip(v, 0.0, 1.0)) if (pd.notna(v) and np.isfinite(v)) else np.nan} for k, v in scores_map.items()]
         res_df = pd.DataFrame(results)
-        if len(res_df) > 1:
-            ranks = res_df['raw_score'].rank(pct=True, ascending=True).clip(0.05, 0.95)
-            res_df['insider_buying_score'] = (0.05 + 0.90 * ranks).clip(0.05, 0.98)
-        else:
-            res_df['insider_buying_score'] = 0.50
-
-        res_df['insider_buying_score'] = pd.to_numeric(res_df['insider_buying_score'], errors='coerce').fillna(0.50)
-        return res_df[['symbol', 'insider_buying_score']]
+        if not res_df.empty:
+            res_df['insider_buying_score'] = pd.to_numeric(res_df['insider_buying_score'], errors='coerce')
+        return res_df
