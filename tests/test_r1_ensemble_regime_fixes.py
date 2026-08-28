@@ -152,6 +152,7 @@ def test_raw_scores_preserves_nans_for_coverage_analyzer():
 def test_transaction_costs_and_slippage_all_markets():
     """Verify market-specific microstructure execution cost modeling across KOSPI, KOSDAQ, SP500, NASDAQ, and RUSSELL2000."""
     scorer = EnsembleScoringEngine()
+    scorer.score_normalizer = None
 
     # Create dummy predictions for 5 markets with equal turnover & volatility to isolate base spread friction
     df_reg = pd.DataFrame({
